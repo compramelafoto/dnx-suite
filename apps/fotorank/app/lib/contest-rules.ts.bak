@@ -1,0 +1,92 @@
+/**
+ * Reglas de edición por módulo y estado del concurso.
+ * Fuente centralizada para permisos de edición en la UI.
+ */
+
+export type ContestDisplayStatus = "DRAFT" | "READY" | "PUBLISHED" | "CLOSED" | "ARCHIVED";
+
+export type ContestModuleId =
+  | "datos"
+  | "fechas"
+  | "categorias"
+  | "jurado"
+  | "participaciones"
+  | "ranking"
+  | "diplomas"
+  | "premios"
+  | "comercializacion"
+  | "bases"
+  | "publicacion";
+
+export type EditPermission =
+  | "full"
+  | "partial"
+  | "readonly"
+  | "locked";
+
+export const DISPLAY_STATUS_LABELS: Record<ContestDisplayStatus, string> = {
+  DRAFT: "Borrador",
+  READY: "Listo para publicar",
+  PUBLISHED: "Publicado",
+  CLOSED: "Cerrado",
+  ARCHIVED: "Archivado",
+};
+
+const LEGACY_TO_DISPLAY: Record<string, ContestDisplayStatus> = {
+  DRAFT: "DRAFT",
+  SETUP_IN_PROGRESS: "DRAFT",
+  READY_TO_PUBLISH: "READY",
+  PUBLISHED: "PUBLISHED",
+  ACTIVE: "PUBLISHED",
+  CLOSED: "CLOSED",
+  ARCHIVED: "ARCHIVED",
+};
+
+export function getDisplayStatus(dbStatus: string): ContestDisplayStatus {
+  return LEGACY_TO_DISPLAY[dbStatus] ?? "DRAFT";
+}
+
+export function formatDisplayStatus(dbStatus: string): string {
+  return DISPLAY_STATUS_LABELS[getDisplayStatus(dbStatus)];
+}
+
+const EDIT_RULES: Record<string, Record<ContestDisplayStatus, EditPermission>> = {
+  datos: { DRAFT: "full", READY: "full", PUBLISHED: "full", CLOSED: "partial", ARCHIVED: "locked" },
+  fechas: { DRAFT: "full", READY: "full", PUBLISHED: "partial", CLOSED: "locked", ARCHIVED: "locked" },
+  categorias: { DRAFT: "full", READY: "full", PUBLISHED: "partial", CLOSED: "locked", ARCHIVED: "locked" },
+  jurado: { DRAFT: "full", READY: "full", PUBLISHED: "partial", CLOSED: "locked", ARCHIVED: "locked" },
+  participaciones: { DRAFT: "full", READY: "full", PUBLISHED: "full", CLOSED: "locked", ARCHIVED: "locked" },
+  ranking: { DRAFT: "locked", READY: "locked", PUBLISHED: "partial", CLOSED: "full", ARCHIVED: "locked" },
+  diplomas: { DRAFT: "full", READY: "full", PUBLISHED: "full", CLOSED: "full", ARCHIVED: "partial" },
+  premios: { DRAFT: "full", READY: "full", PUBLISHED: "full", CLOSED: "full", ARCHIVED: "locked" },
+  comercializacion: { DRAFT: "full", READY: "full", PUBLISHED: "full", CLOSED: "full", ARCHIVED: "locked" },
+  bases: { DRAFT: "full", READY: "full", PUBLISHED: "full", CLOSED: "full", ARCHIVED: "partial" },
+  publicacion: { DRAFT: "full", READY: "full", PUBLISHED: "locked", CLOSED: "locked", ARCHIVED: "locked" },
+};
+
+export function getEditPermission(moduleId: string, dbStatus: string): EditPermission {
+  const displayStatus = getDisplayStatus(dbStatus);
+  return EDIT_RULES[moduleId]?.[displayStatus] ?? "locked";
+}
+
+export function canEdit(moduleId: string, dbStatus: string): boolean {
+  const perm = getEditPermission(moduleId, dbStatus);
+  return perm === "full" || perm === "partial";
+}
+
+export function getRestrictionMessage(moduleId: string, dbStatus: string): string | null {
+  const perm = getEditPermission(moduleId, dbStatus);
+  const displayStatus = getDisplayStatus(dbStatus);
+  if (perm === "full") return null;
+  if (perm === "locked") {
+    return "Este módulo no se puede editar cuando el concurso está " + DISPLAY_STATUS_LABELS[displayStatus].toLowerCase() + ".";
+  }
+  if (perm === "partial") {
+    if (moduleId === "datos") return "Solo podés editar textos y portada.";
+    if (moduleId === "fechas") return "Solo podés modificar fechas futuras.";
+    if (moduleId === "categorias") return "Solo podés editar si no hay participaciones cargadas.";
+    if (moduleId === "jurado") return "Solo podés editar si la evaluación todavía no empezó.";
+    return "Edición con restricciones.";
+  }
+  return null;
+}

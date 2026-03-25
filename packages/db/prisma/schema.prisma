@@ -1,0 +1,3084 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                                Int                          @id @default(autoincrement())
+  email                             String                       @unique
+  password                          String?
+  role                              Role                         @default(PHOTOGRAPHER)
+  name                              String?
+  createdAt                         DateTime                     @default(now())
+  handler                           String?                      @unique
+  isPublicPageEnabled               Boolean                      @default(false)
+  logoUrl                           String?
+  preferredLabId                    Int?
+  primaryColor                      String?
+  profitMarginPercent               Float?
+  publicPageHandler                 String?                      @unique
+  secondaryColor                    String?
+  fontColor                         String?
+  address                           String?
+  birthDate                         DateTime?
+  city                              String?
+  /// Ubicación para eventos cerca e invitaciones por proximidad (km)
+  latitude                          Float?
+  longitude                         Float?
+  companyName                       String?
+  companyOwner                      String?
+  country                           String?
+  cuit                              String?
+  phone                             String?
+  province                          String?
+  postalCode                        String?
+  enableAlbumsPage                  Boolean                      @default(false)
+  enablePrintPage                   Boolean                      @default(false)
+  showCarnetPrints                  Boolean                      @default(false)
+  showPolaroidPrints                Boolean                      @default(false)
+  tertiaryColor                     String?
+  headerBackgroundColor             String?
+  footerBackgroundColor             String?
+  heroBackgroundColor               String?
+  pageBackgroundColor               String?
+  companyAddress                    String?
+  facebook                          String?
+  instagram                         String?
+  tiktok                            String?
+  website                           String?
+  whatsapp                          String?
+  digitalDiscount10Plus             Float?
+  digitalDiscount20Plus             Float?
+  digitalDiscount5Plus              Float?
+  digitalDiscountsEnabled           Boolean                      @default(false)
+  defaultDigitalPhotoPrice          Int?
+  mpAccessToken                     String?
+  mpConnectedAt                     DateTime?
+  mpRefreshToken                    String?
+  mpUserId                          String?
+  blockedAt                         DateTime?
+  blockedReason                     String?
+  isBlocked                         Boolean                      @default(false)
+  lastLoginAt                       DateTime?
+  tags                              String[]                     @default([])
+  passwordResetExpires              DateTime?
+  passwordResetToken                String?                      @unique
+  googleId                          String?                      @unique
+  emailVerifiedAt                   DateTime?
+  platformCommissionPercentOverride Int?
+  /// CBU o Alias CBU para transferencias de comisiones por referidos
+  cbu                               String?
+  /// Titular de la cuenta (para transferencias de comisiones por referidos)
+  cbuTitular                        String?
+  adminLogs                         AdminLog[]                   @relation("AdminLogActor")
+  sentMessages                      AdminMessage[]               @relation("MessageSender")
+  messageThreads                    AdminMessageThread[]         @relation("UserMessageThreads")
+  albums                            Album[]
+  albumsCreated                     Album[]                      @relation("AlbumCreator")
+  albumAccesses                     AlbumAccess[]
+  albumExtensionsRequested          AlbumExtension[]             @relation("AlbumExtensionRequestedBy")
+  albumInvitationsAccepted          AlbumInvitation[]            @relation("AlbumInvitationAcceptedBy")
+  albumInvitationsSent              AlbumInvitation[]            @relation("AlbumInvitationInvitedBy")
+  contactMessages                   ContactMessage[]             @relation("ContactMessagePhotographer")
+  lab                               Lab?                         @relation("LabUser")
+  passwordResetTokens               PasswordResetToken[]
+  uploadedPhotos                    Photo[]                      @relation("PhotoUploader")
+  products                          PhotographerProduct[]
+  clientOrders                      PrintOrder[]                 @relation("ClientOrders")
+  printOrders                       PrintOrder[]                 @relation("PhotographerOrders")
+  printOrderStatusHistory           PrintOrderStatusHistory[]    @relation("PrintOrderStatusHistoryChangedBy")
+  removalRequestsDecided            RemovalRequest[]             @relation("RemovalRequestDecider")
+  removalRequests                   RemovalRequest[]
+  supportMessages                   SupportMessage[]             @relation("SupportMessageAuthor")
+  supportTickets                    SupportTicket[]              @relation("SupportTicketAssignedTo")
+  termsAcceptances                  TermsAcceptance[]            @relation("UserTermsAcceptance")
+  preferredLab                      Lab?                         @relation("PhotographerPreferredLab", fields: [preferredLabId], references: [id])
+  loginDevices                      UserLoginDevice[]
+  buyerOrders                       Order[]                      @relation("OrderBuyerUser")
+  eventMemberships                  EventMember[]
+  eventInvitations                  EventInvitation[]
+  createdEvents                     Event[]                      @relation("EventCreator")
+  dashboardNotifications            DashboardNotification[]
+  organizerDownloadAllowances       OrganizerDownloadAllowance[]
+  albumCollaborations               AlbumCollaborator[]
+  referralCodeOwned                 ReferralCode?
+  referralAttributionsAsReferrer    ReferralAttribution[]        @relation("ReferralReferrer")
+  referralAttributionsAsReferred    ReferralAttribution[]        @relation("ReferralReferred")
+  referralPayoutRequests            ReferralPayoutRequest[]      @relation("ReferralPayoutRequests")
+  referralPayoutsMarkedBy           ReferralPayoutRequest[]      @relation("ReferralPayoutsMarkedBy")
+  photographerSalesSettings         PhotographerSalesSettings?
+  userUpsellConfigs                 UserUpsellConfig[]
+  userSessions                      UserSession[]
+  /// Si true, puede recibir emails de marketing (campañas)
+  marketingOptIn                    Boolean                      @default(false)
+  /// Cuando el usuario se da de baja del marketing
+  unsubscribedAt                    DateTime?
+  /// Token único para link de unsubscribe (generado si falta)
+  unsubscribeToken                  String?                      @unique
+  /// AAIP: cuándo optó por marketing
+  marketingOptInAt                  DateTime?
+  marketingOptInIp                  String?
+  marketingOptInSource              String?
+  /// AAIP: consentimiento para reconocimiento facial (User-level)
+  faceConsent                       Boolean                      @default(false)
+  faceConsentAt                     DateTime?
+  faceConsentIp                     String?
+  schools                           School[]                     @relation("SchoolOwner")
+
+  fotorankProfile                 FotorankProfile?            @relation("FrProfile")
+  frSuiteMemberships              Membership[]                @relation("FrSuiteMembership")
+  contestOrganizationsCreated     ContestOrganization[]       @relation("FrOrgCreator")
+  frContestOrgMemberships         ContestOrganizationMember[] @relation("FrCOrgMemberUser")
+  frContestOrgInvitesSent         ContestOrganizationMember[] @relation("FrCOrgMemberInviter")
+  fotorankContestsCreated         FotorankContest[]           @relation("FrContestCreator")
+  fotorankJudgeInvitationsSent    FotorankJudgeInvitation[]   @relation("FrJudgeInvSentBy")
+  fotorankJudgeAssignmentsCreated FotorankJudgeAssignment[]   @relation("FrJudgeAsgCreator")
+  fotorankContestEntriesAuthored  FotorankContestEntry[]      @relation("FrEntryAuthor")
+  fotorankJudgeAuditEventsAsUser  FotorankJudgeAuditEvent[]   @relation("FrJudgeAuditActorUser")
+  fotorankAdminSessions           FotorankAdminSession[]      @relation("FrAdminSession")
+}
+
+/// Sesiones server-side unificadas (DNX Suite)
+model UserSession {
+  id        String   @id @default(cuid())
+  userId    Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+/// Estado de campaña de email marketing
+enum EmailCampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  PAUSED
+  CANCELED
+}
+
+/// Estado de cada envío individual
+enum EmailSendStatus {
+  QUEUED
+  SENT
+  FAILED
+  BOUNCED
+  COMPLAINED
+}
+
+/// Campaña de email marketing (admin)
+model EmailCampaign {
+  id              Int                 @id @default(autoincrement())
+  name            String /// Nombre interno
+  subject         String
+  previewText     String?
+  fromName        String
+  fromEmail       String
+  html            String              @db.Text
+  status          EmailCampaignStatus @default(DRAFT)
+  audienceJson    Json? /// { roles, workspaceId, filters }
+  scheduledAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  createdByUserId Int?
+  sends           EmailSend[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Registro de cada email enviado en una campaña
+model EmailSend {
+  id                Int             @id @default(autoincrement())
+  campaignId        Int
+  toEmail           String
+  toUserId          Int?
+  status            EmailSendStatus @default(QUEUED)
+  providerMessageId String?
+  error             String?         @db.Text
+  sentAt            DateTime?
+  attempts          Int             @default(0)
+  createdAt         DateTime        @default(now())
+  campaign          EmailCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// * Capabilities para upsell engine (qué puede ofrecer el fotógrafo)
+enum UpsellCapability {
+  DIGITAL_SALES
+  PRINT_SALES
+  RETOUCH_PRO
+  EXPRESS_DELIVERY
+  STORAGE_EXTEND
+}
+
+/// * Configuración de ventas del fotógrafo (workspace): qué ofrece y precios/fulfillment
+model PhotographerSalesSettings {
+  id                       Int      @id @default(autoincrement())
+  userId                   Int      @unique
+  capabilities             String[] @default([])
+  digitalEnabled           Boolean  @default(true)
+  printsEnabled            Boolean  @default(false)
+  retouchEnabled           Boolean  @default(false)
+  expressEnabled           Boolean  @default(false)
+  storageExtendEnabled     Boolean  @default(false)
+  printsPriceListJson      Json?
+  printsFulfillmentJson    Json?
+  retouchPricingJson       Json?
+  expressPricingJson       Json?
+  storageExtendPricingJson Json?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PhotographerProduct {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  name        String
+  size        String?
+  acabado     String?
+  retailPrice Int      @default(0)
+  currency    String   @default("ARS")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+/// * Tipo de evento para álbumes colaborativos y eventos
+enum EventType {
+  PUBLIC_SESSION
+  PRIVATE_SESSION
+  SPORTS
+  PUBLIC_PHOTOGRAPHY
+  THEMATIC_SESSIONS
+  COMMERCIAL_SESSIONS
+  SCHOOL
+  RELIGIOUS
+  FESTIVAL
+  CONFERENCE
+  CONCERT
+  CORPORATE
+  OTHER
+  // Valores legacy (eventos ya creados)
+  WEDDING
+  BIRTHDAY
+  GRADUATION
+}
+
+/// * Visibilidad del evento
+enum EventVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+/// * Política de unión al evento
+enum EventJoinPolicy {
+  OPEN
+  REQUEST
+  INVITE_ONLY
+}
+
+/// * Estado del miembro del evento
+enum EventMemberStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
+/// * Tipo de entrega para fulfillment
+enum DeliveryType {
+  PICKUP
+  SHIPPING
+}
+
+model Album {
+  id                              Int                  @id @default(autoincrement())
+  userId                          Int
+  title                           String
+  location                        String?
+  eventDate                       DateTime?
+  publicSlug                      String               @unique
+  createdAt                       DateTime             @default(now())
+  /// Creador del álbum base (null = userId es el creador, backward compat)
+  creatorId                       Int?
+  /// Evento asociado (álbum colaborativo vinculado a evento)
+  eventId                         Int?
+  /// Tipo de evento
+  type                            EventType?
+  /// Geohash para búsqueda por proximidad
+  geohash                         String?
+  latitude                        Float?
+  longitude                       Float?
+  /// Ventana temporal del evento
+  startsAt                        DateTime?
+  endsAt                          DateTime?
+  /// Ciudad (string, para matching)
+  city                            String?
+  /// Tipo de entrega por defecto
+  deliveryType                    DeliveryType?
+  albumProfitMarginPercent        Float?
+  printPricingSource              PrintPricingSource   @default(PHOTOGRAPHER)
+  coverPhotoId                    Int?
+  digitalPhotoPriceCents          Int?
+  pickupBy                        PickupBy?
+  selectedLabId                   Int?
+  enableDigitalPhotos             Boolean              @default(true)
+  enablePrintedPhotos             Boolean              @default(true)
+  includeDigitalWithPrint         Boolean              @default(false)
+  digitalWithPrintDiscountPercent Float?               @default(0)
+  isHidden                        Boolean              @default(false)
+  showComingSoonMessage           Boolean              @default(false)
+  firstPhotoDate                  DateTime?
+  digitalDiscount10Plus           Float?
+  digitalDiscount20Plus           Float?
+  digitalDiscount5Plus            Float?
+  termsAcceptedAt                 DateTime?
+  termsVersion                    String?
+  isPublic                        Boolean              @default(true)
+  allowClientLabSelection         Boolean              @default(false)
+  expirationExtensionDays         Int                  @default(0)
+  expiresAt                       DateTime             @default(now())
+  reactivatedAt                   DateTime?
+  reactivationCount               Int                  @default(0)
+  coverCropX                      Float?
+  coverCropY                      Float?
+  coverCropZoom                   Float?
+  coverCropAspect                 Float?
+  coverThumbnailKey               String?
+  /// Máximo de fotos permitidas para descarga (por álbum, fijado por organizador)
+  maxDownloadAllowed              Int?
+  /// Fotos ocultas hasta verificación por selfie
+  hiddenPhotosEnabled             Boolean              @default(false)
+  /// Días de retención de selfie en R2 (null = no guardar)
+  hiddenSelfieRetentionDays       Int?
+  deletedAt                       DateTime? // Soft delete: álbum "eliminado" pero se conservan pedidos y contactos
+  /// Pre-compra PRO: cierre de pre-compra (ej. 1 día antes de la sesión); null = no pre-compra
+  preCompraCloseAt                DateTime?
+  /// Pre-compra PRO: si true, el cliente debe aprobar el diseño (1 ronda de cambios)
+  requireClientApproval           Boolean              @default(false)
+  /// Escuela vinculada (álbum escolar Etapa 1)
+  schoolId                        Int?
+  coverPhoto                      Photo?               @relation("AlbumCoverPhoto", fields: [coverPhotoId], references: [id])
+  selectedLab                     Lab?                 @relation("AlbumSelectedLab", fields: [selectedLabId], references: [id])
+  user                            User                 @relation(fields: [userId], references: [id])
+  creator                         User?                @relation("AlbumCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  event                           Event?               @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  collaborators                   AlbumCollaborator[]
+  slugAliases                     AlbumSlugAlias[]
+  accesses                        AlbumAccess[]
+  extensions                      AlbumExtension[]
+  interests                       AlbumInterest[]
+  invitations                     AlbumInvitation[]
+  notifications                   AlbumNotification[]
+  orders                          Order[]
+  photos                          Photo[]
+  removalRequests                 RemovalRequest[]
+  hiddenAlbumAttempts             HiddenAlbumAttempt[]
+  hiddenAlbumGrants               HiddenAlbumGrant[]
+  salesSettings                   AlbumSalesSettings?
+  preCompraProducts               AlbumProduct[]
+  preCompraOrders                 PreCompraOrder[]
+  subjects                        Subject[]
+  templates                       Template[] /// Plantillas del álbum (biblioteca) o asignadas a productos
+  school                          School?              @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([creatorId])
+  @@index([eventId])
+  @@index([schoolId])
+  @@index([geohash])
+  @@index([coverPhotoId])
+  @@index([selectedLabId])
+  @@index([isHidden])
+  @@index([deletedAt])
+}
+
+/// * Configuración de ventas por álbum: heredar o override capabilities
+model AlbumSalesSettings {
+  id                      Int      @id @default(autoincrement())
+  albumId                 Int      @unique
+  inheritFromPhotographer Boolean  @default(true)
+  allowedCapabilities     String[] @default([])
+  disabledCapabilities    String[] @default([])
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  album                   Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+}
+
+/// * Estado de estrategia de upsell (global, admin)
+enum UpsellStrategyStatus {
+  DRAFT
+  QA
+  BETA
+  APPROVED
+}
+
+/// * Estrategias de upsell (definidas por plataforma)
+model UpsellStrategy {
+  id                   Int                  @id @default(autoincrement())
+  slug                 String               @unique
+  name                 String
+  description          String?
+  status               UpsellStrategyStatus @default(DRAFT)
+  enabledGlobally      Boolean              @default(false)
+  requiresCapabilities String[]             @default([])
+  requiresConfigKeys   String[]             @default([])
+  rulesJson            Json?
+  rolloutPercent       Int                  @default(100)
+  rolloutAllowlist     String[]             @default([])
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  userConfigs          UserUpsellConfig[]
+}
+
+/// * Por fotógrafo: qué estrategias tiene habilitadas
+model UserUpsellConfig {
+  id         Int            @id @default(autoincrement())
+  userId     Int
+  strategyId Int
+  enabled    Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  strategy   UpsellStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, strategyId])
+  @@index([userId])
+  @@index([strategyId])
+}
+
+/// * Colaborador en álbum colaborativo
+model AlbumCollaborator {
+  id        Int                   @id @default(autoincrement())
+  albumId   Int
+  userId    Int
+  role      AlbumCollaboratorRole @default(COLLABORATOR)
+  createdAt DateTime              @default(now())
+  album     Album                 @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([albumId, userId])
+  @@index([albumId])
+  @@index([userId])
+}
+
+enum AlbumCollaboratorRole {
+  COLLABORATOR
+}
+
+/// * Alias de slug para redirigir al álbum base
+model AlbumSlugAlias {
+  id            Int      @id @default(autoincrement())
+  aliasSlug     String   @unique
+  targetAlbumId Int
+  createdAt     DateTime @default(now())
+  targetAlbum   Album    @relation(fields: [targetAlbumId], references: [id], onDelete: Cascade)
+
+  @@index([aliasSlug])
+  @@index([targetAlbumId])
+}
+
+/// * Evento georeferenciado creado por organizador
+model Event {
+  id                   Int                          @id @default(autoincrement())
+  title                String
+  description          String?
+  type                 EventType
+  startsAt             DateTime
+  endsAt               DateTime?
+  latitude             Float
+  longitude            Float
+  locationName         String?
+  city                 String
+  geohash              String?
+  visibility           EventVisibility              @default(PUBLIC)
+  joinPolicy           EventJoinPolicy              @default(OPEN)
+  maxPhotographers     Int?
+  /// Cantidad aproximada de asistentes (para que el fotógrafo sepa si es multitudinario)
+  expectedAttendees    Int?
+  creatorId            Int
+  promoCommitment      Boolean                      @default(false)
+  promoText            String?
+  /// Indicaciones para que el fotógrafo se acredite (visible en la vista del evento)
+  accreditationNotes   String?
+  /// Slug único para link público de invitación (/e/[shareSlug])
+  shareSlug            String?                      @unique
+  /// Key en R2 de la imagen de portada del evento
+  coverImageKey        String?
+  mergedIntoId         Int?
+  /// Si está definido, el evento fue dado de baja (no se muestra en listados; 7+ días pasados y 0 fotógrafos inscritos)
+  archivedAt           DateTime?
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+  creator              User                         @relation("EventCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  mergedInto           Event?                       @relation("EventMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedEvents         Event[]                      @relation("EventMerge")
+  members              EventMember[]
+  invitedPhotographers EventInvitation[]
+  albums               Album[]
+  similaritiesA        EventSimilarity[]            @relation("EventSimilarityA")
+  similaritiesB        EventSimilarity[]            @relation("EventSimilarityB")
+  downloadAllowances   OrganizerDownloadAllowance[]
+
+  @@index([creatorId])
+  @@index([city])
+  @@index([geohash])
+  @@index([startsAt])
+  @@index([mergedIntoId])
+  @@index([shareSlug])
+  @@index([archivedAt])
+}
+
+/// * Miembro del evento (organizador o fotógrafo)
+model EventMember {
+  id        Int               @id @default(autoincrement())
+  eventId   Int
+  userId    Int
+  role      EventMemberRole
+  status    EventMemberStatus @default(ACTIVE)
+  createdAt DateTime          @default(now())
+  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+/// * Invitación de fotógrafo a evento privado (solo ellos pueden ver/inscribirse)
+model EventInvitation {
+  id        Int      @id @default(autoincrement())
+  eventId   Int
+  userId    Int
+  invitedAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+enum EventMemberRole {
+  ORGANIZER
+  PHOTOGRAPHER
+}
+
+/// * Similitud entre eventos (alertas admin)
+model EventSimilarity {
+  id        Int                   @id @default(autoincrement())
+  eventAId  Int
+  eventBId  Int
+  score     Float
+  status    EventSimilarityStatus @default(SUGGESTED)
+  createdAt DateTime              @default(now())
+  eventA    Event                 @relation("EventSimilarityA", fields: [eventAId], references: [id], onDelete: Cascade)
+  eventB    Event                 @relation("EventSimilarityB", fields: [eventBId], references: [id], onDelete: Cascade)
+
+  @@unique([eventAId, eventBId])
+  @@index([status])
+}
+
+enum EventSimilarityStatus {
+  SUGGESTED
+  MERGED_MANUALLY
+  REJECTED
+}
+
+/// * Límite de descargas para organizador (10 por fotógrafo por evento)
+model OrganizerDownloadAllowance {
+  id             Int      @id @default(autoincrement())
+  eventId        Int
+  photographerId Int
+  usedDownloads  Int      @default(0)
+  maxDownloads   Int      @default(10)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  photographer   User     @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, photographerId])
+  @@index([eventId])
+  @@index([photographerId])
+}
+
+/// * Notificación in-app para dashboard
+model DashboardNotification {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([readAt])
+}
+
+model PhotobookDocument {
+  id        String   @id @default(cuid())
+  title     String?
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model AlbumInvitation {
+  id               String                @id @default(cuid())
+  albumId          Int
+  invitedEmail     String
+  invitedByUserId  Int
+  tokenHash        String                @unique
+  expiresAt        DateTime
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  acceptedAt       DateTime?
+  acceptedByUserId Int?
+  acceptedBy       User?                 @relation("AlbumInvitationAcceptedBy", fields: [acceptedByUserId], references: [id])
+  album            Album                 @relation(fields: [albumId], references: [id])
+  invitedBy        User                  @relation("AlbumInvitationInvitedBy", fields: [invitedByUserId], references: [id])
+  status           AlbumInvitationStatus @default(PENDING)
+
+  @@index([albumId])
+  @@index([invitedEmail])
+}
+
+enum AlbumInvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
+enum PrintPricingSource {
+  PHOTOGRAPHER
+  LAB_PREFERRED
+}
+
+enum PhotoAnalysisStatus {
+  PENDING
+  PROCESSING
+  DONE
+  ERROR
+}
+
+model AlbumAccess {
+  id        Int             @id @default(autoincrement())
+  albumId   Int
+  userId    Int
+  role      AlbumAccessRole @default(VIEWER)
+  createdAt DateTime        @default(now())
+  album     Album           @relation(fields: [albumId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
+
+  @@unique([albumId, userId])
+  @@index([albumId])
+  @@index([userId])
+}
+
+/// * Escuela (módulo fotografía escolar Etapa 1)
+model School {
+  id           Int            @id @default(autoincrement())
+  ownerId      Int
+  name         String
+  slug         String?        @unique
+  contactEmail String?
+  contactPhone String?
+  notes        String?
+  /// Dirección completa (ej. desde Google Maps / Nominatim)
+  address      String?
+  city         String?
+  province     String?
+  country      String?
+  latitude     Float?
+  longitude    Float?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  owner        User           @relation("SchoolOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  courses      SchoolCourse[]
+  albums       Album[]
+
+  @@index([ownerId])
+}
+
+/// * Curso/división de una escuela
+model SchoolCourse {
+  id              Int              @id @default(autoincrement())
+  schoolId        Int
+  name            String /// ej. "1ro", "Sala 5", "2do"
+  division        String? /// ej. "A", "B" (null = sin división)
+  sortOrder       Int?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  school          School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  subjects        Subject[]
+  preCompraOrders PreCompraOrder[]
+
+  @@index([schoolId])
+}
+
+model Photo {
+  id              Int                 @id @default(autoincrement())
+  albumId         Int
+  previewUrl      String
+  originalKey     String
+  createdAt       DateTime            @default(now())
+  userId          Int?
+  /// Si true, esta foto se puede vender como digital (por defecto sí)
+  sellDigital     Boolean             @default(true)
+  /// Si true, esta foto se puede vender como impresa (por defecto sí)
+  sellPrint       Boolean             @default(true)
+  isRemoved       Boolean             @default(false)
+  removedAt       DateTime?
+  removedReason   String?
+  analysisStatus  PhotoAnalysisStatus @default(PENDING)
+  analysisError   String?
+  analyzedAt      DateTime?
+  albumsAsCover   Album[]             @relation("AlbumCoverPhoto")
+  items           OrderItem[]
+  album           Album               @relation(fields: [albumId], references: [id])
+  uploadedBy      User?               @relation("PhotoUploader", fields: [userId], references: [id])
+  removalRequests RemovalRequest[]
+  analysisJob     PhotoAnalysisJob?
+  ocrTokens       OcrToken[]
+  faceDetections  FaceDetection[]
+  faceMatchEvents FaceMatchEvent[]
+  photoFaces      PhotoFace[]
+  faceMatches     FaceMatch[]
+  photoClaims     PhotoClaim[]
+  selectionPhotos SelectionPhoto[]
+
+  @@index([albumId])
+  @@index([userId])
+  @@index([isRemoved])
+}
+
+model PhotoAnalysisJob {
+  id        Int                 @id @default(autoincrement())
+  photoId   Int                 @unique
+  status    PhotoAnalysisStatus @default(PENDING)
+  attempts  Int                 @default(0)
+  lockedAt  DateTime?
+  runAfter  DateTime?
+  lastError String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  photo     Photo               @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([runAfter])
+  @@index([lockedAt])
+}
+
+model OcrToken {
+  id         Int      @id @default(autoincrement())
+  photoId    Int
+  textRaw    String
+  textNorm   String
+  confidence Float?
+  createdAt  DateTime @default(now())
+  photo      Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@index([photoId])
+  @@index([textNorm])
+}
+
+model FaceDetection {
+  id                Int              @id @default(autoincrement())
+  photoId           Int
+  rekognitionFaceId String           @unique
+  confidence        Float?
+  bbox              Json
+  createdAt         DateTime         @default(now())
+  photo             Photo            @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  faceMatchEvents   FaceMatchEvent[]
+
+  @@index([photoId])
+}
+
+model Order {
+  id                       Int                      @id @default(autoincrement())
+  albumId                  Int
+  buyerEmail               String
+  buyerUserId              Int?
+  buyerPhone               String?
+  claimedAt                DateTime?
+  status                   OrderStatus              @default(PENDING)
+  /// Total en ARS enteros (no centavos). Se conserva el sufijo "Cents" por compatibilidad histórica.
+  totalCents               Int                      @default(0)
+  createdAt                DateTime                 @default(now())
+  /// Recargo por extensión en ARS enteros (no centavos).
+  extensionSurchargeCents  Int                      @default(0)
+  mpPreferenceId           String?
+  mpInitPoint              String?
+  mpPaymentId              String?
+  platformCommissionCents  Int?                     @default(0)
+  pricingSnapshot          Json?
+  /// Descuento aplicado del saldo de referidos del dueño del álbum a este pedido (centavos)
+  referralFeeDiscountCents Int?
+  digitalDeliveredAt       DateTime?
+  /// Primera vez que el cliente abrió el link de descarga o descargó (para mostrar en panel fotógrafo/admin)
+  downloadLinkViewedAt     DateTime?
+  album                    Album                    @relation(fields: [albumId], references: [id])
+  items                    OrderItem[]
+  fulfillmentGroups        OrderFulfillmentGroup[]
+  buyerUser                User?                    @relation("OrderBuyerUser", fields: [buyerUserId], references: [id], onDelete: SetNull)
+  abandonedReminders       AbandonedOrderReminder[]
+  whatsappDeliveryLogs     WhatsAppDeliveryLog[]
+
+  @@index([albumId])
+  @@index([buyerUserId])
+  @@index([buyerEmail])
+}
+
+/// * Recordatorio de pedido abandonado (WhatsApp, email, etc.)
+model AbandonedOrderReminder {
+  id           String   @id @default(cuid())
+  orderId      Int
+  sentAt       DateTime @default(now())
+  channel      String /// "WHATSAPP" | "EMAIL"
+  templateUsed String
+  status       String /// "SENT" | "FAILED"
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, channel])
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+/// * Grupo de fulfillment por fotógrafo (multi-entrega)
+model OrderFulfillmentGroup {
+  id             Int          @id @default(autoincrement())
+  orderId        Int
+  photographerId Int
+  deliveryType   DeliveryType @default(PICKUP)
+  pickupAddress  Json? /// { addressLine1, city, province, postalCode, country }
+  createdAt      DateTime     @default(now())
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  items          OrderItem[]
+
+  @@index([orderId])
+  @@index([photographerId])
+}
+
+model OrderItem {
+  id                 Int                    @id @default(autoincrement())
+  orderId            Int
+  photoId            Int
+  fulfillmentGroupId Int? /// null = legacy single group
+  /// Precio unitario en ARS enteros (no centavos).
+  priceCents         Int                    @default(0)
+  finish             String? // Acabado libre: BRILLO, MATE, CUERO, ARENA, LIJA, etc. (lo que ofrezca el lab/fotógrafo)
+  material           ProductMaterial?
+  productType        OrderItemType          @default(DIGITAL)
+  quantity           Int                    @default(1)
+  size               String?
+  /// Subtotal en ARS enteros (no centavos).
+  subtotalCents      Int                    @default(0)
+  order              Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fulfillmentGroup   OrderFulfillmentGroup? @relation(fields: [fulfillmentGroupId], references: [id], onDelete: SetNull)
+  photo              Photo                  @relation(fields: [photoId], references: [id])
+
+  @@index([orderId])
+  @@index([photoId])
+  @@index([fulfillmentGroupId])
+  @@index([productType])
+}
+
+// ========== PRE-COMPRA PRO (escuelas) ==========
+
+/// * Producto de pre-compra por álbum (catálogo sin fotos)
+model AlbumProduct {
+  id                Int                  @id @default(autoincrement())
+  albumId           Int
+  name              String
+  description       String?
+  /// Precio en ARS enteros
+  price             Int                  @default(0)
+  mockupUrl         String?
+  minFotos          Int                  @default(1)
+  maxFotos          Int                  @default(1)
+  requiresDesign    Boolean              @default(false)
+  suggestionText    String?
+  defaultTemplateId Int?                 @unique
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  album             Album                @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  templates         Template[]
+  defaultTemplate   Template?            @relation("AlbumProductDefaultTemplate", fields: [defaultTemplateId], references: [id], onDelete: SetNull)
+  orderItems        PreCompraOrderItem[]
+
+  @@index([albumId])
+}
+
+/// * Pedido de pre-compra (cliente compró catálogo; con/sin pago según flujo)
+model PreCompraOrder {
+  id               Int                  @id @default(autoincrement())
+  albumId          Int
+  buyerEmail       String
+  buyerUserId      Int?
+  buyerName        String?
+  buyerPhone       String?
+  schoolCourseId   Int?
+  studentFirstName String?
+  studentLastName  String?
+  status           PreCompraOrderStatus @default(CREATED)
+  totalCents       Int                  @default(0)
+  mpPreferenceId   String?
+  mpInitPoint      String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  album            Album                @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  schoolCourse     SchoolCourse?        @relation(fields: [schoolCourseId], references: [id], onDelete: SetNull)
+  items            PreCompraOrderItem[]
+  subjects         Subject[]
+  selfies          SubjectSelfie[]
+  photoClaims      PhotoClaim[]
+
+  @@index([albumId])
+  @@index([buyerEmail])
+  @@index([buyerUserId])
+  @@index([schoolCourseId])
+}
+
+enum PreCompraOrderStatus {
+  CREATED
+  PAID_HELD
+  CANCELED
+}
+
+/// * Ítem del pedido de pre-compra (por producto del catálogo)
+model PreCompraOrderItem {
+  id             Int                      @id @default(autoincrement())
+  orderId        Int
+  albumProductId Int
+  subjectId      Int? /// Niño asignado (opcional hasta selfie/selección)
+  status         PreCompraOrderItemStatus @default(WAITING_SELFIE)
+  approvalProof  ApprovalProof? /// FACE_MATCH | SELECTION
+  approvedAt     DateTime?
+  priceCents     Int                      @default(0)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  order          PreCompraOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  albumProduct   AlbumProduct             @relation(fields: [albumProductId], references: [id], onDelete: Cascade)
+  subject        Subject?                 @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  selection      Selection?
+  designProject  DesignProject?
+
+  @@index([orderId])
+  @@index([albumProductId])
+  @@index([subjectId])
+  @@index([status])
+}
+
+enum PreCompraOrderItemStatus {
+  WAITING_SELFIE
+  WAITING_UPLOAD
+  APPROVED_BY_MATCH
+  WAITING_SELECTION
+  READY_TO_DESIGN
+  DESIGN_SUBMITTED
+  NEEDS_CHANGES
+  APPROVED
+  EXPORTED
+}
+
+enum ApprovalProof {
+  FACE_MATCH
+  SELECTION
+}
+
+/// * Niño/sujeto por familia (nombre ej. "Gime"); vinculado a orden y álbum
+model Subject {
+  id               Int                  @id @default(autoincrement())
+  albumId          Int
+  label            String /// ej. "Gime" o "Nombre Apellido" (backward compat)
+  firstName        String?
+  lastName         String?
+  schoolCourseId   Int?
+  createdByOrderId Int?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  album            Album                @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  createdByOrder   PreCompraOrder?      @relation(fields: [createdByOrderId], references: [id], onDelete: SetNull)
+  schoolCourse     SchoolCourse?        @relation(fields: [schoolCourseId], references: [id], onDelete: SetNull)
+  selfies          SubjectSelfie[]
+  faceMatches      FaceMatch[]
+  photoClaims      PhotoClaim[]
+  orderItems       PreCompraOrderItem[]
+  selectionPhotos  SelectionPhoto[] /// Fotos elegidas en selección (subjectId en SelectionPhoto)
+
+  @@index([albumId])
+  @@index([createdByOrderId])
+  @@index([schoolCourseId])
+}
+
+/// * Selfie del niño para matching facial
+model SubjectSelfie {
+  id        Int            @id @default(autoincrement())
+  subjectId Int
+  orderId   Int
+  imageUrl  String /// URL en R2 o CDN
+  createdAt DateTime       @default(now())
+  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  order     PreCompraOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([subjectId])
+  @@index([orderId])
+}
+
+/// * Cara detectada en una foto (para matching con selfies)
+model PhotoFace {
+  id             Int         @id @default(autoincrement())
+  photoId        Int
+  bbox           Json /// { x, y, width, height } normalizado o px
+  faceExternalId String? /// ID del proveedor de detección (ej. Rekognition)
+  faceCount      Int         @default(1) /// En foto grupal > 1
+  createdAt      DateTime    @default(now())
+  photo          Photo       @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  faceMatches    FaceMatch[]
+
+  @@index([photoId])
+}
+
+/// * Match entre un subject (selfie) y una foto
+model FaceMatch {
+  id          Int        @id @default(autoincrement())
+  subjectId   Int
+  photoId     Int
+  photoFaceId Int?
+  confidence  Float?
+  isManual    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  subject     Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  photo       Photo      @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photoFace   PhotoFace? @relation(fields: [photoFaceId], references: [id], onDelete: SetNull)
+
+  @@unique([subjectId, photoId])
+  @@index([subjectId])
+  @@index([photoId])
+  @@index([photoFaceId])
+}
+
+/// * Reclamo "Esta foto es mi hijo" → aprobación manual del fotógrafo
+model PhotoClaim {
+  id        Int              @id @default(autoincrement())
+  photoId   Int
+  subjectId Int
+  orderId   Int
+  status    PhotoClaimStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  photo     Photo            @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  subject   Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  order     PreCompraOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([photoId])
+  @@index([subjectId])
+  @@index([orderId])
+  @@index([status])
+}
+
+enum PhotoClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// * Selección de fotos enviada por el cliente (para un ítem)
+model Selection {
+  id          Int                @id @default(autoincrement())
+  orderItemId Int                @unique
+  createdAt   DateTime           @default(now())
+  orderItem   PreCompraOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  photos      SelectionPhoto[]
+
+  @@index([orderItemId])
+}
+
+model SelectionPhoto {
+  id          Int       @id @default(autoincrement())
+  selectionId Int
+  photoId     Int
+  position    Int?      @default(0)
+  selection   Selection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  subject     Subject?  @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  subjectId   Int?
+
+  @@index([selectionId])
+  @@index([photoId])
+}
+
+/// * Plantilla: puede ser de la biblioteca del álbum (albumProductId null) o asignada a un producto.
+/// albumId null = plantilla pública del sistema (solo admin). Si albumId set = plantilla de ese álbum.
+model Template {
+  id                 Int             @id @default(autoincrement())
+  albumId            Int? /// null = plantilla pública del sistema (cualquier fotógrafo puede usarla); si set = de este álbum
+  albumProductId     Int? /// null = plantilla de la biblioteca del álbum; si está set = asignada a este producto
+  name               String /// ej. "Díptico 4 fotos - Modelo A"
+  imageUrl           String
+  greenColorHex      String          @default("#00ff00")
+  tolerance          Int             @default(30) /// 0-100
+  widthCm            Float
+  heightCm           Float
+  safeAreaConfigJson Json? /// { insetPx or percent }
+  textElementsJson   Json? /// [{ id, x, y, text, fontSize, fontFamily, fill }] en px de la imagen, editables luego en el diseñador
+  isSystemTemplate   Boolean         @default(false) /// true = plantilla del sistema, visible para todos por temática
+  theme              String? /// Temática para filtrar (ej. "Bodas", "Cumpleaños")
+  pagesJson          Json? /// Hojas adicionales: [{ imageUrl, widthCm, heightCm, slots, textElements }]; la primera hoja es imageUrl/slots actuales
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  album              Album?          @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumProduct       AlbumProduct?   @relation(fields: [albumProductId], references: [id], onDelete: Cascade)
+  defaultForProduct  AlbumProduct?   @relation("AlbumProductDefaultTemplate")
+  slots              TemplateSlot[]
+  designProjects     DesignProject[]
+
+  @@index([albumId])
+  @@index([albumProductId])
+}
+
+model TemplateSlot {
+  id         Int      @id @default(autoincrement())
+  templateId Int
+  index      Int /// Orden izq→der, arriba→abajo
+  bbox       Json /// { x, y, width, height } en px o normalizado
+  maskPngUrl String? /// Máscara alpha por hueco
+  createdAt  DateTime @default(now())
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+}
+
+/// * Proyecto de diseño (cliente diseña, fotógrafo aprueba)
+model DesignProject {
+  id                Int                 @id @default(autoincrement())
+  orderItemId       Int                 @unique
+  templateId        Int
+  status            DesignProjectStatus @default(DRAFT)
+  currentRevisionId Int?                @unique
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  orderItem         PreCompraOrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  template          Template            @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  currentRevision   DesignRevision?     @relation("DesignProjectCurrentRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+  revisions         DesignRevision[]    @relation("DesignProjectRevisions")
+
+  @@index([orderItemId])
+  @@index([templateId])
+  @@index([status])
+}
+
+enum DesignProjectStatus {
+  DRAFT
+  SUBMITTED
+  NEEDS_CHANGES
+  APPROVED
+}
+
+model DesignRevision {
+  id              Int                     @id @default(autoincrement())
+  designProjectId Int
+  createdBy       DesignRevisionCreatedBy @default(CLIENT)
+  dataJson        Json? /// Transforms por slot
+  exportedJpgUrl  String?
+  createdAt       DateTime                @default(now())
+  designProject   DesignProject           @relation("DesignProjectRevisions", fields: [designProjectId], references: [id], onDelete: Cascade)
+  projectCurrent  DesignProject?          @relation("DesignProjectCurrentRevision")
+
+  @@index([designProjectId])
+}
+
+enum DesignRevisionCreatedBy {
+  CLIENT
+  PHOTOGRAPHER
+}
+
+/// *
+/// * Pedido de impresión (cliente sube sus fotos)
+model PrintOrder {
+  id                       Int                       @id @default(autoincrement())
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  labId                    Int? // null = pedido va al fotógrafo (precios de su lista de productos)
+  photographerId           Int?
+  ownerType                PrintOrderOwnerType? // trazabilidad: dueño de la landing (FASE 1)
+  ownerId                  Int?
+  customerName             String?
+  customerEmail            String?
+  customerPhone            String?
+  pickupBy                 PickupBy                  @default(CLIENT)
+  status                   PrintOrderStatus          @default(CREATED)
+  statusUpdatedAt          DateTime                  @default(now())
+  currency                 String                    @default("ARS")
+  /// Total en ARS enteros (no centavos).
+  total                    Int                       @default(0)
+  paymentProvider          String?
+  paymentStatus            PrintOrderPaymentStatus   @default(PENDING)
+  mpPreferenceId           String?
+  mpInitPoint              String?
+  mpPaymentId              String?
+  clientId                 Int?
+  internalNotes            String?
+  labCommission            Int?
+  orderType                PrintOrderType            @default(PRINT)
+  photographerCommission   Int?
+  platformCommission       Int?
+  tags                     String[]                  @default([])
+  pricingSnapshot          Json?
+  /// Descuento aplicado del saldo de referidos del fotógrafo a este pedido (centavos)
+  referralFeeDiscountCents Int?
+  adminLogs                AdminLog[]                @relation("AdminLogPrintOrder")
+  paymentSplit             PaymentSplit?             @relation("PaymentSplit")
+  client                   User?                     @relation("ClientOrders", fields: [clientId], references: [id])
+  lab                      Lab?                      @relation(fields: [labId], references: [id])
+  photographer             User?                     @relation("PhotographerOrders", fields: [photographerId], references: [id])
+  items                    PrintOrderItem[]
+  statusHistory            PrintOrderStatusHistory[] @relation("PrintOrderStatusHistory")
+  supportTickets           SupportTicket[]
+
+  @@index([labId])
+  @@index([photographerId])
+  @@index([clientId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([orderType])
+  @@index([createdAt])
+}
+
+/// *
+/// * Item de impresión: UNA foto subida + configuración (tamaño, acabado, cantidad)
+model PrintOrderItem {
+  id             Int        @id @default(autoincrement())
+  createdAt      DateTime   @default(now())
+  orderId        Int
+  fileKey        String
+  originalName   String?
+  size           String
+  acabado        String     @default("BRILLO")
+  quantity       Int        @default(1)
+  /// Precio unitario en ARS enteros (no centavos).
+  unitPrice      Int        @default(0)
+  /// Subtotal en ARS enteros (no centavos).
+  subtotal       Int        @default(0)
+  /// Metadata adicional para reimpresión (carnet/polaroids).
+  meta           Json?
+  /// Fecha de expiración para borrar archivos finales (R2).
+  printExpiresAt DateTime?
+  order          PrintOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model Lab {
+  id                            Int                 @id @default(autoincrement())
+  name                          String
+  email                         String?             @unique
+  phone                         String?
+  address                       String?
+  city                          String?
+  province                      String?
+  country                       String?             @default("Argentina")
+  /// Ubicación georeferenciada del laboratorio (para perfil y proximidad)
+  latitude                      Float?
+  longitude                     Float?
+  isActive                      Boolean             @default(true)
+  createdAt                     DateTime            @default(now())
+  isPublicPageEnabled           Boolean             @default(false)
+  showCarnetPrints              Boolean             @default(false)
+  showPolaroidPrints            Boolean             @default(false)
+  logoUrl                       String?
+  primaryColor                  String?
+  publicPageHandler             String?             @unique
+  secondaryColor                String?
+  tertiaryColor                 String?
+  fontColor                     String?
+  userId                        Int?                @unique
+  approvalStatus                LabApprovalStatus   @default(PENDING)
+  mpAccessToken                 String?
+  mpConnectedAt                 DateTime?
+  mpRefreshToken                String?
+  mpUserId                      String?
+  commissionOverrideBps         Int?
+  internalNotes                 String?
+  isSuspended                   Boolean             @default(false)
+  labType                       LabType             @default(TYPE_B)
+  suspendedAt                   DateTime?
+  suspendedReason               String?
+  tags                          String[]            @default([])
+  defaultSlaDays                Int?
+  fulfillmentMode               FulfillmentMode     @default(PICKUP_ONLY)
+  radiusKm                      Int?
+  rejectedAt                    DateTime?
+  rejectedReason                String?
+  shippingEnabled               Boolean             @default(false)
+  soyFotografo                  Boolean             @default(false)
+  usePriceForPhotographerOrders PriceMode           @default(AUTO)
+  albumsWithSelectedLab         Album[]             @relation("AlbumSelectedLab")
+  contactMessages               ContactMessage[]    @relation("ContactMessageLab")
+  user                          User?               @relation("LabUser", fields: [userId], references: [id])
+  basePrices                    LabBasePrice[]
+  products                      LabProduct[]
+  productVariants               LabProductVariant[]
+  discounts                     LabSizeDiscount[]
+  orders                        PrintOrder[]
+  preferredByUsers              User[]              @relation("PhotographerPreferredLab")
+
+  @@index([approvalStatus])
+  @@index([userId])
+  @@index([labType])
+  @@index([soyFotografo])
+  @@index([province, city])
+}
+
+/// *
+/// * Laboratorios recomendados por fotógrafos (formulario público + panel admin)
+model LabRecommendation {
+  id               Int       @id @default(autoincrement())
+  photographerName String
+  labName          String
+  labEmail         String
+  labWhatsapp      String?
+  createdAt        DateTime  @default(now())
+  emailSentAt      DateTime?
+
+  @@index([createdAt])
+}
+
+model LabBasePrice {
+  id        Int      @id @default(autoincrement())
+  labId     Int
+  size      String
+  unitPrice Int
+  currency  String   @default("ARS")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lab       Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@unique([labId, size])
+  @@index([labId])
+}
+
+model LabSizeDiscount {
+  id              Int      @id @default(autoincrement())
+  labId           Int
+  size            String
+  minQty          Int
+  discountPercent Float
+  priceType       String   @default("PROFESSIONAL") /// PROFESSIONAL = precios fotógrafo, PUBLIC = precios público
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lab             Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@unique([labId, size, minQty, priceType])
+  @@index([labId])
+}
+
+/// *
+/// * Productos del laboratorio con precios mayorista (fotógrafo) y retail (cliente final)
+model LabProduct {
+  id                Int      @id @default(autoincrement())
+  labId             Int
+  name              String
+  size              String?
+  photographerPrice Int
+  retailPrice       Int
+  currency          String   @default("ARS")
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  acabado           String?
+  lab               Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@index([labId])
+  @@index([isActive])
+}
+
+/// *
+/// * Variantes de productos del laboratorio (estructura completa para importación XLSX)
+model LabProductVariant {
+  id                Int              @id @default(autoincrement())
+  labId             Int
+  productName       String
+  category          String?
+  description       String?
+  size              String?
+  finish            PrintFinish?
+  material          ProductMaterial?
+  slaDays           Int              @default(5)
+  priceRetailArs    Int?
+  priceWholesaleArs Int?
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  lab               Lab              @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@unique([labId, productName, size, finish, material])
+  @@index([labId])
+  @@index([isActive])
+  @@index([category])
+}
+
+/// *
+/// * Configuración del sistema (precio mínimo de fotos digitales, tax de app, etc.)
+model SystemSettings {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+}
+
+/// *
+/// * Configuración global de la aplicación (solo una fila con id=1)
+model AppConfig {
+  id                                     Int      @id @unique @default(1)
+  minDigitalPhotoPrice                   Int      @default(5000)
+  platformCommissionPercent              Int      @default(10)
+  updatedAt                              DateTime @updatedAt
+  adminCommissionRetailPercent           Float?   @default(10)
+  adminCommissionWholesalePercent        Float?   @default(8)
+  commissionDigital_Bps                  Int      @default(1000)
+  commissionPro_Bps                      Int?
+  commissionPublicTypeA_Bps              Int      @default(750)
+  commissionPublicTypeB_Bps              Int      @default(1000)
+  downloadLinkDays                       Int      @default(30)
+  maintenanceMode                        Boolean  @default(false)
+  photoDeletionDays                      Int      @default(45)
+  stuckOrderDays                         Int      @default(7)
+  /// Entrega post-compra por WhatsApp
+  whatsappEnabled                        Boolean  @default(false)
+  whatsappMaxPhotosToSend                Int      @default(10)
+  whatsappSendInitialMessage             Boolean  @default(true)
+  whatsappSendFinalMessage               Boolean  @default(true)
+  whatsappSendDownloadLinkForLargeOrders Boolean  @default(true)
+  whatsappDeliveryEnabledForPaidOrders   Boolean  @default(true)
+}
+
+/// * Log de entregas por WhatsApp (post-compra)
+model WhatsAppDeliveryLog {
+  id           String    @id @default(cuid())
+  orderId      Int
+  type         String /// INITIAL_MESSAGE | PHOTO | FINAL_MESSAGE | LINK_ONLY | FEATURED_PHOTO
+  mediaUrl     String?
+  waMessageId  String?
+  status       String    @default("PENDING") /// PENDING | SENT | FAILED
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  sentAt       DateTime?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// *
+/// * Notificaciones de álbum: clientes que quieren ser notificados cuando se suben fotos o antes de eliminación
+model AlbumNotification {
+  id                Int      @id @default(autoincrement())
+  albumId           Int
+  email             String
+  notifiedWhenReady Boolean  @default(false)
+  notifiedAt3Weeks  Boolean  @default(false)
+  notifiedAt2Weeks  Boolean  @default(false)
+  notifiedAt1Week   Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  name              String?
+  lastName          String?
+  whatsapp          String?
+  album             Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@unique([albumId, email])
+  @@index([albumId])
+  @@index([email])
+}
+
+model AlbumExtension {
+  id                Int                     @id @default(autoincrement())
+  albumId           Int
+  requestedByUserId Int?
+  requestedByRole   AlbumExtensionRequester @default(CLIENT_PUBLIC)
+  daysAdded         Int                     @default(30)
+  notifiedAt15Days  Boolean                 @default(false)
+  notifiedAt29Days  Boolean                 @default(false)
+  createdAt         DateTime                @default(now())
+  album             Album                   @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  requestedBy       User?                   @relation("AlbumExtensionRequestedBy", fields: [requestedByUserId], references: [id])
+
+  @@index([albumId])
+  @@index([requestedByUserId])
+  @@index([createdAt])
+}
+
+model MercadoPagoOAuthState {
+  id        Int                  @id @default(autoincrement())
+  state     String               @unique
+  ownerType MercadoPagoOwnerType
+  ownerId   Int
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime             @default(now())
+
+  @@index([ownerType, ownerId])
+  @@index([expiresAt])
+}
+
+model RemovalRequest {
+  id              Int                  @id @default(autoincrement())
+  createdAt       DateTime             @default(now())
+  decidedAt       DateTime?
+  status          RemovalRequestStatus @default(PENDING)
+  requesterName   String
+  requesterEmail  String
+  requesterPhone  String
+  reason          String
+  declarationOk   Boolean              @default(false)
+  albumId         Int
+  photoId         Int
+  photographerId  Int
+  decidedByUserId Int?
+  decisionNote    String?
+  album           Album                @relation(fields: [albumId], references: [id])
+  decidedBy       User?                @relation("RemovalRequestDecider", fields: [decidedByUserId], references: [id])
+  photo           Photo                @relation(fields: [photoId], references: [id])
+  photographer    User                 @relation(fields: [photographerId], references: [id])
+
+  @@index([photographerId])
+  @@index([photoId])
+  @@index([albumId])
+  @@index([status])
+  @@index([decidedByUserId])
+}
+
+/// *
+/// * Log de auditoría para acciones administrativas
+model AdminLog {
+  id           Int         @id @default(autoincrement())
+  createdAt    DateTime    @default(now())
+  actorId      Int
+  actorRole    Role
+  actorEmail   String?
+  entity       String
+  entityId     Int?
+  action       String
+  description  String?
+  beforeData   Json?
+  afterData    Json?
+  ipAddress    String?
+  userAgent    String?
+  printOrderId Int?
+  actor        User        @relation("AdminLogActor", fields: [actorId], references: [id])
+  printOrder   PrintOrder? @relation("AdminLogPrintOrder", fields: [printOrderId], references: [id])
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([printOrderId])
+}
+
+/// *
+/// * Incidencias de soporte
+model SupportTicket {
+  id                   Int                 @id @default(autoincrement())
+  createdAt            DateTime            @default(now())
+  /// Última vez que se envió email de respuesta al solicitante (backfill o respuesta admin)
+  lastReplyEmailSentAt DateTime?
+  updatedAt            DateTime            @updatedAt
+  printOrderId         Int?
+  reason               String
+  description          String
+  status               SupportTicketStatus @default(OPEN)
+  assignedToId         Int?
+  assignedAt           DateTime?
+  resolvedAt           DateTime?
+  resolutionNote       String?
+  attachments          String[]            @default([])
+  internalNotes        String?
+  requesterEmail       String?
+  requesterName        String?
+  requesterPhone       String?
+  requesterRole        String?
+  messages             SupportMessage[]    @relation("SupportTicketMessages")
+  assignedTo           User?               @relation("SupportTicketAssignedTo", fields: [assignedToId], references: [id])
+  printOrder           PrintOrder?         @relation(fields: [printOrderId], references: [id])
+
+  @@index([printOrderId])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([createdAt])
+}
+
+/// *
+/// * Testimonios públicos (formulario en /testimonios)
+model Testimonial {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+  name       String /// Nombre persona/empresa
+  message    String   @db.Text
+  instagram  String? /// @usuario para contacto
+  isApproved Boolean  @default(false) /// Si true, se muestra en land y /testimonios
+
+  @@index([createdAt])
+  @@index([isApproved])
+}
+
+/// *
+/// * Mensajes de contacto desde el formulario "Trabajá con nosotros"
+model ContactMessage {
+  id             Int       @id @default(autoincrement())
+  createdAt      DateTime  @default(now())
+  name           String
+  email          String
+  role           String?
+  message        String
+  documentUrl    String?
+  photographerId Int?
+  isRead         Boolean   @default(false)
+  readAt         DateTime?
+  labId          Int?
+  lab            Lab?      @relation("ContactMessageLab", fields: [labId], references: [id])
+  photographer   User?     @relation("ContactMessagePhotographer", fields: [photographerId], references: [id])
+
+  @@index([createdAt])
+  @@index([isRead])
+  @@index([photographerId])
+  @@index([labId])
+}
+
+/// *
+/// * Historial de cambios de estado de pedidos de impresión
+model PrintOrderStatusHistory {
+  id              Int              @id @default(autoincrement())
+  createdAt       DateTime         @default(now())
+  printOrderId    Int
+  status          PrintOrderStatus
+  changedByUserId Int?
+  notes           String?
+  changedBy       User?            @relation("PrintOrderStatusHistoryChangedBy", fields: [changedByUserId], references: [id])
+  printOrder      PrintOrder       @relation("PrintOrderStatusHistory", fields: [printOrderId], references: [id], onDelete: Cascade)
+
+  @@index([printOrderId])
+  @@index([createdAt])
+  @@index([changedByUserId])
+}
+
+/// *
+/// * Mensajes dentro de tickets de soporte
+model SupportMessage {
+  id          Int           @id @default(autoincrement())
+  createdAt   DateTime      @default(now())
+  ticketId    Int
+  authorId    Int?
+  authorName  String?
+  authorEmail String?
+  message     String
+  isInternal  Boolean       @default(false)
+  attachments String[]      @default([])
+  author      User?         @relation("SupportMessageAuthor", fields: [authorId], references: [id])
+  ticket      SupportTicket @relation("SupportTicketMessages", fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([createdAt])
+  @@index([authorId])
+}
+
+/// *
+/// * Split de pagos (distribución de dinero entre plataforma, lab, fotógrafo)
+model PaymentSplit {
+  id                 Int                @id @default(autoincrement())
+  createdAt          DateTime           @default(now())
+  printOrderId       Int                @unique
+  totalAmount        Int
+  platformAmount     Int
+  labAmount          Int?
+  photographerAmount Int?
+  status             PaymentSplitStatus @default(PENDING)
+  paidAt             DateTime?
+  notes              String?
+  printOrder         PrintOrder         @relation("PaymentSplit", fields: [printOrderId], references: [id], onDelete: Cascade)
+
+  @@index([printOrderId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// *
+/// * Documentos de Términos y Condiciones versionados
+model TermsDocument {
+  id          Int               @id @default(autoincrement())
+  role        Role
+  version     String
+  contentMd   String
+  isActive    Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  acceptances TermsAcceptance[] @relation("TermsDocumentAcceptance")
+
+  @@unique([role, version])
+  @@index([role, isActive])
+}
+
+/// *
+/// * Aceptaciones de Términos y Condiciones por usuario
+model TermsAcceptance {
+  id                Int           @id @default(autoincrement())
+  userId            Int
+  role              Role
+  termsDocumentId   Int
+  termsVersion      String
+  acceptedAt        DateTime      @default(now())
+  acceptedIp        String?
+  acceptedUserAgent String?
+  documentHash      String?
+  termsDocument     TermsDocument @relation("TermsDocumentAcceptance", fields: [termsDocumentId], references: [id])
+  user              User          @relation("UserTermsAcceptance", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role, termsVersion])
+  @@index([userId, role])
+  @@index([acceptedAt])
+  @@index([termsDocumentId])
+}
+
+/// *
+/// * Hilos de mensajería entre Admin y usuarios (Lab/Fotógrafo)
+model AdminMessageThread {
+  id                Int            @id @default(autoincrement())
+  participantUserId Int
+  participantRole   Role
+  lastMessageAt     DateTime       @default(now())
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  messages          AdminMessage[] @relation("ThreadMessages")
+  user              User           @relation("UserMessageThreads", fields: [participantUserId], references: [id], onDelete: Cascade)
+
+  @@unique([participantUserId, participantRole])
+  @@index([participantUserId])
+  @@index([lastMessageAt])
+}
+
+/// *
+/// * Mensajes individuales dentro de un hilo
+model AdminMessage {
+  id          Int                @id @default(autoincrement())
+  threadId    Int
+  senderId    Int?
+  senderRole  Role
+  body        String
+  isRead      Boolean            @default(false)
+  readAt      DateTime?
+  createdAt   DateTime           @default(now())
+  attachments String[]           @default([])
+  sender      User?              @relation("MessageSender", fields: [senderId], references: [id])
+  thread      AdminMessageThread @relation("ThreadMessages", fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@index([createdAt])
+  @@index([isRead])
+  @@index([senderId])
+}
+
+/// *
+/// * Interés de clientes en álbumes (para mostrar "interesados" en dashboard fotógrafo)
+model AlbumInterest {
+  id                 Int              @id @default(autoincrement())
+  albumId            Int
+  email              String
+  name               String?
+  createdAt          DateTime         @default(now())
+  lastName           String?
+  whatsapp           String?
+  firstName          String?
+  hasPurchased       Boolean          @default(false)
+  lastNotifiedAt     DateTime?
+  nextEmailAt        DateTime?
+  sentE01            Boolean          @default(false)
+  sentE02            Boolean          @default(false)
+  sentE03            Boolean          @default(false)
+  sentE04            Boolean          @default(false)
+  sentE05            Boolean          @default(false)
+  sentE06            Boolean          @default(false)
+  sentE07            Boolean          @default(false)
+  sentE08            Boolean          @default(false)
+  // Campos biométricos
+  biometricConsent   Boolean          @default(false)
+  biometricConsentAt DateTime?
+  biometricDeletedAt DateTime?
+  selfieKey          String?          @unique
+  faceId             String?          @unique
+  expiresAt          DateTime?
+  album              Album            @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  faceMatchEvents    FaceMatchEvent[]
+
+  @@unique([albumId, email])
+  @@index([albumId])
+  @@index([email])
+  @@index([faceId])
+  @@index([expiresAt])
+  @@index([biometricDeletedAt])
+}
+
+/// *
+/// * Eventos de matching facial (cuando se detecta una cara que coincide con un interesado)
+model FaceMatchEvent {
+  id              Int            @id @default(autoincrement())
+  albumInterestId Int
+  photoId         Int
+  faceDetectionId Int?
+  similarity      Float
+  notifiedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  albumInterest   AlbumInterest  @relation(fields: [albumInterestId], references: [id], onDelete: Cascade)
+  photo           Photo          @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  faceDetection   FaceDetection? @relation(fields: [faceDetectionId], references: [id], onDelete: SetNull)
+
+  @@index([albumInterestId])
+  @@index([photoId])
+  @@index([notifiedAt])
+  @@index([createdAt])
+}
+
+/// *
+/// * Resultado de un intento de selfie en álbum con fotos ocultas
+enum HiddenAlbumAttemptResult {
+  NO_FACE
+  MULTIPLE_FACES
+  MATCH_FOUND
+  NO_MATCH
+  EXPIRED_SESSION
+  RATE_LIMITED
+  ERROR
+}
+
+/// *
+/// * Tipo de dispositivo (para auditoría)
+enum HiddenAlbumDeviceType {
+  MOBILE
+  DESKTOP
+  UNKNOWN
+}
+
+/// *
+/// * Registro de cada intento de selfie (álbum con fotos ocultas) — auditoría
+model HiddenAlbumAttempt {
+  id                  String                   @id @default(uuid())
+  albumId             Int
+  createdAt           DateTime                 @default(now())
+  userId              Int?
+  guestId             String?
+  qrSessionId         String?
+  ipHash              String?
+  userAgent           String?                  @db.VarChar(1024)
+  deviceType          HiddenAlbumDeviceType    @default(UNKNOWN)
+  result              HiddenAlbumAttemptResult
+  errorCode           String?
+  errorMessage        String?                  @db.VarChar(512)
+  facesInSelfieCount  Int                      @default(0)
+  bestMatchConfidence Float?
+  matchedFacesCount   Int                      @default(0)
+  photosNoFaceCount   Int                      @default(0)
+  photosMatchedCount  Int                      @default(0)
+  photosVisibleTotal  Int                      @default(0)
+  selfieStored        Boolean                  @default(false)
+  selfieObjectKey     String?
+  selfieExpiresAt     DateTime?
+  durationMs          Int?
+  album               Album                    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  grant               HiddenAlbumGrant?        @relation("AttemptGrant")
+
+  @@index([albumId])
+  @@index([createdAt])
+  @@index([userId])
+  @@index([guestId])
+  @@index([result])
+  @@index([qrSessionId])
+}
+
+/// *
+/// * Autorización post-selfie: fotos que el usuario puede ver (álbum oculto)
+model HiddenAlbumGrant {
+  id              String             @id @default(uuid())
+  albumId         Int
+  createdAt       DateTime           @default(now())
+  expiresAt       DateTime
+  userId          Int?
+  guestId         String?
+  attemptId       String
+  allowedPhotoIds Json // array de photoId (number[])
+  allowedCount    Int
+  isRevoked       Boolean            @default(false)
+  album           Album              @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  attempt         HiddenAlbumAttempt @relation("AttemptGrant", fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId])
+  @@index([albumId])
+  @@index([expiresAt])
+  @@index([userId])
+  @@index([guestId])
+}
+
+/// *
+/// * Cola de emails para envío asíncrono
+model EmailQueue {
+  id             Int              @id @default(autoincrement())
+  to             String
+  subject        String
+  body           String
+  htmlBody       String?
+  templateId     Int?
+  templateData   Json?
+  priority       Int              @default(5)
+  status         EmailQueueStatus @default(PENDING)
+  attempts       Int              @default(0)
+  maxAttempts    Int              @default(3)
+  lastAttemptAt  DateTime?
+  sentAt         DateTime?
+  errorMessage   String?
+  idempotencyKey String?          @unique
+  createdAt      DateTime         @default(now())
+  scheduledFor   DateTime         @default(now())
+  template       EmailTemplate?   @relation(fields: [templateId], references: [id])
+
+  @@index([status, scheduledFor])
+  @@index([idempotencyKey])
+  @@index([createdAt])
+}
+
+/// *
+/// * Plantillas de emails reutilizables
+model EmailTemplate {
+  id         Int          @id @default(autoincrement())
+  key        String       @unique
+  name       String
+  subject    String
+  bodyText   String
+  bodyHtml   String?
+  variables  String[]     @default([])
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  queueItems EmailQueue[]
+
+  @@index([key])
+  @@index([isActive])
+}
+
+/// *
+/// * Tokens de verificación de email y creación de cuenta (magic links)
+model EmailVerificationToken {
+  id        Int          @id @default(autoincrement())
+  email     String
+  token     String       @unique
+  purpose   TokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([email, purpose])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model SentEmailLog {
+  id          Int      @id @default(autoincrement())
+  to          String
+  subject     String
+  templateKey String
+  resendId    String?
+  status      String
+  error       String?
+  createdAt   DateTime @default(now())
+  userId      Int?
+  albumId     Int?
+
+  @@index([to])
+  @@index([templateKey])
+  @@index([createdAt])
+}
+
+model AdminSystemMessage {
+  id        Int      @id @default(autoincrement())
+  type      String
+  title     String
+  body      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model UserLoginDevice {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  deviceHash String
+  ipHash     String
+  userAgent  String?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceHash])
+  @@index([userId])
+  @@index([lastSeenAt])
+}
+
+/// *
+/// * Tokens seguros para descargas de archivos
+model OrderDownloadToken {
+  id            Int               @id @default(autoincrement())
+  token         String            @unique
+  type          DownloadTokenType
+  orderId       Int?
+  photoId       Int?
+  albumId       Int?
+  expiresAt     DateTime
+  downloadCount Int               @default(0)
+  maxDownloads  Int?
+  createdAt     DateTime          @default(now())
+  lastUsedAt    DateTime?
+
+  @@index([token])
+  @@index([type, orderId])
+  @@index([expiresAt])
+  @@index([albumId])
+}
+
+model ZipGenerationJob {
+  id              String       @id @default(cuid())
+  type            ZipJobType
+  status          ZipJobStatus @default(PENDING)
+  orderId         Int?
+  albumId         Int?
+  requesterUserId Int?
+  photoIds        Int[]        @default([])
+  progress        Int          @default(0)
+  totalItems      Int          @default(0)
+  processedItems  Int          @default(0)
+  meta            Json?
+  r2Key           String?
+  zipUrl          String?
+  error           String?
+  expiresAt       DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @default(now()) @updatedAt
+
+  @@index([status, createdAt])
+  @@index([orderId])
+  @@index([albumId])
+}
+
+/// *
+/// * Preferencias de email del usuario
+model EmailPreferences {
+  id                 Int      @id @default(autoincrement())
+  userId             Int?
+  email              String   @unique
+  enableAlbumReady   Boolean  @default(true)
+  enableReminders    Boolean  @default(true)
+  enableOrderUpdates Boolean  @default(true)
+  enablePromotions   Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+}
+
+enum OrderItemType {
+  DIGITAL
+  PRINT
+  FRAME
+}
+
+enum AlbumAccessRole {
+  VIEWER
+}
+
+enum ProductMaterial {
+  CANVAS
+  WOOD
+}
+
+enum FulfillmentMode {
+  PICKUP_ONLY
+  SHIP_ONLY
+  BOTH
+}
+
+enum PriceMode {
+  AUTO
+  WHOLESALE
+  RETAIL
+}
+
+enum Role {
+  ADMIN
+  PHOTOGRAPHER
+  LAB
+  CUSTOMER
+  LAB_PHOTOGRAPHER
+  ORGANIZER
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED /// Pago rechazado/cancelado (webhook MP)
+  CANCELED
+  REFUNDED
+}
+
+/// *
+/// * Para el módulo de impresión:
+/// * "Acabado" (finish) es más claro que "tipo de papel".
+enum PrintFinish {
+  BRILLO
+  MATE
+}
+
+/// *
+/// * Estados del pedido de impresión (operativo de laboratorio)
+enum PrintOrderStatus {
+  CREATED
+  IN_PRODUCTION
+  READY
+  READY_TO_PICKUP
+  SHIPPED
+  DELIVERED
+  CANCELED
+  RETIRED
+}
+
+/// * Dueño de la landing de impresión (FASE 1: trazabilidad)
+enum PrintOrderOwnerType {
+  PHOTOGRAPHER
+  LAB
+}
+
+enum PickupBy {
+  CLIENT
+  PHOTOGRAPHER
+}
+
+enum PrintOrderPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+/// *
+/// * Estado de aprobación de laboratorios (solo ADMIN puede aprobar)
+enum LabApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DRAFT
+  SUSPENDED
+}
+
+enum LabType {
+  TYPE_A
+  TYPE_B
+}
+
+enum MercadoPagoOwnerType {
+  USER
+  LAB
+}
+
+enum PrintOrderType {
+  DIGITAL
+  PRINT
+  COMBO
+}
+
+enum AlbumExtensionRequester {
+  CLIENT_PUBLIC
+  PHOTOGRAPHER
+  LAB_PHOTOGRAPHER
+  ADMIN
+}
+
+enum RemovalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum PaymentSplitStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+/// * Sistema de referidos: solo fotógrafos generan código; referido atribuido 1 año, 50% del fee al referrer
+enum ReferralStatus {
+  ACTIVE
+  EXPIRED
+  BLOCKED
+}
+
+model ReferralCode {
+  id           Int                   @id @default(autoincrement())
+  code         String                @unique
+  ownerUserId  Int                   @unique
+  isActive     Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  ownerUser    User                  @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  attributions ReferralAttribution[]
+
+  @@index([code])
+  @@index([ownerUserId])
+}
+
+model ReferralAttribution {
+  id             Int               @id @default(autoincrement())
+  referralCodeId Int
+  referrerUserId Int
+  referredUserId Int
+  startsAt       DateTime
+  endsAt         DateTime
+  status         ReferralStatus    @default(ACTIVE)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  referralCode   ReferralCode      @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+  referrerUser   User              @relation("ReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referredUser   User              @relation("ReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  earnings       ReferralEarning[]
+
+  @@unique([referredUserId])
+  @@index([referrerUserId])
+  @@index([referralCodeId])
+  @@index([status, endsAt])
+}
+
+model ReferralEarning {
+  id                  Int                 @id @default(autoincrement())
+  attributionId       Int
+  paymentId           String? // id de MP o identificador del pago
+  saleRef             String? // orderId / purchaseId para trazabilidad
+  platformFeeCents    Int // fee original de plataforma
+  referralAmountCents Int // 50% pagado al referrer
+  platformNetCents    Int                 @default(0) // fee que recibe la plataforma (0 = legacy)
+  createdAt           DateTime            @default(now())
+  paidOutAt           DateTime? // cuando se pagó al referidor (solicitud de cobro)
+  reversedAt          DateTime? // reembolso/contracargo: la comisión no cuenta para el referidor
+  appliedAt           DateTime? // cuando se usó para descontar del fee de una venta propia del referidor
+  appliedToOrderId    Int? // orderId de la venta donde se aplicó
+  appliedToOrderType  String? // PRINT_ORDER | ALBUM_ORDER
+  attribution         ReferralAttribution @relation(fields: [attributionId], references: [id], onDelete: Cascade)
+
+  @@index([attributionId])
+  @@index([createdAt])
+}
+
+/// Solicitud de cobro de comisiones por referidos. El referidor ve "Solicitar cobro" y se crea esto;
+/// admin puede marcar como pagado (manual o vía API MP cuando esté habilitada).
+model ReferralPayoutRequest {
+  id             Int       @id @default(autoincrement())
+  referrerUserId Int
+  amountCents    Int
+  status         String    @default("PENDING") // PENDING | PAID | CANCELLED
+  requestedAt    DateTime  @default(now())
+  paidAt         DateTime?
+  paidByUserId   Int? // admin que marcó como pagado
+  externalRef    String? // ref de MP o transferencia
+  notes          String?
+  referrerUser   User      @relation("ReferralPayoutRequests", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  paidByUser     User?     @relation("ReferralPayoutsMarkedBy", fields: [paidByUserId], references: [id], onDelete: SetNull)
+
+  @@index([referrerUserId])
+  @@index([status])
+}
+
+/// Fee de plataforma que no se cobró en el pago (ej. preferencia creada con fee=0 por bug).
+/// Sirve para recuperar manualmente o descontar en un futuro payout.
+model UncollectedPlatformFee {
+  id          Int       @id @default(autoincrement())
+  orderType   String // "PRINT_ORDER" | "ALBUM_ORDER"
+  orderId     Int
+  amountCents Int
+  status      String    @default("PENDING") // PENDING | RECOVERED | WAIVED
+  notes       String?
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+
+  @@unique([orderType, orderId])
+  @@index([status])
+  @@index([orderType, orderId])
+}
+
+enum EmailQueueStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+enum TokenPurpose {
+  VERIFY_EMAIL
+  CREATE_ACCOUNT
+}
+
+enum ZipJobType {
+  ORDER_DOWNLOAD
+  ALBUM_DOWNLOAD
+  CUSTOM_PHOTOS
+}
+
+enum ZipJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+enum DownloadTokenType {
+  CLIENT_DIGITAL
+  LAB_PRINT
+}
+
+// --- AAIP: Solicitudes ARCO (acceso, rectificación, supresión, etc.) ---
+enum PrivacyRequestType {
+  ACCESO
+  RECTIFICACION
+  SUPRESION
+  OCULTAR_FOTO
+  BAJA_MARKETING
+  DESACTIVAR_BIOMETRIA
+}
+
+enum PrivacyRequestRelationship {
+  TITULAR
+  PADRE_MADRE_TUTOR
+}
+
+enum PrivacyRequestStatus {
+  RECEIVED
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+model PrivacyRequest {
+  id           Int                        @id @default(autoincrement())
+  type         PrivacyRequestType
+  fullName     String
+  email        String
+  phone        String?
+  relationship PrivacyRequestRelationship @default(TITULAR)
+  description  String?                    @db.Text
+  albumId      Int?
+  photoId      Int?
+  status       PrivacyRequestStatus       @default(RECEIVED)
+  internalNote String?                    @db.Text
+  metadata     Json?
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+/// Auditoría de eventos de privacidad (consentimientos facial, etc.)
+model PrivacyEvent {
+  id        Int      @id @default(autoincrement())
+  eventType String
+  userId    Int?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// --- Comunidad: directorio "Para fotógrafos" + "Proveedores" ---
+enum CommunityProfileType {
+  PHOTOGRAPHER_SERVICE
+  EVENT_VENDOR
+}
+
+enum CommunityProfileStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+}
+
+enum CommunitySubmissionStatus {
+  PENDING
+  APPLIED
+  CONFLICT
+}
+
+model CommunityProfile {
+  id                 String                     @id @default(cuid())
+  type               CommunityProfileType
+  status             CommunityProfileStatus     @default(PENDING)
+  name               String
+  slug               String
+  description        String?
+  province           String?
+  city               String?
+  address            String?
+  latitude           Float?
+  longitude          Float?
+  email              String?
+  emailNormalized    String?
+  whatsapp           String?
+  whatsappNormalized String?
+  website            String?
+  instagram          String?
+  facebook           String?
+  tiktok             String?
+  youtube            String?
+  logoUrl            String?
+  contactName        String?
+  isFeatured         Boolean                    @default(false)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  categories         CommunityProfileCategory[]
+  workReferences     CommunityWorkReference[]
+
+  @@unique([type, slug])
+  @@unique([type, emailNormalized])
+  @@unique([type, whatsappNormalized])
+  @@index([type, status])
+  @@index([type, province])
+  @@index([type, city])
+  @@index([province, city])
+}
+
+model CommunityCategory {
+  id       Int                        @id @default(autoincrement())
+  type     CommunityProfileType
+  name     String
+  slug     String
+  order    Int                        @default(0)
+  isActive Boolean                    @default(true)
+  profiles CommunityProfileCategory[]
+
+  @@unique([type, slug])
+}
+
+model CommunityProfileCategory {
+  profileId  String
+  categoryId Int
+  profile    CommunityProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  category   CommunityCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, categoryId])
+}
+
+model CommunityWorkReference {
+  id        Int              @id @default(autoincrement())
+  profileId String
+  label     String
+  createdAt DateTime         @default(now())
+  profile   CommunityProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model CommunitySubmission {
+  id                 Int                       @id @default(autoincrement())
+  type               CommunityProfileType
+  status             CommunitySubmissionStatus @default(PENDING)
+  payload            Json
+  matchedProfileId   String?
+  conflictProfileIds String[]                  @default([])
+  createdAt          DateTime                  @default(now())
+}
+
+// ========== ANTIFRAUDE ==========
+
+/// * Auditoría de pedidos: eventos de visibilidad, pago, liberación de datos
+model OrderAuditLog {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  actorUserId       Int?
+  actorRole         String?
+  targetOrderType   String /// "PRINT_ORDER" | "ALBUM_ORDER"
+  targetOrderId     Int
+  targetAlbumId     Int?
+  eventType         String /// ORDER_CREATED, PAYMENT_APPROVED, CUSTOMER_DATA_RELEASED, etc.
+  ipAddress         String?
+  userAgent         String?
+  metadata          Json?
+  riskScoreSnapshot Int?
+
+  @@index([targetOrderType, targetOrderId])
+  @@index([actorUserId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+/// * Webhook de MP procesado (idempotencia)
+model WebhookEvent {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  paymentId   String   @unique
+  orderId     Int?
+  orderType   String?
+  status      String?
+  externalRef String? /// external_reference de MP para reconciliación
+  processedAt DateTime @default(now())
+  payloadHash String? /// Hash del payload para detectar duplicados
+  rawPayload  Json? /// Payload crudo para debugging (opcional, puede ser grande)
+
+  @@index([paymentId])
+  @@index([orderId, orderType])
+}
+
+/// * Alerta de fraude generada por reglas determinísticas
+model FraudAlert {
+  id         Int       @id @default(autoincrement())
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+  resolvedBy Int?
+  userId     Int?
+  labId      Int?
+  ruleCode   String /// PENDING_ORDERS_HIGH, VIEWS_NON_PAID, etc.
+  severity   String /// INFO, WARNING, CRITICAL
+  riskScore  Int? /// 0-100
+  metadata   Json?
+  status     String    @default("OPEN") /// OPEN, ACKNOWLEDGED, RESOLVED, FALSE_POSITIVE
+
+  @@index([userId])
+  @@index([labId])
+  @@index([ruleCode])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// * Restricción aplicada a cuenta (fotógrafo o lab)
+model AccountRestriction {
+  id              Int       @id @default(autoincrement())
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime?
+  userId          Int?
+  labId           Int?
+  restrictionType String /// WARNING, LIMITED_VISIBILITY, MANUAL_REVIEW, TEMP_SUSPENSION, FULL_SUSPENSION
+  reason          String?
+  appliedBy       Int? /// Admin que aplicó
+  metadata        Json?
+
+  @@index([userId])
+  @@index([labId])
+  @@index([restrictionType])
+  @@index([expiresAt])
+}
+
+// FOTORANK MODELS
+enum MembershipRole {
+  ADMIN
+  MEMBER
+}
+
+enum FotorankOrganizationRole {
+  OWNER
+  ADMIN
+  EDITOR
+  JUDGE
+  VIEWER
+}
+
+enum FotorankMemberStatus {
+  ACTIVE
+  PENDING
+  INVITED
+  DECLINED
+  REMOVED
+}
+
+enum FotorankContestStatus {
+  DRAFT
+  SETUP_IN_PROGRESS
+  READY_TO_PUBLISH
+  PUBLISHED
+  ACTIVE
+  CLOSED
+  ARCHIVED
+}
+
+enum FotorankContestVisibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+}
+
+enum FotorankJudgeAccountStatus {
+  INVITED
+  PENDING_REGISTRATION
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum FotorankJudgeMembershipStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum FotorankJudgeInvitationStatus {
+  DRAFT
+  SENT
+  OPENED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  REVOKED
+}
+
+enum FotorankJudgeAssignmentType {
+  PRIMARY
+  BACKUP
+}
+
+enum FotorankJudgeAssignmentStatus {
+  ASSIGNED
+  INVITATION_SENT
+  ACCEPTED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+  EXTENDED
+  REPLACED_BY_BACKUP
+}
+
+enum FotorankJudgeMethodType {
+  SCORE_1_5
+  SCORE_1_10
+  SCORE_0_100
+  YES_NO
+  FAVORITES_SELECTION
+  SELECTION_WITH_QUOTA
+  CRITERIA_BASED
+}
+
+enum FotorankJudgeActorType {
+  ADMIN
+  JUDGE
+  SYSTEM
+}
+
+model Workspace {
+  id                    String                 @id @default(cuid())
+  name                  String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  memberships           Membership[]
+  fotorankJudgeAccounts FotorankJudgeAccount[]
+}
+
+model Membership {
+  id          String         @id @default(cuid())
+  userId      Int
+  workspaceId String
+  role        MembershipRole
+  user        User           @relation("FrSuiteMembership", fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+model FotorankProfile {
+  id          String   @id @default(cuid())
+  userId      Int      @unique
+  displayName String?
+  avatarUrl   String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation("FrProfile", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ContestOrganization {
+  id                           String                                @id @default(cuid())
+  name                         String
+  slug                         String                                @unique
+  description                  String?                               @db.Text
+  shortDescription             String?
+  logoUrl                      String?
+  coverImageUrl                String?
+  website                      String?
+  contactEmail                 String?
+  phone                        String?
+  whatsapp                     String?
+  instagram                    String?
+  address                      String?
+  city                         String?
+  country                      String?
+  createdByUserId              Int
+  createdAt                    DateTime                              @default(now())
+  updatedAt                    DateTime                              @updatedAt
+  createdByUser                User                                  @relation("FrOrgCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  members                      ContestOrganizationMember[]
+  contests                     FotorankContest[]
+  judgeOrganizationMemberships FotorankJudgeOrganizationMembership[]
+  judgeInvitations             FotorankJudgeInvitation[]
+  judgeAssignments             FotorankJudgeAssignment[]
+  judgeAuditEvents             FotorankJudgeAuditEvent[]
+
+  @@index([slug])
+  @@index([createdByUserId])
+}
+
+model ContestOrganizationMember {
+  id              String                   @id @default(cuid())
+  organizationId  String
+  userId          Int
+  role            FotorankOrganizationRole
+  status          FotorankMemberStatus     @default(ACTIVE)
+  invitedByUserId Int?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  organization    ContestOrganization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User                     @relation("FrCOrgMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy       User?                    @relation("FrCOrgMemberInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model FotorankContest {
+  id                 String                    @id @default(cuid())
+  organizationId     String
+  title              String
+  slug               String
+  shortDescription   String?
+  fullDescription    String?                   @db.Text
+  coverImageUrl      String?
+  prizesSummary      String?                   @db.Text
+  sponsorsText       String?                   @db.Text
+  status             FotorankContestStatus     @default(DRAFT)
+  visibility         FotorankContestVisibility @default(PUBLIC)
+  rulesText          String?                   @db.Text
+  rulesData          Json?
+  startAt            DateTime?
+  submissionDeadline DateTime?
+  judgingStartAt     DateTime?
+  judgingEndAt       DateTime?
+  resultsAt          DateTime?
+  createdByUserId    Int
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  organization       ContestOrganization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdByUser      User                      @relation("FrContestCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  categories         FotorankContestCategory[]
+  judgeAssignments   FotorankJudgeAssignment[]
+  entries            FotorankContestEntry[]
+  judgeInvitations   FotorankJudgeInvitation[]
+  judgeAuditEvents   FotorankJudgeAuditEvent[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdByUserId])
+}
+
+model FotorankContestCategory {
+  id               String                    @id @default(cuid())
+  contestId        String
+  name             String
+  slug             String
+  description      String?
+  maxFiles         Int                       @default(1)
+  sortOrder        Int                       @default(0)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  contest          FotorankContest           @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  entries          FotorankContestEntry[]
+  judgeAssignments FotorankJudgeAssignment[]
+  judgeInvitations FotorankJudgeInvitation[]
+
+  @@unique([contestId, slug])
+  @@index([contestId])
+}
+
+model FotorankJudgeAccount {
+  id                      String                                @id @default(cuid())
+  workspaceId             String
+  email                   String                                @unique
+  passwordHash            String
+  accountStatus           FotorankJudgeAccountStatus            @default(INVITED)
+  lastLoginAt             DateTime?
+  createdAt               DateTime                              @default(now())
+  updatedAt               DateTime                              @updatedAt
+  workspace               Workspace                             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  profile                 FotorankJudgeProfile?
+  organizationMemberships FotorankJudgeOrganizationMembership[]
+  invitations             FotorankJudgeInvitation[]
+  assignments             FotorankJudgeAssignment[]
+  judgeSessions           FotorankJudgeSession[]
+  voteHistoryChanges      FotorankJudgeVoteHistory[]            @relation("FrVoteHistoryActorJudge")
+  auditEventsAsActor      FotorankJudgeAuditEvent[]             @relation("FrAuditActorJudge")
+
+  @@index([workspaceId])
+  @@index([accountStatus])
+}
+
+model FotorankJudgeProfile {
+  id              String               @id @default(cuid())
+  judgeAccountId  String               @unique
+  firstName       String
+  lastName        String
+  phone           String?
+  avatarUrl       String?
+  shortBio        String?
+  fullBioRichJson Json?
+  city            String?
+  country         String?
+  website         String?
+  instagram       String?
+  otherLinksJson  Json?
+  publicSlug      String               @unique
+  isPublic        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  judgeAccount    FotorankJudgeAccount @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+
+  @@index([isPublic])
+}
+
+model FotorankJudgeOrganizationMembership {
+  id               String                        @id @default(cuid())
+  judgeAccountId   String
+  organizationId   String
+  membershipStatus FotorankJudgeMembershipStatus @default(ACTIVE)
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+  judgeAccount     FotorankJudgeAccount          @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+  organization     ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([judgeAccountId, organizationId])
+  @@index([organizationId])
+}
+
+model FotorankJudgeInvitation {
+  id               String                        @id @default(cuid())
+  organizationId   String
+  contestId        String
+  categoryId       String?
+  judgeAccountId   String?
+  email            String
+  tokenHash        String                        @unique
+  expiresAt        DateTime
+  invitationStatus FotorankJudgeInvitationStatus @default(DRAFT)
+  sentByUserId     Int
+  acceptedAt       DateTime?
+  rejectedAt       DateTime?
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+  organization     ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contest          FotorankContest               @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  category         FotorankContestCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  judgeAccount     FotorankJudgeAccount?         @relation(fields: [judgeAccountId], references: [id], onDelete: SetNull)
+  sentByUser       User                          @relation("FrJudgeInvSentBy", fields: [sentByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, invitationStatus])
+  @@index([contestId])
+  @@index([email])
+}
+
+model FotorankJudgeAssignment {
+  id                            String                        @id @default(cuid())
+  judgeAccountId                String
+  organizationId                String
+  contestId                     String
+  categoryId                    String
+  assignmentType                FotorankJudgeAssignmentType   @default(PRIMARY)
+  assignmentStatus              FotorankJudgeAssignmentStatus @default(ASSIGNED)
+  evaluationStartsAt            DateTime?
+  evaluationEndsAt              DateTime?
+  extendedEndsAt                DateTime?
+  extensionReason               String?
+  methodType                    FotorankJudgeMethodType
+  methodConfigJson              Json
+  allowVoteEdit                 Boolean                       @default(true)
+  commentsVisibleToParticipants Boolean                       @default(false)
+  createdByUserId               Int
+  createdAt                     DateTime                      @default(now())
+  updatedAt                     DateTime                      @updatedAt
+  judgeAccount                  FotorankJudgeAccount          @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+  organization                  ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contest                       FotorankContest               @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  category                      FotorankContestCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdByUser                 User                          @relation("FrJudgeAsgCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  votes                         FotorankJudgeVote[]
+
+  @@unique([judgeAccountId, contestId, categoryId])
+  @@index([contestId, categoryId])
+  @@index([judgeAccountId, assignmentStatus])
+}
+
+model FotorankContestEntry {
+  id           String                  @id @default(cuid())
+  contestId    String
+  categoryId   String
+  authorUserId Int?
+  imageUrl     String
+  title        String?
+  description  String?
+  metadataJson Json?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  contest      FotorankContest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  category     FotorankContestCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  author       User?                   @relation("FrEntryAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  votes        FotorankJudgeVote[]
+
+  @@index([contestId, categoryId])
+}
+
+model FotorankJudgeVote {
+  id                 String                     @id @default(cuid())
+  assignmentId       String
+  entryId            String
+  valueNumeric       Float?
+  valueBoolean       Boolean?
+  isFavorite         Boolean?
+  selectedRank       Int?
+  criteriaScoresJson Json?
+  comment            String?
+  version            Int                        @default(1)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  assignment         FotorankJudgeAssignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  entry              FotorankContestEntry       @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  history            FotorankJudgeVoteHistory[] @relation("FrVoteHistoryLine")
+
+  @@unique([assignmentId, entryId])
+  @@index([entryId])
+}
+
+model FotorankJudgeVoteHistory {
+  id                  String                @id @default(cuid())
+  voteId              String
+  assignmentId        String
+  entryId             String
+  previousPayloadJson Json
+  newPayloadJson      Json
+  changedByJudgeId    String?
+  changeReason        String?
+  changedAt           DateTime              @default(now())
+  vote                FotorankJudgeVote     @relation("FrVoteHistoryLine", fields: [voteId], references: [id], onDelete: Cascade)
+  changedByJudge      FotorankJudgeAccount? @relation("FrVoteHistoryActorJudge", fields: [changedByJudgeId], references: [id], onDelete: SetNull)
+
+  @@index([assignmentId])
+  @@index([entryId])
+  @@index([changedAt])
+}
+
+model FotorankJudgeAuditEvent {
+  id             String                 @id @default(cuid())
+  organizationId String
+  contestId      String?
+  actorType      FotorankJudgeActorType
+  actorUserId    Int?
+  actorJudgeId   String?
+  eventType      String
+  entityType     String
+  entityId       String
+  payloadJson    Json?
+  createdAt      DateTime               @default(now())
+  organization   ContestOrganization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contest        FotorankContest?       @relation(fields: [contestId], references: [id], onDelete: SetNull)
+  actorUser      User?                  @relation("FrJudgeAuditActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorJudge     FotorankJudgeAccount?  @relation("FrAuditActorJudge", fields: [actorJudgeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([contestId])
+  @@index([entityType, entityId])
+}
+
+model FotorankAdminSession {
+  id        String   @id @default(cuid())
+  userId    Int
+  tokenHash String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      User     @relation("FrAdminSession", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model FotorankJudgeSession {
+  id             String               @id @default(cuid())
+  judgeAccountId String
+  tokenHash      String               @unique
+  expiresAt      DateTime
+  createdAt      DateTime             @default(now())
+  judgeAccount   FotorankJudgeAccount @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+
+  @@index([judgeAccountId])
+  @@index([expiresAt])
+}

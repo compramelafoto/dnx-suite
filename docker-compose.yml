@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dnx-suite-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dnx
+      POSTGRES_PASSWORD: dnx123
+      POSTGRES_DB: dnx_suite
+    ports:
+      - "5432:5432"
+    volumes:
+      - dnx_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  dnx_postgres_data:

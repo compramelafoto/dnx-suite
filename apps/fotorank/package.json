@@ -1,0 +1,47 @@
+{
+  "name": "fotorank",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint --max-warnings 0",
+    "check-types": "pnpm --filter @repo/db exec prisma generate && next typegen && tsc --noEmit",
+    "test:e2e": "playwright install && playwright test",
+    "test:e2e:smoke": "playwright install && playwright test --grep @smoke",
+    "test:e2e:headed": "playwright install && playwright test --headed",
+    "test:e2e:install": "playwright install",
+    "test:e2e:only": "playwright test",
+    "test:e2e:smoke:only": "playwright test --grep @smoke"
+  },
+  "dependencies": {
+    "@repo/auth": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/design-system": "workspace:*",
+    "bcryptjs": "^3.0.3",
+    "date-fns": "^4.1.0",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^0.544.0",
+    "next": "16.2.0",
+    "react": "^19.2.0",
+    "react-datepicker": "^9.1.0",
+    "react-dom": "^19.2.0",
+    "swiper": "^12.1.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.51.1",
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^22.15.3",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "autoprefixer": "^10.4.27",
+    "eslint": "^9.39.1",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2",
+    "typescript": "5.9.2"
+  }
+}

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "tertiaryColor" TEXT,
+ADD COLUMN IF NOT EXISTS "fontColor" TEXT;

@@ -1,0 +1,37 @@
+{
+  "name": "@repo/design-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens": "./src/design-system/tokens/index.ts",
+    "./themes": "./src/design-system/themes/index.ts",
+    "./components/ui": "./src/design-system/components/ui/index.ts",
+    "./components/patterns": "./src/design-system/components/patterns/index.ts",
+    "./utils": "./src/design-system/utils/index.ts",
+    "./components/layout": "./src/design-system/components/layout/index.ts",
+    "./components/typography": "./src/design-system/components/typography/index.ts",
+    "./sidebar": "./src/design-system/sidebar/index.ts",
+    "./components/sidebar": "./src/design-system/components/sidebar/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "lucide-react": "^0.544.0"
+  }
+}

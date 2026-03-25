@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Lab" ADD COLUMN "latitude" DOUBLE PRECISION,
+ADD COLUMN "longitude" DOUBLE PRECISION;

@@ -1,0 +1,849 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   FOTORANK — Sistema de diseño premium 2026
+   ========================================================================== */
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+
+  /* Brand */
+  --color-gold: #d4af37;
+  --color-gold-soft: #c8a86b;
+  --color-gold-dark: #b8892d;
+  --color-gold-hover: #e5c04a;
+
+  /* Surfaces */
+  --color-fr-bg: #050505;
+  --color-fr-bg-elevated: #0a0a0a;
+  --color-fr-card: #141414;
+  --color-fr-card-hover: #1a1a1a;
+
+  /* Borders */
+  --color-fr-border: #262626;
+  --color-fr-border-muted: #333333;
+
+  /* Text */
+  --color-fr-primary: #fafafa;
+  --color-fr-muted: #a1a1a1;
+  --color-fr-muted-soft: #737373;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background-color: var(--color-fr-bg);
+  color: var(--color-fr-primary);
+  font-feature-settings: "rlig" 1, "calt" 1;
+  font-family: var(--font-sans);
+}
+
+.font-display {
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+/* ==========================================================================
+   CONTENEDORES — Sistema coherente
+   ========================================================================== */
+
+/* ==========================================================================
+   ESCALA DE ESPACIADO — 8px base, ritmo profesional
+   ========================================================================== */
+/* xs: 8px | sm: 12px | md: 16px | lg: 20px | xl: 24px | 2xl: 32px | 3xl: 40px | 4xl: 48px | 5xl: 64px | 6xl: 80px */
+
+/* --------------------------------------------------------------------------
+   Composición semántica — alineado con @repo/design-system `compositionSpacing`
+   Usar en vistas Tailwind-only; en React preferir import del token.
+   -------------------------------------------------------------------------- */
+:root {
+  --fr-comp-title-subtitle: 1rem;
+  --fr-comp-subtitle-content: 1.5rem;
+  --fr-comp-block: 2rem;
+  --fr-comp-section: 3rem;
+  --fr-comp-content-actions: 4rem;
+  --fr-comp-label-input: 2rem;
+  --fr-comp-control-helper: 0.75rem;
+  --fr-comp-between-fields: 1.5rem;
+  --fr-comp-action-gap: 0.75rem;
+  --fr-comp-action-gap-comfort: 1rem;
+  --fr-comp-card-gap: 2rem;
+
+  /* Modal header — alineado con compositionSpacing.modal (design system) */
+  --fr-modal-title-close-gap: 1.5rem;
+  --fr-modal-close-hit: 2.75rem;
+  --fr-modal-close-icon: 1.25rem;
+  --fr-modal-header-min-height: 5.25rem;
+
+  /* Modal marca (isologo) — compositionSpacing.modalBrand */
+  --fr-modal-brand-inset-pt: 1.5rem;
+  --fr-modal-logo-to-title: 1rem;
+  --fr-modal-brand-logo-max: 3rem;
+}
+
+/* Label → control (modales / formularios densos) */
+.fr-field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fr-comp-label-input);
+}
+
+/* Contenido → fila de acciones con borde (formularios en modal) */
+.fr-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fr-comp-action-gap-comfort);
+  margin-top: var(--fr-comp-content-actions);
+  padding-top: var(--fr-comp-block);
+  border-top: 1px solid var(--color-fr-border);
+}
+
+/* Hero, texto largo, CTA final — sangría mínima 32px */
+.fr-container-narrow {
+  width: 100%;
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+@media (min-width: 768px) {
+  .fr-container-narrow {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+/* Problema, credibilidad */
+.fr-container-content {
+  width: 100%;
+  max-width: 52rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+@media (min-width: 768px) {
+  .fr-container-content {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+/* Cards, grids — sangría mínima 32px (design_rule) */
+.fr-container {
+  width: 100%;
+  max-width: 68rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+@media (min-width: 768px) {
+  .fr-container {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+/* Footer, header */
+.fr-container-wide {
+  width: 100%;
+  max-width: 76rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+@media (min-width: 768px) {
+  .fr-container-wide {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fr-container-wide {
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
+}
+
+/* ==========================================================================
+   SECCIONES — Ritmo vertical intencional
+   ========================================================================== */
+
+.fr-section {
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+}
+
+@media (min-width: 768px) {
+  .fr-section {
+    padding-left: 3rem;
+    padding-right: 3rem;
+    padding-top: 7rem;
+    padding-bottom: 7rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fr-section {
+    padding-left: 4rem;
+    padding-right: 4rem;
+    padding-top: 9rem;
+    padding-bottom: 9rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .fr-section {
+    padding-left: 6rem;
+    padding-right: 6rem;
+    padding-top: 11rem;
+    padding-bottom: 11rem;
+  }
+}
+
+/* Panel principal dashboard — sangría obligatoria (design_rule) */
+.fr-dashboard-main {
+  padding-left: 2rem !important; /* 32px mínimo */
+  padding-right: 2rem;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+@media (min-width: 1024px) {
+  .fr-dashboard-main {
+    padding-left: 3rem !important; /* 48px desktop */
+    padding-right: 2.5rem;
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+  }
+}
+
+/* ==========================================================================
+   TIPOGRAFÍA — Jerarquía clara
+   ========================================================================== */
+
+.fr-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: var(--color-gold);
+}
+
+.fr-title-hero {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+@media (min-width: 768px) {
+  .fr-title-hero {
+    font-size: 2.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fr-title-hero {
+    font-size: 3rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .fr-title-hero {
+    font-size: 3.75rem;
+  }
+}
+
+.fr-title-section {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+@media (min-width: 768px) {
+  .fr-title-section {
+    font-size: 2.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fr-title-section {
+    font-size: 3rem;
+  }
+}
+
+.fr-title-card {
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.fr-body-large {
+  font-size: 1.125rem;
+  line-height: 1.75;
+}
+
+.fr-body {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.fr-body-small {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.fr-caption {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-fr-muted-soft);
+}
+
+/* ==========================================================================
+   CARDS — Estilo premium sutil
+   ========================================================================== */
+
+.fr-card {
+  background-color: var(--color-fr-card);
+  border: 1px solid var(--color-fr-border);
+  border-radius: 0.5rem;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+@media (min-width: 768px) {
+  .fr-card {
+    padding: 2.5rem;
+  }
+}
+
+/* Recuadros — sangría mínima obligatoria (design_rule) */
+.fr-recuadro {
+  padding: 1.5rem !important; /* 24px mínimo */
+}
+
+@media (min-width: 768px) {
+  .fr-recuadro {
+    padding: 2rem !important; /* 32px desktop */
+  }
+}
+
+.fr-recuadro.fr-recuadro-spacious {
+  padding: 4rem 1.5rem !important; /* 64px vertical en estados vacíos */
+}
+
+/* Separación título → contenido (design_rule) — obligatoria */
+.fr-title-to-content {
+  margin-bottom: 5rem !important; /* 80px mínimo — separación profesional */
+}
+
+@media (min-width: 768px) {
+  .fr-title-to-content {
+    margin-bottom: 6rem !important; /* 96px desktop */
+  }
+}
+
+/* Dashboard: separación más compacta pero profesional */
+.fr-title-to-content.fr-title-to-content-dashboard {
+  margin-bottom: 3rem !important; /* 48px */
+}
+
+/* Sidebar nav — sangría obligatoria para iconos (design_rule) */
+.fr-sidebar-nav {
+  padding-left: 1.25rem !important; /* 20px */
+  padding-right: 1rem !important;
+}
+
+.fr-sidebar-link {
+  padding-left: 2rem !important; /* 32px sangría para iconos */
+}
+
+.fr-card:hover {
+  border-color: var(--color-fr-border-muted);
+  background-color: var(--color-fr-card-hover);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
+   BOTONES — Sistema premium
+   ========================================================================== */
+
+.fr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0 1.75rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.fr-btn-primary {
+  background-color: var(--color-gold);
+  color: #050505;
+}
+
+.fr-btn-primary:hover {
+  background-color: var(--color-gold-hover);
+}
+
+.fr-btn-secondary {
+  background-color: transparent;
+  color: var(--color-fr-primary);
+  border: 1px solid var(--color-fr-border-muted);
+}
+
+.fr-btn-secondary:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
+.fr-btn:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   FONDO — Grid ultra sutil
+   ========================================================================== */
+
+.fr-bg {
+  background-color: #050505;
+  background-image:
+    linear-gradient(rgba(26, 26, 26, 0.4) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 26, 26, 0.4) 1px, transparent 1px);
+  background-size: 80px 80px;
+}
+
+.fr-hero-glow {
+  background: radial-gradient(
+    ellipse 70% 40% at 50% 35%,
+    rgba(212, 175, 55, 0.04) 0%,
+    transparent 65%
+  );
+}
+
+/* ==========================================================================
+   FORMULARIOS — Wizard, onboarding, ventanas de formulario
+   ========================================================================== */
+
+.fr-form-input {
+  display: block;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--color-fr-primary);
+  background-color: var(--color-fr-bg-elevated);
+  border: 1px solid var(--color-fr-border);
+  border-radius: 0.5rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fr-form-input::placeholder {
+  color: var(--color-fr-muted-soft);
+}
+
+.fr-form-input:hover {
+  border-color: var(--color-fr-border-muted);
+}
+
+.fr-form-input:focus {
+  outline: none;
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+}
+
+textarea.fr-form-input {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.fr-form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23a1a1a1'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.25rem;
+  padding-right: 2.5rem;
+}
+
+/* Contenedor de formulario tipo ventana */
+.fr-form-window {
+  background-color: var(--color-fr-card);
+  border: 1px solid var(--color-fr-border);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+@media (min-width: 768px) {
+  .fr-form-window {
+    padding: 2.5rem;
+  }
+}
+
+/* Separación entre campos */
+.fr-form-field-gap {
+  margin-bottom: 1.5rem;
+}
+
+.fr-form-field-gap:last-child {
+  margin-bottom: 0;
+}
+
+/* Campos de formulario — espaciado obligatorio (design_rule) */
+.fr-form-field {
+  margin-bottom: 0;
+}
+
+/* Secciones de formulario — título→contenido, entre secciones */
+.fr-form-section {
+  margin-bottom: 2rem;
+}
+
+.fr-form-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Wizard y modales — sangrías por defecto (design_rule) */
+.fr-wizard {
+  /* Contenedor del wizard */
+}
+
+/* Padding lo define el componente (Tailwind) para no pisar variantes del wizard */
+.fr-wizard-card {
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   VENTANAS EMERGENTES (MODALES) — Formato por defecto obligatorio
+   ========================================================================== */
+
+.fr-modal {
+  /* Contenedor del diálogo modal */
+}
+
+/* Isologo solo en flujos de marca; siempre encima del header (título), nunca entre título y cuerpo */
+.fr-modal-brand {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+  padding-top: var(--fr-modal-brand-inset-pt);
+  margin-bottom: var(--fr-modal-logo-to-title);
+}
+
+.fr-modal-brand__img {
+  height: 2.25rem;
+  max-height: var(--fr-modal-brand-logo-max);
+  width: auto;
+  object-fit: contain;
+  opacity: 0.95;
+}
+
+@media (min-width: 640px) {
+  .fr-modal-brand__img {
+    height: 2.5rem;
+  }
+}
+
+/* Con marca arriba, menos padding superior del header para no duplicar aire */
+.fr-modal--with-brand .fr-modal-header--centered {
+  padding-top: 0.5rem !important;
+}
+
+@media (min-width: 768px) {
+  .fr-modal--with-brand .fr-modal-header--centered {
+    padding-top: 0.75rem !important;
+  }
+}
+
+.fr-modal--with-brand .fr-modal-header:not(.fr-modal-header--centered) {
+  padding-top: 0.75rem !important;
+}
+
+/* Header modal: grid título (minmax 0) + columna fija para cerrar — evita choque con la X */
+.fr-modal-header {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--fr-modal-title-close-gap);
+  min-height: var(--fr-modal-header-min-height);
+  padding: 1.25rem 2rem !important;
+  border-bottom: 1px solid var(--color-fr-border);
+}
+
+.fr-modal-header__title-track {
+  min-width: 0;
+}
+
+.fr-modal-header__title {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-fr-primary);
+}
+
+/* Título centrado: tres columnas misma anchura lateral que el hit target del cerrar */
+.fr-modal-header--centered {
+  grid-template-columns: var(--fr-modal-close-hit) minmax(0, 1fr) var(--fr-modal-close-hit);
+  column-gap: var(--fr-modal-title-close-gap);
+  align-items: center;
+  border-bottom: none !important;
+  min-height: unset;
+  padding-top: 2rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+@media (min-width: 768px) {
+  .fr-modal-header--centered {
+    padding-top: 2.5rem !important;
+    padding-bottom: 1.25rem !important;
+  }
+}
+
+.fr-modal-header__gutter {
+  width: 100%;
+  min-height: 1px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.fr-modal-header__title--center {
+  text-align: center;
+  justify-self: stretch;
+  width: 100%;
+  max-width: min(36rem, 100%);
+  margin-inline: auto;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+@media (min-width: 768px) {
+  .fr-modal-header__title--center {
+    font-size: 1.875rem;
+  }
+}
+
+.fr-modal-header__close-slot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.fr-modal-close {
+  box-sizing: border-box;
+  width: var(--fr-modal-close-hit);
+  height: var(--fr-modal-close-hit);
+  min-width: var(--fr-modal-close-hit);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-fr-muted-soft);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.fr-modal-close:hover {
+  background: #1b1f27;
+  color: var(--color-fr-primary);
+}
+
+.fr-modal-close:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+.fr-modal-close svg {
+  width: var(--fr-modal-close-icon);
+  height: var(--fr-modal-close-icon);
+}
+
+.fr-modal-content {
+  padding: 2rem !important; /* p-8 — 32px, ritmo profesional */
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .fr-modal-content {
+    padding: 2.5rem !important; /* p-10 — 40px desktop */
+  }
+}
+
+/* Variantes de padding para modales densos (wizard, etc.) */
+.fr-modal-content.fr-modal-content--compact {
+  padding: 1.25rem 1.25rem !important;
+}
+
+@media (min-width: 768px) {
+  .fr-modal-content.fr-modal-content--compact {
+    padding: 1.5rem 2rem !important;
+  }
+}
+
+.fr-modal-content.fr-modal-content--flush {
+  padding: 0 !important;
+}
+
+/* Scrollbar del modal/wizard: integrada al tema oscuro (evita barra blanca del SO) */
+.fr-modal-content {
+  scrollbar-width: thin;
+  scrollbar-color: #404040 #141414;
+}
+
+.fr-modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.fr-modal-content::-webkit-scrollbar-track {
+  background: #141414;
+  border-radius: 6px;
+}
+
+.fr-modal-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #3d3d3d, #333333);
+  border-radius: 6px;
+  border: 1px solid #1f1f1f;
+}
+
+.fr-modal-content::-webkit-scrollbar-thumb:hover {
+  background: #4a4a4a;
+}
+
+/* Wizard modal premium — scrollbar oscuro */
+.wizard-modal-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.wizard-modal-scroll::-webkit-scrollbar-track {
+  background: #141414;
+  border-radius: 4px;
+}
+
+.wizard-modal-scroll::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+
+.wizard-modal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+.wizard-modal-scroll {
+  scrollbar-color: #3f3f46 #141414;
+  scrollbar-width: thin;
+}
+
+/* React DatePicker — tema oscuro FotoRank */
+.react-datepicker-wrapper {
+  width: 100%;
+}
+.react-datepicker {
+  font-family: var(--font-sans);
+  background: #0a0a0a;
+  border: 1px solid #262626;
+  border-radius: 0.5rem;
+}
+.react-datepicker__header {
+  background: #141414;
+  border-bottom: 1px solid #262626;
+  padding-top: 0.75rem;
+}
+.react-datepicker__current-month,
+.react-datepicker__day-name {
+  color: #fafafa;
+}
+.react-datepicker__day {
+  color: #fafafa;
+}
+.react-datepicker__day:hover {
+  background: #262626;
+  color: #fafafa;
+}
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background: #d4af37 !important;
+  color: #050505 !important;
+}
+.react-datepicker__day--disabled {
+  color: #525252;
+}
+.react-datepicker__day--outside-month {
+  color: #525252;
+}
+.react-datepicker__time-container .react-datepicker__time {
+  background: #0a0a0a;
+  border-left: 1px solid #262626;
+}
+.react-datepicker__time-box {
+  background: #0a0a0a;
+}
+.react-datepicker__time-list-item {
+  color: #fafafa;
+}
+.react-datepicker__time-list-item:hover {
+  background: #262626 !important;
+  color: #fafafa !important;
+}
+.react-datepicker__time-list-item--selected {
+  background: #d4af37 !important;
+  color: #050505 !important;
+}
+.react-datepicker__navigation {
+  top: 0.75rem;
+}
+.react-datepicker__navigation-icon::before {
+  border-color: #a1a1a1;
+}
+.react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: #d4af37;
+}

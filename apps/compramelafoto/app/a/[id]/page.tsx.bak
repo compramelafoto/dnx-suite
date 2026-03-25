@@ -1,0 +1,8 @@
+export default function AlbumPage({ params }: { params: { slug?: string } }) {
+  return (
+    <main style={{ padding: 24, fontFamily: "system-ui" }}>
+      <h1>Debug slug</h1>
+      <pre>{JSON.stringify(params, null, 2)}</pre>
+    </main>
+  );
+}

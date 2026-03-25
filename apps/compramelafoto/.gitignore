@@ -1,0 +1,33 @@
+
+# dependencies
+node_modules
+
+# next build
+.next
+out
+dist
+
+# env files (NO subir)
+.env
+.env.*
+!.env.example
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+
+# uploads (no subir)
+public/uploads/
+
+# build info / cache
+tsconfig.tsbuildinfo
+.vercel
+.env*.local
+
+prisma/migrations_legacy/
+
