@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --port 3002",
     "dev:turbo": "next dev",
-    "build": "pnpm --filter @repo/db run db:migrate:deploy && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -15,7 +15,7 @@
     "prisma:migrate:deploy": "pnpm --filter @repo/db run db:migrate:deploy",
     "prisma:migrate:local-only": "npx dotenv-cli -e .env.local -- pnpm --filter @repo/db exec prisma migrate deploy",
     "prisma:migrate:status": "pnpm --filter @repo/db exec prisma migrate status",
-    "vercel-build": "pnpm --filter @repo/db run db:migrate:deploy && next build",
+    "vercel-build": "next build",
     "seed": "tsx prisma/seed.ts",
     "seed:test": "tsx scripts/seed-test-data.ts",
     "seed:all": "tsx scripts/seed-all.ts",
