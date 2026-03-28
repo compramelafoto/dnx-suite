@@ -52,41 +52,41 @@ async function seedFotorankComUsers(workspaceId: string) {
 
   const adminUser = await prisma.user.upsert({
     where: { email: "admin@fotorank.com" },
-    update: { name: "Admin (seed)", passwordHash },
+    update: { name: "Admin (seed)", password: passwordHash },
     create: {
       name: "Admin (seed)",
       email: "admin@fotorank.com",
-      passwordHash,
+      password: passwordHash,
     },
   });
 
   const organizadorUser = await prisma.user.upsert({
     where: { email: "organizador@fotorank.com" },
-    update: { name: "Organizador (seed)", passwordHash },
+    update: { name: "Organizador (seed)", password: passwordHash },
     create: {
       name: "Organizador (seed)",
       email: "organizador@fotorank.com",
-      passwordHash,
+      password: passwordHash,
     },
   });
 
   const participante1 = await prisma.user.upsert({
     where: { email: "participante1@fotorank.com" },
-    update: { name: "Participante 1 (seed)", passwordHash },
+    update: { name: "Participante 1 (seed)", password: passwordHash },
     create: {
       name: "Participante 1 (seed)",
       email: "participante1@fotorank.com",
-      passwordHash,
+      password: passwordHash,
     },
   });
 
   const participante2 = await prisma.user.upsert({
     where: { email: "participante2@fotorank.com" },
-    update: { name: "Participante 2 (seed)", passwordHash },
+    update: { name: "Participante 2 (seed)", password: passwordHash },
     create: {
       name: "Participante 2 (seed)",
       email: "participante2@fotorank.com",
-      passwordHash,
+      password: passwordHash,
     },
   });
 
@@ -388,21 +388,21 @@ async function main() {
 
   const user = await prisma.user.upsert({
     where: { email: "admin@fotorank.local" },
-    update: { passwordHash: adminE2eHash },
+    update: { password: adminE2eHash },
     create: {
       name: "Admin Fotorank",
       email: "admin@fotorank.local",
-      passwordHash: adminE2eHash,
+      password: adminE2eHash,
     },
   });
 
   const danielUser = await prisma.user.upsert({
     where: { email: "cuart.daniel@gmail.com" },
-    update: { passwordHash: adminDanielHash, name: "Daniel Cuart" },
+    update: { password: adminDanielHash, name: "Daniel Cuart" },
     create: {
       name: "Daniel Cuart",
       email: "cuart.daniel@gmail.com",
-      passwordHash: adminDanielHash,
+      password: adminDanielHash,
     },
   });
 
@@ -439,179 +439,11 @@ async function main() {
     },
   });
 
-  const judge1 = await prisma.judge.upsert({
-    where: {
-      workspaceId_email: {
-        workspaceId: workspace.id,
-        email: "jurado1@fotorank.local",
-      },
-    },
-    update: {},
-    create: {
-      name: "María García",
-      email: "jurado1@fotorank.local",
-      workspaceId: workspace.id,
-    },
-  });
-
-  const judge2 = await prisma.judge.upsert({
-    where: {
-      workspaceId_email: {
-        workspaceId: workspace.id,
-        email: "jurado2@fotorank.local",
-      },
-    },
-    update: {},
-    create: {
-      name: "Carlos López",
-      email: "jurado2@fotorank.local",
-      workspaceId: workspace.id,
-    },
-  });
-
-  let contest1 = await prisma.contest.findFirst({
-    where: { title: "Concurso de Naturaleza 2025" },
-  });
-  if (!contest1) {
-    contest1 = await prisma.contest.create({
-      data: {
-        title: "Concurso de Naturaleza 2025",
-        description:
-          "Captura la belleza del mundo natural. Fotografías de paisajes, fauna y flora.",
-        status: "ACTIVE",
-        workspaceId: workspace.id,
-      },
-    });
-  }
-
-  let contest2 = await prisma.contest.findFirst({
-    where: { title: "Retratos en Blanco y Negro" },
-  });
-  if (!contest2) {
-    contest2 = await prisma.contest.create({
-      data: {
-        title: "Retratos en Blanco y Negro",
-        description:
-          "Concurso de retratos artísticos en escala de grises.",
-        status: "DRAFT",
-        workspaceId: workspace.id,
-      },
-    });
-  }
-
-  const cat1a =
-    (await prisma.category.findFirst({
-      where: { contestId: contest1.id, name: "Paisajes" },
-    })) ??
-    (await prisma.category.create({
-      data: { name: "Paisajes", contestId: contest1.id },
-    }));
-  const cat1b =
-    (await prisma.category.findFirst({
-      where: { contestId: contest1.id, name: "Fauna" },
-    })) ??
-    (await prisma.category.create({
-      data: { name: "Fauna", contestId: contest1.id },
-    }));
-  const cat1c =
-    (await prisma.category.findFirst({
-      where: { contestId: contest1.id, name: "Flora" },
-    })) ??
-    (await prisma.category.create({
-      data: { name: "Flora", contestId: contest1.id },
-    }));
-  const cat2a =
-    (await prisma.category.findFirst({
-      where: { contestId: contest2.id, name: "Retrato individual" },
-    })) ??
-    (await prisma.category.create({
-      data: { name: "Retrato individual", contestId: contest2.id },
-    }));
-
-  await prisma.contestJudgeAssignment.upsert({
-    where: {
-      contestId_judgeId: { contestId: contest1.id, judgeId: judge1.id },
-    },
-    update: {},
-    create: { contestId: contest1.id, judgeId: judge1.id },
-  });
-  await prisma.contestJudgeAssignment.upsert({
-    where: {
-      contestId_judgeId: { contestId: contest1.id, judgeId: judge2.id },
-    },
-    update: {},
-    create: { contestId: contest1.id, judgeId: judge2.id },
-  });
-  await prisma.contestJudgeAssignment.upsert({
-    where: {
-      contestId_judgeId: { contestId: contest2.id, judgeId: judge1.id },
-    },
-    update: {},
-    create: { contestId: contest2.id, judgeId: judge1.id },
-  });
-
-  const entryCount = await prisma.entry.count();
-  if (entryCount === 0) {
-    const entry1 = await prisma.entry.create({
-      data: {
-        title: "Amanecer en la montaña",
-        authorName: "Ana Martínez",
-        imageUrl: "https://placehold.co/800x600?text=Foto1",
-        contestId: contest1.id,
-        categoryId: cat1a.id,
-      },
-    });
-
-    const entry2 = await prisma.entry.create({
-      data: {
-        title: "Águila en vuelo",
-        authorName: "Pedro Sánchez",
-        imageUrl: "https://placehold.co/800x600?text=Foto2",
-        contestId: contest1.id,
-        categoryId: cat1b.id,
-      },
-    });
-
-    const entry3 = await prisma.entry.create({
-      data: {
-        title: "Bosque de otoño",
-        authorName: "Laura Fernández",
-        imageUrl: "https://placehold.co/800x600?text=Foto3",
-        contestId: contest1.id,
-        categoryId: cat1a.id,
-      },
-    });
-
-    await prisma.score.createMany({
-      data: [
-        { entryId: entry1.id, judgeId: judge1.id, value: 8.5 },
-        { entryId: entry1.id, judgeId: judge2.id, value: 9 },
-        { entryId: entry2.id, judgeId: judge1.id, value: 7.5 },
-        { entryId: entry2.id, judgeId: judge2.id, value: 8 },
-        { entryId: entry3.id, judgeId: judge1.id, value: 9.5 },
-        { entryId: entry3.id, judgeId: judge2.id, value: 9 },
-      ],
-      skipDuplicates: true,
-    });
-
-    await prisma.ranking.createMany({
-      data: [
-        { entryId: entry3.id, position: 1, score: 18.5 },
-        { entryId: entry1.id, position: 2, score: 17.5 },
-        { entryId: entry2.id, position: 3, score: 15.5 },
-      ],
-      skipDuplicates: true,
-    });
-
-    await prisma.diploma.createMany({
-      data: [
-        { entryId: entry1.id, status: "GENERATED" },
-        { entryId: entry2.id, status: "GENERATED" },
-        { entryId: entry3.id, status: "GENERATED" },
-      ],
-      skipDuplicates: true,
-    });
-  }
+  /**
+   * El seed antiguo de `Judge` / `Contest` / `Category` / `Entry` / `Score` / `Ranking` / `Diploma`
+   * fue eliminado: esos modelos ya no existen en `schema.prisma`. Los datos de demo y E2E de Fotorank
+   * viven en `FotorankContest`, `FotorankJudgeAccount`, etc. en la sección siguiente.
+   */
 
   // --- Fotorank / Jurados: fixtures deterministas para demo local y E2E ---
   const demoJudgePassword = "JudgeDemo!e2e";

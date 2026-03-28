@@ -5,10 +5,8 @@ import { resolveActiveOrganizationForUser } from "../../../lib/fotorank/dashboar
 import { AssignmentsPageClient } from "./AssignmentsPageClient";
 
 export default async function JudgeAssignmentsPage() {
-  await requireAuth();
-  const judgesResult = await listJudgesForOrg();
-
   const user = await requireAuth();
+  const judgesResult = await listJudgesForOrg();
   const resolved = await resolveActiveOrganizationForUser(user.id);
   const contests =
     resolved.ok

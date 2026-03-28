@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
 import {
   DNX_SESSION_COOKIE,
@@ -98,6 +99,18 @@ export async function createAdminSessionForUser(userId: number): Promise<void> {
 
   const cookieStore = await cookies();
   cookieStore.set(DNX_SESSION_COOKIE, session.rawToken, {
+    ...SESSION_COOKIE_OPTIONS,
+    maxAge: session.maxAge,
+  });
+}
+
+/** Para Route Handlers (p. ej. callback OAuth): misma cookie que `createAdminSessionForUser`. */
+export async function attachAdminSessionCookieToResponse(
+  response: NextResponse,
+  userId: number,
+): Promise<void> {
+  const session = await createUserSession(userId);
+  response.cookies.set(DNX_SESSION_COOKIE, session.rawToken, {
     ...SESSION_COOKIE_OPTIONS,
     maxAge: session.maxAge,
   });

@@ -23,20 +23,22 @@ export function SidebarOrgIdentityHeader({
         </p>
       ) : null}
 
-      <div className="flex flex-col items-center gap-2 text-center">
+      <div className="flex w-full flex-col items-center gap-2 text-center">
         {organizationProfile?.logoUrl ? (
-          <Link
-            href="/dashboard/settings"
-            className="relative block h-14 w-full max-w-[200px] transition-opacity hover:opacity-90"
-            aria-label="Perfil institucional de la organización"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- URLs externas arbitrarias */}
-            <img
-              src={organizationProfile.logoUrl}
-              alt=""
-              className="mx-auto h-14 w-auto max-w-full object-contain object-center"
-            />
-          </Link>
+          <div className="flex w-full justify-center px-1">
+            <Link
+              href="/dashboard/settings"
+              className="relative flex h-14 max-h-14 max-w-[220px] items-center justify-center transition-opacity hover:opacity-90"
+              aria-label="Perfil institucional de la organización"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- URLs externas arbitrarias */}
+              <img
+                src={organizationProfile.logoUrl}
+                alt=""
+                className="max-h-14 w-auto max-w-full object-contain object-center"
+              />
+            </Link>
+          </div>
         ) : organizationProfile ? (
           <Link
             href="/dashboard/settings"

@@ -25,7 +25,7 @@ export function JudgeLoginForm() {
   const [state, formAction] = useActionState(judgeLoginAction, initialState);
 
   return (
-    <form data-testid="judge-login-form" action={formAction} method="post" className="w-full space-y-0">
+    <form data-testid="judge-login-form" action={formAction} className="w-full space-y-0">
       <FormField
         id="judge-login-email"
         label="Email"

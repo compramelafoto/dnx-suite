@@ -4,9 +4,14 @@ import { FotorankDialogShell } from "../components/ui/FotorankDialogShell";
 import { getAuthUser } from "../lib/auth";
 import { LoginForm } from "./LoginForm";
 
-export default async function LoginPage() {
+type LoginPageProps = { searchParams: Promise<{ error?: string }> };
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   const user = await getAuthUser();
   if (user) redirect("/dashboard");
+
+  const sp = await searchParams;
+  const oauthError = typeof sp.error === "string" && sp.error.trim() ? sp.error.trim() : null;
 
   return (
     <FotorankDialogShell
@@ -26,7 +31,7 @@ export default async function LoginPage() {
         </>
       }
     >
-      <LoginForm />
+      <LoginForm oauthError={oauthError} />
     </FotorankDialogShell>
   );
 }

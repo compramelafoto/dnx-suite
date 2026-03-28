@@ -16,46 +16,58 @@ function SubmitButton() {
   );
 }
 
-export function LoginForm() {
+export function LoginForm({ oauthError }: { oauthError?: string | null }) {
   const [state, formAction] = useActionState(loginAction, initialState);
+  const bannerError = state.error ?? oauthError ?? null;
 
   return (
-    <form data-testid="fotorank-login-form" action={formAction} className="w-full space-y-0">
-      <FormField id="email" label="Email" required layout="auth">
-        <input
-          id="email"
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          placeholder="tu@email.com"
-          className={inputAuth}
-        />
-      </FormField>
+    <>
+      <form data-testid="fotorank-login-form" action={formAction} className="w-full space-y-0">
+        <FormField id="email" label="Email" required layout="auth">
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="tu@email.com"
+            className={inputAuth}
+          />
+        </FormField>
 
-      <FormField id="password" label="Contraseña" required layout="auth" className="!pb-8 md:!pb-10">
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          className={inputAuth}
-        />
-      </FormField>
+        <FormField id="password" label="Contraseña" required layout="auth" className="!pb-8 md:!pb-10">
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            className={inputAuth}
+          />
+        </FormField>
 
-      {state.error ? (
-        <div
-          className="rounded-xl border border-red-500/35 bg-red-500/10 px-5 py-4 text-center text-sm leading-relaxed text-red-200 md:text-base"
-          role="alert"
-        >
-          {state.error}
+        {bannerError ? (
+          <div
+            className="rounded-xl border border-red-500/35 bg-red-500/10 px-5 py-4 text-center text-sm leading-relaxed text-red-200 md:text-base"
+            role="alert"
+          >
+            {bannerError}
+          </div>
+        ) : null}
+
+        <div className="mt-10 md:mt-12">
+          <SubmitButton />
         </div>
-      ) : null}
+      </form>
 
-      <div className="mt-10 md:mt-12">
-        <SubmitButton />
+      <div className="mt-8 w-full border-t border-fr-border pt-8">
+        <a
+          href="/api/auth/google"
+          className="fr-btn fr-btn-secondary flex w-full items-center justify-center gap-2 py-4 text-base font-semibold no-underline"
+        >
+          Continuar con Google
+        </a>
       </div>
-    </form>
+    </>
   );
 }

@@ -144,6 +144,11 @@ export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
 
+  /**
+   * No incluir `category` en el include anidado: si `FotorankJudgeAssignment.categoryId` apunta a una
+   * fila inexistente (integridad rota, migración manual, etc.), Prisma lanza
+   * "Field category is required to return data, got null instead." Resolvimos nombres aparte para tolerar huérfanos.
+   */
   const memberships = await prisma.fotorankJudgeOrganizationMembership.findMany({
     where: { organizationId: scope.org.id },
     include: {
@@ -152,13 +157,44 @@ export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record
           profile: true,
           assignments: {
             where: { organizationId: scope.org.id },
-            include: { contest: true, category: true },
+            select: {
+              id: true,
+              categoryId: true,
+              contest: { select: { title: true } },
+            },
           },
         },
       },
     },
     orderBy: { createdAt: "desc" },
   });
+
+  const allCategoryIds = [
+    ...new Set(memberships.flatMap((m) => m.judgeAccount.assignments.map((a) => a.categoryId))),
+  ];
+  const categoryRows =
+    allCategoryIds.length > 0
+      ? await prisma.fotorankContestCategory.findMany({
+          where: { id: { in: allCategoryIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+  const categoryNameById = new Map(categoryRows.map((c) => [c.id, c.name]));
+
+  const orphanAssignments: { assignmentId: string; categoryId: string }[] = [];
+  for (const m of memberships) {
+    for (const a of m.judgeAccount.assignments) {
+      if (!categoryNameById.has(a.categoryId)) {
+        orphanAssignments.push({ assignmentId: a.id, categoryId: a.categoryId });
+      }
+    }
+  }
+  if (orphanAssignments.length > 0) {
+    console.warn(
+      "[listJudgesForOrg] Datos inconsistentes: FotorankJudgeAssignment con categoryId sin FotorankContestCategory. Corregir o eliminar esas filas (p. ej. SQL o script).",
+      { organizationId: scope.org.id, orphanAssignments },
+    );
+  }
 
   return {
     ok: true,
@@ -172,7 +208,10 @@ export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record
       profile: m.judgeAccount.profile,
       assignmentsCount: m.judgeAccount.assignments.length,
       activeContests: [...new Set(m.judgeAccount.assignments.map((a) => a.contest.title))],
-      categories: m.judgeAccount.assignments.map((a) => a.category.name),
+      categories: m.judgeAccount.assignments.map((a) =>
+        categoryNameById.get(a.categoryId) ??
+          `(categoría ausente · assignment ${a.id} · categoryId ${a.categoryId})`,
+      ),
     })),
   };
 }
@@ -438,12 +477,37 @@ export async function createJudgeAssignment(input: {
     return { ok: false, error: methodConfigCheck.error };
   }
 
+  const contestId = input.contestId.trim();
+  const categoryId = input.categoryId.trim();
+  if (!contestId) {
+    return { ok: false, error: "Seleccioná un concurso." };
+  }
+  if (!categoryId) {
+    return { ok: false, error: "Seleccioná una categoría." };
+  }
+
+  const contest = await prisma.fotorankContest.findFirst({
+    where: { id: contestId, organizationId: scope.org.id },
+    select: { id: true },
+  });
+  if (!contest) {
+    return { ok: false, error: "Concurso no encontrado en tu organización." };
+  }
+
+  const category = await prisma.fotorankContestCategory.findFirst({
+    where: { id: categoryId, contestId: contest.id },
+    select: { id: true },
+  });
+  if (!category) {
+    return { ok: false, error: "La categoría no pertenece al concurso seleccionado." };
+  }
+
   const assignment = await prisma.fotorankJudgeAssignment.create({
     data: {
       judgeAccountId: input.judgeAccountId,
       organizationId: scope.org.id,
-      contestId: input.contestId,
-      categoryId: input.categoryId,
+      contestId,
+      categoryId,
       assignmentType: input.assignmentType,
       assignmentStatus: input.sendInvitationNow ? "INVITATION_SENT" : "ASSIGNED",
       evaluationStartsAt: input.evaluationStartsAt ? new Date(input.evaluationStartsAt) : null,
@@ -459,19 +523,179 @@ export async function createJudgeAssignment(input: {
   await prisma.fotorankJudgeAuditEvent.create({
     data: {
       organizationId: scope.org.id,
-      contestId: input.contestId,
+      contestId,
       actorType: "ADMIN",
       actorUserId: scope.user.id,
       eventType: "JUDGE_ASSIGNMENT_CREATED",
       entityType: "FotorankJudgeAssignment",
       entityId: assignment.id,
-      payloadJson: { categoryId: input.categoryId, assignmentType: input.assignmentType },
+      payloadJson: { categoryId, assignmentType: input.assignmentType },
     },
   });
 
   revalidatePath("/jurados/asignaciones");
-  revalidatePath(routes.dashboard.concursos.detalle(input.contestId));
+  revalidatePath(routes.dashboard.concursos.detalle(contestId));
   return { ok: true, data: { assignmentId: assignment.id } };
+}
+
+export type CreateJudgeAssignmentsBatchInput = {
+  judgeAccountId: string;
+  contestId: string;
+  /** Si true, se toman todas las categorías del concurso al guardar (estado actual en BD). */
+  allCategories: boolean;
+  /** Ignorado si `allCategories`; si no, al menos una id válida del concurso. */
+  categoryIds: string[];
+  assignmentType: "PRIMARY" | "BACKUP";
+  evaluationStartsAt?: string;
+  evaluationEndsAt?: string;
+  methodType: JudgeMethodType;
+  methodConfigJson: unknown;
+  allowVoteEdit?: boolean;
+  commentsVisibleToParticipants?: boolean;
+  sendInvitationNow?: boolean;
+};
+
+/**
+ * Crea una fila `FotorankJudgeAssignment` por categoría (misma config). Omite duplicados
+ * (mismo jurado + concurso + categoría ya existente). Auditoría: un evento por asignación creada.
+ */
+export async function createJudgeAssignmentsBatch(
+  input: CreateJudgeAssignmentsBatchInput,
+): Promise<JudgeActionResult<{ created: number; skippedExisting: number }>> {
+  const scope = await requireOrganizationScope();
+  if (!scope.ok) return { ok: false, error: scope.error };
+
+  const judgeAccountId = input.judgeAccountId.trim();
+  if (!judgeAccountId) {
+    return { ok: false, error: "Seleccioná un jurado." };
+  }
+
+  let methodConfigJson: unknown = input.methodConfigJson ?? {};
+  if (input.methodType === "CRITERIA_BASED") {
+    const raw = methodConfigJson;
+    const criteria =
+      raw && typeof raw === "object" && !Array.isArray(raw) && Array.isArray((raw as { criteria?: unknown }).criteria)
+        ? (raw as { criteria: unknown[] }).criteria
+        : [];
+    if (criteria.length === 0) {
+      methodConfigJson = DEFAULT_CRITERIA_BASED_METHOD_CONFIG;
+    }
+  }
+
+  const methodConfigCheck = validateMethodConfig(input.methodType, methodConfigJson);
+  if (!methodConfigCheck.valid) {
+    return { ok: false, error: methodConfigCheck.error };
+  }
+
+  const contestId = input.contestId.trim();
+  if (!contestId) {
+    return { ok: false, error: "Seleccioná un concurso." };
+  }
+
+  const contest = await prisma.fotorankContest.findFirst({
+    where: { id: contestId, organizationId: scope.org.id },
+    select: { id: true },
+  });
+  if (!contest) {
+    return { ok: false, error: "Concurso no encontrado en tu organización." };
+  }
+
+  let categoryIdsToAssign: string[];
+  if (input.allCategories) {
+    const rows = await prisma.fotorankContestCategory.findMany({
+      where: { contestId: contest.id },
+      select: { id: true },
+      orderBy: { sortOrder: "asc" },
+    });
+    categoryIdsToAssign = rows.map((r) => r.id);
+  } else {
+    categoryIdsToAssign = [...new Set(input.categoryIds.map((id) => id.trim()).filter(Boolean))];
+  }
+
+  if (categoryIdsToAssign.length === 0) {
+    return {
+      ok: false,
+      error: input.allCategories
+        ? "Este concurso no tiene categorías."
+        : "Seleccioná al menos una categoría o marcá «Todas las categorías».",
+    };
+  }
+
+  const validCategories = await prisma.fotorankContestCategory.findMany({
+    where: { contestId: contest.id, id: { in: categoryIdsToAssign } },
+    select: { id: true },
+  });
+  const validSet = new Set(validCategories.map((c) => c.id));
+  const invalid = categoryIdsToAssign.filter((id) => !validSet.has(id));
+  if (invalid.length > 0) {
+    return { ok: false, error: "Una o más categorías no pertenecen al concurso seleccionado." };
+  }
+
+  const existing = await prisma.fotorankJudgeAssignment.findMany({
+    where: {
+      judgeAccountId,
+      contestId: contest.id,
+      categoryId: { in: categoryIdsToAssign },
+    },
+    select: { categoryId: true },
+  });
+  const existingSet = new Set(existing.map((e) => e.categoryId));
+  const toCreate = categoryIdsToAssign.filter((id) => !existingSet.has(id));
+  const skippedExisting = categoryIdsToAssign.length - toCreate.length;
+
+  if (toCreate.length === 0) {
+    revalidatePath("/jurados/asignaciones");
+    revalidatePath(routes.dashboard.concursos.detalle(contestId));
+    return {
+      ok: true,
+      data: { created: 0, skippedExisting },
+    };
+  }
+
+  const evalStart = input.evaluationStartsAt ? new Date(input.evaluationStartsAt) : null;
+  const evalEnd = input.evaluationEndsAt ? new Date(input.evaluationEndsAt) : null;
+  const assignmentStatus = input.sendInvitationNow ? "INVITATION_SENT" : "ASSIGNED";
+
+  await prisma.$transaction(async (tx) => {
+    for (const categoryId of toCreate) {
+      const assignment = await tx.fotorankJudgeAssignment.create({
+        data: {
+          judgeAccountId,
+          organizationId: scope.org.id,
+          contestId: contest.id,
+          categoryId,
+          assignmentType: input.assignmentType,
+          assignmentStatus,
+          evaluationStartsAt: evalStart,
+          evaluationEndsAt: evalEnd,
+          methodType: input.methodType,
+          methodConfigJson: methodConfigJson as never,
+          allowVoteEdit: input.allowVoteEdit ?? true,
+          commentsVisibleToParticipants: input.commentsVisibleToParticipants ?? false,
+          createdByUserId: scope.user.id,
+        },
+      });
+      await tx.fotorankJudgeAuditEvent.create({
+        data: {
+          organizationId: scope.org.id,
+          contestId: contest.id,
+          actorType: "ADMIN",
+          actorUserId: scope.user.id,
+          eventType: "JUDGE_ASSIGNMENT_CREATED",
+          entityType: "FotorankJudgeAssignment",
+          entityId: assignment.id,
+          payloadJson: { categoryId, assignmentType: input.assignmentType, batch: true },
+        },
+      });
+    }
+  });
+
+  revalidatePath("/jurados/asignaciones");
+  revalidatePath(routes.dashboard.concursos.detalle(contestId));
+  return {
+    ok: true,
+    data: { created: toCreate.length, skippedExisting },
+  };
 }
 
 export async function sendJudgeInvitation(input: {
