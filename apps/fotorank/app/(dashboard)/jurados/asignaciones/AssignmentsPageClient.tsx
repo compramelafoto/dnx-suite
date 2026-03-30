@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, FormField, FormSection, radius, spacing, useResolvedTheme } from "@repo/design-system";
+import { Button, FormField, FormSection, spacing, useResolvedTheme } from "@repo/design-system";
+import { datetimeLocalBase, inputBase, selectBase } from "../../../components/ui/form";
 import {
   createJudgeAssignmentsBatch,
   type JudgeMethodType,
@@ -28,18 +29,6 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
     setAllCategoriesMode(false);
     setSelectedCategoryIds(new Set());
   }, [contestId]);
-
-  const controlStyle: React.CSSProperties = {
-    width: "100%",
-    boxSizing: "border-box",
-    borderRadius: radius.button,
-    border: `1px solid ${theme.border.subtle}`,
-    background: theme.surface.base,
-    color: theme.text.primary,
-    padding: `${spacing[3]} ${spacing[4]}`,
-    fontSize: "0.95rem",
-    outline: "none",
-  };
 
   const checkboxRowStyle: React.CSSProperties = {
     display: "flex",
@@ -111,11 +100,15 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: spacing[6] }}>
-      {error ? <p style={{ color: "#fca5a5" }}>{error}</p> : null}
-      {ok ? <p style={{ color: "#86efac" }}>{ok}</p> : null}
+      {error ? (
+        <p className="fr-form-error-text rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {ok ? <p className="fr-form-success-text rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-4 py-3">{ok}</p> : null}
       <FormSection title="Nueva asignación" style={{ marginBottom: 0 }}>
         <FormField label="Jurado" htmlFor="as-judge" required>
-          <select id="as-judge" name="judgeAccountId" style={controlStyle} required>
+          <select id="as-judge" name="judgeAccountId" className={selectBase} required>
             <option value="">Seleccionar</option>
             {judges.map((j) => (
               <option key={j.id} value={j.id}>
@@ -128,7 +121,7 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
           <select
             id="as-contest"
             name="contestId"
-            style={controlStyle}
+            className={selectBase}
             required
             value={contestId}
             onChange={(e) => setContestId(e.target.value)}
@@ -194,13 +187,13 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
         )}
 
         <FormField label="Tipo de asignación" htmlFor="as-type" required>
-          <select id="as-type" name="assignmentType" style={controlStyle}>
+          <select id="as-type" name="assignmentType" className={selectBase}>
             <option value="PRIMARY">Titular</option>
             <option value="BACKUP">Suplente</option>
           </select>
         </FormField>
         <FormField label="Método de calificación" htmlFor="as-method" required>
-          <select id="as-method" name="methodType" style={controlStyle}>
+          <select id="as-method" name="methodType" className={selectBase}>
             <option value="SCORE_1_5">1 a 5</option>
             <option value="SCORE_1_10">1 a 10</option>
             <option value="SCORE_0_100">0 a 100</option>
@@ -211,14 +204,22 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
           </select>
         </FormField>
         <FormField label="Cupo (si aplica)">
-          <input name="quota" type="number" min={1} defaultValue={1} style={controlStyle} />
+          <input name="quota" type="number" min={1} defaultValue={1} className={inputBase} />
         </FormField>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: spacing[4] }}>
-          <FormField label="Inicio de evaluación">
-            <input name="evaluationStartsAt" type="datetime-local" style={controlStyle} />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
+          <FormField
+            label="Inicio de evaluación"
+            htmlFor="as-eval-start"
+            helperText="Formato local del navegador. Tocá el campo o el ícono del calendario."
+          >
+            <input id="as-eval-start" name="evaluationStartsAt" type="datetime-local" className={datetimeLocalBase} />
           </FormField>
-          <FormField label="Fin de evaluación">
-            <input name="evaluationEndsAt" type="datetime-local" style={controlStyle} />
+          <FormField
+            label="Fin de evaluación"
+            htmlFor="as-eval-end"
+            helperText="Debe ser posterior al inicio si ambos están definidos."
+          >
+            <input id="as-eval-end" name="evaluationEndsAt" type="datetime-local" className={datetimeLocalBase} />
           </FormField>
         </div>
         <label style={checkboxRowStyle}>

@@ -110,6 +110,15 @@ export function ContestHeader({ contest }: ContestHeaderProps) {
           </Link>
 
           <Link
+            href={routes.dashboard.concursos.diplomas(contest.id)}
+            className="fr-btn fr-btn-secondary px-3"
+            aria-label="Diplomas"
+            title="Diplomas"
+          >
+            <Icon name="receipt" size="sm" />
+          </Link>
+
+          <Link
             href={routes.dashboard.concursos.editar(contest.id)}
             className="fr-btn fr-btn-secondary px-3"
             aria-label="Editar concurso"

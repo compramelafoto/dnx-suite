@@ -87,23 +87,21 @@ export function getFechasRestrictionMessage(status: ContestStatus): string | nul
   return null;
 }
 
-export function canEditCategories(status: ContestStatus, hasEntries: boolean): boolean {
-  if (["DRAFT","READY"].includes(status)) return true;
-  if (status === "PUBLISHED") return !hasEntries;
-  return false;
+export function canEditCategories(status: ContestStatus, _hasEntries: boolean): boolean {
+  if (["CLOSED", "ARCHIVED"].includes(status)) return false;
+  return true;
 }
 
 export function getCategoriasPermission(status: ContestStatus, hasEntries: boolean): EditPermission {
-  if (["DRAFT","READY"].includes(status)) return "full";
-  if (status === "PUBLISHED") return hasEntries ? "locked" : "full";
+  if (["DRAFT", "READY"].includes(status)) return "full";
+  if (status === "PUBLISHED") return hasEntries ? "partial" : "full";
   return "locked";
 }
 
 export function getCategoriasRestrictionMessage(status: ContestStatus, hasEntries: boolean): string | null {
   if (status === "PUBLISHED" && hasEntries)
-    return "No se pueden editar categorías porque ya hay participaciones cargadas.";
-  if (["CLOSED","ARCHIVED"].includes(status))
-    return "Las categorías no se pueden editar.";
+    return "Hay participaciones cargadas: podés agregar categorías, archivar las vacías, reordenar y ajustar el vínculo con categorías globales. No podés reemplazar todo el listado ni eliminar categorías con obras.";
+  if (["CLOSED", "ARCHIVED"].includes(status)) return "Las categorías no se pueden editar.";
   return null;
 }
 

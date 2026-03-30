@@ -44,7 +44,14 @@ const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
     title: "Gestión",
     items: [
       { label: "Jurados", href: "/jurados", icon: "user", roles: ["admin", "manager"] },
+      { label: "Directorio jurados", href: "/jurados/directorio", icon: "search", roles: ["admin", "manager"] },
       { label: "Invitaciones", href: "/jurados/invitaciones", icon: "email", roles: ["admin", "manager"] },
+      {
+        label: "Invit. directorio",
+        href: "/jurados/directorio/invitaciones",
+        icon: "email",
+        roles: ["admin", "manager"],
+      },
       { label: "Asignaciones", href: "/jurados/asignaciones", icon: "plus", roles: ["admin", "manager"] },
       { label: "Auditoría", href: "/jurados/auditoria", icon: "search", roles: ["admin", "manager"] },
       { label: "Ranking", href: "/ranking", icon: "sort" },

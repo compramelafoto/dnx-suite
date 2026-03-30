@@ -43,7 +43,7 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
     },
     include: {
       organization: true,
-      categories: { orderBy: { sortOrder: "asc" } },
+      categories: { where: { status: "ACTIVE" }, orderBy: { sortOrder: "asc" } },
       judgeAssignments: {
         where: {
           assignmentStatus: { in: ["ACCEPTED", "IN_PROGRESS", "COMPLETED", "EXTENDED"] },

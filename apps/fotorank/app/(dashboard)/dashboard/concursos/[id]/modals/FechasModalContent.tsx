@@ -1,10 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import DatePicker from "react-datepicker";
 import { es } from "date-fns/locale";
 import "react-datepicker/dist/react-datepicker.css";
-import { Button, FormField, FormSection, radius, spacing, useResolvedTheme } from "@repo/design-system";
+import {
+  Button,
+  compositionSpacing,
+  FormField,
+  FormSection,
+  radius,
+  spacing,
+  useResolvedTheme,
+} from "@repo/design-system";
+import { FrDatePickerCustomInput } from "../../../../../components/ui/DatePickerCustomInput";
 import { updateContestDatesFromModal } from "../../../../../actions/contests";
 import { getDisplayStatus } from "../../../../../lib/contest-permissions";
 
@@ -82,21 +91,6 @@ export function FechasModalContent({ contest, onSuccess, onCancel, readOnly, res
   const [judgingStartAt, setJudgingStartAt] = useState<Date | null>(parseToDate(contest.judgingStartAt));
   const [judgingEndAt, setJudgingEndAt] = useState<Date | null>(parseToDate(contest.judgingEndAt));
   const [resultsAt, setResultsAt] = useState<Date | null>(parseToDate(contest.resultsAt));
-
-  const pickerStyle: React.CSSProperties = useMemo(
-    () => ({
-      width: "100%",
-      boxSizing: "border-box",
-      borderRadius: radius.button,
-      border: `1px solid ${theme.border.subtle}`,
-      background: theme.surface.base,
-      color: theme.text.primary,
-      padding: `${spacing[3]} ${spacing[4]}`,
-      fontSize: "0.95rem",
-      outline: "none",
-    }),
-    [theme, radius.button],
-  );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -251,7 +245,7 @@ export function FechasModalContent({ contest, onSuccess, onCancel, readOnly, res
               minDate={minDate}
               className="fr-date-picker"
               placeholderText="Seleccionar fecha y hora"
-              customInput={<input style={pickerStyle} />}
+              customInput={<FrDatePickerCustomInput />}
             />
           </FormField>
 
@@ -267,7 +261,7 @@ export function FechasModalContent({ contest, onSuccess, onCancel, readOnly, res
               minDate={startAt ?? minDate}
               className="fr-date-picker"
               placeholderText="Seleccionar fecha y hora"
-              customInput={<input style={pickerStyle} />}
+              customInput={<FrDatePickerCustomInput />}
             />
           </FormField>
 
@@ -283,7 +277,7 @@ export function FechasModalContent({ contest, onSuccess, onCancel, readOnly, res
               minDate={submissionDeadline ?? minDate}
               className="fr-date-picker"
               placeholderText="Seleccionar fecha y hora"
-              customInput={<input style={pickerStyle} />}
+              customInput={<FrDatePickerCustomInput />}
             />
           </FormField>
 
@@ -299,7 +293,7 @@ export function FechasModalContent({ contest, onSuccess, onCancel, readOnly, res
               minDate={judgingStartAt ?? minDate}
               className="fr-date-picker"
               placeholderText="Seleccionar fecha y hora"
-              customInput={<input style={pickerStyle} />}
+              customInput={<FrDatePickerCustomInput />}
             />
           </FormField>
 
@@ -316,14 +310,23 @@ export function FechasModalContent({ contest, onSuccess, onCancel, readOnly, res
                 minDate={judgingEndAt ?? minDate}
                 className="fr-date-picker"
                 placeholderText="Seleccionar fecha y hora"
-                customInput={<input style={pickerStyle} />}
+                customInput={<FrDatePickerCustomInput />}
               />
             </FormField>
           </div>
         </div>
       </FormSection>
 
-      <div style={{ display: "flex", gap: spacing[3] }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: spacing[4],
+          marginTop: compositionSpacing.stack.contentToActions,
+          paddingTop: compositionSpacing.form.fieldsToActions,
+          borderTop: `1px solid ${theme.border.subtle}`,
+        }}
+      >
         <Button type="submit" disabled={readOnly || saving}>
           {saving ? "Guardando..." : "Guardar"}
         </Button>

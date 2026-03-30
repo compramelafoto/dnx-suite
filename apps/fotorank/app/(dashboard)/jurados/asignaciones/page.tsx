@@ -12,7 +12,7 @@ export default async function JudgeAssignmentsPage() {
     resolved.ok
       ? await prisma.fotorankContest.findMany({
           where: { organizationId: resolved.org.id },
-          include: { categories: true },
+          include: { categories: { where: { status: "ACTIVE" } } },
           orderBy: { createdAt: "desc" },
         })
       : [];

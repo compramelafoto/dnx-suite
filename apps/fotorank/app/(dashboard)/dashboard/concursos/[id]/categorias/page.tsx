@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageContainer } from "../../../../../components/PageContainer";
+import { PageInfoRecuadro } from "../../../../../components/ui/PageInfoRecuadro";
 import { getFotorankContestById } from "../../../../../lib/fotorank/contests";
 import { routes } from "../../../../../lib/routes";
 
@@ -23,9 +24,9 @@ export default async function ContestCategoriasPage({ params }: PageProps) {
       title={"Categorías: " + contest.title}
       description="Definir categorías para las obras participantes."
     >
-      <div className="fr-recuadro rounded-xl border border-[#262626] bg-[#141414] p-8">
+      <PageInfoRecuadro>
         {contest.categories.length === 0 ? (
-          <p className="text-sm leading-relaxed text-fr-muted">
+          <p className="fr-body text-fr-muted">
             No hay categorías definidas. Agregá al menos una desde el wizard de creación o edición del concurso.
           </p>
         ) : (
@@ -38,10 +39,10 @@ export default async function ContestCategoriasPage({ params }: PageProps) {
             ))}
           </ul>
         )}
-        <Link href={routes.dashboard.concursos.detalle(id)} className="fr-btn fr-btn-secondary mt-6 inline-flex">
+        <Link href={routes.dashboard.concursos.detalle(id)} className="fr-btn fr-btn-secondary inline-flex w-fit">
           Volver al concurso
         </Link>
-      </div>
+      </PageInfoRecuadro>
     </PageContainer>
   );
 }

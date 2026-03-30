@@ -3,7 +3,11 @@
  * Calcula estado y completitud de cada módulo.
  */
 
-import { getEditPermission, getRestrictionMessage, type ContestContext } from "../contest-permissions";
+import {
+  getEditPermission,
+  getRestrictionMessage,
+  type ContestContext,
+} from "../contest-permissions";
 import { MODULE_STATUS } from "./contestStatus";
 
 export type ContestModuleId =
@@ -42,7 +46,8 @@ type ContestWithRelations = {
   resultsAt: Date | null;
   status: string;
   rulesText: string | null;
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; status?: string; mappingIncomplete?: boolean }[];
+  _count?: { entries: number };
 };
 
 export function getModuleStatus(
@@ -67,9 +72,14 @@ export function getModuleStatus(
       const hasKeyDates = !!contest.submissionDeadline;
       return hasKeyDates ? MODULE_STATUS.COMPLETE : hasAnyDate ? MODULE_STATUS.IN_PROGRESS : MODULE_STATUS.NOT_STARTED;
 
-    case "categorias":
-      const count = contest.categories?.length ?? 0;
-      return count >= 1 ? MODULE_STATUS.COMPLETE : count > 0 ? MODULE_STATUS.IN_PROGRESS : MODULE_STATUS.NOT_STARTED;
+    case "categorias": {
+      const active =
+        contest.categories?.filter((c) => !c.status || c.status === "ACTIVE") ?? [];
+      const count = active.length;
+      if (count < 1) return MODULE_STATUS.NOT_STARTED;
+      const anyIncomplete = active.some((c) => c.mappingIncomplete === true);
+      return anyIncomplete ? MODULE_STATUS.IN_PROGRESS : MODULE_STATUS.COMPLETE;
+    }
 
     case "jurado":
       // Placeholder: no implementado
@@ -195,11 +205,12 @@ export function getAllModules(contest: ContestWithRelations): ModuleInfo[] {
     "bases",
     "publicacion",
   ];
+  const ctx: ContestContext = { hasEntries: (contest._count?.entries ?? 0) > 0 };
   return ids.map((id) => {
     const status = getModuleStatus(contest, id);
     const config = MODULE_CONFIG[id];
-    const editPermission = getEditPermission(id, contest.status);
-    const restrictionMessage = getRestrictionMessage(id, contest.status);
+    const editPermission = getEditPermission(id, contest.status, ctx);
+    const restrictionMessage = getRestrictionMessage(id, contest.status, ctx);
     const visualState = getVisualState(status, editPermission);
     return {
       id,

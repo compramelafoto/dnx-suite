@@ -41,6 +41,8 @@ yarn-error.log*
 # Judge avatar uploads (local dev)
 apps/fotorank/public/uploads/judges/*
 !apps/fotorank/public/uploads/judges/.gitkeep
+apps/fotorank/public/uploads/diplomas/*
+!apps/fotorank/public/uploads/diplomas/.gitkeep
 
 # Playwright
 playwright-report/

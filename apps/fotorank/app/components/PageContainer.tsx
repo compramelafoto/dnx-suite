@@ -4,14 +4,20 @@ interface PageContainerProps {
   children?: React.ReactNode;
 }
 
+/**
+ * Cabecera de página dashboard: H1 → descripción con gap y leading alineados al design system
+ * (`compositionSpacing.stack.pageTitleToDescription`, `typography` / `--fr-leading-reading*`).
+ */
 export function PageContainer({ title, description, children }: PageContainerProps) {
   return (
     <div className="space-y-12">
       <div className="fr-title-to-content fr-title-to-content-dashboard">
-        <h1 className="font-sans text-3xl font-semibold leading-[1.05] tracking-tight text-fr-primary md:text-4xl">
-          {title}
-        </h1>
-        <p className="mt-4 fr-body-small text-fr-muted leading-[1.25]">{description}</p>
+        <div className="flex flex-col gap-6">
+          <h1 className="font-sans text-3xl font-semibold leading-tight tracking-tight text-fr-primary md:text-4xl">
+            {title}
+          </h1>
+          <p className="fr-page-description">{description}</p>
+        </div>
       </div>
       {children}
     </div>

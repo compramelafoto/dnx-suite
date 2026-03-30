@@ -5,6 +5,7 @@ import { resolveActiveOrganizationForUser } from "../../../../../lib/fotorank/da
 import { decorateRankedRow, getFotorankCategoryJudgeResults } from "../../../../../lib/fotorank/judgeResultsForCategory";
 import { getFotorankContestById } from "../../../../../lib/fotorank/contests";
 import { PageContainer } from "../../../../../components/PageContainer";
+import { PageInfoRecuadro } from "../../../../../components/ui/PageInfoRecuadro";
 import { routes } from "../../../../../lib/routes";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +24,9 @@ export default async function ContestResultadosPage({ params, searchParams }: Pa
   if (!orgRes.ok) {
     return (
       <PageContainer title="Resultados" description="Ranking por categoría (votos de jurado).">
-        <div className="fr-recuadro rounded-xl border border-amber-500/30 bg-amber-500/5 text-sm text-fr-muted">
-          {orgRes.error}
-        </div>
+        <PageInfoRecuadro variant="warning">
+          <p className="fr-body text-fr-muted">{orgRes.error}</p>
+        </PageInfoRecuadro>
       </PageContainer>
     );
   }
@@ -35,7 +36,7 @@ export default async function ContestResultadosPage({ params, searchParams }: Pa
     notFound();
   }
 
-  const categories = contest.categories;
+  const categories = contest.categories.filter((c) => c.status === "ACTIVE" || !c.status);
   const activeCategoryId =
     categoryIdParam && categories.some((c) => c.id === categoryIdParam)
       ? categoryIdParam
@@ -57,9 +58,11 @@ export default async function ContestResultadosPage({ params, searchParams }: Pa
       </div>
 
       {categories.length === 0 ? (
-        <div className="fr-recuadro rounded-xl border border-[#262626] bg-[#141414]">
-          <p className="text-sm text-fr-muted">Este concurso no tiene categorías. Agregá categorías para ver resultados.</p>
-        </div>
+        <PageInfoRecuadro>
+          <p className="fr-body text-fr-muted">
+            Este concurso no tiene categorías. Agregá categorías para ver resultados.
+          </p>
+        </PageInfoRecuadro>
       ) : (
         <>
           <nav className="mb-10 flex flex-wrap gap-2 border-b border-fr-border pb-6" aria-label="Categorías">
@@ -82,37 +85,35 @@ export default async function ContestResultadosPage({ params, searchParams }: Pa
           </nav>
 
           {results && !results.ok && results.code === "AMBIGUOUS_METHOD" ? (
-            <div className="fr-recuadro rounded-xl border border-red-500/30 bg-red-500/5">
-              <p className="text-sm font-semibold text-red-200">{results.message}</p>
-              <p className="mt-4 text-sm text-fr-muted">
+            <PageInfoRecuadro variant="danger" density="compact">
+              <p className="text-sm font-semibold leading-snug text-red-200">{results.message}</p>
+              <p className="fr-body-small text-fr-muted">
                 Métodos detectados:{" "}
                 <span className="font-mono text-fr-primary">{results.methodTypesFound.join(", ")}</span>
               </p>
-            </div>
+            </PageInfoRecuadro>
           ) : null}
 
           {results && results.ok && results.variant === "NO_ASSIGNMENTS" ? (
-            <div className="fr-recuadro mb-10 rounded-xl border border-amber-500/25 bg-amber-500/5">
-              <p className="text-sm text-fr-muted">{results.message}</p>
-            </div>
+            <PageInfoRecuadro variant="warningSoft" className="mb-10">
+              <p className="fr-body text-fr-muted">{results.message}</p>
+            </PageInfoRecuadro>
           ) : null}
 
           {results && results.ok && results.variant === "READY" ? (
-            <div className="fr-recuadro mb-10 space-y-3 rounded-xl border border-[#262626] bg-[#141414]">
-              <p className="text-sm text-fr-primary">
+            <PageInfoRecuadro density="compact" className="mb-10">
+              <p className="text-sm leading-relaxed text-fr-primary">
                 <span className="text-fr-muted">Método:</span>{" "}
                 <span className="font-mono text-gold">{results.methodType}</span>
               </p>
-              <p className="text-sm text-fr-muted">
+              <p className="text-sm leading-relaxed text-fr-muted">
                 <span className="font-medium text-fr-primary">Agregación:</span> {results.aggregationLabel}
               </p>
-              <p className="text-sm text-fr-muted">
+              <p className="text-sm leading-relaxed text-fr-muted">
                 <span className="font-medium text-fr-primary">Orden:</span> {results.sortHelp}
               </p>
-              <p className="text-xs text-fr-muted-soft">
-                Asignaciones en esta categoría: {results.assignmentCount}
-              </p>
-            </div>
+              <p className="fr-caption">Asignaciones en esta categoría: {results.assignmentCount}</p>
+            </PageInfoRecuadro>
           ) : null}
 
           {results && results.ok ? (

@@ -65,16 +65,17 @@ export function FormField({
           htmlFor={htmlFor}
           style={{
             fontFamily: fontFamily.sans,
-            fontSize: fontSize.sm,
-            lineHeight: lineHeight.normal,
+            fontSize: fontSize.base,
+            lineHeight: lineHeight.snug,
             fontWeight: fontWeight.semibold,
+            letterSpacing: "-0.01em",
             color: theme.text.primary,
             cursor: htmlFor ? "pointer" : "default",
           }}
         >
           {label}
           {required ? (
-            <span style={{ color: semanticColors.danger, marginLeft: spacing[1] }} aria-hidden>
+            <span style={{ color: theme.text.tertiary, marginLeft: spacing[1] }} aria-hidden>
               *
             </span>
           ) : null}

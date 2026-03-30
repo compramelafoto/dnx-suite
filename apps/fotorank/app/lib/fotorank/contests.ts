@@ -44,7 +44,33 @@ export async function getFotorankContestById(id: string) {
     where: { id },
     include: {
       organization: true,
-      categories: { orderBy: { sortOrder: "asc" } },
+      _count: { select: { entries: true } },
+      categories: {
+        orderBy: { sortOrder: "asc" },
+        include: {
+          globalMappings: {
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            include: {
+              globalCategory: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  reviewStatus: true,
+                  isActive: true,
+                },
+              },
+            },
+          },
+          sourceGlobalCategory: {
+            select: { id: true, name: true, slug: true, reviewStatus: true },
+          },
+          linkedPendingGlobalCategory: {
+            select: { id: true, name: true, slug: true, reviewStatus: true },
+          },
+          _count: { select: { entries: true, judgeAssignments: true } },
+        },
+      },
     },
   });
 }

@@ -10,12 +10,15 @@ export function JuradosOrganizationSwitcher({
   organizations,
   currentOrganizationId,
   label = "Organización activa (Jurados)",
+  hideLabel = false,
   className = "",
 }: {
   organizations: Org[];
   currentOrganizationId: string | null;
   /** Texto de la etiqueta (sidebar global vs. módulo Jurados). */
   label?: string;
+  /** Si true, solo el select (útil junto a `ContextOrgChip`). */
+  hideLabel?: boolean;
   className?: string;
 }) {
   const router = useRouter();
@@ -26,13 +29,16 @@ export function JuradosOrganizationSwitcher({
 
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
-      <label htmlFor="jurados-active-org" className="text-xs font-medium uppercase tracking-wide text-fr-muted">
-        {label}
-      </label>
+      {!hideLabel ? (
+        <label htmlFor="jurados-active-org" className="text-xs font-medium uppercase tracking-wide text-fr-muted">
+          {label}
+        </label>
+      ) : null}
       <div className="flex min-w-0 flex-col items-stretch gap-2">
         <select
           id="jurados-active-org"
-          className="w-full rounded-lg border border-fr-border bg-fr-bg-elevated px-3 py-2.5 text-sm text-fr-primary"
+          aria-label={hideLabel ? label : undefined}
+          className="fr-filter-select w-full max-w-full bg-fr-bg-elevated py-2 text-sm text-fr-primary"
           value={currentOrganizationId ?? ""}
           disabled={pending}
           onChange={(e) => {

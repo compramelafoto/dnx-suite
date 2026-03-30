@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageContainer } from "../../../../../components/PageContainer";
+import { PageInfoRecuadro } from "../../../../../components/ui/PageInfoRecuadro";
 import { getFotorankContestById } from "../../../../../lib/fotorank/contests";
 import { routes } from "../../../../../lib/routes";
 
@@ -23,14 +24,15 @@ export default async function ContestFechasPage({ params }: PageProps) {
       title={"Fechas: " + contest.title}
       description="Calendario del concurso: inicio, cierre de inscripciones, evaluación y resultados."
     >
-      <div className="fr-recuadro rounded-xl border border-[#262626] bg-[#141414] p-8">
-        <p className="text-sm leading-relaxed text-fr-muted">
-          Configuración de fechas. Por ahora podés editar las fechas desde el formulario de datos generales o al crear el concurso.
+      <PageInfoRecuadro>
+        <p className="fr-body text-fr-muted">
+          Configuración de fechas. Por ahora podés editar las fechas desde el formulario de datos generales o al crear el
+          concurso.
         </p>
-        <Link href={routes.dashboard.concursos.detalle(id)} className="fr-btn fr-btn-secondary mt-6 inline-flex">
+        <Link href={routes.dashboard.concursos.detalle(id)} className="fr-btn fr-btn-secondary inline-flex w-fit">
           Volver al concurso
         </Link>
-      </div>
+      </PageInfoRecuadro>
     </PageContainer>
   );
 }

@@ -45,6 +45,109 @@ const E2E_CRITERIA_METHOD_CONFIG = {
   ],
 };
 
+/** Normalización alineada con FotoRank `normalizeForAliasKey` (solo seed). */
+function seedNormalizedAlias(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/&/g, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+}
+
+/**
+ * Catálogo maestro global + alias. Idempotente (upsert por slug / normalizedAlias).
+ * Ejecutar antes de crear categorías de concurso que necesiten mapeo.
+ */
+async function seedFotorankGlobalMasterCatalog() {
+  const masters: { name: string; slug: string }[] = [
+    { name: "Retrato", slug: "retrato" },
+    { name: "Paisaje", slug: "paisaje" },
+    { name: "Naturaleza", slug: "naturaleza" },
+    { name: "Fauna", slug: "fauna" },
+    { name: "Flora", slug: "flora" },
+    { name: "Macro", slug: "macro" },
+    { name: "Arquitectura", slug: "arquitectura" },
+    { name: "Documental", slug: "documental" },
+    { name: "Fotoperiodismo", slug: "fotoperiodismo" },
+    { name: "Callejera", slug: "callejera" },
+    { name: "Deportes", slug: "deportes" },
+    { name: "Blanco y negro", slug: "blanco-y-negro" },
+    { name: "Nocturna", slug: "nocturna" },
+    { name: "Viajes", slug: "viajes" },
+    { name: "Conceptual", slug: "conceptual" },
+    { name: "Abstracta", slug: "abstracta" },
+    { name: "Drone", slug: "drone" },
+    { name: "Minimalismo", slug: "minimalismo" },
+    { name: "Cultura", slug: "cultura" },
+    { name: "Social", slug: "social" },
+    { name: "General", slug: "general" },
+  ];
+
+  const idBySlug = new Map<string, string>();
+  for (const m of masters) {
+    const row = await prisma.fotorankGlobalCategory.upsert({
+      where: { slug: m.slug },
+      update: {
+        name: m.name,
+        isActive: true,
+        reviewStatus: "APPROVED",
+        isSystem: true,
+      },
+      create: {
+        name: m.name,
+        slug: m.slug,
+        isActive: true,
+        reviewStatus: "APPROVED",
+        isSystem: true,
+      },
+    });
+    idBySlug.set(m.slug, row.id);
+  }
+
+  const aliasDefs: { slug: string; texts: string[] }[] = [
+    { slug: "blanco-y-negro", texts: ["B&N", "BN", "ByN", "blanco y negro", "byn"] },
+    { slug: "callejera", texts: ["Street", "street photography"] },
+    { slug: "fauna", texts: ["Wildlife"] },
+    { slug: "retrato", texts: ["Portrait", "portrait"] },
+  ];
+
+  for (const { slug, texts } of aliasDefs) {
+    const gid = idBySlug.get(slug);
+    if (!gid) continue;
+    for (const text of texts) {
+      const normalizedAlias = seedNormalizedAlias(text);
+      if (!normalizedAlias) continue;
+      await prisma.fotorankGlobalCategoryAlias.upsert({
+        where: { normalizedAlias },
+        update: { globalCategoryId: gid, aliasText: text },
+        create: { globalCategoryId: gid, aliasText: text, normalizedAlias },
+      });
+    }
+  }
+}
+
+async function linkContestCategoryToGlobalPrimary(contestCategoryId: string, globalSlug: string) {
+  const g = await prisma.fotorankGlobalCategory.findUnique({ where: { slug: globalSlug } });
+  if (!g) return;
+  await prisma.fotorankContestCategoryGlobalCategory.upsert({
+    where: {
+      contestCategoryId_globalCategoryId: { contestCategoryId, globalCategoryId: g.id },
+    },
+    update: { isPrimary: true },
+    create: { contestCategoryId, globalCategoryId: g.id, isPrimary: true },
+  });
+  await prisma.fotorankContestCategory.update({
+    where: { id: contestCategoryId },
+    data: {
+      mappingIncomplete: false,
+      isCustom: false,
+      sourceGlobalCategoryId: g.id,
+    },
+  });
+}
+
 async function seedFotorankComUsers(workspaceId: string) {
   const passwordHash = hashPasswordForSeed(SEED_FT_COM_PASSWORD);
   const evalStart = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
@@ -200,6 +303,7 @@ async function seedFotorankComUsers(workspaceId: string) {
       sortOrder: 0,
     },
   });
+  await linkContestCategoryToGlobalPrimary(seedCategory.id, "general");
 
   const judge1 = await prisma.fotorankJudgeAccount.upsert({
     where: { email: "jurado1@fotorank.com" },
@@ -446,6 +550,8 @@ async function main() {
    */
 
   // --- Fotorank / Jurados: fixtures deterministas para demo local y E2E ---
+  await seedFotorankGlobalMasterCatalog();
+
   const demoJudgePassword = "JudgeDemo!e2e";
   const inviteJudgePassword = "InviteSeed!e2e";
   const demoJudgeHash = hashPasswordForSeed(demoJudgePassword);
@@ -541,6 +647,8 @@ async function main() {
       sortOrder: 1,
     },
   });
+  await linkContestCategoryToGlobalPrimary(catGeneral.id, "general");
+  await linkContestCategoryToGlobalPrimary(catInvite.id, "documental");
 
   const existingEntry = await prisma.fotorankContestEntry.findFirst({
     where: { contestId: e2eContest.id, categoryId: catGeneral.id },
@@ -981,6 +1089,7 @@ async function main() {
       sortOrder: 0,
     },
   });
+  await linkContestCategoryToGlobalPrimary(catDraft.id, "general");
 
   const draftEvalPassword = "DraftEval!e2e";
   const draftEvalHash = hashPasswordForSeed(draftEvalPassword);

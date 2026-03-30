@@ -15,7 +15,11 @@ export default async function JudgeInvitationsPage() {
           select: {
             id: true,
             title: true,
-            categories: { select: { id: true, name: true }, orderBy: { name: "asc" } },
+            categories: {
+              where: { status: "ACTIVE" },
+              select: { id: true, name: true },
+              orderBy: { name: "asc" },
+            },
           },
           orderBy: { createdAt: "desc" },
         })

@@ -1,4 +1,5 @@
 import { PageContainer } from "../../../components/PageContainer";
+import { PageInfoRecuadro } from "../../../components/ui/PageInfoRecuadro";
 import { getActiveOrganizationProfileForSettings } from "../../../actions/organization-institutional";
 import { InstitutionalSettingsForm } from "./InstitutionalSettingsForm";
 
@@ -11,7 +12,9 @@ export default async function DashboardInstitutionalSettingsPage() {
         title="Perfil institucional"
         description="Configurá los datos de tu organización para el panel y las landings públicas."
       >
-        <div className="fr-recuadro border-amber-500/30 bg-amber-500/5 text-sm text-amber-100">{res.error}</div>
+        <PageInfoRecuadro variant="warning">
+          <p className="fr-body text-amber-100">{res.error}</p>
+        </PageInfoRecuadro>
       </PageContainer>
     );
   }

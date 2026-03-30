@@ -40,10 +40,25 @@ export async function createFotorankContestEntry(input: {
   if (!contest) return { ok: false, error: "Concurso no encontrado en tu organización activa." };
 
   const category = await prisma.fotorankContestCategory.findFirst({
-    where: { id: categoryId, contestId },
-    select: { id: true },
+    where: { id: categoryId, contestId, status: "ACTIVE" },
+    include: {
+      globalMappings: {
+        include: { globalCategory: { select: { reviewStatus: true, isActive: true } } },
+      },
+    },
   });
-  if (!category) return { ok: false, error: "La categoría no pertenece a ese concurso." };
+  if (!category) return { ok: false, error: "La categoría no pertenece a ese concurso o está archivada." };
+
+  const hasApprovedGlobal = category.globalMappings.some(
+    (m) => m.globalCategory.reviewStatus === "APPROVED" && m.globalCategory.isActive
+  );
+  if (!hasApprovedGlobal) {
+    return {
+      ok: false,
+      error:
+        "Esta categoría aún no está vinculada a una categoría global aprobada. Completá el mapeo en la configuración del concurso.",
+    };
+  }
 
   const draft = {
     contestId,

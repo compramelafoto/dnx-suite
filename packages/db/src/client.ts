@@ -17,3 +17,10 @@ if (process.env.NODE_ENV !== "production") {
 
 export { Prisma };
 export type { PrismaClient };
+/** Re-export Prisma enums for apps that depend on `@repo/db` but not on `@prisma/client` directly. */
+export type {
+  FotorankJudgeMethodType,
+  FotorankJudgeCompensationMode,
+  FotorankJudgePricingMode,
+  FotorankJudgePriceUnit,
+} from "@prisma/client";

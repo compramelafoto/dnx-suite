@@ -19,6 +19,7 @@ export const routes = {
       modals: (id: string) => `/dashboard/concursos/${id}/modals`,
       categorias: (id: string) => `/dashboard/concursos/${id}/categorias`,
       resultados: (id: string) => `/dashboard/concursos/${id}/resultados`,
+      diplomas: (id: string) => `/dashboard/concursos/${id}/diplomas`,
       premios: (id: string) => `/dashboard/concursos/${id}/premios`,
       comercializacion: (id: string) => `/dashboard/concursos/${id}/comercializacion`,
     },

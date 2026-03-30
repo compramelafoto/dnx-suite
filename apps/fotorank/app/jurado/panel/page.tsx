@@ -10,14 +10,28 @@ export default async function JudgePanelPage() {
   return (
     <div className="min-h-screen bg-fr-bg p-8">
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold text-fr-primary">Panel del jurado</h1>
             <p className="text-sm text-fr-muted">{judge.profile ? `${judge.profile.firstName} ${judge.profile.lastName}` : judge.email}</p>
           </div>
-          <form action={judgeLogoutAction}>
-            <Button variant="outline" type="submit">Cerrar sesión</Button>
-          </form>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/jurado/perfil">
+              <Button variant="outline" type="button">
+                Perfil profesional
+              </Button>
+            </Link>
+            <Link href="/jurado/invitaciones">
+              <Button variant="outline" type="button">
+                Invitaciones
+              </Button>
+            </Link>
+            <form action={judgeLogoutAction}>
+              <Button variant="outline" type="submit">
+                Cerrar sesión
+              </Button>
+            </form>
+          </div>
         </div>
 
         {!assignments.ok ? (

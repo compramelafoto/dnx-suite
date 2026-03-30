@@ -17,6 +17,11 @@ export const compositionSpacing = {
     tight: spacing[2],
     /** Título → subtítulo o descripción corta */
     titleToSubtitle: spacing[4],
+    /**
+     * H1 de página dashboard → párrafo intro (legibilidad; no apretar con `titleToSubtitle`).
+     * FotoRank: `PageContainer`, cabeceras equivalentes.
+     */
+    pageTitleToDescription: spacing[6],
     /** Subtítulo / lead → contenido (lista, campos, párrafo) */
     subtitleToContent: spacing[6],
     /** Entre bloques relacionados en la misma vista */
@@ -81,16 +86,38 @@ export const compositionSpacing = {
 
   /** Formularios (no wizard exclusivo: modales dashboard, settings) */
   form: {
-    /** Label → control (aire visual profesional: evita texto pegado al recuadro) */
-    labelToControl: spacing[8],
+    /** Label → control (40px: lectura clara en dashboard / modales DS) */
+    labelToControl: spacing[10],
     /** Control → helper / error */
     controlToHelper: spacing[3],
-    /** Entre campos completos en formulario denso */
-    betweenFields: spacing[6],
+    /** Entre campos completos (FotoRank: 32px para escaneo y ritmo premium) */
+    betweenFields: spacing[8],
     /** Entre grupos / FormSection */
     betweenSections: spacing[12],
     /** Título de sección → borde superior del recuadro de campos */
     sectionTitleToFields: spacing[4],
+    /** Descripción de sección → primer campo (stack.subtitleToContent) */
+    sectionDescriptionToFields: spacing[6],
+    /** Bloque de campos → fila de acciones (footer formulario / modal) */
+    fieldsToActions: spacing[10],
+    /**
+     * Sangría interna de inputs/select/textarea (eje X).
+     * FotoRank: variables CSS `--fr-form-control-px` en `globals.css` deben coincidir (1.25rem ≈ 20px).
+     */
+    controlPaddingX: spacing[5],
+    /** Sangría interna vertical estándar (~14px). */
+    controlPaddingY: "14px",
+    /** Select: padding derecho reservado para chevron. */
+    controlPaddingEndSelect: "2.75rem",
+    /** datetime-local: espacio para indicador nativo. */
+    controlPaddingEndDatetime: "2.75rem",
+    /** Recuadro `FormSection` (body): padding alrededor del bloque de campos */
+    sectionBodyPadding: spacing[10],
+    /**
+     * Ancho máximo del recuadro de campos (selects, inputs típicos no deben estirarse a todo el viewport).
+     * Usar `fullWidth` en `FormSection` si el bloque debe ocupar el 100% (casos excepcionales).
+     */
+    fieldsContainerMaxWidth: "min(100%, 40rem)",
   },
 
   /**

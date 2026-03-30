@@ -30,9 +30,14 @@
   --color-fr-muted-soft: #737373;
 }
 
-* {
+/* No usar padding:0 universal: en Tailwind v4 puede ganar al layer de utilidades y deja inputs/select sin sangría. */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
-  padding: 0;
+}
+
+* {
   margin: 0;
 }
 
@@ -69,16 +74,31 @@ body {
    -------------------------------------------------------------------------- */
 :root {
   --fr-comp-title-subtitle: 1rem;
+  /** H1 dashboard → descripción (alineado con compositionSpacing.stack.pageTitleToDescription) */
+  --fr-comp-page-title-description: 1.5rem;
   --fr-comp-subtitle-content: 1.5rem;
+  /** Interlineado lectura — alineado con typography.lineHeight.reading / readingComfort en DS */
+  --fr-leading-reading: 1.7;
+  --fr-leading-reading-comfort: 1.75;
+  /** Alineado con `compositionSpacing.form.fieldsContainerMaxWidth` (40rem cap) */
+  --fr-form-fields-max-width: 40rem;
   --fr-comp-block: 2rem;
   --fr-comp-section: 3rem;
   --fr-comp-content-actions: 4rem;
-  --fr-comp-label-input: 2rem;
+  --fr-comp-label-input: 2.5rem;
   --fr-comp-control-helper: 0.75rem;
-  --fr-comp-between-fields: 1.5rem;
+  --fr-comp-between-fields: 2rem;
+  --fr-comp-section-desc-to-fields: 1.5rem;
+  --fr-comp-fields-to-actions: 2.5rem;
   --fr-comp-action-gap: 0.75rem;
   --fr-comp-action-gap-comfort: 1rem;
   --fr-comp-card-gap: 2rem;
+
+  /* Sangría interna obligatoria de controles (alineado con compositionSpacing.form.control*) */
+  --fr-form-control-px: 1.25rem;
+  --fr-form-control-py: 0.875rem;
+  --fr-form-select-pr: 2.75rem;
+  --fr-form-datetime-pr: 2.75rem;
 
   /* Modal header — alineado con compositionSpacing.modal (design system) */
   --fr-modal-title-close-gap: 1.5rem;
@@ -90,6 +110,54 @@ body {
   --fr-modal-brand-inset-pt: 1.5rem;
   --fr-modal-logo-to-title: 1rem;
   --fr-modal-brand-logo-max: 3rem;
+}
+
+/* --------------------------------------------------------------------------
+   Controles de formulario — sangría interna garantizada (dashboard, modales, wizard)
+   Misma semántica que `compositionSpacing.form.controlPadding*` en @repo/design-system.
+   -------------------------------------------------------------------------- */
+:is(.fr-dashboard-main, .fr-form-window, .fr-modal-content, .fr-recuadro, .fr-wizard-card)
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not(
+    [type="image"]
+  ):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not(
+    .fr-date-picker-trigger-input
+  ),
+:is(.fr-dashboard-main, .fr-form-window, .fr-modal-content, .fr-recuadro, .fr-wizard-card) select,
+:is(.fr-dashboard-main, .fr-form-window, .fr-modal-content, .fr-recuadro, .fr-wizard-card) textarea {
+  padding-left: var(--fr-form-control-px);
+  padding-right: var(--fr-form-control-px);
+  padding-top: var(--fr-form-control-py);
+  padding-bottom: var(--fr-form-control-py);
+}
+
+:is(.fr-dashboard-main, .fr-form-window, .fr-modal-content, .fr-recuadro, .fr-wizard-card) select {
+  padding-right: var(--fr-form-select-pr);
+}
+
+:is(.fr-dashboard-main, .fr-form-window, .fr-modal-content, .fr-recuadro, .fr-wizard-card)
+  input[type="datetime-local"] {
+  padding-right: var(--fr-form-datetime-pr);
+}
+
+[data-ds-form-section="body"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(
+    [type="hidden"]
+  ):not([type="image"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not(
+    .fr-date-picker-trigger-input
+  ),
+[data-ds-form-section="body"] select,
+[data-ds-form-section="body"] textarea {
+  padding-left: var(--fr-form-control-px);
+  padding-right: var(--fr-form-control-px);
+  padding-top: var(--fr-form-control-py);
+  padding-bottom: var(--fr-form-control-py);
+}
+
+[data-ds-form-section="body"] select {
+  padding-right: var(--fr-form-select-pr);
+}
+
+[data-ds-form-section="body"] input[type="datetime-local"] {
+  padding-right: var(--fr-form-datetime-pr);
 }
 
 /* Label → control (modales / formularios densos) */
@@ -240,6 +308,50 @@ body {
   }
 }
 
+/* Vistas de herramienta (directorio, listados): mismo ancho útil que el header (1280px) */
+.fr-dashboard-page-shell {
+  width: 100%;
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Controles del panel de filtros — altura 40px, sin inputs toscos */
+.fr-filter-input,
+.fr-filter-select {
+  display: block;
+  width: 100%;
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-fr-border);
+  background-color: var(--color-fr-bg);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-fr-primary);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.fr-filter-input::placeholder {
+  color: var(--color-fr-muted-soft);
+}
+.fr-filter-input:focus,
+.fr-filter-select:focus {
+  outline: none;
+  border-color: rgba(212, 175, 55, 0.45);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.12);
+}
+.fr-filter-select {
+  padding-right: 2rem;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1a1' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem;
+}
+
 /* ==========================================================================
    TIPOGRAFÍA — Jerarquía clara
    ========================================================================== */
@@ -309,17 +421,34 @@ body {
 
 .fr-body-large {
   font-size: 1.125rem;
-  line-height: 1.75;
+  line-height: var(--fr-leading-reading-comfort);
 }
 
 .fr-body {
   font-size: 1rem;
-  line-height: 1.7;
+  line-height: var(--fr-leading-reading);
 }
 
 .fr-body-small {
   font-size: 0.9375rem;
-  line-height: 1.65;
+  line-height: var(--fr-leading-reading);
+}
+
+/**
+ * Lead bajo título de página (dashboard). Interlineado cómodo; no usar leading-tight aquí.
+ * DS: `typography.muted` / `lineHeight.reading` como referencia conceptual.
+ */
+.fr-page-description {
+  font-size: 0.9375rem;
+  line-height: var(--fr-leading-reading-comfort);
+  color: var(--color-fr-muted);
+  max-width: 42rem;
+}
+
+@media (min-width: 768px) {
+  .fr-page-description {
+    font-size: 1rem;
+  }
 }
 
 .fr-caption {
@@ -539,6 +668,121 @@ textarea.fr-form-input {
 
 .fr-form-section:last-child {
   margin-bottom: 0;
+}
+
+/* Stack de campos en FormSection local (onboarding, etc.): mismo tope que DS */
+.fr-form-section-fields {
+  width: 100%;
+  max-width: min(100%, var(--fr-form-fields-max-width));
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   Formularios FotoRank — jerarquía helper / error (alineado DS + design_rule)
+   -------------------------------------------------------------------------- */
+.fr-form-helper-text {
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: var(--color-fr-muted);
+}
+
+.fr-form-microcopy {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-fr-muted-soft);
+}
+
+.fr-form-error-text {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-weight: 500;
+  color: #fca5a5;
+}
+
+.fr-form-success-text {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #6ee7b7;
+}
+
+/* Campo fecha/hora (react-datepicker custom input) — affordance clara */
+.fr-date-picker-trigger-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 3.25rem;
+  padding: 0.875rem 3rem 0.875rem 1.25rem;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-fr-primary);
+  background-color: var(--color-fr-bg-elevated);
+  border: 1px solid var(--color-fr-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.fr-date-picker-trigger-input:hover {
+  border-color: var(--color-fr-border-muted);
+  background-color: #0d0d0d;
+}
+
+.fr-date-picker-trigger-input:focus {
+  outline: none;
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18);
+}
+
+.fr-date-picker-trigger-input:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+.fr-date-picker-trigger-input::placeholder {
+  color: var(--color-fr-muted-soft);
+}
+
+.fr-date-picker-trigger-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.fr-date-picker-trigger-wrap .fr-date-picker-trigger-icon {
+  position: absolute;
+  right: 0.625rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  pointer-events: none;
+  color: var(--color-gold-soft);
+  opacity: 0.95;
+}
+
+.fr-date-picker-trigger-wrap:hover .fr-date-picker-trigger-icon,
+.fr-date-picker-trigger-wrap:focus-within .fr-date-picker-trigger-icon {
+  color: var(--color-gold);
+  opacity: 1;
+}
+
+/* datetime-local nativo (fallback) — barra lateral del calendario más visible en WebKit */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.75) sepia(0.4) saturate(4) hue-rotate(10deg);
+  cursor: pointer;
+  opacity: 0.9;
+  padding: 0.25rem;
+  margin-left: 0.25rem;
+}
+
+input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
 }
 
 /* Wizard y modales — sangrías por defecto (design_rule) */
@@ -784,6 +1028,9 @@ textarea.fr-form-input {
 }
 
 /* React DatePicker — tema oscuro FotoRank */
+.react-datepicker-popper {
+  z-index: 100 !important;
+}
 .react-datepicker-wrapper {
   width: 100%;
 }

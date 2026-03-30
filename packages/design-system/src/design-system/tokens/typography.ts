@@ -25,6 +25,10 @@ export const lineHeight = {
   normal: "1.5",
   relaxed: "1.625",
   loose: "1.75",
+  /** Párrafos de lectura (intro de página, cards explicativos, leads bajo H1) */
+  reading: "1.7",
+  /** Párrafos destacados / subtítulo hero */
+  readingComfort: "1.75",
 } as const;
 
 export const fontWeight = {
@@ -68,7 +72,7 @@ export const typography = {
   bodySmall: {
     fontFamily: fontFamily.sans,
     fontSize: fontSize.sm,
-    lineHeight: lineHeight.normal,
+    lineHeight: lineHeight.reading,
     fontWeight: fontWeight.normal,
   },
   small: {
@@ -84,17 +88,17 @@ export const typography = {
   muted: {
     fontFamily: fontFamily.sans,
     fontSize: fontSize.sm,
-    lineHeight: lineHeight.normal,
+    lineHeight: lineHeight.relaxed,
     fontWeight: fontWeight.normal,
   },
   /**
    * Ayuda bajo campos, leyendas pequeñas, mensajes de error cortos.
-   * No usar para párrafos largos; preferir `body` o `muted`.
+   * Tamaño `sm` para legibilidad y jerarquía clara frente al label (no compite con el valor del input).
    */
   helper: {
     fontFamily: fontFamily.sans,
-    fontSize: fontSize.xs,
-    lineHeight: lineHeight.normal,
+    fontSize: fontSize.sm,
+    lineHeight: lineHeight.relaxed,
     fontWeight: fontWeight.normal,
   },
 } as const;

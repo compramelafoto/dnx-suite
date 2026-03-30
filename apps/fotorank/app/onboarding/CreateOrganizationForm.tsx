@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createOrganization } from "../actions/organizations";
-import { FormField, FormSection, inputBase } from "../components/ui/form";
+import {
+  FormActions,
+  FormField,
+  FormSection,
+  inputBase,
+  textareaBase,
+} from "../components/ui/form";
 
 function slugFromName(name: string): string {
   return name
@@ -47,10 +53,10 @@ export function CreateOrganizationForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-12">
+    <form onSubmit={handleSubmit} className="mx-auto max-w-xl space-y-0">
       <FormSection
         title="Información de la organización"
-        description="Creá tu primera organización para comenzar a organizar concursos."
+        description="Creá tu primera organización para comenzar a organizar concursos. Los datos se pueden editar después en configuración."
       >
         <FormField id="name" label="Nombre de la organización" required>
           <input
@@ -81,13 +87,17 @@ export function CreateOrganizationForm() {
           />
         </FormField>
 
-        <FormField id="description" label="Descripción (opcional)">
+        <FormField
+          id="description"
+          label="Descripción (opcional)"
+          hint="Opcional. Aparece en contextos públicos o internos según la función que habilites más adelante."
+        >
           <textarea
             id="description"
             name="description"
-            rows={3}
-            placeholder="Breve descripción de la organización..."
-            className={`${inputBase} min-h-[5rem] resize-y`}
+            rows={4}
+            placeholder="Ej.: Comunidad de fotógrafos de la región..."
+            className={textareaBase}
           />
         </FormField>
 
@@ -102,15 +112,24 @@ export function CreateOrganizationForm() {
         </FormField>
       </FormSection>
 
-      {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+      {error ? (
+        <div
+          className="fr-form-error-text mb-8 rounded-xl border border-red-500/35 bg-red-500/10 px-5 py-4"
+          role="alert"
+        >
           {error}
         </div>
-      )}
+      ) : null}
 
-      <button type="submit" disabled={loading} className="fr-btn fr-btn-primary w-full">
-        {loading ? "Creando..." : "Crear organización"}
-      </button>
+      <FormActions>
+        <button
+          type="submit"
+          disabled={loading}
+          className="fr-btn fr-btn-primary w-full min-h-[3.25rem] sm:w-auto sm:min-w-[12rem]"
+        >
+          {loading ? "Creando..." : "Crear organización"}
+        </button>
+      </FormActions>
     </form>
   );
 }

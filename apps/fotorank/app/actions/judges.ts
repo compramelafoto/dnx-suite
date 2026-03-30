@@ -495,11 +495,11 @@ export async function createJudgeAssignment(input: {
   }
 
   const category = await prisma.fotorankContestCategory.findFirst({
-    where: { id: categoryId, contestId: contest.id },
+    where: { id: categoryId, contestId: contest.id, status: "ACTIVE" },
     select: { id: true },
   });
   if (!category) {
-    return { ok: false, error: "La categoría no pertenece al concurso seleccionado." };
+    return { ok: false, error: "La categoría no está activa o no pertenece al concurso seleccionado." };
   }
 
   const assignment = await prisma.fotorankJudgeAssignment.create({
@@ -603,7 +603,7 @@ export async function createJudgeAssignmentsBatch(
   let categoryIdsToAssign: string[];
   if (input.allCategories) {
     const rows = await prisma.fotorankContestCategory.findMany({
-      where: { contestId: contest.id },
+      where: { contestId: contest.id, status: "ACTIVE" },
       select: { id: true },
       orderBy: { sortOrder: "asc" },
     });
@@ -622,7 +622,7 @@ export async function createJudgeAssignmentsBatch(
   }
 
   const validCategories = await prisma.fotorankContestCategory.findMany({
-    where: { contestId: contest.id, id: { in: categoryIdsToAssign } },
+    where: { contestId: contest.id, id: { in: categoryIdsToAssign }, status: "ACTIVE" },
     select: { id: true },
   });
   const validSet = new Set(validCategories.map((c) => c.id));
@@ -726,11 +726,11 @@ export async function sendJudgeInvitation(input: {
 
   if (input.categoryId?.trim()) {
     const cat = await prisma.fotorankContestCategory.findFirst({
-      where: { id: input.categoryId.trim(), contestId: contest.id },
+      where: { id: input.categoryId.trim(), contestId: contest.id, status: "ACTIVE" },
       select: { id: true },
     });
     if (!cat) {
-      return { ok: false, error: "La categoría no pertenece al concurso seleccionado." };
+      return { ok: false, error: "La categoría no está activa o no pertenece al concurso seleccionado." };
     }
   }
 

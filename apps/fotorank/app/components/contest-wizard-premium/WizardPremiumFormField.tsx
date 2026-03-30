@@ -21,16 +21,26 @@ export function WizardPremiumFormField({
   children,
 }: WizardPremiumFormFieldProps) {
   return (
-    <div className="wizard-premium-field w-full space-y-5">
-      <label htmlFor={id} className="block text-sm font-medium text-white">
+    <div className="wizard-premium-field flex w-full flex-col space-y-3">
+      <label htmlFor={id} className="block text-sm font-semibold leading-snug tracking-tight text-white sm:text-base">
         {label}
-        {required ? <span className="ml-0.5 text-amber-400">*</span> : null}
+        {required ? (
+          <span className="ml-1 text-sm font-medium text-amber-400/90" aria-hidden>
+            *
+          </span>
+        ) : null}
       </label>
-      {children}
+      <div className="w-full">{children}</div>
       {hint && !error ? (
-        <p className="pl-0 text-[11px] leading-relaxed text-zinc-500">{hint}</p>
+        <p className="text-sm leading-relaxed text-zinc-400" role="note">
+          {hint}
+        </p>
       ) : null}
-      {error ? <p className="pl-0 text-xs font-medium text-red-400">{error}</p> : null}
+      {error ? (
+        <p className="text-sm font-medium leading-snug text-red-400" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

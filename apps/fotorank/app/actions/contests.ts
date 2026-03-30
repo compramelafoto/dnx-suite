@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { requireAuth } from "../lib/auth";
 import { resolveActiveOrganizationForUser } from "../lib/fotorank/dashboard-org-context";
 import { normalizeSlug } from "../lib/fotorank/slug";
+import { canBulkReplaceContestCategories } from "../lib/fotorank/contestCategoryPolicy";
+import { autoMapNewContestCategory, countContestJudgeAssignments } from "../lib/fotorank/contestCategoryService";
 import { routes } from "../lib/routes";
 
 export type ContestCategoryInput = {
@@ -180,7 +182,7 @@ export async function createFotorankContest(
     for (let i = 0; i < validCats.length; i++) {
       const cat = validCats[i]!;
       const catSlug = normalizeSlug(cat.slug) || normalizeSlug(cat.name) || `cat-${i + 1}`;
-      await tx.fotorankContestCategory.create({
+      const row = await tx.fotorankContestCategory.create({
         data: {
           contestId: c.id,
           name: cat.name.trim(),
@@ -190,6 +192,7 @@ export async function createFotorankContest(
           sortOrder: cat.sortOrder ?? i,
         },
       });
+      await autoMapNewContestCategory(tx, row.id, row.name);
     }
 
     return c;
@@ -212,6 +215,7 @@ export async function updateFotorankContest(
 
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: contestId, organizationId: orgScope.organizationId },
+    include: { _count: { select: { entries: true } } },
   });
   if (!contest) return { ok: false, error: "Concurso no encontrado." };
 
@@ -243,6 +247,23 @@ export async function updateFotorankContest(
   const dateError = validateDateSequence(newDates);
   if (dateError) return { ok: false, error: dateError };
 
+  if (input.categories !== undefined) {
+    const assignmentCount = await countContestJudgeAssignments(contestId);
+    if (
+      !canBulkReplaceContestCategories({
+        contestDbStatus: contest.status,
+        entryCount: contest._count.entries,
+        assignmentCount,
+      })
+    ) {
+      return {
+        ok: false,
+        error:
+          "No se puede reemplazar todo el listado de categorías: hay obras o jurados asignados, o el concurso está cerrado/archivado. Usá la gestión de categorías en el panel del concurso.",
+      };
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     const updateData: Record<string, unknown> = {};
     if (input.title !== undefined) updateData.title = input.title.trim();
@@ -273,7 +294,7 @@ export async function updateFotorankContest(
       for (let i = 0; i < validCats.length; i++) {
         const cat = validCats[i]!;
         const catSlug = normalizeSlug(cat.slug) || normalizeSlug(cat.name) || `cat-${i + 1}`;
-        await tx.fotorankContestCategory.create({
+        const row = await tx.fotorankContestCategory.create({
           data: {
             contestId,
             name: cat.name.trim(),
@@ -283,6 +304,7 @@ export async function updateFotorankContest(
             sortOrder: cat.sortOrder ?? i,
           },
         });
+        await autoMapNewContestCategory(tx, row.id, row.name);
       }
     }
   });

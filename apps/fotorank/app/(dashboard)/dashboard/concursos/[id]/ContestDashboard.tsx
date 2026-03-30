@@ -141,7 +141,7 @@ export function ContestDashboard({ contest }: ContestDashboardProps) {
           <ContestProgressSummary
             overallProgress={overallProgress}
             modules={modules}
-            categoriesCount={contest.categories.length}
+            categoriesCount={contest.categories.filter((c) => c.status === "ACTIVE" || !c.status).length}
             judgesCount={0}
             hasRules={!!contest.rulesText}
             lastUpdated={contest.updatedAt}
@@ -154,7 +154,7 @@ export function ContestDashboard({ contest }: ContestDashboardProps) {
         onClose={closeModal}
         title={getModalTitle()}
         header="full"
-        maxWidth="2xl"
+        maxWidth={openModuleId === "categorias" ? "4xl" : "2xl"}
         zIndex={60}
         showTopLogo={false}
       >

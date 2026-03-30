@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageContainer } from "../../../../../components/PageContainer";
+import { PageInfoRecuadro } from "../../../../../components/ui/PageInfoRecuadro";
 import { getFotorankContestById } from "../../../../../lib/fotorank/contests";
 import { routes } from "../../../../../lib/routes";
 
@@ -23,14 +24,12 @@ export default async function ContestPremiosPage({ params }: PageProps) {
       title={"Premios: " + contest.title}
       description="Premios por categoría y modalidad de entrega."
     >
-      <div className="fr-recuadro rounded-xl border border-dashed border-[#262626] bg-[#141414] p-8">
-        <p className="text-sm leading-relaxed text-fr-muted">
-          Próximamente. Premios por categoría y modalidad de entrega.
-        </p>
-        <Link href={routes.dashboard.concursos.detalle(id)} className="fr-btn fr-btn-secondary mt-6 inline-flex">
+      <PageInfoRecuadro variant="placeholder">
+        <p className="fr-body text-fr-muted">Próximamente. Premios por categoría y modalidad de entrega.</p>
+        <Link href={routes.dashboard.concursos.detalle(id)} className="fr-btn fr-btn-secondary inline-flex w-fit">
           Volver al concurso
         </Link>
-      </div>
+      </PageInfoRecuadro>
     </PageContainer>
   );
 }

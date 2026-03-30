@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { PageContainer } from "../../components/PageContainer";
+import { PageInfoRecuadro } from "../../components/ui/PageInfoRecuadro";
 import { requireAuth } from "../../lib/auth";
 import { resolveActiveOrganizationForUser } from "../../lib/fotorank/dashboard-org-context";
 import { getFotorankContests } from "../../lib/fotorank/contests";
@@ -18,9 +19,9 @@ export default async function ConcursosPage() {
         title="Concursos"
         description="Gestiona los concursos fotográficos activos e históricos."
       >
-        <div className="fr-recuadro rounded-xl border border-amber-500/30 bg-amber-500/5 text-sm text-fr-muted">
-          {resolved.error}
-        </div>
+        <PageInfoRecuadro variant="warning">
+          <p className="fr-body text-amber-100/95">{resolved.error}</p>
+        </PageInfoRecuadro>
       </PageContainer>
     );
   }
