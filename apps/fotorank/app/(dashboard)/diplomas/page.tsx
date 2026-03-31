@@ -13,6 +13,12 @@ export default function DiplomasPage() {
           Los diplomas se emiten desde cada concurso: abrí un concurso y usá el botón de recibo en el encabezado, o la ruta
           <span className="font-mono text-fr-primary"> /dashboard/concursos/[id]/diplomas</span>.
         </p>
+        <p className="fr-caption mt-4 text-fr-muted">
+          Herramienta operativa interna (acceso directo):{" "}
+          <Link href="/dashboard/tools/diplomas-masivos" className="text-gold hover:text-gold-hover">
+            /dashboard/tools/diplomas-masivos
+          </Link>
+        </p>
         <Link href="/concursos" className="fr-btn fr-btn-primary mt-8 inline-flex">
           Ir a concursos
         </Link>

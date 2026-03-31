@@ -35,6 +35,7 @@ function buildMergeVariables(params: {
   const issuedDate = format(issuedAt, "d MMM yyyy", { locale: es });
   return {
     recipientName: row.recipientName,
+    entryTitle: row.entryTitle?.trim() || "—",
     contestTitle,
     organizerName,
     categoryName: categoryName || "—",
@@ -82,6 +83,8 @@ export async function issueSinglePlanRow(params: {
   contestId: string;
   templateId: string;
   row: PlanRow;
+  outputFormats?: { pdf: boolean; png: boolean };
+  withVerification?: boolean;
 }): Promise<IssueOneResult> {
   const { issuedByUserId, organizationId, contestId, templateId, row } = params;
   if (row.errors.length > 0) {
@@ -115,10 +118,12 @@ export async function issueSinglePlanRow(params: {
     };
   }
 
-  const diplomaCode = await uniqueDiplomaCode(contest.slug);
-  const verificationToken = await uniqueVerificationToken();
-  const verificationUrl = buildDiplomaVerificationUrl(verificationToken);
-  const qrValue = verificationUrl;
+  const withVerification = params.withVerification ?? true;
+  const outputFormats = params.outputFormats ?? { pdf: true, png: true };
+  const diplomaCode = withVerification ? await uniqueDiplomaCode(contest.slug) : `NO-VERIFY-${randomBytes(4).toString("hex").toUpperCase()}`;
+  const verificationToken = withVerification ? await uniqueVerificationToken() : "";
+  const verificationUrl = withVerification ? buildDiplomaVerificationUrl(verificationToken) : "";
+  const qrValue = withVerification ? verificationUrl : "";
   const issuedAt = new Date();
 
   const categoryName = category?.name ?? "";
@@ -149,7 +154,7 @@ export async function issueSinglePlanRow(params: {
         contestCategoryId: row.contestCategoryId,
         prizeLabel: row.prizeLabel,
         diplomaCode,
-        verificationToken,
+        verificationToken: verificationToken || `noverify-${randomBytes(10).toString("hex")}`,
         verificationUrl,
         qrValue,
         status: "ISSUED",
@@ -170,23 +175,19 @@ export async function issueSinglePlanRow(params: {
       backgroundImageUrl: template.backgroundImageUrl,
       layout,
       variables,
-      qrPayload: verificationUrl,
+      qrPayload: withVerification ? verificationUrl : "",
     });
-    const pngBuffer = await pdfBufferToPngBuffer(pdfBuffer);
-    const pdfSave = await saveDiplomaFile(contestId, created.id, "pdf", pdfBuffer);
-    const pngSave = await saveDiplomaFile(contestId, created.id, "png", pngBuffer);
-    const pdfChecksum = sha256Hex(pdfBuffer);
-    const pngChecksum = sha256Hex(pngBuffer);
+    const pngBuffer = outputFormats.png ? await pdfBufferToPngBuffer(pdfBuffer) : null;
+    const pdfSave = outputFormats.pdf ? await saveDiplomaFile(contestId, created.id, "pdf", pdfBuffer) : null;
+    const pngSave = outputFormats.png && pngBuffer ? await saveDiplomaFile(contestId, created.id, "png", pngBuffer) : null;
+    const pdfChecksum = outputFormats.pdf ? sha256Hex(pdfBuffer) : null;
+    const pngChecksum = outputFormats.png && pngBuffer ? sha256Hex(pngBuffer) : null;
 
     await prisma.fotorankDiplomaIssued.update({
       where: { id: created.id },
       data: {
-        pdfUrl: pdfSave.publicUrl,
-        pngUrl: pngSave.publicUrl,
-        pdfBytes: pdfSave.bytes,
-        pngBytes: pngSave.bytes,
-        pdfChecksum,
-        pngChecksum,
+        ...(pdfSave ? { pdfUrl: pdfSave.publicUrl, pdfBytes: pdfSave.bytes, pdfChecksum: pdfChecksum ?? undefined } : {}),
+        ...(pngSave ? { pngUrl: pngSave.publicUrl, pngBytes: pngSave.bytes, pngChecksum: pngChecksum ?? undefined } : {}),
         renderedAt: new Date(),
       },
     });
@@ -211,6 +212,8 @@ export async function issuePlanRows(params: {
   contestId: string;
   templateId: string;
   rows: PlanRow[];
+  outputFormats?: { pdf: boolean; png: boolean };
+  withVerification?: boolean;
 }): Promise<{ results: IssueOneResult[]; createdIds: string[] }> {
   const results: IssueOneResult[] = [];
   const createdIds: string[] = [];
@@ -221,6 +224,8 @@ export async function issuePlanRows(params: {
       contestId: params.contestId,
       templateId: params.templateId,
       row,
+      outputFormats: params.outputFormats,
+      withVerification: params.withVerification,
     });
     results.push(r);
     if (r.ok) createdIds.push(r.issuedId);
@@ -259,6 +264,15 @@ export async function reissueDiploma(params: {
     return { ok: false, error: "Solo se puede reemitir un diploma vigente (estado emitido)." };
   }
 
+  let entryTitle: string | null = null;
+  if (prev.entryId) {
+    const ent = await prisma.fotorankContestEntry.findUnique({
+      where: { id: prev.entryId },
+      select: { title: true },
+    });
+    entryTitle = ent?.title?.trim() || null;
+  }
+
   const planRow: PlanRow = {
     key: `reissue:${prev.id}`,
     recipientType: prev.recipientType,
@@ -268,6 +282,7 @@ export async function reissueDiploma(params: {
     judgeAccountId: prev.judgeAccountId,
     contestCategoryId: prev.contestCategoryId,
     prizeLabel: prev.prizeLabel,
+    entryTitle,
     errors: [],
     warnings: [`Reemisión del diploma ${prev.diplomaCode}.`],
   };

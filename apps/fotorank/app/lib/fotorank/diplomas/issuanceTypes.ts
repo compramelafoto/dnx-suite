@@ -26,6 +26,8 @@ export type PlanRow = {
   judgeAccountId: string | null;
   contestCategoryId: string | null;
   prizeLabel: string | null;
+  /** Título de obra para merge {{entryTitle}}; null si no aplica */
+  entryTitle: string | null;
   errors: string[];
   warnings: string[];
 };

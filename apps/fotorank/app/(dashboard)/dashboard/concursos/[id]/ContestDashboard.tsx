@@ -11,6 +11,8 @@ import { DatosModalContent } from "./modals/DatosModalContent";
 import { FechasModalContent } from "./modals/FechasModalContent";
 import { CategoriasModalContent } from "./modals/CategoriasModalContent";
 import { JuradoModalContent } from "./modals/JuradoModalContent";
+import { PublicacionModalContent } from "./modals/PublicacionModalContent";
+import { PremiosRecompensasModalContent } from "./modals/PremiosRecompensasModalContent";
 import {
   getAllModules,
   getOverallProgress,
@@ -105,14 +107,24 @@ export function ContestDashboard({ contest }: ContestDashboardProps) {
         );
       case "premios":
       case "comercializacion":
+        return (
+          <PremiosRecompensasModalContent
+            contest={contest}
+            onSuccess={closeModal}
+            onCancel={closeModal}
+            readOnly={readOnly}
+            restrictionMessage={restrictionMessage}
+          />
+        );
       case "publicacion":
         return (
-          <div className="space-y-6">
-            <p className="text-sm text-fr-muted">Próximamente.</p>
-            <button type="button" onClick={closeModal} className="fr-btn fr-btn-secondary">
-              Cerrar
-            </button>
-          </div>
+          <PublicacionModalContent
+            contest={contest}
+            onSuccess={closeModal}
+            onCancel={closeModal}
+            readOnly={readOnly}
+            restrictionMessage={restrictionMessage}
+          />
         );
       default:
         return null;

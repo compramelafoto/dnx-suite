@@ -9,6 +9,7 @@ import {
   type ContestContext,
 } from "../contest-permissions";
 import { MODULE_STATUS } from "./contestStatus";
+import { getEconomyModuleStatus, getPrizesModuleStatus, parsePrizesRewardsConfig } from "./prizesRewards";
 
 export type ContestModuleId =
   | "datos"
@@ -47,6 +48,7 @@ type ContestWithRelations = {
   status: string;
   rulesText: string | null;
   categories: { id: string; name: string; status?: string; mappingIncomplete?: boolean }[];
+  rulesData?: unknown;
   _count?: { entries: number };
 };
 
@@ -86,12 +88,10 @@ export function getModuleStatus(
       return MODULE_STATUS.NOT_STARTED;
 
     case "premios":
-      // Placeholder: no implementado
-      return MODULE_STATUS.NOT_STARTED;
+      return getPrizesModuleStatus(parsePrizesRewardsConfig(contest.rulesData));
 
     case "comercializacion":
-      // Placeholder: no implementado
-      return MODULE_STATUS.NOT_STARTED;
+      return getEconomyModuleStatus(parsePrizesRewardsConfig(contest.rulesData));
 
     case "bases":
       return contest.rulesText ? MODULE_STATUS.COMPLETE : MODULE_STATUS.NOT_STARTED;
@@ -162,8 +162,8 @@ const MODULE_CONFIG: Record<
     description: "Premios por categoría y modalidad de entrega.",
   },
   comercializacion: {
-    label: "Comercialización de obras",
-    description: "Opciones de venta, márgenes y participación del organizador.",
+    label: "Economía del concurso",
+    description: "Inscripciones, comisión Fotorank, servicios pagos y neto estimado.",
   },
   bases: {
     label: "Bases y condiciones",

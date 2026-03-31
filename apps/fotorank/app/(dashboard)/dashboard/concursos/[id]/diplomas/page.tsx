@@ -134,9 +134,9 @@ export default async function ContestDiplomasPage({ params }: PageProps) {
   return (
     <PageContainer
       title={`Diplomas — ${contest.title}`}
-      description="Plan previo, emisión individual o en lote, PDF/PNG, QR y verificación pública."
+      description="Plantillas, emisión y verificación."
     >
-      <div className="mb-10">
+      <div className="mb-8 flex justify-center sm:mb-10 sm:justify-start">
         <Link href={routes.dashboard.concursos.detalle(contestId)} className="fr-btn fr-btn-secondary text-sm">
           Volver al concurso
         </Link>

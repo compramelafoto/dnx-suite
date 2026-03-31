@@ -95,6 +95,7 @@ export async function resolveDiplomaPlanRows(params: {
             judgeAccountId: null,
             contestCategoryId: null,
             prizeLabel: stamp,
+            entryTitle: null,
             errors: ["Falta el nombre del colaborador."],
             warnings: [],
           },
@@ -113,6 +114,7 @@ export async function resolveDiplomaPlanRows(params: {
           judgeAccountId: null,
           contestCategoryId: null,
           prizeLabel: stamp,
+          entryTitle: null,
           errors: [],
           warnings: [],
         },
@@ -135,6 +137,7 @@ export async function resolveDiplomaPlanRows(params: {
             judgeAccountId: null,
             contestCategoryId: null,
             prizeLabel: stamp,
+            entryTitle: null,
             errors: ["Falta el participante."],
             warnings: [],
           },
@@ -161,6 +164,7 @@ export async function resolveDiplomaPlanRows(params: {
           judgeAccountId: null,
           contestCategoryId: null,
           prizeLabel: stamp,
+          entryTitle: null,
           errors: [],
           warnings,
         },
@@ -183,6 +187,7 @@ export async function resolveDiplomaPlanRows(params: {
             judgeAccountId: null,
             contestCategoryId: null,
             prizeLabel: stamp,
+            entryTitle: null,
             errors: ["Falta el jurado."],
             warnings: [],
           },
@@ -220,6 +225,7 @@ export async function resolveDiplomaPlanRows(params: {
           judgeAccountId: jid,
           contestCategoryId: null,
           prizeLabel: stamp,
+          entryTitle: null,
           errors,
           warnings,
         },
@@ -242,6 +248,7 @@ export async function resolveDiplomaPlanRows(params: {
             judgeAccountId: null,
             contestCategoryId: null,
             prizeLabel: stamp,
+            entryTitle: null,
             errors: ["Falta la obra."],
             warnings: [],
           },
@@ -262,6 +269,7 @@ export async function resolveDiplomaPlanRows(params: {
             judgeAccountId: null,
             contestCategoryId: null,
             prizeLabel: stamp,
+            entryTitle: null,
             errors: ["La obra no pertenece a este concurso."],
             warnings: [],
           },
@@ -285,6 +293,7 @@ export async function resolveDiplomaPlanRows(params: {
           judgeAccountId: null,
           contestCategoryId: e.categoryId,
           prizeLabel: stamp,
+          entryTitle: e.title?.trim() || null,
           errors: [],
           warnings: [],
         },
@@ -308,6 +317,7 @@ export async function resolveDiplomaPlanRows(params: {
       judgeAccountId: null,
       contestCategoryId: null,
       prizeLabel: stamp,
+      entryTitle: null,
       errors: [],
       warnings: [],
     }));
@@ -333,6 +343,7 @@ export async function resolveDiplomaPlanRows(params: {
           judgeAccountId: null,
           contestCategoryId: null,
           prizeLabel: stamp,
+          entryTitle: null,
           errors: ["Obra no encontrada en el concurso."],
           warnings: [],
         });
@@ -352,6 +363,7 @@ export async function resolveDiplomaPlanRows(params: {
         judgeAccountId: null,
         contestCategoryId: e.categoryId,
         prizeLabel: stamp,
+        entryTitle: e.title?.trim() || null,
         errors: [],
         warnings: [],
       });
@@ -389,6 +401,7 @@ export async function resolveDiplomaPlanRows(params: {
         judgeAccountId: ja.id,
         contestCategoryId: null,
         prizeLabel: stamp,
+        entryTitle: null,
         errors: [],
         warnings: [],
       };
@@ -425,6 +438,7 @@ export async function resolveDiplomaPlanRows(params: {
       judgeAccountId: null,
       contestCategoryId: e.categoryId,
       prizeLabel: stamp,
+      entryTitle: e.title?.trim() || null,
       errors: [],
       warnings: [],
     }));
@@ -453,6 +467,7 @@ export async function resolveDiplomaPlanRows(params: {
         judgeAccountId: null,
         contestCategoryId: categoryId!.trim(),
         prizeLabel: stamp,
+        entryTitle: e.title?.trim() || null,
         errors: [],
         warnings: [],
       });
@@ -478,6 +493,7 @@ export async function resolveDiplomaPlanRows(params: {
       judgeAccountId: null,
       contestCategoryId: e.categoryId,
       prizeLabel: stamp,
+      entryTitle: e.title?.trim() || null,
       errors: [],
       warnings: !e.authorUserId ? ["La obra no tiene autor vinculado a usuario."] : [],
     }));
@@ -506,6 +522,7 @@ export async function resolveDiplomaPlanRows(params: {
         judgeAccountId: null,
         contestCategoryId: null,
         prizeLabel: stamp,
+        entryTitle: e.title?.trim() || null,
         errors: [],
         warnings: [],
       });
@@ -561,6 +578,7 @@ export async function resolveDiplomaPlanRows(params: {
           judgeAccountId: null,
           contestCategoryId: cat.id,
           prizeLabel: prize,
+          entryTitle: e?.title?.trim() || r.title?.trim() || null,
           errors: [],
           warnings:
             mode === "FINALISTS"

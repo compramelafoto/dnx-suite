@@ -23,12 +23,15 @@ export type PublicContestLandingData = {
     rulesText: string | null;
     prizesSummary: string | null;
     sponsorsText: string | null;
+    rulesData: unknown;
     startAt: Date | null;
     submissionDeadline: Date | null;
     judgingStartAt: Date | null;
     judgingEndAt: Date | null;
     resultsAt: Date | null;
     categories: Array<{ id: string; name: string; slug: string; description: string | null; maxFiles: number }>;
+    status: "DRAFT" | "SETUP_IN_PROGRESS" | "READY_TO_PUBLISH" | "PUBLISHED" | "ACTIVE" | "CLOSED" | "ARCHIVED";
+    visibility: "PUBLIC" | "UNLISTED" | "PRIVATE";
   };
   organization: ContestOrganizationProfileDTO;
   judges: PublicContestJudgeCard[];
@@ -91,6 +94,7 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
       rulesText: contest.rulesText,
       prizesSummary: contest.prizesSummary,
       sponsorsText: contest.sponsorsText,
+      rulesData: contest.rulesData,
       startAt: contest.startAt,
       submissionDeadline: contest.submissionDeadline,
       judgingStartAt: contest.judgingStartAt,
@@ -103,6 +107,8 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
         description: c.description,
         maxFiles: c.maxFiles,
       })),
+      status: contest.status,
+      visibility: contest.visibility,
     },
     organization: mapOrganizationToProfileDTO(contest.organization),
     judges,

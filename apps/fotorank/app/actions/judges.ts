@@ -216,6 +216,111 @@ export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record
   };
 }
 
+export type ContestJudgeRosterRow = {
+  judgeId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
+  specialities: string[];
+  city: string | null;
+  country: string | null;
+  isPublicProfile: boolean;
+  assignedCategoryIds: string[];
+  assignmentType: "PRIMARY" | "BACKUP" | null;
+  assignmentStatuses: string[];
+};
+
+export async function listJudgeRosterForContest(contestId: string): Promise<JudgeActionResult<ContestJudgeRosterRow[]>> {
+  const scope = await requireOrganizationScope();
+  if (!scope.ok) return { ok: false, error: scope.error };
+
+  const memberships = await prisma.fotorankJudgeOrganizationMembership.findMany({
+    where: { organizationId: scope.org.id, membershipStatus: "ACTIVE" },
+    include: {
+      judgeAccount: {
+        include: {
+          profile: true,
+          assignments: {
+            where: { contestId },
+            select: {
+              categoryId: true,
+              assignmentType: true,
+              assignmentStatus: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return {
+    ok: true,
+    data: memberships
+      .filter((m) => m.judgeAccount.profile)
+      .map((m) => {
+        const p = m.judgeAccount.profile!;
+        const firstAssignment = m.judgeAccount.assignments[0];
+        return {
+          judgeId: m.judgeAccount.id,
+          email: m.judgeAccount.email,
+          firstName: p.firstName,
+          lastName: p.lastName,
+          avatarUrl: p.avatarUrl,
+          specialities: Array.isArray(p.specialtiesJson) ? (p.specialtiesJson as string[]) : [],
+          city: p.city,
+          country: p.country,
+          isPublicProfile: p.isPublic,
+          assignedCategoryIds: m.judgeAccount.assignments.map((a) => a.categoryId),
+          assignmentType: firstAssignment?.assignmentType ?? null,
+          assignmentStatuses: [...new Set(m.judgeAccount.assignments.map((a) => a.assignmentStatus))],
+        };
+      }),
+  };
+}
+
+export async function listJudgeInvitationsForContest(
+  contestId: string
+): Promise<
+  JudgeActionResult<
+    Array<{
+      id: string;
+      email: string;
+      invitationStatus: string;
+      expiresAt: string;
+      acceptedAt: string | null;
+      createdAt: string;
+      judgeLabel: string | null;
+    }>
+  >
+> {
+  const scope = await requireOrganizationScope();
+  if (!scope.ok) return { ok: false, error: scope.error };
+  const rows = await prisma.fotorankJudgeInvitation.findMany({
+    where: { organizationId: scope.org.id, contestId },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    include: {
+      judgeAccount: { include: { profile: { select: { firstName: true, lastName: true } } } },
+    },
+  });
+  return {
+    ok: true,
+    data: rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      invitationStatus: r.invitationStatus,
+      expiresAt: r.expiresAt.toISOString(),
+      acceptedAt: r.acceptedAt?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+      judgeLabel: r.judgeAccount?.profile
+        ? `${r.judgeAccount.profile.firstName} ${r.judgeAccount.profile.lastName}`.trim()
+        : null,
+    })),
+  };
+}
+
 export async function createJudgeAccount(input: {
   email: string;
   password: string;

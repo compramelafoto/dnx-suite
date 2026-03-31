@@ -1,28 +1,52 @@
 /**
- * Esquema de plantilla estructurada: mismo JSON alimenta preview (HTML) y export PDF/PNG.
- * Origen visual: coordenadas en puntos PDF (1/72"), con Y desde el borde superior de la página.
+ * Plantilla serializable: mismo JSON alimenta preview (HTML) y export PDF/PNG.
+ * Coordenadas en puntos PDF (1/72"), Y desde el borde superior de la página.
+ * El editor visual solo manipula esta estructura; el usuario no ve JSON.
  */
 
+import type { DiplomaFontId } from "./diplomaFonts";
+import { normalizeDiplomaFontId } from "./diplomaFonts";
+
+export type { DiplomaFontId };
+
 export type DiplomaTextAlign = "left" | "center" | "right";
+
+export type DiplomaFontStyle = "normal" | "italic";
+
+export type DiplomaTextDecoration = "none" | "underline";
+
+/** Metadatos opcionales de capa (editor); no afectan al merge salvo hidden */
+export type DiplomaBlockChrome = {
+  locked?: boolean;
+  /** Si true, no se dibuja en PDF ni preview de emisión */
+  hidden?: boolean;
+  /** Nombre amigable en panel de capas */
+  layerName?: string;
+};
 
 export type DiplomaLayoutTextBlock = {
   id: string;
   type: "text";
-  /** Desde borde izquierdo, pt */
   x: number;
-  /** Desde borde superior, pt */
   y: number;
   width: number;
   height: number;
   rotation?: number;
   opacity?: number;
   fontSize: number;
+  /** Familia tipográfica (preview + PDF); JSON antiguo sin campo → DM Sans al parsear. */
+  fontFamily?: DiplomaFontId;
   fontWeight?: "normal" | "bold";
+  fontStyle?: DiplomaFontStyle;
+  textDecoration?: DiplomaTextDecoration;
   color: string;
   textAlign?: DiplomaTextAlign;
-  /** Placeholders: {{recipientName}}, {{contestTitle}}, {{organizerName}}, {{categoryName}}, {{prizeLabel}}, {{diplomaCode}}, {{issuedDate}}, {{verificationUrl}} */
+  /**
+   * Texto fijo o con placeholders: {{recipientName}}, {{entryTitle}}, {{contestTitle}},
+   * {{organizerName}}, {{categoryName}}, {{prizeLabel}}, {{diplomaCode}}, {{issuedDate}}, {{verificationUrl}}
+   */
   content: string;
-};
+} & DiplomaBlockChrome;
 
 export type DiplomaLayoutQrBlock = {
   id: string;
@@ -33,18 +57,76 @@ export type DiplomaLayoutQrBlock = {
   height: number;
   rotation?: number;
   opacity?: number;
-};
+} & DiplomaBlockChrome;
 
-export type DiplomaLayoutBlock = DiplomaLayoutTextBlock | DiplomaLayoutQrBlock;
+export type DiplomaLayoutImageBlock = {
+  id: string;
+  type: "image";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
+  opacity?: number;
+  /** Ruta pública bajo /uploads/... */
+  imageUrl: string;
+} & DiplomaBlockChrome;
+
+/** Línea horizontal (grosor = height del bloque) */
+export type DiplomaLayoutLineBlock = {
+  id: string;
+  type: "line";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
+  opacity?: number;
+  strokeColor: string;
+  strokeWidth: number;
+} & DiplomaBlockChrome;
+
+export type DiplomaLayoutRectBlock = {
+  id: string;
+  type: "rect";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
+  opacity?: number;
+  fillColor?: string;
+  strokeColor?: string;
+  strokeWidth?: number;
+} & DiplomaBlockChrome;
+
+export type DiplomaLayoutBlock =
+  | DiplomaLayoutTextBlock
+  | DiplomaLayoutQrBlock
+  | DiplomaLayoutImageBlock
+  | DiplomaLayoutLineBlock
+  | DiplomaLayoutRectBlock;
 
 export type DiplomaLayoutJson = {
   version: number;
   blocks: DiplomaLayoutBlock[];
 };
 
+export const DIPLOMA_VARIABLE_KEYS = [
+  "recipientName",
+  "entryTitle",
+  "contestTitle",
+  "organizerName",
+  "categoryName",
+  "prizeLabel",
+  "diplomaCode",
+  "issuedDate",
+  "verificationUrl",
+] as const;
+
 export function defaultDiplomaLayoutJson(): DiplomaLayoutJson {
   return {
-    version: 1,
+    version: 2,
     blocks: [
       {
         id: "title",
@@ -58,6 +140,7 @@ export function defaultDiplomaLayoutJson(): DiplomaLayoutJson {
         color: "#d4af37",
         textAlign: "center",
         content: "{{contestTitle}}",
+        layerName: "Título del concurso",
       },
       {
         id: "recipient",
@@ -71,6 +154,7 @@ export function defaultDiplomaLayoutJson(): DiplomaLayoutJson {
         color: "#fafafa",
         textAlign: "center",
         content: "{{recipientName}}",
+        layerName: "Destinatario",
       },
       {
         id: "organizer",
@@ -83,6 +167,7 @@ export function defaultDiplomaLayoutJson(): DiplomaLayoutJson {
         color: "#a1a1a1",
         textAlign: "center",
         content: "{{organizerName}}",
+        layerName: "Organizador",
       },
       {
         id: "category",
@@ -95,6 +180,7 @@ export function defaultDiplomaLayoutJson(): DiplomaLayoutJson {
         color: "#a1a1a1",
         textAlign: "center",
         content: "{{categoryName}}",
+        layerName: "Categoría",
       },
       {
         id: "prize",
@@ -107,6 +193,7 @@ export function defaultDiplomaLayoutJson(): DiplomaLayoutJson {
         color: "#d4af37",
         textAlign: "center",
         content: "{{prizeLabel}}",
+        layerName: "Premio",
       },
       {
         id: "code",
@@ -119,6 +206,7 @@ export function defaultDiplomaLayoutJson(): DiplomaLayoutJson {
         color: "#666666",
         textAlign: "center",
         content: "Código: {{diplomaCode}} · {{issuedDate}}",
+        layerName: "Código y fecha",
       },
       {
         id: "qr",
@@ -127,9 +215,27 @@ export function defaultDiplomaLayoutJson(): DiplomaLayoutJson {
         y: 455,
         width: 96,
         height: 96,
+        layerName: "QR verificación",
       },
     ],
   };
+}
+
+function readChrome(o: Record<string, unknown>): DiplomaBlockChrome {
+  return {
+    ...(typeof o.locked === "boolean" ? { locked: o.locked } : {}),
+    ...(typeof o.hidden === "boolean" ? { hidden: o.hidden } : {}),
+    ...(typeof o.layerName === "string" ? { layerName: o.layerName.slice(0, 120) } : {}),
+  };
+}
+
+function parseGeometry(o: Record<string, unknown>): { x: number; y: number; width: number; height: number } | null {
+  const x = Number(o.x);
+  const y = Number(o.y);
+  const width = Number(o.width);
+  const height = Number(o.height);
+  if (![x, y, width, height].every((n) => Number.isFinite(n))) return null;
+  return { x, y, width, height };
 }
 
 export function parseDiplomaLayoutJson(raw: unknown): DiplomaLayoutJson {
@@ -142,51 +248,112 @@ export function parseDiplomaLayoutJson(raw: unknown): DiplomaLayoutJson {
     if (!b || typeof b !== "object") continue;
     const o = b as Record<string, unknown>;
     const id = typeof o.id === "string" ? o.id : `b-${blocks.length}`;
-    const type = o.type === "qrcode" ? "qrcode" : o.type === "text" ? "text" : null;
-    if (!type) continue;
-    const x = Number(o.x);
-    const y = Number(o.y);
-    const width = Number(o.width);
-    const height = Number(o.height);
-    if (![x, y, width, height].every((n) => Number.isFinite(n))) continue;
+    const type = o.type;
+    const geo = parseGeometry(o);
+    if (!geo) continue;
+    const chrome = readChrome(o);
+    const rot = Number.isFinite(Number(o.rotation)) ? Number(o.rotation) : undefined;
+    const op = Number.isFinite(Number(o.opacity)) ? Number(o.opacity) : undefined;
+
     if (type === "qrcode") {
       blocks.push({
         id,
         type: "qrcode",
-        x,
-        y,
-        width,
-        height,
-        rotation: Number.isFinite(Number(o.rotation)) ? Number(o.rotation) : undefined,
-        opacity: Number.isFinite(Number(o.opacity)) ? Number(o.opacity) : undefined,
+        ...geo,
+        ...(rot !== undefined ? { rotation: rot } : {}),
+        ...(op !== undefined ? { opacity: op } : {}),
+        ...chrome,
       });
       continue;
     }
-    const fontSize = Number(o.fontSize);
-    const content = typeof o.content === "string" ? o.content : "";
-    if (!Number.isFinite(fontSize) || fontSize < 6) continue;
-    const color = typeof o.color === "string" && o.color.startsWith("#") ? o.color : "#fafafa";
-    const textAlign =
-      o.textAlign === "center" || o.textAlign === "right" || o.textAlign === "left"
-        ? o.textAlign
-        : "left";
-    const fontWeight = o.fontWeight === "bold" ? "bold" : "normal";
-    blocks.push({
-      id,
-      type: "text",
-      x,
-      y,
-      width,
-      height,
-      fontSize,
-      fontWeight,
-      color,
-      textAlign,
-      content,
-      rotation: Number.isFinite(Number(o.rotation)) ? Number(o.rotation) : undefined,
-      opacity: Number.isFinite(Number(o.opacity)) ? Number(o.opacity) : undefined,
-    });
+    if (type === "image") {
+      const imageUrl = typeof o.imageUrl === "string" ? o.imageUrl.trim() : "";
+      if (!imageUrl.startsWith("/")) continue;
+      blocks.push({
+        id,
+        type: "image",
+        ...geo,
+        imageUrl,
+        ...(rot !== undefined ? { rotation: rot } : {}),
+        ...(op !== undefined ? { opacity: op } : {}),
+        ...chrome,
+      });
+      continue;
+    }
+    if (type === "line") {
+      const strokeColor =
+        typeof o.strokeColor === "string" && o.strokeColor.startsWith("#") ? o.strokeColor : "#d4af37";
+      const strokeWidth = Number(o.strokeWidth);
+      const sw = Number.isFinite(strokeWidth) && strokeWidth > 0 ? Math.min(strokeWidth, 24) : 2;
+      blocks.push({
+        id,
+        type: "line",
+        ...geo,
+        strokeColor,
+        strokeWidth: sw,
+        ...(rot !== undefined ? { rotation: rot } : {}),
+        ...(op !== undefined ? { opacity: op } : {}),
+        ...chrome,
+      });
+      continue;
+    }
+    if (type === "rect") {
+      const fillColor =
+        typeof o.fillColor === "string" && o.fillColor.startsWith("#") ? o.fillColor : undefined;
+      const strokeColor =
+        typeof o.strokeColor === "string" && o.strokeColor.startsWith("#") ? o.strokeColor : undefined;
+      const strokeWidth = Number(o.strokeWidth);
+      const sw =
+        strokeColor && Number.isFinite(strokeWidth) && strokeWidth > 0 ? Math.min(strokeWidth, 16) : undefined;
+      blocks.push({
+        id,
+        type: "rect",
+        ...geo,
+        ...(fillColor ? { fillColor } : {}),
+        ...(strokeColor ? { strokeColor } : {}),
+        ...(sw !== undefined ? { strokeWidth: sw } : {}),
+        ...(rot !== undefined ? { rotation: rot } : {}),
+        ...(op !== undefined ? { opacity: op } : {}),
+        ...chrome,
+      });
+      continue;
+    }
+    if (type === "text") {
+      const fontSize = Number(o.fontSize);
+      const content = typeof o.content === "string" ? o.content : "";
+      if (!Number.isFinite(fontSize) || fontSize < 6) continue;
+      const color = typeof o.color === "string" && o.color.startsWith("#") ? o.color : "#fafafa";
+      const textAlign =
+        o.textAlign === "center" || o.textAlign === "right" || o.textAlign === "left"
+          ? o.textAlign
+          : "left";
+      const fontWeight = o.fontWeight === "bold" ? "bold" : "normal";
+      const fontFamily = normalizeDiplomaFontId(o.fontFamily);
+      const fontStyle = o.fontStyle === "italic" ? "italic" : "normal";
+      const textDecoration = o.textDecoration === "underline" ? "underline" : "none";
+      blocks.push({
+        id,
+        type: "text",
+        ...geo,
+        fontSize,
+        fontFamily,
+        fontWeight,
+        fontStyle,
+        textDecoration,
+        color,
+        textAlign,
+        content,
+        ...(rot !== undefined ? { rotation: rot } : {}),
+        ...(op !== undefined ? { opacity: op } : {}),
+        ...chrome,
+      });
+      continue;
+    }
   }
   if (blocks.length === 0) return defaultDiplomaLayoutJson();
-  return { version: typeof v.version === "number" ? v.version : 1, blocks };
+  return { version: typeof v.version === "number" ? v.version : 2, blocks };
+}
+
+export function newBlockId(): string {
+  return `blk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }

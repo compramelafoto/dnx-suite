@@ -42,6 +42,7 @@ export type UpdateFotorankContestInput = Partial<{
   coverImageUrl: string;
   prizesSummary: string;
   sponsorsText: string;
+  rulesText: string;
   startAt: string;
   submissionDeadline: string;
   judgingStartAt: string;
@@ -273,6 +274,7 @@ export async function updateFotorankContest(
     if (input.coverImageUrl !== undefined) updateData.coverImageUrl = input.coverImageUrl?.trim() || null;
     if (input.prizesSummary !== undefined) updateData.prizesSummary = input.prizesSummary?.trim() || null;
     if (input.sponsorsText !== undefined) updateData.sponsorsText = input.sponsorsText?.trim() || null;
+    if (input.rulesText !== undefined) updateData.rulesText = input.rulesText?.trim() || null;
     if (input.status !== undefined) updateData.status = input.status;
     if (input.visibility !== undefined) updateData.visibility = input.visibility;
     if (input.startAt !== undefined) updateData.startAt = newDates.startAt;

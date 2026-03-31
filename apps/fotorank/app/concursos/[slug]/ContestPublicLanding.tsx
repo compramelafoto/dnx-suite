@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { PublicContestLandingData } from "../../lib/fotorank/publicContestLanding";
+import { parsePrizesRewardsConfig } from "../../lib/fotorank/prizesRewards";
 
 function fmtDate(d: Date | null): string | null {
   if (!d) return null;
@@ -22,8 +23,53 @@ const sectionClass = "fr-section border-b border-fr-border py-16 md:py-20";
 const containerClass = "fr-container-wide mx-auto px-8 md:px-10 lg:px-12";
 const h2Class = "font-sans text-2xl font-semibold tracking-tight text-fr-primary md:text-3xl";
 
+type LandingPhase = "coming-soon" | "open" | "last-days" | "closed" | "in-evaluation" | "finalized";
+
+function getLandingPhase(data: PublicContestLandingData): LandingPhase {
+  const now = Date.now();
+  const start = data.contest.startAt?.getTime() ?? null;
+  const deadline = data.contest.submissionDeadline?.getTime() ?? null;
+  const judgingStart = data.contest.judgingStartAt?.getTime() ?? null;
+  const results = data.contest.resultsAt?.getTime() ?? null;
+
+  if (data.contest.status === "ARCHIVED") return "finalized";
+  if (data.contest.status === "CLOSED") return "closed";
+  if (results && now >= results) return "finalized";
+  if (judgingStart && now >= judgingStart && (!results || now < results)) return "in-evaluation";
+  if (deadline && now > deadline) return "closed";
+  if (start && now < start) return "coming-soon";
+  if (deadline) {
+    const daysLeft = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+    if (daysLeft <= 7) return "last-days";
+  }
+  return "open";
+}
+
+const PHASE_LABEL: Record<LandingPhase, string> = {
+  "coming-soon": "Próximamente",
+  open: "Inscripciones abiertas",
+  "last-days": "Últimos días",
+  closed: "Cerrado",
+  "in-evaluation": "En evaluación",
+  finalized: "Finalizado",
+};
+
+function phaseCta(phase: LandingPhase): { primary: string; enabled: boolean } {
+  if (phase === "closed" || phase === "in-evaluation" || phase === "finalized") {
+    return { primary: "Inscripciones cerradas", enabled: false };
+  }
+  if (phase === "coming-soon") return { primary: "Próximamente", enabled: false };
+  return { primary: "Participar ahora", enabled: true };
+}
+
 export function ContestPublicLanding({ data }: { data: PublicContestLandingData }) {
   const { contest, organization: org, judges } = data;
+  const prConfig = parsePrizesRewardsConfig(contest.rulesData);
+  const publicPrizes = prConfig.prizes.filter((p) => p.visiblePublic);
+  const publicRewards = prConfig.rewards.filter((r) => r.visiblePublic);
+  const hasStructuredPrizes = publicPrizes.length > 0 || publicRewards.length > 0;
+  const phase = getLandingPhase(data);
+  const cta = phaseCta(phase);
   const heroImage = contest.coverImageUrl ?? org.coverImageUrl ?? null;
   const loginNext = `/concursos/${contest.slug}`;
   const inscripcionHref = `/login?next=${encodeURIComponent(loginNext)}`;
@@ -51,6 +97,16 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
         <div className={`relative z-10 flex min-h-[72vh] flex-col justify-end pb-16 pt-28 md:min-h-[78vh] md:pb-24 md:pt-32 ${containerClass}`}>
           <div className="max-w-3xl space-y-6">
             <div className="flex flex-wrap items-center gap-4">
+              <span className="rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-semibold tracking-wide text-gold">
+                {PHASE_LABEL[phase]}
+              </span>
+              {contest.visibility !== "PUBLIC" ? (
+                <span className="rounded-full border border-fr-border bg-fr-card/80 px-3 py-1 text-xs font-medium text-fr-muted">
+                  {contest.visibility === "UNLISTED" ? "Solo por invitación / link" : "Acceso privado"}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
               {org.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={org.logoUrl} alt="" className="h-12 w-auto max-w-[140px] object-contain md:h-14" />
@@ -70,13 +126,19 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
               <p className="max-w-2xl text-lg leading-relaxed text-fr-muted md:text-xl">{contest.shortDescription}</p>
             ) : null}
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-              <Link
-                href={inscripcionHref}
-                id="inscribirse"
-                className="fr-btn fr-btn-primary inline-flex justify-center px-8 py-4 text-center text-base font-semibold shadow-lg shadow-black/30"
-              >
-                Inscribirme
-              </Link>
+              {cta.enabled ? (
+                <Link
+                  href={inscripcionHref}
+                  id="inscribirse"
+                  className="fr-btn fr-btn-primary inline-flex justify-center px-8 py-4 text-center text-base font-semibold shadow-lg shadow-black/30"
+                >
+                  {cta.primary}
+                </Link>
+              ) : (
+                <span className="inline-flex justify-center rounded-xl border border-fr-border bg-fr-card/70 px-8 py-4 text-center text-base font-semibold text-fr-muted">
+                  {cta.primary}
+                </span>
+              )}
               <a
                 href="#bases"
                 className="fr-btn fr-btn-secondary inline-flex justify-center px-8 py-4 text-center text-base font-semibold"
@@ -95,6 +157,20 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
         </div>
       </section>
 
+      <section className="sticky top-0 z-20 border-y border-fr-border bg-fr-bg/95 py-3 backdrop-blur md:top-20">
+        <nav className={`${containerClass} overflow-x-auto`}>
+          <ul className="flex min-w-max items-center gap-5 text-xs font-medium text-fr-muted">
+            <li><a href="#sobre" className="hover:text-gold">Información</a></li>
+            <li><a href="#premios" className="hover:text-gold">Premios</a></li>
+            <li><a href="#categorias" className="hover:text-gold">Categorías</a></li>
+            <li><a href="#cronograma" className="hover:text-gold">Cronograma</a></li>
+            {judges.length > 0 ? <li><a href="#jurado" className="hover:text-gold">Jurado</a></li> : null}
+            {contest.sponsorsText ? <li><a href="#sponsors" className="hover:text-gold">Sponsors</a></li> : null}
+            <li><a href="#faq" className="hover:text-gold">FAQ</a></li>
+          </ul>
+        </nav>
+      </section>
+
       {/* 2. Resumen rápido */}
       <section className={sectionClass}>
         <div className={containerClass}>
@@ -108,9 +184,15 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
             <ResumenItem label="Inscripción" value="Consultá bases" />
           </div>
           <div className="mt-10">
-            <Link href={inscripcionHref} className="fr-btn fr-btn-primary inline-flex px-8 py-3">
-              Quiero inscribirme
-            </Link>
+            {cta.enabled ? (
+              <Link href={inscripcionHref} className="fr-btn fr-btn-primary inline-flex px-8 py-3">
+                {cta.primary}
+              </Link>
+            ) : (
+              <span className="inline-flex rounded-lg border border-fr-border bg-fr-card/70 px-8 py-3 text-sm text-fr-muted">
+                {cta.primary}
+              </span>
+            )}
           </div>
         </div>
       </section>
@@ -226,19 +308,86 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
       ) : null}
 
       {/* 6. Premios */}
-      {contest.prizesSummary ? (
+      {hasStructuredPrizes || contest.prizesSummary ? (
         <section className={sectionClass} id="premios">
           <div className={containerClass}>
             <h2 className={h2Class}>Premios y beneficios</h2>
-            <div className="mt-10 max-w-3xl whitespace-pre-wrap text-fr-muted leading-relaxed">{contest.prizesSummary}</div>
+            {hasStructuredPrizes ? (
+              <div className="mt-10 space-y-6">
+                {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0]) ? (
+                  <div className="fr-recuadro border border-gold/30 bg-gold/5">
+                    <p className="text-xs uppercase tracking-wide text-gold">Premio principal</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-fr-primary">
+                      {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0])?.name}
+                    </h3>
+                    {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0])?.shortDescription ? (
+                      <p className="mt-3 text-sm leading-relaxed text-fr-muted">
+                        {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0])?.shortDescription}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {publicPrizes.map((p) => (
+                    <article key={p.id} className="fr-recuadro border border-fr-border">
+                      <h3 className="text-lg font-semibold text-fr-primary">{p.name}</h3>
+                      {p.shortDescription ? <p className="mt-2 text-sm text-fr-muted">{p.shortDescription}</p> : null}
+                      {p.isMonetary && p.amount ? (
+                        <p className="mt-3 text-sm text-gold">
+                          {p.amount} {p.currency || "USD"}
+                        </p>
+                      ) : null}
+                      {p.sponsorName ? <p className="mt-2 text-xs text-fr-muted">Otorgado por {p.sponsorName}</p> : null}
+                    </article>
+                  ))}
+                  {publicRewards.map((r) => (
+                    <article key={r.id} className="fr-recuadro border border-fr-border">
+                      <h3 className="text-lg font-semibold text-fr-primary">{r.name}</h3>
+                      {r.description ? <p className="mt-2 text-sm text-fr-muted">{r.description}</p> : null}
+                      {r.sponsorName ? <p className="mt-2 text-xs text-fr-muted">Beneficio de {r.sponsorName}</p> : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-10 max-w-3xl whitespace-pre-wrap text-fr-muted leading-relaxed">{contest.prizesSummary}</div>
+            )}
             <div className="mt-8">
-              <Link href={inscripcionHref} className="fr-btn fr-btn-primary inline-flex px-8 py-3">
-                Inscribirme ahora
-              </Link>
+              {cta.enabled ? (
+                <Link href={inscripcionHref} className="fr-btn fr-btn-primary inline-flex px-8 py-3">
+                  {cta.primary}
+                </Link>
+              ) : (
+                <span className="inline-flex rounded-lg border border-fr-border bg-fr-card/70 px-8 py-3 text-sm text-fr-muted">
+                  {cta.primary}
+                </span>
+              )}
             </div>
           </div>
         </section>
       ) : null}
+
+      <section className={sectionClass} id="cronograma">
+        <div className={containerClass}>
+          <h2 className={h2Class}>Cronograma</h2>
+          <ol className="mt-10 space-y-4">
+            {[
+              ["Apertura", fmtDate(contest.startAt)],
+              ["Cierre de inscripción", fmtDate(contest.submissionDeadline)],
+              ["Inicio de evaluación", fmtDate(contest.judgingStartAt)],
+              ["Fin de evaluación", fmtDate(contest.judgingEndAt)],
+              ["Resultados", fmtDate(contest.resultsAt)],
+            ]
+              .filter((i) => i[1])
+              .map(([label, value]) => (
+                <li key={label} className="fr-recuadro flex items-center justify-between border border-fr-border">
+                  <span className="text-sm font-medium text-fr-primary">{label}</span>
+                  <span className="text-sm text-fr-muted">{value}</span>
+                </li>
+              ))}
+          </ol>
+        </div>
+      </section>
 
       {/* Sponsors */}
       {contest.sponsorsText ? (
@@ -380,7 +529,7 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
             ) : null}
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link href={inscripcionHref} className="fr-btn fr-btn-primary px-10 py-4 text-base font-semibold">
-                Inscribirme
+                {cta.enabled ? cta.primary : "Ver estado del concurso"}
               </Link>
               <Link href="/" className="text-sm text-fr-muted hover:text-gold">
                 Conocer FotoRank

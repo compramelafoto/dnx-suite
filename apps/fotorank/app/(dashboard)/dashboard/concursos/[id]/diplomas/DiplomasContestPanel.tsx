@@ -11,10 +11,15 @@ import {
   revokeDiplomaAction,
   reissueDiplomaAction,
   getDiplomaPreviewSampleVariablesAction,
+  downloadDiplomaExcelTemplateAction,
+  parseDiplomaExcelDraftAction,
+  generateDiplomasFromExcelDraftAction,
+  listDiplomaExcelBatchesAction,
 } from "../../../../../actions/diplomas";
 import type { DiplomaIssuanceMode, PlanRow } from "../../../../../lib/fotorank/diplomas/issuanceTypes";
 import { parseDiplomaLayoutJson } from "../../../../../lib/fotorank/diplomas/layoutSchema";
 import type { DiplomaMergeVariables } from "../../../../../lib/fotorank/diplomas/mergeFields";
+import { DiplomaTemplatesTab } from "./DiplomaTemplatesTab";
 
 type TemplateRow = {
   id: string;
@@ -81,7 +86,7 @@ export function DiplomasContestPanel({
   initialIssued,
 }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<"emit" | "issued">("emit");
+  const [tab, setTab] = useState<"templates" | "emit" | "excel" | "issued">("templates");
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
   const [mode, setMode] = useState<DiplomaIssuanceMode>("ALL_ENTRIES");
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
@@ -103,6 +108,15 @@ export function DiplomasContestPanel({
   const [statusFilter, setStatusFilter] = useState("all");
   const [revokeTarget, setRevokeTarget] = useState<IssuedRow | null>(null);
   const [reissueTarget, setReissueTarget] = useState<IssuedRow | null>(null);
+  const [excelDraftId, setExcelDraftId] = useState<string | null>(null);
+  const [excelRows, setExcelRows] = useState<Array<Record<string, unknown>>>([]);
+  const [excelSummary, setExcelSummary] = useState<{ total: number; valid: number; invalid: number } | null>(null);
+  const [excelUnknownColumns, setExcelUnknownColumns] = useState<string[]>([]);
+  const [excelOutput, setExcelOutput] = useState<"pdf" | "png" | "both">("both");
+  const [excelWithQr, setExcelWithQr] = useState(true);
+  const [excelWithVerification, setExcelWithVerification] = useState(true);
+  const [excelRequireAllValid, setExcelRequireAllValid] = useState(false);
+  const [excelBatchHistory, setExcelBatchHistory] = useState<Array<Record<string, unknown>>>([]);
   const [pending, startTransition] = useTransition();
 
   const selectedTemplate = useMemo(
@@ -128,6 +142,13 @@ export function DiplomasContestPanel({
       if (r.ok) setIssued(r.rows as IssuedRow[]);
     });
   }, [contestId, search, statusFilter]);
+
+  const refreshExcelHistory = useCallback(() => {
+    startTransition(async () => {
+      const r = await listDiplomaExcelBatchesAction(contestId);
+      if (r.ok) setExcelBatchHistory((r.items as Array<Record<string, unknown>>) ?? []);
+    });
+  }, [contestId]);
 
   const buildPlanInput = (): Parameters<typeof planDiplomaIssuanceAction>[0] => {
     const manualEntryIds = manualIdsText
@@ -229,6 +250,15 @@ export function DiplomasContestPanel({
         <button
           type="button"
           className={`rounded-full px-5 py-2 text-sm font-medium transition-colors ${
+            tab === "templates" ? "bg-gold/15 text-gold ring-1 ring-gold/40" : "text-fr-muted hover:text-fr-primary"
+          }`}
+          onClick={() => setTab("templates")}
+        >
+          Plantillas
+        </button>
+        <button
+          type="button"
+          className={`rounded-full px-5 py-2 text-sm font-medium transition-colors ${
             tab === "emit" ? "bg-gold/15 text-gold ring-1 ring-gold/40" : "text-fr-muted hover:text-fr-primary"
           }`}
           onClick={() => setTab("emit")}
@@ -248,6 +278,8 @@ export function DiplomasContestPanel({
           Emitidos
         </button>
       </div>
+
+      {tab === "templates" ? <DiplomaTemplatesTab contestId={contestId} templates={templates} /> : null}
 
       {tab === "emit" ? (
         <div className="grid gap-12 lg:grid-cols-[1fr_380px]">
@@ -463,6 +495,249 @@ export function DiplomasContestPanel({
             </div>
           </aside>
         </div>
+      ) : tab === "excel" ? (
+        <section className="space-y-8">
+          <div className="grid gap-8 lg:grid-cols-3">
+            <div className="fr-recuadro rounded-xl border border-fr-border bg-fr-card lg:col-span-2">
+              <h2 className="text-lg font-semibold text-fr-primary">Generar diplomas desde Excel</h2>
+              <p className="mt-2 text-sm text-fr-muted">
+                Descargá la plantilla, subí el archivo completo, validá filas y emití en lote PDF/PNG con o sin verificación pública.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="fr-btn fr-btn-secondary"
+                  onClick={() =>
+                    startTransition(async () => {
+                      const r = await downloadDiplomaExcelTemplateAction();
+                      if (!r.ok) {
+                        setPlanError(r.error);
+                        return;
+                      }
+                      const a = document.createElement("a");
+                      a.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${r.base64}`;
+                      a.download = r.filename;
+                      a.click();
+                    })
+                  }
+                >
+                  Descargar plantilla
+                </button>
+                <label className="fr-btn fr-btn-secondary cursor-pointer">
+                  Subir Excel
+                  <input
+                    type="file"
+                    accept=".xlsx,.csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      const fd = new FormData();
+                      fd.set("contestId", contestId);
+                      fd.set("file", f);
+                      startTransition(async () => {
+                        const r = await parseDiplomaExcelDraftAction(fd);
+                        if (!r.ok) {
+                          setPlanError(r.error);
+                          return;
+                        }
+                        setExcelDraftId(r.draftId);
+                        setExcelRows((r.rows as Array<Record<string, unknown>>) ?? []);
+                        setExcelSummary({ total: r.totalRows, valid: r.validRows, invalid: r.invalidRows });
+                        setExcelUnknownColumns(r.unknownColumns);
+                      });
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-semibold text-fr-primary">Plantilla de diploma</span>
+                  <select
+                    className="w-full rounded-lg border border-fr-border bg-fr-bg px-4 py-3 text-sm text-fr-primary"
+                    value={templateId}
+                    onChange={(e) => setTemplateId(e.target.value)}
+                  >
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-semibold text-fr-primary">Formato de salida</span>
+                  <select
+                    className="w-full rounded-lg border border-fr-border bg-fr-bg px-4 py-3 text-sm text-fr-primary"
+                    value={excelOutput}
+                    onChange={(e) => setExcelOutput(e.target.value as "pdf" | "png" | "both")}
+                  >
+                    <option value="pdf">Solo PDF</option>
+                    <option value="png">Solo PNG</option>
+                    <option value="both">PDF + PNG</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-4">
+                <label className="inline-flex items-center gap-2 text-sm text-fr-muted">
+                  <input type="checkbox" checked={excelWithQr} onChange={(e) => setExcelWithQr(e.target.checked)} />
+                  Incluir QR
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm text-fr-muted">
+                  <input
+                    type="checkbox"
+                    checked={excelWithVerification}
+                    onChange={(e) => setExcelWithVerification(e.target.checked)}
+                  />
+                  Incluir verificación pública
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm text-fr-muted">
+                  <input
+                    type="checkbox"
+                    checked={excelRequireAllValid}
+                    onChange={(e) => setExcelRequireAllValid(e.target.checked)}
+                  />
+                  Exigir corrección total
+                </label>
+              </div>
+
+              {excelSummary ? (
+                <div className="mt-6 rounded-lg border border-fr-border bg-fr-bg p-4">
+                  <p className="text-sm text-fr-primary">
+                    Filas detectadas: <strong>{excelSummary.total}</strong> · válidas: <strong>{excelSummary.valid}</strong> · con error:{" "}
+                    <strong>{excelSummary.invalid}</strong>
+                  </p>
+                  {excelUnknownColumns.length > 0 ? (
+                    <p className="mt-2 text-xs text-amber-300">
+                      Columnas desconocidas: {excelUnknownColumns.join(", ")}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="fr-content-to-actions mt-8 flex justify-end border-t border-fr-border pt-6">
+                <button
+                  type="button"
+                  className="fr-btn fr-btn-primary"
+                  disabled={!excelDraftId || pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      if (!excelDraftId) return;
+                      const r = await generateDiplomasFromExcelDraftAction({
+                        contestId,
+                        draftId: excelDraftId,
+                        templateId,
+                        output: excelOutput,
+                        withQr: excelWithQr,
+                        withPublicVerification: excelWithVerification,
+                        requireAllValid: excelRequireAllValid,
+                      });
+                      if (!r.ok) {
+                        setPlanError(r.error);
+                        return;
+                      }
+                      setPlanError(
+                        `Lote generado. Exitosos: ${r.batch.successCount} · fallidos: ${r.batch.failedCount}.`
+                      );
+                      refreshIssued();
+                      refreshExcelHistory();
+                      setTab("issued");
+                    })
+                  }
+                >
+                  Generar diplomas
+                </button>
+              </div>
+            </div>
+
+            <div className="fr-recuadro rounded-xl border border-fr-border bg-fr-card">
+              <h3 className="text-base font-semibold text-fr-primary">Historial de lotes</h3>
+              <p className="mt-2 text-xs text-fr-muted">Últimas importaciones y descargas.</p>
+              <div className="mt-4 space-y-3">
+                {excelBatchHistory.length === 0 ? (
+                  <p className="text-sm text-fr-muted">Sin lotes todavía.</p>
+                ) : (
+                  excelBatchHistory.slice(0, 8).map((b) => {
+                    const batch = b as {
+                      batchId: string;
+                      createdAt: string;
+                      successCount: number;
+                      failedCount: number;
+                      zipUrl: string | null;
+                      reportUrl: string | null;
+                    };
+                    return (
+                      <div key={batch.batchId} className="rounded-lg border border-fr-border bg-fr-bg p-3">
+                        <p className="text-xs text-fr-muted">{new Date(batch.createdAt).toLocaleString("es-AR")}</p>
+                        <p className="mt-1 text-sm text-fr-primary">
+                          OK {batch.successCount} · Error {batch.failedCount}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {batch.zipUrl ? (
+                            <a className="fr-btn fr-btn-secondary px-3 py-1.5 text-xs" href={batch.zipUrl}>
+                              ZIP
+                            </a>
+                          ) : null}
+                          {batch.reportUrl ? (
+                            <a className="fr-btn fr-btn-secondary px-3 py-1.5 text-xs" href={batch.reportUrl}>
+                              Errores
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {excelRows.length > 0 ? (
+            <div className="fr-recuadro rounded-xl border border-fr-border bg-fr-card">
+              <h3 className="text-base font-semibold text-fr-primary">Vista previa de registros</h3>
+              <div className="mt-4 overflow-x-auto rounded-lg border border-fr-border">
+                <table className="w-full min-w-[720px] text-left text-xs">
+                  <thead className="border-b border-fr-border bg-fr-bg-elevated text-fr-muted">
+                    <tr>
+                      <th className="px-3 py-2">Fila</th>
+                      <th className="px-3 py-2">Nombre</th>
+                      <th className="px-3 py-2">Categoría</th>
+                      <th className="px-3 py-2">Premio</th>
+                      <th className="px-3 py-2">Estado</th>
+                      <th className="px-3 py-2">Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {excelRows.slice(0, 120).map((r, idx) => {
+                      const row = r as {
+                        rowNumber: number;
+                        nombre_completo: string;
+                        categoria: string;
+                        premio: string;
+                        errors: string[];
+                      };
+                      const hasErr = row.errors.length > 0;
+                      return (
+                        <tr key={idx} className="border-b border-fr-border/70">
+                          <td className="px-3 py-2">{row.rowNumber}</td>
+                          <td className="px-3 py-2 text-fr-primary">{row.nombre_completo}</td>
+                          <td className="px-3 py-2">{row.categoria}</td>
+                          <td className="px-3 py-2">{row.premio || "—"}</td>
+                          <td className={`px-3 py-2 ${hasErr ? "text-red-300" : "text-emerald-300"}`}>
+                            {hasErr ? "Con error" : "Válida"}
+                          </td>
+                          <td className="px-3 py-2 text-red-300">{hasErr ? row.errors.join(" · ") : ""}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </section>
       ) : (
         <section className="fr-recuadro rounded-xl border border-fr-border bg-fr-card">
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">

@@ -1,10 +1,19 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import { pdfToPng } from "pdf-to-png-converter";
-import type { DiplomaLayoutJson, DiplomaLayoutTextBlock } from "./layoutSchema";
+import { readDiplomaPdfFontBytes, type DiplomaPdfFontSlot } from "./diplomaFontPdf";
+import { normalizeDiplomaFontId, type DiplomaFontId } from "./diplomaFonts";
+import type {
+  DiplomaLayoutJson,
+  DiplomaLayoutTextBlock,
+  DiplomaLayoutImageBlock,
+  DiplomaLayoutLineBlock,
+  DiplomaLayoutRectBlock,
+} from "./layoutSchema";
 import { mergeDiplomaTemplate, type DiplomaMergeVariables } from "./mergeFields";
 
 function hexToRgb01(hex: string): { r: number; g: number; b: number } {
@@ -58,20 +67,31 @@ function wrapLines(text: string, font: PDFFont, fontSize: number, maxWidth: numb
   return lines;
 }
 
+type PdfFontSet = { normal: PDFFont; bold: PDFFont; italic: PDFFont; boldItalic: PDFFont };
+
+function pickPdfFontFace(set: PdfFontSet, block: DiplomaLayoutTextBlock): PDFFont {
+  const bold = block.fontWeight === "bold";
+  const italic = block.fontStyle === "italic";
+  if (bold && italic) return set.boldItalic;
+  if (bold) return set.bold;
+  if (italic) return set.italic;
+  return set.normal;
+}
+
 function drawTextBlock(
   page: PDFPage,
   block: DiplomaLayoutTextBlock,
   text: string,
-  font: PDFFont,
-  fontBold: PDFFont,
+  fonts: PdfFontSet,
   pageHeight: number
 ): void {
   const size = block.fontSize;
-  const face = block.fontWeight === "bold" ? fontBold : font;
+  const face = pickPdfFontFace(fonts, block);
   const maxW = Math.max(40, block.width - 4);
   const lines = wrapLines(text, face, size, maxW);
   const lineHeight = size * 1.2;
   const rgbColor = rgb(hexToRgb01(block.color).r, hexToRgb01(block.color).g, hexToRgb01(block.color).b);
+  const underline = block.textDecoration === "underline";
 
   lines.forEach((line, i) => {
     const lineW = face.widthOfTextAtSize(line, size);
@@ -80,6 +100,76 @@ function drawTextBlock(
     if (block.textAlign === "right") x = block.x + block.width - lineW - 2;
     const baseline = pageHeight - block.y - (i + 1) * lineHeight;
     if (line) page.drawText(line, { x, y: baseline, size, font: face, color: rgbColor, maxWidth: maxW });
+    if (underline && line) {
+      const uY = baseline - Math.max(0.8, size * 0.12);
+      page.drawLine({
+        start: { x, y: uY },
+        end: { x: x + lineW, y: uY },
+        thickness: Math.max(0.5, size * 0.05),
+        color: rgbColor,
+      });
+    }
+  });
+}
+
+async function drawImageBlock(
+  page: PDFPage,
+  block: DiplomaLayoutImageBlock,
+  pageHeight: number,
+  doc: PDFDocument
+): Promise<void> {
+  const bytes = await loadOptionalBackgroundBytes(block.imageUrl);
+  if (!bytes) return;
+  try {
+    const isPng =
+      bytes.length >= 8 &&
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47;
+    const embedded = isPng ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+    const yPdf = pageHeight - block.y - block.height;
+    page.drawImage(embedded, { x: block.x, y: yPdf, width: block.width, height: block.height });
+  } catch {
+    /* imagen omitida */
+  }
+}
+
+function drawLineBlock(page: PDFPage, block: DiplomaLayoutLineBlock, pageHeight: number): void {
+  const h = Math.max(block.height, block.strokeWidth);
+  const yPdf = pageHeight - block.y - h;
+  const c = hexToRgb01(block.strokeColor);
+  const col = rgb(c.r, c.g, c.b);
+  page.drawRectangle({
+    x: block.x,
+    y: yPdf,
+    width: block.width,
+    height: h,
+    color: col,
+  });
+}
+
+function drawRectBlock(page: PDFPage, block: DiplomaLayoutRectBlock, pageHeight: number): void {
+  const yPdf = pageHeight - block.y - block.height;
+  const fill =
+    block.fillColor && block.fillColor.length > 1
+      ? rgb(hexToRgb01(block.fillColor).r, hexToRgb01(block.fillColor).g, hexToRgb01(block.fillColor).b)
+      : undefined;
+  const strokeRgb = block.strokeColor
+    ? rgb(
+        hexToRgb01(block.strokeColor).r,
+        hexToRgb01(block.strokeColor).g,
+        hexToRgb01(block.strokeColor).b
+      )
+    : undefined;
+  page.drawRectangle({
+    x: block.x,
+    y: yPdf,
+    width: block.width,
+    height: block.height,
+    color: fill,
+    borderColor: strokeRgb,
+    borderWidth: block.strokeColor ? block.strokeWidth ?? 1 : 0,
   });
 }
 
@@ -97,6 +187,7 @@ export type RenderDiplomaInput = {
 export async function renderDiplomaPdf(input: RenderDiplomaInput): Promise<Buffer> {
   const { widthPt, heightPt, backgroundColor, backgroundImageUrl, layout, variables, qrPayload } = input;
   const doc = await PDFDocument.create();
+  doc.registerFontkit(fontkit);
   const page = doc.addPage([widthPt, heightPt]);
   const pageHeight = heightPt;
 
@@ -119,8 +210,47 @@ export async function renderDiplomaPdf(input: RenderDiplomaInput): Promise<Buffe
     }
   }
 
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const fontHelvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const fontHelveticaBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const fontHelveticaOblique = await doc.embedFont(StandardFonts.HelveticaOblique);
+  const fontHelveticaBoldOblique = await doc.embedFont(StandardFonts.HelveticaBoldOblique);
+  const diplomaFontCache = new Map<string, PDFFont>();
+
+  const helveticaFallback: PdfFontSet = {
+    normal: fontHelvetica,
+    bold: fontHelveticaBold,
+    italic: fontHelveticaOblique,
+    boldItalic: fontHelveticaBoldOblique,
+  };
+
+  async function pdfFontsForTextBlock(fid: DiplomaFontId | undefined): Promise<PdfFontSet> {
+    const id = normalizeDiplomaFontId(fid);
+    const keyN = `${id}-n`;
+    const keyB = `${id}-b`;
+    const keyI = `${id}-i`;
+    const keyBi = `${id}-bi`;
+    if (!diplomaFontCache.has(keyN)) {
+      try {
+        const slots: DiplomaPdfFontSlot[] = ["normal", "bold", "italic", "boldItalic"];
+        const keys = [keyN, keyB, keyI, keyBi] as const;
+        for (let i = 0; i < 4; i++) {
+          const bytes = readDiplomaPdfFontBytes(id, slots[i]!);
+          diplomaFontCache.set(keys[i]!, await doc.embedFont(bytes));
+        }
+      } catch {
+        diplomaFontCache.set(keyN, helveticaFallback.normal);
+        diplomaFontCache.set(keyB, helveticaFallback.bold);
+        diplomaFontCache.set(keyI, helveticaFallback.italic);
+        diplomaFontCache.set(keyBi, helveticaFallback.boldItalic);
+      }
+    }
+    return {
+      normal: diplomaFontCache.get(keyN)!,
+      bold: diplomaFontCache.get(keyB)!,
+      italic: diplomaFontCache.get(keyI)!,
+      boldItalic: diplomaFontCache.get(keyBi)!,
+    };
+  }
 
   const qrPngBuffer = await QRCode.toBuffer(qrPayload, {
     type: "png",
@@ -131,17 +261,27 @@ export async function renderDiplomaPdf(input: RenderDiplomaInput): Promise<Buffe
   const qrImage = await doc.embedPng(qrPngBuffer);
 
   for (const block of layout.blocks) {
+    if (block.hidden) continue;
+
     if (block.type === "text") {
       const merged = mergeDiplomaTemplate(block.content, variables);
-      drawTextBlock(page, block, merged, font, fontBold, pageHeight);
+      const fontSet = await pdfFontsForTextBlock(block.fontFamily);
+      drawTextBlock(page, block, merged, fontSet, pageHeight);
     } else if (block.type === "qrcode") {
-      const yPdf = pageHeight - block.y - block.height;
+      const s = Math.min(block.width, block.height);
+      const yPdf = pageHeight - block.y - s;
       page.drawImage(qrImage, {
         x: block.x,
         y: yPdf,
-        width: block.width,
-        height: block.height,
+        width: s,
+        height: s,
       });
+    } else if (block.type === "image") {
+      await drawImageBlock(page, block, pageHeight, doc);
+    } else if (block.type === "line") {
+      drawLineBlock(page, block, pageHeight);
+    } else if (block.type === "rect") {
+      drawRectBlock(page, block, pageHeight);
     }
   }
 

@@ -6,9 +6,12 @@ import { createPortal } from "react-dom";
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Título simple (si no usás `titleSlot`) */
   title?: string;
+  /** Contenido del título (ej. input editable); tiene prioridad sobre `title` */
+  titleSlot?: React.ReactNode;
   children: React.ReactNode;
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "6xl" | "full";
   /**
    * Isologo FotoRank **encima del título** (solo flujos de marca: onboarding, bienvenida).
    * Por defecto `false`: modales funcionales (login, decisión, edición) no llevan logo en el panel.
@@ -32,12 +35,15 @@ const maxWidthClasses = {
   "2xl": "max-w-2xl",
   "3xl": "max-w-3xl",
   "4xl": "max-w-4xl",
+  "6xl": "max-w-6xl",
+  full: "max-w-[min(96rem,calc(100vw-2rem))]",
 };
 
 export function Modal({
   isOpen,
   onClose,
   title,
+  titleSlot,
   children,
   maxWidth = "xl",
   header = "full",
@@ -79,7 +85,7 @@ export function Modal({
       style={{ zIndex }}
       role="dialog"
       aria-modal="true"
-      aria-labelledby={title ? "modal-title" : undefined}
+      aria-labelledby={titleSlot || title ? "modal-title" : undefined}
     >
       <div
         className="pointer-events-none absolute inset-0 bg-black/78 backdrop-blur-sm"
@@ -99,12 +105,14 @@ export function Modal({
           </div>
         ) : null}
         {(header === "full" || header === "minimal") &&
-          (centeredHeader && header === "full" && title ? (
+          (centeredHeader && header === "full" && (titleSlot || title) ? (
             <div className="fr-modal-header fr-modal-header--centered shrink-0">
               <div className="fr-modal-header__gutter" aria-hidden="true" />
-              <h2 id="modal-title" className="fr-modal-header__title fr-modal-header__title--center tracking-tight">
-                {title}
-              </h2>
+              <div id="modal-title" className="fr-modal-header__title fr-modal-header__title--center min-w-0 flex-1 tracking-tight">
+                {titleSlot ?? (
+                  <h2 className="font-[inherit] text-[inherit] leading-[inherit]">{title}</h2>
+                )}
+              </div>
               <div className="fr-modal-header__close-slot">
                 <button type="button" onClick={onClose} className="fr-modal-close" aria-label="Cerrar">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -116,10 +124,10 @@ export function Modal({
           ) : (
             <div className="fr-modal-header shrink-0">
               <div className="fr-modal-header__title-track">
-                {header === "full" && title ? (
-                  <h2 id="modal-title" className="fr-modal-header__title">
-                    {title}
-                  </h2>
+                {header === "full" && (titleSlot || title) ? (
+                  <div id="modal-title" className="fr-modal-header__title">
+                    {titleSlot ?? title}
+                  </div>
                 ) : null}
               </div>
               <button type="button" onClick={onClose} className="fr-modal-close" aria-label="Cerrar">

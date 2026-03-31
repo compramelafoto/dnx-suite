@@ -12,9 +12,11 @@ import { FeaturedContestsSection } from "./components/landing/FeaturedContestsSe
 import { FinalCTASection } from "./components/landing/FinalCTASection";
 import { Footer } from "./components/landing/Footer";
 import { ReducedMotionWrapper } from "./components/landing/ReducedMotionWrapper";
+import { listPublicHomeContests } from "./lib/fotorank/publicContests";
 
 export default async function Home() {
   const [admin, judge] = await Promise.all([getAuthUser(), getJudgeAuthUser()]);
+  const publicContests = await listPublicHomeContests(6);
 
   return (
     <ReducedMotionWrapper>
@@ -30,7 +32,7 @@ export default async function Home() {
           <BenefitsSection />
           <ParaQuienEsSection />
           <CredibilidadSection />
-          <FeaturedContestsSection />
+          <FeaturedContestsSection contests={publicContests} />
           <FinalCTASection />
         </main>
         <Footer />
