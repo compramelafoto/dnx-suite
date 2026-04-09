@@ -44,6 +44,7 @@ export async function GET(
             selection: { isNot: null },
           },
           include: {
+            designProject: { select: { id: true, status: true } },
             albumProduct: { select: { id: true, name: true, requiresDesign: true } },
             subject: { select: { id: true, label: true } },
             selection: {
@@ -67,6 +68,7 @@ export async function GET(
     const tasks: Array<{
       orderItemId: number;
       orderId: number;
+      designProjectId: number | null;
       buyerEmail: string;
       productName: string;
       subjectLabel: string | null;
@@ -91,6 +93,7 @@ export async function GET(
         tasks.push({
           orderItemId: item.id,
           orderId: order.id,
+          designProjectId: item.designProject?.id ?? null,
           buyerEmail: order.buyerEmail,
           productName: item.albumProduct.name,
           subjectLabel: item.subject?.label ?? null,
