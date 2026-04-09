@@ -34,11 +34,11 @@ export async function GET(
     }
 
     const dataJson = parseRevisionDataJson(dp.currentRevision.dataJson);
-    const assignments = dataJson?.assignments ?? {};
+    const assignmentsRecord = dataJson?.assignmentsRecord ?? {};
     const selectionPhotos =
       dp.orderItem.selection?.photos.map((sp) => {
         const url = normalizePreviewUrl(sp.photo.previewUrl, sp.photo.originalKey) ?? "";
-        const inUse = Object.values(assignments).some((a) => a.photoId === sp.photoId);
+        const inUse = Object.values(assignmentsRecord).some((a) => a.photoId === sp.photoId);
         return {
           photoId: sp.photoId,
           position: sp.position,

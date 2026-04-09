@@ -3,7 +3,7 @@
  */
 
 export const SCHOOL_DESIGN_REVISION_SCHEMA_VERSION = 1;
-export const SCHOOL_PREFLIGHT_SCHEMA_VERSION = 1;
+export const SCHOOL_PREFLIGHT_SCHEMA_VERSION = 1 as const;
 
 export type Bbox = { x: number; y: number; width: number; height: number };
 

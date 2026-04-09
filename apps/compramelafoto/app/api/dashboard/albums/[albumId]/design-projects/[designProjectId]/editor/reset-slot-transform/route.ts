@@ -1,10 +1,10 @@
-import type { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
 import { parseRevisionDataJson, resetSlotTransformInData } from "@/lib/school-design/editor-data";
 import { updateRevisionDataJson } from "@/lib/school-design/persist-revision";
-import { getOwnedDesignProject } from "@/lib/school-design/route-helpers";
+import { buildPersistDataJsonFromParsed } from "@/lib/school-design/revision-data";
+import { getOwnedDesignProject, slotsAndRolesFromOwnedProject } from "@/lib/school-design/route-helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,16 +35,25 @@ export async function POST(
     }
 
     const data = parseRevisionDataJson(dp.currentRevision.dataJson);
-    if (!data?.assignments[String(slotId)]) {
+    if (!data?.assignmentsRecord[String(slotId)]) {
       return NextResponse.json({ error: "Slot inválido" }, { status: 400 });
     }
 
     const next = resetSlotTransformInData(data, slotId);
+    const { slots, roleMap } = slotsAndRolesFromOwnedProject(dp);
+    const dataJson = buildPersistDataJsonFromParsed(
+      dp.currentRevision.dataJson,
+      next,
+      slots,
+      roleMap,
+      dp.template.id,
+      dp.orderItemId
+    );
 
     await updateRevisionDataJson({
       revisionId: dp.currentRevision.id,
       designProjectId: dp.id,
-      dataJson: next as unknown as Prisma.InputJsonValue,
+      dataJson,
     });
 
     return NextResponse.json({ ok: true });

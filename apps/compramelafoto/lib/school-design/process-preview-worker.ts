@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { DesignPreviewStatus, DesignProjectStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateR2Key, normalizePreviewUrl, uploadToR2 } from "@/lib/r2-client";
@@ -9,6 +10,7 @@ import {
   pickNextPreviewJob,
   PREVIEW_MAX_WIDTH,
 } from "./preview-jobs";
+import { mergeRevisionDataJsonPatch } from "./revision-data";
 import { fetchBufferFromUrl, renderSchoolDesignJpeg } from "./render-composite";
 import { markPreviewRendered } from "./review-actions";
 
@@ -27,8 +29,7 @@ export async function processOneDesignPreviewJob(): Promise<boolean> {
 
   try {
     const raw = rev.dataJson;
-    const dataJson = parseRevisionDataJson(raw);
-    if (!dataJson) {
+    if (!parseRevisionDataJson(raw)) {
       throw new Error("dataJson inválido o versión de schema no soportada");
     }
 
@@ -54,14 +55,31 @@ export async function processOneDesignPreviewJob(): Promise<boolean> {
         pageIndex: s.pageIndex,
         bbox: s.bbox,
       })),
-      dataJson,
+      dataJson: raw,
       loadPhotoBuffer,
       outputMaxWidth: PREVIEW_MAX_WIDTH,
       jpegQuality: 82,
     });
 
+    const meta = await sharp(jpeg).metadata();
     const key = generateR2Key(`school-preview-${project.id}-v${job.targetVersion}.jpg`, "school-design-previews");
     const { url } = await uploadToR2(jpeg, key, "image/jpeg");
+
+    await prisma.designRevision.update({
+      where: { id: rev.id },
+      data: {
+        dataJson: mergeRevisionDataJsonPatch(raw, {
+          previewUrl: url,
+          previewStatus: "READY",
+          previewVersion: job.targetVersion,
+          previewGeneratedAt: new Date().toISOString(),
+          previewWidth: meta.width ?? null,
+          previewHeight: meta.height ?? null,
+          previewError: null,
+          previewDirty: false,
+        }),
+      },
+    });
 
     await markPreviewRendered({
       designProjectId: project.id,

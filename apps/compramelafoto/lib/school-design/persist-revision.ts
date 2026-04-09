@@ -16,7 +16,7 @@ export async function updateRevisionDataJson(input: {
       where: { id: input.designProjectId },
       data: {
         previewDirty: true,
-        previewStatus: DesignPreviewStatus.IDLE,
+        previewStatus: DesignPreviewStatus.DIRTY,
       },
     }),
   ]);

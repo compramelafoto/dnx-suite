@@ -3,9 +3,9 @@ import { DesignPreviewStatus, DesignProjectStatus, PreCompraOrderItemStatus } fr
 import { prisma } from "@/lib/prisma";
 import { buildInitialRenderPreflight } from "./build-preflight";
 import { buildInitialTemplateSlotAssignments } from "./build-slot-assignments";
+import type { ParsedRevision } from "./revision-data";
+import { serializeRevisionDataJson } from "./revision-data";
 import { resolveDesignTemplateForRedeemItem } from "./resolve-design-template";
-import type { DesignRevisionDataJsonV1 } from "./types";
-import { SCHOOL_DESIGN_REVISION_SCHEMA_VERSION } from "./types";
 import { validateSelectionAgainstTemplate } from "./validate-selection";
 import type { TemplateSlotInput } from "./validate-selection";
 
@@ -15,6 +15,7 @@ export type EnsureDesignProjectResult =
 
 /**
  * Idempotente: no duplica DesignProject ni DesignRevision inicial si ya existen.
+ * Tras crear revisión con preflight → `PENDING_PHOTOGRAPHER_APPROVAL` (SCHOOL-PIPELINE-SYNC-LOG).
  */
 export async function ensureDesignProjectForOrderItem(orderItemId: number): Promise<EnsureDesignProjectResult> {
   const item = await prisma.preCompraOrderItem.findUnique({
@@ -50,6 +51,12 @@ export async function ensureDesignProjectForOrderItem(orderItemId: number): Prom
   if (!item.selection?.photos?.length) {
     console.warn("[school_redeem_design_gate] no selection photos", { orderItemId });
     return { ok: false, code: "NO_SELECTION", message: "No hay selección persistida" };
+  }
+
+  const livePhotos = item.selection.photos.filter((sp) => !sp.photo.isRemoved);
+  if (livePhotos.length !== item.selection.photos.length) {
+    console.warn("[school_redeem_design_gate] selection contains removed photos", { orderItemId });
+    return { ok: false, code: "SELECTION_INVALID", message: "La selección incluye fotos removidas" };
   }
 
   const productTemplateIds = item.albumProduct.templates.map((t) => t.id);
@@ -99,32 +106,28 @@ export async function ensureDesignProjectForOrderItem(orderItemId: number): Prom
     bbox: s.bbox,
   }));
 
-  const selectionPhotos = item.selection.photos.map((sp) => ({
-    id: sp.photoId,
+  const selectionPhotosInput = item.selection.photos.map((sp) => ({
+    photoId: sp.photoId,
+    role: sp.role ?? null,
     position: sp.position,
-    role: null as string | null,
   }));
-
-  const orderedIds = [...selectionPhotos]
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.id - b.id)
-    .map((p) => p.id);
 
   const v = validateSelectionAgainstTemplate({
     slots,
-    selectionPhotoIdsOrdered: orderedIds,
+    selectionPhotos: selectionPhotosInput,
     minFotos: item.albumProduct.minFotos,
     maxFotos: item.albumProduct.maxFotos,
   });
 
   if (!v.ok) {
     console.warn("[school_redeem_design_gate] selection invalid", { orderItemId, v });
-    return { ok: false, code: "SELECTION_INVALID", message: "Selección incompleta para la plantilla" };
+    return { ok: false, code: "SELECTION_INVALID", message: "Selección incompleta o roles inválidos para la plantilla" };
   }
 
-  const photoMeta = selectionPhotos.map((p) => ({
-    id: p.id,
-    position: p.position,
-    role: p.role,
+  const photoMeta = item.selection.photos.map((sp) => ({
+    id: sp.photoId,
+    position: sp.position,
+    role: sp.role ?? null,
   }));
 
   const { assignments, unassignedSelectionPhotoIds, unfilledRequiredSlotIds } =
@@ -132,6 +135,11 @@ export async function ensureDesignProjectForOrderItem(orderItemId: number): Prom
       slots: v.slotsOrdered,
       selectionPhotos: photoMeta,
     });
+
+  if (unfilledRequiredSlotIds.length > 0) {
+    console.warn("[school_redeem_design_gate] unfilled slots after mapping", { orderItemId, unfilledRequiredSlotIds });
+    return { ok: false, code: "SELECTION_INVALID", message: "No se pudieron rellenar todos los slots" };
+  }
 
   const photoBboxByPhotoId = new Map<number, { x: number; y: number; width: number; height: number } | null>();
   for (const sp of item.selection.photos) {
@@ -159,15 +167,22 @@ export async function ensureDesignProjectForOrderItem(orderItemId: number): Prom
     photoBboxByPhotoId,
   });
 
-  const dataJson: DesignRevisionDataJsonV1 = {
-    schemaVersion: SCHOOL_DESIGN_REVISION_SCHEMA_VERSION,
-    assignments,
+  const roleMap = new Map(item.selection.photos.map((sp) => [sp.photoId, sp.role ?? null]));
+
+  const parsed: ParsedRevision = {
+    schemaVersion: 3,
+    templateId,
+    orderItemId: item.id,
+    assignmentsRecord: assignments,
     unassignedSelectionPhotoIds,
     unfilledRequiredSlotIds,
     preflight,
-    textOverrides: {},
+    textOverridesFlat: {},
+    textOverridesRaw: {},
     slotTransforms: {},
   };
+
+  const dataJson = serializeRevisionDataJson(parsed, v.slotsOrdered, roleMap, templateId, item.id);
 
   if (item.designProject && item.designProject.templateId !== templateId) {
     console.warn("[school_redeem_design_revision] template mismatch existing project", {
@@ -193,7 +208,7 @@ export async function ensureDesignProjectForOrderItem(orderItemId: number): Prom
         data: {
           orderItemId: item.id,
           templateId,
-          status: DesignProjectStatus.DRAFT,
+          status: DesignProjectStatus.PENDING_PHOTOGRAPHER_APPROVAL,
           previewDirty: true,
           previewStatus: DesignPreviewStatus.IDLE,
         },
@@ -226,7 +241,7 @@ export async function ensureDesignProjectForOrderItem(orderItemId: number): Prom
       where: { id: designProjectIdNum },
       data: {
         currentRevisionId: rev.id,
-        status: DesignProjectStatus.DRAFT,
+        status: DesignProjectStatus.PENDING_PHOTOGRAPHER_APPROVAL,
       },
     });
 

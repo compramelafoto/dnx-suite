@@ -1136,6 +1136,8 @@ model SelectionPhoto {
   selectionId Int
   photoId     Int
   position    Int?      @default(0)
+  /// Rol semántico (empareja con TemplateSlot.role; legacy school pipeline)
+  role        String?
   selection   Selection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
   photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
   subject     Subject?  @relation(fields: [subjectId], references: [id], onDelete: SetNull)
@@ -1255,6 +1257,7 @@ enum DesignPreviewStatus {
   RENDERING
   READY
   FAILED
+  DIRTY
 }
 
 model DesignRevision {

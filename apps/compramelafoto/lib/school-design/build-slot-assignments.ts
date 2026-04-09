@@ -1,4 +1,5 @@
 import type { AssignmentEntry, Bbox } from "./types";
+import type { AssignmentRowV3 } from "./revision-data";
 import type { TemplateSlotInput } from "./validate-selection";
 
 function parseBbox(raw: unknown): Bbox | null {
@@ -23,6 +24,7 @@ export function buildInitialTemplateSlotAssignments(input: {
   selectionPhotos: PhotoMeta[];
 }): {
   assignments: Record<string, AssignmentEntry>;
+  assignmentRowsV3: AssignmentRowV3[];
   unassignedSelectionPhotoIds: number[];
   unfilledRequiredSlotIds: number[];
 } {
@@ -41,16 +43,20 @@ export function buildInitialTemplateSlotAssignments(input: {
 
   const requiredSlots = slotsOrdered.filter((s) => parseBbox(s.bbox) !== null);
   const assignments: Record<string, AssignmentEntry> = {};
+  const assignmentRowsV3: AssignmentRowV3[] = [];
   const usedPhotoIds = new Set<number>();
   const unfilled: number[] = [];
 
   for (const slot of requiredSlots) {
     let photo: PhotoMeta | undefined;
+    let source: AssignmentRowV3["source"] = "ORDER_FALLBACK";
     if (slot.role) {
       photo = photosOrdered.find((p) => !usedPhotoIds.has(p.id) && p.role === slot.role);
+      if (photo) source = "ROLE_MATCH";
     }
     if (!photo) {
       photo = photosOrdered.find((p) => !usedPhotoIds.has(p.id));
+      source = "ORDER_FALLBACK";
     }
     if (!photo) {
       unfilled.push(slot.id);
@@ -62,12 +68,21 @@ export function buildInitialTemplateSlotAssignments(input: {
       pageIndex: slot.pageIndex,
       photoId: photo.id,
     };
+    assignmentRowsV3.push({
+      slotId: slot.id,
+      pageIndex: slot.pageIndex,
+      slotRole: slot.role,
+      selectionPhotoId: photo.id,
+      selectionPhotoRole: photo.role,
+      source,
+    });
   }
 
   const unassignedSelectionPhotoIds = photosOrdered.filter((p) => !usedPhotoIds.has(p.id)).map((p) => p.id);
 
   return {
     assignments,
+    assignmentRowsV3,
     unassignedSelectionPhotoIds,
     unfilledRequiredSlotIds: unfilled,
   };

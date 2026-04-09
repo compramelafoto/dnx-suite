@@ -1,69 +1,68 @@
-import type { DesignRevisionDataJsonV1, SlotTransform } from "./types";
-import { SCHOOL_DESIGN_REVISION_SCHEMA_VERSION } from "./types";
+import type { ParsedRevision } from "./revision-data";
+import { parseRevisionDataJson as parseRevisionDataJsonInner } from "./revision-data";
+import type { SlotTransform } from "./types";
 
-function asV1(raw: unknown): DesignRevisionDataJsonV1 | null {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw as Record<string, unknown>;
-  if (o.schemaVersion !== SCHOOL_DESIGN_REVISION_SCHEMA_VERSION) return null;
-  if (!o.assignments || typeof o.assignments !== "object") return null;
-  return o as unknown as DesignRevisionDataJsonV1;
-}
-
-export function parseRevisionDataJson(raw: unknown): DesignRevisionDataJsonV1 | null {
-  return asV1(raw);
-}
+export { parseRevisionDataJsonInner as parseRevisionDataJson };
 
 export function swapSlotPhotosInData(
-  data: DesignRevisionDataJsonV1,
+  data: ParsedRevision,
   slotIdA: number,
   slotIdB: number
-): DesignRevisionDataJsonV1 {
+): ParsedRevision {
   const ka = String(slotIdA);
   const kb = String(slotIdB);
-  const a = data.assignments[ka];
-  const b = data.assignments[kb];
+  const a = data.assignmentsRecord[ka];
+  const b = data.assignmentsRecord[kb];
   if (!a || !b) return data;
-  const next = { ...data, assignments: { ...data.assignments } };
-  next.assignments[ka] = { ...a, photoId: b.photoId };
-  next.assignments[kb] = { ...b, photoId: a.photoId };
-  return next;
+  return {
+    ...data,
+    assignmentsRecord: {
+      ...data.assignmentsRecord,
+      [ka]: { ...a, photoId: b.photoId },
+      [kb]: { ...b, photoId: a.photoId },
+    },
+  };
 }
 
 export function replaceSlotPhotoInData(
-  data: DesignRevisionDataJsonV1,
+  data: ParsedRevision,
   slotId: number,
   newPhotoId: number
-): DesignRevisionDataJsonV1 {
+): ParsedRevision {
   const k = String(slotId);
-  const cur = data.assignments[k];
+  const cur = data.assignmentsRecord[k];
   if (!cur) return data;
   return {
     ...data,
-    assignments: {
-      ...data.assignments,
+    assignmentsRecord: {
+      ...data.assignmentsRecord,
       [k]: { ...cur, photoId: newPhotoId },
     },
   };
 }
 
-export function updateTextOverrideInData(data: DesignRevisionDataJsonV1, textId: string, value: string) {
+export function updateTextOverrideInData(data: ParsedRevision, textId: string, value: string): ParsedRevision {
+  const nextRaw = { ...data.textOverridesRaw, [textId]: { overrideValue: value, isOverridden: true } };
   return {
     ...data,
-    textOverrides: { ...data.textOverrides, [textId]: value },
+    textOverridesFlat: { ...data.textOverridesFlat, [textId]: value },
+    textOverridesRaw: nextRaw,
   };
 }
 
-export function clearTextOverrideInData(data: DesignRevisionDataJsonV1, textId: string) {
-  const next = { ...data.textOverrides };
-  delete next[textId];
-  return { ...data, textOverrides: next };
+export function clearTextOverrideInData(data: ParsedRevision, textId: string): ParsedRevision {
+  const nextFlat = { ...data.textOverridesFlat };
+  delete nextFlat[textId];
+  const nextRaw = { ...data.textOverridesRaw };
+  delete nextRaw[textId];
+  return { ...data, textOverridesFlat: nextFlat, textOverridesRaw: nextRaw };
 }
 
 export function updateSlotTransformInData(
-  data: DesignRevisionDataJsonV1,
+  data: ParsedRevision,
   slotId: number,
   patch: Partial<SlotTransform>
-): DesignRevisionDataJsonV1 {
+): ParsedRevision {
   const k = String(slotId);
   const prev = data.slotTransforms[k] ?? {
     fitMode: "COVER" as const,
@@ -81,7 +80,7 @@ export function updateSlotTransformInData(
   };
 }
 
-export function resetSlotTransformInData(data: DesignRevisionDataJsonV1, slotId: number): DesignRevisionDataJsonV1 {
+export function resetSlotTransformInData(data: ParsedRevision, slotId: number): ParsedRevision {
   const k = String(slotId);
   const next = { ...data.slotTransforms };
   delete next[k];

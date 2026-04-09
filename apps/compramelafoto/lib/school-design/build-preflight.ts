@@ -59,8 +59,10 @@ export function buildInitialRenderPreflight(input: {
     };
   }
 
-  return {
+  const out = {
     schemaVersion: SCHOOL_PREFLIGHT_SCHEMA_VERSION,
     slots,
   };
+  console.log("[school_redeem_render_preflight]", { slotCount: Object.keys(slots).length });
+  return out;
 }

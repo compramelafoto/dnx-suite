@@ -23,9 +23,26 @@ export async function POST(
     const albumId = parseInt(aid, 10);
     const orderItemId = parseInt(oi, 10);
     const body = await req.json().catch(() => ({}));
-    const photoIds = Array.isArray(body.photoIds)
-      ? body.photoIds.map((x: unknown) => Number(x)).filter((n: number): n is number => Number.isInteger(n))
-      : [];
+
+    type PhotoEntry = { photoId: number; role?: string | null };
+    let entries: PhotoEntry[] = [];
+    if (Array.isArray(body.photos)) {
+      for (const row of body.photos) {
+        if (!row || typeof row !== "object") continue;
+        const r = row as Record<string, unknown>;
+        const photoId = Number(r.photoId);
+        if (!Number.isInteger(photoId)) continue;
+        const role = r.role != null && r.role !== "" ? String(r.role) : null;
+        entries.push({ photoId, role });
+      }
+    } else if (Array.isArray(body.photoIds)) {
+      entries = body.photoIds
+        .map((x: unknown) => Number(x))
+        .filter((n: number): n is number => Number.isInteger(n))
+        .map((photoId: number) => ({ photoId, role: null as string | null }));
+    }
+
+    const photoIds = entries.map((e) => e.photoId);
 
     if (!Number.isInteger(albumId) || !Number.isInteger(orderItemId) || photoIds.length === 0) {
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
@@ -65,10 +82,11 @@ export async function POST(
 
       await tx.selectionPhoto.deleteMany({ where: { selectionId: sel.id } });
       await tx.selectionPhoto.createMany({
-        data: photoIds.map((photoId: number, idx: number) => ({
+        data: entries.map((e, idx) => ({
           selectionId: sel.id,
-          photoId,
+          photoId: e.photoId,
           position: idx,
+          role: e.role,
         })),
       });
 

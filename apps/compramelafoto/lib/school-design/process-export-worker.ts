@@ -1,4 +1,4 @@
-import { DesignPreviewStatus, DesignProjectStatus } from "@prisma/client";
+import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { generateR2Key, normalizePreviewUrl, uploadToR2 } from "@/lib/r2-client";
 import { parseRevisionDataJson } from "./editor-data";
@@ -9,6 +9,7 @@ import {
   markExportJobProcessing,
   pickNextExportJob,
 } from "./export-jobs";
+import { mergeRevisionDataJsonPatch } from "./revision-data";
 import { fetchBufferFromUrl, renderSchoolDesignJpeg } from "./render-composite";
 
 export async function processOneDesignExportJob(): Promise<boolean> {
@@ -22,8 +23,7 @@ export async function processOneDesignExportJob(): Promise<boolean> {
   const template = project.template;
 
   try {
-    const dataJson = parseRevisionDataJson(rev.dataJson);
-    if (!dataJson) {
+    if (!parseRevisionDataJson(rev.dataJson)) {
       throw new Error("dataJson inválido");
     }
 
@@ -44,14 +44,32 @@ export async function processOneDesignExportJob(): Promise<boolean> {
         pageIndex: s.pageIndex,
         bbox: s.bbox,
       })),
-      dataJson,
+      dataJson: rev.dataJson,
       loadPhotoBuffer,
       outputMaxWidth: EXPORT_MAX_WIDTH,
       jpegQuality: 94,
     });
 
+    const meta = await sharp(jpeg).metadata();
     const key = generateR2Key(`school-export-${project.id}-v${job.targetVersion}.jpg`, "school-design-exports");
     const { url } = await uploadToR2(jpeg, key, "image/jpeg");
+
+    await prisma.designRevision.update({
+      where: { id: rev.id },
+      data: {
+        dataJson: mergeRevisionDataJsonPatch(rev.dataJson, {
+          exportUrlJpg: url,
+          exportStatus: "EXPORTED",
+          exportVersion: job.targetVersion,
+          exportGeneratedAt: new Date().toISOString(),
+          exportWidth: meta.width ?? null,
+          exportHeight: meta.height ?? null,
+          exportError: null,
+          exportUrlPdf: null,
+        }),
+        exportedJpgUrl: url,
+      },
+    });
 
     await markExportJobCompleted(job.id, project.id, url);
     console.log("[school_design_export] export done", { jobId: job.id, designProjectId: project.id });

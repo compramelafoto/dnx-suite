@@ -1,5 +1,6 @@
 import sharp from "sharp";
-import type { Bbox, DesignRevisionDataJsonV1 } from "./types";
+import { parseRevisionDataJson } from "./revision-data";
+import type { Bbox } from "./types";
 
 function bboxToPixels(b: Bbox, imgW: number, imgH: number): { left: number; top: number; width: number; height: number } {
   const isNorm = Math.max(b.x, b.y, b.width, b.height) <= 1.0001;
@@ -25,11 +26,15 @@ function bboxToPixels(b: Bbox, imgW: number, imgH: number): { left: number; top:
 export async function renderSchoolDesignJpeg(input: {
   templateImageBuffer: Buffer;
   slots: Array<{ id: number; pageIndex: number; bbox: unknown }>;
-  dataJson: DesignRevisionDataJsonV1;
+  dataJson: unknown;
   loadPhotoBuffer: (photoId: number) => Promise<Buffer>;
   outputMaxWidth: number;
   jpegQuality?: number;
 }): Promise<Buffer> {
+  const parsed = parseRevisionDataJson(input.dataJson);
+  if (!parsed) {
+    throw new Error("dataJson inválido o sin preflight");
+  }
   const tplBuf = input.templateImageBuffer;
   const meta = await sharp(tplBuf).metadata();
   const imgW = meta.width ?? 1;
@@ -40,9 +45,9 @@ export async function renderSchoolDesignJpeg(input: {
 
   for (const slot of slotsP0) {
     const key = String(slot.id);
-    const asg = input.dataJson.assignments[key];
+    const asg = parsed.assignmentsRecord[key];
     if (!asg?.photoId) continue;
-    const pre = input.dataJson.preflight.slots[key];
+    const pre = parsed.preflight.slots[key];
     const rawBbox = pre?.bbox ?? slot.bbox;
     if (!rawBbox || typeof rawBbox !== "object") continue;
     const o = rawBbox as Record<string, unknown>;
@@ -58,7 +63,7 @@ export async function renderSchoolDesignJpeg(input: {
     if (width < 2 || height < 2) continue;
 
     const photoBuf = await input.loadPhotoBuffer(asg.photoId);
-    const tf = input.dataJson.slotTransforms[key];
+    const tf = parsed.slotTransforms[key];
     const rotation = tf?.rotation ?? 0;
 
     const fitted = await sharp(photoBuf)

@@ -76,7 +76,7 @@ export function SchoolDesignReviewClient(props: { albumId: number; designProject
           if (st.previewStatus !== "RENDERING") void load();
         })
         .catch(() => {});
-    }, 2500);
+    }, 4000);
     return () => clearInterval(t);
   }, [base, ctx, load]);
 
@@ -90,7 +90,7 @@ export function SchoolDesignReviewClient(props: { albumId: number; designProject
           if (st.status !== "EXPORTING") void load();
         })
         .catch(() => {});
-    }, 2500);
+    }, 5000);
     return () => clearInterval(t);
   }, [base, ctx, load]);
 

@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { DesignProjectStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { deleteFromR2, listObjectsByPrefix, urlToR2Key } from "@/lib/r2-client";
 import { assertCronAuth } from "@/lib/cron-auth";
@@ -89,10 +90,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. DesignProject DRAFT antiguos (diseños de fotolibro no enviados)
+    // 3. DesignProject DRAFT / DRAFT_RENDERING antiguos (diseños escolar / fotolibro no enviados)
     const oldDesignProjects = await prisma.designProject.findMany({
       where: {
-        status: "DRAFT",
+        status: { in: [DesignProjectStatus.DRAFT, DesignProjectStatus.DRAFT_RENDERING] },
         updatedAt: { lt: cutoff },
       },
       select: { id: true },

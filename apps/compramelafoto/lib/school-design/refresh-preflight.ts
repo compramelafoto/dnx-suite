@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { buildInitialRenderPreflight } from "./build-preflight";
-import type { AssignmentEntry, DesignRevisionDataJsonV1 } from "./types";
+import type { ParsedRevision } from "./revision-data";
+import type { AssignmentEntry } from "./types";
 import type { TemplateSlotInput } from "./validate-selection";
 
 export async function refreshPreflightForRevisionData(
-  data: DesignRevisionDataJsonV1,
+  data: ParsedRevision,
   slots: TemplateSlotInput[]
-): Promise<DesignRevisionDataJsonV1> {
-  const photoIds = [...new Set(Object.values(data.assignments).map((a) => a.photoId))];
+): Promise<ParsedRevision> {
+  const photoIds = [...new Set(Object.values(data.assignmentsRecord).map((a) => a.photoId))];
   const photos = await prisma.photo.findMany({
     where: { id: { in: photoIds } },
     include: { photoFaces: { take: 1 } },
@@ -34,7 +35,7 @@ export async function refreshPreflightForRevisionData(
   }
 
   const assignments: Record<string, AssignmentEntry> = {};
-  for (const [k, v] of Object.entries(data.assignments)) {
+  for (const [k, v] of Object.entries(data.assignmentsRecord)) {
     assignments[k] = v;
   }
 
