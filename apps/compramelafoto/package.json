@@ -15,6 +15,7 @@
     "prisma:migrate:deploy": "pnpm --filter @repo/db run db:migrate:deploy",
     "prisma:migrate:local-only": "npx dotenv-cli -e .env.local -- pnpm --filter @repo/db exec prisma migrate deploy",
     "prisma:migrate:status": "pnpm --filter @repo/db exec prisma migrate status",
+    "prisma:migrate:status:local": "npx dotenv-cli -e .env.local -- pnpm --filter @repo/db exec prisma migrate status",
     "vercel-build": "next build",
     "seed": "tsx prisma/seed.ts",
     "seed:test": "tsx scripts/seed-test-data.ts",
