@@ -70,10 +70,21 @@ test.describe("school-flow API @school-api", () => {
     expect(Array.isArray(j.slots)).toBeTruthy();
   });
 
-  test("aprobación cuando preview READY (requiere cron/worker preview)", async ({ request }) => {
+  test("aprobación cuando preview READY (cron interno en local vía E2E drain)", async ({ request }) => {
     await schoolApi.loginPhotographer(request, c);
+    const reg = await schoolApi.postPreviewRegenerate(request, c, designProjectId);
+    expect(
+      [200, 409].includes(reg.status()),
+      `encolar preview: esperaba 200 o 409, recibió ${reg.status()}`
+    ).toBe(true);
+
     const ready = await schoolApi.waitForPreviewReady(request, c, designProjectId);
-    test.skip(!ready, "Preview no llegó a READY a tiempo; ejecutá cron process-design-previews o aumentá E2E_PREVIEW_READY_TIMEOUT_MS");
+    expect(
+      ready,
+      c.drainDesignCron
+        ? "Preview no llegó a READY: revisá R2/plantilla/fotos o aumentá E2E_PREVIEW_READY_TIMEOUT_MS"
+        : "Preview no llegó a READY: activá E2E_DRAIN_DESIGN_CRON=1 contra localhost o corrés cron manual"
+    ).toBe(true);
 
     const res = await schoolApi.postApprove(request, c, designProjectId);
     expect(res.ok()).toBeTruthy();
@@ -81,17 +92,24 @@ test.describe("school-flow API @school-api", () => {
     expect(body.ok).toBe(true);
   });
 
-  test("export final (requiere aprobación previa y worker export)", async ({ request }) => {
+  test("export final (cron interno en local vía E2E drain)", async ({ request }) => {
     await schoolApi.loginPhotographer(request, c);
     const status = await schoolApi.getExportStatus(request, c, designProjectId);
-    if (status.status !== "APPROVED_FOR_EXPORT") {
-      test.skip(true, "Ítem no está APPROVED_FOR_EXPORT; correr test de aprobación antes o estado inconsistente");
-    }
+    expect(
+      status.status,
+      "Tras aprobar, el proyecto debe quedar APPROVED_FOR_EXPORT"
+    ).toBe("APPROVED_FOR_EXPORT");
+
     const res = await schoolApi.postExport(request, c, designProjectId);
     expect(res.ok()).toBeTruthy();
 
     const done = await schoolApi.waitForExportDone(request, c, designProjectId);
-    test.skip(!done, "Export no completó a tiempo; ejecutá cron process-design-exports o aumentá E2E_EXPORT_DONE_TIMEOUT_MS");
+    expect(
+      done,
+      c.drainDesignCron
+        ? "Export no completó: revisá R2 o aumentá E2E_EXPORT_DONE_TIMEOUT_MS"
+        : "Export no completó: activá E2E_DRAIN_DESIGN_CRON=1 o cron process-design-exports"
+    ).toBe(true);
 
     const final = await schoolApi.getExportStatus(request, c, designProjectId);
     expect(final.status).toBe("EXPORTED");

@@ -17,6 +17,10 @@
  * Opcional tiempos:
  * - E2E_PREVIEW_READY_TIMEOUT_MS (default 120000)
  * - E2E_EXPORT_DONE_TIMEOUT_MS (default 180000)
+ *
+ * Jobs async (preview/export):
+ * - E2E_DRAIN_DESIGN_CRON — si true/1, los helpers llaman GET /api/cron/process-design-previews|exports durante el poll (local).
+ *   Default: true si PLAYWRIGHT_BASE_URL es localhost/127.0.0.1; false en otros hosts salvo que fuerces true.
  */
 
 export type SchoolE2EConfig = {
@@ -30,6 +34,8 @@ export type SchoolE2EConfig = {
   designProjectIdOverride: number | null;
   previewReadyTimeoutMs: number;
   exportDoneTimeoutMs: number;
+  /** Encolar procesamiento vía rutas cron internas durante E2E (no cambia producción). */
+  drainDesignCron: boolean;
 };
 
 function parseIntStrict(name: string, raw: string | undefined): number | null {
@@ -48,6 +54,20 @@ function parsePhotoIds(raw: string | undefined): number[] | null {
   const ids = parts.map((p) => Number.parseInt(p, 10));
   if (ids.some((n) => !Number.isInteger(n) || n <= 0)) return null;
   return ids;
+}
+
+/** Localhost → drenar jobs por defecto; remoto → off salvo E2E_DRAIN_DESIGN_CRON=true. */
+export function shouldDrainDesignCronJobs(baseURL: string): boolean {
+  const v = process.env.E2E_DRAIN_DESIGN_CRON?.trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "no") return false;
+  if (v === "1" || v === "true" || v === "yes") return true;
+  try {
+    const u = new URL(baseURL.includes("://") ? baseURL : `http://${baseURL}`);
+    const host = u.hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  } catch {
+    return false;
+  }
 }
 
 export function getSchoolE2EConfig(): SchoolE2EConfig | null {
@@ -74,9 +94,10 @@ export function getSchoolE2EConfig(): SchoolE2EConfig | null {
 
   const previewReadyTimeoutMs = Number.parseInt(process.env.E2E_PREVIEW_READY_TIMEOUT_MS ?? "120000", 10) || 120_000;
   const exportDoneTimeoutMs = Number.parseInt(process.env.E2E_EXPORT_DONE_TIMEOUT_MS ?? "180000", 10) || 180_000;
+  const normalizedBase = baseURL.replace(/\/$/, "");
 
   return {
-    baseURL: baseURL.replace(/\/$/, ""),
+    baseURL: normalizedBase,
     photographerEmail,
     photographerPassword,
     albumId,
@@ -85,5 +106,6 @@ export function getSchoolE2EConfig(): SchoolE2EConfig | null {
     designProjectIdOverride: designOverride,
     previewReadyTimeoutMs,
     exportDoneTimeoutMs,
+    drainDesignCron: shouldDrainDesignCronJobs(normalizedBase),
   };
 }

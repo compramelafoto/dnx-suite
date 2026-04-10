@@ -198,6 +198,7 @@ async function main(): Promise<void> {
   const envPath = path.join(APP_ROOT, ".env.e2e");
   mergeManagedEnvFile(envPath, {
     PLAYWRIGHT_BASE_URL: baseURL.replace(/\/$/, ""),
+    E2E_DRAIN_DESIGN_CRON: "true",
     E2E_PHOTOGRAPHER_EMAIL: photographerEmail,
     E2E_PHOTOGRAPHER_PASSWORD: photographerPassword,
     E2E_SCHOOL_ALBUM_ID: String(album.id),

@@ -1,6 +1,28 @@
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import type { SchoolE2EConfig } from "./school-fixtures";
 
+/**
+ * Auth para rutas /api/cron/* en E2E:
+ * - Bearer CRON_SECRET si está definido (misma variable que el servidor).
+ * - x-cron-dev-bypass: 1 para `next dev` cuando assertCronAuth permite bypass (no producción).
+ */
+export function buildCronAuthHeadersForE2E(): Record<string, string> {
+  const headers: Record<string, string> = { "x-cron-dev-bypass": "1" };
+  const secret = process.env.CRON_SECRET?.trim();
+  if (secret) headers["Authorization"] = `Bearer ${secret}`;
+  return headers;
+}
+
+/** Dispara el worker de preview (hasta 15 jobs por request, igual que el cron). */
+export async function drainDesignPreviewJobs(request: APIRequestContext): Promise<APIResponse> {
+  return request.get("/api/cron/process-design-previews", { headers: buildCronAuthHeadersForE2E() });
+}
+
+/** Dispara el worker de export JPG. */
+export async function drainDesignExportJobs(request: APIRequestContext): Promise<APIResponse> {
+  return request.get("/api/cron/process-design-exports", { headers: buildCronAuthHeadersForE2E() });
+}
+
 export async function loginPhotographer(request: APIRequestContext, cfg: SchoolE2EConfig): Promise<void> {
   const res = await request.post("/api/auth/login", {
     data: {
@@ -116,15 +138,27 @@ function assertOk(res: APIResponse, label: string): void {
   }
 }
 
-/** Poll hasta preview READY y no dirty, o timeout. Requiere worker/cron de preview en staging. */
+/**
+ * Poll hasta preview READY y no dirty.
+ * Si cfg.drainDesignCron, entre iteraciones llama al cron interno (mismo handler que Vercel cron).
+ */
 export async function waitForPreviewReady(
   request: APIRequestContext,
   cfg: SchoolE2EConfig,
   designProjectId: number
 ): Promise<boolean> {
   const deadline = Date.now() + cfg.previewReadyTimeoutMs;
-  const intervalMs = 4000;
+  const intervalMs = 2500;
   while (Date.now() < deadline) {
+    if (cfg.drainDesignCron) {
+      const cronRes = await drainDesignPreviewJobs(request);
+      if (!cronRes.ok()) {
+        const t = await cronRes.text();
+        throw new Error(
+          `[school-e2e] process-design-previews HTTP ${cronRes.status()}: ${t.slice(0, 400)}. ¿CRON_SECRET alineado con .env.local o next dev?`
+        );
+      }
+    }
     const j = await getPreviewStatus(request, cfg, designProjectId);
     if (j.previewStatus === "READY" && !j.previewDirty) return true;
     if (j.previewStatus === "FAILED") return false;
@@ -133,20 +167,34 @@ export async function waitForPreviewReady(
   return false;
 }
 
-/** Poll hasta EXPORTED o timeout. Requiere worker/cron de export. */
+/**
+ * Poll hasta EXPORTED con exportUrlJpg.
+ * Si cfg.drainDesignCron, dispara process-design-exports entre polls.
+ */
 export async function waitForExportDone(
   request: APIRequestContext,
   cfg: SchoolE2EConfig,
   designProjectId: number
 ): Promise<boolean> {
   const deadline = Date.now() + cfg.exportDoneTimeoutMs;
-  const intervalMs = 5000;
+  const intervalMs = 2500;
   while (Date.now() < deadline) {
-    const j = await getExportStatus(request, cfg, designProjectId);
-    if (j.status === "EXPORTED" && j.exportUrlJpg) return true;
-    if (j.status !== "EXPORTING") {
-      /* puede haber fallado y vuelto a APPROVED_FOR_EXPORT */
+    if (cfg.drainDesignCron) {
+      const cronRes = await drainDesignExportJobs(request);
+      if (!cronRes.ok()) {
+        const t = await cronRes.text();
+        throw new Error(
+          `[school-e2e] process-design-exports HTTP ${cronRes.status()}: ${t.slice(0, 400)}. ¿CRON_SECRET alineado con .env.local?`
+        );
+      }
     }
+    const j = await getExportStatus(request, cfg, designProjectId) as {
+      status: string;
+      exportUrlJpg: string | null;
+      exportError?: string | null;
+    };
+    if (j.status === "EXPORTED" && j.exportUrlJpg) return true;
+    if (j.exportError && j.status !== "EXPORTING") return false;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   return false;
