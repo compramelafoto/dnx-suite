@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PreCompraOrderItemStatus, Role } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureDesignProjectForOrderItem } from "@/lib/school-design/ensure-design-project";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -97,8 +98,59 @@ export async function POST(
     });
 
     console.log("[school_redeem_design_gate] selection saved", { orderItemId, n: photoIds.length });
+    console.log("[school_design_flow] selection_completed", {
+      orderItemId: item.id,
+      albumId,
+      photoCount: photoIds.length,
+    });
 
-    return NextResponse.json({ ok: true });
+    let designProjectId: number | null = null;
+    let designEnsure: {
+      ok: boolean;
+      created?: boolean;
+      code?: string;
+      message?: string;
+    } = { ok: false };
+
+    console.log("[school_design_flow] ensure_design_triggered", { orderItemId: item.id });
+    try {
+      const ensureRes = await ensureDesignProjectForOrderItem(item.id);
+      if (ensureRes.ok) {
+        designProjectId = ensureRes.designProjectId;
+        designEnsure = { ok: true, created: ensureRes.created };
+        if (ensureRes.created) {
+          console.log("[school_design_flow] design_project_created", {
+            orderItemId: item.id,
+            designProjectId: ensureRes.designProjectId,
+          });
+        } else {
+          console.log("[school_design_flow] design_project_already_exists", {
+            orderItemId: item.id,
+            designProjectId: ensureRes.designProjectId,
+          });
+        }
+      } else {
+        designEnsure = { ok: false, code: ensureRes.code, message: ensureRes.message };
+        console.warn("[school_design_flow] design_not_created_validation_failed", {
+          orderItemId: item.id,
+          code: ensureRes.code,
+          message: ensureRes.message,
+        });
+      }
+    } catch (ensureErr) {
+      const msg = ensureErr instanceof Error ? ensureErr.message : String(ensureErr);
+      console.error("[school_design_flow] ensure_design_exception", {
+        orderItemId: item.id,
+        error: msg,
+      });
+      designEnsure = { ok: false, code: "ENSURE_EXCEPTION", message: msg };
+    }
+
+    return NextResponse.json({
+      ok: true,
+      designProjectId,
+      designEnsure,
+    });
   } catch (e) {
     console.error("[school_redeem_design_gate] selection POST", e);
     return NextResponse.json({ error: "Error al guardar selección" }, { status: 500 });
