@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import QRCode from "qrcode";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -37,6 +38,7 @@ export default function SelfiesPage() {
   const [newLabel, setNewLabel] = useState("");
   const [adding, setAdding] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<number | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
@@ -51,6 +53,31 @@ export default function SelfiesPage() {
 
   useEffect(() => {
     loadOrder();
+  }, [orderId]);
+
+  /** Misma URL que esta página: al escanear, el celular abre el flujo de selfies (cámara frontal en el mismo flujo). */
+  useEffect(() => {
+    if (!orderId || typeof window === "undefined") {
+      setQrDataUrl(null);
+      return;
+    }
+    const targetUrl = `${window.location.origin}/order/${String(orderId)}/selfies`;
+    let cancelled = false;
+    QRCode.toDataURL(targetUrl, {
+      width: 176,
+      margin: 2,
+      errorCorrectionLevel: "M",
+      color: { dark: "#1a1a1a", light: "#ffffff" },
+    })
+      .then((dataUrl) => {
+        if (!cancelled) setQrDataUrl(dataUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setQrDataUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [orderId]);
 
   const addSubject = async (e: React.FormEvent) => {
@@ -101,7 +128,8 @@ export default function SelfiesPage() {
 
   if (!order) return null;
 
-  const selfieUrl = typeof window !== "undefined" ? `${window.location.origin}/order/${orderId}/selfies/capture` : "";
+  const selfiePageUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/order/${String(orderId)}/selfies` : "";
 
   return (
     <div className="min-h-screen bg-[#f9fafb] w-full min-w-0">
@@ -119,15 +147,25 @@ export default function SelfiesPage() {
           <Card className="bg-amber-50 border-amber-200">
             <p className="text-sm font-medium text-amber-800 mb-2">Recomendado: usar el celular</p>
             <p className="text-sm text-amber-700 mb-4">
-              Para tomar la selfie con la cámara frontal, abrí este mismo link en tu celular. Escaneá el QR:
+              Escaneá el código con la cámara del celular para abrir esta misma página. Ahí podés usar la cámara
+              frontal y subir la selfie cómodamente.
             </p>
-            <div className="inline-block p-3 bg-white rounded-lg">
-              {/* QR placeholder: in production use a lib like qrcode.react */}
-              <div className="w-32 h-32 bg-gray-200 flex items-center justify-center text-xs text-gray-500">
-                QR
-              </div>
+            <div className="inline-block p-3 bg-white rounded-lg border border-amber-100 shadow-sm">
+              {qrDataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- data URL generada en cliente
+                <img src={qrDataUrl} alt="Código QR para abrir el flujo de selfies en el celular" className="w-44 h-44" />
+              ) : (
+                <div
+                  className="w-44 h-44 bg-gray-100 flex items-center justify-center text-xs text-gray-500"
+                  aria-hidden
+                >
+                  Generando QR…
+                </div>
+              )}
             </div>
-            <p className="text-xs text-amber-600 mt-2 break-all">{selfieUrl}</p>
+            <p className="text-xs text-amber-700 mt-3 break-all">
+              <span className="font-medium text-amber-800">Enlace:</span> {selfiePageUrl || "…"}
+            </p>
           </Card>
         )}
 

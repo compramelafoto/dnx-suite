@@ -4,7 +4,32 @@ import type { NextRequest } from "next/server";
 const REFERRAL_COOKIE_NAME = "clf_ref";
 const REFERRAL_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 días en segundos
 
+/**
+ * Legacy: rutas bajo `/f/[handler]/...` → canónica `/[handler]/...` (301).
+ * Evita 404 en enlaces viejos; el destino resuelve 404 si el slug no existe (igual que sin `/f`).
+ */
+function legacyPhotographerPrefixRedirect(request: NextRequest): NextResponse | null {
+  const pathname = request.nextUrl.pathname;
+  if (pathname === "/f" || pathname === "/f/") {
+    return null;
+  }
+  const m = pathname.match(/^\/f\/([^/]+)(\/.*)?$/);
+  if (!m) {
+    return null;
+  }
+  const handler = m[1]!.toLowerCase();
+  const rest = m[2] ?? "";
+  const url = new URL(request.url);
+  url.pathname = `/${handler}${rest}`;
+  return NextResponse.redirect(url, 301);
+}
+
 export function middleware(request: NextRequest) {
+  const legacy = legacyPhotographerPrefixRedirect(request);
+  if (legacy) {
+    return legacy;
+  }
+
   if (request.nextUrl.pathname === "/") {
     const userParam = request.nextUrl.searchParams.get("user");
     if (userParam) {

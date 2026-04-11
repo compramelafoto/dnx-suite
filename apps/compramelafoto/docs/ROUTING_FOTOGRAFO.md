@@ -42,12 +42,11 @@ Al crear o validar un `publicPageHandler` (p. ej. en configuración del fotógra
 
 ## Legacy `/f/[handler]`
 
-La ruta antigua `/f/[handler]` se mantiene en `app/f/[handler]/page.tsx`:
+**Subpaths:** `middleware.ts` redirige **301** cualquier ruta `/f/[handler]/...` hacia la canónica `/{handler}/...` (misma query string). Así enlaces viejos como `/f/mi-estudio/imprimir` resuelven sin 404 por falta de página bajo `app/f/`.
 
-- Si existe un fotógrafo con ese `publicPageHandler` y página habilitada, se responde con **redirect 301** a `/{handler}`.
-- Si no existe o el slug está reservado, se devuelve **404**.
+**Raíz `/f/[handler]`:** además existe `app/f/[handler]/page.tsx`, que comprueba en base al fotógrafo y hace **redirect 301** a `/{handler}` o **404** si no aplica.
 
-Solo se redirige la raíz `/f/[handler]`. Rutas como `/f/handler/imprimir` no tienen página en `app/f/`; para soportarlas habría que añadir más rutas bajo `app/f/[handler]/` o un redirect en `next.config` (opcional).
+Si un slug no existe como página pública, el destino `/{handler}/...` puede ser 404 igual que sin el prefijo `/f/` (comportamiento esperado).
 
 ## Monitoreo
 
