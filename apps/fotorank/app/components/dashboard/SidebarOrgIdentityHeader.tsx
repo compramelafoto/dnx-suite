@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ContestOrganizationProfileDTO } from "../../lib/fotorank/organizationProfile";
 import { JuradosOrganizationSwitcher } from "../jurados/JuradosOrganizationSwitcher";
+import { FotorankWorkspaceSwitcher } from "./FotorankWorkspaceSwitcher";
 
 type OrgOption = { id: string; name: string; slug: string };
 
@@ -9,11 +10,15 @@ export function SidebarOrgIdentityHeader({
   organizations,
   currentOrganizationId,
   activeOrgError,
+  suiteWorkspaces,
+  activeSuiteWorkspaceId,
 }: {
   organizationProfile: ContestOrganizationProfileDTO | null;
   organizations: OrgOption[];
   currentOrganizationId: string | null;
   activeOrgError: string | null;
+  suiteWorkspaces: { id: string; name: string }[];
+  activeSuiteWorkspaceId: string | null;
 }) {
   return (
     <header className="border-b border-fr-border px-4 pb-4 pt-4">
@@ -55,6 +60,10 @@ export function SidebarOrgIdentityHeader({
       </div>
 
       <div className="mt-4 space-y-2">
+        <FotorankWorkspaceSwitcher
+          workspaces={suiteWorkspaces}
+          activeWorkspaceId={activeSuiteWorkspaceId}
+        />
         {organizations.length > 1 ? (
           <JuradosOrganizationSwitcher
             organizations={organizations}

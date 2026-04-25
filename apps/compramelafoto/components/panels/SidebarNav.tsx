@@ -31,6 +31,8 @@ type Props = {
     icon?: React.ReactNode;
     onClick: () => void;
   };
+  /** Contenido opcional entre cabecera y menú (ej. selector de workspace). */
+  betweenHeaderAndNav?: React.ReactNode;
 };
 
 const defaultActiveClass = "bg-[#c27b3d]/12 text-[#c27b3d] font-medium border-l-[3px] border-[#c27b3d]";
@@ -46,6 +48,7 @@ export default function SidebarNav({
   showHeader = true,
   dynamicBadgeCounts = {},
   bottomAction,
+  betweenHeaderAndNav,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -125,6 +128,7 @@ export default function SidebarNav({
           </div>
         </div>
       )}
+      {betweenHeaderAndNav}
       {/* Zona del menú: más abajo (padding grande para que arranque bien debajo) */}
       <nav className={`flex-1 min-h-0 overflow-y-auto p-3 ${showHeader ? "pt-20 md:pt-24" : "pt-8"}`} aria-label="Menú principal">
         <ul className="space-y-0.5">

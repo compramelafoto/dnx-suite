@@ -1,26 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { SlotTransform } from "@/lib/school-design/types";
+import { SchoolDesignVisualEditor } from "./SchoolDesignVisualEditor";
 
-function parseBboxNorm(bbox: unknown): { left: string; top: string; width: string; height: string } | null {
-  if (!bbox || typeof bbox !== "object") return null;
-  const o = bbox as Record<string, unknown>;
-  const x = Number(o.x);
-  const y = Number(o.y);
-  const w = Number(o.width);
-  const h = Number(o.height);
-  if (![x, y, w, h].every((n) => Number.isFinite(n))) return null;
-  const norm = Math.max(x, y, w, h) <= 1.0001;
-  if (norm) {
-    return {
-      left: `${x * 100}%`,
-      top: `${y * 100}%`,
-      width: `${w * 100}%`,
-      height: `${h * 100}%`,
-    };
-  }
-  return null;
-}
+type EditorBundle = {
+  assignments: Record<string, { slotId: number; pageIndex: number; photoId: number }>;
+  slotTransforms: Record<string, SlotTransform>;
+  textOverrides: Record<string, string>;
+  textFieldIds: string[];
+};
 
 type ContextResponse = {
   designProject: {
@@ -35,10 +24,16 @@ type ContextResponse = {
     exportVersion: number;
     exportError: string | null;
   };
-  template: { imageUrl: string; widthCm: number; heightCm: number };
-  slots: Array<{ id: number; pageIndex: number; index: number; bbox: unknown }>;
+  template: {
+    imageUrl: string;
+    widthCm: number;
+    heightCm: number;
+    textElementsJson?: unknown;
+  };
+  slots: Array<{ id: number; pageIndex: number; index: number; bbox: unknown; role: string | null }>;
   revision: { id: number; dataJson: unknown };
-  selectionPhotos: Array<{ photoId: number; previewUrl: string; inUse: boolean }>;
+  selectionPhotos: Array<{ photoId: number; previewUrl: string; inUse: boolean; position: number | null }>;
+  editor: EditorBundle;
 };
 
 export function SchoolDesignReviewClient(props: { albumId: number; designProjectId: number }) {
@@ -47,7 +42,6 @@ export function SchoolDesignReviewClient(props: { albumId: number; designProject
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [dragPhotoId, setDragPhotoId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch(`${base}/editor/context`, { cache: "no-store" });
@@ -56,7 +50,7 @@ export function SchoolDesignReviewClient(props: { albumId: number; designProject
       setLoading(false);
       return;
     }
-    const data = await r.json();
+    const data = (await r.json()) as ContextResponse;
     setCtx(data);
     setErr(null);
     setLoading(false);
@@ -124,7 +118,7 @@ export function SchoolDesignReviewClient(props: { albumId: number; designProject
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -173,73 +167,15 @@ export function SchoolDesignReviewClient(props: { albumId: number; designProject
         <p className="text-sm text-amber-800">Export: {ctx.designProject.exportError}</p>
       ) : null}
 
-      <div className="relative w-full max-w-3xl overflow-hidden rounded-lg border border-[#e7e5e4] bg-[#fafaf9]">
-        {previewSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewSrc} alt="Preview renderizada" className="w-full h-auto block" />
-        ) : (
-          <div className="relative">
-            {/* Fallback HTML/CSS: plantilla base cuando aún no hay previewUrl */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={ctx.template.imageUrl} alt="Plantilla" className="w-full h-auto block opacity-90" />
-            {ctx.slots
-              .filter((s) => s.pageIndex === 0)
-              .map((s) => {
-                const box = parseBboxNorm(s.bbox);
-                if (!box) return null;
-                return (
-                  <button
-                    type="button"
-                    key={s.id}
-                    className="absolute border-2 border-dashed border-[#c27b3d]/80 bg-[#c27b3d]/10 hover:bg-[#c27b3d]/20 transition-colors"
-                    style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const raw = e.dataTransfer.getData("text/plain");
-                      const pid = parseInt(raw, 10);
-                      if (!Number.isInteger(pid)) return;
-                      void run(`${base}/editor/replace-photo`, {
-                        method: "POST",
-                        body: JSON.stringify({ slotId: s.id, photoId: pid }),
-                      });
-                    }}
-                  />
-                );
-              })}
-            <p className="absolute bottom-2 left-2 right-2 rounded bg-black/55 px-2 py-1 text-xs text-white">
-              Preview no generada aún; mostrando plantilla base. Usá «Regenerar preview».
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">Fotos disponibles (inUse = ya en un slot)</h3>
-        <ul className="flex flex-wrap gap-2">
-          {ctx.selectionPhotos.map((p) => (
-            <li
-              key={p.photoId}
-              draggable
-              onDragStart={(e) => {
-                setDragPhotoId(p.photoId);
-                e.dataTransfer.setData("text/plain", String(p.photoId));
-                e.dataTransfer.effectAllowed = "copyMove";
-              }}
-              onDragEnd={() => setDragPhotoId(null)}
-              className={`text-xs rounded px-2 py-1 border cursor-grab active:cursor-grabbing ${
-                dragPhotoId === p.photoId ? "ring-2 ring-[#c27b3d]" : ""
-              } ${p.inUse ? "border-[#c27b3d] text-[#c27b3d]" : "border-[#e7e5e4]"}`}
-            >
-              #{p.photoId}
-              {p.inUse ? " · en uso" : ""}
-            </li>
-          ))}
-        </ul>
-        <p className="text-xs text-[#9ca3af] mt-2">
-          Arrastrá una foto al recuadro del slot (vista plantilla sin preview). Entre slots: usá la API swap o el panel de diseño avanzado.
-        </p>
-      </div>
+      <SchoolDesignVisualEditor
+        albumId={props.albumId}
+        designProjectId={props.designProjectId}
+        ctx={ctx}
+        previewSrc={previewSrc}
+        load={load}
+        run={run}
+        busy={busy}
+      />
 
       {ctx.designProject.exportUrlJpg ? (
         <p className="text-sm">

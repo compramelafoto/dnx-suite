@@ -166,7 +166,15 @@ export function ContestDashboard({ contest }: ContestDashboardProps) {
         onClose={closeModal}
         title={getModalTitle()}
         header="full"
-        maxWidth={openModuleId === "categorias" ? "4xl" : "2xl"}
+        maxWidth={
+          openModuleId === "categorias" ||
+          openModuleId === "premios" ||
+          openModuleId === "comercializacion" ||
+          openModuleId === "jurado" ||
+          openModuleId === "publicacion"
+            ? "4xl"
+            : "2xl"
+        }
         zIndex={60}
         showTopLogo={false}
       >

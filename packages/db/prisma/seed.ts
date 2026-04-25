@@ -1,5 +1,5 @@
 import { createHash, randomBytes, scryptSync } from "node:crypto";
-import { prisma } from "../src/client.js";
+import { prisma, Prisma } from "../src/client.js";
 
 const KEY_LEN = 64;
 
@@ -483,12 +483,756 @@ async function seedFotorankComUsers(workspaceId: string) {
 const E2E_JUDGE_INVITE_PLAIN_TOKEN =
   "e2e0123456789abcdef0123456789abcdef0123456789ab";
 
+const COURSES_SALES_MODULE_KEY = "courses-sales";
+
+/**
+ * Fotoffice — demo «Venta de cursos»: workspaces, branding, módulo activo, docente y curso por workspace.
+ */
+async function seedFotofficeCoursesSalesDemo(memberUserIds: number[]) {
+  const demoWorkspaces: {
+    name: string;
+    publicSlug: string;
+    commercialName: string;
+    contactEmail: string;
+    teacherSlug: string;
+    teacherFirst: string;
+    teacherLast: string;
+    specialty: string;
+    courseSlug: string;
+    courseTitle: string;
+    courseSubtitle: string;
+  }[] = [
+    {
+      name: "Sociedad de Fotógrafos",
+      publicSlug: "sociedad-fotografos",
+      commercialName: "Sociedad de Fotógrafos",
+      contactEmail: "cursos@sociedadfotografos.demo",
+      teacherSlug: "maria-lopez",
+      teacherFirst: "María",
+      teacherLast: "López",
+      specialty: "Retrato e iluminación",
+      courseSlug: "retrato-estudio-intensivo",
+      courseTitle: "Retrato en estudio: luz y dirección",
+      courseSubtitle: "Intensivo práctico para dominar esquemas clásicos y contemporáneos.",
+    },
+    {
+      name: "DNX Estudio",
+      publicSlug: "dnx-estudio",
+      commercialName: "DNX Estudio",
+      contactEmail: "formacion@dnxestudio.demo",
+      teacherSlug: "lucas-ferrer",
+      teacherFirst: "Lucas",
+      teacherLast: "Ferrer",
+      specialty: "Producción y edición",
+      courseSlug: "workflow-lightroom",
+      courseTitle: "Workflow profesional en Lightroom",
+      courseSubtitle: "Organización, revelado y entrega consistente para clientes reales.",
+    },
+  ];
+
+  for (const d of demoWorkspaces) {
+    let ws = await prisma.workspace.findFirst({ where: { name: d.name } });
+    if (!ws) {
+      ws = await prisma.workspace.create({ data: { name: d.name } });
+    }
+
+    for (const uid of memberUserIds) {
+      await prisma.membership.upsert({
+        where: { userId_workspaceId: { userId: uid, workspaceId: ws.id } },
+        update: {},
+        create: { userId: uid, workspaceId: ws.id, role: "ADMIN" },
+      });
+    }
+
+    await prisma.fotofficeWorkspaceBranding.upsert({
+      where: { publicSlug: d.publicSlug },
+      update: {
+        workspaceId: ws.id,
+        publicSlug: d.publicSlug,
+        commercialName: d.commercialName,
+        contactEmail: d.contactEmail,
+        phone: "+54 11 5000-0000",
+        whatsapp: "https://wa.me/5491150000000",
+        instagram: "https://instagram.com/demo",
+        website: "https://example.com",
+      },
+      create: {
+        workspaceId: ws.id,
+        publicSlug: d.publicSlug,
+        commercialName: d.commercialName,
+        contactEmail: d.contactEmail,
+        phone: "+54 11 5000-0000",
+        whatsapp: "https://wa.me/5491150000000",
+        instagram: "https://instagram.com/demo",
+        website: "https://example.com",
+      },
+    });
+
+    if (d.publicSlug === "dnx-estudio") {
+      await prisma.serviceLeadForm.upsert({
+        where: { workspaceId_slug: { workspaceId: ws.id, slug: "xv" } },
+        update: {
+          workspaceId: ws.id,
+          slug: "xv",
+          name: "Formulario XV",
+          eventType: "XV",
+          formMode: "SPECIFIC",
+          title: "Presupuesto para fiesta de XV",
+          description: "Completá tus datos y te contactamos para armar una propuesta personalizada.",
+          isActive: true,
+          isDefault: true,
+          configJson: {
+            schemaVersion: 1,
+            submitLabel: "Enviar consulta",
+            successMessage:
+              "¡Gracias por tu consulta! Recibimos tus datos y te vamos a contactar pronto.",
+            autoReply: {
+              enabled: false,
+              mode: "EMAIL_TEXT",
+              subject: "",
+              body: "",
+              linkUrl: "",
+              attachmentUrl: "",
+            },
+            postSubmitAction: {
+              type: "NONE",
+              delaySeconds: 3,
+              url: "",
+            },
+            fields: [
+              {
+                name: "quinceaneraName",
+                label: "Nombre de la quinceañera",
+                type: "text",
+                required: false,
+              },
+              {
+                name: "quinceaneraBirthDate",
+                label: "Fecha de nacimiento",
+                type: "date",
+                required: false,
+              },
+              {
+                name: "eventDate",
+                label: "Fecha del evento",
+                type: "date",
+                required: false,
+              },
+              {
+                name: "eventLocation",
+                label: "Lugar / ciudad",
+                type: "text",
+                required: false,
+              },
+              {
+                name: "message",
+                label: "Contanos qué estás buscando",
+                type: "textarea",
+                required: false,
+              },
+            ],
+          } as Prisma.InputJsonValue,
+        },
+        create: {
+          workspaceId: ws.id,
+          slug: "xv",
+          name: "Formulario XV",
+          eventType: "XV",
+          formMode: "SPECIFIC",
+          title: "Presupuesto para fiesta de XV",
+          description: "Completá tus datos y te contactamos para armar una propuesta personalizada.",
+          isActive: true,
+          isDefault: true,
+          configJson: {
+            schemaVersion: 1,
+            submitLabel: "Enviar consulta",
+            successMessage:
+              "¡Gracias por tu consulta! Recibimos tus datos y te vamos a contactar pronto.",
+            autoReply: {
+              enabled: false,
+              mode: "EMAIL_TEXT",
+              subject: "",
+              body: "",
+              linkUrl: "",
+              attachmentUrl: "",
+            },
+            postSubmitAction: {
+              type: "NONE",
+              delaySeconds: 3,
+              url: "",
+            },
+            fields: [
+              {
+                name: "quinceaneraName",
+                label: "Nombre de la quinceañera",
+                type: "text",
+                required: false,
+              },
+              {
+                name: "quinceaneraBirthDate",
+                label: "Fecha de nacimiento",
+                type: "date",
+                required: false,
+              },
+              {
+                name: "eventDate",
+                label: "Fecha del evento",
+                type: "date",
+                required: false,
+              },
+              {
+                name: "eventLocation",
+                label: "Lugar / ciudad",
+                type: "text",
+                required: false,
+              },
+              {
+                name: "message",
+                label: "Contanos qué estás buscando",
+                type: "textarea",
+                required: false,
+              },
+            ],
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      await prisma.serviceLeadForm.upsert({
+        where: { workspaceId_slug: { workspaceId: ws.id, slug: "general" } },
+        update: {
+          workspaceId: ws.id,
+          slug: "general",
+          name: "Formulario general de presupuestos",
+          eventType: "GENERAL",
+          formMode: "GENERAL",
+          title: "Solicitá tu presupuesto",
+          description:
+            "Elegí el tipo de servicio que necesitás y completá tus datos para recibir una propuesta.",
+          isActive: true,
+          isDefault: true,
+          configJson: {
+            schemaVersion: 1,
+            submitLabel: "Enviar consulta",
+            successMessage:
+              "¡Gracias por tu consulta! Recibimos tus datos y te vamos a contactar pronto.",
+            autoReply: {
+              enabled: false,
+              mode: "EMAIL_TEXT",
+              subject: "",
+              body: "",
+              linkUrl: "",
+              attachmentUrl: "",
+            },
+            postSubmitAction: {
+              type: "NONE",
+              delaySeconds: 3,
+              url: "",
+            },
+            entrySelector: {
+              name: "budgetType",
+              label: "Solicitud de presupuesto para",
+              required: true,
+              options: [
+                { value: "xv", label: "XV" },
+                { value: "boda", label: "Boda" },
+                { value: "sesion", label: "Sesión fotográfica" },
+                { value: "evento-religioso", label: "Evento religioso" },
+                { value: "show", label: "Show" },
+                { value: "graduacion", label: "Graduación" },
+                { value: "cumpleanos-adulto", label: "Cumpleaños adulto" },
+              ],
+            },
+            forms: {
+              xv: {
+                eventType: "XV",
+                label: "XV",
+                fields: [
+                  {
+                    name: "quinceaneraName",
+                    label: "Nombre de la quinceañera",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "quinceaneraBirthDate",
+                    label: "Fecha de nacimiento",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "eventDate",
+                    label: "Fecha del evento",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "eventLocation",
+                    label: "Lugar / ciudad",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "message",
+                    label: "Contanos qué estás buscando",
+                    type: "textarea",
+                    required: false,
+                  },
+                ],
+              },
+              boda: {
+                eventType: "BODA",
+                label: "Boda",
+                fields: [
+                  {
+                    name: "noviaName",
+                    label: "Nombre de la novia",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "novioName",
+                    label: "Nombre del novio",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "civilDate",
+                    label: "Fecha del civil",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "ceremonyDate",
+                    label: "Fecha de la ceremonia",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "partyDate",
+                    label: "Fecha de la fiesta",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "eventLocation",
+                    label: "Lugar / ciudad",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "message",
+                    label: "Contanos qué están buscando",
+                    type: "textarea",
+                    required: false,
+                  },
+                ],
+              },
+              sesion: {
+                eventType: "SESION_FOTOGRAFICA",
+                label: "Sesión fotográfica",
+                fields: [
+                  {
+                    name: "sessionSubtype",
+                    label: "Tipo de sesión",
+                    type: "select",
+                    required: true,
+                    options: [
+                      { value: "retrato-personal", label: "Retrato personal" },
+                      { value: "book-profesional", label: "Book profesional" },
+                      { value: "marca-personal", label: "Marca personal" },
+                      { value: "familiar", label: "Familiar" },
+                      { value: "pareja", label: "Pareja" },
+                      { value: "embarazo", label: "Embarazo" },
+                      { value: "producto", label: "Producto" },
+                      { value: "otro", label: "Otro" },
+                    ],
+                  },
+                  {
+                    name: "eventDate",
+                    label: "Fecha estimada",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "eventLocation",
+                    label: "Lugar / ciudad",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "message",
+                    label: "Contanos qué estás buscando",
+                    type: "textarea",
+                    required: false,
+                  },
+                ],
+              },
+            },
+          } as Prisma.InputJsonValue,
+        },
+        create: {
+          workspaceId: ws.id,
+          slug: "general",
+          name: "Formulario general de presupuestos",
+          eventType: "GENERAL",
+          formMode: "GENERAL",
+          title: "Solicitá tu presupuesto",
+          description:
+            "Elegí el tipo de servicio que necesitás y completá tus datos para recibir una propuesta.",
+          isActive: true,
+          isDefault: true,
+          configJson: {
+            schemaVersion: 1,
+            submitLabel: "Enviar consulta",
+            successMessage:
+              "¡Gracias por tu consulta! Recibimos tus datos y te vamos a contactar pronto.",
+            autoReply: {
+              enabled: false,
+              mode: "EMAIL_TEXT",
+              subject: "",
+              body: "",
+              linkUrl: "",
+              attachmentUrl: "",
+            },
+            postSubmitAction: {
+              type: "NONE",
+              delaySeconds: 3,
+              url: "",
+            },
+            entrySelector: {
+              name: "budgetType",
+              label: "Solicitud de presupuesto para",
+              required: true,
+              options: [
+                { value: "xv", label: "XV" },
+                { value: "boda", label: "Boda" },
+                { value: "sesion", label: "Sesión fotográfica" },
+                { value: "evento-religioso", label: "Evento religioso" },
+                { value: "show", label: "Show" },
+                { value: "graduacion", label: "Graduación" },
+                { value: "cumpleanos-adulto", label: "Cumpleaños adulto" },
+              ],
+            },
+            forms: {
+              xv: {
+                eventType: "XV",
+                label: "XV",
+                fields: [
+                  {
+                    name: "quinceaneraName",
+                    label: "Nombre de la quinceañera",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "quinceaneraBirthDate",
+                    label: "Fecha de nacimiento",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "eventDate",
+                    label: "Fecha del evento",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "eventLocation",
+                    label: "Lugar / ciudad",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "message",
+                    label: "Contanos qué estás buscando",
+                    type: "textarea",
+                    required: false,
+                  },
+                ],
+              },
+              boda: {
+                eventType: "BODA",
+                label: "Boda",
+                fields: [
+                  {
+                    name: "noviaName",
+                    label: "Nombre de la novia",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "novioName",
+                    label: "Nombre del novio",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "civilDate",
+                    label: "Fecha del civil",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "ceremonyDate",
+                    label: "Fecha de la ceremonia",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "partyDate",
+                    label: "Fecha de la fiesta",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "eventLocation",
+                    label: "Lugar / ciudad",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "message",
+                    label: "Contanos qué están buscando",
+                    type: "textarea",
+                    required: false,
+                  },
+                ],
+              },
+              sesion: {
+                eventType: "SESION_FOTOGRAFICA",
+                label: "Sesión fotográfica",
+                fields: [
+                  {
+                    name: "sessionSubtype",
+                    label: "Tipo de sesión",
+                    type: "select",
+                    required: true,
+                    options: [
+                      { value: "retrato-personal", label: "Retrato personal" },
+                      { value: "book-profesional", label: "Book profesional" },
+                      { value: "marca-personal", label: "Marca personal" },
+                      { value: "familiar", label: "Familiar" },
+                      { value: "pareja", label: "Pareja" },
+                      { value: "embarazo", label: "Embarazo" },
+                      { value: "producto", label: "Producto" },
+                      { value: "otro", label: "Otro" },
+                    ],
+                  },
+                  {
+                    name: "eventDate",
+                    label: "Fecha estimada",
+                    type: "date",
+                    required: false,
+                  },
+                  {
+                    name: "eventLocation",
+                    label: "Lugar / ciudad",
+                    type: "text",
+                    required: false,
+                  },
+                  {
+                    name: "message",
+                    label: "Contanos qué estás buscando",
+                    type: "textarea",
+                    required: false,
+                  },
+                ],
+              },
+            },
+          } as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    await prisma.workspaceFeatureModule.upsert({
+      where: {
+        workspaceId_moduleKey: { workspaceId: ws.id, moduleKey: COURSES_SALES_MODULE_KEY },
+      },
+      update: { enabled: true },
+      create: {
+        workspaceId: ws.id,
+        moduleKey: COURSES_SALES_MODULE_KEY,
+        enabled: true,
+      },
+    });
+
+    await prisma.courseSalesWorkspaceSettings.upsert({
+      where: { workspaceId: ws.id },
+      update: {},
+      create: {
+        workspaceId: ws.id,
+        defaultCurrency: "ARS",
+        enrollmentCtaLabel: "Quiero inscribirme",
+      },
+    });
+
+    const fullName = `${d.teacherFirst} ${d.teacherLast}`;
+    const teacher = await prisma.courseSalesTeacher.upsert({
+      where: { workspaceId_slug: { workspaceId: ws.id, slug: d.teacherSlug } },
+      update: {
+        firstName: d.teacherFirst,
+        lastName: d.teacherLast,
+        fullName,
+        shortBio: `Docente especializado en ${d.specialty}. Clases claras, ejemplos reales y feedback personalizado.`,
+        longBio: `Más de 10 años de experiencia. Ha dictado talleres en distintas instituciones y acompaña a fotógrafos en su desarrollo profesional.`,
+        email: `docente@${d.publicSlug}.demo`,
+        specialty: d.specialty,
+        experienceYears: 12,
+        city: "Buenos Aires",
+        country: "Argentina",
+        isPublished: true,
+      },
+      create: {
+        workspaceId: ws.id,
+        firstName: d.teacherFirst,
+        lastName: d.teacherLast,
+        fullName,
+        slug: d.teacherSlug,
+        shortBio: `Docente especializado en ${d.specialty}.`,
+        longBio: `Experiencia en formación y producción. Enfoque práctico y acompañamiento cercano.`,
+        email: `docente@${d.publicSlug}.demo`,
+        specialty: d.specialty,
+        experienceYears: 12,
+        city: "Buenos Aires",
+        country: "Argentina",
+        isPublished: true,
+      },
+    });
+
+    const faq = [
+      {
+        q: "¿Necesito experiencia previa?",
+        a: "El curso indica el nivel en la ficha. Revisá requisitos en la descripción o escribinos.",
+      },
+      {
+        q: "¿Hay certificado?",
+        a: "Si el curso incluye certificado, figura en la sección «Incluye» de esta página.",
+      },
+      {
+        q: "¿Cómo me inscribo?",
+        a: "Completá el formulario de inscripción. Te contactaremos con los siguientes pasos y medios de pago.",
+      },
+    ];
+
+    const course = await prisma.courseSalesCourse.upsert({
+      where: { workspaceId_slug: { workspaceId: ws.id, slug: d.courseSlug } },
+      update: {
+        title: d.courseTitle,
+        subtitle: d.courseSubtitle,
+        shortDescription: "Curso demo generado por seed — contenido de ejemplo para Fotoffice.",
+        longDescription:
+          "Este curso es un ejemplo del módulo Venta de cursos. Podés reemplazar todo el contenido desde el panel del workspace. Incluye estructura de programa, objetivos y bloques de landing listos para personalizar.",
+        modality: d.name.includes("DNX") ? "RECORDED" : "HYBRID",
+        level: "INTERMEDIATE",
+        category: d.name.includes("DNX") ? "Post-producción" : "Retrato",
+        targetAudience: "Fotógrafos que quieren profesionalizar su práctica.",
+        prerequisites: "Cámara reflex o mirrorless y nociones básicas de exposición.",
+        objectives:
+          "- Dominar los conceptos centrales del temario\n- Aplicar técnicas en ejercicios guiados\n- Dejar un proyecto o portfolio actualizado",
+        durationText: d.name.includes("DNX") ? "6 horas on-demand" : "4 encuentros × 2 h",
+        scheduleText: d.name.includes("DNX") ? "Acceso inmediato al material" : "Martes 18:00–20:00 (ART)",
+        seats: 20,
+        price: new Prisma.Decimal(d.name.includes("DNX") ? "59900" : "129900"),
+        currency: "ARS",
+        discountPrice: d.name.includes("DNX") ? new Prisma.Decimal("49900") : new Prisma.Decimal("109900"),
+        includesCertificate: true,
+        includesRecordings: d.name.includes("DNX"),
+        includesDownloadables: true,
+        status: "PUBLISHED",
+        seoTitle: `${d.courseTitle} | ${d.commercialName}`,
+        seoDescription: d.courseSubtitle,
+        landingBlocksJson: { faq } as Prisma.InputJsonValue,
+        teacherId: teacher.id,
+      },
+      create: {
+        workspaceId: ws.id,
+        teacherId: teacher.id,
+        title: d.courseTitle,
+        subtitle: d.courseSubtitle,
+        slug: d.courseSlug,
+        shortDescription: "Curso demo — reemplazá este texto desde el panel.",
+        longDescription:
+          "Descripción extendida de ejemplo. Editá objetivos, programa y medios desde Fotoffice.",
+        modality: d.name.includes("DNX") ? "RECORDED" : "HYBRID",
+        level: "INTERMEDIATE",
+        category: d.name.includes("DNX") ? "Post-producción" : "Retrato",
+        targetAudience: "Fotógrafos en crecimiento.",
+        prerequisites: "Cámara y nociones básicas.",
+        objectives: "- Objetivo demo uno\n- Objetivo demo dos",
+        durationText: d.name.includes("DNX") ? "6 horas on-demand" : "8 horas en vivo",
+        scheduleText: d.name.includes("DNX") ? "On-demand" : "Martes 18:00–20:00",
+        seats: 20,
+        price: new Prisma.Decimal(d.name.includes("DNX") ? "59900" : "129900"),
+        currency: "ARS",
+        discountPrice: d.name.includes("DNX") ? new Prisma.Decimal("49900") : new Prisma.Decimal("109900"),
+        includesCertificate: true,
+        includesRecordings: d.name.includes("DNX"),
+        includesDownloadables: true,
+        status: "PUBLISHED",
+        seoTitle: `${d.courseTitle} | ${d.commercialName}`,
+        seoDescription: d.courseSubtitle,
+        landingBlocksJson: { faq } as Prisma.InputJsonValue,
+      },
+    });
+
+    await prisma.courseSalesSection.deleteMany({ where: { courseId: course.id } });
+
+    const s1 = await prisma.courseSalesSection.create({
+      data: {
+        courseId: course.id,
+        title: d.name.includes("DNX") ? "Módulo 1 — Organización" : "Módulo 1 — Luz y esquemas",
+        sortOrder: 0,
+      },
+    });
+    const s2 = await prisma.courseSalesSection.create({
+      data: {
+        courseId: course.id,
+        title: d.name.includes("DNX") ? "Módulo 2 — Revelado" : "Módulo 2 — Dirección y posing",
+        sortOrder: 1,
+      },
+    });
+
+    await prisma.courseSalesLesson.createMany({
+      data: [
+        {
+          sectionId: s1.id,
+          title: d.name.includes("DNX") ? "Biblioteca y copias virtuales" : "Introducción a la luz artificial",
+          summary: "Conceptos y demo en vivo.",
+          sortOrder: 0,
+        },
+        {
+          sectionId: s1.id,
+          title: d.name.includes("DNX") ? "Flujo de selección" : "Esquemas butterfly y loop",
+          summary: "Ejercicios guiados.",
+          sortOrder: 1,
+        },
+        {
+          sectionId: s2.id,
+          title: d.name.includes("DNX") ? "Curvas y color" : "Comunicación con el modelo",
+          summary: "Buenas prácticas.",
+          sortOrder: 0,
+        },
+        {
+          sectionId: s2.id,
+          title: d.name.includes("DNX") ? "Exportación para web e impresión" : "Producción de set simple",
+          summary: "Checklist final.",
+          sortOrder: 1,
+        },
+      ],
+    });
+  }
+
+  console.log("Seed Fotoffice / courses-sales (Sociedad de Fotógrafos + DNX Estudio) aplicado.");
+}
+
 async function main() {
   /** Admin humano (local). E2E usa `admin@fotorank.local` + `AdminSeed!e2e`. */
   const adminE2ePassword = "AdminSeed!e2e";
   const adminDanielPassword = "Daniel1608$";
+  const dnxDevPassword = "DevDnx1608$";
   const adminE2eHash = hashPasswordForSeed(adminE2ePassword);
   const adminDanielHash = hashPasswordForSeed(adminDanielPassword);
+  const dnxDevHash = hashPasswordForSeed(dnxDevPassword);
 
   const user = await prisma.user.upsert({
     where: { email: "admin@fotorank.local" },
@@ -500,13 +1244,90 @@ async function main() {
     },
   });
 
+  /**
+   * SUPER_ADMIN Fotoffice / suite — contraseña inicial vía seed (scrypt, mismo esquema que el resto del monorepo).
+   * Cambiá la contraseña tras el primer acceso en producción.
+   */
   const danielUser = await prisma.user.upsert({
     where: { email: "cuart.daniel@gmail.com" },
-    update: { password: adminDanielHash, name: "Daniel Cuart" },
+    update: {
+      password: adminDanielHash,
+      name: "Daniel Cuart",
+      role: "SUPER_ADMIN",
+      globalRole: "SUPER_ADMIN",
+      emailVerifiedAt: new Date(),
+      isBlocked: false,
+    },
     create: {
       name: "Daniel Cuart",
       email: "cuart.daniel@gmail.com",
       password: adminDanielHash,
+      role: "SUPER_ADMIN",
+      globalRole: "SUPER_ADMIN",
+      emailVerifiedAt: new Date(),
+      isBlocked: false,
+    },
+  });
+
+  const sfprOwner = await prisma.user.upsert({
+    where: { email: "sfprosario@gmail.com" },
+    update: {
+      name: "SFPR Owner",
+      globalRole: "USER",
+      role: "WORKSPACE_ADMIN",
+      emailVerifiedAt: new Date(),
+      isBlocked: false,
+    },
+    create: {
+      email: "sfprosario@gmail.com",
+      name: "SFPR Owner",
+      password: hashPasswordForSeed("SfprOwner1608$"),
+      globalRole: "USER",
+      role: "WORKSPACE_ADMIN",
+      emailVerifiedAt: new Date(),
+      isBlocked: false,
+    },
+  });
+
+  const dnxOwner = await prisma.user.upsert({
+    where: { email: "dnxfotografia@gmail.com" },
+    update: {
+      name: "DNX Owner",
+      password: hashPasswordForSeed("DnxOwner1608$"),
+      globalRole: "USER",
+      role: "WORKSPACE_ADMIN",
+      emailVerifiedAt: new Date(),
+      isBlocked: false,
+    },
+    create: {
+      email: "dnxfotografia@gmail.com",
+      name: "DNX Owner",
+      password: hashPasswordForSeed("DnxOwner1608$"),
+      globalRole: "USER",
+      role: "WORKSPACE_ADMIN",
+      emailVerifiedAt: new Date(),
+      isBlocked: false,
+    },
+  });
+
+  const dnxDevUser = await prisma.user.upsert({
+    where: { email: "dev.dnx@fotoffice.local" },
+    update: {
+      name: "DNX Dev",
+      password: dnxDevHash,
+      globalRole: "USER",
+      role: "WORKSPACE_ADMIN",
+      emailVerifiedAt: new Date(),
+      isBlocked: false,
+    },
+    create: {
+      email: "dev.dnx@fotoffice.local",
+      name: "DNX Dev",
+      password: dnxDevHash,
+      globalRole: "USER",
+      role: "WORKSPACE_ADMIN",
+      emailVerifiedAt: new Date(),
+      isBlocked: false,
     },
   });
 
@@ -518,6 +1339,19 @@ async function main() {
       data: { name: "Workspace Demo" },
     });
   }
+
+  const [workspaceDnx, workspaceSfpr] = await Promise.all([
+    prisma.workspace.upsert({
+      where: { id: "ws_dnx_fotografia_seed" },
+      update: { name: "DNX Fotografía" },
+      create: { id: "ws_dnx_fotografia_seed", name: "DNX Fotografía" },
+    }),
+    prisma.workspace.upsert({
+      where: { id: "ws_sfpr_seed" },
+      update: { name: "SFPR" },
+      create: { id: "ws_sfpr_seed", name: "SFPR" },
+    }),
+  ]);
 
   await prisma.membership.upsert({
     where: {
@@ -542,6 +1376,90 @@ async function main() {
       role: "ADMIN",
     },
   });
+
+  await prisma.membership.upsert({
+    where: {
+      userId_workspaceId: { userId: dnxOwner.id, workspaceId: workspaceDnx.id },
+    },
+    update: {},
+    create: {
+      userId: dnxOwner.id,
+      workspaceId: workspaceDnx.id,
+      role: "ADMIN",
+    },
+  });
+
+  await prisma.membership.upsert({
+    where: {
+      userId_workspaceId: { userId: dnxDevUser.id, workspaceId: workspaceDnx.id },
+    },
+    update: {},
+    create: {
+      userId: dnxDevUser.id,
+      workspaceId: workspaceDnx.id,
+      role: "ADMIN",
+    },
+  });
+
+  // Nuevo sistema unificado: workspace memberships canónicas.
+  const unifiedMemberships = [
+    { userId: danielUser.id, workspaceId: workspaceDnx.id, role: "WORKSPACE_OWNER" as const },
+    { userId: danielUser.id, workspaceId: workspaceSfpr.id, role: "WORKSPACE_OWNER" as const },
+    { userId: sfprOwner.id, workspaceId: workspaceSfpr.id, role: "WORKSPACE_OWNER" as const },
+    { userId: dnxOwner.id, workspaceId: workspaceDnx.id, role: "WORKSPACE_OWNER" as const },
+    { userId: dnxDevUser.id, workspaceId: workspaceDnx.id, role: "WORKSPACE_ADMIN" as const },
+  ];
+  for (const row of unifiedMemberships) {
+    await prisma.workspaceMembership.upsert({
+      where: {
+        userId_workspaceId: {
+          userId: row.userId,
+          workspaceId: row.workspaceId,
+        },
+      },
+      update: { role: row.role },
+      create: row,
+    });
+  }
+
+  // AppAccess por workspace (ejemplos de la suite).
+  const unifiedAccess = [
+    // Daniel: acceso completo en DNX y SFPR
+    { userId: danielUser.id, workspaceId: workspaceDnx.id, app: "FOTOFFICE" as const, appRole: "CRM_ADMIN" as const },
+    { userId: danielUser.id, workspaceId: workspaceDnx.id, app: "COMPRAMELAFOTO" as const, appRole: "PHOTOGRAPHER" as const },
+    { userId: danielUser.id, workspaceId: workspaceDnx.id, app: "FOTORANK" as const, appRole: "ORGANIZER_ADMIN" as const },
+    { userId: danielUser.id, workspaceId: workspaceSfpr.id, app: "FOTOFFICE" as const, appRole: "CRM_ADMIN" as const },
+    { userId: danielUser.id, workspaceId: workspaceSfpr.id, app: "COMPRAMELAFOTO" as const, appRole: "LAB" as const },
+    { userId: danielUser.id, workspaceId: workspaceSfpr.id, app: "FOTORANK" as const, appRole: "ORGANIZER_ADMIN" as const },
+    // Owners de cada workspace
+    { userId: sfprOwner.id, workspaceId: workspaceSfpr.id, app: "FOTOFFICE" as const, appRole: "SALES_ADMIN" as const },
+    { userId: sfprOwner.id, workspaceId: workspaceSfpr.id, app: "COMPRAMELAFOTO" as const, appRole: "LAB" as const },
+    { userId: sfprOwner.id, workspaceId: workspaceSfpr.id, app: "FOTORANK" as const, appRole: "ORGANIZER_ADMIN" as const },
+    { userId: dnxOwner.id, workspaceId: workspaceDnx.id, app: "FOTOFFICE" as const, appRole: "CRM_ADMIN" as const },
+    { userId: dnxOwner.id, workspaceId: workspaceDnx.id, app: "COMPRAMELAFOTO" as const, appRole: "PHOTOGRAPHER" as const },
+    { userId: dnxOwner.id, workspaceId: workspaceDnx.id, app: "FOTORANK" as const, appRole: "ORGANIZER_ADMIN" as const },
+    // Usuario dev limpio para Fotoffice (DNX Estudio)
+    { userId: dnxDevUser.id, workspaceId: workspaceDnx.id, app: "FOTOFFICE" as const, appRole: "CRM_ADMIN" as const },
+  ];
+  for (const row of unifiedAccess) {
+    await prisma.workspaceAppAccess.upsert({
+      where: {
+        userId_workspaceId_app: {
+          userId: row.userId,
+          workspaceId: row.workspaceId,
+          app: row.app,
+        },
+      },
+      update: { enabled: true, appRole: row.appRole },
+      create: {
+        userId: row.userId,
+        workspaceId: row.workspaceId,
+        app: row.app,
+        enabled: true,
+        appRole: row.appRole,
+      },
+    });
+  }
 
   /**
    * El seed antiguo de `Judge` / `Contest` / `Category` / `Entry` / `Score` / `Ranking` / `Diploma`
@@ -1192,6 +2110,54 @@ async function main() {
   });
 
   await seedFotorankComUsers(workspace.id);
+
+  await seedFotofficeCoursesSalesDemo([user.id, danielUser.id, dnxDevUser.id]);
+
+  const dnxEstudioBranding = await prisma.fotofficeWorkspaceBranding.findUnique({
+    where: { publicSlug: "dnx-estudio" },
+    select: { workspaceId: true },
+  });
+  if (dnxEstudioBranding) {
+    await prisma.membership.upsert({
+      where: {
+        userId_workspaceId: { userId: dnxDevUser.id, workspaceId: dnxEstudioBranding.workspaceId },
+      },
+      update: { role: "ADMIN" },
+      create: {
+        userId: dnxDevUser.id,
+        workspaceId: dnxEstudioBranding.workspaceId,
+        role: "ADMIN",
+      },
+    });
+    await prisma.workspaceMembership.upsert({
+      where: {
+        userId_workspaceId: { userId: dnxDevUser.id, workspaceId: dnxEstudioBranding.workspaceId },
+      },
+      update: { role: "WORKSPACE_ADMIN" },
+      create: {
+        userId: dnxDevUser.id,
+        workspaceId: dnxEstudioBranding.workspaceId,
+        role: "WORKSPACE_ADMIN",
+      },
+    });
+    await prisma.workspaceAppAccess.upsert({
+      where: {
+        userId_workspaceId_app: {
+          userId: dnxDevUser.id,
+          workspaceId: dnxEstudioBranding.workspaceId,
+          app: "FOTOFFICE",
+        },
+      },
+      update: { enabled: true, appRole: "CRM_ADMIN" },
+      create: {
+        userId: dnxDevUser.id,
+        workspaceId: dnxEstudioBranding.workspaceId,
+        app: "FOTOFFICE",
+        enabled: true,
+        appRole: "CRM_ADMIN",
+      },
+    });
+  }
 
   console.log("Seed completado correctamente.");
 }

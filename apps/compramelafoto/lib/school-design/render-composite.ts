@@ -20,6 +20,64 @@ function bboxToPixels(b: Bbox, imgW: number, imgH: number): { left: number; top:
   };
 }
 
+/** Alineado con el editor visual: zoom (scale), pan (x,y en [-1,1]) y rotación. */
+async function renderPhotoForSlotOverlay(
+  photoBuf: Buffer,
+  width: number,
+  height: number,
+  tf: { x?: number; y?: number; scale?: number; rotation?: number } | undefined
+): Promise<Buffer> {
+  const rotation = tf?.rotation ?? 0;
+  const scale = Math.max(0.2, Math.min(6, tf?.scale ?? 1));
+  const panX = Math.max(-1, Math.min(1, tf?.x ?? 0));
+  const panY = Math.max(-1, Math.min(1, tf?.y ?? 0));
+
+  const base = sharp(photoBuf).rotate(rotation);
+  const canvasW = Math.max(2, Math.round(width * scale));
+  const canvasH = Math.max(2, Math.round(height * scale));
+
+  let covered: Buffer;
+  try {
+    covered = await base.resize(canvasW, canvasH, { fit: "cover", position: "centre" }).toBuffer();
+  } catch {
+    return sharp(photoBuf)
+      .rotate(rotation)
+      .resize(width, height, { fit: "cover", position: "centre" })
+      .toBuffer();
+  }
+
+  const m = await sharp(covered).metadata();
+  const rw = m.width ?? canvasW;
+  const rh = m.height ?? canvasH;
+  const maxLeft = Math.max(0, rw - width);
+  const maxTop = Math.max(0, rh - height);
+  const left = Math.round(maxLeft * (0.5 + panX * 0.5));
+  const top = Math.round(maxTop * (0.5 + panY * 0.5));
+
+  if (rw < width || rh < height) {
+    return sharp(photoBuf)
+      .rotate(rotation)
+      .resize(width, height, { fit: "cover", position: "centre" })
+      .toBuffer();
+  }
+
+  try {
+    return await sharp(covered)
+      .extract({
+        left: Math.min(maxLeft, Math.max(0, left)),
+        top: Math.min(maxTop, Math.max(0, top)),
+        width,
+        height,
+      })
+      .toBuffer();
+  } catch {
+    return sharp(photoBuf)
+      .rotate(rotation)
+      .resize(width, height, { fit: "cover", position: "centre" })
+      .toBuffer();
+  }
+}
+
 /**
  * Render JPG compuesto: plantilla base + fotos en slots (página 0).
  */
@@ -64,12 +122,8 @@ export async function renderSchoolDesignJpeg(input: {
 
     const photoBuf = await input.loadPhotoBuffer(asg.photoId);
     const tf = parsed.slotTransforms[key];
-    const rotation = tf?.rotation ?? 0;
 
-    const fitted = await sharp(photoBuf)
-      .rotate(rotation)
-      .resize(width, height, { fit: "cover", position: "centre" })
-      .toBuffer();
+    const fitted = await renderPhotoForSlotOverlay(photoBuf, width, height, tf);
 
     overlays.push({ input: fitted, left, top });
   }

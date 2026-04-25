@@ -14,7 +14,7 @@ export default async function SchoolDesignReviewPage({
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8">
       <Link href="/fotografo/dashboard" className="text-sm text-[#c27b3d] hover:underline mb-6 inline-block">
         ← Volver al panel
       </Link>

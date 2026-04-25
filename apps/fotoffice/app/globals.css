@@ -1,0 +1,256 @@
+@import "tailwindcss";
+
+/**
+ * Fotoffice — design system (modo claro)
+ * Toda la UI debe consumir variables `--fo-*` o clases `.fo-*` definidas aquí.
+ */
+:root {
+  color-scheme: light;
+
+  /* Fondo y superficies */
+  --fo-bg: #f4f6f9;
+  --fo-bg-elevated: #ffffff;
+  --fo-surface: #ffffff;
+  --fo-surface-hover: #f1f5f9;
+  --fo-surface-muted: #e8edf3;
+
+  /* Bordes */
+  --fo-border: #e2e8f0;
+  --fo-border-strong: #cbd5e1;
+  --fo-border-muted: #f1f5f9;
+
+  /* Texto */
+  --fo-text: #0f172a;
+  --fo-text-secondary: #334155;
+  --fo-muted: #64748b;
+  --fo-muted-soft: #94a3b8;
+
+  /* Marca / acento */
+  --fo-accent: #0ea5e9;
+  --fo-accent-hover: #0284c7;
+  --fo-accent-soft: #e0f2fe;
+  --fo-accent-muted: rgba(14, 165, 233, 0.14);
+
+  /* Semánticos */
+  --fo-danger: #dc2626;
+  --fo-danger-soft: rgba(220, 38, 38, 0.08);
+  --fo-danger-border: rgba(220, 38, 38, 0.35);
+  --fo-success: #15803d;
+  --fo-success-soft: rgba(22, 163, 74, 0.1);
+  --fo-success-border: rgba(22, 163, 74, 0.35);
+  --fo-warning: #b45309;
+  --fo-warning-soft: rgba(245, 158, 11, 0.12);
+  --fo-warning-border: rgba(217, 119, 6, 0.4);
+
+  /* Código / teclas */
+  --fo-code-bg: #f1f5f9;
+  --fo-kbd-bg: #ffffff;
+  --fo-kbd-border: var(--fo-border-strong);
+
+  /* Elevación */
+  --fo-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --fo-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --fo-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+
+  /* Radio */
+  --fo-radius: 12px;
+  --fo-radius-sm: 8px;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-fo-bg: var(--fo-bg);
+  --color-fo-text: var(--fo-text);
+  --color-fo-muted: var(--fo-muted);
+  --color-fo-accent: var(--fo-accent);
+  --color-fo-border: var(--fo-border);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--fo-bg);
+  color: var(--fo-text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---------- Alertas (design system) ---------- */
+.fo-alert-error {
+  border: 1px solid var(--fo-danger-border) !important;
+  background: var(--fo-danger-soft) !important;
+}
+
+.fo-alert-warning {
+  border: 1px solid var(--fo-warning-border) !important;
+  background: var(--fo-warning-soft) !important;
+}
+
+.fo-alert-success {
+  border: 1px solid var(--fo-success-border) !important;
+  background: var(--fo-success-soft) !important;
+}
+
+/* ---------- Ritmo formularios ---------- */
+.fo-field-stack > * + * {
+  margin-top: 0.5rem;
+}
+
+.fo-form-actions {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--fo-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.fo-section-gap {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.fo-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--fo-text);
+}
+
+.fo-helper {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--fo-muted);
+}
+
+/* ---------- Controles ---------- */
+.fo-input {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  border-radius: var(--fo-radius-sm);
+  border: 1px solid var(--fo-border-strong);
+  background: var(--fo-bg-elevated);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  color: var(--fo-text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  box-shadow: var(--fo-shadow-xs);
+}
+
+.fo-input::placeholder {
+  color: var(--fo-muted-soft);
+}
+
+.fo-input:hover:not(:disabled) {
+  border-color: var(--fo-muted-soft);
+  background: var(--fo-surface);
+}
+
+.fo-input:focus {
+  border-color: var(--fo-accent);
+  box-shadow: 0 0 0 3px var(--fo-accent-muted);
+}
+
+.fo-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--fo-surface-muted);
+}
+
+textarea.fo-input {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+select.fo-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.25rem;
+}
+
+/* ---------- Cards ---------- */
+.fo-card {
+  border-radius: var(--fo-radius);
+  border: 1px solid var(--fo-border);
+  background: var(--fo-surface);
+  padding: 1.5rem;
+  box-shadow: var(--fo-shadow-sm);
+}
+
+@media (min-width: 768px) {
+  .fo-card {
+    padding: 2rem;
+  }
+}
+
+/* ---------- Botones ---------- */
+.fo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border-radius: var(--fo-radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s, box-shadow 0.15s;
+}
+
+.fo-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fo-btn-primary {
+  background: var(--fo-accent);
+  color: #ffffff;
+  box-shadow: var(--fo-shadow-xs);
+}
+
+.fo-btn-primary:hover:not(:disabled) {
+  background: var(--fo-accent-hover);
+}
+
+.fo-btn-secondary {
+  background: var(--fo-bg-elevated);
+  border: 1px solid var(--fo-border-strong);
+  color: var(--fo-text-secondary);
+  box-shadow: var(--fo-shadow-xs);
+}
+
+.fo-btn-secondary:hover:not(:disabled) {
+  border-color: var(--fo-muted-soft);
+  background: var(--fo-surface-hover);
+}
+
+.fo-btn-ghost {
+  background: transparent;
+  color: var(--fo-muted);
+}
+
+.fo-btn-ghost:hover:not(:disabled) {
+  color: var(--fo-text);
+  background: var(--fo-accent-muted);
+}
+
+/** Variante destructiva secundaria (p. ej. desactivar módulo) */
+.fo-btn-danger-outline {
+  background: var(--fo-bg-elevated);
+  border: 1px solid var(--fo-danger-border);
+  color: var(--fo-danger);
+}
+
+.fo-btn-danger-outline:hover:not(:disabled) {
+  background: var(--fo-danger-soft);
+  border-color: var(--fo-danger);
+}

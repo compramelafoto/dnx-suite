@@ -6,6 +6,7 @@ import SidebarNav, { type SidebarItem } from "./SidebarNav";
 import HorizontalNav from "./HorizontalNav";
 import { PanelIcons } from "./panel-icons";
 import { getLabSidebarItems } from "@/config/navigation";
+import { SuiteWorkspaceSwitcher } from "@/components/workspace/SuiteWorkspaceSwitcher";
 
 const labMenu: SidebarItem[] = getLabSidebarItems({
   home: PanelIcons.home,
@@ -73,6 +74,7 @@ export default function LabSidebar({ showHeader = true }: { showHeader?: boolean
       logo={labLogo}
       title="Laboratorio"
       showHeader={showHeader}
+      betweenHeaderAndNav={<SuiteWorkspaceSwitcher />}
       activeClass="bg-[#3b82f6]/12 text-[#2563eb] font-medium border-l-[3px] border-[#2563eb]"
       inactiveClass="text-gray-700 hover:bg-gray-50"
     />

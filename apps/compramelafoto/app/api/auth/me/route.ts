@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, hasAppAccess } from "@/lib/auth";
 import { claimOrdersForVerifiedUser } from "@/lib/order-claims";
 import { prisma } from "@/lib/prisma";
+import { getWorkspaceOptionsForUser } from "@/lib/workspace-options";
 
 const AUTH_ME_TIMEOUT_MS = 5000;
 
@@ -23,6 +24,9 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ user: null }, { status: 200 });
     }
+    if (!hasAppAccess(user, "COMPRAMELAFOTO")) {
+      return NextResponse.json({ user: null, forbiddenApp: "COMPRAMELAFOTO" }, { status: 200 });
+    }
 
     // Reclamar pedidos pendientes en segundo plano (no bloquear la respuesta)
     if (user.emailVerifiedAt && user.email) {
@@ -37,8 +41,12 @@ export async function GET() {
       select: { faceConsent: true },
     });
 
+    const workspaces = await getWorkspaceOptionsForUser(user.id);
+
     return NextResponse.json({
       user: { ...user, faceConsent: extra?.faceConsent ?? false },
+      workspaces,
+      activeWorkspaceId: user.currentWorkspaceId,
     });
   } catch (error: any) {
     if (error?.message === "auth/me timeout") {

@@ -1,6 +1,6 @@
 import { LandingHeader } from "./components/landing/LandingHeader";
 import { PhotoBanner } from "./components/landing/PhotoBanner";
-import { getAuthUser } from "./lib/auth";
+import { getAuthUser, hasAppAccess } from "./lib/auth";
 import { getJudgeAuthUser } from "./lib/judge-auth";
 import { HeroSection } from "./components/landing/HeroSection";
 import { ProblemSection } from "./components/landing/ProblemSection";
@@ -17,11 +17,12 @@ import { listPublicHomeContests } from "./lib/fotorank/publicContests";
 export default async function Home() {
   const [admin, judge] = await Promise.all([getAuthUser(), getJudgeAuthUser()]);
   const publicContests = await listPublicHomeContests(6);
+  const hasFotorankAdminSession = hasAppAccess(admin, "FOTORANK");
 
   return (
     <ReducedMotionWrapper>
       <div className="min-h-screen fr-bg">
-        <LandingHeader hasAdminSession={Boolean(admin)} hasJudgeSession={Boolean(judge)} />
+        <LandingHeader hasAdminSession={hasFotorankAdminSession} hasJudgeSession={Boolean(judge)} />
         {/* Reserva altura bajo header fijo (relaxed + franja logo sidebar); alinear con `HeaderContainer` relaxedHeight. */}
         <div className="min-h-[6.25rem] w-full shrink-0 bg-[#050505] py-2 md:min-h-[7rem] md:py-2.5" aria-hidden />
         <PhotoBanner />

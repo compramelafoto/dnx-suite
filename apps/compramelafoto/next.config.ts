@@ -44,6 +44,12 @@ const nextConfig: NextConfig = {
         hostname: "images.unsplash.com",
         pathname: "/**",
       },
+      // placehold.co — portadas de prueba / E2E / seeds (ej. ?text=E2E)
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+        pathname: "/**",
+      },
     ],
   },
   async headers() {

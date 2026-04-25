@@ -6,6 +6,7 @@ import Image from "next/image";
 import SidebarNav, { type SidebarItem } from "./SidebarNav";
 import HorizontalNav from "./HorizontalNav";
 import { PanelIcons } from "./panel-icons";
+import { SuiteWorkspaceSwitcher } from "@/components/workspace/SuiteWorkspaceSwitcher";
 
 const clientMenu: SidebarItem[] = [
   {
@@ -71,6 +72,7 @@ export default function ClientSidebar({ showHeader = true }: { showHeader?: bool
       logo={clientLogo}
       title="Cliente"
       showHeader={showHeader}
+      betweenHeaderAndNav={<SuiteWorkspaceSwitcher />}
       dynamicBadgeCounts={supportUnread > 0 ? { soporte: supportUnread } : {}}
     />
   );

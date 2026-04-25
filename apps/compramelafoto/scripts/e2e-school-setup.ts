@@ -12,7 +12,12 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { PrismaClient, Role, PreCompraOrderItemStatus, PreCompraOrderStatus } from "@prisma/client";
+import {
+  PrismaClient,
+  Role,
+  PreCompraOrderItemStatus,
+  PreCompraOrderStatus,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { config as loadEnv } from "dotenv";
 
@@ -59,6 +64,149 @@ function mergeManagedEnvFile(filePath: string, managed: Record<string, string>):
   fs.writeFileSync(filePath, (body ? `${body}\n\n` : "") + block, "utf8");
 }
 
+/**
+ * Elimina el álbum E2E y todo el grafo que lo bloquea (FK), en orden seguro.
+ * No depende de ON DELETE implícito en Photo→Album (Restrict).
+ */
+async function deleteSchoolE2EAlbumGraph(client: PrismaClient, albumId: number): Promise<void> {
+  /** Borrado en cadena puede superar el default (5s) en DB lentas o con muchos jobs. */
+  await client.$transaction(
+    async (tx) => {
+    await tx.album.updateMany({
+      where: { id: albumId },
+      data: { coverPhotoId: null },
+    });
+
+    const orderIds = (
+      await tx.preCompraOrder.findMany({
+        where: { albumId },
+        select: { id: true },
+      })
+    ).map((o) => o.id);
+
+    if (orderIds.length > 0) {
+      await tx.subjectSelfie.deleteMany({
+        where: { orderId: { in: orderIds } },
+      });
+
+      const itemIds = (
+        await tx.preCompraOrderItem.findMany({
+          where: { orderId: { in: orderIds } },
+          select: { id: true },
+        })
+      ).map((i) => i.id);
+
+      if (itemIds.length > 0) {
+        const dpIds = (
+          await tx.designProject.findMany({
+            where: { orderItemId: { in: itemIds } },
+            select: { id: true },
+          })
+        ).map((d) => d.id);
+
+        if (dpIds.length > 0) {
+          const revIds = (
+            await tx.designRevision.findMany({
+              where: { designProjectId: { in: dpIds } },
+              select: { id: true },
+            })
+          ).map((r) => r.id);
+
+          if (revIds.length > 0) {
+            await tx.designPreviewJob.deleteMany({
+              where: { designRevisionId: { in: revIds } },
+            });
+          }
+          await tx.designExportJob.deleteMany({
+            where: { designProjectId: { in: dpIds } },
+          });
+
+          await tx.designProject.updateMany({
+            where: { id: { in: dpIds } },
+            data: {
+              currentRevisionId: null,
+              approvedForExportRevisionId: null,
+            },
+          });
+
+          await tx.designRevision.deleteMany({
+            where: { designProjectId: { in: dpIds } },
+          });
+          await tx.designProject.deleteMany({
+            where: { id: { in: dpIds } },
+          });
+        }
+
+        const selectionIds = (
+          await tx.selection.findMany({
+            where: { orderItemId: { in: itemIds } },
+            select: { id: true },
+          })
+        ).map((s) => s.id);
+
+        if (selectionIds.length > 0) {
+          await tx.selectionPhoto.deleteMany({
+            where: { selectionId: { in: selectionIds } },
+          });
+        }
+        await tx.selection.deleteMany({
+          where: { orderItemId: { in: itemIds } },
+        });
+
+        await tx.preCompraOrderItem.deleteMany({
+          where: { orderId: { in: orderIds } },
+        });
+      }
+
+      await tx.photoClaim.deleteMany({
+        where: { orderId: { in: orderIds } },
+      });
+
+      await tx.preCompraOrder.deleteMany({
+        where: { albumId },
+      });
+    }
+
+    const templates = await tx.template.findMany({
+      where: { albumId },
+      select: { id: true },
+    });
+    const templateIds = templates.map((t) => t.id);
+    if (templateIds.length > 0) {
+      await tx.templateSlot.deleteMany({
+        where: { templateId: { in: templateIds } },
+      });
+    }
+
+    await tx.albumProduct.updateMany({
+      where: { albumId },
+      data: { defaultTemplateId: null },
+    });
+
+    await tx.template.deleteMany({
+      where: { albumId },
+    });
+
+    await tx.albumProduct.deleteMany({
+      where: { albumId },
+    });
+
+    await tx.photo.deleteMany({
+      where: { albumId },
+    });
+
+    await tx.subject.deleteMany({
+      where: { albumId },
+    });
+
+    await tx.album.delete({
+      where: { id: albumId },
+    });
+    },
+    { maxWait: 15_000, timeout: 120_000 },
+  );
+}
+
 async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) {
     console.error("[e2e-school-setup] Falta DATABASE_URL. Configuralo en .env.local (misma DB que la app).");
@@ -93,8 +241,8 @@ async function main(): Promise<void> {
     select: { id: true },
   });
   if (existingAlbum) {
-    await prisma.album.delete({ where: { id: existingAlbum.id } });
-    console.log("[e2e-school-setup] Álbum E2E anterior eliminado (recreación limpia).");
+    await deleteSchoolE2EAlbumGraph(prisma, existingAlbum.id);
+    console.log("[e2e-school-setup] Álbum E2E anterior eliminado (grafo explícito, sin FK).");
   }
 
   const publicSlug = `e2e-school-${user.id}-${createHash("sha256").update(photographerEmail).digest("hex").slice(0, 8)}`;

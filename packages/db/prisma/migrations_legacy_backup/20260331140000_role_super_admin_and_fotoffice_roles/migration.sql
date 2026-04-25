@@ -1,0 +1,60 @@
+DO $$
+BEGIN
+  CREATE TYPE "Role" AS ENUM (
+    'ADMIN',
+    'PHOTOGRAPHER',
+    'LAB',
+    'CUSTOMER',
+    'LAB_PHOTOGRAPHER',
+    'ORGANIZER'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL;
+END
+$$;
+
+DO $$
+BEGIN
+  ALTER TYPE "Role" ADD VALUE 'SUPER_ADMIN';
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL;
+END
+$$;
+
+DO $$
+BEGIN
+  ALTER TYPE "Role" ADD VALUE 'WORKSPACE_ADMIN';
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL;
+END
+$$;
+
+DO $$
+BEGIN
+  ALTER TYPE "Role" ADD VALUE 'STAFF';
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL;
+END
+$$;
+
+DO $$
+BEGIN
+  ALTER TYPE "Role" ADD VALUE 'TEACHER_MANAGER';
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL;
+END
+$$;
+
+DO $$
+BEGIN
+  ALTER TYPE "Role" ADD VALUE 'COURSE_MANAGER';
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL;
+END
+$$;

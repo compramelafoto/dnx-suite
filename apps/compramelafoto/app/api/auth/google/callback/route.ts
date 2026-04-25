@@ -284,15 +284,9 @@ export async function GET(req: Request) {
     redirectUrl.searchParams.set("user", JSON.stringify(userData));
 
     // 5. Redirigir y poner la cookie EN LA MISMA respuesta (crítico para que el navegador la reciba)
-    const authUser = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    };
     const response = NextResponse.redirect(redirectUrl.toString());
     // Legacy auth-token + DNX UserSession / dnx_session (+ Set-Cookie duplicados en headers si aplica)
-    await setAuthCookieOnResponse(response, authUser);
+    await setAuthCookieOnResponse(response, { id: user.id });
     return response;
   } catch (err: any) {
     console.error("GOOGLE CALLBACK ERROR >>>", err);

@@ -5,11 +5,13 @@ import {
   createUserSession,
   destroyUserSessionByRawToken,
   DNX_SESSION_COOKIE,
+  getSessionIdentityByRawToken,
   getSessionUserByRawToken,
 } from "@repo/auth";
 import { prisma } from "./prisma";
 
 const COOKIE_NAME = "auth-token";
+export const COMPRAMELAFOTO_WORKSPACE_COOKIE = "compramelafoto_workspace_id";
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN?.trim() || undefined;
 const APP_URL =
   process.env.APP_URL?.trim() ||
@@ -40,6 +42,10 @@ export interface AuthUser {
   email: string;
   name: string | null;
   role: Role;
+  globalRole: string;
+  currentWorkspaceId: string | null;
+  workspaceRole: string | null;
+  appAccess: Array<{ app: string; enabled: boolean; appRole: string | null }>;
   labId?: number;
   emailVerifiedAt?: Date | null;
 }
@@ -54,7 +60,15 @@ type UserRowForAuth = {
 };
 
 /** Misma forma AuthUser que el flujo legacy (incl. LAB → labId y rol efectivo). */
-async function mapPrismaUserToAuthUser(user: UserRowForAuth): Promise<AuthUser | null> {
+async function mapPrismaUserToAuthUser(
+  user: UserRowForAuth,
+  identity?: {
+    globalRole: string;
+    currentWorkspaceId: string | null;
+    workspaceRole: string | null;
+    appAccess: Array<{ app: string; enabled: boolean; appRole: string | null }>;
+  },
+): Promise<AuthUser | null> {
   if (user.isBlocked) {
     return null;
   }
@@ -80,6 +94,10 @@ async function mapPrismaUserToAuthUser(user: UserRowForAuth): Promise<AuthUser |
     email: user.email,
     name: user.name,
     role: effectiveRole,
+    globalRole: identity?.globalRole ?? (user.role === Role.SUPER_ADMIN ? "SUPER_ADMIN" : "USER"),
+    currentWorkspaceId: identity?.currentWorkspaceId ?? null,
+    workspaceRole: identity?.workspaceRole ?? null,
+    appAccess: identity?.appAccess ?? [],
     labId,
     emailVerifiedAt: user.emailVerifiedAt,
   };
@@ -102,7 +120,7 @@ function buildDnxSessionSetCookieHeader(rawToken: string, maxAge: number): strin
   return parts.join("; ");
 }
 
-export async function setAuthCookie(user: AuthUser) {
+export async function setAuthCookie(user: Pick<AuthUser, "id">) {
   const cookieStore = await cookies();
 
   try {
@@ -121,7 +139,10 @@ export async function setAuthCookie(user: AuthUser) {
 /**
  * Emite solo `dnx_session` para nuevos logins/callbacks.
  */
-export async function setAuthCookieOnResponse(response: NextResponse, user: AuthUser): Promise<void> {
+export async function setAuthCookieOnResponse(
+  response: NextResponse,
+  user: Pick<AuthUser, "id">,
+): Promise<void> {
   let dnxHeader: string | null = null;
   try {
     const session = await createUserSession(user.id);
@@ -148,6 +169,11 @@ export async function getAuthUser(): Promise<AuthUser | null> {
       const sessionUser = await getSessionUserByRawToken(dnxRaw);
       if (sessionUser) {
         logAuthResolution(`Sesión resuelta por dnx_session userId=${sessionUser.id}`);
+        const requestedWorkspaceId =
+          cookieStore.get(COMPRAMELAFOTO_WORKSPACE_COOKIE)?.value ?? null;
+        const identity = await getSessionIdentityByRawToken(dnxRaw, {
+          currentWorkspaceId: requestedWorkspaceId,
+        });
         const mapped = await mapPrismaUserToAuthUser({
           id: sessionUser.id,
           email: sessionUser.email,
@@ -155,7 +181,12 @@ export async function getAuthUser(): Promise<AuthUser | null> {
           role: sessionUser.role,
           isBlocked: sessionUser.isBlocked,
           emailVerifiedAt: sessionUser.emailVerifiedAt,
-        });
+        }, identity ? {
+          globalRole: identity.globalRole,
+          currentWorkspaceId: identity.currentWorkspaceId,
+          workspaceRole: identity.workspaceRole,
+          appAccess: identity.appAccess,
+        } : undefined);
         if (mapped) {
           return mapped;
         }
@@ -223,4 +254,18 @@ export async function requireAuth(allowedRoles?: Role[]) {
   }
 
   return { error: null, user };
+}
+
+export function hasAppAccess(user: AuthUser | null, app: "FOTOFFICE" | "COMPRAMELAFOTO" | "FOTORANK"): boolean {
+  if (!user) return false;
+  if (user.globalRole === "SUPER_ADMIN") return true;
+  if (user.appAccess.length > 0) {
+    return user.appAccess.some((a) => a.app === app && a.enabled);
+  }
+  // Legacy fallback must be explicit and opt-in.
+  if (process.env.DNX_LEGACY_APP_ACCESS_FALLBACK !== "1") return false;
+  if (app === "COMPRAMELAFOTO") {
+    return true;
+  }
+  return user.appAccess.some((a) => a.app === app && a.enabled);
 }

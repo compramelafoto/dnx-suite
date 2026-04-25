@@ -19,6 +19,7 @@ import {
 import type { ContestOrganizationProfileDTO } from "../lib/fotorank/organizationProfile";
 import { Header } from "./Header";
 import { SidebarOrgIdentityHeader } from "./dashboard/SidebarOrgIdentityHeader";
+import type { WorkspaceOption } from "../lib/workspace-options";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -26,6 +27,8 @@ interface DashboardLayoutProps {
   currentOrganizationId: string | null;
   organizationProfile: ContestOrganizationProfileDTO | null;
   activeOrgError: string | null;
+  suiteWorkspaces: WorkspaceOption[];
+  activeSuiteWorkspaceId: string | null;
   userDisplayName: string;
   userEmail: string;
 }
@@ -76,6 +79,8 @@ export function DashboardLayout({
   currentOrganizationId,
   organizationProfile,
   activeOrgError,
+  suiteWorkspaces,
+  activeSuiteWorkspaceId,
   userDisplayName,
   userEmail,
 }: DashboardLayoutProps) {
@@ -132,6 +137,8 @@ export function DashboardLayout({
                 organizations={organizations}
                 currentOrganizationId={currentOrganizationId}
                 activeOrgError={activeOrgError}
+                suiteWorkspaces={suiteWorkspaces}
+                activeSuiteWorkspaceId={activeSuiteWorkspaceId}
               />
 
               <SidebarBody>

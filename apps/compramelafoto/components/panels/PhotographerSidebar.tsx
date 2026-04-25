@@ -7,6 +7,7 @@ import SidebarNav, { type SidebarItem } from "./SidebarNav";
 import HorizontalNav from "./HorizontalNav";
 import { PanelIcons } from "./panel-icons";
 import { getPhotographerSidebarItems } from "@/config/navigation";
+import { SuiteWorkspaceSwitcher } from "@/components/workspace/SuiteWorkspaceSwitcher";
 
 const photographerMenu: SidebarItem[] = getPhotographerSidebarItems({
   home: PanelIcons.home,
@@ -96,6 +97,7 @@ export default function PhotographerSidebar({ showHeader = true }: { showHeader?
       logo={photographerLogo}
       title="Fotógrafo"
       showHeader={showHeader}
+      betweenHeaderAndNav={<SuiteWorkspaceSwitcher />}
       dynamicBadgeCounts={supportUnread > 0 ? { soporte: supportUnread } : {}}
       bottomAction={{
         label: "Cerrar sesión",

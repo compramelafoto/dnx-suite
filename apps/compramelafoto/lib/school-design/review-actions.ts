@@ -64,9 +64,7 @@ export async function approveDesignProject(input: {
   if (!dp?.currentRevisionId || !dp.currentRevision) {
     return { ok: false as const, code: "NO_REVISION", message: "Sin revisión actual" };
   }
-  if (dp.status !== DesignProjectStatus.PENDING_PHOTOGRAPHER_APPROVAL) {
-    return { ok: false as const, code: "INVALID_STATUS", message: "Estado no permite aprobación" };
-  }
+  // Preview antes que status: si el render no está listo, el código debe ser PREVIEW_NOT_READY (p. ej. E2E / API clients).
   if (dp.previewDirty || dp.previewStatus !== DesignPreviewStatus.READY) {
     console.warn("[school_design_review] approve blocked", {
       designProjectId: input.designProjectId,
@@ -74,6 +72,9 @@ export async function approveDesignProject(input: {
       previewStatus: dp.previewStatus,
     });
     return { ok: false as const, code: "PREVIEW_NOT_READY", message: "Preview no lista o sucia" };
+  }
+  if (dp.status !== DesignProjectStatus.PENDING_PHOTOGRAPHER_APPROVAL) {
+    return { ok: false as const, code: "INVALID_STATUS", message: "Estado no permite aprobación" };
   }
 
   await prisma.designProject.update({

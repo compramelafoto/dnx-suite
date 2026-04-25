@@ -6,12 +6,14 @@ import {
   DNX_SESSION_COOKIE,
   createUserSession,
   destroyUserSessionByRawToken,
+  getSessionIdentityByRawToken,
   getSessionUserByRawToken,
   revokeAllUserSessions,
 } from "@repo/auth";
 import { parseUserId } from "./userId";
 
 const LEGACY_AUTH_COOKIE = "dnx_auth";
+export const FOTORANK_WORKSPACE_COOKIE = "fotorank_workspace_id";
 
 /**
  * Cookie de sesión legacy de ComprameLaFoto (`apps/compramelafoto/lib/auth.ts`, `COOKIE_NAME`).
@@ -41,6 +43,11 @@ export type AuthUser = {
   id: number;
   name: string | null;
   email: string;
+  role: string;
+  globalRole: string;
+  currentWorkspaceId: string | null;
+  workspaceRole: string | null;
+  appAccess: Array<{ app: string; enabled: boolean; appRole: string | null }>;
 };
 
 /**
@@ -57,7 +64,20 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   if (!raw) return null;
   const sessionUser = await getSessionUserByRawToken(raw);
   if (sessionUser) {
-    return { id: sessionUser.id, name: sessionUser.name, email: sessionUser.email };
+    const requestedWorkspaceId = cookieStore.get(FOTORANK_WORKSPACE_COOKIE)?.value ?? null;
+    const identity = await getSessionIdentityByRawToken(raw, {
+      currentWorkspaceId: requestedWorkspaceId,
+    });
+    return {
+      id: sessionUser.id,
+      name: sessionUser.name,
+      email: sessionUser.email,
+      role: sessionUser.role,
+      globalRole: identity?.globalRole ?? (sessionUser.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "USER"),
+      currentWorkspaceId: identity?.currentWorkspaceId ?? null,
+      workspaceRole: identity?.workspaceRole ?? null,
+      appAccess: identity?.appAccess ?? [],
+    };
   }
 
   /**
@@ -74,7 +94,14 @@ export async function getAuthUser(): Promise<AuthUser | null> {
         select: { id: true, name: true, email: true },
       });
       if (legacyUser) {
-        return legacyUser;
+        return {
+          ...legacyUser,
+          role: "USER",
+          globalRole: "USER",
+          currentWorkspaceId: null,
+          workspaceRole: null,
+          appAccess: [],
+        };
       }
     }
   }
@@ -89,6 +116,20 @@ export async function requireAuth(): Promise<AuthUser> {
   const user = await getAuthUser();
   if (!user) redirect("/login");
   return user;
+}
+
+export function hasAppAccess(user: AuthUser | null, app: "FOTOFFICE" | "COMPRAMELAFOTO" | "FOTORANK"): boolean {
+  if (!user) return false;
+  if (user.globalRole === "SUPER_ADMIN") return true;
+  if (user.appAccess.length > 0) {
+    return user.appAccess.some((a) => a.app === app && a.enabled);
+  }
+  // Legacy fallback must be explicit and opt-in.
+  if (process.env.DNX_LEGACY_APP_ACCESS_FALLBACK !== "1") return false;
+  if (app === "FOTORANK" && (user.role === "SUPER_ADMIN" || user.role === "ORGANIZER")) {
+    return true;
+  }
+  return false;
 }
 
 /**

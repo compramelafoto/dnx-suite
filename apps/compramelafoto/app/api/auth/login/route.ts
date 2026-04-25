@@ -252,13 +252,7 @@ export async function POST(req: Request) {
     );
 
     // Cookie en la misma respuesta para que el navegador la reciba (legacy + DNX)
-    await setAuthCookieOnResponse(response, {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      labId,
-    });
+    await setAuthCookieOnResponse(response, { id: user.id });
 
     return response;
   } catch (err: any) {

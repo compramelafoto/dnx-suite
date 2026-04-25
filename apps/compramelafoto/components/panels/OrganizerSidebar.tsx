@@ -5,6 +5,7 @@ import Image from "next/image";
 import SidebarNav, { type SidebarItem } from "./SidebarNav";
 import HorizontalNav from "./HorizontalNav";
 import { PanelIcons } from "./panel-icons";
+import { SuiteWorkspaceSwitcher } from "@/components/workspace/SuiteWorkspaceSwitcher";
 
 const organizerMenu: SidebarItem[] = [
   {
@@ -61,6 +62,7 @@ export default function OrganizerSidebar({ showHeader = true }: { showHeader?: b
       logo={organizerLogo}
       title="Organizador"
       showHeader={showHeader}
+      betweenHeaderAndNav={<SuiteWorkspaceSwitcher />}
     />
   );
 }

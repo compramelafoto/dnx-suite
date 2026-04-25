@@ -61,3 +61,104 @@ export async function revokeAllUserSessions(userId: number) {
     where: { userId },
   });
 }
+
+export type IdentityAppAccess = {
+  app: string;
+  enabled: boolean;
+  appRole: string | null;
+};
+
+export type IdentityWorkspace = {
+  workspaceId: string;
+  workspaceRole: string;
+};
+
+export type SessionIdentityContext = {
+  userId: number;
+  email: string;
+  globalRole: string;
+  currentWorkspaceId: string | null;
+  workspaceRole: string | null;
+  appAccess: IdentityAppAccess[];
+  workspaces: IdentityWorkspace[];
+};
+
+/**
+ * Contexto unificado de identidad para toda la suite.
+ * Prioriza tablas nuevas (`WorkspaceMembership`, `WorkspaceAppAccess`) y,
+ * si no existen datos, cae a `Membership` legacy para compatibilidad.
+ */
+export async function getSessionIdentityByRawToken(
+  rawToken: string,
+  params?: { currentWorkspaceId?: string | null },
+): Promise<SessionIdentityContext | null> {
+  const tokenHash = hashSessionToken(rawToken);
+  const session = await prisma.userSession.findUnique({
+    where: { tokenHash },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          globalRole: true,
+          role: true,
+        },
+      },
+    },
+  });
+  if (!session) return null;
+  if (session.expiresAt.getTime() <= Date.now()) return null;
+
+  const userId = session.user.id;
+  const unifiedMemberships = await prisma.workspaceMembership.findMany({
+    where: { userId },
+    select: { workspaceId: true, role: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const fallbackMemberships =
+    unifiedMemberships.length > 0
+      ? []
+      : await prisma.membership.findMany({
+          where: { userId },
+          select: { workspaceId: true, role: true },
+          orderBy: { id: "asc" },
+        });
+
+  const workspaces =
+    unifiedMemberships.length > 0
+      ? unifiedMemberships.map((m) => ({
+          workspaceId: m.workspaceId,
+          workspaceRole: m.role,
+        }))
+      : fallbackMemberships.map((m) => ({
+          workspaceId: m.workspaceId,
+          workspaceRole: m.role === "ADMIN" ? "WORKSPACE_OWNER" : "STAFF",
+        }));
+
+  const requestedWorkspaceId = params?.currentWorkspaceId ?? null;
+  // Explicit workspace selection only: no implicit "first workspace" fallback.
+  const currentWorkspaceId =
+    requestedWorkspaceId && workspaces.some((w) => w.workspaceId === requestedWorkspaceId)
+      ? requestedWorkspaceId
+      : null;
+  const workspaceRole = workspaces.find((w) => w.workspaceId === currentWorkspaceId)?.workspaceRole ?? null;
+
+  const appAccess = currentWorkspaceId
+    ? await prisma.workspaceAppAccess.findMany({
+        where: { userId, workspaceId: currentWorkspaceId },
+        select: { app: true, enabled: true, appRole: true },
+        orderBy: { app: "asc" },
+      })
+    : [];
+
+  return {
+    userId,
+    email: session.user.email,
+    globalRole: session.user.globalRole ?? (session.user.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "USER"),
+    currentWorkspaceId,
+    workspaceRole,
+    appAccess: appAccess.map((a) => ({ app: a.app, enabled: a.enabled, appRole: a.appRole })),
+    workspaces,
+  };
+}
