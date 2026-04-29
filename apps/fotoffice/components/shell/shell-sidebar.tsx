@@ -4,9 +4,11 @@ import { ShellNav } from "./shell-nav";
 
 export function ShellSidebar({
   coursesEnabled,
+  evaluacionesEnabled,
   platformAdmin,
 }: {
   coursesEnabled: boolean;
+  evaluacionesEnabled: boolean;
   platformAdmin: boolean;
 }) {
   return (
@@ -23,7 +25,11 @@ export function ShellSidebar({
           <span className="block text-xs text-[var(--fo-muted)] mt-2.5">Venta de cursos</span>
         </Link>
       </div>
-      <ShellNav coursesEnabled={coursesEnabled} platformAdmin={platformAdmin} />
+      <ShellNav
+        coursesEnabled={coursesEnabled}
+        evaluacionesEnabled={evaluacionesEnabled}
+        platformAdmin={platformAdmin}
+      />
       <div className="mt-8 border-t border-[var(--fo-border)] pt-6 space-y-2">
         <p className="px-3 text-[10px] font-medium uppercase tracking-wider text-[var(--fo-muted-soft)]">
           Captación de clientes

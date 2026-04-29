@@ -25,9 +25,11 @@ function navClass(active: boolean) {
 
 export function ShellNav({
   coursesEnabled,
+  evaluacionesEnabled,
   platformAdmin,
 }: {
   coursesEnabled: boolean;
+  evaluacionesEnabled: boolean;
   platformAdmin: boolean;
 }) {
   const path = usePathname() ?? "";
@@ -40,6 +42,7 @@ export function ShellNav({
     path.startsWith("/courses/new") ||
     /^\/courses\/[^/]+\/edit$/.test(path);
   const isSales = path.startsWith("/dashboard/sales");
+  const isEvaluaciones = path === "/evaluaciones" || path.startsWith("/evaluaciones/");
   const isTeachers = path.startsWith("/courses/teachers");
   const isLeads = path.startsWith("/courses/leads");
   const isCourseSettings = path.startsWith("/courses/settings");
@@ -73,6 +76,12 @@ export function ShellNav({
             Config. del módulo
           </Link>
         </>
+      ) : null}
+      {evaluacionesEnabled ? (
+        <Link href="/evaluaciones" className={navClass(isEvaluaciones)}>
+          <LayoutGrid className="size-4 shrink-0 opacity-80" aria-hidden />
+          Evaluaciones
+        </Link>
       ) : null}
       {platformAdmin ? (
         <>

@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { hasAppAccess, requireAuth } from "@/lib/auth";
 import {
   isCoursesSalesEnabledForWorkspace,
+  isEvaluacionesEnabledForWorkspace,
   resolveActiveWorkspace,
 } from "@/lib/workspace";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
@@ -30,11 +31,17 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const workspace = await resolveActiveWorkspace(user.id);
   const coursesOn =
     workspace !== null ? await isCoursesSalesEnabledForWorkspace(workspace.id) : false;
+  const evaluacionesOn =
+    workspace !== null ? await isEvaluacionesEnabledForWorkspace(workspace.id) : false;
   const platformAdmin = await isFotofficePlatformAdmin(user.id);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[var(--fo-bg)]">
-      <ShellSidebar coursesEnabled={coursesOn} platformAdmin={platformAdmin} />
+      <ShellSidebar
+        coursesEnabled={coursesOn}
+        evaluacionesEnabled={evaluacionesOn}
+        platformAdmin={platformAdmin}
+      />
       <div className="flex-1 flex flex-col min-w-0">
         <ShellHeader
           userName={user.name}

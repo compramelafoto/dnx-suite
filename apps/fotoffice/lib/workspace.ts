@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth, type AuthUser } from "./auth";
 import { COURSES_SALES_MODULE_KEY, FOTOFFICE_WORKSPACE_COOKIE } from "./courses-sales/constants";
+import { EVALUACIONES_MODULE_KEY } from "./evaluaciones/constants";
 import { isMissingCoursesSalesSchemaError } from "./courses-sales/prisma-errors";
 
 export type ActiveWorkspace = {
@@ -96,6 +97,27 @@ export async function isCoursesSalesEnabledForWorkspace(workspaceId: string): Pr
   }
 }
 
+export async function isEvaluacionesEnabledForWorkspace(workspaceId: string): Promise<boolean> {
+  try {
+    const row = await prisma.workspaceFeatureModule.findUnique({
+      where: {
+        workspaceId_moduleKey: { workspaceId, moduleKey: EVALUACIONES_MODULE_KEY },
+      },
+    });
+    return row?.enabled === true;
+  } catch (e) {
+    if (isMissingCoursesSalesSchemaError(e)) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn(
+          "[fotoffice] Tablas de módulos ausentes. Ejecutá la migración SQL de feature modules o `prisma migrate deploy` en una BD alineada con el historial de migraciones.",
+        );
+      }
+      return false;
+    }
+    throw e;
+  }
+}
+
 /** Sesión + workspace activo si el usuario tiene membresías. */
 export async function requireActiveWorkspace(): Promise<{
   user: AuthUser;
@@ -116,5 +138,18 @@ export async function requireCoursesSalesContext(): Promise<{
   if (!workspace) redirect("/dashboard");
   const on = await isCoursesSalesEnabledForWorkspace(workspace.id);
   if (!on) redirect("/dashboard?courses=off");
+  return { user, workspace };
+}
+
+/** Exige módulo evaluaciones activo en el workspace actual. */
+export async function requireEvaluacionesContext(): Promise<{
+  user: AuthUser;
+  workspace: ActiveWorkspace;
+}> {
+  const user = await requireAuth();
+  const workspace = await resolveActiveWorkspace(user.id);
+  if (!workspace) redirect("/dashboard");
+  const on = await isEvaluacionesEnabledForWorkspace(workspace.id);
+  if (!on) redirect("/dashboard?evaluaciones=off");
   return { user, workspace };
 }

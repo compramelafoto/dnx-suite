@@ -2,13 +2,14 @@ import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { WorkspaceModuleToggle } from "@/components/workspace-module-toggle";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
 
 export default async function AdminWorkspaceModulesPage() {
   type Row = {
     id: string;
     name: string;
-    featureModules: { enabled: boolean }[];
+    featureModules: { moduleKey: string; enabled: boolean }[];
     fotofficeBranding: { publicSlug: string } | null;
   };
 
@@ -19,7 +20,8 @@ export default async function AdminWorkspaceModulesPage() {
       orderBy: { name: "asc" },
       include: {
         featureModules: {
-          where: { moduleKey: COURSES_SALES_MODULE_KEY },
+            where: { moduleKey: { in: [COURSES_SALES_MODULE_KEY, EVALUACIONES_MODULE_KEY] } },
+            select: { moduleKey: true, enabled: true },
         },
         fotofficeBranding: { select: { publicSlug: true } },
       },
@@ -40,7 +42,7 @@ export default async function AdminWorkspaceModulesPage() {
     <div className="space-y-10">
       <PageHeader
         title="Módulos por workspace"
-        description={`Activá o desactivá el módulo «${COURSES_SALES_MODULE_KEY}» (Venta de cursos) para cada workspace. Solo SUPER_ADMIN global.`}
+        description={`Activá o desactivá los módulos «${COURSES_SALES_MODULE_KEY}» y «${EVALUACIONES_MODULE_KEY}» para cada workspace. Solo SUPER_ADMIN global.`}
       />
 
       {schemaMissing ? (
@@ -70,14 +72,17 @@ export default async function AdminWorkspaceModulesPage() {
             <tr>
               <th className="px-4 py-3 font-semibold">Workspace</th>
               <th className="px-4 py-3 font-semibold">Slug público</th>
-              <th className="px-4 py-3 font-semibold">Estado módulo</th>
+              <th className="px-4 py-3 font-semibold">Cursos sales</th>
+              <th className="px-4 py-3 font-semibold w-36" />
+              <th className="px-4 py-3 font-semibold">Evaluaciones</th>
               <th className="px-4 py-3 font-semibold w-36" />
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
             {workspaces.map((w) => {
-              const row = w.featureModules[0];
-              const enabled = row?.enabled === true;
+              const enabledByModule = new Map(w.featureModules.map((fm) => [fm.moduleKey, fm.enabled]));
+              const coursesEnabled = enabledByModule.get(COURSES_SALES_MODULE_KEY) === true;
+              const evaluacionesEnabled = enabledByModule.get(EVALUACIONES_MODULE_KEY) === true;
               return (
                 <tr key={w.id} className="hover:bg-[var(--fo-surface-hover)]/60">
                   <td className="px-4 py-3 font-medium text-[var(--fo-text)]">{w.name}</td>
@@ -85,7 +90,7 @@ export default async function AdminWorkspaceModulesPage() {
                     {w.fotofficeBranding?.publicSlug ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-[var(--fo-muted)]">
-                    {enabled ? (
+                    {coursesEnabled ? (
                       <span className="text-[var(--fo-success)] font-medium">Activo</span>
                     ) : (
                       <span>Inactivo</span>
@@ -94,7 +99,23 @@ export default async function AdminWorkspaceModulesPage() {
                   <td className="px-4 py-3 text-right">
                     <WorkspaceModuleToggle
                       workspaceId={w.id}
-                      enabled={enabled}
+                      moduleKey={COURSES_SALES_MODULE_KEY}
+                      enabled={coursesEnabled}
+                      disabled={schemaMissing}
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-[var(--fo-muted)]">
+                    {evaluacionesEnabled ? (
+                      <span className="text-[var(--fo-success)] font-medium">Activo</span>
+                    ) : (
+                      <span>Inactivo</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <WorkspaceModuleToggle
+                      workspaceId={w.id}
+                      moduleKey={EVALUACIONES_MODULE_KEY}
+                      enabled={evaluacionesEnabled}
                       disabled={schemaMissing}
                     />
                   </td>

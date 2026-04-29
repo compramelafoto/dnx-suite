@@ -2409,6 +2409,8 @@ model Workspace {
   memberships                 Membership[]
   serviceLeadForms            ServiceLeadForm[]
   serviceSalesLeads           ServiceSalesLead[]
+  evaluationContexts          EvaluationContext[]
+  students                    Student[]
   appAccessUnified            WorkspaceAppAccess[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
@@ -2457,8 +2459,134 @@ model CourseSalesWorkspaceSettings {
   workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
+model EvaluationContext {
+  id          String                     @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  createdById String?
+  ownerType   String
+  ownerId     String?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  workspace   Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  students    EvaluationContextStudent[]
+  activities  EvaluationActivity[]
+
+  @@index([workspaceId])
+  @@index([ownerType, ownerId])
+}
+
+model Student {
+  id          String                     @id @default(cuid())
+  workspaceId String
+  fullName    String
+  email       String?
+  externalId  String?
+  createdAt   DateTime                   @default(now())
+  workspace   Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contexts    EvaluationContextStudent[]
+  results     EvaluationResult[]
+
+  @@unique([workspaceId, externalId])
+  @@index([workspaceId])
+  @@index([email])
+}
+
+model EvaluationContextStudent {
+  id        String            @id @default(cuid())
+  contextId String
+  studentId String
+  context   EvaluationContext @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  student   Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([contextId, studentId])
+  @@index([studentId])
+}
+
+model EvaluationActivity {
+  id          String             @id @default(cuid())
+  contextId   String
+  title       String
+  description String?
+  maxScore    Decimal?           @db.Decimal(8, 2)
+  createdById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  context     EvaluationContext  @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  rubric      Rubric?
+  results     EvaluationResult[]
+
+  @@index([contextId])
+}
+
+model Rubric {
+  id         String             @id @default(cuid())
+  activityId String             @unique
+  title      String
+  activity   EvaluationActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  criteria   RubricCriteria[]
+}
+
+model RubricCriteria {
+  id          String                 @id @default(cuid())
+  rubricId    String
+  title       String
+  weight      Decimal?               @db.Decimal(8, 2)
+  position    Int                    @default(0)
+  rubric      Rubric                 @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  levels      RubricLevel[]
+  resultItems EvaluationResultItem[]
+
+  @@index([rubricId])
+}
+
+model RubricLevel {
+  id           String                 @id @default(cuid())
+  criteriaId   String
+  label        String
+  score        Decimal                @db.Decimal(8, 2)
+  feedbackText String
+  position     Int                    @default(0)
+  criteria     RubricCriteria         @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
+  resultItems  EvaluationResultItem[]
+
+  @@index([criteriaId])
+}
+
+model EvaluationResult {
+  id            String                 @id @default(cuid())
+  activityId    String
+  studentId     String
+  totalScore    Decimal                @db.Decimal(8, 2)
+  finalFeedback String
+  status        String                 @default("draft")
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  activity      EvaluationActivity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student       Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  items         EvaluationResultItem[]
+
+  @@unique([activityId, studentId])
+  @@index([studentId])
+}
+
+model EvaluationResultItem {
+  id         String           @id @default(cuid())
+  resultId   String
+  criteriaId String
+  levelId    String
+  score      Decimal          @db.Decimal(8, 2)
+  result     EvaluationResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  criteria   RubricCriteria   @relation(fields: [criteriaId], references: [id], onDelete: Restrict)
+  level      RubricLevel      @relation(fields: [levelId], references: [id], onDelete: Restrict)
+
+  @@unique([resultId, criteriaId])
+  @@index([levelId])
+}
+
 model Course {
-  id                    String                @id @default(cuid())
+  id                    String             @id @default(cuid())
   workspaceId           String
   title                 String
   slug                  String
@@ -2472,10 +2600,10 @@ model Course {
   classroomLink         String?
   classroomCode         String?
   classroomInstructions String?
-  status                CourseStatus          @default(DRAFT)
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  workspace             Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  status                CourseStatus       @default(DRAFT)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instances             CourseInstance[]
   enrollments           CourseEnrollment[]
 

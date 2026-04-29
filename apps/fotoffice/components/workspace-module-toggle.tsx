@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import {
-  toggleCoursesSalesModuleAction,
+  toggleWorkspaceModuleAction,
   type ToggleModuleState,
 } from "@/app/actions/courses-sales-admin";
 
@@ -10,18 +10,21 @@ const initial: ToggleModuleState = { error: null };
 
 export function WorkspaceModuleToggle({
   workspaceId,
+  moduleKey,
   enabled,
   disabled = false,
 }: {
   workspaceId: string;
+  moduleKey: string;
   enabled: boolean;
   disabled?: boolean;
 }) {
-  const [state, action, pending] = useActionState(toggleCoursesSalesModuleAction, initial);
+  const [state, action, pending] = useActionState(toggleWorkspaceModuleAction, initial);
 
   return (
     <form action={action} className="inline-flex flex-col items-end gap-1">
       <input type="hidden" name="workspaceId" value={workspaceId} />
+      <input type="hidden" name="moduleKey" value={moduleKey} />
       <input type="hidden" name="enabled" value={enabled ? "false" : "true"} />
       <button
         type="submit"
