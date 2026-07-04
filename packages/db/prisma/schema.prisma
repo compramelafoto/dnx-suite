@@ -139,6 +139,14 @@ model User {
   cameraUploadLogs                      CameraUploadLog[]
   cameraIngestJobs                      CameraIngestJob[]
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico
+  photographerDevices                   PhotographerDevice[]
+  photoExifMetadata                     PhotoExifMetadata[]
+  photographicCameraBodies              PhotographicCameraBody[]
+  photographicLenses                    PhotographicLens[]
+  photographicGearCombinations          PhotographicGearCombination[]
+  photographicGearObservations          PhotographicGearObservation[]
+  // END LEGACY MERGE
   photographerSalesSettings             PhotographerSalesSettings?
   clientOrders                          PrintOrder[]                       @relation("ClientOrders")
   printOrders                           PrintOrder[]                       @relation("PhotographerOrders")
@@ -711,6 +719,9 @@ model Album {
   cameraIngestJobs                CameraIngestJob[]
   albumFolders                    AlbumFolder[]
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico
+  photographicGearObservations    PhotographicGearObservation[]
+  // END LEGACY MERGE
 
   @@index([userId])
   @@index([creatorId])
@@ -1277,7 +1288,7 @@ model StudentRosterImportRow {
 // END LEGACY MERGE — dominio 3 escuela/roster (modelos)
 
 model Photo {
-  id                       Int                       @id @default(autoincrement())
+  id                       Int                          @id @default(autoincrement())
   albumId                  Int
   previewUrl               String
   originalKey              String
@@ -1285,44 +1296,48 @@ model Photo {
   previewWatermarkedKey    String?
   variantsVersion          String?
   variantsGeneratedAt      DateTime?
-  variantsStatus           PhotoVariantsStatus       @default(PENDING)
+  variantsStatus           PhotoVariantsStatus          @default(PENDING)
   variantsError            String?
-  createdAt                DateTime                  @default(now())
+  createdAt                DateTime                     @default(now())
   userId                   Int?
-  isRemoved                Boolean                   @default(false)
+  isRemoved                Boolean                      @default(false)
   removedAt                DateTime?
   removedReason            String?
-  analysisStatus           PhotoAnalysisStatus       @default(PENDING)
+  analysisStatus           PhotoAnalysisStatus          @default(PENDING)
   analysisError            String?
   analyzedAt               DateTime?
   // BEGIN LEGACY MERGE — core commerce CLF (Photo variants / cleanup / carpetas)
-  exifMetadataStatus       PhotoExifMetadataStatus?  @default(PENDING)
+  exifMetadataStatus       PhotoExifMetadataStatus?     @default(PENDING)
   exifMetadataAnalyzedAt   DateTime?
   /// Archivos R2 eliminados (original, preview, variantes).
   storageDeletedAt         DateTime?
   /// OCR, EXIF persistido, análisis IA y rostros externos eliminados.
   metadataDeletedAt        DateTime?
-  storageCleanupStatus     PhotoStorageCleanupStatus @default(ACTIVE)
+  storageCleanupStatus     PhotoStorageCleanupStatus    @default(ACTIVE)
   capturedAt               DateTime?
   folderId                 Int?
   /// FK EventFolder — relación en dominio 9
   eventFolderId            Int?
   // END LEGACY MERGE
   /// Si true, esta foto se puede vender como digital (por defecto sí)
-  sellDigital              Boolean                   @default(true)
+  sellDigital              Boolean                      @default(true)
   /// Si true, esta foto se puede vender como impresa (por defecto sí)
-  sellPrint                Boolean                   @default(true)
-  albumsAsCover            Album[]                   @relation("AlbumCoverPhoto")
+  sellPrint                Boolean                      @default(true)
+  albumsAsCover            Album[]                      @relation("AlbumCoverPhoto")
   faceDetections           FaceDetection[]
   faceMatches              FaceMatch[]
   faceMatchEvents          FaceMatchEvent[]
   ocrTokens                OcrToken[]
   items                    OrderItem[]
-  album                    Album                     @relation(fields: [albumId], references: [id])
-  uploadedBy               User?                     @relation("PhotoUploader", fields: [userId], references: [id])
+  album                    Album                        @relation(fields: [albumId], references: [id])
+  uploadedBy               User?                        @relation("PhotoUploader", fields: [userId], references: [id])
   // BEGIN LEGACY MERGE — dominio 6 cámara / FTP / ingest
-  folder                   AlbumFolder?              @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folder                   AlbumFolder?                 @relation(fields: [folderId], references: [id], onDelete: SetNull)
   cameraIngestJob          CameraIngestJob?
+  // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico
+  exifMetadata             PhotoExifMetadata?
+  gearObservation          PhotographicGearObservation?
   // END LEGACY MERGE
   analysisJob              PhotoAnalysisJob?
   photoClaims              PhotoClaim[]
@@ -1487,6 +1502,260 @@ model CameraIngestJob {
 }
 
 // END LEGACY MERGE — dominio 6 cámara / FTP / ingest (modelos)
+
+// BEGIN LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico (enums)
+
+enum ExifDeviceScanMode {
+  BACKFILL
+  DAILY
+}
+
+enum PhotographerDeviceType {
+  CAMERA
+  PHONE
+  DRONE
+  UNKNOWN
+}
+
+enum PhotographerDeviceConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum PhotographicGearConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum PhotographicGearEntityStatus {
+  ACTIVE
+  MERGED
+  INACTIVE
+}
+
+enum ShutterCountConfidence {
+  HIGH
+  MEDIUM
+  LOW
+  UNAVAILABLE
+}
+
+// END LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico (enums)
+
+// BEGIN LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico (modelos)
+
+/// Dispositivo fotográfico detectado por EXIF (registro interno admin).
+model PhotographerDevice {
+  id             Int                          @id @default(autoincrement())
+  photographerId Int
+  brand          String
+  model          String
+  serialNumber   String?
+  normalizedKey  String
+  deviceType     PhotographerDeviceType
+  lensBrand      String?
+  lensModel      String?
+  firstSeenAt    DateTime
+  lastSeenAt     DateTime
+  photoCount     Int                          @default(0)
+  confidence     PhotographerDeviceConfidence
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  photographer   User                         @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  exifMetadata   PhotoExifMetadata[]
+
+  @@unique([photographerId, normalizedKey])
+  @@index([photographerId])
+  @@index([normalizedKey])
+  @@index([serialNumber])
+  @@index([deviceType])
+}
+
+/// Metadatos EXIF extraídos de una foto (procesamiento nocturno).
+model PhotoExifMetadata {
+  id             Int                     @id @default(autoincrement())
+  photoId        Int                     @unique
+  photographerId Int
+  deviceId       Int?
+  make           String?
+  model          String?
+  serialNumber   String?
+  lensMake       String?
+  lensModel      String?
+  focalLength    String?
+  exposureTime   String?
+  aperture       String?
+  iso            String?
+  takenAt        DateTime?
+  gpsLat         Float?
+  gpsLng         Float?
+  analyzedAt     DateTime?
+  status         PhotoExifMetadataStatus @default(PENDING)
+  error          String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  photo          Photo                   @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photographer   User                    @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  device         PhotographerDevice?     @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([photographerId])
+  @@index([deviceId])
+  @@index([status])
+  @@index([analyzedAt])
+}
+
+/// Lease singleton para escaneo EXIF (evita locks advisory con pooler Neon/serverless).
+model ExifDeviceScanLease {
+  id        Int       @id @default(1)
+  holder    String?
+  lockedAt  DateTime?
+  expiresAt DateTime?
+  updatedAt DateTime  @updatedAt
+}
+
+/// Estado del escaneo EXIF (backfill histórico vs ventana diaria).
+model ExifDeviceScanState {
+  id                 Int                @id @default(1)
+  mode               ExifDeviceScanMode @default(BACKFILL)
+  isBackfillComplete Boolean            @default(false)
+  lastRunAt          DateTime?
+  lastCompletedAt    DateTime?
+  lastBatchAt        DateTime?
+  lastBatchProcessed Int                @default(0)
+  lastBatchAnalyzed  Int                @default(0)
+  pendingCount       Int                @default(0)
+  processedTotal     Int                @default(0)
+  failedTotal        Int                @default(0)
+  noExifTotal        Int                @default(0)
+  analyzedTotal      Int                @default(0)
+  currentLockId      String?
+  lockExpiresAt      DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+/// Body / cámara detectada por EXIF (registro interno admin).
+model PhotographicCameraBody {
+  id                         Int                           @id @default(autoincrement())
+  photographerId             Int
+  makeRaw                    String
+  modelRaw                   String
+  make                       String
+  model                      String
+  serialNumber               String?
+  normalizedKey              String
+  deviceType                 PhotographerDeviceType
+  confidence                 PhotographicGearConfidence
+  firstSeenAt                DateTime
+  lastSeenAt                 DateTime
+  photosCount                Int                           @default(0)
+  maxShutterCount            Int?
+  maxShutterCountTakenAt     DateTime?
+  maxShutterCountPhotoId     Int?
+  maxShutterCountAlbumId     Int?
+  maxShutterCountSourceField String?
+  maxShutterCountConfidence  ShutterCountConfidence?
+  status                     PhotographicGearEntityStatus  @default(ACTIVE)
+  createdAt                  DateTime                      @default(now())
+  updatedAt                  DateTime                      @updatedAt
+  photographer               User                          @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  combinations               PhotographicGearCombination[]
+  observations               PhotographicGearObservation[]
+
+  @@unique([photographerId, normalizedKey])
+  @@index([photographerId])
+  @@index([normalizedKey])
+  @@index([serialNumber])
+  @@index([deviceType])
+  @@index([status])
+}
+
+/// Lente detectada por EXIF (registro interno admin).
+model PhotographicLens {
+  id             Int                           @id @default(autoincrement())
+  photographerId Int
+  makeRaw        String
+  modelRaw       String
+  make           String
+  model          String
+  serialNumber   String?
+  normalizedKey  String
+  confidence     PhotographicGearConfidence
+  firstSeenAt    DateTime
+  lastSeenAt     DateTime
+  photosCount    Int                           @default(0)
+  status         PhotographicGearEntityStatus  @default(ACTIVE)
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+  photographer   User                          @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  combinations   PhotographicGearCombination[]
+  observations   PhotographicGearObservation[]
+
+  @@unique([photographerId, normalizedKey])
+  @@index([photographerId])
+  @@index([normalizedKey])
+  @@index([serialNumber])
+  @@index([status])
+}
+
+/// Combinación body + lente usada en fotos.
+model PhotographicGearCombination {
+  id             Int                           @id @default(autoincrement())
+  photographerId Int
+  cameraBodyId   Int
+  lensId         Int?
+  photosCount    Int                           @default(0)
+  firstSeenAt    DateTime
+  lastSeenAt     DateTime
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+  photographer   User                          @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  cameraBody     PhotographicCameraBody        @relation(fields: [cameraBodyId], references: [id], onDelete: Cascade)
+  lens           PhotographicLens?             @relation(fields: [lensId], references: [id], onDelete: SetNull)
+  observations   PhotographicGearObservation[]
+
+  @@unique([photographerId, cameraBodyId, lensId])
+  @@index([photographerId])
+  @@index([cameraBodyId])
+  @@index([lensId])
+}
+
+/// Observación por foto: body + lente + shutter + EXIF resumido.
+model PhotographicGearObservation {
+  id                      Int                          @id @default(autoincrement())
+  photoId                 Int                          @unique
+  photographerId          Int
+  albumId                 Int
+  cameraBodyId            Int?
+  lensId                  Int?
+  combinationId           Int?
+  takenAt                 DateTime?
+  uploadedAt              DateTime
+  shutterCount            Int?
+  shutterCountSourceField String?
+  shutterCountConfidence  ShutterCountConfidence?
+  rawExifSummary          Json?
+  source                  String                       @default("EXIF")
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime                     @updatedAt
+  photo                   Photo                        @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photographer            User                         @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  album                   Album                        @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  cameraBody              PhotographicCameraBody?      @relation(fields: [cameraBodyId], references: [id], onDelete: SetNull)
+  lens                    PhotographicLens?            @relation(fields: [lensId], references: [id], onDelete: SetNull)
+  combination             PhotographicGearCombination? @relation(fields: [combinationId], references: [id], onDelete: SetNull)
+
+  @@index([photographerId])
+  @@index([albumId])
+  @@index([cameraBodyId])
+  @@index([lensId])
+  @@index([combinationId])
+  @@index([takenAt])
+}
+
+// END LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico (modelos)
 
 model OcrToken {
   id         Int      @id @default(autoincrement())
