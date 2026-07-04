@@ -129,6 +129,10 @@ model User {
   passwordResetTokens                   PasswordResetToken[]
   uploadedPhotos                        Photo[]                            @relation("PhotoUploader")
   products                              PhotographerProduct[]
+  // BEGIN LEGACY MERGE — dominio 5 catálogo global
+  catalogProductCategories              CatalogProductCategory[]
+  catalogProducts                       CatalogProduct[]
+  // END LEGACY MERGE
   photographerSalesSettings             PhotographerSalesSettings?
   clientOrders                          PrintOrder[]                       @relation("ClientOrders")
   printOrders                           PrintOrder[]                       @relation("PhotographerOrders")
@@ -253,6 +257,306 @@ model PhotographerProduct {
   @@index([isActive])
   @@index([createdAt])
 }
+
+// BEGIN LEGACY MERGE — dominio 5 catálogo global + Template V2 (enums)
+
+/// Catálogo global reutilizable del fotógrafo (Fase 1 — sin vínculo álbum/checkout).
+enum CatalogProductType {
+  SIMPLE
+  PACK
+  COMBO
+}
+
+enum CatalogProductImageRole {
+  MOCKUP
+}
+
+/// Tipo de entrega futuro (catálogo — sin checkout ni legacy).
+enum CatalogDeliveryType {
+  DIGITAL
+  IMPRESO
+  MIXTO
+  DISEÑO
+  MANUAL
+}
+
+enum TemplateV2Status {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum TemplateV2BlockType {
+  BACKGROUND
+  PHOTO
+  TEXT
+  VARIABLE_TEXT
+  IMAGE
+  SHAPE
+}
+
+enum TemplateV2AssetKind {
+  IMAGE
+  LOGO
+  FONT
+}
+
+enum TemplateV2Visibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum TemplateV2ReviewStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+// END LEGACY MERGE — dominio 5 catálogo global + Template V2 (enums)
+
+// BEGIN LEGACY MERGE — dominio 5 catálogo global (modelos)
+
+model CatalogProductCategory {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  name      String
+  sortOrder Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products  CatalogProduct[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([userId, sortOrder])
+}
+
+model CatalogProduct {
+  id                    Int                       @id @default(autoincrement())
+  userId                Int
+  name                  String
+  type                  CatalogProductType
+  description           String                    @default("")
+  basePriceCents        Int
+  categoryId            Int
+  isActive              Boolean                   @default(true)
+  isArchived            Boolean                   @default(false)
+  sortOrder             Int                       @default(0)
+  sourceTemplateId      Int?
+  sourceTemplateVersion Int?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category              CatalogProductCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  sourceTemplate        SystemCatalogTemplate?    @relation(fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  images                CatalogProductImage[]
+  components            CatalogProductComponent[]
+  albumLinks            AlbumCatalogProduct[]
+  preventaPackSources   PackDefinition[]          @relation("PackDefinitionCatalogSource")
+
+  @@unique([userId, sourceTemplateId])
+  @@index([userId])
+  @@index([userId, isArchived, isActive])
+  @@index([userId, categoryId])
+  @@index([userId, type])
+  @@index([userId, sortOrder])
+  @@index([sourceTemplateId])
+}
+
+/// Plantillas maestras del sistema (solo admin). Los fotógrafos clonan a su CatalogProduct.
+model SystemCatalogTemplate {
+  id                     Int                @id @default(autoincrement())
+  name                   String
+  slug                   String             @unique
+  description            String             @default("")
+  fullDescription        String             @default("")
+  category               String
+  visualCategory         String?
+  productType            CatalogProductType
+  coverImageUrl          String?
+  coverImageKey          String?
+  suggestedPriceCents    Int?
+  currency               String             @default("ARS")
+  tags                   Json               @default("[]")
+  badges                 Json               @default("[]")
+  components             Json               @default("[]")
+  isActive               Boolean            @default(true)
+  isRecommended          Boolean            @default(true)
+  featured               Boolean            @default(false)
+  collection             String?
+  editableByPhotographer Boolean            @default(true)
+  sortOrder              Int                @default(0)
+  version                Int                @default(1)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  clonedProducts         CatalogProduct[]
+
+  @@index([isActive, isRecommended, sortOrder])
+  @@index([category])
+  @@index([featured])
+}
+
+model CatalogProductImage {
+  id         Int                     @id @default(autoincrement())
+  productId  Int
+  storageKey String
+  publicUrl  String
+  role       CatalogProductImageRole @default(MOCKUP)
+  createdAt  DateTime                @default(now())
+  product    CatalogProduct          @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model CatalogProductComponent {
+  id                         Int                 @id @default(autoincrement())
+  productId                  Int
+  name                       String
+  quantity                   Int
+  deliveryType               CatalogDeliveryType
+  sortOrder                  Int                 @default(0)
+  notes                      String              @default("")
+  requiresDesign             Boolean             @default(false)
+  designTemplateId           String?
+  designTemplateVersionId    String?
+  designTemplateNameSnapshot String?
+  designTemplatePreviewUrl   String?
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  product                    CatalogProduct      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([productId, sortOrder])
+  @@index([designTemplateId])
+}
+
+/// Vínculo álbum ↔ producto del catálogo global (activación por álbum, sin duplicar producto).
+model AlbumCatalogProduct {
+  id               Int             @id @default(autoincrement())
+  albumId          Int
+  catalogProductId Int
+  isEnabled        Boolean         @default(true)
+  sortOrder        Int             @default(0)
+  featured         Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  album            Album           @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  catalogProduct   CatalogProduct  @relation(fields: [catalogProductId], references: [id], onDelete: Cascade)
+  preventaPack     PackDefinition? @relation("PackDefinitionAlbumCatalogLink")
+
+  @@unique([albumId, catalogProductId])
+  @@index([albumId])
+  @@index([albumId, sortOrder])
+  @@index([catalogProductId])
+}
+
+// END LEGACY MERGE — dominio 5 catálogo global (modelos)
+
+// BEGIN LEGACY MERGE — dominio 5 Template V2 (modelos)
+
+model TemplateV2 {
+  id               String           @id @default(cuid())
+  ownerUserId      Int
+  name             String
+  description      String?
+  status           TemplateV2Status @default(DRAFT)
+  currentVersionId String?          @unique
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  albumPacksDesign AlbumPack[]      @relation("AlbumPackDesignTemplateV2")
+
+  @@index([ownerUserId])
+  @@index([status])
+}
+
+model TemplateV2Version {
+  id              String   @id @default(cuid())
+  templateId      String
+  versionNumber   Int      @default(1)
+  canvasJson      Json
+  metaJson        Json?
+  revision        Int      @default(0)
+  isLocked        Boolean  @default(false)
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([templateId, versionNumber])
+  @@index([templateId])
+}
+
+model TemplateV2Block {
+  id                String              @id
+  templateVersionId String
+  /// Índice de hoja (0 = primera). Multipágina: carpetas escolares, etc.
+  pageIndex         Int                 @default(0)
+  type              TemplateV2BlockType
+  name              String?
+  x                 Float
+  y                 Float
+  width             Float
+  height            Float
+  rotation          Float               @default(0)
+  zIndex            Int                 @default(0)
+  opacity           Float               @default(1)
+  locked            Boolean             @default(false)
+  visible           Boolean             @default(true)
+  configJson        Json
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([templateVersionId])
+  @@index([templateVersionId, pageIndex])
+  @@index([type])
+}
+
+model TemplateV2Asset {
+  id                String              @id @default(cuid())
+  templateVersionId String
+  kind              TemplateV2AssetKind
+  storageKey        String
+  mimeType          String?
+  metaJson          Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([templateVersionId])
+}
+
+model TemplateV2VariableBinding {
+  id                String   @id
+  templateVersionId String
+  blockId           String
+  targetPath        String
+  variableKey       String
+  formatter         String?
+  fallbackOverride  String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([templateVersionId])
+  @@index([blockId])
+}
+
+model TemplateV2Publication {
+  id                String                 @id @default(cuid())
+  templateId        String                 @unique
+  visibility        TemplateV2Visibility   @default(PRIVATE)
+  reviewStatus      TemplateV2ReviewStatus @default(DRAFT)
+  reviewNotes       String?
+  reviewedByUserId  Int?
+  reviewedAt        DateTime?
+  publishedByUserId Int?
+  publishedAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([reviewStatus])
+  @@index([visibility])
+}
+
+// END LEGACY MERGE — dominio 5 Template V2 (modelos)
 
 model Album {
   id                              Int                            @id @default(autoincrement())
@@ -391,6 +695,9 @@ model Album {
   packSelectionSessions           AlbumPackSelectionSession[]
   packOrderDrafts                 AlbumPackOrderDraft[]
   redemptionSessions              RedemptionSession[]
+  // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 5 catálogo global
+  catalogProductLinks             AlbumCatalogProduct[]
   // END LEGACY MERGE
 
   @@index([userId])
@@ -1239,7 +1546,7 @@ model AlbumPack {
   requiresSelection  Boolean                     @default(false)
   requiresDesign     Boolean                     @default(false)
   templateId         Int?
-  /// Plantilla de diseño V2 (dominio 5 — FK sin relación hasta merge TemplateV2)
+  /// Plantilla de diseño V2 (cuando no se usa `templateId` legacy).
   templateV2Id       String?
   availabilityPhase  AlbumPackAvailabilityPhase
   packType           AlbumPackType
@@ -1248,6 +1555,7 @@ model AlbumPack {
   updatedAt          DateTime                    @updatedAt
   album              Album                       @relation(fields: [albumId], references: [id], onDelete: Cascade)
   template           Template?                   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateV2         TemplateV2?                 @relation("AlbumPackDesignTemplateV2", fields: [templateV2Id], references: [id], onDelete: SetNull)
   // BEGIN LEGACY MERGE — dominio 4 album packs
   components         AlbumPackComponent[]
   orderDrafts        AlbumPackOrderDraft[]
@@ -1390,7 +1698,7 @@ model PackDefinition {
   /// Imagen del pack en catálogo público (cuadrada 1:1); opcional.
   coverImageUrl                String?
   availabilityPhase            PackAvailabilityPhase?
-  /// Origen catálogo global (dominio 5 — FK sin relación hasta merge CatalogProduct)
+  /// Origen catálogo global (puente Fase 20.2 — opt-in, no reemplaza motor escolar).
   sourceCatalogProductId       Int?
   sourceAlbumCatalogProductId  Int?                   @unique
   sourceCatalogSyncedAt        DateTime?
@@ -1399,6 +1707,8 @@ model PackDefinition {
   album                        Album                  @relation(fields: [albumId], references: [id], onDelete: Cascade)
   preCompraOrderItems          PreCompraOrderItem[]
   upsellSelections             AlbumUpsellPack[]
+  sourceCatalogProduct         CatalogProduct?        @relation("PackDefinitionCatalogSource", fields: [sourceCatalogProductId], references: [id], onDelete: SetNull)
+  sourceAlbumCatalogProduct    AlbumCatalogProduct?   @relation("PackDefinitionAlbumCatalogLink", fields: [sourceAlbumCatalogProductId], references: [id], onDelete: SetNull)
 
   @@unique([albumId, sourceCatalogProductId])
   @@index([albumId])
