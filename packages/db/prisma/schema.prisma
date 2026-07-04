@@ -9,21 +9,21 @@ datasource db {
 }
 
 model User {
-  id                                    Int                                @id @default(autoincrement())
-  email                                 String                             @unique
+  id                                    Int                                    @id @default(autoincrement())
+  email                                 String                                 @unique
   password                              String?
-  role                                  Role                               @default(PHOTOGRAPHER)
+  role                                  Role                                   @default(PHOTOGRAPHER)
   /// Nuevo sistema unificado de plataforma (DNX Suite).
-  globalRole                            GlobalRole                         @default(USER)
+  globalRole                            GlobalRole                             @default(USER)
   name                                  String?
-  createdAt                             DateTime                           @default(now())
-  handler                               String?                            @unique
-  isPublicPageEnabled                   Boolean                            @default(false)
+  createdAt                             DateTime                               @default(now())
+  handler                               String?                                @unique
+  isPublicPageEnabled                   Boolean                                @default(false)
   logoUrl                               String?
   preferredLabId                        Int?
   primaryColor                          String?
   profitMarginPercent                   Float?
-  publicPageHandler                     String?                            @unique
+  publicPageHandler                     String?                                @unique
   secondaryColor                        String?
   fontColor                             String?
   address                               String?
@@ -39,10 +39,10 @@ model User {
   phone                                 String?
   province                              String?
   postalCode                            String?
-  enableAlbumsPage                      Boolean                            @default(false)
-  enablePrintPage                       Boolean                            @default(false)
-  showCarnetPrints                      Boolean                            @default(false)
-  showPolaroidPrints                    Boolean                            @default(false)
+  enableAlbumsPage                      Boolean                                @default(false)
+  enablePrintPage                       Boolean                                @default(false)
+  showCarnetPrints                      Boolean                                @default(false)
+  showPolaroidPrints                    Boolean                                @default(false)
   tertiaryColor                         String?
   headerBackgroundColor                 String?
   footerBackgroundColor                 String?
@@ -57,7 +57,7 @@ model User {
   digitalDiscount10Plus                 Float?
   digitalDiscount20Plus                 Float?
   digitalDiscount5Plus                  Float?
-  digitalDiscountsEnabled               Boolean                            @default(false)
+  digitalDiscountsEnabled               Boolean                                @default(false)
   defaultDigitalPhotoPrice              Int?
   mpAccessToken                         String?
   mpConnectedAt                         DateTime?
@@ -65,12 +65,12 @@ model User {
   mpUserId                              String?
   blockedAt                             DateTime?
   blockedReason                         String?
-  isBlocked                             Boolean                            @default(false)
+  isBlocked                             Boolean                                @default(false)
   lastLoginAt                           DateTime?
-  tags                                  String[]                           @default([])
+  tags                                  String[]                               @default([])
   passwordResetExpires                  DateTime?
-  passwordResetToken                    String?                            @unique
-  googleId                              String?                            @unique
+  passwordResetToken                    String?                                @unique
+  googleId                              String?                                @unique
   emailVerifiedAt                       DateTime?
   platformCommissionPercentOverride     Int?
   /// CBU o Alias CBU para transferencias de comisiones por referidos
@@ -78,63 +78,63 @@ model User {
   /// Titular de la cuenta (para transferencias de comisiones por referidos)
   cbuTitular                            String?
   /// Si true, puede recibir emails de marketing (campañas)
-  marketingOptIn                        Boolean                            @default(false)
+  marketingOptIn                        Boolean                                @default(false)
   /// Cuando el usuario se da de baja del marketing
   unsubscribedAt                        DateTime?
   /// Token único para link de unsubscribe (generado si falta)
-  unsubscribeToken                      String?                            @unique
+  unsubscribeToken                      String?                                @unique
   /// AAIP: cuándo optó por marketing
   marketingOptInAt                      DateTime?
   marketingOptInIp                      String?
   marketingOptInSource                  String?
   /// AAIP: consentimiento para reconocimiento facial (User-level)
-  faceConsent                           Boolean                            @default(false)
+  faceConsent                           Boolean                                @default(false)
   faceConsentAt                         DateTime?
   faceConsentIp                         String?
-  adminLogs                             AdminLog[]                         @relation("AdminLogActor")
-  sentMessages                          AdminMessage[]                     @relation("MessageSender")
-  messageThreads                        AdminMessageThread[]               @relation("UserMessageThreads")
-  albumsCreated                         Album[]                            @relation("AlbumCreator")
+  adminLogs                             AdminLog[]                             @relation("AdminLogActor")
+  sentMessages                          AdminMessage[]                         @relation("MessageSender")
+  messageThreads                        AdminMessageThread[]                   @relation("UserMessageThreads")
+  albumsCreated                         Album[]                                @relation("AlbumCreator")
   albums                                Album[]
   albumAccesses                         AlbumAccess[]
   albumCollaborations                   AlbumCollaborator[]
-  albumExtensionsRequested              AlbumExtension[]                   @relation("AlbumExtensionRequestedBy")
-  albumInvitationsAccepted              AlbumInvitation[]                  @relation("AlbumInvitationAcceptedBy")
-  albumInvitationsSent                  AlbumInvitation[]                  @relation("AlbumInvitationInvitedBy")
-  contactMessages                       ContactMessage[]                   @relation("ContactMessagePhotographer")
-  contestOrganizationsCreated           ContestOrganization[]              @relation("FrOrgCreator")
-  frContestOrgInvitesSent               ContestOrganizationMember[]        @relation("FrCOrgMemberInviter")
-  frContestOrgMemberships               ContestOrganizationMember[]        @relation("FrCOrgMemberUser")
+  albumExtensionsRequested              AlbumExtension[]                       @relation("AlbumExtensionRequestedBy")
+  albumInvitationsAccepted              AlbumInvitation[]                      @relation("AlbumInvitationAcceptedBy")
+  albumInvitationsSent                  AlbumInvitation[]                      @relation("AlbumInvitationInvitedBy")
+  contactMessages                       ContactMessage[]                       @relation("ContactMessagePhotographer")
+  contestOrganizationsCreated           ContestOrganization[]                  @relation("FrOrgCreator")
+  frContestOrgInvitesSent               ContestOrganizationMember[]            @relation("FrCOrgMemberInviter")
+  frContestOrgMemberships               ContestOrganizationMember[]            @relation("FrCOrgMemberUser")
   dashboardNotifications                DashboardNotification[]
-  designProjectsApprovedAsPhotographer  DesignProject[]                    @relation("DesignProjectApprovedBy")
-  designProjectsRejectedAsPhotographer  DesignProject[]                    @relation("DesignProjectRejectedBy")
-  createdEvents                         Event[]                            @relation("EventCreator")
+  designProjectsApprovedAsPhotographer  DesignProject[]                        @relation("DesignProjectApprovedBy")
+  designProjectsRejectedAsPhotographer  DesignProject[]                        @relation("DesignProjectRejectedBy")
+  createdEvents                         Event[]                                @relation("EventCreator")
   eventInvitations                      EventInvitation[]
   eventMemberships                      EventMember[]
-  fotorankAdminSessions                 FotorankAdminSession[]             @relation("FrAdminSession")
-  fotorankContestsCreated               FotorankContest[]                  @relation("FrContestCreator")
-  fotorankContestEntriesAuthored        FotorankContestEntry[]             @relation("FrEntryAuthor")
-  fotorankDiplomaIssuedCreated          FotorankDiplomaIssued[]            @relation("FrDiplomaIssuedBy")
-  fotorankDiplomaTemplatesCreated       FotorankDiplomaTemplate[]          @relation("FrDiplomaTemplateAuthor")
-  fotorankGlobalCategorySuggestions     FotorankGlobalCategory[]           @relation("FrGlobalCategorySuggester")
-  fotorankJudgeAssignmentsCreated       FotorankJudgeAssignment[]          @relation("FrJudgeAsgCreator")
-  fotorankJudgeAuditEventsAsUser        FotorankJudgeAuditEvent[]          @relation("FrJudgeAuditActorUser")
-  fotorankJudgeDirectoryInvitationsSent FotorankJudgeDirectoryInvitation[] @relation("FrDirInvSentBy")
-  fotorankJudgeInvitationsSent          FotorankJudgeInvitation[]          @relation("FrJudgeInvSentBy")
-  fotorankProfile                       FotorankProfile?                   @relation("FrProfile")
-  lab                                   Lab?                               @relation("LabUser")
-  frSuiteMemberships                    Membership[]                       @relation("FrSuiteMembership")
-  buyerOrders                           Order[]                            @relation("OrderBuyerUser")
+  fotorankAdminSessions                 FotorankAdminSession[]                 @relation("FrAdminSession")
+  fotorankContestsCreated               FotorankContest[]                      @relation("FrContestCreator")
+  fotorankContestEntriesAuthored        FotorankContestEntry[]                 @relation("FrEntryAuthor")
+  fotorankDiplomaIssuedCreated          FotorankDiplomaIssued[]                @relation("FrDiplomaIssuedBy")
+  fotorankDiplomaTemplatesCreated       FotorankDiplomaTemplate[]              @relation("FrDiplomaTemplateAuthor")
+  fotorankGlobalCategorySuggestions     FotorankGlobalCategory[]               @relation("FrGlobalCategorySuggester")
+  fotorankJudgeAssignmentsCreated       FotorankJudgeAssignment[]              @relation("FrJudgeAsgCreator")
+  fotorankJudgeAuditEventsAsUser        FotorankJudgeAuditEvent[]              @relation("FrJudgeAuditActorUser")
+  fotorankJudgeDirectoryInvitationsSent FotorankJudgeDirectoryInvitation[]     @relation("FrDirInvSentBy")
+  fotorankJudgeInvitationsSent          FotorankJudgeInvitation[]              @relation("FrJudgeInvSentBy")
+  fotorankProfile                       FotorankProfile?                       @relation("FrProfile")
+  lab                                   Lab?                                   @relation("LabUser")
+  frSuiteMemberships                    Membership[]                           @relation("FrSuiteMembership")
+  buyerOrders                           Order[]                                @relation("OrderBuyerUser")
   organizerDownloadAllowances           OrganizerDownloadAllowance[]
   passwordResetTokens                   PasswordResetToken[]
-  uploadedPhotos                        Photo[]                            @relation("PhotoUploader")
+  uploadedPhotos                        Photo[]                                @relation("PhotoUploader")
   products                              PhotographerProduct[]
   // BEGIN LEGACY MERGE — dominio 5 catálogo global
   catalogProductCategories              CatalogProductCategory[]
   catalogProducts                       CatalogProduct[]
   // END LEGACY MERGE
   // BEGIN LEGACY MERGE — dominio 6 cámara / FTP / ingest
-  albumFoldersCreated                   AlbumFolder[]                      @relation("AlbumFolderCreator")
+  albumFoldersCreated                   AlbumFolder[]                          @relation("AlbumFolderCreator")
   cameraConnectionSettings              CameraConnectionSettings?
   cameraUploadLogs                      CameraUploadLog[]
   cameraIngestJobs                      CameraIngestJob[]
@@ -147,30 +147,37 @@ model User {
   photographicGearCombinations          PhotographicGearCombination[]
   photographicGearObservations          PhotographicGearObservation[]
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel
+  organizerCommissions                  OrganizerCommission[]                  @relation("OrganizerCommissionUser")
+  eventOrgCommissionsAsOrganizer        EventOrganizerCommission[]             @relation("EventOrgCommissionOrganizer")
+  eventOrgCommissionsAsPhotographer     EventOrganizerCommission[]             @relation("EventOrgCommissionPhotographer")
+  organizerCommissionWithdrawalRequests OrganizerCommissionWithdrawalRequest[] @relation("OrganizerCommissionWithdrawalOrganizer")
+  commissionWithdrawalRequestsReviewed  OrganizerCommissionWithdrawalRequest[] @relation("OrganizerCommissionWithdrawalReviewer")
+  // END LEGACY MERGE
   photographerSalesSettings             PhotographerSalesSettings?
-  clientOrders                          PrintOrder[]                       @relation("ClientOrders")
-  printOrders                           PrintOrder[]                       @relation("PhotographerOrders")
-  printOrderStatusHistory               PrintOrderStatusHistory[]          @relation("PrintOrderStatusHistoryChangedBy")
-  referralAttributionsAsReferred        ReferralAttribution?               @relation("ReferralReferred")
-  referralAttributionsAsReferrer        ReferralAttribution[]              @relation("ReferralReferrer")
+  clientOrders                          PrintOrder[]                           @relation("ClientOrders")
+  printOrders                           PrintOrder[]                           @relation("PhotographerOrders")
+  printOrderStatusHistory               PrintOrderStatusHistory[]              @relation("PrintOrderStatusHistoryChangedBy")
+  referralAttributionsAsReferred        ReferralAttribution?                   @relation("ReferralReferred")
+  referralAttributionsAsReferrer        ReferralAttribution[]                  @relation("ReferralReferrer")
   referralCodeOwned                     ReferralCode?
-  referralPayoutsMarkedBy               ReferralPayoutRequest[]            @relation("ReferralPayoutsMarkedBy")
-  referralPayoutRequests                ReferralPayoutRequest[]            @relation("ReferralPayoutRequests")
-  removalRequestsDecided                RemovalRequest[]                   @relation("RemovalRequestDecider")
+  referralPayoutsMarkedBy               ReferralPayoutRequest[]                @relation("ReferralPayoutsMarkedBy")
+  referralPayoutRequests                ReferralPayoutRequest[]                @relation("ReferralPayoutRequests")
+  removalRequestsDecided                RemovalRequest[]                       @relation("RemovalRequestDecider")
   removalRequests                       RemovalRequest[]
-  schools                               School[]                           @relation("SchoolOwner")
+  schools                               School[]                               @relation("SchoolOwner")
   // BEGIN LEGACY MERGE — dominio 3 escuela/roster (relaciones User)
-  albumStudentRosterEntriesPhotosTaken  AlbumStudentRosterEntry[]          @relation("AlbumStudentRosterEntryPhotosTakenBy")
-  preCompraOrdersPhotosTaken            PreCompraOrder[]                   @relation("PreCompraOrderPhotosTakenBy")
-  schoolOrganizerInvitationsSent        SchoolOrganizerInvitation[]        @relation("SchoolOrganizerInvitationInvitedBy")
+  albumStudentRosterEntriesPhotosTaken  AlbumStudentRosterEntry[]              @relation("AlbumStudentRosterEntryPhotosTakenBy")
+  preCompraOrdersPhotosTaken            PreCompraOrder[]                       @relation("PreCompraOrderPhotosTakenBy")
+  schoolOrganizerInvitationsSent        SchoolOrganizerInvitation[]            @relation("SchoolOrganizerInvitationInvitedBy")
   schoolOrganizerMemberships            SchoolOrganizer[]
-  schoolLeadsReferred                   SchoolLead[]                       @relation("SchoolLeadReferredBy")
+  schoolLeadsReferred                   SchoolLead[]                           @relation("SchoolLeadReferredBy")
   studentRosterImportBatchesUploaded    StudentRosterImportBatch[]
   // END LEGACY MERGE
-  supportMessages                       SupportMessage[]                   @relation("SupportMessageAuthor")
-  supportTickets                        SupportTicket[]                    @relation("SupportTicketAssignedTo")
-  termsAcceptances                      TermsAcceptance[]                  @relation("UserTermsAcceptance")
-  preferredLab                          Lab?                               @relation("PhotographerPreferredLab", fields: [preferredLabId], references: [id])
+  supportMessages                       SupportMessage[]                       @relation("SupportMessageAuthor")
+  supportTickets                        SupportTicket[]                        @relation("SupportTicketAssignedTo")
+  termsAcceptances                      TermsAcceptance[]                      @relation("UserTermsAcceptance")
+  preferredLab                          Lab?                                   @relation("PhotographerPreferredLab", fields: [preferredLabId], references: [id])
   loginDevices                          UserLoginDevice[]
   userSessions                          UserSession[]
   userUpsellConfigs                     UserUpsellConfig[]
@@ -722,6 +729,10 @@ model Album {
   // BEGIN LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico
   photographicGearObservations    PhotographicGearObservation[]
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel
+  organizerCommissions            OrganizerCommission[]
+  eventOrganizerCommissions       EventOrganizerCommission[]
+  // END LEGACY MERGE
 
   @@index([userId])
   @@index([creatorId])
@@ -811,45 +822,48 @@ model AlbumSlugAlias {
 
 /// * Evento georeferenciado creado por organizador
 model Event {
-  id                   Int                          @id @default(autoincrement())
-  title                String
-  description          String?
-  type                 EventType
-  startsAt             DateTime
-  endsAt               DateTime?
-  latitude             Float
-  longitude            Float
-  locationName         String?
-  city                 String
-  geohash              String?
-  visibility           EventVisibility              @default(PUBLIC)
-  joinPolicy           EventJoinPolicy              @default(OPEN)
-  maxPhotographers     Int?
+  id                        Int                          @id @default(autoincrement())
+  title                     String
+  description               String?
+  type                      EventType
+  startsAt                  DateTime
+  endsAt                    DateTime?
+  latitude                  Float
+  longitude                 Float
+  locationName              String?
+  city                      String
+  geohash                   String?
+  visibility                EventVisibility              @default(PUBLIC)
+  joinPolicy                EventJoinPolicy              @default(OPEN)
+  maxPhotographers          Int?
   /// Cantidad aproximada de asistentes (para que el fotógrafo sepa si es multitudinario)
-  expectedAttendees    Int?
-  creatorId            Int
-  promoCommitment      Boolean                      @default(false)
-  promoText            String?
+  expectedAttendees         Int?
+  creatorId                 Int
+  promoCommitment           Boolean                      @default(false)
+  promoText                 String?
   /// Indicaciones para que el fotógrafo se acredite (visible en la vista del evento)
-  accreditationNotes   String?
+  accreditationNotes        String?
   /// Slug único para link público de invitación (/e/[shareSlug])
-  shareSlug            String?                      @unique
+  shareSlug                 String?                      @unique
   /// Key en R2 de la imagen de portada del evento
-  coverImageKey        String?
-  mergedIntoId         Int?
+  coverImageKey             String?
+  mergedIntoId              Int?
   /// Si está definido, el evento fue dado de baja (no se muestra en listados; 7+ días pasados y 0 fotógrafos inscritos)
-  archivedAt           DateTime?
-  createdAt            DateTime                     @default(now())
-  updatedAt            DateTime                     @updatedAt
-  albums               Album[]
-  creator              User                         @relation("EventCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  mergedInto           Event?                       @relation("EventMerge", fields: [mergedIntoId], references: [id])
-  mergedEvents         Event[]                      @relation("EventMerge")
-  invitedPhotographers EventInvitation[]
-  members              EventMember[]
-  similaritiesA        EventSimilarity[]            @relation("EventSimilarityA")
-  similaritiesB        EventSimilarity[]            @relation("EventSimilarityB")
-  downloadAllowances   OrganizerDownloadAllowance[]
+  archivedAt                DateTime?
+  createdAt                 DateTime                     @default(now())
+  updatedAt                 DateTime                     @updatedAt
+  albums                    Album[]
+  creator                   User                         @relation("EventCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  mergedInto                Event?                       @relation("EventMerge", fields: [mergedIntoId], references: [id])
+  mergedEvents              Event[]                      @relation("EventMerge")
+  invitedPhotographers      EventInvitation[]
+  members                   EventMember[]
+  similaritiesA             EventSimilarity[]            @relation("EventSimilarityA")
+  similaritiesB             EventSimilarity[]            @relation("EventSimilarityB")
+  downloadAllowances        OrganizerDownloadAllowance[]
+  // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel
+  eventOrganizerCommissions EventOrganizerCommission[]
+  // END LEGACY MERGE
 
   @@index([creatorId])
   @@index([city])
@@ -1015,7 +1029,10 @@ model School {
   studentEnrollments         StudentEnrollment[]
   studentRosterImportBatches StudentRosterImportBatch[]
   convertedLeads             SchoolLead[]                @relation("SchoolLeadConvertedSchool")
-  // END LEGACY MERGE
+  // END LEGACY MERGE — dominio 3 escuela/roster
+  // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel
+  organizerCommissions       OrganizerCommission[]
+  // END LEGACY MERGE — dominio 14 referidos / comisiones / funnel
 
   @@index([ownerId])
 }
@@ -1757,6 +1774,168 @@ model PhotographicGearObservation {
 
 // END LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico (modelos)
 
+// BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel (enums)
+
+enum ReferralProgram {
+  PHOTOGRAPHER_REFERRAL
+  ORGANIZER_REFERRAL
+}
+
+enum OrganizerCommissionStatus {
+  PENDING
+  REQUESTED
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+enum EventOrganizerCommissionStatus {
+  PENDING
+  AVAILABLE
+  WITHDRAWAL_REQUESTED
+  PAID
+  CANCELLED
+}
+
+enum EventOrganizerCommissionPayoutMode {
+  HELD_BY_PLATFORM
+  MARKETPLACE_SPLIT
+}
+
+enum OrganizerCommissionWithdrawalStatus {
+  REQUESTED
+  APPROVED
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+// END LEGACY MERGE — dominio 14 referidos / comisiones / funnel (enums)
+
+// BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel (modelos)
+
+/// Contadores históricos de plataforma (no decrecen al borrar fotos).
+model PlatformMetrics {
+  id                  Int      @id @default(1)
+  photosUploadedTotal BigInt   @default(0)
+  updatedAt           DateTime @updatedAt
+}
+
+/// Visitas anónimas al funnel de compra (álbum); visitorKey = cookie estable
+model FunnelVisit {
+  id         String   @id @default(cuid())
+  visitorKey String
+  event      String
+  albumId    Int?
+  orderId    Int?
+  userId     Int?
+  referrer   String?
+  userAgent  String?
+  path       String?
+  createdAt  DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@index([visitorKey, createdAt])
+  @@index([createdAt])
+  @@index([albumId])
+}
+
+model OrganizerCommission {
+  id              Int                       @id @default(autoincrement())
+  schoolId        Int
+  albumId         Int
+  orderId         Int
+  organizerUserId Int?
+  amount          Int
+  percentage      Float
+  baseAmount      Int
+  status          OrganizerCommissionStatus @default(PENDING)
+  createdAt       DateTime                  @default(now())
+  requestedAt     DateTime?
+  paidAt          DateTime?
+  paymentProofUrl String?
+  paymentMethod   String?
+  school          School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  album           Album                     @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  order           Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organizerUser   User?                     @relation("OrganizerCommissionUser", fields: [organizerUserId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId])
+  @@index([schoolId, status])
+  @@index([albumId])
+  @@index([organizerUserId])
+  @@index([createdAt])
+}
+
+/// Snapshot inmutable de comisión del organizador de evento (sobre precio base del fotógrafo; montos en pesos ARS).
+model EventOrganizerCommission {
+  id                            Int                                   @id @default(autoincrement())
+  orderId                       Int                                   @unique
+  eventId                       Int
+  organizerUserId               Int
+  photographerUserId            Int
+  albumId                       Int
+  organizerCommissionPercentage Float
+  photographerBaseAmount        Decimal                               @db.Decimal(14, 2)
+  platformFeeAmount             Decimal                               @db.Decimal(14, 2)
+  organizerCommissionAmount     Decimal                               @db.Decimal(14, 2)
+  photographerNetAmount         Decimal                               @db.Decimal(14, 2)
+  totalPaidAmount               Decimal                               @db.Decimal(14, 2)
+  status                        EventOrganizerCommissionStatus        @default(PENDING)
+  availableAt                   DateTime
+  paidAt                        DateTime?
+  payoutMode                    EventOrganizerCommissionPayoutMode    @default(HELD_BY_PLATFORM)
+  withdrawalRequestId           Int?
+  createdAt                     DateTime                              @default(now())
+  updatedAt                     DateTime                              @updatedAt
+  order                         Order                                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  event                         Event                                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  album                         Album                                 @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  organizerUser                 User                                  @relation("EventOrgCommissionOrganizer", fields: [organizerUserId], references: [id], onDelete: Cascade)
+  photographerUser              User                                  @relation("EventOrgCommissionPhotographer", fields: [photographerUserId], references: [id], onDelete: Cascade)
+  withdrawalRequest             OrganizerCommissionWithdrawalRequest? @relation(fields: [withdrawalRequestId], references: [id], onDelete: Restrict)
+
+  @@index([eventId])
+  @@index([organizerUserId])
+  @@index([photographerUserId])
+  @@index([status])
+  @@index([availableAt])
+  @@index([withdrawalRequestId])
+}
+
+/// Solicitud agrupada de retiro de comisiones de evento (procesamiento manual por admin).
+model OrganizerCommissionWithdrawalRequest {
+  id                          Int                                 @id @default(autoincrement())
+  organizerUserId             Int
+  amount                      Decimal                             @db.Decimal(14, 2)
+  status                      OrganizerCommissionWithdrawalStatus @default(REQUESTED)
+  requestedAt                 DateTime                            @default(now())
+  reviewedAt                  DateTime?
+  reviewedById                Int?
+  adminNotes                  String?
+  paymentReference            String?
+  /// Snapshot al momento del retiro (no cambia si el organizador actualiza su perfil después).
+  payoutAliasSnapshot         String?
+  payoutBankSnapshot          String?
+  payoutAccountHolderSnapshot String?
+  /// Comprobante de transferencia (key R2 en payoutReceiptUrl).
+  payoutReceiptUrl            String?
+  payoutReceiptFileName       String?
+  payoutReceiptMimeType       String?
+  payoutReceiptUploadedAt     DateTime?
+  createdAt                   DateTime                            @default(now())
+  updatedAt                   DateTime                            @updatedAt
+  organizer                   User                                @relation("OrganizerCommissionWithdrawalOrganizer", fields: [organizerUserId], references: [id], onDelete: Cascade)
+  reviewedBy                  User?                               @relation("OrganizerCommissionWithdrawalReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  commissions                 EventOrganizerCommission[]
+
+  @@index([organizerUserId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
+// END LEGACY MERGE — dominio 14 referidos / comisiones / funnel (modelos)
+
 model OcrToken {
   id         Int      @id @default(autoincrement())
   photoId    Int
@@ -1784,22 +1963,22 @@ model FaceDetection {
 }
 
 model Order {
-  id                        Int                      @id @default(autoincrement())
+  id                        Int                       @id @default(autoincrement())
   albumId                   Int
   buyerEmail                String
   buyerUserId               Int?
   buyerPhone                String?
   claimedAt                 DateTime?
-  status                    OrderStatus              @default(PENDING)
+  status                    OrderStatus               @default(PENDING)
   /// Total en ARS enteros (no centavos). Se conserva el sufijo "Cents" por compatibilidad histórica.
-  totalCents                Int                      @default(0)
-  createdAt                 DateTime                 @default(now())
+  totalCents                Int                       @default(0)
+  createdAt                 DateTime                  @default(now())
   /// Recargo por extensión en ARS enteros (no centavos).
-  extensionSurchargeCents   Int                      @default(0)
+  extensionSurchargeCents   Int                       @default(0)
   mpPreferenceId            String?
   mpInitPoint               String?
   mpPaymentId               String?
-  platformCommissionCents   Int?                     @default(0)
+  platformCommissionCents   Int?                      @default(0)
   pricingSnapshot           Json?
   /// Descuento aplicado del saldo de referidos del dueño del álbum a este pedido (centavos)
   referralFeeDiscountCents  Int?
@@ -1809,11 +1988,11 @@ model Order {
   // BEGIN LEGACY MERGE — core commerce CLF (Order checkout / preventa / organizador)
   buyerName                 String?
   /// Preventa canjeable V1: origen del pedido (checkout álbum vs canje de pack)
-  origin                    OrderOrigin              @default(STANDARD_CHECKOUT)
+  origin                    OrderOrigin               @default(STANDARD_CHECKOUT)
   /// Medio de pago del checkout (MP vs total cubierto por preventa)
-  checkoutPaymentSource     CheckoutPaymentSource    @default(MERCADO_PAGO)
+  checkoutPaymentSource     CheckoutPaymentSource     @default(MERCADO_PAGO)
   /// Pedido de simulación (checkout TEST escolar); excluir de métricas reales
-  isTest                    Boolean                  @default(false)
+  isTest                    Boolean                   @default(false)
   /// Referencias/contexto de pagos y canje; no sustituye checkoutPaymentSource (spec v1.3)
   redemptionPaymentRefsJson Json?
   /// Idempotencia / trazabilidad canje (opcional)
@@ -1821,22 +2000,26 @@ model Order {
   /// Snapshot congelado del pack comprado (V1)
   preventaPackSnapshotJson  Json?
   /// Relación 1:1 al pedido de canje (hijo) — sin @relation Prisma (paridad legacy)
-  redemptionOrderId         Int?                     @unique
+  redemptionOrderId         Int?                      @unique
   /// Relación 1:1 al pedido de preventa (padre)
-  redeemsOrderId            Int?                     @unique
+  redeemsOrderId            Int?                      @unique
   organizerSchoolId         Int?
   organizerUserId           Int?
-  organizerReferralApplied  Boolean                  @default(false)
-  updatedAt                 DateTime                 @updatedAt
+  organizerReferralApplied  Boolean                   @default(false)
+  updatedAt                 DateTime                  @updatedAt
   // END LEGACY MERGE
   abandonedReminders        AbandonedOrderReminder[]
-  album                     Album                    @relation(fields: [albumId], references: [id])
-  buyerUser                 User?                    @relation("OrderBuyerUser", fields: [buyerUserId], references: [id])
+  album                     Album                     @relation(fields: [albumId], references: [id])
+  buyerUser                 User?                     @relation("OrderBuyerUser", fields: [buyerUserId], references: [id])
   fulfillmentGroups         OrderFulfillmentGroup[]
   items                     OrderItem[]
   whatsappDeliveryLogs      WhatsAppDeliveryLog[]
   // BEGIN LEGACY MERGE — dominio 4 preventa packs (canje)
   packRedemptionEntitlement PackPurchaseEntitlement?
+  // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel
+  organizerCommissions      OrganizerCommission[]
+  eventOrganizerCommission  EventOrganizerCommission?
   // END LEGACY MERGE
 
   @@index([albumId])
@@ -3672,23 +3855,32 @@ model ReferralCode {
 }
 
 model ReferralAttribution {
-  id             Int               @id @default(autoincrement())
-  referralCodeId Int
-  referrerUserId Int
-  referredUserId Int               @unique
-  startsAt       DateTime
-  endsAt         DateTime
-  status         ReferralStatus    @default(ACTIVE)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  referralCode   ReferralCode      @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
-  referredUser   User              @relation("ReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
-  referrerUser   User              @relation("ReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
-  earnings       ReferralEarning[]
+  id              Int               @id @default(autoincrement())
+  referralCodeId  Int
+  referrerUserId  Int
+  referredUserId  Int               @unique
+  startsAt        DateTime
+  endsAt          DateTime
+  status          ReferralStatus    @default(ACTIVE)
+  // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel
+  referralProgram ReferralProgram   @default(PHOTOGRAPHER_REFERRAL)
+  /// Origen del click: GENERAL (landing) o TRAINING (capacitación / charla pública).
+  sourceType      String            @default("GENERAL")
+  /// Ej.: id de Talk cuando sourceType es TRAINING.
+  sourceEntityId  Int?
+  // END LEGACY MERGE
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  referralCode    ReferralCode      @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+  referredUser    User              @relation("ReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  referrerUser    User              @relation("ReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  earnings        ReferralEarning[]
 
   @@index([referrerUserId])
   @@index([referralCodeId])
   @@index([status, endsAt])
+  @@index([sourceType, sourceEntityId])
+  @@index([referralProgram])
 }
 
 model ReferralEarning {
@@ -3699,6 +3891,9 @@ model ReferralEarning {
   platformFeeCents    Int
   referralAmountCents Int
   platformNetCents    Int                 @default(0)
+  // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel
+  referralProgram     ReferralProgram     @default(PHOTOGRAPHER_REFERRAL)
+  // END LEGACY MERGE
   createdAt           DateTime            @default(now())
   paidOutAt           DateTime?
   reversedAt          DateTime?
@@ -3707,8 +3902,10 @@ model ReferralEarning {
   appliedToOrderType  String?
   attribution         ReferralAttribution @relation(fields: [attributionId], references: [id], onDelete: Cascade)
 
+  @@unique([saleRef, attributionId])
   @@index([attributionId])
   @@index([createdAt])
+  @@index([referralProgram])
 }
 
 /// Solicitud de cobro de comisiones por referidos. El referidor ve "Solicitar cobro" y se crea esto;
