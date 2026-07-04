@@ -316,6 +316,17 @@ model Album {
   /// Días de retención de selfie en R2 (null = no guardar)
   hiddenSelfieRetentionDays       Int?
   deletedAt                       DateTime?
+  // BEGIN LEGACY MERGE — core commerce CLF (Album cleanup / retención)
+  /// Estado del pipeline de limpieza por retención (45 días).
+  cleanupStatus                   AlbumCleanupStatus             @default(NONE)
+  cleanupPendingAt                DateTime?
+  cleanupStartedAt                DateTime?
+  cleanupCompletedAt              DateTime?
+  cleanupLastError                String?
+  cleanupBlockReason              String?
+  /// Cursor de fotos ya procesadas dentro del álbum (reanudación idempotente).
+  cleanupPhotosProcessed          Int                            @default(0)
+  // END LEGACY MERGE
   /// Pre-compra PRO: cierre de pre-compra (ej. 1 día antes de la sesión); null = no pre-compra
   preCompraCloseAt                DateTime?
   /// Pre-compra PRO: si true, el cliente debe aprobar el diseño (1 ronda de cambios)
@@ -392,6 +403,7 @@ model Album {
   @@index([selectedLabId])
   @@index([isHidden])
   @@index([deletedAt])
+  @@index([cleanupStatus])
 }
 
 /// * Configuración de ventas por álbum: heredar o override capabilities
@@ -950,18 +962,37 @@ model Photo {
   albumId                  Int
   previewUrl               String
   originalKey              String
+  thumbWatermarkedKey      String?
+  previewWatermarkedKey    String?
+  variantsVersion          String?
+  variantsGeneratedAt      DateTime?
+  variantsStatus           PhotoVariantsStatus       @default(PENDING)
+  variantsError            String?
   createdAt                DateTime                  @default(now())
   userId                   Int?
-  /// Si true, esta foto se puede vender como digital (por defecto sí)
-  sellDigital              Boolean                   @default(true)
-  /// Si true, esta foto se puede vender como impresa (por defecto sí)
-  sellPrint                Boolean                   @default(true)
   isRemoved                Boolean                   @default(false)
   removedAt                DateTime?
   removedReason            String?
   analysisStatus           PhotoAnalysisStatus       @default(PENDING)
   analysisError            String?
   analyzedAt               DateTime?
+  // BEGIN LEGACY MERGE — core commerce CLF (Photo variants / cleanup / carpetas)
+  exifMetadataStatus       PhotoExifMetadataStatus?  @default(PENDING)
+  exifMetadataAnalyzedAt   DateTime?
+  /// Archivos R2 eliminados (original, preview, variantes).
+  storageDeletedAt         DateTime?
+  /// OCR, EXIF persistido, análisis IA y rostros externos eliminados.
+  metadataDeletedAt        DateTime?
+  storageCleanupStatus     PhotoStorageCleanupStatus @default(ACTIVE)
+  capturedAt               DateTime?
+  /// FK AlbumFolder / EventFolder — relaciones en dominios 6 y 9
+  folderId                 Int?
+  eventFolderId            Int?
+  // END LEGACY MERGE
+  /// Si true, esta foto se puede vender como digital (por defecto sí)
+  sellDigital              Boolean                   @default(true)
+  /// Si true, esta foto se puede vender como impresa (por defecto sí)
+  sellPrint                Boolean                   @default(true)
   albumsAsCover            Album[]                   @relation("AlbumCoverPhoto")
   faceDetections           FaceDetection[]
   faceMatches              FaceMatch[]
@@ -980,8 +1011,14 @@ model Photo {
   // END LEGACY MERGE
 
   @@index([albumId])
+  @@index([folderId])
+  @@index([eventFolderId])
   @@index([userId])
   @@index([isRemoved])
+  @@index([variantsStatus, createdAt])
+  @@index([exifMetadataStatus, createdAt])
+  @@index([storageCleanupStatus])
+  @@index([storageDeletedAt])
 }
 
 model PhotoAnalysisJob {
@@ -1050,6 +1087,29 @@ model Order {
   digitalDeliveredAt        DateTime?
   /// Primera vez que el cliente abrió el link de descarga o descargó (para mostrar en panel fotógrafo/admin)
   downloadLinkViewedAt      DateTime?
+  // BEGIN LEGACY MERGE — core commerce CLF (Order checkout / preventa / organizador)
+  buyerName                 String?
+  /// Preventa canjeable V1: origen del pedido (checkout álbum vs canje de pack)
+  origin                    OrderOrigin              @default(STANDARD_CHECKOUT)
+  /// Medio de pago del checkout (MP vs total cubierto por preventa)
+  checkoutPaymentSource     CheckoutPaymentSource    @default(MERCADO_PAGO)
+  /// Pedido de simulación (checkout TEST escolar); excluir de métricas reales
+  isTest                    Boolean                  @default(false)
+  /// Referencias/contexto de pagos y canje; no sustituye checkoutPaymentSource (spec v1.3)
+  redemptionPaymentRefsJson Json?
+  /// Idempotencia / trazabilidad canje (opcional)
+  preCompraPaymentRef       String?
+  /// Snapshot congelado del pack comprado (V1)
+  preventaPackSnapshotJson  Json?
+  /// Relación 1:1 al pedido de canje (hijo) — sin @relation Prisma (paridad legacy)
+  redemptionOrderId         Int?                     @unique
+  /// Relación 1:1 al pedido de preventa (padre)
+  redeemsOrderId            Int?                     @unique
+  organizerSchoolId         Int?
+  organizerUserId           Int?
+  organizerReferralApplied  Boolean                  @default(false)
+  updatedAt                 DateTime                 @updatedAt
+  // END LEGACY MERGE
   abandonedReminders        AbandonedOrderReminder[]
   album                     Album                    @relation(fields: [albumId], references: [id])
   buyerUser                 User?                    @relation("OrderBuyerUser", fields: [buyerUserId], references: [id])
@@ -1063,6 +1123,12 @@ model Order {
   @@index([albumId])
   @@index([buyerUserId])
   @@index([buyerEmail])
+  @@index([organizerSchoolId])
+  @@index([organizerReferralApplied])
+  @@index([origin])
+  @@index([checkoutPaymentSource])
+  @@index([status, updatedAt])
+  @@index([isTest])
 }
 
 /// * Recordatorio de pedido abandonado (WhatsApp, email, etc.)
@@ -1115,6 +1181,15 @@ model OrderItem {
   size               String?
   /// Subtotal en ARS enteros (no centavos).
   subtotalCents      Int                    @default(0)
+  // BEGIN LEGACY MERGE — core commerce CLF (OrderItem preventa / packs)
+  /// Preventa canjeable V1: línea estándar vs incluida en pack vs extra en canje
+  lineOrigin         OrderItemLineOrigin    @default(STANDARD)
+  entitlementId      Int?
+  benefitStableKey   String?
+  packSlotIndex      Int?
+  /// ej. additionalPhotoIds para multi-foto (spec v1.3)
+  metadata           Json?
+  // END LEGACY MERGE
   fulfillmentGroup   OrderFulfillmentGroup? @relation(fields: [fulfillmentGroupId], references: [id])
   order              Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   photo              Photo                  @relation(fields: [photoId], references: [id])
@@ -1123,6 +1198,8 @@ model OrderItem {
   @@index([photoId])
   @@index([fulfillmentGroupId])
   @@index([productType])
+  @@index([lineOrigin])
+  @@index([entitlementId])
 }
 
 /// * Producto de pre-compra por álbum (catálogo sin fotos)
@@ -1497,6 +1574,81 @@ enum OrganizerCommissionAppliesTo {
 
 // END LEGACY MERGE — dominio 4 album packs / preventa (enums)
 
+// BEGIN LEGACY MERGE — core commerce CLF (enums)
+
+enum AlbumCleanupStatus {
+  NONE
+  PENDING
+  PROCESSING
+  COMPLETED
+  COMPLETED_WITH_REFERENCES
+  BLOCKED_PRINT
+  FAILED
+}
+
+enum PhotoVariantsStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum PhotoExifMetadataStatus {
+  PENDING
+  ANALYZED
+  NO_EXIF
+  FAILED
+  SKIPPED_EXPIRED
+}
+
+enum PhotoStorageCleanupStatus {
+  ACTIVE
+  STORAGE_PURGED
+  PURGED_WITH_REFERENCES
+}
+
+enum CheckoutPaymentSource {
+  MERCADO_PAGO
+  PREPAID_PACK
+  /// Pago simulado (FASE 2 checkout TEST escolar); no Mercado Pago
+  SIMULATED
+}
+
+enum OrderOrigin {
+  STANDARD_CHECKOUT
+  PACK_REDEMPTION
+  PREVENTA_PACK
+}
+
+enum OrderItemLineOrigin {
+  STANDARD
+  PACK_INCLUDED
+  EXTRA
+}
+
+/// Roles de slots en plantillas escolares.
+enum TemplateSlotRole {
+  PHOTO_MAIN
+  PHOTO_1
+  PHOTO_2
+  PHOTO_3
+  GROUP_PHOTO
+  SCHOOL_LOGO
+  FOOTER_LOGO
+  BANNER
+}
+
+/// Roles de fotos seleccionadas (cliente).
+enum SelectionPhotoRole {
+  PHOTO_MAIN
+  PHOTO_1
+  PHOTO_2
+  PHOTO_3
+  GROUP_PHOTO
+}
+
+// END LEGACY MERGE — core commerce CLF (enums)
+
 /// * Pedido de pre-compra (cliente compró catálogo; con/sin pago según flujo)
 model PreCompraOrder {
   id                      Int                      @id @default(autoincrement())
@@ -1693,16 +1845,16 @@ model Selection {
 }
 
 model SelectionPhoto {
-  id          Int       @id @default(autoincrement())
+  id          Int                 @id @default(autoincrement())
   selectionId Int
   photoId     Int
-  position    Int?      @default(0)
+  position    Int?                @default(0)
   /// Rol semántico (empareja con TemplateSlot.role; legacy school pipeline)
-  role        String?
+  role        SelectionPhotoRole?
   subjectId   Int?
-  photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
-  selection   Selection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
-  subject     Subject?  @relation(fields: [subjectId], references: [id])
+  photo       Photo               @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  selection   Selection           @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  subject     Subject?            @relation(fields: [subjectId], references: [id])
 
   @@index([selectionId])
   @@index([photoId])
@@ -1753,20 +1905,20 @@ model Template {
 }
 
 model TemplateSlot {
-  id         Int      @id @default(autoincrement())
+  id         Int               @id @default(autoincrement())
   templateId Int
   /// Índice de página dentro de la plantilla multipágina (0 = portada / primera hoja)
-  pageIndex  Int      @default(0)
+  pageIndex  Int               @default(0)
   /// Orden izq→der, arriba→abajo dentro de la página
   index      Int
   /// Rol semántico para emparejar con selección escolar (PACK / etc.)
-  role       String?
+  role       TemplateSlotRole?
   /// { x, y, width, height } en px o normalizado
   bbox       Json
   /// Máscara alpha por hueco
   maskPngUrl String?
-  createdAt  DateTime @default(now())
-  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  createdAt  DateTime          @default(now())
+  template   Template          @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
   @@index([templateId, pageIndex])
@@ -3013,10 +3165,10 @@ model OrderAuditLog {
 model WebhookEvent {
   id          Int      @id @default(autoincrement())
   createdAt   DateTime @default(now())
-  paymentId   String   @unique
+  paymentId   String
   orderId     Int?
   orderType   String?
-  status      String?
+  status      String   @default("")
   /// external_reference de MP para reconciliación
   externalRef String?
   processedAt DateTime @default(now())
@@ -3025,6 +3177,7 @@ model WebhookEvent {
   /// Payload crudo para debugging (opcional, puede ser grande)
   rawPayload  Json?
 
+  @@unique([paymentId, status])
   @@index([paymentId])
   @@index([orderId, orderType])
 }
