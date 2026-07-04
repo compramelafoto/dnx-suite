@@ -133,6 +133,12 @@ model User {
   catalogProductCategories              CatalogProductCategory[]
   catalogProducts                       CatalogProduct[]
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 6 cámara / FTP / ingest
+  albumFoldersCreated                   AlbumFolder[]                      @relation("AlbumFolderCreator")
+  cameraConnectionSettings              CameraConnectionSettings?
+  cameraUploadLogs                      CameraUploadLog[]
+  cameraIngestJobs                      CameraIngestJob[]
+  // END LEGACY MERGE
   photographerSalesSettings             PhotographerSalesSettings?
   clientOrders                          PrintOrder[]                       @relation("ClientOrders")
   printOrders                           PrintOrder[]                       @relation("PhotographerOrders")
@@ -698,6 +704,12 @@ model Album {
   // END LEGACY MERGE
   // BEGIN LEGACY MERGE — dominio 5 catálogo global
   catalogProductLinks             AlbumCatalogProduct[]
+  // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 6 cámara / FTP / ingest
+  cameraConnectionActiveSettings  CameraConnectionSettings[]     @relation("CameraConnectionActiveAlbum")
+  cameraUploadLogs                CameraUploadLog[]
+  cameraIngestJobs                CameraIngestJob[]
+  albumFolders                    AlbumFolder[]
   // END LEGACY MERGE
 
   @@index([userId])
@@ -1292,8 +1304,8 @@ model Photo {
   metadataDeletedAt        DateTime?
   storageCleanupStatus     PhotoStorageCleanupStatus @default(ACTIVE)
   capturedAt               DateTime?
-  /// FK AlbumFolder / EventFolder — relaciones en dominios 6 y 9
   folderId                 Int?
+  /// FK EventFolder — relación en dominio 9
   eventFolderId            Int?
   // END LEGACY MERGE
   /// Si true, esta foto se puede vender como digital (por defecto sí)
@@ -1308,6 +1320,10 @@ model Photo {
   items                    OrderItem[]
   album                    Album                     @relation(fields: [albumId], references: [id])
   uploadedBy               User?                     @relation("PhotoUploader", fields: [userId], references: [id])
+  // BEGIN LEGACY MERGE — dominio 6 cámara / FTP / ingest
+  folder                   AlbumFolder?              @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  cameraIngestJob          CameraIngestJob?
+  // END LEGACY MERGE
   analysisJob              PhotoAnalysisJob?
   photoClaims              PhotoClaim[]
   photoFaces               PhotoFace[]
@@ -1344,6 +1360,133 @@ model PhotoAnalysisJob {
   @@index([runAfter])
   @@index([lockedAt])
 }
+
+// BEGIN LEGACY MERGE — dominio 6 cámara / FTP / ingest (enums)
+
+enum CameraConnectionAssignmentMode {
+  MANUAL
+  ALBUM_EVENT_TIME
+}
+
+enum CameraIngestJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AlbumPhotoIngestSource {
+  CAMERA
+  WEB_UPLOAD
+}
+
+// END LEGACY MERGE — dominio 6 cámara / FTP / ingest (enums)
+
+// BEGIN LEGACY MERGE — dominio 6 cámara / FTP / ingest (modelos)
+
+model AlbumFolder {
+  id          Int           @id @default(autoincrement())
+  albumId     Int
+  parentId    Int?
+  name        String
+  /// Ruta materializada, ej. "/Promo A/Subgrupo 1"
+  path        String
+  sortOrder   Int           @default(0)
+  createdById Int?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  album       Album         @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  parent      AlbumFolder?  @relation("AlbumFolderHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  children    AlbumFolder[] @relation("AlbumFolderHierarchy")
+  createdBy   User?         @relation("AlbumFolderCreator", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  photos      Photo[]
+
+  @@index([albumId])
+  @@index([parentId])
+  @@index([albumId, parentId, name])
+}
+
+/// Configuración de Conexión de Cámara (FTP) por fotógrafo.
+model CameraConnectionSettings {
+  id              Int                            @id @default(autoincrement())
+  userId          Int                            @unique
+  enabled         Boolean                        @default(false)
+  paused          Boolean                        @default(false)
+  ftpUsername     String?                        @unique
+  ftpPasswordHash String?
+  activeAlbumId   Int?
+  assignmentMode  CameraConnectionAssignmentMode @default(MANUAL)
+  autoPublish     Boolean                        @default(false)
+  lastUploadAt    DateTime?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  user            User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeAlbum     Album?                         @relation("CameraConnectionActiveAlbum", fields: [activeAlbumId], references: [id], onDelete: SetNull)
+
+  @@index([activeAlbumId])
+  @@index([enabled])
+}
+
+/// Registro de intentos de subida vía Conexión de Cámara / FTP.
+model CameraUploadLog {
+  id           Int              @id @default(autoincrement())
+  userId       Int
+  albumId      Int?
+  filename     String
+  filesize     Int?
+  status       String
+  errorMessage String?
+  /// Raw en R2 (staging `camera-unassigned/…` o destino final antes de ingesta).
+  rawKey       String?          @unique
+  createdAt    DateTime         @default(now())
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  album        Album?           @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  ingestJob    CameraIngestJob?
+
+  @@index([userId])
+  @@index([albumId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, status])
+}
+
+/// Cola durable: raw en R2 → finalizeAlbumPhotoFromRaw (Conexión de Cámara / FTP / subida web).
+model CameraIngestJob {
+  id               String                 @id @default(cuid())
+  userId           Int
+  albumId          Int
+  rawKey           String
+  status           CameraIngestJobStatus  @default(PENDING)
+  source           AlbumPhotoIngestSource @default(CAMERA)
+  attempts         Int                    @default(0)
+  lockedAt         DateTime?
+  runAfter         DateTime?
+  lastError        String?
+  uploadLogId      Int?                   @unique
+  photoId          Int?                   @unique
+  eventFolderId    Int?
+  folderId         Int?
+  originalFilename String?
+  filesizeBytes    Int?
+  completedAt      DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  album            Album                  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  uploadLog        CameraUploadLog?       @relation(fields: [uploadLogId], references: [id], onDelete: SetNull)
+  photo            Photo?                 @relation(fields: [photoId], references: [id], onDelete: SetNull)
+
+  @@unique([rawKey])
+  @@index([status])
+  @@index([runAfter])
+  @@index([lockedAt])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([albumId, createdAt])
+  @@index([albumId, status])
+}
+
+// END LEGACY MERGE — dominio 6 cámara / FTP / ingest (modelos)
 
 model OcrToken {
   id         Int      @id @default(autoincrement())
