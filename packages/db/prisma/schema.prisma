@@ -154,6 +154,15 @@ model User {
   organizerCommissionWithdrawalRequests OrganizerCommissionWithdrawalRequest[] @relation("OrganizerCommissionWithdrawalOrganizer")
   commissionWithdrawalRequestsReviewed  OrganizerCommissionWithdrawalRequest[] @relation("OrganizerCommissionWithdrawalReviewer")
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 9 organizador / eventos / landings
+  eventNearbyPhotographerNotifications  EventNearbyPhotographerNotification[]
+  organizerEventDownloads               OrganizerEventDownload[]               @relation("OrganizerEventDownloadOrganizer")
+  photographerEventDownloads            OrganizerEventDownload[]               @relation("OrganizerEventDownloadPhotographer")
+  organizerPublicProfile                OrganizerPublicProfile?
+  organizerOfficialPhotographerListings OrganizerOfficialPhotographer[]        @relation("OrganizerOfficialPhotographerUser")
+  eventFoldersCreated                   EventFolder[]                          @relation("EventFolderCreator")
+  eventFoldersOwnedPhotographer         EventFolder[]                          @relation("EventFolderOwnerPhotographer")
+  // END LEGACY MERGE
   photographerSalesSettings             PhotographerSalesSettings?
   clientOrders                          PrintOrder[]                           @relation("ClientOrders")
   printOrders                           PrintOrder[]                           @relation("PhotographerOrders")
@@ -733,6 +742,10 @@ model Album {
   organizerCommissions            OrganizerCommission[]
   eventOrganizerCommissions       EventOrganizerCommission[]
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 9 organizador / eventos / landings
+  organizerDownloads              OrganizerEventDownload[]
+  organizerFeaturedGalleries      OrganizerFeaturedGallery[]
+  // END LEGACY MERGE
 
   @@index([userId])
   @@index([creatorId])
@@ -822,47 +835,74 @@ model AlbumSlugAlias {
 
 /// * Evento georeferenciado creado por organizador
 model Event {
-  id                        Int                          @id @default(autoincrement())
-  title                     String
-  description               String?
-  type                      EventType
-  startsAt                  DateTime
-  endsAt                    DateTime?
-  latitude                  Float
-  longitude                 Float
-  locationName              String?
-  city                      String
-  geohash                   String?
-  visibility                EventVisibility              @default(PUBLIC)
-  joinPolicy                EventJoinPolicy              @default(OPEN)
-  maxPhotographers          Int?
+  id                                Int                                   @id @default(autoincrement())
+  title                             String
+  description                       String?
+  type                              EventType
+  startsAt                          DateTime
+  endsAt                            DateTime?
+  latitude                          Float
+  longitude                         Float
+  locationName                      String?
+  city                              String
+  geohash                           String?
+  visibility                        EventVisibility                       @default(PUBLIC)
+  joinPolicy                        EventJoinPolicy                       @default(OPEN)
+  maxPhotographers                  Int?
   /// Cantidad aproximada de asistentes (para que el fotógrafo sepa si es multitudinario)
-  expectedAttendees         Int?
-  creatorId                 Int
-  promoCommitment           Boolean                      @default(false)
-  promoText                 String?
+  expectedAttendees                 Int?
+  creatorId                         Int
+  promoCommitment                   Boolean                               @default(false)
+  promoText                         String?
   /// Indicaciones para que el fotógrafo se acredite (visible en la vista del evento)
-  accreditationNotes        String?
+  accreditationNotes                String?
   /// Slug único para link público de invitación (/e/[shareSlug])
-  shareSlug                 String?                      @unique
+  shareSlug                         String?                               @unique
   /// Key en R2 de la imagen de portada del evento
-  coverImageKey             String?
-  mergedIntoId              Int?
+  coverImageKey                     String?
+  mergedIntoId                      Int?
   /// Si está definido, el evento fue dado de baja (no se muestra en listados; 7+ días pasados y 0 fotógrafos inscritos)
-  archivedAt                DateTime?
-  createdAt                 DateTime                     @default(now())
-  updatedAt                 DateTime                     @updatedAt
-  albums                    Album[]
-  creator                   User                         @relation("EventCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  mergedInto                Event?                       @relation("EventMerge", fields: [mergedIntoId], references: [id])
-  mergedEvents              Event[]                      @relation("EventMerge")
-  invitedPhotographers      EventInvitation[]
-  members                   EventMember[]
-  similaritiesA             EventSimilarity[]            @relation("EventSimilarityA")
-  similaritiesB             EventSimilarity[]            @relation("EventSimilarityB")
-  downloadAllowances        OrganizerDownloadAllowance[]
+  archivedAt                        DateTime?
+  // BEGIN LEGACY MERGE — dominio 9 organizador / eventos / landings
+  /// Cuándo se disparó la convocatoria automática a fotógrafos cercanos (evento público)
+  nearbyPhotographersAutoNotifiedAt DateTime?
+  status                            EventStatus                           @default(ACTIVE)
+  /// Texto simple de condiciones para fotógrafos (se acepta al inscribirse)
+  photographerTerms                 String?
+  /// Habilita subida de fotos para fotógrafos
+  uploadsEnabled                    Boolean                               @default(false)
+  /// Comisión del organizador sobre ventas (sobre precio base del fotógrafo; liquidación/cálculo en pedidos pendiente)
+  organizerCommissionEnabled        Boolean                               @default(false)
+  organizerCommissionPercentage     Float?
+  organizerCommissionUpdatedAt      DateTime?
+  organizerCommissionUpdatedById    Int?
+  /// Regla comercial de precio por foto (información para fotógrafos; no fuerza aún el precio en álbumes ni checkout).
+  photoPricingMode                  EventPhotoPricingMode                 @default(PHOTOGRAPHER_DECIDES)
+  fixedPhotoPrice                   Float?
+  minimumPhotoPrice                 Float?
+  photoPricingUpdatedAt             DateTime?
+  photoPricingUpdatedById           Int?
+  // END LEGACY MERGE
+  createdAt                         DateTime                              @default(now())
+  updatedAt                         DateTime                              @updatedAt
+  albums                            Album[]
+  creator                           User                                  @relation("EventCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  mergedInto                        Event?                                @relation("EventMerge", fields: [mergedIntoId], references: [id])
+  mergedEvents                      Event[]                               @relation("EventMerge")
+  invitedPhotographers              EventInvitation[]
+  members                           EventMember[]
+  similaritiesA                     EventSimilarity[]                     @relation("EventSimilarityA")
+  similaritiesB                     EventSimilarity[]                     @relation("EventSimilarityB")
+  downloadAllowances                OrganizerDownloadAllowance[]
+  // BEGIN LEGACY MERGE — dominio 9 organizador / eventos / landings
+  eventFolders                      EventFolder[]
+  interests                         EventInterest[]
+  organizerDownloads                OrganizerEventDownload[]
+  organizerFeaturedGalleries        OrganizerFeaturedGallery[]
+  nearbyPhotographerNotifications   EventNearbyPhotographerNotification[]
+  // END LEGACY MERGE
   // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel
-  eventOrganizerCommissions EventOrganizerCommission[]
+  eventOrganizerCommissions         EventOrganizerCommission[]
   // END LEGACY MERGE
 
   @@index([creatorId])
@@ -876,14 +916,18 @@ model Event {
 
 /// * Miembro del evento (organizador o fotógrafo)
 model EventMember {
-  id        Int               @id @default(autoincrement())
-  eventId   Int
-  userId    Int
-  role      EventMemberRole
-  status    EventMemberStatus @default(ACTIVE)
-  createdAt DateTime          @default(now())
-  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                Int               @id @default(autoincrement())
+  eventId           Int
+  userId            Int
+  role              EventMemberRole
+  status            EventMemberStatus @default(ACTIVE)
+  createdAt         DateTime          @default(now())
+  // BEGIN LEGACY MERGE — dominio 9 organizador / eventos / landings
+  termsAcceptedAt   DateTime?
+  termsAcceptedText String?
+  // END LEGACY MERGE
+  event             Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, userId])
   @@index([eventId])
@@ -935,6 +979,177 @@ model OrganizerDownloadAllowance {
   @@index([eventId])
   @@index([photographerId])
 }
+
+// BEGIN LEGACY MERGE — dominio 9 organizador / eventos / landings (modelos)
+
+/// Registro de email/notificación enviada a un fotógrafo por cercanía (evita duplicados).
+model EventNearbyPhotographerNotification {
+  id      Int      @id @default(autoincrement())
+  eventId Int
+  userId  Int
+  sentAt  DateTime @default(now())
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+/// Carpeta/categoría del evento para agrupar fotos (árbol; organizador oficial + auxiliares de fotógrafos).
+model EventFolder {
+  id                    Int              @id @default(autoincrement())
+  eventId               Int
+  parentId              Int?
+  folderScope           EventFolderScope @default(ORGANIZER)
+  createdByUserId       Int?
+  ownerPhotographerId   Int?
+  /// Fotógrafos: por defecto no listan chips en la galería /g; organizer: visibles públicamente cuando isActive y true.
+  listedInPublicGallery Boolean          @default(false)
+  name                  String
+  slug                  String?
+  description           String?
+  sortOrder             Int              @default(0)
+  isActive              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  event                 Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  parent                EventFolder?     @relation("EventFolderHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  children              EventFolder[]    @relation("EventFolderHierarchy")
+  createdByUser         User?            @relation("EventFolderCreator", fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  ownerPhotographer     User?            @relation("EventFolderOwnerPhotographer", fields: [ownerPhotographerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  photos                Photo[]
+
+  @@unique([eventId, slug])
+  @@index([eventId])
+  @@index([eventId, sortOrder])
+  @@index([eventId, folderScope])
+  @@index([parentId])
+}
+
+/// * Interés de clientes en eventos (captación previa a la galería)
+model EventInterest {
+  id                Int       @id @default(autoincrement())
+  eventId           Int
+  email             String
+  name              String?
+  lastName          String?
+  whatsapp          String?
+  createdAt         DateTime  @default(now())
+  lastNotifiedAt    DateTime?
+  notifiedWhenReady Boolean   @default(false)
+  event             Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, email])
+  @@index([eventId])
+  @@index([email])
+  @@index([createdAt])
+}
+
+/// * Descargas en alta del organizador por evento (tracking real)
+model OrganizerEventDownload {
+  id             Int      @id @default(autoincrement())
+  eventId        Int
+  organizerId    Int
+  photographerId Int?
+  albumId        Int?
+  photoId        Int?
+  createdAt      DateTime @default(now())
+  album          Album?   @relation(fields: [albumId], references: [id])
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizer      User     @relation("OrganizerEventDownloadOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  photo          Photo?   @relation(fields: [photoId], references: [id])
+  photographer   User?    @relation("OrganizerEventDownloadPhotographer", fields: [photographerId], references: [id])
+
+  @@index([eventId])
+  @@index([organizerId])
+  @@index([photoId])
+  @@index([createdAt])
+}
+
+model OrganizerPublicProfile {
+  id                    Int                             @id @default(autoincrement())
+  userId                Int                             @unique
+  publicSlug            String                          @unique
+  isPublished           Boolean                         @default(false)
+  displayName           String
+  tagline               String?
+  description           String?                         @db.Text
+  logoR2Key             String?
+  bannerR2Key           String?
+  primaryColor          String?
+  secondaryColor        String?
+  city                  String?
+  zone                  String?
+  website               String?
+  instagram             String?
+  whatsapp              String?
+  publicEmail           String?
+  modulesJson           Json                            @default("{}")
+  seoTitle              String?
+  seoDescription        String?
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
+  user                  User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sponsors              OrganizerLandingSponsor[]
+  featuredGalleries     OrganizerFeaturedGallery[]
+  officialPhotographers OrganizerOfficialPhotographer[]
+
+  @@index([isPublished])
+}
+
+/// Fotógrafos oficiales elegidos manualmente para la landing pública del organizador.
+model OrganizerOfficialPhotographer {
+  id                 Int                    @id @default(autoincrement())
+  profileId          Int
+  photographerUserId Int
+  sortOrder          Int                    @default(0)
+  isActive           Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  profile            OrganizerPublicProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  photographer       User                   @relation("OrganizerOfficialPhotographerUser", fields: [photographerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, photographerUserId])
+  @@index([profileId, sortOrder])
+  @@index([profileId, isActive])
+}
+
+/// Galerías / eventos destacados en la landing pública del organizador.
+model OrganizerFeaturedGallery {
+  id        Int                    @id @default(autoincrement())
+  profileId Int
+  albumId   Int?
+  eventId   Int?
+  sortOrder Int                    @default(0)
+  isActive  Boolean                @default(true)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  profile   OrganizerPublicProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  album     Album?                 @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  event     Event?                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, sortOrder])
+  @@index([profileId, isActive])
+}
+
+/// Sponsors / marcas aliadas (fase posterior; modelo preparado).
+model OrganizerLandingSponsor {
+  id        Int                    @id @default(autoincrement())
+  profileId Int
+  name      String
+  logoR2Key String?
+  url       String?
+  sortOrder Int                    @default(0)
+  isActive  Boolean                @default(true)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  profile   OrganizerPublicProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, sortOrder])
+}
+
+// END LEGACY MERGE — dominio 9 organizador / eventos / landings (modelos)
 
 /// * Notificación in-app para dashboard
 model DashboardNotification {
@@ -1363,6 +1578,10 @@ model Photo {
   selectionPhotos          SelectionPhoto[]
   // BEGIN LEGACY MERGE — dominio 4 album packs
   albumPackSelectionPhotos AlbumPackSelectionPhoto[]
+  // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 9 organizador / eventos / landings
+  eventFolder              EventFolder?                 @relation(fields: [eventFolderId], references: [id], onDelete: SetNull)
+  organizerDownloads       OrganizerEventDownload[]
   // END LEGACY MERGE
 
   @@index([albumId])
@@ -5477,6 +5696,29 @@ enum EventJoinPolicy {
   REQUEST
   INVITE_ONLY
 }
+
+// BEGIN LEGACY MERGE — dominio 9 organizador / eventos / landings (enums)
+
+/// * Quién define el precio de venta de fotos digitales en el evento colaborativo (solo regla comercial; checkout pendiente).
+enum EventPhotoPricingMode {
+  PHOTOGRAPHER_DECIDES
+  ORGANIZER_FIXED
+  ORGANIZER_MINIMUM
+}
+
+/// * Carpeta oficial del organizador vs auxiliar del fotógrafo colaborador
+enum EventFolderScope {
+  ORGANIZER
+  PHOTOGRAPHER
+}
+
+/// * Estado del evento
+enum EventStatus {
+  ACTIVE
+  CLOSED
+}
+
+// END LEGACY MERGE — dominio 9 organizador / eventos / landings (enums)
 
 /// * Estado del miembro del evento
 enum EventMemberStatus {
