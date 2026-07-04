@@ -141,6 +141,14 @@ model User {
   removalRequestsDecided                RemovalRequest[]                   @relation("RemovalRequestDecider")
   removalRequests                       RemovalRequest[]
   schools                               School[]                           @relation("SchoolOwner")
+  // BEGIN LEGACY MERGE — dominio 3 escuela/roster (relaciones User)
+  albumStudentRosterEntriesPhotosTaken  AlbumStudentRosterEntry[]          @relation("AlbumStudentRosterEntryPhotosTakenBy")
+  preCompraOrdersPhotosTaken            PreCompraOrder[]                   @relation("PreCompraOrderPhotosTakenBy")
+  schoolOrganizerInvitationsSent        SchoolOrganizerInvitation[]        @relation("SchoolOrganizerInvitationInvitedBy")
+  schoolOrganizerMemberships            SchoolOrganizer[]
+  schoolLeadsReferred                   SchoolLead[]                       @relation("SchoolLeadReferredBy")
+  studentRosterImportBatchesUploaded    StudentRosterImportBatch[]
+  // END LEGACY MERGE
   supportMessages                       SupportMessage[]                   @relation("SupportMessageAuthor")
   supportTickets                        SupportTicket[]                    @relation("SupportTicketAssignedTo")
   termsAcceptances                      TermsAcceptance[]                  @relation("UserTermsAcceptance")
@@ -225,17 +233,21 @@ model PhotographerSalesSettings {
 }
 
 model PhotographerProduct {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  name        String
-  size        String?
-  acabado     String?
-  retailPrice Int      @default(0)
-  currency    String   @default("ARS")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  Int                  @id @default(autoincrement())
+  userId              Int
+  name                String
+  size                String?
+  acabado             String?
+  retailPrice         Int                  @default(0)
+  currency            String               @default("ARS")
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // BEGIN LEGACY MERGE — dominio 4 album packs / preventa
+  albumPackComponents AlbumPackComponent[]
+  benefitDefinitions  BenefitDefinition[]
+  // END LEGACY MERGE
 
   @@index([userId])
   @@index([isActive])
@@ -243,19 +255,20 @@ model PhotographerProduct {
 }
 
 model Album {
-  id                              Int                  @id @default(autoincrement())
+  id                              Int                            @id @default(autoincrement())
   userId                          Int
   title                           String
   location                        String?
   eventDate                       DateTime?
-  publicSlug                      String               @unique
-  createdAt                       DateTime             @default(now())
+  publicSlug                      String                         @unique
+  createdAt                       DateTime                       @default(now())
   /// Creador del álbum base (null = userId es el creador, backward compat)
   creatorId                       Int?
   /// Evento asociado (álbum colaborativo vinculado a evento)
   eventId                         Int?
   /// Tipo de evento
   type                            EventType?
+  mode                            AlbumMode                      @default(SIMPLE)
   /// Geohash para búsqueda por proximidad
   geohash                         String?
   latitude                        Float?
@@ -268,29 +281,29 @@ model Album {
   /// Tipo de entrega por defecto
   deliveryType                    DeliveryType?
   albumProfitMarginPercent        Float?
-  printPricingSource              PrintPricingSource   @default(PHOTOGRAPHER)
+  printPricingSource              PrintPricingSource             @default(PHOTOGRAPHER)
   coverPhotoId                    Int?
   digitalPhotoPriceCents          Int?
   pickupBy                        PickupBy?
   selectedLabId                   Int?
-  enableDigitalPhotos             Boolean              @default(true)
-  enablePrintedPhotos             Boolean              @default(true)
-  includeDigitalWithPrint         Boolean              @default(false)
-  digitalWithPrintDiscountPercent Float?               @default(0)
-  isHidden                        Boolean              @default(false)
-  showComingSoonMessage           Boolean              @default(false)
+  enableDigitalPhotos             Boolean                        @default(true)
+  enablePrintedPhotos             Boolean                        @default(true)
+  includeDigitalWithPrint         Boolean                        @default(false)
+  digitalWithPrintDiscountPercent Float?                         @default(0)
+  isHidden                        Boolean                        @default(false)
+  showComingSoonMessage           Boolean                        @default(false)
   firstPhotoDate                  DateTime?
   digitalDiscount10Plus           Float?
   digitalDiscount20Plus           Float?
   digitalDiscount5Plus            Float?
   termsAcceptedAt                 DateTime?
   termsVersion                    String?
-  isPublic                        Boolean              @default(true)
-  allowClientLabSelection         Boolean              @default(false)
-  expirationExtensionDays         Int                  @default(0)
-  expiresAt                       DateTime             @default(now())
+  isPublic                        Boolean                        @default(true)
+  allowClientLabSelection         Boolean                        @default(false)
+  expirationExtensionDays         Int                            @default(0)
+  expiresAt                       DateTime                       @default(now())
   reactivatedAt                   DateTime?
-  reactivationCount               Int                  @default(0)
+  reactivationCount               Int                            @default(0)
   coverCropX                      Float?
   coverCropY                      Float?
   coverCropZoom                   Float?
@@ -299,22 +312,44 @@ model Album {
   /// Máximo de fotos permitidas para descarga (por álbum, fijado por organizador)
   maxDownloadAllowed              Int?
   /// Fotos ocultas hasta verificación por selfie
-  hiddenPhotosEnabled             Boolean              @default(false)
+  hiddenPhotosEnabled             Boolean                        @default(false)
   /// Días de retención de selfie en R2 (null = no guardar)
   hiddenSelfieRetentionDays       Int?
   deletedAt                       DateTime?
   /// Pre-compra PRO: cierre de pre-compra (ej. 1 día antes de la sesión); null = no pre-compra
   preCompraCloseAt                DateTime?
   /// Pre-compra PRO: si true, el cliente debe aprobar el diseño (1 ronda de cambios)
-  requireClientApproval           Boolean              @default(false)
+  requireClientApproval           Boolean                        @default(false)
+  // BEGIN LEGACY MERGE — dominio 4 venta escolar / packs públicos
+  /// Solo si también está el flag global, permite iniciar checkout MP de AlbumPack desde la vista pública.
+  albumPackPayEnabled             Boolean                        @default(false)
+  /// Álbum de prueba: no visible para clientes; solo el fotógrafo dueño puede previsualizar.
+  isTest                          Boolean                        @default(false)
+  /// Claves de curso/división institucional (`course-slot-key`), JSON string[]
+  selectedCourseKeys              Json?
+  /// Venta: comprar todas las fotos donde aparece el cliente (reconocimiento facial)
+  enableFaceBulkPurchase          Boolean                        @default(false)
+  faceBulkPriceCents              Int?
+  /// Comisión para organizadores de escuela (V1)
+  organizerCommissionEnabled      Boolean                        @default(false)
+  organizerCommissionPercentage   Float?
+  organizerCommissionAppliesTo    OrganizerCommissionAppliesTo[] @default([PREVENTA])
+  // END LEGACY MERGE
   /// Escuela vinculada (álbum escolar Etapa 1)
   schoolId                        Int?
-  coverPhoto                      Photo?               @relation("AlbumCoverPhoto", fields: [coverPhotoId], references: [id])
-  creator                         User?                @relation("AlbumCreator", fields: [creatorId], references: [id])
-  event                           Event?               @relation(fields: [eventId], references: [id])
-  school                          School?              @relation(fields: [schoolId], references: [id])
-  selectedLab                     Lab?                 @relation("AlbumSelectedLab", fields: [selectedLabId], references: [id])
-  user                            User                 @relation(fields: [userId], references: [id])
+  // BEGIN LEGACY MERGE — dominio 3 escuela/roster (campos Album)
+  academicYearId                  Int?
+  /// Modo de identificación de alumno en preventa (submódulo escolar)
+  studentIdentificationMode       StudentIdentificationMode?
+  allowManualStudentFallback      Boolean                        @default(false)
+  // END LEGACY MERGE
+  coverPhoto                      Photo?                         @relation("AlbumCoverPhoto", fields: [coverPhotoId], references: [id])
+  creator                         User?                          @relation("AlbumCreator", fields: [creatorId], references: [id])
+  event                           Event?                         @relation(fields: [eventId], references: [id])
+  school                          School?                        @relation(fields: [schoolId], references: [id])
+  academicYear                    AcademicYear?                  @relation("AlbumAcademicYear", fields: [academicYearId], references: [id], onDelete: SetNull)
+  selectedLab                     Lab?                           @relation("AlbumSelectedLab", fields: [selectedLabId], references: [id])
+  user                            User                           @relation(fields: [userId], references: [id])
   accesses                        AlbumAccess[]
   collaborators                   AlbumCollaborator[]
   extensions                      AlbumExtension[]
@@ -322,6 +357,7 @@ model Album {
   invitations                     AlbumInvitation[]
   notifications                   AlbumNotification[]
   preCompraProducts               AlbumProduct[]
+  packs                           AlbumPack[]
   salesSettings                   AlbumSalesSettings?
   slugAliases                     AlbumSlugAlias[]
   hiddenAlbumAttempts             HiddenAlbumAttempt[]
@@ -332,11 +368,25 @@ model Album {
   removalRequests                 RemovalRequest[]
   subjects                        Subject[]
   templates                       Template[]
+  // BEGIN LEGACY MERGE — dominio 3 escuela/roster (relaciones Album)
+  studentRosterEntries            AlbumStudentRosterEntry[]
+  studentRosterImportBatches      StudentRosterImportBatch[]
+  // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 4 album packs / preventa / upsell
+  upsellConfig                    AlbumUpsellConfig?
+  upsellPacks                     AlbumUpsellPack[]
+  packDefinitions                 PackDefinition[]
+  packPurchaseEntitlements        PackPurchaseEntitlement[]
+  packSelectionSessions           AlbumPackSelectionSession[]
+  packOrderDrafts                 AlbumPackOrderDraft[]
+  redemptionSessions              RedemptionSession[]
+  // END LEGACY MERGE
 
   @@index([userId])
   @@index([creatorId])
   @@index([eventId])
   @@index([schoolId])
+  @@index([academicYearId])
   @@index([geohash])
   @@index([coverPhotoId])
   @@index([selectedLabId])
@@ -593,25 +643,37 @@ model AlbumAccess {
 
 /// * Escuela (módulo fotografía escolar Etapa 1)
 model School {
-  id           Int            @id @default(autoincrement())
-  ownerId      Int
-  name         String
-  slug         String?        @unique
-  contactEmail String?
-  contactPhone String?
-  notes        String?
+  id                         Int                         @id @default(autoincrement())
+  ownerId                    Int
+  name                       String
+  slug                       String?                     @unique
+  contactEmail               String?
+  contactPhone               String?
+  notes                      String?
   /// Dirección completa (ej. desde Google Maps / Nominatim)
-  address      String?
-  city         String?
-  province     String?
-  country      String?
-  latitude     Float?
-  longitude    Float?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  albums       Album[]
-  owner        User           @relation("SchoolOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  courses      SchoolCourse[]
+  address                    String?
+  city                       String?
+  province                   String?
+  country                    String?
+  latitude                   Float?
+  longitude                  Float?
+  /// Logo institucional (URL pública en R2 u origen permitido)
+  logoUrl                    String?
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  albums                     Album[]
+  owner                      User                        @relation("SchoolOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  courses                    SchoolCourse[]
+  // BEGIN LEGACY MERGE — dominio 3 escuela/roster
+  academicYears              AcademicYear[]
+  albumStudentRosterEntries  AlbumStudentRosterEntry[]
+  organizers                 SchoolOrganizer[]
+  organizerInvitations       SchoolOrganizerInvitation[]
+  students                   SchoolStudent[]
+  studentEnrollments         StudentEnrollment[]
+  studentRosterImportBatches StudentRosterImportBatch[]
+  convertedLeads             SchoolLead[]                @relation("SchoolLeadConvertedSchool")
+  // END LEGACY MERGE
 
   @@index([ownerId])
 }
@@ -634,36 +696,288 @@ model SchoolCourse {
   @@index([schoolId])
 }
 
+// BEGIN LEGACY MERGE — dominio 3 escuela/roster (modelos)
+
+/// Lead de escuela (captación / referidos)
+model SchoolLead {
+  id                Int              @id @default(autoincrement())
+  schoolName        String
+  city              String
+  contactName       String
+  contactRole       String?
+  email             String?
+  whatsapp          String
+  approxStudents    Int?
+  message           String?
+  status            SchoolLeadStatus @default(NEW)
+  referralCode      String?
+  referredByUserId  Int?
+  referrerRole      Role?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  convertedAt       DateTime?
+  convertedSchoolId Int?
+  notes             String?
+  convertedSchool   School?          @relation("SchoolLeadConvertedSchool", fields: [convertedSchoolId], references: [id], onDelete: SetNull)
+  referredByUser    User?            @relation("SchoolLeadReferredBy", fields: [referredByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([city])
+  @@index([schoolName])
+  @@index([contactName])
+  @@index([referralCode])
+  @@index([referredByUserId])
+  @@index([convertedSchoolId])
+}
+
+/// Membresía de organizador de escuela (ADR D2 — rol SCHOOL_ORGANIZER)
+model SchoolOrganizer {
+  id        String                @id @default(cuid())
+  schoolId  Int
+  userId    Int
+  status    SchoolOrganizerStatus @default(ACTIVE)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  school    School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, userId])
+  @@index([schoolId])
+  @@index([userId])
+  @@index([status])
+}
+
+model SchoolOrganizerInvitation {
+  id              String                          @id @default(cuid())
+  schoolId        Int
+  email           String
+  name            String?
+  tokenHash       String                          @unique
+  status          SchoolOrganizerInvitationStatus @default(PENDING)
+  invitedByUserId Int
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime                        @default(now())
+  updatedAt       DateTime                        @updatedAt
+  invitedBy       User                            @relation("SchoolOrganizerInvitationInvitedBy", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  school          School                          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, status])
+  @@index([email])
+}
+
+/// Año lectivo por escuela
+model AcademicYear {
+  id              Int                        @id @default(autoincrement())
+  schoolId        Int
+  label           String
+  isCurrent       Boolean                    @default(false)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @default(now()) @updatedAt
+  school          School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  enrollments     StudentEnrollment[]
+  rosterImports   StudentRosterImportBatch[]
+  albumsUsingYear Album[]                    @relation("AlbumAcademicYear")
+
+  @@unique([schoolId, label])
+  @@index([schoolId])
+}
+
+/// Alumno base histórico por escuela (legacy `Student` → ADR D1)
+model SchoolStudent {
+  id                 Int                       @id @default(autoincrement())
+  schoolId           Int
+  externalStudentId  String?
+  dni                String?
+  firstName          String
+  lastName           String
+  normalizedFullName String
+  normalizedKey      String?
+  sourceType         StudentSourceType
+  isActive           Boolean                   @default(true)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @default(now()) @updatedAt
+  albumRosterEntries AlbumStudentRosterEntry[]
+  preCompraOrders    PreCompraOrder[]
+  school             School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  enrollments        StudentEnrollment[]
+  importRowsMatched  StudentRosterImportRow[]  @relation("StudentRosterImportRowMatchedStudent")
+
+  @@unique([schoolId, externalStudentId])
+  @@index([schoolId])
+  @@index([schoolId, lastName, firstName])
+  @@index([schoolId, normalizedFullName])
+}
+
+/// Matrícula anual del alumno
+model StudentEnrollment {
+  id                              Int                       @id @default(autoincrement())
+  studentId                       Int
+  schoolId                        Int
+  academicYearId                  Int
+  level                           String
+  shift                           String
+  courseName                      String
+  division                        String
+  status                          StudentEnrollmentStatus   @default(ACTIVE)
+  sourceType                      StudentSourceType
+  notes                           String?
+  createdAt                       DateTime                  @default(now())
+  updatedAt                       DateTime                  @default(now()) @updatedAt
+  albumRosterEntries              AlbumStudentRosterEntry[] @relation("AlbumRosterOperationalEnrollment")
+  albumRosterSyncFromAlbumEntries AlbumStudentRosterEntry[] @relation("RosterSyncSourceEnrollment")
+  academicYear                    AcademicYear              @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  school                          School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student                         SchoolStudent             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  importRowsMatched               StudentRosterImportRow[]  @relation("StudentRosterImportRowMatchedEnrollment")
+
+  @@unique([studentId, academicYearId])
+  @@index([schoolId, academicYearId])
+  @@index([studentId])
+  @@index([schoolId, level, shift, courseName, division])
+}
+
+/// Padrón operativo por álbum (no cuelga de Event organizador)
+model AlbumStudentRosterEntry {
+  id                       Int                @id @default(autoincrement())
+  albumId                  Int
+  schoolId                 Int
+  studentId                Int
+  enrollmentId             Int?
+  level                    String
+  shift                    String
+  courseName               String
+  division                 String
+  snapshotFirstName        String
+  snapshotLastName         String
+  sourceType               StudentSourceType
+  isManual                 Boolean            @default(false)
+  isActive                 Boolean            @default(true)
+  /// Última vez que la fila se alineó con matrícula institucional (sync inteligente)
+  lastEnrollmentSyncAt     DateTime?
+  /// Matrícula canónica usada en el último sync institucional (puede coincidir con enrollmentId)
+  syncSourceEnrollmentId   Int?
+  /// El alumno ya no está en los cursos sincronizados o hay divergencia de curso a revisar
+  isOutdatedFromEnrollment Boolean            @default(false)
+  /// El fotógrafo preservó snapshot local; el sync no pisa automáticamente
+  hasLocalOverrides        Boolean            @default(false)
+  /// REMOVED_FROM_SELECTION | COURSE_CHANGED (texto estable para UI/API)
+  institutionalStaleReason String?
+  photosTakenAt            DateTime?
+  photosTakenByUserId      Int?
+  notes                    String?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @default(now()) @updatedAt
+  album                    Album              @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  enrollment               StudentEnrollment? @relation("AlbumRosterOperationalEnrollment", fields: [enrollmentId], references: [id])
+  syncSourceEnrollment     StudentEnrollment? @relation("RosterSyncSourceEnrollment", fields: [syncSourceEnrollmentId], references: [id], onDelete: SetNull)
+  photosTakenBy            User?              @relation("AlbumStudentRosterEntryPhotosTakenBy", fields: [photosTakenByUserId], references: [id])
+  school                   School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student                  SchoolStudent      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  preCompraOrders          PreCompraOrder[]
+
+  @@unique([albumId, studentId])
+  @@index([albumId])
+  @@index([albumId, isOutdatedFromEnrollment])
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([albumId, level, shift, courseName, division], map: "AlbumStudentRosterEntry_albumId_level_shift_courseName_division")
+  @@index([albumId, snapshotLastName, snapshotFirstName], map: "AlbumStudentRosterEntry_albumId_snapshotLastName_snapshotFirstN")
+}
+
+/// Cabecera de importación de padrón
+model StudentRosterImportBatch {
+  id               Int                      @id @default(autoincrement())
+  schoolId         Int
+  albumId          Int?
+  academicYearId   Int?
+  uploadedByUserId Int
+  fileName         String
+  importMode       String
+  status           RosterImportStatus       @default(PENDING)
+  rowCount         Int                      @default(0)
+  summaryJson      Json?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @default(now()) @updatedAt
+  academicYear     AcademicYear?            @relation(fields: [academicYearId], references: [id])
+  album            Album?                   @relation(fields: [albumId], references: [id])
+  school           School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  uploadedBy       User                     @relation(fields: [uploadedByUserId], references: [id])
+  rows             StudentRosterImportRow[]
+
+  @@index([schoolId])
+  @@index([albumId])
+  @@index([academicYearId])
+  @@index([uploadedByUserId])
+}
+
+/// Fila auditada de importación
+model StudentRosterImportRow {
+  id                  Int                      @id @default(autoincrement())
+  batchId             Int
+  rowNumber           Int
+  level               String?
+  shift               String?
+  courseName          String?
+  division            String?
+  firstName           String?
+  lastName            String?
+  externalStudentId   String?
+  dni                 String?
+  rawRowJson          Json?
+  status              RosterImportRowStatus
+  message             String?
+  matchedStudentId    Int?
+  matchedEnrollmentId Int?
+  createdAt           DateTime                 @default(now())
+  batch               StudentRosterImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  matchedEnrollment   StudentEnrollment?       @relation("StudentRosterImportRowMatchedEnrollment", fields: [matchedEnrollmentId], references: [id])
+  matchedStudent      SchoolStudent?           @relation("StudentRosterImportRowMatchedStudent", fields: [matchedStudentId], references: [id])
+
+  @@index([batchId])
+  @@index([status])
+  @@index([matchedStudentId])
+  @@index([matchedEnrollmentId])
+}
+
+// END LEGACY MERGE — dominio 3 escuela/roster (modelos)
+
 model Photo {
-  id              Int                 @id @default(autoincrement())
-  albumId         Int
-  previewUrl      String
-  originalKey     String
-  createdAt       DateTime            @default(now())
-  userId          Int?
+  id                       Int                       @id @default(autoincrement())
+  albumId                  Int
+  previewUrl               String
+  originalKey              String
+  createdAt                DateTime                  @default(now())
+  userId                   Int?
   /// Si true, esta foto se puede vender como digital (por defecto sí)
-  sellDigital     Boolean             @default(true)
+  sellDigital              Boolean                   @default(true)
   /// Si true, esta foto se puede vender como impresa (por defecto sí)
-  sellPrint       Boolean             @default(true)
-  isRemoved       Boolean             @default(false)
-  removedAt       DateTime?
-  removedReason   String?
-  analysisStatus  PhotoAnalysisStatus @default(PENDING)
-  analysisError   String?
-  analyzedAt      DateTime?
-  albumsAsCover   Album[]             @relation("AlbumCoverPhoto")
-  faceDetections  FaceDetection[]
-  faceMatches     FaceMatch[]
-  faceMatchEvents FaceMatchEvent[]
-  ocrTokens       OcrToken[]
-  items           OrderItem[]
-  album           Album               @relation(fields: [albumId], references: [id])
-  uploadedBy      User?               @relation("PhotoUploader", fields: [userId], references: [id])
-  analysisJob     PhotoAnalysisJob?
-  photoClaims     PhotoClaim[]
-  photoFaces      PhotoFace[]
-  removalRequests RemovalRequest[]
-  selectionPhotos SelectionPhoto[]
+  sellPrint                Boolean                   @default(true)
+  isRemoved                Boolean                   @default(false)
+  removedAt                DateTime?
+  removedReason            String?
+  analysisStatus           PhotoAnalysisStatus       @default(PENDING)
+  analysisError            String?
+  analyzedAt               DateTime?
+  albumsAsCover            Album[]                   @relation("AlbumCoverPhoto")
+  faceDetections           FaceDetection[]
+  faceMatches              FaceMatch[]
+  faceMatchEvents          FaceMatchEvent[]
+  ocrTokens                OcrToken[]
+  items                    OrderItem[]
+  album                    Album                     @relation(fields: [albumId], references: [id])
+  uploadedBy               User?                     @relation("PhotoUploader", fields: [userId], references: [id])
+  analysisJob              PhotoAnalysisJob?
+  photoClaims              PhotoClaim[]
+  photoFaces               PhotoFace[]
+  removalRequests          RemovalRequest[]
+  selectionPhotos          SelectionPhoto[]
+  // BEGIN LEGACY MERGE — dominio 4 album packs
+  albumPackSelectionPhotos AlbumPackSelectionPhoto[]
+  // END LEGACY MERGE
 
   @@index([albumId])
   @@index([userId])
@@ -714,34 +1028,37 @@ model FaceDetection {
 }
 
 model Order {
-  id                       Int                      @id @default(autoincrement())
-  albumId                  Int
-  buyerEmail               String
-  buyerUserId              Int?
-  buyerPhone               String?
-  claimedAt                DateTime?
-  status                   OrderStatus              @default(PENDING)
+  id                        Int                      @id @default(autoincrement())
+  albumId                   Int
+  buyerEmail                String
+  buyerUserId               Int?
+  buyerPhone                String?
+  claimedAt                 DateTime?
+  status                    OrderStatus              @default(PENDING)
   /// Total en ARS enteros (no centavos). Se conserva el sufijo "Cents" por compatibilidad histórica.
-  totalCents               Int                      @default(0)
-  createdAt                DateTime                 @default(now())
+  totalCents                Int                      @default(0)
+  createdAt                 DateTime                 @default(now())
   /// Recargo por extensión en ARS enteros (no centavos).
-  extensionSurchargeCents  Int                      @default(0)
-  mpPreferenceId           String?
-  mpInitPoint              String?
-  mpPaymentId              String?
-  platformCommissionCents  Int?                     @default(0)
-  pricingSnapshot          Json?
+  extensionSurchargeCents   Int                      @default(0)
+  mpPreferenceId            String?
+  mpInitPoint               String?
+  mpPaymentId               String?
+  platformCommissionCents   Int?                     @default(0)
+  pricingSnapshot           Json?
   /// Descuento aplicado del saldo de referidos del dueño del álbum a este pedido (centavos)
-  referralFeeDiscountCents Int?
-  digitalDeliveredAt       DateTime?
+  referralFeeDiscountCents  Int?
+  digitalDeliveredAt        DateTime?
   /// Primera vez que el cliente abrió el link de descarga o descargó (para mostrar en panel fotógrafo/admin)
-  downloadLinkViewedAt     DateTime?
-  abandonedReminders       AbandonedOrderReminder[]
-  album                    Album                    @relation(fields: [albumId], references: [id])
-  buyerUser                User?                    @relation("OrderBuyerUser", fields: [buyerUserId], references: [id])
-  fulfillmentGroups        OrderFulfillmentGroup[]
-  items                    OrderItem[]
-  whatsappDeliveryLogs     WhatsAppDeliveryLog[]
+  downloadLinkViewedAt      DateTime?
+  abandonedReminders        AbandonedOrderReminder[]
+  album                     Album                    @relation(fields: [albumId], references: [id])
+  buyerUser                 User?                    @relation("OrderBuyerUser", fields: [buyerUserId], references: [id])
+  fulfillmentGroups         OrderFulfillmentGroup[]
+  items                     OrderItem[]
+  whatsappDeliveryLogs      WhatsAppDeliveryLog[]
+  // BEGIN LEGACY MERGE — dominio 4 preventa packs (canje)
+  packRedemptionEntitlement PackPurchaseEntitlement?
+  // END LEGACY MERGE
 
   @@index([albumId])
   @@index([buyerUserId])
@@ -832,58 +1149,438 @@ model AlbumProduct {
   @@index([albumId])
 }
 
+model AlbumPack {
+  id                 String                      @id @default(cuid())
+  albumId            Int
+  name               String
+  description        String?
+  /// Imagen opcional 1:1 para catálogo público de galería.
+  coverImageUrl      String?
+  /// Precio en ARS enteros
+  price              Int
+  includedPhotoCount Int?
+  requiresSelection  Boolean                     @default(false)
+  requiresDesign     Boolean                     @default(false)
+  templateId         Int?
+  /// Plantilla de diseño V2 (dominio 5 — FK sin relación hasta merge TemplateV2)
+  templateV2Id       String?
+  availabilityPhase  AlbumPackAvailabilityPhase
+  packType           AlbumPackType
+  isActive           Boolean                     @default(true)
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  album              Album                       @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  template           Template?                   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  // BEGIN LEGACY MERGE — dominio 4 album packs
+  components         AlbumPackComponent[]
+  orderDrafts        AlbumPackOrderDraft[]
+  selectionSessions  AlbumPackSelectionSession[]
+  // END LEGACY MERGE
+
+  @@index([albumId])
+  @@index([templateId])
+  @@index([templateV2Id])
+  @@index([isActive])
+}
+
+// BEGIN LEGACY MERGE — dominio 4 album packs / preventa / upsell (modelos)
+
+model AlbumPackComponent {
+  id                    String                 @id @default(cuid())
+  albumPackId           String
+  kind                  AlbumPackComponentKind
+  sortOrder             Int                    @default(0)
+  unitsPerSelection     Int                    @default(1)
+  photographerProductId Int?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  albumPack             AlbumPack              @relation(fields: [albumPackId], references: [id], onDelete: Cascade)
+  photographerProduct   PhotographerProduct?   @relation(fields: [photographerProductId], references: [id], onDelete: SetNull)
+
+  @@index([albumPackId])
+  @@index([photographerProductId])
+}
+
+model AlbumPackSelectionSession {
+  id          String                    @id @default(cuid())
+  albumId     Int
+  albumPackId String
+  guestToken  String?
+  buyerEmail  String?
+  buyerName   String?
+  buyerPhone  String?
+  status      AlbumPackSelectionStatus  @default(DRAFT)
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  expiresAt   DateTime?
+  album       Album                     @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumPack   AlbumPack                 @relation(fields: [albumPackId], references: [id], onDelete: Cascade)
+  orderDrafts AlbumPackOrderDraft[]
+  photos      AlbumPackSelectionPhoto[]
+
+  @@index([albumId])
+  @@index([albumPackId])
+  @@index([status])
+  @@index([guestToken])
+}
+
+model AlbumPackOrderDraft {
+  id                  String                    @id @default(cuid())
+  albumId             Int
+  albumPackId         String
+  selectionSessionId  String
+  buyerEmail          String?
+  buyerName           String?
+  buyerPhone          String?
+  guestToken          String?
+  status              AlbumPackOrderDraftStatus @default(DRAFT)
+  totalCents          Int
+  pricingSnapshotJson Json?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  expiresAt           DateTime?
+  album               Album                     @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumPack           AlbumPack                 @relation(fields: [albumPackId], references: [id], onDelete: Cascade)
+  selectionSession    AlbumPackSelectionSession @relation(fields: [selectionSessionId], references: [id], onDelete: Cascade)
+
+  @@index([albumId])
+  @@index([albumPackId])
+  @@index([selectionSessionId])
+  @@index([status])
+  @@index([guestToken])
+}
+
+model AlbumPackSelectionPhoto {
+  id        String                    @id @default(cuid())
+  sessionId String
+  photoId   Int
+  position  Int                       @default(0)
+  role      String?
+  createdAt DateTime                  @default(now())
+  photo     Photo                     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  session   AlbumPackSelectionSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, photoId])
+  @@index([sessionId])
+  @@index([photoId])
+}
+
+/// Configuración de upsell por álbum (extras y packs adicionales).
+model AlbumUpsellConfig {
+  id                   Int      @id @default(autoincrement())
+  albumId              Int      @unique
+  digitalExtraEnabled  Boolean  @default(false)
+  digitalExtraPriceArs Int?
+  printExtraEnabled    Boolean  @default(false)
+  printExtraPriceArs   Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  album                Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+}
+
+/// Packs POST_UPLOAD seleccionados como upsell para un álbum.
+model AlbumUpsellPack {
+  id        Int            @id @default(autoincrement())
+  albumId   Int
+  packId    Int
+  createdAt DateTime       @default(now())
+  album     Album          @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  pack      PackDefinition @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@unique([albumId, packId])
+  @@index([albumId])
+  @@index([packId])
+}
+
+/// Definición viva de pack por álbum (catálogo preventa canjeable V1)
+model PackDefinition {
+  id                           Int                    @id @default(autoincrement())
+  albumId                      Int
+  name                         String
+  description                  String?
+  isActive                     Boolean                @default(true)
+  validFrom                    DateTime?
+  validUntil                   DateTime?
+  /// Si está definido, al pagar la preventa se copia a PackPurchaseEntitlement.expiresAt
+  redemptionDeadlineAt         DateTime?
+  displayOrder                 Int                    @default(0)
+  /// Precio base del fotógrafo (ARS enteros). El cliente paga este monto + fee de plataforma.
+  priceClientArs               Int                    @default(0)
+  currency                     String                 @default("ARS")
+  version                      Int                    @default(1)
+  createdAt                    DateTime               @default(now())
+  updatedAt                    DateTime               @updatedAt
+  /// Imagen del pack en catálogo público (cuadrada 1:1); opcional.
+  coverImageUrl                String?
+  availabilityPhase            PackAvailabilityPhase?
+  /// Origen catálogo global (dominio 5 — FK sin relación hasta merge CatalogProduct)
+  sourceCatalogProductId       Int?
+  sourceAlbumCatalogProductId  Int?                   @unique
+  sourceCatalogSyncedAt        DateTime?
+  sourceCatalogVersionSnapshot Json?
+  benefits                     BenefitDefinition[]
+  album                        Album                  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  preCompraOrderItems          PreCompraOrderItem[]
+  upsellSelections             AlbumUpsellPack[]
+
+  @@unique([albumId, sourceCatalogProductId])
+  @@index([albumId])
+  @@index([albumId, isActive])
+  @@index([sourceCatalogProductId])
+  @@index([sourceAlbumCatalogProductId])
+}
+
+model BenefitDefinition {
+  id                               Int                   @id @default(autoincrement())
+  packDefinitionId                 Int
+  kind                             PackBenefitKind
+  includedQuantity                 Int                   @default(1)
+  sortOrder                        Int                   @default(0)
+  photographerProductId            Int?
+  templatePolicy                   BenefitTemplatePolicy @default(NONE)
+  templateId                       Int?
+  extraUnitPriceOverrideArs        Int?
+  requiredPhotoCount               Int                   @default(1)
+  selectionMode                    BenefitSelectionMode  @default(SINGLE_PHOTO)
+  maxPhotosPerUnit                 Int?
+  createdAt                        DateTime              @default(now())
+  updatedAt                        DateTime              @updatedAt
+  /// Valor de lista por unidad después de la preventa (comunicación honesta de ahorro)
+  regularUnitPriceAfterPreventaArs Int?
+  packDefinition                   PackDefinition        @relation(fields: [packDefinitionId], references: [id], onDelete: Cascade)
+  photographerProduct              PhotographerProduct?  @relation(fields: [photographerProductId], references: [id])
+  template                         Template?             @relation(fields: [templateId], references: [id])
+
+  @@index([packDefinitionId])
+  @@index([photographerProductId])
+  @@index([templateId])
+}
+
+/// Derecho canjeable post-pago preventa; 1:1 con PreCompraOrder en V1
+model PackPurchaseEntitlement {
+  id                 Int                           @id @default(autoincrement())
+  preCompraOrderId   Int                           @unique
+  albumId            Int
+  buyerEmail         String
+  buyerUserId        Int?
+  snapshotJson       Json
+  status             PackPurchaseEntitlementStatus @default(UNPAID)
+  redeemedOrderId    Int?                          @unique
+  paidAt             DateTime?
+  expiresAt          DateTime?
+  schemaVersion      Int                           @default(1)
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+  album              Album                         @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  preCompraOrder     PreCompraOrder                @relation(fields: [preCompraOrderId], references: [id], onDelete: Cascade)
+  redeemedOrder      Order?                        @relation(fields: [redeemedOrderId], references: [id])
+  redemptionSessions RedemptionSession[]
+
+  @@index([albumId])
+  @@index([status])
+  @@index([buyerEmail])
+}
+
+model RedemptionSession {
+  id            String                  @id @default(cuid())
+  entitlementId Int
+  albumId       Int
+  clientGuestId String?
+  buyerUserId   Int?
+  stateJson     Json                    @default("{}")
+  currentStep   Int                     @default(1)
+  status        RedemptionSessionStatus @default(ACTIVE)
+  expiresAt     DateTime?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  album         Album                   @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  entitlement   PackPurchaseEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@index([entitlementId])
+  @@index([entitlementId, status])
+  @@index([albumId])
+}
+
+/// Acceso público al canje de packs (token seguro, hash en DB)
+model PackAccessToken {
+  id         Int       @id @default(autoincrement())
+  orderId    Int
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+
+  @@index([orderId])
+  @@index([expiresAt])
+}
+
+// END LEGACY MERGE — dominio 4 album packs / preventa / upsell (modelos)
+
+enum AlbumPackAvailabilityPhase {
+  PRE_UPLOAD
+  POST_UPLOAD
+  ALWAYS
+}
+
+enum AlbumPackType {
+  DIGITAL
+  PRINT
+  SCHOOL_FOLDER
+}
+
+// BEGIN LEGACY MERGE — dominio 4 album packs / preventa (enums)
+
+enum AlbumPackComponentKind {
+  DIGITAL
+  PRINT
+  DESIGN_PRODUCT
+}
+
+enum AlbumPackSelectionStatus {
+  DRAFT
+  READY
+  EXPIRED
+}
+
+enum AlbumPackOrderDraftStatus {
+  DRAFT
+  LOCKED
+  EXPIRED
+  CANCELLED
+}
+
+enum PackAvailabilityPhase {
+  PRE_UPLOAD
+  POST_UPLOAD
+}
+
+enum PackBenefitKind {
+  DIGITAL
+  PHYSICAL
+}
+
+enum BenefitTemplatePolicy {
+  NONE
+  REQUIRED
+  OPTIONAL
+}
+
+enum BenefitSelectionMode {
+  SINGLE_PHOTO
+  MULTI_PHOTO_FIXED
+  ALBUM_CHOICE
+}
+
+enum PackPurchaseEntitlementStatus {
+  UNPAID
+  PAID_ACTIVE
+  IN_REDEMPTION
+  AWAITING_EXTRAS_PAYMENT
+  REDEEMED
+  EXPIRED
+  VOID
+}
+
+enum RedemptionSessionStatus {
+  ACTIVE
+  ABANDONED
+  COMPLETED
+}
+
+/// Comisión organizador escuela — enum compartido (dominio 9; requerido por venta escolar en Album)
+enum OrganizerCommissionAppliesTo {
+  PREVENTA
+  POST_EVENT
+  EXTRAS
+}
+
+// END LEGACY MERGE — dominio 4 album packs / preventa (enums)
+
 /// * Pedido de pre-compra (cliente compró catálogo; con/sin pago según flujo)
 model PreCompraOrder {
-  id               Int                  @id @default(autoincrement())
-  albumId          Int
-  buyerEmail       String
-  buyerUserId      Int?
-  buyerName        String?
-  buyerPhone       String?
-  schoolCourseId   Int?
-  studentFirstName String?
-  studentLastName  String?
-  status           PreCompraOrderStatus @default(CREATED)
-  totalCents       Int                  @default(0)
-  mpPreferenceId   String?
-  mpInitPoint      String?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  photoClaims      PhotoClaim[]
-  album            Album                @relation(fields: [albumId], references: [id], onDelete: Cascade)
-  schoolCourse     SchoolCourse?        @relation(fields: [schoolCourseId], references: [id])
-  items            PreCompraOrderItem[]
-  subjects         Subject[]
-  selfies          SubjectSelfie[]
+  id                      Int                      @id @default(autoincrement())
+  albumId                 Int
+  buyerEmail              String
+  buyerUserId             Int?
+  buyerName               String?
+  buyerPhone              String?
+  schoolCourseId          Int?
+  studentFirstName        String?
+  studentLastName         String?
+  status                  PreCompraOrderStatus     @default(CREATED)
+  totalCents              Int                      @default(0)
+  mpPreferenceId          String?
+  mpInitPoint             String?
+  // BEGIN LEGACY MERGE — dominio 3 escuela/roster (campos PreCompraOrder)
+  studentId               Int?
+  albumRosterEntryId      Int?
+  studentSourceType       StudentSourceType?
+  studentLevelSnapshot    String?
+  studentShiftSnapshot    String?
+  studentCourseSnapshot   String?
+  studentDivisionSnapshot String?
+  photosTakenAt           DateTime?
+  photosTakenByUserId     Int?
+  studentNotes            String?
+  /// Pedido de simulación (checkout TEST); excluir de métricas reales
+  isTest                  Boolean                  @default(false)
+  // END LEGACY MERGE
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  photoClaims             PhotoClaim[]
+  album                   Album                    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumRosterEntry        AlbumStudentRosterEntry? @relation(fields: [albumRosterEntryId], references: [id])
+  photosTakenBy           User?                    @relation("PreCompraOrderPhotosTakenBy", fields: [photosTakenByUserId], references: [id])
+  schoolCourse            SchoolCourse?            @relation(fields: [schoolCourseId], references: [id])
+  student                 SchoolStudent?           @relation(fields: [studentId], references: [id])
+  items                   PreCompraOrderItem[]
+  subjects                Subject[]
+  selfies                 SubjectSelfie[]
+  // BEGIN LEGACY MERGE — dominio 4 preventa packs
+  packPurchaseEntitlement PackPurchaseEntitlement?
+  // END LEGACY MERGE
 
   @@index([albumId])
   @@index([buyerEmail])
   @@index([buyerUserId])
   @@index([schoolCourseId])
+  @@index([studentId])
+  @@index([albumRosterEntryId])
+  @@index([studentLastName, studentFirstName])
+  @@index([studentCourseSnapshot, studentDivisionSnapshot], map: "PreCompraOrder_studentCourseSnapshot_studentDivisionSnapshot_id")
+  @@index([isTest])
 }
 
-/// * Ítem del pedido de pre-compra (por producto del catálogo)
+/// * Ítem del pedido de pre-compra (producto legacy AlbumProduct o línea de PackDefinition)
 model PreCompraOrderItem {
-  id             Int                      @id @default(autoincrement())
-  orderId        Int
-  albumProductId Int
+  id                 Int                      @id @default(autoincrement())
+  orderId            Int
+  albumProductId     Int?
   /// Niño asignado (opcional hasta selfie/selección)
-  subjectId      Int?
-  status         PreCompraOrderItemStatus @default(WAITING_SELFIE)
+  subjectId          Int?
+  status             PreCompraOrderItemStatus @default(WAITING_SELFIE)
   /// FACE_MATCH | SELECTION
-  approvalProof  ApprovalProof?
-  approvedAt     DateTime?
-  priceCents     Int                      @default(0)
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
-  designProject  DesignProject?
-  albumProduct   AlbumProduct             @relation(fields: [albumProductId], references: [id], onDelete: Cascade)
-  order          PreCompraOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  subject        Subject?                 @relation(fields: [subjectId], references: [id])
-  selection      Selection?
+  approvalProof      ApprovalProof?
+  approvedAt         DateTime?
+  priceCents         Int                      @default(0)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  // BEGIN LEGACY MERGE — dominio 4 preventa packs
+  packDefinitionId   Int?
+  /// Token opaco para ficha QR de entrega escolar (por ítem)
+  fulfillmentQrToken String?                  @unique
+  // END LEGACY MERGE
+  designProject      DesignProject?
+  albumProduct       AlbumProduct?            @relation(fields: [albumProductId], references: [id], onDelete: Cascade)
+  order              PreCompraOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  packDefinition     PackDefinition?          @relation(fields: [packDefinitionId], references: [id], onDelete: Restrict)
+  subject            Subject?                 @relation(fields: [subjectId], references: [id])
+  selection          Selection?
 
   @@index([orderId])
   @@index([albumProductId])
+  @@index([packDefinitionId])
   @@index([subjectId])
   @@index([status])
 }
@@ -1014,7 +1711,7 @@ model SelectionPhoto {
 /// * Plantilla: puede ser de la biblioteca del álbum (albumProductId null) o asignada a un producto.
 /// albumId null = plantilla pública del sistema (solo admin). Si albumId set = plantilla de ese álbum.
 model Template {
-  id                 Int             @id @default(autoincrement())
+  id                 Int                 @id @default(autoincrement())
   /// null = plantilla pública del sistema (cualquier fotógrafo puede usarla); si set = de este álbum
   albumId            Int?
   /// null = plantilla de la biblioteca del álbum; si está set = asignada a este producto
@@ -1022,9 +1719,9 @@ model Template {
   /// ej. "Díptico 4 fotos - Modelo A"
   name               String
   imageUrl           String
-  greenColorHex      String          @default("#00ff00")
+  greenColorHex      String              @default("#00ff00")
   /// 0-100
-  tolerance          Int             @default(30)
+  tolerance          Int                 @default(30)
   widthCm            Float
   heightCm           Float
   /// { insetPx or percent }
@@ -1032,17 +1729,23 @@ model Template {
   /// [{ id, x, y, text, fontSize, fontFamily, fill }] en px de la imagen, editables luego en el diseñador
   textElementsJson   Json?
   /// true = plantilla del sistema, visible para todos por temática
-  isSystemTemplate   Boolean         @default(false)
+  isSystemTemplate   Boolean             @default(false)
   /// Temática para filtrar (ej. "Bodas", "Cumpleaños")
   theme              String?
   /// Hojas adicionales: [{ imageUrl, widthCm, heightCm, slots, textElements }]; la primera hoja es imageUrl/slots actuales
   pagesJson          Json?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  defaultForProduct  AlbumProduct?   @relation("AlbumProductDefaultTemplate")
+  /// "v1" = legacy (imagen + slots). Los diseños V2 viven en `TemplateV2` (dominio 5).
+  version            String              @default("v1")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  defaultForProduct  AlbumProduct?       @relation("AlbumProductDefaultTemplate")
   designProjects     DesignProject[]
-  album              Album?          @relation(fields: [albumId], references: [id], onDelete: Cascade)
-  albumProduct       AlbumProduct?   @relation(fields: [albumProductId], references: [id], onDelete: Cascade)
+  albumPacks         AlbumPack[]
+  // BEGIN LEGACY MERGE — dominio 4 preventa packs
+  benefitDefinitions BenefitDefinition[]
+  // END LEGACY MERGE
+  album              Album?              @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumProduct       AlbumProduct?       @relation(fields: [albumProductId], references: [id], onDelete: Cascade)
   slots              TemplateSlot[]
 
   @@index([albumId])
@@ -1133,36 +1836,50 @@ model DesignRevision {
 }
 
 /// * Job de render de preview (deduplicación en aplicación: un PENDING/PROCESSING por revisión)
+/// ADR D5: PK Int legacy; campos mono de observabilidad opcionales.
 model DesignPreviewJob {
-  id               String                 @id @default(cuid())
+  id               Int              @id @default(autoincrement())
   designRevisionId Int
-  status           DesignPreviewJobStatus @default(PENDING)
-  targetVersion    Int
+  status           PreviewJobStatus @default(PENDING)
+  attempts         Int              @default(0)
+  lockedAt         DateTime?
+  lastError        String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  /// Observabilidad mono (nullable)
+  targetVersion    Int?
   error            String?
-  createdAt        DateTime               @default(now())
   startedAt        DateTime?
   completedAt      DateTime?
-  designRevision   DesignRevision         @relation(fields: [designRevisionId], references: [id], onDelete: Cascade)
+  designRevision   DesignRevision   @relation(fields: [designRevisionId], references: [id], onDelete: Cascade)
 
+  @@unique([designRevisionId, status])
   @@index([designRevisionId])
   @@index([status])
   @@index([createdAt])
 }
 
 /// * Job de exportación final JPG
+/// ADR D5: PK Int legacy; campos mono de observabilidad opcionales.
 model DesignExportJob {
-  id               String          @id @default(cuid())
-  designProjectId  Int
+  id               Int             @id @default(autoincrement())
   designRevisionId Int
+  designProjectId  Int
   status           ExportJobStatus @default(PENDING)
-  targetVersion    Int
-  error            String?
+  attempts         Int             @default(0)
+  lockedAt         DateTime?
+  lastError        String?
   createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  /// Observabilidad mono (nullable)
+  targetVersion    Int?
+  error            String?
   startedAt        DateTime?
   completedAt      DateTime?
   designProject    DesignProject   @relation(fields: [designProjectId], references: [id], onDelete: Cascade)
   designRevision   DesignRevision  @relation(fields: [designRevisionId], references: [id], onDelete: Cascade)
 
+  @@unique([designRevisionId, status])
   @@index([designProjectId])
   @@index([designRevisionId])
   @@index([status])
@@ -2409,6 +3126,16 @@ model Workspace {
   memberships                 Membership[]
   serviceLeadForms            ServiceLeadForm[]
   serviceSalesLeads           ServiceSalesLead[]
+  teacherApplications         TeacherApplication[]
+  members                     Member[]
+  memberCategories            MemberCategory[]
+  memberCardTemplateSettings  MemberCardTemplateSettings?
+  cardTemplates               CardTemplate[]
+  cardRequests                CardRequest[]
+  memberCards                 MemberCard[]
+  membershipFees              MembershipFee[]
+  memberCharges               MemberCharge[]
+  memberPayments              MemberPayment[]
   evaluationContexts          EvaluationContext[]
   students                    Student[]
   appAccessUnified            WorkspaceAppAccess[]
@@ -2432,20 +3159,25 @@ model WorkspaceFeatureModule {
 
 /// Branding y slug público para landings Fotoffice (`/w/[publicSlug]/...`).
 model FotofficeWorkspaceBranding {
-  id             String    @id @default(cuid())
-  workspaceId    String    @unique
-  publicSlug     String    @unique
-  commercialName String
-  logoUrl        String?
-  coverImageUrl  String?
-  contactEmail   String?
-  phone          String?
-  whatsapp       String?
-  instagram      String?
-  website        String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id              String    @id @default(cuid())
+  workspaceId     String    @unique
+  publicSlug      String    @unique
+  commercialName  String
+  logoUrl         String?
+  coverImageUrl   String?
+  primaryColor    String?
+  secondaryColor  String?
+  backgroundColor String?
+  textColor       String?
+  accentColor     String?
+  contactEmail    String?
+  phone           String?
+  whatsapp        String?
+  instagram       String?
+  website         String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model CourseSalesWorkspaceSettings {
@@ -2824,6 +3556,229 @@ model ServiceLeadForm {
   @@unique([workspaceId, slug])
   @@index([workspaceId, isActive])
   @@index([workspaceId, eventType])
+}
+
+model TeacherApplication {
+  id              String                   @id @default(cuid())
+  workspaceId     String
+  name            String
+  email           String
+  phone           String
+  title           String
+  institution     String
+  experienceYears Int?
+  specialties     String
+  bio             String
+  portfolioUrl    String?
+  instagramUrl    String?
+  cvUrl           String
+  profileImageUrl String
+  status          TeacherApplicationStatus @default(PENDING)
+  reviewedAt      DateTime?
+  reviewedById    Int?
+  rejectionReason String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  workspace       Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
+  @@index([email])
+}
+
+model MemberCategory {
+  id                     String        @id @default(cuid())
+  workspaceId            String
+  name                   String
+  description            String?
+  monthlyAmountCents     Int?
+  enrollmentFeeCents     Int?          @default(0)
+  enrollmentCoversMonths Int?          @default(0)
+  billingDay             Int?          @default(10)
+  cardTemplateId         String?
+  isActive               Boolean       @default(true)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  workspace              Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cardTemplate           CardTemplate? @relation(fields: [cardTemplateId], references: [id], onDelete: SetNull)
+  members                Member[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive])
+  @@index([workspaceId, cardTemplateId])
+}
+
+model Member {
+  id              String          @id @default(cuid())
+  workspaceId     String
+  memberNumber    String
+  firstName       String
+  lastName        String
+  fullName        String?
+  documentType    String?
+  documentNumber  String?
+  email           String
+  phone           String?
+  address         String?
+  city            String?
+  province        String?
+  joinedAt        DateTime
+  status          MemberStatus    @default(ACTIVE)
+  publicToken     String?         @unique
+  profileImageUrl String?
+  categoryId      String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category        MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  fees            MembershipFee[]
+  charges         MemberCharge[]
+  payments        MemberPayment[]
+  cardRequests    CardRequest[]
+  memberCards     MemberCard[]
+
+  @@unique([workspaceId, memberNumber])
+  @@unique([workspaceId, email])
+  @@index([workspaceId, status])
+  @@index([workspaceId, publicToken])
+  @@index([workspaceId, categoryId])
+  @@index([workspaceId, documentNumber])
+  @@index([workspaceId, fullName])
+}
+
+model MemberCardTemplateSettings {
+  id              String    @id @default(cuid())
+  workspaceId     String    @unique
+  templateName    String
+  logoUrl         String?
+  backgroundColor String?
+  textColor       String?
+  showCategory    Boolean   @default(true)
+  showStatus      Boolean   @default(true)
+  showValidity    Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("MemberCard")
+}
+
+model CardTemplate {
+  id               String           @id @default(cuid())
+  workspaceId      String
+  name             String
+  frontDesignJson  Json
+  backDesignJson   Json
+  width            Int
+  height           Int
+  isDefault        Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  memberCategories MemberCategory[]
+
+  @@index([workspaceId, isDefault])
+  @@index([workspaceId, createdAt])
+}
+
+model CardRequest {
+  id              String            @id @default(cuid())
+  workspaceId     String
+  memberId        String
+  status          CardRequestStatus @default(PENDING_PAYMENT)
+  photoUrl        String?
+  rejectionReason String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member          Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberCard      MemberCard?
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, memberId, createdAt])
+}
+
+model MemberCard {
+  id            String           @id @default(cuid())
+  workspaceId   String
+  memberId      String
+  cardRequestId String?          @unique
+  status        MemberCardStatus @default(ACTIVE)
+  issuedAt      DateTime
+  validFrom     DateTime
+  validUntil    DateTime
+  printedAt     DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member        Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  cardRequest   CardRequest?     @relation(fields: [cardRequestId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, memberId, issuedAt])
+  @@index([workspaceId, status, validUntil])
+  @@map("MemberCardIssued")
+}
+
+model MemberCharge {
+  id                String             @id @default(cuid())
+  workspaceId       String
+  memberId          String
+  type              MemberChargeType
+  period            String?
+  amountCents       Int
+  dueDate           DateTime?
+  status            MemberChargeStatus @default(PENDING)
+  coveredFromPeriod String?
+  coveredToPeriod   String?
+  description       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member            Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  payments          MemberPayment[]
+
+  @@index([workspaceId, period, status])
+  @@index([workspaceId, memberId, status])
+  @@index([workspaceId, dueDate, status])
+}
+
+model MemberPayment {
+  id                String              @id @default(cuid())
+  workspaceId       String
+  memberId          String
+  chargeId          String?
+  amountCents       Int
+  method            MemberPaymentMethod
+  paidAt            DateTime
+  externalPaymentId String?
+  notes             String?
+  createdAt         DateTime            @default(now())
+  workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member            Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  charge            MemberCharge?       @relation(fields: [chargeId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, paidAt])
+  @@index([workspaceId, memberId, paidAt])
+  @@index([chargeId])
+}
+
+model MembershipFee {
+  id          String              @id @default(cuid())
+  workspaceId String
+  memberId    String
+  period      String
+  amountCents Int
+  dueDate     DateTime
+  status      MembershipFeeStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member      Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, memberId, period])
+  @@index([workspaceId, period, status])
+  @@index([workspaceId, memberId])
+  @@index([workspaceId, dueDate, status])
 }
 
 model Membership {
@@ -3430,6 +4385,13 @@ enum EventType {
   GRADUATION
 }
 
+enum AlbumMode {
+  SIMPLE
+  EVENT
+  SCHOOL
+  COLLABORATIVE
+}
+
 /// * Visibilidad del evento
 enum EventVisibility {
   PUBLIC
@@ -3514,6 +4476,10 @@ enum PreCompraOrderItemStatus {
   NEEDS_CHANGES
   APPROVED
   EXPORTED
+  /// Fulfillment escolar legacy (ADR D4)
+  PHYSICAL_IN_PROGRESS
+  AT_SCHOOL
+  DELIVERED
 }
 
 enum ApprovalProof {
@@ -3548,17 +4514,82 @@ enum DesignPreviewStatus {
   DIRTY
 }
 
-enum DesignPreviewJobStatus {
+/// Job de preview de diseño escolar (legacy CLF — PK Int, ADR D5)
+enum PreviewJobStatus {
   PENDING
   PROCESSING
-  COMPLETED
+  SUCCEEDED
   FAILED
 }
+
+// BEGIN LEGACY MERGE — dominio 3 escuela/roster (enums)
+
+enum StudentIdentificationMode {
+  NONE
+  MANUAL
+  ROSTER_OPTIONAL
+  ROSTER_REQUIRED
+}
+
+enum StudentSourceType {
+  IMPORT
+  MANUAL_PHOTOGRAPHER
+  MANUAL_ORGANIZER
+  MANUAL_PARENT_FALLBACK
+  SYNC_FROM_PREVIOUS_YEAR
+  /// Alta de padrón desde matrícula institucional (`StudentEnrollment`)
+  SCHOOL_ENROLLMENT_SYNC
+}
+
+enum StudentEnrollmentStatus {
+  ACTIVE
+  INACTIVE
+  LEFT
+  GRADUATED
+}
+
+enum RosterImportStatus {
+  PENDING
+  PREVIEW
+  APPLIED
+  FAILED
+}
+
+enum RosterImportRowStatus {
+  CREATED
+  MATCHED
+  UPDATED
+  SKIPPED_DUPLICATE
+  AMBIGUOUS
+  ERROR
+}
+
+enum SchoolOrganizerStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum SchoolOrganizerInvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+enum SchoolLeadStatus {
+  NEW
+  CONTACTED
+  IN_PROGRESS
+  CONVERTED
+  DISCARDED
+}
+
+// END LEGACY MERGE — dominio 3 escuela/roster (enums)
 
 enum ExportJobStatus {
   PENDING
   PROCESSING
-  COMPLETED
+  SUCCEEDED
   FAILED
 }
 
@@ -3621,6 +4652,8 @@ enum Role {
   CUSTOMER
   LAB_PHOTOGRAPHER
   ORGANIZER
+  /// Organizador de escuela (legacy CLF — ADR D2)
+  SCHOOL_ORGANIZER
   /// Plataforma (Fotoffice / DNX Suite): acceso al panel de administración general.
   SUPER_ADMIN
   /// Futuro: administrador de un workspace concreto.
@@ -3997,6 +5030,12 @@ enum CourseSalesLeadStatus {
   LOST
 }
 
+enum TeacherApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum CourseStatus {
   DRAFT
   PUBLISHED
@@ -4028,6 +5067,56 @@ enum ServiceLeadStatus {
   INTERESTED
   WON
   LOST
+}
+
+enum MemberStatus {
+  ACTIVE
+  OVERDUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum MembershipFeeStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+enum MemberChargeType {
+  ENROLLMENT
+  MONTHLY_FEE
+  ADJUSTMENT
+  LATE_FEE
+}
+
+enum MemberChargeStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum MemberPaymentMethod {
+  CASH
+  TRANSFER
+  MERCADO_PAGO
+  MANUAL
+}
+
+enum CardRequestStatus {
+  PENDING_PAYMENT
+  PHOTO_PENDING
+  PHOTO_REVIEW
+  APPROVED
+  REJECTED
+  READY
+  DELIVERED
+}
+
+enum MemberCardStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
 }
 
 enum FotorankDiplomaTemplateStatus {
