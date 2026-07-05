@@ -1,4 +1,4 @@
-import type { PrintPricingSource } from "@prisma/client";
+import type { PrintPricingSource } from "@/lib/prisma";
 import type { Capability } from "@/lib/upsells/capabilities";
 import type { EventDigitalPhotoBasePriceResolution } from "@/lib/pricing/event-digital-photo-price-resolver";
 

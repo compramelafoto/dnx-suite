@@ -1,0 +1,23 @@
+# Query: ImageAnnotatorClient
+# ContextLines: 1
+
+4 results - 1 file
+
+lib/ocr/googleVision.ts:
+   1: import { ImageAnnotatorClient } from "@google-cloud/vision";
+   2  
+
+   8  
+   9: let client: ImageAnnotatorClient | null = null;
+  10  
+  11: function getVisionClient(): ImageAnnotatorClient {
+  12    if (client) return client;
+
+  17   const credentials = JSON.parse(raw);
+
+// FIX: convertir \n escritos en texto a saltos reales
+credentials.private_key = credentials.private_key.replace(/\\n/g, "\n");
+
+client = new ImageAnnotatorClient({ credentials });
+return client;
+

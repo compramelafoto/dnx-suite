@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { EventPhotoPricingMode, PrintPricingSource } from "@prisma/client";
+import { EventPhotoPricingMode, PrintPricingSource } from "@/lib/prisma";
 import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
 import { resolveAlbumSalesPolicyFromInput } from "@/lib/sales/resolve-album-sales-policy";
 

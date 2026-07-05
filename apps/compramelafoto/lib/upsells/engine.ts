@@ -1,4 +1,4 @@
-import { UpsellStrategyStatus } from "@prisma/client";
+import { UpsellStrategyStatus } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import {
   getEffectiveCapabilities,

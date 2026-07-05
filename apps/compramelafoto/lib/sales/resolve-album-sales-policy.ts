@@ -1,4 +1,4 @@
-import { PrintPricingSource } from "@prisma/client";
+import { PrintPricingSource } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import { isAlbumComplete } from "@/lib/album-helpers";
 import { isAlbumDigitalSalesReady, isAlbumPrintsSalesReady } from "@/lib/albums/album-sales-readiness";

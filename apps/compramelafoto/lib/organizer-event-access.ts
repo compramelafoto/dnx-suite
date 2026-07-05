@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { EventJoinPolicy } from "@prisma/client";
+import type { EventJoinPolicy } from "@/lib/prisma";
 
 /** Campos mínimos del Event para getOrCreateEventAlbumForUser */
 export type OrganizerEventForAlbum = {

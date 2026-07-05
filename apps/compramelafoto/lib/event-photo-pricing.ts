@@ -1,4 +1,4 @@
-import { EventPhotoPricingMode } from "@prisma/client";
+import { EventPhotoPricingMode } from "@/lib/prisma";
 
 /** @deprecated Persistido para eventos legacy; no usar en alta ni cambiar otros modos hacia este. Resolver/checkout mantienen compatibilidad. */
 export const LEGACY_ORGANIZER_MINIMUM_MODE = EventPhotoPricingMode.ORGANIZER_MINIMUM;
