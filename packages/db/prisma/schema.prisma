@@ -139,6 +139,9 @@ model User {
   cameraUploadLogs                      CameraUploadLog[]
   cameraIngestJobs                      CameraIngestJob[]
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 6 video
+  uploadedVideos                        VideoAsset[]                           @relation("VideoUploader")
+  // END LEGACY MERGE
   // BEGIN LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico
   photographerDevices                   PhotographerDevice[]
   photoExifMetadata                     PhotoExifMetadata[]
@@ -735,6 +738,9 @@ model Album {
   cameraIngestJobs                CameraIngestJob[]
   albumFolders                    AlbumFolder[]
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 6 video
+  videos                          VideoAsset[]
+  // END LEGACY MERGE
   // BEGIN LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico
   photographicGearObservations    PhotographicGearObservation[]
   // END LEGACY MERGE
@@ -1019,6 +1025,9 @@ model EventFolder {
   createdByUser         User?            @relation("EventFolderCreator", fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   ownerPhotographer     User?            @relation("EventFolderOwnerPhotographer", fields: [ownerPhotographerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   photos                Photo[]
+  // BEGIN LEGACY MERGE — dominio 6 video
+  videos                VideoAsset[]
+  // END LEGACY MERGE
 
   @@unique([eventId, slug])
   @@index([eventId])
@@ -1633,6 +1642,39 @@ enum AlbumPhotoIngestSource {
 
 // END LEGACY MERGE — dominio 6 cámara / FTP / ingest (enums)
 
+// BEGIN LEGACY MERGE — dominio 6 video (enums)
+
+enum VideoCategory {
+  REEL
+  HIGHLIGHT
+  CEREMONY
+  DRONE
+  INTERVIEW
+  BACKSTAGE
+  SHOW
+  SPORT
+  SCHOOL
+  OTHER
+}
+
+enum VideoProcessingStatus {
+  PENDING
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+  EXPIRED
+}
+
+enum VideoProcessingJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// END LEGACY MERGE — dominio 6 video (enums)
+
 // BEGIN LEGACY MERGE — dominio 6 cámara / FTP / ingest (modelos)
 
 model AlbumFolder {
@@ -1738,6 +1780,73 @@ model CameraIngestJob {
 }
 
 // END LEGACY MERGE — dominio 6 cámara / FTP / ingest (modelos)
+
+// BEGIN LEGACY MERGE — dominio 6 video (modelos)
+
+/// Video vendible en álbum (MVP fase 0 — sin checkout ni procesamiento ffmpeg aún).
+model VideoAsset {
+  id                   Int                   @id @default(autoincrement())
+  albumId              Int
+  userId               Int?
+  eventFolderId        Int?
+  originalKey          String
+  previewKey           String?
+  thumbnailKey         String?
+  title                String?
+  description          String?
+  category             VideoCategory         @default(OTHER)
+  durationSeconds      Int?
+  width                Int?
+  height               Int?
+  orientation          String?
+  fileSizeBytes        BigInt?
+  mimeType             String?
+  originalFileName     String?
+  /// Precio en centavos ARS (100 = $1). Default 1_000_000 = $10.000.
+  priceCents           Int                   @default(1000000)
+  sellEnabled          Boolean               @default(true)
+  isRemoved            Boolean               @default(false)
+  processingStatus     VideoProcessingStatus @default(UPLOADED)
+  processingError      String?
+  uploadedAt           DateTime              @default(now())
+  expiresAt            DateTime
+  storageExtensionDays Int                   @default(0)
+  /// Reservado para reconocimiento facial en video (fase posterior).
+  analysisStatus       String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  album                Album                 @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  eventFolder          EventFolder?          @relation(fields: [eventFolderId], references: [id], onDelete: SetNull)
+  uploadedBy           User?                 @relation("VideoUploader", fields: [userId], references: [id], onDelete: SetNull)
+  processingJob        VideoProcessingJob?
+
+  @@index([albumId])
+  @@index([userId])
+  @@index([eventFolderId])
+  @@index([processingStatus])
+  @@index([expiresAt])
+  @@index([isRemoved])
+}
+
+model VideoProcessingJob {
+  id        String                   @id @default(cuid())
+  videoId   Int                      @unique
+  status    VideoProcessingJobStatus @default(PENDING)
+  attempts  Int                      @default(0)
+  lockedAt  DateTime?
+  runAfter  DateTime?
+  lastError String?
+  meta      Json?
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  video     VideoAsset               @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([runAfter])
+  @@index([lockedAt])
+}
+
+// END LEGACY MERGE — dominio 6 video (modelos)
 
 // BEGIN LEGACY MERGE — dominio 10 EXIF / equipamiento fotográfico (enums)
 
