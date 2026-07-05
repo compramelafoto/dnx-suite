@@ -1,0 +1,99 @@
+@layer components {
+  .clf-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: auto;
+    min-width: max-content;
+
+    padding: 0.85rem 1.3rem;
+
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1.2;
+
+    border-radius: var(--clf-radius-md);
+
+    text-align: center;
+    text-decoration: none;
+
+    white-space: nowrap;
+    gap: 0.4rem;
+
+    border: 1px solid transparent;
+    transition: all 0.18s ease;
+  }
+
+  .clf-btn-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .clf-btn--block {
+    width: 100%;
+  }
+
+  .clf-btn--primary {
+    border-color: var(--clf-color-primary);
+    background-color: var(--clf-color-primary);
+    color: #ffffff;
+    box-shadow: var(--clf-shadow-button);
+  }
+
+  .clf-btn--primary:hover {
+    background-color: var(--clf-color-primary-hover);
+    border-color: var(--clf-color-primary-hover);
+  }
+
+  .clf-btn--secondary {
+    border-color: color-mix(in srgb, var(--clf-color-text) 20%, transparent);
+    background-color: var(--clf-color-surface);
+    color: var(--clf-color-text);
+  }
+
+  .clf-btn--secondary:hover {
+    background-color: #f3f4f6;
+    border-color: color-mix(in srgb, var(--clf-color-text) 35%, transparent);
+  }
+
+  .clf-btn--outline {
+    border-color: var(--clf-color-border);
+    background-color: transparent;
+    color: var(--clf-color-text);
+  }
+
+  .clf-btn--outline:hover {
+    background-color: #f9fafb;
+  }
+
+  .clf-btn--outline-inverse {
+    border-color: rgba(255, 255, 255, 0.3);
+    background-color: transparent;
+    color: #ffffff;
+  }
+
+  .clf-btn--outline-inverse:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .clf-btn--whatsapp {
+    background: #25d366;
+    border: 1px solid #25d366;
+    color: white;
+    box-shadow: var(--clf-shadow-button);
+  }
+
+  .clf-btn--whatsapp:hover {
+    background: #1ebe5d;
+    border-color: #1ebe5d;
+  }
+
+  .clf-btn:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--clf-color-primary) 45%, #ffffff);
+    outline-offset: 2px;
+  }
+
+}

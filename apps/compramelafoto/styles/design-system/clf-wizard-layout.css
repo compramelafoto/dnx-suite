@@ -1,0 +1,162 @@
+/**
+ * Layout estructural: asistente de creación de álbum y formularios largos legacy.
+ * Evita columnas colapsadas (flex sin min-w-0, sidebars implícitos, grillas desbalanceadas).
+ */
+@layer components {
+  .clf-wizard-root {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /** Contenedor de cada paso del wizard (sustituye space-y suelto en Cards) */
+  .clf-wizard-card {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--clf-wizard-stack-gap);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /** Bloque vertical dentro de un paso (subsecciones con aire consistente) */
+  .clf-form-section {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: clamp(0.875rem, 2vw, 1.25rem);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /** Párrafo / cuerpo de formulario (intro, énfasis medio) */
+  .clf-form-text {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--clf-form-prose-max);
+    min-width: 0;
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: #374151;
+  }
+
+  /** Texto secundario / ayuda bajo títulos — ancho cómodo, sin columna fina */
+  .clf-form-description {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--clf-form-prose-max);
+    min-width: min(100%, var(--clf-form-prose-min));
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: #6b7280;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  .clf-form-description--sm {
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: #6b7280;
+  }
+
+  /** Grilla 1 col móvil → 2 columnas equilibradas en desktop */
+  .clf-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: clamp(0.875rem, 2vw, 1.25rem);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .clf-form-grid--2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /** Label + control en columna, siempre ancho completo de la celda */
+  .clf-form-field-stack {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.375rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  /** Controles numéricos / importancia: ancho cómodo, sin pill angosto */
+  .clf-form-control-numeric {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: min(100%, 12rem);
+    max-width: min(36rem, 100%);
+  }
+
+  /** Fila estándar checkbox + texto (evita shrink del bloque de copy) */
+  .clf-wizard-check {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  label.clf-wizard-check {
+    cursor: pointer;
+  }
+
+  .clf-wizard-check > input[type="checkbox"],
+  .clf-wizard-check > input[type="radio"] {
+    margin-top: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .clf-wizard-check__body {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  /** Stepper superior: permite wrap sin cortar etiquetas */
+  .clf-wizard-stepper {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .clf-wizard-stepper__list {
+    box-sizing: border-box;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    column-gap: 0.25rem;
+    row-gap: 0.75rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .clf-wizard-stepper__item {
+    box-sizing: border-box;
+    flex: 1 1 4.5rem;
+    min-width: 3.25rem;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .clf-wizard-stepper__item > .flex {
+    min-width: 0;
+    width: 100%;
+  }
+}

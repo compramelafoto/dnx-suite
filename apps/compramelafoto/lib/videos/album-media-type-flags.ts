@@ -1,0 +1,31 @@
+import type { PrismaClient } from "@/lib/prisma";
+import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
+import { publicReadyVideoWhere } from "@/lib/videos/public-ready-videos";
+
+/** Álbumes con al menos un video no removido (dashboard / dueño). */
+export async function albumIdsWithAnyVideos(
+  prisma: PrismaClient,
+  albumIds: number[]
+): Promise<Set<number>> {
+  if (albumIds.length === 0) return new Set();
+  const rows = await prisma.videoAsset.groupBy({
+    by: ["albumId"],
+    where: { albumId: { in: albumIds }, isRemoved: false },
+    _count: { _all: true },
+  });
+  return new Set(rows.map((r) => r.albumId));
+}
+
+/** Álbumes con videos públicos READY (listados y visitantes anónimos). */
+export async function albumIdsWithPublicReadyVideos(
+  prisma: PrismaClient,
+  albumIds: number[]
+): Promise<Set<number>> {
+  if (!isVideoMvpEnabled() || albumIds.length === 0) return new Set();
+  const rows = await prisma.videoAsset.groupBy({
+    by: ["albumId"],
+    where: { albumId: { in: albumIds }, ...publicReadyVideoWhere },
+    _count: { _all: true },
+  });
+  return new Set(rows.map((r) => r.albumId));
+}

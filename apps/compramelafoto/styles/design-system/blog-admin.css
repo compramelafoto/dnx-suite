@@ -1,0 +1,43 @@
+/**
+ * Admin del blog — ancho legible en panel (evita copy en columna de una palabra).
+ */
+@layer utilities {
+  .blog-admin-page {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  .blog-admin-page h1,
+  .blog-admin-page h2,
+  .blog-admin-page p,
+  .blog-admin-page li,
+  .blog-admin-page pre,
+  .blog-admin-page .blog-admin-copy,
+  .blog-admin-page .blog-admin-panel {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  .blog-admin-page .blog-admin-panel {
+    width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  /* Nav y filas flex: ancho completo del panel sin colapsar a min-content */
+  .blog-admin-page > nav,
+  .blog-admin-page > .flex {
+    align-self: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+}

@@ -1,0 +1,796 @@
+/**
+ * Design system — contenido legible, empty states, tablas responsive, modales.
+ *
+ * Uso recomendado (evita texto en columnas ultrafinas):
+ * - Tablas vacías: `<DsEmptyTableCell colSpan={n}>mensaje</DsEmptyTableCell>`
+ * - Cards vacías: `<DsEmptyState title="…">mensaje</DsEmptyState>` dentro de `.ds-catalog-empty-shell` o `DsEmptyState` con `min-width` del DS
+ * - Listados vacíos (filtros/búsqueda): wrapper `.ds-catalog-empty-shell` + `DsEmptyState` — nunca `text-center` + `max-w-md` suelto en Card sin shell
+ * - Galerías vacías (eventos colaborativos / organizador): `.ds-gallery-empty-state` + `__stack` (stretch) + `__actions` + `.ds-notify-form-shell`
+ * - Paneles scroll / shell: `.ds-fill-width`, stack vertical `.ds-stack-section`
+ * - Introducciones centrables: `.ds-intro-prose`, alineadas a `.ds-intro-prose.ds-intro-prose--start`, ancho panel con `.ds-intro-prose--fluid`
+ * - Wrapper de tabla horizontal: `className="ds-table-scroll"`
+ * - Shell de página panel: `DsPageShell` + `DsDashboardInner` (o clases `.ds-page-shell` + `.ds-dashboard-inner`)
+ * - Galerías / centros de descarga: `.ds-gallery-inner` + `.ds-gallery-grid` (no `max-w-3xl`)
+ * - Páginas cuenta (Header público): `AccountPageShell` (`.ds-account-page` + `.ds-account-inner`)
+ * - Campos: `DsField` / `.ds-field` + `.ds-input-wrapper`; controles `.ds-form-control`; grillas `.ds-form-grid`
+ * - Contenido de pestaña: `DsTabPanel` / `.ds-tab-panel` (stretch + min-w-0 en hijos)
+ * - Banda informativa: `DsInfoPanel` / `.ds-info-panel`
+ * - Dropzone fotos: `.ds-upload-zone` (+ `__copy`, `__title`, `__hint`)
+ * - Cuerpo de modal: `AppModal` envuelve hijos en `.ds-modal-scroll` (scroll vertical seguro)
+ *
+ * Anti-patrones: `inline-block` + `text-center` en TD sin `width:100%` en hijo bloque;
+ * `ds-stack-section` + `items-center` (usar `self-center` en iconos);
+ * `break-all` global; `max-w-xs` accidental en párrafos largos.
+ */
+
+@layer utilities {
+  /**
+   * Ancho útil real bajo cualquier ancestro flex/grid.
+   * Usar como raíz de página dentro de `<main>` o envolver cards/tabs cuando haga falta.
+   */
+  .ds-fill-width {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /**
+   * Stack vertical estándar (tabs, formularios, secciones).
+   * Usa `align-items: stretch` — no combinar con Tailwind `items-center` (encoge el copy a min-content).
+   * Para iconos centrados: `self-center shrink-0` en el hijo decorativo, no `items-center` en el stack.
+   */
+  .ds-stack-section {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ds-stack-gap-section);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .ds-stack-section > * {
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  /* No pisar el piso legible de contenedores de copy (min-width:0 los dejaba a ~1 carácter) */
+  .ds-stack-section > .ds-content-container,
+  .ds-stack-section > .ds-intro-prose,
+  .ds-stack-section > .ds-readable-text,
+  .ds-stack-section > .ds-field,
+  .ds-stack-section > .ds-form-stack,
+  .ds-stack-section > .ds-upload-zone__copy,
+  .ds-stack-section > .ds-catalog-empty-shell,
+  .ds-stack-section > .ds-empty-state,
+  .ds-stack-section > .ds-gallery-empty-state__actions,
+  .ds-stack-section > .ds-gallery-empty-state__notify,
+  .ds-stack-section > .ds-notify-form-shell {
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  /** Icono / badge fijo centrado en un stack (no forzar width:100%) */
+  .ds-stack-section > .ds-stack-anchor {
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    align-self: center;
+  }
+
+  /**
+   * Salvaguarda si alguien añade `items-center` al stack: el copy sigue ocupando el ancho del panel.
+   */
+  .ds-stack-section.items-center > .ds-content-container,
+  .ds-stack-section.items-center > .ds-intro-prose,
+  .ds-stack-section.items-center > .ds-readable-text,
+  .ds-stack-section.items-center > .ds-form-stack,
+  .ds-stack-section.items-center > .ds-stack-section,
+  .ds-stack-section.items-center > .ds-catalog-empty-shell,
+  .ds-stack-section.items-center > .ds-empty-state,
+  .ds-stack-section.items-center > .ds-gallery-empty-state__actions,
+  .ds-stack-section.items-center > .ds-gallery-empty-state__notify,
+  .ds-stack-section.items-center > .ds-notify-form-shell,
+  .ds-stack-section.items-center > .ds-gallery-empty-state__stack {
+    align-self: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  /**
+   * Párrafo introductorio centrado tipo legacy CLF — ancho cómodo sin columna ultrafina.
+   */
+  .ds-intro-prose {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: var(--ds-readable-max);
+    min-width: min(100%, var(--ds-empty-min-width));
+    margin-inline: auto;
+    text-align: center;
+    line-height: 1.65;
+    text-wrap: pretty;
+    word-break: normal;
+    overflow-wrap: break-word;
+    font-size: 0.875rem;
+  }
+
+  /* Variante cuando el texto va alineado a la izquierda (paneles tipo formulario) */
+  .ds-intro-prose--start {
+    margin-inline: 0;
+    text-align: left;
+  }
+
+  /* Tarjetas / pestañas: mismo ancho que el contenedor (evita prose limitado cuando el padre es angosto por flex). */
+  .ds-intro-prose--fluid {
+    max-width: 100%;
+  }
+
+  /* Wrapper estándar para tablas que hacen scroll horizontal */
+  .ds-table-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Contenedor flexible que no debe colapsar a ancho intrínseco mínimo */
+  .ds-content-container {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  /* Bloques de texto / mensajes legibles */
+  .ds-readable-text {
+    display: block;
+    width: 100%;
+    max-width: var(--ds-readable-max);
+    min-width: min(100%, var(--ds-empty-min-width));
+    overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: manual;
+    text-wrap: pretty;
+    line-height: 1.65;
+  }
+
+  .ds-readable-text--muted {
+    color: var(--ds-text-secondary);
+  }
+
+  /* Dentro de modales/cabeceras: no limitar menos que el panel */
+  .ds-readable-text--fluid {
+    max-width: 100%;
+  }
+
+  /** Prosa hasta ~80ch (intros anchas dentro de paneles de 100% width) */
+  .ds-readable-text--wide {
+    max-width: var(--ds-readable-wide);
+  }
+
+  /** Uso opcional sobre `container-custom`: refuerzo min-width 0 ya en `globals.css` */
+  .ds-page-shell {
+    box-sizing: border-box;
+    min-width: 0;
+  }
+
+  /** Columna central estándar bajo container (ancho útil real, no “columna fina”) */
+  .ds-dashboard-inner {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--ds-dashboard-inner-max);
+    min-width: min(100%, var(--ds-empty-min-width));
+    margin-inline: auto;
+  }
+
+  /**
+   * Galerías de fotos, centros de descarga, grids visuales.
+   * Usar con `container-custom` + `.ds-stack-section`. No mezclar con `.ds-readable-*` ni `max-w-3xl`.
+   */
+  .ds-gallery-inner {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--ds-gallery-inner-max);
+    min-width: min(100%, var(--ds-empty-min-width));
+    margin-inline: auto;
+  }
+
+  .ds-gallery-grid {
+    box-sizing: border-box;
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    gap: var(--ds-gallery-grid-gap);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (min-width: 400px) {
+    .ds-gallery-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 640px) {
+    .ds-gallery-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .ds-gallery-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  /**
+   * Páginas de cuenta bajo layout público (Header/Footer): formularios legibles sin columna fina.
+   * Usar con `AccountPageShell` o `.ds-account-page` + `container-custom` + esta clase.
+   */
+  .ds-account-page {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .ds-account-inner {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--ds-account-inner-max);
+    min-width: min(100%, var(--ds-empty-min-width));
+    margin-inline: auto;
+  }
+
+  /**
+   * Contenido bajo `Tabs` / paneles: evita hijos a min-content y columnas angostas.
+   * Usar en lugar de `flex flex-col w-full min-w-0` repetido.
+   */
+  .ds-tab-panel {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    gap: var(--ds-stack-gap-section);
+  }
+
+  .ds-tab-panel > * {
+    min-width: min(100%, var(--ds-empty-min-width));
+    max-width: 100%;
+  }
+
+  .ds-tab-panel--lg {
+    gap: clamp(1.25rem, 3vw, 2rem);
+  }
+
+  /** Filas con bloque principal flexible y mínimos razonables (formularios + sidebar texto) */
+  .ds-split-panel {
+    box-sizing: border-box;
+    display: flex;
+    flex-wrap: wrap;
+    gap: clamp(1rem, 3vw, 1.75rem);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .ds-split-panel__main {
+    flex: 1 1 min(100%, var(--ds-readable-wide));
+    min-width: min(100%, var(--ds-empty-min-width));
+    max-width: 100%;
+  }
+
+  .ds-split-panel__aside {
+    flex: 1 1 18rem;
+    min-width: min(100%, 18rem);
+    max-width: 100%;
+  }
+
+  @media (min-width: 1024px) {
+    .ds-split-panel__aside {
+      flex: 0 1 22rem;
+      max-width: 22rem;
+    }
+  }
+
+  /** Avisos / tips / disclaimers institucionales */
+  .ds-info-panel {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    border-radius: 1rem;
+    border: 1px solid rgb(236 233 228);
+    background: rgb(253 251 249);
+    padding: clamp(1rem, 3vw, 1.5rem);
+  }
+
+  .ds-info-panel__title {
+    margin: 0 0 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ds-text-muted);
+  }
+
+  .ds-info-panel__body {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: #374151;
+    max-width: var(--ds-readable-wide);
+    width: 100%;
+    overflow-wrap: break-word;
+    word-break: normal;
+    text-wrap: pretty;
+  }
+
+  /* Alineación centrada manteniendo ancho lógico (evita columnas verticales) */
+  .ds-readable-text--center {
+    margin-inline: auto;
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  .ds-readable-text--sm {
+    font-size: 0.875rem;
+  }
+
+  /* Empty state genérico (cards, secciones) */
+  .ds-empty-state {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    padding: clamp(2rem, 5vw, 3.25rem) clamp(1rem, 4vw, 1.75rem);
+    margin-inline: auto;
+  }
+
+  .ds-empty-state--tight {
+    padding: clamp(1.25rem, 4vw, 2rem) 1rem;
+  }
+
+  /** Empty states alineados al inicio en cards anchas */
+  .ds-empty-state--stretch {
+    align-items: stretch;
+    text-align: left;
+  }
+
+  .ds-empty-state--stretch .ds-empty-state__title,
+  .ds-empty-state--stretch .ds-empty-state__body {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .ds-empty-state__title {
+    margin: 0 auto 0.375rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #111827;
+    max-width: var(--ds-readable-comfortable);
+    width: 100%;
+    text-wrap: balance;
+    /* align-items:center en el padre flex encoge el eje cruzado; forzar ancho real del panel */
+    align-self: stretch;
+    box-sizing: border-box;
+  }
+
+  .ds-empty-state__body {
+    margin: 0 auto;
+    width: 100%;
+    max-width: var(--ds-readable-comfortable);
+    min-width: min(100%, var(--ds-empty-min-width));
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--ds-text-secondary);
+    overflow-wrap: break-word;
+    word-break: normal;
+    text-wrap: pretty;
+    align-self: stretch;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  /** Catálogo y paneles similares: bloque centrado hasta ~720px, texto fluido */
+  .ds-empty-state--catalog {
+    max-width: min(100%, 45rem);
+    margin-inline: auto;
+  }
+
+  .ds-empty-state--catalog .ds-empty-state__title,
+  .ds-empty-state--catalog .ds-empty-state__body {
+    max-width: min(100%, 42rem);
+  }
+
+  /** Acciones bajo el copy (botones); ancho legible, sin inline-block suelto */
+  .ds-empty-state__actions {
+    box-sizing: border-box;
+    margin-top: 1.5rem;
+    width: 100%;
+    max-width: min(100%, var(--ds-readable-comfortable));
+    min-width: min(100%, var(--ds-empty-min-width));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    align-self: stretch;
+  }
+
+  .ds-empty-state__cta {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .ds-empty-state__cta > * {
+    max-width: 100%;
+  }
+
+  /**
+   * Shell de empty states en listados (catálogo productos, etc.).
+   * Evita colapso horizontal cuando el padre es `.ds-stack-section` (min-width:0 en hijos).
+   */
+  .ds-catalog-empty-shell {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    align-self: stretch;
+  }
+
+  .ds-catalog-empty-shell > * {
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  /* Celda de tabla vacía — siempre ocupar todo el ancho de la tabla (scroll incluido) */
+  .ds-table-empty-cell {
+    padding: 0 !important;
+    vertical-align: middle;
+    width: 100%;
+  }
+
+  .ds-table-empty-inner {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 100%;
+    min-height: 7rem;
+    padding: 2.75rem clamp(1rem, 4vw, 2rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .ds-table-empty-message {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: var(--ds-readable-comfortable);
+    min-width: min(100%, var(--ds-empty-min-width));
+    font-size: 0.875rem;
+    line-height: 1.65;
+    font-weight: 400;
+    color: var(--ds-text-secondary);
+    overflow-wrap: break-word;
+    word-break: normal;
+    text-wrap: pretty;
+    text-align: center;
+    display: block;
+  }
+
+  /* Marco interno estándar de modales — hijos pueden usar min-width:0 sin colapsar el panel */
+  .ds-modal-frame {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /**
+   * Área scroll del modal (evita texto recortado y doble overflow raro).
+   * AppModal aplica esta capa alrededor de `children`.
+   */
+  .ds-modal-scroll {
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /** Si el modal no trae padding propio en el hijo */
+  .ds-modal-scroll--padded {
+    padding: clamp(1rem, 3vw, 1.5rem);
+  }
+
+  /* Utilidad combinada opcional para secciones con overflow-X */
+  .ds-overflow-x-soft {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /**
+   * Tarjeta-sección en panel organizador (carpetas, precios, comisión).
+   * Usar con `--stack` para gap vertical consistente con el DS.
+   */
+  .ds-organizer-panel {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    border-radius: 1.5rem;
+    border: 1px solid rgba(17, 24, 39, 0.1);
+    background: #fff;
+    padding: 1rem;
+    box-shadow: 0 12px 24px rgba(17, 24, 39, 0.06);
+  }
+
+  @media (min-width: 768px) {
+    .ds-organizer-panel {
+      padding: 1.5rem;
+    }
+  }
+
+  .ds-organizer-panel--stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-stack-gap-section);
+  }
+
+  /**
+   * Formularios en panel organizador: ancho cómodo, hijos a 100%.
+   * Preferir sobre max-w-xs sueltos en campos sueltos.
+   */
+  .ds-form-stack {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: clamp(0.875rem, 2vw, 1.25rem);
+    width: 100%;
+    max-width: min(100%, var(--ds-readable-wide));
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  .ds-form-stack > * {
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  .ds-form-stack .ds-field,
+  .ds-form-stack .ds-input-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  .ds-form-stack select {
+    width: 100%;
+    max-width: 100%;
+    min-width: var(--ds-select-min);
+  }
+
+  .ds-form-stack .ds-form-control:not(textarea):not(select),
+  .ds-form-stack .ds-input:not(select),
+  .ds-form-stack input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not(select) {
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-form-control-min));
+  }
+
+  .ds-form-stack textarea,
+  .ds-form-stack .ds-textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /** Toolbar del explorador de carpetas (acciones + búsqueda fluida) */
+  .ds-explorer-toolbar {
+    box-sizing: border-box;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .ds-explorer-search {
+    flex: 1 1 12rem;
+    min-width: min(100%, 12rem);
+    max-width: min(100%, 28rem);
+  }
+
+  .ds-explorer-search .input,
+  .ds-explorer-search input {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /** Atajos del explorador: ocultos en móvil para no saturar */
+  .ds-explorer-hints {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .ds-explorer-hints {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+  }
+
+  /**
+   * Zona drag-and-drop de fotos / archivos: ocupa todo el ancho del card/panel.
+   * Usar en `UploadZone` y dropzones similares.
+   */
+  .ds-upload-zone {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-upload-zone-min));
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .ds-upload-zone__inner {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-upload-zone-min));
+  }
+
+  .ds-upload-zone__copy {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-upload-zone-min));
+    margin-inline: 0;
+    text-align: center;
+    line-height: 1.65;
+    text-wrap: pretty;
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+
+  .ds-upload-zone__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .ds-upload-zone__hint {
+    font-size: 0.875rem;
+    color: var(--ds-text-secondary);
+    margin: 0;
+  }
+
+  .ds-upload-zone__cta {
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #c27b3d;
+    margin: 0;
+  }
+
+  /**
+   * Empty state de galería pública (eventos colaborativos, organizador, álbum próximo).
+   * Usar `__stack` con align-items: stretch — nunca `items-center` en el stack de copy/form.
+   */
+  .ds-gallery-empty-state {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: min(100%, 56rem);
+    min-width: min(100%, var(--ds-empty-min-width));
+    margin-inline: auto;
+  }
+
+  .ds-gallery-empty-state__panel {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  .ds-gallery-empty-state__stack {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: clamp(1.25rem, 3vw, 1.5rem);
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    text-align: center;
+  }
+
+  .ds-gallery-empty-state__icon {
+    align-self: center;
+    flex-shrink: 0;
+  }
+
+  .ds-gallery-empty-state__copy {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: min(100%, var(--ds-readable-comfortable));
+    min-width: min(100%, var(--ds-empty-min-width));
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .ds-gallery-empty-state__actions {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: min(100%, var(--ds-readable-comfortable));
+    min-width: min(100%, var(--ds-empty-min-width));
+    margin-inline: auto;
+    align-self: stretch;
+  }
+
+  .ds-gallery-empty-state__notify {
+    padding-top: 1rem;
+    border-top: 1px solid #f3f4f6;
+  }
+
+  /**
+   * Formularios “avisame cuando esté lista” en galerías vacías.
+   */
+  .ds-notify-form-shell {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: min(100%, var(--ds-readable-narrow));
+    min-width: min(100%, var(--ds-empty-min-width));
+    margin-inline: auto;
+  }
+
+  .ds-notify-form-shell .ds-form-stack,
+  .ds-notify-form-shell form {
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+}

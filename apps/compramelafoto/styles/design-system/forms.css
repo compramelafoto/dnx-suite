@@ -1,0 +1,254 @@
+@layer base {
+  /**
+   * Todos los textareas de la plataforma — ancho stretch y resize vertical.
+   * Opt-out: `.ds-textarea-opt-out` (editores visuales, copiar al portapapeles, etc.).
+   */
+  textarea:not(.ds-textarea-opt-out) {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 5.5rem;
+    resize: vertical;
+    field-sizing: fixed;
+  }
+
+  textarea.ds-textarea-compact {
+    min-height: 2.75rem;
+  }
+}
+
+@layer components {
+  .clf-field {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    border: 1px solid color-mix(in srgb, var(--clf-color-text) 15%, transparent);
+    border-radius: var(--clf-radius-md);
+    background-color: var(--clf-color-surface);
+    padding: 12px 16px;
+    color: var(--clf-color-text);
+  }
+
+  .clf-field::placeholder {
+    color: #9ca3af;
+  }
+
+  .clf-field:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--clf-color-primary) 35%, #ffffff);
+    outline-offset: 1px;
+  }
+
+  /**
+   * Campo de formulario (label + control). Evita colapso a min-content en grid/flex.
+   */
+  .ds-field {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  .ds-field__label {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    word-break: normal;
+    overflow-wrap: break-word;
+    white-space: normal;
+    text-wrap: pretty;
+  }
+
+  .ds-field__hint {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    word-break: normal;
+    overflow-wrap: break-word;
+    white-space: normal;
+    text-wrap: pretty;
+  }
+
+  .ds-field__error {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    word-break: normal;
+    overflow-wrap: break-word;
+    white-space: normal;
+    text-wrap: pretty;
+    color: #b91c1c;
+  }
+
+  /**
+   * Tipografía administrativa en formularios (labels sueltos, leyendas, copy de ayuda).
+   */
+  .ds-admin-text {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    word-break: normal;
+    overflow-wrap: break-word;
+    white-space: normal;
+    text-wrap: pretty;
+    line-height: 1.65;
+  }
+
+  .ds-admin-text--inline {
+    display: inline;
+    width: auto;
+    min-width: 0;
+  }
+
+  /** Wrapper del control: estira el input/select/textarea al ancho del campo. */
+  .ds-input-wrapper {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  /**
+   * Control nativo o componente Input/Select con esta clase.
+   * Corrige inputs type=date/time que ignoran width:100% en WebKit.
+   */
+  .ds-form-control:not(textarea),
+  .ds-input,
+  .ds-select {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-form-control-min));
+    min-height: 2.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  select.ds-form-control,
+  .ds-select {
+    min-width: var(--ds-select-min);
+  }
+
+  /**
+   * Textareas: ancho 100% del wrapper (min-width: 0 para flex/grid); piso de altura ~4 líneas.
+   */
+  textarea.ds-form-control,
+  .ds-textarea {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 5.5rem;
+    resize: vertical;
+    field-sizing: fixed;
+    font-size: 1rem;
+    line-height: 1.65;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  /** El wrapper aporta el piso legible; el control se estira sin ancho intrínseco. */
+  .ds-input-wrapper > textarea.ds-form-control,
+  .ds-input-wrapper > .ds-textarea,
+  .ds-form-stack textarea.ds-form-control,
+  .ds-form-stack .ds-textarea,
+  .ds-form-grid textarea.ds-form-control,
+  .ds-form-grid .ds-textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  select.ds-form-control,
+  .ds-select {
+    min-height: 2.75rem;
+    min-width: var(--ds-select-min);
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .ds-form-control:is(
+      input[type="date"],
+      input[type="time"],
+      input[type="datetime-local"],
+      input[type="month"],
+      input[type="week"]
+    ),
+  .ds-input:is(
+      input[type="date"],
+      input[type="time"],
+      input[type="datetime-local"],
+      input[type="month"],
+      input[type="week"]
+    ) {
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-form-control-min));
+    flex: 1 1 auto;
+    -webkit-appearance: none;
+    appearance: auto;
+  }
+
+  .ds-form-control:is(input[type="color"]),
+  .ds-input:is(input[type="color"]) {
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /**
+   * Grilla de formulario: hijos con min-w-0 para que date/select no encojan la columna.
+   */
+  .ds-form-grid {
+    box-sizing: border-box;
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  .ds-form-grid > *,
+  .ds-form-grid > .ds-field {
+    min-width: min(100%, var(--ds-empty-min-width));
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .ds-form-grid select {
+    width: 100%;
+    max-width: 100%;
+    min-width: var(--ds-select-min);
+  }
+
+  .ds-form-grid .ds-input-wrapper,
+  .ds-form-grid .ds-form-control:not(textarea):not(select),
+  .ds-form-grid .ds-input:not(select),
+  .ds-form-grid input:not(select) {
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-form-control-min));
+  }
+
+  .ds-form-grid textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .ds-form-grid input:is([type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]) {
+    min-width: min(100%, var(--ds-form-control-min));
+  }
+}

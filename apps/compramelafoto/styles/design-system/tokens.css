@@ -1,0 +1,75 @@
+:root {
+  --clf-color-bg: #f7f3ed;
+  --clf-color-surface: #ffffff;
+  --clf-color-text: #111827;
+  --clf-color-muted: #4b5563;
+  --clf-color-border: #e5e7eb;
+
+  --clf-color-primary: #0f766e;
+  --clf-color-primary-hover: #115e59;
+
+  --clf-color-whatsapp: #25d366;
+  --clf-color-whatsapp-hover: #1ebe5d;
+
+  --clf-radius-sm: 8px;
+  --clf-radius-md: 12px;
+  --clf-radius-lg: 18px;
+  --clf-radius-xl: 24px;
+
+  --clf-shadow-card: 0 18px 45px rgba(15, 23, 42, 0.08);
+  --clf-shadow-button: 0 10px 24px -12px rgba(17, 24, 39, 0.55);
+
+  --clf-container-max: 1180px;
+  --clf-section-padding-y: 72px;
+  --clf-section-padding-x: 24px;
+
+  /**
+   * Formularios y asistente de álbum — prosa y grillas (legacy CLF)
+   * Ideal lectura ~420–700px; tope 43.75rem. Piso 320px solo como referencia en utilidades.
+   */
+  --clf-form-prose-max: min(43.75rem, 100%);
+  --clf-form-prose-min: 20rem;
+  --clf-wizard-stack-gap: clamp(1.125rem, 2.2vw, 1.5rem);
+
+  /**
+   * DNX / panel — contenido legible (empty states, tablas con scroll, modales)
+   * Usar utilidades `.ds-*` y componentes `DsEmptyTableCell` / `DsEmptyState`.
+   */
+  /** Prosa principal (~65–76ch, alineado a legacy CLF legible) */
+  --ds-readable-max: min(76ch, 50rem);
+  --ds-readable-comfortable: min(68ch, 44rem);
+  /** Bloques anchos (intro dashboard, disclaimers largos): ~75–80ch */
+  --ds-readable-wide: min(80ch, 54rem);
+  --ds-readable-narrow: 28rem;
+  /** Inner típico de paneles fotógrafo (max-w-7xl) */
+  --ds-dashboard-inner-max: 80rem;
+  /**
+   * Galerías / centros de descarga / grillas de fotos (no usar max-w-3xl ni prosa legible).
+   * Alineado al ancho del blog (72rem) para aprovechar desktop sin columna fina.
+   */
+  --ds-gallery-inner-max: min(72rem, 100%);
+  --ds-gallery-grid-gap: clamp(0.75rem, 2vw, 1.25rem);
+  /** Páginas de cuenta / formularios bajo Header público (~720–860px) */
+  --ds-account-inner-max: min(53.75rem, 100%);
+  /** Piso ante ancestros flex con align center / shrink-to-fit */
+  --ds-empty-min-width: 20rem;
+  /** Controles (date, time): no colapsar por ancho intrínseco del navegador */
+  --ds-form-control-min: 12rem;
+  /** Selects: ancho mínimo mayor para mostrar etiqueta seleccionada (nombre, título, etc.) */
+  --ds-select-min: min(100%, 22rem);
+  /** Dropzones de fotos: ancho mínimo cómodo (~42rem ≈ 4× columna rota típica) */
+  --ds-upload-zone-min: min(100%, 42rem);
+  --ds-stack-gap-section: clamp(1rem, 3vw, 1.75rem);
+  --ds-text-secondary: #6b7280;
+  --ds-text-muted: #9ca3af;
+
+  /**
+   * Blog público — listados y artículos largos
+   * Artículo alineado al ancho del home (72rem); el cuerpo usa todo el contenedor.
+   */
+  --ds-blog-inner-max: 72rem;
+  --ds-blog-article-max: min(72rem, 100%);
+  --ds-blog-accent: #c27b3d;
+  --ds-blog-accent-hover: #a8642f;
+  --ds-blog-surface: #f9fafb;
+}

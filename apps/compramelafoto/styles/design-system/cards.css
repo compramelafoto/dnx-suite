@@ -1,0 +1,75 @@
+@layer components {
+  /**
+   * Tarjeta administrativa (organizador, panel, formularios).
+   * Evita colapso a min-content cuando el padre es flex/grid con min-w-0.
+   */
+  .ds-card {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+  }
+
+  .clf-card {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    border: 1px solid var(--clf-color-border);
+    border-radius: var(--clf-radius-md);
+    background-color: var(--clf-color-surface);
+    box-shadow: var(--clf-shadow-card);
+  }
+
+  .clf-card--soft {
+    background-color: #fafafa;
+    box-shadow: none;
+  }
+
+  .clf-promo-block {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: min(100%, var(--ds-empty-min-width));
+    border-radius: var(--clf-radius-lg);
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+    background: var(--clf-color-surface);
+    border: 1px solid var(--clf-color-border);
+  }
+
+  .clf-promo-block__title {
+    width: 100%;
+    max-width: 760px;
+    min-width: min(100%, var(--ds-empty-min-width));
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--clf-color-text);
+    font-weight: 600;
+  }
+
+  .clf-promo-block__text {
+    width: 100%;
+    max-width: 760px;
+    min-width: min(100%, var(--ds-empty-min-width));
+    margin-top: 0.75rem;
+    color: var(--clf-color-muted);
+    line-height: 1.6;
+  }
+
+  .clf-promo-block__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 1.5rem;
+  }
+
+  .clf-promo-block__actions .clf-btn {
+    flex: 0 0 auto;
+    width: auto;
+  }
+}

@@ -1,0 +1,289 @@
+/**
+ * Ventas / Productos / Templates — densidad, grillas y toolbar unificada (PR14.4).
+ * Solo presentación; sin lógica de negocio.
+ */
+
+:root {
+  --ds-catalog-workspace-max: min(80rem, 100%);
+  --ds-catalog-grid-gap: clamp(1rem, 1.5vw, 1.25rem);
+  /** Ancho mínimo cómodo por card en grillas auto-fill */
+  --ds-catalog-card-min: 17.5rem;
+  /** Portadas marketplace (templates, packs, combos, productos) */
+  --ds-catalog-cover-aspect: 1 / 1;
+  --ds-catalog-section-y: clamp(2rem, 4vw, 2.5rem);
+}
+
+.ds-catalog-section {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  background: #f9fafb;
+  min-height: 100vh;
+  padding-block: var(--ds-catalog-section-y);
+}
+
+.ds-catalog-shell {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: var(--ds-catalog-workspace-max);
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 2.5vw, 1.75rem);
+}
+
+.ds-catalog-stack {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  gap: clamp(1.25rem, 2.5vw, 1.5rem);
+}
+
+.ds-catalog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .ds-catalog-header {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+
+.ds-catalog-header__text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ds-catalog-title {
+  margin: 0;
+  font-size: clamp(1.375rem, 2.2vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: #1a1a1a;
+}
+
+.ds-catalog-subtitle {
+  margin: 0.375rem 0 0;
+  max-width: var(--ds-readable-wide);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #6b7280;
+}
+
+.ds-catalog-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .ds-catalog-header__actions {
+    width: auto;
+    justify-content: flex-end;
+  }
+}
+
+/** Tabs principales (Mis Packs y Combos / Recomendados) */
+.ds-catalog-segment-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  background: #eef0f3;
+  border: 1px solid #e5e7eb;
+}
+
+@media (min-width: 480px) {
+  .ds-catalog-segment-tabs {
+    width: fit-content;
+    max-width: 100%;
+  }
+}
+
+.ds-catalog-segment-tab {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  border: none;
+  border-radius: 0.625rem;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+@media (min-width: 640px) {
+  .ds-catalog-segment-tab {
+    flex: 0 1 auto;
+    padding-inline: 1rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+  }
+}
+
+.ds-catalog-segment-tab:hover {
+  color: #1a1a1a;
+}
+
+.ds-catalog-segment-tab[aria-selected="true"] {
+  background: #fff;
+  color: #c27b3d;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+/** Toolbar unificada: estado + filtros */
+.ds-catalog-toolbar {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: clamp(0.875rem, 2vw, 1.125rem);
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.ds-catalog-toolbar__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.ds-catalog-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ds-catalog-status-pill:hover {
+  background: #f9fafb;
+  color: #374151;
+}
+
+.ds-catalog-status-pill[aria-selected="true"] {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c27b3d;
+}
+
+.ds-catalog-toolbar__filters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .ds-catalog-toolbar__filters {
+    grid-template-columns: minmax(0, 1fr) 11rem 9rem;
+    align-items: end;
+  }
+}
+
+.ds-catalog-toolbar__field label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.ds-catalog-toolbar__meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+/** Grilla marketplace — auto-fill con piso de ancho */
+.ds-catalog-card-grid {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: var(--ds-catalog-grid-gap);
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, var(--ds-catalog-card-min)), 1fr)
+  );
+}
+
+/** Marco de portada unificado (1:1) */
+.ds-catalog-cover-frame {
+  aspect-ratio: var(--ds-catalog-cover-aspect);
+}
+
+/** Cards de catálogo: altura uniforme en fila */
+.ds-catalog-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 0.875rem;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.ds-catalog-card:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.ds-catalog-card__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: clamp(0.875rem, 2vw, 1rem);
+  min-width: 0;
+}
+
+.ds-catalog-card__footer {
+  margin-top: auto;
+  padding-top: 0.25rem;
+  width: 100%;
+  min-width: 0;
+}
+
+/** Formulario / lectura estrecha dentro del workspace */
+.ds-catalog-prose-panel {
+  width: 100%;
+  max-width: min(42rem, 100%);
+  min-width: 0;
+}

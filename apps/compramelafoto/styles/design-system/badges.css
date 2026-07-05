@@ -1,0 +1,16 @@
+@layer components {
+  .clf-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--clf-color-primary) 25%, transparent);
+    background-color: color-mix(in srgb, var(--clf-color-primary) 10%, #ffffff);
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--clf-color-primary) 85%, #000000);
+  }
+}
