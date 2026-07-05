@@ -87,6 +87,12 @@ model User {
   marketingOptInAt                      DateTime?
   marketingOptInIp                      String?
   marketingOptInSource                  String?
+  // BEGIN LEGACY MERGE — dominio 11 cuánto cobro
+  /// Usuario identificado como usuario de ¿Cuánto Cobro?
+  cuantoCobroUser                       Boolean                                @default(false)
+  cuantoCobroFirstSeenAt                DateTime?
+  cuantoCobroLastSeenAt                 DateTime?
+  // END LEGACY MERGE
   /// AAIP: consentimiento para reconocimiento facial (User-level)
   faceConsent                           Boolean                                @default(false)
   faceConsentAt                         DateTime?
@@ -165,6 +171,12 @@ model User {
   organizerOfficialPhotographerListings OrganizerOfficialPhotographer[]        @relation("OrganizerOfficialPhotographerUser")
   eventFoldersCreated                   EventFolder[]                          @relation("EventFolderCreator")
   eventFoldersOwnedPhotographer         EventFolder[]                          @relation("EventFolderOwnerPhotographer")
+  // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 11 cuánto cobro
+  cuantoCobroFinancialProfile           CuantoCobroFinancialProfile?
+  cuantoCobroConsultas                  CuantoCobroConsulta[]
+  cuantoCobroQuotes                     CuantoCobroQuote[]
+  cuantoCobroQuoteVersionsCreated       CuantoCobroQuoteVersion[]
   // END LEGACY MERGE
   photographerSalesSettings             PhotographerSalesSettings?
   clientOrders                          PrintOrder[]                           @relation("ClientOrders")
@@ -2140,6 +2152,67 @@ enum OrganizerCommissionWithdrawalStatus {
 
 // END LEGACY MERGE — dominio 14 referidos / comisiones / funnel (enums)
 
+// BEGIN LEGACY MERGE — dominio 11 cuánto cobro (enums)
+
+enum CuantoCobroConsultaPipelineStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum CuantoCobroConsultaStatus {
+  OPEN
+  WON
+  LOST
+  ARCHIVED
+}
+
+enum CuantoCobroConsultaSourceChannel {
+  MANUAL
+  REFERRAL
+  CLF
+  WEBSITE_FORM
+  META_ADS
+  WHATSAPP
+  INSTAGRAM
+  OTHER
+}
+
+enum CuantoCobroConsultaPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum CuantoCobroConsultaActivityKind {
+  CONSULTA_CREATED
+  CONSULTA_UPDATED
+  STAGE_CHANGED
+  STATUS_CHANGED
+  NOTE_ADDED
+  CLIENT_LINKED
+  NEXT_ACTION_SET
+  TAGS_UPDATED
+  QUOTE_LINKED
+  QUOTE_VERSION_CREATED
+  QUOTE_SENT
+  QUOTE_VIEWED_BY_CLIENT
+}
+
+enum CuantoCobroQuoteStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+}
+
+// END LEGACY MERGE — dominio 11 cuánto cobro (enums)
+
 // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel (modelos)
 
 /// Contadores históricos de plataforma (no decrecen al borrar fotos).
@@ -2263,6 +2336,222 @@ model OrganizerCommissionWithdrawalRequest {
 }
 
 // END LEGACY MERGE — dominio 14 referidos / comisiones / funnel (modelos)
+
+// BEGIN LEGACY MERGE — dominio 11 cuánto cobro (modelos)
+
+/// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
+model CuantoCobroFinancialProfile {
+  userId        Int      @id
+  schemaVersion Int      @default(1)
+  profileData   Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Secuencia anual de números de consulta comercial por fotógrafo.
+model CuantoCobroConsultaSequence {
+  userId     Int
+  year       Int
+  lastNumber Int @default(0)
+
+  @@id([userId, year])
+}
+
+/// Consulta comercial (corazón del embudo CC). Puede existir sin presupuesto ni pedido.
+model CuantoCobroConsulta {
+  id                  Int                              @id @default(autoincrement())
+  userId              Int
+  consultaNumber      String
+  schemaVersion       Int                              @default(1)
+  title               String
+  pipelineStage       CuantoCobroConsultaPipelineStage @default(NEW)
+  status              CuantoCobroConsultaStatus        @default(OPEN)
+  priority            CuantoCobroConsultaPriority      @default(NORMAL)
+  probability         Int?
+  jobType             String                           @default("")
+  eventDate           DateTime?                        @db.Date
+  eventEndDate        DateTime?                        @db.Date
+  eventLocation       String                           @default("")
+  eventCity           String                           @default("")
+  eventProvince       String                           @default("")
+  eventCountry        String                           @default("")
+  eventLatitude       String                           @default("")
+  eventLongitude      String                           @default("")
+  brief               String                           @default("")
+  currency            String                           @default("")
+  estimatedValueCents Int?
+  clfClientKey        String?
+  clientDisplayName   String                           @default("")
+  clientCompany       String                           @default("")
+  clientEmail         String                           @default("")
+  clientPhone         String                           @default("")
+  sourceChannel       CuantoCobroConsultaSourceChannel @default(MANUAL)
+  sourceDetail        String                           @default("")
+  sourceCapturedAt    DateTime                         @default(now())
+  nextActionTitle     String                           @default("")
+  nextActionDueAt     DateTime?
+  primaryQuoteId      Int?
+  wonQuoteId          Int?
+  confirmedOrderId    Int?
+  fotoOfficeJobId     String?
+  tags                String[]                         @default([])
+  lostReason          String                           @default("")
+  wonAt               DateTime?
+  lostAt              DateTime?
+  archivedAt          DateTime?
+  lastActivityAt      DateTime                         @default(now())
+  deletedAt           DateTime?
+  createdAt           DateTime                         @default(now())
+  updatedAt           DateTime                         @updatedAt
+  user                User                             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities          CuantoCobroConsultaActivity[]
+  notes               CuantoCobroConsultaNote[]
+  files               CuantoCobroConsultaFile[]
+  quotes              CuantoCobroQuote[]
+
+  @@unique([userId, consultaNumber])
+  @@index([userId, lastActivityAt])
+  @@index([userId, status])
+  @@index([userId, pipelineStage])
+  @@index([userId, clientEmail])
+  @@index([userId, eventDate])
+  @@index([userId, deletedAt])
+}
+
+model CuantoCobroConsultaActivity {
+  id          Int                             @id @default(autoincrement())
+  consultaId  Int
+  kind        CuantoCobroConsultaActivityKind
+  title       String
+  body        String                          @default("")
+  metadata    Json?
+  actorUserId Int?
+  occurredAt  DateTime                        @default(now())
+  consulta    CuantoCobroConsulta             @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+
+  @@index([consultaId, occurredAt])
+}
+
+model CuantoCobroConsultaNote {
+  id           Int                 @id @default(autoincrement())
+  consultaId   Int
+  body         String
+  authorUserId Int
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  consulta     CuantoCobroConsulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+
+  @@index([consultaId, createdAt])
+}
+
+/// Adjuntos de consulta (upload en fase posterior).
+model CuantoCobroConsultaFile {
+  id         Int                 @id @default(autoincrement())
+  consultaId Int
+  fileName   String
+  mimeType   String              @default("")
+  r2Key      String?
+  sizeBytes  Int?
+  uploadedAt DateTime            @default(now())
+  consulta   CuantoCobroConsulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+
+  @@index([consultaId])
+}
+
+/// Secuencia anual de números de presupuesto por fotógrafo.
+model CuantoCobroQuoteSequence {
+  userId     Int
+  year       Int
+  lastNumber Int @default(0)
+
+  @@id([userId, year])
+}
+
+/// Expediente comercial de presupuesto ¿Cuánto Cobro? (CC-YYYY-NNNNNN).
+/// Los snapshots viven en CuantoCobroQuoteVersion; la cabecera denormaliza la versión actual.
+model CuantoCobroQuote {
+  id                    Int                       @id @default(autoincrement())
+  userId                Int
+  consultaId            Int?
+  quoteNumber           String
+  currentVersionNumber  Int                       @default(1)
+  acceptedVersionId     Int?
+  schemaVersion         Int                       @default(1)
+  status                CuantoCobroQuoteStatus    @default(DRAFT)
+  currency              String                    @default("")
+  chosenPriceCents      Int?
+  recommendedPriceCents Int?
+  minimumPriceCents     Int?
+  clientDisplayName     String                    @default("")
+  clientCompany         String                    @default("")
+  clientEmail           String                    @default("")
+  clientPhone           String                    @default("")
+  jobLocation           String                    @default("")
+  jobType               String                    @default("")
+  jobDate               DateTime?                 @db.Date
+  archivedAt            DateTime?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consulta              CuantoCobroConsulta?      @relation(fields: [consultaId], references: [id], onDelete: SetNull)
+  acceptedVersion       CuantoCobroQuoteVersion?  @relation("AcceptedQuoteVersion", fields: [acceptedVersionId], references: [id], onDelete: SetNull)
+  versions              CuantoCobroQuoteVersion[] @relation("QuoteVersions")
+
+  @@unique([userId, quoteNumber])
+  @@index([userId, consultaId])
+  @@index([userId, createdAt])
+  @@index([userId, updatedAt])
+  @@index([userId, archivedAt])
+}
+
+/// Versión inmutable de un presupuesto (V1, V2, …). Nunca se recalcula ni sobrescribe.
+model CuantoCobroQuoteVersion {
+  id                       Int                    @id @default(autoincrement())
+  quoteId                  Int
+  versionNumber            Int
+  isCurrent                Boolean                @default(false)
+  schemaVersion            Int                    @default(1)
+  status                   CuantoCobroQuoteStatus @default(DRAFT)
+  currency                 String                 @default("")
+  chosenPriceCents         Int?
+  recommendedPriceCents    Int?
+  minimumPriceCents        Int?
+  clientDisplayName        String                 @default("")
+  clientCompany            String                 @default("")
+  clientEmail              String                 @default("")
+  clientPhone              String                 @default("")
+  jobLocation              String                 @default("")
+  jobType                  String                 @default("")
+  jobDate                  DateTime?              @db.Date
+  comment                  String                 @default("")
+  createdByUserId          Int
+  quotePayload             Json
+  profileSnapshot          Json
+  calculationSnapshot      Json
+  paymentOptionsSnapshot   Json                   @default("{}")
+  businessProfileSnapshot  Json                   @default("{}")
+  publicViewTokenHash      String?                @unique
+  publicViewTokenExpiresAt DateTime?
+  publicViewTokenRevokedAt DateTime?
+  sentAt                   DateTime?
+  firstViewedAt            DateTime?
+  lastViewedAt             DateTime?
+  viewCount                Int                    @default(0)
+  lastViewUserAgent        String                 @default("")
+  lastViewIpHash           String                 @default("")
+  createdAt                DateTime               @default(now())
+  quote                    CuantoCobroQuote       @relation("QuoteVersions", fields: [quoteId], references: [id], onDelete: Cascade)
+  createdBy                User                   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  acceptedForQuotes        CuantoCobroQuote[]     @relation("AcceptedQuoteVersion")
+
+  @@unique([quoteId, versionNumber])
+  @@index([quoteId, isCurrent])
+  @@index([quoteId, createdAt])
+  @@index([createdByUserId])
+}
+
+// END LEGACY MERGE — dominio 11 cuánto cobro (modelos)
 
 model OcrToken {
   id         Int      @id @default(autoincrement())
