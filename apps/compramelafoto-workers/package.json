@@ -1,0 +1,10 @@
+{
+  "name": "compramelafoto-workers",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "pnpm --filter compramelafoto-camera-ingest-worker --filter compramelafoto-camera-ftp-gateway --filter compramelafoto-video-worker run typecheck",
+    "build": "pnpm run typecheck",
+    "lint": "node -e \"console.log('Workers: no eslint config (skipped)')\""
+  }
+}

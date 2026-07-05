@@ -30,4 +30,5 @@ export {
   ReferralProgram,
   LabApprovalStatus,
   TalkStatus,
+  CameraConnectionAssignmentMode,
 } from "@prisma/client";

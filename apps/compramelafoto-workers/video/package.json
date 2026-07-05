@@ -1,0 +1,28 @@
+{
+  "name": "compramelafoto-video-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts start",
+    "start": "tsx src/index.ts start",
+    "process-once": "tsx src/index.ts process-once",
+    "reprobe-orientation": "tsx scripts/reprobe-video-orientation.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.972.0",
+    "@repo/db": "workspace:*",
+    "dotenv": "^17.2.3",
+    "execa": "^9.6.0",
+    "sharp": "^0.33.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^20",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  }
+}

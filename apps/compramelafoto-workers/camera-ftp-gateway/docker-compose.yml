@@ -1,0 +1,22 @@
+# Desarrollo local — solo gateway.
+# Producción (gateway + worker): usar deploy/camera-connection/docker-compose.yml
+
+services:
+  camera-ftp-gateway:
+    build:
+      context: ..
+      dockerfile: camera-ftp-gateway/Dockerfile
+    env_file:
+      - ../.env
+      - ../.env.local
+    environment:
+      CAMERA_CONNECTION_FTP_PORT: "21"
+      HEALTH_PORT: "8080"
+      FTP_PASV_URL: ${FTP_PASV_URL:-127.0.0.1}
+      FTP_PASV_MIN_PORT: "50000"
+      FTP_PASV_MAX_PORT: "50050"
+    ports:
+      - "21:21"
+      - "8080:8080"
+      - "50000-50050:50000-50050"
+    restart: unless-stopped

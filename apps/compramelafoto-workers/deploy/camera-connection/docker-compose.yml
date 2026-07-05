@@ -1,0 +1,50 @@
+# Producción VPS — FTP Directo (gateway + ingest worker)
+#
+# Uso:
+#   cd deploy/camera-connection
+#   cp .env.example .env   # completar valores
+#   docker compose up -d --build
+#
+# Contexto de build: raíz del monorepo (../../)
+
+services:
+  camera-ftp-gateway:
+    build:
+      context: ../..
+      dockerfile: camera-ftp-gateway/Dockerfile
+    container_name: clf-camera-ftp-gateway
+    env_file:
+      - .env
+    environment:
+      CAMERA_CONNECTION_FTP_PORT: "21"
+      HEALTH_PORT: "8080"
+      FTP_PASV_MIN_PORT: "50000"
+      FTP_PASV_MAX_PORT: "50050"
+      FTP_PASV_URL: ${FTP_PASV_URL:?FTP_PASV_URL es obligatorio — IP pública del VPS}
+    ports:
+      - "21:21"
+      - "8080:8080"
+      - "50000-50050:50000-50050"
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  camera-ingest-worker:
+    build:
+      context: ../..
+      dockerfile: camera-ingest-worker/Dockerfile
+    container_name: clf-camera-ingest-worker
+    env_file:
+      - .env
+    environment:
+      CAMERA_INGEST_POLL_INTERVAL_MS: ${CAMERA_INGEST_POLL_INTERVAL_MS:-3000}
+      CAMERA_INGEST_BATCH_CONCURRENCY: ${CAMERA_INGEST_BATCH_CONCURRENCY:-2}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
