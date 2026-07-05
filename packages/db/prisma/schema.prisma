@@ -178,6 +178,11 @@ model User {
   cuantoCobroQuotes                     CuantoCobroQuote[]
   cuantoCobroQuoteVersionsCreated       CuantoCobroQuoteVersion[]
   // END LEGACY MERGE
+  // BEGIN LEGACY MERGE — dominio 12 blog / marketing / leads
+  blogAuthors                           BlogAuthor[]
+  fotoOfficeInterests                   FotoOfficeInterest[]
+  simulatorCaptures                     SimulatorCapture[]
+  // END LEGACY MERGE
   photographerSalesSettings             PhotographerSalesSettings?
   clientOrders                          PrintOrder[]                           @relation("ClientOrders")
   printOrders                           PrintOrder[]                           @relation("PhotographerOrders")
@@ -2213,6 +2218,43 @@ enum CuantoCobroQuoteStatus {
 
 // END LEGACY MERGE — dominio 11 cuánto cobro (enums)
 
+// BEGIN LEGACY MERGE — dominio 12 blog / marketing / leads (enums)
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BlogPostType {
+  BLOG
+  FEATURE
+  CASE_STUDY
+  COMPARISON
+}
+
+enum TalkStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+enum TalkModality {
+  MEET
+  ONLINE
+  PRESENCIAL
+  OTHER
+}
+
+enum DnxCourseEnrollmentStatus {
+  PENDING_PAYMENT
+  APPROVED
+  CANCELLED
+}
+
+// END LEGACY MERGE — dominio 12 blog / marketing / leads (enums)
+
 // BEGIN LEGACY MERGE — dominio 14 referidos / comisiones / funnel (modelos)
 
 /// Contadores históricos de plataforma (no decrecen al borrar fotos).
@@ -2552,6 +2594,314 @@ model CuantoCobroQuoteVersion {
 }
 
 // END LEGACY MERGE — dominio 11 cuánto cobro (modelos)
+
+// BEGIN LEGACY MERGE — dominio 12 blog / marketing / leads (modelos)
+
+/// Interés en novedades de FotoOffice (captación desde ¿Cuánto Cobro? u otros orígenes).
+model FotoOfficeInterest {
+  id           String   @id @default(cuid())
+  userId       Int?
+  email        String?
+  name         String?
+  source       String
+  interestType String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, interestType, source])
+  @@index([email, interestType, source])
+  @@index([createdAt])
+}
+
+/// Charlas / webinars / capacitaciones
+model Talk {
+  id                  Int          @id @default(autoincrement())
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  title               String
+  subtitle            String?
+  slug                String       @unique
+  shortDescription    String?
+  longDescription     String?
+  speakerName         String?
+  badgeText           String?
+  eventDate           DateTime?
+  eventTime           String?
+  timezone            String       @default("America/Argentina/Buenos_Aires")
+  modality            TalkModality @default(ONLINE)
+  meetUrl             String?
+  calendarUrl         String?
+  whatsappGroupUrl    String?
+  heroImageUrl        String?
+  primaryCtaText      String?
+  secondaryCtaText    String?
+  seoTitle            String?
+  seoDescription      String?
+  ogImageUrl          String?
+  status              TalkStatus   @default(DRAFT)
+  showFaq             Boolean      @default(true)
+  enableLeadCapture   Boolean      @default(true)
+  enableCalendarStep  Boolean      @default(true)
+  enableWhatsappStep  Boolean      @default(true)
+  requireName         Boolean      @default(true)
+  requireWhatsapp     Boolean      @default(true)
+  requireEmail        Boolean      @default(true)
+  sourceTag           String?
+  internalNotes       String?
+  problemPointsJson   Json?
+  solutionPointsJson  Json?
+  agendaPointsJson    Json?
+  stepsJson           Json?
+  faqJson             Json?
+  reminderTemplate    String?
+  groupInviteTemplate String?
+  followUpTemplate    String?
+  leads               TalkLead[]
+
+  @@index([status])
+  @@index([eventDate])
+  @@index([createdAt])
+}
+
+/// Leads asociados a charlas
+model TalkLead {
+  id                Int       @id @default(autoincrement())
+  createdAt         DateTime  @default(now())
+  talkId            Int
+  name              String
+  whatsapp          String
+  email             String
+  source            String?
+  calendarClickedAt DateTime?
+  whatsappClickedAt DateTime?
+  reminderSentAt    DateTime?
+  attendedAt        DateTime?
+  contactedAt       DateTime?
+  interestedAt      DateTime?
+  notes             String?
+  tagsJson          Json?
+  city              String?
+  photographyType   String?
+  talk              Talk      @relation(fields: [talkId], references: [id], onDelete: Cascade)
+
+  @@index([talkId])
+  @@index([createdAt])
+  @@index([email])
+}
+
+/// Blog — categorías editoriales
+model BlogCategory {
+  id          Int        @id @default(autoincrement())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  name        String
+  slug        String     @unique
+  description String?
+  sortOrder   Int        @default(0)
+  isFeatured  Boolean    @default(false)
+  posts       BlogPost[]
+
+  @@index([sortOrder])
+}
+
+/// Blog — tags transversales
+model BlogTag {
+  id    Int           @id @default(autoincrement())
+  name  String
+  slug  String        @unique
+  posts BlogPostTag[]
+}
+
+/// Blog — autores (independientes de User)
+model BlogAuthor {
+  id        Int        @id @default(autoincrement())
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  name      String
+  slug      String     @unique
+  bio       String?
+  avatarUrl String?
+  role      String?
+  userId    Int?
+  isActive  Boolean    @default(true)
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  posts     BlogPost[]
+
+  @@index([isActive])
+}
+
+/// Blog — biblioteca multimedia
+model BlogMedia {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  title     String?
+  altText   String?
+  caption   String?
+  filename  String
+  url       String
+  r2Key     String
+  mimeType  String
+  sizeBytes Int
+
+  @@index([createdAt])
+}
+
+/// Blog — artículos
+model BlogPost {
+  id             Int            @id @default(autoincrement())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  title          String
+  slug           String         @unique
+  excerpt        String?
+  contentJson    Json
+  contentHtml    String         @db.Text
+  heroImageUrl   String?
+  status         BlogPostStatus @default(DRAFT)
+  type           BlogPostType   @default(BLOG)
+  publishedAt    DateTime?
+  lastReviewedAt DateTime?
+  readingTimeMin Int?
+  isFeatured     Boolean        @default(false)
+  featuredUntil  DateTime?
+  seoTitle       String?
+  seoDescription String?
+  seoGoal        String?
+  ogImageUrl     String?
+  canonicalUrl   String?
+  noIndex        Boolean        @default(false)
+  viewCount      Int            @default(0)
+  categoryId     Int?
+  authorId       Int?
+  category       BlogCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author         BlogAuthor?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  tags           BlogPostTag[]
+  views          BlogPostView[]
+
+  @@index([status, publishedAt])
+  @@index([status, isFeatured])
+  @@index([categoryId])
+  @@index([type])
+}
+
+/// Blog — vista única por visitante y artículo
+model BlogPostView {
+  id         Int      @id @default(autoincrement())
+  postId     Int
+  visitorKey String   @db.VarChar(64)
+  viewedAt   DateTime @default(now())
+  post       BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, visitorKey])
+  @@index([postId])
+}
+
+/// Blog — relación artículo ↔ tag
+model BlogPostTag {
+  postId Int
+  tagId  Int
+  post   BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+}
+
+/// Blog — suscriptores del newsletter (sin campañas en MVP)
+model BlogSubscriber {
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  name             String?
+  confirmed        Boolean   @default(false)
+  confirmTokenHash String?
+  confirmedAt      DateTime?
+  unsubscribedAt   DateTime?
+  source           String?
+  createdAt        DateTime  @default(now())
+
+  @@index([confirmed])
+  @@index([createdAt])
+}
+
+/// Leads legacy de la charla de fotografía escolar
+model CharlaFotoEscolarLead {
+  id                Int       @id @default(autoincrement())
+  createdAt         DateTime  @default(now())
+  name              String
+  whatsapp          String
+  email             String
+  source            String    @default("charlafotoescolar")
+  city              String?
+  photographyType   String?
+  calendarClickedAt DateTime?
+  whatsappClickedAt DateTime?
+
+  @@index([createdAt])
+  @@index([email])
+}
+
+model DnxCourseEnrollment {
+  id             Int                       @id @default(autoincrement())
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  /// Identificador lógico del curso (ej. foto-basica-funes-2025-06)
+  courseKey      String
+  firstName      String
+  lastName       String
+  email          String
+  phone          String
+  status         DnxCourseEnrollmentStatus @default(PENDING_PAYMENT)
+  /// Monto acordado en ARS (enteros) — sin comisión marketplace en MP.
+  amountArs      Int
+  mpPreferenceId String?
+  mpInitPoint    String?
+  mpPaymentId    String?
+  paidAt         DateTime?
+
+  @@index([courseKey, status])
+  @@index([courseKey, email])
+  @@index([createdAt])
+}
+
+/// Lead “interesado” en curso DNX (sin inscripción/pago aún).
+model DnxCourseLead {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  courseKey String
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+  message   String?
+
+  @@unique([courseKey, email])
+  @@index([courseKey, createdAt])
+}
+
+/// Capturas del simulador Cam Of Duty (retención 7 días por usuario).
+model SimulatorCapture {
+  id           String   @id @default(uuid())
+  userId       Int
+  storageKey   String
+  imageUrl     String
+  capturedAt   DateTime
+  expiresAt    DateTime
+  stars        Int      @default(0)
+  takenByName  String?
+  takenByEmail String
+  metadata     Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+// END LEGACY MERGE — dominio 12 blog / marketing / leads (modelos)
 
 model OcrToken {
   id         Int      @id @default(autoincrement())
