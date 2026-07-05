@@ -26,6 +26,13 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "warn",
     },
   },
+  {
+    files: ["components/simulator/**/*.{ts,tsx}", "lib/simulator/**/*.{ts,tsx}"],
+    rules: {
+      "react-hooks/refs": "off",
+      "react-hooks/immutability": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -236,9 +236,9 @@ export default function ClientePackPage({
     return (
       <div className="p-6 space-y-3">
         <p className="text-red-600">Error: {error}</p>
-        <a href="/cliente/recuperar-pack" className="text-[#c27b3d] font-semibold underline">
+        <Link href="/cliente/recuperar-pack" className="text-[#c27b3d] font-semibold underline">
           Recuperar acceso al pack
-        </a>
+        </Link>
       </div>
     );
   }

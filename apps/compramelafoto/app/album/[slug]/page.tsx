@@ -8,6 +8,7 @@
  */
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { Prisma, Role } from "@/lib/prisma";
@@ -173,12 +174,12 @@ function PreventaRedemptionBanner() {
         <p className="text-sm sm:text-base font-semibold text-[#1a1a1a] leading-snug">
           ¿Compraste preventa? Ingresá para canjear tu pack
         </p>
-        <a
+        <Link
           href="/cliente/recuperar-pack"
           className="inline-flex shrink-0 items-center justify-center rounded-full bg-[#c27b3d] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#b26f36] transition-colors"
         >
           Ingresar / recuperar acceso
-        </a>
+        </Link>
       </div>
     </section>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { isPreventaUxV2EnabledClient } from "@/lib/preventa-canjeable/preventa-ux-v2-feature-flag";
 import Card from "@/components/ui/Card";
@@ -391,12 +392,12 @@ export default function SuccessClient() {
               Te enviamos un link por email para continuar el canje cuando el álbum esté listo.
               Si no lo encontrás, podés recuperarlo desde acá.
             </p>
-            <a
+            <Link
               href="/cliente/recuperar-pack"
               style={{ display: "inline-block", marginTop: 12, color: "#1d4ed8", fontWeight: "bold" }}
             >
               Recuperar acceso al pack
-            </a>
+            </Link>
           </div>
         </div>
       )}

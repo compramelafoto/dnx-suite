@@ -14,7 +14,7 @@
  * - helper: texto bajo inputs, hints cortos (no párrafos largos).
  */
 
-import type { CSSProperties, ElementType, ReactNode } from "react";
+import { createElement, type CSSProperties, type ElementType, type ReactNode } from "react";
 import { typography, type TextUiVariant } from "../../tokens/typography";
 import { useResolvedTheme } from "../../themes";
 import { cn } from "../../utils";
@@ -39,7 +39,7 @@ export interface TextProps {
 
 export function Text({ variant, as, children, className, style }: TextProps) {
   const theme = useResolvedTheme();
-  const Component = (as ?? defaultElement[variant]) as ElementType;
+  const Component = as ?? defaultElement[variant];
   const typo = typography[variant];
   const color =
     variant === "muted"
@@ -48,17 +48,14 @@ export function Text({ variant, as, children, className, style }: TextProps) {
         ? theme.text.tertiary
         : theme.text.primary;
 
-  return (
-    <Component
-      className={cn(className)}
-      style={{
-        margin: 0,
-        ...typo,
-        color,
-        ...style,
-      }}
-    >
-      {children}
-    </Component>
-  );
+  return createElement(Component, {
+    className: cn(className),
+    style: {
+      margin: 0,
+      ...typo,
+      color,
+      ...style,
+    },
+    children,
+  });
 }

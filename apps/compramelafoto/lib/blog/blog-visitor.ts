@@ -10,7 +10,7 @@ export const BLOG_VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 400; // ~400 días
 
 export function isBlogArticlePath(pathname: string): boolean {
   const match = pathname.match(/^\/blog\/([^/]+)\/?$/);
-  if (!match?.[1]) return false;
+  if (!match) return false;
   return !RESERVED_BLOG_SEGMENTS.has(match[1]);
 }
 

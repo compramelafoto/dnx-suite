@@ -147,7 +147,7 @@ export default function RegistroOrganizadorPage() {
                 <div className="h-px flex-1 bg-[#e5e7eb]" />
               </div>
 
-              <a
+              <Link
                 href="/api/auth/google?role=ORGANIZER"
                 className="clf-btn clf-btn--outline clf-btn--block"
               >
@@ -174,7 +174,7 @@ export default function RegistroOrganizadorPage() {
                   />
                 </svg>
                 Continuar con Google
-              </a>
+              </Link>
 
               <p className="mt-4 text-center text-xs text-[#6b7280]">
                 Al registrarte aceptás la{" "}
