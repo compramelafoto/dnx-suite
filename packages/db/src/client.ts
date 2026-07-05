@@ -24,3 +24,4 @@ export type {
   FotorankJudgePricingMode,
   FotorankJudgePriceUnit,
 } from "@prisma/client";
+export { Role } from "@prisma/client";
