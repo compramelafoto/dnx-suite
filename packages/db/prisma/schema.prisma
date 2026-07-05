@@ -32,6 +32,10 @@ model User {
   /// Ubicación para eventos cerca e invitaciones por proximidad (km)
   latitude                              Float?
   longitude                             Float?
+  // BEGIN LEGACY MERGE — dominio 16 shared cleanup
+  /// Radio máximo de trabajo desde la ubicación principal (km). `null` = sin límite.
+  workingCoverageRadiusKm               Int?
+  // END LEGACY MERGE
   companyName                           String?
   companyOwner                          String?
   country                               String?
@@ -77,6 +81,12 @@ model User {
   cbu                                   String?
   /// Titular de la cuenta (para transferencias de comisiones por referidos)
   cbuTitular                            String?
+  // BEGIN LEGACY MERGE — dominio 16 shared cleanup
+  /// Cuenta para retiros de comisiones de organizador de eventos (transferencia manual)
+  payoutAlias                           String?
+  payoutBank                            String?
+  payoutAccountHolder                   String?
+  // END LEGACY MERGE
   /// Si true, puede recibir emails de marketing (campañas)
   marketingOptIn                        Boolean                                @default(false)
   /// Cuando el usuario se da de baja del marketing
@@ -97,6 +107,10 @@ model User {
   faceConsent                           Boolean                                @default(false)
   faceConsentAt                         DateTime?
   faceConsentIp                         String?
+  // BEGIN LEGACY MERGE — dominio 16 shared cleanup
+  /// Admin: si true, en pedidos propios el fotógrafo ve datos del comprador aunque el pago no esté acreditado.
+  allowUnpaidOrderClientData            Boolean                                @default(false)
+  // END LEGACY MERGE
   adminLogs                             AdminLog[]                             @relation("AdminLogActor")
   sentMessages                          AdminMessage[]                         @relation("MessageSender")
   messageThreads                        AdminMessageThread[]                   @relation("UserMessageThreads")
@@ -1574,7 +1588,6 @@ model Photo {
   storageCleanupStatus     PhotoStorageCleanupStatus    @default(ACTIVE)
   capturedAt               DateTime?
   folderId                 Int?
-  /// FK EventFolder — relación en dominio 9
   eventFolderId            Int?
   // END LEGACY MERGE
   /// Si true, esta foto se puede vender como digital (por defecto sí)
@@ -3771,9 +3784,12 @@ model Template {
   album              Album?              @relation(fields: [albumId], references: [id], onDelete: Cascade)
   albumProduct       AlbumProduct?       @relation(fields: [albumProductId], references: [id], onDelete: Cascade)
   slots              TemplateSlot[]
+  // END LEGACY MERGE
 
   @@index([albumId])
   @@index([albumProductId])
+  // BEGIN LEGACY MERGE — dominio 16 shared cleanup
+  @@index([version])
 }
 
 model TemplateSlot {
