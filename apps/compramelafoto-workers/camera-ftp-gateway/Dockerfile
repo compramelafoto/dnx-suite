@@ -1,3 +1,5 @@
+# Monorepo: build from repo root — see apps/compramelafoto-workers/deploy/README.md
+# LEGACY standalone layout below — not valid until Dockerfile is rewritten for pnpm workspace.
 FROM node:20-bookworm-slim
 
 WORKDIR /app

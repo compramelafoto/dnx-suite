@@ -6,8 +6,8 @@ App Next.js de ComprameLaFoto dentro del monorepo DNX Suite.
 
 | Fase | Descripción |
 |------|-------------|
-| **Oleada 0** ✅ | Esqueleto: config, bridges (`lib/prisma`, `lib/auth`), middleware, página mínima |
-| **Oleada 1+** | Import progresivo desde legacy Desktop |
+| **Oleada 0–E** ✅ | Import legacy: auth, álbumes, checkout, dashboard, marketing, workers, crons |
+| **Oleada F** | Auditoría final — ver [`30-code-import-final-audit-report.md`](../../docs/architecture/migration/30-code-import-final-audit-report.md) |
 
 **Fuente legacy:** `/Users/danielcuart/Desktop/compramelafoto`  
 **Plan:** [`docs/architecture/migration/22-code-import-execution-plan.md`](../../docs/architecture/migration/22-code-import-execution-plan.md)  
