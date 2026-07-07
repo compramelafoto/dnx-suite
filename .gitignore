@@ -82,3 +82,4 @@ infra/vercel/envs/*.env
 apps/fotorank/.env.staging.local
 apps/compramelafoto/data/import/
 .cursor/
+.env*.local
