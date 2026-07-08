@@ -1,5 +1,9 @@
-/** Porcentaje máximo de comisión del organizador sobre el precio base del fotógrafo (evita margen nulo). */
-export const MAX_EVENT_ORGANIZER_COMMISSION_PERCENT = 90;
+/**
+ * CLF-ORGANIZER-COMMISSION-100 — tope de comisión del organizador sobre el precio base del fotógrafo.
+ * Hasta 100%: el fotógrafo puede quedar en $0 en el split MP; la retención del organizador va en marketplace_fee.
+ */
+export const MAX_ORGANIZER_COMMISSION_PERCENT = 100;
+export const MAX_EVENT_ORGANIZER_COMMISSION_PERCENT = MAX_ORGANIZER_COMMISSION_PERCENT;
 
 export type ResolvedEventOrganizerCommission = {
   enabled: boolean;

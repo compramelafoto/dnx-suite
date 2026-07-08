@@ -1,16 +1,12 @@
-import {
-  EventOrganizerCommissionPayoutMode,
-  EventOrganizerCommissionStatus,
-  OrderOrigin,
-  OrderStatus,
-  Prisma,
-} from "@/lib/prisma";
+import { EventOrganizerCommissionPayoutMode, EventOrganizerCommissionStatus, OrderOrigin, OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { baseFromTotal, feeFromTotal } from "@/lib/pricing/fee-formula";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
 import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
 import { scheduleCheckoutFeeShadowCompare } from "@/lib/pricing/checkout-fee-shadow";
 import { getPaymentById } from "@/lib/mercadopago";
+import { isOrganizerFullCommissionEvent } from "@/lib/events/resolve-event-payment-collector";
+import { organizerDirectMpCollectionCommissionFields } from "@/lib/event-organizer-commission-ledger";
 
 const LOG_PREFIX = "[event-organizer-commission]";
 
@@ -220,6 +216,10 @@ export async function ensureEventOrganizerCommissionSnapshotForPaidOrder(
   });
 
   const availableAt = new Date(paymentConfirmedAt.getTime() + AVAILABLE_AFTER_MS);
+  const organizerDirectMp = isOrganizerFullCommissionEvent(event);
+  const directMpFields = organizerDirectMp
+    ? organizerDirectMpCollectionCommissionFields(paymentConfirmedAt)
+    : null;
 
   try {
     await prisma.eventOrganizerCommission.create({
@@ -235,10 +235,14 @@ export async function ensureEventOrganizerCommissionSnapshotForPaidOrder(
         organizerCommissionAmount: pesosToDecimal(organizerCommissionPesos),
         photographerNetAmount: pesosToDecimal(photographerNetPesos),
         totalPaidAmount: pesosToDecimal(order.totalCents),
-        status: EventOrganizerCommissionStatus.PENDING,
-        availableAt,
-        paidAt: null,
-        payoutMode: EventOrganizerCommissionPayoutMode.HELD_BY_PLATFORM,
+        status: directMpFields
+          ? directMpFields.status
+          : EventOrganizerCommissionStatus.PENDING,
+        availableAt: directMpFields ? directMpFields.availableAt : availableAt,
+        paidAt: directMpFields ? directMpFields.paidAt : null,
+        payoutMode: directMpFields
+          ? directMpFields.payoutMode
+          : EventOrganizerCommissionPayoutMode.HELD_BY_PLATFORM,
       },
     });
     console.info(`${LOG_PREFIX} created`, {
@@ -250,7 +254,8 @@ export async function ensureEventOrganizerCommissionSnapshotForPaidOrder(
       photographerNetPesos,
       platformFeePesos,
       totalPaidPesos: order.totalCents,
-      availableAt: availableAt.toISOString(),
+      collectionType: organizerDirectMp ? "DIRECT_MP" : "PLATFORM_HELD",
+      availableAt: (directMpFields?.availableAt ?? availableAt).toISOString(),
     });
   } catch (err: unknown) {
     const code = (err as { code?: string })?.code;
@@ -274,6 +279,7 @@ export async function cancelEventOrganizerCommissionForOrder(orderId: number): P
           EventOrganizerCommissionStatus.PENDING,
           EventOrganizerCommissionStatus.AVAILABLE,
           EventOrganizerCommissionStatus.WITHDRAWAL_REQUESTED,
+          EventOrganizerCommissionStatus.PAID_DIRECT_TO_ORGANIZER,
         ],
       },
     },

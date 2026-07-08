@@ -1,4 +1,4 @@
-import { CheckoutPaymentSource, OrderOrigin } from "@/lib/prisma";
+import { CheckoutPaymentSource, OrderOrigin } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   createPreference,
@@ -10,11 +10,12 @@ import {
   readPackDefinitionIdFromOrderPricingSnapshot,
 } from "@/lib/preventa-canjeable/order-checkout-kind";
 import { feeFromTotal } from "@/lib/pricing/fee-formula";
-import { buildAlbumOrderMercadoPagoMarketplaceFeeWithEventOrganizer } from "@/lib/event-organizer-commission-mp-checkout";
+import { buildAlbumOrderMercadoPagoCheckoutSplit } from "@/lib/event-organizer-commission-mp-checkout";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
 import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
 import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-marketplace-fee";
 import { scheduleCheckoutFeeShadowCompare } from "@/lib/pricing/checkout-fee-shadow";
+import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 
 const LOG_BLOCKED = "[TEST_CHECKOUT] blocked real payment flow";
 
@@ -37,34 +38,25 @@ function mpInitPointMatchesCredential(initPoint: string, accessToken: string): b
   return urlIsSandbox === tokenIsTest;
 }
 
-async function resolveAlbumOrderMpAccessToken(albumUserId: number | null): Promise<
-  | { ok: true; accessTokenOverride: string }
+async function resolveAlbumOrderMpAccessToken(
+  albumUserId: number | null,
+  eventId: number | null | undefined
+): Promise<
+  | { ok: true; accessTokenOverride: string; collectorType: "PHOTOGRAPHER" | "ORGANIZER" }
   | { ok: false; error: string; code: string }
 > {
-  if (!albumUserId) {
-    return {
-      ok: false,
-      error:
-        "El dueño del álbum debe conectar Mercado Pago para recibir los pagos. Conectá Mercado Pago en Configuración / Datos para cobro.",
-      code: "MP_NOT_CONNECTED",
-    };
-  }
-
-  const photographer = await prisma.user.findUnique({
-    where: { id: albumUserId },
-    select: { mpAccessToken: true },
+  const creds = await resolveAlbumOrderMercadoPagoCredentials({
+    photographerUserId: albumUserId,
+    eventId,
   });
-
-  if (!photographer?.mpAccessToken) {
-    return {
-      ok: false,
-      error:
-        "El dueño del álbum debe conectar Mercado Pago para recibir los pagos. Conectá Mercado Pago en Configuración / Datos para cobro.",
-      code: "MP_NOT_CONNECTED",
-    };
+  if (!creds.ok) {
+    return { ok: false, error: creds.error, code: creds.code };
   }
-
-  return { ok: true, accessTokenOverride: photographer.mpAccessToken };
+  return {
+    ok: true,
+    accessTokenOverride: creds.accessToken,
+    collectorType: creds.collectorType,
+  };
 }
 
 /**
@@ -103,7 +95,10 @@ export async function ensureAlbumOrderMpPreference(
     select: { userId: true, eventId: true, selectedLabId: true },
   });
 
-  const tokenResult = await resolveAlbumOrderMpAccessToken(album?.userId ?? null);
+  const tokenResult = await resolveAlbumOrderMpAccessToken(
+    album?.userId ?? null,
+    album?.eventId ?? null
+  );
   if (!tokenResult.ok) {
     return {
       ok: false,
@@ -113,7 +108,7 @@ export async function ensureAlbumOrderMpPreference(
     };
   }
 
-  const { accessTokenOverride } = tokenResult;
+  const { accessTokenOverride, collectorType } = tokenResult;
 
   if (
     !options?.forceRegenerate &&
@@ -208,7 +203,7 @@ export async function ensureAlbumOrderMpPreference(
     totalArsForEstimate: order.totalCents,
   });
 
-  marketplaceFee = await buildAlbumOrderMercadoPagoMarketplaceFeeWithEventOrganizer({
+  const checkoutSplit = await buildAlbumOrderMercadoPagoCheckoutSplit({
     orderId,
     albumId: order.albumId,
     eventId: album?.eventId ?? null,
@@ -216,7 +211,9 @@ export async function ensureAlbumOrderMpPreference(
     extensionSurchargePesos: Number(order.extensionSurchargeCents ?? 0),
     platformPercent: platformPercentAlbum,
     marketplaceFeePlatformOnlyPesos: marketplaceFeeCentsAlbum,
+    paymentCollectorType: collectorType,
   });
+  marketplaceFee = checkoutSplit.marketplaceFeePesos;
 
   const packDefFromSnap = readPackDefinitionIdFromOrderPricingSnapshot(order.pricingSnapshot);
 

@@ -11,6 +11,7 @@ import { consumeReferralEarningsForDiscount } from "@/lib/referral/consume-refer
 import { createReferralEarningsForPaidSale } from "@/lib/referral/create-referral-earnings-for-paid-sale";
 import { resolveAlbumEventIdFromPrintOrderTags } from "@/lib/referral/skip-referral-event-organizer-double-benefit";
 import { recalcPendingPayoutRequestsForReferrers } from "@/lib/referral/recalc-pending-payout-requests";
+import { resolveAlbumOrderMpAccessTokenByOrderId } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 import { reverseAlbumOrderMercadoPagoIfWasPaid } from "@/lib/mercadopago/reverse-album-order-mercado-pago";
 import { syncPreCompraOrderFromMercadoPagoPayment } from "@/lib/mercadopago/reverse-precompra-order-mercado-pago";
 import { logLegacyPreventaUsage } from "@/lib/observability/legacy-preventa-usage";
@@ -120,19 +121,7 @@ export async function POST(req: Request) {
           select: { albumId: true },
         });
         if (order?.albumId) {
-          const album = await prisma.album.findUnique({
-            where: { id: order.albumId },
-            select: { userId: true },
-          });
-          if (album?.userId) {
-            const photographer = await prisma.user.findUnique({
-              where: { id: album.userId },
-              select: { mpAccessToken: true },
-            });
-            if (photographer?.mpAccessToken) {
-              accessTokenOverride = photographer.mpAccessToken;
-            }
-          }
+          accessTokenOverride = await resolveAlbumOrderMpAccessTokenByOrderId(orderIdFromQuery);
         }
       }
     }

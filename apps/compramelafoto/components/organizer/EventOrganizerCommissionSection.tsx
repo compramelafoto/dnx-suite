@@ -1,8 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import Input from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
 import { DsInfoPanel } from "@/components/ui/DsLayout";
 import { MAX_EVENT_ORGANIZER_COMMISSION_PERCENT } from "@/lib/event-organizer-commission";
+import { ORGANIZER_FULL_COMMISSION_MP_REQUIRED_ERROR } from "@/lib/events/resolve-event-payment-collector";
 
 type Props = {
   enabled: boolean;
@@ -24,12 +28,37 @@ export default function EventOrganizerCommissionSection({
   disabled = false,
   fieldIdPrefix = "event-org-commission",
 }: Props) {
+  const [mpConnected, setMpConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/mercadopago/connection-status?ownerType=USER", {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          if (!cancelled) setMpConnected(false);
+          return;
+        }
+        const data = (await res.json()) as { connected?: boolean };
+        if (!cancelled) setMpConnected(Boolean(data.connected));
+      } catch {
+        if (!cancelled) setMpConnected(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const pct = parseFloat(percentageInput.replace(",", "."));
   const pctValid =
     enabled &&
     Number.isFinite(pct) &&
     pct > 0 &&
     pct <= MAX_EVENT_ORGANIZER_COMMISSION_PERCENT;
+  const isFullCommission = pctValid && pct === 100;
 
   const money = new Intl.NumberFormat("es-AR", {
     style: "currency",
@@ -40,10 +69,14 @@ export default function EventOrganizerCommissionSection({
   let exampleParagraph: string | null = null;
   if (pctValid) {
     const organizerPart = Math.round(EXAMPLE_BASE_ARS * (pct / 100));
-    const photographerPart = EXAMPLE_BASE_ARS - organizerPart;
     const feeExample = Math.round(EXAMPLE_BASE_ARS * 0.15);
     const clientPays = EXAMPLE_BASE_ARS + feeExample;
-    exampleParagraph = `Ejemplo con precio base ${money.format(EXAMPLE_BASE_ARS)} y fee de plataforma 15%: el cliente paga ${money.format(clientPays)}; tu comisión (${pct}%) es ${money.format(organizerPart)}; el fotógrafo recibe ${money.format(photographerPart)} en su Mercado Pago (más el fee, la plataforma lo retiene por separado).`;
+    if (isFullCommission) {
+      exampleParagraph = `Ejemplo con precio base ${money.format(EXAMPLE_BASE_ARS)} y fee de plataforma 15%: el cliente paga ${money.format(clientPays)}; vos cobrás ${money.format(organizerPart)} en tu Mercado Pago (la plataforma retiene solo el fee de ${money.format(feeExample)}).`;
+    } else {
+      const photographerPart = EXAMPLE_BASE_ARS - organizerPart;
+      exampleParagraph = `Ejemplo con precio base ${money.format(EXAMPLE_BASE_ARS)} y fee de plataforma 15%: el cliente paga ${money.format(clientPays)}; tu comisión (${pct}%) es ${money.format(organizerPart)}; el fotógrafo recibe ${money.format(photographerPart)} en su Mercado Pago (más el fee, la plataforma lo retiene por separado).`;
+    }
   }
 
   const toggleId = `${fieldIdPrefix}-enabled`;
@@ -67,12 +100,12 @@ export default function EventOrganizerCommissionSection({
             define por foto, no sobre promos ni el total que paga el cliente.
           </li>
           <li>
-            Cuando el pago de una venta queda aprobado, la comisión aparece como pendiente y se habilita para retiro{" "}
-            <strong>15 días después</strong> de esa aprobación.
+            Con comisión menor al 100%, el cobro entra al Mercado Pago del fotógrafo y tu parte se liquida manualmente
+            desde <strong>Comisiones</strong> (disponible 15 días después del pago aprobado).
           </li>
           <li>
-            El dinero no se transfiere solo: desde <strong>Comisiones</strong> podés solicitar el retiro manual cuando
-            haya saldo disponible; el equipo de ComprameLaFoto procesa el pago.
+            Con comisión del <strong>100%</strong>, el cobro se procesa desde tu cuenta de Mercado Pago conectada; la
+            plataforma retiene solo su fee.
           </li>
         </ul>
       </DsInfoPanel>
@@ -114,6 +147,31 @@ export default function EventOrganizerCommissionSection({
           Podés usar decimales (por ejemplo 12,5).
         </p>
       </div>
+
+      {isFullCommission ? (
+        <div
+          className="ds-readable-text ds-readable-text--fluid rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 sm:px-4 text-sm text-blue-900 space-y-3 min-w-0"
+          role="status"
+        >
+          <p className="m-0 font-medium leading-snug">
+            Con comisión 100%, el cobro se procesa desde la cuenta de Mercado Pago del organizador.
+          </p>
+          {mpConnected === false ? (
+            <>
+              <p className="m-0 text-blue-900/90 leading-relaxed">{ORGANIZER_FULL_COMMISSION_MP_REQUIRED_ERROR}</p>
+              <div className="pt-0.5">
+                <Button variant="primary" size="md" className="w-full sm:w-auto" asChild>
+                  <Link href="/api/mercadopago/oauth/start?ownerType=USER">Conectar Mercado Pago</Link>
+                </Button>
+              </div>
+            </>
+          ) : mpConnected === true ? (
+            <p className="m-0 text-emerald-800">Tu cuenta de Mercado Pago está conectada.</p>
+          ) : (
+            <p className="m-0 text-blue-900/80">Verificando conexión de Mercado Pago…</p>
+          )}
+        </div>
+      ) : null}
 
       {exampleParagraph ? (
         <p className="ds-readable-text ds-readable-text--fluid text-sm text-gray-700 m-0 rounded-xl border border-[#111827]/08 bg-[#f8fafc] p-3">

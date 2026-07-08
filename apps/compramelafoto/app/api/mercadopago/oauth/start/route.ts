@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     }
 
     if (ownerType === "USER") {
-      if (!["PHOTOGRAPHER", "LAB_PHOTOGRAPHER", "ADMIN"].includes(user.role)) {
+      if (!["PHOTOGRAPHER", "LAB_PHOTOGRAPHER", "ORGANIZER", "ADMIN"].includes(user.role)) {
         return NextResponse.json({ error: "No autorizado para conectar usuario" }, { status: 403 });
       }
     } else {

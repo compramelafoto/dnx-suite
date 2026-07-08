@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CheckoutPaymentSource, OrderOrigin, OrderStatus } from "@/lib/prisma";
+import { CheckoutPaymentSource, OrderOrigin, OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { createPreference } from "@/lib/mercadopago";
@@ -14,6 +14,7 @@ import { resolvePlatformCommissionPercent } from "@/lib/services/commissionServi
 import { scheduleCheckoutFeeShadowCompare } from "@/lib/pricing/checkout-fee-shadow";
 import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-marketplace-fee";
 import { buildAlbumOrderMercadoPagoMarketplaceFeeWithEventOrganizer } from "@/lib/event-organizer-commission-mp-checkout";
+import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 import { readAlbumPackCartDraftIdsFromSnapshot } from "@/lib/album-packs/album-pack-cart-payment-ref";
 import {
   getAlbumPackNameFromSnapshot,
@@ -168,25 +169,17 @@ export async function POST(
       );
     }
 
-    let accessTokenOverride: string | undefined;
-    if (album?.userId) {
-      const photographer = await prisma.user.findUnique({
-        where: { id: album.userId },
-        select: { mpAccessToken: true },
-      });
-      if (photographer?.mpAccessToken) {
-        accessTokenOverride = photographer.mpAccessToken;
-      } else {
-        return NextResponse.json(
-          {
-            error:
-              "El dueño del álbum debe conectar Mercado Pago para recibir los pagos.",
-            code: "MP_NOT_CONNECTED",
-          },
-          { status: 400 }
-        );
-      }
+    const mpCreds = await resolveAlbumOrderMercadoPagoCredentials({
+      photographerUserId: album?.userId ?? null,
+      eventId: album?.eventId ?? null,
+    });
+    if (!mpCreds.ok) {
+      return NextResponse.json(
+        { error: mpCreds.error, code: mpCreds.code },
+        { status: 400 }
+      );
     }
+    const accessTokenOverride = mpCreds.accessToken;
 
     const packName = getAlbumPackNameFromSnapshot(order.pricingSnapshot);
     const title = packName || "Pack de fotos";
@@ -265,6 +258,7 @@ export async function POST(
       extensionSurchargePesos: Number(order.extensionSurchargeCents ?? 0),
       platformPercent,
       marketplaceFeePlatformOnlyPesos: marketplaceFee,
+      paymentCollectorType: mpCreds.collectorType,
     });
 
     const { initPoint, preferenceId } = await createPreference(

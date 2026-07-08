@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  EventOrganizerCommissionPayoutMode,
   EventOrganizerCommissionStatus,
   Prisma,
   Role,
-} from "@/lib/prisma";
+} from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  ORGANIZER_COMMISSION_COLLECTION_LABELS,
+  ORGANIZER_COMMISSION_STATUS_LABELS,
+  ORGANIZER_DIRECT_MP_COLLECTION_WHERE,
+  PLATFORM_HELD_WITHDRAWAL_PIPELINE_WHERE,
+  resolveOrganizerCommissionCollectionType,
+} from "@/lib/event-organizer-commission-ledger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,8 +121,9 @@ export async function GET(req: NextRequest) {
       rows,
       sumPending,
       sumAvailableBucket,
-      sumPaid,
-      sumGenerated,
+      sumPaidViaWithdrawal,
+      sumDirectMp,
+      sumPlatformHeldGenerated,
       sumWithdrawableNow,
     ] = await prisma.$transaction([
       prisma.eventOrganizerCommission.findMany({
@@ -128,12 +137,17 @@ export async function GET(req: NextRequest) {
         },
       }),
       prisma.eventOrganizerCommission.aggregate({
-        where: { ...summaryWhere, status: EventOrganizerCommissionStatus.PENDING },
+        where: {
+          ...summaryWhere,
+          payoutMode: PLATFORM_HELD_WITHDRAWAL_PIPELINE_WHERE.payoutMode,
+          status: EventOrganizerCommissionStatus.PENDING,
+        },
         _sum: { organizerCommissionAmount: true },
       }),
       prisma.eventOrganizerCommission.aggregate({
         where: {
           ...summaryWhere,
+          payoutMode: PLATFORM_HELD_WITHDRAWAL_PIPELINE_WHERE.payoutMode,
           status: {
             in: [
               EventOrganizerCommissionStatus.AVAILABLE,
@@ -144,12 +158,21 @@ export async function GET(req: NextRequest) {
         _sum: { organizerCommissionAmount: true },
       }),
       prisma.eventOrganizerCommission.aggregate({
-        where: { ...summaryWhere, status: EventOrganizerCommissionStatus.PAID },
+        where: {
+          ...summaryWhere,
+          payoutMode: EventOrganizerCommissionPayoutMode.HELD_BY_PLATFORM,
+          status: EventOrganizerCommissionStatus.PAID,
+        },
+        _sum: { organizerCommissionAmount: true },
+      }),
+      prisma.eventOrganizerCommission.aggregate({
+        where: { ...summaryWhere, ...ORGANIZER_DIRECT_MP_COLLECTION_WHERE },
         _sum: { organizerCommissionAmount: true },
       }),
       prisma.eventOrganizerCommission.aggregate({
         where: {
           ...summaryWhere,
+          payoutMode: EventOrganizerCommissionPayoutMode.HELD_BY_PLATFORM,
           status: { not: EventOrganizerCommissionStatus.CANCELLED },
         },
         _sum: { organizerCommissionAmount: true },
@@ -158,6 +181,7 @@ export async function GET(req: NextRequest) {
         where: {
           ...summaryWhere,
           organizerUserId: user.id,
+          payoutMode: EventOrganizerCommissionPayoutMode.HELD_BY_PLATFORM,
           status: EventOrganizerCommissionStatus.AVAILABLE,
           availableAt: { lte: new Date() },
           withdrawalRequestId: null,
@@ -166,33 +190,46 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const items = rows.map((row) => ({
-      commissionId: row.id,
-      orderId: row.orderId,
-      eventId: row.eventId,
-      eventTitle: row.event.title,
-      photographerUserId: row.photographerUserId,
-      photographerName: photographerDisplayName(row.photographerUser),
-      albumId: row.albumId,
-      organizerCommissionPercentage: row.organizerCommissionPercentage,
-      photographerBaseAmount: decimalToNumber(row.photographerBaseAmount),
-      organizerCommissionAmount: decimalToNumber(row.organizerCommissionAmount),
-      photographerNetAmount: decimalToNumber(row.photographerNetAmount),
-      totalPaidAmount: decimalToNumber(row.totalPaidAmount),
-      platformFeeAmount: decimalToNumber(row.platformFeeAmount),
-      status: row.status,
-      payoutMode: row.payoutMode,
-      availableAt: row.availableAt.toISOString(),
-      paidAt: row.paidAt ? row.paidAt.toISOString() : null,
-      createdAt: row.createdAt.toISOString(),
-    }));
+    const items = rows.map((row) => {
+      const collectionType = resolveOrganizerCommissionCollectionType(row);
+      return {
+        commissionId: row.id,
+        orderId: row.orderId,
+        eventId: row.eventId,
+        eventTitle: row.event.title,
+        photographerUserId: row.photographerUserId,
+        photographerName: photographerDisplayName(row.photographerUser),
+        albumId: row.albumId,
+        organizerCommissionPercentage: row.organizerCommissionPercentage,
+        photographerBaseAmount: decimalToNumber(row.photographerBaseAmount),
+        organizerCommissionAmount: decimalToNumber(row.organizerCommissionAmount),
+        photographerNetAmount: decimalToNumber(row.photographerNetAmount),
+        totalPaidAmount: decimalToNumber(row.totalPaidAmount),
+        platformFeeAmount: decimalToNumber(row.platformFeeAmount),
+        status: row.status,
+        statusLabel: ORGANIZER_COMMISSION_STATUS_LABELS[row.status] ?? row.status,
+        payoutMode: row.payoutMode,
+        collectionType,
+        collectionTypeLabel: ORGANIZER_COMMISSION_COLLECTION_LABELS[collectionType],
+        availableAt: row.availableAt.toISOString(),
+        paidAt: row.paidAt ? row.paidAt.toISOString() : null,
+        createdAt: row.createdAt.toISOString(),
+      };
+    });
+
+    const totalDirectMp = decimalToNumber(sumDirectMp._sum.organizerCommissionAmount);
+    const totalPlatformHeldGenerated = decimalToNumber(
+      sumPlatformHeldGenerated._sum.organizerCommissionAmount
+    );
 
     return NextResponse.json({
       summary: {
         totalPending: decimalToNumber(sumPending._sum.organizerCommissionAmount),
         totalAvailable: decimalToNumber(sumAvailableBucket._sum.organizerCommissionAmount),
-        totalPaid: decimalToNumber(sumPaid._sum.organizerCommissionAmount),
-        totalGenerated: decimalToNumber(sumGenerated._sum.organizerCommissionAmount),
+        totalPaid: decimalToNumber(sumPaidViaWithdrawal._sum.organizerCommissionAmount),
+        totalDirectMpCollection: totalDirectMp,
+        totalPlatformHeldGenerated,
+        totalGenerated: totalPlatformHeldGenerated + totalDirectMp,
         totalWithdrawable: decimalToNumber(sumWithdrawableNow._sum.organizerCommissionAmount),
       },
       items,

@@ -1,9 +1,10 @@
 import {
+  EventOrganizerCommissionPayoutMode,
   EventOrganizerCommissionStatus,
   OrganizerCommissionWithdrawalStatus,
   Prisma,
   Role,
-} from "@/lib/prisma";
+} from "@prisma/client";
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { isOrganizerPayoutSettingsComplete } from "@/lib/organizer-withdrawal-payout-fields";
@@ -60,6 +61,7 @@ export async function POST() {
         where: {
           event: { creatorId: user.id },
           organizerUserId: user.id,
+          payoutMode: EventOrganizerCommissionPayoutMode.HELD_BY_PLATFORM,
           status: EventOrganizerCommissionStatus.AVAILABLE,
           availableAt: { lte: now },
           withdrawalRequestId: null,
@@ -97,6 +99,7 @@ export async function POST() {
           id: { in: ids },
           event: { creatorId: user.id },
           organizerUserId: user.id,
+          payoutMode: EventOrganizerCommissionPayoutMode.HELD_BY_PLATFORM,
           status: EventOrganizerCommissionStatus.AVAILABLE,
           availableAt: { lte: now },
           withdrawalRequestId: null,

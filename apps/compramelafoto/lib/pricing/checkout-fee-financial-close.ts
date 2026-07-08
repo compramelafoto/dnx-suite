@@ -2,7 +2,7 @@
  * Cierre financiero puro para la suite Fase 1.5.
  * Usa fórmulas existentes (fee-formula, referidos, organizador evento) sin alterar reglas.
  */
-import { ReferralProgram } from "@/lib/prisma";
+import { ReferralProgram } from "@prisma/client";
 import { baseFromTotal, feeFromBase, feeFromTotal, totalFromBase } from "@/lib/pricing/fee-formula";
 import { applyEventOrganizerRetentionToMercadoPagoMarketplaceFeePesos } from "@/lib/event-organizer-commission-mp-marketplace-fee";
 import {
@@ -59,8 +59,13 @@ export type CloseCheckoutFinancialsResult = {
   referralEarningArs: number;
   clfNetArs: number;
   marketplaceFeeMpArs: number;
+  /** Neto MP del cobrador OAuth (puede ser organizador al 100%). Ver MP_COLLECTOR_NET_AMOUNT_NOTE. */
+  collectorNetAmountPesos: number;
+  /**
+   * @deprecated Usar collectorNetAmountPesos. Ver MP_COLLECTOR_NET_AMOUNT_NOTE en event-organizer-commission-mp-marketplace-fee.
+   */
   photographerMpArs: number;
-  /** Identidad: cliente = fotógrafo MP + marketplace_fee MP (+ escolar no va a MP). */
+  /** Identidad: cliente = neto collector MP + marketplace_fee MP (+ escolar no va a MP). */
   closesExactly: boolean;
 };
 
@@ -166,6 +171,7 @@ export function closeCheckoutFinancials(
     input.scenario === "PACK";
 
   const eventOrganizerPct = hasEventOrganizer ? (input.eventOrganizerPercent ?? 10) : 0;
+  const organizerAsCollector = hasEventOrganizer && eventOrganizerPct === 100;
 
   const mpSplit = applyEventOrganizerRetentionToMercadoPagoMarketplaceFeePesos({
     orderId: 0,
@@ -182,11 +188,12 @@ export function closeCheckoutFinancials(
             organizerCommissionPercentage: eventOrganizerPct,
           }
         : null,
+    paymentCollectorType: organizerAsCollector ? "ORGANIZER" : "PHOTOGRAPHER",
   });
 
   const organizerEventArs = mpSplit.organizerCommissionAmountPesos;
   const marketplaceFeeMpArs = mpSplit.marketplaceFeePesos;
-  const photographerMpArs = mpSplit.amountToPhotographerPesos;
+  const collectorNetAmountPesos = mpSplit.amountToCollectorPesos;
 
   const hasSchool =
     input.scenario === "SCHOOL" || input.scenario === "PREVENTA";
@@ -195,7 +202,7 @@ export function closeCheckoutFinancials(
     ? schoolOrganizerAmount(clienteArs, feeGrossArs, schoolPct)
     : 0;
 
-  const closesExactly = photographerMpArs + marketplaceFeeMpArs === clienteArs;
+  const closesExactly = collectorNetAmountPesos + marketplaceFeeMpArs === clienteArs;
 
   return {
     scenario: input.scenario,
@@ -208,7 +215,8 @@ export function closeCheckoutFinancials(
     referralEarningArs,
     clfNetArs,
     marketplaceFeeMpArs,
-    photographerMpArs,
+    collectorNetAmountPesos,
+    photographerMpArs: collectorNetAmountPesos,
     closesExactly,
   };
 }

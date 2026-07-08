@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { CheckoutPaymentSource, OrderOrigin, Prisma } from "@/lib/prisma";
+import { CheckoutPaymentSource, OrderOrigin, Prisma } from "@prisma/client";
 import { computeCheckoutTotals } from "@/lib/pricing/pricing-engine";
 import { isPreventaPacksV1Enabled } from "@/lib/preventa-canjeable/feature-flag";
 import {
@@ -15,7 +15,8 @@ import {
 import { getAuthUser } from "@/lib/auth";
 import { denyIfTestAlbumNotOwnerPreview } from "@/lib/public-album-test-access";
 import { albumPhotoFileKey, stripCartCopySuffix } from "@/lib/album-photo-ref";
-import { buildAlbumOrderMercadoPagoMarketplaceFeeWithEventOrganizer } from "@/lib/event-organizer-commission-mp-checkout";
+import { buildAlbumOrderMercadoPagoCheckoutSplit } from "@/lib/event-organizer-commission-mp-checkout";
+import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
 import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
 import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-marketplace-fee";
@@ -346,6 +347,11 @@ export async function POST(
       baseData.extensionSurchargeCents = extensionSurchargeCents;
     }
 
+    const mpCredsPrecheck = await resolveAlbumOrderMercadoPagoCredentials({
+      photographerUserId: album?.userId ?? null,
+      eventId: album?.eventId ?? null,
+    });
+
     const orderItemsSignature = buildOrderItemsSignature(orderItemsData);
     const recentThreshold = new Date(Date.now() - 10 * 60 * 1000);
     const recentCandidates = await prisma.order.findMany({
@@ -393,6 +399,19 @@ export async function POST(
       return candidateSignature === orderItemsSignature;
     });
     if (reusableOrder) {
+      if (
+        !reusableOrder.mpInitPoint &&
+        !mpCredsPrecheck.ok &&
+        mpCredsPrecheck.code === "ORGANIZER_MP_NOT_CONNECTED"
+      ) {
+        return NextResponse.json(
+          {
+            error: mpCredsPrecheck.error,
+            code: mpCredsPrecheck.code,
+          },
+          { status: 400 }
+        );
+      }
       await prisma.order.update({
         where: { id: reusableOrder.id },
         data: {
@@ -420,6 +439,19 @@ export async function POST(
           reused: true,
         },
         { status: 200 }
+      );
+    }
+
+    if (
+      !mpCredsPrecheck.ok &&
+      mpCredsPrecheck.code === "ORGANIZER_MP_NOT_CONNECTED"
+    ) {
+      return NextResponse.json(
+        {
+          error: mpCredsPrecheck.error,
+          code: mpCredsPrecheck.code,
+        },
+        { status: 400 }
       );
     }
 
@@ -523,21 +555,34 @@ export async function POST(
       const { createPreference } = await import("@/lib/mercadopago");
       // Usar el total persistido del pedido para evitar desfasajes
       const totalArs = Math.round(order.totalCents);
-      
-      let accessTokenOverride: string | undefined;
-      let tokenSource = "global";
-      if (album?.userId) {
-        const photographer = await prisma.user.findUnique({
-          where: { id: album.userId },
-          select: { mpAccessToken: true },
-        });
-        if (photographer?.mpAccessToken) {
-          accessTokenOverride = photographer.mpAccessToken;
-          tokenSource = "album_owner_oauth";
-        }
-      }
 
-      console.log("ORDER MP: creando preferencia", { orderId: order.id, tokenSource });
+      const mpCreds = mpCredsPrecheck.ok
+        ? mpCredsPrecheck
+        : await resolveAlbumOrderMercadoPagoCredentials({
+            photographerUserId: album?.userId ?? null,
+            eventId: album?.eventId ?? null,
+          });
+      if (!mpCreds.ok) {
+        return NextResponse.json(
+          {
+            id: order.id,
+            totalCents: order.totalCents,
+            error: "Pedido creado pero error al generar link de pago",
+            mpError: mpCreds.error,
+            code: mpCreds.code,
+          },
+          { status: 201 }
+        );
+      }
+      const accessTokenOverride = mpCreds.accessToken;
+      const tokenSource =
+        mpCreds.collectorType === "ORGANIZER" ? "event_organizer_oauth" : "album_owner_oauth";
+
+      console.log("ORDER MP: creando preferencia", {
+        orderId: order.id,
+        tokenSource,
+        collectorType: mpCreds.collectorType,
+      });
 
       const hasPrint = order.items.some((it) => it.productType === "PRINT");
       let marketplaceFeePlatformOnly = Math.round(Number(totals.marketplaceFeeCents || 0));
@@ -558,7 +603,7 @@ export async function POST(
             photographerId: album.userId,
             labId: album.selectedLabId ?? null,
           });
-      const marketplaceFee = await buildAlbumOrderMercadoPagoMarketplaceFeeWithEventOrganizer({
+      const checkoutSplit = await buildAlbumOrderMercadoPagoCheckoutSplit({
         orderId: order.id,
         albumId,
         eventId: album.eventId ?? null,
@@ -566,7 +611,9 @@ export async function POST(
         extensionSurchargePesos: Number(order.extensionSurchargeCents ?? 0),
         platformPercent: platformPercentOrder,
         marketplaceFeePlatformOnlyPesos: marketplaceFeePlatformOnly,
+        paymentCollectorType: mpCreds.collectorType,
       });
+      const marketplaceFee = checkoutSplit.marketplaceFeePesos;
       const component = hasPrint ? "PRINT" : "DIGITAL";
 
       const { initPoint, preferenceId } = await createPreference(

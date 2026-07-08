@@ -1,6 +1,62 @@
 import { baseFromTotal } from "@/lib/pricing/fee-formula";
+import type { PaymentCollectorType } from "@/lib/events/resolve-event-payment-collector";
 
 const LOG_PREFIX = "[event-organizer-commission-payment]";
+
+/** CLF-ORGANIZER-COMMISSION-100 — mensaje cuando el split automático MP no cierra. */
+export const EVENT_ORGANIZER_COMMISSION_AUTOMATIC_PAYOUT_ERROR =
+  "Esta comisión no puede aplicarse automáticamente porque deja importes inválidos para la distribución del pago. Ajustá la comisión o usá liquidación manual.";
+
+export type EventOrganizerCommissionMpSplitValidation = {
+  valid: boolean;
+  error?: string;
+};
+
+/**
+ * En eventos con organizador collector al 100%, el neto del collector OAuth puede ser el organizador,
+ * no necesariamente el fotógrafo.
+ */
+export const MP_COLLECTOR_NET_AMOUNT_NOTE =
+  "En eventos con organizador collector al 100%, este valor representa el neto del collector OAuth, que puede ser el organizador, no necesariamente el fotógrafo.";
+
+/** Valida montos del split MP (2 vías: cobrador OAuth + marketplace_fee). */
+export function validateEventOrganizerCommissionMpSplit(params: {
+  totalPaidPesos: number;
+  marketplaceFeePesos: number;
+  /** Neto que recibe el cobrador OAuth (fotógrafo u organizador). */
+  amountToCollectorPesos?: number;
+  /** @deprecated Usar amountToCollectorPesos. */
+  amountToPhotographerPesos?: number;
+}): EventOrganizerCommissionMpSplitValidation {
+  const total = Math.round(Number(params.totalPaidPesos));
+  const marketplaceFee = Math.round(Number(params.marketplaceFeePesos));
+  const toCollector = Math.round(
+    Number(params.amountToCollectorPesos ?? params.amountToPhotographerPesos)
+  );
+
+  if (!Number.isFinite(total) || total <= 0) {
+    return { valid: false, error: EVENT_ORGANIZER_COMMISSION_AUTOMATIC_PAYOUT_ERROR };
+  }
+  if (!Number.isFinite(marketplaceFee) || marketplaceFee < 0) {
+    return { valid: false, error: EVENT_ORGANIZER_COMMISSION_AUTOMATIC_PAYOUT_ERROR };
+  }
+  if (!Number.isFinite(toCollector) || toCollector < 0) {
+    return { valid: false, error: EVENT_ORGANIZER_COMMISSION_AUTOMATIC_PAYOUT_ERROR };
+  }
+  if (toCollector <= 0) {
+    return { valid: false, error: EVENT_ORGANIZER_COMMISSION_AUTOMATIC_PAYOUT_ERROR };
+  }
+  if (marketplaceFee >= total) {
+    return { valid: false, error: EVENT_ORGANIZER_COMMISSION_AUTOMATIC_PAYOUT_ERROR };
+  }
+  if (marketplaceFee > total) {
+    return { valid: false, error: EVENT_ORGANIZER_COMMISSION_AUTOMATIC_PAYOUT_ERROR };
+  }
+  if (marketplaceFee + toCollector !== total) {
+    return { valid: false, error: EVENT_ORGANIZER_COMMISSION_AUTOMATIC_PAYOUT_ERROR };
+  }
+  return { valid: true };
+}
 
 export type EventOrganizerCommissionMpEventInput = {
   organizerCommissionEnabled: boolean;
@@ -8,9 +64,9 @@ export type EventOrganizerCommissionMpEventInput = {
 } | null;
 
 /**
- * Mercado Pago marketplace (2-way split): el cobrador OAuth del fotógrafo recibe
- * total − marketplace_fee. La aplicación retiene marketplace_fee (fee plataforma + retención organizador).
- * Solo aplica comisión organizador de Evento (colaborativo), no comisión escolar de álbum.
+ * Mercado Pago marketplace (2-way split): el cobrador OAuth recibe total − marketplace_fee.
+ * - Fotógrafo collector (<100%): marketplace_fee = fee plataforma + retención organizador.
+ * - Organizador collector (100%): marketplace_fee = solo fee plataforma; organizador cobra el neto.
  */
 export function applyEventOrganizerRetentionToMercadoPagoMarketplaceFeePesos(params: {
   orderId: number;
@@ -22,6 +78,7 @@ export function applyEventOrganizerRetentionToMercadoPagoMarketplaceFeePesos(par
   /** Fee de plataforma que ya va a MP (ej. tras descuento por saldo referidos). ARS enteros. */
   marketplaceFeePlatformOnlyPesos: number;
   event: EventOrganizerCommissionMpEventInput;
+  paymentCollectorType?: PaymentCollectorType;
 }): {
   marketplaceFeePesos: number;
   photographerBasePesos: number;
@@ -30,6 +87,9 @@ export function applyEventOrganizerRetentionToMercadoPagoMarketplaceFeePesos(par
   organizerCommissionAmountPesos: number;
   photographerNetPesos: number;
   amountToPlatformPesos: number;
+  /** Neto MP del cobrador OAuth. Ver {@link MP_COLLECTOR_NET_AMOUNT_NOTE}. */
+  amountToCollectorPesos: number;
+  /** @deprecated Alias de amountToCollectorPesos. Ver {@link MP_COLLECTOR_NET_AMOUNT_NOTE}. */
   amountToPhotographerPesos: number;
   appliedOrganizerRetention: boolean;
 } {
@@ -62,15 +122,22 @@ export function applyEventOrganizerRetentionToMercadoPagoMarketplaceFeePesos(par
       });
     } else {
       organizerPct = rawPct;
-      organizerCommissionAmountPesos = Math.round((photographerBasePesos * organizerPct) / 100);
+      organizerCommissionAmountPesos = Math.min(
+        photographerBasePesos,
+        Math.round((photographerBasePesos * organizerPct) / 100)
+      );
       appliedOrganizerRetention = organizerCommissionAmountPesos > 0;
     }
   }
 
   const photographerNetPesos = Math.max(0, photographerBasePesos - organizerCommissionAmountPesos);
-  const marketplaceFeePesos = platformFeePesos + organizerCommissionAmountPesos;
+
+  const organizerAsCollector = params.paymentCollectorType === "ORGANIZER";
+  const marketplaceFeePesos = organizerAsCollector
+    ? Math.max(0, platformFeePesos)
+    : Math.max(0, platformFeePesos + organizerCommissionAmountPesos);
   const amountToPlatformPesos = marketplaceFeePesos;
-  const amountToPhotographerPesos = Math.max(0, totalPaidPesos - marketplaceFeePesos);
+  const amountToCollectorPesos = Math.max(0, totalPaidPesos - marketplaceFeePesos);
 
   if (appliedOrganizerRetention) {
     console.info(LOG_PREFIX, {
@@ -83,7 +150,7 @@ export function applyEventOrganizerRetentionToMercadoPagoMarketplaceFeePesos(par
       organizerCommissionAmount: organizerCommissionAmountPesos,
       photographerNetAmount: photographerNetPesos,
       amountToPlatform: amountToPlatformPesos,
-      amountToPhotographer: amountToPhotographerPesos,
+      amountToCollector: amountToCollectorPesos,
     });
   }
 
@@ -95,7 +162,8 @@ export function applyEventOrganizerRetentionToMercadoPagoMarketplaceFeePesos(par
     organizerCommissionAmountPesos,
     photographerNetPesos,
     amountToPlatformPesos,
-    amountToPhotographerPesos,
+    amountToCollectorPesos,
+    amountToPhotographerPesos: amountToCollectorPesos,
     appliedOrganizerRetention,
   };
 }

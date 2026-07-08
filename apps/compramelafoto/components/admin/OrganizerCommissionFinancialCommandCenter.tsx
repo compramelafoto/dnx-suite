@@ -84,7 +84,7 @@ export default function OrganizerCommissionFinancialCommandCenter({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 min-w-0">
         <MetricCard
           title="Comisiones generadas"
           value={formatMoney(c.totalGenerated)}
@@ -92,15 +92,29 @@ export default function OrganizerCommissionFinancialCommandCenter({
           accent="violet"
         />
         <MetricCard
+          title="Cobro directo MP"
+          value={formatMoney(c.totalDirectMpCollection)}
+          subtitle="Comisión 100% — sin pipeline de retiro"
+          accent="blue"
+        />
+        <MetricCard
+          title="Retenido por plataforma"
+          value={formatMoney(c.totalPlatformHeldGenerated)}
+          subtitle="Sujetas a retiro manual"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 min-w-0">
+        <MetricCard
           title="Pendiente de pago"
           value={formatMoney(c.pendingOwed)}
-          subtitle="Pertenece al organizador y aún no fue transferido"
+          subtitle="Solo retención plataforma"
           accent="amber"
         />
         <MetricCard
-          title="Pagado a organizadores"
+          title="Liquidado por retiro"
           value={formatMoney(c.totalPaid)}
-          subtitle={`${c.percentPaid}% del total generado`}
+          subtitle={`${c.percentPaid}% del retenido por plataforma`}
           accent="emerald"
         />
         <MetricCard
@@ -110,7 +124,7 @@ export default function OrganizerCommissionFinancialCommandCenter({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 min-w-0">
         <MetricCard
           title="Retenido (período de espera)"
           value={formatMoney(c.heldRetained)}

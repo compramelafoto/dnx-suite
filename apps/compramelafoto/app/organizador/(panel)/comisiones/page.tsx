@@ -20,7 +20,18 @@ const STATUS_LABELS: Record<string, string> = {
   PENDING: "En espera",
   AVAILABLE: "Disponible",
   WITHDRAWAL_REQUESTED: "Retiro solicitado",
-  PAID: "Pagado",
+  PAID: "Liquidado por plataforma",
+  PAID_DIRECT_TO_ORGANIZER: "Cobrado en tu Mercado Pago",
+  CANCELLED: "Cancelado",
+};
+
+/** Etiquetas compactas para badges en tablas (evita overflow). */
+const STATUS_BADGE_LABELS: Record<string, string> = {
+  PENDING: "En espera",
+  AVAILABLE: "Disponible",
+  WITHDRAWAL_REQUESTED: "En retiro",
+  PAID: "Liquidado",
+  PAID_DIRECT_TO_ORGANIZER: "Cobro directo MP",
   CANCELLED: "Cancelado",
 };
 
@@ -28,6 +39,16 @@ const STATUS_OPTIONS = [
   { value: "", label: "Todos los estados" },
   ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
 ];
+
+type Summary = {
+  totalPending: number;
+  totalAvailable: number;
+  totalPaid: number;
+  totalDirectMpCollection: number;
+  totalPlatformHeldGenerated: number;
+  totalGenerated: number;
+  totalWithdrawable: number;
+};
 
 type CommissionItem = {
   commissionId: number;
@@ -44,18 +65,13 @@ type CommissionItem = {
   totalPaidAmount: number;
   platformFeeAmount: number;
   status: string;
+  statusLabel?: string;
   payoutMode: string;
+  collectionType?: string;
+  collectionTypeLabel?: string;
   availableAt: string;
   paidAt: string | null;
   createdAt: string;
-};
-
-type Summary = {
-  totalPending: number;
-  totalAvailable: number;
-  totalPaid: number;
-  totalGenerated: number;
-  totalWithdrawable: number;
 };
 
 function formatMoneyARS(n: number): string {
@@ -144,6 +160,8 @@ function statusBadgeClass(status: string): string {
       return "bg-sky-50 text-sky-900 border-sky-200";
     case "PAID":
       return "bg-green-50 text-green-900 border-green-200";
+    case "PAID_DIRECT_TO_ORGANIZER":
+      return "bg-blue-50 text-blue-900 border-blue-200";
     case "CANCELLED":
       return "bg-gray-100 text-gray-600 border-gray-200";
     default:
@@ -429,12 +447,20 @@ export default function OrganizadorComisionesPage() {
           <DsInfoPanel title="Información importante">
             <p className="ds-readable-text ds-readable-text--fluid text-gray-700 m-0 mb-2">
               Las comisiones se calculan en pesos sobre el <strong>precio base</strong> que define cada fotógrafo por foto.
-              Cuando el pago de una venta queda aprobado, el movimiento aparece primero en espera y se habilita para retiro{" "}
-              <strong>15 días después</strong> de esa aprobación (proceso automático en la plataforma).
             </p>
-            <p className="ds-readable-text ds-readable-text--fluid text-gray-600 m-0 text-sm">
-              El retiro no es automático: desde esta pantalla solicitás el pago cuando haya saldo disponible; el equipo de
-              ComprameLaFoto lo revisa y lo acredita manualmente con una referencia de pago.
+            <ul className="ds-readable-text ds-readable-text--fluid text-gray-700 m-0 pl-5 space-y-2 text-sm list-disc">
+              <li>
+                Con comisión <strong>menor al 100%</strong>, el cobro entra al Mercado Pago del fotógrafo. Tu parte queda
+                en espera y se habilita para retiro <strong>15 días después</strong> del pago aprobado.
+              </li>
+              <li>
+                Con comisión del <strong>100%</strong>, el cobro va directo a tu Mercado Pago conectado: aparece como{" "}
+                <strong>cobro directo MP</strong> y <strong>no suma</strong> al saldo de retiro manual.
+              </li>
+            </ul>
+            <p className="ds-readable-text ds-readable-text--fluid text-gray-600 m-0 mt-3 text-sm">
+              El retiro manual solo aplica a comisiones retenidas por la plataforma. Solicitás el pago desde esta pantalla
+              cuando haya saldo disponible; el equipo lo revisa y acredita con referencia de pago.
             </p>
           </DsInfoPanel>
 
@@ -478,27 +504,42 @@ export default function OrganizadorComisionesPage() {
           )}
 
           {summary && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="p-5 border border-gray-200 shadow-sm ds-card">
-                <p className="text-sm text-gray-500 mb-1 m-0">Total generado</p>
-                <p className="text-xl font-semibold text-gray-900">{formatMoneyARS(summary.totalGenerated)}</p>
-                <p className="text-xs text-gray-400 mt-1">Suma de comisiones no canceladas</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4 min-w-0">
+              <Card className="p-4 sm:p-5 border border-gray-200 shadow-sm ds-card min-w-0">
+                <p className="text-sm text-gray-500 mb-1 m-0">Total registrado</p>
+                <p className="text-lg sm:text-xl font-semibold text-gray-900 tabular-nums break-words">
+                  {formatMoneyARS(summary.totalGenerated)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1 m-0">Retenido + cobro directo MP</p>
               </Card>
-              <Card className="p-5 border border-gray-200 shadow-sm ds-card">
-                <p className="text-sm text-gray-500 mb-1 m-0">Pendiente</p>
-                <p className="text-xl font-semibold text-amber-900">{formatMoneyARS(summary.totalPending)}</p>
+              <Card className="p-4 sm:p-5 border border-blue-200 shadow-sm ds-card bg-blue-50/30 min-w-0">
+                <p className="text-sm text-gray-500 mb-1 m-0">Cobrado en tu MP</p>
+                <p className="text-lg sm:text-xl font-semibold text-blue-900 tabular-nums break-words">
+                  {formatMoneyARS(summary.totalDirectMpCollection ?? 0)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1 m-0">Comisión 100% — sin retiro manual</p>
               </Card>
-              <Card className="p-5 border border-gray-200 shadow-sm ds-card ring-1 ring-emerald-100">
-                <p className="text-sm text-gray-500 mb-1 m-0">Disponible</p>
-                <p className="text-xl font-semibold text-emerald-900">{formatMoneyARS(summary.totalAvailable)}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Listas para retiro ahora: {formatMoneyARS(totalWithdrawable)}
+              <Card className="p-4 sm:p-5 border border-gray-200 shadow-sm ds-card min-w-0">
+                <p className="text-sm text-gray-500 mb-1 m-0">Pendiente (plataforma)</p>
+                <p className="text-lg sm:text-xl font-semibold text-amber-900 tabular-nums break-words">
+                  {formatMoneyARS(summary.totalPending)}
                 </p>
               </Card>
-              <Card className="p-5 border border-gray-200 shadow-sm ds-card">
-                <p className="text-sm text-gray-500 mb-1 m-0">Retirado / pagado</p>
-                <p className="text-xl font-semibold text-green-900">{formatMoneyARS(summary.totalPaid)}</p>
-                <p className="text-xs text-gray-400 mt-1">Comisiones ya liquidadas a vos</p>
+              <Card className="p-4 sm:p-5 border border-gray-200 shadow-sm ds-card ring-1 ring-emerald-100 min-w-0">
+                <p className="text-sm text-gray-500 mb-1 m-0">Disponible para retiro</p>
+                <p className="text-lg sm:text-xl font-semibold text-emerald-900 tabular-nums break-words">
+                  {formatMoneyARS(summary.totalAvailable)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1 m-0">
+                  Listas ahora: {formatMoneyARS(totalWithdrawable)}
+                </p>
+              </Card>
+              <Card className="p-4 sm:p-5 border border-gray-200 shadow-sm ds-card min-w-0 sm:col-span-2 lg:col-span-1">
+                <p className="text-sm text-gray-500 mb-1 m-0">Liquidado por plataforma</p>
+                <p className="text-lg sm:text-xl font-semibold text-green-900 tabular-nums break-words">
+                  {formatMoneyARS(summary.totalPaid)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1 m-0">Retiros ya transferidos</p>
               </Card>
             </div>
           )}
@@ -536,7 +577,7 @@ export default function OrganizadorComisionesPage() {
           )}
 
           {summary && (
-            <Card className="p-5 sm:p-6 border border-gray-200 shadow-sm ds-card w-full max-w-2xl self-stretch">
+            <Card className="p-5 sm:p-6 border border-gray-200 shadow-sm ds-card w-full min-w-0 self-stretch">
               <div className="ds-stack-section space-y-5">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 m-0 mb-1">Solicitar retiro</h2>
@@ -555,10 +596,11 @@ export default function OrganizadorComisionesPage() {
                     Antes de solicitar un retiro necesitás configurar una cuenta de cobro en la sección anterior.
                   </p>
                 ) : null}
-                <div className="flex flex-col gap-2 w-full max-w-md">
+                <div className="flex flex-col gap-2 w-full sm:max-w-md">
                   <Button
                     type="button"
                     variant="primary"
+                    size="lg"
                     disabled={
                       totalWithdrawable <= 0 ||
                       withdrawSubmitting ||
@@ -774,19 +816,34 @@ export default function OrganizadorComisionesPage() {
                             {expandedCommissionId === row.commissionId ? "Ocultar" : "Ver"}
                           </button>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${statusBadgeClass(row.status)}`}
-                          >
-                            {STATUS_LABELS[row.status] ?? row.status}
-                          </span>
+                        <td className="px-4 py-3 align-top min-w-[8.5rem] max-w-[11rem]">
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <span
+                              className={`inline-flex max-w-full items-center px-2 py-1 rounded-full text-xs font-medium border whitespace-normal leading-snug ${statusBadgeClass(row.status)}`}
+                              title={row.statusLabel ?? STATUS_LABELS[row.status] ?? row.status}
+                            >
+                              {STATUS_BADGE_LABELS[row.status] ??
+                                row.statusLabel ??
+                                STATUS_LABELS[row.status] ??
+                                row.status}
+                            </span>
+                            {row.collectionTypeLabel ? (
+                              <span className="text-[11px] text-gray-500 leading-snug">
+                                {row.collectionTypeLabel}
+                              </span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                          {new Date(row.availableAt).toLocaleString("es-AR", {
-                            dateStyle: "short",
-                            timeStyle: "short",
-                            timeZone: TZ,
-                          })}
+                          {row.status === "PAID_DIRECT_TO_ORGANIZER" ? (
+                            <span className="text-gray-500 text-xs">Al cobrar en tu MP</span>
+                          ) : (
+                            new Date(row.availableAt).toLocaleString("es-AR", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                              timeZone: TZ,
+                            })
+                          )}
                         </td>
                       </tr>
                       {expandedCommissionId === row.commissionId ? (

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { CheckoutPaymentSource, OrderOrigin } from "@/lib/prisma";
+import { CheckoutPaymentSource, OrderOrigin } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createPreference, type OrderType } from "@/lib/mercadopago";
 import {
@@ -7,7 +7,8 @@ import {
   readPackDefinitionIdFromOrderPricingSnapshot,
 } from "@/lib/preventa-canjeable/order-checkout-kind";
 import { feeFromTotal } from "@/lib/pricing/fee-formula";
-import { buildAlbumOrderMercadoPagoMarketplaceFeeWithEventOrganizer } from "@/lib/event-organizer-commission-mp-checkout";
+import { buildAlbumOrderMercadoPagoCheckoutSplit } from "@/lib/event-organizer-commission-mp-checkout";
+import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
 import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
 import { logLegacyPreventaUsage } from "@/lib/observability/legacy-preventa-usage";
@@ -286,27 +287,22 @@ export async function POST(req: Request) {
         select: { userId: true, eventId: true, selectedLabId: true },
       });
       const photographerIdAlbum = album?.userId ?? null;
-      if (album?.userId) {
-        const photographer = await prisma.user.findUnique({
-          where: { id: album.userId },
-          select: { mpAccessToken: true },
-        });
-        if (photographer?.mpAccessToken) {
-          accessTokenOverride = photographer.mpAccessToken;
-          tokenSource = "user_oauth";
-        } else {
-          // Sin MP conectado, la preferencia se crearía con token de la plataforma y el dinero
-          // iría a la cuenta de la app, no a la del fotógrafo. Exigir MP conectado.
-          return NextResponse.json(
-            {
-              error:
-                "El dueño del álbum debe conectar Mercado Pago para recibir los pagos. Conectá Mercado Pago en Configuración / Datos para cobro.",
-              code: "MP_NOT_CONNECTED",
-            },
-            { status: 400 }
-          );
-        }
+      const mpCreds = await resolveAlbumOrderMercadoPagoCredentials({
+        photographerUserId: photographerIdAlbum,
+        eventId: album?.eventId ?? null,
+      });
+      if (!mpCreds.ok) {
+        return NextResponse.json(
+          {
+            error: mpCreds.error,
+            code: mpCreds.code,
+          },
+          { status: 400 }
+        );
       }
+      accessTokenOverride = mpCreds.accessToken;
+      tokenSource =
+        mpCreds.collectorType === "ORGANIZER" ? "event_organizer_oauth" : "user_oauth";
       let referralDiscountCentsAlbum = 0;
       // Descontar saldo de referidos del dueño del álbum del fee de esta venta
       if (photographerIdAlbum != null && marketplaceFeeCentsAlbum > 0) {
@@ -367,7 +363,7 @@ export async function POST(req: Request) {
         hasReferral: referralDiscountCentsAlbum > 0,
         totalArsForEstimate: order.totalCents,
       });
-      marketplaceFee = await buildAlbumOrderMercadoPagoMarketplaceFeeWithEventOrganizer({
+      const checkoutSplit = await buildAlbumOrderMercadoPagoCheckoutSplit({
         orderId,
         albumId: order.albumId,
         eventId: album?.eventId ?? null,
@@ -375,7 +371,9 @@ export async function POST(req: Request) {
         extensionSurchargePesos: Number(order.extensionSurchargeCents ?? 0),
         platformPercent: platformPercentAlbum,
         marketplaceFeePlatformOnlyPesos: marketplaceFeeCentsAlbum,
+        paymentCollectorType: mpCreds.collectorType,
       });
+      marketplaceFee = checkoutSplit.marketplaceFeePesos;
     }
 
     console.log("CREATE PREFERENCE: Creando preferencia MP", {

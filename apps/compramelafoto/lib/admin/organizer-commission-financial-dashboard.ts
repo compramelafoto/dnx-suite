@@ -4,11 +4,13 @@
  */
 
 import {
+  EventOrganizerCommissionPayoutMode,
   EventOrganizerCommissionStatus,
   OrganizerCommissionWithdrawalStatus,
   Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ORGANIZER_DIRECT_MP_COMMISSION_STATUS } from "@/lib/event-organizer-commission-ledger";
 
 export function decimalToNumber(v: Prisma.Decimal | null | undefined): number {
   if (v == null) return 0;
@@ -23,6 +25,8 @@ const ACTIVE_COMMISSION = {
 export type OrganizerCommissionFinancialDashboard = {
   commissions: {
     totalGenerated: number;
+    totalPlatformHeldGenerated: number;
+    totalDirectMpCollection: number;
     totalPaid: number;
     pendingOwed: number;
     heldRetained: number;
@@ -60,6 +64,8 @@ export type OrganizerCommissionFinancialDashboard = {
 export type OrganizerFinancialSnapshot = {
   organizerUserId: number;
   totalGenerated: number;
+  totalPlatformHeldGenerated: number;
+  totalDirectMpCollection: number;
   totalPaid: number;
   pendingBalance: number;
   heldRetained: number;
@@ -159,13 +165,16 @@ export async function getOrganizerCommissionFinancialDashboard(): Promise<Organi
     >`
       SELECT c."organizerUserId" AS "organizerUserId",
              COALESCE(SUM(CASE WHEN c.status IN ('PENDING', 'AVAILABLE', 'WITHDRAWAL_REQUESTED')
+               AND c."payoutMode" = 'HELD_BY_PLATFORM'
                THEN c."organizerCommissionAmount" ELSE 0 END), 0) AS "pendingAmount",
-             COALESCE(SUM(c."organizerCommissionAmount"), 0) AS "totalGenerated",
+             COALESCE(SUM(CASE WHEN c."payoutMode" = 'HELD_BY_PLATFORM'
+               THEN c."organizerCommissionAmount" ELSE 0 END), 0) AS "totalGenerated",
              COUNT(*)::bigint AS "salesCount"
       FROM "EventOrganizerCommission" c
       WHERE c.status <> 'CANCELLED'
       GROUP BY c."organizerUserId"
       HAVING SUM(CASE WHEN c.status IN ('PENDING', 'AVAILABLE', 'WITHDRAWAL_REQUESTED')
+        AND c."payoutMode" = 'HELD_BY_PLATFORM'
         THEN c."organizerCommissionAmount" ELSE 0 END) > 0
       ORDER BY "pendingAmount" DESC
       LIMIT 8
@@ -181,12 +190,17 @@ export async function getOrganizerCommissionFinancialDashboard(): Promise<Organi
     (acc, g) => acc + decimalToNumber(g._sum.organizerCommissionAmount),
     0
   );
+  const totalDirectMpCollection = sumByStatus(ORGANIZER_DIRECT_MP_COMMISSION_STATUS);
+  const totalPlatformHeldGenerated = totalGenerated - totalDirectMpCollection;
   const totalPaid = sumByStatus(EventOrganizerCommissionStatus.PAID);
   const heldRetained = sumByStatus(EventOrganizerCommissionStatus.PENDING);
   const availableBalance = sumByStatus(EventOrganizerCommissionStatus.AVAILABLE);
   const inWithdrawalPipeline = sumByStatus(EventOrganizerCommissionStatus.WITHDRAWAL_REQUESTED);
   const pendingOwed = heldRetained + availableBalance + inWithdrawalPipeline;
-  const percentPaid = totalGenerated > 0 ? Math.round((totalPaid / totalGenerated) * 1000) / 10 : 0;
+  const percentPaid =
+    totalPlatformHeldGenerated > 0
+      ? Math.round((totalPaid / totalPlatformHeldGenerated) * 1000) / 10
+      : 0;
   const last30DaysGenerated = decimalToNumber(last30Agg._sum.organizerCommissionAmount);
 
   const w = (status: OrganizerCommissionWithdrawalStatus) => {
@@ -230,6 +244,8 @@ export async function getOrganizerCommissionFinancialDashboard(): Promise<Organi
   return {
     commissions: {
       totalGenerated,
+      totalPlatformHeldGenerated,
+      totalDirectMpCollection,
       totalPaid,
       pendingOwed,
       heldRetained,
@@ -309,6 +325,8 @@ export async function getOrganizerFinancialSnapshot(
     (acc, g) => acc + decimalToNumber(g._sum.organizerCommissionAmount),
     0
   );
+  const totalDirectMpCollection = sumStatus(ORGANIZER_DIRECT_MP_COMMISSION_STATUS);
+  const totalPlatformHeldGenerated = totalGenerated - totalDirectMpCollection;
   const totalPaid = sumStatus(EventOrganizerCommissionStatus.PAID);
   const heldRetained = sumStatus(EventOrganizerCommissionStatus.PENDING);
   const availableBalance = sumStatus(EventOrganizerCommissionStatus.AVAILABLE);
@@ -320,6 +338,8 @@ export async function getOrganizerFinancialSnapshot(
   return {
     organizerUserId,
     totalGenerated,
+    totalPlatformHeldGenerated,
+    totalDirectMpCollection,
     totalPaid,
     pendingBalance,
     heldRetained,
@@ -373,6 +393,8 @@ export async function getOrganizerFinancialSnapshots(
       (acc, g) => acc + decimalToNumber(g._sum.organizerCommissionAmount),
       0
     );
+    const totalDirectMpCollection = sumStatus(ORGANIZER_DIRECT_MP_COMMISSION_STATUS);
+    const totalPlatformHeldGenerated = totalGenerated - totalDirectMpCollection;
     const totalPaid = sumStatus(EventOrganizerCommissionStatus.PAID);
     const heldRetained = sumStatus(EventOrganizerCommissionStatus.PENDING);
     const availableBalance = sumStatus(EventOrganizerCommissionStatus.AVAILABLE);
@@ -383,6 +405,8 @@ export async function getOrganizerFinancialSnapshots(
     map.set(oid, {
       organizerUserId: oid,
       totalGenerated,
+      totalPlatformHeldGenerated,
+      totalDirectMpCollection,
       totalPaid,
       pendingBalance,
       heldRetained,

@@ -1,4 +1,4 @@
-import { OrderOrigin, Prisma } from "@/lib/prisma";
+import { OrderOrigin, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   clientTotalFromPhotographerBaseArs,
@@ -28,6 +28,7 @@ import {
 import { getAlbumOrderFulfillmentFromItems } from "@/lib/order-fulfillment";
 import { createOrganizerCommissionForPaidOrder } from "@/lib/school-organizer-commission";
 import { ensureEventOrganizerCommissionSnapshotForPaidOrder } from "@/lib/event-organizer-commission-snapshot";
+import { resolveAlbumOrderMpAccessTokenByOrderId } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 
 export type FinalizeAlbumOrderMpResult =
   | { ok: true; skipped: "already_paid"; orderId: number; paymentId: string }
@@ -69,10 +70,14 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     return { ok: false, orderId, paymentId, error: "order_not_found" };
   }
 
+  const collectorAccessToken =
+    options?.accessTokenOverride ??
+    (await resolveAlbumOrderMpAccessTokenByOrderId(orderId));
+
   if (order.status === "PAID") {
     try {
       await ensureEventOrganizerCommissionSnapshotForPaidOrder(orderId, {
-        accessTokenOverride: options?.accessTokenOverride,
+        accessTokenOverride: collectorAccessToken,
       });
     } catch (err: unknown) {
       console.error("[event-organizer-commission] ensure_failed_already_paid", err);
@@ -85,26 +90,10 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     return { ok: false, orderId, paymentId, error: `order_not_payable:${previousStatus}` };
   }
 
-  const tokenFromOpts = options?.accessTokenOverride;
-  let tokenFromDb: string | undefined;
-  if (!tokenFromOpts && order.albumId) {
-    const album = await prisma.album.findUnique({
-      where: { id: order.albumId },
-      select: { userId: true },
-    });
-    if (album?.userId) {
-      const u = await prisma.user.findUnique({
-        where: { id: album.userId },
-        select: { mpAccessToken: true },
-      });
-      tokenFromDb = u?.mpAccessToken ?? undefined;
-    }
-  }
-
   let pay: PaymentInfo;
   try {
     pay = await getPaymentById(String(paymentId), {
-      accessTokenOverride: tokenFromOpts ?? tokenFromDb,
+      accessTokenOverride: collectorAccessToken,
     });
   } catch {
     pay = await getPaymentById(String(paymentId), {});
@@ -370,7 +359,7 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     const paymentApprovedAt = pay.date_approved ? new Date(pay.date_approved) : new Date();
     await ensureEventOrganizerCommissionSnapshotForPaidOrder(orderId, {
       paymentApprovedAt,
-      accessTokenOverride: options?.accessTokenOverride,
+      accessTokenOverride: collectorAccessToken,
     });
   } catch (err: unknown) {
     console.error("[event-organizer-commission] ensure_failed", err);

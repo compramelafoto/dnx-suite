@@ -35,7 +35,7 @@ import {
   MIN_EVENT_PHOTO_PRICE_ARS,
   normalizedPricingFromEventDb,
 } from "@/lib/event-photo-pricing";
-import { EventPhotoPricingMode } from "@/lib/prisma";
+import { EventPhotoPricingMode } from "@prisma/client";
 import { ensureOrganizerSession } from "@/lib/organizer-session-client";
 import { DsDashboardInner, DsInfoPanel, DsPageShell } from "@/components/ui/DsLayout";
 
@@ -1008,8 +1008,15 @@ export default function EventDetailPage() {
                 <li>
                   Porcentaje sobre el <strong>precio base</strong> definido por cada fotógrafo por foto (no sobre descuentos ni el total abonado).
                 </li>
-                <li>El importe se acredita con <strong>15 días</strong> de espera tras el pago aprobado.</li>
-                <li>Podés solicitar retiro desde <strong>Comisiones</strong> cuando figure como disponible (retiro manual, procesado por el equipo).</li>
+                <li>
+                  Con comisión <strong>menor al 100%</strong>, tu parte queda en espera y se habilita para retiro manual{" "}
+                  <strong>15 días</strong> después del pago aprobado.
+                </li>
+                <li>
+                  Con comisión del <strong>100%</strong>, el cobro va directo a tu Mercado Pago conectado y{" "}
+                  <strong>no suma</strong> al saldo de retiro manual.
+                </li>
+                <li>Podés solicitar retiro desde <strong>Comisiones</strong> cuando figure como disponible (solo comisiones retenidas por la plataforma).</li>
               </ul>
             </DsInfoPanel>
             <EventOrganizerCommissionSection
