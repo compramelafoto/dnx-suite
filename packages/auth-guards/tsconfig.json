@@ -1,0 +1,15 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "outDir": "dist",
+    "noEmit": true,
+    "paths": {
+      "@repo/auth": ["./src/shims/repo-auth.d.ts"],
+      "@repo/db": ["./src/shims/repo-db.d.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
