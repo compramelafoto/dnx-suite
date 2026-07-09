@@ -92,6 +92,14 @@ export default function LoginClient() {
         credentials: "include",
       });
 
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        // Vercel Deployment Protection often returns HTML login / redirect instead of the API JSON.
+        throw new Error(
+          "El preview está protegido por Vercel. Iniciá sesión en Vercel o usá un bypass."
+        );
+      }
+
       const data = await res.json();
 
       if (!res.ok) {
