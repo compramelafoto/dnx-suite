@@ -84,8 +84,8 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     };
 
     const [total, students] = await Promise.all([
-      prisma.schoolStudent.count({ where }),
-      prisma.schoolStudent.findMany({
+      prisma.student.count({ where }),
+      prisma.student.findMany({
         where,
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
         take: pageSize,

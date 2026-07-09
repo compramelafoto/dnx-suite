@@ -124,7 +124,7 @@ async function mapPrismaUserToAuthUser(
     email: user.email,
     name: user.name,
     role: effectiveRole,
-    globalRole: identity?.globalRole ?? (user.role === Role.SUPER_ADMIN ? "SUPER_ADMIN" : "USER"),
+    globalRole: identity?.globalRole ?? (String(user.role) === "SUPER_ADMIN" ? "SUPER_ADMIN" : "USER"),
     currentWorkspaceId: identity?.currentWorkspaceId ?? null,
     workspaceRole: identity?.workspaceRole ?? null,
     appAccess: identity?.appAccess ?? [],
@@ -246,9 +246,9 @@ export async function getAuthUser(): Promise<AuthUser | null> {
             id: sessionUser.id,
             email: sessionUser.email,
             name: sessionUser.name,
-            role: sessionUser.role,
-            isBlocked: sessionUser.isBlocked,
-            emailVerifiedAt: sessionUser.emailVerifiedAt,
+            role: sessionUser.role as Role,
+            isBlocked: sessionUser.isBlocked ?? false,
+            emailVerifiedAt: sessionUser.emailVerifiedAt ?? null,
           },
           identity
             ? {

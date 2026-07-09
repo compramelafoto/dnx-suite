@@ -196,6 +196,9 @@ export async function importStudentRosterForAlbum(
             StudentSourceType.IMPORT
           );
         }
+        if (!student) {
+          throw new Error("IMPORT_STUDENT_RESOLVE_FAILED");
+        }
 
         let enrollmentId: number | null = null;
         let enrollmentJustCreated = false;

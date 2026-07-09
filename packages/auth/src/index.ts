@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { prisma } from "@repo/db";
+import { prisma } from "./prisma";
 
 export const DNX_SESSION_COOKIE = "dnx_session";
 export const DNX_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
@@ -29,15 +29,25 @@ export async function createUserSession(userId: number) {
   };
 }
 
-export async function getSessionUserByRawToken(rawToken: string) {
+export type SessionUser = {
+  id: number;
+  email: string;
+  name: string | null;
+  role: string;
+  isBlocked?: boolean;
+  emailVerifiedAt?: Date | null;
+  globalRole?: string | null;
+};
+
+export async function getSessionUserByRawToken(rawToken: string): Promise<SessionUser | null> {
   const tokenHash = hashSessionToken(rawToken);
 
-  const session = await prisma.userSession.findUnique({
+  const session = (await prisma.userSession.findUnique({
     where: { tokenHash },
     include: {
       user: true,
     },
-  });
+  })) as { id: number; expiresAt: Date; user: Record<string, unknown> } | null;
 
   if (!session) return null;
 
@@ -46,7 +56,7 @@ export async function getSessionUserByRawToken(rawToken: string) {
     return null;
   }
 
-  return session.user;
+  return session.user as SessionUser;
 }
 
 export async function destroyUserSessionByRawToken(rawToken: string) {
@@ -93,45 +103,47 @@ export async function getSessionIdentityByRawToken(
   params?: { currentWorkspaceId?: string | null },
 ): Promise<SessionIdentityContext | null> {
   const tokenHash = hashSessionToken(rawToken);
-  const session = await prisma.userSession.findUnique({
+  const session = (await prisma.userSession.findUnique({
     where: { tokenHash },
     include: {
       user: {
         select: {
           id: true,
           email: true,
-          globalRole: true,
           role: true,
         },
       },
     },
-  });
+  })) as {
+    expiresAt: Date;
+    user: { id: number; email: string; role: string; globalRole?: string | null };
+  } | null;
   if (!session) return null;
   if (session.expiresAt.getTime() <= Date.now()) return null;
 
   const userId = session.user.id;
-  const unifiedMemberships = await prisma.workspaceMembership.findMany({
+  const unifiedMemberships = (await prisma.workspaceMembership.findMany({
     where: { userId },
     select: { workspaceId: true, role: true },
     orderBy: { createdAt: "asc" },
-  });
+  })) as Array<{ workspaceId: string; role: string }>;
 
   const fallbackMemberships =
     unifiedMemberships.length > 0
       ? []
-      : await prisma.membership.findMany({
+      : ((await prisma.membership.findMany({
           where: { userId },
           select: { workspaceId: true, role: true },
           orderBy: { id: "asc" },
-        });
+        })) as Array<{ workspaceId: string; role: string }>);
 
   const workspaces =
     unifiedMemberships.length > 0
-      ? unifiedMemberships.map((m) => ({
+      ? unifiedMemberships.map((m: { workspaceId: string; role: string }) => ({
           workspaceId: m.workspaceId,
           workspaceRole: m.role,
         }))
-      : fallbackMemberships.map((m) => ({
+      : fallbackMemberships.map((m: { workspaceId: string; role: string }) => ({
           workspaceId: m.workspaceId,
           workspaceRole: m.role === "ADMIN" ? "WORKSPACE_OWNER" : "STAFF",
         }));
@@ -139,26 +151,33 @@ export async function getSessionIdentityByRawToken(
   const requestedWorkspaceId = params?.currentWorkspaceId ?? null;
   // Explicit workspace selection only: no implicit "first workspace" fallback.
   const currentWorkspaceId =
-    requestedWorkspaceId && workspaces.some((w) => w.workspaceId === requestedWorkspaceId)
+    requestedWorkspaceId && workspaces.some((w: { workspaceId: string }) => w.workspaceId === requestedWorkspaceId)
       ? requestedWorkspaceId
       : null;
-  const workspaceRole = workspaces.find((w) => w.workspaceId === currentWorkspaceId)?.workspaceRole ?? null;
+  const workspaceRole =
+    workspaces.find((w: { workspaceId: string; workspaceRole: string }) => w.workspaceId === currentWorkspaceId)
+      ?.workspaceRole ?? null;
 
   const appAccess = currentWorkspaceId
-    ? await prisma.workspaceAppAccess.findMany({
+    ? ((await prisma.workspaceAppAccess.findMany({
         where: { userId, workspaceId: currentWorkspaceId },
         select: { app: true, enabled: true, appRole: true },
         orderBy: { app: "asc" },
-      })
+      })) as Array<{ app: string; enabled: boolean; appRole: string | null }>)
     : [];
 
   return {
     userId,
     email: session.user.email,
-    globalRole: session.user.globalRole ?? (session.user.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "USER"),
+    globalRole:
+      session.user.globalRole ?? (session.user.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "USER"),
     currentWorkspaceId,
     workspaceRole,
-    appAccess: appAccess.map((a) => ({ app: a.app, enabled: a.enabled, appRole: a.appRole })),
+    appAccess: appAccess.map((a: { app: string; enabled: boolean; appRole: string | null }) => ({
+      app: a.app,
+      enabled: a.enabled,
+      appRole: a.appRole,
+    })),
     workspaces,
   };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Input from "@/components/ui/Input";
 import { DsInfoPanel } from "@/components/ui/DsLayout";
 import { MAX_EVENT_ORGANIZER_COMMISSION_PERCENT } from "@/lib/event-organizer-commission";
@@ -158,12 +159,12 @@ export default function EventOrganizerCommissionSection({
             <>
               <p className="m-0 text-blue-900/90 leading-relaxed">{ORGANIZER_FULL_COMMISSION_MP_REQUIRED_ERROR}</p>
               <div className="pt-0.5">
-                <a
+                <Link
                   href="/api/mercadopago/oauth/start?ownerType=USER"
                   className="clf-btn clf-btn--primary w-full sm:w-auto min-h-11 inline-flex items-center justify-center"
                 >
                   Conectar Mercado Pago
-                </a>
+                </Link>
               </div>
             </>
           ) : mpConnected === true ? (

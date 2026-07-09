@@ -28,7 +28,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    const activeStudents = await prisma.schoolStudent.findMany({
+    const activeStudents = await prisma.student.findMany({
       where: {
         schoolId,
         isActive: true,
@@ -90,7 +90,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
           },
           data: { status: "INACTIVE" },
         });
-        await tx.schoolStudent.updateMany({
+        await tx.student.updateMany({
           where: {
             id: { in: deletableStudentIds },
           },

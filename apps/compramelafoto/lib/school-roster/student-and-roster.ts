@@ -1,4 +1,4 @@
-import { Prisma, StudentSourceType, type AlbumStudentRosterEntry, type SchoolStudent, type StudentEnrollment } from "@/lib/prisma";
+import { Prisma, StudentSourceType, type AlbumStudentRosterEntry, type Student, type StudentEnrollment } from "@/lib/prisma";
 import { buildNormalizedKey, normalizeDniForComparison, normalizeFullName, normalizePersonNamePart } from "./student-normalize";
 
 export type Tx = Prisma.TransactionClient;
@@ -10,10 +10,10 @@ export async function findStudentInSchoolWithDniMeta(
   lastName: string,
   externalStudentId: string | null | undefined,
   dni?: string | null | undefined
-): Promise<{ student: SchoolStudent | null; ambiguousDniMatch: boolean }> {
+): Promise<{ student: Student | null; ambiguousDniMatch: boolean }> {
   const ext = externalStudentId?.trim();
   if (ext) {
-    const byExt = await tx.schoolStudent.findFirst({
+    const byExt = await tx.student.findFirst({
       where: { schoolId, externalStudentId: ext },
     });
     if (byExt) return { student: byExt, ambiguousDniMatch: false };
@@ -23,24 +23,24 @@ export async function findStudentInSchoolWithDniMeta(
   if (normDni) {
     const byDniRows = await tx.$queryRaw<{ id: number }[]>(Prisma.sql`
       SELECT s.id
-      FROM "SchoolStudent" s
+      FROM "Student" s
       WHERE s."schoolId" = ${schoolId}
         AND regexp_replace(lower(trim(coalesce(s.dni, ''))), '[\\s\\.\\-_]', '', 'g') = ${normDni}
       LIMIT 3
     `);
     if (byDniRows.length > 1) {
-      const s = await tx.schoolStudent.findUnique({ where: { id: byDniRows[0].id } });
+      const s = await tx.student.findUnique({ where: { id: byDniRows[0].id } });
       return { student: s, ambiguousDniMatch: true };
     }
     if (byDniRows.length === 1) {
-      const s = await tx.schoolStudent.findUnique({ where: { id: byDniRows[0].id } });
+      const s = await tx.student.findUnique({ where: { id: byDniRows[0].id } });
       return { student: s, ambiguousDniMatch: false };
     }
   }
 
   const fn = normalizePersonNamePart(firstName);
   const ln = normalizePersonNamePart(lastName);
-  const byName = await tx.schoolStudent.findFirst({
+  const byName = await tx.student.findFirst({
     where: {
       schoolId,
       firstName: { equals: fn, mode: "insensitive" },
@@ -61,7 +61,7 @@ export async function findStudentInSchool(
   lastName: string,
   externalStudentId: string | null | undefined,
   dni?: string | null | undefined
-): Promise<SchoolStudent | null> {
+): Promise<Student | null> {
   const { student } = await findStudentInSchoolWithDniMeta(
     tx,
     schoolId,
@@ -81,14 +81,14 @@ export async function createStudentInSchool(
   externalStudentId: string | null | undefined,
   dni: string | null | undefined,
   sourceType: StudentSourceType
-): Promise<SchoolStudent> {
+): Promise<Student> {
   const ext = externalStudentId?.trim() || null;
   const dniVal = dni?.trim() || null;
   const fnStore = normalizePersonNamePart(firstName);
   const lnStore = normalizePersonNamePart(lastName);
   const nFull = normalizeFullName(fnStore, lnStore);
   const nKey = buildNormalizedKey(schoolId, fnStore, lnStore, ext);
-  return tx.schoolStudent.create({
+  return tx.student.create({
     data: {
       schoolId,
       externalStudentId: ext,

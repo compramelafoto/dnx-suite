@@ -58,7 +58,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
     const body = (await req.json().catch(() => ({}))) as PatchBody;
 
-    const student = await prisma.schoolStudent.findUnique({
+    const student = await prisma.student.findUnique({
       where: { id: studentId },
       select: {
         id: true,
@@ -97,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     const changedFields: string[] = [];
 
     const result = await prisma.$transaction(async (tx) => {
-      const updatedStudent = await tx.schoolStudent.update({
+      const updatedStudent = await tx.student.update({
         where: { id: studentId },
         data: {
           firstName: nextFirstName,
@@ -264,7 +264,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "studentId inválido" }, { status: 400 });
     }
 
-    const student = await prisma.schoolStudent.findUnique({
+    const student = await prisma.student.findUnique({
       where: { id: studentId },
       select: {
         id: true,
@@ -307,7 +307,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
         where: { studentId },
         data: { status: "INACTIVE" },
       });
-      await tx.schoolStudent.update({
+      await tx.student.update({
         where: { id: studentId },
         data: { isActive: false },
       });
