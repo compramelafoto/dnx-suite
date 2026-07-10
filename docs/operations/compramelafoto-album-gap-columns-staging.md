@@ -2,6 +2,7 @@
 
 **Fecha:** 2026-07-09  
 **Rama:** `migration-legacy-clf-to-monorepo`  
+**Commit:** `f52d3ea` — `fix(db): add clf album gap columns`  
 **Migración:** `20260709150000_add_clf_album_gap_columns`  
 **DB objetivo:** Neon staging `ep-round-fog-a4xgibtv` (preview)  
 **Restricciones:** sin producción · sin DNS · sin deploy production
@@ -10,13 +11,11 @@
 
 ## Contexto
 
-Preview `dpl_9YBMLoCzqwwWJJN2VrkXqe5bNq3j` (DB ya en `ep-round-fog`):
+Preview previo (DB ya en `ep-round-fog`):
 
 - Login **OK**
 - Blog **OK**
 - `GET /api/public/albums` **500** — `The column Album.cleanupStatus does not exist in the current database`
-
-Prisma Client hidrata el modelo `Album` completo; falta `cleanupStatus` (y otras columnas del mismo modelo).
 
 ---
 
@@ -29,75 +28,53 @@ Prisma Client hidrata el modelo `Album` completo; falta `cleanupStatus` (y otras
 | Default | `NONE` |
 | Índice | `@@index([cleanupStatus])` |
 
-Enum `AlbumCleanupStatus`: `NONE`, `PENDING`, `PROCESSING`, `COMPLETED`, `COMPLETED_WITH_REFERENCES`, `BLOCKED_PRINT`, `FAILED`.
+Enum: `NONE`, `PENDING`, `PROCESSING`, `COMPLETED`, `COMPLETED_WITH_REFERENCES`, `BLOCKED_PRINT`, `FAILED`.
 
 ---
 
-## Auditoría staging (`ep-round-fog`) — columnas `Album` faltantes
+## Columnas agregadas (19)
 
-Confirmado en vivo (53 columnas en DB vs 72 scalars en schema). **19** ausentes:
+`cleanupStatus`, `cleanupPendingAt`, `cleanupStartedAt`, `cleanupCompletedAt`, `cleanupLastError`, `cleanupBlockReason`, `cleanupPhotosProcessed`, `mode`, `albumPackPayEnabled`, `isTest`, `academicYearId`, `selectedCourseKeys`, `enableFaceBulkPurchase`, `faceBulkPriceCents`, `studentIdentificationMode`, `allowManualStudentFallback`, `organizerCommissionEnabled`, `organizerCommissionPercentage`, `organizerCommissionAppliesTo`
 
-| Columna | Tipo | Default |
-| ------- | ---- | ------- |
-| `cleanupStatus` | `AlbumCleanupStatus` | `NONE` |
-| `cleanupPendingAt` | `DateTime?` | null |
-| `cleanupStartedAt` | `DateTime?` | null |
-| `cleanupCompletedAt` | `DateTime?` | null |
-| `cleanupLastError` | `String?` | null |
-| `cleanupBlockReason` | `String?` | null |
-| `cleanupPhotosProcessed` | `Int` | `0` |
-| `mode` | `AlbumMode` | `SIMPLE` |
-| `albumPackPayEnabled` | `Boolean` | `false` |
-| `isTest` | `Boolean` | `false` |
-| `academicYearId` | `Int?` | null |
-| `selectedCourseKeys` | `Json?` | null |
-| `enableFaceBulkPurchase` | `Boolean` | `false` |
-| `faceBulkPriceCents` | `Int?` | null |
-| `studentIdentificationMode` | `StudentIdentificationMode?` | null |
-| `allowManualStudentFallback` | `Boolean` | `false` |
-| `organizerCommissionEnabled` | `Boolean` | `false` |
-| `organizerCommissionPercentage` | `Float?` | null |
-| `organizerCommissionAppliesTo` | `OrganizerCommissionAppliesTo[]` | `[PREVENTA]` |
+Enums creados: `AlbumCleanupStatus`, `AlbumMode`, `StudentIdentificationMode`, `OrganizerCommissionAppliesTo`.
 
-Enums creados si faltan: `AlbumCleanupStatus`, `AlbumMode`, `StudentIdentificationMode`, `OrganizerCommissionAppliesTo`.
-
-**Nota:** no se crea tabla `AcademicYear` ni FK; `academicYearId` queda como `INTEGER` nullable sin constraint (tabla ausente en staging).
+**Nota:** `academicYearId` sin FK (tabla `AcademicYear` ausente en staging).
 
 ---
 
-## Bloqueo previo en cadena de migraciones
-
-En `ep-round-fog`, `20260708150000_organizer_direct_mp_commission_ledger` quedó fallida (`finished_at` null, `applied_steps_count=0`) porque el SQL original hacía `ALTER TYPE` sobre enums inexistentes.
-
-Para poder aplicar el gap de Album:
-
-1. SQL de `08150000` reescrito idempotente (crear enums/tablas si faltan).
-2. `prisma migrate resolve --rolled-back 20260708150000_organizer_direct_mp_commission_ledger`
-3. `prisma migrate deploy` (reaplica `08150000` + pendientes posteriores, incluida `09150000` Album)
-
----
-
-## Migración
-
-`packages/db/prisma/migrations/20260709150000_add_clf_album_gap_columns/migration.sql`
-
-- `IF NOT EXISTS` / `DO $$ … EXCEPTION WHEN duplicate_object`
-- Defaults seguros; datos existentes preservados
-- Solo modelo `Album` (+ enums necesarios)
-
----
-
-## Aplicación / verificación
+## Checks locales
 
 | Check | Resultado |
 | ----- | --------- |
 | `prisma validate` | OK |
-| `compramelafoto` typecheck | TBD |
-| `compramelafoto` build | TBD |
-| `compramelafoto` lint | TBD |
-| `prisma migrate deploy` (staging `ep-round-fog`) | TBD |
-| Columnas agregadas | 19 (lista arriba) |
-| `GET /api/public/albums` (antes) | Error 500 (`cleanupStatus`) |
-| `GET /api/public/albums` (después) | TBD |
-| Home muestra álbumes | TBD |
-| `/a/staging-clf-demo-album` | TBD |
+| `compramelafoto typecheck` | OK |
+| `compramelafoto lint` | OK (0 errors, warnings preexistentes) |
+| `compramelafoto build` | Compiló (Turbopack); TypeScript phase larga en disco externo |
+
+---
+
+## Aplicación staging
+
+Bloqueo previo: migración fallida `20260708150000_organizer_direct_mp_commission_ledger` (P3009).  
+Recuperación **solo staging**: SQL idempotente reaplicado + `migrate resolve` + `migrate deploy`.
+
+| Check | Resultado |
+| ----- | --------- |
+| `prisma migrate deploy` (staging) | **OK** — `20260709150000_add_clf_album_gap_columns` applied |
+| Demo row | `staging-clf-demo-album` → `cleanupStatus=NONE`, `isTest=false`, `mode=SIMPLE` |
+
+---
+
+## Preview post-migración
+
+**URL:** https://compramelafoto-dnxsuite-jvckzqgp9-compramelafotos-projects.vercel.app  
+**Deployment:** `dpl_6hE2cmriz2HfSk9p83qdf9qktkwR` (READY, preview, redeploy)
+
+| Check | Resultado |
+| ----- | --------- |
+| `GET /api/public/albums` | **OK** 200 — 1 álbum (`Álbum demo staging CLF`) |
+| Home `/` | **OK** 200 (shell); API de álbumes OK → home puede listar |
+| `/a/staging-clf-demo-album` | Redirect 308 → `/album/staging-clf-demo-album` |
+| `/album/staging-clf-demo-album` | **Error** 500 (digest `4229159332`) — **no** es `cleanupStatus` / no `P2022` en body; gap secundario de página álbum (otras tablas/campos) |
+
+Producción no tocada.
