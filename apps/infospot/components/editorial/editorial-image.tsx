@@ -1,0 +1,1 @@
+export { EditorialImage } from "./EditorialImage";

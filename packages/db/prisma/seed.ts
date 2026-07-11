@@ -2159,7 +2159,96 @@ async function main() {
     });
   }
 
+  await seedInfoSpotEditorialBase({
+    directorUserId: danielUser.id,
+    redactorUserId: dnxDevUser.id,
+  });
+
   console.log("Seed completado correctamente.");
+}
+
+/**
+ * Info Spot — settings, categorías base y roles editoriales de ejemplo.
+ * Idempotente. No crea noticias ni integra CLF.
+ */
+async function seedInfoSpotEditorialBase(options: {
+  directorUserId: number;
+  redactorUserId?: number;
+}) {
+  const existingSettings = await prisma.infoSpotSettings.findFirst({
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  if (existingSettings) {
+    await prisma.infoSpotSettings.update({
+      where: { id: existingSettings.id },
+      data: {
+        siteName: "Info Spot",
+        slogan: "Descubrí lo que está pasando cerca tuyo.",
+        seoTitle: "Info Spot",
+        seoDescription:
+          "Medio digital argentino dedicado a la cobertura, difusión y comunicación de eventos deportivos, culturales y sociales.",
+      },
+    });
+  } else {
+    await prisma.infoSpotSettings.create({
+      data: {
+        siteName: "Info Spot",
+        slogan: "Descubrí lo que está pasando cerca tuyo.",
+        seoTitle: "Info Spot",
+        seoDescription:
+          "Medio digital argentino dedicado a la cobertura, difusión y comunicación de eventos deportivos, culturales y sociales.",
+      },
+    });
+  }
+
+  const categories: { name: string; slug: string; description: string }[] = [
+    { name: "Deportes", slug: "deportes", description: "Cobertura deportiva y agenda." },
+    { name: "Cultura", slug: "cultura", description: "Cultura, arte y agenda social." },
+    { name: "Fotografía", slug: "fotografia", description: "Fotografía, autores y oficio." },
+    { name: "Eventos", slug: "eventos", description: "Eventos cerca tuyo." },
+  ];
+  for (const category of categories) {
+    await prisma.infoSpotCategory.upsert({
+      where: { slug: category.slug },
+      update: { name: category.name, description: category.description },
+      create: category,
+    });
+  }
+
+  await prisma.infoSpotUserRole.upsert({
+    where: { userId: options.directorUserId },
+    update: {
+      role: "INFOSPOT_DIRECTOR",
+      canPublish: true,
+      status: "ACTIVE",
+    },
+    create: {
+      userId: options.directorUserId,
+      role: "INFOSPOT_DIRECTOR",
+      canPublish: true,
+      status: "ACTIVE",
+    },
+  });
+
+  if (options.redactorUserId && options.redactorUserId !== options.directorUserId) {
+    await prisma.infoSpotUserRole.upsert({
+      where: { userId: options.redactorUserId },
+      update: {
+        role: "INFOSPOT_REDACTOR",
+        canPublish: true,
+        status: "ACTIVE",
+      },
+      create: {
+        userId: options.redactorUserId,
+        role: "INFOSPOT_REDACTOR",
+        canPublish: true,
+        status: "ACTIVE",
+      },
+    });
+  }
+
+  console.log("Info Spot: settings, categorías y roles editoriales sembrados.");
 }
 
 main()

@@ -1,6 +1,30 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "NODE_ENV",
+    "R2_ACCOUNT_ID",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_ENDPOINT",
+    "R2_BUCKET_NAME",
+    "R2_BUCKET",
+    "R2_PUBLIC_URL",
+    "R2_PUBLIC_BASE_URL",
+    "ALBUM_CLEANUP_HIDE_DAYS",
+    "ALBUM_CLEANUP_RETENTION_DAYS",
+    "COMPRAMELAFOTO_PUBLIC_URL",
+    "NEXT_PUBLIC_COMPRAMELAFOTO_URL",
+    "INFOSPOT_REACTIVATION_URL",
+    "NEXT_PUBLIC_INFOSPOT_URL",
+    "INFOSPOT_IP_HASH_SALT",
+    "COOKIE_DOMAIN",
+    "APP_URL",
+    "VERCEL",
+    "CLF_READONLY_DATABASE_URL",
+    "VERCEL_GIT_COMMIT_SHA"
+  ],
+
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

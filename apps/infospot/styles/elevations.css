@@ -1,0 +1,18 @@
+/**
+ * Info Spot — Elevations (sombras sutiles)
+ * Preferir borde hairline + espacio antes que sombra.
+ */
+
+:root {
+  --is-shadow-xs: 0 1px 1px rgba(18, 20, 26, 0.03);
+  --is-shadow-sm: 0 1px 2px rgba(26, 29, 35, 0.04);
+  --is-shadow-md: 0 8px 24px -16px rgba(26, 29, 35, 0.16);
+  --is-shadow-lg: 0 16px 40px -24px rgba(26, 29, 35, 0.18);
+
+  /* Alias semánticos */
+  --is-elevation-none: none;
+  --is-elevation-1: var(--is-shadow-xs);
+  --is-elevation-2: var(--is-shadow-sm);
+  --is-elevation-3: var(--is-shadow-md);
+  --is-elevation-4: var(--is-shadow-lg);
+}

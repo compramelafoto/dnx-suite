@@ -1,0 +1,119 @@
+/**
+ * Info Spot — Color scales + semantic aliases
+ * Escalas primitivas + roles semánticos (--is-*).
+ */
+
+:root {
+  /* —— White —— */
+  --is-white-0: #ffffff;
+  --is-white-50: #fafbfc;
+  --is-white-100: #f5f6f8;
+  --is-white-200: #eef0f3;
+  --is-white-300: #e4e7ec;
+  --is-white-400: #d5dae3;
+
+  /* —— Gray —— */
+  --is-gray-50: #f8f9fb;
+  --is-gray-100: #f1f3f6;
+  --is-gray-200: #e4e7ec;
+  --is-gray-300: #c9ced8;
+  --is-gray-400: #9aa3b2;
+  --is-gray-500: #6b7380;
+  --is-gray-600: #4a5160;
+  --is-gray-700: #343a46;
+  --is-gray-800: #252a33;
+  --is-gray-900: #1a1d23;
+  --is-gray-950: #111318;
+
+  /* —— Graphite (ink / marca — muestreo logo #203038) —— */
+  --is-graphite-50: #f3f5f7;
+  --is-graphite-100: #e4e8ec;
+  --is-graphite-200: #c5ced4;
+  --is-graphite-300: #8f9aa6;
+  --is-graphite-400: #5c6874;
+  --is-graphite-500: #3d4a56;
+  --is-graphite-600: #2c3844;
+  --is-graphite-700: #25323c;
+  --is-graphite-800: #203038;
+  --is-graphite-900: #182028;
+  --is-graphite-950: #0f151a;
+
+  /* —— Orange (acento — muestreo logo #F86000) —— */
+  --is-orange-50: #fff6ef;
+  --is-orange-100: #ffedd9;
+  --is-orange-200: #ffd0a3;
+  --is-orange-300: #ffae66;
+  --is-orange-400: #ff8533;
+  --is-orange-500: #f86000;
+  --is-orange-600: #d95500;
+  --is-orange-700: #b04500;
+  --is-orange-800: #863500;
+  --is-orange-900: #5c2500;
+  --is-orange-950: #3d1800;
+
+  /* —— Success —— */
+  --is-success-50: #ecfdf3;
+  --is-success-100: #d1fadf;
+  --is-success-200: #a6f4c5;
+  --is-success-300: #6ce9a6;
+  --is-success-400: #32d583;
+  --is-success-500: #12b76a;
+  --is-success-600: #039855;
+  --is-success-700: #15803d;
+  --is-success-800: #05603a;
+  --is-success-900: #054f31;
+  --is-success-950: #053321;
+
+  /* —— Warning —— */
+  --is-warning-50: #fffbeb;
+  --is-warning-100: #fef3c7;
+  --is-warning-200: #fde68a;
+  --is-warning-300: #fcd34d;
+  --is-warning-400: #fbbf24;
+  --is-warning-500: #f59e0b;
+  --is-warning-600: #d97706;
+  --is-warning-700: #b45309;
+  --is-warning-800: #92400e;
+  --is-warning-900: #78350f;
+  --is-warning-950: #451a03;
+
+  /* —— Danger —— */
+  --is-danger-50: #fef2f2;
+  --is-danger-100: #fee2e2;
+  --is-danger-200: #fecaca;
+  --is-danger-300: #fca5a5;
+  --is-danger-400: #f87171;
+  --is-danger-500: #ef4444;
+  --is-danger-600: #dc2626;
+  --is-danger-700: #b91c1c;
+  --is-danger-800: #991b1b;
+  --is-danger-900: #7f1d1d;
+  --is-danger-950: #450a0a;
+
+  /* —— Semantic roles (compat + API pública) —— */
+  --is-bg: var(--is-white-0);
+  --is-bg-secondary: var(--is-white-100);
+  --is-surface: var(--is-white-0);
+  --is-surface-muted: var(--is-white-200);
+
+  --is-text: var(--is-graphite-800);
+  --is-text-secondary: var(--is-gray-600);
+  --is-muted: var(--is-gray-500);
+
+  --is-border: var(--is-gray-200);
+  --is-border-strong: var(--is-gray-300);
+
+  --is-accent: var(--is-orange-500);
+  --is-accent-hover: var(--is-orange-600);
+  --is-accent-soft: var(--is-orange-100);
+  --is-accent-ink: var(--is-orange-700);
+
+  --is-success: var(--is-success-700);
+  --is-success-soft: var(--is-success-50);
+  --is-warning: var(--is-warning-700);
+  --is-warning-soft: var(--is-warning-50);
+  --is-error: var(--is-danger-700);
+  --is-error-soft: var(--is-danger-50);
+  --is-danger: var(--is-danger-700);
+  --is-danger-soft: var(--is-danger-50);
+}

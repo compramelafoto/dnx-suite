@@ -178,6 +178,9 @@ model User {
   cuantoCobroQuotes                    CuantoCobroQuote[]
   cuantoCobroQuoteVersionsCreated      CuantoCobroQuoteVersion[]
   fotoOfficeInterests                  FotoOfficeInterest[]
+  infoSpotRoles                        InfoSpotUserRole[]
+  infoSpotArticlesAuthored             InfoSpotArticle[]            @relation("InfoSpotArticleAuthor")
+  infoSpotArticlesFactChecked          InfoSpotArticle[]            @relation("InfoSpotArticleFactCheck")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -727,6 +730,286 @@ model BlogSubscriber {
 
   @@index([confirmed])
   @@index([createdAt])
+}
+
+/// *
+/// * Info Spot — CMS editorial (independiente de BlogPost / ComprameLaFoto)
+/// *
+/// Roles finos en `InfoSpotUserRole` (DIRECTOR / REDACTOR).
+/// `eventId` y `clfAlbumId` son referencias suaves para futura integración CLF (sin FK).
+
+enum InfoSpotEditorialRole {
+  INFOSPOT_DIRECTOR
+  INFOSPOT_REDACTOR
+}
+
+enum InfoSpotMemberStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum InfoSpotArticleStatus {
+  DRAFT
+  PUBLISHED
+  UNPUBLISHED
+  ARCHIVED
+}
+
+/// Etiqueta interna de lanzamiento (solo admin/redacción; nunca pública).
+enum InfoSpotContentTag {
+  DEMO
+  REAL
+  NEEDS_REVIEW
+}
+
+enum InfoSpotAssetSourceType {
+  UPLOAD
+  CLF_PHOTO
+}
+
+enum InfoSpotArticleAssetUsage {
+  COVER
+  INLINE
+  GALLERY
+}
+
+/// Estados del ciclo de vida de un evento Info Spot (agenda editorial).
+/// Independiente de EventStatus de ComprameLaFoto.
+enum InfoSpotEventStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+/// Estado de la solicitud pública (intake) vinculada a un InfoSpotEvent.
+enum InfoSpotEventSubmissionStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model InfoSpotUserRole {
+  id         String                @id @default(cuid())
+  userId     Int
+  role       InfoSpotEditorialRole
+  /// Preparado para flujo futuro de revisión: algunos redactores podrían no publicar solos.
+  canPublish Boolean               @default(true)
+  status     InfoSpotMemberStatus  @default(ACTIVE)
+  /// Quién asignó el rol por primera vez (auditoría mínima).
+  assignedByUserId Int?
+  /// Quién realizó el último cambio de rol/estado/canPublish.
+  lastChangedByUserId Int?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@index([role, status])
+}
+
+model InfoSpotCategory {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  articles    InfoSpotArticle[]
+  events      InfoSpotEvent[]
+
+  @@index([name])
+}
+
+model InfoSpotEditorialAsset {
+  id                        String                  @id @default(cuid())
+  sourceType                InfoSpotAssetSourceType
+  sourcePhotoId             Int?
+  sourceAlbumId             Int?
+  /// Key R2 de la variante editorial (si aplica).
+  r2Key                     String?
+  url                       String
+  thumbnailUrl              String?
+  photographerName          String?
+  photographerId            Int?
+  caption                   String?
+  credit                    String?
+  copyrightText             String?
+  isPermanentEditorialAsset Boolean                 @default(false)
+  /// Quién importó/creó el asset editorial.
+  importedByUserId          Int?
+  importedAt                DateTime?
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  coverArticles             InfoSpotArticle[]       @relation("InfoSpotArticleCover")
+  articleLinks              InfoSpotArticleAsset[]
+
+  /// Idempotencia CLF: un asset editorial global por (sourceType, sourcePhotoId).
+  @@unique([sourceType, sourcePhotoId])
+  @@index([sourceType])
+  @@index([sourcePhotoId])
+  @@index([sourceAlbumId])
+  @@index([photographerId])
+}
+
+/// Relación normalizada noticia ↔ asset editorial (portada / inline / galería).
+model InfoSpotArticleAsset {
+  id               String                    @id @default(cuid())
+  articleId        String
+  assetId          String
+  usageType        InfoSpotArticleAssetUsage
+  sortOrder        Int                       @default(0)
+  captionOverride  String?
+  selectedByUserId Int?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  article          InfoSpotArticle           @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  asset            InfoSpotEditorialAsset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@unique([articleId, assetId, usageType])
+  @@index([articleId, usageType, sortOrder])
+  @@index([assetId])
+  @@index([selectedByUserId])
+}
+
+model InfoSpotArticle {
+  id             String                @id @default(cuid())
+  title          String
+  slug           String                @unique
+  excerpt        String?
+  content        String                @db.Text
+  coverImageId   String?
+  categoryId     String?
+  authorId       Int
+  status         InfoSpotArticleStatus @default(DRAFT)
+  /// Etiqueta interna de lanzamiento (DEMO / REAL / NEEDS_REVIEW). No pública.
+  contentTag     InfoSpotContentTag    @default(NEEDS_REVIEW)
+  publishedAt    DateTime?
+  /// Referencia suave a Event (CLF) — sin FK (CLF no depende de Info Spot).
+  eventId        Int?
+  /// Referencia suave a Album (CLF) — sin FK.
+  clfAlbumId     Int?
+  /// Quién vinculó evento/álbum por última vez (auditoría mínima).
+  eventLinkedByUserId Int?
+  eventLinkedAt       DateTime?
+  seoTitle       String?
+  seoDescription String?
+  /// Fuente periodística (interna — no pública).
+  sourceName     String?
+  sourceUrl      String?
+  /// Revisión factual (interna — no pública).
+  factCheckedAt  DateTime?
+  factCheckedByUserId Int?
+  /// Origen de importación CLF (interna — no pública).
+  clfSourceEnv   String?
+  clfImportedAt  DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  coverImage     InfoSpotEditorialAsset? @relation("InfoSpotArticleCover", fields: [coverImageId], references: [id], onDelete: SetNull)
+  category       InfoSpotCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author         User                  @relation("InfoSpotArticleAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  factCheckedBy  User?                 @relation("InfoSpotArticleFactCheck", fields: [factCheckedByUserId], references: [id], onDelete: SetNull)
+  articleAssets  InfoSpotArticleAsset[]
+
+  @@index([status, publishedAt])
+  @@index([contentTag, status])
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([eventId])
+  @@index([clfAlbumId])
+  @@index([factCheckedByUserId])
+}
+
+model InfoSpotSettings {
+  id                   String   @id @default(cuid())
+  siteName             String
+  slogan               String
+  logoUrl              String?
+  contactEmail         String?
+  pressEmail           String?
+  instagramUrl         String?
+  facebookUrl          String?
+  xUrl                 String?
+  whatsappUrl          String?
+  publicUrl            String?
+  seoTitle             String?
+  seoDescription       String?
+  defaultShareImageUrl String?
+  baseCity             String?
+  country              String?  @default("Argentina")
+  institutionalText    String?  @db.Text
+  footerText           String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+/// *
+/// * Info Spot — Agenda de eventos (MVP editorial, independiente de CLF Event).
+/// * Temporal hasta una integración profunda con el marketplace fotográfico.
+/// *
+model InfoSpotEvent {
+  id               String              @id @default(cuid())
+  title            String
+  slug             String              @unique
+  summary          String?
+  description      String              @db.Text
+  categoryId       String?
+  organizerName    String
+  /// Privado: no exponer en páginas públicas.
+  organizerEmail   String
+  /// Privado: no exponer en páginas públicas.
+  organizerPhone   String?
+  organizerWebsite String?
+  startAt          DateTime
+  endAt            DateTime?
+  venueName        String?
+  city             String
+  province         String
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  coverImageUrl    String?
+  coverImageKey    String?
+  registrationUrl  String?
+  sourceUrl        String?
+  status           InfoSpotEventStatus @default(DRAFT)
+  /// Etiqueta interna de lanzamiento (DEMO / REAL / NEEDS_REVIEW). No pública.
+  contentTag       InfoSpotContentTag  @default(NEEDS_REVIEW)
+  /// Notas internas del director (nunca públicas).
+  internalNotes    String?             @db.Text
+  submittedByUserId Int?
+  reviewedByUserId  Int?
+  publishedAt      DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  category         InfoSpotCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  submission       InfoSpotEventSubmission?
+
+  @@index([status, startAt])
+  @@index([status, publishedAt])
+  @@index([contentTag, status])
+  @@index([categoryId])
+  @@index([city, province])
+  @@index([startAt])
+}
+
+/// Solicitud pública de publicación (anti-spam / auditoría mínima).
+/// El evento asociado nace en PENDING_REVIEW; al aprobar se publica el mismo InfoSpotEvent.
+model InfoSpotEventSubmission {
+  id          String                        @id @default(cuid())
+  eventId     String                        @unique
+  status      InfoSpotEventSubmissionStatus @default(PENDING_REVIEW)
+  /// Hash one-way de IP (no almacenamos IP en claro).
+  ipHash      String?
+  userAgent   String?
+  createdAt   DateTime                      @default(now())
+  updatedAt   DateTime                      @updatedAt
+  reviewedAt  DateTime?
+  event       InfoSpotEvent                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([ipHash, createdAt])
 }
 
 /// *

@@ -1,0 +1,224 @@
+/**
+ * Info Spot — Typography scale & roles
+ */
+
+:root {
+  --is-font-sans: var(--font-info-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --is-leading-none: 1;
+  --is-leading-tight: 1.15;
+  --is-leading-snug: 1.3;
+  --is-leading-normal: 1.5;
+  --is-leading-body: 1.7;
+  --is-leading-relaxed: 1.75;
+
+  --is-tracking-tighter: -0.03em;
+  --is-tracking-tight: -0.025em;
+  --is-tracking-snug: -0.02em;
+  --is-tracking-normal: 0;
+  --is-tracking-wide: 0.04em;
+  --is-tracking-wider: 0.08em;
+  --is-tracking-widest: 0.14em;
+}
+
+/* —— Display —— */
+.is-display-xl {
+  font-family: var(--is-font-sans);
+  font-size: clamp(2.75rem, 2.1rem + 3.2vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-tighter);
+  line-height: var(--is-leading-tight);
+  color: var(--is-text);
+}
+
+/* Portada — H1 que domina la escena */
+.is-display-hero {
+  font-family: var(--is-font-sans);
+  font-size: clamp(3rem, 2.2rem + 4.5vw, 5.75rem);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-tighter);
+  line-height: 1.05;
+  color: var(--is-text);
+}
+
+.is-display-l {
+  font-family: var(--is-font-sans);
+  font-size: clamp(2rem, 1.7rem + 1.5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-tighter);
+  line-height: var(--is-leading-tight);
+  color: var(--is-text);
+}
+
+.is-display-m {
+  font-family: var(--is-font-sans);
+  font-size: clamp(1.75rem, 1.55rem + 1vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-tight);
+  line-height: var(--is-leading-tight);
+  color: var(--is-text);
+}
+
+/* —— Headings —— */
+.is-h1 {
+  font-family: var(--is-font-sans);
+  font-size: clamp(1.75rem, 1.5rem + 1.2vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-tight);
+  line-height: var(--is-leading-tight);
+  color: var(--is-text);
+}
+
+.is-h2 {
+  font-family: var(--is-font-sans);
+  font-size: clamp(1.375rem, 1.25rem + 0.6vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-snug);
+  line-height: var(--is-leading-snug);
+  color: var(--is-text);
+}
+
+.is-h3 {
+  font-family: var(--is-font-sans);
+  font-size: clamp(1.25rem, 1.15rem + 0.4vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-snug);
+  line-height: var(--is-leading-snug);
+  color: var(--is-text);
+}
+
+.is-h4 {
+  font-family: var(--is-font-sans);
+  font-size: 1.125rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: var(--is-leading-snug);
+  color: var(--is-text);
+}
+
+/* —— Body & editorial —— */
+.is-lead {
+  font-size: 1.125rem;
+  line-height: var(--is-leading-relaxed);
+  color: var(--is-text-secondary);
+}
+
+@media (min-width: 768px) {
+  .is-lead {
+    font-size: 1.25rem;
+  }
+}
+
+.is-body-lg {
+  font-size: 1.125rem;
+  line-height: var(--is-leading-body);
+  color: var(--is-text-secondary);
+}
+
+.is-body {
+  font-size: 1.0625rem;
+  line-height: var(--is-leading-body);
+  color: var(--is-text-secondary);
+}
+
+.is-body-sm {
+  font-size: 0.9375rem;
+  line-height: var(--is-leading-normal);
+  color: var(--is-text-secondary);
+}
+
+.is-caption {
+  font-size: 0.875rem;
+  line-height: var(--is-leading-normal);
+  color: var(--is-muted);
+}
+
+.is-overline {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-wider);
+  line-height: var(--is-leading-none);
+  text-transform: uppercase;
+  color: var(--is-muted);
+}
+
+.is-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: var(--is-tracking-widest);
+  line-height: var(--is-leading-none);
+  text-transform: uppercase;
+  color: var(--is-muted);
+}
+
+.is-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-wider);
+  line-height: var(--is-leading-none);
+  text-transform: uppercase;
+  color: var(--is-accent);
+}
+
+.is-button {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: var(--is-tracking-normal);
+  line-height: 1.2;
+}
+
+.is-metadata {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  color: var(--is-muted);
+}
+
+/* —— Compat aliases (páginas existentes) —— */
+.is-display {
+  font-family: var(--is-font-sans);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-tighter);
+  line-height: var(--is-leading-tight);
+  color: var(--is-text);
+}
+
+.is-title-article {
+  font-family: var(--is-font-sans);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-tight);
+  line-height: var(--is-leading-tight);
+  color: var(--is-text);
+}
+
+.is-title-section {
+  font-family: var(--is-font-sans);
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-snug);
+  line-height: var(--is-leading-snug);
+  color: var(--is-text);
+}
+
+.is-subtitle {
+  font-size: 1.125rem;
+  line-height: var(--is-leading-snug);
+  color: var(--is-text-secondary);
+}
+
+.is-dek {
+  font-size: 1.125rem;
+  line-height: var(--is-leading-relaxed);
+  color: var(--is-text-secondary);
+}
+
+@media (min-width: 768px) {
+  .is-dek {
+    font-size: 1.25rem;
+  }
+}
+
+.is-meta {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--is-muted);
+}

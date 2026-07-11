@@ -1,0 +1,248 @@
+/**
+ * Info Spot — App global styles
+ * Tokens centralizados en /styles. Aquí solo base + prose + botones.
+ */
+
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+:root {
+  color-scheme: light;
+}
+
+@theme inline {
+  --font-sans: var(--font-info-sans);
+  --color-is-bg: var(--is-bg);
+  --color-is-bg-secondary: var(--is-bg-secondary);
+  --color-is-surface: var(--is-surface);
+  --color-is-text: var(--is-text);
+  --color-is-text-secondary: var(--is-text-secondary);
+  --color-is-muted: var(--is-muted);
+  --color-is-accent: var(--is-accent);
+  --color-is-accent-hover: var(--is-accent-hover);
+  --color-is-border: var(--is-border);
+  --color-is-orange-500: var(--is-orange-500);
+  --color-is-graphite-800: var(--is-graphite-800);
+  --color-is-gray-500: var(--is-gray-500);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background: var(--is-bg);
+  color: var(--is-text);
+  font-family: var(--is-font-sans);
+  font-size: 1rem;
+  line-height: var(--is-leading-body);
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Base en @layer para que las utilidades Tailwind (text-*) puedan
+ * sobreescribir el color en <Link>/<a>. Sin layer, `color: inherit`
+ * gana al cascade y deja botones ilegibles (texto = fondo).
+ */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--is-accent);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--is-accent-soft);
+  color: var(--is-accent-ink);
+}
+
+/* —— Prose noticia —— */
+.is-prose {
+  font-size: 1.125rem;
+  line-height: var(--is-leading-body);
+  color: var(--is-text-secondary);
+}
+
+.is-prose > * + * {
+  margin-top: 1.25rem;
+}
+
+.is-prose h2 {
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: var(--is-tracking-snug);
+  line-height: var(--is-leading-snug);
+  color: var(--is-text);
+}
+
+.is-prose h3 {
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--is-text);
+}
+
+.is-prose h4 {
+  margin-top: 1.5rem;
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--is-text);
+}
+
+.is-prose p {
+  margin: 0;
+}
+
+.is-prose a {
+  color: var(--is-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.is-prose a:hover {
+  color: var(--is-accent-hover);
+}
+
+.is-prose ul,
+.is-prose ol {
+  padding-left: 1.35rem;
+}
+
+.is-prose ul {
+  list-style: disc;
+}
+
+.is-prose ol {
+  list-style: decimal;
+}
+
+.is-prose li + li {
+  margin-top: 0.5rem;
+}
+
+.is-prose blockquote {
+  margin: 2rem 0;
+  padding: 0.25rem 0 0.25rem 1.25rem;
+  border-left: 3px solid var(--is-accent);
+  color: var(--is-text);
+  font-style: italic;
+}
+
+.is-prose img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--is-radius-md);
+  margin: 2rem 0;
+}
+
+.is-prose code {
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: var(--is-radius-sm);
+  background: var(--is-surface-muted);
+}
+
+.is-prose hr {
+  border: 0;
+  border-top: 1px solid var(--is-border);
+  margin: 2.5rem 0;
+}
+
+/* —— Botones (compat MVP; componente Button vendrá después) —— */
+.is-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--is-radius-md);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.2;
+  transition: var(--is-transition-colors);
+}
+
+.is-btn-primary {
+  background: var(--is-accent);
+  color: #ffffff;
+}
+
+.is-btn-primary:hover {
+  background: var(--is-accent-hover);
+  color: #ffffff;
+}
+
+.is-btn-secondary {
+  background: transparent;
+  color: var(--is-text);
+  border: 1px solid var(--is-border-strong);
+}
+
+.is-btn-secondary:hover {
+  border-color: var(--is-accent);
+  color: var(--is-accent);
+}
+
+.is-btn-ghost {
+  background: transparent;
+  color: var(--is-accent);
+  padding-inline: 0.25rem;
+}
+
+.is-btn-ghost:hover {
+  color: var(--is-accent-hover);
+}
+
+/** CTA sólido oscuro sobre fondo claro */
+.is-btn-solid {
+  background: var(--is-graphite-800);
+  color: #ffffff;
+}
+
+.is-btn-solid:hover {
+  background: var(--is-graphite-900);
+  color: #ffffff;
+}
+
+/** CTA sólido claro sobre foto / fondo oscuro */
+.is-btn-on-dark {
+  background: #ffffff;
+  color: var(--is-graphite-800);
+}
+
+.is-btn-on-dark:hover {
+  background: var(--is-white-100);
+  color: var(--is-graphite-800);
+}
+
+.is-btn-outline-on-dark {
+  background: transparent;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, #ffffff 55%, transparent);
+}
+
+.is-btn-outline-on-dark:hover {
+  background: color-mix(in oklab, #ffffff 12%, transparent);
+  color: #ffffff;
+}

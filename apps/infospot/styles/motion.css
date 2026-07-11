@@ -1,0 +1,33 @@
+/**
+ * Info Spot — Motion tokens
+ */
+
+:root {
+  --is-duration-150: 150ms;
+  --is-duration-200: 200ms;
+  --is-duration-300: 300ms;
+  --is-duration-500: 500ms;
+
+  --is-ease-linear: linear;
+  --is-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --is-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --is-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --is-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --is-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --is-ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+
+  --is-transition-colors: color var(--is-duration-150) var(--is-ease),
+    background-color var(--is-duration-150) var(--is-ease),
+    border-color var(--is-duration-150) var(--is-ease);
+  --is-transition-transform: transform var(--is-duration-200) var(--is-ease-out);
+  --is-transition-opacity: opacity var(--is-duration-200) var(--is-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --is-duration-150: 0.01ms;
+    --is-duration-200: 0.01ms;
+    --is-duration-300: 0.01ms;
+    --is-duration-500: 0.01ms;
+  }
+}

@@ -1,0 +1,13 @@
+/**
+ * Info Spot — Design tokens entrypoint
+ * Importa escalas y utilidades foundations.
+ */
+
+@import "./colors.css";
+@import "./spacing.css";
+@import "./radius.css";
+@import "./elevations.css";
+@import "./motion.css";
+@import "./grid.css";
+@import "./typography.css";
+@import "./utilities.css";

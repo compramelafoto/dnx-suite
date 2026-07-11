@@ -1,0 +1,117 @@
+/**
+ * Info Spot — Grid, containers & breakpoints
+ *
+ * Desktop: 12 cols · Tablet: 8 cols · Mobile: 4 cols
+ * Site max: 1320px · Article: 760px · Media: 960px
+ */
+
+:root {
+  /* Breakpoints (valores de referencia) */
+  --is-bp-xs: 0px;
+  --is-bp-sm: 640px;
+  --is-bp-md: 768px;
+  --is-bp-lg: 1024px;
+  --is-bp-xl: 1280px;
+  --is-bp-2xl: 1536px;
+
+  /* Columns */
+  --is-grid-cols-mobile: 4;
+  --is-grid-cols-tablet: 8;
+  --is-grid-cols-desktop: 12;
+  --is-grid-cols: var(--is-grid-cols-mobile);
+  --is-grid-gutter: var(--is-space-4);
+
+  /* Containers */
+  --is-site-max: 82.5rem; /* 1320 */
+  --is-editorial-max: 82.5rem; /* 1320 — grillas de portada/listados */
+  --is-article-max: 47.5rem; /* 760 */
+  --is-media-max: 60rem; /* 960 */
+  --is-pad-x: var(--is-space-5); /* 20 mobile */
+  --is-header-h: 5rem;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --is-grid-gutter: var(--is-space-5);
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --is-grid-cols: var(--is-grid-cols-tablet);
+    --is-pad-x: var(--is-space-6); /* 24 */
+    --is-grid-gutter: var(--is-space-6);
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --is-grid-cols: var(--is-grid-cols-desktop);
+    --is-pad-x: var(--is-space-8); /* 32 */
+    --is-grid-gutter: var(--is-space-8);
+    --is-header-h: 5.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --is-pad-x: var(--is-space-10); /* 40 */
+  }
+}
+
+/* Container utilities */
+.is-site-pad {
+  padding-inline: var(--is-pad-x);
+}
+
+.is-container-site {
+  width: 100%;
+  max-width: var(--is-site-max);
+  margin-inline: auto;
+  padding-inline: var(--is-pad-x);
+}
+
+.is-container-editorial {
+  width: 100%;
+  max-width: var(--is-editorial-max);
+  margin-inline: auto;
+  padding-inline: var(--is-pad-x);
+}
+
+.is-container-article {
+  width: 100%;
+  max-width: var(--is-article-max);
+  margin-inline: auto;
+  padding-inline: var(--is-pad-x);
+}
+
+.is-container-wide {
+  width: 100%;
+  max-width: var(--is-media-max);
+  margin-inline: auto;
+  padding-inline: var(--is-pad-x);
+}
+
+.is-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--is-grid-cols), minmax(0, 1fr));
+  gap: var(--is-grid-gutter);
+}
+
+.is-grid-12 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--is-grid-gutter);
+}
+
+@media (min-width: 768px) {
+  .is-grid-12 {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .is-grid-12 {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+}

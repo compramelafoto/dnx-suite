@@ -1,0 +1,113 @@
+/**
+ * Info Spot — Utility helpers
+ */
+
+.is-divider {
+  border: 0;
+  border-top: 1px solid var(--is-border);
+}
+
+.is-divider-strong {
+  border: 0;
+  border-top: 1px solid var(--is-border-strong);
+}
+
+.is-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.is-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.is-stack-1 { gap: var(--is-space-1); }
+.is-stack-2 { gap: var(--is-space-2); }
+.is-stack-3 { gap: var(--is-space-3); }
+.is-stack-4 { gap: var(--is-space-4); }
+.is-stack-5 { gap: var(--is-space-5); }
+.is-stack-6 { gap: var(--is-space-6); }
+.is-stack-8 { gap: var(--is-space-8); }
+.is-stack-10 { gap: var(--is-space-10); }
+.is-stack-12 { gap: var(--is-space-12); }
+
+.is-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.is-cluster-1 { gap: var(--is-space-1); }
+.is-cluster-2 { gap: var(--is-space-2); }
+.is-cluster-3 { gap: var(--is-space-3); }
+.is-cluster-4 { gap: var(--is-space-4); }
+.is-cluster-5 { gap: var(--is-space-5); }
+.is-cluster-6 { gap: var(--is-space-6); }
+.is-cluster-8 { gap: var(--is-space-8); }
+
+.is-text-balance {
+  text-wrap: balance;
+}
+
+.is-text-pretty {
+  text-wrap: pretty;
+}
+
+.is-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.is-line-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.is-line-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.is-focus-ring:focus-visible {
+  outline: 2px solid var(--is-accent);
+  outline-offset: 3px;
+}
+
+.is-transition-colors {
+  transition: var(--is-transition-colors);
+}
+
+.is-transition-opacity {
+  transition: var(--is-transition-opacity);
+}
+
+.is-elevation-1 { box-shadow: var(--is-elevation-1); }
+.is-elevation-2 { box-shadow: var(--is-elevation-2); }
+.is-elevation-3 { box-shadow: var(--is-elevation-3); }
+
+.is-radius-sm { border-radius: var(--is-radius-sm); }
+.is-radius-md { border-radius: var(--is-radius-md); }
+.is-radius-lg { border-radius: var(--is-radius-lg); }
+.is-radius-xl { border-radius: var(--is-radius-xl); }
+.is-radius-full { border-radius: var(--is-radius-full); }
+
+.is-bg-default { background-color: var(--is-bg); }
+.is-bg-muted { background-color: var(--is-bg-secondary); }
+.is-bg-accent-soft { background-color: var(--is-accent-soft); }
+
+.is-border { border: 1px solid var(--is-border); }
+.is-border-t { border-top: 1px solid var(--is-border); }
+.is-border-b { border-bottom: 1px solid var(--is-border); }

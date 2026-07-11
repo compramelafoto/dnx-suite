@@ -16,6 +16,10 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:infospot": "tsx prisma/scripts/seed-infospot.ts",
+    "db:seed:infospot-demo": "tsx prisma/scripts/seed-infospot-demo-articles.ts",
+    "db:seed:infospot-events": "tsx prisma/scripts/seed-infospot-demo-events.ts",
+    "test:clf-availability": "tsx src/clf-album-availability.test.ts",
     "db:studio": "prisma studio"
   },
   "prisma": {

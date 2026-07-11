@@ -1,18 +1,58 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+  prismaSchemaEpoch?: string;
+};
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+function createPrismaClient() {
+  return new PrismaClient({
     log:
       process.env.NODE_ENV === "development"
         ? ["query", "error", "warn"]
         : ["error"],
   });
+}
+
+/** Epoch del schema generado — cambia cuando aparecen/desaparecen modelos. */
+function prismaSchemaEpoch(): string {
+  return Prisma.dmmf.datamodel.models.map((m) => m.name).join("|");
+}
+
+function clientHasModel(client: PrismaClient, modelName: string): boolean {
+  const key = `${modelName[0]!.toLowerCase()}${modelName.slice(1)}`;
+  const delegate = (client as unknown as Record<string, { findMany?: unknown } | undefined>)[key];
+  return typeof delegate?.findMany === "function";
+}
+
+function isStalePrismaClient(client: PrismaClient): boolean {
+  const epoch = prismaSchemaEpoch();
+  if (globalForPrisma.prismaSchemaEpoch && globalForPrisma.prismaSchemaEpoch !== epoch) {
+    return true;
+  }
+  // Defensa explícita para modelos Info Spot recientes (HMR / Turbopack).
+  for (const model of ["InfoSpotEvent", "InfoSpotEventSubmission", "InfoSpotArticle"]) {
+    if (
+      Prisma.dmmf.datamodel.models.some((m) => m.name === model) &&
+      !clientHasModel(client, model)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const existing = globalForPrisma.prisma;
+if (existing && isStalePrismaClient(existing)) {
+  void existing.$disconnect().catch(() => undefined);
+  globalForPrisma.prisma = undefined;
+}
+
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
+  globalForPrisma.prismaSchemaEpoch = prismaSchemaEpoch();
 }
 
 export { Prisma };
@@ -25,7 +65,47 @@ export {
   LabApprovalStatus,
   TalkStatus,
   CameraConnectionAssignmentMode,
+  InfoSpotEditorialRole,
+  InfoSpotMemberStatus,
+  InfoSpotArticleStatus,
+  InfoSpotAssetSourceType,
+  InfoSpotArticleAssetUsage,
+  InfoSpotEventStatus,
+  InfoSpotEventSubmissionStatus,
+  InfoSpotContentTag,
 } from "@prisma/client";
+
+export {
+  canManageInfoSpotSettings,
+  canManageInfoSpotUsers,
+  canCreateInfoSpotArticle,
+  canEditInfoSpotArticle,
+  canPublishInfoSpotArticle,
+  canAccessInfoSpotRedaccion,
+  canAccessInfoSpotAdmin,
+  canModerateInfoSpotEvents,
+  canViewInfoSpotPublishedEvents,
+  canPublishInfoSpotEvent,
+  type InfoSpotPermissionSubject,
+} from "./infospot-permissions";
+
+export {
+  resolveClfAlbumCommercialAvailability,
+  type ClfAlbumAvailabilityInput,
+  type ClfAlbumAvailabilityResult,
+  type ClfAlbumCommercialStatus,
+  type ClfAlbumAvailabilityOptions,
+} from "./clf-album-availability";
+
+export {
+  getClfReadonlyClient,
+  getClfReadonlyConnectionInfo,
+  probeClfReadonlyConnection,
+  disconnectClfReadonlyClient,
+  type ClfReadonlyConnectionInfo,
+} from "./clf-readonly-client";
+
+
 
 /** Fotorank judge enums (schema gap — valores alineados a migraciones baseline). */
 export const FotorankJudgeMethodType = {
