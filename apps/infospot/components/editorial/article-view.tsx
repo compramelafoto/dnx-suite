@@ -15,6 +15,15 @@ import {
   EditorialContainer,
   Section,
 } from "@/components/layout/containers";
+import type { PublicEditorialCoverage } from "@/lib/public-coverage";
+import {
+  PublicEditorialPhoto,
+  PublicEditorialGallery,
+  CoveragePhotographers,
+  CoverageAlbumsCommerce,
+  RelatedEventCoverage,
+  ContentViewTracker,
+} from "@/components/public-coverage";
 
 type Props = {
   article: ArticleWithRelations;
@@ -23,6 +32,8 @@ type Props = {
   albumAvailability?: ClfAlbumAvailabilityResult | null;
   shareUrl?: string;
   showDirectorCommerceActions?: boolean;
+  /** View model de cobertura editorial (opcional; no rompe artículos sin cobertura). */
+  publicCoverage?: PublicEditorialCoverage | null;
 };
 
 export function ArticleView({
@@ -32,21 +43,45 @@ export function ArticleView({
   albumAvailability,
   shareUrl,
   showDirectorCommerceActions = false,
+  publicCoverage = null,
 }: Props) {
   const inline = article.articleAssets.filter((a) => a.usageType === "INLINE");
   const gallery = article.articleAssets.filter((a) => a.usageType === "GALLERY");
   const coverFromLinks = article.articleAssets.find((a) => a.usageType === "COVER");
-  const coverUrl = article.coverImage?.url || coverFromLinks?.asset.url;
+
+  const clfCover = publicCoverage?.coverPhoto ?? null;
+  const traditionalCoverUrl =
+    article.coverImage?.url || coverFromLinks?.asset.url || null;
   const coverCaption =
+    clfCover?.caption ||
     coverFromLinks?.captionOverride ||
     article.coverImage?.caption ||
     coverFromLinks?.asset.caption;
-  const coverCredit = article.coverImage?.credit || coverFromLinks?.asset.credit;
+  const coverCredit =
+    clfCover?.credit ||
+    article.coverImage?.credit ||
+    coverFromLinks?.asset.credit;
   const coverCopyright =
     article.coverImage?.copyrightText || coverFromLinks?.asset.copyrightText;
 
+  const locationLabel = publicCoverage?.event
+    ? [publicCoverage.event.city, publicCoverage.event.province]
+        .filter(Boolean)
+        .join(", ")
+    : null;
+
+  const relatedFromCoverage = publicCoverage?.relatedArticles ?? [];
+  const showLegacyRelated =
+    relatedFromCoverage.length === 0 && related.length > 0;
+
+  const showLegacyAlbumCta =
+    albumAvailability &&
+    !(publicCoverage?.albums && publicCoverage.albums.length > 0);
+
   return (
     <>
+      <ContentViewTracker kind="ARTICLE_VIEW" articleId={article.id} />
+
       <ArticleBodyContainer className="pt-10 md:pt-14">
         {badge ? (
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--is-warning)]">
@@ -89,13 +124,35 @@ export function ArticleView({
             href={`/autores/${article.author.id}`}
           />
           <ArticleMetadata date={article.publishedAt ?? article.updatedAt} />
+          {locationLabel ? (
+            <span className="is-meta">{locationLabel}</span>
+          ) : null}
         </div>
+
+        {publicCoverage?.event ? (
+          <p className="mt-4 text-sm text-[var(--is-text-secondary)]">
+            Evento:{" "}
+            <Link
+              href={`/eventos/${publicCoverage.event.slug}`}
+              className="font-medium text-[var(--is-accent)] hover:underline"
+            >
+              {publicCoverage.event.title}
+            </Link>
+            {publicCoverage.event.temporalLabel
+              ? ` · ${publicCoverage.event.temporalLabel}`
+              : null}
+          </p>
+        ) : null}
       </ArticleBodyContainer>
 
-      {coverUrl ? (
+      {clfCover ? (
+        <WideMediaContainer className="mt-8 md:mt-10">
+          <PublicEditorialPhoto photo={clfCover} priority />
+        </WideMediaContainer>
+      ) : traditionalCoverUrl ? (
         <WideMediaContainer className="mt-8 md:mt-10">
           <EditorialImage
-            src={coverUrl}
+            src={traditionalCoverUrl}
             alt={article.title}
             caption={coverCaption}
             credit={coverCredit}
@@ -107,8 +164,12 @@ export function ArticleView({
       ) : null}
 
       <ArticleBodyContainer className="py-10 md:py-12">
-        <MarkdownBody content={article.content} />
+        <MarkdownBody
+          content={article.content}
+          photoById={publicCoverage?.photoById}
+        />
 
+        {/* Inline legacy assets (no CLF) */}
         {inline.length > 0 ? (
           <div className="mt-10 space-y-10">
             {inline.map((item) => (
@@ -124,7 +185,17 @@ export function ArticleView({
           </div>
         ) : null}
 
-        {gallery.length > 0 ? (
+        {/* Galería CLF */}
+        {publicCoverage && publicCoverage.galleryPhotos.length > 0 ? (
+          <PublicEditorialGallery
+            photos={publicCoverage.galleryPhotos}
+            albumHref={
+              publicCoverage.commercialAvailability.canShowPurchaseCta
+                ? publicCoverage.albums[0]?.trackedAlbumHref
+                : null
+            }
+          />
+        ) : gallery.length > 0 ? (
           <section className="mt-14">
             <h2 className="is-title-section text-2xl">Galería</h2>
             <div className="mt-6 grid gap-6 sm:grid-cols-2">
@@ -142,10 +213,18 @@ export function ArticleView({
           </section>
         ) : null}
 
-        {albumAvailability ? (
+        {publicCoverage ? (
+          <>
+            <CoveragePhotographers photographers={publicCoverage.photographers} />
+            <CoverageAlbumsCommerce albums={publicCoverage.albums} />
+          </>
+        ) : null}
+
+        {showLegacyAlbumCta ? (
           <AlbumCommerceCta
             availability={albumAvailability}
             showDirectorActions={showDirectorCommerceActions}
+            articleId={article.id}
           />
         ) : null}
 
@@ -153,7 +232,14 @@ export function ArticleView({
           <ShareActions title={article.title} url={shareUrl} />
         </div>
 
-        <RelatedArticles articles={related} />
+        {relatedFromCoverage.length > 0 || (publicCoverage?.relatedEvents?.length ?? 0) > 0 ? (
+          <RelatedEventCoverage
+            articles={relatedFromCoverage}
+            events={publicCoverage?.relatedEvents}
+          />
+        ) : null}
+
+        {showLegacyRelated ? <RelatedArticles articles={related} /> : null}
       </ArticleBodyContainer>
 
       <Section tone="muted" spacing="md">

@@ -7,6 +7,8 @@ import {
   canReviewInfoSpotApprovals,
   getInfoSpotAccessContext,
 } from "@/lib/infospot-access";
+import { getPublicEditorialCoverageByArticleSlug } from "@/lib/public-coverage";
+import { authorDisplayName } from "@/lib/articles";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -16,8 +18,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const article = await getPublishedArticleBySlug(slug);
   if (!article) return { title: "Noticia" };
+
+  const coverage = await getPublicEditorialCoverageByArticleSlug(slug);
   const title = article.seoTitle || article.title;
   const description = article.seoDescription || article.excerpt || undefined;
+  const ogImage = coverage?.ogImageUrl || article.coverImage?.url || undefined;
+  const authors = authorDisplayName(article.author);
+
   return {
     title,
     description,
@@ -26,15 +33,34 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       type: "article",
       title,
       description,
-      images: article.coverImage?.url ? [article.coverImage.url] : undefined,
+      url: `/noticias/${article.slug}`,
+      images: ogImage
+        ? [
+            {
+              url: ogImage,
+              alt: coverage?.coverPhoto?.altText || article.title,
+            },
+          ]
+        : undefined,
       publishedTime: article.publishedAt?.toISOString(),
+      modifiedTime: article.updatedAt.toISOString(),
+      authors: authors ? [authors] : undefined,
+      ...(coverage?.coverPhoto?.credit
+        ? { section: coverage.coverPhoto.credit }
+        : {}),
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: article.coverImage?.url ? [article.coverImage.url] : undefined,
+      images: ogImage ? [ogImage] : undefined,
     },
+    other: coverage?.event
+      ? {
+          "article:section": article.category?.name || "",
+          "infospot:event": coverage.event.slug,
+        }
+      : undefined,
   };
 }
 
@@ -43,14 +69,17 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
   const article = await getPublishedArticleBySlug(slug);
   if (!article) notFound();
 
-  const relatedPool = await getPublishedArticles({
-    take: 8,
-    categorySlug: article.category?.slug,
-  });
+  const [relatedPool, publicCoverage] = await Promise.all([
+    getPublishedArticles({
+      take: 8,
+      categorySlug: article.category?.slug,
+    }),
+    getPublicEditorialCoverageByArticleSlug(slug),
+  ]);
   const related = relatedPool.filter((a) => a.id !== article.id).slice(0, 4);
 
   let albumAvailability = null;
-  if (article.clfAlbumId) {
+  if (article.clfAlbumId && !publicCoverage?.albums?.length) {
     const album = await prisma.album.findFirst({
       where: { id: article.clfAlbumId },
       select: {
@@ -82,6 +111,22 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
   const access = await getInfoSpotAccessContext();
   const showDirectorCommerceActions = canReviewInfoSpotApprovals(access?.subject);
 
+  const ogImage = publicCoverage?.ogImageUrl || article.coverImage?.url;
+  const imageObjects =
+    publicCoverage?.galleryPhotos
+      .filter((p) => p.src)
+      .slice(0, 5)
+      .map((p) => ({
+        "@type": "ImageObject",
+        contentUrl: p.src,
+        creditText: p.credit,
+        creator: {
+          "@type": "Person",
+          name: p.photographerName,
+        },
+        description: p.altText,
+      })) ?? [];
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
@@ -89,7 +134,7 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
     ...(article.excerpt ? { description: article.excerpt } : {}),
     ...(article.publishedAt ? { datePublished: article.publishedAt.toISOString() } : {}),
     dateModified: article.updatedAt.toISOString(),
-    ...(article.coverImage?.url ? { image: [article.coverImage.url] } : {}),
+    ...(ogImage ? { image: [ogImage] } : {}),
     author: {
       "@type": "Person",
       name: article.author?.name || article.author?.email || "Redacción Info Spot",
@@ -101,6 +146,26 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
       name: "Info Spot",
     },
     mainEntityOfPage: `/noticias/${article.slug}`,
+    ...(publicCoverage?.event
+      ? {
+          about: {
+            "@type": "Event",
+            name: publicCoverage.event.title,
+            url: `/eventos/${publicCoverage.event.slug}`,
+            startDate: publicCoverage.event.startAt.toISOString(),
+            location: {
+              "@type": "Place",
+              address: {
+                "@type": "PostalAddress",
+                addressLocality: publicCoverage.event.city,
+                addressRegion: publicCoverage.event.province,
+                addressCountry: "AR",
+              },
+            },
+          },
+        }
+      : {}),
+    ...(imageObjects.length ? { associatedMedia: imageObjects } : {}),
   };
 
   return (
@@ -114,6 +179,7 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
         related={related}
         albumAvailability={albumAvailability}
         showDirectorCommerceActions={showDirectorCommerceActions}
+        publicCoverage={publicCoverage}
       />
     </>
   );

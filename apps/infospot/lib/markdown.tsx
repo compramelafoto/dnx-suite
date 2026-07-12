@@ -3,6 +3,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import type { PublicEditorialPhotoViewModel } from "@/lib/public-coverage";
+import { PublicEditorialPhoto } from "@/components/public-coverage/PublicEditorialPhoto";
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -20,10 +22,14 @@ const sanitizeSchema = {
       "dataCredit",
       "dataCaption",
       "dataAssetId",
+      "dataPhotoId",
+      "dataDisplay",
       "data-editorial-image",
       "data-credit",
       "data-caption",
       "data-asset-id",
+      "data-photo-id",
+      "data-display",
     ],
     figcaption: ["className"],
     span: ["className", "dataCaption", "dataCreditText", "data-caption", "data-credit-text"],
@@ -32,40 +38,83 @@ const sanitizeSchema = {
   },
 };
 
-const components: Components = {
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  ),
-  img: ({ src, alt }) => (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={typeof src === "string" ? src : undefined}
-      alt={alt ?? ""}
-      loading="lazy"
-    />
-  ),
-  figure: ({ children, ...props }) => (
-    <figure className="is-editorial-figure" {...props}>
-      {children}
-    </figure>
-  ),
-  figcaption: ({ children }) => (
-    <figcaption className="is-figcaption">{children}</figcaption>
-  ),
-  h1: ({ children }) => <h2>{children}</h2>,
-  h2: ({ children }) => <h2>{children}</h2>,
-  h3: ({ children }) => <h3>{children}</h3>,
-  h4: ({ children }) => <h4>{children}</h4>,
+function readDataAttr(
+  props: Record<string, unknown>,
+  kebab: string,
+  camel: string,
+): string | null {
+  const v = props[kebab] ?? props[camel];
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+type MarkdownBodyProps = {
+  content: string;
+  /** Mapa pre-resuelto: una sola carga, sin query por nodo. */
+  photoById?: Record<string, PublicEditorialPhotoViewModel>;
 };
 
 /**
  * Render Markdown + islas HTML de figuras editoriales (sanitizado).
- * Mismo pipeline para público y preview de redacción.
+ * Resuelve `data-photo-id` contra el view model público.
  */
-export function MarkdownBody({ content }: { content: string }) {
+export function MarkdownBody({ content, photoById }: MarkdownBodyProps) {
   if (!content.trim()) return null;
+
+  const components: Components = {
+    a: ({ href, children }) => (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    ),
+    img: ({ src, alt }) => (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={typeof src === "string" ? src : undefined}
+        alt={alt ?? ""}
+        loading="lazy"
+      />
+    ),
+    figure: ({ children, ...props }) => {
+      const photoId = readDataAttr(
+        props as Record<string, unknown>,
+        "data-photo-id",
+        "dataPhotoId",
+      );
+      const display = readDataAttr(
+        props as Record<string, unknown>,
+        "data-display",
+        "dataDisplay",
+      );
+
+      if (photoId && photoById?.[photoId]) {
+        const photo = photoById[photoId];
+        return (
+          <div className="my-8">
+            <PublicEditorialPhoto
+              photo={{
+                ...photo,
+                displaySize: display || photo.displaySize,
+              }}
+            />
+          </div>
+        );
+      }
+
+      return (
+        <figure className="is-editorial-figure" {...props}>
+          {children}
+        </figure>
+      );
+    },
+    figcaption: ({ children }) => (
+      <figcaption className="is-figcaption">{children}</figcaption>
+    ),
+    h1: ({ children }) => <h2>{children}</h2>,
+    h2: ({ children }) => <h2>{children}</h2>,
+    h3: ({ children }) => <h3>{children}</h3>,
+    h4: ({ children }) => <h4>{children}</h4>,
+  };
+
   return (
     <div className="is-prose">
       <ReactMarkdown

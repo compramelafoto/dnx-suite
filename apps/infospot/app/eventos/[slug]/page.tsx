@@ -9,6 +9,18 @@ import {
 } from "@/lib/events";
 import { pickThematicStock } from "@/lib/editorial-stock";
 import { headers } from "next/headers";
+import {
+  getPublicEventCoverageBundle,
+} from "@/lib/public-coverage";
+import { getEventTemporalState } from "@/lib/distribution/temporal";
+import {
+  CoverageAlbumsCommerce,
+  CoveragePhotographers,
+  RelatedEventCoverage,
+  EventLifecycleSection,
+  ContentViewTracker,
+} from "@/components/public-coverage";
+import { buildTrackedHref } from "@/lib/public-coverage/tracking-href";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -39,6 +51,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description =
     event.summary ||
     `${event.title} en ${event.city}, ${event.province}.`;
+  const temporal = getEventTemporalState({
+    startAt: event.startAt,
+    endAt: event.endAt,
+  });
 
   return {
     title,
@@ -48,9 +64,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       type: "website",
+      url: `/eventos/${event.slug}`,
       ...(event.coverImageUrl
         ? { images: [{ url: event.coverImageUrl, alt: event.title }] }
         : {}),
+    },
+    other: {
+      "event:start_time": event.startAt.toISOString(),
+      "event:location": [event.city, event.province].filter(Boolean).join(", "),
+      "event:status": temporal,
     },
   };
 }
@@ -61,6 +83,13 @@ export default async function EventoDetailPage({ params }: Props) {
   if (!row) notFound();
 
   const event = toPublicEventDetail(row);
+  const bundle = await getPublicEventCoverageBundle(slug);
+  const temporal = getEventTemporalState({
+    startAt: event.startAt,
+    endAt: event.endAt,
+  });
+  const temporalLabel = bundle?.temporalLabel || "";
+
   const fallback = pickThematicStock(
     event.id,
     `${event.categorySlug || ""} ${event.title}`,
@@ -72,6 +101,21 @@ export default async function EventoDetailPage({ params }: Props) {
   const proto = h.get("x-forwarded-proto") || "https";
   const shareUrl = `${proto}://${host}/eventos/${event.slug}`;
 
+  const registrationTracked = event.registrationUrl
+    ? buildTrackedHref({
+        to: event.registrationUrl,
+        kind: "EVENT_CLICK",
+        eventId: event.id,
+      })
+    : null;
+
+  const eventStatusSchema =
+    temporal === "CANCELLED"
+      ? "https://schema.org/EventCancelled"
+      : temporal === "FINISHED"
+        ? "https://schema.org/EventScheduled"
+        : "https://schema.org/EventScheduled";
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
@@ -80,7 +124,7 @@ export default async function EventoDetailPage({ params }: Props) {
     startDate: event.startAt.toISOString(),
     ...(event.endAt ? { endDate: event.endAt.toISOString() } : {}),
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
-    eventStatus: "https://schema.org/EventScheduled",
+    eventStatus: eventStatusSchema,
     location: {
       "@type": "Place",
       name: event.venueName || event.city,
@@ -107,6 +151,7 @@ export default async function EventoDetailPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <ContentViewTracker kind="EVENT_VIEW" eventId={event.id} />
 
       <div className="relative min-h-[42vw] overflow-hidden bg-[var(--is-graphite-900)] lg:min-h-[min(52vh,520px)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -123,6 +168,11 @@ export default async function EventoDetailPage({ params }: Props) {
             {event.categoryName ? (
               <p className="is-eyebrow !text-[var(--is-orange-300)]">
                 {event.categoryName}
+              </p>
+            ) : null}
+            {temporalLabel ? (
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--is-orange-300)]">
+                {temporalLabel}
               </p>
             ) : null}
             <h1 className="is-display-l !text-[var(--is-white-0)]">{event.title}</h1>
@@ -144,6 +194,22 @@ export default async function EventoDetailPage({ params }: Props) {
             <div className="prose prose-neutral max-w-none whitespace-pre-wrap text-[var(--is-text)]">
               {event.description}
             </div>
+
+            {bundle && (bundle.relatedArticles.length > 0 || bundle.albums.length > 0) ? (
+              <div className="mt-10 space-y-4">
+                {temporal === "FINISHED" || temporal === "IN_PROGRESS" ? (
+                  <h2 className="is-title-section text-2xl">Coberturas y crónicas</h2>
+                ) : (
+                  <h2 className="is-title-section text-2xl">Actualizaciones</h2>
+                )}
+                <RelatedEventCoverage
+                  articles={bundle.relatedArticles}
+                  articlesHeading="Noticias relacionadas"
+                />
+                <CoveragePhotographers photographers={bundle.photographers} />
+                <CoverageAlbumsCommerce albums={bundle.albums} />
+              </div>
+            ) : null}
           </div>
 
           <aside className="space-y-8 lg:col-span-4">
@@ -170,31 +236,39 @@ export default async function EventoDetailPage({ params }: Props) {
               ) : null}
             </div>
 
-            {event.registrationUrl ? (
-              <a
-                href={event.registrationUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-                className="is-btn is-btn-solid h-11 w-full text-sm"
-              >
-                Inscribirme
-              </a>
+            <EventLifecycleSection
+              temporalState={temporal}
+              temporalLabel={temporalLabel}
+              registrationHref={registrationTracked}
+              joinHref={bundle?.joinHref}
+              seekingPhotographers={bundle?.seekingPhotographers}
+            >
+              {bundle && bundle.albums.length > 0 ? (
+                <CoverageAlbumsCommerce
+                  albums={bundle.albums}
+                  title="Comprar fotos del evento"
+                />
+              ) : null}
+            </EventLifecycleSection>
+
+            {!bundle?.seekingPhotographers && !event.registrationUrl ? (
+              <div className="border-t border-[var(--is-border)] pt-6">
+                <p className="is-eyebrow">¿Sos fotógrafo?</p>
+                <p className="mt-3 text-sm text-[var(--is-text-secondary)]">
+                  {temporal === "FINISHED"
+                    ? "La convocatoria de este evento ya cerró."
+                    : "Pronto vas a poder postularte para cubrir este evento."}
+                </p>
+                <Link
+                  href="/contacto"
+                  className="mt-4 inline-flex text-sm font-medium text-[var(--is-accent)] hover:underline"
+                >
+                  Quiero enterarme
+                </Link>
+              </div>
             ) : null}
 
             <ShareEventButton title={event.title} url={shareUrl} />
-
-            <div className="border-t border-[var(--is-border)] pt-6">
-              <p className="is-eyebrow">¿Sos fotógrafo?</p>
-              <p className="mt-3 text-sm text-[var(--is-text-secondary)]">
-                Pronto vas a poder postularte para cubrir este evento.
-              </p>
-              <Link
-                href="/contacto"
-                className="mt-4 inline-flex text-sm font-medium text-[var(--is-accent)] hover:underline"
-              >
-                Quiero enterarme
-              </Link>
-            </div>
           </aside>
         </EditorialContainer>
       </Section>

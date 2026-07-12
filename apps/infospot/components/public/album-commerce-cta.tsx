@@ -5,26 +5,40 @@ type Props = {
   /** Solo para Director: enlace interno de reactivación (no compra pública). */
   directorReactivationUrl?: string | null;
   showDirectorActions?: boolean;
+  /** Para tracking seguro vía /api/r */
+  articleId?: string | null;
+  eventId?: string | null;
 };
+
+function trackedHref(
+  to: string,
+  kind: "ALBUM_CLICK" | "PURCHASE_CLICK",
+  articleId?: string | null,
+  eventId?: string | null,
+): string {
+  const params = new URLSearchParams({ to, kind });
+  if (articleId) params.set("articleId", articleId);
+  if (eventId) params.set("eventId", eventId);
+  return `/api/r?${params.toString()}`;
+}
 
 /**
  * Bloque público «Ver y comprar las fotos del evento».
- * AVAILABLE → CTA activo a CLF.
- * REACTIVATABLE → sin compra directa; acción interna solo para Director.
- * UNAVAILABLE → sin botón de compra.
+ * AVAILABLE → CTA activo a CLF vía /api/r (anti open-redirect + métrica).
  */
 export function AlbumCommerceCta({
   availability,
   directorReactivationUrl,
   showDirectorActions = false,
+  articleId,
+  eventId,
 }: Props) {
   if (availability.status === "AVAILABLE") {
     return (
       <div className="mt-12 rounded-[var(--is-radius-lg)] border border-[var(--is-border)] bg-[var(--is-bg-secondary)] p-6 md:p-8">
         <p className="is-body">Ver y comprar las fotos del evento</p>
         <a
-          href={availability.publicUrl}
-          target="_blank"
+          href={trackedHref(availability.publicUrl, "ALBUM_CLICK", articleId, eventId)}
           rel="noopener noreferrer"
           className="is-btn is-btn-primary mt-5"
         >
@@ -60,7 +74,6 @@ export function AlbumCommerceCta({
     );
   }
 
-  // UNAVAILABLE: sin botón de compra
   return (
     <div className="mt-12 rounded-[var(--is-radius-lg)] border border-[var(--is-border)] bg-[var(--is-surface-muted)] p-6 md:p-8">
       <p className="is-meta text-sm">
