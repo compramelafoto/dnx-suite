@@ -50,6 +50,7 @@ pnpm --filter @repo/db exec prisma generate
 
 ## 5. Usuario DIRECTOR y emails
 
+- [ ] Primer Director vía Identity: `pnpm dnx:create-director` (no SQL manual)
 - [ ] Usuario con `InfoSpotUserRole` = `INFOSPOT_DIRECTOR`
 - [ ] Email editorial y de prensa en `/admin/configuracion`
 - [ ] Redes solo si existen (no inventar)

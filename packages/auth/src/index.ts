@@ -38,6 +38,7 @@ export {
   revokeAppInvitation,
   getInvitationByRawToken,
   listPendingInvitations,
+  findPendingAppInvitationByEmail,
   acceptAppInvitation,
   buildInviteUrl,
   type DnxInvitationRecord,
@@ -49,3 +50,27 @@ export {
   requestPasswordReset,
   resetPasswordWithToken,
 } from "./password-reset";
+
+export {
+  bootstrapInfoSpotDirector,
+  type BootstrapInfoSpotDirectorResult,
+} from "./bootstrap-director";
+
+export {
+  DNX_GOOGLE_OAUTH_COOKIE,
+  DNX_GOOGLE_OAUTH_COOKIE_MAX_AGE,
+  getGoogleOAuthCredentials,
+  resolveAppBaseUrl,
+  resolveGoogleRedirectUri,
+  createGoogleOAuthTransit,
+  parseAndVerifyGoogleOAuthTransit,
+  buildGoogleAuthorizationUrl,
+  exchangeGoogleAuthCode,
+  fetchGoogleUserInfo,
+  resolveOrLinkGoogleUser,
+  hashEmailForLog,
+  type GoogleOAuthCredentials,
+  type GoogleUserInfo,
+  type GoogleOAuthTransitPayload,
+  type ResolveGoogleUserResult,
+} from "./google-oauth";

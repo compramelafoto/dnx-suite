@@ -9,6 +9,7 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
+    "dnx:create-director": "pnpm --filter @repo/auth create-director",
     "e2e:prepare": "pnpm --filter compramelafoto run e2e:prepare",
     "e2e:school": "pnpm --filter compramelafoto run e2e:school"
   },

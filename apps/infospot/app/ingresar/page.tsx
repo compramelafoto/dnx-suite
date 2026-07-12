@@ -19,7 +19,11 @@ const DENIED: Record<string, string> = {
   "infospot-events": "Acceso denegado al panel de eventos.",
 };
 
-type SearchParams = Promise<{ next?: string; forbidden?: string }>;
+type SearchParams = Promise<{
+  next?: string;
+  forbidden?: string;
+  error?: string;
+}>;
 
 export default async function IngresarPage({
   searchParams,
@@ -34,13 +38,14 @@ export default async function IngresarPage({
   await redirectIfAlreadySignedIn(next);
 
   const deniedMessage = params.forbidden ? DENIED[params.forbidden] ?? null : null;
+  const oauthError = params.error?.trim() || null;
 
   return (
     <PageShell
       title="Ingresar a Info Spot"
-      description="Acceso con identidad DNX Suite (Director, Redacción o Colaboración)."
+      description="Acceso con identidad DNX Suite (Google o email y contraseña)."
     >
-      <LoginForm next={next} deniedMessage={deniedMessage} />
+      <LoginForm next={next} deniedMessage={deniedMessage} oauthError={oauthError} />
     </PageShell>
   );
 }

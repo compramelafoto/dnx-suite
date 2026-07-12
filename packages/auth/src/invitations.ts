@@ -320,6 +320,30 @@ export async function listPendingInvitations(params: {
   });
 }
 
+/** Invitación PENDING vigente por email + app (p. ej. aceptar con Google). */
+export async function findPendingAppInvitationByEmail(params: {
+  email: string;
+  app: string;
+}): Promise<DnxInvitationRecord | null> {
+  const email = params.email.trim().toLowerCase();
+  if (!email) return null;
+
+  await invitationDelegate().updateMany({
+    where: {
+      email,
+      app: params.app,
+      status: "PENDING",
+      expiresAt: { lt: new Date() },
+    },
+    data: { status: "EXPIRED", updatedAt: new Date() },
+  });
+
+  return invitationDelegate().findFirst({
+    where: { email, app: params.app, status: "PENDING" },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 /**
  * Acepta invitación: crea User si no existe, setea password, marca accepted.
  * `onActivate` asigna el rol de app (InfoSpotUserRole, etc.).

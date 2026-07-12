@@ -11,14 +11,12 @@ import {
   toPermissionSubject,
 } from "@/lib/infospot-access";
 import { createInfoSpotSession, destroyInfoSpotSession } from "@/lib/session-cookie";
+import {
+  loadPostLoginDestination,
+  safeInfoSpotNextPath,
+} from "@/lib/google-login";
 
 export type LoginFormState = { error: string | null };
-
-function safeNextPath(raw: FormDataEntryValue | null): string {
-  const value = typeof raw === "string" ? raw.trim() : "";
-  if (!value.startsWith("/") || value.startsWith("//")) return "/redaccion";
-  return value;
-}
 
 export async function loginAction(
   _prev: LoginFormState | undefined,
@@ -27,7 +25,7 @@ export async function loginAction(
   const email = formData.get("email")?.toString()?.trim().toLowerCase();
   const password = formData.get("password")?.toString() ?? "";
   const rememberMe = formData.get("rememberMe") === "on";
-  const next = safeNextPath(formData.get("next"));
+  const next = safeInfoSpotNextPath(formData.get("next")?.toString());
 
   if (!email) return { error: "El email es obligatorio." };
   if (!password) return { error: "La contraseña es obligatoria." };
@@ -43,9 +41,22 @@ export async function loginAction(
       where: { email },
       select: { id: true, password: true, isBlocked: true, role: true },
     });
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/not found in enum ['"]Role['"]/i.test(message) || /SUPER_ADMIN/i.test(message)) {
+      return {
+        error:
+          "El cliente de base de datos está desactualizado respecto al rol SUPER_ADMIN. Regenerá Prisma Client y redeployá Info Spot.",
+      };
+    }
+    if (/P1001|P1017|Can't reach|ECONNREFUSED|ENOTFOUND|connection/i.test(message)) {
+      return {
+        error: "No se pudo conectar a la base de datos. Revisá DATABASE_URL.",
+      };
+    }
+    console.error("[infospot/login] prisma.user.findUnique failed:", message);
     return {
-      error: "No se pudo conectar a la base de datos. Revisá DATABASE_URL.",
+      error: "No se pudo verificar el usuario. Revisá logs del servidor.",
     };
   }
 
@@ -56,7 +67,7 @@ export async function loginAction(
   if (!user.password) {
     return {
       error:
-        "Esta cuenta no tiene contraseña configurada. Usá el enlace de invitación o recuperá el acceso.",
+        "Esta cuenta no tiene contraseña. Usá «Continuar con Google», el enlace de invitación o recuperá el acceso.",
     };
   }
   if (!verifyPassword(password, user.password)) {
@@ -85,10 +96,21 @@ export async function loginAction(
     canAccessInfoSpotAdmin(subject);
 
   if (!canEnter) {
-    return {
-      error:
-        "Acceso denegado: tu usuario DNX no tiene rol Info Spot activo. Pedile al Director que te invite o asigne en /admin/usuarios.",
-    };
+    try {
+      await createInfoSpotSession(user.id, { rememberMe });
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+    } catch {
+      return { error: "No se pudo guardar la sesión." };
+    }
+    redirect(
+      "/ingresar/acceso-pendiente?notice=" +
+        encodeURIComponent(
+          "Tu cuenta DNX existe, pero todavía no tenés acceso a Info Spot. Pedile una invitación al Director.",
+        ),
+    );
   }
 
   try {
@@ -101,7 +123,8 @@ export async function loginAction(
     return { error: "No se pudo guardar la sesión." };
   }
 
-  redirect(next);
+  const destination = await loadPostLoginDestination(user.id, user.role, next);
+  redirect(destination.path);
 }
 
 export async function logoutAction(): Promise<void> {
@@ -109,7 +132,7 @@ export async function logoutAction(): Promise<void> {
   redirect("/ingresar");
 }
 
-/** Si ya hay sesión válida con acceso, ir directo a redacción. */
+/** Si ya hay sesión válida con acceso, ir directo al destino. */
 export async function redirectIfAlreadySignedIn(next = "/redaccion") {
   const user = await getAuthUser();
   if (!user) return;
@@ -120,6 +143,7 @@ export async function redirectIfAlreadySignedIn(next = "/redaccion") {
     canAccessInfoSpotRedaccion(subject) ||
     canAccessInfoSpotAdmin(subject)
   ) {
-    redirect(safeNextPath(next));
+    const destination = await loadPostLoginDestination(user.id, user.role, next);
+    redirect(destination.path);
   }
 }

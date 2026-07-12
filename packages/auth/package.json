@@ -8,6 +8,10 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "create-director": "tsx scripts/create-director.ts",
+    "check-types": "tsc --noEmit -p tsconfig.json"
+  },
   "dependencies": {
     "@repo/db": "workspace:*",
     "bcryptjs": "^3.0.3"
@@ -16,6 +20,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.15.3",
+    "tsx": "^4.19.2",
     "typescript": "5.9.2"
   }
 }
