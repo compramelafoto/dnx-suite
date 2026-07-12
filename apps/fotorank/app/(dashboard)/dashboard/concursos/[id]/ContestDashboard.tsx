@@ -153,7 +153,9 @@ export function ContestDashboard({ contest }: ContestDashboardProps) {
           <ContestProgressSummary
             overallProgress={overallProgress}
             modules={modules}
-            categoriesCount={contest.categories.filter((c) => c.status === "ACTIVE" || !c.status).length}
+            categoriesCount={contest.categories.filter(
+              (c: { status?: string | null }) => c.status === "ACTIVE" || !c.status,
+            ).length}
             judgesCount={0}
             hasRules={!!contest.rulesText}
             lastUpdated={contest.updatedAt}

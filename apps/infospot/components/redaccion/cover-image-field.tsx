@@ -12,6 +12,7 @@ export type CoverAssetOption = {
 
 type Props = {
   name?: string;
+  articleId?: string;
   initialCoverImageId?: string | null;
   initialCredit?: string | null;
   assets: CoverAssetOption[];
@@ -20,6 +21,7 @@ type Props = {
 
 export function CoverImageField({
   name = "coverImageId",
+  articleId,
   initialCoverImageId,
   initialCredit,
   assets,
@@ -31,6 +33,7 @@ export function CoverImageField({
   const [alt, setAlt] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   function select(id: string, nextCredit?: string) {
     setSelectedId(id);
@@ -49,6 +52,7 @@ export function CoverImageField({
       const body = new FormData();
       body.set("file", file);
       body.set("purpose", "cover");
+      if (articleId) body.set("articleId", articleId);
       if (credit.trim()) body.set("credit", credit.trim());
       if (alt.trim()) body.set("alt", alt.trim());
       const res = await fetch("/api/redaccion/upload", { method: "POST", body });
@@ -72,18 +76,45 @@ export function CoverImageField({
       <input type="hidden" name={name} value={selectedId} />
       <input type="hidden" name="coverCredit" value={credit} />
       <div>
-        <label className="text-sm font-semibold text-[var(--is-text)]">Portada</label>
-        <p className="mt-1 text-sm text-[var(--is-muted)]">
-          Separada del cuerpo · proporción recomendada 16:10 · JPG/PNG/WebP · máx. 5 MB
+        <label className="text-sm font-semibold text-[var(--is-text)]">Portada (thumbnail)</label>
+        <p className="mt-1 text-sm leading-relaxed text-[var(--is-muted)]">
+          Imagen principal de la nota en listados y cabecera. Separada del cuerpo. 16:10 · JPG/PNG/WebP
+          · máx. 5 MB.
         </p>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          disabled={uploading}
-          className="mt-3 block w-full text-sm"
-          onChange={(e) => void onUpload(e.target.files?.[0] ?? null)}
-        />
-        {uploading ? <p className="mt-2 text-sm text-[var(--is-muted)]">Subiendo…</p> : null}
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            void onUpload(e.dataTransfer.files?.[0] ?? null);
+          }}
+          className={`mt-3 rounded-[var(--is-radius-sm)] border border-dashed px-4 py-5 text-center transition ${
+            dragOver
+              ? "border-[var(--is-accent)] bg-[var(--is-orange-50)]"
+              : "border-[var(--is-border-strong)] bg-[var(--is-bg-secondary)]"
+          }`}
+        >
+          <p className="text-sm text-[var(--is-text-secondary)]">
+            Arrastrá una imagen acá o elegí un archivo
+          </p>
+          <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white hover:bg-[var(--is-accent-hover)]">
+            {uploading ? "Subiendo…" : "Subir portada"}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={uploading}
+              className="sr-only"
+              onChange={(e) => {
+                void onUpload(e.target.files?.[0] ?? null);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
         {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
       </div>
 
@@ -96,7 +127,7 @@ export function CoverImageField({
           value={alt}
           onChange={(e) => setAlt(e.target.value)}
           className="mt-2 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-3 py-3 text-sm"
-          placeholder="Descripción de la portada"
+          placeholder="Descripción breve de la portada"
         />
       </div>
 

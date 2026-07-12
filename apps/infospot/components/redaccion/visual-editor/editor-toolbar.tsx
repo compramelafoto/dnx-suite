@@ -128,17 +128,22 @@ export function EditorToolbar({
       >
         —
       </button>
-      <button type="button" className={btn} onClick={onInsertImage} title="Insertar imagen">
-        Imagen
+      <button
+        type="button"
+        className={`${btn} px-3`}
+        onClick={onInsertImage}
+        title="Subir imagen al cuerpo de la nota"
+      >
+        Subir imagen
       </button>
       {canUseClf && onInsertFromClf ? (
         <button
           type="button"
-          className={`${btn} px-3`}
+          className={`${btn} px-3 font-semibold text-[var(--is-accent)] hover:text-[var(--is-accent-hover)]`}
           onClick={onInsertFromClf}
-          title="Elegir desde ComprameLaFoto"
+          title="Elegir foto desde un álbum de ComprameLaFoto"
         >
-          Desde CLF
+          Desde álbum CLF
         </button>
       ) : null}
       <span className="mx-1 h-6 w-px bg-[var(--is-border)]" aria-hidden />

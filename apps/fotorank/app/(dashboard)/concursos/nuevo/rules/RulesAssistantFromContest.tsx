@@ -87,11 +87,13 @@ export function RulesAssistantFromContest({
       shortDescription: contest.shortDescription,
       fullDescription: contest.fullDescription,
       organization: { name: contest.organization.name },
-      categories: contest.categories.map((c) => ({
-        name: c.name,
-        maxFiles: c.maxFiles,
-        description: c.description,
-      })),
+      categories: contest.categories.map(
+        (c: { name: string; maxFiles: number; description: string | null }) => ({
+          name: c.name,
+          maxFiles: c.maxFiles,
+          description: c.description,
+        }),
+      ),
       startAt: contest.startAt,
       submissionDeadline: contest.submissionDeadline,
       judgingStartAt: contest.judgingStartAt,

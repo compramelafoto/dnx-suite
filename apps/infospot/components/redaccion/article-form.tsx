@@ -369,6 +369,7 @@ export function ArticleForm({
 
       <div className={panelClass}>
         <CoverImageField
+          articleId={initial?.id}
           initialCoverImageId={coverImageId || null}
           initialCredit={coverCredit}
           assets={assets}
@@ -635,9 +636,13 @@ export function ArticleForm({
               linkedAssets={clf.linkedAssets}
             />
           ) : mode === "create" ? (
-            <p className="rounded-[var(--is-radius-md)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-surface)] p-5 text-sm text-[var(--is-muted)]">
-              Guardá el borrador primero para vincular un evento y fotografías de ComprameLaFoto.
-            </p>
+            <div className="rounded-[var(--is-radius-md)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-surface)] p-6">
+              <p className="text-sm font-semibold text-[var(--is-text)]">Fotos y ComprameLaFoto</p>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--is-muted)]">
+                Guardá el borrador para poder: subir portada o imágenes del cuerpo, vincular un evento
+                CLF y elegir fotos de un álbum indicando si van como portada, cuerpo o galería.
+              </p>
+            </div>
           ) : null}
         </div>
 

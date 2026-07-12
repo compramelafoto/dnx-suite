@@ -53,11 +53,12 @@ export async function linkClfEventAction(
     if (!event) return { ok: false, error: "Evento no encontrado" };
   }
 
+  // Al vincular o cambiar evento, limpiar álbum para forzar re-selección coherente.
   await prisma.infoSpotArticle.update({
     where: { id: articleId },
     data: {
       eventId,
-      clfAlbumId: eventId == null ? null : undefined,
+      clfAlbumId: null,
       eventLinkedByUserId: access.user.id,
       eventLinkedAt: new Date(),
     },

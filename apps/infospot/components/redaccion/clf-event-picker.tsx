@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   importClfPhotosAction,
   linkClfAlbumAction,
@@ -63,11 +64,41 @@ type Props = {
   linkedAssets: LinkedAsset[];
 };
 
+type UsageType = "COVER" | "INLINE" | "GALLERY";
+
 const statusLabel = {
-  AVAILABLE: "Álbum disponible para compra",
-  REACTIVATABLE: "Álbum dentro del período de reactivación",
-  UNAVAILABLE: "Álbum no disponible comercialmente",
+  AVAILABLE: "Disponible para compra en CLF",
+  REACTIVATABLE: "Dentro del período de reactivación",
+  UNAVAILABLE: "Sin venta comercial (igual se puede importar)",
 } as const;
+
+const USAGE_OPTIONS: {
+  value: UsageType;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "COVER",
+    label: "Portada",
+    hint: "Imagen principal de la nota (thumbnail / hero). Una sola.",
+  },
+  {
+    value: "INLINE",
+    label: "Cuerpo de la nota",
+    hint: "Fotos que van dentro del texto (con crédito y epígrafe).",
+  },
+  {
+    value: "GALLERY",
+    label: "Galería",
+    hint: "Colección al final o lateral; no se insertan en el párrafo.",
+  },
+];
+
+const USAGE_BADGE: Record<UsageType, string> = {
+  COVER: "Portada",
+  INLINE: "Cuerpo",
+  GALLERY: "Galería",
+};
 
 export function ClfEventPicker({
   articleId,
@@ -77,6 +108,7 @@ export function ClfEventPicker({
   initialAlbumTitle,
   linkedAssets,
 }: Props) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,19 +117,85 @@ export function ClfEventPicker({
   const [eventId, setEventId] = useState<number | null>(initialEventId);
   const [eventTitle, setEventTitle] = useState(initialEventTitle ?? "");
   const [albums, setAlbums] = useState<AlbumHit[]>([]);
+  const [albumsLoading, setAlbumsLoading] = useState(false);
   const [albumId, setAlbumId] = useState<number | null>(initialAlbumId);
   const [albumTitle, setAlbumTitle] = useState(initialAlbumTitle ?? "");
   const [albumStatus, setAlbumStatus] = useState<AlbumHit["availability"]["status"] | null>(null);
   const [photos, setPhotos] = useState<PhotoHit[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
-  const [usage, setUsage] = useState<"COVER" | "INLINE" | "GALLERY">("GALLERY");
+  const [usage, setUsage] = useState<UsageType>("COVER");
   const [captions, setCaptions] = useState<Record<number, string>>({});
   const [photographerFilter, setPhotographerFilter] = useState<number | "ALL">("ALL");
+  const [hydrated, setHydrated] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const flash = useCallback((ok: string | null, err: string | null) => {
     setMessage(ok);
     setError(err);
   }, []);
+
+  const loadAlbums = useCallback(async (evId: number) => {
+    setAlbumsLoading(true);
+    try {
+      const res = await fetch(`/api/redaccion/clf-events/${evId}/albums`);
+      const data = (await res.json()) as { albums?: AlbumHit[]; error?: string };
+      if (!res.ok) {
+        flash(null, data.error || "Error al listar álbumes");
+        setAlbums([]);
+        return;
+      }
+      const list = data.albums ?? [];
+      setAlbums(list);
+      return list;
+    } finally {
+      setAlbumsLoading(false);
+    }
+  }, [flash]);
+
+  const loadPhotos = useCallback(async (albId: number) => {
+    setPhotosLoading(true);
+    try {
+      const res = await fetch(`/api/redaccion/clf-albums/${albId}/photos`);
+      const data = (await res.json()) as { photos?: PhotoHit[]; error?: string };
+      if (!res.ok) {
+        flash(null, data.error || "Error al listar fotos del álbum");
+        setPhotos([]);
+        return;
+      }
+      setPhotos(data.photos ?? []);
+      setSelected([]);
+    } finally {
+      setPhotosLoading(false);
+    }
+  }, [flash]);
+
+  // Rehidratar álbumes y fotos al abrir una nota ya vinculada.
+  useEffect(() => {
+    let cancelled = false;
+    async function hydrate() {
+      if (cancelled) return;
+      if (initialEventId) {
+        const list = await loadAlbums(initialEventId);
+        if (cancelled) return;
+        if (initialAlbumId && list) {
+          const hit = list.find((a) => a.id === initialAlbumId);
+          if (hit) {
+            setAlbumTitle(hit.title);
+            setAlbumStatus(hit.availability.status);
+          }
+        }
+      }
+      if (initialAlbumId) {
+        await loadPhotos(initialAlbumId);
+      }
+      if (!cancelled) setHydrated(true);
+    }
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialEventId, initialAlbumId, loadAlbums, loadPhotos]);
 
   async function searchEvents() {
     flash(null, null);
@@ -122,16 +220,12 @@ export function ClfEventPicker({
       setEventTitle(ev.title);
       setAlbumId(null);
       setAlbumTitle("");
+      setAlbumStatus(null);
       setPhotos([]);
       setSelected([]);
-      const res = await fetch(`/api/redaccion/clf-events/${ev.id}/albums`);
-      const data = (await res.json()) as { albums?: AlbumHit[]; error?: string };
-      if (!res.ok) {
-        flash(null, data.error || "Error al listar álbumes");
-        return;
-      }
-      setAlbums(data.albums ?? []);
+      await loadAlbums(ev.id);
       flash(result.message, null);
+      router.refresh();
     });
   }
 
@@ -147,8 +241,10 @@ export function ClfEventPicker({
       setAlbums([]);
       setAlbumId(null);
       setAlbumTitle("");
+      setAlbumStatus(null);
       setPhotos([]);
       flash(result.message, null);
+      router.refresh();
     });
   }
 
@@ -162,15 +258,9 @@ export function ClfEventPicker({
       setAlbumId(album.id);
       setAlbumTitle(album.title);
       setAlbumStatus(album.availability.status);
-      const res = await fetch(`/api/redaccion/clf-albums/${album.id}/photos`);
-      const data = (await res.json()) as { photos?: PhotoHit[]; error?: string };
-      if (!res.ok) {
-        flash(null, data.error || "Error al listar fotos");
-        return;
-      }
-      setPhotos(data.photos ?? []);
-      setSelected([]);
+      await loadPhotos(album.id);
       flash(result.message, null);
+      router.refresh();
     });
   }
 
@@ -186,6 +276,7 @@ export function ClfEventPicker({
       setAlbumStatus(null);
       setPhotos([]);
       flash(result.message, null);
+      router.refresh();
     });
   }
 
@@ -194,7 +285,11 @@ export function ClfEventPicker({
   }
 
   async function importSelected() {
-    if (!albumId) return;
+    if (!albumId || selected.length === 0) return;
+    if (usage === "COVER" && selected.length > 1) {
+      flash(null, "Para portada elegí una sola foto.");
+      return;
+    }
     startTransition(async () => {
       const result = await importClfPhotosAction({
         articleId,
@@ -208,11 +303,41 @@ export function ClfEventPicker({
         return;
       }
       flash(
-        `${result.message}. Esta fotografía quedará preservada como copia editorial permanente.`,
+        `${result.message}. Copia editorial permanente guardada en Info Spot.`,
         null,
       );
       setSelected([]);
+      await loadPhotos(albumId);
+      router.refresh();
     });
+  }
+
+  async function uploadLocal(file: File | null, purpose: "cover" | "inline") {
+    if (!file) return;
+    setUploading(true);
+    flash(null, null);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      body.set("purpose", purpose);
+      body.set("articleId", articleId);
+      body.set("alt", purpose === "cover" ? "Portada" : "Imagen editorial");
+      body.set("credit", "Redacción Info Spot");
+      const res = await fetch("/api/redaccion/upload", { method: "POST", body });
+      const data = (await res.json()) as { error?: string; asset?: { id: string } };
+      if (!res.ok) throw new Error(data.error || "No se pudo subir la imagen");
+      flash(
+        purpose === "cover"
+          ? "Portada subida. Revisá el crédito en el panel lateral."
+          : "Imagen subida al cuerpo. También podés insertarla desde la barra del editor.",
+        null,
+      );
+      router.refresh();
+    } catch (e) {
+      flash(null, e instanceof Error ? e.message : "Error de subida");
+    } finally {
+      setUploading(false);
+    }
   }
 
   const photographers = Array.from(
@@ -223,36 +348,182 @@ export function ClfEventPicker({
       ? photos
       : photos.filter((p) => p.photographerId === photographerFilter);
 
+  const coverLinked = linkedAssets.filter((a) => a.usageType === "COVER");
+  const bodyLinked = linkedAssets.filter((a) => a.usageType === "INLINE");
+  const galleryLinked = linkedAssets.filter((a) => a.usageType === "GALLERY");
+
   return (
-    <section className="space-y-6 rounded-[var(--is-radius)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5">
+    <section className="space-y-8 rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5 sm:p-6">
       <div>
-        <h2 className="text-lg font-semibold">Evento y fotografías de ComprameLaFoto</h2>
-        <p className="mt-1 text-sm text-[var(--is-muted)]">
-          Buscá un evento, elegí un álbum e importá fotos como copia editorial permanente (no depende
-          de la vigencia comercial del álbum).
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--is-accent)]">
+          Medios de la nota
+        </p>
+        <h2 className="mt-2 text-xl font-semibold tracking-tight text-[var(--is-text)]">
+          Fotos: portada, cuerpo y ComprameLaFoto
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--is-muted)]">
+          Definí para qué sirve cada foto. Podés <strong className="font-semibold text-[var(--is-text-secondary)]">subir</strong>{" "}
+          desde tu equipo o <strong className="font-semibold text-[var(--is-text-secondary)]">importar</strong> desde un
+          álbum de ComprameLaFoto (queda copia editorial permanente).
         </p>
       </div>
 
-      {message ? <p className="text-sm text-teal-800">{message}</p> : null}
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      {message ? (
+        <p className="rounded-[var(--is-radius-sm)] border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900" role="status">
+          {message}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="rounded-[var(--is-radius-sm)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+          {error}
+        </p>
+      ) : null}
 
-      <div className="space-y-3">
+      {/* Roles + upload */}
+      <div className="space-y-4">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--is-muted)]">
-          3. Evento CLF
+          1. ¿Dónde va cada foto?
+        </h3>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {USAGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setUsage(opt.value)}
+              className={`rounded-[var(--is-radius-sm)] border px-4 py-4 text-left transition ${
+                usage === opt.value
+                  ? "border-[var(--is-accent)] bg-[var(--is-orange-50)] ring-2 ring-[var(--is-accent)]/20"
+                  : "border-[var(--is-border)] bg-white hover:border-[var(--is-border-strong)]"
+              }`}
+            >
+              <p className="text-sm font-semibold text-[var(--is-text)]">{opt.label}</p>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--is-muted)]">{opt.hint}</p>
+            </button>
+          ))}
+        </div>
+
+        <div className="rounded-[var(--is-radius-sm)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-bg-secondary)] p-4">
+          <p className="text-sm font-semibold text-[var(--is-text)]">Subir desde tu equipo</p>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--is-muted)]">
+            JPG, PNG o WebP · máx. 5 MB. Para el cuerpo también podés usar el botón{" "}
+            <span className="font-medium text-[var(--is-text-secondary)]">Imagen</span> o{" "}
+            <span className="font-medium text-[var(--is-text-secondary)]">Desde CLF</span> en la barra del editor.
+          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white px-4 text-sm font-medium text-[var(--is-text)] hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]">
+              {uploading ? "Subiendo…" : "Subir portada"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                disabled={uploading || pending}
+                onChange={(e) => {
+                  void uploadLocal(e.target.files?.[0] ?? null, "cover");
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white px-4 text-sm font-medium text-[var(--is-text)] hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]">
+              {uploading ? "Subiendo…" : "Subir al cuerpo"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                disabled={uploading || pending}
+                onChange={(e) => {
+                  void uploadLocal(e.target.files?.[0] ?? null, "inline");
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Ya vinculadas agrupadas */}
+      {linkedAssets.length > 0 ? (
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--is-muted)]">
+            Ya en esta nota
+          </h3>
+          {(
+            [
+              ["Portada", coverLinked],
+              ["Cuerpo", bodyLinked],
+              ["Galería", galleryLinked],
+            ] as const
+          ).map(([label, items]) =>
+            items.length > 0 ? (
+              <div key={label} className="space-y-2">
+                <p className="text-sm font-medium text-[var(--is-text)]">{label}</p>
+                <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {items.map((asset) => (
+                    <li
+                      key={asset.linkId}
+                      className="overflow-hidden rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={asset.thumbnailUrl || asset.url}
+                        alt=""
+                        className="aspect-video w-full object-cover"
+                        draggable={false}
+                      />
+                      <div className="space-y-2 p-3 text-xs text-[var(--is-muted)]">
+                        <p className="font-semibold text-[var(--is-text)]">
+                          {USAGE_BADGE[asset.usageType]}
+                        </p>
+                        <p className="leading-relaxed">{asset.credit || "Sin crédito"}</p>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          className="min-h-11 text-red-700 hover:underline disabled:opacity-50"
+                          onClick={() =>
+                            startTransition(async () => {
+                              const result = await removeArticleAssetLinkAction(
+                                articleId,
+                                asset.linkId,
+                              );
+                              flash(
+                                result.ok ? result.message : null,
+                                result.ok ? null : result.error,
+                              );
+                              if (result.ok) router.refresh();
+                            })
+                          }
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null,
+          )}
+        </div>
+      ) : null}
+
+      {/* Evento CLF */}
+      <div className="space-y-3 border-t border-[var(--is-border)] pt-6">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--is-muted)]">
+          2. Evento de ComprameLaFoto
         </h3>
         {eventId ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-3 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white px-4 py-3">
             <div>
-              <p className="font-medium">{eventTitle || `Evento #${eventId}`}</p>
+              <p className="font-medium text-[var(--is-text)]">
+                {eventTitle || `Evento #${eventId}`}
+              </p>
               <p className="text-xs text-[var(--is-muted)]">ID {eventId}</p>
             </div>
             <button
               type="button"
               disabled={pending}
               onClick={() => void unlinkEvent()}
-              className="min-h-11 text-sm text-red-700"
+              className="min-h-11 text-sm text-red-700 hover:underline disabled:opacity-50"
             >
-              Desvincular evento
+              Desvincular
             </button>
           </div>
         ) : (
@@ -260,8 +531,14 @@ export function ClfEventPicker({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (query.trim().length >= 2) void searchEvents();
+                }
+              }}
               placeholder="Buscar por nombre, organizador, ciudad…"
-              className="min-h-11 flex-1 rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-3"
+              className="min-h-11 flex-1 rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-3 text-sm"
             />
             <button
               type="button"
@@ -275,22 +552,22 @@ export function ClfEventPicker({
         )}
 
         {events.length > 0 && !eventId ? (
-          <ul className="divide-y divide-[var(--is-border)] rounded-[var(--is-radius-sm)] border border-[var(--is-border)]">
+          <ul className="divide-y divide-[var(--is-border)] overflow-hidden rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white">
             {events.map((ev) => (
-              <li key={ev.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-3">
-                <div>
-                  <p className="font-medium">{ev.title}</p>
+              <li key={ev.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-[var(--is-text)]">{ev.title}</p>
                   <p className="text-xs text-[var(--is-muted)]">
                     {formatDateEs(ev.startsAt)} · {ev.city}
                     {ev.locationName ? ` · ${ev.locationName}` : ""} · {ev.organizerName} ·{" "}
-                    {ev.albumCount} álbum(es) · {ev.status}
+                    {ev.albumCount} álbum(es)
                   </p>
                 </div>
                 <button
                   type="button"
                   disabled={pending}
                   onClick={() => void selectEvent(ev)}
-                  className="min-h-11 text-sm font-medium text-[var(--is-accent)]"
+                  className="min-h-11 shrink-0 text-sm font-semibold text-[var(--is-accent)] hover:underline"
                 >
                   Seleccionar
                 </button>
@@ -300,108 +577,124 @@ export function ClfEventPicker({
         ) : null}
       </div>
 
+      {/* Álbum */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--is-muted)]">
-          4. Álbum comercial
+          3. Álbum comercial
         </h3>
         {albumId ? (
-          <div className="rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-3 py-3">
+          <div className="rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="font-medium">{albumTitle || `Álbum #${albumId}`}</p>
+                <p className="font-medium text-[var(--is-text)]">
+                  {albumTitle || `Álbum #${albumId}`}
+                </p>
                 {albumStatus ? (
                   <p className="mt-1 text-sm text-[var(--is-text-secondary)]">
                     {statusLabel[albumStatus]}
                   </p>
-                ) : null}
+                ) : (
+                  <p className="mt-1 text-xs text-[var(--is-muted)]">ID {albumId}</p>
+                )}
               </div>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => void unlinkAlbum()}
-                className="min-h-11 text-sm text-red-700"
-              >
-                Desvincular álbum
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={pending || photosLoading}
+                  onClick={() => void loadPhotos(albumId)}
+                  className="min-h-11 rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-3 text-sm font-medium text-[var(--is-text)] hover:border-[var(--is-accent)] hover:text-[var(--is-accent)] disabled:opacity-50"
+                >
+                  {photosLoading ? "Cargando fotos…" : "Recargar fotos"}
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => void unlinkAlbum()}
+                  className="min-h-11 text-sm text-red-700 hover:underline disabled:opacity-50"
+                >
+                  Desvincular
+                </button>
+              </div>
             </div>
           </div>
         ) : null}
 
-        {albums.length > 0 ? (
+        {albumsLoading ? (
+          <p className="text-sm text-[var(--is-muted)]">Cargando álbumes del evento…</p>
+        ) : albums.length > 0 ? (
           <ul className="space-y-2">
-            {albums.map((album) => (
-              <li
-                key={album.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-3 py-3"
-              >
-                <div>
-                  <p className="font-medium">{album.title}</p>
-                  <p className="text-xs text-[var(--is-muted)]">
-                    {album.photographerName} · {album.photoCount} fotos ·{" "}
-                    {statusLabel[album.availability.status]}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => void selectAlbum(album)}
-                  className="min-h-11 text-sm font-medium text-[var(--is-accent)]"
+            {albums.map((album) => {
+              const isActive = album.id === albumId;
+              return (
+                <li
+                  key={album.id}
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-[var(--is-radius-sm)] border px-4 py-3 ${
+                    isActive
+                      ? "border-[var(--is-accent)] bg-[var(--is-orange-50)]"
+                      : "border-[var(--is-border)] bg-white"
+                  }`}
                 >
-                  Usar álbum
-                </button>
-              </li>
-            ))}
+                  <div>
+                    <p className="font-medium text-[var(--is-text)]">{album.title}</p>
+                    <p className="text-xs text-[var(--is-muted)]">
+                      {album.photographerName} · {album.photoCount} fotos ·{" "}
+                      {statusLabel[album.availability.status]}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={pending || isActive}
+                    onClick={() => void selectAlbum(album)}
+                    className="min-h-11 text-sm font-semibold text-[var(--is-accent)] hover:underline disabled:opacity-40"
+                  >
+                    {isActive ? "En uso" : "Usar álbum"}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
-        ) : eventId ? (
-          <p className="text-sm text-[var(--is-muted)]">No hay álbumes para este evento.</p>
+        ) : eventId && hydrated && !albumId ? (
+          <p className="text-sm text-[var(--is-muted)]">
+            No hay álbumes activos para este evento en ComprameLaFoto.
+          </p>
         ) : null}
       </div>
 
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--is-muted)]">
-          5. Fotografías editoriales
-        </h3>
-
-        {linkedAssets.length > 0 ? (
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Ya vinculadas a esta noticia</p>
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {linkedAssets.map((asset) => (
-                <li
-                  key={asset.linkId}
-                  className="overflow-hidden rounded-[var(--is-radius-sm)] border border-[var(--is-border)]"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={asset.thumbnailUrl || asset.url}
-                    alt=""
-                    className="aspect-video w-full object-cover"
-                    draggable={false}
-                  />
-                  <div className="space-y-1 p-3 text-xs text-[var(--is-muted)]">
-                    <p className="font-semibold text-[var(--is-text)]">{asset.usageType}</p>
-                    <p>{asset.credit}</p>
-                    <button
-                      type="button"
-                      disabled={pending}
-                      className="min-h-11 text-red-700"
-                      onClick={() =>
-                        startTransition(async () => {
-                          const result = await removeArticleAssetLinkAction(articleId, asset.linkId);
-                          flash(result.ok ? result.message : null, result.ok ? null : result.error);
-                        })
-                      }
-                    >
-                      Quitar de la noticia
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+      {/* Fotos del álbum */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--is-muted)]">
+              4. Elegir fotos del álbum
+            </h3>
+            <p className="mt-1 text-xs text-[var(--is-muted)]">
+              Destino actual:{" "}
+              <span className="font-semibold text-[var(--is-text-secondary)]">
+                {USAGE_OPTIONS.find((o) => o.value === usage)?.label}
+              </span>
+              . Seleccioná y luego importá.
+            </p>
           </div>
-        ) : null}
+          {photos.length > 0 ? (
+            <button
+              type="button"
+              disabled={pending || selected.length === 0}
+              onClick={() => void importSelected()}
+              className="min-h-11 rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Importar como {USAGE_OPTIONS.find((o) => o.value === usage)?.label.toLowerCase()} (
+              {selected.length})
+            </button>
+          ) : null}
+        </div>
 
-        {photos.length > 0 ? (
+        {!albumId ? (
+          <p className="rounded-[var(--is-radius-sm)] border border-dashed border-[var(--is-border)] px-4 py-6 text-center text-sm text-[var(--is-muted)]">
+            Vinculá un álbum arriba para ver las fotos disponibles.
+          </p>
+        ) : photosLoading || (!hydrated && initialAlbumId) ? (
+          <p className="text-sm text-[var(--is-muted)]">Cargando fotografías del álbum…</p>
+        ) : photos.length > 0 ? (
           <>
             <div className="flex flex-wrap gap-3">
               <select
@@ -420,23 +713,6 @@ export function ClfEventPicker({
                   </option>
                 ))}
               </select>
-              <select
-                value={usage}
-                onChange={(e) => setUsage(e.target.value as typeof usage)}
-                className="min-h-11 rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-3 text-sm"
-              >
-                <option value="COVER">Usar como portada</option>
-                <option value="INLINE">Imágenes internas (INLINE)</option>
-                <option value="GALLERY">Galería</option>
-              </select>
-              <button
-                type="button"
-                disabled={pending || selected.length === 0}
-                onClick={() => void importSelected()}
-                className="min-h-11 rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                Importar seleccionadas ({selected.length})
-              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
@@ -447,10 +723,10 @@ export function ClfEventPicker({
                     key={photo.id}
                     type="button"
                     onClick={() => togglePhoto(photo.id)}
-                    className={`overflow-hidden rounded-[var(--is-radius-sm)] border text-left ${
+                    className={`overflow-hidden rounded-[var(--is-radius-sm)] border bg-white text-left transition ${
                       isOn
                         ? "border-[var(--is-accent)] ring-2 ring-[var(--is-accent)]/30"
-                        : "border-[var(--is-border)]"
+                        : "border-[var(--is-border)] hover:border-[var(--is-border-strong)]"
                     }`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -462,11 +738,11 @@ export function ClfEventPicker({
                     />
                     <div className="space-y-1 p-2 text-[10px] leading-snug text-[var(--is-muted)]">
                       <p className="font-semibold text-[var(--is-text)]">{photo.photographerName}</p>
-                      <p>{photo.albumTitle}</p>
-                      {photo.eventTitle ? <p>{photo.eventTitle}</p> : null}
                       {photo.hasEditorialCopy ? (
-                        <p className="text-teal-700">Ya tiene copia editorial</p>
-                      ) : null}
+                        <p className="text-teal-700">Ya importada</p>
+                      ) : (
+                        <p>Tocá para seleccionar</p>
+                      )}
                     </div>
                     {isOn ? (
                       <div className="border-t border-[var(--is-border)] p-2">
@@ -476,7 +752,7 @@ export function ClfEventPicker({
                           onChange={(e) =>
                             setCaptions((prev) => ({ ...prev, [photo.id]: e.target.value }))
                           }
-                          placeholder="Epígrafe"
+                          placeholder="Epígrafe (opcional)"
                           className="w-full rounded border border-[var(--is-border)] px-2 py-1 text-xs"
                         />
                       </div>
@@ -486,9 +762,12 @@ export function ClfEventPicker({
               })}
             </div>
           </>
-        ) : albumId ? (
-          <p className="text-sm text-[var(--is-muted)]">Este álbum no tiene fotos importables.</p>
-        ) : null}
+        ) : (
+          <p className="rounded-[var(--is-radius-sm)] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            Este álbum no devolvió fotos importables (pueden estar marcadas como eliminadas o sin
+            archivo en storage). Probá <strong>Recargar fotos</strong> o elegí otro álbum.
+          </p>
+        )}
       </div>
     </section>
   );

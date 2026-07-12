@@ -113,6 +113,27 @@ export async function POST(request: Request) {
       });
     }
 
+    if (purpose === "cover" && articleId) {
+      await prisma.$transaction([
+        prisma.infoSpotArticleAsset.deleteMany({
+          where: { articleId, usageType: "COVER" },
+        }),
+        prisma.infoSpotArticleAsset.create({
+          data: {
+            articleId,
+            assetId: asset.id,
+            usageType: "COVER",
+            sortOrder: 0,
+            captionOverride: caption,
+          },
+        }),
+        prisma.infoSpotArticle.update({
+          where: { id: articleId },
+          data: { coverImageId: asset.id },
+        }),
+      ]);
+    }
+
     return NextResponse.json(
       {
         asset: {
