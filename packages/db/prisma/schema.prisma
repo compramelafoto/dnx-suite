@@ -165,6 +165,8 @@ model User {
   termsAcceptances                     TermsAcceptance[]            @relation("UserTermsAcceptance")
   preferredLab                         Lab?                         @relation("PhotographerPreferredLab", fields: [preferredLabId], references: [id])
   loginDevices                         UserLoginDevice[]
+  /// Sesiones DNX (`dnx_session`) — identidad compartida del monorepo.
+  sessions                             UserSession[]
   simulatorCaptures                    SimulatorCapture[]
   userUpsellConfigs                    UserUpsellConfig[]
   eventFoldersCreated                  EventFolder[]                @relation("EventFolderCreator")
@@ -4257,6 +4259,19 @@ model PasswordResetToken {
   usedAt    DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Sesión opaca DNX (`dnx_session`). Tabla ya existente en DB; modelo requerido por `@repo/auth`.
+model UserSession {
+  id        String   @id @default(cuid())
+  userId    Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([expiresAt])
