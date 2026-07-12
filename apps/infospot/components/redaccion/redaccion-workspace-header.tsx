@@ -36,7 +36,14 @@ export function RedaccionWorkspaceHeader({
             {greeting}, {firstName}
           </h1>
           <p className="mt-3 max-w-xl text-base leading-relaxed text-[var(--is-text-secondary)]">
-            Este es el estado actual de la redacción de Info Spot.
+            Este es el estado actual de la redacción de Info Spot.{" "}
+            <Link
+              href="/redaccion/eventos"
+              className="font-medium text-[var(--is-accent)] hover:underline"
+            >
+              Gestioná también la agenda de eventos
+            </Link>
+            .
           </p>
         </div>
 

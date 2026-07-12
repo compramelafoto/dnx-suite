@@ -1,6 +1,6 @@
-import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
+import { EDITORIAL_STATUS_LABELS, type EditorialStatus } from "@/lib/editorial";
 
-const styles: Record<ArticleStatus, string> = {
+const styles: Record<EditorialStatus, string> = {
   DRAFT: "bg-slate-100 text-slate-800",
   IN_REVIEW: "bg-[var(--is-orange-50)] text-[var(--is-orange-800)]",
   READY_TO_PUBLISH: "bg-sky-100 text-sky-900",
@@ -9,18 +9,23 @@ const styles: Record<ArticleStatus, string> = {
   ARCHIVED: "bg-stone-200 text-stone-700",
 };
 
+type Props = {
+  status: string;
+  pendingReturn?: boolean;
+  /** Labels de producto (artículo femenino / evento neutro). */
+  labels?: Record<EditorialStatus, string>;
+  pendingReturnLabel?: string;
+};
+
 export function StatusBadge({
   status,
   pendingReturn,
-}: {
-  status: string;
-  pendingReturn?: boolean;
-}) {
-  const key = (STATUS_LABELS[status as ArticleStatus] ? status : "DRAFT") as ArticleStatus;
-  const label = pendingReturn ? "Devuelta" : STATUS_LABELS[key];
-  const className = pendingReturn
-    ? "bg-amber-100 text-amber-950"
-    : styles[key];
+  labels = EDITORIAL_STATUS_LABELS,
+  pendingReturnLabel = "Devuelto",
+}: Props) {
+  const key = (labels[status as EditorialStatus] ? status : "DRAFT") as EditorialStatus;
+  const label = pendingReturn ? pendingReturnLabel : labels[key];
+  const className = pendingReturn ? "bg-amber-100 text-amber-950" : styles[key];
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}

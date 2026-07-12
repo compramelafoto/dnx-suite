@@ -9,6 +9,7 @@ import { formatDateTimeEs } from "@/lib/dates";
 import {
   expectedActionHint,
   hasPendingReturn,
+  STATUS_LABELS,
   type ArticleStatus,
 } from "@/lib/article-status";
 import { summarizeChecklist } from "@/lib/redaccion-queues";
@@ -55,6 +56,8 @@ export function ArticleListItem({ article, canPublish, isDirector }: Props) {
                 <StatusBadge
                   status={article.status as ArticleStatus}
                   pendingReturn={pendingReturn}
+                  labels={STATUS_LABELS}
+                  pendingReturnLabel="Devuelta"
                 />
                 {article.category?.name ? (
                   <span className="text-xs text-[var(--is-muted)]">{article.category.name}</span>

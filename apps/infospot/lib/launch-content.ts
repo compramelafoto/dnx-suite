@@ -76,7 +76,20 @@ export function buildEventPublishChecklist(input: {
   province?: string | null;
   slug?: string | null;
   contentTag?: InfoSpotContentTag | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationConfirmedAt?: Date | string | null;
+  geocodingStatus?: string | null;
 }): PublishChecklistItem[] {
+  const hasGeo =
+    input.latitude != null &&
+    input.longitude != null &&
+    Number.isFinite(input.latitude) &&
+    Number.isFinite(input.longitude) &&
+    !(input.latitude === 0 && input.longitude === 0) &&
+    (input.latitude < -90 || input.latitude > 90 ? false : true) &&
+    (input.longitude < -180 || input.longitude > 180 ? false : true);
+  const geoConfirmed = Boolean(input.locationConfirmedAt) && hasGeo;
   return [
     { id: "title", label: "Título", ok: (input.title || "").trim().length >= 3, required: true },
     { id: "summary", label: "Resumen", ok: (input.summary || "").trim().length >= 10, required: false },
@@ -89,6 +102,12 @@ export function buildEventPublishChecklist(input: {
       id: "location",
       label: "Ubicación (ciudad/provincia)",
       ok: Boolean(input.city?.trim() && input.province?.trim()),
+      required: true,
+    },
+    {
+      id: "georef",
+      label: "Georreferenciación confirmada",
+      ok: geoConfirmed,
       required: true,
     },
     { id: "slug", label: "Slug", ok: Boolean(input.slug?.trim()), required: true },

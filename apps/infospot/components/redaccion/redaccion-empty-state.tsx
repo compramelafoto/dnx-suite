@@ -33,6 +33,10 @@ const EMPTY_COPY: Record<
     title: "Todavía no hay notas publicadas",
     description: "Las notas con estado publicada se listan en esta sección.",
   },
+  despublicadas: {
+    title: "No hay notas despublicadas",
+    description: "Las notas que saques del sitio aparecen acá hasta republicarlas o archivarlas.",
+  },
   archivadas: {
     title: "No hay notas archivadas",
     description: "Las notas que archives dejan el flujo activo y aparecen acá.",

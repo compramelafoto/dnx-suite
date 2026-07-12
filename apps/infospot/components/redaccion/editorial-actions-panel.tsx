@@ -11,6 +11,14 @@ import {
   unpublishArticleAction,
 } from "@/app/actions/editorial-workflow";
 import {
+  approveEventAction,
+  archiveEventEditorialAction,
+  publishEventEditorialAction,
+  returnEventWithObservationAction,
+  submitEventForReviewAction,
+  unpublishEventAction,
+} from "@/app/actions/event-editorial-workflow";
+import {
   availableEditorialActions,
   expectedActionHint,
   hasPendingReturn,
@@ -18,6 +26,13 @@ import {
   type ArticleStatus,
   type EditorialAction,
 } from "@/lib/article-status";
+import {
+  availableEventEditorialActions,
+  expectedEventActionHint,
+  hasPendingEventReturn,
+  EVENT_STATUS_LABELS,
+  type EventStatus,
+} from "@/lib/editorial/event-adapter";
 import type { InfoSpotPermissionSubject } from "@repo/db";
 
 type Observation = {
@@ -26,9 +41,10 @@ type Observation = {
   authorName: string;
 };
 
-type Props = {
-  articleId: string;
-  status: ArticleStatus;
+type WorkflowResult = { ok: true; message: string } | { ok: false; error: string };
+
+type SharedProps = {
+  status: ArticleStatus | EventStatus;
   subject: InfoSpotPermissionSubject;
   returnedAt?: Date | string | null;
   submittedForReviewAt?: Date | string | null;
@@ -45,12 +61,10 @@ const secondaryBtn =
 
 function primaryActionFor(
   actions: EditorialAction[],
-  status: ArticleStatus,
+  status: string,
   isDirector: boolean,
-  _canPublish: boolean,
 ): EditorialAction | null {
   if (status === "DRAFT") {
-    // Un solo CTA: Publicar (quien no puede publicar → queda pendiente de aprobación).
     if (actions.includes("PUBLISH")) return "PUBLISH";
     if (actions.includes("SUBMIT_REVIEW")) return "SUBMIT_REVIEW";
   }
@@ -65,17 +79,33 @@ function primaryActionFor(
   return null;
 }
 
-export function EditorialActionsPanel({
-  articleId,
+function EditorialActionsPanelInner({
   status,
-  subject,
-  returnedAt,
-  submittedForReviewAt,
+  actions,
+  statusLabels,
+  hint,
+  contentNoun,
+  pendingReturn,
+  pendingReturnLabel,
   latestReturn,
   checklistMissing = [],
   canPublish,
   isDirector,
-}: Props) {
+  onRun,
+}: {
+  status: string;
+  actions: EditorialAction[];
+  statusLabels: Record<string, string>;
+  hint: string;
+  contentNoun: string;
+  pendingReturn: boolean;
+  pendingReturnLabel: string;
+  latestReturn?: Observation | null;
+  checklistMissing?: string[];
+  canPublish: boolean;
+  isDirector: boolean;
+  onRun: (action: EditorialAction, opts?: { observation?: string }) => Promise<WorkflowResult>;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -83,19 +113,12 @@ export function EditorialActionsPanel({
   const [returnOpen, setReturnOpen] = useState(false);
   const [observation, setObservation] = useState("");
 
-  const pendingReturn = hasPendingReturn({ status, returnedAt, submittedForReviewAt });
-  const actions = availableEditorialActions(subject, status, {
-    returnedAt,
-    submittedForReviewAt,
-  });
-  const primary = primaryActionFor(actions, status, isDirector, canPublish);
-  // Evitar botones redundantes: un solo camino principal + archivo/devolver.
+  const primary = primaryActionFor(actions, status, isDirector);
   const secondary = actions.filter((a) => {
     if (a === primary) return false;
     if (primary === "PUBLISH" && (a === "SUBMIT_REVIEW" || a === "APPROVE")) return false;
     if (primary === "SUBMIT_REVIEW" && (a === "PUBLISH" || a === "APPROVE")) return false;
     if (primary === "APPROVE" && a === "SUBMIT_REVIEW") return false;
-    // En borrador no mostrar "Enviar a revisión" aparte de Publicar.
     if (status === "DRAFT" && a === "SUBMIT_REVIEW") return false;
     return true;
   });
@@ -105,26 +128,7 @@ export function EditorialActionsPanel({
     setError(null);
     setMessage(null);
     startTransition(async () => {
-      let result;
-      switch (action) {
-        case "SUBMIT_REVIEW":
-          result = await submitArticleForReviewAction(articleId);
-          break;
-        case "APPROVE":
-          result = await approveArticleAction(articleId);
-          break;
-        case "PUBLISH":
-          result = await publishArticleAction(articleId);
-          break;
-        case "UNPUBLISH":
-          result = await unpublishArticleAction(articleId);
-          break;
-        case "ARCHIVE":
-          result = await archiveArticleAction(articleId);
-          break;
-        default:
-          return;
-      }
+      const result = await onRun(action);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -138,7 +142,7 @@ export function EditorialActionsPanel({
     setError(null);
     setMessage(null);
     startTransition(async () => {
-      const result = await returnArticleWithObservationAction(articleId, observation);
+      const result = await onRun("RETURN", { observation });
       if (!result.ok) {
         setError(result.error);
         return;
@@ -166,12 +170,10 @@ export function EditorialActionsPanel({
           Flujo editorial
         </p>
         <p className="mt-2 text-sm font-semibold text-[var(--is-text)]">
-          {STATUS_LABELS[status]}
-          {pendingReturn ? " · Devuelta" : ""}
+          {statusLabels[status] ?? status}
+          {pendingReturn ? ` · ${pendingReturnLabel}` : ""}
         </p>
-        <p className="mt-1 text-sm text-[var(--is-muted)]">
-          {expectedActionHint(status, { pendingReturn, isDirector, canPublish })}
-        </p>
+        <p className="mt-1 text-sm text-[var(--is-muted)]">{hint}</p>
       </div>
 
       {latestReturn && pendingReturn ? (
@@ -185,7 +187,8 @@ export function EditorialActionsPanel({
         </div>
       ) : null}
 
-      {checklistMissing.length > 0 && (status === "IN_REVIEW" || status === "READY_TO_PUBLISH") ? (
+      {checklistMissing.length > 0 &&
+      (status === "IN_REVIEW" || status === "READY_TO_PUBLISH") ? (
         <div className="rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg-secondary)] p-3 text-xs text-[var(--is-text-secondary)]">
           Pendientes del checklist: {checklistMissing.join(" · ")}
         </div>
@@ -193,8 +196,8 @@ export function EditorialActionsPanel({
 
       {!canPublish ? (
         <p className="text-xs text-[var(--is-muted)]">
-          Tu rol no publica directo: al pulsar Publicar la nota queda pendiente de aprobación del
-          Director.
+          Tu rol no publica directo: al pulsar Publicar el {contentNoun} queda pendiente de
+          aprobación del Director.
         </p>
       ) : null}
 
@@ -208,9 +211,9 @@ export function EditorialActionsPanel({
               run(
                 primary,
                 primary === "PUBLISH"
-                  ? "¿Publicar esta nota en el sitio?"
+                  ? `¿Publicar este ${contentNoun} en el sitio?`
                   : primary === "ARCHIVE"
-                    ? "¿Archivar esta nota?"
+                    ? `¿Archivar este ${contentNoun}?`
                     : undefined,
               )
             }
@@ -231,7 +234,7 @@ export function EditorialActionsPanel({
                 value={observation}
                 onChange={(e) => setObservation(e.target.value)}
                 className="w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-3 py-2 text-sm"
-                placeholder="Ej: Confirmar el nombre completo del organizador y revisar el crédito de portada."
+                placeholder="Ej: Confirmar el nombre completo del organizador y revisar la portada."
               />
               <div className="flex gap-2">
                 <button type="button" className={secondaryBtn} disabled={pending} onClick={submitReturn}>
@@ -271,11 +274,11 @@ export function EditorialActionsPanel({
                 run(
                   action,
                   action === "PUBLISH"
-                    ? "¿Publicar esta nota en el sitio?"
+                    ? `¿Publicar este ${contentNoun} en el sitio?`
                     : action === "UNPUBLISH"
-                      ? "¿Despublicar esta nota?"
+                      ? `¿Despublicar este ${contentNoun}?`
                       : action === "ARCHIVE"
-                        ? "¿Archivar esta nota?"
+                        ? `¿Archivar este ${contentNoun}?`
                         : undefined,
                 )
               }
@@ -288,5 +291,109 @@ export function EditorialActionsPanel({
       {message ? <p className="text-sm text-teal-800">{message}</p> : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
     </div>
+  );
+}
+
+export function EditorialActionsPanel({
+  articleId,
+  status,
+  subject,
+  returnedAt,
+  submittedForReviewAt,
+  latestReturn,
+  checklistMissing = [],
+  canPublish,
+  isDirector,
+}: SharedProps & { articleId: string }) {
+  const pendingReturn = hasPendingReturn({ status, returnedAt, submittedForReviewAt });
+  const actions = availableEditorialActions(subject, status, {
+    returnedAt,
+    submittedForReviewAt,
+  });
+
+  return (
+    <EditorialActionsPanelInner
+      status={status}
+      actions={actions}
+      statusLabels={STATUS_LABELS}
+      hint={expectedActionHint(status, { pendingReturn, isDirector, canPublish })}
+      contentNoun="nota"
+      pendingReturn={pendingReturn}
+      pendingReturnLabel="Devuelta"
+      latestReturn={latestReturn}
+      checklistMissing={checklistMissing}
+      canPublish={canPublish}
+      isDirector={isDirector}
+      onRun={async (action, opts) => {
+        switch (action) {
+          case "SUBMIT_REVIEW":
+            return submitArticleForReviewAction(articleId);
+          case "APPROVE":
+            return approveArticleAction(articleId);
+          case "PUBLISH":
+            return publishArticleAction(articleId);
+          case "UNPUBLISH":
+            return unpublishArticleAction(articleId);
+          case "ARCHIVE":
+            return archiveArticleAction(articleId);
+          case "RETURN":
+            return returnArticleWithObservationAction(articleId, opts?.observation ?? "");
+          default:
+            return { ok: false, error: "Acción no reconocida." };
+        }
+      }}
+    />
+  );
+}
+
+export function EventEditorialActionsPanel({
+  eventId,
+  status,
+  subject,
+  returnedAt,
+  submittedForReviewAt,
+  latestReturn,
+  checklistMissing = [],
+  canPublish,
+  isDirector,
+}: SharedProps & { eventId: string; status: EventStatus }) {
+  const pendingReturn = hasPendingEventReturn({ status, returnedAt, submittedForReviewAt });
+  const actions = availableEventEditorialActions(subject, status, {
+    returnedAt,
+    submittedForReviewAt,
+  });
+
+  return (
+    <EditorialActionsPanelInner
+      status={status}
+      actions={actions}
+      statusLabels={EVENT_STATUS_LABELS}
+      hint={expectedEventActionHint(status, { pendingReturn, isDirector, canPublish })}
+      contentNoun="evento"
+      pendingReturn={pendingReturn}
+      pendingReturnLabel="Devuelto"
+      latestReturn={latestReturn}
+      checklistMissing={checklistMissing}
+      canPublish={canPublish}
+      isDirector={isDirector}
+      onRun={async (action, opts) => {
+        switch (action) {
+          case "SUBMIT_REVIEW":
+            return submitEventForReviewAction(eventId);
+          case "APPROVE":
+            return approveEventAction(eventId);
+          case "PUBLISH":
+            return publishEventEditorialAction(eventId);
+          case "UNPUBLISH":
+            return unpublishEventAction(eventId);
+          case "ARCHIVE":
+            return archiveEventEditorialAction(eventId);
+          case "RETURN":
+            return returnEventWithObservationAction(eventId, opts?.observation ?? "");
+          default:
+            return { ok: false, error: "Acción no reconocida." };
+        }
+      }}
+    />
   );
 }

@@ -8,8 +8,15 @@ export type EditorialNotificationEvent = {
     | "ARTICLE_RETURNED"
     | "ARTICLE_APPROVED"
     | "ARTICLE_PUBLISHED"
-    | "ARTICLE_UNPUBLISHED";
-  articleId: string;
+    | "ARTICLE_UNPUBLISHED"
+    | "EVENT_SUBMITTED_FOR_REVIEW"
+    | "EVENT_RETURNED"
+    | "EVENT_APPROVED"
+    | "EVENT_PUBLISHED"
+    | "EVENT_UNPUBLISHED"
+    | "EVENT_ARCHIVED";
+  articleId?: string;
+  eventId?: string;
   actorUserId: number;
   targetUserId?: number | null;
   message?: string;
@@ -18,7 +25,9 @@ export type EditorialNotificationEvent = {
 
 const buffer: EditorialNotificationEvent[] = [];
 
-export function emitEditorialNotification(event: Omit<EditorialNotificationEvent, "at">): void {
+export function emitEditorialNotification(
+  event: Omit<EditorialNotificationEvent, "at">,
+): void {
   buffer.push({ ...event, at: new Date().toISOString() });
   if (buffer.length > 100) buffer.shift();
 }
@@ -26,4 +35,8 @@ export function emitEditorialNotification(event: Omit<EditorialNotificationEvent
 /** Solo para tests / depuración local. */
 export function peekEditorialNotifications(): readonly EditorialNotificationEvent[] {
   return buffer;
+}
+
+export function clearEditorialNotifications(): void {
+  buffer.length = 0;
 }

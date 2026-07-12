@@ -166,20 +166,31 @@ export async function getCategoryBySlug(slug: string) {
   return prisma.infoSpotCategory.findUnique({ where: { slug } });
 }
 
+/** Artículos aptos para bloques automáticos de home (no despublica; solo excluye de portada). */
+const homeArticleWhere = {
+  ...publicArticleWhere,
+  excludeFromHomepage: false,
+} as const;
+
 export async function getHomeEditorialData() {
   const [featured, latest, categories] = await Promise.all([
     prisma.infoSpotArticle.findFirst({
-      where: publicArticleWhere,
+      where: homeArticleWhere,
       include: articleListInclude,
       // Portada = más reciente REAL publicada (configurable a futuro).
       orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
     }),
-    getPublishedArticles({ take: 16 }),
+    prisma.infoSpotArticle.findMany({
+      where: homeArticleWhere,
+      include: articleListInclude,
+      orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+      take: 16,
+    }),
     prisma.infoSpotCategory.findMany({
       orderBy: { name: "asc" },
       include: {
         articles: {
-          where: publicArticleWhere,
+          where: homeArticleWhere,
           include: articleListInclude,
           orderBy: [{ publishedAt: "desc" }],
           take: 4,

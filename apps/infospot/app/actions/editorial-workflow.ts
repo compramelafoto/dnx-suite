@@ -9,11 +9,12 @@ import {
 } from "@/lib/infospot-access";
 import { validateForPublish } from "@/lib/article-validation";
 import {
-  canPerformEditorialAction,
+  articlePrismaDataFromPlan,
+  planArticleEditorialPersist,
   STATUS_LABELS,
   type ArticleStatus,
   type EditorialAction,
-} from "@/lib/article-status";
+} from "@/lib/editorial/article-adapter";
 import { emitEditorialNotification } from "@/lib/editorial-notifications";
 
 export type WorkflowResult =
@@ -82,11 +83,39 @@ async function assertPublishChecklist(
       errors.push("La portada necesita crédito fotográfico antes de publicar.");
     }
   }
+
+  const { assertEditorialPhotosPublishable } = await import("@/lib/editorial-photos/checklist");
+  const usages = await prisma.infoSpotEditorialPhotoUsage.findMany({
+    where: { articleId: article.id },
+    include: {
+      photo: {
+        include: { variants: { take: 1 } },
+      },
+    },
+  });
+  if (usages.length > 0) {
+    const photoCheck = assertEditorialPhotosPublishable(
+      usages.map((u) => ({
+        processStatus: u.photo.processStatus,
+        photographerName: u.photo.photographerName,
+        credit: u.photo.credit,
+        editorialLicenseStatus: u.photo.editorialLicenseStatus,
+        hasDerivative: Boolean(u.photo.editorialMasterKey || u.photo.variants.length > 0),
+        commercialStatus: u.photo.commercialStatus,
+        usageType: u.usageType,
+        altText: u.altText,
+      })),
+    );
+    if (!photoCheck.ok) errors.push(photoCheck.error);
+  }
+
   return errors.length ? errors.join(" ") : null;
 }
 
 /**
  * Transición editorial explícita. El cliente envía `action`, nunca un status arbitrario.
+ * Reglas de transición: núcleo genérico vía adaptador Article.
+ * Persistencia / observaciones / notificaciones: específicas de Article.
  */
 export async function runEditorialAction(
   articleId: string,
@@ -102,13 +131,14 @@ export async function runEditorialAction(
   if (!article) return { ok: false, error: "Noticia no encontrada." };
 
   const from = article.status as ArticleStatus;
-  const permission = canPerformEditorialAction(access.subject, from, action, article);
-  if (!permission.ok) return { ok: false, error: permission.reason };
+  const planned = planArticleEditorialPersist(access.subject, from, action, article);
+  if (!planned.ok) return { ok: false, error: planned.reason };
 
   const now = new Date();
   const userId = access.user.id;
+  const { plan } = planned;
 
-  if (action === "RETURN") {
+  if (plan.kind === "return") {
     const message = (options?.observation || "").trim();
     if (message.length < 8) {
       return {
@@ -149,39 +179,36 @@ export async function runEditorialAction(
     };
   }
 
-  if (action === "APPROVE" || action === "PUBLISH") {
+  if (plan.kind === "submit_via_publish") {
     // Quien no puede publicar: "Publicar" = enviar a aprobación del Director.
-    if (action === "PUBLISH" && !canPublishInfoSpotArticle(access.subject)) {
-      if (from !== "DRAFT") {
-        return {
-          ok: false,
-          error: "Solo podés pedir publicación desde un borrador.",
-        };
-      }
-      const updated = await prisma.infoSpotArticle.update({
-        where: { id: articleId },
-        data: {
-          status: "IN_REVIEW",
-          submittedForReviewAt: now,
-          submittedForReviewByUserId: userId,
-          contentTag: "REAL",
-        },
-        select: { status: true, slug: true },
-      });
-      revalidateArticle(updated.slug, articleId);
-      emitEditorialNotification({
-        type: "ARTICLE_SUBMITTED_FOR_REVIEW",
-        articleId,
-        actorUserId: userId,
-        targetUserId: null,
-      });
+    if (from !== "DRAFT") {
       return {
-        ok: true,
-        message: "Enviada a aprobación del Director. Quedó pendiente de publicación.",
-        status: "IN_REVIEW",
+        ok: false,
+        error: "Solo podés pedir publicación desde un borrador.",
       };
     }
+    const data = articlePrismaDataFromPlan(plan, { now, userId });
+    const updated = await prisma.infoSpotArticle.update({
+      where: { id: articleId },
+      data,
+      select: { status: true, slug: true },
+    });
+    revalidateArticle(updated.slug, articleId);
+    emitEditorialNotification({
+      type: "ARTICLE_SUBMITTED_FOR_REVIEW",
+      articleId,
+      actorUserId: userId,
+      targetUserId: null,
+    });
+    return {
+      ok: true,
+      message: "Enviada a aprobación del Director. Quedó pendiente de publicación.",
+      status: "IN_REVIEW",
+    };
+  }
 
+  // APPROVE / PUBLISH directo: checklist de publicación.
+  if (action === "APPROVE" || action === "PUBLISH") {
     const checklistError = await assertPublishChecklist(article);
     if (checklistError) {
       return {
@@ -195,41 +222,11 @@ export async function runEditorialAction(
     return { ok: false, error: "No tenés permiso para publicar." };
   }
 
-  const data: Record<string, unknown> = {};
-
-  switch (action) {
-    case "SUBMIT_REVIEW":
-      data.status = "IN_REVIEW";
-      data.submittedForReviewAt = now;
-      data.submittedForReviewByUserId = userId;
-      data.contentTag = "REAL";
-      break;
-    case "APPROVE":
-      // Flujo simplificado: aprobar = listo para publicar (el Director luego publica).
-      data.status = "READY_TO_PUBLISH";
-      data.approvedAt = now;
-      data.approvedByUserId = userId;
-      data.contentTag = "REAL";
-      break;
-    case "PUBLISH":
-      data.status = "PUBLISHED";
-      data.publishedAt = article.publishedAt ?? now;
-      data.publishedByUserId = userId;
-      data.contentTag = "REAL";
-      break;
-    case "UNPUBLISH":
-      data.status = "UNPUBLISHED";
-      data.unpublishedAt = now;
-      data.unpublishedByUserId = userId;
-      break;
-    case "ARCHIVE":
-      data.status = "ARCHIVED";
-      data.archivedAt = now;
-      data.archivedByUserId = userId;
-      break;
-    default:
-      return { ok: false, error: "Acción no soportada." };
-  }
+  const data = articlePrismaDataFromPlan(plan, {
+    now,
+    userId,
+    publishedAt: article.publishedAt,
+  });
 
   const updated = await prisma.infoSpotArticle.update({
     where: { id: articleId },
