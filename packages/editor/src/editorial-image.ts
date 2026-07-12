@@ -6,6 +6,9 @@ export type EditorialImageAttrs = {
   caption: string;
   credit: string;
   assetId: string | null;
+  /** InfoSpotEditorialPhoto.id cuando proviene de CLF. */
+  photoId?: string | null;
+  display?: string | null;
 };
 
 declare module "@tiptap/core" {
@@ -34,6 +37,8 @@ export const EditorialImage = Node.create({
       caption: { default: "" },
       credit: { default: "" },
       assetId: { default: null },
+      photoId: { default: null },
+      display: { default: "wide" },
     };
   },
 
@@ -59,6 +64,8 @@ export const EditorialImage = Node.create({
               element.getAttribute("data-credit") ||
               "",
             assetId: element.getAttribute("data-asset-id") || null,
+            photoId: element.getAttribute("data-photo-id") || null,
+            display: element.getAttribute("data-display") || "wide",
           };
         },
       },
@@ -73,6 +80,8 @@ export const EditorialImage = Node.create({
             caption: element.getAttribute("title") || "",
             credit: "",
             assetId: null,
+            photoId: null,
+            display: "wide",
           };
         },
       },
@@ -85,6 +94,8 @@ export const EditorialImage = Node.create({
     const caption = String(HTMLAttributes.caption || "");
     const credit = String(HTMLAttributes.credit || "");
     const assetId = HTMLAttributes.assetId ? String(HTMLAttributes.assetId) : "";
+    const photoId = HTMLAttributes.photoId ? String(HTMLAttributes.photoId) : "";
+    const display = HTMLAttributes.display ? String(HTMLAttributes.display) : "wide";
 
     const figAttrs = mergeAttributes({
       "data-editorial-image": "true",
@@ -92,6 +103,8 @@ export const EditorialImage = Node.create({
       ...(credit ? { "data-credit": credit } : {}),
       ...(caption ? { "data-caption": caption } : {}),
       ...(assetId ? { "data-asset-id": assetId } : {}),
+      ...(photoId ? { "data-photo-id": photoId } : {}),
+      ...(display ? { "data-display": display } : {}),
     });
 
     const imgNode = [
@@ -101,6 +114,7 @@ export const EditorialImage = Node.create({
         alt,
         loading: "lazy",
         decoding: "async",
+        draggable: "false",
       },
     ] as const;
 

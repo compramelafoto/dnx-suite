@@ -24,7 +24,7 @@ export const EDITORIAL_HTML_ALLOWED_TAGS = [
 export const EDITORIAL_HTML_ALLOWED_ATTR: Record<string, string[]> = {
   a: ["href", "target", "rel"],
   img: ["src", "alt", "title", "loading", "decoding"],
-  figure: ["class", "data-editorial-image", "data-credit", "data-caption", "data-asset-id"],
+  figure: ["class", "data-editorial-image", "data-credit", "data-caption", "data-asset-id", "data-photo-id", "data-display"],
   figcaption: ["class"],
   span: ["class", "data-caption", "data-credit-text"],
   p: ["class"],
