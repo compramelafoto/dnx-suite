@@ -498,19 +498,36 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
   };
 }
 
+function rehydratePublicCoverageDates(
+  coverage: PublicEditorialCoverage | null,
+): PublicEditorialCoverage | null {
+  if (!coverage) return null;
+  // unstable_cache JSON round-trip turns Date into string
+  if (coverage.event?.startAt) {
+    coverage.event.startAt = new Date(coverage.event.startAt);
+  }
+  for (const a of coverage.relatedArticles) {
+    if (a.publishedAt) a.publishedAt = new Date(a.publishedAt);
+  }
+  for (const e of coverage.relatedEvents) {
+    e.startAt = new Date(e.startAt);
+  }
+  return coverage;
+}
+
 export async function getPublicEditorialCoverageByArticleSlug(
   slug: string,
   options?: { bypassCache?: boolean },
 ): Promise<PublicEditorialCoverage | null> {
   if (options?.bypassCache) {
-    return resolveUncached(slug);
+    return rehydratePublicCoverageDates(await resolveUncached(slug));
   }
   const cached = unstable_cache(
     async () => resolveUncached(slug),
     [`public-coverage-article-${slug}`],
     { revalidate: 120, tags: ["infospot-public-coverage", `article-${slug}`] },
   );
-  return cached();
+  return rehydratePublicCoverageDates(await cached());
 }
 
 export async function getPublicEventCoverageBundle(eventSlug: string): Promise<{

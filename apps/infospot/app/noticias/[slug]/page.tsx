@@ -152,7 +152,7 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
             "@type": "Event",
             name: publicCoverage.event.title,
             url: `/eventos/${publicCoverage.event.slug}`,
-            startDate: publicCoverage.event.startAt.toISOString(),
+            startDate: new Date(publicCoverage.event.startAt).toISOString(),
             location: {
               "@type": "Place",
               address: {
