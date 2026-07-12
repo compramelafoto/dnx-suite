@@ -1,56 +1,69 @@
 import Link from "next/link";
-import { toArticleCardProps } from "@/components/editorial/article-cards";
+import type { DistributionCoverageCard } from "@/lib/distribution";
 import type { ArticleWithRelations } from "@/lib/articles";
+import { toArticleCardProps } from "@/components/editorial/article-cards";
 
 type Props = {
-  articles: ArticleWithRelations[];
+  coverages?: DistributionCoverageCard[];
+  /** Compat: artículos genéricos si no hay coberturas vinculadas. */
+  articles?: ArticleWithRelations[];
 };
 
-/** Últimas coberturas — solo notas REAL con portada real (sin stock anónimo). */
-export function HomeLatestCoverages({ articles }: Props) {
-  const items = articles
-    .slice(0, 5)
-    .map((article) => {
-      const card = toArticleCardProps(article, { forceEditorialStock: false });
-      if (!card.imageUrl) return null;
-      return {
-        href: card.href,
-        title: card.title,
-        imageUrl: card.imageUrl,
-        imageAlt: card.imageAlt || card.title,
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+function formatDate(d: Date | null) {
+  if (!d) return null;
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(d));
+}
+
+/** Coberturas recientes vinculadas a eventos (o fallback a notas REAL). */
+export function HomeLatestCoverages({ coverages, articles }: Props) {
+  const fromDist =
+    coverages?.map((c) => ({
+      href: `/noticias/${c.slug}`,
+      title: c.title,
+      imageUrl: c.coverImageUrl,
+      excerpt: c.excerpt,
+      meta: [c.relatedEventTitle, c.relatedEventCity, formatDate(c.publishedAt)]
+        .filter(Boolean)
+        .join(" · "),
+      authorName: c.authorName,
+      photographerName: c.photographerName,
+      coverCredit: c.coverCredit,
+      photosAvailable: c.photosAvailable,
+      eventHref: c.relatedEventSlug ? `/eventos/${c.relatedEventSlug}` : null,
+    })) ?? [];
+
+  const fromArticles =
+    articles
+      ?.slice(0, 5)
+      .map((article) => {
+        const card = toArticleCardProps(article, { forceEditorialStock: false });
+        if (!card.imageUrl) return null;
+        return {
+          href: card.href,
+          title: card.title,
+          imageUrl: card.imageUrl,
+          excerpt: null as string | null,
+          meta: null as string | null,
+          authorName: null as string | null,
+          photographerName: null as string | null,
+          coverCredit: null as string | null,
+          photosAvailable: false,
+          eventHref: null as string | null,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x)) ?? [];
+
+  const items = (fromDist.length > 0 ? fromDist : fromArticles).filter((i) =>
+    Boolean(i.imageUrl || i.title),
+  );
 
   if (items.length === 0) {
-    return (
-      <section aria-labelledby="home-coverages-heading">
-        <div className="mb-8 max-w-2xl md:mb-10">
-          <p className="is-eyebrow">Mirada fotográfica</p>
-          <h2
-            id="home-coverages-heading"
-            className="is-h2 mt-3 text-2xl md:text-3xl lg:text-4xl"
-          >
-            Últimas coberturas
-          </h2>
-          <p className="is-body mt-3">
-            Cuando publiquemos coberturas REAL con fotografía, van a aparecer
-            acá. No mostramos imágenes de relleno en producción.
-          </p>
-        </div>
-        <div className="rounded-[var(--is-radius)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-surface)] px-6 py-10 md:px-8">
-          <p className="is-body max-w-xl">La galería editorial está por escribirse.</p>
-          <p className="mt-6">
-            <Link href="/noticias" className="is-btn is-btn-ghost min-h-11">
-              Ir a noticias
-            </Link>
-          </p>
-        </div>
-      </section>
-    );
+    return null;
   }
-
-  const [hero, ...rest] = items;
 
   return (
     <section aria-labelledby="home-coverages-heading">
@@ -69,59 +82,61 @@ export function HomeLatestCoverages({ articles }: Props) {
         </Link>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-12 md:gap-4">
-        {hero ? (
-          <Link
-            href={hero.href}
-            className="group relative overflow-hidden md:col-span-7 md:row-span-2"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={hero.imageUrl}
-              alt={hero.imageAlt}
-              className="aspect-[4/5] w-full object-cover transition-[transform] duration-[var(--is-duration-300)] group-hover:scale-[1.03] md:aspect-auto md:h-full md:min-h-[30rem]"
-              loading="lazy"
-              draggable={false}
-            />
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[color-mix(in_oklab,var(--is-graphite-950)_78%,transparent)] to-transparent p-5 md:p-7">
-              <h3 className="is-h3 text-xl text-[var(--is-white-0)] md:text-2xl lg:text-3xl">
-                {hero.title}
-              </h3>
-            </div>
-          </Link>
-        ) : null}
-
-        <div className="grid grid-cols-2 gap-3 md:col-span-5 md:grid-cols-1 md:gap-4">
-          {rest.slice(0, 4).map((item, index) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={
-                index === 0
-                  ? "group relative col-span-2 overflow-hidden md:col-span-1"
-                  : "group relative overflow-hidden"
-              }
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={item.imageUrl}
-                alt={item.imageAlt}
-                className={
-                  index === 0
-                    ? "aspect-[16/10] w-full object-cover transition-[transform] duration-[var(--is-duration-300)] group-hover:scale-[1.03] md:aspect-[16/9]"
-                    : "aspect-square w-full object-cover transition-[transform] duration-[var(--is-duration-300)] group-hover:scale-[1.03] md:aspect-[16/11]"
-                }
-                loading="lazy"
-                draggable={false}
-              />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[color-mix(in_oklab,var(--is-graphite-950)_70%,transparent)] to-transparent p-3 md:p-4">
-                <h3 className="is-h4 text-sm leading-snug text-[var(--is-white-0)] md:text-base">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {items.slice(0, 6).map((item) => (
+          <article key={item.href} className="group">
+            <Link href={item.href} className="block">
+              <div className="relative">
+                {item.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.imageUrl}
+                    alt={item.title}
+                    className="aspect-[16/11] w-full object-cover transition-[transform] duration-300 group-hover:scale-[1.02]"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="aspect-[16/11] bg-[var(--is-graphite-900)]" />
+                )}
+                {item.photosAvailable ? (
+                  <span className="absolute left-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+                    Fotos disponibles
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-4 space-y-2">
+                {item.meta ? (
+                  <p className="text-xs uppercase tracking-[0.12em] text-[var(--is-muted)]">
+                    {item.meta}
+                  </p>
+                ) : null}
+                <h3 className="is-h4 text-lg group-hover:text-[var(--is-accent)]">
                   {item.title}
                 </h3>
+                {item.excerpt ? (
+                  <p className="line-clamp-2 text-sm text-[var(--is-text-secondary)]">
+                    {item.excerpt}
+                  </p>
+                ) : null}
+                {item.coverCredit || item.photographerName ? (
+                  <p className="text-xs text-[var(--is-muted)]">
+                    {item.coverCredit || `Foto: ${item.photographerName}`}
+                  </p>
+                ) : item.authorName ? (
+                  <p className="text-xs text-[var(--is-muted)]">{item.authorName}</p>
+                ) : null}
               </div>
             </Link>
-          ))}
-        </div>
+            {item.eventHref ? (
+              <Link
+                href={item.eventHref}
+                className="mt-2 inline-block text-xs font-medium text-[var(--is-accent)] hover:underline"
+              >
+                Ver evento
+              </Link>
+            ) : null}
+          </article>
+        ))}
       </div>
     </section>
   );

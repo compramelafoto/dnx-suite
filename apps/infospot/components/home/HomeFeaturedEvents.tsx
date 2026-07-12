@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { PublicEventCard } from "@/lib/events";
+import type { DistributionEventCard } from "@/lib/distribution";
 
 function formatWhen(date: Date) {
   return new Intl.DateTimeFormat("es-AR", {
@@ -9,7 +9,7 @@ function formatWhen(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "America/Argentina/Buenos_Aires",
-  }).format(date);
+  }).format(new Date(date));
 }
 
 function EventCover({
@@ -41,8 +41,8 @@ function EventCover({
   );
 }
 
-/** Eventos destacados — datos reales publicados (próximos primero). */
-export function HomeFeaturedEvents({ events }: { events: PublicEventCard[] }) {
+/** Eventos destacados — score + prioridad editorial (próximos). */
+export function HomeFeaturedEvents({ events }: { events: DistributionEventCard[] }) {
   if (events.length === 0) {
     return (
       <section id="eventos-destacados" aria-labelledby="home-events-heading">
@@ -141,7 +141,8 @@ export function HomeFeaturedEvents({ events }: { events: PublicEventCard[] }) {
                 {lead.title}
               </h3>
               <p className="text-sm text-[color-mix(in_oklab,var(--is-white-0)_80%,transparent)]">
-                {lead.city} · {formatWhen(lead.startAt)}
+                {lead.locationLabel || lead.city} · {formatWhen(lead.startAt)}
+                {lead.seekingPhotographers ? " · Buscando fotógrafos" : ""}
               </p>
             </div>
           </article>

@@ -1,6 +1,7 @@
 export { HomeActualidadStrip } from "./HomeActualidadStrip";
 export { HomeHero } from "./HomeHero";
 export { HomePlatformHero } from "./HomePlatformHero";
+export { HomeEditorialBanner } from "./HomeEditorialBanner";
 export { HomeOrganizerPitch } from "./HomeOrganizerPitch";
 export { HomeHowItWorks } from "./HomeHowItWorks";
 export { HomeWhyPublish } from "./HomeWhyPublish";
@@ -15,3 +16,4 @@ export { HomePhotographersCall } from "./HomePhotographersCall";
 export { HomeWeekendAgenda } from "./HomeWeekendAgenda";
 export { HomeLatestCoverages } from "./HomeLatestCoverages";
 export { HomeMostRead } from "./HomeMostRead";
+export { HomeUpcomingEvents } from "./HomeUpcomingEvents";
