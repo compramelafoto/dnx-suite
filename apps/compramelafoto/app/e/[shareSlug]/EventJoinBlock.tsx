@@ -51,10 +51,7 @@ function PhotoPricingEnrollmentDisplay({
   if (pricingEnrollment) {
     return <PhotoPricingEnrollmentBlocks copy={pricingEnrollment} />;
   }
-  return <PhotoPricingEnrollmentDisplay
-          pricingEnrollment={pricingEnrollment}
-          photoPricingLine={photoPricingLine}
-        />;
+  return <PhotoPricingEnrollmentLine line={photoPricingLine} />;
 }
 
 type Props = {
