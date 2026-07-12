@@ -135,7 +135,28 @@ export async function getSessionIdentityByRawToken(
   if (session.expiresAt.getTime() <= Date.now()) return null;
 
   const userId = session.user.id;
-  const unifiedMemberships = (await prisma.workspaceMembership.findMany({
+
+  /** Delegates opcionales: el schema monorepo puede no tener aún tablas de workspace. */
+  async function safeFindMany(
+    delegateName: "workspaceMembership" | "membership" | "workspaceAppAccess",
+    args: unknown,
+  ): Promise<Array<Record<string, unknown>>> {
+    const client = prisma as unknown as Record<
+      string,
+      { findMany?: (a: unknown) => Promise<unknown> } | undefined
+    >;
+    const delegate = client[delegateName];
+    if (typeof delegate?.findMany !== "function") return [];
+    try {
+      const rows = await delegate.findMany(args);
+      return Array.isArray(rows) ? (rows as Array<Record<string, unknown>>) : [];
+    } catch (err) {
+      console.error(`[auth] ${delegateName}.findMany failed:`, err);
+      return [];
+    }
+  }
+
+  const unifiedMemberships = (await safeFindMany("workspaceMembership", {
     where: { userId },
     select: { workspaceId: true, role: true },
     orderBy: { createdAt: "asc" },
@@ -144,7 +165,7 @@ export async function getSessionIdentityByRawToken(
   const fallbackMemberships =
     unifiedMemberships.length > 0
       ? []
-      : ((await prisma.membership.findMany({
+      : ((await safeFindMany("membership", {
           where: { userId },
           select: { workspaceId: true, role: true },
           orderBy: { id: "asc" },
@@ -171,7 +192,7 @@ export async function getSessionIdentityByRawToken(
       ?.workspaceRole ?? null;
 
   const appAccess = currentWorkspaceId
-    ? ((await prisma.workspaceAppAccess.findMany({
+    ? ((await safeFindMany("workspaceAppAccess", {
         where: { userId, workspaceId: currentWorkspaceId },
         select: { app: true, enabled: true, appRole: true },
         orderBy: { app: "asc" },

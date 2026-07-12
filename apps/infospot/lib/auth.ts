@@ -32,7 +32,12 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   if (!sessionUser) return null;
   if (sessionUser.isBlocked) return null;
 
-  const identity = await getSessionIdentityByRawToken(raw);
+  let identity: Awaited<ReturnType<typeof getSessionIdentityByRawToken>> = null;
+  try {
+    identity = await getSessionIdentityByRawToken(raw);
+  } catch (err) {
+    console.error("[infospot] getSessionIdentityByRawToken failed:", err);
+  }
   const logoUrl =
     "logoUrl" in sessionUser && typeof (sessionUser as { logoUrl?: unknown }).logoUrl === "string"
       ? ((sessionUser as { logoUrl: string }).logoUrl.trim() || null)
