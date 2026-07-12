@@ -91,16 +91,18 @@ Incluye: eventos próximos / convocatoria / finalizado; coberturas 1 y N fotógr
 
 ## 6. Correcciones realizadas (commits)
 
-Ver historial en la rama; mensajes esperados:
+En `migration-legacy-clf-to-monorepo` (E12):
 
-- `fix(infospot): prevent hidden location data exposure`
-- `fix(infospot): harden home date formatting against invalid values`
-- `fix(infospot): rehydrate coverage dates after cache serialization`
-- `fix(infospot): improve coverage gallery keyboard and focus a11y`
-- `fix(infospot): avoid nested anchors in article cards`
-- `fix(infospot): suppress search field hydration mismatch`
-- `chore(infospot): add etapa 12 visual qa smoke script`
-- `docs(infospot): production readiness report etapa 12`
+| SHA | Mensaje |
+|-----|---------|
+| `f5c76ee` | `fix(infospot): prevent hidden location data exposure` |
+| `a93cac5` | `fix(infospot): harden home date formatting against invalid values` |
+| `0ea2dd8` | `fix(infospot): rehydrate coverage dates after cache serialization` |
+| `d9d974f` | `fix(infospot): improve coverage gallery keyboard and focus a11y` |
+| `1a4710a` | `fix(infospot): avoid nested anchors in article cards` |
+| `fd445e7` | `chore(infospot): add etapa 12 visual qa smoke script` |
+| `c5445d9` | `docs(infospot): production readiness report etapa 12` |
+| `87b5d45` | `fix(infospot): keep etapa 12 qa script out of app typecheck` |
 
 ---
 
