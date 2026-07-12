@@ -21,6 +21,7 @@
     "test:stabilization": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/stabilization.test.ts",
     "smoke:seed": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/e11-smoke-seed.ts seed",
     "smoke:cleanup": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/e11-smoke-seed.ts cleanup",
+    "smoke:e13-gate": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/e13-staging-gate.ts",
     "reconcile:public-coverage": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/public-coverage/cli-reconcile.ts",
     "sync:clf-events": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/clf-event-sync/cli.ts",
     "provision:clf-event": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/clf-event-provisioning/cli.ts"

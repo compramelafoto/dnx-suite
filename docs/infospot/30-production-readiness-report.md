@@ -1,17 +1,19 @@
-# Info Spot — Informe de preparación para producción (Etapa 12)
+# Info Spot — Informe de preparación para producción (Etapas 12–13)
 
 **Fecha:** 2026-07-12  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**Alcance:** QA visual / responsive / a11y / integración entre Info Spot y ComprameLaFoto.  
+**Alcance:** QA visual (E12) + gate operativo staging join/jobs/Safari/storage (E13).  
 **Restricción:** producción **no** migrada; sin merge a main; sin features nuevas.
 
 ---
 
 ## 1. Resumen ejecutivo
 
-Las superficies públicas principales de Info Spot (home, ficha de evento, artículo de cobertura, galería) fueron validadas en Chromium headless en 5 viewports. Se corrigieron defectos reales de privacidad de ubicación, fechas inválidas (500 en home/artículos), accesibilidad de galería e hidratación por `<a>` anidados.
+Las superficies públicas principales de Info Spot (home, ficha de evento, artículo de cobertura, galería) fueron validadas en Chromium headless en 5 viewports (E12). Se corrigieron defectos reales de privacidad de ubicación, fechas inválidas, accesibilidad de galería e hidratación.
 
-**Recomendación:** listo para smoke post-deploy en staging y checklist operativo de salida; **no** promover a producción hasta cerrar dependencias operativas (workers/cron, R2 real, CLF join/leave en entorno vivo, backup + migrate deploy controlado).
+**Etapa 13:** se validó la matriz de políticas join/cupos/licencia + sync inbound dry-run + rutas cron seguras + Safari WebKit (home). **No** se ejecutó join/leave HTTP contra producción. Ver detalle en [`31-final-staging-gate.md`](./31-final-staging-gate.md).
+
+**Decisión actual:** **NO-GO** a producción hasta disponer de CLF staging writable (URL no-prod), R2 real y smoke join/leave/iOS completo.
 
 ---
 
@@ -24,7 +26,7 @@ Las superficies públicas principales de Info Spot (home, ficha de evento, artí
 | Chromium | 768×1024 | OK |
 | Chromium | 390×844 | OK |
 | Chromium | 375×667 | OK |
-| Safari | — | No ejecutado en esta sesión (sin automatización); pendiente smoke manual |
+| Safari WebKit (Playwright) | 390×844 | OK home local + `infospot-dnxsuite.vercel.app` (E13); iPhone real pendiente |
 
 Base local: `http://localhost:3004` (Info Spot con env de staging).  
 Referencia staging Vercel: `https://infospot-dnxsuite.vercel.app` (sin secretos en este informe).
@@ -189,11 +191,14 @@ App CLF no levantada en esta sesión local. Contratos e idempotencia documentado
 
 ## 13. Bloqueantes residuales para go-live
 
-1. Smoke CLF join/leave/cupos en entorno real (OPEN / REQUEST / INVITE_ONLY / CLOSED / PRIVATE).
-2. Jobs/cron de sync y provisioning operativos si el negocio depende de ellos el día 1.
-3. Contenido DEMO/smoke eliminado; assets R2 reales.
-4. Safari / iOS smoke manual lightbox + mapa.
-5. Ventana de migración a producción **aún no autorizada** (esta etapa no la ejecuta).
+1. Smoke CLF join/leave/cupos en **staging CLF** (URL ≠ producción) con write seguro.
+2. R2/storage staging con assets reales y derivados.
+3. Jobs/cron de sync + reconcile comerciales activos en staging (rutas listas; no en prod).
+4. Safari/iOS real (mapa + galería); WebKit headless solo home.
+5. Worker async de derivados si fotos grandes degradan el editor.
+6. Ventana de migración a producción **aún no autorizada**.
+
+Detalle: [`31-final-staging-gate.md`](./31-final-staging-gate.md).
 
 ---
 
