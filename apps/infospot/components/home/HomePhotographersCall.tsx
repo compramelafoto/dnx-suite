@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { DistributionEventCard } from "@/lib/distribution";
 
-function formatWhen(date: Date) {
+function formatWhen(date: Date | string | null | undefined) {
+  const d = date instanceof Date ? date : date ? new Date(date) : null;
+  if (!d || Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("es-AR", {
     weekday: "short",
     day: "numeric",
@@ -9,7 +11,7 @@ function formatWhen(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "America/Argentina/Buenos_Aires",
-  }).format(date);
+  }).format(d);
 }
 
 /** Sección automática: eventos que buscan fotógrafos. */
@@ -66,7 +68,9 @@ export function HomePhotographersCall({
                 </Link>
               </h3>
               <p className="text-sm text-[var(--is-text-secondary)]">
-                {event.locationLabel} · {formatWhen(event.startAt)}
+                {[event.locationLabel, formatWhen(event.startAt)]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
               {event.clfJoinUrl ? (
                 <a

@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import type { DistributionEventCard } from "@/lib/distribution";
 
-function formatWhen(date: Date) {
+function formatWhen(date: Date | string | null | undefined) {
+  const d = date instanceof Date ? date : date ? new Date(date) : null;
+  if (!d || Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("es-AR", {
     weekday: "short",
     day: "numeric",
@@ -13,7 +15,7 @@ function formatWhen(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "America/Argentina/Buenos_Aires",
-  }).format(new Date(date));
+  }).format(d);
 }
 
 /** Bloque cercanía: datos reales o fallback a próximos. */
