@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 const DENIED: Record<string, string> = {
   login: "Necesitás iniciar sesión para continuar.",
   "infospot-redaccion":
-    "Acceso denegado a Redacción. Tu usuario no tiene rol INFOSPOT_DIRECTOR o INFOSPOT_REDACTOR activo.",
+    "Acceso denegado a Redacción. Tu usuario no tiene rol Info Spot activo (Director, Redactor o Colaborador).",
   "infospot-admin":
     "Acceso denegado al Admin. Solo el Director (o SUPER_ADMIN) puede entrar.",
   "infospot-events": "Acceso denegado al panel de eventos.",
@@ -38,7 +38,7 @@ export default async function IngresarPage({
   return (
     <PageShell
       title="Ingresar a Info Spot"
-      description="Acceso para Director y Redacción. Sesión segura compartida con DNX Suite."
+      description="Acceso con identidad DNX Suite (Director, Redacción o Colaboración)."
     >
       <LoginForm next={next} deniedMessage={deniedMessage} />
     </PageShell>

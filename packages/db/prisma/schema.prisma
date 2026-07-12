@@ -181,6 +181,9 @@ model User {
   infoSpotRoles                        InfoSpotUserRole[]
   infoSpotArticlesAuthored             InfoSpotArticle[]            @relation("InfoSpotArticleAuthor")
   infoSpotArticlesFactChecked          InfoSpotArticle[]            @relation("InfoSpotArticleFactCheck")
+  infoSpotArticleObservationsAuthored  InfoSpotArticleObservation[] @relation("InfoSpotArticleObservationAuthor")
+  dnxInvitationsSent                   DnxAppInvitation[]           @relation("DnxAppInvitationInvitedBy")
+  dnxInvitationsAccepted               DnxAppInvitation[]           @relation("DnxAppInvitationAcceptedBy")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -741,6 +744,43 @@ model BlogSubscriber {
 enum InfoSpotEditorialRole {
   INFOSPOT_DIRECTOR
   INFOSPOT_REDACTOR
+  INFOSPOT_COLABORADOR
+}
+
+/// Estado de invitación DNX Identity (suite-wide).
+enum DnxInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+/// Invitación a una app del monorepo (Info Spot, CLF, FotoRank, …).
+/// El token crudo nunca se persiste: solo `tokenHash` (SHA-256).
+model DnxAppInvitation {
+  id              String              @id @default(cuid())
+  email           String
+  /// Identificador de app: "infospot" | "compramelafoto" | "fotorank" | …
+  app             String
+  /// Rol específico de la app (p. ej. INFOSPOT_REDACTOR).
+  appRole         String
+  canPublish      Boolean             @default(false)
+  status          DnxInvitationStatus @default(PENDING)
+  tokenHash       String              @unique
+  expiresAt       DateTime
+  invitedByUserId Int
+  acceptedAt      DateTime?
+  acceptedUserId  Int?
+  revokedAt       DateTime?
+  lastSentAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  invitedBy       User                @relation("DnxAppInvitationInvitedBy", fields: [invitedByUserId], references: [id])
+  acceptedUser    User?               @relation("DnxAppInvitationAcceptedBy", fields: [acceptedUserId], references: [id])
+
+  @@index([email, app, status])
+  @@index([expiresAt])
+  @@index([invitedByUserId])
 }
 
 enum InfoSpotMemberStatus {
@@ -748,11 +788,25 @@ enum InfoSpotMemberStatus {
   DISABLED
 }
 
+/// Política de publicación del miembro editorial (explícita; se mantiene alineada con canPublish).
+enum InfoSpotPublicationPolicy {
+  DIRECT_PUBLISH
+  REQUIRES_APPROVAL
+}
+
 enum InfoSpotArticleStatus {
   DRAFT
+  IN_REVIEW
+  READY_TO_PUBLISH
   PUBLISHED
   UNPUBLISHED
   ARCHIVED
+}
+
+/// Observación interna de revisión (nunca pública).
+enum InfoSpotArticleObservationType {
+  RETURN
+  NOTE
 }
 
 /// Etiqueta interna de lanzamiento (solo admin/redacción; nunca pública).
@@ -794,12 +848,14 @@ model InfoSpotUserRole {
   id         String                @id @default(cuid())
   userId     Int
   role       InfoSpotEditorialRole
-  /// Preparado para flujo futuro de revisión: algunos redactores podrían no publicar solos.
+  /// Compatibilidad: true ↔ DIRECT_PUBLISH; false ↔ REQUIRES_APPROVAL (siempre sincronizado).
   canPublish Boolean               @default(true)
+  /// Política editorial explícita. Director=DIRECT_PUBLISH; Colaborador=REQUIRES_APPROVAL.
+  publicationPolicy InfoSpotPublicationPolicy @default(DIRECT_PUBLISH)
   status     InfoSpotMemberStatus  @default(ACTIVE)
   /// Quién asignó el rol por primera vez (auditoría mínima).
   assignedByUserId Int?
-  /// Quién realizó el último cambio de rol/estado/canPublish.
+  /// Quién realizó el último cambio de rol/estado/política.
   lastChangedByUserId Int?
   createdAt  DateTime              @default(now())
   updatedAt  DateTime              @updatedAt
@@ -807,6 +863,7 @@ model InfoSpotUserRole {
 
   @@unique([userId])
   @@index([role, status])
+  @@index([publicationPolicy, status])
 }
 
 model InfoSpotCategory {
@@ -904,6 +961,20 @@ model InfoSpotArticle {
   /// Origen de importación CLF (interna — no pública).
   clfSourceEnv   String?
   clfImportedAt  DateTime?
+
+  /// —— Auditoría del flujo editorial (interna) ——
+  submittedForReviewAt       DateTime?
+  submittedForReviewByUserId Int?
+  approvedAt                 DateTime?
+  approvedByUserId           Int?
+  publishedByUserId          Int?
+  unpublishedAt              DateTime?
+  unpublishedByUserId        Int?
+  archivedAt                 DateTime?
+  archivedByUserId           Int?
+  returnedAt                 DateTime?
+  returnedByUserId           Int?
+
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
   coverImage     InfoSpotEditorialAsset? @relation("InfoSpotArticleCover", fields: [coverImageId], references: [id], onDelete: SetNull)
@@ -911,6 +982,7 @@ model InfoSpotArticle {
   author         User                  @relation("InfoSpotArticleAuthor", fields: [authorId], references: [id], onDelete: Restrict)
   factCheckedBy  User?                 @relation("InfoSpotArticleFactCheck", fields: [factCheckedByUserId], references: [id], onDelete: SetNull)
   articleAssets  InfoSpotArticleAsset[]
+  observations   InfoSpotArticleObservation[]
 
   @@index([status, publishedAt])
   @@index([contentTag, status])
@@ -919,6 +991,25 @@ model InfoSpotArticle {
   @@index([eventId])
   @@index([clfAlbumId])
   @@index([factCheckedByUserId])
+  @@index([submittedForReviewAt])
+  @@index([returnedAt])
+  @@index([approvedAt])
+}
+
+/// Observación editorial interna (devoluciones). Nunca pública.
+model InfoSpotArticleObservation {
+  id           String                         @id @default(cuid())
+  articleId    String
+  message      String                         @db.Text
+  authorUserId Int
+  type         InfoSpotArticleObservationType @default(RETURN)
+  createdAt    DateTime                       @default(now())
+  article      InfoSpotArticle                @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author       User                           @relation("InfoSpotArticleObservationAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([articleId, createdAt])
+  @@index([authorUserId])
+  @@index([type])
 }
 
 model InfoSpotSettings {

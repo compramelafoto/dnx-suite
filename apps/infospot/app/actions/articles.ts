@@ -16,7 +16,7 @@ import { ensureUniqueSlug } from "@/lib/articles";
 import { slugifyTitle } from "@/lib/slug";
 
 export type ActionResult =
-  | { ok: true; id?: string; message: string }
+  | { ok: true; id?: string; message: string; updatedAt?: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
 function revalidatePublic(slug?: string) {
@@ -66,23 +66,16 @@ export async function createArticleAction(formData: FormData): Promise<ActionRes
   }
 
   const data = parsed.data;
-  if (data.status === "PUBLISHED") {
-    if (!canPublishInfoSpotArticle(access.subject)) {
-      return { ok: false, error: "No tenés permiso para publicar." };
-    }
-    const publishErrors = validateForPublish(data);
-    if (publishErrors.length) {
-      return { ok: false, error: publishErrors.join(" ") };
-    }
-  } else if (data.status !== "DRAFT") {
-    return { ok: false, error: "Al crear, el estado debe ser borrador o publicada." };
+  // Crear solo como borrador; publicar/revisar es vía flujo editorial.
+  if (data.status !== "DRAFT") {
+    return {
+      ok: false,
+      error: "Al crear, guardá como borrador. Después usá el flujo editorial para revisar o publicar.",
+    };
   }
 
   const slug = await ensureUniqueSlug(data.slug || slugifyTitle(data.title));
-  const publishedAt =
-    data.status === "PUBLISHED"
-      ? parsePublishedAt(data.publishedAt) ?? new Date()
-      : parsePublishedAt(data.publishedAt);
+  const publishedAt = parsePublishedAt(data.publishedAt);
 
   const article = await prisma.infoSpotArticle.create({
     data: {
@@ -97,19 +90,22 @@ export async function createArticleAction(formData: FormData): Promise<ActionRes
       contentTag: data.contentTag ?? "NEEDS_REVIEW",
       sourceName: data.sourceName ?? null,
       sourceUrl: data.sourceUrl ?? null,
-      status: data.status,
+      status: "DRAFT",
       publishedAt,
       authorId: access.user.id,
-      ...(data.status === "PUBLISHED" && data.markFactChecked
-        ? { factCheckedAt: new Date(), factCheckedByUserId: access.user.id }
-        : {}),
     },
   });
 
   if (data.coverImageId) {
     await prisma.infoSpotEditorialAsset.update({
       where: { id: data.coverImageId },
-      data: { isPermanentEditorialAsset: true },
+      data: {
+        isPermanentEditorialAsset: true,
+        ...(typeof formData.get("coverCredit") === "string" &&
+        String(formData.get("coverCredit")).trim()
+          ? { credit: String(formData.get("coverCredit")).trim() }
+          : {}),
+      },
     });
   }
 
@@ -117,7 +113,7 @@ export async function createArticleAction(formData: FormData): Promise<ActionRes
   return {
     ok: true,
     id: article.id,
-    message: data.status === "PUBLISHED" ? "Noticia publicada" : "Borrador guardado",
+    message: "Borrador guardado",
   };
 }
 
@@ -156,13 +152,37 @@ export async function updateArticleAction(
   }
 
   const data = parsed.data;
-  const nextStatus = data.status as ArticleStatus;
+  const requestedStatus = data.status as ArticleStatus;
   const currentStatus = existing.status as ArticleStatus;
+
+  // El formulario no puede saltar a IN_REVIEW / READY_TO_PUBLISH (solo acciones editoriales).
+  if (
+    requestedStatus !== currentStatus &&
+    (requestedStatus === "IN_REVIEW" || requestedStatus === "READY_TO_PUBLISH")
+  ) {
+    return {
+      ok: false,
+      error: "Usá las acciones editoriales para enviar a revisión o aprobar.",
+    };
+  }
+
+  // Conservar estado de workflow al guardar contenido.
+  let nextStatus = requestedStatus;
+  if (
+    (currentStatus === "IN_REVIEW" ||
+      currentStatus === "READY_TO_PUBLISH" ||
+      currentStatus === "PUBLISHED" ||
+      currentStatus === "UNPUBLISHED" ||
+      currentStatus === "ARCHIVED") &&
+    requestedStatus === "DRAFT"
+  ) {
+    nextStatus = currentStatus;
+  }
 
   if (nextStatus !== currentStatus && !canTransitionStatus(currentStatus, nextStatus)) {
     return {
       ok: false,
-      error: `No se puede pasar de ${currentStatus} a ${nextStatus} desde el formulario. Usá las acciones de estado.`,
+      error: `No se puede pasar de ${currentStatus} a ${nextStatus} desde el formulario. Usá las acciones editoriales.`,
     };
   }
 
@@ -173,6 +193,19 @@ export async function updateArticleAction(
     const publishErrors = validateForPublish(data);
     if (publishErrors.length) {
       return { ok: false, error: publishErrors.join(" ") };
+    }
+    if (data.coverImageId) {
+      const cover = await prisma.infoSpotEditorialAsset.findUnique({
+        where: { id: data.coverImageId },
+        select: { credit: true },
+      });
+      const credit = data.coverCredit?.trim() || cover?.credit?.trim();
+      if (!credit) {
+        return {
+          ok: false,
+          error: "La portada necesita crédito fotográfico antes de publicar.",
+        };
+      }
     }
   }
 
@@ -208,7 +241,10 @@ export async function updateArticleAction(
   if (data.coverImageId) {
     await prisma.infoSpotEditorialAsset.update({
       where: { id: data.coverImageId },
-      data: { isPermanentEditorialAsset: true },
+      data: {
+        isPermanentEditorialAsset: true,
+        ...(data.coverCredit?.trim() ? { credit: data.coverCredit.trim() } : {}),
+      },
     });
   }
 
@@ -224,12 +260,17 @@ export async function updateArticleAction(
         : nextStatus === "UNPUBLISHED"
           ? "Noticia despublicada"
           : "Borrador guardado",
+    updatedAt: article.updatedAt.toISOString(),
   };
 }
 
-export async function transitionArticleStatusAction(
+/**
+ * Autosave de borrador: no publica, respeta expectedUpdatedAt para evitar
+ * sobrescribir una versión más nueva.
+ */
+export async function autosaveArticleDraftAction(
   articleId: string,
-  toStatus: ArticleStatus,
+  formData: FormData,
 ): Promise<ActionResult> {
   const access = await requireInfoSpotRedaccionAccess();
   const existing = await prisma.infoSpotArticle.findUnique({
@@ -240,14 +281,8 @@ export async function transitionArticleStatusAction(
       status: true,
       slug: true,
       publishedAt: true,
-      title: true,
-      excerpt: true,
-      content: true,
-      categoryId: true,
-      contentTag: true,
-      sourceName: true,
-      sourceUrl: true,
-      factCheckedAt: true,
+      coverImageId: true,
+      updatedAt: true,
     },
   });
   if (!existing) return { ok: false, error: "Noticia no encontrada." };
@@ -255,54 +290,82 @@ export async function transitionArticleStatusAction(
   const denied = await assertCanMutateArticle(access, existing);
   if (denied) return denied;
 
-  const from = existing.status as ArticleStatus;
-  if (!canTransitionStatus(from, toStatus)) {
-    return { ok: false, error: `Transición no permitida: ${from} → ${toStatus}` };
+  const raw = Object.fromEntries(formData.entries());
+  const parsed = articleDraftSchema.safeParse({
+    ...raw,
+    // Nunca publicar desde autosave
+    status: existing.status === "ARCHIVED" ? "ARCHIVED" : "DRAFT",
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Revisá los campos del formulario.",
+      fieldErrors: formatFieldErrors(parsed.error),
+    };
   }
 
-  if (toStatus === "PUBLISHED" || toStatus === "UNPUBLISHED") {
-    if (!canPublishInfoSpotArticle(access.subject)) {
-      return { ok: false, error: "No tenés permiso para publicar/despublicar." };
+  const data = parsed.data;
+  if (data.expectedUpdatedAt) {
+    const expected = new Date(data.expectedUpdatedAt).getTime();
+    const current = existing.updatedAt.getTime();
+    if (!Number.isNaN(expected) && current > expected + 500) {
+      return {
+        ok: false,
+        error: "Hay una versión más nueva. Recargá la página antes de seguir editando.",
+      };
     }
   }
 
-  if (toStatus === "PUBLISHED") {
-    const publishErrors = validateForPublish({
-      title: existing.title,
-      slug: existing.slug,
-      excerpt: existing.excerpt ?? "",
-      content: existing.content,
-      categoryId: existing.categoryId,
-      coverImageId: null,
-      contentTag: existing.contentTag,
-      sourceName: existing.sourceName ?? undefined,
-      sourceUrl: existing.sourceUrl ?? undefined,
-      markFactChecked: Boolean(existing.factCheckedAt),
-      status: "PUBLISHED",
-    });
-    if (publishErrors.length) {
-      return { ok: false, error: publishErrors.join(" ") };
-    }
-  }
+  // Si la nota está publicada, el autosave solo actualiza campos sin cambiar status.
+  const keepPublished = existing.status === "PUBLISHED" || existing.status === "UNPUBLISHED";
+  const nextStatus = keepPublished
+    ? (existing.status as ArticleStatus)
+    : existing.status === "ARCHIVED"
+      ? "ARCHIVED"
+      : "DRAFT";
 
-  const publishedAt =
-    toStatus === "PUBLISHED" && !existing.publishedAt ? new Date() : existing.publishedAt;
+  const slug = await ensureUniqueSlug(data.slug || slugifyTitle(data.title), articleId);
 
-  await prisma.infoSpotArticle.update({
+  const article = await prisma.infoSpotArticle.update({
     where: { id: articleId },
-    data: { status: toStatus, publishedAt },
+    data: {
+      title: data.title,
+      slug,
+      excerpt: data.excerpt || null,
+      content: data.content || "",
+      categoryId: data.categoryId,
+      coverImageId: data.coverImageId,
+      seoTitle: data.seoTitle ?? null,
+      seoDescription: data.seoDescription ?? null,
+      contentTag: data.contentTag ?? "NEEDS_REVIEW",
+      sourceName: data.sourceName ?? null,
+      sourceUrl: data.sourceUrl ?? null,
+      status: nextStatus,
+      ...(data.coverImageId && data.coverCredit?.trim()
+        ? {}
+        : {}),
+    },
   });
 
-  revalidatePublic(existing.slug);
+  if (data.coverImageId && data.coverCredit?.trim()) {
+    await prisma.infoSpotEditorialAsset.update({
+      where: { id: data.coverImageId },
+      data: {
+        credit: data.coverCredit.trim(),
+        isPermanentEditorialAsset: true,
+      },
+    });
+  }
 
-  const messages: Record<ArticleStatus, string> = {
-    DRAFT: "Borrador guardado",
-    PUBLISHED: "Noticia publicada",
-    UNPUBLISHED: "Noticia despublicada",
-    ARCHIVED: "Noticia archivada",
+  revalidatePath("/redaccion");
+  revalidatePath(`/redaccion/noticias/${articleId}/editar`);
+
+  return {
+    ok: true,
+    id: article.id,
+    message: "Guardado",
+    updatedAt: article.updatedAt.toISOString(),
   };
-
-  return { ok: true, id: articleId, message: messages[toStatus] };
 }
 
 export async function createArticleAndRedirect(formData: FormData) {

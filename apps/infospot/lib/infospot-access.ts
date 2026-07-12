@@ -10,8 +10,11 @@ import {
   canModerateInfoSpotEvents,
   canPublishInfoSpotArticle,
   canPublishInfoSpotEvent,
+  canReviewInfoSpotApprovals,
   canViewInfoSpotPublishedEvents,
+  resolveInfoSpotPublicationFields,
   type InfoSpotPermissionSubject,
+  type InfoSpotPublicationPolicyName,
 } from "@repo/db";
 import { getAuthUser, requireAuth, type AuthUser } from "@/lib/auth";
 
@@ -20,6 +23,7 @@ export type InfoSpotMembership = {
   userId: number;
   role: string;
   canPublish: boolean;
+  publicationPolicy: InfoSpotPublicationPolicyName;
   status: string;
 };
 
@@ -37,15 +41,22 @@ export async function getInfoSpotMembership(userId: number): Promise<InfoSpotMem
       userId: true,
       role: true,
       canPublish: true,
+      publicationPolicy: true,
       status: true,
     },
   });
   if (!row) return null;
+  const synced = resolveInfoSpotPublicationFields({
+    role: row.role,
+    publicationPolicy: row.publicationPolicy,
+    canPublish: row.canPublish,
+  });
   return {
     id: row.id,
     userId: row.userId,
     role: row.role,
-    canPublish: row.canPublish,
+    canPublish: synced.canPublish,
+    publicationPolicy: synced.publicationPolicy,
     status: row.status,
   };
 }
@@ -58,6 +69,7 @@ export function toPermissionSubject(
     return {
       role: membership?.role ?? "INFOSPOT_DIRECTOR",
       canPublish: true,
+      publicationPolicy: "DIRECT_PUBLISH",
       status: "ACTIVE",
       isSuperAdmin: true,
     };
@@ -66,6 +78,7 @@ export function toPermissionSubject(
   return {
     role: membership.role,
     canPublish: membership.canPublish,
+    publicationPolicy: membership.publicationPolicy,
     status: membership.status,
     isSuperAdmin: false,
   };
@@ -77,7 +90,16 @@ export async function getInfoSpotAccessContext(): Promise<InfoSpotAccessContext 
   const membership = await getInfoSpotMembership(user.id);
   const subject = toPermissionSubject(user, membership);
   if (!subject) {
-    return { user, membership, subject: { role: "", canPublish: false, status: "DISABLED" } };
+    return {
+      user,
+      membership,
+      subject: {
+        role: "",
+        canPublish: false,
+        publicationPolicy: "REQUIRES_APPROVAL",
+        status: "DISABLED",
+      },
+    };
   }
   return { user, membership, subject };
 }
@@ -121,6 +143,7 @@ export {
   canCreateInfoSpotArticle,
   canEditInfoSpotArticle,
   canPublishInfoSpotArticle,
+  canReviewInfoSpotApprovals,
   canAccessInfoSpotRedaccion,
   canAccessInfoSpotAdmin,
   canModerateInfoSpotEvents,

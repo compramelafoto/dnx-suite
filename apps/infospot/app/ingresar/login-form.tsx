@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { loginAction, type LoginFormState } from "./actions";
@@ -71,11 +72,25 @@ export function LoginForm({
         />
       </div>
 
+      <label className="flex items-center gap-3 text-sm text-[var(--is-text)]">
+        <input type="checkbox" name="rememberMe" className="size-4" />
+        Recordarme en este dispositivo
+      </label>
+
       <SubmitButton />
 
       <p className="text-center text-sm leading-relaxed text-[var(--is-muted)]">
-        Misma identidad DNX Suite (cookie <code className="text-xs">dnx_session</code>).
-        Si no tenés rol Info Spot, pedile acceso al Director.
+        <Link
+          href="/recuperar"
+          className="font-medium text-[var(--is-accent)] underline-offset-2 hover:underline"
+        >
+          Olvidé mi contraseña
+        </Link>
+      </p>
+
+      <p className="text-center text-sm leading-relaxed text-[var(--is-muted)]">
+        Identidad DNX Suite (cookie <code className="text-xs">dnx_session</code>).
+        Si no tenés rol Info Spot, pedile una invitación al Director.
       </p>
     </form>
   );

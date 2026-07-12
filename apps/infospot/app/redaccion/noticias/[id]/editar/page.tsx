@@ -5,12 +5,21 @@ import { updateArticleAndRedirect } from "@/app/actions/articles";
 import { ArticleForm } from "@/components/redaccion/article-form";
 import { FlashBanner } from "@/components/redaccion/flash-banner";
 import { RedaccionShell } from "@/components/redaccion/redaccion-shell";
-import { getArticleByIdForEditor, getCategories, listUploadAssets } from "@/lib/articles";
-import { canPublishInfoSpotArticle, requireInfoSpotRedaccionAccess } from "@/lib/infospot-access";
-import type { ArticleStatus } from "@/lib/article-status";
+import {
+  authorDisplayName,
+  getArticleByIdForEditor,
+  getCategories,
+  listUploadAssets,
+} from "@/lib/articles";
+import {
+  canManageInfoSpotSettings,
+  canPublishInfoSpotArticle,
+  requireInfoSpotRedaccionAccess,
+} from "@/lib/infospot-access";
+import { hasPendingReturn, type ArticleStatus } from "@/lib/article-status";
 
 export const metadata: Metadata = {
-  title: "Editar noticia",
+  title: "Editar nota",
 };
 
 type PageProps = {
@@ -49,15 +58,41 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
     await updateArticleAndRedirect(id, formData);
   }
 
+  const latestObs = article.observations?.[0];
+  const pendingReturn = hasPendingReturn(article);
+  const latestReturn =
+    pendingReturn && latestObs
+      ? {
+          message: latestObs.message,
+          createdAt: latestObs.createdAt,
+          authorName: authorDisplayName(latestObs.author),
+        }
+      : null;
+
   return (
-    <RedaccionShell title="Editar noticia" description={article.title}>
+    <RedaccionShell title="Editar nota" description={article.title}>
       <FlashBanner ok={query.ok} error={query.error} />
+      {latestReturn ? (
+        <div className="mb-6 rounded-[var(--is-radius-md)] border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">Nota devuelta — acción requerida</p>
+          <p className="mt-1 leading-relaxed">{latestReturn.message}</p>
+        </div>
+      ) : null}
       <ArticleForm
         mode="edit"
         action={action}
         categories={categories}
-        assets={assets.map((a) => ({ id: a.id, url: a.url, caption: a.caption }))}
+        assets={assets.map((a) => ({
+          id: a.id,
+          url: a.url,
+          caption: a.caption,
+          credit: a.credit,
+        }))}
         canPublish={canPublishInfoSpotArticle(access.subject)}
+        isDirector={canManageInfoSpotSettings(access.subject)}
+        subject={access.subject}
+        authorLabel={authorDisplayName(article.author)}
+        latestReturn={latestReturn}
         clf={{
           eventId: article.eventId,
           albumId: article.clfAlbumId,
@@ -82,6 +117,7 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
           content: article.content,
           categoryId: article.categoryId,
           coverImageId: article.coverImageId,
+          coverCredit: article.coverImage?.credit ?? null,
           seoTitle: article.seoTitle,
           seoDescription: article.seoDescription,
           publishedAt: article.publishedAt,
@@ -91,6 +127,9 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
           sourceUrl: article.sourceUrl,
           factCheckedAt: article.factCheckedAt,
           authorId: article.authorId,
+          updatedAt: article.updatedAt,
+          returnedAt: article.returnedAt,
+          submittedForReviewAt: article.submittedForReviewAt,
         }}
       />
     </RedaccionShell>

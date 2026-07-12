@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { findFiguresMissingAlt, findFiguresMissingCredit } from "@repo/editor";
 import { ARTICLE_STATUSES } from "@/lib/article-status";
 
 const optionalString = z
@@ -27,6 +28,7 @@ export const articleDraftSchema = z.object({
     .trim()
     .optional()
     .transform((v) => (v && v.length > 0 ? v : null)),
+  coverCredit: optionalString,
   seoTitle: optionalString,
   seoDescription: optionalString,
   contentTag: z
@@ -45,6 +47,7 @@ export const articleDraftSchema = z.object({
     .union([z.literal("on"), z.literal("true"), z.literal("1"), z.literal("")])
     .optional()
     .transform((v) => v === "on" || v === "true" || v === "1"),
+  expectedUpdatedAt: optionalString,
 });
 
 export type ArticleDraftInput = z.infer<typeof articleDraftSchema>;
@@ -75,6 +78,18 @@ export function validateForPublish(data: ArticleDraftInput): string[] {
   if (!data.seoDescription?.trim()) {
     errors.push("Completá la SEO description antes de publicar.");
   }
+
+  const missingCredit = findFiguresMissingCredit(data.content);
+  if (missingCredit.length > 0) {
+    errors.push(
+      `Hay ${missingCredit.length} imagen(es) en el cuerpo sin crédito fotográfico.`,
+    );
+  }
+  const missingAlt = findFiguresMissingAlt(data.content);
+  if (missingAlt.length > 0) {
+    errors.push(`Hay ${missingAlt.length} imagen(es) en el cuerpo sin texto alternativo.`);
+  }
+
   return errors;
 }
 

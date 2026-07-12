@@ -4,7 +4,11 @@ import { ArticleForm } from "@/components/redaccion/article-form";
 import { FlashBanner } from "@/components/redaccion/flash-banner";
 import { RedaccionShell } from "@/components/redaccion/redaccion-shell";
 import { getCategories, listUploadAssets } from "@/lib/articles";
-import { canPublishInfoSpotArticle, requireInfoSpotRedaccionAccess } from "@/lib/infospot-access";
+import {
+  canManageInfoSpotSettings,
+  canPublishInfoSpotArticle,
+  requireInfoSpotRedaccionAccess,
+} from "@/lib/infospot-access";
 
 export const metadata: Metadata = {
   title: "Nueva noticia",
@@ -21,16 +25,24 @@ export default async function NuevaNoticiaPage({ searchParams }: PageProps) {
 
   return (
     <RedaccionShell
-      title="Nueva noticia"
-      description="Podés guardar un borrador incompleto. Para publicar se exige extracto, contenido y categoría."
+      title="Escribir nota"
+      description="Editor visual. El contenido se guarda en Markdown compatible con las notas existentes."
     >
       <FlashBanner error={params.error} />
       <ArticleForm
         mode="create"
         action={createArticleAndRedirect}
         categories={categories}
-        assets={assets.map((a) => ({ id: a.id, url: a.url, caption: a.caption }))}
+        assets={assets.map((a) => ({
+          id: a.id,
+          url: a.url,
+          caption: a.caption,
+          credit: a.credit,
+        }))}
         canPublish={canPublishInfoSpotArticle(access.subject)}
+        isDirector={canManageInfoSpotSettings(access.subject)}
+        subject={access.subject}
+        authorLabel={access.user.name?.trim() || access.user.email}
       />
     </RedaccionShell>
   );

@@ -1,12 +1,26 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@repo/db";
+import {
+  prisma,
+  isInfoSpotEditorialRole,
+  infoSpotRoleLabel,
+  publicationPolicyLabel,
+  resolveInfoSpotPublicationFields,
+} from "@repo/db";
+import {
+  DNX_APP_INFOSPOT,
+  inviteOrAssignAppAccess,
+  listPendingInvitations,
+  resendAppInvitation,
+  revokeAppInvitation,
+} from "@repo/auth";
 import {
   canManageInfoSpotUsers,
   requireInfoSpotAdminAccess,
 } from "@/lib/infospot-access";
 import { revokeAllSessionsForUser } from "@/lib/session-cookie";
+import { getSiteUrl } from "@/lib/settings";
 
 export type UsersActionState = { ok: boolean; message: string };
 
@@ -22,6 +36,9 @@ export type LookupUserState = {
     currentRole: string | null;
     currentStatus: string | null;
   } | null;
+  /** Si no hay User DNX, se puede invitar. */
+  canInvite?: boolean;
+  email?: string;
 };
 
 function deny(): UsersActionState {
@@ -36,6 +53,22 @@ async function requireDirector() {
   return access;
 }
 
+function resolveMembershipFields(role: string, formData: FormData) {
+  const policyFromForm = formData.get("publicationPolicy")?.toString();
+  const publicationPolicy =
+    policyFromForm === "REQUIRES_APPROVAL" || policyFromForm === "DIRECT_PUBLISH"
+      ? policyFromForm
+      : formData.get("canPublish") === "on"
+        ? "DIRECT_PUBLISH"
+        : "REQUIRES_APPROVAL";
+
+  return resolveInfoSpotPublicationFields({
+    role,
+    publicationPolicy,
+    canPublish: publicationPolicy === "DIRECT_PUBLISH",
+  });
+}
+
 async function countActiveDirectors(excludeUserId?: number): Promise<number> {
   return prisma.infoSpotUserRole.count({
     where: {
@@ -46,10 +79,6 @@ async function countActiveDirectors(excludeUserId?: number): Promise<number> {
   });
 }
 
-/**
- * Evita dejar Info Spot sin ningún DIRECTOR activo.
- * SUPER_ADMIN de suite no cuenta como fila editorial.
- */
 async function wouldLeaveNoActiveDirector(params: {
   targetUserId: number;
   nextRole: string;
@@ -72,6 +101,64 @@ async function wouldLeaveNoActiveDirector(params: {
   return others === 0;
 }
 
+async function upsertInfoSpotMembership(params: {
+  userId: number;
+  role: string;
+  publicationPolicy: string;
+  canPublish: boolean;
+  actorUserId: number;
+}) {
+  const existing = await prisma.infoSpotUserRole.findUnique({
+    where: { userId: params.userId },
+  });
+
+  if (existing) {
+    const leaveEmpty = await wouldLeaveNoActiveDirector({
+      targetUserId: params.userId,
+      nextRole: params.role,
+      nextStatus: "ACTIVE",
+    });
+    if (leaveEmpty) {
+      throw new Error(
+        "No se puede cambiar el rol: quedaría Info Spot sin ningún Director activo.",
+      );
+    }
+  }
+
+  const fields = resolveInfoSpotPublicationFields({
+    role: params.role,
+    publicationPolicy: params.publicationPolicy,
+    canPublish: params.canPublish,
+  });
+
+  await prisma.infoSpotUserRole.upsert({
+    where: { userId: params.userId },
+    create: {
+      userId: params.userId,
+      role: params.role as "INFOSPOT_DIRECTOR" | "INFOSPOT_REDACTOR" | "INFOSPOT_COLABORADOR",
+      canPublish: fields.canPublish,
+      publicationPolicy: fields.publicationPolicy,
+      status: "ACTIVE",
+      assignedByUserId: params.actorUserId,
+      lastChangedByUserId: params.actorUserId,
+    },
+    update: {
+      role: params.role as "INFOSPOT_DIRECTOR" | "INFOSPOT_REDACTOR" | "INFOSPOT_COLABORADOR",
+      canPublish: fields.canPublish,
+      publicationPolicy: fields.publicationPolicy,
+      status: "ACTIVE",
+      lastChangedByUserId: params.actorUserId,
+      assignedByUserId: existing?.assignedByUserId ?? params.actorUserId,
+    },
+  });
+}
+
+function emailStatusNote(result: { sent: boolean; skipped: boolean; reason?: string }): string {
+  if (result.sent) return " Email enviado.";
+  if (result.skipped) return " Email no enviado (servicio no configurado); usá el enlace o reenviá luego.";
+  return ` Email falló: ${result.reason ?? "error desconocido"}.`;
+}
+
 /** Preview: buscar User DNX por email (sin crear). */
 export async function lookupDnxUserByEmailAction(
   _prev: LookupUserState,
@@ -91,10 +178,12 @@ export async function lookupDnxUserByEmailAction(
   });
   if (!user) {
     return {
-      ok: false,
+      ok: true,
       message:
-        "No hay cuenta DNX con ese email. La persona debe registrarse o iniciar sesión antes en la suite (ComprameLaFoto / FotoRank / seed). Info Spot no crea contraseñas propias.",
+        "No hay cuenta DNX con ese email. Podés enviar una invitación para que cree su identidad y se una al equipo.",
       user: null,
+      canInvite: true,
+      email,
     };
   }
 
@@ -117,14 +206,16 @@ export async function lookupDnxUserByEmailAction(
       currentRole: membership?.role ?? null,
       currentStatus: membership?.status ?? null,
     },
+    canInvite: false,
+    email,
   };
 }
 
 /**
- * Alta / reactivación de miembro (DIRECTOR o REDACTOR).
- * No crea User nuevo.
+ * Invita por email (User nuevo) o asigna rol (User existente).
+ * Parte de DNX Identity — no crea contraseñas temporales.
  */
-export async function assignInfoSpotMemberAction(
+export async function inviteOrAssignInfoSpotMemberAction(
   _prev: UsersActionState,
   formData: FormData,
 ): Promise<UsersActionState> {
@@ -133,77 +224,65 @@ export async function assignInfoSpotMemberAction(
 
   const email = formData.get("email")?.toString()?.trim().toLowerCase();
   const role = formData.get("role")?.toString() ?? "INFOSPOT_REDACTOR";
-  const canPublish = formData.get("canPublish") === "on";
+  const fields = resolveMembershipFields(role, formData);
 
   if (!email) return { ok: false, message: "Email obligatorio." };
-  if (role !== "INFOSPOT_DIRECTOR" && role !== "INFOSPOT_REDACTOR") {
+  if (!isInfoSpotEditorialRole(role)) {
     return { ok: false, message: "Rol inválido." };
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, email: true, name: true, isBlocked: true },
-  });
-  if (!user) {
-    return {
-      ok: false,
-      message:
-        "No hay usuario DNX con ese email. Primero debe existir la cuenta en la suite.",
-    };
-  }
-  if (user.isBlocked) {
-    return { ok: false, message: "Ese usuario está bloqueado a nivel suite." };
-  }
-
-  const existing = await prisma.infoSpotUserRole.findUnique({
-    where: { userId: user.id },
-  });
-
-  if (existing) {
-    const leaveEmpty = await wouldLeaveNoActiveDirector({
-      targetUserId: user.id,
-      nextRole: role,
-      nextStatus: "ACTIVE",
+  try {
+    const result = await inviteOrAssignAppAccess({
+      email,
+      app: DNX_APP_INFOSPOT,
+      appRole: role,
+      canPublish: fields.canPublish,
+      invitedByUserId: access.user.id,
+      appBaseUrl: getSiteUrl(),
+      appLabel: "Info Spot",
+      roleLabel: infoSpotRoleLabel(role),
+      loginPath: "/ingresar",
+      invitePath: "/invitar",
+      onAssignExistingUser: async (userId) => {
+        await upsertInfoSpotMembership({
+          userId,
+          role,
+          publicationPolicy: fields.publicationPolicy,
+          canPublish: fields.canPublish,
+          actorUserId: access.user.id,
+        });
+      },
     });
-    if (leaveEmpty) {
+
+    revalidatePath("/admin/usuarios");
+
+    if (result.kind === "assigned_existing") {
       return {
-        ok: false,
-        message:
-          "No se puede cambiar el rol: quedaría Info Spot sin ningún Director activo.",
+        ok: true,
+        message: `${result.email} quedó como ${infoSpotRoleLabel(role)} activo (${publicationPolicyLabel(fields.publicationPolicy)}).${emailStatusNote(result.emailResult)}`,
       };
     }
+
+    return {
+      ok: true,
+      message: `Invitación ${result.kind === "invitation_resent" ? "reenviada" : "creada"} para ${result.email} (${infoSpotRoleLabel(role)}, ${publicationPolicyLabel(fields.publicationPolicy)}).${emailStatusNote(result.emailResult)} Enlace: ${result.inviteUrl}`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "No se pudo invitar o asignar.",
+    };
   }
-
-  await prisma.infoSpotUserRole.upsert({
-    where: { userId: user.id },
-    create: {
-      userId: user.id,
-      role,
-      canPublish: role === "INFOSPOT_DIRECTOR" ? true : canPublish,
-      status: "ACTIVE",
-      assignedByUserId: access.user.id,
-      lastChangedByUserId: access.user.id,
-    },
-    update: {
-      role,
-      canPublish: role === "INFOSPOT_DIRECTOR" ? true : canPublish,
-      status: "ACTIVE",
-      lastChangedByUserId: access.user.id,
-      assignedByUserId: existing?.assignedByUserId ?? access.user.id,
-    },
-  });
-
-  revalidatePath("/admin/usuarios");
-  const label = role === "INFOSPOT_DIRECTOR" ? "DIRECTOR" : "REDACTOR";
-  return {
-    ok: true,
-    message: `${user.email} quedó como ${label} activo (canPublish=${
-      role === "INFOSPOT_DIRECTOR" ? true : canPublish
-    }). Cambio por ${access.user.email}.`,
-  };
 }
 
-/** Compat: formulario legacy que solo asignaba redactora. */
+/** Compat: asignar miembro existente (sin invitación). */
+export async function assignInfoSpotMemberAction(
+  prev: UsersActionState,
+  formData: FormData,
+): Promise<UsersActionState> {
+  return inviteOrAssignInfoSpotMemberAction(prev, formData);
+}
+
 export async function assignInfoSpotRedactorAction(
   prev: UsersActionState,
   formData: FormData,
@@ -211,7 +290,66 @@ export async function assignInfoSpotRedactorAction(
   if (!formData.get("role")) {
     formData.set("role", "INFOSPOT_REDACTOR");
   }
-  return assignInfoSpotMemberAction(prev, formData);
+  return inviteOrAssignInfoSpotMemberAction(prev, formData);
+}
+
+export async function resendInfoSpotInvitationAction(
+  _prev: UsersActionState,
+  formData: FormData,
+): Promise<UsersActionState> {
+  const access = await requireDirector();
+  if (!access) return deny();
+
+  const invitationId = formData.get("invitationId")?.toString();
+  if (!invitationId) return { ok: false, message: "Invitación inválida." };
+
+  try {
+    const pending = await listPendingInvitations({ app: DNX_APP_INFOSPOT });
+    const row = pending.find((i) => i.id === invitationId);
+    if (!row) return { ok: false, message: "Invitación no encontrada." };
+
+    const result = await resendAppInvitation({
+      invitationId,
+      invitedByUserId: access.user.id,
+      appBaseUrl: getSiteUrl(),
+      appLabel: "Info Spot",
+      roleLabel: infoSpotRoleLabel(row.appRole),
+      invitePath: "/invitar",
+    });
+
+    revalidatePath("/admin/usuarios");
+    return {
+      ok: true,
+      message: `Invitación reenviada a ${row.email}.${emailStatusNote(result.emailResult)} Enlace: ${result.inviteUrl}`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "No se pudo reenviar.",
+    };
+  }
+}
+
+export async function revokeInfoSpotInvitationAction(
+  _prev: UsersActionState,
+  formData: FormData,
+): Promise<UsersActionState> {
+  const access = await requireDirector();
+  if (!access) return deny();
+
+  const invitationId = formData.get("invitationId")?.toString();
+  if (!invitationId) return { ok: false, message: "Invitación inválida." };
+
+  try {
+    await revokeAppInvitation(invitationId);
+    revalidatePath("/admin/usuarios");
+    return { ok: true, message: "Invitación revocada." };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "No se pudo revocar.",
+    };
+  }
 }
 
 export async function updateInfoSpotMemberAction(
@@ -224,12 +362,12 @@ export async function updateInfoSpotMemberAction(
   const userId = Number(formData.get("userId"));
   const role = formData.get("role")?.toString();
   const status = formData.get("status")?.toString();
-  const canPublish = formData.get("canPublish") === "on";
+  const fields = role ? resolveMembershipFields(role, formData) : null;
 
   if (!Number.isFinite(userId) || userId <= 0) {
     return { ok: false, message: "userId inválido." };
   }
-  if (role !== "INFOSPOT_DIRECTOR" && role !== "INFOSPOT_REDACTOR") {
+  if (!role || !isInfoSpotEditorialRole(role) || !fields) {
     return { ok: false, message: "Rol inválido." };
   }
   if (status !== "ACTIVE" && status !== "DISABLED") {
@@ -265,7 +403,8 @@ export async function updateInfoSpotMemberAction(
     data: {
       role,
       status,
-      canPublish: role === "INFOSPOT_DIRECTOR" ? true : canPublish,
+      canPublish: fields.canPublish,
+      publicationPolicy: fields.publicationPolicy,
       lastChangedByUserId: access.user.id,
     },
   });
@@ -275,11 +414,10 @@ export async function updateInfoSpotMemberAction(
   }
 
   revalidatePath("/admin/usuarios");
+  revalidatePath("/admin/aprobaciones");
   return {
     ok: true,
-    message: `Miembro actualizado (${role.replace("INFOSPOT_", "")}, ${status}, publicar=${
-      role === "INFOSPOT_DIRECTOR" ? true : canPublish
-    }) por ${access.user.email}.`,
+    message: `Miembro actualizado (${infoSpotRoleLabel(role)}, ${status}, ${publicationPolicyLabel(fields.publicationPolicy)}) por ${access.user.email}.`,
   };
 }
 

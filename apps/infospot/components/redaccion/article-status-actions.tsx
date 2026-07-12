@@ -1,8 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { transitionArticleStatusAction } from "@/app/actions/articles";
+import { transitionArticleStatusAction } from "@/app/actions/editorial-workflow";
 import type { ArticleStatus } from "@/lib/article-status";
 import { canTransitionStatus } from "@/lib/article-status";
 
@@ -15,8 +14,8 @@ type Props = {
 const btn =
   "inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] border px-3 text-sm font-medium transition-colors disabled:opacity-50";
 
+/** Acciones rápidas legacy; preferir EditorialActionsPanel en el editor. */
 export function ArticleStatusActions({ articleId, status, canPublish }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +31,6 @@ export function ArticleStatusActions({ articleId, status, canPublish }: Props) {
         return;
       }
       setMessage(result.message);
-      router.refresh();
     });
   }
 
@@ -64,7 +62,7 @@ export function ArticleStatusActions({ articleId, status, canPublish }: Props) {
             type="button"
             disabled={pending}
             className={`${btn} border-stone-400 bg-stone-100 text-stone-800 hover:bg-stone-200`}
-            onClick={() => run("ARCHIVED", "¿Archivar esta noticia? Dejará de editarse en el flujo normal.")}
+            onClick={() => run("ARCHIVED", "¿Archivar esta noticia?")}
           >
             Archivar
           </button>

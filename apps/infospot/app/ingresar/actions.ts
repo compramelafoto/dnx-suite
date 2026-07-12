@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
+import { verifyPassword } from "@repo/auth";
 import { getAuthUser } from "@/lib/auth";
 import {
   canAccessInfoSpotAdmin,
@@ -9,7 +10,6 @@ import {
   getInfoSpotMembership,
   toPermissionSubject,
 } from "@/lib/infospot-access";
-import { verifyPassword } from "@/lib/password";
 import { createInfoSpotSession, destroyInfoSpotSession } from "@/lib/session-cookie";
 
 export type LoginFormState = { error: string | null };
@@ -26,6 +26,7 @@ export async function loginAction(
 ): Promise<LoginFormState> {
   const email = formData.get("email")?.toString()?.trim().toLowerCase();
   const password = formData.get("password")?.toString() ?? "";
+  const rememberMe = formData.get("rememberMe") === "on";
   const next = safeNextPath(formData.get("next"));
 
   if (!email) return { error: "El email es obligatorio." };
@@ -55,7 +56,7 @@ export async function loginAction(
   if (!user.password) {
     return {
       error:
-        "Esta cuenta no tiene contraseña configurada. Usá el acceso DNX existente o pedí alta al Director.",
+        "Esta cuenta no tiene contraseña configurada. Usá el enlace de invitación o recuperá el acceso.",
     };
   }
   if (!verifyPassword(password, user.password)) {
@@ -86,12 +87,16 @@ export async function loginAction(
   if (!canEnter) {
     return {
       error:
-        "Acceso denegado: tu usuario DNX no tiene rol Info Spot (INFOSPOT_DIRECTOR o INFOSPOT_REDACTOR). Pedile al Director que te asigne en /admin/usuarios.",
+        "Acceso denegado: tu usuario DNX no tiene rol Info Spot activo. Pedile al Director que te invite o asigne en /admin/usuarios.",
     };
   }
 
   try {
-    await createInfoSpotSession(user.id);
+    await createInfoSpotSession(user.id, { rememberMe });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
   } catch {
     return { error: "No se pudo guardar la sesión." };
   }

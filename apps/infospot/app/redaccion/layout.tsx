@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * DIRECTOR y REDACTOR (membresía ACTIVE).
+ * DIRECTOR, REDACTOR y COLABORADOR (membresía ACTIVE).
  * No indexar paneles internos.
  */
 export default async function RedaccionLayout({ children }: { children: ReactNode }) {

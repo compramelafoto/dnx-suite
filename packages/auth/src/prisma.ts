@@ -13,4 +13,13 @@ export const prisma = basePrisma as typeof basePrisma & {
   workspaceMembership: SuiteDelegate;
   membership: SuiteDelegate;
   workspaceAppAccess: SuiteDelegate;
+  dnxAppInvitation: SuiteDelegate & {
+    findFirst(args: unknown): Promise<unknown>;
+    findMany(args: unknown): Promise<unknown>;
+    update(args: unknown): Promise<unknown>;
+    updateMany(args: unknown): Promise<{ count: number }>;
+  };
+  passwordResetToken: SuiteDelegate & {
+    update(args: unknown): Promise<unknown>;
+  };
 };

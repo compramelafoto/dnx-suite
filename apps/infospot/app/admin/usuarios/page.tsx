@@ -33,8 +33,8 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "redactores", label: "Redactores" },
   { key: "activos", label: "Activos" },
   { key: "desactivados", label: "Desactivados" },
-  { key: "publicar", label: "Puede publicar" },
-  { key: "revision", label: "Necesita revisión" },
+  { key: "publicar", label: "Publicación directa" },
+  { key: "revision", label: "Requiere aprobación" },
 ];
 
 type SearchParams = Promise<{ filtro?: string; q?: string }>;
@@ -92,15 +92,25 @@ export default async function AdminUsuariosPage({
   );
 
   const cards: MemberCardData[] = members.map((m) => {
+    const synced = {
+      canPublish: m.canPublish,
+      publicationPolicy: (m.publicationPolicy ??
+        (m.canPublish ? "DIRECT_PUBLISH" : "REQUIRES_APPROVAL")) as
+        | "DIRECT_PUBLISH"
+        | "REQUIRES_APPROVAL",
+    };
     const needsReview =
-      m.role === "INFOSPOT_REDACTOR" && m.status === "ACTIVE" && !m.canPublish;
+      m.role === "INFOSPOT_REDACTOR" &&
+      m.status === "ACTIVE" &&
+      synced.publicationPolicy === "REQUIRES_APPROVAL";
     return {
       userId: m.userId,
       name: m.user.name?.trim() || m.user.email,
       email: m.user.email,
       role: m.role,
       status: m.status,
-      canPublish: m.canPublish,
+      canPublish: synced.canPublish,
+      publicationPolicy: synced.publicationPolicy,
       isSelf: m.userId === access.user.id,
       isBlockedSuite: m.user.isBlocked,
       assignedAtLabel: formatDateTimeEs(m.createdAt),
@@ -133,7 +143,10 @@ export default async function AdminUsuariosPage({
       case "desactivados":
         return m.status === "DISABLED";
       case "publicar":
-        return m.status === "ACTIVE" && (m.canPublish || m.role === "INFOSPOT_DIRECTOR");
+        return (
+          m.status === "ACTIVE" &&
+          (m.publicationPolicy === "DIRECT_PUBLISH" || m.role === "INFOSPOT_DIRECTOR")
+        );
       case "revision":
         return m.needsReview;
       default:

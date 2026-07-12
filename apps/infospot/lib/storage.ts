@@ -58,6 +58,53 @@ export async function uploadInfoSpotCover(file: File): Promise<{
   };
 }
 
+/**
+ * Imagen editorial del cuerpo (inline).
+ * Prefix `infospot/editorial` — URL pública; nunca originales CLF.
+ */
+export async function uploadInfoSpotEditorialImage(
+  file: File,
+  articleId?: string,
+): Promise<{
+  url: string;
+  key: string;
+  mimeType: string;
+  sizeBytes: number;
+  filename: string;
+}> {
+  const validation = validateInfoSpotImageFile(file);
+  if (!validation.ok) throw new Error(validation.error);
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const filename = file.name || "editorial.jpg";
+  const mimeType = file.type || "image/jpeg";
+  const prefix = articleId
+    ? `infospot/editorial/${articleId}`
+    : "infospot/editorial/library";
+
+  if (isR2Configured()) {
+    const key = generateR2Key(filename, prefix);
+    const { url } = await uploadToR2(buffer, key, mimeType, {
+      type: "infospot_editorial_inline",
+    });
+    return { url, key, mimeType, sizeBytes: file.size, filename };
+  }
+
+  const ext = path.extname(filename) || ".jpg";
+  const localName = `${randomUUID()}${ext}`;
+  const dir = path.join(process.cwd(), "public", "uploads", "infospot", "editorial");
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, localName), buffer);
+  return {
+    url: `/uploads/infospot/editorial/${localName}`,
+    key: `uploads/infospot/editorial/${localName}`,
+    mimeType,
+    sizeBytes: file.size,
+    filename,
+  };
+}
+
 /** Portada de evento público — prefix `infospot/events`. */
 export async function uploadInfoSpotEventCover(
   file: File,

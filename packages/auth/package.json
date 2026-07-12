@@ -9,10 +9,12 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@repo/db": "workspace:*"
+    "@repo/db": "workspace:*",
+    "bcryptjs": "^3.0.3"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.15.3",
     "typescript": "5.9.2"
   }

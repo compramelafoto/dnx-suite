@@ -22,6 +22,7 @@ type Props = {
   badge?: string;
   albumAvailability?: ClfAlbumAvailabilityResult | null;
   shareUrl?: string;
+  showDirectorCommerceActions?: boolean;
 };
 
 export function ArticleView({
@@ -30,6 +31,7 @@ export function ArticleView({
   badge,
   albumAvailability,
   shareUrl,
+  showDirectorCommerceActions = false,
 }: Props) {
   const inline = article.articleAssets.filter((a) => a.usageType === "INLINE");
   const gallery = article.articleAssets.filter((a) => a.usageType === "GALLERY");
@@ -136,7 +138,10 @@ export function ArticleView({
         ) : null}
 
         {albumAvailability ? (
-          <AlbumCommerceCta availability={albumAvailability} />
+          <AlbumCommerceCta
+            availability={albumAvailability}
+            showDirectorActions={showDirectorCommerceActions}
+          />
         ) : null}
 
         <div className="mt-12 border-t border-[var(--is-border)] pt-8">

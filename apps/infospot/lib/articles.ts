@@ -15,6 +15,18 @@ export const articleListInclude = {
       copyrightText: true,
     },
   },
+  observations: {
+    where: { type: "RETURN" as const },
+    orderBy: { createdAt: "desc" as const },
+    take: 1,
+    select: {
+      id: true,
+      message: true,
+      createdAt: true,
+      type: true,
+      author: { select: { id: true, name: true, email: true } },
+    },
+  },
   articleAssets: {
     orderBy: [{ usageType: "asc" as const }, { sortOrder: "asc" as const }],
     select: {
@@ -84,14 +96,23 @@ export async function getArticleByIdForEditor(id: string) {
 }
 
 export async function getEditorialDashboardStats() {
-  const [draft, published, unpublished, archived, total] = await Promise.all([
+  const [draft, inReview, ready, published, unpublished, archived, total] = await Promise.all([
     prisma.infoSpotArticle.count({ where: { status: "DRAFT" } }),
+    prisma.infoSpotArticle.count({ where: { status: "IN_REVIEW" } }),
+    prisma.infoSpotArticle.count({ where: { status: "READY_TO_PUBLISH" } }),
     prisma.infoSpotArticle.count({ where: { status: "PUBLISHED" } }),
     prisma.infoSpotArticle.count({ where: { status: "UNPUBLISHED" } }),
     prisma.infoSpotArticle.count({ where: { status: "ARCHIVED" } }),
     prisma.infoSpotArticle.count(),
   ]);
-  return { draft, published, unpublished, archived, total };
+  return { draft, inReview, ready, published, unpublished, archived, total };
+}
+
+/** Conteos reales para la sala de redacción (sin métricas inventadas). */
+export async function getMyDraftCount(authorId: number) {
+  return prisma.infoSpotArticle.count({
+    where: { authorId, status: "DRAFT" },
+  });
 }
 
 export async function listArticlesForRedaccion(status?: ArticleStatus | "ALL") {
@@ -101,6 +122,16 @@ export async function listArticlesForRedaccion(status?: ArticleStatus | "ALL") {
     orderBy: [{ updatedAt: "desc" }],
     take: 200,
   });
+}
+
+/** URL de portada para cards (thumbnail preferido). */
+export function coverThumbnailUrl(
+  article: Pick<ArticleWithRelations, "coverImage" | "articleAssets">,
+): string | null {
+  if (article.coverImage?.thumbnailUrl) return article.coverImage.thumbnailUrl;
+  if (article.coverImage?.url) return article.coverImage.url;
+  const coverAsset = article.articleAssets.find((a) => a.usageType === "COVER");
+  return coverAsset?.asset.thumbnailUrl || coverAsset?.asset.url || null;
 }
 
 export async function getCategories() {

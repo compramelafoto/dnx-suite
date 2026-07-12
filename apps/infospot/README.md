@@ -34,7 +34,7 @@ Rutas privadas (requieren sesión DNX + `InfoSpotUserRole` ACTIVE):
 
 ### Editor
 
-Markdown en textarea + `react-markdown` / `remark-gfm` en público. TipTap del blog CLF se deja para después (más deps).
+TipTap visual (`@repo/editor`) con persistencia Markdown en `content`. Round-trip MD↔HTML; figuras editoriales como islas HTML con alt/crédito. Público: `react-markdown` + `remark-gfm` + `rehype-raw` sanitizado.
 
 ### Uploads
 

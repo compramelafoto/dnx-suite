@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { prisma, resolveClfAlbumCommercialAvailability } from "@repo/db";
 import { ArticleView } from "@/components/editorial/article-view";
 import { getPublishedArticleBySlug, getPublishedArticles } from "@/lib/articles";
+import {
+  canReviewInfoSpotApprovals,
+  getInfoSpotAccessContext,
+} from "@/lib/infospot-access";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -75,6 +79,9 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
     }
   }
 
+  const access = await getInfoSpotAccessContext();
+  const showDirectorCommerceActions = canReviewInfoSpotApprovals(access?.subject);
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
@@ -104,6 +111,7 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
         article={article}
         related={related}
         albumAvailability={albumAvailability}
+        showDirectorCommerceActions={showDirectorCommerceActions}
       />
     </>
   );

@@ -17,6 +17,7 @@ export type MemberCardData = {
   role: string;
   status: string;
   canPublish: boolean;
+  publicationPolicy: "DIRECT_PUBLISH" | "REQUIRES_APPROVAL";
   isSelf: boolean;
   isBlockedSuite: boolean;
   assignedAtLabel: string;
@@ -28,6 +29,12 @@ export type MemberCardData = {
 };
 
 function RoleBadge({ role }: { role: string }) {
+  const label =
+    role === "INFOSPOT_DIRECTOR"
+      ? "Director"
+      : role === "INFOSPOT_COLABORADOR"
+        ? "Colaborador"
+        : "Redactor";
   const director = role === "INFOSPOT_DIRECTOR";
   return (
     <span
@@ -37,7 +44,7 @@ function RoleBadge({ role }: { role: string }) {
           : "bg-[var(--is-bg-secondary)] text-[var(--is-text-secondary)]"
       }`}
     >
-      {director ? "Director" : "Redactor"}
+      {label}
     </span>
   );
 }
@@ -86,12 +93,24 @@ export function MemberCard({ member }: { member: MemberCardData }) {
             {member.role === "INFOSPOT_REDACTOR" ? (
               <span
                 className={`inline-flex min-h-8 items-center rounded-full px-3 text-xs font-semibold ${
-                  member.canPublish
+                  member.publicationPolicy === "DIRECT_PUBLISH"
                     ? "bg-sky-100 text-sky-800"
                     : "bg-amber-100 text-amber-900"
                 }`}
               >
-                {member.canPublish ? "Puede publicar" : "Necesita revisión"}
+                {member.publicationPolicy === "DIRECT_PUBLISH"
+                  ? "Publicación directa"
+                  : "Requiere aprobación"}
+              </span>
+            ) : null}
+            {member.role === "INFOSPOT_COLABORADOR" ? (
+              <span className="inline-flex min-h-8 items-center rounded-full bg-stone-200 px-3 text-xs font-semibold text-stone-700">
+                Requiere aprobación
+              </span>
+            ) : null}
+            {member.role === "INFOSPOT_DIRECTOR" ? (
+              <span className="inline-flex min-h-8 items-center rounded-full bg-sky-100 px-3 text-xs font-semibold text-sky-800">
+                Publicación directa
               </span>
             ) : null}
             {member.isBlockedSuite ? (
@@ -136,6 +155,7 @@ export function MemberCard({ member }: { member: MemberCardData }) {
               className="min-h-11 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg)] px-3 text-sm disabled:opacity-60"
             >
               <option value="INFOSPOT_REDACTOR">Redactor/a</option>
+              <option value="INFOSPOT_COLABORADOR">Colaborador/a</option>
               <option value="INFOSPOT_DIRECTOR">Director/a</option>
             </select>
           </div>
@@ -153,18 +173,24 @@ export function MemberCard({ member }: { member: MemberCardData }) {
               <option value="DISABLED">Desactivado</option>
             </select>
           </div>
-          <label className="flex min-h-11 items-end gap-3 pb-2 text-sm">
-            <input
-              type="checkbox"
-              name="canPublish"
-              defaultChecked={member.canPublish || member.role === "INFOSPOT_DIRECTOR"}
-              className="size-4"
-            />
-            Puede publicar
-            {member.role === "INFOSPOT_DIRECTOR" ? (
-              <span className="text-xs text-[var(--is-muted)]">(siempre en Director)</span>
-            ) : null}
-          </label>
+          <div className="space-y-2 sm:col-span-3">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--is-muted)]">
+              Política de publicación
+            </label>
+            <select
+              name="publicationPolicy"
+              defaultValue={member.publicationPolicy}
+              className="min-h-11 w-full max-w-md rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg)] px-3 text-sm"
+            >
+              <option value="DIRECT_PUBLISH">Puede publicar directamente</option>
+              <option value="REQUIRES_APPROVAL">Requiere aprobación del Director</option>
+            </select>
+            <p className="text-xs leading-relaxed text-[var(--is-muted)]">
+              Solo aplica a Redactores. Director siempre publica; Colaborador siempre requiere
+              aprobación (se fuerza al guardar). Último cambio: {member.lastChangedByLabel} ·{" "}
+              {member.updatedAtLabel}
+            </p>
+          </div>
         </div>
 
         {updateState.message ? (
@@ -258,7 +284,7 @@ export function MemberCard({ member }: { member: MemberCardData }) {
             userId: String(member.userId),
             role: member.role,
             status: "DISABLED",
-            ...(member.canPublish ? { canPublish: "on" } : {}),
+            publicationPolicy: member.publicationPolicy,
           }}
         />
       ) : null}

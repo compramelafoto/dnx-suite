@@ -168,6 +168,119 @@ summary:focus-visible {
   margin: 2.5rem 0;
 }
 
+.is-prose .is-editorial-figure,
+.is-prose figure[data-editorial-image] {
+  margin: 2.5rem 0;
+}
+
+.is-prose .is-editorial-figure img,
+.is-prose figure[data-editorial-image] img {
+  margin: 0;
+  border-radius: var(--is-radius-md);
+}
+
+.is-prose .is-figcaption,
+.is-prose figcaption {
+  margin-top: 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--is-muted);
+}
+
+.is-prose .is-caption {
+  display: block;
+  color: var(--is-text-secondary);
+}
+
+.is-prose .is-credit {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* —— Editor visual TipTap —— */
+.is-visual-editor {
+  font-size: 1.125rem;
+  line-height: var(--is-leading-body);
+  color: var(--is-text);
+}
+
+.is-visual-editor .ProseMirror {
+  min-height: 22rem;
+  outline: none;
+}
+
+.is-visual-editor .ProseMirror > * + * {
+  margin-top: 1.1rem;
+}
+
+.is-visual-editor h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--is-text);
+}
+
+.is-visual-editor h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--is-text);
+}
+
+.is-visual-editor a {
+  color: var(--is-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.is-visual-editor ul {
+  list-style: disc;
+  padding-left: 1.35rem;
+}
+
+.is-visual-editor ol {
+  list-style: decimal;
+  padding-left: 1.35rem;
+}
+
+.is-visual-editor blockquote {
+  border-left: 3px solid var(--is-accent);
+  padding-left: 1rem;
+  font-style: italic;
+}
+
+.is-visual-editor hr {
+  border: 0;
+  border-top: 1px solid var(--is-border);
+  margin: 1.5rem 0;
+}
+
+.is-visual-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--is-radius-md);
+}
+
+.is-visual-editor figure {
+  margin: 1.5rem 0;
+}
+
+.is-visual-editor figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--is-muted);
+}
+
+.is-visual-editor p.is-editor-empty:first-child::before {
+  color: var(--is-muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
 /* —— Botones (compat MVP; componente Button vendrá después) —— */
 .is-btn {
   display: inline-flex;

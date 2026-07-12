@@ -24,9 +24,14 @@ export const SESSION_COOKIE_OPTIONS = {
   ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
 };
 
-/** Emite `dnx_session` (HttpOnly, Secure en prod, SameSite=Lax, maxAge 7d). */
-export async function createInfoSpotSession(userId: number): Promise<void> {
-  const session = await createUserSession(userId);
+/** Emite `dnx_session` (HttpOnly, Secure en prod, SameSite=Lax). */
+export async function createInfoSpotSession(
+  userId: number,
+  options?: { rememberMe?: boolean },
+): Promise<void> {
+  const session = await createUserSession(userId, {
+    rememberMe: options?.rememberMe === true,
+  });
   const cookieStore = await cookies();
   cookieStore.set(DNX_SESSION_COOKIE, session.rawToken, {
     ...SESSION_COOKIE_OPTIONS,
