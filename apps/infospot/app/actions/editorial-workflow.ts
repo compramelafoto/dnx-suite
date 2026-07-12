@@ -61,7 +61,6 @@ async function loadArticle(articleId: string) {
 
 async function assertPublishChecklist(
   article: NonNullable<Awaited<ReturnType<typeof loadArticle>>>,
-  markFactChecked?: boolean,
 ): Promise<string | null> {
   const errors = validateForPublish({
     title: article.title,
@@ -70,12 +69,11 @@ async function assertPublishChecklist(
     content: article.content,
     categoryId: article.categoryId,
     coverImageId: article.coverImageId,
-    contentTag: article.contentTag,
+    contentTag: "REAL",
     sourceName: article.sourceName ?? undefined,
     sourceUrl: article.sourceUrl ?? undefined,
     seoTitle: article.seoTitle ?? undefined,
     seoDescription: article.seoDescription ?? undefined,
-    markFactChecked: markFactChecked ?? Boolean(article.factCheckedAt),
     status: "PUBLISHED",
   });
   if (article.coverImageId) {
@@ -152,10 +150,39 @@ export async function runEditorialAction(
   }
 
   if (action === "APPROVE" || action === "PUBLISH") {
-    const checklistError = await assertPublishChecklist(
-      article,
-      Boolean(article.factCheckedAt),
-    );
+    // Quien no puede publicar: "Publicar" = enviar a aprobación del Director.
+    if (action === "PUBLISH" && !canPublishInfoSpotArticle(access.subject)) {
+      if (from !== "DRAFT") {
+        return {
+          ok: false,
+          error: "Solo podés pedir publicación desde un borrador.",
+        };
+      }
+      const updated = await prisma.infoSpotArticle.update({
+        where: { id: articleId },
+        data: {
+          status: "IN_REVIEW",
+          submittedForReviewAt: now,
+          submittedForReviewByUserId: userId,
+          contentTag: "REAL",
+        },
+        select: { status: true, slug: true },
+      });
+      revalidateArticle(updated.slug, articleId);
+      emitEditorialNotification({
+        type: "ARTICLE_SUBMITTED_FOR_REVIEW",
+        articleId,
+        actorUserId: userId,
+        targetUserId: null,
+      });
+      return {
+        ok: true,
+        message: "Enviada a aprobación del Director. Quedó pendiente de publicación.",
+        status: "IN_REVIEW",
+      };
+    }
+
+    const checklistError = await assertPublishChecklist(article);
     if (checklistError) {
       return {
         ok: false,
@@ -175,20 +202,20 @@ export async function runEditorialAction(
       data.status = "IN_REVIEW";
       data.submittedForReviewAt = now;
       data.submittedForReviewByUserId = userId;
+      data.contentTag = "REAL";
       break;
     case "APPROVE":
+      // Flujo simplificado: aprobar = listo para publicar (el Director luego publica).
       data.status = "READY_TO_PUBLISH";
       data.approvedAt = now;
       data.approvedByUserId = userId;
+      data.contentTag = "REAL";
       break;
     case "PUBLISH":
       data.status = "PUBLISHED";
       data.publishedAt = article.publishedAt ?? now;
       data.publishedByUserId = userId;
-      if (!article.factCheckedAt) {
-        data.factCheckedAt = now;
-        data.factCheckedByUserId = userId;
-      }
+      data.contentTag = "REAL";
       break;
     case "UNPUBLISH":
       data.status = "UNPUBLISHED";

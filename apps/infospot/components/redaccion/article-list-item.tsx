@@ -6,14 +6,12 @@ import {
   type ArticleWithRelations,
 } from "@/lib/articles";
 import { formatDateTimeEs } from "@/lib/dates";
-import { CONTENT_TAG_LABELS } from "@/lib/launch-content";
 import {
   expectedActionHint,
   hasPendingReturn,
   type ArticleStatus,
 } from "@/lib/article-status";
 import { summarizeChecklist } from "@/lib/redaccion-queues";
-import type { InfoSpotContentTag } from "@repo/db";
 
 type Props = {
   article: ArticleWithRelations;
@@ -21,21 +19,15 @@ type Props = {
   isDirector?: boolean;
 };
 
-const tagStyles: Record<InfoSpotContentTag, string> = {
-  REAL: "bg-[var(--is-success-50)] text-[var(--is-success-800)]",
-  DEMO: "bg-[var(--is-warning-50)] text-[var(--is-warning-800)]",
-  NEEDS_REVIEW: "bg-[var(--is-orange-50)] text-[var(--is-orange-800)]",
-};
-
 export function ArticleListItem({ article, canPublish, isDirector }: Props) {
   const coverUrl = coverThumbnailUrl(article);
   const checklist = summarizeChecklist(article);
-  const tag = article.contentTag as InfoSpotContentTag;
   const pendingReturn = hasPendingReturn(article);
   const latestReturn = article.observations?.[0];
   const hint = expectedActionHint(article.status as ArticleStatus, {
     pendingReturn,
     isDirector,
+    canPublish,
   });
 
   return (
@@ -64,12 +56,6 @@ export function ArticleListItem({ article, canPublish, isDirector }: Props) {
                   status={article.status as ArticleStatus}
                   pendingReturn={pendingReturn}
                 />
-                <span
-                  className={`inline-flex rounded-[var(--is-radius-sm)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tagStyles[tag] ?? tagStyles.NEEDS_REVIEW}`}
-                  title="Etiqueta interna (no pública)"
-                >
-                  {CONTENT_TAG_LABELS[tag] ?? tag}
-                </span>
                 {article.category?.name ? (
                   <span className="text-xs text-[var(--is-muted)]">{article.category.name}</span>
                 ) : (

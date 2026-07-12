@@ -24,7 +24,6 @@ export type ApprovalQueueItem = {
   checklistMissing: string[];
   checklistComplete: boolean;
   sourceName: string | null;
-  factChecked: boolean;
   observation: { message: string; author: string; at: string } | null;
   expectedAction: string;
 };
@@ -218,12 +217,6 @@ export function ApprovalQueue({ items, filters, redactores, categorias }: Props)
                       Fuente:{" "}
                       <span className="text-[var(--is-text-secondary)]">
                         {item.sourceName?.trim() || "Sin indicar"}
-                      </span>
-                    </p>
-                    <p>
-                      Fact-check:{" "}
-                      <span className="text-[var(--is-text-secondary)]">
-                        {item.factChecked ? "Confirmado" : "Pendiente"}
                       </span>
                     </p>
                   </div>

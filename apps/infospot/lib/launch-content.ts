@@ -42,7 +42,6 @@ export function buildArticlePublishChecklist(input: {
   slug?: string | null;
   contentTag?: InfoSpotContentTag | null;
   sourceName?: string | null;
-  factChecked?: boolean;
   creditOk?: boolean;
 }): PublishChecklistItem[] {
   const contentLen = (input.content || "").trim().length;
@@ -58,31 +57,10 @@ export function buildArticlePublishChecklist(input: {
     { id: "excerpt", label: "Bajada / resumen", ok: (input.excerpt || "").trim().length >= 10, required: true },
     { id: "content", label: "Cuerpo completo", ok: bodyOk, required: true },
     { id: "category", label: "Categoría", ok: Boolean(input.categoryId), required: true },
-    { id: "cover", label: "Imagen o fallback aprobado", ok: Boolean(input.coverImageId), required: false },
+    { id: "cover", label: "Imagen de portada", ok: Boolean(input.coverImageId), required: false },
     { id: "credit", label: "Crédito fotográfico", ok: input.creditOk !== false, required: false },
     { id: "author", label: "Autor", ok: Boolean(input.authorId), required: true },
-    { id: "date", label: "Fecha de publicación", ok: Boolean(input.publishedAt), required: false },
-    { id: "seoTitle", label: "SEO title", ok: Boolean(input.seoTitle?.trim()), required: true },
-    { id: "seoDescription", label: "SEO description", ok: Boolean(input.seoDescription?.trim()), required: true },
     { id: "slug", label: "Slug", ok: Boolean(input.slug?.trim()), required: true },
-    {
-      id: "source",
-      label: "Fuente verificada",
-      ok: Boolean(input.sourceName?.trim()),
-      required: true,
-    },
-    {
-      id: "factcheck",
-      label: "Fact-check confirmado",
-      ok: Boolean(input.factChecked),
-      required: true,
-    },
-    {
-      id: "review",
-      label: "Contenido REAL (obligatorio para publicar)",
-      ok: input.contentTag === "REAL",
-      required: true,
-    },
   ];
 }
 

@@ -22,16 +22,16 @@ export default async function AccesoPendientePage({
   const user = await getAuthUser();
   const notice =
     params.notice?.trim() ||
-    "Tu cuenta fue creada, pero todavía no tenés acceso a Info Spot.";
+    "No tenés acceso editorial. Solicitá permisos al Director.";
 
   return (
     <PageShell
-      title="Acceso pendiente"
+      title="Sin acceso editorial"
       description="Tu identidad DNX está lista; falta el rol editorial de Info Spot."
     >
       <div className="mx-auto w-full max-w-lg space-y-8">
         <p
-          className="rounded-[var(--is-radius-sm)] border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950"
+          className="rounded-[var(--is-radius-sm)] border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950 whitespace-pre-line"
           role="status"
         >
           {notice}
@@ -44,8 +44,9 @@ export default async function AccesoPendientePage({
         ) : null}
 
         <p className="text-sm leading-relaxed text-[var(--is-muted)]">
-          Pedile al Director que te invite o asigne en el equipo editorial. Cuando tengas rol
-          activo, volvé a ingresar.
+          Los permisos se administran solo desde el panel del Director (
+          <code className="text-xs">/admin/usuarios</code>). Cuando te asignen un rol activo,
+          volvé a ingresar.
         </p>
 
         <div className="flex flex-wrap gap-3">

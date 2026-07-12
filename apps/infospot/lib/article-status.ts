@@ -149,8 +149,15 @@ export function canPerformEditorialAction(
       return { ok: true };
     }
     case "PUBLISH": {
+      // Sin permiso de publicar: "Publicar" = pedir aprobación (DRAFT → IN_REVIEW).
       if (!canPublish) {
-        return { ok: false, reason: "No tenés permiso para publicar." };
+        if (from !== "DRAFT") {
+          return {
+            ok: false,
+            reason: "Solo podés pedir publicación desde un borrador.",
+          };
+        }
+        return { ok: true };
       }
       if (
         from !== "READY_TO_PUBLISH" &&
@@ -162,9 +169,6 @@ export function canPerformEditorialAction(
           reason: "La nota no está en un estado publicable.",
         };
       }
-      // Colaborador nunca llega acá (canPublish=false).
-      // Redactor/Director con canPublish: pueden publicar desde READY, UNPUBLISHED,
-      // o directo desde DRAFT/IN_REVIEW si checklist completo (validado en action).
       return { ok: true };
     }
     case "UNPUBLISH": {
@@ -211,16 +215,18 @@ export function availableEditorialActions(
 /** Texto de acción esperada para listados. */
 export function expectedActionHint(
   status: ArticleStatus,
-  opts?: { pendingReturn?: boolean; isDirector?: boolean },
+  opts?: { pendingReturn?: boolean; isDirector?: boolean; canPublish?: boolean },
 ): string {
-  if (opts?.pendingReturn) return "Corregir y reenviar a revisión";
+  if (opts?.pendingReturn) return "Corregir y volver a publicar";
   switch (status) {
     case "DRAFT":
-      return "Completar y enviar a revisión";
+      return opts?.isDirector || opts?.canPublish
+        ? "Completar y publicar"
+        : "Completar y publicar (queda pendiente de aprobación)";
     case "IN_REVIEW":
-      return opts?.isDirector ? "Revisar, devolver o aprobar" : "Esperando revisión del Director";
+      return opts?.isDirector ? "Revisar, devolver o publicar" : "Esperando aprobación del Director";
     case "READY_TO_PUBLISH":
-      return "Publicar cuando el checklist esté completo";
+      return "Publicar en el sitio";
     case "PUBLISHED":
       return "Publicada en el sitio";
     case "UNPUBLISHED":

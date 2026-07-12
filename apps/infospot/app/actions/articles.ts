@@ -87,7 +87,7 @@ export async function createArticleAction(formData: FormData): Promise<ActionRes
       coverImageId: data.coverImageId,
       seoTitle: data.seoTitle ?? null,
       seoDescription: data.seoDescription ?? null,
-      contentTag: data.contentTag ?? "NEEDS_REVIEW",
+      contentTag: "REAL",
       sourceName: data.sourceName ?? null,
       sourceUrl: data.sourceUrl ?? null,
       status: "DRAFT",
@@ -227,14 +227,11 @@ export async function updateArticleAction(
       coverImageId: data.coverImageId,
       seoTitle: data.seoTitle ?? null,
       seoDescription: data.seoDescription ?? null,
-      contentTag: data.contentTag ?? "NEEDS_REVIEW",
+      contentTag: "REAL",
       sourceName: data.sourceName ?? null,
       sourceUrl: data.sourceUrl ?? null,
       status: nextStatus,
       publishedAt,
-      ...(nextStatus === "PUBLISHED" && data.markFactChecked
-        ? { factCheckedAt: new Date(), factCheckedByUserId: access.user.id }
-        : {}),
     },
   });
 
@@ -337,7 +334,7 @@ export async function autosaveArticleDraftAction(
       coverImageId: data.coverImageId,
       seoTitle: data.seoTitle ?? null,
       seoDescription: data.seoDescription ?? null,
-      contentTag: data.contentTag ?? "NEEDS_REVIEW",
+      contentTag: "REAL",
       sourceName: data.sourceName ?? null,
       sourceUrl: data.sourceUrl ?? null,
       status: nextStatus,
@@ -386,7 +383,7 @@ export async function updateArticleAndRedirect(articleId: string, formData: Form
   redirect(`/redaccion/noticias/${articleId}/editar?ok=${encodeURIComponent(result.message)}`);
 }
 
-/** Duplica una noticia como borrador REAL-ready (etiqueta NEEDS_REVIEW). */
+/** Duplica una noticia como borrador. */
 export async function duplicateArticleDraftAction(articleId: string): Promise<void> {
   const access = await requireInfoSpotRedaccionAccess();
   if (!canCreateInfoSpotArticle(access.subject)) {
@@ -421,7 +418,7 @@ export async function duplicateArticleDraftAction(articleId: string): Promise<vo
       coverImageId: source.coverImageId,
       seoTitle: source.seoTitle,
       seoDescription: source.seoDescription,
-      contentTag: "NEEDS_REVIEW",
+      contentTag: "REAL",
       status: "DRAFT",
       publishedAt: null,
       authorId: access.user.id,

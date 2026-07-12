@@ -47,16 +47,22 @@ function primaryActionFor(
   actions: EditorialAction[],
   status: ArticleStatus,
   isDirector: boolean,
+  _canPublish: boolean,
 ): EditorialAction | null {
-  if (status === "DRAFT" && actions.includes("SUBMIT_REVIEW")) return "SUBMIT_REVIEW";
-  if (status === "IN_REVIEW" && isDirector && actions.includes("APPROVE")) return "APPROVE";
+  if (status === "DRAFT") {
+    // Un solo CTA: Publicar (quien no puede publicar → queda pendiente de aprobación).
+    if (actions.includes("PUBLISH")) return "PUBLISH";
+    if (actions.includes("SUBMIT_REVIEW")) return "SUBMIT_REVIEW";
+  }
+  if (status === "IN_REVIEW" && isDirector) {
+    if (actions.includes("PUBLISH")) return "PUBLISH";
+    if (actions.includes("APPROVE")) return "APPROVE";
+  }
   if (status === "IN_REVIEW" && !isDirector) return null;
   if (status === "READY_TO_PUBLISH" && actions.includes("PUBLISH")) return "PUBLISH";
   if (status === "UNPUBLISHED" && actions.includes("PUBLISH")) return "PUBLISH";
-  if (actions.includes("PUBLISH") && (status === "DRAFT" || status === "IN_REVIEW")) {
-    return "PUBLISH";
-  }
-  return actions[0] ?? null;
+  if (status === "PUBLISHED" && actions.includes("UNPUBLISH")) return "UNPUBLISH";
+  return null;
 }
 
 export function EditorialActionsPanel({
@@ -82,8 +88,17 @@ export function EditorialActionsPanel({
     returnedAt,
     submittedForReviewAt,
   });
-  const primary = primaryActionFor(actions, status, isDirector);
-  const secondary = actions.filter((a) => a !== primary);
+  const primary = primaryActionFor(actions, status, isDirector, canPublish);
+  // Evitar botones redundantes: un solo camino principal + archivo/devolver.
+  const secondary = actions.filter((a) => {
+    if (a === primary) return false;
+    if (primary === "PUBLISH" && (a === "SUBMIT_REVIEW" || a === "APPROVE")) return false;
+    if (primary === "SUBMIT_REVIEW" && (a === "PUBLISH" || a === "APPROVE")) return false;
+    if (primary === "APPROVE" && a === "SUBMIT_REVIEW") return false;
+    // En borrador no mostrar "Enviar a revisión" aparte de Publicar.
+    if (status === "DRAFT" && a === "SUBMIT_REVIEW") return false;
+    return true;
+  });
 
   function run(action: EditorialAction, confirmText?: string) {
     if (confirmText && !window.confirm(confirmText)) return;
@@ -138,7 +153,7 @@ export function EditorialActionsPanel({
   const labels: Record<EditorialAction, string> = {
     SUBMIT_REVIEW: "Enviar a revisión",
     RETURN: "Devolver con observación",
-    APPROVE: "Aprobar para publicar",
+    APPROVE: "Aprobar",
     PUBLISH: "Publicar",
     UNPUBLISH: "Despublicar",
     ARCHIVE: "Archivar",
@@ -155,7 +170,7 @@ export function EditorialActionsPanel({
           {pendingReturn ? " · Devuelta" : ""}
         </p>
         <p className="mt-1 text-sm text-[var(--is-muted)]">
-          {expectedActionHint(status, { pendingReturn, isDirector })}
+          {expectedActionHint(status, { pendingReturn, isDirector, canPublish })}
         </p>
       </div>
 
@@ -178,8 +193,8 @@ export function EditorialActionsPanel({
 
       {!canPublish ? (
         <p className="text-xs text-[var(--is-muted)]">
-          Tu política editorial requiere aprobación del Director: podés editar y enviar a
-          revisión, pero no publicar.
+          Tu rol no publica directo: al pulsar Publicar la nota queda pendiente de aprobación del
+          Director.
         </p>
       ) : null}
 

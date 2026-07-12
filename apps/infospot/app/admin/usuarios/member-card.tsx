@@ -14,6 +14,7 @@ export type MemberCardData = {
   userId: number;
   name: string;
   email: string;
+  avatarUrl: string | null;
   role: string;
   status: string;
   canPublish: boolean;
@@ -82,7 +83,26 @@ export function MemberCard({ member }: { member: MemberCardData }) {
   return (
     <article className="rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-6 sm:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-2">
+        <div className="flex min-w-0 items-start gap-4">
+          {member.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- avatar externo (Google)
+            <img
+              src={member.avatarUrl}
+              alt=""
+              width={48}
+              height={48}
+              className="size-12 shrink-0 rounded-full border border-[var(--is-border)] object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="inline-flex size-12 shrink-0 items-center justify-center rounded-full border border-[var(--is-border)] bg-[var(--is-bg-secondary)] text-sm font-semibold text-[var(--is-muted)]"
+            >
+              {(member.name.trim()[0] || "?").toUpperCase()}
+            </span>
+          )}
+          <div className="min-w-0 space-y-2">
           <h3 className="truncate text-lg font-semibold tracking-tight text-[var(--is-text)]">
             {member.name}
           </h3>
@@ -123,6 +143,7 @@ export function MemberCard({ member }: { member: MemberCardData }) {
                 Vos
               </span>
             ) : null}
+          </div>
           </div>
         </div>
         <dl className="grid shrink-0 gap-1 text-xs text-[var(--is-muted)] sm:text-right">

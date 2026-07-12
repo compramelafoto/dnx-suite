@@ -26,11 +26,26 @@ Info Spot **reutiliza** el mismo `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` de 
 | `GET /api/auth/google` | Inicia OAuth (`state` + cookie CSRF `dnx_google_oauth`) |
 | `GET /api/auth/google/callback` | Token + userinfo (exige `verified_email`), linkea User por email |
 
-Política Info Spot: **invite-only** para usuarios nuevos sin invitación. Con invitación PENDING se crea/vincula User, se activa `InfoSpotUserRole` y se marca la invitación ACCEPTED.
+Política Info Spot:
 
-Redirects: Director/SUPER_ADMIN → `/admin`; Redactor/Colaborador → `/redaccion`; sin rol → `/ingresar/acceso-pendiente`.
+- Usuario **existente**: inicia sesión (vincula `googleId` si faltaba). No cambia contraseña.
+- Usuario **nuevo**: crea `User` (nombre, email, avatar en `logoUrl`, `emailVerifiedAt`, rol suite `CUSTOMER`). **Sin** rol editorial.
+- Invitación **PENDING** con el mismo email: se activa `InfoSpotUserRole` y la invitación queda `ACCEPTED` (sin duplicar User).
+- Google **no** asigna permisos editoriales; eso vive en `/admin/usuarios`.
 
-Variables: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, opcional `GOOGLE_REDIRECT_URI`, `NEXT_PUBLIC_INFOSPOT_URL`.
+Redirects post-login: Director / Redactor / Colaborador → `/redaccion`; sin rol editorial → `/ingresar/acceso-pendiente`.
+
+Variables requeridas:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+
+Opcionales / base URL:
+
+- `GOOGLE_REDIRECT_URI` (si no, `{baseUrl}/api/auth/google/callback`)
+- `NEXT_PUBLIC_INFOSPOT_URL` o `APP_URL` o `AUTH_URL`
+
+`AUTH_TRUST_HOST` no aplica: Info Spot no usa Auth.js / NextAuth; el OAuth es custom en `@repo/auth`.
 
 
 ## Bootstrap del primer Director

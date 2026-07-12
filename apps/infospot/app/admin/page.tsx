@@ -25,8 +25,6 @@ export default async function AdminPage() {
     : 0;
 
   const links = [
-    { href: "/admin/configuracion", label: "Configuración del medio", show: true },
-    { href: "/admin/usuarios", label: "Equipo editorial", show: canUsers },
     {
       href: "/admin/aprobaciones",
       label:
@@ -35,22 +33,24 @@ export default async function AdminPage() {
           : "Aprobaciones editoriales",
       show: canApprovals,
     },
-    { href: "/admin/lanzamiento", label: "Contenido de lanzamiento (DEMO/REAL)", show: true },
-    { href: "/admin/eventos", label: "Moderación de eventos", show: true },
-    { href: "/redaccion", label: "Redacción (noticias)", show: true },
+    { href: "/admin/usuarios", label: "Equipo y roles", show: canUsers },
+    { href: "/admin/eventos", label: "Eventos", show: true },
+    { href: "/admin/configuracion", label: "Configuración del medio", show: true },
+    { href: "/admin/lanzamiento", label: "Contenido de lanzamiento", show: true },
+    { href: "/redaccion", label: "Volver a redacción", show: true },
   ].filter((item) => item.show);
 
   return (
     <PageShell
-      title="Admin Info Spot"
-      description={`Dirección: ${access.user.email}`}
+      title="Panel de dirección"
+      description="Herramientas de administración de Info Spot."
     >
-      <ul className="space-y-3 text-sm">
+      <ul className="divide-y divide-[var(--is-border)] overflow-hidden rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)]">
         {links.map((item) => (
           <li key={item.href}>
             <Link
               href={item.href}
-              className="font-medium text-[var(--is-accent)] underline-offset-2 hover:underline"
+              className="flex min-h-12 items-center px-5 text-sm font-medium text-[var(--is-text)] transition-colors hover:bg-[var(--is-bg-secondary)] hover:text-[var(--is-accent)]"
             >
               {item.label}
             </Link>

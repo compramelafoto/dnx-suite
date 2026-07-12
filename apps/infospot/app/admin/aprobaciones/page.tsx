@@ -109,7 +109,6 @@ export default async function AdminAprobacionesPage({
         checklistMissing: checklist.missing,
         checklistComplete: checklist.done === checklist.total && checklist.total > 0,
         sourceName: article.sourceName,
-        factChecked: Boolean(article.factCheckedAt),
         observation: article.observations[0]
           ? {
               message: article.observations[0].message,
@@ -120,7 +119,7 @@ export default async function AdminAprobacionesPage({
             }
           : null,
         expectedAction: checklist.done === checklist.total
-          ? "Aprobar o publicar"
+          ? "Publicar o devolver"
           : "Revisar pendientes y devolver o completar",
       };
     })

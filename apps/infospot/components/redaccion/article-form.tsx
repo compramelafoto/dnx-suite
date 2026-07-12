@@ -13,7 +13,7 @@ import { EditorialVisualEditor } from "@/components/redaccion/visual-editor/edit
 import { AiImportButton, AiImportDialog } from "@/components/ai-import";
 import { buildArticlePublishChecklist } from "@/lib/launch-content";
 import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
-import type { InfoSpotContentTag, InfoSpotPermissionSubject } from "@repo/db";
+import type { InfoSpotPermissionSubject } from "@repo/db";
 import { autosaveArticleDraftAction } from "@/app/actions/articles";
 import type { AiImportMergeMode, ArticleFormImportValues } from "@/lib/ai-import";
 
@@ -64,7 +64,7 @@ type ArticleFormProps = {
     seoDescription: string | null;
     publishedAt: Date | string | null;
     status: ArticleStatus;
-    contentTag?: InfoSpotContentTag | null;
+    contentTag?: string | null;
     sourceName?: string | null;
     sourceUrl?: string | null;
     factCheckedAt?: Date | string | null;
@@ -107,12 +107,8 @@ export function ArticleForm({
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
   const [seoTitle, setSeoTitle] = useState(initial?.seoTitle ?? "");
   const [seoDescription, setSeoDescription] = useState(initial?.seoDescription ?? "");
-  const [contentTag, setContentTag] = useState<InfoSpotContentTag>(
-    initial?.contentTag ?? "NEEDS_REVIEW",
-  );
   const [sourceName, setSourceName] = useState(initial?.sourceName ?? "");
   const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl ?? "");
-  const [factChecked, setFactChecked] = useState(Boolean(initial?.factCheckedAt));
   const [coverImageId, setCoverImageId] = useState(initial?.coverImageId ?? "");
   const [coverCredit, setCoverCredit] = useState(initial?.coverCredit ?? "");
   const [metaOpen, setMetaOpen] = useState(false);
@@ -147,9 +143,8 @@ export function ArticleForm({
         seoTitle,
         seoDescription,
         slug,
-        contentTag,
+        contentTag: "REAL",
         sourceName,
-        factChecked,
         creditOk,
       }),
     [
@@ -163,9 +158,7 @@ export function ArticleForm({
       seoTitle,
       seoDescription,
       slug,
-      contentTag,
       sourceName,
-      factChecked,
       creditOk,
     ],
   );
@@ -422,25 +415,6 @@ export function ArticleForm({
           />
         </div>
         <div>
-          <label className={labelClass} htmlFor="contentTag">
-            Tag editorial (interno)
-          </label>
-          <select
-            id="contentTag"
-            name="contentTag"
-            value={contentTag}
-            onChange={(e) => {
-              setContentTag(e.target.value as InfoSpotContentTag);
-              markDirty();
-            }}
-            className={fieldClass}
-          >
-            <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
-            <option value="DEMO">DEMO</option>
-            <option value="REAL">REAL</option>
-          </select>
-        </div>
-        <div>
           <label className={labelClass} htmlFor="publishedAt">
             Fecha de publicación
           </label>
@@ -486,19 +460,7 @@ export function ArticleForm({
             maxLength={170}
           />
         </div>
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            name="markFactChecked"
-            checked={factChecked}
-            onChange={(e) => {
-              setFactChecked(e.target.checked);
-              markDirty();
-            }}
-            className="mt-1"
-          />
-          <span>Confirmé la revisión factual (fact-check).</span>
-        </label>
+        <input type="hidden" name="contentTag" value="REAL" />
       </div>
 
       <PublishChecklist items={checklist} />

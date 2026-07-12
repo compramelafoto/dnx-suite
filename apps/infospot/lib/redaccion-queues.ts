@@ -137,7 +137,6 @@ export function summarizeChecklist(article: QueueArticleShape): {
     slug: article.slug,
     contentTag: article.contentTag as InfoSpotContentTag,
     sourceName: article.sourceName,
-    factChecked: Boolean(article.factCheckedAt),
   });
   const required = items.filter((i) => i.required);
   const done = required.filter((i) => i.ok).length;
