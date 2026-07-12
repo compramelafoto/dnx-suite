@@ -50,6 +50,21 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REFRESH_TOKEN: z.string().optional(),
 
+  // Google Cloud (gcloud CLI) — valores "true"/"false" como string
+  DNX_GCP_ENABLED: z.string().optional(),
+  DNX_GCP_DEFAULT_PROJECT: z.string().optional(),
+  DNX_GCP_DEFAULT_REGION: z.string().optional(),
+  DNX_GCP_ALLOWED_PROJECT_PREFIXES: z.string().optional(),
+  DNX_GCP_ALLOW_WRITES: z.string().optional(),
+  DNX_GCP_ALLOW_PRODUCTION_WRITES: z.string().optional(),
+  DNX_GCP_ALLOW_HIGH_RISK_WRITES: z.string().optional(),
+  DNX_GCP_ALLOW_DESTRUCTIVE_ACTIONS: z.string().optional(),
+  DNX_GCP_ALLOW_SERVICE_ACCOUNT_KEYS: z.string().optional(),
+  DNX_GCP_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+  DNX_GCP_MAX_OUTPUT_BYTES: z.coerce.number().int().positive().optional(),
+  DNX_GCP_AUDIT_LOG_ENABLED: z.string().optional(),
+  DNX_GCP_BINARY: z.string().optional(),
+
   // Cursor
   CURSOR_API_KEY: z.string().optional(),
 });

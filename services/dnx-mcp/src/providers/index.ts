@@ -5,6 +5,7 @@ import { dockerProvider } from "./docker/index.js";
 import { gitProvider } from "./git/index.js";
 import { gmailProvider } from "./gmail/index.js";
 import { googleProvider } from "./google/index.js";
+import { googleCloudProvider } from "./google-cloud/index.js";
 import { mercadopagoProvider } from "./mercadopago/index.js";
 import { postgresProvider } from "./postgres/index.js";
 import { prismaProvider } from "./prisma/index.js";
@@ -25,6 +26,7 @@ export const providers: Provider[] = [
   redisProvider,
   gmailProvider,
   googleProvider,
+  googleCloudProvider,
   cursorProvider,
 ];
 
@@ -48,6 +50,12 @@ export { dockerProvider } from "./docker/index.js";
 export { gitProvider } from "./git/index.js";
 export { gmailProvider } from "./gmail/index.js";
 export { googleProvider } from "./google/index.js";
+export {
+  googleCloudProvider,
+  GoogleCloudProvider,
+  createGoogleCloudProvider,
+  resolveGoogleCloudConfig,
+} from "./google-cloud/index.js";
 export { mercadopagoProvider } from "./mercadopago/index.js";
 export { postgresProvider } from "./postgres/index.js";
 export { prismaProvider } from "./prisma/index.js";

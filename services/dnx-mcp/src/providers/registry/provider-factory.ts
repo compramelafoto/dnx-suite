@@ -5,6 +5,7 @@ import { dockerProvider } from "../docker/index.js";
 import { gitProvider } from "../git/index.js";
 import { gmailProvider } from "../gmail/index.js";
 import { googleProvider } from "../google/index.js";
+import { googleCloudProvider } from "../google-cloud/index.js";
 import { mercadopagoProvider } from "../mercadopago/index.js";
 import { postgresProvider } from "../postgres/index.js";
 import { prismaProvider } from "../prisma/index.js";
@@ -26,6 +27,7 @@ const DEFAULT_PROVIDERS: ReadonlyArray<{ name: ProviderName; provider: Provider 
   { name: "redis", provider: redisProvider },
   { name: "gmail", provider: gmailProvider },
   { name: "google", provider: googleProvider },
+  { name: "google-cloud", provider: googleCloudProvider },
   { name: "cursor", provider: cursorProvider },
 ];
 

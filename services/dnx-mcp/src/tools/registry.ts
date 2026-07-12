@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolRegistrar } from "../types/mcp.js";
 import { registerCloudflareTools } from "./cloudflare/index.js";
+import { registerGoogleCloudTools } from "./google-cloud/index.js";
 import { registerReleaseTools } from "./release/index.js";
 import { registerVercelTools } from "./vercel/index.js";
 
@@ -12,6 +13,7 @@ const toolRegistrars: ToolRegistrar[] = [
   registerVercelTools,
   registerCloudflareTools,
   registerReleaseTools,
+  registerGoogleCloudTools,
 ];
 
 /**

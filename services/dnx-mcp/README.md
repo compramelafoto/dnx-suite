@@ -169,8 +169,21 @@ Si algo falla tras la migración:
 3. Respaldo de config Cursor: `/Users/danielcuart/Desktop/dnx-mcp-config-backups/`
 4. Restaurá rutas en `~/.cursor/mcp.json` hacia la carpeta legacy y reiniciá MCP.
 
-## Tools conservadas
+## Tools conservadas (legacy)
 
 Vercel: `vercel_status`, `vercel_prepare_staging`, `vercel_validate_staging`, `vercel_prepare_production_release`, `vercel_deploy_release`, `vercel_rollback_release`  
 Cloudflare/R2: `cloudflare_status`, `r2_bucket_list`, `r2_bucket_validate`, `r2_bucket_create`, `r2_bucket_delete`, `r2_cors_update`, `r2_public_domain_enable`, `r2_object_upload`, `r2_object_delete`, `r2_staging_plan`, `r2_prepare_staging_bucket`, `r2_prepare_application`  
 Release: `release_prepare`, `release_validate`, `release_execute`, `release_rollback`
+
+## Google Cloud (Fase 1)
+
+Documentación: [`docs/GOOGLE-CLOUD.md`](./docs/GOOGLE-CLOUD.md)
+
+Tools nuevas (deshabilitadas por defecto con `DNX_GCP_ENABLED=false`):
+
+- Diagnóstico: `gcp_check_installation`, `gcp_get_auth_status`, `gcp_list_accounts`, `gcp_get_active_account`, `gcp_run_doctor`
+- Proyectos: `gcp_list_projects`, `gcp_get_project`, `gcp_get_active_project`, `gcp_set_project`, `gcp_check_billing`
+- APIs: `gcp_list_enabled_services`, `gcp_list_available_services`, `gcp_plan_enable_services`, `gcp_enable_services`
+- Service accounts: `gcp_list_service_accounts`, `gcp_plan_service_account`, `gcp_create_service_account`
+- Secret Manager: `gcp_list_secrets`, `gcp_get_secret_metadata`, `gcp_plan_secret`, `gcp_create_secret`, `gcp_add_secret_version`
+

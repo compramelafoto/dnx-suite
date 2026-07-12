@@ -22,4 +22,5 @@ export type ProviderName =
   | "redis"
   | "gmail"
   | "google"
+  | "google-cloud"
   | "cursor";
