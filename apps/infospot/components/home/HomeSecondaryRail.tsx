@@ -54,6 +54,7 @@ export function HomeSecondaryRail({ articles }: Props) {
                   <CategoryBadge
                     name={leadProps.category}
                     slug={leadProps.categorySlug}
+                    asLink={false}
                     className="!bg-[var(--is-accent)] !text-[var(--is-white-0)]"
                   />
                 ) : null}

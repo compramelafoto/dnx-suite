@@ -42,7 +42,7 @@ export function ArticleCardCompact({
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             {category ? (
-              <CategoryBadge name={category} slug={categorySlug} />
+              <CategoryBadge name={category} slug={categorySlug} asLink={false} />
             ) : null}
             <ArticleMetadata date={publishedAt} location={location} />
           </div>

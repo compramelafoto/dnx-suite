@@ -40,7 +40,7 @@ export function ArticleCardHorizontal({
         <div className="flex flex-col justify-center gap-2 py-1">
           <div className="flex flex-wrap items-center gap-2">
             {category ? (
-              <CategoryBadge name={category} slug={categorySlug} />
+              <CategoryBadge name={category} slug={categorySlug} asLink={false} />
             ) : null}
             <ArticleMetadata date={publishedAt} location={location} />
           </div>

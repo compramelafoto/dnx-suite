@@ -47,7 +47,7 @@ export function ArticleCardFeatured({
         <div className="flex flex-col justify-center gap-4 p-6 md:gap-5 md:p-10">
           <div className="flex flex-wrap items-center gap-3">
             {category ? (
-              <CategoryBadge name={category} slug={categorySlug} />
+              <CategoryBadge name={category} slug={categorySlug} asLink={false} />
             ) : null}
             <ArticleMetadata date={publishedAt} location={location} />
           </div>

@@ -78,6 +78,9 @@ function SearchField({ className }: { className?: string }) {
           type="search"
           placeholder="Buscar noticias, eventos, fotógrafos…"
           disabled
+          readOnly
+          suppressHydrationWarning
+          style={{ caretColor: "transparent" }}
           className="h-full w-full min-w-0 bg-transparent text-[0.9375rem] tracking-[-0.01em] text-[var(--is-text)] placeholder:text-[var(--is-muted)] focus:outline-none disabled:cursor-not-allowed"
           title="Buscador próximamente"
         />
