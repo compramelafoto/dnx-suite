@@ -188,6 +188,22 @@ model User {
   infoSpotArticleObservationsAuthored  InfoSpotArticleObservation[] @relation("InfoSpotArticleObservationAuthor")
   dnxInvitationsSent                   DnxAppInvitation[]           @relation("DnxAppInvitationInvitedBy")
   dnxInvitationsAccepted               DnxAppInvitation[]           @relation("DnxAppInvitationAcceptedBy")
+  contestOrganizationsCreated           ContestOrganization[]        @relation("FrOrgCreator")
+  frContestOrgInvitesSent               ContestOrganizationMember[]  @relation("FrCOrgMemberInviter")
+  frContestOrgMemberships               ContestOrganizationMember[]  @relation("FrCOrgMemberUser")
+  fotorankAdminSessions                 FotorankAdminSession[]       @relation("FrAdminSession")
+  fotorankContestsCreated               FotorankContest[]            @relation("FrContestCreator")
+  fotorankContestEntriesAuthored        FotorankContestEntry[]       @relation("FrEntryAuthor")
+  fotorankDiplomaIssuedCreated          FotorankDiplomaIssued[]      @relation("FrDiplomaIssuedBy")
+  fotorankDiplomaTemplatesCreated       FotorankDiplomaTemplate[]    @relation("FrDiplomaTemplateAuthor")
+  fotorankGlobalCategorySuggestions     FotorankGlobalCategory[]     @relation("FrGlobalCategorySuggester")
+  fotorankJudgeAssignmentsCreated       FotorankJudgeAssignment[]    @relation("FrJudgeAsgCreator")
+  fotorankJudgeAuditEventsAsUser        FotorankJudgeAuditEvent[]    @relation("FrJudgeAuditActorUser")
+  fotorankJudgeDirectoryInvitationsSent FotorankJudgeDirectoryInvitation[] @relation("FrDirInvSentBy")
+  fotorankJudgeInvitationsSent          FotorankJudgeInvitation[]    @relation("FrJudgeInvSentBy")
+  fotorankProfile                       FotorankProfile?             @relation("FrProfile")
+  suiteMemberships                      Membership[]                 @relation("FrSuiteMembership")
+  workspaceMembershipsUnified           WorkspaceMembership[]
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -5783,3 +5799,868 @@ enum CommunitySubmissionStatus {
   APPLIED
   CONFLICT
 }
+
+// =============================================================================
+// FOTORANK — restaurado tras pérdida accidental en merge CLF (f9ae2ba)
+// =============================================================================
+
+model FotorankGlobalCategory {
+  id                                 String                                  @id @default(cuid())
+  name                               String
+  slug                               String                                  @unique
+  description                        String?
+  parentId                           String?
+  isActive                           Boolean                                 @default(true)
+  isSystem                           Boolean                                 @default(false)
+  reviewStatus                       FotorankGlobalCategoryReviewStatus      @default(APPROVED)
+  suggestedByUserId                  Int?
+  suggestionReason                   String?
+  createdAt                          DateTime                                @default(now())
+  updatedAt                          DateTime                                @updatedAt
+  contestCategoriesPendingSuggestion FotorankContestCategory[]               @relation("ContestCategoryPendingGlobal")
+  contestCategoriesFromCatalog       FotorankContestCategory[]               @relation("ContestCategorySourceGlobal")
+  contestCategoryLinks               FotorankContestCategoryGlobalCategory[]
+  parent                             FotorankGlobalCategory?                 @relation("FotorankGlobalCategoryHierarchy", fields: [parentId], references: [id])
+  children                           FotorankGlobalCategory[]                @relation("FotorankGlobalCategoryHierarchy")
+  suggestedBy                        User?                                   @relation("FrGlobalCategorySuggester", fields: [suggestedByUserId], references: [id])
+  aliases                            FotorankGlobalCategoryAlias[]
+
+  @@index([reviewStatus, isActive])
+  @@index([parentId])
+}
+
+model FotorankGlobalCategoryAlias {
+  id               String                 @id @default(cuid())
+  globalCategoryId String
+  aliasText        String
+  normalizedAlias  String                 @unique
+  createdAt        DateTime               @default(now())
+  globalCategory   FotorankGlobalCategory @relation(fields: [globalCategoryId], references: [id], onDelete: Cascade)
+
+  @@index([globalCategoryId])
+}
+
+/// Stub mínimo restaurado para FK de jurados FotoRank (tabla legacy Workspace).
+/// Otros dominios Fotoffice/cursos pueden ampliar este modelo después.
+model Workspace {
+  id                       String                 @id @default(cuid())
+  name                     String
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  fotorankJudgeAccounts    FotorankJudgeAccount[]
+  memberships              Membership[]
+  workspaceMembershipsUnified WorkspaceMembership[]
+}
+
+model Membership {
+  id          String         @id @default(cuid())
+  userId      Int
+  workspaceId String
+  role        MembershipRole
+  user        User           @relation("FrSuiteMembership", fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+/// Vínculo canónico usuario-workspace para permisos de suite.
+model WorkspaceMembership {
+  id          String        @id @default(cuid())
+  userId      Int
+  workspaceId String
+  role        WorkspaceRole
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId, role])
+  @@index([userId])
+}
+
+model FotorankProfile {
+  id          String   @id @default(cuid())
+  userId      Int      @unique
+  displayName String?
+  avatarUrl   String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation("FrProfile", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ContestOrganization {
+  id                           String                                @id @default(cuid())
+  name                         String
+  slug                         String                                @unique
+  description                  String?
+  shortDescription             String?
+  logoUrl                      String?
+  coverImageUrl                String?
+  website                      String?
+  contactEmail                 String?
+  phone                        String?
+  whatsapp                     String?
+  instagram                    String?
+  address                      String?
+  city                         String?
+  country                      String?
+  createdByUserId              Int
+  createdAt                    DateTime                              @default(now())
+  updatedAt                    DateTime                              @updatedAt
+  createdByUser                User                                  @relation("FrOrgCreator", fields: [createdByUserId], references: [id])
+  members                      ContestOrganizationMember[]
+  contests                     FotorankContest[]
+  fotorankDiplomaIssued        FotorankDiplomaIssued[]
+  fotorankDiplomaTemplates     FotorankDiplomaTemplate[]
+  judgeAssignments             FotorankJudgeAssignment[]
+  judgeAuditEvents             FotorankJudgeAuditEvent[]
+  judgeDirectoryInvitations    FotorankJudgeDirectoryInvitation[]
+  judgeInvitations             FotorankJudgeInvitation[]
+  judgeOrganizationMemberships FotorankJudgeOrganizationMembership[]
+
+  @@index([slug])
+  @@index([createdByUserId])
+}
+
+model ContestOrganizationMember {
+  id              String                   @id @default(cuid())
+  organizationId  String
+  userId          Int
+  role            FotorankOrganizationRole
+  status          FotorankMemberStatus     @default(ACTIVE)
+  invitedByUserId Int?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  invitedBy       User?                    @relation("FrCOrgMemberInviter", fields: [invitedByUserId], references: [id])
+  organization    ContestOrganization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User                     @relation("FrCOrgMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model FotorankContest {
+  id                        String                             @id @default(cuid())
+  organizationId            String
+  title                     String
+  slug                      String
+  shortDescription          String?
+  fullDescription           String?
+  coverImageUrl             String?
+  prizesSummary             String?
+  sponsorsText              String?
+  status                    FotorankContestStatus              @default(DRAFT)
+  visibility                FotorankContestVisibility          @default(PUBLIC)
+  rulesText                 String?
+  rulesData                 Json?
+  startAt                   DateTime?
+  submissionDeadline        DateTime?
+  judgingStartAt            DateTime?
+  judgingEndAt              DateTime?
+  resultsAt                 DateTime?
+  createdByUserId           Int
+  createdAt                 DateTime                           @default(now())
+  updatedAt                 DateTime                           @updatedAt
+  createdByUser             User                               @relation("FrContestCreator", fields: [createdByUserId], references: [id])
+  organization              ContestOrganization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categories                FotorankContestCategory[]
+  entries                   FotorankContestEntry[]
+  diplomaIssued             FotorankDiplomaIssued[]
+  diplomaTemplates          FotorankDiplomaTemplate[]
+  judgeAssignments          FotorankJudgeAssignment[]
+  judgeAuditEvents          FotorankJudgeAuditEvent[]
+  judgeDirectoryInvitations FotorankJudgeDirectoryInvitation[]
+  judgeInvitations          FotorankJudgeInvitation[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdByUserId])
+}
+
+model FotorankContestCategory {
+  id                            String                                  @id @default(cuid())
+  contestId                     String
+  name                          String
+  slug                          String
+  description                   String?
+  maxFiles                      Int                                     @default(1)
+  sortOrder                     Int                                     @default(0)
+  status                        FotorankContestCategoryStatus           @default(ACTIVE)
+  isCustom                      Boolean                                 @default(false)
+  sourceGlobalCategoryId        String?
+  linkedPendingGlobalCategoryId String?
+  mappingIncomplete             Boolean                                 @default(false)
+  createdAt                     DateTime                                @default(now())
+  updatedAt                     DateTime                                @updatedAt
+  contest                       FotorankContest                         @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  linkedPendingGlobalCategory   FotorankGlobalCategory?                 @relation("ContestCategoryPendingGlobal", fields: [linkedPendingGlobalCategoryId], references: [id])
+  sourceGlobalCategory          FotorankGlobalCategory?                 @relation("ContestCategorySourceGlobal", fields: [sourceGlobalCategoryId], references: [id])
+  globalMappings                FotorankContestCategoryGlobalCategory[]
+  entries                       FotorankContestEntry[]
+  diplomaIssued                 FotorankDiplomaIssued[]
+  judgeAssignments              FotorankJudgeAssignment[]
+  judgeInvitations              FotorankJudgeInvitation[]
+
+  @@unique([contestId, slug])
+  @@index([contestId])
+  @@index([contestId, status])
+}
+
+model FotorankContestCategoryGlobalCategory {
+  id                String                  @id @default(cuid())
+  contestCategoryId String
+  globalCategoryId  String
+  isPrimary         Boolean                 @default(false)
+  weight            Float?
+  createdAt         DateTime                @default(now())
+  contestCategory   FotorankContestCategory @relation(fields: [contestCategoryId], references: [id], onDelete: Cascade)
+  globalCategory    FotorankGlobalCategory  @relation(fields: [globalCategoryId], references: [id])
+
+  @@unique([contestCategoryId, globalCategoryId])
+  @@index([globalCategoryId])
+}
+
+model FotorankJudgeAccount {
+  id                           String                                @id @default(cuid())
+  workspaceId                  String
+  email                        String                                @unique
+  passwordHash                 String
+  accountStatus                FotorankJudgeAccountStatus            @default(INVITED)
+  lastLoginAt                  DateTime?
+  createdAt                    DateTime                              @default(now())
+  updatedAt                    DateTime                              @updatedAt
+  diplomasIssued               FotorankDiplomaIssued[]
+  workspace                    Workspace                             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignments                  FotorankJudgeAssignment[]
+  auditEventsAsActor           FotorankJudgeAuditEvent[]             @relation("FrAuditActorJudge")
+  directoryInvitationsReceived FotorankJudgeDirectoryInvitation[]    @relation("FrDirInvJudge")
+  invitations                  FotorankJudgeInvitation[]
+  organizationMemberships      FotorankJudgeOrganizationMembership[]
+  profile                      FotorankJudgeProfile?
+  judgeSessions                FotorankJudgeSession[]
+  voteHistoryChanges           FotorankJudgeVoteHistory[]            @relation("FrVoteHistoryActorJudge")
+
+  @@index([workspaceId])
+  @@index([accountStatus])
+}
+
+model FotorankJudgeProfile {
+  id                              String                        @id @default(cuid())
+  judgeAccountId                  String                        @unique
+  firstName                       String
+  lastName                        String
+  phone                           String?
+  avatarUrl                       String?
+  shortBio                        String?
+  fullBioRichJson                 Json?
+  city                            String?
+  country                         String?
+  website                         String?
+  instagram                       String?
+  otherLinksJson                  Json?
+  publicSlug                      String                        @unique
+  isPublic                        Boolean                       @default(true)
+  /// Nombre para mostrar en directorio (opcional; si null se usa firstName + lastName).
+  displayNameOverride             String?
+  professionalHeadline            String?
+  specialtiesJson                 Json?
+  experienceYears                 Int?
+  languagesJson                   Json?
+  region                          String?
+  portfolioUrl                    String?
+  isAvailableForJuryWork          Boolean                       @default(true)
+  availabilityNotes               String?
+  availableRemote                 Boolean                       @default(true)
+  availableInPerson               Boolean                       @default(false)
+  preferredContestScopes          String?
+  compensationMode                FotorankJudgeCompensationMode @default(VOLUNTEER)
+  pricingMode                     FotorankJudgePricingMode      @default(NOT_SHOWN)
+  priceAmount                     Float?
+  priceCurrency                   String?
+  priceNotes                      String?
+  priceUnit                       FotorankJudgePriceUnit?
+  /// Opt-in al directorio profesional (organizadores solo ven perfiles con este flag).
+  isListedInProfessionalDirectory Boolean                       @default(false)
+  showPricingPublicly             Boolean                       @default(false)
+  showLocationPublicly            Boolean                       @default(true)
+  showWebsitePublicly             Boolean                       @default(true)
+  showInstagramPublicly           Boolean                       @default(true)
+  isVerifiedByPlatform            Boolean                       @default(false)
+  completedJuryAssignmentsCount   Int                           @default(0)
+  responseRate                    Float?
+  avgResponseTimeHours            Float?
+  completionScore                 Float?
+  lastActiveAt                    DateTime?
+  createdAt                       DateTime                      @default(now())
+  updatedAt                       DateTime                      @updatedAt
+  judgeAccount                    FotorankJudgeAccount          @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+
+  @@index([isPublic])
+  @@index([isListedInProfessionalDirectory])
+}
+
+model FotorankJudgeOrganizationMembership {
+  id               String                        @id @default(cuid())
+  judgeAccountId   String
+  organizationId   String
+  membershipStatus FotorankJudgeMembershipStatus @default(ACTIVE)
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+  judgeAccount     FotorankJudgeAccount          @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+  organization     ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([judgeAccountId, organizationId])
+  @@index([organizationId])
+}
+
+model FotorankJudgeInvitation {
+  id               String                        @id @default(cuid())
+  organizationId   String
+  contestId        String
+  categoryId       String?
+  judgeAccountId   String?
+  email            String
+  tokenHash        String                        @unique
+  expiresAt        DateTime
+  invitationStatus FotorankJudgeInvitationStatus @default(DRAFT)
+  sentByUserId     Int
+  acceptedAt       DateTime?
+  rejectedAt       DateTime?
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+  category         FotorankContestCategory?      @relation(fields: [categoryId], references: [id])
+  contest          FotorankContest               @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  judgeAccount     FotorankJudgeAccount?         @relation(fields: [judgeAccountId], references: [id])
+  organization     ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sentByUser       User                          @relation("FrJudgeInvSentBy", fields: [sentByUserId], references: [id])
+
+  @@index([organizationId, invitationStatus])
+  @@index([contestId])
+  @@index([email])
+}
+
+/// Invitación desde directorio profesional (distinta de `FotorankJudgeInvitation` por token/email).
+model FotorankJudgeDirectoryInvitation {
+  id                                         String                             @id @default(cuid())
+  organizationId                             String
+  contestId                                  String
+  judgeAccountId                             String
+  sentByUserId                               Int
+  status                                     FotorankJudgeDirectoryInviteStatus @default(PENDING)
+  message                                    String
+  proposedRoleLabel                          String?
+  compensationOfferedText                    String?
+  organizerAcceptedExternalPaymentDisclaimer Boolean                            @default(false)
+  categoryIdsJson                            Json
+  methodType                                 FotorankJudgeMethodType
+  methodConfigJson                           Json
+  assignmentType                             FotorankJudgeAssignmentType        @default(PRIMARY)
+  expiresAt                                  DateTime?
+  respondedAt                                DateTime?
+  acceptedAt                                 DateTime?
+  rejectedAt                                 DateTime?
+  cancelledAt                                DateTime?
+  archivedAt                                 DateTime?
+  createdAt                                  DateTime                           @default(now())
+  updatedAt                                  DateTime                           @updatedAt
+  contest                                    FotorankContest                    @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  judgeAccount                               FotorankJudgeAccount               @relation("FrDirInvJudge", fields: [judgeAccountId], references: [id], onDelete: Cascade)
+  organization                               ContestOrganization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sentByUser                                 User                               @relation("FrDirInvSentBy", fields: [sentByUserId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([contestId, judgeAccountId])
+  @@index([judgeAccountId, status])
+}
+
+model FotorankJudgeAssignment {
+  id                            String                        @id @default(cuid())
+  judgeAccountId                String
+  organizationId                String
+  contestId                     String
+  categoryId                    String
+  assignmentType                FotorankJudgeAssignmentType   @default(PRIMARY)
+  assignmentStatus              FotorankJudgeAssignmentStatus @default(ASSIGNED)
+  evaluationStartsAt            DateTime?
+  evaluationEndsAt              DateTime?
+  extendedEndsAt                DateTime?
+  extensionReason               String?
+  methodType                    FotorankJudgeMethodType
+  methodConfigJson              Json
+  allowVoteEdit                 Boolean                       @default(true)
+  commentsVisibleToParticipants Boolean                       @default(false)
+  createdByUserId               Int
+  createdAt                     DateTime                      @default(now())
+  updatedAt                     DateTime                      @updatedAt
+  category                      FotorankContestCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  contest                       FotorankContest               @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  createdByUser                 User                          @relation("FrJudgeAsgCreator", fields: [createdByUserId], references: [id])
+  judgeAccount                  FotorankJudgeAccount          @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+  organization                  ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  votes                         FotorankJudgeVote[]
+
+  @@unique([judgeAccountId, contestId, categoryId])
+  @@index([contestId, categoryId])
+  @@index([judgeAccountId, assignmentStatus])
+}
+
+model FotorankContestEntry {
+  id           String                  @id @default(cuid())
+  contestId    String
+  categoryId   String
+  authorUserId Int?
+  imageUrl     String
+  title        String?
+  description  String?
+  metadataJson Json?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  author       User?                   @relation("FrEntryAuthor", fields: [authorUserId], references: [id])
+  category     FotorankContestCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  contest      FotorankContest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  diplomas     FotorankDiplomaIssued[]
+  votes        FotorankJudgeVote[]
+
+  @@index([contestId, categoryId])
+}
+
+model FotorankJudgeVote {
+  id                 String                     @id @default(cuid())
+  assignmentId       String
+  entryId            String
+  valueNumeric       Float?
+  valueBoolean       Boolean?
+  isFavorite         Boolean?
+  selectedRank       Int?
+  criteriaScoresJson Json?
+  comment            String?
+  version            Int                        @default(1)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  assignment         FotorankJudgeAssignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  entry              FotorankContestEntry       @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  history            FotorankJudgeVoteHistory[] @relation("FrVoteHistoryLine")
+
+  @@unique([assignmentId, entryId])
+  @@index([entryId])
+}
+
+model FotorankJudgeVoteHistory {
+  id                  String                @id @default(cuid())
+  voteId              String
+  assignmentId        String
+  entryId             String
+  previousPayloadJson Json
+  newPayloadJson      Json
+  changedByJudgeId    String?
+  changeReason        String?
+  changedAt           DateTime              @default(now())
+  changedByJudge      FotorankJudgeAccount? @relation("FrVoteHistoryActorJudge", fields: [changedByJudgeId], references: [id])
+  vote                FotorankJudgeVote     @relation("FrVoteHistoryLine", fields: [voteId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId])
+  @@index([entryId])
+  @@index([changedAt])
+}
+
+model FotorankJudgeAuditEvent {
+  id             String                 @id @default(cuid())
+  organizationId String
+  contestId      String?
+  actorType      FotorankJudgeActorType
+  actorUserId    Int?
+  actorJudgeId   String?
+  eventType      String
+  entityType     String
+  entityId       String
+  payloadJson    Json?
+  createdAt      DateTime               @default(now())
+  actorJudge     FotorankJudgeAccount?  @relation("FrAuditActorJudge", fields: [actorJudgeId], references: [id])
+  actorUser      User?                  @relation("FrJudgeAuditActorUser", fields: [actorUserId], references: [id])
+  contest        FotorankContest?       @relation(fields: [contestId], references: [id])
+  organization   ContestOrganization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([contestId])
+  @@index([entityType, entityId])
+}
+
+/// Plantilla estructurada (layout JSON + dimensiones). Mismo esquema alimenta preview y export PDF/PNG.
+model FotorankDiplomaTemplate {
+  id                 String                        @id @default(cuid())
+  organizationId     String
+  contestId          String
+  name               String
+  status             FotorankDiplomaTemplateStatus @default(DRAFT)
+  widthPt            Float                         @default(842)
+  heightPt           Float                         @default(595)
+  backgroundColor    String                        @default("#0f0f0f")
+  backgroundImageUrl String?
+  layoutJson         Json
+  version            Int                           @default(1)
+  createdByUserId    Int
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+  issued             FotorankDiplomaIssued[]
+  contest            FotorankContest               @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  createdByUser      User                          @relation("FrDiplomaTemplateAuthor", fields: [createdByUserId], references: [id])
+  organization       ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, contestId])
+  @@index([contestId, status])
+}
+
+/// Diploma emitido: trazabilidad, verificación pública, archivos y cadena de reemisión.
+model FotorankDiplomaIssued {
+  id                String                       @id @default(cuid())
+  organizationId    String
+  contestId         String
+  templateId        String
+  recipientType     FotorankDiplomaRecipientType
+  recipientName     String
+  recipientUserId   Int?
+  entryId           String?
+  judgeAccountId    String?
+  contestCategoryId String?
+  prizeLabel        String?
+  diplomaCode       String                       @unique
+  verificationToken String                       @unique
+  verificationUrl   String
+  qrValue           String
+  status            FotorankDiplomaIssuedStatus  @default(ISSUED)
+  pdfUrl            String?
+  pngUrl            String?
+  pdfBytes          Int?
+  pngBytes          Int?
+  pdfChecksum       String?
+  pngChecksum       String?
+  renderedAt        DateTime?
+  failureReason     String?
+  warningsJson      Json?
+  issuedByUserId    Int
+  /// Si este registro fue reemplazado, apunta al diploma nuevo (ISSUED).
+  supersededById    String?                      @unique
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  contestCategory   FotorankContestCategory?     @relation(fields: [contestCategoryId], references: [id])
+  contest           FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  entry             FotorankContestEntry?        @relation(fields: [entryId], references: [id])
+  issuedByUser      User                         @relation("FrDiplomaIssuedBy", fields: [issuedByUserId], references: [id])
+  judgeAccount      FotorankJudgeAccount?        @relation(fields: [judgeAccountId], references: [id])
+  organization      ContestOrganization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  replacement       FotorankDiplomaIssued?       @relation("FrDiplomaSupersession", fields: [supersededById], references: [id])
+  replacedFrom      FotorankDiplomaIssued?       @relation("FrDiplomaSupersession")
+  template          FotorankDiplomaTemplate      @relation(fields: [templateId], references: [id])
+
+  @@index([organizationId, contestId])
+  @@index([contestId, status])
+  @@index([templateId])
+  @@index([verificationToken])
+}
+
+model FotorankAdminSession {
+  id        String   @id @default(cuid())
+  userId    Int
+  tokenHash String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      User     @relation("FrAdminSession", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model FotorankJudgeSession {
+  id             String               @id @default(cuid())
+  judgeAccountId String
+  tokenHash      String               @unique
+  expiresAt      DateTime
+  createdAt      DateTime             @default(now())
+  judgeAccount   FotorankJudgeAccount @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+
+  @@index([judgeAccountId])
+  @@index([expiresAt])
+}
+
+enum MembershipRole {
+  ADMIN
+  MEMBER
+}
+
+enum WorkspaceRole {
+  WORKSPACE_OWNER
+  WORKSPACE_ADMIN
+  STAFF
+}
+
+enum FotorankOrganizationRole {
+  OWNER
+  ADMIN
+  EDITOR
+  JUDGE
+  VIEWER
+}
+
+enum FotorankMemberStatus {
+  ACTIVE
+  PENDING
+  INVITED
+  DECLINED
+  REMOVED
+}
+
+enum FotorankContestStatus {
+  DRAFT
+  SETUP_IN_PROGRESS
+  READY_TO_PUBLISH
+  PUBLISHED
+  ACTIVE
+  CLOSED
+  ARCHIVED
+}
+
+enum FotorankContestVisibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+}
+
+enum FotorankJudgeAccountStatus {
+  INVITED
+  PENDING_REGISTRATION
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum FotorankJudgeMembershipStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum FotorankJudgeInvitationStatus {
+  DRAFT
+  SENT
+  OPENED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  REVOKED
+}
+
+enum FotorankJudgeAssignmentType {
+  PRIMARY
+  BACKUP
+}
+
+enum FotorankJudgeAssignmentStatus {
+  ASSIGNED
+  INVITATION_SENT
+  ACCEPTED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+  EXTENDED
+  REPLACED_BY_BACKUP
+}
+
+enum FotorankJudgeMethodType {
+  SCORE_1_5
+  SCORE_1_10
+  SCORE_0_100
+  YES_NO
+  FAVORITES_SELECTION
+  SELECTION_WITH_QUOTA
+  CRITERIA_BASED
+}
+
+enum FotorankJudgeActorType {
+  ADMIN
+  JUDGE
+  SYSTEM
+}
+
+enum FotorankJudgeCompensationMode {
+  VOLUNTEER
+  PAID
+  BOTH
+}
+
+enum FotorankJudgePricingMode {
+  FIXED
+  STARTING_AT
+  NEGOTIABLE
+  NOT_SHOWN
+}
+
+enum FotorankJudgePriceUnit {
+  PER_CONTEST
+  PER_CATEGORY
+  PER_HOUR
+  CUSTOM
+}
+
+enum FotorankJudgeDirectoryInviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+  ARCHIVED
+}
+
+enum FotorankGlobalCategoryReviewStatus {
+  APPROVED
+  PENDING
+  REJECTED
+}
+
+enum FotorankContestCategoryStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum CourseSalesModality {
+  LIVE
+  RECORDED
+  HYBRID
+}
+
+enum CourseSalesLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum CourseSalesCourseStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+}
+
+enum CourseSalesLeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  LOST
+}
+
+enum TeacherApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  UPCOMING
+  HIDDEN
+}
+
+enum CourseInstanceStatus {
+  ACTIVE
+  FULL
+  CANCELLED
+}
+
+enum CourseEnrollmentPaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum CourseEnrollmentPaymentMethod {
+  MERCADO_PAGO
+}
+
+enum ServiceLeadStatus {
+  NEW
+  CONTACTED
+  QUOTED
+  INTERESTED
+  WON
+  LOST
+}
+
+enum MemberStatus {
+  ACTIVE
+  OVERDUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum MembershipFeeStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+enum MemberChargeType {
+  ENROLLMENT
+  MONTHLY_FEE
+  ADJUSTMENT
+  LATE_FEE
+}
+
+enum MemberChargeStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum MemberPaymentMethod {
+  CASH
+  TRANSFER
+  MERCADO_PAGO
+  MANUAL
+}
+
+enum CardRequestStatus {
+  PENDING_PAYMENT
+  PHOTO_PENDING
+  PHOTO_REVIEW
+  APPROVED
+  REJECTED
+  READY
+  DELIVERED
+}
+
+enum MemberCardStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum FotorankDiplomaTemplateStatus {
+  DRAFT
+  READY
+  ACTIVE
+  ARCHIVED
+}
+
+enum FotorankDiplomaRecipientType {
+  PARTICIPANT
+  ENTRY
+  JUDGE
+  COLLABORATOR
+}
+
+enum FotorankDiplomaIssuedStatus {
+  ISSUED
+  FAILED
+  REVOKED
+  REPLACED
+}
+
