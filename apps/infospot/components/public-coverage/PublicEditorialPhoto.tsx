@@ -69,33 +69,44 @@ export function PublicEditorialPhoto({
         }
         albumHref={photo.canShowPurchaseCta ? photo.albumHref : null}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={photo.src}
-          srcSet={photo.srcSet || undefined}
-          sizes={photo.sizes}
-          alt={photo.altText}
-          width={photo.widthHint || 960}
-          height={Math.round((photo.widthHint || 960) * 0.66)}
-          loading={priority ? "eager" : "lazy"}
-          decoding="async"
-          fetchPriority={priority ? "high" : "auto"}
-          draggable={false}
-          className={`w-full object-cover ${onOpen ? "cursor-zoom-in" : ""}`}
-          onClick={onOpen}
-          role={onOpen ? "button" : undefined}
-          tabIndex={onOpen ? 0 : undefined}
-          onKeyDown={
-            onOpen
-              ? (e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onOpen();
-                  }
-                }
-              : undefined
-          }
-        />
+        {onOpen ? (
+          <button
+            type="button"
+            className="block w-full cursor-zoom-in text-left focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--is-accent)]"
+            onClick={onOpen}
+            aria-label={`Ampliar fotografía: ${photo.altText}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photo.src}
+              srcSet={photo.srcSet || undefined}
+              sizes={photo.sizes}
+              alt={photo.altText}
+              width={photo.widthHint || 960}
+              height={Math.round((photo.widthHint || 960) * 0.66)}
+              loading={priority ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={priority ? "high" : "auto"}
+              draggable={false}
+              className="w-full object-cover"
+            />
+          </button>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photo.src}
+            srcSet={photo.srcSet || undefined}
+            sizes={photo.sizes}
+            alt={photo.altText}
+            width={photo.widthHint || 960}
+            height={Math.round((photo.widthHint || 960) * 0.66)}
+            loading={priority ? "eager" : "lazy"}
+            decoding="async"
+            fetchPriority={priority ? "high" : "auto"}
+            draggable={false}
+            className="w-full object-cover"
+          />
+        )}
       </ProtectedEditorialImage>
       <figcaption className="mt-3 space-y-1">
         {photo.caption ? (

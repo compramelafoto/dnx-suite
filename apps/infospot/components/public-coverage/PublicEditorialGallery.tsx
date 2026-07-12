@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { PublicEditorialPhotoViewModel } from "@/lib/public-coverage";
 import { PublicEditorialPhoto } from "./PublicEditorialPhoto";
 import { EditorialPhotoCredit } from "./EditorialPhotoCredit";
@@ -26,6 +26,8 @@ export function PublicEditorialGallery({
   const ordered = [...photos].sort((a, b) => a.sortOrder - b.sortOrder);
   const [limit, setLimit] = useState(initialLimit);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const touchStartX = useRef<number | null>(null);
 
   const visible = ordered.slice(0, limit);
   const hasMore = ordered.length > limit;
@@ -51,7 +53,13 @@ export function PublicEditorialGallery({
       if (e.key === "ArrowLeft") go(-1);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [lightboxIndex, close, go]);
 
   if (ordered.length === 0) return null;
@@ -76,14 +84,23 @@ export function PublicEditorialGallery({
       </div>
 
       <ul className="mt-6 grid gap-6 sm:grid-cols-2">
-        {visible.map((photo, i) => (
-          <li key={`${photo.id}-${photo.sortOrder}`}>
-            <PublicEditorialPhoto
-              photo={photo}
-              onOpen={photo.src ? () => setLightboxIndex(i) : undefined}
-            />
-          </li>
-        ))}
+        {visible.map((photo) => {
+          const absoluteIndex = ordered.findIndex(
+            (p) => p.id === photo.id && p.sortOrder === photo.sortOrder,
+          );
+          return (
+            <li key={`${photo.id}-${photo.sortOrder}`}>
+              <PublicEditorialPhoto
+                photo={photo}
+                onOpen={
+                  photo.src && absoluteIndex >= 0
+                    ? () => setLightboxIndex(absoluteIndex)
+                    : undefined
+                }
+              />
+            </li>
+          );
+        })}
       </ul>
 
       {hasMore ? (
@@ -106,6 +123,19 @@ export function PublicEditorialGallery({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
           onClick={close}
           data-testid="editorial-gallery-lightbox"
+          onTouchStart={(e) => {
+            touchStartX.current = e.changedTouches[0]?.clientX ?? null;
+          }}
+          onTouchEnd={(e) => {
+            const start = touchStartX.current;
+            const end = e.changedTouches[0]?.clientX;
+            touchStartX.current = null;
+            if (start == null || end == null) return;
+            const delta = end - start;
+            if (Math.abs(delta) < 48) return;
+            if (delta < 0) go(1);
+            else go(-1);
+          }}
         >
           <div
             className="relative max-h-[90vh] w-full max-w-5xl"
@@ -135,7 +165,7 @@ export function PublicEditorialGallery({
                       ? active.purchaseHref || "#"
                       : active.albumHref || "#"
                   }
-                  className="inline-block text-sm font-semibold text-[var(--is-orange-300)] hover:underline"
+                  className="inline-block min-h-11 text-sm font-semibold text-[var(--is-orange-300)] hover:underline focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
                   rel="noopener noreferrer"
                 >
                   {active.hasSpecificPurchaseUrl
@@ -147,7 +177,7 @@ export function PublicEditorialGallery({
             <div className="absolute inset-y-0 left-0 flex items-center">
               <button
                 type="button"
-                className="rounded bg-white/10 px-3 py-2 text-white focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
+                className="min-h-11 min-w-11 rounded bg-white/10 px-3 py-2 text-white focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white disabled:opacity-40"
                 aria-label="Foto anterior"
                 onClick={() => go(-1)}
                 disabled={lightboxIndex === 0}
@@ -158,7 +188,7 @@ export function PublicEditorialGallery({
             <div className="absolute inset-y-0 right-0 flex items-center">
               <button
                 type="button"
-                className="rounded bg-white/10 px-3 py-2 text-white focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
+                className="min-h-11 min-w-11 rounded bg-white/10 px-3 py-2 text-white focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white disabled:opacity-40"
                 aria-label="Foto siguiente"
                 onClick={() => go(1)}
                 disabled={lightboxIndex === ordered.length - 1}
@@ -167,9 +197,10 @@ export function PublicEditorialGallery({
               </button>
             </div>
             <button
+              ref={closeRef}
               type="button"
-              className="absolute right-0 top-0 rounded bg-white/10 px-3 py-2 text-white focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
-              aria-label="Cerrar"
+              className="absolute right-0 top-0 min-h-11 min-w-11 rounded bg-white/10 px-3 py-2 text-white focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
+              aria-label="Cerrar galería ampliada"
               onClick={close}
             >
               ✕
