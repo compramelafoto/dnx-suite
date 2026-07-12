@@ -18,6 +18,7 @@ import { getClfReadonlyConnectionInfo } from "@/lib/clf-readonly-db";
 import { ensureUniqueSlug } from "@/lib/articles";
 import { slugifyTitle } from "@/lib/slug";
 import { formatDateEs } from "@/lib/dates";
+import { comprameLaFotoAdapter, linkArticleToOrigin } from "@/lib/content-origin";
 
 export type ActionResult =
   | { ok: true; id?: string; message: string; ids?: string[] }
@@ -206,6 +207,58 @@ export async function createDraftFromClfEventAction(eventId: number): Promise<Ac
       publishedAt: null,
     },
   });
+
+  // Soft refs se mantienen; además se registra vínculo genérico (idempotente).
+  await linkArticleToOrigin(article.id, {
+    sourceType: "COMPRAMELAFOTO",
+    externalEntityType: "EVENT",
+    externalId: event.id,
+    direction: "INBOUND",
+    syncStatus: "SYNCED",
+    externalUrl: comprameLaFotoAdapter.resolveExternalUrl({
+      externalEntityType: "EVENT",
+      externalId: event.id,
+    }),
+    operationalPayload: comprameLaFotoAdapter.buildOperationalPayload({
+      title: event.title,
+      startsAt: event.startsAt,
+      city: event.city,
+      locationName: event.locationName,
+    }),
+    sourceUpdatedAt: new Date(),
+  });
+  if (topAlbum) {
+    const albumAvail = resolveClfAlbumCommercialAvailability({
+      publicSlug: topAlbum.publicSlug,
+      isHidden: topAlbum.isHidden,
+      isPublic: topAlbum.isPublic,
+      deletedAt: topAlbum.deletedAt,
+      firstPhotoDate: topAlbum.firstPhotoDate,
+      createdAt: topAlbum.createdAt,
+      expirationExtensionDays: topAlbum.expirationExtensionDays,
+      cleanupStatus: topAlbum.cleanupStatus,
+    });
+    await linkArticleToOrigin(article.id, {
+      sourceType: "COMPRAMELAFOTO",
+      externalEntityType: "ALBUM",
+      externalId: topAlbum.id,
+      direction: "INBOUND",
+      syncStatus: "SYNCED",
+      externalUrl: albumAvail.publicUrl,
+      operationalPayload: comprameLaFotoAdapter.buildOperationalPayload({
+        publicSlug: topAlbum.publicSlug,
+        isHidden: topAlbum.isHidden,
+        isPublic: topAlbum.isPublic,
+        deletedAt: topAlbum.deletedAt,
+        firstPhotoDate: topAlbum.firstPhotoDate,
+        createdAt: topAlbum.createdAt,
+        expirationExtensionDays: topAlbum.expirationExtensionDays,
+        cleanupStatus: topAlbum.cleanupStatus,
+        commercialStatus: albumAvail.status,
+        photoCount: topAlbum._count.photos,
+      }),
+    });
+  }
 
   revalidatePath("/redaccion");
   return {
