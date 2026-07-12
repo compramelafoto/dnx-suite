@@ -11,6 +11,7 @@ import {
 import { PageShell } from "@/components/page-shell";
 import { FlashBanner } from "@/components/redaccion/flash-banner";
 import { PublishChecklist } from "@/components/redaccion/publish-checklist";
+import { AdminEventAiImport } from "@/components/events/AdminEventAiImport";
 import { toDatetimeLocalValue } from "@/lib/dates";
 import {
   canModerateInfoSpotEvents,
@@ -63,7 +64,7 @@ export default async function AdminEventoDetailPage({ params, searchParams }: Pr
 
   const categories = await prisma.infoSpotCategory.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, slug: true },
   });
 
   const updateAction = updateAdminEventAndRedirect.bind(null, event.id);
@@ -159,7 +160,17 @@ export default async function AdminEventoDetailPage({ params, searchParams }: Pr
       )}
 
       {canModerate ? (
-        <form action={updateAction} encType="multipart/form-data" className="space-y-8">
+        <div className="mb-8 space-y-6">
+          <AdminEventAiImport
+            formId="admin-event-edit-form"
+            categories={categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))}
+          />
+          <form
+            id="admin-event-edit-form"
+            action={updateAction}
+            encType="multipart/form-data"
+            className="space-y-8"
+          >
           <fieldset className="space-y-4">
             <legend className="is-eyebrow">Contenido</legend>
             <label className="block">
@@ -370,6 +381,7 @@ export default async function AdminEventoDetailPage({ params, searchParams }: Pr
             Guardar cambios
           </button>
         </form>
+        </div>
       ) : (
         <div className="space-y-4 text-sm text-[var(--is-text-secondary)]">
           <p>{event.summary}</p>

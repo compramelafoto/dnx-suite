@@ -10,10 +10,12 @@ import { ClfEventPicker } from "@/components/redaccion/clf-event-picker";
 import { PublishChecklist } from "@/components/redaccion/publish-checklist";
 import { EditorialActionsPanel } from "@/components/redaccion/editorial-actions-panel";
 import { EditorialVisualEditor } from "@/components/redaccion/visual-editor/editorial-visual-editor";
+import { AiImportButton, AiImportDialog } from "@/components/ai-import";
 import { buildArticlePublishChecklist } from "@/lib/launch-content";
 import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
 import type { InfoSpotContentTag, InfoSpotPermissionSubject } from "@repo/db";
 import { autosaveArticleDraftAction } from "@/app/actions/articles";
+import type { AiImportMergeMode, ArticleFormImportValues } from "@/lib/ai-import";
 
 type CategoryOption = { id: string; name: string; slug: string };
 
@@ -119,6 +121,9 @@ export function ArticleForm({
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(
     initial?.updatedAt ? new Date(initial.updatedAt).toISOString() : null,
   );
+  const [aiImportOpen, setAiImportOpen] = useState(false);
+  const [editorKey, setEditorKey] = useState(0);
+  const [importBanner, setImportBanner] = useState<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingLock = useRef(false);
 
@@ -168,6 +173,77 @@ export function ArticleForm({
   const markDirty = useCallback(() => {
     setSaveState((prev) => (prev === "saving" ? prev : "dirty"));
   }, []);
+
+  const hasExistingArticleValues = Boolean(
+    title.trim() ||
+      excerpt.trim() ||
+      content.trim() ||
+      categoryId ||
+      seoTitle.trim() ||
+      seoDescription.trim() ||
+      sourceName.trim() ||
+      sourceUrl.trim(),
+  );
+
+  const canUseAiImport = mode === "create" || status === "DRAFT" || !content.trim();
+
+  const applyArticleImport = useCallback(
+    (payload: {
+      mode: AiImportMergeMode;
+      articleValues?: ArticleFormImportValues;
+      selectedSimilarEvent?: {
+        source: string;
+        id: string;
+        title: string;
+      } | null;
+    }) => {
+      const v = payload.articleValues;
+      if (!v) return;
+      const replace = payload.mode === "replace_all";
+      const take = (current: string, next?: string) => {
+        if (!next?.trim()) return current;
+        if (replace || !current.trim()) return next;
+        return current;
+      };
+
+      setTitle((cur) => take(cur, v.title));
+      setExcerpt((cur) => take(cur, v.excerpt));
+      setSeoTitle((cur) => take(cur, v.seoTitle));
+      setSeoDescription((cur) => take(cur, v.seoDescription));
+      setSourceName((cur) => take(cur, v.sourceName));
+      setSourceUrl((cur) => take(cur, v.sourceUrl));
+      setCoverCredit((cur) => take(cur, v.coverCredit));
+      if (v.categoryId && (replace || !categoryId)) {
+        setCategoryId(v.categoryId);
+      }
+      if (v.content?.trim() && (replace || !content.trim())) {
+        setContent(v.content);
+        setEditorKey((k) => k + 1);
+      }
+      if (v.title?.trim() && (!slugTouched || replace)) {
+        setSlug(slugifyTitle(v.title));
+        setSlugTouched(false);
+      }
+      const similarHint = payload.selectedSimilarEvent
+        ? `Candidato ${payload.selectedSimilarEvent.source}: «${payload.selectedSimilarEvent.title}» (ID ${payload.selectedSimilarEvent.id}) — vinculalo manualmente si corresponde`
+        : null;
+      const notes = [
+        v.notesForEditor,
+        v.factCheckNotes,
+        v.eventName ? `Evento: ${v.eventName}` : null,
+        similarHint,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      setImportBanner(
+        notes
+          ? `Importación aplicada. Revisá: ${notes}`
+          : "Importación aplicada. Revisá los campos antes de guardar.",
+      );
+      markDirty();
+    },
+    [categoryId, content, markDirty, slugTouched],
+  );
 
   const runAutosave = useCallback(async () => {
     if (mode !== "edit" || !initial?.id || !formRef.current) return;
@@ -474,6 +550,9 @@ export function ArticleForm({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {canUseAiImport ? (
+              <AiImportButton onClick={() => setAiImportOpen(true)} />
+            ) : null}
             <button
               type="button"
               className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium lg:hidden"
@@ -516,6 +595,14 @@ export function ArticleForm({
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="mx-auto w-full max-w-3xl space-y-8">
+          {importBanner ? (
+            <p
+              className="rounded-[var(--is-radius-sm)] border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-950"
+              role="status"
+            >
+              {importBanner}
+            </p>
+          ) : null}
           <div>
             <label className={labelClass} htmlFor="title">
               Título *
@@ -562,7 +649,8 @@ export function ArticleForm({
               <p className="text-xs text-[var(--is-muted)]">Editor visual · se guarda en Markdown</p>
             </div>
             <EditorialVisualEditor
-              initialMarkdown={initial?.content ?? ""}
+              key={editorKey}
+              initialMarkdown={content}
               articleId={initial?.id}
               onMarkdownChange={(md) => {
                 setContent(md);
@@ -626,6 +714,17 @@ export function ArticleForm({
           Volver a la redacción
         </Link>
       </div>
+
+      {canUseAiImport ? (
+        <AiImportDialog
+          open={aiImportOpen}
+          onClose={() => setAiImportOpen(false)}
+          context="ARTICLE"
+          categories={categories}
+          hasExistingValues={hasExistingArticleValues}
+          onApply={applyArticleImport}
+        />
+      ) : null}
     </form>
   );
 }
