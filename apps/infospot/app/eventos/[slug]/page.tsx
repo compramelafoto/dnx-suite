@@ -44,13 +44,19 @@ function formatRange(start: Date, end: Date | null) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const event = await getPublishedEventBySlug(slug);
-  if (!event) return { title: "Evento" };
+  const row = await getPublishedEventBySlug(slug);
+  if (!row) return { title: "Evento" };
 
+  const event = toPublicEventDetail(row);
   const title = event.title;
+  const locationBits = [event.publicLocation.city, event.publicLocation.province]
+    .filter(Boolean)
+    .join(", ");
   const description =
     event.summary ||
-    `${event.title} en ${event.city}, ${event.province}.`;
+    (locationBits
+      ? `${event.title} en ${locationBits}.`
+      : event.title);
   const temporal = getEventTemporalState({
     startAt: event.startAt,
     endAt: event.endAt,
@@ -71,7 +77,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     other: {
       "event:start_time": event.startAt.toISOString(),
-      "event:location": [event.city, event.province].filter(Boolean).join(", "),
+      ...(locationBits ? { "event:location": locationBits } : {}),
       "event:status": temporal,
     },
   };
@@ -89,6 +95,7 @@ export default async function EventoDetailPage({ params }: Props) {
     endAt: event.endAt,
   });
   const temporalLabel = bundle?.temporalLabel || "";
+  const loc = event.publicLocation;
 
   const fallback = pickThematicStock(
     event.id,
@@ -112,9 +119,33 @@ export default async function EventoDetailPage({ params }: Props) {
   const eventStatusSchema =
     temporal === "CANCELLED"
       ? "https://schema.org/EventCancelled"
-      : temporal === "FINISHED"
-        ? "https://schema.org/EventScheduled"
-        : "https://schema.org/EventScheduled";
+      : "https://schema.org/EventScheduled";
+
+  const jsonLdLocation =
+    loc.city || loc.province || loc.venueName || loc.label
+      ? {
+          "@type": "Place",
+          name: loc.venueName || loc.city || loc.label,
+          address: {
+            "@type": "PostalAddress",
+            ...(loc.city ? { addressLocality: loc.city } : {}),
+            ...(loc.province ? { addressRegion: loc.province } : {}),
+            ...(loc.showExactAddress && loc.address
+              ? { streetAddress: loc.address }
+              : {}),
+            addressCountry: "AR",
+          },
+          ...(loc.showCoordinates && loc.latitude != null && loc.longitude != null
+            ? {
+                geo: {
+                  "@type": "GeoCoordinates",
+                  latitude: loc.latitude,
+                  longitude: loc.longitude,
+                },
+              }
+            : {}),
+        }
+      : undefined;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -125,17 +156,7 @@ export default async function EventoDetailPage({ params }: Props) {
     ...(event.endAt ? { endDate: event.endAt.toISOString() } : {}),
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     eventStatus: eventStatusSchema,
-    location: {
-      "@type": "Place",
-      name: event.venueName || event.city,
-      address: {
-        "@type": "PostalAddress",
-        addressLocality: event.city,
-        addressRegion: event.province,
-        ...(event.address ? { streetAddress: event.address } : {}),
-        addressCountry: "AR",
-      },
-    },
+    ...(jsonLdLocation ? { location: jsonLdLocation } : {}),
     organizer: {
       "@type": "Organization",
       name: event.organizerName,
@@ -215,12 +236,18 @@ export default async function EventoDetailPage({ params }: Props) {
           <aside className="space-y-8 lg:col-span-4">
             <div className="border border-[var(--is-border)] p-5">
               <p className="is-eyebrow">Dónde</p>
-              <p className="mt-3 font-semibold">{event.venueName || event.city}</p>
-              <p className="mt-1 text-sm text-[var(--is-text-secondary)]">
-                {[event.address, event.city, event.province]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
+              <p className="mt-3 font-semibold">{loc.label}</p>
+              {loc.city || loc.province || (loc.showExactAddress && loc.address) ? (
+                <p className="mt-1 text-sm text-[var(--is-text-secondary)]">
+                  {[
+                    loc.showExactAddress ? loc.address : null,
+                    loc.city,
+                    loc.province,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              ) : null}
               <p className="mt-4 text-sm">
                 Organiza <strong>{event.organizerName}</strong>
               </p>

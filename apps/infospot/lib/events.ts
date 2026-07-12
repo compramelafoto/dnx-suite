@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { prisma } from "@repo/db";
 import { distanceKm, resolveEventCoords } from "@/lib/geo";
 import { slugifyTitle } from "@/lib/slug";
+import { buildPublicEventLocation } from "@/lib/geolocation/public-location";
+import type { LocationVisibility } from "@/lib/geolocation/types";
 
 export type PublicEventCard = {
   id: string;
@@ -261,7 +263,7 @@ export async function getEventProvinces(): Promise<string[]> {
   return rows.map((r) => r.province).filter(Boolean);
 }
 
-/** Vista pública segura: sin email/teléfono. */
+/** Vista pública segura: sin email/teléfono; ubicación filtrada por visibility. */
 export function toPublicEventDetail(event: {
   id: string;
   title: string;
@@ -274,6 +276,9 @@ export function toPublicEventDetail(event: {
   city: string;
   province: string;
   address: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationVisibility?: LocationVisibility | null;
   coverImageUrl: string | null;
   registrationUrl: string | null;
   sourceUrl: string | null;
@@ -281,6 +286,16 @@ export function toPublicEventDetail(event: {
   organizerWebsite: string | null;
   category: { name: string; slug: string } | null;
 }) {
+  const publicLocation = buildPublicEventLocation({
+    city: event.city,
+    province: event.province,
+    venueName: event.venueName,
+    address: event.address,
+    latitude: event.latitude ?? null,
+    longitude: event.longitude ?? null,
+    locationVisibility: event.locationVisibility ?? "CITY_ONLY",
+  });
+
   return {
     id: event.id,
     title: event.title,
@@ -289,10 +304,12 @@ export function toPublicEventDetail(event: {
     description: event.description,
     startAt: event.startAt,
     endAt: event.endAt,
-    venueName: event.venueName,
-    city: event.city,
-    province: event.province,
-    address: event.address,
+    /** Preferir publicLocation en UI; estos campos ya están filtrados. */
+    venueName: publicLocation.venueName,
+    city: publicLocation.city ?? "",
+    province: publicLocation.province ?? "",
+    address: publicLocation.address,
+    publicLocation,
     coverImageUrl: event.coverImageUrl,
     registrationUrl: event.registrationUrl,
     sourceUrl: event.sourceUrl,
