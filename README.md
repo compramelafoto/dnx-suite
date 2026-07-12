@@ -13,7 +13,11 @@ dnx-suite/
 │   ├── ui/             # Componentes UI compartidos
 │   ├── eslint-config/  # Configuración ESLint
 │   └── typescript-config/ # Configuración TypeScript
+├── services/
+│   └── dnx-mcp/        # Servidor MCP de infraestructura (@dnx/dnx-mcp)
 ```
+
+Documentación del MCP: [`docs/dnx-mcp.md`](docs/dnx-mcp.md) · [`services/dnx-mcp/README.md`](services/dnx-mcp/README.md)
 
 ## Requisitos
 

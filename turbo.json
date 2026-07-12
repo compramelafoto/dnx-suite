@@ -21,6 +21,8 @@
     "COOKIE_DOMAIN",
     "APP_URL",
     "VERCEL",
+    "DATABASE_URL",
+    "DIRECT_URL",
     "CLF_READONLY_DATABASE_URL",
     "VERCEL_GIT_COMMIT_SHA"
   ],

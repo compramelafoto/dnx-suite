@@ -10,6 +10,11 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "dnx:create-director": "pnpm --filter @repo/auth create-director",
+    "dnx-mcp:dev": "pnpm --filter @dnx/dnx-mcp dev",
+    "dnx-mcp:build": "pnpm --filter @dnx/dnx-mcp build",
+    "dnx-mcp:start": "pnpm --filter @dnx/dnx-mcp start",
+    "dnx-mcp:test": "pnpm --filter @dnx/dnx-mcp test",
+    "dnx-mcp:typecheck": "pnpm --filter @dnx/dnx-mcp typecheck",
     "e2e:prepare": "pnpm --filter compramelafoto run e2e:prepare",
     "e2e:school": "pnpm --filter compramelafoto run e2e:school"
   },
