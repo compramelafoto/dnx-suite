@@ -182,7 +182,8 @@ Documentación: [`docs/GOOGLE-CLOUD.md`](./docs/GOOGLE-CLOUD.md)
 Tools nuevas (deshabilitadas por defecto con `DNX_GCP_ENABLED=false`):
 
 - Diagnóstico: `gcp_check_installation`, `gcp_get_auth_status`, `gcp_list_accounts`, `gcp_get_active_account`, `gcp_run_doctor`
-- Proyectos: `gcp_list_projects`, `gcp_get_project`, `gcp_get_active_project`, `gcp_set_project`, `gcp_check_billing`
+- Proyectos: `gcp_list_projects`, `gcp_get_project`, `gcp_get_active_project`, `gcp_set_project`, `gcp_check_billing`, `gcp_plan_project`, `gcp_create_project`
+- Facturación: `gcp_list_billing_accounts`, `gcp_plan_link_billing`, `gcp_link_billing`
 - APIs: `gcp_list_enabled_services`, `gcp_list_available_services`, `gcp_plan_enable_services`, `gcp_enable_services`
 - Service accounts: `gcp_list_service_accounts`, `gcp_plan_service_account`, `gcp_create_service_account`
 - Secret Manager: `gcp_list_secrets`, `gcp_get_secret_metadata`, `gcp_plan_secret`, `gcp_create_secret`, `gcp_add_secret_version`

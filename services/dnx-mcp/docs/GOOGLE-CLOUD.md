@@ -10,6 +10,8 @@ Incluye:
 
 - Diagnóstico de instalación y autenticación
 - Proyectos (listar, describir, proyecto activo, set local, billing read-only)
+- **Planificación y creación acotada de proyectos** (con prefijo, labels, parent opcional)
+- **Billing accounts** (listar) y **vinculación de facturación** (plan + link con HIGH_RISK)
 - APIs / services (listar, planificar, habilitar con controles)
 - Service accounts (listar, planificar, crear sin keys ni roles)
 - Secret Manager (listar, metadatos, planificar, crear, agregar versión **sin exponer valores**)
@@ -18,10 +20,9 @@ No incluye (Fase 2+):
 
 - Cloud Run, Artifact Registry, Cloud Storage
 - Despliegues
-- Creación completa de proyectos
 - OAuth / Calendar / Drive
 - Claves JSON permanentes de service account
-- Eliminación de recursos
+- Eliminación de recursos / desvincular billing / cerrar billing accounts
 - Comandos arbitrarios de terminal
 - Roles IAM grant/revoke (tipados, no registrados)
 
@@ -46,6 +47,16 @@ No incluye (Fase 2+):
 | `gcp_get_active_project` | READ_ONLY |
 | `gcp_set_project` | LOW_RISK_WRITE (solo config local gcloud) |
 | `gcp_check_billing` | READ_ONLY |
+| `gcp_plan_project` | LOW_RISK_WRITE (solo plan) |
+| `gcp_create_project` | HIGH_RISK_WRITE |
+
+### Facturación
+
+| Tool | Riesgo |
+| --- | --- |
+| `gcp_list_billing_accounts` | READ_ONLY |
+| `gcp_plan_link_billing` | LOW_RISK_WRITE (solo plan) |
+| `gcp_link_billing` | HIGH_RISK_WRITE |
 
 ### APIs
 
@@ -127,9 +138,9 @@ No se infiere el entorno por el nombre del proyecto.
 
 Proyectos fuera del prefijo → `GCP_PROJECT_NOT_ALLOWED`.
 
-## Confirmaciones en production
+## Confirmaciones exactas
 
-Ejemplos exactos:
+Ejemplos:
 
 ```text
 ENABLE SERVICES IN dnx-example
@@ -137,7 +148,41 @@ CREATE SERVICE ACCOUNT dnx-app-runtime IN dnx-example
 CREATE SECRET database-url IN dnx-example
 ADD SECRET VERSION database-url IN dnx-example
 SET PROJECT dnx-example
+CREATE PROJECT dnx-platform-dev
+LINK BILLING 000000-000000-000000 TO dnx-platform-dev
 ```
+
+`gcp_create_project` y `gcp_link_billing` exigen confirmation exacta en **toda** ejecución real (`dryRun=false`), no solo en production.
+
+## Flujo recomendado (proyecto nuevo)
+
+```text
+gcp_plan_project
+  → gcp_create_project (dryRun / luego real con flags + confirmation)
+  → gcp_list_billing_accounts
+  → gcp_plan_link_billing
+  → gcp_link_billing (dryRun / luego real con flags + confirmation)
+  → gcp_plan_enable_services / gcp_enable_services
+```
+
+Reglas de producto:
+
+1. Crear un proyecto **no** activa APIs.
+2. Crear un proyecto **no** vincula facturación.
+3. Vincular billing **nunca** es automático.
+4. No reutilizar proyectos históricos (`compramelafoto-*`, etc.) sin decisión explícita.
+5. Parent (`organization` / `folder`) es **opcional** y nunca se elige automáticamente.
+6. Labels: solo metadatos seguros (sin secretos, emails ni tokens).
+
+### Flags para creación / link reales
+
+```env
+DNX_GCP_ENABLED=true
+DNX_GCP_ALLOW_WRITES=true
+DNX_GCP_ALLOW_HIGH_RISK_WRITES=true
+```
+
+Más `dryRun=false` y confirmation exacta. Production también requiere `DNX_GCP_ALLOW_PRODUCTION_WRITES=true`.
 
 ## Secret Manager — reglas
 
@@ -169,6 +214,9 @@ Ejemplo seguro:
 - Shell arbitrario / `gcloud` libre
 - Desactivación de APIs
 - Roles Owner/Editor assignment
+- Desvincular / cerrar billing accounts
+- Crear billing accounts
+- Cambiar el proyecto activo local al crear un proyecto
 
 ## Errores
 
@@ -189,7 +237,7 @@ Todas las tools GCP fallan con `GCP_DISABLED`.
 - Cloud Run / Artifact Registry / GCS
 - Roles IAM (grant/revoke) con controles estrictos
 - Workload Identity helpers
-- Posible creación acotada de proyectos
+- Orquestación multi-paso de release sobre GCP
 
 ## Ejemplos seguros
 

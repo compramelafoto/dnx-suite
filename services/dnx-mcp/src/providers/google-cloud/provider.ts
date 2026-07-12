@@ -12,21 +12,27 @@ import {
   type GcpExecutorFn,
 } from "./executor.js";
 import { assertModuleEnabled, assertWritePolicy } from "./policy.js";
+import {
+  formatLabelsFlag,
+  normalizeServiceList,
+  validateAndNormalizeLabels,
+  validateBillingAccountId,
+  validateDisplayName,
+  validateParent,
+  validateProjectId,
+  validateSecretId,
+  validateServiceAccountId,
+} from "./validators.js";
 import type {
   GcpAccount,
   GcpAllowedCommand,
+  GcpBillingAccountSummary,
   GcpEnvironment,
   GcpProjectSummary,
   GcpSecretMetadata,
   GcpServiceAccountSummary,
   GcpToolResultBase,
 } from "./types.js";
-import {
-  normalizeServiceList,
-  validateProjectId,
-  validateSecretId,
-  validateServiceAccountId,
-} from "./validators.js";
 
 export interface GoogleCloudProviderOptions {
   config?: Partial<GoogleCloudConfig>;
@@ -468,6 +474,622 @@ export class GoogleCloudProvider implements Provider {
       }
       throw error;
     }
+  }
+
+  /**
+   * Sondea disponibilidad de un project ID.
+   * - exists: describe OK
+   * - available: NOT_FOUND
+   * - unavailable: PERMISSION_DENIED (ocupado / no visible)
+   */
+  private async probeProjectIdAvailability(
+    projectId: string,
+  ): Promise<"exists" | "available" | "unavailable"> {
+    try {
+      await this.run({ op: "projects.describe", projectId });
+      return "exists";
+    } catch (error) {
+      if (error instanceof GoogleCloudError) {
+        if (error.code === "GCP_PROJECT_NOT_FOUND") return "available";
+        if (error.code === "GCP_PERMISSION_DENIED") return "unavailable";
+      }
+      throw error;
+    }
+  }
+
+  async planProject(input: {
+    projectId: string;
+    displayName: string;
+    environment: GcpEnvironment;
+    parentType?: "organization" | "folder" | null;
+    parentId?: string | null;
+    labels?: Record<string, string>;
+    dryRun?: boolean;
+  }): Promise<
+    GcpToolResultBase & {
+      displayName: string;
+      exists: boolean;
+      idAvailable: boolean;
+      plannedActions: Array<{ type: string; resource: string }>;
+      parent: { parentType: "organization" | "folder"; parentId: string } | null;
+      labels: Record<string, string>;
+    }
+  > {
+    assertModuleEnabled(this.config);
+    const id = validateProjectId(input.projectId);
+    assertWritePolicy(this.config, {
+      riskLevel: "LOW_RISK_WRITE",
+      projectId: id,
+      environment: input.environment,
+      dryRun: true,
+    });
+
+    const displayName = validateDisplayName(input.displayName);
+    const labels = validateAndNormalizeLabels(input.labels);
+    const parent = validateParent(input.parentType ?? null, input.parentId ?? null);
+
+    const availability = await this.probeProjectIdAvailability(id);
+    const exists = availability === "exists";
+    const idAvailable = availability === "available";
+
+    if (availability === "unavailable") {
+      throw new GoogleCloudError(
+        "GCP_PROJECT_ID_UNAVAILABLE",
+        `Project ID "${id}" no está disponible (ocupado o sin visibilidad).`,
+        {
+          projectId: id,
+          recommendedAction: "Elegí otro projectId con prefijo permitido.",
+        },
+      );
+    }
+
+    const plannedActions =
+      exists
+        ? []
+        : [{ type: "CREATE_PROJECT", resource: id }];
+
+    const plannedArgs: string[] = [
+      "projects",
+      "create",
+      id,
+      `--name=${displayName}`,
+      "--format=json",
+    ];
+    const labelsFlag = formatLabelsFlag(labels);
+    if (labelsFlag) plannedArgs.push(`--labels=${labelsFlag}`);
+    if (parent?.parentType === "organization") {
+      plannedArgs.push(`--organization=${parent.parentId}`);
+    }
+    if (parent?.parentType === "folder") {
+      plannedArgs.push(`--folder=${parent.parentId}`);
+    }
+
+    writeGcpAudit(this.config, {
+      tool: "gcp_plan_project",
+      action: "plan_project",
+      projectId: id,
+      environment: input.environment,
+      riskLevel: "LOW_RISK_WRITE",
+      dryRun: true,
+      changed: !exists,
+      result: "dry_run",
+      resource: id,
+    });
+
+    return {
+      ...baseResult({
+        dryRun: true,
+        changed: !exists,
+        riskLevel: "LOW_RISK_WRITE",
+        projectId: id,
+        environment: input.environment,
+        actions: exists
+          ? ["Proyecto ya existe — plan idempotente (sin cambios)"]
+          : ["Plan: crear proyecto GCP"],
+        warnings: [
+          "Billing will remain unlinked until explicitly configured.",
+          "Creating a project does not enable APIs automatically.",
+          "Creating a project does not create service accounts or grant roles.",
+          "Local gcloud active project will not be changed.",
+        ],
+        metadata: { plannedArgs, availability },
+      }),
+      displayName,
+      exists,
+      idAvailable,
+      plannedActions,
+      parent,
+      labels,
+    };
+  }
+
+  async createProject(input: {
+    projectId: string;
+    displayName: string;
+    environment: GcpEnvironment;
+    parentType?: "organization" | "folder" | null;
+    parentId?: string | null;
+    labels?: Record<string, string>;
+    dryRun: boolean;
+    confirmation?: string;
+  }): Promise<
+    GcpToolResultBase & {
+      displayName: string;
+      exists: boolean;
+      plannedActions: Array<{ type: string; resource: string }>;
+      labels: Record<string, string>;
+    }
+  > {
+    const plan = await this.planProject(input);
+    const id = plan.projectId ?? validateProjectId(input.projectId);
+    const requiredConfirmation = `CREATE PROJECT ${id}`;
+
+    assertWritePolicy(this.config, {
+      riskLevel: "HIGH_RISK_WRITE",
+      projectId: id,
+      environment: input.environment,
+      dryRun: input.dryRun,
+      ...(input.confirmation !== undefined ? { confirmation: input.confirmation } : {}),
+      ...(!input.dryRun ? { requiredConfirmation } : {}),
+    });
+
+    if (input.dryRun || plan.exists || plan.plannedActions.length === 0) {
+      writeGcpAudit(this.config, {
+        tool: "gcp_create_project",
+        action: "projects.create",
+        projectId: id,
+        environment: input.environment,
+        riskLevel: "HIGH_RISK_WRITE",
+        dryRun: true,
+        changed: false,
+        result: "dry_run",
+        resource: id,
+      });
+      return {
+        ...baseResult({
+          dryRun: true,
+          changed: false,
+          riskLevel: "HIGH_RISK_WRITE",
+          projectId: id,
+          environment: input.environment,
+          actions: plan.exists
+            ? ["Proyecto ya existe — nada que crear"]
+            : ["dryRun — no se crea el proyecto"],
+          warnings: plan.warnings,
+          metadata: plan.metadata,
+        }),
+        displayName: plan.displayName,
+        exists: plan.exists,
+        plannedActions: plan.plannedActions,
+        labels: plan.labels,
+      };
+    }
+
+    try {
+      await this.run({
+        op: "projects.create",
+        projectId: id,
+        displayName: plan.displayName,
+        labels: plan.labels,
+        ...(plan.parent
+          ? { parentType: plan.parent.parentType, parentId: plan.parent.parentId }
+          : {}),
+      });
+    } catch (error) {
+      writeGcpAudit(this.config, {
+        tool: "gcp_create_project",
+        action: "projects.create",
+        projectId: id,
+        environment: input.environment,
+        riskLevel: "HIGH_RISK_WRITE",
+        dryRun: false,
+        changed: false,
+        result: "error",
+        errorCode: error instanceof GoogleCloudError ? error.code : "GCP_PROJECT_CREATE_FAILED",
+        resource: id,
+      });
+      if (error instanceof GoogleCloudError) throw error;
+      throw new GoogleCloudError("GCP_PROJECT_CREATE_FAILED", `Falló la creación de ${id}`, {
+        projectId: id,
+        cause: error,
+      });
+    }
+
+    writeGcpAudit(this.config, {
+      tool: "gcp_create_project",
+      action: "projects.create",
+      projectId: id,
+      environment: input.environment,
+      riskLevel: "HIGH_RISK_WRITE",
+      dryRun: false,
+      changed: true,
+      result: "success",
+      resource: id,
+    });
+
+    return {
+      ...baseResult({
+        dryRun: false,
+        changed: true,
+        riskLevel: "HIGH_RISK_WRITE",
+        projectId: id,
+        environment: input.environment,
+        actions: [`Proyecto ${id} creado`],
+        warnings: [
+          "Billing remains unlinked — usá gcp_plan_link_billing / gcp_link_billing.",
+          "APIs no habilitadas automáticamente.",
+        ],
+      }),
+      displayName: plan.displayName,
+      exists: true,
+      plannedActions: [],
+      labels: plan.labels,
+    };
+  }
+
+  async listBillingAccounts(): Promise<
+    GcpToolResultBase & { billingAccounts: GcpBillingAccountSummary[] }
+  > {
+    assertModuleEnabled(this.config);
+    try {
+      const result = await this.run({ op: "billing.accounts.list" });
+      const raw = parseJsonOutput<
+        Array<{
+          name?: string;
+          displayName?: string;
+          open?: boolean;
+          masterBillingAccount?: string;
+        }>
+      >(result.stdout, []);
+
+      const billingAccounts: GcpBillingAccountSummary[] = [];
+      for (const item of raw) {
+        const name = item.name ?? "";
+        const billingAccountId = name.replace(/^billingAccounts\//, "");
+        if (!billingAccountId) continue;
+        try {
+          const id = validateBillingAccountId(billingAccountId);
+          billingAccounts.push({
+            billingAccountId: id,
+            displayName: item.displayName ?? id,
+            open: Boolean(item.open),
+            ...(item.masterBillingAccount
+              ? {
+                  masterBillingAccount: item.masterBillingAccount.replace(
+                    /^billingAccounts\//,
+                    "",
+                  ),
+                }
+              : {}),
+          });
+        } catch {
+          // skip malformed
+        }
+      }
+
+      writeGcpAudit(this.config, {
+        tool: "gcp_list_billing_accounts",
+        action: "billing.accounts.list",
+        riskLevel: "READ_ONLY",
+        dryRun: false,
+        changed: false,
+        result: "success",
+        resource: `count=${String(billingAccounts.length)}`,
+      });
+
+      return {
+        ...baseResult({
+          dryRun: false,
+          riskLevel: "READ_ONLY",
+          actions: [`Billing accounts listadas: ${String(billingAccounts.length)}`],
+        }),
+        billingAccounts,
+      };
+    } catch (error) {
+      if (error instanceof GoogleCloudError) {
+        if (
+          error.code === "GCP_BILLING_ACCOUNT_PERMISSION_DENIED" ||
+          error.code === "GCP_PERMISSION_DENIED"
+        ) {
+          throw new GoogleCloudError(
+            "GCP_BILLING_ACCOUNT_PERMISSION_DENIED",
+            "Sin permiso para listar billing accounts.",
+            {
+              recommendedAction:
+                "Pedí rol Billing Account Viewer / Admin en la organización, o listá cuentas en Cloud Console.",
+              ...(error.causeHint ? { causeHint: error.causeHint } : {}),
+            },
+          );
+        }
+        if (error.code === "GCP_BILLING_LIST_FAILED") throw error;
+        throw new GoogleCloudError("GCP_BILLING_LIST_FAILED", "No se pudieron listar billing accounts.", {
+          recommendedAction: "Revisá autenticación gcloud y permisos de facturación.",
+          ...(error.causeHint ? { causeHint: error.causeHint } : {}),
+        });
+      }
+      throw error;
+    }
+  }
+
+  async planLinkBilling(input: {
+    projectId: string;
+    billingAccountId: string;
+    environment: GcpEnvironment;
+    dryRun?: boolean;
+  }): Promise<
+    GcpToolResultBase & {
+      billingAccountId: string;
+      currentBillingAccountId: string | null;
+      billingEnabled: boolean | null;
+      accountOpen: boolean;
+      plannedActions: Array<{ type: string; resource: string }>;
+      highRiskBecauseDifferentAccount: boolean;
+    }
+  > {
+    assertModuleEnabled(this.config);
+    const id = validateProjectId(input.projectId);
+    const billingAccountId = validateBillingAccountId(input.billingAccountId);
+    assertWritePolicy(this.config, {
+      riskLevel: "LOW_RISK_WRITE",
+      projectId: id,
+      environment: input.environment,
+      dryRun: true,
+    });
+
+    // Proyecto debe existir
+    try {
+      await this.getProject(id);
+    } catch (error) {
+      if (error instanceof GoogleCloudError && error.code === "GCP_PROJECT_NOT_FOUND") {
+        throw error;
+      }
+      throw error;
+    }
+
+    let currentBillingAccountId: string | null = null;
+    let billingEnabled: boolean | null = null;
+    try {
+      const result = await this.run({ op: "billing.describe", projectId: id });
+      const raw = parseJsonOutput<{
+        billingEnabled?: boolean;
+        billingAccountName?: string;
+      }>(result.stdout, {});
+      billingEnabled = raw.billingEnabled ?? null;
+      if (raw.billingAccountName) {
+        currentBillingAccountId = validateBillingAccountId(
+          raw.billingAccountName.replace(/^billingAccounts\//, ""),
+        );
+      }
+    } catch (error) {
+      if (error instanceof GoogleCloudError && error.code === "GCP_BILLING_ACCOUNT_PERMISSION_DENIED") {
+        throw error;
+      }
+      // proyecto sin billing API / sin vínculo — continuar
+      billingEnabled = false;
+      currentBillingAccountId = null;
+    }
+
+    let accountOpen = false;
+    try {
+      const acc = await this.run({
+        op: "billing.accounts.describe",
+        billingAccountId,
+      });
+      const raw = parseJsonOutput<{ open?: boolean; name?: string }>(acc.stdout, {});
+      accountOpen = Boolean(raw.open);
+      if (!accountOpen) {
+        throw new GoogleCloudError(
+          "GCP_BILLING_ACCOUNT_NOT_FOUND",
+          `Billing account ${billingAccountId} está cerrada o no usable.`,
+          {
+            resource: billingAccountId,
+            projectId: id,
+            recommendedAction: "Usá una billing account abierta.",
+          },
+        );
+      }
+    } catch (error) {
+      if (error instanceof GoogleCloudError) {
+        if (error.code === "GCP_BILLING_ACCOUNT_NOT_FOUND") throw error;
+        if (
+          error.code === "GCP_BILLING_ACCOUNT_PERMISSION_DENIED" ||
+          error.code === "GCP_PERMISSION_DENIED"
+        ) {
+          throw new GoogleCloudError(
+            "GCP_BILLING_ACCOUNT_PERMISSION_DENIED",
+            `Sin permiso para describir billing account ${billingAccountId}.`,
+            {
+              resource: billingAccountId,
+              projectId: id,
+              recommendedAction: "Verificá permisos Billing Account Viewer/User.",
+            },
+          );
+        }
+      }
+      throw new GoogleCloudError(
+        "GCP_BILLING_ACCOUNT_NOT_FOUND",
+        `Billing account no encontrada: ${billingAccountId}`,
+        { resource: billingAccountId, projectId: id },
+      );
+    }
+
+    const alreadySame =
+      currentBillingAccountId !== null &&
+      currentBillingAccountId.toUpperCase() === billingAccountId.toUpperCase() &&
+      billingEnabled === true;
+
+    const highRiskBecauseDifferentAccount =
+      currentBillingAccountId !== null &&
+      currentBillingAccountId.toUpperCase() !== billingAccountId.toUpperCase();
+
+    const warnings: string[] = [];
+    if (highRiskBecauseDifferentAccount && currentBillingAccountId) {
+      warnings.push(
+        `El proyecto ya está vinculado a otra billing account (${currentBillingAccountId}). Re-vincular es HIGH_RISK_WRITE.`,
+      );
+    }
+    if (alreadySame) {
+      warnings.push("Billing ya vinculado a la misma cuenta — plan idempotente.");
+    }
+
+    const plannedActions = alreadySame
+      ? []
+      : [{ type: "LINK_BILLING", resource: `${billingAccountId}->${id}` }];
+
+    writeGcpAudit(this.config, {
+      tool: "gcp_plan_link_billing",
+      action: "plan_link_billing",
+      projectId: id,
+      environment: input.environment,
+      riskLevel: "LOW_RISK_WRITE",
+      dryRun: true,
+      changed: !alreadySame,
+      result: "dry_run",
+      resource: billingAccountId,
+    });
+
+    return {
+      ...baseResult({
+        dryRun: true,
+        changed: !alreadySame,
+        riskLevel: "LOW_RISK_WRITE",
+        projectId: id,
+        environment: input.environment,
+        actions: alreadySame
+          ? ["Billing ya vinculado — sin cambios"]
+          : ["Plan: vincular billing account al proyecto"],
+        warnings,
+        metadata: {
+          plannedArgs: [
+            "billing",
+            "projects",
+            "link",
+            id,
+            `--billing-account=${billingAccountId}`,
+            "--format=json",
+          ],
+        },
+      }),
+      billingAccountId,
+      currentBillingAccountId,
+      billingEnabled,
+      accountOpen,
+      plannedActions,
+      highRiskBecauseDifferentAccount,
+    };
+  }
+
+  async linkBilling(input: {
+    projectId: string;
+    billingAccountId: string;
+    environment: GcpEnvironment;
+    dryRun: boolean;
+    confirmation?: string;
+  }): Promise<
+    GcpToolResultBase & {
+      billingAccountId: string;
+      currentBillingAccountId: string | null;
+      plannedActions: Array<{ type: string; resource: string }>;
+    }
+  > {
+    const plan = await this.planLinkBilling(input);
+    const id = plan.projectId ?? validateProjectId(input.projectId);
+    const billingAccountId = plan.billingAccountId;
+    const requiredConfirmation = `LINK BILLING ${billingAccountId} TO ${id}`;
+
+    assertWritePolicy(this.config, {
+      riskLevel: "HIGH_RISK_WRITE",
+      projectId: id,
+      environment: input.environment,
+      dryRun: input.dryRun,
+      ...(input.confirmation !== undefined ? { confirmation: input.confirmation } : {}),
+      ...(!input.dryRun ? { requiredConfirmation } : {}),
+    });
+
+    if (input.dryRun || plan.plannedActions.length === 0) {
+      writeGcpAudit(this.config, {
+        tool: "gcp_link_billing",
+        action: "billing.projects.link",
+        projectId: id,
+        environment: input.environment,
+        riskLevel: "HIGH_RISK_WRITE",
+        dryRun: true,
+        changed: false,
+        result: plan.plannedActions.length === 0 ? "success" : "dry_run",
+        resource: billingAccountId,
+      });
+      return {
+        ...baseResult({
+          dryRun: true,
+          changed: false,
+          riskLevel: "HIGH_RISK_WRITE",
+          projectId: id,
+          environment: input.environment,
+          actions:
+            plan.plannedActions.length === 0
+              ? ["Billing ya vinculado — idempotente"]
+              : ["dryRun — no se vincula billing"],
+          warnings: plan.warnings,
+          metadata: plan.metadata,
+        }),
+        billingAccountId,
+        currentBillingAccountId: plan.currentBillingAccountId,
+        plannedActions: plan.plannedActions,
+      };
+    }
+
+    try {
+      await this.run({
+        op: "billing.projects.link",
+        projectId: id,
+        billingAccountId,
+      });
+    } catch (error) {
+      writeGcpAudit(this.config, {
+        tool: "gcp_link_billing",
+        action: "billing.projects.link",
+        projectId: id,
+        environment: input.environment,
+        riskLevel: "HIGH_RISK_WRITE",
+        dryRun: false,
+        changed: false,
+        result: "error",
+        errorCode: error instanceof GoogleCloudError ? error.code : "GCP_BILLING_LINK_FAILED",
+        resource: billingAccountId,
+      });
+      if (error instanceof GoogleCloudError) throw error;
+      throw new GoogleCloudError(
+        "GCP_BILLING_LINK_FAILED",
+        `No se pudo vincular billing ${billingAccountId} a ${id}`,
+        { projectId: id, resource: billingAccountId, cause: error },
+      );
+    }
+
+    writeGcpAudit(this.config, {
+      tool: "gcp_link_billing",
+      action: "billing.projects.link",
+      projectId: id,
+      environment: input.environment,
+      riskLevel: "HIGH_RISK_WRITE",
+      dryRun: false,
+      changed: true,
+      result: "success",
+      resource: billingAccountId,
+    });
+
+    return {
+      ...baseResult({
+        dryRun: false,
+        changed: true,
+        riskLevel: "HIGH_RISK_WRITE",
+        projectId: id,
+        environment: input.environment,
+        actions: [`Billing ${billingAccountId} vinculado a ${id}`],
+      }),
+      billingAccountId,
+      currentBillingAccountId: billingAccountId,
+      plannedActions: [],
+    };
   }
 
   // --- APIs ---

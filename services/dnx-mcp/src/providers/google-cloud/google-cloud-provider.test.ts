@@ -10,6 +10,10 @@ import {
   validateApiService,
   validateServiceAccountId,
   validateSecretId,
+  validateDisplayName,
+  validateBillingAccountId,
+  validateParent,
+  validateAndNormalizeLabels,
 } from "./validators.js";
 import { assertWritePolicy, assertModuleEnabled } from "./policy.js";
 import type { GcpAllowedCommand, GcpRunResult } from "./types.js";
@@ -473,5 +477,502 @@ describe("GoogleCloudProvider con mocks", () => {
     expect(result.dryRun).toBe(true);
     expect(result.changed).toBe(false);
     expect(result.currentProjectId).toBe("dnx-old");
+  });
+});
+
+describe("google-cloud project + billing validators", () => {
+  it("valida displayName y billing account id", () => {
+    expect(validateDisplayName("DNX Platform Development")).toBe("DNX Platform Development");
+    expect(() => validateDisplayName("")).toThrow(GoogleCloudError);
+    expect(validateBillingAccountId("000000-000000-000000")).toBe("000000-000000-000000");
+    expect(validateBillingAccountId("billingAccounts/aabbcc-ddeeff-112233")).toBe(
+      "AABBCC-DDEEFF-112233",
+    );
+    expect(() => validateBillingAccountId("not-valid")).toThrow(GoogleCloudError);
+  });
+
+  it("valida parent organization/folder/null", () => {
+    expect(validateParent(null, null)).toBeNull();
+    expect(validateParent("organization", "123456789012")).toEqual({
+      parentType: "organization",
+      parentId: "123456789012",
+    });
+    expect(validateParent("folder", "folders/987654321098")).toEqual({
+      parentType: "folder",
+      parentId: "987654321098",
+    });
+    expect(() => validateParent("organization", null)).toThrow(/parentId es obligatorio|GCP_PROJECT_PARENT_INVALID/);
+    expect(() => validateParent("folder", "abc")).toThrow(/parentId inválido|GCP_PROJECT_PARENT_INVALID/);
+  });
+
+  it("valida labels y rechaza sensibles/inválidos", () => {
+    expect(
+      validateAndNormalizeLabels({
+        Ecosystem: "DNX",
+        environment: "development",
+        "managed-by": "dnx-mcp",
+      }),
+    ).toEqual({
+      ecosystem: "dnx",
+      environment: "development",
+      "managed-by": "dnx-mcp",
+    });
+    expect(() => validateAndNormalizeLabels({ "api-token": "x" })).toThrow(/sensible|GCP_INVALID/);
+    expect(() => validateAndNormalizeLabels({ email: "a@b.com" })).toThrow();
+    expect(() => validateAndNormalizeLabels({ "Bad Key": "x" })).toThrow();
+  });
+});
+
+describe("google-cloud plan/create project", () => {
+  it("plan idempotente cuando el proyecto existe", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig(),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          return {
+            stdout: JSON.stringify({ projectId: "dnx-platform-dev", name: "DNX Platform Development" }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "projects.create") throw new Error("must not create");
+        throw new Error(cmd.op);
+      }),
+    });
+    const plan = await provider.planProject({
+      projectId: "dnx-platform-dev",
+      displayName: "DNX Platform Development",
+      environment: "development",
+      labels: { ecosystem: "dnx", environment: "development", "managed-by": "dnx-mcp" },
+    });
+    expect(plan.exists).toBe(true);
+    expect(plan.changed).toBe(false);
+    expect(plan.plannedActions).toEqual([]);
+    expect(plan.warnings.some((w) => /Billing/i.test(w))).toBe(true);
+  });
+
+  it("plan cuando ID disponible", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig(),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          throw new GoogleCloudError("GCP_PROJECT_NOT_FOUND", "missing");
+        }
+        throw new Error(cmd.op);
+      }),
+    });
+    const plan = await provider.planProject({
+      projectId: "dnx-platform-dev",
+      displayName: "DNX Platform Development",
+      environment: "development",
+    });
+    expect(plan.exists).toBe(false);
+    expect(plan.changed).toBe(true);
+    expect(plan.plannedActions).toEqual([{ type: "CREATE_PROJECT", resource: "dnx-platform-dev" }]);
+  });
+
+  it("ID ocupado no visible → GCP_PROJECT_ID_UNAVAILABLE", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig(),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          throw new GoogleCloudError("GCP_PERMISSION_DENIED", "denied");
+        }
+        throw new Error(cmd.op);
+      }),
+    });
+    await expect(
+      provider.planProject({
+        projectId: "dnx-taken-id01",
+        displayName: "Taken",
+        environment: "development",
+      }),
+    ).rejects.toThrow(/GCP_PROJECT_ID_UNAVAILABLE|no está disponible/);
+  });
+
+  it("bloquea prefijo no permitido", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig(),
+      executor: mockExecutor(() => {
+        throw new Error("no call");
+      }),
+    });
+    await expect(
+      provider.planProject({
+        projectId: "other-project",
+        displayName: "Other",
+        environment: "development",
+      }),
+    ).rejects.toThrow(/GCP_PROJECT_NOT_ALLOWED|fuera/);
+  });
+
+  it("create dryRun no ejecuta projects.create", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig({ allowWrites: true, allowHighRiskWrites: true }),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          throw new GoogleCloudError("GCP_PROJECT_NOT_FOUND", "missing");
+        }
+        if (cmd.op === "projects.create") throw new Error("must not create");
+        throw new Error(cmd.op);
+      }),
+    });
+    const result = await provider.createProject({
+      projectId: "dnx-platform-dev",
+      displayName: "DNX Platform Development",
+      environment: "development",
+      dryRun: true,
+    });
+    expect(result.dryRun).toBe(true);
+    expect(result.changed).toBe(false);
+  });
+
+  it("create real bloqueado sin allowWrites", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig({ allowWrites: false }),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          throw new GoogleCloudError("GCP_PROJECT_NOT_FOUND", "missing");
+        }
+        throw new Error(cmd.op);
+      }),
+    });
+    await expect(
+      provider.createProject({
+        projectId: "dnx-platform-dev",
+        displayName: "DNX Platform Development",
+        environment: "development",
+        dryRun: false,
+        confirmation: "CREATE PROJECT dnx-platform-dev",
+      }),
+    ).rejects.toThrow(/GCP_WRITE_BLOCKED|bloqueadas/);
+  });
+
+  it("create real bloqueado sin high-risk", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig({ allowWrites: true, allowHighRiskWrites: false }),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          throw new GoogleCloudError("GCP_PROJECT_NOT_FOUND", "missing");
+        }
+        throw new Error(cmd.op);
+      }),
+    });
+    await expect(
+      provider.createProject({
+        projectId: "dnx-platform-dev",
+        displayName: "DNX Platform Development",
+        environment: "development",
+        dryRun: false,
+        confirmation: "CREATE PROJECT dnx-platform-dev",
+      }),
+    ).rejects.toThrow(/GCP_WRITE_BLOCKED|HIGH_RISK/);
+  });
+
+  it("create real exige confirmation exacta", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig({ allowWrites: true, allowHighRiskWrites: true }),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          throw new GoogleCloudError("GCP_PROJECT_NOT_FOUND", "missing");
+        }
+        if (cmd.op === "projects.create") throw new Error("must not create");
+        throw new Error(cmd.op);
+      }),
+    });
+    await expect(
+      provider.createProject({
+        projectId: "dnx-platform-dev",
+        displayName: "DNX Platform Development",
+        environment: "development",
+        dryRun: false,
+        confirmation: "wrong",
+      }),
+    ).rejects.toThrow(/GCP_CONFIRMATION_REQUIRED|Confirmación/);
+  });
+
+  it("executor projects.create tipado con parent y labels", () => {
+    const { args } = buildGcloudArgs({
+      op: "projects.create",
+      projectId: "dnx-platform-dev",
+      displayName: "DNX Platform Development",
+      labels: { ecosystem: "dnx" },
+      parentType: "organization",
+      parentId: "123456789012",
+    });
+    expect(args[0]).toBe("projects");
+    expect(args).toContain("dnx-platform-dev");
+    expect(args).toContain("--name=DNX Platform Development");
+    expect(args.some((a) => a.startsWith("--labels="))).toBe(true);
+    expect(args).toContain("--organization=123456789012");
+    expect(args.join(" ")).not.toMatch(/;\s*|&&|\|/);
+  });
+});
+
+describe("google-cloud billing accounts + link", () => {
+  it("lista billing accounts sin datos sensibles", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig(),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "billing.accounts.list") {
+          return {
+            stdout: JSON.stringify([
+              {
+                name: "billingAccounts/000000-000000-000000",
+                displayName: "DNX Billing",
+                open: true,
+              },
+            ]),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        throw new Error(cmd.op);
+      }),
+    });
+    const result = await provider.listBillingAccounts();
+    expect(result.billingAccounts).toHaveLength(1);
+    expect(result.billingAccounts[0]?.billingAccountId).toBe("000000-000000-000000");
+    expect(result.billingAccounts[0]?.open).toBe(true);
+    expect(JSON.stringify(result)).not.toMatch(/card|cvv|iban|payment/i);
+  });
+
+  it("permiso insuficiente al listar billing", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig(),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "billing.accounts.list") {
+          throw new GoogleCloudError("GCP_BILLING_ACCOUNT_PERMISSION_DENIED", "denied");
+        }
+        throw new Error(cmd.op);
+      }),
+    });
+    await expect(provider.listBillingAccounts()).rejects.toThrow(
+      /Sin permiso|GCP_BILLING_ACCOUNT_PERMISSION_DENIED/,
+    );
+  });
+
+  it("plan link billing idempotente si ya coincide", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig(),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          return {
+            stdout: JSON.stringify({ projectId: "dnx-platform-dev", name: "DNX" }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.describe") {
+          return {
+            stdout: JSON.stringify({
+              billingEnabled: true,
+              billingAccountName: "billingAccounts/000000-000000-000000",
+            }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.accounts.describe") {
+          return {
+            stdout: JSON.stringify({
+              name: "billingAccounts/000000-000000-000000",
+              open: true,
+            }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.projects.link") throw new Error("must not link");
+        throw new Error(cmd.op);
+      }),
+    });
+    const plan = await provider.planLinkBilling({
+      projectId: "dnx-platform-dev",
+      billingAccountId: "000000-000000-000000",
+      environment: "development",
+    });
+    expect(plan.changed).toBe(false);
+    expect(plan.plannedActions).toEqual([]);
+  });
+
+  it("plan advierte si billing distinto", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig(),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          return {
+            stdout: JSON.stringify({ projectId: "dnx-platform-dev", name: "DNX" }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.describe") {
+          return {
+            stdout: JSON.stringify({
+              billingEnabled: true,
+              billingAccountName: "billingAccounts/111111-111111-111111",
+            }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.accounts.describe") {
+          return {
+            stdout: JSON.stringify({
+              name: "billingAccounts/000000-000000-000000",
+              open: true,
+            }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        throw new Error(cmd.op);
+      }),
+    });
+    const plan = await provider.planLinkBilling({
+      projectId: "dnx-platform-dev",
+      billingAccountId: "000000-000000-000000",
+      environment: "development",
+    });
+    expect(plan.changed).toBe(true);
+    expect(plan.highRiskBecauseDifferentAccount).toBe(true);
+    expect(plan.warnings.some((w) => /otra billing/i.test(w))).toBe(true);
+  });
+
+  it("billing account cerrada", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig(),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          return {
+            stdout: JSON.stringify({ projectId: "dnx-platform-dev", name: "DNX" }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.describe") {
+          return {
+            stdout: JSON.stringify({ billingEnabled: false }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.accounts.describe") {
+          return {
+            stdout: JSON.stringify({
+              name: "billingAccounts/000000-000000-000000",
+              open: false,
+            }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        throw new Error(cmd.op);
+      }),
+    });
+    await expect(
+      provider.planLinkBilling({
+        projectId: "dnx-platform-dev",
+        billingAccountId: "000000-000000-000000",
+        environment: "development",
+      }),
+    ).rejects.toThrow(/cerrada|GCP_BILLING_ACCOUNT_NOT_FOUND/);
+  });
+
+  it("linkBilling dryRun no muta; real exige confirmation", async () => {
+    const provider = createGoogleCloudProvider({
+      config: mockConfig({ allowWrites: true, allowHighRiskWrites: true }),
+      executor: mockExecutor((cmd) => {
+        if (cmd.op === "projects.describe") {
+          return {
+            stdout: JSON.stringify({ projectId: "dnx-platform-dev", name: "DNX" }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.describe") {
+          return {
+            stdout: JSON.stringify({ billingEnabled: false }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.accounts.describe") {
+          return {
+            stdout: JSON.stringify({
+              name: "billingAccounts/000000-000000-000000",
+              open: true,
+            }),
+            stderr: "",
+            exitCode: 0,
+            args: [],
+            durationMs: 1,
+          };
+        }
+        if (cmd.op === "billing.projects.link") throw new Error("must not link");
+        throw new Error(cmd.op);
+      }),
+    });
+    const dry = await provider.linkBilling({
+      projectId: "dnx-platform-dev",
+      billingAccountId: "000000-000000-000000",
+      environment: "development",
+      dryRun: true,
+    });
+    expect(dry.dryRun).toBe(true);
+    expect(dry.changed).toBe(false);
+
+    await expect(
+      provider.linkBilling({
+        projectId: "dnx-platform-dev",
+        billingAccountId: "000000-000000-000000",
+        environment: "development",
+        dryRun: false,
+        confirmation: "BAD",
+      }),
+    ).rejects.toThrow(/Confirmación exacta|GCP_CONFIRMATION_REQUIRED/);
+  });
+
+  it("buildGcloudArgs billing link tipado", () => {
+    const { args } = buildGcloudArgs({
+      op: "billing.projects.link",
+      projectId: "dnx-platform-dev",
+      billingAccountId: "000000-000000-000000",
+    });
+    expect(args).toEqual([
+      "billing",
+      "projects",
+      "link",
+      "dnx-platform-dev",
+      "--billing-account=000000-000000-000000",
+      "--format=json",
+    ]);
   });
 });

@@ -28,9 +28,55 @@ export function buildGcloudArgs(command: GcpAllowedCommand): {
       return { args: ["projects", "list", "--format=json"] };
     case "projects.describe":
       return { args: ["projects", "describe", command.projectId, "--format=json"] };
+    case "projects.create": {
+      const args = [
+        "projects",
+        "create",
+        command.projectId,
+        `--name=${command.displayName}`,
+        "--format=json",
+      ];
+      const labelsFlag =
+        command.labels && Object.keys(command.labels).length > 0
+          ? Object.entries(command.labels)
+              .map(([k, v]) => `${k}=${v}`)
+              .join(",")
+          : undefined;
+      if (labelsFlag) args.push(`--labels=${labelsFlag}`);
+      if (command.parentType === "organization" && command.parentId) {
+        args.push(`--organization=${command.parentId}`);
+      }
+      if (command.parentType === "folder" && command.parentId) {
+        args.push(`--folder=${command.parentId}`);
+      }
+      return { args };
+    }
     case "billing.describe":
       return {
         args: ["billing", "projects", "describe", command.projectId, "--format=json"],
+      };
+    case "billing.accounts.list":
+      return { args: ["billing", "accounts", "list", "--format=json"] };
+    case "billing.accounts.describe":
+      return {
+        args: [
+          "billing",
+          "accounts",
+          "describe",
+          command.billingAccountId,
+          "--format=json",
+        ],
+      };
+    case "billing.projects.link":
+      return {
+        args: [
+          "billing",
+          "projects",
+          "link",
+          command.projectId,
+          `--billing-account=${command.billingAccountId}`,
+          "--format=json",
+        ],
       };
     case "services.list.enabled":
       return {
@@ -228,7 +274,30 @@ export function createGoogleCloudExecutor(config: GoogleCloudConfig): GcpExecuto
         if (exitCode !== 0) {
           const combined = `${safeStderr}\n${safeStdout}`.toLowerCase();
           let errCode: GoogleCloudError["code"] = "GCP_CLI_EXECUTION_FAILED";
-          if (combined.includes("permission") || combined.includes("403")) {
+          if (
+            command.op === "billing.accounts.list" ||
+            command.op === "billing.accounts.describe" ||
+            command.op === "billing.projects.link" ||
+            command.op === "billing.describe"
+          ) {
+            if (combined.includes("permission") || combined.includes("403") || combined.includes("denied")) {
+              errCode = "GCP_BILLING_ACCOUNT_PERMISSION_DENIED";
+            } else if (combined.includes("not found") || combined.includes("404")) {
+              errCode = "GCP_BILLING_ACCOUNT_NOT_FOUND";
+            } else if (command.op === "billing.accounts.list") {
+              errCode = "GCP_BILLING_LIST_FAILED";
+            } else if (command.op === "billing.projects.link") {
+              errCode = "GCP_BILLING_LINK_FAILED";
+            }
+          } else if (command.op === "projects.create") {
+            if (combined.includes("already exists") || combined.includes("already been used")) {
+              errCode = "GCP_PROJECT_ALREADY_EXISTS";
+            } else if (combined.includes("permission") || combined.includes("403")) {
+              errCode = "GCP_PROJECT_PARENT_PERMISSION_DENIED";
+            } else {
+              errCode = "GCP_PROJECT_CREATE_FAILED";
+            }
+          } else if (combined.includes("permission") || combined.includes("403")) {
             errCode = "GCP_PERMISSION_DENIED";
           } else if (combined.includes("not found") || combined.includes("404")) {
             errCode = "GCP_PROJECT_NOT_FOUND";

@@ -22,6 +22,11 @@ export {
   normalizeServiceList,
   validateServiceAccountId,
   validateSecretId,
+  validateDisplayName,
+  validateBillingAccountId,
+  validateParent,
+  validateAndNormalizeLabels,
+  formatLabelsFlag,
   parseEnvironment,
   assertExactConfirmation,
   gcpEnvironmentSchema,
@@ -37,5 +42,9 @@ export type {
   GcpProjectSummary,
   GcpServiceAccountSummary,
   GcpSecretMetadata,
+  GcpBillingAccountSummary,
+  GcpPlannedAction,
+  GcpParentType,
   GcpRunResult,
 } from "./types.js";
+export type { GcpParentTypeInput } from "./validators.js";

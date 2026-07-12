@@ -15,7 +15,18 @@ export type GcpErrorCode =
   | "GCP_PROJECT_REQUIRED"
   | "GCP_PROJECT_NOT_FOUND"
   | "GCP_PROJECT_NOT_ALLOWED"
+  | "GCP_PROJECT_ALREADY_EXISTS"
+  | "GCP_PROJECT_ID_UNAVAILABLE"
+  | "GCP_PROJECT_CREATE_FAILED"
+  | "GCP_PROJECT_PARENT_INVALID"
+  | "GCP_PROJECT_PARENT_PERMISSION_DENIED"
   | "GCP_BILLING_NOT_ENABLED"
+  | "GCP_BILLING_ACCOUNT_NOT_FOUND"
+  | "GCP_BILLING_ACCOUNT_PERMISSION_DENIED"
+  | "GCP_BILLING_LIST_FAILED"
+  | "GCP_BILLING_LINK_FAILED"
+  | "GCP_BILLING_ALREADY_LINKED"
+  | "GCP_BILLING_DIFFERENT_ACCOUNT"
   | "GCP_PERMISSION_DENIED"
   | "GCP_INVALID_SERVICE"
   | "GCP_SERVICE_ENABLE_FAILED"
@@ -84,6 +95,20 @@ export interface GcpSecretMetadata {
   replication?: unknown;
 }
 
+export type GcpParentType = "organization" | "folder";
+
+export interface GcpBillingAccountSummary {
+  billingAccountId: string;
+  displayName: string;
+  open: boolean;
+  masterBillingAccount?: string;
+}
+
+export interface GcpPlannedAction {
+  type: string;
+  resource: string;
+}
+
 /** Comandos tipados permitidos — nunca strings libres del usuario. */
 export type GcpAllowedCommand =
   | { op: "version" }
@@ -93,7 +118,18 @@ export type GcpAllowedCommand =
   | { op: "config.set"; key: "core/project"; value: string }
   | { op: "projects.list" }
   | { op: "projects.describe"; projectId: string }
+  | {
+      op: "projects.create";
+      projectId: string;
+      displayName: string;
+      labels?: Record<string, string>;
+      parentType?: GcpParentType;
+      parentId?: string;
+    }
   | { op: "billing.describe"; projectId: string }
+  | { op: "billing.accounts.list" }
+  | { op: "billing.accounts.describe"; billingAccountId: string }
+  | { op: "billing.projects.link"; projectId: string; billingAccountId: string }
   | { op: "services.list.enabled"; projectId: string }
   | { op: "services.list.available"; projectId: string }
   | { op: "services.enable"; projectId: string; services: readonly string[] }

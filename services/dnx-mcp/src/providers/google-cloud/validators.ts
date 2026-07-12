@@ -130,3 +130,141 @@ export function assertExactConfirmation(actual: string | undefined, expected: st
     );
   }
 }
+
+const DISPLAY_NAME_RE = /^[\p{L}\p{N} .,_()\-/+]{1,30}$/u;
+const BILLING_ACCOUNT_ID_RE = /^[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6}$/;
+const PARENT_ID_RE = /^\d{6,25}$/;
+const LABEL_KEY_RE = /^[a-z][a-z0-9_-]{0,62}$/;
+const LABEL_VALUE_RE = /^[a-z0-9_-]{0,63}$/;
+const MAX_LABELS = 64;
+const SENSITIVE_LABEL_RE =
+  /(secret|password|token|apikey|api_key|private|credential|bearer|email|@)/i;
+
+export type GcpParentTypeInput = "organization" | "folder" | null;
+
+export function validateDisplayName(displayName: string): string {
+  const trimmed = displayName.trim();
+  if (!DISPLAY_NAME_RE.test(trimmed)) {
+    throw new GoogleCloudError("GCP_INVALID_INPUT", `displayName inválido: "${displayName}"`, {
+      resource: displayName,
+      recommendedAction: "Usá 1–30 caracteres alfanuméricos (espacios y .,_()/-/+ permitidos).",
+    });
+  }
+  return trimmed;
+}
+
+export function validateBillingAccountId(billingAccountId: string): string {
+  const trimmed = billingAccountId.trim();
+  const normalized = trimmed.replace(/^billingAccounts\//, "");
+  if (!BILLING_ACCOUNT_ID_RE.test(normalized)) {
+    throw new GoogleCloudError(
+      "GCP_INVALID_INPUT",
+      `Billing account ID inválido: "${billingAccountId}"`,
+      {
+        resource: billingAccountId,
+        recommendedAction: "Usá el formato XXXXXX-XXXXXX-XXXXXX (hex).",
+      },
+    );
+  }
+  return normalized.toUpperCase();
+}
+
+export function validateParent(
+  parentType: GcpParentTypeInput | undefined,
+  parentId: string | null | undefined,
+): { parentType: "organization" | "folder"; parentId: string } | null {
+  const hasType = parentType === "organization" || parentType === "folder";
+  const hasId = typeof parentId === "string" && parentId.trim() !== "";
+
+  if (!hasType && !hasId) {
+    return null;
+  }
+
+  if (!hasType) {
+    throw new GoogleCloudError(
+      "GCP_PROJECT_PARENT_INVALID",
+      "parentType inválido: se esperaba organization, folder o null.",
+      {
+        recommendedAction: "Usá organization, folder o null.",
+      },
+    );
+  }
+
+  if (!hasId) {
+    throw new GoogleCloudError(
+      "GCP_PROJECT_PARENT_INVALID",
+      "parentId es obligatorio cuando parentType está definido.",
+      { recommendedAction: "Proveé el ID numérico de la organización o folder." },
+    );
+  }
+
+  const id = parentId.trim().replace(/^(organizations|folders)\//, "");
+  if (!PARENT_ID_RE.test(id)) {
+    throw new GoogleCloudError("GCP_PROJECT_PARENT_INVALID", `parentId inválido: "${parentId}"`, {
+      resource: parentId,
+      recommendedAction: "Usá un ID numérico de organización/folder (6–25 dígitos).",
+    });
+  }
+
+  return { parentType, parentId: id };
+}
+
+/**
+ * Valida labels GCP. No modifica el projectId.
+ * Normaliza a lowercase solo cuando el valor resultante sigue siendo válido.
+ */
+export function validateAndNormalizeLabels(
+  labels: Record<string, string> | null | undefined,
+): Record<string, string> {
+  if (labels === null || labels === undefined) return {};
+
+  const entries = Object.entries(labels);
+  if (entries.length > MAX_LABELS) {
+    throw new GoogleCloudError(
+      "GCP_INVALID_INPUT",
+      `Demasiados labels (${String(entries.length)}). Máximo ${String(MAX_LABELS)}.`,
+    );
+  }
+
+  const out: Record<string, string> = {};
+  for (const [rawKey, rawValue] of entries) {
+    const keyCandidate = rawKey.trim().toLowerCase();
+    const valueCandidate = rawValue.trim().toLowerCase();
+
+    if (SENSITIVE_LABEL_RE.test(keyCandidate) || SENSITIVE_LABEL_RE.test(valueCandidate)) {
+      throw new GoogleCloudError(
+        "GCP_INVALID_INPUT",
+        `Label rechazado por contenido sensible: "${rawKey}"`,
+        { resource: rawKey, recommendedAction: "No incluir secretos, tokens ni emails en labels." },
+      );
+    }
+
+    if (!LABEL_KEY_RE.test(keyCandidate)) {
+      throw new GoogleCloudError("GCP_INVALID_INPUT", `Label key inválida: "${rawKey}"`, {
+        resource: rawKey,
+        recommendedAction: "Keys: [a-z][a-z0-9_-]{0,62}.",
+      });
+    }
+
+    if (!LABEL_VALUE_RE.test(valueCandidate)) {
+      throw new GoogleCloudError("GCP_INVALID_INPUT", `Label value inválido para "${rawKey}"`, {
+        resource: rawKey,
+        recommendedAction: "Values: [a-z0-9_-]{0,63}.",
+      });
+    }
+
+    if (keyCandidate in out) {
+      // duplicado tras normalización — conservar el primero
+      continue;
+    }
+    out[keyCandidate] = valueCandidate;
+  }
+
+  return out;
+}
+
+export function formatLabelsFlag(labels: Record<string, string>): string | undefined {
+  const keys = Object.keys(labels);
+  if (keys.length === 0) return undefined;
+  return keys.map((k) => `${k}=${labels[k] ?? ""}`).join(",");
+}
