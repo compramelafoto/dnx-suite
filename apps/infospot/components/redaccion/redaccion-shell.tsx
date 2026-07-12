@@ -12,6 +12,7 @@ import {
 const editorialNav = [
   { href: "/redaccion", label: "Sala de redacción" },
   { href: "/redaccion/nueva", label: "Nueva nota" },
+  { href: "/redaccion/perfil", label: "Mi perfil" },
   { href: "/", label: "Ver sitio" },
 ] as const;
 

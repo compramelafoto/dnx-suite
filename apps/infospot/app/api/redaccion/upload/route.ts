@@ -7,6 +7,7 @@ import {
 } from "@/lib/infospot-access";
 import { getAuthUser } from "@/lib/auth";
 import {
+  uploadInfoSpotAvatar,
   uploadInfoSpotCover,
   uploadInfoSpotEditorialImage,
   validateInfoSpotImageFile,
@@ -43,6 +44,23 @@ export async function POST(request: Request) {
   const photographerName = String(formData.get("photographerName") ?? "").trim() || null;
   const copyrightText = String(formData.get("copyrightText") ?? "").trim() || null;
   const articleId = String(formData.get("articleId") ?? "").trim() || undefined;
+
+  if (purpose === "avatar") {
+    try {
+      const uploaded = await uploadInfoSpotAvatar(file, user.id);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { logoUrl: uploaded.url },
+      });
+      return NextResponse.json(
+        { avatar: { url: uploaded.url }, url: uploaded.url },
+        { status: 201 },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error al subir";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
 
   if (purpose === "inline") {
     if (!alt) {

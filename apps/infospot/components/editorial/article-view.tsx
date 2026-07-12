@@ -82,7 +82,12 @@ export function ArticleView({
         {article.excerpt ? <p className="is-dek mt-5">{article.excerpt}</p> : null}
 
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--is-border)] pb-6">
-          <AuthorByline name={authorDisplayName(article.author)} />
+          <AuthorByline
+            name={authorDisplayName(article.author)}
+            avatarUrl={article.author.logoUrl}
+            bio={article.author.bio}
+            href={`/autores/${article.author.id}`}
+          />
           <ArticleMetadata date={article.publishedAt ?? article.updatedAt} />
         </div>
       </ArticleBodyContainer>

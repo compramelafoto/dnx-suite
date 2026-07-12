@@ -93,6 +93,8 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
     author: {
       "@type": "Person",
       name: article.author?.name || article.author?.email || "Redacción Info Spot",
+      ...(article.author?.logoUrl ? { image: article.author.logoUrl } : {}),
+      url: `/autores/${article.author.id}`,
     },
     publisher: {
       "@type": "NewsMediaOrganization",

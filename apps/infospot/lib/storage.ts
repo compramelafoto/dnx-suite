@@ -148,3 +148,46 @@ export async function uploadInfoSpotEventCover(
     filename,
   };
 }
+
+/** Avatar de redactor — prefix `infospot/avatars/{userId}`. */
+export async function uploadInfoSpotAvatar(
+  file: File,
+  userId: number,
+): Promise<{
+  url: string;
+  key: string;
+  mimeType: string;
+  sizeBytes: number;
+  filename: string;
+}> {
+  const validation = validateInfoSpotImageFile(file);
+  if (!validation.ok) throw new Error(validation.error);
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const filename = file.name || "avatar.jpg";
+  const mimeType = file.type || "image/jpeg";
+  const prefix = `infospot/avatars/${userId}`;
+
+  if (isR2Configured()) {
+    const key = generateR2Key(filename, prefix);
+    const { url } = await uploadToR2(buffer, key, mimeType, {
+      type: "infospot_avatar",
+      userId: String(userId),
+    });
+    return { url, key, mimeType, sizeBytes: file.size, filename };
+  }
+
+  const ext = path.extname(filename) || ".jpg";
+  const localName = `${randomUUID()}${ext}`;
+  const dir = path.join(process.cwd(), "public", "uploads", "infospot", "avatars");
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, localName), buffer);
+  return {
+    url: `/uploads/infospot/avatars/${localName}`,
+    key: `uploads/infospot/avatars/${localName}`,
+    mimeType,
+    sizeBytes: file.size,
+    filename,
+  };
+}

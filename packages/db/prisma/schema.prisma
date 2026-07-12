@@ -18,6 +18,8 @@ model User {
   handler                              String?                      @unique
   isPublicPageEnabled                  Boolean                      @default(false)
   logoUrl                              String?
+  /// Bio corta pública (Info Spot / firma editorial).
+  bio                                  String?
   preferredLabId                       Int?
   primaryColor                         String?
   profitMarginPercent                  Float?

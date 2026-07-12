@@ -3,7 +3,17 @@ import type { ArticleStatus } from "@/lib/article-status";
 
 export const articleListInclude = {
   category: { select: { id: true, name: true, slug: true } },
-  author: { select: { id: true, name: true, email: true } },
+  author: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      logoUrl: true,
+      bio: true,
+      city: true,
+      province: true,
+    },
+  },
   coverImage: {
     select: {
       id: true,
@@ -78,6 +88,18 @@ export async function getPublishedArticles(options?: {
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
     take,
     skip,
+  });
+}
+
+export async function getPublishedArticlesByAuthor(authorId: number, take = 24) {
+  return prisma.infoSpotArticle.findMany({
+    where: {
+      ...publicArticleWhere,
+      authorId,
+    },
+    include: articleListInclude,
+    orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+    take,
   });
 }
 
