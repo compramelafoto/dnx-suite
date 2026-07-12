@@ -4,6 +4,9 @@ import { useMemo, useState, useTransition } from "react";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { AiImportButton, AiImportDialog } from "@/components/ai-import";
 import type { AiImportMergeMode, EventFormImportValues } from "@/lib/ai-import";
+import { EventLocationPanel } from "@/components/geolocation/event-location-panel";
+import type { EventLocationPanelValue } from "@/components/geolocation/event-location-panel";
+import { defaultLocationValue } from "@/components/geolocation/event-location-form-fields";
 
 type Category = { id: string; name: string; slug?: string };
 
@@ -57,6 +60,10 @@ export function PublicEventForm({ categories, action }: Props) {
   const [values, setValues] = useState<FormState>(EMPTY);
   const [aiOpen, setAiOpen] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
+  const [wantPhotographers, setWantPhotographers] = useState(false);
+  const [location, setLocation] = useState<EventLocationPanelValue>(
+    defaultLocationValue({}),
+  );
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug ?? c.name })),
@@ -97,6 +104,15 @@ export function PublicEventForm({ categories, action }: Props) {
       organizerPhone: take(cur.organizerPhone, v.organizerPhone),
       organizerWebsite: take(cur.organizerWebsite, v.organizerWebsite),
       registrationUrl: take(cur.registrationUrl, v.registrationUrl ?? v.sourceUrl),
+    }));
+    setLocation((cur) => ({
+      ...cur,
+      venueName: v.venueName?.trim() || cur.venueName,
+      city: v.city?.trim() || cur.city,
+      province: v.province?.trim() || cur.province,
+      address: v.address?.trim() || cur.address,
+      geocodingStatus: "NEEDS_REVIEW",
+      locationConfirmedAt: null,
     }));
     setBanner(
       v.notesForEditor
@@ -230,50 +246,71 @@ export function PublicEventForm({ categories, action }: Props) {
               />
             </label>
           </div>
-          <label className="block">
-            <span className="text-sm font-medium">Lugar / venue</span>
+          <EventLocationPanel
+            mode="public"
+            value={location}
+            searchEndpoint="/api/geocode"
+            reverseEndpoint="/api/geocode/reverse"
+            disabled={pending || submitted}
+            onChange={(patch) => {
+              setLocation((prev) => {
+                const next = { ...prev, ...patch };
+                setValues((v) => ({
+                  ...v,
+                  city: next.city,
+                  province: next.province,
+                  address: next.address,
+                  venueName: next.venueName,
+                }));
+                return next;
+              });
+            }}
+          />
+        </fieldset>
+
+        <fieldset className="space-y-4" disabled={pending || submitted}>
+          <legend className="is-eyebrow mb-2">Fotógrafos</legend>
+          <label className="flex items-start gap-3 text-sm">
             <input
-              name="venueName"
-              maxLength={160}
-              className={fieldClass}
-              value={values.venueName}
-              onChange={(e) => setField("venueName", e.target.value)}
+              type="checkbox"
+              name="wantPhotographers"
+              value="true"
+              className="mt-1 size-4"
+              onChange={(e) => setWantPhotographers(e.target.checked)}
             />
+            <span>
+              <span className="font-semibold">¿Querés conseguir fotógrafos?</span>
+              <span className="block text-[var(--is-muted)]">
+                La redacción revisará tu pedido. La inscripción se gestiona en ComprameLaFoto
+                después de aprobar.
+              </span>
+            </span>
           </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-sm font-medium">Ciudad *</span>
-              <input
-                required
-                name="city"
-                maxLength={100}
-                className={fieldClass}
-                value={values.city}
-                onChange={(e) => setField("city", e.target.value)}
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium">Provincia *</span>
-              <input
-                required
-                name="province"
-                maxLength={100}
-                className={fieldClass}
-                value={values.province}
-                onChange={(e) => setField("province", e.target.value)}
-              />
-            </label>
-          </div>
-          <label className="block">
-            <span className="text-sm font-medium">Dirección</span>
-            <input
-              name="address"
-              maxLength={240}
-              className={fieldClass}
-              value={values.address}
-              onChange={(e) => setField("address", e.target.value)}
-            />
-          </label>
+          {wantPhotographers ? (
+            <div className="space-y-4 border-t border-[var(--is-border)] pt-4">
+              <label className="block">
+                <span className="text-sm font-medium">Modalidad</span>
+                <select name="photographerJoinPolicy" className={fieldClass} defaultValue="OPEN">
+                  <option value="OPEN">Ingreso abierto</option>
+                  <option value="REQUEST">Con aprobación</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium">Cupo aproximado (opcional)</span>
+                <input
+                  name="photographerMax"
+                  type="number"
+                  min={1}
+                  className={fieldClass}
+                  placeholder="Ilimitado"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium">Condiciones básicas</span>
+                <textarea name="photographerTerms" rows={3} className={fieldClass} />
+              </label>
+            </div>
+          ) : null}
         </fieldset>
 
         <fieldset className="space-y-4" disabled={pending || submitted}>
