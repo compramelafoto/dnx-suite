@@ -41,7 +41,10 @@ function redirectIngresar(baseUrl: string, message: string) {
 
 export async function GET(req: Request) {
   const origin = new URL(req.url).origin;
-  const baseUrl = resolveAppBaseUrl({
+  // Redirects de UX en el mismo host del callback (evita perder cookie cross-host).
+  const baseUrl = origin;
+  // Token exchange debe usar el redirect_uri registrado (env / APP_URL).
+  const oauthBaseUrl = resolveAppBaseUrl({
     originFromRequest: origin,
     envKeys: ["NEXT_PUBLIC_INFOSPOT_URL", "APP_URL", "AUTH_URL"],
     fallback: "http://localhost:3004",
@@ -77,7 +80,7 @@ export async function GET(req: Request) {
       return redirectIngresar(baseUrl, "Google OAuth no está configurado en el servidor.");
     }
 
-    const redirectUri = resolveGoogleRedirectUri(baseUrl);
+    const redirectUri = resolveGoogleRedirectUri(oauthBaseUrl);
     const { accessToken } = await exchangeGoogleAuthCode({
       code,
       clientId: credentials.clientId,
@@ -132,12 +135,12 @@ export async function GET(req: Request) {
       data: { lastLoginAt: new Date() },
     });
 
-    const target = new URL(destination.path, baseUrl);
+    const target = new URL(destination.path, origin);
     if (!destination.hasAccess) {
       target.searchParams.set("notice", NO_EDITORIAL_ACCESS_NOTICE);
     }
 
-    const res = NextResponse.redirect(target.toString());
+    const res = NextResponse.redirect(target);
     res.cookies.set(DNX_GOOGLE_OAUTH_COOKIE, "", {
       ...SESSION_COOKIE_OPTIONS,
       maxAge: 0,

@@ -51,7 +51,9 @@ export function LoginForm({
 }) {
   const [googlePending, setGooglePending] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const error = deniedMessage ?? oauthError ?? null;
+  /** Errores reales de login/OAuth (rojo). El aviso `forbidden` es informativo. */
+  const hardError = oauthError?.trim() || null;
+  const softNotice = !hardError && deniedMessage ? deniedMessage : null;
 
   const googleHref = (() => {
     const params = new URLSearchParams();
@@ -69,12 +71,21 @@ export function LoginForm({
 
   return (
     <div className="mx-auto w-full max-w-md space-y-8">
-      {error ? (
+      {hardError ? (
         <p
           className="rounded-[var(--is-radius-sm)] border border-red-300 bg-red-50 px-4 py-3 text-sm leading-relaxed text-red-800"
           role="alert"
         >
-          {error}
+          {hardError}
+        </p>
+      ) : null}
+
+      {softNotice ? (
+        <p
+          className="rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg-secondary)] px-4 py-3 text-sm leading-relaxed text-[var(--is-text-secondary)]"
+          role="status"
+        >
+          {softNotice}
         </p>
       ) : null}
 

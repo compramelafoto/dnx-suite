@@ -12,7 +12,6 @@ import {
   getInfoSpotMembership,
   toPermissionSubject,
 } from "@/lib/infospot-access";
-import { resolveAppBaseUrl } from "@repo/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,14 +24,15 @@ function redirectIngresar(baseUrl: string, message: string) {
 
 /**
  * Login email/contraseña vía Route Handler (Set-Cookie fiable, mismo patrón que OAuth).
+ *
+ * Importante: el redirect post-login usa el **origin del request** (no APP_URL del env).
+ * Si redirigimos a otro host (p. ej. .com.ar → *.vercel.app), el browser no envía
+ * la cookie y el usuario vuelve a `/ingresar?forbidden=login`.
  */
 export async function POST(req: Request) {
   const origin = new URL(req.url).origin;
-  const baseUrl = resolveAppBaseUrl({
-    originFromRequest: origin,
-    envKeys: ["NEXT_PUBLIC_INFOSPOT_URL", "APP_URL", "AUTH_URL"],
-    fallback: "http://localhost:3004",
-  });
+  // Solo para mensajes de error absolutos hacia /ingresar en el mismo host.
+  const baseUrl = origin;
 
   try {
     const form = await req.formData();
@@ -116,7 +116,8 @@ export async function POST(req: Request) {
       console.error("[infospot/login] lastLoginAt update failed:", err);
     }
 
-    const target = new URL(destinationPath, baseUrl);
+    // Relative Location: misma host que el POST → la cookie Set-Cookie aplica al siguiente GET.
+    const target = new URL(destinationPath, origin);
     if (!canEnter) {
       target.searchParams.set(
         "notice",
@@ -124,7 +125,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const res = NextResponse.redirect(target.toString());
+    const res = NextResponse.redirect(target);
     try {
       await attachInfoSpotSessionCookieToResponse(res, user.id, { rememberMe });
     } catch (err) {

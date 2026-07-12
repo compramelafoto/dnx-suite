@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 const DENIED: Record<string, string> = {
-  login: "Necesitás iniciar sesión para continuar.",
+  login: "Para continuar, ingresá con tu cuenta.",
   "infospot-redaccion":
     "Acceso denegado a Redacción. Tu usuario no tiene rol Info Spot activo (Director, Redactor o Colaborador).",
   "infospot-admin":
@@ -42,7 +42,7 @@ export default async function IngresarPage({
 
   return (
     <PageShell
-      title="Ingresar a Info Spot"
+      title="Bienvenido a Info Spot"
       description="Acceso con identidad DNX Suite (Google o email y contraseña)."
     >
       <LoginForm next={next} deniedMessage={deniedMessage} oauthError={oauthError} />
