@@ -8,6 +8,7 @@ import {
   requireInfoSpotEventsPanelAccess,
 } from "@/lib/infospot-access";
 import { formatDateEs } from "@/lib/dates";
+import { EVENT_STATUS_LABELS, type EventStatus } from "@/lib/editorial/event-adapter";
 
 export const metadata: Metadata = {
   title: "Eventos — Admin",
@@ -17,13 +18,14 @@ type Props = {
   searchParams: Promise<{ status?: string; ok?: string; error?: string }>;
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING_REVIEW: "En revisión",
-  PUBLISHED: "Publicados",
-  REJECTED: "Rechazados",
-  ARCHIVED: "Archivados",
-  DRAFT: "Borradores",
-};
+const FILTERS = [
+  "IN_REVIEW",
+  "DRAFT",
+  "READY_TO_PUBLISH",
+  "PUBLISHED",
+  "UNPUBLISHED",
+  "ARCHIVED",
+] as const;
 
 export default async function AdminEventosPage({ searchParams }: Props) {
   const access = await requireInfoSpotEventsPanelAccess();
@@ -31,11 +33,11 @@ export default async function AdminEventosPage({ searchParams }: Props) {
   const params = await searchParams;
 
   const statusFilter = canModerate
-    ? params.status || "PENDING_REVIEW"
+    ? (params.status || "IN_REVIEW")
     : "PUBLISHED";
 
   const events = await prisma.infoSpotEvent.findMany({
-    where: { status: statusFilter as "PENDING_REVIEW" | "PUBLISHED" | "REJECTED" | "ARCHIVED" | "DRAFT" },
+    where: { status: statusFilter as EventStatus },
     orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
     take: 80,
     include: {
@@ -44,26 +46,26 @@ export default async function AdminEventosPage({ searchParams }: Props) {
     },
   });
 
-  const filters = canModerate
-    ? (["PENDING_REVIEW", "PUBLISHED", "REJECTED", "ARCHIVED", "DRAFT"] as const)
-    : (["PUBLISHED"] as const);
+  const filters = canModerate ? FILTERS : (["PUBLISHED"] as const);
 
   return (
     <PageShell
       title="Eventos"
       description={
         canModerate
-          ? "Revisá envíos públicos, publicá o rechazá. Los datos de contacto del organizador son internos."
+          ? "Moderación rápida. El flujo completo está en Redacción → Eventos."
           : "Consultá eventos publicados para vincularlos a noticias (próximamente)."
       }
     >
-      <div className="mb-4">
-        <Link
-          href="/eventos"
-          className="text-sm text-[var(--is-accent)] hover:underline"
-        >
+      <div className="mb-4 flex flex-wrap gap-4 text-sm">
+        <Link href="/eventos" className="text-[var(--is-accent)] hover:underline">
           Ver portal público
         </Link>
+        {canModerate ? (
+          <Link href="/redaccion/eventos" className="text-[var(--is-accent)] hover:underline">
+            Ir a Redacción → Eventos
+          </Link>
+        ) : null}
       </div>
       <FlashBanner ok={params.ok} error={params.error} />
 
@@ -78,7 +80,7 @@ export default async function AdminEventosPage({ searchParams }: Props) {
                 : "border-[var(--is-border)] bg-white text-[var(--is-text-secondary)]"
             }`}
           >
-            {STATUS_LABELS[value] ?? value}
+            {EVENT_STATUS_LABELS[value] ?? value}
           </Link>
         ))}
       </div>
@@ -119,7 +121,7 @@ export default async function AdminEventosPage({ searchParams }: Props) {
                   </td>
                   <td className="px-4 py-4">
                     <span className="rounded-full bg-[var(--is-bg-elevated)] px-2 py-1 text-xs">
-                      {STATUS_LABELS[event.status] ?? event.status}
+                      {EVENT_STATUS_LABELS[event.status as EventStatus] ?? event.status}
                     </span>
                   </td>
                   <td className="px-4 py-4 text-[var(--is-muted)]">
@@ -133,12 +135,22 @@ export default async function AdminEventosPage({ searchParams }: Props) {
                     )}
                   </td>
                   <td className="px-4 py-4">
-                    <Link
-                      href={`/admin/eventos/${event.id}`}
-                      className="text-[var(--is-accent)] hover:underline"
-                    >
-                      {canModerate ? "Revisar" : "Ver"}
-                    </Link>
+                    <div className="flex flex-col gap-1">
+                      <Link
+                        href={`/admin/eventos/${event.id}`}
+                        className="text-[var(--is-accent)] hover:underline"
+                      >
+                        {canModerate ? "Revisar" : "Ver"}
+                      </Link>
+                      {canModerate ? (
+                        <Link
+                          href={`/redaccion/eventos/${event.id}/editar`}
+                          className="text-xs text-[var(--is-muted)] hover:underline"
+                        >
+                          Editar en Redacción
+                        </Link>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))

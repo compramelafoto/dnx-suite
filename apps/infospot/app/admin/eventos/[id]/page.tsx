@@ -38,7 +38,8 @@ const fieldClass =
 
 const OK_MESSAGES: Record<string, string> = {
   published: "Evento publicado.",
-  rejected: "Evento rechazado.",
+  rejected: "Evento devuelto con observación.",
+  returned: "Evento devuelto con observación.",
   archived: "Evento archivado.",
   saved: "Cambios guardados.",
 };
@@ -114,23 +115,25 @@ export default async function AdminEventoDetailPage({ params, searchParams }: Pr
 
       {canModerate ? (
         <div className="mb-8 flex flex-wrap gap-3">
-          {event.status !== "PUBLISHED" && event.status !== "ARCHIVED" ? (
+          {event.status !== "PUBLISHED" &&
+          event.status !== "ARCHIVED" &&
+          event.status !== "UNPUBLISHED" ? (
             <form action={publishAction}>
               <button
                 type="submit"
                 className="inline-flex h-11 items-center bg-[var(--is-accent)] px-5 text-sm font-semibold text-white"
               >
-                Aprobar y publicar
+                Publicar
               </button>
             </form>
           ) : null}
-          {event.status !== "REJECTED" && event.status !== "ARCHIVED" ? (
+          {event.status === "IN_REVIEW" ? (
             <form action={rejectAction} className="flex flex-wrap items-end gap-2">
               <label className="text-sm">
-                <span className="sr-only">Motivo interno</span>
+                <span className="sr-only">Observación</span>
                 <input
                   name="internalNotes"
-                  placeholder="Observación al rechazar"
+                  placeholder="Observación al devolver"
                   className="min-h-11 rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-3"
                 />
               </label>
@@ -138,7 +141,7 @@ export default async function AdminEventoDetailPage({ params, searchParams }: Pr
                 type="submit"
                 className="inline-flex h-11 items-center px-4 text-sm font-medium ring-1 ring-[var(--is-border)]"
               >
-                Rechazar
+                Devolver
               </button>
             </form>
           ) : null}
@@ -155,7 +158,7 @@ export default async function AdminEventoDetailPage({ params, searchParams }: Pr
         </div>
       ) : (
         <p className="mb-8 text-sm text-[var(--is-text-secondary)]">
-          Vista de consulta. Solo el Director puede aprobar o rechazar envíos.
+          Vista de consulta. La moderación editorial completa está en Redacción → Eventos.
         </p>
       )}
 

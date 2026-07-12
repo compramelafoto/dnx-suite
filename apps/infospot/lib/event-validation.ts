@@ -51,6 +51,76 @@ export const publicEventSubmissionSchema = z.object({
     .max(240)
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
+  postalCode: z
+    .string()
+    .trim()
+    .max(32)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  countryCode: z
+    .string()
+    .trim()
+    .max(8)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  countryName: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  latitude: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  longitude: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  locationVisibility: z
+    .enum(["EXACT", "APPROXIMATE", "CITY_ONLY", "HIDDEN"])
+    .optional()
+    .default("CITY_ONLY"),
+  locationConfirmed: z
+    .string()
+    .optional()
+    .transform((v) => v === "1" || v === "true" || v === "on"),
+  geocodingPlaceId: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  geocodingProvider: z
+    .string()
+    .trim()
+    .max(64)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  wantPhotographers: z
+    .string()
+    .optional()
+    .transform((v) => v === "on" || v === "true" || v === "1"),
+  photographerJoinPolicy: z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (v === "OPEN" || v === "REQUEST" || v === "INVITE_ONLY") return v;
+      return undefined;
+    }),
+  photographerMax: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  photographerTerms: z
+    .string()
+    .trim()
+    .max(4000)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
   organizerName: z.string().trim().min(2, "Nombre del organizador").max(120),
   organizerEmail: optionalEmail,
   organizerPhone: z
@@ -109,6 +179,54 @@ export const adminEventUpdateSchema = z.object({
     .string()
     .trim()
     .max(240)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  postalCode: z
+    .string()
+    .trim()
+    .max(32)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  countryCode: z
+    .string()
+    .trim()
+    .max(8)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  countryName: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  latitude: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  longitude: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  locationVisibility: z
+    .enum(["EXACT", "APPROXIMATE", "CITY_ONLY", "HIDDEN"])
+    .optional()
+    .default("CITY_ONLY"),
+  locationConfirmed: z
+    .string()
+    .optional()
+    .transform((v) => v === "1" || v === "true" || v === "on"),
+  geocodingPlaceId: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  geocodingProvider: z
+    .string()
+    .trim()
+    .max(64)
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
   organizerName: z.string().trim().min(2).max(120),

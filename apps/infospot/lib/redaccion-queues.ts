@@ -15,6 +15,7 @@ export type RedaccionVista =
   | "devueltas"
   | "listas-publicar"
   | "publicadas"
+  | "despublicadas"
   | "archivadas";
 
 export const REDACCION_VISTAS: ReadonlyArray<{
@@ -27,7 +28,23 @@ export const REDACCION_VISTAS: ReadonlyArray<{
   { id: "devueltas", label: "Devueltas" },
   { id: "listas-publicar", label: "Listas para publicar" },
   { id: "publicadas", label: "Publicadas" },
+  { id: "despublicadas", label: "Despublicadas" },
   { id: "archivadas", label: "Archivadas" },
+];
+
+/** Labels neutros / eventos (mismo ids de vista). */
+export const REDACCION_VISTAS_EVENTOS: ReadonlyArray<{
+  id: RedaccionVista;
+  label: string;
+}> = [
+  { id: "mi-trabajo", label: "Mi trabajo" },
+  { id: "borradores", label: "Borradores" },
+  { id: "en-revision", label: "En revisión" },
+  { id: "devueltas", label: "Devueltos" },
+  { id: "listas-publicar", label: "Listos para publicar" },
+  { id: "publicadas", label: "Publicados" },
+  { id: "despublicadas", label: "Despublicados" },
+  { id: "archivadas", label: "Archivados" },
 ];
 
 export type QueueArticleShape = {
@@ -82,6 +99,10 @@ export function parseRedaccionVista(raw?: string | null): RedaccionVista {
     case "PUBLISHED":
     case "publicadas":
       return "publicadas";
+    case "UNPUBLISHED":
+    case "despublicadas":
+    case "despublicados":
+      return "despublicadas";
     case "ARCHIVED":
     case "archivadas":
       return "archivadas";
@@ -112,10 +133,49 @@ export function filterArticlesByVista<T extends QueueArticleShape>(
       return articles.filter((a) => a.status === "READY_TO_PUBLISH");
     case "publicadas":
       return articles.filter((a) => a.status === "PUBLISHED");
+    case "despublicadas":
+      return articles.filter((a) => a.status === "UNPUBLISHED");
     case "archivadas":
       return articles.filter((a) => a.status === "ARCHIVED");
     default:
       return articles;
+  }
+}
+
+export type QueueEventShape = {
+  id: string;
+  title: string;
+  status: string;
+  authorId: number | null;
+  returnedAt?: Date | null;
+  submittedForReviewAt?: Date | null;
+};
+
+export function filterEventsByVista<T extends QueueEventShape>(
+  events: T[],
+  vista: RedaccionVista,
+  userId: number,
+  hasPending: (e: T) => boolean,
+): T[] {
+  switch (vista) {
+    case "mi-trabajo":
+      return events.filter((e) => e.authorId === userId && e.status !== "ARCHIVED");
+    case "borradores":
+      return events.filter((e) => e.status === "DRAFT" && !hasPending(e));
+    case "en-revision":
+      return events.filter((e) => e.status === "IN_REVIEW");
+    case "devueltas":
+      return events.filter((e) => hasPending(e));
+    case "listas-publicar":
+      return events.filter((e) => e.status === "READY_TO_PUBLISH");
+    case "publicadas":
+      return events.filter((e) => e.status === "PUBLISHED");
+    case "despublicadas":
+      return events.filter((e) => e.status === "UNPUBLISHED");
+    case "archivadas":
+      return events.filter((e) => e.status === "ARCHIVED");
+    default:
+      return events;
   }
 }
 

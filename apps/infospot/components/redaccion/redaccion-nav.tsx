@@ -12,7 +12,10 @@ type NavItem = {
 };
 
 const editorialNav: NavItem[] = [
-  { href: "/redaccion", label: "Sala de redacción", exact: true },
+  { href: "/redaccion", label: "Noticias", exact: true },
+  { href: "/redaccion/eventos", label: "Eventos" },
+  { href: "/redaccion/coberturas", label: "Coberturas" },
+  { href: "/redaccion/distribucion", label: "Portada" },
   { href: "/redaccion/nueva", label: "Nueva nota" },
   { href: "/redaccion/perfil", label: "Mi perfil" },
   { href: "/", label: "Ver sitio", exact: true },
@@ -50,7 +53,7 @@ export function RedaccionNav({ showAdmin, showUsers, showApprovals }: Props) {
     ...(showUsers
       ? [{ href: "/admin/usuarios", label: "Equipo y roles" } satisfies NavItem]
       : []),
-    { href: "/admin/eventos", label: "Eventos" },
+    { href: "/admin/eventos", label: "Eventos (admin)" },
     { href: "/admin/configuracion", label: "Configuración" },
   ];
 
