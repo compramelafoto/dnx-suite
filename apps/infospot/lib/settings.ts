@@ -127,32 +127,48 @@ export function getLaunchInstitutionalBlockers(
 
 /** Settings del medio (singleton). Cache por request. */
 export const getInfoSpotSettings = cache(async (): Promise<InfoSpotPublicSettings> => {
-  const row = await prisma.infoSpotSettings.findFirst({
-    orderBy: { createdAt: "asc" },
-  });
-  if (!row) {
+  // Build / Preview sin DATABASE_URL: no tumbar `next build` (layout + /_not-found).
+  if (!process.env.DATABASE_URL?.trim()) {
     return { id: "defaults", ...DEFAULTS };
   }
-  return {
-    id: row.id,
-    siteName: row.siteName || DEFAULTS.siteName,
-    slogan: row.slogan || DEFAULTS.slogan,
-    logoUrl: row.logoUrl,
-    contactEmail: row.contactEmail,
-    pressEmail: row.pressEmail,
-    instagramUrl: row.instagramUrl,
-    facebookUrl: row.facebookUrl,
-    xUrl: row.xUrl,
-    whatsappUrl: row.whatsappUrl,
-    publicUrl: row.publicUrl || DEFAULTS.publicUrl,
-    seoTitle: row.seoTitle || DEFAULTS.seoTitle,
-    seoDescription: row.seoDescription || DEFAULTS.seoDescription,
-    defaultShareImageUrl: row.defaultShareImageUrl || DEFAULTS.defaultShareImageUrl,
-    baseCity: row.baseCity,
-    country: row.country || DEFAULTS.country,
-    institutionalText: row.institutionalText || DEFAULTS.institutionalText,
-    footerText: row.footerText || DEFAULTS.footerText,
-  };
+
+  try {
+    const row = await prisma.infoSpotSettings.findFirst({
+      orderBy: { createdAt: "asc" },
+    });
+    if (!row) {
+      return { id: "defaults", ...DEFAULTS };
+    }
+    return {
+      id: row.id,
+      siteName: row.siteName || DEFAULTS.siteName,
+      slogan: row.slogan || DEFAULTS.slogan,
+      logoUrl: row.logoUrl,
+      contactEmail: row.contactEmail,
+      pressEmail: row.pressEmail,
+      instagramUrl: row.instagramUrl,
+      facebookUrl: row.facebookUrl,
+      xUrl: row.xUrl,
+      whatsappUrl: row.whatsappUrl,
+      publicUrl: row.publicUrl || DEFAULTS.publicUrl,
+      seoTitle: row.seoTitle || DEFAULTS.seoTitle,
+      seoDescription: row.seoDescription || DEFAULTS.seoDescription,
+      defaultShareImageUrl: row.defaultShareImageUrl || DEFAULTS.defaultShareImageUrl,
+      baseCity: row.baseCity,
+      country: row.country || DEFAULTS.country,
+      institutionalText: row.institutionalText || DEFAULTS.institutionalText,
+      footerText: row.footerText || DEFAULTS.footerText,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (
+      /Environment variable not found: DATABASE_URL/i.test(message) ||
+      /PrismaClientInitializationError/i.test(message)
+    ) {
+      return { id: "defaults", ...DEFAULTS };
+    }
+    throw err;
+  }
 });
 
 export function getSiteUrl(settings?: Pick<InfoSpotPublicSettings, "publicUrl">): string {
