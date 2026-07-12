@@ -186,6 +186,13 @@ model User {
   infoSpotArticlesAuthored             InfoSpotArticle[]            @relation("InfoSpotArticleAuthor")
   infoSpotArticlesFactChecked          InfoSpotArticle[]            @relation("InfoSpotArticleFactCheck")
   infoSpotArticleObservationsAuthored  InfoSpotArticleObservation[] @relation("InfoSpotArticleObservationAuthor")
+  infoSpotEventsAuthored               InfoSpotEvent[]              @relation("InfoSpotEventAuthor")
+  infoSpotEventObservationsAuthored    InfoSpotEventObservation[]   @relation("InfoSpotEventObservationAuthor")
+  infoSpotHomepagePlacementsCreated    InfoSpotHomepagePlacement[]  @relation("InfoSpotHomepagePlacementCreator")
+  infoSpotHomepagePlacementsUpdated    InfoSpotHomepagePlacement[]  @relation("InfoSpotHomepagePlacementUpdater")
+  infoSpotCoveragesAssigned            InfoSpotCoverage[]           @relation("InfoSpotCoverageAssignee")
+  infoSpotCoverageArticlesLinked       InfoSpotCoverageArticle[]    @relation("InfoSpotCoverageArticleLinker")
+  infoSpotEditorialPhotoUsagesCreated  InfoSpotEditorialPhotoUsage[] @relation("InfoSpotEditorialPhotoUsageCreator")
   dnxInvitationsSent                   DnxAppInvitation[]           @relation("DnxAppInvitationInvitedBy")
   dnxInvitationsAccepted               DnxAppInvitation[]           @relation("DnxAppInvitationAcceptedBy")
   contestOrganizationsCreated           ContestOrganization[]        @relation("FrOrgCreator")
@@ -845,16 +852,79 @@ enum InfoSpotArticleAssetUsage {
   COVER
   INLINE
   GALLERY
+  FEATURED
 }
 
 /// Estados del ciclo de vida de un evento Info Spot (agenda editorial).
+/// Alineado al workflow editorial genérico (mismo set que InfoSpotArticleStatus).
 /// Independiente de EventStatus de ComprameLaFoto.
 enum InfoSpotEventStatus {
   DRAFT
-  PENDING_REVIEW
+  IN_REVIEW
+  READY_TO_PUBLISH
   PUBLISHED
-  REJECTED
+  UNPUBLISHED
   ARCHIVED
+}
+
+/// Observación interna de revisión de eventos (nunca pública).
+enum InfoSpotEventObservationType {
+  RETURN
+  NOTE
+}
+
+/// Cómo ingresó el evento a Info Spot (independiente de la plataforma origen).
+enum InfoSpotEventOriginKind {
+  REDACCION
+  PUBLIC_INTAKE
+  IMPORTED
+  AUTO_CREATED
+  SYNCED_EXTERNAL
+}
+
+/// Contenido editorial vinculado a un origen externo/interno.
+enum InfoSpotOriginContentType {
+  ARTICLE
+  EVENT
+}
+
+/// Plataforma o canal de procedencia del vínculo.
+enum InfoSpotOriginSourceType {
+  INFOSPOT
+  COMPRAMELAFOTO
+  CSV
+  AI
+  RSS
+  INSTAGRAM
+  FACEBOOK
+  API
+  MANUAL
+}
+
+/// Tipo de entidad en la fuente externa.
+enum InfoSpotOriginExternalEntityType {
+  EVENT
+  ALBUM
+  PHOTO
+  POST
+  FEED_ITEM
+  UNKNOWN
+}
+
+/// Dirección del flujo de sincronización.
+enum InfoSpotOriginDirection {
+  INBOUND
+  OUTBOUND
+  BIDIRECTIONAL
+}
+
+/// Estado operativo del vínculo (no es estado editorial).
+enum InfoSpotOriginSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+  STALE
+  DISABLED
 }
 
 /// Estado de la solicitud pública (intake) vinculada a un InfoSpotEvent.
@@ -921,6 +991,7 @@ model InfoSpotEditorialAsset {
   updatedAt                 DateTime                @updatedAt
   coverArticles             InfoSpotArticle[]       @relation("InfoSpotArticleCover")
   articleLinks              InfoSpotArticleAsset[]
+  editorialPhotoDeliveries  InfoSpotEditorialPhoto[] @relation("InfoSpotEditorialPhotoDelivery")
 
   /// Idempotencia CLF: un asset editorial global por (sourceType, sourcePhotoId).
   @@unique([sourceType, sourcePhotoId])
@@ -957,11 +1028,17 @@ model InfoSpotArticle {
   excerpt        String?
   content        String                @db.Text
   coverImageId   String?
+  /// Si true, sync inbound no debe reemplazar la portada elegida manualmente.
+  coverOverridden Boolean              @default(false)
   categoryId     String?
   authorId       Int
   status         InfoSpotArticleStatus @default(DRAFT)
   /// Etiqueta interna de lanzamiento (DEMO / REAL / NEEDS_REVIEW). No pública.
   contentTag     InfoSpotContentTag    @default(NEEDS_REVIEW)
+  /// Prioridad editorial manual para home (0–100).
+  editorialPriority   Int     @default(0)
+  /// Si true, no aparece en bloques automáticos de home.
+  excludeFromHomepage Boolean @default(false)
   publishedAt    DateTime?
   /// Referencia suave a Event (CLF) — sin FK (CLF no depende de Info Spot).
   eventId        Int?
@@ -1003,6 +1080,11 @@ model InfoSpotArticle {
   factCheckedBy  User?                 @relation("InfoSpotArticleFactCheck", fields: [factCheckedByUserId], references: [id], onDelete: SetNull)
   articleAssets  InfoSpotArticleAsset[]
   observations   InfoSpotArticleObservation[]
+  /// Vínculos de origen / sync (CLF, CSV, etc.). Soft refs eventId/clfAlbumId se mantienen por compat.
+  contentOrigins InfoSpotContentOrigin[]
+  homepagePlacements InfoSpotHomepagePlacement[]
+  coverageLinks  InfoSpotCoverageArticle[]
+  editorialPhotoUsages InfoSpotEditorialPhotoUsage[]
 
   @@index([status, publishedAt])
   @@index([contentTag, status])
@@ -1014,6 +1096,8 @@ model InfoSpotArticle {
   @@index([submittedForReviewAt])
   @@index([returnedAt])
   @@index([approvedAt])
+  @@index([excludeFromHomepage, status])
+  @@index([editorialPriority])
 }
 
 /// Observación editorial interna (devoluciones). Nunca pública.
@@ -1059,6 +1143,34 @@ model InfoSpotSettings {
 /// * Info Spot — Agenda de eventos (MVP editorial, independiente de CLF Event).
 /// * Temporal hasta una integración profunda con el marketplace fotográfico.
 /// *
+/// Estado de geocodificación de un InfoSpotEvent (independiente del estado editorial).
+enum InfoSpotGeocodingStatus {
+  PENDING
+  GEOCODED
+  CONFIRMED
+  FAILED
+  NEEDS_REVIEW
+}
+
+/// Precisión semántica del punto geográfico.
+enum InfoSpotLocationPrecision {
+  COUNTRY
+  PROVINCE
+  CITY
+  NEIGHBORHOOD
+  VENUE
+  ADDRESS
+  COORDINATE
+}
+
+/// Qué se muestra públicamente de la ubicación.
+enum InfoSpotLocationVisibility {
+  EXACT
+  APPROXIMATE
+  CITY_ONLY
+  HIDDEN
+}
+
 model InfoSpotEvent {
   id               String              @id @default(cuid())
   title            String
@@ -1066,6 +1178,8 @@ model InfoSpotEvent {
   summary          String?
   description      String              @db.Text
   categoryId       String?
+  /// Autor editorial (redacción). Null en envíos públicos anónimos.
+  authorId         Int?
   organizerName    String
   /// Privado: no exponer en páginas públicas.
   organizerEmail   String
@@ -1074,39 +1188,541 @@ model InfoSpotEvent {
   organizerWebsite String?
   startAt          DateTime
   endAt            DateTime?
+  /// Nombre del lugar (equivalente operativo a locationName en CLF).
   venueName        String?
   city             String
   province         String
   address          String?
+  postalCode       String?
+  countryCode      String?             @default("AR")
+  countryName      String?             @default("Argentina")
   latitude         Float?
   longitude        Float?
+  geohash          String?
+  locationPrecision InfoSpotLocationPrecision?
+  geocodingProvider String?
+  geocodingPlaceId  String?
+  geocodingStatus   InfoSpotGeocodingStatus @default(PENDING)
+  geocodedAt        DateTime?
+  locationConfirmedAt DateTime?
+  locationConfirmedByUserId Int?
+  locationVisibility InfoSpotLocationVisibility @default(CITY_ONLY)
+  /// Si true, inbound CLF no sobrescribe ciudad/provincia/dirección/venue.
+  locationOverridden Boolean @default(false)
+  /// Si true, inbound CLF no sobrescribe lat/lng/geohash/precisión.
+  coordinatesOverridden Boolean @default(false)
   coverImageUrl    String?
   coverImageKey    String?
   registrationUrl  String?
   sourceUrl        String?
   status           InfoSpotEventStatus @default(DRAFT)
+  /// Cómo ingresó el evento (redacción, intake, importación, sync). Independiente de CLF.
+  originKind       InfoSpotEventOriginKind @default(REDACCION)
+  /// Overrides editoriales: si true, el sync inbound no pisa ese campo.
+  titleOverridden       Boolean @default(false)
+  descriptionOverridden Boolean @default(false)
+  summaryOverridden     Boolean @default(false)
+  categoryOverridden    Boolean @default(false)
+  coverOverridden       Boolean @default(false)
+  /// Prioridad editorial manual para home (0–100). No publica contenido.
+  editorialPriority     Int     @default(0)
+  /// Si true, no aparece en bloques automáticos de home (sigue publicado).
+  excludeFromHomepage   Boolean @default(false)
   /// Etiqueta interna de lanzamiento (DEMO / REAL / NEEDS_REVIEW). No pública.
   contentTag       InfoSpotContentTag  @default(NEEDS_REVIEW)
   /// Notas internas del director (nunca públicas).
   internalNotes    String?             @db.Text
+  /// Legacy / quién impulsó el envío (redacción o sistema).
   submittedByUserId Int?
+  /// Legacy: último revisor; preferir campos de auditoría editorial.
   reviewedByUserId  Int?
   publishedAt      DateTime?
+
+  /// —— Auditoría del flujo editorial (interna) ——
+  submittedForReviewAt       DateTime?
+  submittedForReviewByUserId Int?
+  approvedAt                 DateTime?
+  approvedByUserId           Int?
+  publishedByUserId          Int?
+  unpublishedAt              DateTime?
+  unpublishedByUserId        Int?
+  archivedAt                 DateTime?
+  archivedByUserId           Int?
+  returnedAt                 DateTime?
+  returnedByUserId           Int?
+
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   category         InfoSpotCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author           User?               @relation("InfoSpotEventAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   submission       InfoSpotEventSubmission?
+  observations     InfoSpotEventObservation[]
+  contentOrigins   InfoSpotContentOrigin[]
+  photographerCall InfoSpotPhotographerCall?
+  homepagePlacements InfoSpotHomepagePlacement[]
+  editorialPhotos  InfoSpotEditorialPhoto[]
 
   @@index([status, startAt])
   @@index([status, publishedAt])
   @@index([contentTag, status])
+  @@index([originKind])
   @@index([categoryId])
+  @@index([authorId])
   @@index([city, province])
+  @@index([geohash])
+  @@index([geocodingStatus])
+  @@index([locationConfirmedAt])
+  @@index([excludeFromHomepage, status])
+  @@index([editorialPriority])
   @@index([startAt])
+  @@index([submittedForReviewAt])
+  @@index([returnedAt])
+  @@index([approvedAt])
+}
+
+/// Vínculo genérico contenido editorial ↔ identidad externa (sync / auditoría).
+/// No almacena copy editorial; solo identidad, dirección, estado y snapshot operativo.
+model InfoSpotContentOrigin {
+  id                 String                         @id @default(cuid())
+  contentType        InfoSpotOriginContentType
+  /// Exactamente uno de articleId / eventId (CHECK en migración SQL).
+  articleId          String?
+  eventId            String?
+  sourceType         InfoSpotOriginSourceType
+  externalEntityType InfoSpotOriginExternalEntityType
+  /// Identidad en la fuente (ej. "123" para Event CLF). Siempre string.
+  externalId         String
+  externalUrl        String?
+  direction          InfoSpotOriginDirection        @default(INBOUND)
+  syncStatus         InfoSpotOriginSyncStatus       @default(PENDING)
+  lastSyncedAt       DateTime?
+  lastAttemptAt      DateTime?
+  syncError          String?                        @db.Text
+  /// Snapshot operativo del origen (fechas, cupos, URLs comerciales, etc.).
+  operationalPayload Json?
+  sourceUpdatedAt    DateTime?
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  article            InfoSpotArticle?               @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  event              InfoSpotEvent?                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([contentType, syncStatus])
+  @@index([sourceType, externalEntityType, externalId])
+  @@index([articleId])
+  @@index([eventId])
+  @@index([syncStatus, lastAttemptAt])
+}
+
+/// Tipo de ubicación en portada / distribución.
+enum InfoSpotHomepagePlacementType {
+  HERO
+  FEATURED_EVENT
+}
+
+/// Selección editorial manual para bloques de home (banner, destacados, etc.).
+model InfoSpotHomepagePlacement {
+  id               String                       @id @default(cuid())
+  placementType    InfoSpotHomepagePlacementType
+  articleId        String?
+  eventId          String?
+  sortOrder        Int                          @default(0)
+  priority         Int                          @default(0)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  isActive         Boolean                      @default(true)
+  customTitle      String?
+  customSubtitle   String?
+  customImageUrl   String?
+  createdByUserId  Int
+  updatedByUserId  Int?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+  article          InfoSpotArticle?             @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  event            InfoSpotEvent?               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy        User                         @relation("InfoSpotHomepagePlacementCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy        User?                        @relation("InfoSpotHomepagePlacementUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([placementType, isActive])
+  @@index([startsAt, endsAt])
+  @@index([sortOrder])
+  @@index([articleId])
+  @@index([eventId])
+  @@index([priority])
+}
+
+/// Tipo de métrica diaria de contenido Info Spot.
+enum InfoSpotContentMetricKind {
+  EVENT_VIEW
+  ARTICLE_VIEW
+  CLF_REGISTRATION_CLICK
+  EVENT_CLICK
+  ALBUM_CLICK
+  PURCHASE_CLICK
+}
+
+/// Conteos diarios agregados (vistas / clics). No inventa datos históricos.
+model InfoSpotContentMetricDaily {
+  id         String                    @id @default(cuid())
+  day        DateTime                  @db.Date
+  kind       InfoSpotContentMetricKind
+  /// Clave estable: "event:{id}" | "article:{id}".
+  contentKey String
+  articleId  String?
+  eventId    String?
+  count      Int                       @default(0)
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+
+  @@unique([day, kind, contentKey])
+  @@index([kind, day])
+  @@index([articleId, day])
+  @@index([eventId, day])
+}
+
+/// Descubrimiento en el Centro Editorial de Coberturas (álbum-first).
+enum InfoSpotCoverageDiscoveryStatus {
+  DISCOVERED
+  QUEUED
+  DISMISSED
+  LINKED
+}
+
+/// Estado editorial agregado de la cobertura (derivado / manual; no publica).
+enum InfoSpotCoverageEditorialStatus {
+  UNASSIGNED
+  DRAFTING
+  IN_REVIEW
+  READY
+  PUBLISHED
+  STALE
+}
+
+/// Sync operativo del snapshot de álbum CLF.
+enum InfoSpotCoverageSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+  STALE
+  DISABLED
+}
+
+enum InfoSpotCoveragePhotographerRole {
+  PRIMARY
+  COLLABORATOR
+  CONTRIBUTOR
+}
+
+enum InfoSpotCoverageArticleRole {
+  PRIMARY
+  FOLLOW_UP
+  GALLERY_ONLY
+}
+
+/// Preparación Etapa 9+ (IA). Contrato listo; sin ejecución.
+enum InfoSpotCoverageAiPrepStatus {
+  NOT_READY
+  READY
+  QUEUED
+  COMPLETED
+}
+
+/// Preparación selector editorial de fotos.
+enum InfoSpotCoveragePhotoSelectorStatus {
+  NOT_READY
+  READY
+  IN_PROGRESS
+}
+
+/// Preparación sistema de créditos fotográficos.
+enum InfoSpotCoverageCreditsStatus {
+  NOT_READY
+  READY
+  PENDING_REVIEW
+}
+
+/// Hub editorial = 1 álbum público CLF. Sync idempotente por clfAlbumId.
+model InfoSpotCoverage {
+  id                  String                           @id @default(cuid())
+  clfAlbumId          Int                              @unique
+  clfEventId          Int?
+  title               String
+  publicSlug          String
+  publicUrl           String?
+  coverThumbnailUrl   String?
+  city                String?
+  eventTitle          String?
+  photoCount          Int                              @default(0)
+  discoveryStatus     InfoSpotCoverageDiscoveryStatus  @default(DISCOVERED)
+  editorialStatus     InfoSpotCoverageEditorialStatus  @default(UNASSIGNED)
+  syncStatus          InfoSpotCoverageSyncStatus       @default(PENDING)
+  /// AVAILABLE | REACTIVATABLE | UNAVAILABLE | UNKNOWN
+  commercialStatus    String                           @default("UNKNOWN")
+  commercialReason    String?
+  canShowPurchaseCta  Boolean                          @default(false)
+  operationalSnapshot Json?
+  priorityScore       Int                              @default(0)
+  assignedToUserId    Int?
+  dismissedAt         DateTime?
+  dismissedReason     String?
+  lastSyncedAt        DateTime?
+  lastSyncError       String?                          @db.Text
+  aiPrepStatus        InfoSpotCoverageAiPrepStatus     @default(NOT_READY)
+  photoSelectorStatus InfoSpotCoveragePhotoSelectorStatus @default(NOT_READY)
+  creditsStatus       InfoSpotCoverageCreditsStatus    @default(NOT_READY)
+  aiPrepMeta          Json?
+  photoSelectorMeta   Json?
+  creditsMeta         Json?
+  createdAt           DateTime                         @default(now())
+  updatedAt           DateTime                         @updatedAt
+  assignedTo          User?                            @relation("InfoSpotCoverageAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  photographers       InfoSpotCoveragePhotographer[]
+  articles            InfoSpotCoverageArticle[]
+  editorialPhotos     InfoSpotEditorialPhoto[]
+
+  @@index([clfEventId])
+  @@index([discoveryStatus, editorialStatus])
+  @@index([syncStatus, lastSyncedAt])
+  @@index([commercialStatus])
+  @@index([priorityScore])
+  @@index([assignedToUserId])
+}
+
+model InfoSpotCoveragePhotographer {
+  id          String                          @id @default(cuid())
+  coverageId  String
+  clfUserId   Int
+  displayName String
+  role        InfoSpotCoveragePhotographerRole @default(PRIMARY)
+  photoCount  Int                             @default(0)
+  creditHint  String?
+  createdAt   DateTime                        @default(now())
+  updatedAt   DateTime                        @updatedAt
+  coverage    InfoSpotCoverage                @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+
+  @@unique([coverageId, clfUserId])
+  @@index([clfUserId])
+}
+
+model InfoSpotCoverageArticle {
+  id             String                     @id @default(cuid())
+  coverageId     String
+  articleId      String
+  linkRole       InfoSpotCoverageArticleRole @default(PRIMARY)
+  linkedAt       DateTime                   @default(now())
+  linkedByUserId Int?
+  coverage       InfoSpotCoverage           @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+  article        InfoSpotArticle            @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  linkedBy       User?                      @relation("InfoSpotCoverageArticleLinker", fields: [linkedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([coverageId, articleId])
+  @@index([articleId])
+  @@index([linkedByUserId])
+}
+
+/// Procesamiento de derivados editoriales (nunca el original CLF).
+enum InfoSpotEditorialPhotoProcessStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  UNAVAILABLE
+}
+
+/// Licencia / permiso de uso editorial.
+enum InfoSpotEditorialLicenseStatus {
+  PENDING
+  AUTHORIZED
+  REVOKED
+  UNKNOWN
+}
+
+/// Uso editorial de la foto en contenido.
+enum InfoSpotEditorialUsageStatus {
+  ACTIVE
+  REMOVED
+  BLOCKED
+}
+
+enum InfoSpotEditorialPhotoUsageType {
+  COVER
+  INLINE
+  GALLERY
+  FEATURED
+}
+
+/// Representación editorial base de una foto CLF (idempotente por sourcePhotoExternalId).
+model InfoSpotEditorialPhoto {
+  id                      String                             @id @default(cuid())
+  /// Soft refs / vínculos opcionales.
+  coverageId              String?
+  eventId                 String?
+  contentOriginId         String?
+  /// Identidad CLF (string para alinear con ContentOrigin).
+  sourcePhotoExternalId   String
+  sourceAlbumExternalId   String
+  photographerExternalId  String?
+  photographerUserId      Int?
+  photographerName        String
+  photographerProfileUrl  String?
+  albumUrl                String?
+  purchaseUrl             String?
+  /// AVAILABLE | HIDDEN | UNPUBLISHED | DELETED | UNKNOWN
+  commercialStatus        String                             @default("UNKNOWN")
+  editorialLicenseStatus  InfoSpotEditorialLicenseStatus     @default(PENDING)
+  editorialUsageStatus    InfoSpotEditorialUsageStatus       @default(ACTIVE)
+  processStatus           InfoSpotEditorialPhotoProcessStatus @default(PENDING)
+  processError            String?                            @db.Text
+  /// Key fuente usada para derivar (preview WM preferida). Nunca exponer al cliente.
+  sourceStorageKey        String?
+  /// Key del derivado master editorial (p. ej. 1920).
+  editorialMasterKey      String?
+  credit                  String
+  copyrightText           String?
+  /// Asset legacy para portada / compat (InfoSpotEditorialAsset).
+  deliveryAssetId         String?
+  lastSyncedAt            DateTime?
+  createdAt               DateTime                           @default(now())
+  updatedAt               DateTime                           @updatedAt
+  coverage                InfoSpotCoverage?                  @relation(fields: [coverageId], references: [id], onDelete: SetNull)
+  event                   InfoSpotEvent?                     @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  deliveryAsset           InfoSpotEditorialAsset?            @relation("InfoSpotEditorialPhotoDelivery", fields: [deliveryAssetId], references: [id], onDelete: SetNull)
+  variants                InfoSpotEditorialPhotoVariant[]
+  usages                  InfoSpotEditorialPhotoUsage[]
+
+  @@unique([sourcePhotoExternalId])
+  @@index([sourceAlbumExternalId])
+  @@index([coverageId])
+  @@index([eventId])
+  @@index([commercialStatus])
+  @@index([processStatus])
+  @@index([editorialLicenseStatus])
+  @@index([deliveryAssetId])
+  @@index([photographerUserId])
+}
+
+model InfoSpotEditorialPhotoVariant {
+  id        String                @id @default(cuid())
+  photoId   String
+  width     Int
+  format    String                @default("webp")
+  r2Key     String
+  url       String
+  bytes     Int?
+  createdAt DateTime              @default(now())
+  photo     InfoSpotEditorialPhoto @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@unique([photoId, width, format])
+  @@index([photoId])
+}
+
+model InfoSpotEditorialPhotoUsage {
+  id             String                         @id @default(cuid())
+  articleId      String
+  photoId        String
+  usageType      InfoSpotEditorialPhotoUsageType
+  sortOrder      Int                            @default(0)
+  caption        String?
+  altText        String?
+  isCover        Boolean                        @default(false)
+  displaySize    String?                        @default("wide")
+  createdByUserId Int?
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+  article        InfoSpotArticle                @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  photo          InfoSpotEditorialPhoto         @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  createdBy      User?                          @relation("InfoSpotEditorialPhotoUsageCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([articleId, photoId, usageType])
+  @@index([articleId, usageType, sortOrder])
+  @@index([photoId])
+  @@index([createdByUserId])
+  @@index([isCover])
+}
+
+/// Estado de provisioning de convocatoria Info Spot → CLF (no es estado editorial).
+enum InfoSpotPhotographerCallProvisioningStatus {
+  NOT_REQUESTED
+  PENDING
+  BLOCKED
+  PROVISIONING
+  PROVISIONED
+  FAILED
+  CLOSED
+}
+
+/// Resolución de identidad del organizador en CLF.
+enum InfoSpotPhotographerCallOwnershipStatus {
+  UNRESOLVED
+  RESOLVED
+  BLOCKED
+}
+
+/// Estado deseado del Event CLF al provisionar (ACTIVE/CLOSED).
+/// Independiente del enum EventStatus de CLF (puede no existir en todos los entornos).
+enum InfoSpotClfCallDesiredStatus {
+  ACTIVE
+  CLOSED
+}
+
+/// Configuración operativa de convocatoria de fotógrafos (persistida antes/después de provisionar).
+model InfoSpotPhotographerCall {
+  id                         String                                     @id @default(cuid())
+  eventId                    String                                     @unique
+  enabled                    Boolean                                    @default(false)
+  visibility                 EventVisibility                            @default(PUBLIC)
+  joinPolicy                 EventJoinPolicy                            @default(OPEN)
+  maxPhotographers           Int?
+  photographerTerms          String?                                    @db.Text
+  operationalDescription     String?                                    @db.Text
+  /// Tipo operativo CLF (independiente de la categoría editorial).
+  clfEventType               EventType                                  @default(OTHER)
+  /// Estado deseado del Event CLF al provisionar/actualizar (ACTIVE/CLOSED).
+  desiredClfStatus           InfoSpotClfCallDesiredStatus               @default(ACTIVE)
+  organizerUserId            Int?
+  organizerEmail             String?
+  ownershipStatus            InfoSpotPhotographerCallOwnershipStatus    @default(UNRESOLVED)
+  provisioningStatus         InfoSpotPhotographerCallProvisioningStatus @default(NOT_REQUESTED)
+  provisioningError          String?                                    @db.Text
+  provisioningBlockedReason  String?
+  lastProvisionAttemptAt     DateTime?
+  provisionedAt              DateTime?
+  closedAt                   DateTime?
+  requestedByUserId          Int?
+  lastModifiedByUserId       Int?
+  /// Denormalizado tras provisioning exitoso.
+  clfEventId                 Int?
+  publicUrl                  String?
+  /// El redactor pidió cerrar (no elimina el Event CLF).
+  closeRequested             Boolean                                    @default(false)
+  createdAt                  DateTime                                   @default(now())
+  updatedAt                  DateTime                                   @updatedAt
+  event                      InfoSpotEvent                              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([provisioningStatus, updatedAt])
+  @@index([clfEventId])
+  @@index([organizerEmail])
+  @@index([enabled, provisioningStatus])
+}
+
+/// Observación editorial interna de eventos (devoluciones). Nunca pública.
+model InfoSpotEventObservation {
+  id           String                       @id @default(cuid())
+  eventId      String
+  message      String                       @db.Text
+  authorUserId Int
+  type         InfoSpotEventObservationType @default(RETURN)
+  createdAt    DateTime                     @default(now())
+  event        InfoSpotEvent                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  author       User                         @relation("InfoSpotEventObservationAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([eventId, createdAt])
+  @@index([authorUserId])
+  @@index([type])
 }
 
 /// Solicitud pública de publicación (anti-spam / auditoría mínima).
-/// El evento asociado nace en PENDING_REVIEW; al aprobar se publica el mismo InfoSpotEvent.
+/// El evento asociado nace en IN_REVIEW; al aprobar/publicar se actualiza la submission.
+/// Los estados de submission (PENDING_REVIEW / APPROVED / REJECTED) son del intake, no del workflow editorial.
 model InfoSpotEventSubmission {
   id          String                        @id @default(cuid())
   eventId     String                        @unique

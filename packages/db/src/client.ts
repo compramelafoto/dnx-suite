@@ -79,6 +79,29 @@ export {
   InfoSpotEventStatus,
   InfoSpotEventSubmissionStatus,
   InfoSpotContentTag,
+  InfoSpotEventOriginKind,
+  InfoSpotOriginContentType,
+  InfoSpotOriginSourceType,
+  InfoSpotOriginExternalEntityType,
+  InfoSpotOriginDirection,
+  InfoSpotOriginSyncStatus,
+  InfoSpotGeocodingStatus,
+  InfoSpotLocationPrecision,
+  InfoSpotLocationVisibility,
+  InfoSpotHomepagePlacementType,
+  InfoSpotContentMetricKind,
+  InfoSpotCoverageDiscoveryStatus,
+  InfoSpotCoverageEditorialStatus,
+  InfoSpotCoverageSyncStatus,
+  InfoSpotCoveragePhotographerRole,
+  InfoSpotCoverageArticleRole,
+  InfoSpotCoverageAiPrepStatus,
+  InfoSpotCoveragePhotoSelectorStatus,
+  InfoSpotCoverageCreditsStatus,
+  InfoSpotEditorialPhotoProcessStatus,
+  InfoSpotEditorialLicenseStatus,
+  InfoSpotEditorialUsageStatus,
+  InfoSpotEditorialPhotoUsageType,
 } from "@prisma/client";
 
 export {
@@ -91,7 +114,10 @@ export {
   canAccessInfoSpotRedaccion,
   canAccessInfoSpotAdmin,
   canModerateInfoSpotEvents,
+  canManageInfoSpotDistribution,
   canViewInfoSpotPublishedEvents,
+  canCreateInfoSpotEvent,
+  canEditInfoSpotEvent,
   canPublishInfoSpotEvent,
   isInfoSpotEditorialRole,
   isInfoSpotPublicationPolicy,
@@ -121,6 +147,29 @@ export {
   disconnectClfReadonlyClient,
   type ClfReadonlyConnectionInfo,
 } from "./clf-readonly-client";
+
+export {
+  getClfWriteClient,
+  getClfWriteConnectionInfo,
+  disconnectClfWriteClient,
+} from "./clf-write-client";
+
+export {
+  createClfEvent,
+  updateClfEvent,
+  closeClfEventCall,
+  validateClfEventWriteInput,
+  normalizeVisibilityJoinPolicy,
+  hashOperationalSnapshot,
+  type ClfEventWriteInput,
+  type ClfEventWriteResult,
+} from "./clf-event-write";
+
+export {
+  InfoSpotPhotographerCallProvisioningStatus,
+  InfoSpotPhotographerCallOwnershipStatus,
+  InfoSpotClfCallDesiredStatus,
+} from "@prisma/client";
 
 
 

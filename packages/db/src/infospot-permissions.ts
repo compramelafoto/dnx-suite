@@ -205,12 +205,30 @@ export function canAccessInfoSpotAdmin(
   return canManageInfoSpotSettings(subject) || canManageInfoSpotUsers(subject);
 }
 
-/** DIRECTOR: revisar / aprobar / rechazar / archivar envíos de eventos. */
+/**
+ * Director: moderación plena de eventos (devolver, bandeja admin, etc.).
+ * Compatible con el panel `/admin/eventos`.
+ */
 export function canModerateInfoSpotEvents(
   subject: InfoSpotPermissionSubject | null | undefined,
 ): boolean {
   if (!isActiveMember(subject) || !subject) return false;
   return isDirector(subject);
+}
+
+/**
+ * Distribución de portada (banner / prioridad).
+ * Director: todo. Redactor con publicación directa: puede administrar placements.
+ * Colaborador / redactor con aprobación: no.
+ */
+export function canManageInfoSpotDistribution(
+  subject: InfoSpotPermissionSubject | null | undefined,
+): boolean {
+  if (!isActiveMember(subject) || !subject) return false;
+  if (isDirector(subject)) return true;
+  if (isColaborador(subject)) return false;
+  if (isRedactor(subject)) return canPublishFlag(subject);
+  return false;
 }
 
 /** DIRECTOR y REDACTOR: consultar eventos publicados (vincular a noticias luego). */
@@ -221,11 +239,32 @@ export function canViewInfoSpotPublishedEvents(
   return isDirector(subject) || isRedactor(subject);
 }
 
-/** Solo DIRECTOR edita envíos pendientes / publica eventos. */
+/**
+ * Crear eventos editoriales (redacción). Misma política que artículos.
+ * El intake público `/publicar-evento` no usa esta función.
+ */
+export function canCreateInfoSpotEvent(
+  subject: InfoSpotPermissionSubject | null | undefined,
+): boolean {
+  return canCreateInfoSpotArticle(subject);
+}
+
+/** Editar eventos en redacción / admin. Misma política que artículos. */
+export function canEditInfoSpotEvent(
+  subject: InfoSpotPermissionSubject | null | undefined,
+): boolean {
+  return canEditInfoSpotArticle(subject);
+}
+
+/**
+ * Publicar / despublicar eventos.
+ * Alineado a artículos: Director siempre; Redactor según publicationPolicy;
+ * Colaborador nunca. El formulario público no obtiene este permiso.
+ */
 export function canPublishInfoSpotEvent(
   subject: InfoSpotPermissionSubject | null | undefined,
 ): boolean {
-  return canModerateInfoSpotEvents(subject);
+  return canPublishInfoSpotArticle(subject);
 }
 
 export function infoSpotRoleLabel(role: string): string {
