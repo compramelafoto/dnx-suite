@@ -5,6 +5,8 @@ type Props = {
   firstName: string;
   canCreate: boolean;
   canCreateFromClf: boolean;
+  /** Director: acceso a asignación de roles. */
+  canManageTeam?: boolean;
 };
 
 export function RedaccionWorkspaceHeader({
@@ -12,6 +14,7 @@ export function RedaccionWorkspaceHeader({
   firstName,
   canCreate,
   canCreateFromClf,
+  canManageTeam = false,
 }: Props) {
   return (
     <header className="relative overflow-hidden rounded-[var(--is-radius-lg)] border border-[var(--is-border)] bg-[linear-gradient(165deg,var(--is-white-0)_0%,var(--is-orange-50)_42%,var(--is-white-100)_100%)] px-5 py-8 sm:px-8 sm:py-10">
@@ -37,7 +40,7 @@ export function RedaccionWorkspaceHeader({
           </p>
         </div>
 
-        {(canCreate || canCreateFromClf) && (
+        {(canCreate || canCreateFromClf || canManageTeam) && (
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {canCreate ? (
               <Link
@@ -53,6 +56,14 @@ export function RedaccionWorkspaceHeader({
                 className="inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white/80 px-4 text-sm font-medium text-[var(--is-text)] backdrop-blur-sm transition-colors hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]"
               >
                 Crear desde evento de ComprameLaFoto
+              </Link>
+            ) : null}
+            {canManageTeam ? (
+              <Link
+                href="/admin/usuarios"
+                className="inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white/80 px-4 text-sm font-medium text-[var(--is-text)] backdrop-blur-sm transition-colors hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]"
+              >
+                Equipo y roles
               </Link>
             ) : null}
           </div>

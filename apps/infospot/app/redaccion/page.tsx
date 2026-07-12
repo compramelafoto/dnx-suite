@@ -22,6 +22,7 @@ import {
 import {
   canCreateInfoSpotArticle,
   canManageInfoSpotSettings,
+  canManageInfoSpotUsers,
   canPublishInfoSpotArticle,
   requireInfoSpotRedaccionAccess,
 } from "@/lib/infospot-access";
@@ -48,6 +49,7 @@ export default async function RedaccionPage({ searchParams }: PageProps) {
   const canPublish = canPublishInfoSpotArticle(access.subject);
   const canCreate = canCreateInfoSpotArticle(access.subject);
   const isDirector = canManageInfoSpotSettings(access.subject);
+  const canManageTeam = canManageInfoSpotUsers(access.subject);
 
   const [stats, myDrafts, articlesRaw, clfBundle] = await Promise.all([
     getEditorialDashboardStats(),
@@ -133,6 +135,7 @@ export default async function RedaccionPage({ searchParams }: PageProps) {
           firstName={firstName}
           canCreate={canCreate}
           canCreateFromClf={isDirector}
+          canManageTeam={canManageTeam}
         />
       }
     >
