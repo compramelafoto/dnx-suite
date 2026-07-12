@@ -6,6 +6,10 @@ import { SiteContainer } from "@/components/foundations";
 import { cx } from "@/components/foundations/cx";
 import { BrandMark } from "@/components/brand/BrandMark";
 import {
+  HeaderAuthActions,
+  type SiteHeaderAuth,
+} from "@/components/navigation/HeaderAuthActions";
+import {
   MobileNavigation,
   type NavLink,
 } from "@/components/navigation/MobileNavigation";
@@ -15,6 +19,8 @@ export { primaryNavLinks };
 
 type Props = {
   links?: NavLink[];
+  /** Sesión DNX resuelta en el layout (null = visitante). */
+  auth?: SiteHeaderAuth | null;
 };
 
 function MastheadBar() {
@@ -84,7 +90,7 @@ function SearchField({ className }: { className?: string }) {
  * Header editorial de medio nacional.
  * Masthead + marca protagonista + nav + búsqueda + CTA contenido.
  */
-export function SiteHeader({ links = primaryNavLinks }: Props) {
+export function SiteHeader({ links = primaryNavLinks, auth = null }: Props) {
   const [scrolled, setScrolled] = useState(false);
   const mobileLinks: NavLink[] = [{ href: "/", label: "Inicio" }, ...links];
 
@@ -130,7 +136,7 @@ export function SiteHeader({ links = primaryNavLinks }: Props) {
           >
             <BrandMark variant="horizontal" priority />
 
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-3 md:gap-4 lg:gap-6">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2.5 md:gap-3 lg:gap-5">
               <SearchField className="hidden min-w-0 flex-1 md:block lg:max-w-md xl:max-w-xl" />
 
               <Link
@@ -140,7 +146,9 @@ export function SiteHeader({ links = primaryNavLinks }: Props) {
                 Publicar evento
               </Link>
 
-              <MobileNavigation links={mobileLinks} />
+              <HeaderAuthActions auth={auth} />
+
+              <MobileNavigation links={mobileLinks} auth={auth} />
             </div>
           </div>
 

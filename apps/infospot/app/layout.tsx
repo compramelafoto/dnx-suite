@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { SiteFooter, SiteHeader } from "@/components/navigation";
+import { resolveSiteHeaderAuth } from "@/components/navigation/resolve-site-header-auth";
 import { getInfoSpotSettings, getSiteUrl } from "@/lib/settings";
 import "./globals.css";
 
@@ -9,6 +10,8 @@ const infoSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   display: "swap",
 });
+
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getInfoSpotSettings();
@@ -56,7 +59,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const settings = await getInfoSpotSettings();
+  const [settings, headerAuth] = await Promise.all([
+    getInfoSpotSettings(),
+    resolveSiteHeaderAuth(),
+  ]);
   const siteUrl = getSiteUrl(settings);
 
   const orgJsonLd = {
@@ -94,7 +100,7 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
-        <SiteHeader />
+        <SiteHeader auth={headerAuth} />
         <main id="contenido" className="flex-1">
           {children}
         </main>

@@ -5,6 +5,10 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BrandMark } from "@/components/brand/BrandMark";
 import {
+  HeaderAuthActions,
+  type SiteHeaderAuth,
+} from "@/components/navigation/HeaderAuthActions";
+import {
   mobileNavGroups,
   primaryNavLinks,
 } from "@/components/navigation/nav-links";
@@ -16,6 +20,7 @@ export type NavLink = {
 
 type Props = {
   links: NavLink[];
+  auth?: SiteHeaderAuth | null;
 };
 
 function NavIcon({ label }: { label: string }) {
@@ -88,7 +93,7 @@ function NavIcon({ label }: { label: string }) {
   }
 }
 
-export function MobileNavigation({ links }: Props) {
+export function MobileNavigation({ links, auth = null }: Props) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const panelId = useId();
@@ -188,6 +193,12 @@ export function MobileNavigation({ links }: Props) {
               ))}
 
               <div className="is-site-pad mt-auto space-y-3 py-8">
+                <HeaderAuthActions
+                  auth={auth}
+                  stacked
+                  className="mb-2"
+                  onNavigate={() => setOpen(false)}
+                />
                 <Link
                   href="/publicar-evento"
                   className="is-btn is-btn-solid h-11 w-full text-sm font-semibold transition-opacity hover:opacity-90"
