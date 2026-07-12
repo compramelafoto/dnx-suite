@@ -24,6 +24,9 @@ import { SESSION_COOKIE_OPTIONS } from "@/lib/session-cookie";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const NO_EDITORIAL_ACCESS_NOTICE =
+  "No tenés acceso editorial. Solicitá permisos al Director.";
+
 function redirectIngresar(baseUrl: string, message: string) {
   const url = new URL("/ingresar", baseUrl);
   url.searchParams.set("error", message);
@@ -40,7 +43,7 @@ export async function GET(req: Request) {
   const origin = new URL(req.url).origin;
   const baseUrl = resolveAppBaseUrl({
     originFromRequest: origin,
-    envKeys: ["NEXT_PUBLIC_INFOSPOT_URL", "APP_URL"],
+    envKeys: ["NEXT_PUBLIC_INFOSPOT_URL", "APP_URL", "AUTH_URL"],
     fallback: "http://localhost:3004",
   });
 
@@ -89,34 +92,25 @@ export async function GET(req: Request) {
     try {
       resolved = await resolveOrLinkGoogleUser({
         google,
-        onCreate: pendingInvite
-          ? async ({ email, name, googleId }) => {
-              const created = await prisma.user.create({
-                data: {
-                  email,
-                  name,
-                  googleId,
-                  role: "CUSTOMER",
-                  emailVerifiedAt: new Date(),
-                },
-                select: { id: true, role: true },
-              });
-              return { id: created.id, role: String(created.role) };
-            }
-          : undefined,
+        // Usuario nuevo: crear identidad DNX sin rol editorial (salvo invitación pendiente).
+        onCreate: async ({ email, name, googleId, picture }) => {
+          const created = await prisma.user.create({
+            data: {
+              email,
+              name,
+              googleId,
+              role: "CUSTOMER",
+              emailVerifiedAt: new Date(),
+              ...(picture ? { logoUrl: picture } : {}),
+            },
+            select: { id: true, role: true },
+          });
+          return { id: created.id, role: String(created.role) };
+        },
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg === "NO_USER_AND_NO_CREATE") {
-        console.info(
-          "[infospot] Google login sin User ni invitación",
-          hashEmailForLog(google.email),
-        );
-        return redirectIngresar(
-          baseUrl,
-          "No hay cuenta DNX con ese Google ni una invitación pendiente. Pedile al Director que te invite.",
-        );
-      }
+      console.info("[infospot] Google login resolve failed", hashEmailForLog(google.email), msg);
       return redirectIngresar(baseUrl, msg);
     }
 
@@ -140,10 +134,7 @@ export async function GET(req: Request) {
 
     const target = new URL(destination.path, baseUrl);
     if (!destination.hasAccess) {
-      target.searchParams.set(
-        "notice",
-        "Tu cuenta DNX existe, pero todavía no tenés acceso a Info Spot. Pedile una invitación al Director.",
-      );
+      target.searchParams.set("notice", NO_EDITORIAL_ACCESS_NOTICE);
     }
 
     const res = NextResponse.redirect(target.toString());
@@ -152,9 +143,18 @@ export async function GET(req: Request) {
       maxAge: 0,
       expires: new Date(0),
     });
-    await attachInfoSpotSessionCookieToResponse(res, resolved.userId, {
-      rememberMe: transit.rememberMe === true,
-    });
+    try {
+      await attachInfoSpotSessionCookieToResponse(res, resolved.userId, {
+        rememberMe: transit.rememberMe === true,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[infospot] Google session create failed:", message);
+      return redirectIngresar(
+        baseUrl,
+        `No se pudo guardar la sesión (${message.slice(0, 160)}).`,
+      );
+    }
     return res;
   } catch (err) {
     console.error("[infospot] Google OAuth callback error", err);

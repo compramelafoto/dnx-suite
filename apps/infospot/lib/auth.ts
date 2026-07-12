@@ -12,6 +12,8 @@ export type AuthUser = {
   email: string;
   role: string;
   globalRole: string;
+  /** Foto de perfil DNX (`User.logoUrl`, p. ej. Google). */
+  avatarUrl: string | null;
   currentWorkspaceId: string | null;
   workspaceRole: string | null;
   appAccess: Array<{ app: string; enabled: boolean; appRole: string | null }>;
@@ -31,12 +33,17 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   if (sessionUser.isBlocked) return null;
 
   const identity = await getSessionIdentityByRawToken(raw);
+  const logoUrl =
+    "logoUrl" in sessionUser && typeof (sessionUser as { logoUrl?: unknown }).logoUrl === "string"
+      ? ((sessionUser as { logoUrl: string }).logoUrl.trim() || null)
+      : null;
   return {
     id: sessionUser.id,
     name: sessionUser.name,
     email: sessionUser.email,
     role: sessionUser.role,
     globalRole: identity?.globalRole ?? (sessionUser.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "USER"),
+    avatarUrl: logoUrl,
     currentWorkspaceId: identity?.currentWorkspaceId ?? null,
     workspaceRole: identity?.workspaceRole ?? null,
     appAccess: identity?.appAccess ?? [],

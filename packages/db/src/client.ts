@@ -30,8 +30,13 @@ function isStalePrismaClient(client: PrismaClient): boolean {
   if (globalForPrisma.prismaSchemaEpoch && globalForPrisma.prismaSchemaEpoch !== epoch) {
     return true;
   }
-  // Defensa explícita para modelos Info Spot recientes (HMR / Turbopack).
-  for (const model of ["InfoSpotEvent", "InfoSpotEventSubmission", "InfoSpotArticle"]) {
+  // Defensa explícita para modelos recientes (HMR / Turbopack / deploy stale).
+  for (const model of [
+    "InfoSpotEvent",
+    "InfoSpotEventSubmission",
+    "InfoSpotArticle",
+    "UserSession",
+  ]) {
     if (
       Prisma.dmmf.datamodel.models.some((m) => m.name === model) &&
       !clientHasModel(client, model)

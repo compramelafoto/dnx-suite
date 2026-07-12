@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     const origin = url.origin;
     const baseUrl = resolveAppBaseUrl({
       originFromRequest: origin,
-      envKeys: ["NEXT_PUBLIC_INFOSPOT_URL", "APP_URL"],
+      envKeys: ["NEXT_PUBLIC_INFOSPOT_URL", "APP_URL", "AUTH_URL"],
       fallback: "http://localhost:3004",
     });
 

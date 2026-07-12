@@ -1,11 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
-import { loginAction, type LoginFormState } from "./actions";
-
-const initial: LoginFormState = { error: null };
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -13,7 +10,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-[var(--is-bg)] disabled:opacity-60"
+      className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-[var(--is-bg)] disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Ingresando…" : "Ingresar"}
     </button>
@@ -52,10 +49,9 @@ export function LoginForm({
   deniedMessage?: string | null;
   oauthError?: string | null;
 }) {
-  const [state, action] = useActionState(loginAction, initial);
   const [googlePending, setGooglePending] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const error = state.error ?? deniedMessage ?? oauthError ?? null;
+  const error = deniedMessage ?? oauthError ?? null;
 
   const googleHref = (() => {
     const params = new URLSearchParams();
@@ -64,6 +60,12 @@ export function LoginForm({
     const q = params.toString();
     return q ? `/api/auth/google?${q}` : "/api/auth/google";
   })();
+
+  function startGoogle() {
+    if (googlePending) return;
+    setGooglePending(true);
+    window.location.assign(googleHref);
+  }
 
   return (
     <div className="mx-auto w-full max-w-md space-y-8">
@@ -76,17 +78,16 @@ export function LoginForm({
         </p>
       ) : null}
 
-      <a
-        href={googleHref}
-        onClick={() => setGooglePending(true)}
-        aria-disabled={googlePending}
-        className={`inline-flex min-h-11 w-full items-center justify-center gap-3 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white px-4 text-sm font-semibold text-[var(--is-text)] shadow-sm transition hover:bg-[var(--is-bg-elevated)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--is-accent)] ${
-          googlePending ? "pointer-events-none opacity-60" : ""
-        }`}
+      <button
+        type="button"
+        onClick={startGoogle}
+        disabled={googlePending}
+        aria-busy={googlePending}
+        className="inline-flex min-h-11 w-full items-center justify-center gap-3 rounded-[var(--is-radius-sm)] border border-[#dadce0] bg-white px-4 text-sm font-semibold text-[#3c4043] shadow-sm transition hover:bg-[#f8f9fa] hover:shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4285F4] disabled:cursor-not-allowed disabled:opacity-60"
       >
         <GoogleIcon className="size-5 shrink-0" />
         {googlePending ? "Redirigiendo a Google…" : "Continuar con Google"}
-      </a>
+      </button>
 
       <div className="flex items-center gap-4" role="separator" aria-label="o">
         <div className="h-px flex-1 bg-[var(--is-border)]" />
@@ -96,7 +97,8 @@ export function LoginForm({
         <div className="h-px flex-1 bg-[var(--is-border)]" />
       </div>
 
-      <form action={action} className="space-y-8">
+      {/* Route Handler: Set-Cookie en el redirect (más fiable que Server Action + cookies()). */}
+      <form action="/api/auth/login" method="post" className="space-y-8">
         <input type="hidden" name="next" value={next} />
 
         <div className="space-y-3">
@@ -146,13 +148,8 @@ export function LoginForm({
             href="/recuperar"
             className="font-medium text-[var(--is-accent)] underline-offset-2 hover:underline"
           >
-            Olvidé mi contraseña
+            ¿Olvidaste tu contraseña?
           </Link>
-        </p>
-
-        <p className="text-center text-sm leading-relaxed text-[var(--is-muted)]">
-          Identidad DNX Suite (cookie <code className="text-xs">dnx_session</code>).
-          Si no tenés rol Info Spot, pedile una invitación al Director.
         </p>
       </form>
     </div>

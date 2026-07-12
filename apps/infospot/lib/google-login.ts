@@ -49,6 +49,7 @@ export function resolveInfoSpotPostLoginPath(params: {
       email: "",
       role: params.suiteRole,
       globalRole: isSuperAdmin ? "SUPER_ADMIN" : "USER",
+      avatarUrl: null,
       currentWorkspaceId: null,
       workspaceRole: null,
       appAccess: [],
@@ -74,14 +75,13 @@ export function resolveInfoSpotPostLoginPath(params: {
     return { path: "/ingresar/acceso-pendiente", hasAccess: false };
   }
 
+  // Director / Redactor / Colaborador → /redaccion (default).
+  // Se respeta `next` seguro distinto del login.
   const next = safeInfoSpotNextPath(params.next, "");
-  if (next && next !== "/redaccion" && next !== "/ingresar") {
+  if (next && next !== "/redaccion" && next !== "/ingresar" && next !== "/ingresar/acceso-pendiente") {
     return { path: next, hasAccess: true };
   }
 
-  if (isSuperAdmin || role === "INFOSPOT_DIRECTOR") {
-    return { path: "/admin", hasAccess: true };
-  }
   return { path: "/redaccion", hasAccess: true };
 }
 

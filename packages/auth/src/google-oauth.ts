@@ -219,6 +219,7 @@ export type ResolveGoogleUserResult = {
  * - No duplica por email.
  * - Vincula `googleId` si faltaba; rechaza mismatch.
  * - Marca `emailVerifiedAt` (Google verificó el email).
+ * - Guarda foto de Google en `logoUrl` si está vacía (avatar DNX).
  * - `onCreate`: si se omite y no hay User, lanza (apps invite-only).
  */
 export async function resolveOrLinkGoogleUser(params: {
@@ -227,22 +228,27 @@ export async function resolveOrLinkGoogleUser(params: {
     email: string;
     name: string | null;
     googleId: string;
+    picture: string | null;
   }) => Promise<{ id: number; role: string }>;
 }): Promise<ResolveGoogleUserResult> {
   const email = params.google.email;
   const googleId = params.google.id;
+  const picture = params.google.picture?.trim() || null;
+
+  const userSelect = {
+    id: true,
+    email: true,
+    role: true,
+    googleId: true,
+    isBlocked: true,
+    emailVerifiedAt: true,
+    name: true,
+    logoUrl: true,
+  } as const;
 
   let user = await prisma.user.findUnique({
     where: { email },
-    select: {
-      id: true,
-      email: true,
-      role: true,
-      googleId: true,
-      isBlocked: true,
-      emailVerifiedAt: true,
-      name: true,
-    },
+    select: userSelect,
   });
 
   if (user?.isBlocked) {
@@ -260,18 +266,11 @@ export async function resolveOrLinkGoogleUser(params: {
       email,
       name: params.google.name,
       googleId,
+      picture,
     });
     user = await prisma.user.findUniqueOrThrow({
       where: { id: createdUser.id },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        googleId: true,
-        isBlocked: true,
-        emailVerifiedAt: true,
-        name: true,
-      },
+      select: userSelect,
     });
     created = true;
     linkedGoogleId = true;
@@ -284,6 +283,7 @@ export async function resolveOrLinkGoogleUser(params: {
       googleId?: string;
       emailVerifiedAt?: Date;
       name?: string;
+      logoUrl?: string;
     } = {};
 
     if (!user.googleId) {
@@ -304,22 +304,26 @@ export async function resolveOrLinkGoogleUser(params: {
     if ((!user.name || !user.name.trim()) && params.google.name) {
       data.name = params.google.name;
     }
+    if (picture && !user.logoUrl?.trim()) {
+      data.logoUrl = picture;
+    }
 
     if (Object.keys(data).length > 0) {
       user = await prisma.user.update({
         where: { id: user.id },
         data,
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          googleId: true,
-          isBlocked: true,
-          emailVerifiedAt: true,
-          name: true,
-        },
+        select: userSelect,
       });
     }
+  }
+
+  // Si onCreate no persistió la foto, completar avatar.
+  if (picture && !user.logoUrl?.trim()) {
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { logoUrl: picture },
+      select: userSelect,
+    });
   }
 
   return {

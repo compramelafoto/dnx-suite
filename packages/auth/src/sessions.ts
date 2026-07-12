@@ -49,6 +49,7 @@ export type SessionUser = {
   isBlocked?: boolean;
   emailVerifiedAt?: Date | null;
   globalRole?: string | null;
+  logoUrl?: string | null;
 };
 
 export async function getSessionUserByRawToken(rawToken: string): Promise<SessionUser | null> {
