@@ -17,7 +17,7 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`43-lau
 
 | Recurso | Estado | Acción requerida |
 |---------|--------|------------------|
-| Neon prod (`infospot-production` / bitter-salad) | **OK** | Schema válido; **2 migraciones CLF gap pendientes** (etapa dedicada). |
+| Neon prod (`infospot-production` / bitter-salad) | **OK** | Schema válido; **3 migraciones pendientes** (etapa dedicada; ver doc 51 §9). |
 | R2 bucket `infospot-media` | **OK** | CORS + r2.dev + ciclo upload/read/derivados/delete. |
 | R2 token S3 (`R2_ACCESS_KEY_ID` / `SECRET`) | **OK operativo** | Smoke 22G PASS · `VERIFIED_WORKING`. |
 | CLF readonly | **OK** | Apunta a CLF prod (`compramelafoto` / falling-darkness). Proxy anti-write en app. |
@@ -28,9 +28,10 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`43-lau
 | Deploy alias Vercel | **OK** | Health `db:ok`, version `fa55a2d`. |
 | Dominio / SSL / canónicos / OAuth / Search Console | **Pendiente DonWeb** | Fuera de multimedia. |
 
-**Launch readiness estimado: ~94%**  
+**Launch readiness estimado: ~95%**  
+Checklist día D: [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md).  
 Detalle multimedia: [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md).  
-Para 100% público en dominio propio: DNS + SSL + canónicos + OAuth redirect + Search Console + Director.
+Para 100% público en dominio propio: DNS + SSL + canónicos + OAuth redirect + Search Console + Director + contenido (recomendado).
 
 ---
 

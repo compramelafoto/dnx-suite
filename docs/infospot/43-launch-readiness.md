@@ -3,9 +3,11 @@
 **Fecha:** 2026-07-13  
 **Rama:** `migration-legacy-clf-to-monorepo`  
 **HEAD Production:** `fa55a2d`  
-**Decisión:** **GO operativo en alias Vercel** · **NO-GO** dominio propio — falta DonWeb + Director + OAuth día D + Search Console.
+**Decisión:** **GO operativo en alias Vercel** · **NO-GO** dominio propio — falta DonWeb + Director + OAuth día D + Search Console + contenido publicado (recomendado).
 
-**Alcance:** producción usable en `infospot-dnxsuite.vercel.app` **sin** dominio, **sin** Google Cloud / Search Console, **sin** features nuevas en 22H.
+**Alcance:** producción usable en `infospot-dnxsuite.vercel.app` **sin** dominio, **sin** Google Cloud / Search Console.
+
+**Checklist maestro día D:** [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md) (Etapa 22I).
 
 Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`45-production-services-readiness.md`](./45-production-services-readiness.md), [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md).
 
@@ -17,19 +19,20 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`45-pro
 |-------|--------|-------|
 | Git / rama | OK | `migration-legacy-clf-to-monorepo` |
 | Vercel project `infospot-dnxsuite` | OK | Production sirve **`fa55a2d`** · alias Ready · `dpl_9Br5hao…` |
-| Neon **infospot-production** | OK | `wandering-pine-79918137` · `ep-bitter-salad-…` · schema válido; **2 migraciones CLF gap pendientes** (no aplicadas en 22H) |
-| R2 bucket `infospot-media` | **OK** | Upload/read/derivados/delete verificados (22G/22H) · `VERIFIED_WORKING` · [doc 50](./50-multimedia-production-gate.md) |
-| CLF readonly | OK | CLF prod falling-darkness · sync inbound a `DRAFT` verificado |
+| Neon **infospot-production** | OK | `wandering-pine-79918137` · `ep-bitter-salad-…` · schema válido; **3 migraciones pendientes** (gaps CLF + platform_metrics; no aplicadas en 22I) |
+| R2 bucket `infospot-media` | **OK** | Upload/read/derivados/delete · `VERIFIED_WORKING` · [doc 50](./50-multimedia-production-gate.md) |
+| CLF readonly | OK | CLF prod falling-darkness · sync inbound → eventos `DRAFT` |
 | SMTP / Resend | Opcional | Degradación segura sin key |
-| CRON_SECRET + schedules | OK | 401 sin secret · dry-run/sync OK |
+| CRON_SECRET + schedules | OK | 401 sin secret |
 | Analytics Measurement ID | Opcional | Internas OK; GA4 no cargado |
-| Director | Pendiente | Seed tras primer login real |
-| Dominio `infospot.com.ar` | Pendiente DonWeb | Verificado en Vercel; DNS público pendiente |
+| Director | Pendiente | **0 users** — seed tras primer login |
+| Contenido PUBLISHED | Pendiente | 0 artículos / 0 eventos publicados · 40 eventos DRAFT |
+| Dominio `infospot.com.ar` | Pendiente DonWeb | Verificado en Vercel; DNS público vacío |
 | Google Cloud OAuth console | **No tocado** | Callback el día D |
 | Search Console | **No tocado** | |
 
-**Launch Readiness estimado: ~94%**  
-Para 100% en dominio propio: DNS + SSL + canónicos + OAuth + Search Console + Director. Multimedia R2 **cerrado**.
+**Launch Readiness estimado: ~95%**  
+Para 100% en dominio propio: ejecutar [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md) §4.
 
 ---
 
