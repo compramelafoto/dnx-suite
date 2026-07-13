@@ -19,6 +19,7 @@
     "test:editorial-photos": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-photos/editorial-photos.test.ts",
     "test:editorial-photo-previews": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-photo-previews/editorial-photo-previews.test.ts",
     "test:r2-cleanup": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/r2-cleanup.test.ts",
+    "test:google-oauth-start": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/google-oauth-start.test.ts",
     "admin:grant-director": "pnpm --filter @repo/db db:grant-infospot-director",
     "test:editorial-assistant": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-assistant/editorial-assistant.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/redaccion-ia.test.ts",
     "test:public-coverage": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/public-coverage/public-coverage.test.ts",
