@@ -2,12 +2,12 @@
 
 **Fecha:** 2026-07-13  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**HEAD:** `d4f6894`  
+**HEAD Production:** `78efb7e`  
 **Proyecto Vercel:** `infospot-dnxsuite`  
-**Decisión:** **NO-GO** para lanzamiento público completo en `infospot.com.ar`  
-**Estado operativo parcial:** producción Vercel en `https://infospot-dnxsuite.vercel.app`.
+**Decisión:** **GO operativo** en `https://infospot-dnxsuite.vercel.app` · **NO-GO** dominio propio `infospot.com.ar`  
+**Estado:** servicios críticos (Neon, CLF readonly, crons, deploy) listos; faltan keys S3 R2 + Director + DNS DonWeb.
 
-**Actualización 2026-07-13 (infra prep):** Neon exclusivo `infospot-production`, migraciones aplicadas, R2 `infospot-media`, `CRON_SECRET`, crons en `vercel.json`. Ver checklist vivo en [`43-launch-readiness.md`](./43-launch-readiness.md).
+**Actualización 2026-07-13 (services readiness):** ver checklist vivo en [`45-production-services-readiness.md`](./45-production-services-readiness.md) y [`43-launch-readiness.md`](./43-launch-readiness.md).
 
 Este documento es el runbook de salida a producción y rollback. **No incluye secretos.**
 

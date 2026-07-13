@@ -2,12 +2,12 @@
 
 **Fecha:** 2026-07-13  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**HEAD de trabajo:** ver git al momento del commit  
-**Decisión:** **NO-GO público** — infraestructura preparada; falta delegación DNS DonWeb + secretos R2 S3 + CLF readonly real + smoke final en dominio.
+**HEAD Production:** `78efb7e`  
+**Decisión:** **GO operativo en alias Vercel** · **NO-GO** dominio propio — falta DonWeb + keys R2 S3 + Director.
 
-**Alcance de esta etapa:** preparar producción **sin** lanzar el sitio, **sin** esperar el dominio, **sin** Google Cloud / Search Console, **sin** features.
+**Alcance:** producción usable en `infospot-dnxsuite.vercel.app` **sin** dominio, **sin** Google Cloud / Search Console, **sin** features.
 
-Ver también: [`42-production-go-live.md`](./42-production-go-live.md).
+Ver también: [`42-production-go-live.md`](./42-production-go-live.md), detalle de servicios en [`45-production-services-readiness.md`](./45-production-services-readiness.md).
 
 ---
 
@@ -15,20 +15,21 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md).
 
 | Pieza | Estado | Notas |
 |-------|--------|-------|
-| Git / rama | OK | Working tree limpio en commits de esta etapa |
-| Vercel project `infospot-dnxsuite` | OK | Production + Preview activos |
-| Neon **infospot-production** | OK | Proyecto exclusivo `wandering-pine-79918137` · host `ep-bitter-salad-…` |
-| Migraciones Prisma en Neon prod | OK | 36 aplicadas · schema up to date |
-| R2 bucket `infospot-media` | OK (parcial) | Bucket + CORS + r2.dev · **faltan** Access Key / Secret S3 |
-| SMTP / Resend | Falta | `RESEND_API_KEY` / `EMAIL_FROM` no en Production |
-| CRON_SECRET | OK | Seteado en Production · routes cron en `vercel.json` |
-| Analytics Measurement ID | Falta | Variable documentada; ID real no cargado |
-| Dominio `infospot.com.ar` | Pendiente DonWeb | Ya verificado en Vercel; DNS público aún no resolvía en auditoría previa |
-| Google Cloud OAuth console | **No tocado** | Callback prod se actualiza el día del lanzamiento |
+| Git / rama | OK | `migration-legacy-clf-to-monorepo` |
+| Vercel project `infospot-dnxsuite` | OK | Production sirve `78efb7e` · alias Ready |
+| Neon **infospot-production** | OK | `wandering-pine-79918137` · `ep-bitter-salad-…` · 36 migraciones |
+| R2 bucket `infospot-media` | OK (parcial) | Bucket + CORS + r2.dev · **faltan** Access Key / Secret S3 (manual Cloudflare) |
+| CLF readonly | OK | CLF prod falling-darkness · sync inbound a `DRAFT` verificado |
+| SMTP / Resend | Opcional | Degradación segura sin key |
+| CRON_SECRET + schedules | OK | 401 sin secret · dry-run/sync OK |
+| Analytics Measurement ID | Opcional | Internas OK; GA4 no cargado |
+| Director | Pendiente | 0 users — seed tras primer login |
+| Dominio `infospot.com.ar` | Pendiente DonWeb | Verificado en Vercel; DNS público pendiente |
+| Google Cloud OAuth console | **No tocado** | Callback el día D |
 | Search Console | **No tocado** | |
 
-**Launch Readiness estimado: ~72%**  
-Para 100%: DNS vivo + URL canónica + OAuth callback + R2 keys + CLF readonly no vacío + seed director mínimo + smoke final + declaración GO.
+**Launch Readiness estimado: ~88%**  
+Para 100% en dominio propio: DNS + SSL + canónicos + OAuth + Search Console + R2 S3 keys + Director + smoke uploads autenticado.
 
 ---
 
@@ -155,10 +156,10 @@ Auth: `Authorization: Bearer $CRON_SECRET`. Sin secreto → 503 (comportamiento 
 | `CRON_SECRET` | OK |
 | `INFOSPOT_IP_HASH_SALT` | OK |
 | `R2_BUCKET_NAME` / `PUBLIC_URL` / `ACCOUNT_ID` / `ENDPOINT` | OK |
-| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Falta |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | **Falta** (manual Cloudflare — ver doc 45 §3) |
 | `COMPRAMELAFOTO_PUBLIC_URL` | OK (`https://compramelafoto.com`) |
-| `CLF_READONLY_DATABASE_URL` | Inválido/vacío en práctica — **Falta** valor real de solo lectura |
-| `RESEND_API_KEY` / `EMAIL_FROM` | Falta |
+| `CLF_READONLY_DATABASE_URL` | **OK** (CLF prod readonly operativo) |
+| `RESEND_API_KEY` / `EMAIL_FROM` | Opcional / ausente |
 | `COOKIE_DOMAIN` | Vacío (correcto hasta dominio) |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Falta |
 
@@ -214,14 +215,15 @@ La DB prod está **vacía de contenido** (sin demo seed). Home/listados deben re
 4. □ Actualizar canónicos: `NEXT_PUBLIC_INFOSPOT_URL`, `APP_URL`, `AUTH_URL` → `https://infospot.com.ar`.  
 5. □ Actualizar `GOOGLE_REDIRECT_URI` + callback en la consola OAuth existente (**sin** crear proyecto Google nuevo en esta etapa histórica; solo URI).  
 6. □ Opcional: `COOKIE_DOMAIN=.infospot.com.ar` si SSO multi-subdominio.  
-7. □ Completar `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` si aún faltan.  
-8. □ Completar `CLF_READONLY_DATABASE_URL` (solo lectura prod CLF).  
-9. □ (Opcional) `RESEND_API_KEY` + `EMAIL_FROM`.  
-10. □ (Opcional) `NEXT_PUBLIC_GA_MEASUREMENT_ID`.  
-11. □ Redeploy Production.  
-12. □ Smoke final: health, home, noticias, eventos, robots, sitemap (host canónico), login, redacción.  
-13. □ Search Console: propiedad + sitemap (**ahora sí**).  
-14. □ Declarar **GO**.
+7. □ Completar `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` (único bloqueante técnico restante no-DNS).  
+8. □ ~~CLF readonly~~ — **hecho** en alias Vercel.  
+9. □ Promover Director tras primer login (`db:seed:infospot`).  
+10. □ (Opcional) `RESEND_API_KEY` + `EMAIL_FROM`.  
+11. □ (Opcional) `NEXT_PUBLIC_GA_MEASUREMENT_ID`.  
+12. □ Redeploy Production tras keys R2.  
+13. □ Smoke final en host canónico: health, home, login, redacción, upload R2.  
+14. □ Search Console: propiedad + sitemap (**ahora sí**).  
+15. □ Declarar **GO** dominio propio.
 
 ---
 
