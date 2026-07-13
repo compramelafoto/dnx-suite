@@ -1,16 +1,44 @@
 # 47 — R2 production smoke report (Etapa 22C)
 
-**Estado de etapa:** **`BLOCKED_BY_VERCEL_ENV`** (Etapa 22D — keys S3 sin `updatedAt` fresco)  
-**Antes:** `BLOCKED_BY_MANUAL_R2_TOKEN` (22B/22C)  
+**Estado de etapa:** **`BLOCKED_BY_VERCEL_ENV`** (reconfirmado Etapa **22E**)  
+**Antes:** 22D `BLOCKED_BY_VERCEL_ENV` · 22B/22C `BLOCKED_BY_MANUAL_R2_TOKEN`  
 **Production alias:** `https://infospot-dnxsuite.vercel.app`  
 **Commit servido (runtime):** `78efb7e` · health `db:ok`  
 
 No se ejecutó smoke upload/read/delete ni pipeline de derivados.  
-No se hizo redeploy en 22D (las keys no muestran reemplazo).
+No se hizo redeploy en 22D ni 22E (las keys no muestran reemplazo).
 
 ---
 
-## 0. Etapa 22D — activación de credenciales (2026-07-13)
+## 0. Etapa 22E — regrabar y validar (2026-07-13)
+
+Auditoría Vercel Production (presencia + `updatedAt`, sin valores):
+
+| Variable | Estado | updatedAt |
+|----------|--------|-----------|
+| `R2_ACCESS_KEY_ID` | PRESENTE | **2026-07-11T23:22:49.683Z** (vieja — rechazada) |
+| `R2_SECRET_ACCESS_KEY` | PRESENTE | **2026-07-11T23:22:53.006Z** (vieja — rechazada) |
+| `R2_ACCOUNT_ID` | PRESENTE | 2026-07-13T09:10:24Z |
+| `R2_BUCKET_NAME` | PRESENTE | 2026-07-13T09:10:28Z |
+| `R2_ENDPOINT` | PRESENTE | 2026-07-13T09:10:32Z |
+| `R2_PUBLIC_URL` | PRESENTE | 2026-07-13T09:10:36Z |
+
+**¿Revisión nueva de keys S3?** No.  
+**Redeploy 22E:** No.  
+**Smoke multimedia 22E:** No.  
+**R2 credentials activated:** No.
+
+### Cómo regrabar (panel Vercel)
+
+1. Proyecto `infospot-dnxsuite` → Settings → Environment Variables → Production.  
+2. **Edit** o **Remove + Add** `R2_ACCESS_KEY_ID` y `R2_SECRET_ACCESS_KEY` (Sensitive).  
+3. Pegar Access Key / Secret del token Cloudflare scoped a `infospot-media`.  
+4. Guardar y confirmar en `vercel env ls production` que ambas digan minutos/segundos (**no** «1d ago»).  
+5. Re-lanzar Etapa 22E.
+
+---
+
+## 0b. Etapa 22D — activación de credenciales (2026-07-13)
 
 Auditoría Vercel Production (solo presencia + `updatedAt`, sin valores):
 
