@@ -24,14 +24,20 @@ function statusFor(
 
 /**
  * Timeline del asistente (siempre visible).
- * Sustituye “Paso X de Y” por una guía periodística.
+ * Guía periodística — no wizard técnico.
  */
 export function AssistantTimeline({ intent, current, onJump }: Props) {
   const steps = timelineForIntent(intent);
+  const currentIdx = steps.findIndex((s) => s.id === current);
+  const nearWrite =
+    current === "summary" ||
+    current === "draft" ||
+    (currentIdx >= 0 && currentIdx >= steps.length - 2);
 
   return (
     <nav aria-label="Progreso del asistente" className="w-full">
-      <ol className="flex flex-col gap-2 sm:gap-3">
+      <p className="is-editorial-section-label mb-4">Tu camino</p>
+      <ol className="is-timeline">
         {steps.map((step) => {
           const status = statusFor(steps, current, step.id);
           const canJump = status === "done" && onJump;
@@ -41,25 +47,10 @@ export function AssistantTimeline({ intent, current, onJump }: Props) {
                 type="button"
                 disabled={!canJump}
                 onClick={() => canJump && onJump?.(step.id)}
-                className={`flex w-full items-center gap-3 rounded-[var(--is-radius-sm)] px-2 py-2 text-left text-sm transition duration-200 ${
-                  status === "current"
-                    ? "bg-[var(--is-accent)]/10 font-semibold text-[var(--is-text)]"
-                    : status === "done"
-                      ? "text-[var(--is-text)] hover:bg-[var(--is-bg-muted)]"
-                      : "text-[var(--is-muted)]"
-                } ${canJump ? "cursor-pointer" : "cursor-default"}`}
+                className={`is-timeline-step is-timeline-step--${status}`}
                 aria-current={status === "current" ? "step" : undefined}
               >
-                <span
-                  className={`inline-flex size-4 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold ${
-                    status === "current"
-                      ? "border-[var(--is-accent)] bg-[var(--is-accent)] text-white"
-                      : status === "done"
-                        ? "border-[var(--is-accent)] bg-[var(--is-accent)] text-white"
-                        : "border-[var(--is-border)] bg-transparent text-transparent"
-                  }`}
-                  aria-hidden
-                >
+                <span className="is-timeline-mark" aria-hidden>
                   {status === "done" || status === "current" ? "✓" : ""}
                 </span>
                 <span>{step.label}</span>
@@ -75,6 +66,11 @@ export function AssistantTimeline({ intent, current, onJump }: Props) {
           );
         })}
       </ol>
+      {nearWrite ? (
+        <p className="is-timeline-footer" role="note">
+          Ahora escribí tu historia.
+        </p>
+      ) : null}
     </nav>
   );
 }

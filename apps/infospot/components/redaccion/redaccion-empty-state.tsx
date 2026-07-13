@@ -49,18 +49,15 @@ export function RedaccionEmptyState({ vista, canCreate = true }: Props) {
   const showAction = Boolean(canCreate && copy.actionHref && copy.actionLabel);
 
   return (
-    <div className="rounded-[var(--is-radius-lg)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-bg-secondary)] px-6 py-14 text-center sm:px-10">
-      <h3 className="font-[family-name:var(--font-source-serif)] text-2xl font-semibold tracking-tight text-[var(--is-text)]">
+    <div className="is-empty-editorial px-6 py-14 sm:px-10">
+      <h3 className="is-font-serif text-2xl font-semibold tracking-tight text-[var(--is-text)]">
         {copy.title}
       </h3>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[var(--is-text-secondary)]">
+      <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-[var(--is-text-secondary)]">
         {copy.description}
       </p>
       {showAction ? (
-        <Link
-          href={copy.actionHref!}
-          className="mt-8 inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-5 text-sm font-semibold text-white hover:bg-[var(--is-accent-hover)]"
-        >
+        <Link href={copy.actionHref!} className="is-btn is-btn-primary mt-8">
           {copy.actionLabel}
         </Link>
       ) : null}

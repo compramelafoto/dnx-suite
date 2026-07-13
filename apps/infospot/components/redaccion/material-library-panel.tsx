@@ -150,12 +150,12 @@ export function MaterialLibraryPanel({
   const favoriteItems = filtered.filter((a) => favorites.has(a.linkId));
 
   return (
-    <aside className="space-y-6" aria-label="Biblioteca de material editorial">
-      <header className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--is-accent)]">
+    <aside className="space-y-8" aria-label="Biblioteca de material editorial">
+      <header className="space-y-3">
+        <p className="is-editorial-eyebrow">
           {fromAssistant ? "Preparado por el asistente" : "Material editorial"}
         </p>
-        <h2 className="font-[family-name:var(--font-source-serif)] text-lg font-semibold leading-snug tracking-tight">
+        <h2 className="is-font-serif text-xl font-semibold leading-snug tracking-tight">
           Biblioteca
         </h2>
         <dl className="space-y-1 text-sm leading-relaxed text-[var(--is-muted)]">
@@ -186,14 +186,16 @@ export function MaterialLibraryPanel({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar fotógrafo, cobertura…"
-            className="min-h-11 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white px-3 text-sm outline-none focus:border-[var(--is-accent)] focus:ring-2 focus:ring-[var(--is-accent)]/20"
+            className="is-input"
           />
         </label>
       ) : null}
 
       {linkedAssets.length === 0 ? (
-        <p className="rounded-[var(--is-radius-sm)] border border-dashed border-[var(--is-border)] bg-white px-4 py-5 text-sm leading-relaxed text-[var(--is-muted)]">
-          Todavía no hay material preparado. Sumalo desde el asistente editorial.
+        <p className="is-empty-editorial">
+          Todavía no agregaste fotografías.
+          <br />
+          Sumá material desde el asistente editorial.
         </p>
       ) : null}
 
@@ -287,15 +289,15 @@ export function MaterialLibraryPanel({
       ) : null}
 
       {articleId ? (
-        <div className="border-t border-[var(--is-border)] pt-4">
+        <div className="border-t border-[var(--is-border)] pt-6">
           <Link
             href={`/redaccion/asistente?mode=photos&articleId=${articleId}`}
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium text-[var(--is-accent)] transition hover:border-[var(--is-accent)]"
+            className="is-btn is-btn-secondary w-full"
           >
             Agregar material
           </Link>
-          <p className="mt-2 text-xs leading-relaxed text-[var(--is-muted)]">
-            Abre el asistente editorial. Al terminar volvés al editor con el material listo.
+          <p className="is-input-helper">
+            Abre el asistente. Al terminar volvés al editor con el material listo.
           </p>
         </div>
       ) : null}
@@ -318,10 +320,7 @@ function LibraryThumb({ src, label }: { src: string | null; label: string }) {
   return (
     <>
       {!loaded ? (
-        <div
-          className="absolute inset-0 animate-pulse bg-gradient-to-br from-[var(--is-border)] to-[var(--is-bg-muted)]"
-          aria-hidden
-        />
+        <div className="is-skeleton absolute inset-0" aria-hidden />
       ) : null}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -366,15 +365,15 @@ function LibrarySection({
   if (items.length === 0 && !empty) return null;
 
   return (
-    <section className="space-y-3">
-      <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--is-muted)]">
+    <section className="space-y-4">
+      <h3 className="is-editorial-section-label">
         {title}
         {items.length > 0 ? (
           <span className="ml-2 tabular-nums text-[var(--is-text)]">{items.length}</span>
         ) : null}
       </h3>
       {items.length === 0 ? (
-        <p className="text-sm text-[var(--is-muted)]">{empty}</p>
+        <p className="text-sm leading-relaxed text-[var(--is-muted)]">{empty}</p>
       ) : (
         <ul className="space-y-3">
           {items.map((asset) => {
@@ -391,18 +390,28 @@ function LibrarySection({
               ? `Foto de ${asset.photographerName}`
               : "Fotografía editorial";
 
+            const variantClass = [
+              "is-material-item",
+              isHi ? "is-material-item--active" : "",
+              favorites.has(asset.linkId) ? "is-material-item--favorite" : "",
+              asset.usageType === "COVER" ? "is-material-item--cover" : "",
+              asset.usageType === "GALLERY" ? "is-material-item--gallery" : "",
+              asset.usageType === "INLINE" && !isUsed ? "is-material-item--insert" : "",
+              isUsed ? "is-material-item--used" : "",
+              asset.availability === "processing" ? "is-material-item--processing" : "",
+              asset.availability === "unavailable" ? "is-material-item--unavailable" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+
             return (
               <li
                 key={asset.linkId}
                 id={asset.assetId ? `material-asset-${asset.assetId}` : undefined}
-                className={`overflow-hidden rounded-[var(--is-radius-sm)] border bg-white transition duration-200 ${
-                  isHi
-                    ? "border-[var(--is-accent)] ring-2 ring-[var(--is-accent)]/25"
-                    : "border-[var(--is-border)] hover:border-[var(--is-accent)]/40"
-                }`}
+                className={variantClass}
               >
-                <div className="flex gap-3 p-2">
-                  <div className="relative size-16 shrink-0 overflow-hidden rounded bg-[var(--is-bg-muted)]">
+                <div className="flex gap-3 p-3">
+                  <div className="relative size-16 shrink-0 overflow-hidden rounded-[var(--is-radius-sm)] bg-[var(--is-bg-muted)]">
                     <LibraryThumb
                       src={asset.thumbnailUrl || asset.url}
                       label={label}
@@ -416,7 +425,7 @@ function LibrarySection({
                       {onToggleFavorite ? (
                         <button
                           type="button"
-                          className="shrink-0 text-sm text-[var(--is-accent)]"
+                          className="is-btn is-btn-ghost shrink-0 !min-h-0 px-1 text-sm"
                           aria-label={
                             favorites.has(asset.linkId)
                               ? "Quitar de favoritas"
@@ -448,7 +457,7 @@ function LibrarySection({
                       {onInsertInline && asset.usageType === "INLINE" && !isUsed ? (
                         <button
                           type="button"
-                          className="rounded bg-[var(--is-accent)] px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-[var(--is-accent-hover)]"
+                          className="is-btn is-btn-primary !min-h-0 px-2.5 py-1 text-[11px]"
                           onClick={() =>
                             onInsertInline({
                               src: asset.url,
@@ -465,7 +474,7 @@ function LibrarySection({
                       {isUsed && asset.assetId && onGoToUsed ? (
                         <button
                           type="button"
-                          className="rounded border border-[var(--is-border)] px-2 py-1 text-[10px] font-semibold text-[var(--is-text)]"
+                          className="is-btn is-btn-secondary !min-h-0 px-2.5 py-1 text-[11px]"
                           onClick={() => onGoToUsed(asset.assetId!)}
                         >
                           Ir al texto
