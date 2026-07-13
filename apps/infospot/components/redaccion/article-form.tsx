@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { findFiguresMissingAlt, findFiguresMissingCredit } from "@repo/editor";
 import { slugifyTitle } from "@/lib/slug";
 import { toDatetimeLocalValue } from "@/lib/dates";
@@ -103,6 +104,7 @@ export function ArticleForm({
   fromAssistant = false,
   initial,
 }: ArticleFormProps) {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const editorRef = useRef<EditorialVisualEditorHandle>(null);
   const [pending, startTransition] = useTransition();
@@ -339,7 +341,7 @@ export function ArticleForm({
             id: "publish",
             title: "Publicación",
             hint: "Enviar, publicar o devolver — sin salir de la escritura",
-            defaultOpen: true,
+            defaultOpen: false,
             children:
               mode === "edit" && initial ? (
                 <EditorialActionsPanel
@@ -357,7 +359,8 @@ export function ArticleForm({
                 <div className="space-y-2">
                   <p className="text-sm text-[var(--is-text-secondary)]">{STATUS_LABELS[status]}</p>
                   <p className="text-xs text-[var(--is-muted)]">
-                    Guardá el borrador y usá el flujo editorial para revisar o publicar.
+                    Guardá el borrador. Después podés enviarlo a revisión o publicarlo desde
+                    Configuración.
                   </p>
                 </div>
               ),
@@ -581,7 +584,14 @@ export function ArticleForm({
       action={action}
       className="space-y-6"
       onInput={markDirty}
-      onSubmit={() => {
+      onSubmit={(e) => {
+        if (mode === "edit") {
+          e.preventDefault();
+          startTransition(() => {
+            void runAutosave();
+          });
+          return;
+        }
         if (status === "PUBLISHED" && (!creditOk || figuresMissingAlt.length > 0)) {
           // El servidor también valida; feedback inmediato.
         }
@@ -596,32 +606,34 @@ export function ArticleForm({
               Escritura
             </p>
             <p
-              className={`mt-1 text-sm ${
+              className={`mt-1 text-sm transition-colors duration-200 ${
                 saveState === "error"
                   ? "text-red-700"
                   : saveState === "dirty"
                     ? "text-amber-800"
-                    : "text-[var(--is-muted)]"
+                    : saveState === "saved"
+                      ? "text-teal-800"
+                      : "text-[var(--is-muted)]"
               }`}
             >
               {saveLabel}
               {saveError ? ` — ${saveError}` : null}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center gap-2 overflow-x-hidden">
             {canUseAiImport ? (
               <AiImportButton onClick={() => setAiImportOpen(true)} />
             ) : null}
             <button
               type="button"
-              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium lg:hidden"
+              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium transition hover:border-[var(--is-accent)] lg:hidden"
               onClick={() => setSideDrawer("library")}
             >
               Material
             </button>
             <button
               type="button"
-              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium"
+              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium transition hover:border-[var(--is-accent)]"
               onClick={() => {
                 if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
                   setConfigOpen(true);
@@ -640,31 +652,21 @@ export function ArticleForm({
             {mode === "edit" && initial ? (
               <Link
                 href={`/redaccion/noticias/${initial.id}/preview`}
-                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium"
+                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium transition hover:border-[var(--is-accent)]"
               >
-                Preview
+                Vista previa
               </Link>
-            ) : null}
-            {mode === "edit" ? (
-              <button
-                type="button"
-                disabled={pending || saveState === "saving"}
-                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium disabled:opacity-50"
-                onClick={() => {
-                  startTransition(() => {
-                    void runAutosave();
-                  });
-                }}
-              >
-                Guardar
-              </button>
             ) : null}
             <button
               type="submit"
-              disabled={pending}
-              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-5 text-sm font-semibold text-white hover:bg-[var(--is-accent-hover)] disabled:opacity-60"
+              disabled={pending || saveState === "saving"}
+              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--is-accent-hover)] disabled:opacity-60"
             >
-              Guardar borrador
+              {mode === "edit"
+                ? status === "PUBLISHED"
+                  ? "Guardar cambios"
+                  : "Guardar"
+                : "Guardar borrador"}
             </button>
           </div>
         </div>
@@ -736,7 +738,7 @@ export function ArticleForm({
             onDirtyChange={() => markDirty()}
             onCoverImported={() => {
               markDirty();
-              window.location.reload();
+              router.refresh();
             }}
           />
 

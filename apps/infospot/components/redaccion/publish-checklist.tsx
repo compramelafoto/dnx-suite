@@ -19,7 +19,7 @@ export function PublishChecklist({
         </p>
       ) : (
         <p className="mt-2 text-sm text-teal-800" role="status">
-          Campos requeridos completos. Revisá los opcionales y la etiqueta REAL.
+          Campos requeridos completos. Revisá los opcionales antes de publicar.
         </p>
       )}
       <ul className="mt-4 space-y-2">

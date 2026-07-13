@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { EditorialImageAttrs } from "@repo/editor";
@@ -72,13 +73,19 @@ export function MaterialLibraryPanel({
         </dl>
       </header>
 
+      {linkedAssets.length === 0 ? (
+        <p className="rounded-[var(--is-radius-sm)] border border-dashed border-[var(--is-border)] bg-white px-4 py-5 text-sm leading-relaxed text-[var(--is-muted)]">
+          No seleccionaste fotografías todavía. Podés agregarlas desde el asistente.
+        </p>
+      ) : null}
+
       <LibrarySection title="★ Portada" empty="Todavía no hay portada." items={cover} />
 
       <LibrarySection
         title="▣ Galería"
         empty="Sin fotos de galería."
         items={gallery}
-        badge="Publicación"
+        badge="Galería"
       />
 
       <LibrarySection
@@ -88,7 +95,7 @@ export function MaterialLibraryPanel({
         renderAction={(asset) => (
           <button
             type="button"
-            className="rounded bg-[var(--is-accent)] px-2 py-1 text-[10px] font-semibold text-white"
+            className="rounded bg-[var(--is-accent)] px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-[var(--is-accent-hover)]"
             onClick={() =>
               onInsertInline({
                 src: asset.url,
@@ -110,7 +117,7 @@ export function MaterialLibraryPanel({
         <div className="border-t border-[var(--is-border)] pt-4">
           <Link
             href={`/redaccion/asistente?mode=photos&articleId=${articleId}`}
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium text-[var(--is-accent)]"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium text-[var(--is-accent)] transition hover:border-[var(--is-accent)]"
           >
             Agregar material
           </Link>
@@ -120,6 +127,47 @@ export function MaterialLibraryPanel({
         </div>
       ) : null}
     </aside>
+  );
+}
+
+function LibraryThumb({
+  src,
+  label,
+}: {
+  src: string | null;
+  label: string;
+}) {
+  const [failed, setFailed] = useState(!src);
+  const [loaded, setLoaded] = useState(false);
+
+  if (failed || !src) {
+    return (
+      <div className="flex h-full items-center justify-center bg-[var(--is-bg-muted)] px-2 text-center text-[10px] text-[var(--is-muted)]">
+        Vista previa no disponible
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {!loaded ? (
+        <div
+          className="absolute inset-0 animate-pulse bg-gradient-to-br from-[var(--is-border)] to-[var(--is-bg-muted)]"
+          aria-hidden
+        />
+      ) : null}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={label}
+        className={`h-full w-full object-cover transition-opacity duration-200 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+      />
+    </>
   );
 }
 
@@ -148,28 +196,31 @@ function LibrarySection({
         <p className="text-sm text-[var(--is-muted)]">{empty}</p>
       ) : (
         <ul className="grid grid-cols-2 gap-2">
-          {items.map((asset) => (
-            <li
-              key={asset.linkId}
-              className="overflow-hidden rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white"
-            >
-              <div className="aspect-square bg-[var(--is-bg-muted)]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={asset.thumbnailUrl || asset.url}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-              <div className="flex items-center justify-between gap-1 px-2 py-1.5">
-                <p className="truncate text-[10px] text-[var(--is-muted)]">
-                  {badge || asset.photographerName || "Foto"}
-                </p>
-                {renderAction?.(asset)}
-              </div>
-            </li>
-          ))}
+          {items.map((asset) => {
+            const label =
+              asset.photographerName
+                ? `Foto de ${asset.photographerName}`
+                : badge || "Fotografía editorial";
+            return (
+              <li
+                key={asset.linkId}
+                className="overflow-hidden rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white transition hover:border-[var(--is-accent)]/50"
+              >
+                <div className="relative aspect-square bg-[var(--is-bg-muted)]">
+                  <LibraryThumb
+                    src={asset.thumbnailUrl || asset.url}
+                    label={label}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-1 px-2 py-1.5">
+                  <p className="truncate text-[10px] text-[var(--is-muted)]">
+                    {badge || asset.photographerName || "Foto"}
+                  </p>
+                  {renderAction?.(asset)}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

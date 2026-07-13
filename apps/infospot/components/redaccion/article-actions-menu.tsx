@@ -106,7 +106,7 @@ export function ArticleActionsMenu({ articleId, status, canPublish }: Props) {
             className={itemClass}
             onClick={() => setOpen(false)}
           >
-            Preview
+            Vista previa
           </Link>
           <button type="button" role="menuitem" className={itemClass} disabled={pending} onClick={runDuplicate}>
             Duplicar

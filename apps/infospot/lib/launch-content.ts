@@ -60,7 +60,7 @@ export function buildArticlePublishChecklist(input: {
     { id: "cover", label: "Imagen de portada", ok: Boolean(input.coverImageId), required: false },
     { id: "credit", label: "Crédito fotográfico", ok: input.creditOk !== false, required: false },
     { id: "author", label: "Autor", ok: Boolean(input.authorId), required: true },
-    { id: "slug", label: "Slug", ok: Boolean(input.slug?.trim()), required: true },
+    { id: "slug", label: "URL pública", ok: Boolean(input.slug?.trim()), required: true },
   ];
 }
 

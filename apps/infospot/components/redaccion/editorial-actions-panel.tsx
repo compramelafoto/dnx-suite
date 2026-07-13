@@ -164,10 +164,10 @@ function EditorialActionsPanelInner({
   };
 
   return (
-    <div className="space-y-4 rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5">
+    <div className="space-y-4">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--is-accent)]">
-          Flujo editorial
+          Publicación
         </p>
         <p className="mt-2 text-sm font-semibold text-[var(--is-text)]">
           {statusLabels[status] ?? status}

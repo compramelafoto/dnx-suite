@@ -53,6 +53,8 @@ export function EditorToolbar({
         className={`${btn} ${ed.isActive("heading", { level: 2 }) ? btnActive : ""}`}
         onClick={() => ed.chain().focus().toggleHeading({ level: 2 }).run()}
         aria-pressed={ed.isActive("heading", { level: 2 })}
+        aria-label="Título de sección"
+        title="Título de sección"
       >
         H2
       </button>
@@ -61,6 +63,8 @@ export function EditorToolbar({
         className={`${btn} ${ed.isActive("heading", { level: 3 }) ? btnActive : ""}`}
         onClick={() => ed.chain().focus().toggleHeading({ level: 3 }).run()}
         aria-pressed={ed.isActive("heading", { level: 3 })}
+        aria-label="Subtítulo"
+        title="Subtítulo"
       >
         H3
       </button>
@@ -88,9 +92,10 @@ export function EditorToolbar({
         className={`${btn} ${ed.isActive("link") ? btnActive : ""}`}
         onClick={setLink}
         aria-pressed={ed.isActive("link")}
+        aria-label="Enlace"
         title="Enlace"
       >
-        Link
+        Enlace
       </button>
       <span className="mx-1 h-6 w-px bg-[var(--is-border)]" aria-hidden />
       <button
@@ -141,9 +146,9 @@ export function EditorToolbar({
           type="button"
           className={`${btn} px-3 font-semibold text-[var(--is-accent)] hover:text-[var(--is-accent-hover)]`}
           onClick={onInsertFromClf}
-          title="Elegir foto desde un álbum de ComprameLaFoto"
+          title="Elegir foto desde ComprameLaFoto"
         >
-          Desde álbum CLF
+          Desde ComprameLaFoto
         </button>
       ) : null}
       <span className="mx-1 h-6 w-px bg-[var(--is-border)]" aria-hidden />
