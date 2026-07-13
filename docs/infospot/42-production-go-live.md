@@ -5,9 +5,11 @@
 **HEAD:** `d4f6894`  
 **Proyecto Vercel:** `infospot-dnxsuite`  
 **Decisión:** **NO-GO** para lanzamiento público completo en `infospot.com.ar`  
-**Estado operativo parcial:** producción Vercel sirve `d4f6894` en `https://infospot-dnxsuite.vercel.app` con `/api/health` OK.
+**Estado operativo parcial:** producción Vercel en `https://infospot-dnxsuite.vercel.app`.
 
-Este documento es el runbook de salida a producción, auditoría real de esta sesión y procedimiento de rollback. **No incluye secretos.**
+**Actualización 2026-07-13 (infra prep):** Neon exclusivo `infospot-production`, migraciones aplicadas, R2 `infospot-media`, `CRON_SECRET`, crons en `vercel.json`. Ver checklist vivo en [`43-launch-readiness.md`](./43-launch-readiness.md).
+
+Este documento es el runbook de salida a producción y rollback. **No incluye secretos.**
 
 ---
 
