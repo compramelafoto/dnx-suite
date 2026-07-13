@@ -1,44 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { Role } from "@prisma/client";
+import { prisma, Role } from "@/lib/prisma";
+import { getAuthUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Endpoint temporal para establecer rol ADMIN
-// IMPORTANTE: Eliminar este endpoint después de usarlo por seguridad
-export async function POST(req: NextRequest) {
+/**
+ * Bootstrap de rol ADMIN — solo staging explícito.
+ * - Requiere ENABLE_STAGING_ADMIN_BOOTSTRAP=true
+ * - Requiere sesión autenticada
+ * - Solo puede elevar el propio usuario (no emails ajenos)
+ * - No hardcodea emails personales
+ */
+export async function POST(_req: NextRequest) {
+  if (process.env.ENABLE_STAGING_ADMIN_BOOTSTRAP !== "true") {
+    return NextResponse.json({ error: "No disponible" }, { status: 404 });
+  }
+
   try {
-    const body = await req.json().catch(() => ({}));
-    const email = body.email || "cuart.daniel@gmail.com";
-    
-    // Buscar el usuario
+    const authUser = await getAuthUser();
+    if (!authUser?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { id: authUser.id },
       select: { id: true, email: true, name: true, role: true },
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: `Usuario con email ${email} no encontrado` },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
 
     if (user.role === Role.ADMIN) {
       return NextResponse.json({
         success: true,
         message: "El usuario ya tiene rol ADMIN",
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        },
+        user,
       });
     }
 
-    // Actualizar el rol a ADMIN
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: { role: Role.ADMIN },
@@ -47,15 +48,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Rol actualizado exitosamente a ADMIN",
+      message: "Rol actualizado a ADMIN. Cerrá sesión y volvé a iniciar sesión.",
       user: updated,
-      warning: "IMPORTANTE: Cerrá sesión y volvé a iniciar sesión para que los cambios surtan efecto.",
     });
-  } catch (error: any) {
-    console.error("POST /api/admin/set-admin-role ERROR >>>", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("POST /api/admin/set-admin-role ERROR >>>", message);
     return NextResponse.json(
-      { error: "Error actualizando rol", detail: String(error?.message ?? error) },
-      { status: 500 }
+      { error: "Error actualizando rol", detail: message },
+      { status: 500 },
     );
   }
 }

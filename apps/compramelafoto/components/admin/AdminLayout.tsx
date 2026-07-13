@@ -471,12 +471,11 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
         // No redirigir si es un error del servidor (500) u otros errores
         if (res.status === 401) {
           setAuthLoading(false);
-          // Verificar si es un problema de rol
           const errorData = await res.json().catch(() => ({}));
           if (errorData.error?.includes("rol ADMIN")) {
-            console.error("Tu usuario no tiene rol ADMIN. Ejecutá: fetch('/api/admin/set-admin-role', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'cuart.daniel@gmail.com' }) })");
+            console.error("Acceso admin denegado: el usuario autenticado no tiene rol ADMIN.");
           }
-          router.push("/admin/login");
+          router.push("/login");
           return;
         }
         

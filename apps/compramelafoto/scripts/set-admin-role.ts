@@ -1,48 +1,50 @@
-import { PrismaClient, Role } from "@prisma/client";
-
-const prisma = new PrismaClient();
+/**
+ * Script local/staging — NO hardcodea emails.
+ * Uso:
+ *   ENABLE_STAGING_ADMIN_BOOTSTRAP=true ADMIN_BOOTSTRAP_EMAIL=user@example.com pnpm tsx scripts/set-admin-role.ts
+ */
+import { prisma, Role } from "../lib/prisma";
 
 async function setAdminRole() {
+  if (process.env.ENABLE_STAGING_ADMIN_BOOTSTRAP !== "true") {
+    console.error("Abortado: seteá ENABLE_STAGING_ADMIN_BOOTSTRAP=true (solo staging).");
+    process.exit(1);
+  }
+
+  const email = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
+  if (!email) {
+    console.error("Abortado: falta ADMIN_BOOTSTRAP_EMAIL.");
+    process.exit(1);
+  }
+
   try {
-    const email = "cuart.daniel@gmail.com";
-    
-    // Buscar el usuario
     const user = await prisma.user.findUnique({
       where: { email },
       select: { id: true, email: true, name: true, role: true },
     });
 
     if (!user) {
-      console.error(`❌ Usuario con email ${email} no encontrado`);
-      return;
+      console.error(`Usuario no encontrado: ${email}`);
+      process.exit(1);
     }
-
-    console.log(`📋 Usuario encontrado:`);
-    console.log(`   ID: ${user.id}`);
-    console.log(`   Email: ${user.email}`);
-    console.log(`   Nombre: ${user.name || "N/A"}`);
-    console.log(`   Rol actual: ${user.role}`);
 
     if (user.role === Role.ADMIN) {
-      console.log(`✅ El usuario ya tiene rol ADMIN`);
+      console.log("El usuario ya tiene rol ADMIN:", user);
       return;
     }
 
-    // Actualizar el rol a ADMIN
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: { role: Role.ADMIN },
       select: { id: true, email: true, name: true, role: true },
     });
-
-    console.log(`\n✅ Rol actualizado exitosamente:`);
-    console.log(`   Rol nuevo: ${updated.role}`);
-    console.log(`\n⚠️  IMPORTANTE: Necesitás cerrar sesión y volver a iniciar sesión para que los cambios surtan efecto.`);
-  } catch (error: any) {
-    console.error("❌ Error:", error.message);
+    console.log("Rol actualizado a ADMIN:", updated);
   } finally {
     await prisma.$disconnect();
   }
 }
 
-setAdminRole();
+setAdminRole().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -241,7 +241,7 @@ export default function AdminDashboardPage() {
     PhotographerFirstAlbumOnboardingRow[]
   >([]);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [fixingRole, setFixingRole] = useState(false);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -280,41 +280,18 @@ export default function AdminDashboardPage() {
     };
   }, [selectedPhotographerId]);
 
-  async function fixAdminRole() {
-    setFixingRole(true);
-    try {
-      const res = await fetch("/api/admin/set-admin-role", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "cuart.daniel@gmail.com" }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        alert(data.message + "\n\n" + (data.warning || ""));
-        // Recargar la página después de 2 segundos
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      } else {
-        alert("Error: " + (data.error || "Error desconocido"));
-      }
-    } catch (err: any) {
-      alert("Error: " + (err?.message || "Error desconocido"));
-    } finally {
-      setFixingRole(false);
-    }
-  }
-
   async function loadDashboardData() {
     setLoading(true);
     setAuthError(null);
+    setErrorStatus(null);
     try {
       const res = await fetch("/api/admin/dashboard", { credentials: "include" });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         const message = errorData?.error || res.statusText || `Error ${res.status}`;
         const detail = errorData?.detail;
-        if (res.status === 401) {
+        setErrorStatus(res.status);
+        if (res.status === 401 || res.status === 403) {
           setAuthError(message);
           return;
         }
@@ -346,6 +323,7 @@ export default function AdminDashboardPage() {
       }
     } catch (err) {
       console.error("Error cargando dashboard:", err);
+      setErrorStatus(0);
       setAuthError("Error de conexión al cargar datos");
     } finally {
       setLoading(false);
@@ -389,22 +367,35 @@ export default function AdminDashboardPage() {
   }
 
   if (authError) {
+    const isAuthFailure = errorStatus === 401 || errorStatus === 403;
     return (
       <div className="space-y-6">
         <Card className="p-6 border-l-4 border-red-400">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Error de Autenticación</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">
+            {isAuthFailure ? "Sin acceso" : "Error al cargar el dashboard"}
+          </h2>
           <p className="text-gray-700 mb-4">{authError}</p>
-          <p className="text-sm text-gray-600 mb-4">
-            Si sos el administrador y tu email es <strong>cuart.daniel@gmail.com</strong>, 
-            podés hacer clic en el botón de abajo para actualizar tu rol automáticamente.
-          </p>
-          <Button
-            variant="primary"
-            onClick={fixAdminRole}
-            disabled={fixingRole}
-          >
-            {fixingRole ? "Actualizando..." : "Actualizar mi rol a ADMIN"}
-          </Button>
+          {isAuthFailure ? (
+            <p className="text-sm text-gray-600 mb-4">
+              Tu sesión no tiene permiso de administrador. Si creés que es un error,
+              contactá a un administrador de la plataforma.
+            </p>
+          ) : (
+            <p className="text-sm text-gray-600 mb-4">
+              Falló una consulta del servidor. Revisá logs o reintentá en unos segundos.
+              Este mensaje no implica un problema de rol.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-3">
+            <Button variant="primary" onClick={() => void loadDashboardData()}>
+              Reintentar
+            </Button>
+            {isAuthFailure ? (
+              <Button variant="secondary" onClick={() => (window.location.href = "/login")}>
+                Ir al login
+              </Button>
+            ) : null}
+          </div>
         </Card>
       </div>
     );
