@@ -15,18 +15,19 @@ Ver: [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md), [
 
 ---
 
-## 0. Reintento 22L (evidencia)
+## 0. Reintentos 22L / 22M (evidencia)
 
-| Check | Resultado |
-|-------|-----------|
-| `User` count Neon Production | **0** |
-| `InfoSpotUserRole` | **0** |
-| `INFOSPOT_DIRECTOR_EMAIL` en shell / `.env*` | **Ausente** |
-| Health / schema | `db:ok` · up to date |
-| OAuth start `/api/auth/google` | **307** → Google · `redirect_uri` = alias `…/api/auth/google/callback` |
-| Logs Production recientes | `GET /ingresar` **sí**; **no** aparece callback Google ni creación de sesión |
+| Check | 22L | 22M |
+|-------|-----|-----|
+| `User` count Neon Production | **0** | **0** |
+| `InfoSpotUserRole` | **0** | **0** |
+| `INFOSPOT_DIRECTOR_EMAIL` en shell del agente | Ausente | **Ausente** |
+| OAuth start `/api/auth/google` | 307 OK | 307 visto (~15:53) |
+| Callback `/api/auth/google/callback` en logs | **No** | **No** |
+| Health / schema | `db:ok` / up to date | igual |
 
-Interpretación: se abrió la pantalla de ingreso, pero **no se completó el flujo OAuth** (o no contra este alias Production). Por eso no hay fila en `User`.
+**22M:** precondiciones del prompt **no cumplidas** en el entorno del agente (sin email exportado; sin User creado). No se ejecutó grant.
+
 
 ---
 
