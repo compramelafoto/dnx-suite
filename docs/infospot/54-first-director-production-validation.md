@@ -3,7 +3,8 @@
 **Fecha:** 2026-07-13  
 **Rama:** `migration-legacy-clf-to-monorepo`  
 **Alias:** `https://infospot-dnxsuite.vercel.app`  
-**Precondición:** login Google operativo (ver [55](./55-google-login-production-fix.md))
+**Precondición:** login Google operativo (ver [55](./55-google-login-production-fix.md))  
+**Estado 22Q:** Director **ACTIVE** asignado vía `db:grant-infospot-director` (idempotente OK). Re-login del operador pendiente para entrar a `/redaccion`.
 
 No incluye emails ni secretos.
 
