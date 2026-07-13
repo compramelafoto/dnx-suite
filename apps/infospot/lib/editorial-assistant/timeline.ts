@@ -5,14 +5,14 @@ export type TimelineItem = {
   label: string;
 };
 
-/** Timeline completo (intención → editor). */
+/** Timeline completo (intención → listo para escribir). */
 export const ASSISTANT_TIMELINE: readonly TimelineItem[] = [
   { id: "intent", label: "Qué querés contar" },
   { id: "event", label: "Evento" },
-  { id: "material", label: "Material editorial" },
+  { id: "material", label: "Coberturas" },
   { id: "photos", label: "Fotografías" },
   { id: "draft", label: "Preparar borrador" },
-  { id: "summary", label: "Resumen" },
+  { id: "summary", label: "Listo para escribir" },
 ] as const;
 
 /**

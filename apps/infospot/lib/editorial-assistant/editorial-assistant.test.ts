@@ -20,7 +20,10 @@ import {
   createEmptyAssistantState,
 } from "./index";
 
-assert.ok(ASSISTANT_TIMELINE.length >= 6);
+assert.ok(ASSISTANT_TIMELINE.some((s) => s.label === "Listo para escribir"));
+assert.ok(ASSISTANT_TIMELINE.some((s) => s.label === "Coberturas"));
+assert.ok(ASSISTANT_TIMELINE.some((s) => s.label === "Fotografías"));
+assert.ok(ASSISTANT_TIMELINE.some((s) => s.label === "Evento"));
 assert.equal(entryStepForIntent("independent"), "draft");
 assert.equal(entryStepForIntent("coverage"), "material");
 assert.equal(entryStepForIntent("event"), "event");

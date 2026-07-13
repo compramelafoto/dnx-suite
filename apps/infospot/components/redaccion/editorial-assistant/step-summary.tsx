@@ -39,10 +39,12 @@ export function StepSummary({
           Asistente editorial
         </p>
         <h1 className="mt-3 font-[family-name:var(--font-source-serif)] text-[clamp(1.85rem,1.4rem+1.6vw,2.75rem)] font-semibold leading-tight tracking-tight">
-          Tu historia está lista
+          {state.existingArticleId ? "Material listo" : "Tu historia está lista"}
         </h1>
         <p className="mt-4 text-base leading-relaxed text-[var(--is-muted)]">
-          Preparamos el contexto. Ahora solo queda escribir.
+          {state.existingArticleId
+            ? "Las fotografías se sumaron a la biblioteca. Volvé a escribir."
+            : "Preparamos el contexto. Ahora solo queda escribir."}
         </p>
       </header>
 
@@ -110,7 +112,7 @@ export function StepSummary({
           onClick={onOpenEditor}
           className="inline-flex min-h-12 items-center justify-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-6 text-base font-semibold text-white disabled:opacity-50"
         >
-          {pending ? "Preparando…" : "Abrir editor"}
+          {pending ? "Preparando…" : state.existingArticleId ? "Volver al editor" : "Abrir editor"}
         </button>
         <button
           type="button"

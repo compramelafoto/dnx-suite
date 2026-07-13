@@ -17,6 +17,7 @@ type Props = {
   onChange: (photos: SelectedPhoto[]) => void;
   onBack: () => void;
   onContinue: () => void;
+  continueLabel?: string;
 };
 
 export function StepPhotos({
@@ -25,6 +26,7 @@ export function StepPhotos({
   onChange,
   onBack,
   onContinue,
+  continueLabel = "Preparar borrador",
 }: Props) {
   const [activeAlbumId, setActiveAlbumId] = useState<number | null>(
     coverages[0]?.clfAlbumId ?? null,
@@ -336,7 +338,7 @@ export function StepPhotos({
               onClick={onContinue}
               className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-5 text-sm font-semibold text-white"
             >
-              Preparar borrador
+              {continueLabel}
             </button>
           </div>
         </div>

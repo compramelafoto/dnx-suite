@@ -51,15 +51,17 @@ export function AssistantTimeline({ intent, current, onJump }: Props) {
                 aria-current={status === "current" ? "step" : undefined}
               >
                 <span
-                  className={`inline-flex size-3 shrink-0 rounded-full border-2 ${
+                  className={`inline-flex size-4 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold ${
                     status === "current"
-                      ? "border-[var(--is-accent)] bg-[var(--is-accent)]"
+                      ? "border-[var(--is-accent)] bg-[var(--is-accent)] text-white"
                       : status === "done"
-                        ? "border-[var(--is-accent)] bg-[var(--is-accent)]"
-                        : "border-[var(--is-border)] bg-transparent"
+                        ? "border-[var(--is-accent)] bg-[var(--is-accent)] text-white"
+                        : "border-[var(--is-border)] bg-transparent text-transparent"
                   }`}
                   aria-hidden
-                />
+                >
+                  {status === "done" || status === "current" ? "✓" : ""}
+                </span>
                 <span>{step.label}</span>
                 <span className="sr-only">
                   {status === "done"

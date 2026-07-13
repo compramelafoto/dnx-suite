@@ -372,7 +372,16 @@ export function EditorialAssistant({ bootstrap, deepLink }: Props) {
               selected={state.photos}
               onChange={(photos) => patch({ photos })}
               onBack={goBack}
-              onContinue={goNext}
+              onContinue={() => {
+                if (state.existingArticleId) {
+                  commit(true);
+                  return;
+                }
+                goNext();
+              }}
+              continueLabel={
+                state.existingArticleId ? "Volver al editor" : "Preparar borrador"
+              }
             />
           ) : null}
 
