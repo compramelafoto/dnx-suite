@@ -119,6 +119,9 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
             credit: link.asset.credit,
             photographerName: link.asset.photographerName,
             assetId: link.asset.id,
+            coverageTitle: album?.title ?? null,
+            albumTitle: album?.title ?? null,
+            availability: link.asset.thumbnailUrl || link.asset.url ? "ready" : "unavailable",
           })),
         }}
         initial={{
