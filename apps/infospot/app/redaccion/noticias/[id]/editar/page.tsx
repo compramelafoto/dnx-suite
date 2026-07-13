@@ -118,6 +118,7 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
             thumbnailUrl: link.asset.thumbnailUrl,
             credit: link.asset.credit,
             photographerName: link.asset.photographerName,
+            assetId: link.asset.id,
           })),
         }}
         initial={{

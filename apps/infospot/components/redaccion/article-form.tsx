@@ -9,8 +9,12 @@ import { CoverImageField, type CoverAssetOption } from "@/components/redaccion/c
 import { ClfEventPicker } from "@/components/redaccion/clf-event-picker";
 import { PublishChecklist } from "@/components/redaccion/publish-checklist";
 import { EditorialActionsPanel } from "@/components/redaccion/editorial-actions-panel";
-import { EditorialVisualEditor } from "@/components/redaccion/visual-editor/editorial-visual-editor";
-import { AssistantPreparedPanel } from "@/components/redaccion/editorial-assistant/assistant-prepared-panel";
+import {
+  EditorialVisualEditor,
+  type EditorialVisualEditorHandle,
+} from "@/components/redaccion/visual-editor/editorial-visual-editor";
+import { MaterialLibraryPanel } from "@/components/redaccion/material-library-panel";
+import { EditorConfigAccordion } from "@/components/redaccion/editor-config-accordion";
 import { AiImportButton, AiImportDialog } from "@/components/ai-import";
 import { buildArticlePublishChecklist } from "@/lib/launch-content";
 import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
@@ -29,6 +33,7 @@ type LinkedClfAsset = {
   thumbnailUrl: string | null;
   credit: string | null;
   photographerName: string | null;
+  assetId?: string | null;
 };
 
 type ArticleFormProps = {
@@ -83,8 +88,6 @@ type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 const fieldClass =
   "mt-2 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white px-3 py-3 text-base text-[var(--is-text)] outline-none focus:border-[var(--is-accent)] focus:ring-2 focus:ring-[var(--is-accent)]/20";
 const labelClass = "text-sm font-semibold text-[var(--is-text)]";
-const panelClass =
-  "rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5 space-y-4";
 
 export function ArticleForm({
   mode,
@@ -101,6 +104,7 @@ export function ArticleForm({
   initial,
 }: ArticleFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  const editorRef = useRef<EditorialVisualEditorHandle>(null);
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
@@ -115,7 +119,10 @@ export function ArticleForm({
   const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl ?? "");
   const [coverImageId, setCoverImageId] = useState(initial?.coverImageId ?? "");
   const [coverCredit, setCoverCredit] = useState(initial?.coverCredit ?? "");
-  const [metaOpen, setMetaOpen] = useState(false);
+  /** Drawer móvil / tablet: biblioteca o configuración. */
+  const [sideDrawer, setSideDrawer] = useState<null | "library" | "config">(null);
+  /** Desktop: panel de configuración (SEO, publicación, CLF). */
+  const [configOpen, setConfigOpen] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(
@@ -281,6 +288,18 @@ export function ArticleForm({
     };
   }, [saveState, content, title, excerpt, categoryId, seoTitle, seoDescription, sourceName, runAutosave, mode]);
 
+  useEffect(() => {
+    if (!sideDrawer && !configOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSideDrawer(null);
+        setConfigOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sideDrawer, configOpen]);
+
   const saveLabel =
     saveState === "saving"
       ? "Guardando…"
@@ -292,211 +311,275 @@ export function ArticleForm({
             ? "Error al guardar"
             : "Listo";
 
-  const metaPanel = (
-    <div className="space-y-5">
+  const checklistMissing = checklist.filter((i) => i.required && !i.ok).map((i) => i.label);
+  const linkedAssets = clf?.linkedAssets ?? [];
+
+  const library = (
+    <MaterialLibraryPanel
+      articleId={initial?.id}
+      fromAssistant={fromAssistant}
+      eventTitle={clf?.eventTitle}
+      albumTitle={clf?.albumTitle}
+      sourceName={sourceName}
+      linkedAssets={linkedAssets}
+      onInsertInline={(attrs) => {
+        editorRef.current?.insertImage(attrs);
+      }}
+    />
+  );
+
+  const configPanel = (
+    <div className="space-y-4">
       <input type="hidden" name="status" value={status} />
+      <input type="hidden" name="contentTag" value="REAL" />
 
-      {fromAssistant ? (
-        <AssistantPreparedPanel
-          eventTitle={clf?.eventTitle}
-          albumTitle={clf?.albumTitle}
-          linkedPhotoCount={clf?.linkedAssets.length}
-          sourceName={sourceName}
-        />
-      ) : null}
-
-      {mode === "edit" && initial ? (
-        <EditorialActionsPanel
-          articleId={initial.id}
-          status={status}
-          subject={subject}
-          returnedAt={initial.returnedAt}
-          submittedForReviewAt={initial.submittedForReviewAt}
-          latestReturn={latestReturn}
-          checklistMissing={checklist.filter((i) => i.required && !i.ok).map((i) => i.label)}
-          canPublish={canPublish}
-          isDirector={isDirector}
-        />
-      ) : (
-        <div className={panelClass}>
-          <p className={labelClass}>Estado</p>
-          <p className="text-sm text-[var(--is-text-secondary)]">{STATUS_LABELS[status]}</p>
-          {!canPublish ? (
-            <p className="text-xs text-[var(--is-muted)]">
-              Podés guardar y luego enviar a revisión. No podés publicar.
-            </p>
-          ) : (
-            <p className="text-xs text-[var(--is-muted)]">
-              Guardá el borrador y usá el flujo editorial para revisar o publicar.
-            </p>
-          )}
-        </div>
-      )}
-
-      <div className={panelClass}>
-        <label className={labelClass} htmlFor="categoryId">
-          Categoría {status === "PUBLISHED" ? "*" : ""}
-        </label>
-        <select
-          id="categoryId"
-          name="categoryId"
-          value={categoryId}
-          onChange={(e) => {
-            setCategoryId(e.target.value);
-            markDirty();
-          }}
-          className={fieldClass}
-        >
-          <option value="">Sin categoría</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className={panelClass}>
-        <label className={labelClass} htmlFor="slug">
-          Slug *
-        </label>
-        <input
-          id="slug"
-          value={slug || autoSlug}
-          onChange={(e) => {
-            setSlugTouched(true);
-            setSlug(e.target.value);
-            markDirty();
-          }}
-          className={fieldClass}
-        />
-        <p className="text-xs text-[var(--is-muted)]">/noticias/{slug || autoSlug || "…"}</p>
-      </div>
-
-      <div className={panelClass}>
-        <p className={labelClass}>Autor</p>
-        <p className="text-sm text-[var(--is-text-secondary)]">
-          {authorLabel || "Autor de la nota"}
-        </p>
-      </div>
-
-      <div className={panelClass}>
-        <CoverImageField
-          articleId={initial?.id}
-          initialCoverImageId={coverImageId || null}
-          initialCredit={coverCredit}
-          assets={assets}
-          onChange={(next) => {
-            setCoverImageId(next.id);
-            setCoverCredit(next.credit);
-            markDirty();
-          }}
-        />
-      </div>
-
-      <div className={panelClass}>
-        <div>
-          <label className={labelClass} htmlFor="sourceName">
-            Fuente verificada *
-          </label>
-          <input
-            id="sourceName"
-            name="sourceName"
-            value={sourceName}
-            onChange={(e) => {
-              setSourceName(e.target.value);
-              markDirty();
-            }}
-            className={fieldClass}
-            placeholder="Ej: Organizador / gacetilla / CLF evento #123"
-          />
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="sourceUrl">
-            URL de fuente (opcional)
-          </label>
-          <input
-            id="sourceUrl"
-            name="sourceUrl"
-            type="url"
-            value={sourceUrl}
-            onChange={(e) => {
-              setSourceUrl(e.target.value);
-              markDirty();
-            }}
-            className={fieldClass}
-            placeholder="https://…"
-          />
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="publishedAt">
-            Fecha de publicación
-          </label>
-          <input
-            id="publishedAt"
-            name="publishedAt"
-            type="datetime-local"
-            defaultValue={toDatetimeLocalValue(initial?.publishedAt)}
-            className={fieldClass}
-            onChange={markDirty}
-          />
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="seoTitle">
-            SEO título
-          </label>
-          <input
-            id="seoTitle"
-            name="seoTitle"
-            value={seoTitle}
-            onChange={(e) => {
-              setSeoTitle(e.target.value);
-              markDirty();
-            }}
-            className={fieldClass}
-            maxLength={70}
-          />
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="seoDescription">
-            SEO descripción
-          </label>
-          <textarea
-            id="seoDescription"
-            name="seoDescription"
-            rows={3}
-            value={seoDescription}
-            onChange={(e) => {
-              setSeoDescription(e.target.value);
-              markDirty();
-            }}
-            className={fieldClass}
-            maxLength={170}
-          />
-        </div>
-        <input type="hidden" name="contentTag" value="REAL" />
-      </div>
-
-      <PublishChecklist items={checklist} />
-
-      {figuresMissingCredit.length > 0 || figuresMissingAlt.length > 0 ? (
-        <div className="rounded-[var(--is-radius-md)] border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-          {figuresMissingAlt.length > 0 ? (
-            <p>Hay imágenes sin texto alternativo.</p>
-          ) : null}
-          {figuresMissingCredit.length > 0 ? (
-            <p className="mt-1">Hay imágenes sin crédito: no se puede publicar así.</p>
-          ) : null}
-        </div>
-      ) : null}
+      <EditorConfigAccordion
+        sections={[
+          {
+            id: "publish",
+            title: "Publicación",
+            hint: "Enviar, publicar o devolver — sin salir de la escritura",
+            defaultOpen: true,
+            children:
+              mode === "edit" && initial ? (
+                <EditorialActionsPanel
+                  articleId={initial.id}
+                  status={status}
+                  subject={subject}
+                  returnedAt={initial.returnedAt}
+                  submittedForReviewAt={initial.submittedForReviewAt}
+                  latestReturn={latestReturn}
+                  checklistMissing={checklistMissing}
+                  canPublish={canPublish}
+                  isDirector={isDirector}
+                />
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-[var(--is-text-secondary)]">{STATUS_LABELS[status]}</p>
+                  <p className="text-xs text-[var(--is-muted)]">
+                    Guardá el borrador y usá el flujo editorial para revisar o publicar.
+                  </p>
+                </div>
+              ),
+          },
+          {
+            id: "checklist",
+            title: "Checklist",
+            hint:
+              checklistMissing.length > 0
+                ? `${checklistMissing.length} pendiente${checklistMissing.length === 1 ? "" : "s"}`
+                : "Listo para publicar",
+            children: (
+              <>
+                <PublishChecklist items={checklist} />
+                {figuresMissingCredit.length > 0 || figuresMissingAlt.length > 0 ? (
+                  <div className="rounded-[var(--is-radius-md)] border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                    {figuresMissingAlt.length > 0 ? (
+                      <p>Hay imágenes sin texto alternativo.</p>
+                    ) : null}
+                    {figuresMissingCredit.length > 0 ? (
+                      <p className="mt-1">Hay imágenes sin crédito: no se puede publicar así.</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            ),
+          },
+          {
+            id: "meta",
+            title: "Metadatos",
+            hint: "Categoría, URL, fuente",
+            children: (
+              <div className="space-y-4">
+                <div>
+                  <label className={labelClass} htmlFor="categoryId">
+                    Categoría {status === "PUBLISHED" ? "*" : ""}
+                  </label>
+                  <select
+                    id="categoryId"
+                    name="categoryId"
+                    value={categoryId}
+                    onChange={(e) => {
+                      setCategoryId(e.target.value);
+                      markDirty();
+                    }}
+                    className={fieldClass}
+                  >
+                    <option value="">Sin categoría</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="slug">
+                    URL pública *
+                  </label>
+                  <input
+                    id="slug"
+                    value={slug || autoSlug}
+                    onChange={(e) => {
+                      setSlugTouched(true);
+                      setSlug(e.target.value);
+                      markDirty();
+                    }}
+                    className={fieldClass}
+                  />
+                  <p className="mt-2 text-xs text-[var(--is-muted)]">
+                    /noticias/{slug || autoSlug || "…"}
+                  </p>
+                </div>
+                <div>
+                  <p className={labelClass}>Autor</p>
+                  <p className="mt-2 text-sm text-[var(--is-text-secondary)]">
+                    {authorLabel || "Autor de la historia"}
+                  </p>
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="sourceName">
+                    Fuente verificada *
+                  </label>
+                  <input
+                    id="sourceName"
+                    name="sourceName"
+                    value={sourceName}
+                    onChange={(e) => {
+                      setSourceName(e.target.value);
+                      markDirty();
+                    }}
+                    className={fieldClass}
+                    placeholder="Ej: Organizador / gacetilla"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="sourceUrl">
+                    URL de fuente (opcional)
+                  </label>
+                  <input
+                    id="sourceUrl"
+                    name="sourceUrl"
+                    type="url"
+                    value={sourceUrl}
+                    onChange={(e) => {
+                      setSourceUrl(e.target.value);
+                      markDirty();
+                    }}
+                    className={fieldClass}
+                    placeholder="https://…"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="publishedAt">
+                    Fecha de publicación
+                  </label>
+                  <input
+                    id="publishedAt"
+                    name="publishedAt"
+                    type="datetime-local"
+                    defaultValue={toDatetimeLocalValue(initial?.publishedAt)}
+                    className={fieldClass}
+                    onChange={markDirty}
+                  />
+                </div>
+              </div>
+            ),
+          },
+          {
+            id: "seo",
+            title: "SEO",
+            hint: "Opcional — al final del proceso",
+            children: (
+              <div className="space-y-4">
+                <div>
+                  <label className={labelClass} htmlFor="seoTitle">
+                    Título SEO
+                  </label>
+                  <input
+                    id="seoTitle"
+                    name="seoTitle"
+                    value={seoTitle}
+                    onChange={(e) => {
+                      setSeoTitle(e.target.value);
+                      markDirty();
+                    }}
+                    className={fieldClass}
+                    maxLength={70}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="seoDescription">
+                    Descripción SEO
+                  </label>
+                  <textarea
+                    id="seoDescription"
+                    name="seoDescription"
+                    rows={3}
+                    value={seoDescription}
+                    onChange={(e) => {
+                      setSeoDescription(e.target.value);
+                      markDirty();
+                    }}
+                    className={fieldClass}
+                    maxLength={170}
+                  />
+                </div>
+              </div>
+            ),
+          },
+          {
+            id: "cover",
+            title: "Portada avanzada",
+            hint: "Subir o elegir de biblioteca",
+            children: (
+              <CoverImageField
+                articleId={initial?.id}
+                initialCoverImageId={coverImageId || null}
+                initialCredit={coverCredit}
+                assets={assets}
+                onChange={(next) => {
+                  setCoverImageId(next.id);
+                  setCoverCredit(next.credit);
+                  markDirty();
+                }}
+              />
+            ),
+          },
+          ...(mode === "edit" && initial && clf
+            ? [
+                {
+                  id: "clf",
+                  title: "Material avanzado",
+                  hint: "Vincular evento y coberturas",
+                  children: (
+                    <ClfEventPicker
+                      articleId={initial.id}
+                      initialEventId={clf.eventId}
+                      initialAlbumId={clf.albumId}
+                      initialEventTitle={clf.eventTitle}
+                      initialAlbumTitle={clf.albumTitle}
+                      linkedAssets={clf.linkedAssets}
+                    />
+                  ),
+                } as const,
+              ]
+            : []),
+        ]}
+      />
     </div>
   );
+
+  function closeDrawers() {
+    setSideDrawer(null);
+    setConfigOpen(false);
+  }
 
   return (
     <form
       ref={formRef}
       action={action}
-      className="space-y-8"
+      className="space-y-6"
       onInput={markDirty}
       onSubmit={() => {
         if (status === "PUBLISHED" && (!creditOk || figuresMissingAlt.length > 0)) {
@@ -532,9 +615,27 @@ export function ArticleForm({
             <button
               type="button"
               className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium lg:hidden"
-              onClick={() => setMetaOpen(true)}
+              onClick={() => setSideDrawer("library")}
             >
-              Metadatos
+              Material
+            </button>
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium"
+              onClick={() => {
+                if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
+                  setConfigOpen(true);
+                } else {
+                  setSideDrawer("config");
+                }
+              }}
+            >
+              Configuración
+              {checklistMissing.length > 0 ? (
+                <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-900">
+                  {checklistMissing.length}
+                </span>
+              ) : null}
             </button>
             {mode === "edit" && initial ? (
               <Link
@@ -569,8 +670,8 @@ export function ArticleForm({
         </div>
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="mx-auto w-full max-w-[52rem] space-y-8">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="mx-auto w-full max-w-[48rem] space-y-8">
           {importBanner ? (
             <p
               className="rounded-[var(--is-radius-sm)] border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-950"
@@ -579,9 +680,17 @@ export function ArticleForm({
               {importBanner}
             </p>
           ) : null}
+
+          {fromAssistant ? (
+            <p className="text-sm leading-relaxed text-[var(--is-muted)]">
+              El asistente ya preparó el contexto. Acá solo escribís: el material está en la
+              biblioteca.
+            </p>
+          ) : null}
+
           <div>
-            <label className={labelClass} htmlFor="title">
-              Título *
+            <label className="sr-only" htmlFor="title">
+              Título
             </label>
             <input
               id="title"
@@ -593,117 +702,151 @@ export function ArticleForm({
                 if (!slugTouched) setSlug(slugifyTitle(e.target.value));
                 markDirty();
               }}
-              className={`${fieldClass} border-0 border-b border-[var(--is-border)] px-0 text-3xl font-semibold tracking-tight shadow-none focus:ring-0 sm:text-4xl`}
-              placeholder="Título de la nota"
+              className="w-full border-0 border-b border-[var(--is-border)] bg-transparent px-0 py-3 font-[family-name:var(--font-source-serif)] text-3xl font-semibold tracking-tight text-[var(--is-text)] outline-none placeholder:text-[var(--is-muted)] focus:border-[var(--is-accent)] sm:text-4xl"
+              placeholder="Título de la historia"
             />
-            <p className="mt-3 text-xs text-[var(--is-muted)]">
-              URL: /noticias/{slug || autoSlug || "…"}
-            </p>
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="excerpt">
-              Bajada {status === "PUBLISHED" ? "*" : ""}
+            <label className="sr-only" htmlFor="excerpt">
+              Bajada
             </label>
             <textarea
               id="excerpt"
               name="excerpt"
-              rows={3}
+              rows={2}
               value={excerpt}
               onChange={(e) => {
                 setExcerpt(e.target.value);
                 markDirty();
               }}
-              className={`${fieldClass} text-lg leading-relaxed`}
-              placeholder="Resumen claro para listados y redes"
+              className="w-full resize-y border-0 bg-transparent px-0 text-lg leading-relaxed text-[var(--is-text)] outline-none placeholder:text-[var(--is-muted)] focus:ring-0"
+              placeholder="Bajada — una o dos oraciones"
             />
           </div>
 
-          <div>
-            <div className="mb-3 flex items-end justify-between gap-3">
-              <label className={labelClass}>Cuerpo</label>
-              <p className="text-xs text-[var(--is-muted)]">Editor visual · se guarda en Markdown</p>
-            </div>
-            <EditorialVisualEditor
-              key={editorKey}
-              initialMarkdown={content}
-              articleId={initial?.id}
-              onMarkdownChange={(md) => {
-                setContent(md);
-              }}
-              onDirtyChange={() => markDirty()}
-              onCoverImported={() => {
-                markDirty();
-                window.location.reload();
-              }}
-            />
-          </div>
+          <EditorialVisualEditor
+            key={editorKey}
+            ref={editorRef}
+            initialMarkdown={content}
+            articleId={initial?.id}
+            onMarkdownChange={(md) => {
+              setContent(md);
+            }}
+            onDirtyChange={() => markDirty()}
+            onCoverImported={() => {
+              markDirty();
+              window.location.reload();
+            }}
+          />
 
-          {mode === "edit" && initial && clf ? (
-            <>
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href={`/redaccion/asistente?mode=photos&articleId=${initial.id}`}
-                  className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium text-[var(--is-accent)]"
-                >
-                  Agregar material
-                </Link>
-              </div>
-              <ClfEventPicker
-                articleId={initial.id}
-                initialEventId={clf.eventId}
-                initialAlbumId={clf.albumId}
-                initialEventTitle={clf.eventTitle}
-                initialAlbumTitle={clf.albumTitle}
-                linkedAssets={clf.linkedAssets}
-              />
-            </>
-          ) : mode === "create" ? (
-            <div className="rounded-[var(--is-radius-md)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-surface)] p-6">
-              <p className="text-sm font-semibold text-[var(--is-text)]">Fotos y ComprameLaFoto</p>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--is-muted)]">
-                Guardá el borrador para poder: subir portada o imágenes del cuerpo, vincular un evento
-                CLF y elegir fotos de un álbum indicando si van como portada, cuerpo o galería.
-              </p>
-            </div>
+          {mode === "create" ? (
+            <p className="text-sm leading-relaxed text-[var(--is-muted)]">
+              Guardá el borrador para vincular material editorial y usar la biblioteca.
+            </p>
           ) : null}
         </div>
 
-        <aside className="hidden xl:block">{metaPanel}</aside>
+        <aside className="hidden lg:block">
+          <div className="sticky top-28 max-h-[calc(100dvh-8rem)] overflow-y-auto rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5">
+            {library}
+          </div>
+        </aside>
       </div>
 
-      {metaOpen ? (
-        <div className="fixed inset-0 z-40 xl:hidden">
+      {/* Drawer móvil: biblioteca o configuración */}
+      {sideDrawer ? (
+        <div className="fixed inset-0 z-40 lg:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-black/40"
-            aria-label="Cerrar metadatos"
-            onClick={() => setMetaOpen(false)}
+            aria-label="Cerrar panel"
+            onClick={closeDrawers}
           />
-          <div className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto bg-white p-5 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-semibold">Metadatos</p>
+          <div
+            className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-hidden bg-white shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={sideDrawer === "library" ? "Material editorial" : "Configuración"}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--is-border)] px-4 py-3">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className={`min-h-10 rounded-full px-3 text-sm font-medium ${
+                    sideDrawer === "library"
+                      ? "bg-[var(--is-accent)] text-white"
+                      : "border border-[var(--is-border)]"
+                  }`}
+                  onClick={() => setSideDrawer("library")}
+                >
+                  Material
+                </button>
+                <button
+                  type="button"
+                  className={`min-h-10 rounded-full px-3 text-sm font-medium ${
+                    sideDrawer === "config"
+                      ? "bg-[var(--is-accent)] text-white"
+                      : "border border-[var(--is-border)]"
+                  }`}
+                  onClick={() => setSideDrawer("config")}
+                >
+                  Configuración
+                </button>
+              </div>
               <button
                 type="button"
                 className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)]"
-                onClick={() => setMetaOpen(false)}
+                onClick={closeDrawers}
+                aria-label="Cerrar"
               >
                 ✕
               </button>
             </div>
-            {metaPanel}
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              {sideDrawer === "library" ? library : configPanel}
+            </div>
           </div>
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-3 border-t border-[var(--is-border)] pt-6">
-        <Link
-          href="/redaccion"
-          className="inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-5 text-sm font-medium"
-        >
-          Volver a la redacción
-        </Link>
-      </div>
+      {/* Drawer desktop: solo configuración */}
+      {configOpen ? (
+        <div className="fixed inset-0 z-40 hidden lg:block">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/30"
+            aria-label="Cerrar configuración"
+            onClick={closeDrawers}
+          />
+          <div
+            className="absolute inset-y-0 right-0 flex w-full max-w-lg flex-col overflow-hidden bg-white shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Configuración editorial"
+          >
+            <div className="flex items-center justify-between border-b border-[var(--is-border)] px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--is-accent)]">
+                  Fuera de la escritura
+                </p>
+                <h2 className="mt-1 font-[family-name:var(--font-source-serif)] text-xl font-semibold">
+                  Configuración
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)]"
+                onClick={closeDrawers}
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">{configPanel}</div>
+          </div>
+        </div>
+      ) : null}
 
       {canUseAiImport ? (
         <AiImportDialog
