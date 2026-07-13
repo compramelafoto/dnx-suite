@@ -91,15 +91,22 @@ function SearchField({ className }: { className?: string }) {
 
 /**
  * Header editorial de medio nacional.
- * Masthead + marca protagonista + nav + búsqueda + CTA contenido.
+ * Masthead scrollea fuera del flujo; la barra sticky mantiene altura fija
+ * (evitar colapsar padding/filas con JS: causa jitter al pelear con sticky).
  */
 export function SiteHeader({ links = primaryNavLinks, auth = null }: Props) {
   const [scrolled, setScrolled] = useState(false);
   const mobileLinks: NavLink[] = [{ href: "/", label: "Inicio" }, ...links];
 
   useEffect(() => {
+    // Solo cambia fondo/sombra — nunca la altura. Histeresis evita parpadeo.
     const onScroll = () => {
-      setScrolled(window.scrollY > 16);
+      const y = window.scrollY;
+      setScrolled((prev) => {
+        if (!prev && y > 24) return true;
+        if (prev && y < 8) return false;
+        return prev;
+      });
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -107,36 +114,19 @@ export function SiteHeader({ links = primaryNavLinks, auth = null }: Props) {
   }, []);
 
   return (
-    <header
-      className={cx(
-        "sticky top-0 z-40 transition-[background-color,box-shadow] duration-300 ease-out",
-        scrolled
-          ? "bg-[color-mix(in_oklab,var(--is-white-0)_92%,transparent)] shadow-[0_1px_0_0_var(--is-border)] backdrop-blur-lg"
-          : "bg-[color-mix(in_oklab,var(--is-white-0)_96%,transparent)] backdrop-blur-md",
-      )}
-    >
-      <div
-        className={cx(
-          "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
-          scrolled
-            ? "grid-rows-[0fr] opacity-0"
-            : "grid-rows-[1fr] opacity-100",
-        )}
-        aria-hidden={scrolled}
-      >
-        <div className="overflow-hidden">
-          <MastheadBar />
-        </div>
-      </div>
+    <>
+      <MastheadBar />
 
-      <div className="border-b border-[var(--is-border)]">
+      <header
+        className={cx(
+          "sticky top-0 z-40 border-b border-[var(--is-border)] transition-[background-color,box-shadow] duration-200 ease-out",
+          scrolled
+            ? "bg-[color-mix(in_oklab,var(--is-white-0)_92%,transparent)] shadow-[0_1px_0_0_var(--is-border)] backdrop-blur-lg"
+            : "bg-[color-mix(in_oklab,var(--is-white-0)_96%,transparent)] backdrop-blur-md",
+        )}
+      >
         <SiteContainer>
-          <div
-            className={cx(
-              "flex items-center justify-between gap-5 transition-[padding] duration-300 ease-out md:gap-8",
-              scrolled ? "py-2.5 md:py-3" : "py-4 md:py-5",
-            )}
-          >
+          <div className="flex items-center justify-between gap-5 py-4 md:gap-8 md:py-5">
             <BrandMark variant="horizontal" priority />
 
             <div className="flex min-w-0 flex-1 items-center justify-end gap-2.5 md:gap-3 lg:gap-5">
@@ -157,12 +147,7 @@ export function SiteHeader({ links = primaryNavLinks, auth = null }: Props) {
 
           <nav
             aria-label="Principal"
-            className={cx(
-              "hidden items-center border-t border-[var(--is-border)] transition-[padding,gap] duration-300 ease-out xl:flex",
-              scrolled
-                ? "gap-7 py-2.5"
-                : "gap-8 py-3.5",
-            )}
+            className="hidden items-center gap-8 border-t border-[var(--is-border)] py-3.5 xl:flex"
           >
             {links.map((link) => (
               <Link
@@ -175,7 +160,7 @@ export function SiteHeader({ links = primaryNavLinks, auth = null }: Props) {
             ))}
           </nav>
         </SiteContainer>
-      </div>
-    </header>
+      </header>
+    </>
   );
 }
