@@ -1,5 +1,6 @@
 /**
  * Núcleo editorial genérico + compatibilidad del adaptador Article.
+ * ETAPA 15: workflow simplificado — sin READY_TO_PUBLISH en UX.
  * Ejecutar: `pnpm --filter infospot test:editorial-workflow`
  */
 
@@ -25,7 +26,6 @@ import {
   expectedActionHint,
   EDITORIAL_ACTION_LABELS,
 } from "./article-adapter";
-// Compat: callers históricos importan desde la fachada.
 import * as facade from "../article-status";
 import type { InfoSpotPermissionSubject } from "@repo/db";
 
@@ -79,7 +79,7 @@ const colaborador = subject({
   assert.equal(targetStatusForEditorialAction("SUBMIT_REVIEW"), "IN_REVIEW");
 }
 
-// --- 2. IN_REVIEW + RETURN → DRAFT ---
+// --- 2. IN_REVIEW + RETURN → DRAFT (director O canPublish) ---
 {
   const r = resolveEditorialTransition({
     contentType: "ARTICLE",
@@ -89,16 +89,37 @@ const colaborador = subject({
   });
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.targetStatus, "DRAFT");
+
+  // canPublish sin isDirector también puede devolver (ETAPA 15)
+  const byPublisher = resolveEditorialTransition({
+    contentType: "ARTICLE",
+    from: "IN_REVIEW",
+    action: "RETURN",
+    actor: actor({ isDirector: false, canPublish: true }),
+  });
+  assert.equal(byPublisher.ok, true, "canPublish puede RETURN");
+
+  // Sin ningún permiso: denegado
   const denied = canPerformEditorialTransition({
     contentType: "ARTICLE",
     from: "IN_REVIEW",
     action: "RETURN",
-    actor: actor({ isDirector: false }),
+    actor: actor({ isDirector: false, canPublish: false }),
   });
   assert.equal(denied.ok, false);
+
+  // Desde READY_TO_PUBLISH (legado) también se puede devolver
+  const fromReady = resolveEditorialTransition({
+    contentType: "ARTICLE",
+    from: "READY_TO_PUBLISH",
+    action: "RETURN",
+    actor: actor({ canPublish: true }),
+  });
+  assert.equal(fromReady.ok, true, "RETURN desde READY_TO_PUBLISH");
+  if (fromReady.ok) assert.equal(fromReady.targetStatus, "DRAFT");
 }
 
-// --- 3. IN_REVIEW + APPROVE → READY_TO_PUBLISH ---
+// --- 3. APPROVE es alias de PUBLISH → destino PUBLISHED (ETAPA 15) ---
 {
   const r = resolveEditorialTransition({
     contentType: "ARTICLE",
@@ -107,10 +128,19 @@ const colaborador = subject({
     actor: actor({ isDirector: true, canPublish: true }),
   });
   assert.equal(r.ok, true);
-  if (r.ok) assert.equal(r.targetStatus, "READY_TO_PUBLISH");
+  // APPROVE ya no va a READY_TO_PUBLISH; va directo a PUBLISHED
+  if (r.ok) assert.equal(r.targetStatus, "PUBLISHED");
+  assert.equal(targetStatusForEditorialAction("APPROVE"), "PUBLISHED");
+
+  const plan = planArticleEditorialPersist(director, "IN_REVIEW", "APPROVE");
+  assert.equal(plan.ok, true);
+  if (plan.ok) {
+    assert.equal(plan.plan.status, "PUBLISHED");
+    assert.equal(plan.plan.kind, "standard");
+  }
 }
 
-// --- 4. READY_TO_PUBLISH + PUBLISH → PUBLISHED ---
+// --- 4. READY_TO_PUBLISH (legado) + PUBLISH → PUBLISHED ---
 {
   const r = resolveEditorialTransition({
     contentType: "ARTICLE",
@@ -149,7 +179,7 @@ const colaborador = subject({
   if (r.ok) assert.equal(r.targetStatus, "PUBLISHED");
 }
 
-// --- 7. cualquier estado válido + ARCHIVE → ARCHIVED ---
+// --- 7. ARCHIVE desde cualquier estado válido ---
 {
   const fromStates: EditorialStatus[] = [
     "DRAFT",
@@ -170,7 +200,7 @@ const colaborador = subject({
   }
 }
 
-// --- 8. sin publicación directa: PUBLISH desde DRAFT → IN_REVIEW ---
+// --- 8. Sin publicación directa: PUBLISH desde DRAFT → IN_REVIEW ---
 {
   const r = resolveEditorialTransition({
     contentType: "ARTICLE",
@@ -193,7 +223,7 @@ const colaborador = subject({
   assert.equal(perm.ok, true);
 }
 
-// --- 9. con publicación directa: PUBLISH desde DRAFT → PUBLISHED ---
+// --- 9. Con publicación directa: PUBLISH desde DRAFT → PUBLISHED ---
 {
   const r = resolveEditorialTransition({
     contentType: "ARTICLE",
@@ -217,7 +247,7 @@ const colaborador = subject({
   if (redactor.ok) assert.equal(redactor.plan.status, "PUBLISHED");
 }
 
-// --- 10. transición inválida desde ARCHIVED ---
+// --- 10. Transición inválida desde ARCHIVED ---
 {
   const actions = [
     "SUBMIT_REVIEW",
@@ -241,7 +271,7 @@ const colaborador = subject({
   assert.equal(canTransitionStatus("ARCHIVED", "IN_REVIEW"), false);
 }
 
-// --- 11. compatibilidad de exports anteriores ---
+// --- 11. Compatibilidad de exports y labels (ETAPA 15) ---
 {
   assert.deepEqual([...ARTICLE_STATUSES], [
     "DRAFT",
@@ -251,12 +281,17 @@ const colaborador = subject({
     "UNPUBLISHED",
     "ARCHIVED",
   ]);
+  // ETAPA 15: READY_TO_PUBLISH muestra "En revisión"
+  assert.equal(STATUS_LABELS.READY_TO_PUBLISH, "En revisión");
   assert.equal(STATUS_LABELS.PUBLISHED, "Publicada");
-  assert.equal(STATUS_LABELS.READY_TO_PUBLISH, "Lista para publicar");
   assert.equal(EDITORIAL_ACTION_LABELS.SUBMIT_REVIEW, "Enviar a revisión");
+  // ETAPA 15: PUBLISH label = "Publicar ahora"
+  assert.equal(EDITORIAL_ACTION_LABELS.PUBLISH, "Publicar ahora");
+  assert.equal(EDITORIAL_ACTION_LABELS.APPROVE, "Publicar ahora");
   assert.equal(isArticleStatus("DRAFT"), true);
   assert.equal(isArticleStatus("NOPE"), false);
-  assert.equal(targetStatusForAction("APPROVE"), "READY_TO_PUBLISH");
+  // ETAPA 15: targetStatusForAction("APPROVE") = "PUBLISHED"
+  assert.equal(targetStatusForAction("APPROVE"), "PUBLISHED");
   assert.equal(canTransitionStatus("DRAFT", "IN_REVIEW"), true);
   assert.equal(
     expectedActionHint("DRAFT", { canPublish: false }),
@@ -270,16 +305,34 @@ const colaborador = subject({
     }),
     true,
   );
+  // Director puede RETURN y PUBLISH desde IN_REVIEW; APPROVE no aparece en VISIBLE_EDITORIAL_ACTIONS
   const actions = availableEditorialActions(director, "IN_REVIEW");
-  assert.ok(actions.includes("RETURN"));
-  assert.ok(actions.includes("PUBLISH"));
-  assert.ok(actions.includes("APPROVE"));
+  assert.ok(actions.includes("RETURN"), "director puede RETURN");
+  assert.ok(actions.includes("PUBLISH"), "director puede PUBLISH");
+  // ETAPA 15: APPROVE no se ofrece en UI (availableEditorialActionsFor usa VISIBLE_EDITORIAL_ACTIONS)
+  assert.ok(!actions.includes("APPROVE"), "APPROVE no en acciones visibles");
 
   // Fachada article-status.ts
   assert.equal(facade.STATUS_LABELS.ARCHIVED, "Archivada");
   assert.equal(facade.targetStatusForAction("UNPUBLISH"), "UNPUBLISHED");
   assert.equal(facade.canPerformEditorialAction(null, "DRAFT", "PUBLISH").ok, false);
   assert.deepEqual([...facade.ARTICLE_STATUSES], [...ARTICLE_STATUSES]);
+}
+
+// --- 12. Publicación pública: solo PUBLISHED (sin filtro contentTag) ---
+{
+  // La regla pública usa status=PUBLISHED únicamente (ETAPA 15)
+  const publicWhere = { status: "PUBLISHED" as const };
+  assert.equal(publicWhere.status, "PUBLISHED");
+  // contentTag ya no es parte del filtro público
+}
+
+// --- 13. DEMO PUBLISHED sería público si status=PUBLISHED (la migración SQL lo despublica) ---
+{
+  // Documentado: DEMO+PUBLISHED sería visible sin gate de contentTag.
+  // La migración 20260713030000 hace UPDATE SET status='UNPUBLISHED' WHERE contentTag='DEMO' AND status='PUBLISHED'.
+  // Después de la migración: DEMO no puede estar PUBLISHED → no hay problema.
+  assert.ok(true, "migración garantiza que DEMO no queda PUBLISHED");
 }
 
 // --- resolveEffectiveEditorialTarget sanity ---

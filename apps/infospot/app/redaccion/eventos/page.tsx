@@ -56,7 +56,6 @@ export default async function RedaccionEventosPage({ searchParams }: PageProps) 
     borradores: draftActive,
     "en-revision": stats.inReview,
     devueltas: returnedCount,
-    "listas-publicar": stats.ready,
     publicadas: stats.published,
     despublicadas: stats.unpublished,
     archivadas: stats.archived,

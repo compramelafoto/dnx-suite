@@ -1,8 +1,11 @@
 /**
  * Adaptador editorial para InfoSpotEvent.
  *
- * Copy de producto (“evento”), permisos, plan de persistencia y checklist.
+ * Copy de producto ("evento"), permisos, plan de persistencia y checklist.
  * La lógica pura de transiciones vive en `editorial-workflow-core.ts`.
+ *
+ * ETAPA 15: READY_TO_PUBLISH oculto en UX; APPROVE alias de PUBLISH → PUBLISHED.
+ * contentTag ya no se fuerza en operaciones editoriales.
  */
 
 import type { InfoSpotPermissionSubject } from "@repo/db";
@@ -41,11 +44,11 @@ export type EventStatus = EditorialStatus;
 
 export const EVENT_STATUSES = EDITORIAL_STATUSES;
 
-/** Labels de producto para eventos. */
+/** Labels de producto para eventos. READY_TO_PUBLISH = "En revisión". */
 export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
   DRAFT: "Borrador",
   IN_REVIEW: "En revisión",
-  READY_TO_PUBLISH: "Listo para publicar",
+  READY_TO_PUBLISH: "En revisión",
   PUBLISHED: "Publicado",
   UNPUBLISHED: "Despublicado",
   ARCHIVED: "Archivado",
@@ -86,12 +89,11 @@ const EVENT_DENIAL_REASONS: Record<EditorialDenialCode, string> = {
   NO_SESSION: "Sin sesión editorial.",
   INVALID_TRANSITION: "",
   SUBMIT_NOT_DRAFT: "Solo se envían a revisión los borradores.",
-  RETURN_NOT_DIRECTOR: "Solo el Director puede devolver un evento.",
+  RETURN_NOT_DIRECTOR: "Solo el Director o quien puede publicar puede devolver un evento.",
   RETURN_NOT_IN_REVIEW: "Solo se pueden devolver eventos en revisión.",
-  APPROVE_NO_PERMISSION: "No tenés permiso para aprobar.",
-  APPROVE_WRONG_STATUS:
-    "Solo se aprueban eventos en revisión (o borradores, si sos Director).",
-  APPROVE_DRAFT_NOT_DIRECTOR: "Solo el Director puede aprobar desde borrador.",
+  APPROVE_NO_PERMISSION: "No tenés permiso para publicar.",
+  APPROVE_WRONG_STATUS: "Solo se publican eventos en revisión (o borradores, si sos Director).",
+  APPROVE_DRAFT_NOT_DIRECTOR: "Solo el Director puede publicar desde borrador.",
   PUBLISH_REQUIRES_DRAFT: "Solo podés pedir publicación desde un borrador.",
   PUBLISH_NOT_PUBLISHABLE: "El evento no está en un estado publicable.",
   UNPUBLISH_NO_PERMISSION: "No tenés permiso para despublicar.",
@@ -207,7 +209,6 @@ export type EventEditorialPersistPlan =
       kind: "submit_via_publish";
       status: "IN_REVIEW";
       setSubmittedForReview: true;
-      setContentTagReal: true;
     }
   | {
       kind: "standard";
@@ -217,7 +218,6 @@ export type EventEditorialPersistPlan =
       setPublished?: boolean;
       setUnpublished?: boolean;
       setArchived?: boolean;
-      setContentTagReal?: boolean;
       preservePublishedAt?: boolean;
     };
 
@@ -263,7 +263,6 @@ export function planEventEditorialPersist(
         kind: "submit_via_publish",
         status: "IN_REVIEW",
         setSubmittedForReview: true,
-        setContentTagReal: true,
       },
     };
   }
@@ -278,17 +277,18 @@ export function planEventEditorialPersist(
           kind: "standard",
           status: "IN_REVIEW",
           setSubmittedForReview: true,
-          setContentTagReal: true,
         },
       };
     case "APPROVE":
+      // Legacy alias → PUBLISHED directo
       return {
         ok: true,
         plan: {
           kind: "standard",
-          status: "READY_TO_PUBLISH",
+          status: "PUBLISHED",
           setApproved: true,
-          setContentTagReal: true,
+          setPublished: true,
+          preservePublishedAt: true,
         },
       };
     case "PUBLISH":
@@ -298,7 +298,6 @@ export function planEventEditorialPersist(
           kind: "standard",
           status: "PUBLISHED",
           setPublished: true,
-          setContentTagReal: true,
           preservePublishedAt: true,
         },
       };
@@ -340,9 +339,6 @@ export function eventPrismaDataFromPlan(
     data.submittedForReviewByUserId = opts.userId;
     data.submittedByUserId = opts.userId;
   }
-  if (plan.kind === "submit_via_publish" || plan.setContentTagReal) {
-    data.contentTag = "REAL";
-  }
   if (plan.kind === "standard") {
     if (plan.setApproved) {
       data.approvedAt = opts.now;
@@ -366,7 +362,7 @@ export function eventPrismaDataFromPlan(
   return data;
 }
 
-/** Validación previa a APPROVE / PUBLISH (checklist de eventos). */
+/** Validación previa a PUBLISH (checklist de eventos). No fuerza contentTag. */
 export function validateEventForPublish(event: {
   title?: string | null;
   summary?: string | null;
@@ -395,8 +391,8 @@ export function validateEventForPublish(event: {
     city: event.city,
     province: event.province,
     slug: event.slug,
-    // El plan fuerza REAL al publicar; validamos como si fuera REAL.
-    contentTag: "REAL",
+    // contentTag no bloquea publicación (ETAPA 15)
+    contentTag: event.contentTag as "DEMO" | "REAL" | "NEEDS_REVIEW" | null | undefined,
     latitude: event.latitude,
     longitude: event.longitude,
     locationConfirmedAt: event.locationConfirmedAt,
@@ -422,9 +418,11 @@ export function mapLegacyEventStatus(legacy: string): EventStatus {
       return "IN_REVIEW";
     case "REJECTED":
       return "DRAFT";
+    case "READY_TO_PUBLISH":
+      // ETAPA 15: tratamos READY_TO_PUBLISH como IN_REVIEW
+      return "IN_REVIEW";
     case "DRAFT":
     case "IN_REVIEW":
-    case "READY_TO_PUBLISH":
     case "PUBLISHED":
     case "UNPUBLISHED":
     case "ARCHIVED":

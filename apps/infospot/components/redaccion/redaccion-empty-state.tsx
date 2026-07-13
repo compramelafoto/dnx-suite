@@ -23,11 +23,7 @@ const EMPTY_COPY: Record<
   },
   devueltas: {
     title: "No hay notas devueltas",
-    description: "Si el Director devuelve una nota con observación, aparece en esta bandeja.",
-  },
-  "listas-publicar": {
-    title: "Nada lista para publicar",
-    description: "Las notas aprobadas editorialmente aparecen acá antes de salir al sitio.",
+    description: "Si alguien con permiso de publicación devuelve una nota con observación, aparece en esta bandeja.",
   },
   publicadas: {
     title: "Todavía no hay notas publicadas",

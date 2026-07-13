@@ -1,5 +1,5 @@
 import { EDITORIAL_STATUS_LABELS } from "./editorial-status";
-import { EDITORIAL_ACTIONS } from "./types";
+import { VISIBLE_EDITORIAL_ACTIONS } from "./types";
 import type {
   EditorialAction,
   EditorialDenialCode,
@@ -10,8 +10,8 @@ import type {
 } from "./types";
 
 /**
- * Transición genérica (sin rol). Usar `canPerformEditorialTransition` para permisos.
- * Conserva compatibilidad con publish desde DRAFT / UNPUBLISHED / IN_REVIEW.
+ * Transición genérica (sin rol).
+ * READY_TO_PUBLISH se acepta como lectura legada; nunca se escribe.
  */
 export function canTransitionEditorialStatus(
   from: EditorialStatus,
@@ -20,21 +20,26 @@ export function canTransitionEditorialStatus(
   if (from === to) return true;
   if (to === "ARCHIVED") return from !== "ARCHIVED";
   if (to === "IN_REVIEW") return from === "DRAFT";
-  if (to === "DRAFT") return from === "IN_REVIEW";
+  // DRAFT desde IN_REVIEW o legado READY_TO_PUBLISH
+  if (to === "DRAFT") return from === "IN_REVIEW" || from === "READY_TO_PUBLISH";
+  // Nunca escribimos READY_TO_PUBLISH; solo aceptamos la transición para compat de lectura
   if (to === "READY_TO_PUBLISH") return from === "IN_REVIEW" || from === "DRAFT";
   if (to === "PUBLISHED") {
     return (
-      from === "READY_TO_PUBLISH" ||
       from === "DRAFT" ||
-      from === "UNPUBLISHED" ||
-      from === "IN_REVIEW"
+      from === "IN_REVIEW" ||
+      from === "READY_TO_PUBLISH" ||
+      from === "UNPUBLISHED"
     );
   }
   if (to === "UNPUBLISHED") return from === "PUBLISHED";
   return false;
 }
 
-/** Destino nominal de una acción (sin considerar permisos del actor). */
+/**
+ * Destino nominal de una acción (sin considerar permisos del actor).
+ * APPROVE es alias legado de PUBLISH → destino siempre PUBLISHED.
+ */
 export function targetStatusForEditorialAction(action: EditorialAction): EditorialStatus {
   switch (action) {
     case "SUBMIT_REVIEW":
@@ -42,7 +47,8 @@ export function targetStatusForEditorialAction(action: EditorialAction): Editori
     case "RETURN":
       return "DRAFT";
     case "APPROVE":
-      return "READY_TO_PUBLISH";
+      // Legacy alias de PUBLISH; destino efectivo = PUBLISHED
+      return "PUBLISHED";
     case "PUBLISH":
       return "PUBLISHED";
     case "UNPUBLISH":
@@ -85,9 +91,6 @@ export function canPerformEditorialTransition(
   const { canPublish, isDirector } = actor;
   const to = targetStatusForEditorialAction(action);
 
-  // Misma guarda que el legacy: valida transición al destino nominal de la acción.
-  // PUBLISH sin permiso desde DRAFT: canTransition(DRAFT→PUBLISHED) es true,
-  // y luego el switch permite la acción (que el adaptador ejecuta como IN_REVIEW).
   if (!canTransitionEditorialStatus(from, to) && !(from === to)) {
     return { ok: false, code: "INVALID_TRANSITION" };
   }
@@ -100,22 +103,28 @@ export function canPerformEditorialTransition(
       return { ok: true };
     }
     case "RETURN": {
-      if (!isDirector) {
+      // RETURN permitido para isDirector O canPublish (ETAPA 15)
+      if (!isDirector && !canPublish) {
         return { ok: false, code: "RETURN_NOT_DIRECTOR" };
       }
-      if (from !== "IN_REVIEW") {
+      if (from !== "IN_REVIEW" && from !== "READY_TO_PUBLISH") {
         return { ok: false, code: "RETURN_NOT_IN_REVIEW" };
       }
       return { ok: true };
     }
     case "APPROVE": {
+      // Legacy alias de PUBLISH; mismos permisos
       if (!isDirector && !canPublish) {
         return { ok: false, code: "APPROVE_NO_PERMISSION" };
       }
-      if (from !== "IN_REVIEW" && !(isDirector && from === "DRAFT")) {
+      if (
+        from !== "IN_REVIEW" &&
+        from !== "READY_TO_PUBLISH" &&
+        !(isDirector && from === "DRAFT")
+      ) {
         return { ok: false, code: "APPROVE_WRONG_STATUS" };
       }
-      if (!isDirector && from !== "IN_REVIEW") {
+      if (!isDirector && !canPublish && from !== "IN_REVIEW") {
         return { ok: false, code: "APPROVE_DRAFT_NOT_DIRECTOR" };
       }
       return { ok: true };
@@ -128,9 +137,10 @@ export function canPerformEditorialTransition(
         return { ok: true };
       }
       if (
+        from !== "DRAFT" &&
+        from !== "IN_REVIEW" &&
         from !== "READY_TO_PUBLISH" &&
-        from !== "UNPUBLISHED" &&
-        !(canPublish && (from === "DRAFT" || from === "IN_REVIEW"))
+        from !== "UNPUBLISHED"
       ) {
         return { ok: false, code: "PUBLISH_NOT_PUBLISHABLE" };
       }
@@ -156,9 +166,7 @@ export function canPerformEditorialTransition(
   }
 }
 
-/**
- * Resuelve permiso + destino efectivo en un solo paso.
- */
+/** Resuelve permiso + destino efectivo en un solo paso. */
 export function resolveEditorialTransition(
   ctx: EditorialTransitionContext,
 ): EditorialTransitionResolution {
@@ -174,10 +182,11 @@ export function resolveEditorialTransition(
   return { ok: true, targetStatus, via };
 }
 
+/** Acciones disponibles para el actor (sin APPROVE en UI). */
 export function availableEditorialActionsFor(
   ctx: Omit<EditorialTransitionContext, "action">,
 ): EditorialAction[] {
-  return EDITORIAL_ACTIONS.filter(
+  return VISIBLE_EDITORIAL_ACTIONS.filter(
     (action) => canPerformEditorialTransition({ ...ctx, action }).ok,
   );
 }
@@ -194,21 +203,21 @@ export function expectedEditorialActionHint(
         ? "Completar y publicar"
         : "Completar y publicar (queda pendiente de aprobación)";
     case "IN_REVIEW":
-      return opts?.isDirector ? "Revisar, devolver o publicar" : "Esperando aprobación del Director";
     case "READY_TO_PUBLISH":
-      return "Publicar en el sitio";
+      return opts?.isDirector || opts?.canPublish
+        ? "Revisar, devolver o publicar"
+        : "Esperando aprobación";
     case "PUBLISHED":
-      return "Publicada en el sitio";
+      return "Publicado en el sitio";
     case "UNPUBLISHED":
       return "Republicar o archivar";
     case "ARCHIVED":
-      return "Archivada";
+      return "Archivado";
   }
 }
 
 /**
  * Mensaje humano para INVALID_TRANSITION (usa labels genéricos del núcleo).
- * Los adaptadores pueden sustituir por copy de producto.
  */
 export function formatInvalidTransitionReason(
   from: EditorialStatus,

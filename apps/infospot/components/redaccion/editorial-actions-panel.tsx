@@ -68,12 +68,11 @@ function primaryActionFor(
     if (actions.includes("PUBLISH")) return "PUBLISH";
     if (actions.includes("SUBMIT_REVIEW")) return "SUBMIT_REVIEW";
   }
-  if (status === "IN_REVIEW" && isDirector) {
+  if (status === "IN_REVIEW" || status === "READY_TO_PUBLISH") {
+    // ETAPA 15: APPROVE ya no se ofrece en UI; PUBLISH es la acción primaria
     if (actions.includes("PUBLISH")) return "PUBLISH";
-    if (actions.includes("APPROVE")) return "APPROVE";
+    if (!isDirector) return null;
   }
-  if (status === "IN_REVIEW" && !isDirector) return null;
-  if (status === "READY_TO_PUBLISH" && actions.includes("PUBLISH")) return "PUBLISH";
   if (status === "UNPUBLISHED" && actions.includes("PUBLISH")) return "PUBLISH";
   if (status === "PUBLISHED" && actions.includes("UNPUBLISH")) return "UNPUBLISH";
   return null;
@@ -116,9 +115,10 @@ function EditorialActionsPanelInner({
   const primary = primaryActionFor(actions, status, isDirector);
   const secondary = actions.filter((a) => {
     if (a === primary) return false;
-    if (primary === "PUBLISH" && (a === "SUBMIT_REVIEW" || a === "APPROVE")) return false;
-    if (primary === "SUBMIT_REVIEW" && (a === "PUBLISH" || a === "APPROVE")) return false;
-    if (primary === "APPROVE" && a === "SUBMIT_REVIEW") return false;
+    // ETAPA 15: APPROVE no se muestra en UI (es alias interno de PUBLISH)
+    if (a === "APPROVE") return false;
+    if (primary === "PUBLISH" && a === "SUBMIT_REVIEW") return false;
+    if (primary === "SUBMIT_REVIEW" && a === "PUBLISH") return false;
     if (status === "DRAFT" && a === "SUBMIT_REVIEW") return false;
     return true;
   });
@@ -157,8 +157,8 @@ function EditorialActionsPanelInner({
   const labels: Record<EditorialAction, string> = {
     SUBMIT_REVIEW: "Enviar a revisión",
     RETURN: "Devolver con observación",
-    APPROVE: "Aprobar",
-    PUBLISH: "Publicar",
+    APPROVE: "Publicar ahora",
+    PUBLISH: "Publicar ahora",
     UNPUBLISH: "Despublicar",
     ARCHIVE: "Archivar",
   };
@@ -187,8 +187,7 @@ function EditorialActionsPanelInner({
         </div>
       ) : null}
 
-      {checklistMissing.length > 0 &&
-      (status === "IN_REVIEW" || status === "READY_TO_PUBLISH") ? (
+      {checklistMissing.length > 0 && status === "IN_REVIEW" ? (
         <div className="rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg-secondary)] p-3 text-xs text-[var(--is-text-secondary)]">
           Pendientes del checklist: {checklistMissing.join(" · ")}
         </div>
@@ -210,8 +209,8 @@ function EditorialActionsPanelInner({
             onClick={() =>
               run(
                 primary,
-                primary === "PUBLISH"
-                  ? `¿Publicar este ${contentNoun} en el sitio?`
+                primary === "PUBLISH" || primary === "APPROVE"
+                  ? `¿Publicar ahora este ${contentNoun} en el sitio?`
                   : primary === "ARCHIVE"
                     ? `¿Archivar este ${contentNoun}?`
                     : undefined,
@@ -273,8 +272,8 @@ function EditorialActionsPanelInner({
               onClick={() =>
                 run(
                   action,
-                  action === "PUBLISH"
-                    ? `¿Publicar este ${contentNoun} en el sitio?`
+                  action === "PUBLISH" || action === "APPROVE"
+                    ? `¿Publicar ahora este ${contentNoun} en el sitio?`
                     : action === "UNPUBLISH"
                       ? `¿Despublicar este ${contentNoun}?`
                       : action === "ARCHIVE"

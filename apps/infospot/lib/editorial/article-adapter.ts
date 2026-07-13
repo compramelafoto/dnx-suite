@@ -2,8 +2,11 @@
  * Adaptador editorial para InfoSpotArticle.
  *
  * Mapea permisos de Article → capacidades del núcleo, conserva copy de producto
- * (labels en femenino, razones con “nota”) y construye el plan de persistencia.
+ * (labels en femenino, razones con "nota") y construye el plan de persistencia.
  * No toca Prisma: la server action aplica el plan.
+ *
+ * ETAPA 15: READY_TO_PUBLISH oculto en UX; APPROVE alias de PUBLISH → PUBLISHED.
+ * contentTag ya no se fuerza en operaciones editoriales.
  */
 
 import type { InfoSpotPermissionSubject } from "@repo/db";
@@ -38,11 +41,11 @@ export type ArticleStatus = EditorialStatus;
 
 export const ARTICLE_STATUSES = EDITORIAL_STATUSES;
 
-/** Labels de producto actuales (femenino: “Publicada”, “Lista para publicar”). */
+/** Labels de producto actuales (femenino). READY_TO_PUBLISH = "En revisión". */
 export const STATUS_LABELS: Record<ArticleStatus, string> = {
   DRAFT: "Borrador",
   IN_REVIEW: "En revisión",
-  READY_TO_PUBLISH: "Lista para publicar",
+  READY_TO_PUBLISH: "En revisión",
   PUBLISHED: "Publicada",
   UNPUBLISHED: "Despublicada",
   ARCHIVED: "Archivada",
@@ -82,17 +85,16 @@ export function hasPendingReturn(article: {
   );
 }
 
-/** Copy exacto del workflow de artículos (no cambiar: UI / errores visibles). */
+/** Copy exacto del workflow de artículos. */
 const ARTICLE_DENIAL_REASONS: Record<EditorialDenialCode, string> = {
   NO_SESSION: "Sin sesión editorial.",
-  INVALID_TRANSITION: "", // se completa con from/to
+  INVALID_TRANSITION: "",
   SUBMIT_NOT_DRAFT: "Solo se envían a revisión los borradores.",
-  RETURN_NOT_DIRECTOR: "Solo el Director puede devolver una nota.",
+  RETURN_NOT_DIRECTOR: "Solo el Director o quien puede publicar puede devolver una nota.",
   RETURN_NOT_IN_REVIEW: "Solo se pueden devolver notas en revisión.",
-  APPROVE_NO_PERMISSION: "No tenés permiso para aprobar.",
-  APPROVE_WRONG_STATUS:
-    "Solo se aprueban notas en revisión (o borradores, si sos Director).",
-  APPROVE_DRAFT_NOT_DIRECTOR: "Solo el Director puede aprobar desde borrador.",
+  APPROVE_NO_PERMISSION: "No tenés permiso para publicar.",
+  APPROVE_WRONG_STATUS: "Solo se publican notas en revisión (o borradores, si sos Director).",
+  APPROVE_DRAFT_NOT_DIRECTOR: "Solo el Director puede publicar desde borrador.",
   PUBLISH_REQUIRES_DRAFT: "Solo podés pedir publicación desde un borrador.",
   PUBLISH_NOT_PUBLISHABLE: "La nota no está en un estado publicable.",
   UNPUBLISH_NO_PERMISSION: "No tenés permiso para despublicar.",
@@ -137,9 +139,7 @@ function buildArticleContext(
   };
 }
 
-/**
- * Transición genérica (sin rol). Compat: mismo contrato que el legacy.
- */
+/** Transición genérica (sin rol). Compat: mismo contrato que el legacy. */
 export function canTransitionStatus(from: ArticleStatus, to: ArticleStatus): boolean {
   return canTransitionEditorialStatus(from, to);
 }
@@ -207,7 +207,7 @@ export function expectedActionHint(
 
 /**
  * Plan de persistencia para Article (sin Prisma).
- * La server action aplica timestamps / observaciones / notificaciones.
+ * ETAPA 15: APPROVE → PUBLISHED; no se fuerza contentTag.
  */
 export type ArticleEditorialPersistPlan =
   | {
@@ -219,7 +219,6 @@ export type ArticleEditorialPersistPlan =
       kind: "submit_via_publish";
       status: "IN_REVIEW";
       setSubmittedForReview: true;
-      setContentTagReal: true;
     }
   | {
       kind: "standard";
@@ -229,7 +228,6 @@ export type ArticleEditorialPersistPlan =
       setPublished?: boolean;
       setUnpublished?: boolean;
       setArchived?: boolean;
-      setContentTagReal?: boolean;
       preservePublishedAt?: boolean;
     };
 
@@ -279,7 +277,6 @@ export function planArticleEditorialPersist(
         kind: "submit_via_publish",
         status: "IN_REVIEW",
         setSubmittedForReview: true,
-        setContentTagReal: true,
       },
     };
   }
@@ -294,17 +291,18 @@ export function planArticleEditorialPersist(
           kind: "standard",
           status: "IN_REVIEW",
           setSubmittedForReview: true,
-          setContentTagReal: true,
         },
       };
     case "APPROVE":
+      // Legacy alias → PUBLISHED directo
       return {
         ok: true,
         plan: {
           kind: "standard",
-          status: "READY_TO_PUBLISH",
+          status: "PUBLISHED",
           setApproved: true,
-          setContentTagReal: true,
+          setPublished: true,
+          preservePublishedAt: true,
         },
       };
     case "PUBLISH":
@@ -314,7 +312,6 @@ export function planArticleEditorialPersist(
           kind: "standard",
           status: "PUBLISHED",
           setPublished: true,
-          setContentTagReal: true,
           preservePublishedAt: true,
         },
       };
@@ -358,9 +355,6 @@ export function articlePrismaDataFromPlan(
   if (plan.kind === "submit_via_publish" || plan.setSubmittedForReview) {
     data.submittedForReviewAt = opts.now;
     data.submittedForReviewByUserId = opts.userId;
-  }
-  if (plan.kind === "submit_via_publish" || plan.setContentTagReal) {
-    data.contentTag = "REAL";
   }
   if (plan.kind === "standard") {
     if (plan.setApproved) {

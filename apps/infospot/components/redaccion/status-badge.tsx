@@ -3,7 +3,8 @@ import { EDITORIAL_STATUS_LABELS, type EditorialStatus } from "@/lib/editorial";
 const styles: Record<EditorialStatus, string> = {
   DRAFT: "bg-slate-100 text-slate-800",
   IN_REVIEW: "bg-[var(--is-orange-50)] text-[var(--is-orange-800)]",
-  READY_TO_PUBLISH: "bg-sky-100 text-sky-900",
+  // ETAPA 15: READY_TO_PUBLISH = misma apariencia que EN REVISIÓN
+  READY_TO_PUBLISH: "bg-[var(--is-orange-50)] text-[var(--is-orange-800)]",
   PUBLISHED: "bg-teal-100 text-teal-800",
   UNPUBLISHED: "bg-amber-100 text-amber-900",
   ARCHIVED: "bg-stone-200 text-stone-700",

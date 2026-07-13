@@ -7,15 +7,21 @@
 export {
   EDITORIAL_STATUSES,
   EDITORIAL_ACTIONS,
+  VISIBLE_EDITORIAL_STATUSES,
+  VISIBLE_EDITORIAL_ACTIONS,
   EDITORIAL_STATUS_LABELS,
   EDITORIAL_ACTION_LABELS,
   isEditorialStatus,
+  isVisibleEditorialStatus,
+  normalizeVisibleEditorialStatus,
 } from "./editorial-status";
 
 export type {
   EditorialAction,
   EditorialContentType,
   EditorialStatus,
+  VisibleEditorialStatus,
+  EditorialPublishIntent,
   EditorialActorCapabilities,
   EditorialWorkflowSubject,
   EditorialTransitionContext,

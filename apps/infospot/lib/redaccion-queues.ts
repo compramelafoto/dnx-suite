@@ -8,12 +8,15 @@ import {
   type ArticleStatus,
 } from "@/lib/article-status";
 
+/**
+ * ETAPA 15: "listas-publicar" se eliminó de la UI.
+ * Los filtros internos tratan READY_TO_PUBLISH como alias de IN_REVIEW.
+ */
 export type RedaccionVista =
   | "mi-trabajo"
   | "borradores"
   | "en-revision"
   | "devueltas"
-  | "listas-publicar"
   | "publicadas"
   | "despublicadas"
   | "archivadas";
@@ -26,7 +29,6 @@ export const REDACCION_VISTAS: ReadonlyArray<{
   { id: "borradores", label: "Borradores" },
   { id: "en-revision", label: "En revisión" },
   { id: "devueltas", label: "Devueltas" },
-  { id: "listas-publicar", label: "Listas para publicar" },
   { id: "publicadas", label: "Publicadas" },
   { id: "despublicadas", label: "Despublicadas" },
   { id: "archivadas", label: "Archivadas" },
@@ -41,7 +43,6 @@ export const REDACCION_VISTAS_EVENTOS: ReadonlyArray<{
   { id: "borradores", label: "Borradores" },
   { id: "en-revision", label: "En revisión" },
   { id: "devueltas", label: "Devueltos" },
-  { id: "listas-publicar", label: "Listos para publicar" },
   { id: "publicadas", label: "Publicados" },
   { id: "despublicadas", label: "Despublicados" },
   { id: "archivadas", label: "Archivados" },
@@ -91,10 +92,11 @@ export function parseRedaccionVista(raw?: string | null): RedaccionVista {
     case "review":
     case "revisar":
     case "IN_REVIEW":
-      return "en-revision";
     case "ready":
     case "READY_TO_PUBLISH":
-      return "listas-publicar";
+    case "listas-publicar":
+      // ETAPA 15: listas-publicar es alias de en-revision
+      return "en-revision";
     case "published":
     case "PUBLISHED":
     case "publicadas":
@@ -126,11 +128,12 @@ export function filterArticlesByVista<T extends QueueArticleShape>(
         (a) => a.status === "DRAFT" && !hasPendingReturn(a),
       );
     case "en-revision":
-      return articles.filter((a) => a.status === "IN_REVIEW");
+      // ETAPA 15: incluye READY_TO_PUBLISH como alias
+      return articles.filter(
+        (a) => a.status === "IN_REVIEW" || a.status === "READY_TO_PUBLISH",
+      );
     case "devueltas":
       return articles.filter((a) => hasPendingReturn(a));
-    case "listas-publicar":
-      return articles.filter((a) => a.status === "READY_TO_PUBLISH");
     case "publicadas":
       return articles.filter((a) => a.status === "PUBLISHED");
     case "despublicadas":
@@ -163,11 +166,10 @@ export function filterEventsByVista<T extends QueueEventShape>(
     case "borradores":
       return events.filter((e) => e.status === "DRAFT" && !hasPending(e));
     case "en-revision":
-      return events.filter((e) => e.status === "IN_REVIEW");
+      // ETAPA 15: incluye READY_TO_PUBLISH como alias
+      return events.filter((e) => e.status === "IN_REVIEW" || e.status === "READY_TO_PUBLISH");
     case "devueltas":
       return events.filter((e) => hasPending(e));
-    case "listas-publicar":
-      return events.filter((e) => e.status === "READY_TO_PUBLISH");
     case "publicadas":
       return events.filter((e) => e.status === "PUBLISHED");
     case "despublicadas":
@@ -211,7 +213,7 @@ export function statusDbFilterForVista(vista: RedaccionVista): ArticleStatus | u
   if (vista === "publicadas") return "PUBLISHED";
   if (vista === "archivadas") return "ARCHIVED";
   if (vista === "en-revision") return "IN_REVIEW";
-  if (vista === "listas-publicar") return "READY_TO_PUBLISH";
+  // listas-publicar es alias de en-revision (ETAPA 15)
   if (vista === "borradores") return "DRAFT";
   return undefined;
 }

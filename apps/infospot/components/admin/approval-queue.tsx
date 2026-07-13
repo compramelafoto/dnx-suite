@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  approveArticleAction,
   archiveArticleAction,
   publishArticleAction,
   returnArticleWithObservationAction,
@@ -290,24 +289,7 @@ export function ApprovalQueue({ items, filters, redactores, categorias }: Props)
                         onClick={() => {
                           if (
                             !window.confirm(
-                              "¿Aprobar esta nota para publicar? Debe cumplir el checklist.",
-                            )
-                          ) {
-                            return;
-                          }
-                          run(() => approveArticleAction(item.id));
-                        }}
-                      >
-                        Aprobar para publicar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={pending}
-                        className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-semibold disabled:opacity-60"
-                        onClick={() => {
-                          if (
-                            !window.confirm(
-                              "¿Publicar ahora en el sitio? Debe cumplir el checklist y etiqueta REAL.",
+                              "¿Publicar ahora en el sitio? Debe cumplir el checklist.",
                             )
                           ) {
                             return;
@@ -315,7 +297,7 @@ export function ApprovalQueue({ items, filters, redactores, categorias }: Props)
                           run(() => publishArticleAction(item.id));
                         }}
                       >
-                        Publicar
+                        Publicar ahora
                       </button>
                       <button
                         type="button"
@@ -323,7 +305,7 @@ export function ApprovalQueue({ items, filters, redactores, categorias }: Props)
                         className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-amber-300 px-4 text-sm font-medium text-amber-900 disabled:opacity-60"
                         onClick={() => setReturnFor(item.id)}
                       >
-                        Devolver con observación
+                        Devolver
                       </button>
                       <button
                         type="button"

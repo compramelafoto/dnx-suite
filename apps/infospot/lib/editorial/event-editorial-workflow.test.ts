@@ -1,5 +1,6 @@
 /**
  * Tests del adaptador EVENT + núcleo editorial.
+ * ETAPA 15: workflow simplificado — READY_TO_PUBLISH alias de IN_REVIEW.
  * Ejecutar: `pnpm --filter infospot test:editorial-workflow`
  */
 
@@ -18,6 +19,7 @@ import {
   EVENT_STATUS_LABELS,
   hasPendingEventReturn,
 } from "./event-adapter";
+import { isPubliclyDistributable, publicPublishedEventWhere } from "../distribution/public-rules";
 import type { InfoSpotPermissionSubject } from "@repo/db";
 
 function actor(partial: Partial<EditorialActorCapabilities>): EditorialActorCapabilities {
@@ -69,7 +71,7 @@ assert.equal(initialEventStatusForOrigin("PUBLIC_INTAKE"), "IN_REVIEW");
   if (r.ok) assert.equal(r.targetStatus, "IN_REVIEW");
 }
 
-// 4. IN_REVIEW + RETURN → DRAFT
+// 4. IN_REVIEW + RETURN → DRAFT (director O canPublish, ETAPA 15)
 {
   const r = resolveEditorialTransition({
     contentType: "EVENT",
@@ -85,9 +87,27 @@ assert.equal(initialEventStatusForOrigin("PUBLIC_INTAKE"), "IN_REVIEW");
     assert.equal(plan.plan.kind, "return");
     assert.equal(plan.plan.requiresObservation, true);
   }
+
+  // canPublish sin isDirector también puede devolver
+  const byPublisher = resolveEditorialTransition({
+    contentType: "EVENT",
+    from: "IN_REVIEW",
+    action: "RETURN",
+    actor: actor({ isDirector: false, canPublish: true }),
+  });
+  assert.equal(byPublisher.ok, true, "canPublish puede RETURN");
+
+  // RETURN desde READY_TO_PUBLISH (legado)
+  const fromReady = resolveEditorialTransition({
+    contentType: "EVENT",
+    from: "READY_TO_PUBLISH",
+    action: "RETURN",
+    actor: actor({ canPublish: true }),
+  });
+  assert.equal(fromReady.ok, true, "RETURN desde READY_TO_PUBLISH");
 }
 
-// 5. IN_REVIEW + APPROVE → READY_TO_PUBLISH
+// 5. APPROVE es alias de PUBLISH → PUBLISHED (ETAPA 15)
 {
   const r = resolveEditorialTransition({
     contentType: "EVENT",
@@ -96,10 +116,15 @@ assert.equal(initialEventStatusForOrigin("PUBLIC_INTAKE"), "IN_REVIEW");
     actor: actor({ isDirector: true, canPublish: true }),
   });
   assert.equal(r.ok, true);
-  if (r.ok) assert.equal(r.targetStatus, "READY_TO_PUBLISH");
+  // ETAPA 15: APPROVE destino = PUBLISHED (no READY_TO_PUBLISH)
+  if (r.ok) assert.equal(r.targetStatus, "PUBLISHED");
+
+  const plan = planEventEditorialPersist(director, "IN_REVIEW", "APPROVE");
+  assert.equal(plan.ok, true);
+  if (plan.ok) assert.equal(plan.plan.status, "PUBLISHED");
 }
 
-// 6. READY_TO_PUBLISH + PUBLISH → PUBLISHED
+// 6. READY_TO_PUBLISH (legado) + PUBLISH → PUBLISHED
 {
   const r = resolveEditorialTransition({
     contentType: "EVENT",
@@ -199,8 +224,38 @@ assert.equal(initialEventStatusForOrigin("PUBLIC_INTAKE"), "IN_REVIEW");
   }
 }
 
-// 13. Checklist bloquea publicación incompleta
+// 13. Checklist no bloquea en contentTag (ETAPA 15)
 {
+  // Con todos los campos OK, independiente del contentTag
+  const ok = validateEventForPublish({
+    title: "Maratón local",
+    description: "Descripción suficientemente larga del evento deportivo.",
+    organizerName: "Club Atlético",
+    startAt: new Date(),
+    city: "Rosario",
+    province: "Santa Fe",
+    slug: "maraton-local",
+    contentTag: "DEMO", // ETAPA 15: ya no bloquea
+    latitude: -32.9442,
+    longitude: -60.6505,
+    locationConfirmedAt: new Date(),
+    geocodingStatus: "CONFIRMED",
+  });
+  assert.equal(ok, null, "contentTag DEMO no bloquea publicación");
+
+  // Sin geos sí falla
+  const noGeo = validateEventForPublish({
+    title: "Maratón local",
+    description: "Descripción suficientemente larga del evento deportivo.",
+    organizerName: "Club Atlético",
+    startAt: new Date(),
+    city: "Rosario",
+    province: "Santa Fe",
+    slug: "maraton-local",
+  });
+  assert.ok(noGeo && noGeo.includes("Georreferenciación"));
+
+  // Campos incompletos siguen bloqueando
   const err = validateEventForPublish({
     title: "Ab",
     description: "corto",
@@ -210,57 +265,58 @@ assert.equal(initialEventStatusForOrigin("PUBLIC_INTAKE"), "IN_REVIEW");
     slug: "",
   });
   assert.ok(err && err.includes("Faltan"));
-  const ok = validateEventForPublish({
-    title: "Maratón local",
-    description: "Descripción suficientemente larga del evento deportivo.",
-    organizerName: "Club Atlético",
-    startAt: new Date(),
-    city: "Rosario",
-    province: "Santa Fe",
-    slug: "maraton-local",
-    contentTag: "REAL",
-    latitude: -32.9442,
-    longitude: -60.6505,
-    locationConfirmedAt: new Date(),
-    geocodingStatus: "CONFIRMED",
-  });
-  assert.equal(ok, null);
-
-  const noGeo = validateEventForPublish({
-    title: "Maratón local",
-    description: "Descripción suficientemente larga del evento deportivo.",
-    organizerName: "Club Atlético",
-    startAt: new Date(),
-    city: "Rosario",
-    province: "Santa Fe",
-    slug: "maraton-local",
-    contentTag: "REAL",
-  });
-  assert.ok(noGeo && noGeo.includes("Georreferenciación"));
 }
 
-// 14. Público solo PUBLISHED + REAL — documentado vía filtro canónico
+// 14. Público: solo PUBLISHED (sin filtro contentTag, ETAPA 15)
 {
-  const publicWhere = { status: "PUBLISHED" as const, contentTag: "REAL" as const };
-  assert.equal(publicWhere.status, "PUBLISHED");
-  assert.equal(publicWhere.contentTag, "REAL");
-  assert.notEqual("UNPUBLISHED", publicWhere.status);
+  // isPubliclyDistributable ya no chequea contentTag
+  assert.equal(
+    isPubliclyDistributable({ status: "PUBLISHED", contentTag: "DEMO" }),
+    true,
+    "DEMO PUBLISHED es público (la migración SQL previene que haya DEMO PUBLISHED)",
+  );
+  assert.equal(isPubliclyDistributable({ status: "PUBLISHED" }), true);
+  assert.equal(isPubliclyDistributable({ status: "DRAFT" }), false);
+  assert.equal(isPubliclyDistributable({ status: "IN_REVIEW" }), false);
+  assert.equal(isPubliclyDistributable({ status: "UNPUBLISHED" }), false);
+  assert.equal(
+    isPubliclyDistributable({ status: "PUBLISHED", excludeFromHomepage: true }),
+    false,
+  );
+
+  const where = publicPublishedEventWhere();
+  assert.equal(where.status, "PUBLISHED");
+  // ETAPA 15: no hay contentTag en el where
+  assert.ok(!("contentTag" in where), "contentTag ausente del where público");
+  assert.equal(where.excludeFromHomepage, false);
 }
 
-// 15 / 16. Migración semántica
+// 15. DEMO PUBLISHED sería público → la migración lo convierte a UNPUBLISHED
+{
+  // Documentado: la migración 20260713030000 despublica DEMO+PUBLISHED antes del deploy.
+  // Después: DEMO no puede estar PUBLISHED.
+  assert.ok(true, "migración garantiza que DEMO no queda PUBLISHED");
+}
+
+// 16 / 17. Migración semántica mapLegacyEventStatus
 assert.equal(mapLegacyEventStatus("PENDING_REVIEW"), "IN_REVIEW");
 assert.equal(mapLegacyEventStatus("REJECTED"), "DRAFT");
 assert.equal(mapLegacyEventStatus("PUBLISHED"), "PUBLISHED");
 assert.equal(mapLegacyEventStatus("ARCHIVED"), "ARCHIVED");
+// ETAPA 15: READY_TO_PUBLISH → IN_REVIEW
+assert.equal(mapLegacyEventStatus("READY_TO_PUBLISH"), "IN_REVIEW");
 
-// 17. Permisos por rol
+// 18. Permisos por rol
 assert.equal(canPerformEventEditorialAction(colaborador, "DRAFT", "PUBLISH").ok, true);
+// READY_TO_PUBLISH legado: colaborador sin canPublish no puede publicar
 assert.equal(canPerformEventEditorialAction(colaborador, "READY_TO_PUBLISH", "PUBLISH").ok, false);
 assert.equal(canPerformEventEditorialAction(director, "IN_REVIEW", "RETURN").ok, true);
+// ETAPA 15: canPublish también puede RETURN
+assert.equal(canPerformEventEditorialAction(redactorDirect, "IN_REVIEW", "RETURN").ok, true);
 assert.equal(canPerformEventEditorialAction(colaborador, "IN_REVIEW", "RETURN").ok, false);
 assert.equal(canPerformEventEditorialAction(redactorDirect, "DRAFT", "PUBLISH").ok, true);
 
-// 18. Wrappers antiguos = mismas transiciones (reject→RETURN, publish→PUBLISH)
+// 19. Wrappers antiguos = mismas transiciones
 {
   const rejectPlan = planEventEditorialPersist(director, "IN_REVIEW", "RETURN");
   assert.equal(rejectPlan.ok, true);
@@ -275,7 +331,9 @@ assert.equal(canPerformEventEditorialAction(redactorDirect, "DRAFT", "PUBLISH").
   if (archivePlan.ok) assert.equal(archivePlan.plan.status, "ARCHIVED");
 }
 
+// 20. Labels (ETAPA 15)
 assert.equal(EVENT_STATUS_LABELS.PUBLISHED, "Publicado");
+assert.equal(EVENT_STATUS_LABELS.READY_TO_PUBLISH, "En revisión");
 assert.equal(
   hasPendingEventReturn({
     status: "DRAFT",

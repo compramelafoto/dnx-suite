@@ -74,7 +74,7 @@ export function filterRedaccionEvents<T extends Parameters<typeof filterEventsBy
 }
 
 export async function getEventEditorialStats() {
-  const [draft, inReview, ready, published, unpublished, archived] =
+  const [draft, inReview, readyLegacy, published, unpublished, archived] =
     await Promise.all([
       prisma.infoSpotEvent.count({ where: { status: "DRAFT" } }),
       prisma.infoSpotEvent.count({ where: { status: "IN_REVIEW" } }),
@@ -83,7 +83,8 @@ export async function getEventEditorialStats() {
       prisma.infoSpotEvent.count({ where: { status: "UNPUBLISHED" } }),
       prisma.infoSpotEvent.count({ where: { status: "ARCHIVED" } }),
     ]);
-  return { draft, inReview, ready, published, unpublished, archived };
+  // ETAPA 15: READY_TO_PUBLISH es alias de IN_REVIEW; se suman para la UI
+  return { draft, inReview: inReview + readyLegacy, ready: readyLegacy, published, unpublished, archived };
 }
 
 export function summarizeEventChecklist(event: {

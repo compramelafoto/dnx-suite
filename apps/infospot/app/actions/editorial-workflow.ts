@@ -70,7 +70,7 @@ async function assertPublishChecklist(
     content: article.content,
     categoryId: article.categoryId,
     coverImageId: article.coverImageId,
-    contentTag: "REAL",
+    contentTag: article.contentTag ?? "REAL",
     sourceName: article.sourceName ?? undefined,
     sourceUrl: article.sourceUrl ?? undefined,
     seoTitle: article.seoTitle ?? undefined,
@@ -213,12 +213,15 @@ export async function runEditorialAction(
     if (checklistError) {
       return {
         ok: false,
-        error: `No podés ${action === "APPROVE" ? "aprobar" : "publicar"} todavía: ${checklistError}`,
+        error: `No podés publicar todavía: ${checklistError}`,
       };
     }
   }
 
-  if (action === "PUBLISH" && !canPublishInfoSpotArticle(access.subject)) {
+  if (
+    (action === "PUBLISH" || action === "APPROVE") &&
+    !canPublishInfoSpotArticle(access.subject)
+  ) {
     return { ok: false, error: "No tenés permiso para publicar." };
   }
 

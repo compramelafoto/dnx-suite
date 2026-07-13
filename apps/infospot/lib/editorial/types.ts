@@ -1,13 +1,20 @@
 /**
  * Tipos del workflow editorial genérico (independiente del modelo Prisma).
  *
- * Soporta ARTICLE y EVENT con el mismo motor de transiciones.
- * Ver `event-adapter.contract.md` y `article-adapter.ts` / `event-adapter.ts`.
+ * Workflow visible (ETAPA 15):
+ *   BORRADOR → EN REVISIÓN → PUBLICADO → DESPUBLICADO → ARCHIVADO
+ *
+ * `READY_TO_PUBLISH` permanece en el enum Prisma solo por compatibilidad de DB;
+ * la app lo trata como alias legado de `IN_REVIEW` y nunca lo escribe.
  */
 
 /** Tipos de contenido editorial soportados por el núcleo. */
 export type EditorialContentType = "ARTICLE" | "EVENT";
 
+/**
+ * Estados persistidos (incluye legado `READY_TO_PUBLISH` para lecturas).
+ * La UI solo expone los cinco estados del workflow simplificado.
+ */
 export const EDITORIAL_STATUSES = [
   "DRAFT",
   "IN_REVIEW",
@@ -19,6 +26,24 @@ export const EDITORIAL_STATUSES = [
 
 export type EditorialStatus = (typeof EDITORIAL_STATUSES)[number];
 
+/** Estados visibles al redactor (sin READY_TO_PUBLISH). */
+export const VISIBLE_EDITORIAL_STATUSES = [
+  "DRAFT",
+  "IN_REVIEW",
+  "PUBLISHED",
+  "UNPUBLISHED",
+  "ARCHIVED",
+] as const;
+
+export type VisibleEditorialStatus = (typeof VISIBLE_EDITORIAL_STATUSES)[number];
+
+/**
+ * Intención de publicación.
+ * Hoy solo se usa `NOW` (“Publicar ahora”).
+ * `SCHEDULED` queda reservado para publicaciones programadas futuras.
+ */
+export type EditorialPublishIntent = "NOW" | "SCHEDULED";
+
 /** Acción editorial explícita (el cliente nunca envía un status arbitrario). */
 export type EditorialAction =
   | "SUBMIT_REVIEW"
@@ -28,10 +53,24 @@ export type EditorialAction =
   | "UNPUBLISH"
   | "ARCHIVE";
 
+/**
+ * Acciones del workflow simplificado.
+ * `APPROVE` sigue en el tipo por compatibilidad de API legacy, pero no se ofrece en UI
+ * y el núcleo lo resuelve como publicación directa (`PUBLISH`).
+ */
 export const EDITORIAL_ACTIONS: readonly EditorialAction[] = [
   "SUBMIT_REVIEW",
   "RETURN",
   "APPROVE",
+  "PUBLISH",
+  "UNPUBLISH",
+  "ARCHIVE",
+] as const;
+
+/** Acciones que el panel editorial puede mostrar. */
+export const VISIBLE_EDITORIAL_ACTIONS: readonly EditorialAction[] = [
+  "SUBMIT_REVIEW",
+  "RETURN",
   "PUBLISH",
   "UNPUBLISH",
   "ARCHIVE",
@@ -44,7 +83,7 @@ export const EDITORIAL_ACTIONS: readonly EditorialAction[] = [
 export type EditorialActorCapabilities = {
   /** Puede publicar / despublicar directamente. */
   canPublish: boolean;
-  /** Equivalente a Director (devolver, aprobar desde borrador, etc.). */
+  /** Equivalente a Director (gestión / settings). */
   isDirector: boolean;
 };
 
@@ -72,6 +111,8 @@ export type EditorialTransitionContext = {
   meta?: {
     returnedAt?: Date | string | null;
     submittedForReviewAt?: Date | string | null;
+    /** Reservado: fecha de publicación programada (no implementado). */
+    scheduledPublishAt?: Date | string | null;
   };
 };
 
@@ -108,3 +149,20 @@ export type EditorialTransitionResolution =
        */
       via: "direct" | "submit_via_publish";
     };
+
+/** Normaliza estados legado a los visibles del workflow. */
+export function normalizeVisibleEditorialStatus(
+  status: EditorialStatus | string,
+): VisibleEditorialStatus {
+  if (status === "READY_TO_PUBLISH") return "IN_REVIEW";
+  if (
+    status === "DRAFT" ||
+    status === "IN_REVIEW" ||
+    status === "PUBLISHED" ||
+    status === "UNPUBLISHED" ||
+    status === "ARCHIVED"
+  ) {
+    return status;
+  }
+  return "DRAFT";
+}

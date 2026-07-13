@@ -92,12 +92,6 @@ export default async function RedaccionPage({ searchParams }: PageProps) {
       vista: "devueltas",
     },
     {
-      label: "Listas para publicar",
-      value: stats.ready,
-      href: "/redaccion?vista=listas-publicar",
-      vista: "listas-publicar",
-    },
-    {
       label: "Publicadas",
       value: stats.published,
       href: "/redaccion?vista=publicadas",
@@ -118,7 +112,6 @@ export default async function RedaccionPage({ searchParams }: PageProps) {
     borradores: draftActive,
     "en-revision": stats.inReview,
     devueltas: returnedCount,
-    "listas-publicar": stats.ready,
     publicadas: stats.published,
     archivadas: stats.archived,
   };
