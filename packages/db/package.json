@@ -19,6 +19,7 @@
     "db:seed:infospot": "tsx prisma/scripts/seed-infospot.ts",
     "db:seed:infospot-demo": "tsx prisma/scripts/seed-infospot-demo-articles.ts",
     "db:seed:infospot-events": "tsx prisma/scripts/seed-infospot-demo-events.ts",
+    "db:seed:infospot-launch-drafts": "tsx prisma/scripts/seed-infospot-launch-drafts.ts",
     "test:clf-availability": "tsx src/clf-album-availability.test.ts",
     "db:studio": "prisma studio"
   },
