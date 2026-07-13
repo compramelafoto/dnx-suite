@@ -24,10 +24,7 @@ export default async function NuevaNoticiaPage({ searchParams }: PageProps) {
   const [categories, assets] = await Promise.all([getCategories(), listUploadAssets()]);
 
   return (
-    <RedaccionShell
-      title="Escribir nota"
-      description="Editor visual. El contenido se guarda en Markdown compatible con las notas existentes."
-    >
+    <RedaccionShell variant="editor">
       <FlashBanner error={params.error} />
       <ArticleForm
         mode="create"

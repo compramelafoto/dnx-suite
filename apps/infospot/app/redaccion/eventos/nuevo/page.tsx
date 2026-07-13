@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createRedaccionEventAndRedirect } from "@/app/actions/events";
 import { FlashBanner } from "@/components/redaccion/flash-banner";
 import { RedaccionShell } from "@/components/redaccion/redaccion-shell";
@@ -38,25 +37,19 @@ export default async function NuevoEventoPage({ searchParams }: Props) {
 
   return (
     <RedaccionShell
-      header={
-        <header className="rounded-[var(--is-radius-lg)] border border-[var(--is-border)] bg-white px-5 py-8 sm:px-8">
-          <Link href="/redaccion/eventos" className="text-sm text-[var(--is-accent)] hover:underline">
-            ← Eventos
-          </Link>
-          <h1 className="mt-3 font-[family-name:var(--font-source-serif)] text-3xl font-semibold">
-            Nuevo evento
-          </h1>
-          <p className="mt-2 text-sm text-[var(--is-muted)]">
-            Se crea como borrador. Después podés enviarlo a revisión o publicarlo según tu rol.
-          </p>
-        </header>
+      variant="editor"
+      focusActions={
+        <span className="text-sm font-medium text-[var(--is-text)]">Nuevo evento</span>
       }
     >
       <FlashBanner error={params.error} />
+      <p className="max-w-2xl text-sm leading-relaxed text-[var(--is-muted)]">
+        Se crea como borrador. Después podés enviarlo a revisión o publicarlo según tu rol.
+      </p>
       <form
         action={createRedaccionEventAndRedirect}
         encType="multipart/form-data"
-        className="max-w-2xl space-y-6 rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6"
+        className="mx-auto w-full max-w-[52rem] space-y-6 rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6"
       >
         <label className="block">
           <span className="text-sm font-medium">Título</span>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import { SiteFooter, SiteHeader } from "@/components/navigation";
+import { AppChrome } from "@/components/navigation/AppChrome";
 import { resolveSiteHeaderAuth } from "@/components/navigation/resolve-site-header-auth";
 import { getInfoSpotSettings, getSiteUrl } from "@/lib/settings";
 import "./globals.css";
@@ -100,11 +100,11 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
-        <SiteHeader auth={headerAuth} />
-        <main id="contenido" className="flex-1">
-          {children}
-        </main>
-        <SiteFooter />
+        <AppChrome auth={headerAuth}>
+          <main id="contenido" className="flex-1">
+            {children}
+          </main>
+        </AppChrome>
       </body>
     </html>
   );

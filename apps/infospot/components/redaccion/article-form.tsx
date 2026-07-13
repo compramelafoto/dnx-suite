@@ -557,7 +557,7 @@ export function ArticleForm({
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="mx-auto w-full max-w-3xl space-y-8">
+        <div className="mx-auto w-full max-w-[52rem] space-y-8">
           {importBanner ? (
             <p
               className="rounded-[var(--is-radius-sm)] border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-950"

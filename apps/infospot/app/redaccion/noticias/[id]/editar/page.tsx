@@ -70,7 +70,17 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
       : null;
 
   return (
-    <RedaccionShell title="Editar nota" description={article.title}>
+    <RedaccionShell
+      variant="editor"
+      focusActions={
+        <span
+          className="hidden max-w-[14rem] truncate text-sm text-[var(--is-muted)] sm:inline"
+          title={article.title}
+        >
+          {article.title}
+        </span>
+      }
+    >
       <FlashBanner ok={query.ok} error={query.error} />
       {latestReturn ? (
         <div className="mb-6 rounded-[var(--is-radius-md)] border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">

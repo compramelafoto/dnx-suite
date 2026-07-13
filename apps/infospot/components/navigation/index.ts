@@ -1,4 +1,5 @@
 export { SiteHeader } from "./SiteHeader";
+export { AppChrome } from "./AppChrome";
 export { primaryNavLinks } from "./nav-links";
 export { MobileNavigation } from "./MobileNavigation";
 export type { NavLink } from "./MobileNavigation";

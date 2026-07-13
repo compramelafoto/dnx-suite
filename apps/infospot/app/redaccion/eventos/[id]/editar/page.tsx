@@ -77,7 +77,7 @@ export default async function EditarEventoPage({ params, searchParams }: Props) 
   const call = event.photographerCall;
 
   return (
-    <RedaccionShell>
+    <RedaccionShell variant="editor">
       <EventEditorForm
         event={event}
         categories={categories}
