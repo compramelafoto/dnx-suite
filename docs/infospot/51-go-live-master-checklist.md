@@ -354,7 +354,7 @@ Máquina de estados: `DRAFT → IN_REVIEW → PUBLISHED → UNPUBLISHED → ARCH
 ## 9. Riesgos pendientes (no bloquean alias; sí condicionan dominio / higiene)
 
 1. **DNS DonWeb** — bloqueante absoluto del GO público.  
-2. **Director = 0 users** — bootstrap obligatorio en T-1 / T-30.  
+2. **Director = 0 users** — bootstrap obligatorio en T-1 / T-30; CTA Google reparado en 22O ([55](./55-google-login-production-fix.md)).  
 3. **0 contenido PUBLISHED** — lanzamiento vacío posible pero débil; planificar piezas.  
 4. **3 migraciones Prisma** — **aplicadas en 22J** (schema up to date). Ver [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md).  
 5. **Sin CSP explícita** — mejora post-lanzamiento recomendada.  
@@ -363,7 +363,7 @@ Máquina de estados: `DRAFT → IN_REVIEW → PUBLISHED → UNPUBLISHED → ARCH
 8. **Search Console / OAuth console** — solo día D.  
 9. **Working tree ajeno CLF** — no mezclar.  
 10. **Info Spot fuera de Platform Catalog DNX-MCP** — `release_*` no aplica.  
-11. **Director + contenido día 1** — login OAuth + `db:grant-infospot-director`; 0 eventos futuros entre los 40 DRAFT.
+11. **Director + contenido día 1** — login OAuth + `db:grant-infospot-director` ([54](./54-first-director-production-validation.md)); 0 eventos futuros entre los 40 DRAFT.
 
 ---
 
@@ -373,10 +373,10 @@ Máquina de estados: `DRAFT → IN_REVIEW → PUBLISHED → UNPUBLISHED → ARCH
 |----------|-----------|
 | ¿Listo para operar en alias Vercel? | **SÍ** |
 | ¿Listo para anunciar `infospot.com.ar` ahora? | **NO** |
-| ¿`READY_FOR_DNS_AND_PUBLICATION`? | **NO** — 22K: `BLOCKED_BY_FIRST_DIRECTOR_LOGIN` |
+| ¿`READY_FOR_DNS_AND_PUBLICATION`? | **NO** — `BLOCKED_BY_FIRST_DIRECTOR_LOGIN` |
 | ¿Falta desarrollo de features para GO? | **NO** (faltan login Director + contenido + DNS) |
 | Launch Readiness pre-DNS | **~96%** |
-| Próximo paso | Login en alias → grant Director → [53](./53-director-and-day1-content.md) |
+| Próximo paso | Deploy fix Google ([55](./55-google-login-production-fix.md)) → User → grant ([54](./54-first-director-production-validation.md)) → [53](./53-director-and-day1-content.md) |
 
 ---
 

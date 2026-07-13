@@ -4,14 +4,14 @@
 **Rama:** `migration-legacy-clf-to-monorepo`  
 **Alias:** `https://infospot-dnxsuite.vercel.app`  
 **Production:** `fa55a2d` · health `db:ok` · schema up to date  
-**Estado de etapa:** **`BLOCKED_BY_FIRST_DIRECTOR_LOGIN`**  
+**Estado de etapa:** **`BLOCKED_BY_FIRST_DIRECTOR_LOGIN`** (login Google en corrección 22O — ver [55](./55-google-login-production-fix.md))  
 **Estado producto objetivo:** `READY_FOR_DNS_AND_PUBLICATION` — **aún no alcanzado**  
 **Launch Readiness:** **~96%**  
 **Dominio `infospot.com.ar`:** **NO-GO**
 
 No incluye emails, secretos ni URLs de base de datos.
 
-Ver: [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md), [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md), [`44-editorial-operations-manual.md`](./44-editorial-operations-manual.md).
+Ver: [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md), [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md), [`44-editorial-operations-manual.md`](./44-editorial-operations-manual.md), [`55-google-login-production-fix.md`](./55-google-login-production-fix.md), [`54-first-director-production-validation.md`](./54-first-director-production-validation.md).
 
 ---
 
@@ -53,11 +53,12 @@ BLOCKED_BY_FIRST_DIRECTOR_LOGIN
 
 ### Desbloqueo (orden estricto)
 
-1. Abrir **exactamente** https://infospot-dnxsuite.vercel.app/ingresar (alias Production, no preview).  
-2. Completar **Google** hasta volver a la app.  
+1. Confirmar deploy con fix 22O ([55](./55-google-login-production-fix.md)): CTA Google = enlace a `/api/auth/google`.  
+2. Abrir **exactamente** https://infospot-dnxsuite.vercel.app/ingresar (alias Production, no preview).  
+3. Completar **Google** hasta volver a la app.  
    - Sin rol Info Spot → destino esperado `/ingresar/acceso-pendiente` (normal).  
-3. Confirmar en Neon Production exactamente **1** `User`.  
-4. En la shell del agente (sin pegar el email en el chat ni en docs):
+4. Confirmar en Neon Production exactamente **1** `User`.  
+5. En la shell del agente (sin pegar el email en el chat ni en docs):
 
 ```bash
 export INFOSPOT_DIRECTOR_EMAIL="<email-autorizado>"
@@ -65,7 +66,7 @@ export INFOSPOT_DIRECTOR_EMAIL="<email-autorizado>"
 pnpm --filter @repo/db db:grant-infospot-director
 ```
 
-5. Re-lanzar **22L** para validar `/redaccion` + permisos Director + borradores día 1.
+6. Seguir [54](./54-first-director-production-validation.md) y re-lanzar validación `/redaccion` + borradores día 1.
 
 Si hay duplicados del mismo email → `BLOCKED_BY_DUPLICATE_IDENTITY`.
 
@@ -84,4 +85,4 @@ Plan intacto: 3–6 eventos futuros reales, 3–5 noticias, ≥1 cobertura autor
 | ¿`READY_FOR_DNS_AND_PUBLICATION`? | **NO** |
 | ¿Redeploy? | **No** |
 | ¿App Production modificada? | **No** (`fa55a2d`) |
-| Próximo paso | OAuth completo + `INFOSPOT_DIRECTOR_EMAIL` en shell |
+| Próximo paso | Deploy fix Google ([55](./55-google-login-production-fix.md)) → OAuth completo → grant ([54](./54-first-director-production-validation.md)) |
