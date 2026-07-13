@@ -37,6 +37,15 @@ export function StepPhotos({
   const [defaultRole, setDefaultRole] = useState<PhotoRole>("GALLERY");
   const [zoomPath, setZoomPath] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!zoomPath) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomPath(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomPath]);
+
   const activeCoverage = coverages.find((c) => c.clfAlbumId === activeAlbumId);
 
   const selectedMap = useMemo(() => {
@@ -292,6 +301,19 @@ export function StepPhotos({
         </div>
       ) : null}
 
+      {!loading && coverages.length === 0 ? (
+        <p className="rounded-[var(--is-radius-md)] border border-dashed border-[var(--is-border)] bg-white p-8 text-center text-sm leading-relaxed text-[var(--is-muted)]">
+          No hay coberturas seleccionadas. Volvé a Material editorial o seguí sin fotografías.
+        </p>
+      ) : null}
+
+      {!loading && coverages.length > 0 && photos.length === 0 ? (
+        <p className="rounded-[var(--is-radius-md)] border border-dashed border-[var(--is-border)] bg-white p-8 text-center text-sm leading-relaxed text-[var(--is-muted)]">
+          No hay fotografías disponibles en esta cobertura. Probá otra cobertura o continuá sin
+          seleccionar fotos.
+        </p>
+      ) : null}
+
       {/* Panel inferior fijo */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--is-border)] bg-white/95 px-4 py-4 backdrop-blur md:px-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -327,15 +349,13 @@ export function StepPhotos({
           aria-modal="true"
           aria-label="Vista ampliada"
           onClick={() => setZoomPath(null)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setZoomPath(null);
-          }}
         >
           <button
             type="button"
             className="absolute right-4 top-4 min-h-11 min-w-11 rounded-full bg-white/90 text-sm font-semibold"
             onClick={() => setZoomPath(null)}
             aria-label="Cerrar"
+            autoFocus
           >
             ✕
           </button>

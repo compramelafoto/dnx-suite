@@ -57,11 +57,11 @@ type Props = {
 };
 
 const SYNC_LABELS: Record<string, string> = {
-  PENDING: "Sync pendiente",
-  SYNCED: "Sincronizado",
-  FAILED: "Error de sync",
+  PENDING: "Sincronización pendiente",
+  SYNCED: "Al día",
+  FAILED: "Error de sincronización",
   STALE: "Desactualizado",
-  DISABLED: "Sync deshabilitado",
+  DISABLED: "Sincronización deshabilitada",
 };
 
 function geoBadge(event: EventRow): { label: string; className: string } {

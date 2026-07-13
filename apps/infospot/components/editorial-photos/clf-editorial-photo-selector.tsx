@@ -115,7 +115,7 @@ export function ClfEditorialPhotoSelector({
             Agregar fotos desde ComprameLaFoto
           </p>
           <p className="mt-1 text-sm text-[var(--is-muted)]">
-            {albumTitle || `Álbum #${albumId}`} · derivados editoriales (sin original)
+            {albumTitle || "Cobertura fotográfica"} · vistas previas editoriales
           </p>
         </div>
         <label className="text-sm">

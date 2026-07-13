@@ -12,7 +12,7 @@ export const ASSISTANT_TIMELINE: readonly TimelineItem[] = [
   { id: "material", label: "Material editorial" },
   { id: "photos", label: "Fotografías" },
   { id: "draft", label: "Preparar borrador" },
-  { id: "summary", label: "Editor" },
+  { id: "summary", label: "Resumen" },
 ] as const;
 
 /**

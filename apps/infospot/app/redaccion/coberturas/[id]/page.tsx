@@ -10,7 +10,6 @@ import {
 } from "@/lib/infospot-access";
 import { buildCoverageSummaryStub, getCoverageById } from "@/lib/coverage";
 import {
-  createArticleFromCoverageFormAction,
   dismissCoverageFormAction,
 } from "@/app/actions/coverage";
 import {
@@ -63,7 +62,7 @@ export default async function CoberturaDetailPage({ params, searchParams }: Prop
   return (
     <RedaccionShell
       title={coverage.title}
-      description="Detalle de cobertura editorial (álbum CLF)."
+      description="Cobertura fotográfica disponible para redactar."
       actions={
         <Link
           href="/redaccion/coberturas"
@@ -78,27 +77,59 @@ export default async function CoberturaDetailPage({ params, searchParams }: Prop
       <div className="space-y-8">
         <section className="rounded-[var(--is-radius)] border border-[var(--is-border)] bg-white p-6 space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-[var(--is-muted)]">
-            Estados
+            Estado del material
           </p>
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-[var(--is-muted)]">Editorial</dt>
-              <dd className="font-semibold">{coverage.editorialStatus}</dd>
-            </div>
-            <div>
-              <dt className="text-[var(--is-muted)]">Comercial</dt>
+              <dt className="text-[var(--is-muted)]">Redacción</dt>
               <dd className="font-semibold">
-                {coverage.commercialStatus}
-                {coverage.canShowPurchaseCta ? " · CTA activo" : " · sin CTA"}
+                {coverage.editorialStatus === "UNASSIGNED"
+                  ? "Sin asignar"
+                  : coverage.editorialStatus === "DRAFTING"
+                    ? "En redacción"
+                    : coverage.editorialStatus === "PUBLISHED"
+                      ? "Con nota publicada"
+                      : coverage.editorialStatus === "STALE"
+                        ? "Desactualizado"
+                        : coverage.editorialStatus}
               </dd>
             </div>
             <div>
-              <dt className="text-[var(--is-muted)]">Sync</dt>
-              <dd className="font-semibold">{coverage.syncStatus}</dd>
+              <dt className="text-[var(--is-muted)]">Disponibilidad</dt>
+              <dd className="font-semibold">
+                {coverage.commercialStatus === "AVAILABLE"
+                  ? "Disponible"
+                  : coverage.commercialStatus === "REACTIVATABLE"
+                    ? "Reactivable"
+                    : coverage.commercialStatus === "UNAVAILABLE"
+                      ? "No disponible"
+                      : "Por confirmar"}
+                {coverage.canShowPurchaseCta ? " · compra pública" : ""}
+              </dd>
             </div>
             <div>
-              <dt className="text-[var(--is-muted)]">Descubrimiento</dt>
-              <dd className="font-semibold">{coverage.discoveryStatus}</dd>
+              <dt className="text-[var(--is-muted)]">Actualización</dt>
+              <dd className="font-semibold">
+                {coverage.syncStatus === "SYNCED"
+                  ? "Al día"
+                  : coverage.syncStatus === "PENDING"
+                    ? "Pendiente"
+                    : coverage.syncStatus === "FAILED"
+                      ? "Con error"
+                      : coverage.syncStatus === "STALE"
+                        ? "Desactualizado"
+                        : coverage.syncStatus}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[var(--is-muted)]">En bandeja</dt>
+              <dd className="font-semibold">
+                {coverage.discoveryStatus === "DISMISSED"
+                  ? "Descartada"
+                  : coverage.discoveryStatus === "LINKED"
+                    ? "Vinculada a una historia"
+                    : "Disponible"}
+              </dd>
             </div>
           </dl>
         </section>
@@ -113,20 +144,11 @@ export default async function CoberturaDetailPage({ params, searchParams }: Prop
                 rel="noopener noreferrer"
                 className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium"
               >
-                Abrir álbum en CLF
+                Abrir en ComprameLaFoto
               </a>
             ) : (
-              <span className="text-sm text-[var(--is-muted)]">Álbum sin CTA público</span>
+              <span className="text-sm text-[var(--is-muted)]">Sin enlace público de compra</span>
             )}
-            <form action={createArticleFromCoverageFormAction}>
-              <input type="hidden" name="coverageId" value={coverage.id} />
-              <button
-                type="submit"
-                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium"
-              >
-                Crear historia rápida
-              </button>
-            </form>
             <Link
               href={`/redaccion/asistente?intent=coverage&coverageId=${coverage.id}`}
               className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
@@ -201,7 +223,7 @@ export default async function CoberturaDetailPage({ params, searchParams }: Prop
           <div className="rounded-[var(--is-radius)] border border-[var(--is-border)] bg-white p-4 text-sm">
             <p className="font-semibold">Portada elegida</p>
             <p className="mt-2 text-[var(--is-muted)]">
-              {cover ? cover.photographerName : "Sin portada CLF aún"}
+              {cover ? cover.photographerName : "Sin portada todavía"}
             </p>
           </div>
           <div className="rounded-[var(--is-radius)] border border-[var(--is-border)] bg-white p-4 text-sm">
@@ -217,7 +239,7 @@ export default async function CoberturaDetailPage({ params, searchParams }: Prop
         </section>
 
         <section className="rounded-[var(--is-radius)] border border-[var(--is-border)] bg-white p-6 space-y-3">
-          <h2 className="text-lg font-semibold">Resumen stub</h2>
+          <h2 className="text-lg font-semibold">Resumen sugerido</h2>
           <p className="text-sm leading-relaxed text-[var(--is-text-secondary)]">{summary}</p>
         </section>
 

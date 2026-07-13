@@ -41,7 +41,7 @@ export function AssistantTimeline({ intent, current, onJump }: Props) {
                 type="button"
                 disabled={!canJump}
                 onClick={() => canJump && onJump?.(step.id)}
-                className={`flex w-full items-center gap-3 rounded-[var(--is-radius-sm)] px-2 py-2 text-left text-sm transition ${
+                className={`flex w-full items-center gap-3 rounded-[var(--is-radius-sm)] px-2 py-2 text-left text-sm transition duration-200 ${
                   status === "current"
                     ? "bg-[var(--is-accent)]/10 font-semibold text-[var(--is-text)]"
                     : status === "done"

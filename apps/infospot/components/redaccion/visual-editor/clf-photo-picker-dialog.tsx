@@ -149,7 +149,7 @@ export function ClfPhotoPickerDialog({
       return;
     }
     if (!alt.trim()) {
-      setError("El texto alternativo (alt) es obligatorio.");
+      setError("El texto alternativo es obligatorio.");
       return;
     }
     if (!credit.trim()) {
@@ -212,8 +212,8 @@ export function ClfPhotoPickerDialog({
             Elegir desde ComprameLaFoto
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-[var(--is-muted)]">
-            Solo lectura sobre CLF. Se crea una copia editorial permanente en Info Spot (no el
-            original).
+            Elegí un evento y una cobertura fotográfica. Se guarda una copia editorial en Info Spot;
+            el original permanece en ComprameLaFoto.
           </p>
         </div>
 
@@ -253,8 +253,8 @@ export function ClfPhotoPickerDialog({
                     <span className="font-semibold">{ev.title}</span>
                     <span className="mt-1 block text-xs text-[var(--is-muted)]">
                       {formatDateEs(ev.startsAt)} · {ev.city}
-                      {ev.locationName ? ` · ${ev.locationName}` : ""} · {ev.albumCount} álbum
-                      {ev.albumCount === 1 ? "" : "es"}
+                      {ev.locationName ? ` · ${ev.locationName}` : ""} · {ev.albumCount} cobertura
+                      {ev.albumCount === 1 ? "" : "s"}
                     </span>
                   </button>
                 </li>
@@ -264,7 +264,7 @@ export function ClfPhotoPickerDialog({
 
           {eventId ? (
             <div className="space-y-3">
-              <p className="text-sm font-semibold">2. Álbum — {eventTitle}</p>
+              <p className="text-sm font-semibold">2. Cobertura fotográfica — {eventTitle}</p>
               <ul className="space-y-2">
                 {albums.map((item) => (
                   <li key={item.id}>
@@ -364,7 +364,7 @@ export function ClfPhotoPickerDialog({
                 </label>
               </div>
               <label className="block space-y-2 text-sm">
-                <span className="font-semibold">Texto alternativo (alt) *</span>
+                <span className="font-semibold">Texto alternativo *</span>
                 <input
                   value={alt}
                   onChange={(e) => setAlt(e.target.value)}

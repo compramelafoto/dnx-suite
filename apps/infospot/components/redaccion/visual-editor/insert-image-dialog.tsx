@@ -48,7 +48,7 @@ export function InsertImageDialog({ open, onClose, onInsert, articleId }: Props)
       return;
     }
     if (!alt.trim()) {
-      setError("El texto alternativo (alt) es obligatorio.");
+      setError("El texto alternativo es obligatorio.");
       return;
     }
     if (!credit.trim()) {
@@ -132,7 +132,7 @@ export function InsertImageDialog({ open, onClose, onInsert, articleId }: Props)
           </div>
           <div>
             <label className="text-sm font-semibold" htmlFor="img-alt">
-              Texto alternativo (alt) *
+              Texto alternativo *
             </label>
             <input
               id="img-alt"

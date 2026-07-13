@@ -92,7 +92,7 @@ export function StepMaterial({
                         : "border-[var(--is-border)] bg-white hover:border-[var(--is-accent)]"
                     }`}
                   >
-                    <div className="size-20 shrink-0 overflow-hidden rounded-[var(--is-radius-sm)] bg-[var(--is-bg-muted)]">
+                    <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--is-radius-sm)] bg-[var(--is-bg-muted)] text-center text-[10px] leading-tight text-[var(--is-muted)]">
                       {c.coverThumbnailUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -100,7 +100,9 @@ export function StepMaterial({
                           alt=""
                           className="h-full w-full object-cover"
                         />
-                      ) : null}
+                      ) : (
+                        <span className="px-1">Sin vista previa</span>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1 space-y-1">
                       <p className="font-semibold leading-snug">{c.title}</p>

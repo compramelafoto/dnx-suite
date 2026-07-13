@@ -36,11 +36,9 @@ const INTENTS: {
 
 type Props = {
   onSelect: (intent: Exclude<AssistantIntent, "pending">) => void;
-  onContinuePending?: () => void;
-  hasPending?: boolean;
 };
 
-export function StepIntent({ onSelect, onContinuePending, hasPending }: Props) {
+export function StepIntent({ onSelect }: Props) {
   return (
     <div className="space-y-8">
       <header className="max-w-2xl">
@@ -59,7 +57,7 @@ export function StepIntent({ onSelect, onContinuePending, hasPending }: Props) {
             <button
               type="button"
               onClick={() => onSelect(item.id)}
-              className="flex h-full w-full flex-col gap-3 rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 text-left transition hover:border-[var(--is-accent)] hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--is-accent)]"
+              className="flex h-full w-full flex-col gap-3 rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 text-left transition duration-200 hover:border-[var(--is-accent)] hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--is-accent)]"
             >
               <span className="text-2xl" aria-hidden>
                 {item.emoji}
@@ -73,27 +71,6 @@ export function StepIntent({ onSelect, onContinuePending, hasPending }: Props) {
             </button>
           </li>
         ))}
-        {hasPending ? (
-          <li className="sm:col-span-2">
-            <button
-              type="button"
-              onClick={onContinuePending}
-              className="flex w-full items-start gap-4 rounded-[var(--is-radius-md)] border border-dashed border-[var(--is-accent)] bg-[var(--is-accent)]/5 p-6 text-left transition hover:bg-[var(--is-accent)]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--is-accent)]"
-            >
-              <span className="text-2xl" aria-hidden>
-                📂
-              </span>
-              <span>
-                <span className="block font-[family-name:var(--font-source-serif)] text-xl font-semibold tracking-tight">
-                  Continuar un trabajo pendiente
-                </span>
-                <span className="mt-2 block text-sm leading-relaxed text-[var(--is-muted)]">
-                  Recuperamos evento, material y fotografías donde lo dejaste.
-                </span>
-              </span>
-            </button>
-          </li>
-        ) : null}
       </ul>
     </div>
   );

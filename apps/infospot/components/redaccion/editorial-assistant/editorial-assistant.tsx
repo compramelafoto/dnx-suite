@@ -328,16 +328,7 @@ export function EditorialAssistant({ bootstrap, deepLink }: Props) {
 
         <div className="min-w-0">
           {state.step === "intent" ? (
-            <StepIntent
-              onSelect={selectIntent}
-              hasPending={Boolean(pendingSnapshot)}
-              onContinuePending={() => {
-                if (pendingSnapshot) {
-                  persist(pendingSnapshot);
-                  setShowPendingPrompt(false);
-                }
-              }}
-            />
+            <StepIntent onSelect={selectIntent} />
           ) : null}
 
           {state.step === "event" ? (

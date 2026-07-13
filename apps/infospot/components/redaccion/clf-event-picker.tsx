@@ -69,7 +69,7 @@ type Props = {
 type UsageType = "COVER" | "INLINE" | "GALLERY";
 
 const statusLabel = {
-  AVAILABLE: "Disponible para compra en CLF",
+  AVAILABLE: "Disponible para compra en ComprameLaFoto",
   REACTIVATABLE: "Dentro del período de reactivación",
   UNAVAILABLE: "Sin venta comercial (igual se puede importar)",
 } as const;
@@ -143,7 +143,7 @@ export function ClfEventPicker({
       const res = await fetch(`/api/redaccion/clf-events/${evId}/albums`);
       const data = (await res.json()) as { albums?: AlbumHit[]; error?: string };
       if (!res.ok) {
-        flash(null, data.error || "Error al listar álbumes");
+        flash(null, data.error || "Error al listar coberturas");
         setAlbums([]);
         return;
       }
@@ -161,7 +161,7 @@ export function ClfEventPicker({
       const res = await fetch(`/api/redaccion/clf-albums/${albId}/photos`);
       const data = (await res.json()) as { photos?: PhotoHit[]; error?: string };
       if (!res.ok) {
-        flash(null, data.error || "Error al listar fotos del álbum");
+        flash(null, data.error || "Error al listar fotos de la cobertura");
         setPhotos([]);
         return;
       }
@@ -365,8 +365,8 @@ export function ClfEventPicker({
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--is-muted)]">
           Definí para qué sirve cada foto. Podés <strong className="font-semibold text-[var(--is-text-secondary)]">subir</strong>{" "}
-          desde tu equipo o <strong className="font-semibold text-[var(--is-text-secondary)]">importar</strong> desde un
-          álbum de ComprameLaFoto (queda copia editorial permanente).
+          desde tu equipo o <strong className="font-semibold text-[var(--is-text-secondary)]">importar</strong> desde una
+          cobertura fotográfica de ComprameLaFoto (queda copia editorial permanente).
         </p>
       </div>
 
@@ -409,7 +409,7 @@ export function ClfEventPicker({
           <p className="mt-1 text-xs leading-relaxed text-[var(--is-muted)]">
             JPG, PNG o WebP · máx. 5 MB. Para el cuerpo también podés usar el botón{" "}
             <span className="font-medium text-[var(--is-text-secondary)]">Imagen</span> o{" "}
-            <span className="font-medium text-[var(--is-text-secondary)]">Desde CLF</span> en la barra del editor.
+            <span className="font-medium text-[var(--is-text-secondary)]">Desde ComprameLaFoto</span> en la barra del editor.
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white px-4 text-sm font-medium text-[var(--is-text)] hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]">
@@ -515,9 +515,8 @@ export function ClfEventPicker({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white px-4 py-3">
             <div>
               <p className="font-medium text-[var(--is-text)]">
-                {eventTitle || `Evento #${eventId}`}
+                {eventTitle || "Evento vinculado"}
               </p>
-              <p className="text-xs text-[var(--is-muted)]">ID {eventId}</p>
             </div>
             <button
               type="button"
@@ -562,7 +561,7 @@ export function ClfEventPicker({
                   <p className="text-xs text-[var(--is-muted)]">
                     {formatDateEs(ev.startsAt)} · {ev.city}
                     {ev.locationName ? ` · ${ev.locationName}` : ""} · {ev.organizerName} ·{" "}
-                    {ev.albumCount} álbum(es)
+                    {ev.albumCount} cobertura{ev.albumCount === 1 ? "" : "s"}
                   </p>
                 </div>
                 <button
@@ -582,22 +581,20 @@ export function ClfEventPicker({
       {/* Álbum */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--is-muted)]">
-          3. Álbum comercial
+          3. Cobertura fotográfica
         </h3>
         {albumId ? (
           <div className="rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="font-medium text-[var(--is-text)]">
-                  {albumTitle || `Álbum #${albumId}`}
+                  {albumTitle || "Cobertura vinculada"}
                 </p>
                 {albumStatus ? (
                   <p className="mt-1 text-sm text-[var(--is-text-secondary)]">
                     {statusLabel[albumStatus]}
                   </p>
-                ) : (
-                  <p className="mt-1 text-xs text-[var(--is-muted)]">ID {albumId}</p>
-                )}
+                ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -622,7 +619,7 @@ export function ClfEventPicker({
         ) : null}
 
         {albumsLoading ? (
-          <p className="text-sm text-[var(--is-muted)]">Cargando álbumes del evento…</p>
+          <p className="text-sm text-[var(--is-muted)]">Cargando coberturas del evento…</p>
         ) : albums.length > 0 ? (
           <ul className="space-y-2">
             {albums.map((album) => {
@@ -649,7 +646,7 @@ export function ClfEventPicker({
                     onClick={() => void selectAlbum(album)}
                     className="min-h-11 text-sm font-semibold text-[var(--is-accent)] hover:underline disabled:opacity-40"
                   >
-                    {isActive ? "En uso" : "Usar álbum"}
+                    {isActive ? "En uso" : "Usar cobertura"}
                   </button>
                 </li>
               );
@@ -657,7 +654,7 @@ export function ClfEventPicker({
           </ul>
         ) : eventId && hydrated && !albumId ? (
           <p className="text-sm text-[var(--is-muted)]">
-            No hay álbumes activos para este evento en ComprameLaFoto.
+            No hay coberturas activas para este evento en ComprameLaFoto.
           </p>
         ) : null}
       </div>
@@ -667,7 +664,7 @@ export function ClfEventPicker({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--is-muted)]">
-              4. Elegir fotos del álbum
+              4. Elegir fotografías
             </h3>
             <p className="mt-1 text-xs text-[var(--is-muted)]">
               Destino actual:{" "}
@@ -692,10 +689,10 @@ export function ClfEventPicker({
 
         {!albumId ? (
           <p className="rounded-[var(--is-radius-sm)] border border-dashed border-[var(--is-border)] px-4 py-6 text-center text-sm text-[var(--is-muted)]">
-            Vinculá un álbum arriba para ver las fotos disponibles.
+            Vinculá una cobertura arriba para ver las fotos disponibles.
           </p>
         ) : photosLoading || (!hydrated && initialAlbumId) ? (
-          <p className="text-sm text-[var(--is-muted)]">Cargando fotografías del álbum…</p>
+          <p className="text-sm text-[var(--is-muted)]">Cargando fotografías…</p>
         ) : photos.length > 0 ? (
           <>
             <div className="flex flex-wrap gap-3">
@@ -771,8 +768,8 @@ export function ClfEventPicker({
           </>
         ) : (
           <p className="rounded-[var(--is-radius-sm)] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            Este álbum no devolvió fotos importables (pueden estar marcadas como eliminadas o sin
-            archivo en storage). Probá <strong>Recargar fotos</strong> o elegí otro álbum.
+            Esta cobertura no tiene fotos disponibles ahora (pueden estar ocultas o sin vista
+            previa). Probá <strong>Recargar fotos</strong> o elegí otra cobertura.
           </p>
         )}
       </div>
