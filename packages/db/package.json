@@ -17,6 +17,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:infospot": "tsx prisma/scripts/seed-infospot.ts",
+    "db:grant-infospot-director": "tsx prisma/scripts/grant-infospot-director.ts",
     "db:seed:infospot-demo": "tsx prisma/scripts/seed-infospot-demo-articles.ts",
     "db:seed:infospot-events": "tsx prisma/scripts/seed-infospot-demo-events.ts",
     "db:seed:infospot-launch-drafts": "tsx prisma/scripts/seed-infospot-launch-drafts.ts",

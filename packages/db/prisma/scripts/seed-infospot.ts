@@ -5,13 +5,19 @@
  *   pnpm --filter @repo/db exec tsx prisma/scripts/seed-infospot.ts
  *
  * Variables:
- *   INFOSPOT_DIRECTOR_EMAIL  (default: cuart.daniel@gmail.com)
+ *   INFOSPOT_DIRECTOR_EMAIL  (obligatorio — sin default)
  *   INFOSPOT_REDACTOR_EMAIL  (opcional)
  */
 import { prisma } from "../../src/client.js";
 
-const DIRECTOR_EMAIL = process.env.INFOSPOT_DIRECTOR_EMAIL?.trim() || "cuart.daniel@gmail.com";
+const DIRECTOR_EMAIL = process.env.INFOSPOT_DIRECTOR_EMAIL?.trim() || "";
 const REDACTOR_EMAIL = process.env.INFOSPOT_REDACTOR_EMAIL?.trim() || "";
+
+if (!DIRECTOR_EMAIL) {
+  throw new Error(
+    "Falta INFOSPOT_DIRECTOR_EMAIL. Ejemplo: INFOSPOT_DIRECTOR_EMAIL=persona@dominio.com pnpm --filter @repo/db db:seed:infospot",
+  );
+}
 
 async function main() {
   const director = await prisma.user.findUnique({
