@@ -22,6 +22,8 @@
     "smoke:seed": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/e11-smoke-seed.ts seed",
     "smoke:cleanup": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/e11-smoke-seed.ts cleanup",
     "smoke:e13-gate": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/e13-staging-gate.ts",
+    "smoke:e13-clf-join": "pnpm --filter @repo/db exec tsx ../../packages/db/scripts/e13-clf-join-leave.ts",
+    "smoke:e13-clf-http": "pnpm --filter @repo/db exec tsx ../../packages/db/scripts/e13-clf-http-smoke.ts",
     "reconcile:public-coverage": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/public-coverage/cli-reconcile.ts",
     "sync:clf-events": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/clf-event-sync/cli.ts",
     "provision:clf-event": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/clf-event-provisioning/cli.ts"

@@ -11,9 +11,9 @@
 
 Las superficies públicas principales de Info Spot (home, ficha de evento, artículo de cobertura, galería) fueron validadas en Chromium headless en 5 viewports (E12). Se corrigieron defectos reales de privacidad de ubicación, fechas inválidas, accesibilidad de galería e hidratación.
 
-**Etapa 13:** se validó la matriz de políticas join/cupos/licencia + sync inbound dry-run + rutas cron seguras + Safari WebKit (home). **No** se ejecutó join/leave HTTP contra producción. Ver detalle en [`31-final-staging-gate.md`](./31-final-staging-gate.md).
+**Etapa 13:** join/leave HTTP real cerrado contra sandbox CLF `ep-round-fog` + app local `:3013` (`e13-clf-http-smoke` 8/8); matriz Prisma y reglas IS; crons staging-safe; WebKit home. Ver [`31-final-staging-gate.md`](./31-final-staging-gate.md).
 
-**Decisión actual:** **NO-GO** a producción hasta disponer de CLF staging writable (URL no-prod), R2 real y smoke join/leave/iOS completo.
+**Decisión actual:** **NO-GO** a producción hasta alinear staging CLF público con la misma DB sandbox, R2 real, Safari/iPhone físico (mapa/galería) y redeploy sin hydration #418.
 
 ---
 
