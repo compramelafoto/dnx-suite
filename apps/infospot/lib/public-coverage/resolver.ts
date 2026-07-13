@@ -288,7 +288,7 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
       where: {
         coverageId: coverageLink.id,
         articleId: { not: article.id },
-        article: { status: "PUBLISHED", contentTag: "REAL" },
+        article: { status: "PUBLISHED" },
       },
       include: {
         article: {
@@ -320,7 +320,6 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
     const more = await prisma.infoSpotArticle.findMany({
       where: {
         status: "PUBLISHED",
-        contentTag: "REAL",
         eventId: article.eventId,
         id: { not: article.id },
         NOT: { id: { in: relatedArticles.map((r) => r.id) } },
@@ -352,7 +351,6 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
     const more = await prisma.infoSpotArticle.findMany({
       where: {
         status: "PUBLISHED",
-        contentTag: "REAL",
         categoryId: article.categoryId,
         id: { not: article.id },
         NOT: { id: { in: relatedArticles.map((r) => r.id) } },
@@ -625,10 +623,7 @@ export async function getPublicEventCoverageBundle(eventSlug: string): Promise<{
       });
     }
     for (const link of cov.articles) {
-      if (
-        link.article.status === "PUBLISHED" &&
-        link.article.contentTag === "REAL"
-      ) {
+      if (link.article.status === "PUBLISHED") {
         relatedArticles.push({
           id: link.article.id,
           title: link.article.title,
@@ -646,7 +641,6 @@ export async function getPublicEventCoverageBundle(eventSlug: string): Promise<{
     const arts = await prisma.infoSpotArticle.findMany({
       where: {
         status: "PUBLISHED",
-        contentTag: "REAL",
         eventId: clfEventId,
         NOT: { id: { in: relatedArticles.map((a) => a.id) } },
       },

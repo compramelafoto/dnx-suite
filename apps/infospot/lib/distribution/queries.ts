@@ -362,11 +362,10 @@ export async function getRecentEventCoverage(options?: {
             sourceType: "COMPRAMELAFOTO",
             externalEntityType: "EVENT",
             externalId: { in: clfIds },
-            event: {
-              status: "PUBLISHED",
-              contentTag: "REAL",
-              excludeFromHomepage: false,
-            },
+          event: {
+            status: "PUBLISHED",
+            excludeFromHomepage: false,
+          },
           },
           select: {
             externalId: true,
@@ -481,7 +480,6 @@ export async function getHomepageBannerItems(options?: {
     if (p.event) {
       if (
         p.event.status !== "PUBLISHED" ||
-        p.event.contentTag !== "REAL" ||
         p.event.excludeFromHomepage
       ) {
         continue;
@@ -499,7 +497,6 @@ export async function getHomepageBannerItems(options?: {
     } else if (p.article) {
       if (
         p.article.status !== "PUBLISHED" ||
-        p.article.contentTag !== "REAL" ||
         p.article.excludeFromHomepage
       ) {
         continue;

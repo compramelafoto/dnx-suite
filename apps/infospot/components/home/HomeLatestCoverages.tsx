@@ -18,7 +18,7 @@ function formatDate(d: Date | null) {
   }).format(new Date(d));
 }
 
-/** Coberturas recientes vinculadas a eventos (o fallback a notas REAL). */
+/** Coberturas recientes vinculadas a eventos (o fallback a notas publicadas). */
 export function HomeLatestCoverages({ coverages, articles }: Props) {
   const fromDist =
     coverages?.map((c) => ({

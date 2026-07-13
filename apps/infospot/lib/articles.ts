@@ -64,10 +64,9 @@ export type ArticleWithRelations = Prisma.InfoSpotArticleGetPayload<{
   include: typeof articleListInclude;
 }>;
 
-/** Solo contenido REAL en superficies públicas (DEMO / NEEDS_REVIEW no salen). */
+/** Solo contenido PUBLISHED en superficies públicas (ETAPA 15: sin filtro contentTag). */
 const publicArticleWhere = {
   status: "PUBLISHED" as const,
-  contentTag: "REAL" as const,
 };
 
 export async function getPublishedArticles(options?: {
@@ -118,7 +117,7 @@ export async function getArticleByIdForEditor(id: string) {
 }
 
 export async function getEditorialDashboardStats() {
-  const [draft, inReview, ready, published, unpublished, archived, total] = await Promise.all([
+  const [draft, inReview, readyLegacy, published, unpublished, archived, total] = await Promise.all([
     prisma.infoSpotArticle.count({ where: { status: "DRAFT" } }),
     prisma.infoSpotArticle.count({ where: { status: "IN_REVIEW" } }),
     prisma.infoSpotArticle.count({ where: { status: "READY_TO_PUBLISH" } }),
@@ -127,7 +126,8 @@ export async function getEditorialDashboardStats() {
     prisma.infoSpotArticle.count({ where: { status: "ARCHIVED" } }),
     prisma.infoSpotArticle.count(),
   ]);
-  return { draft, inReview, ready, published, unpublished, archived, total };
+  // ETAPA 15: READY_TO_PUBLISH es alias de IN_REVIEW; se suman para la UI
+  return { draft, inReview: inReview + readyLegacy, ready: readyLegacy, published, unpublished, archived, total };
 }
 
 /** Conteos reales para la sala de redacción (sin métricas inventadas). */

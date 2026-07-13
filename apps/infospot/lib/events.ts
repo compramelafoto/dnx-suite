@@ -135,10 +135,9 @@ export async function tooManyRecentSubmissions(
   return count >= limit;
 }
 
-/** Solo eventos REAL en superficies públicas. */
+/** Solo eventos PUBLISHED en superficies públicas (ETAPA 15: sin filtro contentTag). */
 const publicEventWhere = {
   status: "PUBLISHED" as const,
-  contentTag: "REAL" as const,
 };
 
 export async function getPublishedEvents(options?: {

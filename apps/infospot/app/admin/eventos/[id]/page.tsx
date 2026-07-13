@@ -357,19 +357,6 @@ export default async function AdminEventoDetailPage({ params, searchParams }: Pr
             />
           </label>
 
-          <label className="block">
-            <span className="text-sm font-medium">Etiqueta interna</span>
-            <select
-              name="contentTag"
-              defaultValue={event.contentTag}
-              className={fieldClass}
-            >
-              <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
-              <option value="DEMO">DEMO</option>
-              <option value="REAL">REAL</option>
-            </select>
-          </label>
-
           {event.submission ? (
             <p className="text-xs text-[var(--is-muted)]">
               Envío {event.submission.createdAt.toISOString()} · ipHash{" "}

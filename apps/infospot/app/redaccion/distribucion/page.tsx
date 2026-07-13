@@ -28,19 +28,19 @@ export default async function DistribucionPage() {
       },
     }),
     prisma.infoSpotArticle.findMany({
-      where: { status: "PUBLISHED", contentTag: "REAL" },
+      where: { status: "PUBLISHED" },
       orderBy: { publishedAt: "desc" },
       take: 40,
       select: { id: true, title: true },
     }),
     prisma.infoSpotEvent.findMany({
-      where: { status: "PUBLISHED", contentTag: "REAL" },
+      where: { status: "PUBLISHED" },
       orderBy: { startAt: "asc" },
       take: 40,
       select: { id: true, title: true },
     }),
     prisma.infoSpotEvent.findMany({
-      where: { status: "PUBLISHED", contentTag: "REAL" },
+      where: { status: "PUBLISHED" },
       orderBy: [{ editorialPriority: "desc" }, { startAt: "asc" }],
       take: 40,
       select: {

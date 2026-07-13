@@ -24,7 +24,7 @@ export function HomeWeekendAgenda() {
 
       <div className="rounded-[var(--is-radius)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-surface)] px-6 py-10 md:px-8 md:py-12">
         <p className="is-body max-w-xl">
-          Este bloque se activará cuando haya eventos REAL próximos cargados
+          Este bloque se activará cuando haya eventos próximos cargados
           para el fin de semana. No mostramos agenda demo en producción.
         </p>
         <p className="mt-8">

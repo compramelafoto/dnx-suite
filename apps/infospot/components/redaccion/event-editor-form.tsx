@@ -248,18 +248,6 @@ export function EventEditorForm({
                 ))}
               </select>
             </label>
-            <label className="block">
-              <span className="text-sm font-medium">Etiqueta interna</span>
-              <select
-                name="contentTag"
-                defaultValue={event.contentTag}
-                className={fieldClass}
-              >
-                <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
-                <option value="REAL">REAL</option>
-                <option value="DEMO">DEMO</option>
-              </select>
-            </label>
           </fieldset>
 
           <fieldset className="space-y-4">

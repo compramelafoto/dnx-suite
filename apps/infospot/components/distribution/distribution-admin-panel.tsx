@@ -70,7 +70,7 @@ export function DistributionAdminPanel({
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Banner principal (HERO)</h2>
           <p className="mt-2 text-sm text-[var(--is-muted)]">
-            Solo contenido PUBLISHED + REAL. Si no hay banner activo, la home usa
+            Solo contenido publicado. Si no hay banner activo, la home usa
             fallback automático.
           </p>
         </div>

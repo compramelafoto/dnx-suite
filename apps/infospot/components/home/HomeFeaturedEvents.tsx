@@ -57,7 +57,7 @@ export function HomeFeaturedEvents({ events }: { events: DistributionEventCard[]
             Eventos destacados
           </h2>
           <p className="is-body mt-3 max-w-xl">
-            Todavía no hay eventos REAL próximos publicados. Cuando la redacción
+            Todavía no hay eventos próximos publicados. Cuando la redacción
             apruebe los primeros, van a aparecer acá.
           </p>
         </div>

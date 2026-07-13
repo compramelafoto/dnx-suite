@@ -52,7 +52,7 @@ export async function upsertHomepagePlacementAction(
       where: { id: articleId },
       select: { status: true, contentTag: true },
     });
-    if (!a || a.status !== "PUBLISHED" || a.contentTag !== "REAL") {
+    if (!a || a.status !== "PUBLISHED") {
       return { ok: false, error: "El artículo debe estar PUBLISHED + REAL." };
     }
   }
@@ -61,7 +61,7 @@ export async function upsertHomepagePlacementAction(
       where: { id: eventId },
       select: { status: true, contentTag: true },
     });
-    if (!e || e.status !== "PUBLISHED" || e.contentTag !== "REAL") {
+    if (!e || e.status !== "PUBLISHED") {
       return { ok: false, error: "El evento debe estar PUBLISHED + REAL." };
     }
   }

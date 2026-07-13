@@ -14,47 +14,25 @@ import {
 } from "./index";
 import { isClfEventPublicPhotographerCall } from "../clf-event-sync/import-rules";
 
-// 1–7 regla pública
+// Regla pública ETAPA 15: solo status=PUBLISHED (sin filtro contentTag)
 {
+  assert.equal(isPubliclyDistributable({ status: "PUBLISHED" }), true);
+  assert.equal(isPubliclyDistributable({ status: "PUBLISHED", contentTag: "REAL" }), true);
+  // ETAPA 15: DEMO PUBLISHED sería público (la migración SQL previene que exista)
+  assert.equal(isPubliclyDistributable({ status: "PUBLISHED", contentTag: "DEMO" }), true);
+  assert.equal(isPubliclyDistributable({ status: "DRAFT", contentTag: "REAL" }), false);
+  assert.equal(isPubliclyDistributable({ status: "IN_REVIEW", contentTag: "REAL" }), false);
+  assert.equal(isPubliclyDistributable({ status: "READY_TO_PUBLISH", contentTag: "REAL" }), false);
+  assert.equal(isPubliclyDistributable({ status: "UNPUBLISHED", contentTag: "REAL" }), false);
+  assert.equal(isPubliclyDistributable({ status: "ARCHIVED", contentTag: "REAL" }), false);
   assert.equal(
-    isPubliclyDistributable({ status: "PUBLISHED", contentTag: "REAL" }),
-    true,
-  );
-  assert.equal(
-    isPubliclyDistributable({ status: "DRAFT", contentTag: "REAL" }),
-    false,
-  );
-  assert.equal(
-    isPubliclyDistributable({ status: "IN_REVIEW", contentTag: "REAL" }),
-    false,
-  );
-  assert.equal(
-    isPubliclyDistributable({ status: "READY_TO_PUBLISH", contentTag: "REAL" }),
-    false,
-  );
-  assert.equal(
-    isPubliclyDistributable({ status: "PUBLISHED", contentTag: "DEMO" }),
-    false,
-  );
-  assert.equal(
-    isPubliclyDistributable({ status: "UNPUBLISHED", contentTag: "REAL" }),
-    false,
-  );
-  assert.equal(
-    isPubliclyDistributable({ status: "ARCHIVED", contentTag: "REAL" }),
-    false,
-  );
-  assert.equal(
-    isPubliclyDistributable({
-      status: "PUBLISHED",
-      contentTag: "REAL",
-      excludeFromHomepage: true,
-    }),
+    isPubliclyDistributable({ status: "PUBLISHED", excludeFromHomepage: true }),
     false,
   );
   const where = publicPublishedEventWhere();
   assert.equal(where.status, "PUBLISHED");
-  assert.equal(where.contentTag, "REAL");
+  // ETAPA 15: contentTag ausente del where público
+  assert.ok(!("contentTag" in where), "contentTag no debe estar en where público");
   assert.equal(where.excludeFromHomepage, false);
 }
 

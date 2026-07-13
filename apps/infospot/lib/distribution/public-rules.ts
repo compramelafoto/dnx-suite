@@ -1,9 +1,12 @@
 /**
- * Regla pública central: solo PUBLISHED + REAL en superficies públicas / home.
+ * Regla pública central: solo status=PUBLISHED en superficies públicas / home.
+ *
+ * ETAPA 15: Se elimina el filtro contentTag=REAL. La visibilidad pública
+ * depende únicamente del estado editorial PUBLISHED. El contenido DEMO que
+ * quedó PUBLISHED antes de este cambio se migra a UNPUBLISHED vía SQL.
  */
 
 export const PUBLIC_CONTENT_STATUS = "PUBLISHED" as const;
-export const PUBLIC_CONTENT_TAG = "REAL" as const;
 
 export const NON_PUBLIC_STATUSES = [
   "DRAFT",
@@ -13,13 +16,10 @@ export const NON_PUBLIC_STATUSES = [
   "ARCHIVED",
 ] as const;
 
-export const NON_PUBLIC_TAGS = ["DEMO", "NEEDS_REVIEW"] as const;
-
 /** Where Prisma reutilizable para eventos públicos. */
 export function publicPublishedEventWhere(extra?: Record<string, unknown>) {
   return {
     status: PUBLIC_CONTENT_STATUS,
-    contentTag: PUBLIC_CONTENT_TAG,
     excludeFromHomepage: false,
     ...extra,
   };
@@ -29,7 +29,6 @@ export function publicPublishedEventWhere(extra?: Record<string, unknown>) {
 export function publicPublishedArticleWhere(extra?: Record<string, unknown>) {
   return {
     status: PUBLIC_CONTENT_STATUS,
-    contentTag: PUBLIC_CONTENT_TAG,
     excludeFromHomepage: false,
     ...extra,
   };
@@ -41,7 +40,6 @@ export function isPubliclyDistributable(input: {
   excludeFromHomepage?: boolean | null;
 }): boolean {
   if (input.status !== PUBLIC_CONTENT_STATUS) return false;
-  if (input.contentTag !== PUBLIC_CONTENT_TAG) return false;
   if (input.excludeFromHomepage) return false;
   return true;
 }

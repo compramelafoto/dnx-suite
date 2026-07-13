@@ -111,12 +111,7 @@ export function buildEventPublishChecklist(input: {
       required: true,
     },
     { id: "slug", label: "Slug", ok: Boolean(input.slug?.trim()), required: true },
-    {
-      id: "review",
-      label: "Contenido REAL (obligatorio para publicar)",
-      ok: input.contentTag === "REAL",
-      required: true,
-    },
+    // ETAPA 15: se eliminó el ítem "Contenido REAL" — contentTag no bloquea publicación
   ];
 }
 
