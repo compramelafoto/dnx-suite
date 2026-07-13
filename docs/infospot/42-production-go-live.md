@@ -7,7 +7,7 @@
 **Decisión:** **GO operativo** en `https://infospot-dnxsuite.vercel.app` · **NO-GO** dominio propio `infospot.com.ar`  
 **Estado:** servicios críticos (Neon, CLF readonly, crons, deploy) listos; faltan keys S3 R2 + Director + DNS DonWeb.
 
-**Actualización 2026-07-13 (services readiness):** ver checklist vivo en [`45-production-services-readiness.md`](./45-production-services-readiness.md) y [`43-launch-readiness.md`](./43-launch-readiness.md).
+**Actualización 2026-07-13 (Etapa 22B):** R2 S3 keys siguen ausentes tras 403 de API Cloudflare. Estado: `BLOCKED_BY_MANUAL_R2_TOKEN`. Ver [`46-r2-production-readiness.md`](./46-r2-production-readiness.md).
 
 Este documento es el runbook de salida a producción y rollback. **No incluye secretos.**
 

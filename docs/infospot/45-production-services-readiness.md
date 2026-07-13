@@ -19,7 +19,7 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`43-lau
 |---------|--------|------------------|
 | Neon prod (`infospot-production` / bitter-salad) | **OK** | Ninguna. 36 migraciones. Settings + 4 categorías sembradas. |
 | R2 bucket `infospot-media` | **OK** | CORS + r2.dev públicos. |
-| R2 token S3 (`R2_ACCESS_KEY_ID` / `SECRET`) | **Falta** | Crear en Cloudflare Dashboard (MCP token no puede crear User Tokens — 403). Ver §3. |
+| R2 token S3 (`R2_ACCESS_KEY_ID` / `SECRET`) | **Falta** | Etapa 22B: **`BLOCKED_BY_MANUAL_R2_TOKEN`**. Procedimiento: [`46-r2-production-readiness.md`](./46-r2-production-readiness.md). |
 | CLF readonly | **OK** | Apunta a CLF prod (`compramelafoto` / falling-darkness). Proxy anti-write en app. |
 | Cron | **OK** | `CRON_SECRET` Production · schedules en `vercel.json` · auth 401 sin secret · dry-run + sync limitado OK. |
 | Resend / SMTP | **Opcional** | Degradación segura sin `RESEND_API_KEY`. Ver §8. |
@@ -28,7 +28,8 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`43-lau
 | Deploy alias Vercel | **OK** | Health `db:ok`, version `78efb7e`. |
 | Dominio / SSL / canónicos / OAuth / Search Console | **Pendiente DonWeb** | Fuera de esta etapa. |
 
-**Launch readiness estimado: ~88%**  
+**Launch readiness estimado: ~88%** (sin cambio: keys S3 siguen bloqueando media)  
+Detalle R2 Etapa 22B: [`46-r2-production-readiness.md`](./46-r2-production-readiness.md).  
 Para 100% público en dominio propio: DNS + SSL + canónicos + OAuth redirect + Search Console + **R2 S3 keys** + Director + smoke autenticado uploads.
 
 ---
