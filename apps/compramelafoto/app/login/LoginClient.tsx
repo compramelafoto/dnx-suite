@@ -7,6 +7,10 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import SessionTransitionOverlay from "@/components/layout/SessionTransitionOverlay";
+import {
+  getPostLoginDestination,
+  sanitizeInternalRedirect,
+} from "@/lib/auth/post-login-destination";
 
 export default function LoginClient() {
   const router = useRouter();
@@ -20,7 +24,7 @@ export default function LoginClient() {
   const [showWelcome, setShowWelcome] = useState(false);
   const pendingRedirectRef = useRef<{ role: string; safeRedirect: string; user: any } | null>(null);
   const redirectParam = searchParams?.get("redirect") || "";
-  const safeRedirect = redirectParam.startsWith("/") && !redirectParam.startsWith("//") ? redirectParam : "";
+  const safeRedirect = sanitizeInternalRedirect(redirectParam);
 
   useEffect(() => {
     const passwordReset = searchParams?.get("passwordReset");
@@ -38,40 +42,24 @@ export default function LoginClient() {
     if (!showWelcome || !pendingRedirectRef.current) return;
     const { role, safeRedirect: redirect, user } = pendingRedirectRef.current;
     const t = setTimeout(() => {
-      let target = redirect || "/";
-      switch (role) {
-        case "ADMIN":
-          target = redirect || "/admin";
-          break;
-        case "PHOTOGRAPHER":
-          sessionStorage.setItem("photographer", JSON.stringify(user));
-          sessionStorage.setItem("photographerId", user.id.toString());
-          target = redirect || "/fotografo/dashboard";
-          break;
-        case "LAB":
-        case "LAB_PHOTOGRAPHER":
-          sessionStorage.setItem("lab", JSON.stringify(user));
-          sessionStorage.setItem("labId", user.labId.toString());
-          target = redirect || "/lab/dashboard";
-          break;
-        case "CUSTOMER":
-          sessionStorage.setItem("client", JSON.stringify(user));
-          sessionStorage.setItem("clientId", user.id.toString());
-          target = redirect || "/cliente/dashboard";
-          break;
-        case "ORGANIZER":
-          sessionStorage.setItem("organizer", JSON.stringify(user));
-          sessionStorage.setItem("organizerId", user.id.toString());
-          target = redirect || "/organizador/dashboard";
-          break;
-        case "SCHOOL_ORGANIZER":
-          sessionStorage.setItem("schoolOrganizer", JSON.stringify(user));
-          sessionStorage.setItem("schoolOrganizerId", user.id.toString());
-          target = redirect || "/escuela";
-          break;
-        default:
-          target = redirect || "/";
+      if (role === "PHOTOGRAPHER") {
+        sessionStorage.setItem("photographer", JSON.stringify(user));
+        sessionStorage.setItem("photographerId", user.id.toString());
+      } else if (role === "LAB" || role === "LAB_PHOTOGRAPHER") {
+        sessionStorage.setItem("lab", JSON.stringify(user));
+        if (user?.labId != null) sessionStorage.setItem("labId", user.labId.toString());
+      } else if (role === "CUSTOMER") {
+        sessionStorage.setItem("client", JSON.stringify(user));
+        sessionStorage.setItem("clientId", user.id.toString());
+      } else if (role === "ORGANIZER") {
+        sessionStorage.setItem("organizer", JSON.stringify(user));
+        sessionStorage.setItem("organizerId", user.id.toString());
+      } else if (role === "SCHOOL_ORGANIZER") {
+        sessionStorage.setItem("schoolOrganizer", JSON.stringify(user));
+        sessionStorage.setItem("schoolOrganizerId", user.id.toString());
       }
+
+      const target = getPostLoginDestination(role, redirect);
       pendingRedirectRef.current = null;
       setShowWelcome(false);
       window.location.href = target;

@@ -7,6 +7,7 @@ import { randomBytes } from "crypto";
 import { hashToken } from "@/lib/token-hash";
 import { sendEmail } from "@/emails/send";
 import { buildVerifyEmail } from "@/emails/templates/auth";
+import { getPostLoginDestination } from "@/lib/auth/post-login-destination";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,23 +43,20 @@ export async function GET(req: Request) {
     } else if (state === "CUSTOMER" || state === "CLIENT") {
       role = "CUSTOMER";
       loginPath = "/cliente/login";
-      redirectPath = "/cliente/dashboard";
+      redirectPath = getPostLoginDestination("CUSTOMER");
     } else if (state === "LAB") {
       role = "LAB";
       loginPath = "/lab/login";
-      redirectPath = "/lab/dashboard";
+      redirectPath = getPostLoginDestination("LAB");
     } else if (state === "ORGANIZER") {
       role = "ORGANIZER";
       loginPath = "/login";
-      redirectPath = "/organizador/dashboard";
+      redirectPath = getPostLoginDestination("ORGANIZER");
+    } else {
+      redirectPath = getPostLoginDestination("PHOTOGRAPHER");
     }
 
-    const resolveRedirectPath = (userRole: Role) => {
-      if (userRole === Role.CUSTOMER) return "/cliente/dashboard";
-      if (userRole === Role.LAB || userRole === Role.LAB_PHOTOGRAPHER) return "/lab/dashboard";
-      if (userRole === Role.ORGANIZER) return "/organizador/dashboard";
-      return "/fotografo/dashboard";
-    };
+    const resolveRedirectPath = (userRole: Role) => getPostLoginDestination(userRole);
 
     if (error) {
       return NextResponse.redirect(
