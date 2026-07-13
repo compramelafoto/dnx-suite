@@ -46,7 +46,11 @@ function IconChevron({ collapsed }: { collapsed: boolean }) {
       viewBox="0 0 16 16"
       fill="none"
       aria-hidden
-      className={collapsed ? "rotate-180" : undefined}
+      className={
+        collapsed
+          ? "rotate-180 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          : "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      }
     >
       <path
         d="M10 3.5 5.5 8 10 12.5"
@@ -99,12 +103,16 @@ function EditorFocusHeader({
   backLabel,
   focusMode,
   onToggleFocus,
+  sidebarOpen,
+  onToggleSidebar,
   focusActions,
 }: {
   backHref: string;
   backLabel: string;
   focusMode: boolean;
   onToggleFocus: () => void;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
   focusActions?: ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -112,6 +120,17 @@ function EditorFocusHeader({
   return (
     <header className="sticky top-0 z-20 border-b border-[var(--is-border)] bg-[var(--is-bg)]/95 backdrop-blur-sm">
       <div className="flex min-h-12 items-center gap-3 px-4 py-1.5 sm:px-6">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="hidden size-10 shrink-0 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] text-[var(--is-text-secondary)] transition-[border-color,color,background-color] duration-200 hover:border-[var(--is-accent)] hover:text-[var(--is-accent)] lg:inline-flex"
+          aria-label={sidebarOpen ? "Ocultar menú lateral" : "Mostrar menú lateral"}
+          aria-pressed={sidebarOpen}
+          title={sidebarOpen ? "Ocultar menú" : "Mostrar menú"}
+        >
+          {sidebarOpen ? <IconChevron collapsed={false} /> : <IconMenu />}
+        </button>
+
         <Link
           href={backHref}
           className="shrink-0 text-sm font-medium text-[var(--is-accent)] hover:underline"
@@ -128,7 +147,7 @@ function EditorFocusHeader({
         <button
           type="button"
           onClick={onToggleFocus}
-          className="inline-flex min-h-10 items-center gap-2 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-3 text-sm font-medium text-[var(--is-text-secondary)] hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]"
+          className="inline-flex min-h-10 items-center gap-2 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-3 text-sm font-medium text-[var(--is-text-secondary)] transition-[border-color,color] duration-200 hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]"
           aria-pressed={focusMode}
           aria-label={
             focusMode
@@ -261,9 +280,16 @@ export function RedaccionShellClient({
     [isEditor],
   );
 
+  const toggleSidebar = useCallback(() => {
+    persistCollapsed(!sidebarCollapsed);
+  }, [persistCollapsed, sidebarCollapsed]);
+
   const toggleFocus = useCallback(() => {
-    persistFocus(!focusMode);
-  }, [focusMode, persistFocus]);
+    const next = !focusMode;
+    persistFocus(next);
+    // Entrar a concentración libera pantalla; salir no fuerza reabrir el menú.
+    if (next) persistCollapsed(true);
+  }, [focusMode, persistCollapsed, persistFocus]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -272,6 +298,14 @@ export function RedaccionShellClient({
       e.preventDefault();
       setFocusMode((prev) => {
         const next = !prev;
+        if (next) {
+          setSidebarCollapsed(true);
+          try {
+            localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "1");
+          } catch {
+            /* ignore */
+          }
+        }
         if (isEditor) {
           try {
             localStorage.setItem(FOCUS_MODE_KEY, next ? "1" : "0");
@@ -295,37 +329,21 @@ export function RedaccionShellClient({
     return () => window.removeEventListener("keydown", onKey);
   }, [mobileNavOpen]);
 
-  const effectiveCollapsed = mounted ? sidebarCollapsed : false;
-  const hideSidebar = focusMode;
+  // true = menú oculto (libera espacio). Antes del mount asumimos abierto para evitar CLS.
+  const sidebarHidden = mounted ? sidebarCollapsed : false;
+  const sidebarOpen = !sidebarHidden;
   const showPageTitle = !isEditor && !header && Boolean(title);
-  const shellMax = isEditor || focusMode ? "max-w-none" : "max-w-6xl";
+  const shellMax = isEditor || focusMode || sidebarHidden ? "max-w-none" : "max-w-6xl";
 
   const asideInner = (
     <>
-      {!effectiveCollapsed ? (
-        <>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--is-accent)]">
-            Info Spot
-          </p>
-          <p className="mt-1 text-sm text-[var(--is-muted)]">Centro Editorial</p>
-        </>
-      ) : (
-        <p
-          className="text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--is-accent)]"
-          title="Info Spot Redacción"
-        >
-          IS
-        </p>
-      )}
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--is-accent)]">
+        Info Spot
+      </p>
+      <p className="mt-1 text-sm text-[var(--is-muted)]">Centro Editorial</p>
 
       {userLabel ? (
-        <div
-          className={[
-            "mt-4 flex items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-surface)]",
-            effectiveCollapsed ? "justify-center px-2 py-2" : "gap-3 px-3 py-3",
-          ].join(" ")}
-          title={effectiveCollapsed ? userLabel : undefined}
-        >
+        <div className="mt-4 flex items-center gap-3 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-surface)] px-3 py-3">
           {userAvatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- avatar externo (Google)
             <img
@@ -344,11 +362,9 @@ export function RedaccionShellClient({
               {userInitial}
             </span>
           )}
-          {!effectiveCollapsed ? (
-            <p className="min-w-0 truncate text-sm font-medium text-[var(--is-text)]">
-              {userLabel}
-            </p>
-          ) : null}
+          <p className="min-w-0 truncate text-sm font-medium text-[var(--is-text)]">
+            {userLabel}
+          </p>
         </div>
       ) : null}
 
@@ -357,7 +373,7 @@ export function RedaccionShellClient({
           showAdmin={showAdmin}
           showUsers={showUsers}
           showApprovals={showApprovals}
-          collapsed={effectiveCollapsed}
+          collapsed={false}
           onNavigate={() => setMobileNavOpen(false)}
         />
       </Suspense>
@@ -372,87 +388,90 @@ export function RedaccionShellClient({
           backLabel={redaccionEditorBackLabel(pathname)}
           focusMode={focusMode}
           onToggleFocus={toggleFocus}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={toggleSidebar}
           focusActions={focusActions}
         />
       ) : null}
 
       <div
         className={[
-          "mx-auto flex w-full flex-col gap-8 px-4 py-8 sm:px-6 lg:flex-row lg:gap-10",
+          "mx-auto flex w-full flex-col gap-8 px-4 py-8 sm:px-6 lg:flex-row lg:gap-0",
           shellMax,
           isEditor ? "py-4 lg:py-6" : "",
-          hideSidebar ? "lg:justify-center" : "",
+          sidebarHidden && focusMode ? "lg:justify-center" : "",
         ]
           .filter(Boolean)
           .join(" ")}
       >
-        {/* Mobile top bar (non-focus / with sidebar available) */}
-        {!hideSidebar ? (
-          <div className="flex items-center gap-3 lg:hidden">
+        {/* Mobile top bar */}
+        <div className="flex items-center gap-3 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            className="inline-flex size-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] text-[var(--is-text)]"
+            aria-label="Abrir menú de redacción"
+          >
+            <IconMenu />
+          </button>
+          {!isEditor ? (
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--is-accent)]">
+                Info Spot
+              </p>
+              <p className="text-sm text-[var(--is-muted)]">Redacción</p>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--is-muted)]">Navegación</p>
+          )}
+          {!isEditor ? (
             <button
               type="button"
-              onClick={() => setMobileNavOpen(true)}
-              className="inline-flex size-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] text-[var(--is-text)]"
-              aria-label="Abrir menú de redacción"
+              onClick={toggleFocus}
+              className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-3 text-xs font-medium text-[var(--is-text-secondary)]"
+              aria-pressed={focusMode}
+              aria-label="Modo concentración. Atajo: Control o Comando + Mayús + punto"
+              title="Modo concentración (Ctrl/⌘+Shift+.)"
             >
-              <IconMenu />
+              <IconFocus />
+              Concentración
             </button>
-            {!isEditor ? (
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--is-accent)]">
-                  Info Spot
-                </p>
-                <p className="text-sm text-[var(--is-muted)]">Redacción</p>
-              </div>
-            ) : (
-              <p className="text-sm text-[var(--is-muted)]">Navegación</p>
-            )}
-            {!isEditor ? (
-              <button
-                type="button"
-                onClick={toggleFocus}
-                className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-3 text-xs font-medium text-[var(--is-text-secondary)]"
-                aria-pressed={focusMode}
-                aria-label="Modo concentración. Atajo: Control o Comando + Mayús + punto"
-                title="Modo concentración (Ctrl/⌘+Shift+.)"
-              >
-                <IconFocus />
-                Concentración
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+          ) : null}
+        </div>
 
-        {/* Desktop sidebar */}
-        {!hideSidebar ? (
-          <aside
-            className={[
-              "hidden lg:sticky lg:top-8 lg:block lg:shrink-0 lg:self-start",
-              effectiveCollapsed ? "lg:w-16" : "lg:w-60",
-            ].join(" ")}
-          >
-            <div className="mb-3 flex justify-end">
+        {/* Desktop sidebar — siempre montado para animar ancho 0 ↔ 15rem */}
+        <aside
+          className={[
+            "relative hidden lg:sticky lg:top-8 lg:block lg:shrink-0 lg:self-start lg:overflow-hidden",
+            "transition-[width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            "motion-reduce:transition-none",
+            sidebarOpen
+              ? "lg:mr-10 lg:w-60 lg:opacity-100"
+              : "lg:pointer-events-none lg:mr-0 lg:w-0 lg:opacity-0",
+          ].join(" ")}
+          aria-hidden={!sidebarOpen}
+        >
+          <div className="w-60">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--is-muted)]">
+                Menú
+              </p>
               <button
                 type="button"
-                onClick={() => persistCollapsed(!effectiveCollapsed)}
-                className="inline-flex size-9 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] text-[var(--is-muted)] hover:text-[var(--is-accent)]"
-                aria-label={
-                  effectiveCollapsed
-                    ? "Expandir barra lateral"
-                    : "Colapsar barra lateral"
-                }
-                aria-pressed={effectiveCollapsed}
-                title={effectiveCollapsed ? "Expandir" : "Colapsar"}
+                onClick={toggleSidebar}
+                className="inline-flex size-9 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] text-[var(--is-muted)] transition-[border-color,color] duration-200 hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]"
+                aria-label="Ocultar menú lateral"
+                title="Ocultar menú"
               >
-                <IconChevron collapsed={effectiveCollapsed} />
+                <IconChevron collapsed={false} />
               </button>
             </div>
             {asideInner}
-            {!isEditor && !effectiveCollapsed ? (
+            {!isEditor ? (
               <button
                 type="button"
                 onClick={toggleFocus}
-                className="mt-4 flex min-h-11 w-full items-center gap-2 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-3 text-left text-sm font-medium text-[var(--is-text-secondary)] hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]"
+                className="mt-4 flex min-h-11 w-full items-center gap-2 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-3 text-left text-sm font-medium text-[var(--is-text-secondary)] transition-[border-color,color] duration-200 hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]"
                 aria-pressed={focusMode}
                 aria-label="Modo concentración. Atajo: Control o Comando + Mayús + punto"
                 title="Modo concentración (Ctrl/⌘+Shift+.)"
@@ -461,19 +480,35 @@ export function RedaccionShellClient({
                 Modo concentración
               </button>
             ) : null}
-          </aside>
+          </div>
+        </aside>
+
+        {/* Reabrir menú en desktop cuando está oculto */}
+        {sidebarHidden ? (
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className={[
+              "fixed left-4 z-30 hidden size-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white text-[var(--is-text)] shadow-md transition-[border-color,color,transform] duration-200 hover:border-[var(--is-accent)] hover:text-[var(--is-accent)] lg:inline-flex",
+              isEditor ? "top-[4.25rem]" : "top-6",
+            ].join(" ")}
+            aria-label="Mostrar menú lateral"
+            title="Mostrar menú"
+          >
+            <IconMenu />
+          </button>
         ) : null}
 
         {/* Mobile drawer */}
-        {mobileNavOpen && !hideSidebar ? (
+        {mobileNavOpen ? (
           <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-labelledby={drawerTitleId}>
             <button
               type="button"
-              className="absolute inset-0 bg-black/40"
+              className="absolute inset-0 bg-black/40 transition-opacity duration-200"
               aria-label="Cerrar menú"
               onClick={() => setMobileNavOpen(false)}
             />
-            <div className="absolute inset-y-0 left-0 flex w-[min(100%,18rem)] flex-col overflow-y-auto bg-[var(--is-bg)] p-4 shadow-xl">
+            <div className="absolute inset-y-0 left-0 flex w-[min(100%,18rem)] flex-col overflow-y-auto bg-[var(--is-bg)] p-4 shadow-xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <p id={drawerTitleId} className="text-sm font-semibold text-[var(--is-text)]">
                   Redacción
@@ -488,7 +523,6 @@ export function RedaccionShellClient({
                 </button>
               </div>
               <div className="[&_.justify-center]:justify-start">
-                {/* Force expanded labels in drawer */}
                 <RedaccionNavDrawerBody
                   showAdmin={showAdmin}
                   showUsers={showUsers}
@@ -504,7 +538,7 @@ export function RedaccionShellClient({
         ) : null}
 
         {/* Exit focus when not on editor chrome */}
-        {hideSidebar && !isEditor ? (
+        {focusMode && !isEditor ? (
           <div className="fixed bottom-6 right-6 z-30 lg:bottom-8 lg:right-8">
             <button
               type="button"
@@ -518,7 +552,7 @@ export function RedaccionShellClient({
           </div>
         ) : null}
 
-        <div className="min-w-0 flex-1 space-y-6 pb-20 lg:pb-0">
+        <div className="min-w-0 flex-1 space-y-6 pb-20 transition-[max-width] duration-300 lg:pb-0">
           {header ? (
             header
           ) : showPageTitle ? (
