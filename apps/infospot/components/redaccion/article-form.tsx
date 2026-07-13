@@ -10,6 +10,7 @@ import { ClfEventPicker } from "@/components/redaccion/clf-event-picker";
 import { PublishChecklist } from "@/components/redaccion/publish-checklist";
 import { EditorialActionsPanel } from "@/components/redaccion/editorial-actions-panel";
 import { EditorialVisualEditor } from "@/components/redaccion/visual-editor/editorial-visual-editor";
+import { AssistantPreparedPanel } from "@/components/redaccion/editorial-assistant/assistant-prepared-panel";
 import { AiImportButton, AiImportDialog } from "@/components/ai-import";
 import { buildArticlePublishChecklist } from "@/lib/launch-content";
 import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
@@ -51,6 +52,8 @@ type ArticleFormProps = {
     createdAt: Date | string;
     authorName: string;
   } | null;
+  /** Historia preparada por el Asistente Editorial. */
+  fromAssistant?: boolean;
   initial?: {
     id: string;
     title: string;
@@ -94,6 +97,7 @@ export function ArticleForm({
   authorLabel,
   clf,
   latestReturn,
+  fromAssistant = false,
   initial,
 }: ArticleFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -291,6 +295,15 @@ export function ArticleForm({
   const metaPanel = (
     <div className="space-y-5">
       <input type="hidden" name="status" value={status} />
+
+      {fromAssistant ? (
+        <AssistantPreparedPanel
+          eventTitle={clf?.eventTitle}
+          albumTitle={clf?.albumTitle}
+          linkedPhotoCount={clf?.linkedAssets.length}
+          sourceName={sourceName}
+        />
+      ) : null}
 
       {mode === "edit" && initial ? (
         <EditorialActionsPanel
@@ -627,14 +640,24 @@ export function ArticleForm({
           </div>
 
           {mode === "edit" && initial && clf ? (
-            <ClfEventPicker
-              articleId={initial.id}
-              initialEventId={clf.eventId}
-              initialAlbumId={clf.albumId}
-              initialEventTitle={clf.eventTitle}
-              initialAlbumTitle={clf.albumTitle}
-              linkedAssets={clf.linkedAssets}
-            />
+            <>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href={`/redaccion/asistente?mode=photos&articleId=${initial.id}`}
+                  className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium text-[var(--is-accent)]"
+                >
+                  Agregar material
+                </Link>
+              </div>
+              <ClfEventPicker
+                articleId={initial.id}
+                initialEventId={clf.eventId}
+                initialAlbumId={clf.albumId}
+                initialEventTitle={clf.eventTitle}
+                initialAlbumTitle={clf.albumTitle}
+                linkedAssets={clf.linkedAssets}
+              />
+            </>
           ) : mode === "create" ? (
             <div className="rounded-[var(--is-radius-md)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-surface)] p-6">
               <p className="text-sm font-semibold text-[var(--is-text)]">Fotos y ComprameLaFoto</p>

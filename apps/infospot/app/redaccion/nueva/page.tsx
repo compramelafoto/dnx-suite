@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { createArticleAndRedirect } from "@/app/actions/articles";
 import { ArticleForm } from "@/components/redaccion/article-form";
 import { FlashBanner } from "@/components/redaccion/flash-banner";
@@ -15,12 +16,23 @@ export const metadata: Metadata = {
 };
 
 type PageProps = {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; directo?: string }>;
 };
 
+/**
+ * Por defecto el flujo pasa por el Asistente Editorial.
+ * `?directo=1` conserva el formulario vacío legacy (power users).
+ */
 export default async function NuevaNoticiaPage({ searchParams }: PageProps) {
-  const access = await requireInfoSpotRedaccionAccess();
   const params = await searchParams;
+  if (params.directo !== "1") {
+    const q = new URLSearchParams();
+    q.set("intent", "independent");
+    if (params.error) q.set("error", params.error);
+    redirect(`/redaccion/asistente?${q.toString()}`);
+  }
+
+  const access = await requireInfoSpotRedaccionAccess();
   const [categories, assets] = await Promise.all([getCategories(), listUploadAssets()]);
 
   return (

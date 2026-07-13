@@ -76,7 +76,7 @@ export default async function BandejaPage({ searchParams }: PageProps) {
     vista === "publicadas"
       ? null
       : canCreate
-        ? { href: "/redaccion/nueva", label: NEWSROOM_COPY.createNote }
+        ? { href: "/redaccion/asistente", label: NEWSROOM_COPY.assistant }
         : null;
 
   return (
@@ -125,10 +125,10 @@ export default async function BandejaPage({ searchParams }: PageProps) {
       {canCreate ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--is-border)] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
           <Link
-            href="/redaccion/nueva"
+            href="/redaccion/asistente"
             className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] text-sm font-semibold text-white hover:bg-[var(--is-accent-hover)]"
           >
-            {NEWSROOM_COPY.createNote}
+            {NEWSROOM_COPY.assistant}
           </Link>
         </div>
       ) : null}

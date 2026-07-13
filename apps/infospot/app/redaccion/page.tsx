@@ -102,7 +102,13 @@ export default async function RedaccionPage({ searchParams }: PageProps) {
 
   const quickActions = [
     ...(canCreate
-      ? [{ label: NEWSROOM_COPY.createNote, href: "/redaccion/nueva", primary: true }]
+      ? [
+          {
+            label: NEWSROOM_COPY.assistant,
+            href: "/redaccion/asistente",
+            primary: true,
+          },
+        ]
       : []),
     { label: NEWSROOM_COPY.createCoverage, href: "/redaccion/coberturas" },
     ...(isDirector

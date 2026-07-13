@@ -122,11 +122,17 @@ export default async function CoberturaDetailPage({ params, searchParams }: Prop
               <input type="hidden" name="coverageId" value={coverage.id} />
               <button
                 type="submit"
-                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
+                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium"
               >
-                Crear nota
+                Crear historia rápida
               </button>
             </form>
+            <Link
+              href={`/redaccion/asistente?intent=coverage&coverageId=${coverage.id}`}
+              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
+            >
+              Crear historia
+            </Link>
             <form action={dismissCoverageFormAction}>
               <input type="hidden" name="coverageId" value={coverage.id} />
               <button

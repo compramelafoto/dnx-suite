@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; from?: string }>;
 };
 
 export default async function EditarNoticiaPage({ params, searchParams }: PageProps) {
@@ -103,6 +103,7 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
         subject={access.subject}
         authorLabel={authorDisplayName(article.author)}
         latestReturn={latestReturn}
+        fromAssistant={query.from === "asistente"}
         clf={{
           eventId: article.eventId,
           albumId: article.clfAlbumId,

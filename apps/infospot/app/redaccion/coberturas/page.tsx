@@ -62,14 +62,22 @@ export default async function CoberturasPage({ searchParams }: Props) {
           Coberturas fotográficas disponibles para escribir. Una acción principal:
           sincronizar o abrir una cobertura.
         </p>
-        <form action={syncCoveragesFormAction} className="mt-6">
-          <button
-            type="submit"
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link
+            href="/redaccion/asistente?intent=coverage"
             className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
           >
-            Actualizar material
-          </button>
-        </form>
+            Crear historia
+          </Link>
+          <form action={syncCoveragesFormAction}>
+            <button
+              type="submit"
+              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium"
+            >
+              Actualizar material
+            </button>
+          </form>
+        </div>
       </header>
       <FlashBanner ok={params.ok} error={params.error} />
       <CoverageCenterPanel coverages={coverages} metrics={metrics} />

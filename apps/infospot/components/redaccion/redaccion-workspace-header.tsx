@@ -51,10 +51,10 @@ export function RedaccionWorkspaceHeader({
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {canCreate ? (
               <Link
-                href="/redaccion/nueva"
+                href="/redaccion/asistente"
                 className="inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--is-accent-hover)]"
               >
-                Nueva nota
+                Asistente Editorial
               </Link>
             ) : null}
             {canCreateFromClf ? (

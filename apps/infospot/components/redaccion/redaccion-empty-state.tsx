@@ -8,14 +8,14 @@ const EMPTY_COPY: Record<
   "mi-trabajo": {
     title: "Tu inbox está vacío",
     description: "Cuando tengas borradores o piezas en marcha, aparecen acá.",
-    actionLabel: "Crear nota",
-    actionHref: "/redaccion/nueva",
+    actionLabel: "Crear historia",
+    actionHref: "/redaccion/asistente",
   },
   borradores: {
     title: "Nada en preparación",
     description: "Los borradores activos viven en esta bandeja.",
-    actionLabel: "Crear nota",
-    actionHref: "/redaccion/nueva",
+    actionLabel: "Crear historia",
+    actionHref: "/redaccion/asistente",
   },
   "en-revision": {
     title: "Nada en revisión",

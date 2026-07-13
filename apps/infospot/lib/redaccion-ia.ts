@@ -84,22 +84,24 @@ export const NEWSROOM_COPY = {
   material: "material editorial",
   coverageCenter: "Material editorial",
   clfImport: "Importar desde ComprameLaFoto",
-  createNote: "Crear nota",
+  createNote: "Crear historia",
   continueDraft: "Continuar borrador",
   createCoverage: "Abrir material",
+  assistant: "Asistente Editorial",
   newsroom: "Centro Editorial",
   inbox: "Bandeja",
   agenda: "Agenda",
 } as const;
 
-/** Flujo mental documentado (preparación del Wizard futuro). */
+/** Flujo mental del Asistente Editorial (preparación → escritura). */
 export const NEWSROOM_WORK_FLOW = [
-  "Inbox",
-  "En preparación",
+  "Qué querés contar",
+  "Evento / material",
+  "Fotografías",
+  "Preparar borrador",
   "Escribiendo",
   "En revisión",
   "Publicados",
-  "Archivados",
 ] as const;
 
 export function newsroomNavActive(

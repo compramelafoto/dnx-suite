@@ -11,7 +11,8 @@ import {
 
 assert.ok(NEWSROOM_NAV.length >= 6);
 assert.equal(NEWSROOM_NAV[0]!.id, "centro");
-assert.ok(NEWSROOM_WORK_FLOW.includes("Inbox"));
+assert.ok(NEWSROOM_WORK_FLOW.includes("Qué querés contar"));
+assert.ok(NEWSROOM_WORK_FLOW.includes("Escribiendo"));
 
 assert.equal(newsroomNavActive("/redaccion", "", NEWSROOM_NAV[0]!), true);
 assert.equal(
