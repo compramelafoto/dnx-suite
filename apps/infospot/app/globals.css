@@ -202,30 +202,32 @@ summary:focus-visible {
 
 /* —— Editor visual TipTap —— */
 .is-visual-editor {
-  font-size: 1.125rem;
-  line-height: var(--is-leading-body);
+  font-size: var(--is-type-body, 1.125rem);
+  line-height: 1.75;
   color: var(--is-text);
 }
 
 .is-visual-editor .ProseMirror {
-  min-height: 22rem;
+  min-height: min(62vh, 36rem);
   outline: none;
 }
 
 .is-visual-editor .ProseMirror > * + * {
-  margin-top: 1.1rem;
+  margin-top: 1.35rem;
 }
 
 .is-visual-editor h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-family: var(--is-font-serif);
+  font-size: var(--is-type-h2, 1.75rem);
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--is-text);
 }
 
 .is-visual-editor h3 {
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-family: var(--is-font-serif);
+  font-size: var(--is-type-h3, 1.35rem);
+  font-weight: 600;
   color: var(--is-text);
 }
 
@@ -325,6 +327,33 @@ summary:focus-visible {
 
 .is-btn-ghost:hover {
   color: var(--is-accent-hover);
+}
+
+.is-btn-danger {
+  background: var(--is-danger-soft);
+  color: var(--is-danger);
+  border: 1px solid color-mix(in oklab, var(--is-danger) 25%, transparent);
+}
+
+.is-btn-danger:hover {
+  background: color-mix(in oklab, var(--is-danger) 12%, white);
+  color: var(--is-danger);
+}
+
+.is-btn-icon {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border-radius: var(--is-radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--is-text-secondary);
+}
+
+.is-btn-icon:hover {
+  border-color: var(--is-border);
+  background: var(--is-bg-muted);
+  color: var(--is-text);
 }
 
 /** CTA sólido oscuro sobre fondo claro */

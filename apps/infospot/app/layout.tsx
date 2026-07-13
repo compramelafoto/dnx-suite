@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Plus_Jakarta_Sans, Source_Serif_4 } from "next/font/google";
 import { AppChrome } from "@/components/navigation/AppChrome";
 import { resolveSiteHeaderAuth } from "@/components/navigation/resolve-site-header-auth";
 import { getInfoSpotSettings, getSiteUrl } from "@/lib/settings";
@@ -7,6 +7,12 @@ import "./globals.css";
 
 const infoSans = Plus_Jakarta_Sans({
   variable: "--font-info-sans",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const infoSerif = Source_Serif_4({
+  variable: "--font-source-serif",
   subsets: ["latin"],
   display: "swap",
 });
@@ -94,7 +100,7 @@ export default async function RootLayout({
   };
 
   return (
-    <html lang="es-AR" className={`${infoSans.variable} h-full antialiased`}>
+    <html lang="es-AR" className={`${infoSans.variable} ${infoSerif.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
         <script
           type="application/ld+json"

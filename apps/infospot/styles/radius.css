@@ -8,4 +8,6 @@
   --is-radius-lg: 0.75rem; /* 12 */
   --is-radius-xl: 1rem; /* 16 */
   --is-radius-full: 9999px;
+  /* Alias usado en muchas superficies de redacción */
+  --is-radius: var(--is-radius-md);
 }

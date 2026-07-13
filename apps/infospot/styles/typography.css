@@ -4,6 +4,7 @@
 
 :root {
   --is-font-sans: var(--font-info-sans), ui-sans-serif, system-ui, sans-serif;
+  --is-font-serif: var(--font-source-serif), ui-serif, Georgia, "Times New Roman", serif;
 
   --is-leading-none: 1;
   --is-leading-tight: 1.15;

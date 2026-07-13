@@ -1,0 +1,511 @@
+/**
+ * Info Spot — Editorial writing surfaces
+ * Tokens + utilidades para redacción (editor, biblioteca, timeline, drawers).
+ * No cambia lógica de producto: solo presentación.
+ */
+
+:root {
+  /* Compat aliases usados en redacción */
+  --is-bg-muted: var(--is-bg-secondary);
+  --is-radius: var(--is-radius-md);
+  --is-fg: var(--is-text);
+
+  /* Serif editorial (cargada en layout) */
+  --is-font-serif: var(--font-source-serif), ui-serif, Georgia, "Times New Roman", serif;
+
+  /* Escala tipográfica editorial (Medium / Substack-ish) */
+  --is-type-title: clamp(2.5rem, 2.1rem + 1.8vw, 3.5rem); /* ~40–56 */
+  --is-type-dek: clamp(1.25rem, 1.15rem + 0.45vw, 1.5rem); /* ~20–24 */
+  --is-type-h2: clamp(1.75rem, 1.55rem + 0.7vw, 2.25rem); /* ~28–36 */
+  --is-type-h3: clamp(1.35rem, 1.25rem + 0.4vw, 1.75rem); /* ~22–28 */
+  --is-type-body: 1.125rem; /* 18 */
+  --is-type-caption: 0.875rem; /* 14 */
+
+  /* Chrome apilado */
+  --is-redaccion-chrome-h: 3.25rem;
+  --is-editor-rail-top: 6.5rem;
+  --is-editor-rail-max-h: calc(100dvh - 7.5rem);
+
+  /* Paneles */
+  --is-editorial-panel-bg: var(--is-surface);
+  --is-editorial-panel-pad: var(--is-space-6);
+  --is-editorial-ease: var(--is-ease-out);
+  --is-editorial-duration: var(--is-duration-200);
+}
+
+/* —— Tipografía editorial —— */
+.is-font-serif {
+  font-family: var(--is-font-serif);
+}
+
+.is-editorial-title {
+  font-family: var(--is-font-serif);
+  font-size: var(--is-type-title);
+  font-weight: 600;
+  letter-spacing: var(--is-tracking-tighter);
+  line-height: 1.12;
+  color: var(--is-text);
+  text-wrap: balance;
+}
+
+.is-editorial-dek {
+  font-family: var(--is-font-sans);
+  font-size: var(--is-type-dek);
+  font-weight: 400;
+  letter-spacing: var(--is-tracking-snug);
+  line-height: var(--is-leading-relaxed);
+  color: var(--is-text-secondary);
+  text-wrap: pretty;
+}
+
+.is-editorial-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: var(--is-tracking-widest);
+  text-transform: uppercase;
+  color: var(--is-accent);
+}
+
+.is-editorial-section-label {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--is-muted);
+}
+
+/* —— Inputs unificados —— */
+.is-input,
+.is-textarea,
+.is-select {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--is-border-strong);
+  border-radius: var(--is-radius-md);
+  background: var(--is-surface);
+  color: var(--is-text);
+  font-size: 1rem;
+  line-height: var(--is-leading-normal);
+  outline: none;
+  transition: var(--is-transition-colors), box-shadow var(--is-duration-150) var(--is-ease);
+}
+
+.is-textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.is-input::placeholder,
+.is-textarea::placeholder {
+  color: var(--is-muted);
+  opacity: 0.85;
+}
+
+.is-input:hover,
+.is-textarea:hover,
+.is-select:hover {
+  border-color: var(--is-gray-400);
+}
+
+.is-input:focus,
+.is-textarea:focus,
+.is-select:focus {
+  border-color: var(--is-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--is-accent) 18%, transparent);
+}
+
+.is-input-label {
+  display: block;
+  margin-bottom: var(--is-space-2);
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--is-text);
+}
+
+.is-input-helper {
+  margin-top: var(--is-space-2);
+  font-size: var(--is-type-caption);
+  line-height: var(--is-leading-normal);
+  color: var(--is-muted);
+}
+
+.is-input-error {
+  margin-top: var(--is-space-2);
+  font-size: var(--is-type-caption);
+  color: var(--is-danger);
+}
+
+/* Campos de escritura (sin caja) */
+.is-input-title {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  padding: var(--is-space-3) 0;
+  font-family: var(--is-font-serif);
+  font-size: var(--is-type-title);
+  font-weight: 600;
+  letter-spacing: var(--is-tracking-tighter);
+  line-height: 1.12;
+  color: var(--is-text);
+  outline: none;
+  transition: border-color var(--is-duration-150) var(--is-ease);
+}
+
+.is-input-title::placeholder {
+  color: var(--is-muted);
+  opacity: 0.55;
+}
+
+.is-input-title:focus {
+  border-bottom-color: color-mix(in oklab, var(--is-accent) 45%, transparent);
+}
+
+.is-input-dek {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  resize: vertical;
+  font-size: var(--is-type-dek);
+  line-height: var(--is-leading-relaxed);
+  color: var(--is-text);
+  outline: none;
+}
+
+.is-input-dek::placeholder {
+  color: var(--is-muted);
+  opacity: 0.6;
+}
+
+/* —— Cards unificadas —— */
+.is-card {
+  border: 1px solid var(--is-border);
+  border-radius: var(--is-radius-lg);
+  background: var(--is-surface);
+  transition:
+    border-color var(--is-duration-150) var(--is-ease),
+    box-shadow var(--is-duration-200) var(--is-ease),
+    transform var(--is-duration-200) var(--is-ease-out);
+}
+
+.is-card:hover {
+  border-color: color-mix(in oklab, var(--is-accent) 35%, var(--is-border));
+}
+
+.is-card--interactive:hover {
+  box-shadow: var(--is-shadow-sm, 0 4px 16px color-mix(in oklab, var(--is-graphite-800) 6%, transparent));
+}
+
+.is-card--active {
+  border-color: var(--is-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--is-accent) 18%, transparent);
+}
+
+/* —— Panel / rail editorial —— */
+.is-editorial-panel {
+  border-radius: var(--is-radius-lg);
+  background: var(--is-editorial-panel-bg);
+  padding: var(--is-editorial-panel-pad);
+}
+
+.is-editorial-panel--bordered {
+  border: 1px solid color-mix(in oklab, var(--is-border) 80%, transparent);
+}
+
+.is-editorial-rail {
+  position: sticky;
+  top: var(--is-editor-rail-top);
+  max-height: var(--is-editor-rail-max-h);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.is-editorial-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--is-space-3);
+  min-height: var(--is-redaccion-chrome-h);
+  padding-block: var(--is-space-2);
+  padding-inline: var(--is-space-4);
+  border-bottom: 1px solid color-mix(in oklab, var(--is-border) 70%, transparent);
+  background: color-mix(in oklab, var(--is-bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  transition: border-color var(--is-duration-150) var(--is-ease);
+}
+
+@media (min-width: 640px) {
+  .is-editorial-toolbar {
+    padding-inline: var(--is-space-5);
+    border-radius: var(--is-radius-lg);
+    border: 1px solid color-mix(in oklab, var(--is-border) 70%, transparent);
+  }
+}
+
+/* —— Material library cards —— */
+.is-material-item {
+  overflow: hidden;
+  border-radius: var(--is-radius-md);
+  border: 1px solid var(--is-border);
+  background: var(--is-surface);
+  transition:
+    border-color var(--is-duration-150) var(--is-ease),
+    box-shadow var(--is-duration-200) var(--is-ease),
+    background-color var(--is-duration-150) var(--is-ease);
+}
+
+.is-material-item:hover {
+  border-color: color-mix(in oklab, var(--is-accent) 40%, var(--is-border));
+}
+
+.is-material-item--active {
+  border-color: var(--is-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--is-accent) 22%, transparent);
+}
+
+.is-material-item--cover {
+  border-left: 3px solid var(--is-accent);
+}
+
+.is-material-item--gallery {
+  border-left: 3px solid var(--is-graphite-400);
+}
+
+.is-material-item--insert {
+  border-left: 3px solid var(--is-success-500, #12b76a);
+}
+
+.is-material-item--used {
+  background: color-mix(in oklab, var(--is-success-50, #ecfdf3) 65%, white);
+  border-left: 3px solid var(--is-success-500, #12b76a);
+}
+
+.is-material-item--processing {
+  background: color-mix(in oklab, var(--is-warning-50, #fffaeb) 70%, white);
+  border-left: 3px solid var(--is-warning-500, #f79009);
+}
+
+.is-material-item--unavailable {
+  opacity: 0.72;
+  border-left: 3px solid var(--is-gray-400);
+}
+
+.is-material-item--favorite {
+  border-left: 3px solid var(--is-orange-400);
+}
+
+/* —— Timeline editorial —— */
+.is-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--is-space-1);
+}
+
+.is-timeline-step {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--is-space-3);
+  border-radius: var(--is-radius-md);
+  padding: var(--is-space-2) var(--is-space-3);
+  text-align: left;
+  font-size: 0.9375rem;
+  transition:
+    background-color var(--is-duration-150) var(--is-ease),
+    color var(--is-duration-150) var(--is-ease);
+}
+
+.is-timeline-step--done {
+  color: var(--is-text);
+}
+
+.is-timeline-step--done:hover {
+  background: var(--is-bg-muted);
+  cursor: pointer;
+}
+
+.is-timeline-step--current {
+  background: color-mix(in oklab, var(--is-accent) 10%, transparent);
+  font-weight: 650;
+  color: var(--is-text);
+}
+
+.is-timeline-step--upcoming {
+  color: var(--is-muted);
+  cursor: default;
+}
+
+.is-timeline-mark {
+  display: inline-flex;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid var(--is-border);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.is-timeline-step--done .is-timeline-mark,
+.is-timeline-step--current .is-timeline-mark {
+  border-color: var(--is-accent);
+  background: var(--is-accent);
+  color: #fff;
+}
+
+.is-timeline-footer {
+  margin-top: var(--is-space-6);
+  padding-top: var(--is-space-5);
+  border-top: 1px solid var(--is-border);
+  font-family: var(--is-font-serif);
+  font-size: 1.0625rem;
+  line-height: var(--is-leading-snug);
+  color: var(--is-text-secondary);
+}
+
+/* —— Drawers —— */
+.is-editorial-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: color-mix(in oklab, #000 35%, transparent);
+  animation: is-fade-in var(--is-duration-200) var(--is-ease-out);
+}
+
+.is-editorial-drawer {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  display: flex;
+  width: 100%;
+  max-width: 28rem;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--is-surface);
+  box-shadow: -8px 0 32px color-mix(in oklab, var(--is-graphite-800) 12%, transparent);
+  animation: is-slide-in-right var(--is-duration-200) var(--is-ease-out);
+}
+
+.is-editorial-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--is-space-3);
+  min-height: 3.25rem;
+  padding: var(--is-space-3) var(--is-space-4);
+  border-bottom: 1px solid var(--is-border);
+}
+
+.is-editorial-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--is-space-5) var(--is-space-4);
+  overscroll-behavior: contain;
+}
+
+.is-editorial-drawer__footer {
+  border-top: 1px solid var(--is-border);
+  padding: var(--is-space-4);
+}
+
+@keyframes is-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes is-slide-in-right {
+  from {
+    transform: translateX(0.75rem);
+    opacity: 0.96;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-editorial-drawer-overlay,
+  .is-editorial-drawer,
+  .is-material-item,
+  .is-card,
+  .is-timeline-step {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* —— Empty / skeleton —— */
+.is-empty-editorial {
+  border: 1px dashed var(--is-border);
+  border-radius: var(--is-radius-lg);
+  background: color-mix(in oklab, var(--is-bg-muted) 50%, white);
+  padding: var(--is-space-8) var(--is-space-5);
+  text-align: center;
+  color: var(--is-muted);
+  font-size: 0.9375rem;
+  line-height: var(--is-leading-relaxed);
+}
+
+.is-skeleton {
+  border-radius: var(--is-radius-md);
+  background: linear-gradient(
+    90deg,
+    var(--is-bg-muted) 0%,
+    var(--is-white-200) 50%,
+    var(--is-bg-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: is-skeleton-shine 1.2s var(--is-ease) infinite;
+}
+
+@keyframes is-skeleton-shine {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* —— Writing surface —— */
+.is-writing-surface {
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+.is-writing-surface .is-visual-editor {
+  font-size: var(--is-type-body);
+  line-height: 1.75;
+}
+
+.is-writing-surface .is-visual-editor .ProseMirror {
+  min-height: min(62vh, 36rem);
+  padding-block: var(--is-space-6);
+}
+
+.is-editor-shell {
+  overflow: hidden;
+  border-radius: var(--is-radius-lg);
+  border: 1px solid color-mix(in oklab, var(--is-border) 65%, transparent);
+  background: var(--is-surface);
+  transition: border-color var(--is-duration-150) var(--is-ease);
+}
+
+.is-editor-shell:focus-within {
+  border-color: color-mix(in oklab, var(--is-accent) 35%, var(--is-border));
+}

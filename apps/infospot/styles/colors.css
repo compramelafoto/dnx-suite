@@ -93,10 +93,12 @@
   /* —— Semantic roles (compat + API pública) —— */
   --is-bg: var(--is-white-0);
   --is-bg-secondary: var(--is-white-100);
+  --is-bg-muted: var(--is-bg-secondary);
   --is-surface: var(--is-white-0);
   --is-surface-muted: var(--is-white-200);
 
   --is-text: var(--is-graphite-800);
+  --is-fg: var(--is-text);
   --is-text-secondary: var(--is-gray-600);
   --is-muted: var(--is-gray-500);
 
