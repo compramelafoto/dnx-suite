@@ -2,6 +2,45 @@ import { prisma, resolveClfAlbumCommercialAvailability } from "@repo/db";
 import { getClfReadonlyClient } from "@/lib/clf-readonly-db";
 import { buildClfThumbApiPath } from "@/lib/editorial-photo-previews";
 
+const clfEventListSelect = {
+  id: true,
+  title: true,
+  startsAt: true,
+  endsAt: true,
+  city: true,
+  locationName: true,
+  status: true,
+  visibility: true,
+  creator: { select: { id: true, name: true, email: true } },
+  _count: { select: { albums: { where: { deletedAt: null } } } },
+} as const;
+
+function mapClfEventRow(e: {
+  id: number;
+  title: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  city: string | null;
+  locationName: string | null;
+  status: string;
+  visibility: string;
+  creator: { id: number; name: string | null; email: string };
+  _count: { albums: number };
+}) {
+  return {
+    id: e.id,
+    title: e.title,
+    startsAt: e.startsAt,
+    endsAt: e.endsAt,
+    city: e.city,
+    locationName: e.locationName,
+    status: e.status,
+    visibility: e.visibility,
+    organizerName: e.creator.name?.trim() || e.creator.email,
+    albumCount: e._count.albums,
+  };
+}
+
 export async function searchClfEvents(query: string, take = 20) {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -18,34 +57,102 @@ export async function searchClfEvents(query: string, take = 20) {
         { creator: { email: { contains: q, mode: "insensitive" } } },
       ],
     },
-    select: {
-      id: true,
-      title: true,
-      startsAt: true,
-      endsAt: true,
-      city: true,
-      locationName: true,
-      status: true,
-      visibility: true,
-      creator: { select: { id: true, name: true, email: true } },
-      _count: { select: { albums: { where: { deletedAt: null } } } },
-    },
+    select: clfEventListSelect,
     orderBy: { startsAt: "desc" },
     take,
   });
 
-  return events.map((e) => ({
-    id: e.id,
-    title: e.title,
-    startsAt: e.startsAt,
-    endsAt: e.endsAt,
-    city: e.city,
-    locationName: e.locationName,
-    status: e.status,
-    visibility: e.visibility,
-    organizerName: e.creator.name?.trim() || e.creator.email,
-    albumCount: e._count.albums,
-  }));
+  return events.map(mapClfEventRow);
+}
+
+/**
+ * Listado para el Asistente Editorial (sin exigir búsqueda).
+ * Solo lectura CLF; no modifica sync ni provisioning.
+ */
+export async function listClfEventsForAssistant(options?: {
+  take?: number;
+  window?: "upcoming" | "recent" | "all";
+}) {
+  const take = options?.take ?? 40;
+  const window = options?.window ?? "all";
+  const now = new Date();
+  const clf = getClfReadonlyClient();
+
+  const where: {
+    archivedAt: null;
+    startsAt?: { gte?: Date; lte?: Date };
+  } = { archivedAt: null };
+
+  if (window === "upcoming") {
+    where.startsAt = { gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) };
+  } else if (window === "recent") {
+    where.startsAt = { lte: now };
+  }
+
+  const events = await clf.event.findMany({
+    where,
+    select: clfEventListSelect,
+    orderBy: { startsAt: window === "upcoming" ? "asc" : "desc" },
+    take,
+  });
+
+  return events.map(mapClfEventRow);
+}
+
+/** Enriquece cards del asistente con fechas reales de CLF. */
+export async function hydrateAssistantEventsWithClfDates(
+  eventIds: number[],
+): Promise<
+  Map<
+    number,
+    {
+      startsAt: Date | null;
+      endsAt: Date | null;
+      city: string | null;
+      title: string;
+      albumCount: number;
+    }
+  >
+> {
+  const ids = [...new Set(eventIds.filter((id) => Number.isFinite(id) && id > 0))];
+  const map = new Map<
+    number,
+    {
+      startsAt: Date | null;
+      endsAt: Date | null;
+      city: string | null;
+      title: string;
+      albumCount: number;
+    }
+  >();
+  if (ids.length === 0) return map;
+
+  try {
+    const clf = getClfReadonlyClient();
+    const rows = await clf.event.findMany({
+      where: { id: { in: ids }, archivedAt: null },
+      select: {
+        id: true,
+        title: true,
+        startsAt: true,
+        endsAt: true,
+        city: true,
+        _count: { select: { albums: { where: { deletedAt: null } } } },
+      },
+    });
+    for (const row of rows) {
+      map.set(row.id, {
+        startsAt: row.startsAt,
+        endsAt: row.endsAt,
+        city: row.city,
+        title: row.title,
+        albumCount: row._count.albums,
+      });
+    }
+  } catch {
+    // Si CLF no está disponible, el asistente sigue con datos de coberturas.
+  }
+  return map;
 }
 
 export async function getClfEventSummary(eventId: number) {
