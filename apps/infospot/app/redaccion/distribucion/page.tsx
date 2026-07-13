@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { RedaccionShell } from "@/components/redaccion/redaccion-shell";
+import { NewsroomBreadcrumbs } from "@/components/redaccion/newsroom-breadcrumbs";
 import { DistributionAdminPanel } from "@/components/distribution/distribution-admin-panel";
 import {
   canManageInfoSpotDistribution,
@@ -9,7 +10,7 @@ import {
 } from "@/lib/infospot-access";
 
 export const metadata: Metadata = {
-  title: "Distribución de portada — Redacción",
+  title: "Portada — Centro Editorial",
 };
 
 export default async function DistribucionPage() {
@@ -58,22 +59,21 @@ export default async function DistribucionPage() {
   ];
 
   return (
-    <RedaccionShell
-      header={
-        <header className="rounded-[var(--is-radius-lg)] border border-[var(--is-border)] bg-white px-5 py-8 sm:px-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--is-accent)]">
-            Redacción
-          </p>
-          <h1 className="mt-3 font-[family-name:var(--font-source-serif)] text-3xl font-semibold tracking-tight">
-            Distribución de portada
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-[var(--is-muted)]">
-            Banner manual, prioridad editorial y exclusión de home. Las
-            convocatorias de fotógrafos son automáticas.
-          </p>
-        </header>
-      }
-    >
+    <RedaccionShell>
+      <NewsroomBreadcrumbs
+        items={[
+          { label: "Centro Editorial", href: "/redaccion" },
+          { label: "Portada" },
+        ]}
+      />
+      <header className="mb-8 max-w-2xl">
+        <h1 className="font-[family-name:var(--font-source-serif)] text-3xl font-semibold tracking-tight">
+          Portada
+        </h1>
+        <p className="mt-3 text-base leading-relaxed text-[var(--is-muted)]">
+          Qué se destaca en la home. Una acción primaria: elegir o ajustar lo publicado.
+        </p>
+      </header>
       <DistributionAdminPanel
         placements={placements.map((p) => ({
           id: p.id,

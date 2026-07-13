@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FlashBanner } from "@/components/redaccion/flash-banner";
 import { RedaccionShell } from "@/components/redaccion/redaccion-shell";
+import { NewsroomBreadcrumbs } from "@/components/redaccion/newsroom-breadcrumbs";
 import { RedaccionViewTabs } from "@/components/redaccion/redaccion-view-tabs";
 import { EventList } from "@/components/redaccion/event-list";
 import {
@@ -23,7 +24,7 @@ import {
 } from "@/lib/infospot-access";
 
 export const metadata: Metadata = {
-  title: "Eventos — Redacción",
+  title: "Agenda — Centro Editorial",
 };
 
 type PageProps = {
@@ -67,45 +68,36 @@ export default async function RedaccionEventosPage({ searchParams }: PageProps) 
   }
 
   return (
-    <RedaccionShell
-      header={
-        <header className="rounded-[var(--is-radius-lg)] border border-[var(--is-border)] bg-white px-5 py-8 sm:px-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--is-accent)]">
-            Redacción · Eventos
+    <RedaccionShell>
+      <NewsroomBreadcrumbs
+        items={[
+          { label: "Centro Editorial", href: "/redaccion" },
+          { label: "Agenda" },
+        ]}
+      />
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-2xl">
+          <h1 className="font-[family-name:var(--font-source-serif)] text-3xl font-semibold tracking-tight">
+            Agenda
+          </h1>
+          <p className="mt-3 text-base leading-relaxed text-[var(--is-muted)]">
+            Próximos eventos y piezas en preparación. Una acción principal por pantalla.
           </p>
-          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h1 className="font-[family-name:var(--font-source-serif)] text-3xl font-semibold tracking-tight">
-                Agenda editorial
-              </h1>
-              <p className="mt-2 text-sm text-[var(--is-muted)]">
-                Mismo flujo que las noticias: borrador → revisión → publicación.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/redaccion"
-                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium"
-              >
-                Noticias
-              </Link>
-              {canCreate ? (
-                <Link
-                  href="/redaccion/eventos/nuevo"
-                  className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
-                >
-                  Nuevo evento
-                </Link>
-              ) : null}
-            </div>
-          </div>
-        </header>
-      }
-    >
+        </div>
+        {canCreate ? (
+          <Link
+            href="/redaccion/eventos/nuevo"
+            className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
+          >
+            Nuevo evento
+          </Link>
+        ) : null}
+      </header>
+
       <FlashBanner ok={params.ok} error={params.error} />
 
       {isDirector && stats.inReview > 0 ? (
-        <div className="rounded-[var(--is-radius-md)] border border-[var(--is-orange-200)] bg-[var(--is-orange-50)] px-4 py-3 text-sm text-[var(--is-orange-900)]">
+        <div className="mb-6 rounded-[var(--is-radius-md)] border border-[var(--is-orange-200)] bg-[var(--is-orange-50)] px-4 py-3 text-sm text-[var(--is-orange-900)]">
           Hay{" "}
           <Link href="/redaccion/eventos?vista=en-revision" className="font-semibold underline">
             {stats.inReview} evento{stats.inReview === 1 ? "" : "s"} en revisión
@@ -115,22 +107,23 @@ export default async function RedaccionEventosPage({ searchParams }: PageProps) 
       ) : null}
 
       {missingGeoCount > 0 ? (
-        <div className="rounded-[var(--is-radius-md)] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <div className="mb-6 rounded-[var(--is-radius-md)] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           {geoFilter ? (
             <>
-              Mostrando eventos sin georreferenciación confirmada.{" "}
+              Mostrando eventos sin ubicación confirmada.{" "}
               <Link href={`/redaccion/eventos?vista=${vista}`} className="font-semibold underline">
                 Quitar filtro
               </Link>
             </>
           ) : (
             <>
-              Hay {missingGeoCount} evento{missingGeoCount === 1 ? "" : "s"} sin geo confirmada.{" "}
+              Hay {missingGeoCount} evento{missingGeoCount === 1 ? "" : "s"} sin ubicación
+              confirmada.{" "}
               <Link
                 href={`/redaccion/eventos?vista=${vista}&geo=missing`}
                 className="font-semibold underline"
               >
-                Falta georreferenciar
+                Revisar ubicación
               </Link>
             </>
           )}
