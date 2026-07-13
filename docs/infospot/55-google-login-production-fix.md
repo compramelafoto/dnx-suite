@@ -25,7 +25,7 @@ El CTA era un `<button type="button">` **sin `href`**, con navegación solo vía
 
 Sin hidratación JS (o con fallo de binding del handler), el clic no inicia el flujo OAuth. Auditoría SSR: `BTN_HAS_HREF = false`.
 
-Production servía aún `fa55a2d` al momento del diagnóstico; el fix se despliega en un commit posterior.
+Production servía aún `fa55a2d` al momento del diagnóstico; el fix se desplegó en **`3d0cd77`** (Production Ready · health `db:ok` · CTA con `href="/api/auth/google?…"`).
 
 ---
 
@@ -57,7 +57,12 @@ Production servía aún `fa55a2d` al momento del diagnóstico; el fix se desplie
 
 ## User creado
 
-Pendiente de QA post-deploy: Neon Production debe pasar de **0 → 1** User tras un login Google completo. **No** asignar Director en esta etapa hasta confirmar User.
+QA post-deploy (alias Production `3d0cd77`):
+
+- CTA Google: enlace real a `/api/auth/google`.
+- `GET /api/auth/google` → 307 + cookie OAuth.
+- **Login interactivo Google → User 0→1:** pendiente del operador (no automatizable sin consentimiento Google).
+- **No** asignar Director hasta confirmar User.
 
 ---
 
