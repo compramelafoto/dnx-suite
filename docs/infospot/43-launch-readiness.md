@@ -8,7 +8,8 @@
 **Alcance:** producción usable en `infospot-dnxsuite.vercel.app` **sin** dominio, **sin** Google Cloud / Search Console.
 
 **Checklist maestro día D:** [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md) (Etapa 22I).  
-**Cierre pre-DNS:** [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md) (Etapa 22J).
+**Cierre pre-DNS:** [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md) (Etapa 22J).  
+**Director / día 1:** [`53-director-and-day1-content.md`](./53-director-and-day1-content.md) (Etapa 22K — `BLOCKED_BY_FIRST_DIRECTOR_LOGIN`).
 
 Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`45-production-services-readiness.md`](./45-production-services-readiness.md), [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md).
 
@@ -26,7 +27,7 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`45-pro
 | SMTP / Resend | Opcional | Degradación segura sin key |
 | CRON_SECRET + schedules | OK | 401 sin secret |
 | Analytics Measurement ID | Opcional | Internas OK; GA4 no cargado |
-| Director | Pendiente | 0 users — login OAuth + `db:grant-infospot-director` |
+| Director | **Bloqueado** | 0 users — login OAuth + grant · [doc 53](./53-director-and-day1-content.md) |
 | Contenido PUBLISHED | Pendiente | 0 · plan en doc 52 (0 eventos futuros candidatos) |
 | Dominio `infospot.com.ar` | Pendiente DonWeb | DNS público vacío |
 | Google Cloud OAuth console | **No tocado** | Callback el día D |

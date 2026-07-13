@@ -367,16 +367,16 @@ Máquina de estados: `DRAFT → IN_REVIEW → PUBLISHED → UNPUBLISHED → ARCH
 
 ---
 
-## 10. Recomendación 22I
+## 10. Recomendación 22I / actualización 22K
 
 | Pregunta | Respuesta |
 |----------|-----------|
 | ¿Listo para operar en alias Vercel? | **SÍ** |
 | ¿Listo para anunciar `infospot.com.ar` ahora? | **NO** |
-| ¿Falta desarrollo de features para GO? | **NO** (faltan ops de dominio + Director + contenido) |
-| ¿Se modificó producción en 22I? | **NO** (solo auditoría + docs) |
+| ¿`READY_FOR_DNS_AND_PUBLICATION`? | **NO** — 22K: `BLOCKED_BY_FIRST_DIRECTOR_LOGIN` |
+| ¿Falta desarrollo de features para GO? | **NO** (faltan login Director + contenido + DNS) |
 | Launch Readiness pre-DNS | **~96%** |
-| Próximo paso | Ejecutar §4 cuando DonWeb entregue DNS |
+| Próximo paso | Login en alias → grant Director → [53](./53-director-and-day1-content.md) |
 
 ---
 

@@ -8,6 +8,8 @@
 **Decisión:** **GO operativo** en `https://infospot-dnxsuite.vercel.app` · **NO-GO** dominio propio `infospot.com.ar`  
 **Estado:** Neon, CLF readonly, crons, deploy y **ciclo multimedia R2** listos; faltan Director + DNS DonWeb + OAuth día D + Search Console.
 
+**Actualización 2026-07-13 (Etapa 22K):** Director **bloqueado** — `BLOCKED_BY_FIRST_DIRECTOR_LOGIN` (0 users en Neon prod). Ver [`53-director-and-day1-content.md`](./53-director-and-day1-content.md).
+
 **Actualización 2026-07-13 (Etapa 22J):** migraciones Production aplicadas; schema up to date; Director pendiente de primer login + grant. Ver [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md). Readiness **~96%**.
 
 **Actualización 2026-07-13 (Etapa 22I):** checklist maestro de Go Live en [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md). Readiness pre-DNS **~95%**. Production **no** modificada en 22I.
