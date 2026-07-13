@@ -69,7 +69,10 @@ export async function GET(req: Request) {
     }
 
     if (oauthError) {
-      return redirectIngresar(baseUrl, "Cancelaste o falló el acceso con Google.");
+      return redirectIngresar(
+        baseUrl,
+        "No pudimos iniciar sesión con Google. Volvé a intentarlo.",
+      );
     }
     if (!code) {
       return redirectIngresar(baseUrl, "Google no devolvió un código de autorización.");
@@ -114,7 +117,10 @@ export async function GET(req: Request) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.info("[infospot] Google login resolve failed", hashEmailForLog(google.email), msg);
-      return redirectIngresar(baseUrl, msg);
+      return redirectIngresar(
+        baseUrl,
+        "No pudimos iniciar sesión con Google. Volvé a intentarlo.",
+      );
     }
 
     if (pendingInvite) {

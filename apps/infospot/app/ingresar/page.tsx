@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/page-shell";
+import { friendlyGoogleLoginError } from "@/lib/google-oauth-start";
 import { LoginForm } from "./login-form";
 import { redirectIfAlreadySignedIn } from "./actions";
 
@@ -38,7 +39,7 @@ export default async function IngresarPage({
   await redirectIfAlreadySignedIn(next);
 
   const deniedMessage = params.forbidden ? DENIED[params.forbidden] ?? null : null;
-  const oauthError = params.error?.trim() || null;
+  const oauthError = friendlyGoogleLoginError(params.error);
 
   return (
     <PageShell

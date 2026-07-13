@@ -15,15 +15,15 @@ import {
   toPermissionSubject,
 } from "@/lib/infospot-access";
 import type { AuthUser } from "@/lib/auth";
+import { safeInfoSpotNextPath } from "@/lib/google-oauth-start";
+
+export {
+  buildGoogleOAuthStartHref,
+  friendlyGoogleLoginError,
+  safeInfoSpotNextPath,
+} from "@/lib/google-oauth-start";
 
 export const INFOSPOT_GOOGLE_OAUTH_APP = "infospot";
-
-/** Path relativo seguro (anti open-redirect). */
-export function safeInfoSpotNextPath(raw: string | null | undefined, fallback = "/redaccion"): string {
-  const value = typeof raw === "string" ? raw.trim() : "";
-  if (!value.startsWith("/") || value.startsWith("//")) return fallback;
-  return value;
-}
 
 /**
  * Destino post-login según rol Info Spot.

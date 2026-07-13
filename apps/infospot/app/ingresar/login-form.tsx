@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { useFormStatus } from "react-dom";
+import { buildGoogleOAuthStartHref } from "@/lib/google-oauth-start";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -50,34 +51,54 @@ export function LoginForm({
   oauthError?: string | null;
 }) {
   const [googlePending, setGooglePending] = useState(false);
+  const [googleClientError, setGoogleClientError] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
   /** Errores reales de login/OAuth (rojo). El aviso `forbidden` es informativo. */
-  const hardError = oauthError?.trim() || null;
+  const hardError = oauthError?.trim() || googleClientError || null;
   const softNotice = !hardError && deniedMessage ? deniedMessage : null;
 
-  const googleHref = (() => {
-    const params = new URLSearchParams();
-    if (next) params.set("next", next);
-    if (rememberMe) params.set("rememberMe", "1");
-    const q = params.toString();
-    return q ? `/api/auth/google?${q}` : "/api/auth/google";
-  })();
+  const googleHref = buildGoogleOAuthStartHref({ next, rememberMe });
 
-  function startGoogle() {
-    if (googlePending) return;
+  useEffect(() => {
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        setGooglePending(false);
+      }
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
+  function onGoogleActivate(event: MouseEvent<HTMLAnchorElement>) {
+    if (googlePending) {
+      event.preventDefault();
+      return;
+    }
+    setGoogleClientError(null);
     setGooglePending(true);
-    window.location.assign(googleHref);
+    // Navegación nativa vía href (Enter/Space/touch/click). No preventDefault.
   }
 
   return (
     <div className="mx-auto w-full max-w-md space-y-8">
       {hardError ? (
-        <p
-          className="rounded-[var(--is-radius-sm)] border border-red-300 bg-red-50 px-4 py-3 text-sm leading-relaxed text-red-800"
-          role="alert"
-        >
-          {hardError}
-        </p>
+        <div className="space-y-3" role="alert">
+          <p className="rounded-[var(--is-radius-sm)] border border-red-300 bg-red-50 px-4 py-3 text-sm leading-relaxed text-red-800">
+            {hardError}
+          </p>
+          <p className="text-center text-sm text-[var(--is-muted)]">
+            <Link
+              href="/ingresar"
+              className="font-medium text-[var(--is-accent)] underline-offset-2 hover:underline"
+              onClick={() => {
+                setGooglePending(false);
+                setGoogleClientError(null);
+              }}
+            >
+              Reintentar
+            </Link>
+          </p>
+        </div>
       ) : null}
 
       {softNotice ? (
@@ -89,16 +110,17 @@ export function LoginForm({
         </p>
       ) : null}
 
-      <button
-        type="button"
-        onClick={startGoogle}
-        disabled={googlePending}
+      {/* Enlace real: funciona sin hidratación JS; anti doble-clic con aria-disabled. */}
+      <a
+        href={googleHref}
+        onClick={onGoogleActivate}
         aria-busy={googlePending}
-        className="inline-flex min-h-11 w-full items-center justify-center gap-3 rounded-[var(--is-radius-sm)] border border-[#dadce0] bg-white px-4 text-sm font-semibold text-[#3c4043] shadow-sm transition hover:bg-[#f8f9fa] hover:shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4285F4] disabled:cursor-not-allowed disabled:opacity-60"
+        aria-disabled={googlePending || undefined}
+        className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-3 rounded-[var(--is-radius-sm)] border border-[#dadce0] bg-white px-4 text-sm font-semibold text-[#3c4043] shadow-sm transition hover:bg-[#f8f9fa] hover:shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4285F4] aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
       >
         <GoogleIcon className="size-5 shrink-0" />
         {googlePending ? "Redirigiendo a Google…" : "Continuar con Google"}
-      </button>
+      </a>
 
       <div className="flex items-center gap-4" role="separator" aria-label="o">
         <div className="h-px flex-1 bg-[var(--is-border)]" />
