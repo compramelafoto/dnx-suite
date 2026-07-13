@@ -25,13 +25,13 @@ export const REDACCION_VISTAS: ReadonlyArray<{
   id: RedaccionVista;
   label: string;
 }> = [
-  { id: "mi-trabajo", label: "Mi trabajo" },
-  { id: "borradores", label: "Borradores" },
+  { id: "mi-trabajo", label: "Inbox" },
+  { id: "borradores", label: "En preparación" },
   { id: "en-revision", label: "En revisión" },
-  { id: "devueltas", label: "Devueltas" },
-  { id: "publicadas", label: "Publicadas" },
-  { id: "despublicadas", label: "Despublicadas" },
-  { id: "archivadas", label: "Archivadas" },
+  { id: "devueltas", label: "Para corregir" },
+  { id: "publicadas", label: "Publicados" },
+  { id: "despublicadas", label: "Despublicados" },
+  { id: "archivadas", label: "Archivados" },
 ];
 
 /** Labels neutros / eventos (mismo ids de vista). */
@@ -39,10 +39,10 @@ export const REDACCION_VISTAS_EVENTOS: ReadonlyArray<{
   id: RedaccionVista;
   label: string;
 }> = [
-  { id: "mi-trabajo", label: "Mi trabajo" },
-  { id: "borradores", label: "Borradores" },
+  { id: "mi-trabajo", label: "Inbox" },
+  { id: "borradores", label: "En preparación" },
   { id: "en-revision", label: "En revisión" },
-  { id: "devueltas", label: "Devueltos" },
+  { id: "devueltas", label: "Para corregir" },
   { id: "publicadas", label: "Publicados" },
   { id: "despublicadas", label: "Despublicados" },
   { id: "archivadas", label: "Archivados" },

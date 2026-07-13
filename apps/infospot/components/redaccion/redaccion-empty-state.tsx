@@ -6,36 +6,36 @@ const EMPTY_COPY: Record<
   { title: string; description: string; actionLabel?: string; actionHref?: string }
 > = {
   "mi-trabajo": {
-    title: "Todavía no tenés notas en tu espacio",
-    description: "Creá una nota o retomá un borrador para verla acá.",
-    actionLabel: "Crear mi primera nota",
+    title: "Tu inbox está vacío",
+    description: "Cuando tengas borradores o piezas en marcha, aparecen acá.",
+    actionLabel: "Crear nota",
     actionHref: "/redaccion/nueva",
   },
   borradores: {
-    title: "No hay borradores activos",
-    description: "Los borradores sin devolución pendiente aparecen en esta bandeja.",
-    actionLabel: "Crear una nota",
+    title: "Nada en preparación",
+    description: "Los borradores activos viven en esta bandeja.",
+    actionLabel: "Crear nota",
     actionHref: "/redaccion/nueva",
   },
   "en-revision": {
     title: "Nada en revisión",
-    description: "Cuando alguien envíe una nota a revisión, la vas a ver acá.",
+    description: "Cuando alguien envíe una pieza a revisión, la vas a ver acá.",
   },
   devueltas: {
-    title: "No hay notas devueltas",
-    description: "Si alguien con permiso de publicación devuelve una nota con observación, aparece en esta bandeja.",
+    title: "Nada para corregir",
+    description: "Si te devuelven una pieza con observación, aparece en esta bandeja.",
   },
   publicadas: {
-    title: "Todavía no hay notas publicadas",
-    description: "Las notas con estado publicada se listan en esta sección.",
+    title: "Todavía no hay publicados",
+    description: "Las piezas visibles en el sitio se listan acá.",
   },
   despublicadas: {
-    title: "No hay notas despublicadas",
-    description: "Las notas que saques del sitio aparecen acá hasta republicarlas o archivarlas.",
+    title: "No hay despublicados",
+    description: "Las piezas que saques del sitio aparecen acá hasta republicarlas o archivarlas.",
   },
   archivadas: {
-    title: "No hay notas archivadas",
-    description: "Las notas que archives dejan el flujo activo y aparecen acá.",
+    title: "No hay archivados",
+    description: "Las piezas archivadas dejan el flujo activo y aparecen acá.",
   },
 };
 

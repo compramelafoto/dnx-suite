@@ -1,26 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { logoutAction } from "@/app/ingresar/actions";
+import {
+  NEWSROOM_NAV,
+  newsroomNavActive,
+  type NewsroomNavItem,
+} from "@/lib/redaccion-ia";
 
-type NavItem = {
+type AdminNavItem = {
   href: string;
   label: string;
   short: string;
-  /** Match exact path only (e.g. /redaccion vs /redaccion/nueva). */
   exact?: boolean;
 };
-
-const editorialNav: NavItem[] = [
-  { href: "/redaccion", label: "Noticias", short: "N", exact: true },
-  { href: "/redaccion/eventos", label: "Eventos", short: "E" },
-  { href: "/redaccion/coberturas", label: "Coberturas", short: "C" },
-  { href: "/redaccion/distribucion", label: "Portada", short: "P" },
-  { href: "/redaccion/nueva", label: "Nueva nota", short: "+" },
-  { href: "/redaccion/perfil", label: "Mi perfil", short: "Yo" },
-  { href: "/", label: "Ver sitio", short: "↗", exact: true },
-];
 
 type Props = {
   showAdmin: boolean;
@@ -30,16 +24,8 @@ type Props = {
   onNavigate?: () => void;
 };
 
-function isNoticiasEditPath(pathname: string): boolean {
-  return /^\/redaccion\/noticias\/[^/]+\/editar\/?$/.test(pathname);
-}
-
-function isActive(pathname: string, item: NavItem): boolean {
-  if (item.href === "/redaccion" && item.exact) {
-    return pathname === "/redaccion" || isNoticiasEditPath(pathname);
-  }
+function adminActive(pathname: string, item: AdminNavItem): boolean {
   if (item.exact) return pathname === item.href;
-  if (item.href === "/") return pathname === "/";
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
@@ -53,6 +39,47 @@ function navLinkClass(active: boolean, collapsed: boolean): string {
   ].join(" ");
 }
 
+function NavLink({
+  item,
+  active,
+  collapsed,
+  onNavigate,
+}: {
+  item: NewsroomNavItem | AdminNavItem;
+  active: boolean;
+  collapsed: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <Link
+      href={item.href}
+      className={navLinkClass(active, collapsed)}
+      aria-current={active ? "page" : undefined}
+      aria-label={item.label}
+      title={collapsed ? item.label : "hint" in item ? item.hint : item.label}
+      onClick={onNavigate}
+    >
+      {collapsed ? (
+        <span
+          aria-hidden
+          className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--is-bg-secondary)] text-xs font-semibold"
+        >
+          {item.short}
+        </span>
+      ) : (
+        <span className="flex min-w-0 flex-col">
+          <span>{item.label}</span>
+          {"hint" in item && item.hint ? (
+            <span className="truncate text-[10px] font-normal text-[var(--is-muted)]">
+              {item.hint}
+            </span>
+          ) : null}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 export function RedaccionNav({
   showAdmin,
   showUsers,
@@ -61,63 +88,37 @@ export function RedaccionNav({
   onNavigate,
 }: Props) {
   const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
+  const search = searchParams?.toString() ?? "";
 
-  const adminNav: NavItem[] = [
+  const adminNav: AdminNavItem[] = [
     { href: "/admin", label: "Panel de dirección", short: "D", exact: true },
     ...(showApprovals
-      ? [
-          {
-            href: "/admin/aprobaciones",
-            label: "Aprobaciones",
-            short: "A",
-          } satisfies NavItem,
-        ]
+      ? [{ href: "/admin/aprobaciones", label: "Aprobaciones", short: "A" }]
       : []),
     ...(showUsers
-      ? [
-          {
-            href: "/admin/usuarios",
-            label: "Equipo y roles",
-            short: "U",
-          } satisfies NavItem,
-        ]
+      ? [{ href: "/admin/usuarios", label: "Equipo y roles", short: "U" }]
       : []),
     { href: "/admin/eventos", label: "Eventos (admin)", short: "Ev" },
     { href: "/admin/configuracion", label: "Configuración", short: "⚙" },
   ];
 
   return (
-    <nav className="mt-4 flex flex-col gap-1" aria-label="Navegación de redacción">
+    <nav className="mt-4 flex flex-col gap-1" aria-label="Centro Editorial">
       {!collapsed ? (
         <p className="mb-1 hidden px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--is-muted)] lg:block">
-          Redacción
+          Centro Editorial
         </p>
       ) : null}
-      {editorialNav.map((item) => {
-        const active = isActive(pathname, item);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={navLinkClass(active, collapsed)}
-            aria-current={active ? "page" : undefined}
-            aria-label={item.label}
-            title={collapsed ? item.label : undefined}
-            onClick={onNavigate}
-          >
-            {collapsed ? (
-              <span
-                aria-hidden
-                className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--is-bg-secondary)] text-xs font-semibold"
-              >
-                {item.short}
-              </span>
-            ) : (
-              item.label
-            )}
-          </Link>
-        );
-      })}
+      {NEWSROOM_NAV.map((item) => (
+        <NavLink
+          key={item.id}
+          item={item}
+          active={newsroomNavActive(pathname, search, item)}
+          collapsed={collapsed}
+          onNavigate={onNavigate}
+        />
+      ))}
 
       {showAdmin ? (
         <div className="mt-4 border-t border-[var(--is-border)] pt-4">
@@ -127,57 +128,61 @@ export function RedaccionNav({
             </p>
           ) : null}
           <div className="flex flex-col gap-1">
-            {adminNav.map((item) => {
-              const active = isActive(pathname, item);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={navLinkClass(active, collapsed)}
-                  aria-current={active ? "page" : undefined}
-                  aria-label={item.label}
-                  title={collapsed ? item.label : undefined}
-                  onClick={onNavigate}
-                >
-                  {collapsed ? (
-                    <span
-                      aria-hidden
-                      className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--is-bg-secondary)] text-xs font-semibold"
-                    >
-                      {item.short}
-                    </span>
-                  ) : (
-                    item.label
-                  )}
-                </Link>
-              );
-            })}
+            {adminNav.map((item) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                active={adminActive(pathname, item)}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
+            ))}
           </div>
         </div>
       ) : null}
 
-      <form action={logoutAction} className="mt-4 border-t border-[var(--is-border)] pt-4">
-        <button
-          type="submit"
-          className={[
-            "flex min-h-11 w-full items-center rounded-[var(--is-radius-sm)] text-sm font-medium text-[var(--is-muted)] hover:bg-[var(--is-surface)] hover:text-[var(--is-text)]",
-            collapsed ? "justify-center px-2" : "px-3 text-left",
-          ].join(" ")}
-          aria-label="Cerrar sesión"
-          title={collapsed ? "Cerrar sesión" : undefined}
+      <div className="mt-4 border-t border-[var(--is-border)] pt-4">
+        <Link
+          href="/"
+          className={navLinkClass(false, collapsed)}
+          aria-label="Ver sitio público"
+          title={collapsed ? "Ver sitio" : undefined}
+          onClick={onNavigate}
         >
           {collapsed ? (
             <span
               aria-hidden
               className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--is-bg-secondary)] text-xs font-semibold"
             >
-              ⎋
+              ↗
             </span>
           ) : (
-            "Cerrar sesión"
+            "Ver sitio"
           )}
-        </button>
-      </form>
+        </Link>
+        <form action={logoutAction} className="mt-1">
+          <button
+            type="submit"
+            className={[
+              "flex min-h-11 w-full items-center rounded-[var(--is-radius-sm)] text-sm font-medium text-[var(--is-muted)] hover:bg-[var(--is-surface)] hover:text-[var(--is-text)]",
+              collapsed ? "justify-center px-2" : "px-3 text-left",
+            ].join(" ")}
+            aria-label="Cerrar sesión"
+            title={collapsed ? "Cerrar sesión" : undefined}
+          >
+            {collapsed ? (
+              <span
+                aria-hidden
+                className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--is-bg-secondary)] text-xs font-semibold"
+              >
+                ⎋
+              </span>
+            ) : (
+              "Cerrar sesión"
+            )}
+          </button>
+        </form>
+      </div>
     </nav>
   );
 }

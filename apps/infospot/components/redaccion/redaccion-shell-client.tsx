@@ -7,6 +7,7 @@ import {
   useEffect,
   useId,
   useState,
+  Suspense,
   type ReactNode,
 } from "react";
 import { RedaccionNav } from "@/components/redaccion/redaccion-nav";
@@ -306,7 +307,7 @@ export function RedaccionShellClient({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--is-accent)]">
             Info Spot
           </p>
-          <p className="mt-1 text-sm text-[var(--is-muted)]">Redacción</p>
+          <p className="mt-1 text-sm text-[var(--is-muted)]">Centro Editorial</p>
         </>
       ) : (
         <p
@@ -351,13 +352,15 @@ export function RedaccionShellClient({
         </div>
       ) : null}
 
-      <RedaccionNav
-        showAdmin={showAdmin}
-        showUsers={showUsers}
-        showApprovals={showApprovals}
-        collapsed={effectiveCollapsed}
-        onNavigate={() => setMobileNavOpen(false)}
-      />
+      <Suspense fallback={<div className="mt-4 h-40 animate-pulse rounded bg-[var(--is-bg-secondary)]" aria-hidden />}>
+        <RedaccionNav
+          showAdmin={showAdmin}
+          showUsers={showUsers}
+          showApprovals={showApprovals}
+          collapsed={effectiveCollapsed}
+          onNavigate={() => setMobileNavOpen(false)}
+        />
+      </Suspense>
     </>
   );
 
@@ -586,13 +589,15 @@ function RedaccionNavDrawerBody({
           <p className="min-w-0 truncate text-sm font-medium text-[var(--is-text)]">{userLabel}</p>
         </div>
       ) : null}
-      <RedaccionNav
-        showAdmin={showAdmin}
-        showUsers={showUsers}
-        showApprovals={showApprovals}
-        collapsed={false}
-        onNavigate={onNavigate}
-      />
+      <Suspense fallback={<div className="mt-4 h-40 animate-pulse rounded bg-[var(--is-bg-secondary)]" aria-hidden />}>
+        <RedaccionNav
+          showAdmin={showAdmin}
+          showUsers={showUsers}
+          showApprovals={showApprovals}
+          collapsed={false}
+          onNavigate={onNavigate}
+        />
+      </Suspense>
     </>
   );
 }
