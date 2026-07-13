@@ -10,7 +10,7 @@
 |-----------------|--------|
 | Alias Vercel operativo | **GO técnico** · `https://infospot-dnxsuite.vercel.app` |
 | Dominio propio `infospot.com.ar` | **NO-GO** hasta checklist día D |
-| Launch Readiness (pre-DNS) | **~95%** |
+| Launch Readiness (pre-DNS) | **~96%** (22J) |
 | Multimedia R2 | **COMPLETE** · `VERIFIED_WORKING` ([doc 50](./50-multimedia-production-gate.md)) |
 | Production commit | **`fa55a2d`** · deploy `dpl_9Br5hao77qMeTxrGzXBjSmdUWabY` · Ready · health `db:ok` |
 
@@ -200,11 +200,10 @@ Tiempos estimados son orientativos. Marcar ☐ → ☑.
 
 - [ ] Confirmar ventana de cutover y canal de incidentes.  
 - [ ] Snapshot / restore point Neon prod (Ops).  
-- [ ] Revisar que Production sigue sana: `curl -sS https://infospot-dnxsuite.vercel.app/api/health`.  
-- [ ] Inventario contenido: ¿qué se publica el día 1? (manual [44](./44-editorial-operations-manual.md)).  
-- [ ] Confirmar email Director autorizado.  
+- [ ] Revisar health alias: `curl -sS https://infospot-dnxsuite.vercel.app/api/health`.  
+- [ ] **Director:** si aún no hay rol — login OAuth en alias + `INFOSPOT_DIRECTOR_EMAIL=… pnpm --filter @repo/db db:grant-infospot-director` (ver [52](./52-pre-dns-production-closure.md)).  
+- [ ] Inventario contenido día 1 (los 40 DRAFT están **finalizados**; no publicarlos como próximos).  
 - [ ] Verificar Domains en Vercel siguen **Verified**.  
-- [ ] Decidir si se aplican migraciones CLF gap / platform_metrics **antes** del cutover (etapa dedicada; ver §9).  
 - [ ] Confirmar `ALLOW_CLF_WRITE_FROM_INFOSPOT` **ausente** en Production.  
 - [ ] Preparar textos de anuncio / redes (Producto).
 
@@ -357,17 +356,14 @@ Máquina de estados: `DRAFT → IN_REVIEW → PUBLISHED → UNPUBLISHED → ARCH
 1. **DNS DonWeb** — bloqueante absoluto del GO público.  
 2. **Director = 0 users** — bootstrap obligatorio en T-1 / T-30.  
 3. **0 contenido PUBLISHED** — lanzamiento vacío posible pero débil; planificar piezas.  
-4. **3 migraciones Prisma pendientes en Neon prod** (no aplicadas en 22I):  
-   - `20260713120000_add_clf_order_checkout_origin_gap`  
-   - `20260713121000_add_clf_photo_exif_cleanup_gap`  
-   - `20260713180000_add_platform_metrics`  
-   Evaluar en etapa dedicada **antes** de features que las requieran; no son el ciclo multimedia.  
+4. **3 migraciones Prisma** — **aplicadas en 22J** (schema up to date). Ver [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md).  
 5. **Sin CSP explícita** — mejora post-lanzamiento recomendada.  
 6. **Sin middleware global** — disciplina en nuevas rutas `/api`.  
 7. **Resend / GA4** opcionales.  
 8. **Search Console / OAuth console** — solo día D.  
-9. **Working tree ajeno CLF** `.gitignore` — no mezclar.  
-10. **Info Spot fuera de Platform Catalog DNX-MCP** — `release_*` no aplica.
+9. **Working tree ajeno CLF** — no mezclar.  
+10. **Info Spot fuera de Platform Catalog DNX-MCP** — `release_*` no aplica.  
+11. **Director + contenido día 1** — login OAuth + `db:grant-infospot-director`; 0 eventos futuros entre los 40 DRAFT.
 
 ---
 
@@ -379,7 +375,7 @@ Máquina de estados: `DRAFT → IN_REVIEW → PUBLISHED → UNPUBLISHED → ARCH
 | ¿Listo para anunciar `infospot.com.ar` ahora? | **NO** |
 | ¿Falta desarrollo de features para GO? | **NO** (faltan ops de dominio + Director + contenido) |
 | ¿Se modificó producción en 22I? | **NO** (solo auditoría + docs) |
-| Launch Readiness pre-DNS | **~95%** |
+| Launch Readiness pre-DNS | **~96%** |
 | Próximo paso | Ejecutar §4 cuando DonWeb entregue DNS |
 
 ---

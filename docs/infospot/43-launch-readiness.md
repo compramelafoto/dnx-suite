@@ -7,7 +7,8 @@
 
 **Alcance:** producción usable en `infospot-dnxsuite.vercel.app` **sin** dominio, **sin** Google Cloud / Search Console.
 
-**Checklist maestro día D:** [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md) (Etapa 22I).
+**Checklist maestro día D:** [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md) (Etapa 22I).  
+**Cierre pre-DNS:** [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md) (Etapa 22J).
 
 Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`45-production-services-readiness.md`](./45-production-services-readiness.md), [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md).
 
@@ -19,20 +20,20 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`45-pro
 |-------|--------|-------|
 | Git / rama | OK | `migration-legacy-clf-to-monorepo` |
 | Vercel project `infospot-dnxsuite` | OK | Production sirve **`fa55a2d`** · alias Ready · `dpl_9Br5hao…` |
-| Neon **infospot-production** | OK | `wandering-pine-79918137` · `ep-bitter-salad-…` · schema válido; **3 migraciones pendientes** (gaps CLF + platform_metrics; no aplicadas en 22I) |
-| R2 bucket `infospot-media` | **OK** | Upload/read/derivados/delete · `VERIFIED_WORKING` · [doc 50](./50-multimedia-production-gate.md) |
-| CLF readonly | OK | CLF prod falling-darkness · sync inbound → eventos `DRAFT` |
+| Neon **infospot-production** | OK | Schema **up to date** (39 migraciones aplicadas en 22J) |
+| R2 bucket `infospot-media` | **OK** | `VERIFIED_WORKING` · [doc 50](./50-multimedia-production-gate.md) |
+| CLF readonly | OK | Sync inbound → 40 eventos DRAFT (todos finalizados) |
 | SMTP / Resend | Opcional | Degradación segura sin key |
 | CRON_SECRET + schedules | OK | 401 sin secret |
 | Analytics Measurement ID | Opcional | Internas OK; GA4 no cargado |
-| Director | Pendiente | **0 users** — seed tras primer login |
-| Contenido PUBLISHED | Pendiente | 0 artículos / 0 eventos publicados · 40 eventos DRAFT |
-| Dominio `infospot.com.ar` | Pendiente DonWeb | Verificado en Vercel; DNS público vacío |
+| Director | Pendiente | 0 users — login OAuth + `db:grant-infospot-director` |
+| Contenido PUBLISHED | Pendiente | 0 · plan en doc 52 (0 eventos futuros candidatos) |
+| Dominio `infospot.com.ar` | Pendiente DonWeb | DNS público vacío |
 | Google Cloud OAuth console | **No tocado** | Callback el día D |
 | Search Console | **No tocado** | |
 
-**Launch Readiness estimado: ~95%**  
-Para 100% en dominio propio: ejecutar [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md) §4.
+**Launch Readiness estimado: ~96%**  
+Para 100%: Director + contenido mínimo + [`51`](./51-go-live-master-checklist.md) §4 (DNS).
 
 ---
 
