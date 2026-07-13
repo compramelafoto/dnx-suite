@@ -1,12 +1,25 @@
 # 47 — R2 production smoke report (Etapa 22C)
 
-**Estado de etapa:** **`BLOCKED_BY_VERCEL_ENV`** (reconfirmado Etapa **22E**)  
-**Antes:** 22D `BLOCKED_BY_VERCEL_ENV` · 22B/22C `BLOCKED_BY_MANUAL_R2_TOKEN`  
+**Estado de etapa (22F):** **`BLOCKED_SECRET_NOT_EXPORTABLE`** → desbloqueo **`MANUAL_CLOUDFLARE_ACTION_REQUIRED`**  
+Ver auditoría: [`48-r2-cross-project-credential-audit.md`](./48-r2-cross-project-credential-audit.md).
+
+**Estado previo (22E/22D):** **`BLOCKED_BY_VERCEL_ENV`** (keys S3 sin `updatedAt` fresco)  
+**Antes:** 22B/22C `BLOCKED_BY_MANUAL_R2_TOKEN`  
 **Production alias:** `https://infospot-dnxsuite.vercel.app`  
 **Commit servido (runtime):** `78efb7e` · health `db:ok`  
 
 No se ejecutó smoke upload/read/delete ni pipeline de derivados.  
-No se hizo redeploy en 22D ni 22E (las keys no muestran reemplazo).
+No se hizo redeploy en 22D/22E/22F (sin keys nuevas exportables/configuradas).
+
+---
+
+## 0. Etapa 22F — cross-project (resumen)
+
+- Proyectos con Access+Secret en Production: `infospot-dnxsuite`, `compramelafoto`.  
+- `vercel env pull` no recupera `sensitive` → no se pueden copiar keys.  
+- MCP sin `R2_ACCESS_*`. Crear token API → 403.  
+- **No** se creó bucket nuevo.  
+- Acción: token Cloudflare scoped a `infospot-media` → Vercel Info Spot Production.
 
 ---
 

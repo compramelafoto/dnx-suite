@@ -19,7 +19,7 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`43-lau
 |---------|--------|------------------|
 | Neon prod (`infospot-production` / bitter-salad) | **OK** | Ninguna. 36 migraciones. Settings + 4 categorías sembradas. |
 | R2 bucket `infospot-media` | **OK** | CORS + r2.dev públicos. |
-| R2 token S3 (`R2_ACCESS_KEY_ID` / `SECRET`) | **Falta** | 22B/22C: **`BLOCKED_BY_MANUAL_R2_TOKEN`**. Metadata OK; keys sin update desde 2026-07-11. Ver [`47-r2-production-smoke-report.md`](./47-r2-production-smoke-report.md). |
+| R2 token S3 (`R2_ACCESS_KEY_ID` / `SECRET`) | **Falta / no reutilizable** | 22F: secretos en otros proyectos Vercel **no exportables**. Ver [`48-r2-cross-project-credential-audit.md`](./48-r2-cross-project-credential-audit.md). Acción: token Cloudflare manual → Production. |
 | CLF readonly | **OK** | Apunta a CLF prod (`compramelafoto` / falling-darkness). Proxy anti-write en app. |
 | Cron | **OK** | `CRON_SECRET` Production · schedules en `vercel.json` · auth 401 sin secret · dry-run + sync limitado OK. |
 | Resend / SMTP | **Opcional** | Degradación segura sin `RESEND_API_KEY`. Ver §8. |

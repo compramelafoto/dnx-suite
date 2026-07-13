@@ -51,6 +51,8 @@ Conclusión: metadata OK; **faltan las dos keys S3**. Smoke / derivados / previe
 
 ## 3. Procedimiento manual exacto (Cloudflare → Vercel)
 
+**Obligatorio tras Etapa 22F:** no hay forma segura de reutilizar Access/Secret desde otros proyectos Vercel (`vercel env pull` no exporta `sensitive`). El token S3 debe crearse (o copiarse a mano desde el panel Cloudflare / un gestor de secretos interno) y pegarse solo en Vercel.
+
 ### A) Crear token en Cloudflare
 
 1. Entrar a [Cloudflare Dashboard](https://dash.cloudflare.com) con la cuenta que posee el bucket.  
