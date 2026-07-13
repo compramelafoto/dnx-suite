@@ -2,11 +2,13 @@
 
 **Fecha:** 2026-07-13  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**Estado de etapa:** **`BLOCKED_BY_MANUAL_R2_TOKEN`**  
+**Estado de etapa:** **`BLOCKED_BY_MANUAL_R2_TOKEN`** (reconfirmado Etapa 22C — keys S3 sin `updatedAt` posterior al 2026-07-11)  
 **Alias:** `https://infospot-dnxsuite.vercel.app` (commit servido `78efb7e`, health `db:ok`)  
 **Bucket:** `infospot-media`
 
-No incluye secretos. No ejecutar smoke R2 hasta que las keys S3 estén en Vercel Production y se redeploye.
+Informe 22C: [`47-r2-production-smoke-report.md`](./47-r2-production-smoke-report.md).
+
+No incluye secretos. No ejecutar smoke R2 hasta que las keys S3 estén **regrabadas** en Vercel Production (timestamp fresco) y se redeploye.
 
 Ver también: [`45-production-services-readiness.md`](./45-production-services-readiness.md).
 

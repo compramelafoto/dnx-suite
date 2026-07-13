@@ -18,7 +18,7 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), detalle 
 | Git / rama | OK | `migration-legacy-clf-to-monorepo` |
 | Vercel project `infospot-dnxsuite` | OK | Production sirve `78efb7e` · alias Ready |
 | Neon **infospot-production** | OK | `wandering-pine-79918137` · `ep-bitter-salad-…` · 36 migraciones |
-| R2 bucket `infospot-media` | OK (parcial) | Bucket + CORS + r2.dev · **faltan** Access Key / Secret S3 → Etapa 22B **`BLOCKED_BY_MANUAL_R2_TOKEN`** ([doc 46](./46-r2-production-readiness.md)) |
+| R2 bucket `infospot-media` | OK (parcial) | Bucket + CORS + r2.dev · keys S3 **sin update** (22C) → **`BLOCKED_BY_MANUAL_R2_TOKEN`** ([doc 47](./47-r2-production-smoke-report.md)) |
 | CLF readonly | OK | CLF prod falling-darkness · sync inbound a `DRAFT` verificado |
 | SMTP / Resend | Opcional | Degradación segura sin key |
 | CRON_SECRET + schedules | OK | 401 sin secret · dry-run/sync OK |
