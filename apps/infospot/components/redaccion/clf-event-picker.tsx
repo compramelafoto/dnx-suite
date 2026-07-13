@@ -407,9 +407,8 @@ export function ClfEventPicker({
         <div className="rounded-[var(--is-radius-sm)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-bg-secondary)] p-4">
           <p className="text-sm font-semibold text-[var(--is-text)]">Subir desde tu equipo</p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--is-muted)]">
-            JPG, PNG o WebP · máx. 5 MB. Para el cuerpo también podés usar el botón{" "}
-            <span className="font-medium text-[var(--is-text-secondary)]">Imagen</span> o{" "}
-            <span className="font-medium text-[var(--is-text-secondary)]">Desde ComprameLaFoto</span> en la barra del editor.
+            JPG, PNG o WebP · máx. 5 MB. El material de ComprameLaFoto se prepara en el
+            Asistente Editorial y se inserta desde la Biblioteca.
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white px-4 text-sm font-medium text-[var(--is-text)] hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]">

@@ -5,8 +5,6 @@ import type { Editor } from "@tiptap/react";
 type Props = {
   editor: Editor | null;
   onInsertImage: () => void;
-  onInsertFromClf?: () => void;
-  canUseClf?: boolean;
 };
 
 const btn =
@@ -15,12 +13,7 @@ const btn =
 const btnActive =
   "border-[var(--is-accent)] bg-[var(--is-accent-soft)] text-[var(--is-accent-hover)]";
 
-export function EditorToolbar({
-  editor,
-  onInsertImage,
-  onInsertFromClf,
-  canUseClf = false,
-}: Props) {
+export function EditorToolbar({ editor, onInsertImage }: Props) {
   if (!editor) {
     return (
       <div className="flex min-h-14 items-center border-b border-[var(--is-border)] bg-[var(--is-bg-secondary)] px-3 text-sm text-[var(--is-muted)]">
@@ -137,20 +130,10 @@ export function EditorToolbar({
         type="button"
         className={`${btn} px-3`}
         onClick={onInsertImage}
-        title="Subir imagen al cuerpo de la nota"
+        title="Subir una imagen propia al texto"
       >
-        Subir imagen
+        Subir archivo
       </button>
-      {canUseClf && onInsertFromClf ? (
-        <button
-          type="button"
-          className={`${btn} px-3 font-semibold text-[var(--is-accent)] hover:text-[var(--is-accent-hover)]`}
-          onClick={onInsertFromClf}
-          title="Elegir foto desde ComprameLaFoto"
-        >
-          Desde ComprameLaFoto
-        </button>
-      ) : null}
       <span className="mx-1 h-6 w-px bg-[var(--is-border)]" aria-hidden />
       <button
         type="button"

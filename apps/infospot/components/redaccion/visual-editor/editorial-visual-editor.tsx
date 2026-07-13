@@ -1,6 +1,13 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import {
   countWordsFromHtml,
@@ -12,11 +19,13 @@ import {
 } from "@repo/editor";
 import { EditorToolbar } from "@/components/redaccion/visual-editor/editor-toolbar";
 import { InsertImageDialog } from "@/components/redaccion/visual-editor/insert-image-dialog";
-import { ClfPhotoPickerDialog } from "@/components/redaccion/visual-editor/clf-photo-picker-dialog";
 
 export type EditorialVisualEditorHandle = {
   insertImage: (attrs: EditorialImageAttrs) => void;
   focus: () => void;
+  /** Resalta y hace scroll a la figura con data-asset-id. */
+  scrollToAsset: (assetId: string) => boolean;
+  getSelectedAssetId: () => string | null;
 };
 
 type Props = {
@@ -26,6 +35,8 @@ type Props = {
   onDirtyChange?: (dirty: boolean) => void;
   articleId?: string | null;
   onCoverImported?: () => void;
+  /** Cuando el cursor está sobre una figura editorial. */
+  onSelectedAssetChange?: (assetId: string | null) => void;
 };
 
 export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Props>(
@@ -37,11 +48,11 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
       onDirtyChange,
       articleId,
       onCoverImported,
+      onSelectedAssetChange,
     },
     ref,
   ) {
     const [imageOpen, setImageOpen] = useState(false);
-    const [clfOpen, setClfOpen] = useState(false);
     const [wordCount, setWordCount] = useState(0);
     const [markdown, setMarkdown] = useState(initialMarkdown);
 
@@ -80,6 +91,14 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
       onUpdate: ({ editor: ed }) => {
         syncFromEditor(ed.getHTML(), true);
       },
+      onSelectionUpdate: ({ editor: ed }) => {
+        if (ed.isActive("editorialImage")) {
+          const id = (ed.getAttributes("editorialImage").assetId as string | null) || null;
+          onSelectedAssetChange?.(id);
+        } else {
+          onSelectedAssetChange?.(null);
+        }
+      },
       immediatelyRender: false,
     });
 
@@ -97,6 +116,31 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
       [editor, onDirtyChange],
     );
 
+    const scrollToAsset = useCallback(
+      (assetId: string) => {
+        if (!editor) return false;
+        let found = false;
+        editor.state.doc.descendants((node, pos) => {
+          if (found) return false;
+          if (node.type.name === "editorialImage" && node.attrs.assetId === assetId) {
+            editor.chain().focus().setNodeSelection(pos).run();
+            // Scroll DOM figure into view
+            requestAnimationFrame(() => {
+              const el = editor.view.nodeDOM(pos);
+              if (el instanceof HTMLElement) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+              }
+            });
+            found = true;
+            return false;
+          }
+          return true;
+        });
+        return found;
+      },
+      [editor],
+    );
+
     useImperativeHandle(
       ref,
       () => ({
@@ -104,9 +148,18 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
         focus: () => {
           editor?.commands.focus();
         },
+        scrollToAsset,
+        getSelectedAssetId: () => {
+          if (!editor?.isActive("editorialImage")) return null;
+          return (editor.getAttributes("editorialImage").assetId as string | null) || null;
+        },
       }),
-      [editor, insertImage],
+      [editor, insertImage, scrollToAsset],
     );
+
+    // onCoverImported kept for API compat; local upload dialog may call parent refresh
+    void onCoverImported;
+    void articleId;
 
     return (
       <div className="overflow-hidden rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white">
@@ -114,12 +167,10 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
         <EditorToolbar
           editor={editor}
           onInsertImage={() => setImageOpen(true)}
-          canUseClf={Boolean(articleId)}
-          onInsertFromClf={() => setClfOpen(true)}
         />
         <EditorContent editor={editor} />
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--is-border)] px-4 py-3 text-xs text-[var(--is-muted)] sm:px-6">
-          <p>Atajos: ⌘/Ctrl+B negrita · ⌘/Ctrl+I cursiva · ⌘/Ctrl+Z deshacer</p>
+          <p>El material fotográfico se inserta desde la biblioteca.</p>
           <p className="tabular-nums">{wordCount} palabras</p>
         </div>
 
@@ -129,19 +180,6 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
           onInsert={insertImage}
           articleId={articleId}
         />
-
-        {articleId ? (
-          <ClfPhotoPickerDialog
-            open={clfOpen}
-            onClose={() => setClfOpen(false)}
-            articleId={articleId}
-            onInsertInline={insertImage}
-            onCoverImported={() => {
-              onDirtyChange?.(true);
-              onCoverImported?.();
-            }}
-          />
-        ) : null}
       </div>
     );
   },

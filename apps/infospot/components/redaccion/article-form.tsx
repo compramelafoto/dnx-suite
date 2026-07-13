@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { findFiguresMissingAlt, findFiguresMissingCredit } from "@repo/editor";
+import {
+  extractEditorialFigures,
+  findFiguresMissingAlt,
+  findFiguresMissingCredit,
+} from "@repo/editor";
 import { slugifyTitle } from "@/lib/slug";
 import { toDatetimeLocalValue } from "@/lib/dates";
 import { CoverImageField, type CoverAssetOption } from "@/components/redaccion/cover-image-field";
-import { ClfEventPicker } from "@/components/redaccion/clf-event-picker";
 import { PublishChecklist } from "@/components/redaccion/publish-checklist";
 import { EditorialActionsPanel } from "@/components/redaccion/editorial-actions-panel";
 import {
@@ -35,6 +38,9 @@ type LinkedClfAsset = {
   credit: string | null;
   photographerName: string | null;
   assetId?: string | null;
+  coverageTitle?: string | null;
+  albumTitle?: string | null;
+  availability?: "ready" | "processing" | "unavailable";
 };
 
 type ArticleFormProps = {
@@ -123,8 +129,9 @@ export function ArticleForm({
   const [coverCredit, setCoverCredit] = useState(initial?.coverCredit ?? "");
   /** Drawer móvil / tablet: biblioteca o configuración. */
   const [sideDrawer, setSideDrawer] = useState<null | "library" | "config">(null);
-  /** Desktop: panel de configuración (SEO, publicación, CLF). */
+  /** Desktop: panel de configuración (SEO, publicación). */
   const [configOpen, setConfigOpen] = useState(false);
+  const [highlightedAssetId, setHighlightedAssetId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(
@@ -314,7 +321,26 @@ export function ArticleForm({
             : "Listo";
 
   const checklistMissing = checklist.filter((i) => i.required && !i.ok).map((i) => i.label);
-  const linkedAssets = clf?.linkedAssets ?? [];
+  const linkedAssets = useMemo(
+    () =>
+      (clf?.linkedAssets ?? []).map((a) => ({
+        ...a,
+        coverageTitle: a.coverageTitle ?? clf?.albumTitle ?? null,
+        albumTitle: a.albumTitle ?? clf?.albumTitle ?? null,
+        availability:
+          a.availability ??
+          (a.thumbnailUrl || a.url ? ("ready" as const) : ("unavailable" as const)),
+      })),
+    [clf],
+  );
+
+  const usedAssetIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const fig of extractEditorialFigures(content)) {
+      if (fig.assetId) ids.add(fig.assetId);
+    }
+    return ids;
+  }, [content]);
 
   const library = (
     <MaterialLibraryPanel
@@ -324,8 +350,16 @@ export function ArticleForm({
       albumTitle={clf?.albumTitle}
       sourceName={sourceName}
       linkedAssets={linkedAssets}
+      usedAssetIds={usedAssetIds}
+      highlightedAssetId={highlightedAssetId}
       onInsertInline={(attrs) => {
         editorRef.current?.insertImage(attrs);
+      }}
+      onGoToUsed={(assetId) => {
+        editorRef.current?.scrollToAsset(assetId);
+        setHighlightedAssetId(assetId);
+        const el = document.getElementById(`material-asset-${assetId}`);
+        el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }}
     />
   );
@@ -549,21 +583,37 @@ export function ArticleForm({
               />
             ),
           },
-          ...(mode === "edit" && initial && clf
+          ...(mode === "edit" && initial
             ? [
                 {
-                  id: "clf",
-                  title: "Material avanzado",
-                  hint: "Vincular evento y coberturas",
+                  id: "material",
+                  title: "Material editorial",
+                  hint: "Preparación fuera del editor",
                   children: (
-                    <ClfEventPicker
-                      articleId={initial.id}
-                      initialEventId={clf.eventId}
-                      initialAlbumId={clf.albumId}
-                      initialEventTitle={clf.eventTitle}
-                      initialAlbumTitle={clf.albumTitle}
-                      linkedAssets={clf.linkedAssets}
-                    />
+                    <div className="space-y-3 text-sm leading-relaxed text-[var(--is-muted)]">
+                      <p>
+                        Las fotografías se preparan en el Asistente Editorial. Desde acá solo
+                        consumís la biblioteca.
+                      </p>
+                      {clf?.eventTitle ? (
+                        <p className="text-[var(--is-text)]">
+                          Evento vinculado: <strong>{clf.eventTitle}</strong>
+                        </p>
+                      ) : (
+                        <p>Todavía no hay evento vinculado.</p>
+                      )}
+                      {clf?.albumTitle ? (
+                        <p className="text-[var(--is-text)]">
+                          Cobertura: <strong>{clf.albumTitle}</strong>
+                        </p>
+                      ) : null}
+                      <Link
+                        href={`/redaccion/asistente?mode=photos&articleId=${initial.id}`}
+                        className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
+                      >
+                        Agregar material
+                      </Link>
+                    </div>
                   ),
                 } as const,
               ]
@@ -736,6 +786,13 @@ export function ArticleForm({
               setContent(md);
             }}
             onDirtyChange={() => markDirty()}
+            onSelectedAssetChange={(id) => {
+              setHighlightedAssetId(id);
+              if (id) {
+                const el = document.getElementById(`material-asset-${id}`);
+                el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              }
+            }}
             onCoverImported={() => {
               markDirty();
               router.refresh();
