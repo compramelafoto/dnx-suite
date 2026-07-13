@@ -1,10 +1,19 @@
 /**
  * Cliente R2 mínimo para Info Spot (mismo bucket/env que ComprameLaFoto).
  * No importamos desde apps/compramelafoto — apps no se acoplan entre sí.
+ *
+ * Delete: solo keys del namespace Info Spot (`assertInfoSpotDeletableR2Key`).
+ * Nunca borrar originales comerciales CLF.
  */
 import { randomUUID } from "node:crypto";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getPublicUrl } from "@/lib/r2-public-url";
+import { assertInfoSpotDeletableR2Key } from "@/lib/r2-key-policy";
 
 let s3Client: S3Client | null = null;
 
@@ -79,4 +88,103 @@ export async function uploadToR2(
     }),
   );
   return { key, url: getPublicUrl(key) };
+}
+
+export type DeleteR2ObjectResult =
+  | {
+      ok: true;
+      key: string;
+      /** true si existía antes del DeleteObject (via HeadObject). */
+      existedBefore: boolean;
+      /** Siempre true tras DeleteObject exitoso (idempotente en S3/R2). */
+      deleted: true;
+    }
+  | {
+      ok: false;
+      key: string;
+      error: string;
+      code: "NOT_CONFIGURED" | "FORBIDDEN_NAMESPACE" | "INVALID_KEY" | "R2_ERROR";
+    };
+
+function isNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
+  const code = e.name || e.Code || "";
+  if (code === "NotFound" || code === "NoSuchKey" || code === "404") return true;
+  return e.$metadata?.httpStatusCode === 404;
+}
+
+/**
+ * HeadObject: existencia de una key del namespace Info Spot.
+ * Alias canónico: `r2ObjectExists`.
+ */
+export async function r2ObjectExists(key: string): Promise<boolean> {
+  if (!isR2Configured()) {
+    throw new Error("R2 no configurado");
+  }
+  const safeKey = assertInfoSpotDeletableR2Key(key);
+  try {
+    await getS3Client().send(
+      new HeadObjectCommand({
+        Bucket: getBucketName(),
+        Key: safeKey,
+      }),
+    );
+    return true;
+  } catch (err) {
+    if (isNotFoundError(err)) return false;
+    throw err;
+  }
+}
+
+/** @deprecated Usar `r2ObjectExists`. */
+export const headInfoSpotR2Object = r2ObjectExists;
+
+/**
+ * Borra un objeto R2 del namespace Info Spot.
+ * Idempotente: si la key no existe, `ok: true` con `existedBefore: false`.
+ */
+export async function deleteR2Object(key: string): Promise<DeleteR2ObjectResult> {
+  if (!isR2Configured()) {
+    return {
+      ok: false,
+      key,
+      error: "R2 no configurado",
+      code: "NOT_CONFIGURED",
+    };
+  }
+
+  let safeKey: string;
+  try {
+    safeKey = assertInfoSpotDeletableR2Key(key);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Key R2 inválida";
+    const code = message.includes("namespace") ? "FORBIDDEN_NAMESPACE" : "INVALID_KEY";
+    return { ok: false, key, error: message, code };
+  }
+
+  let existedBefore = false;
+  try {
+    existedBefore = await r2ObjectExists(safeKey);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error HeadObject R2";
+    return { ok: false, key: safeKey, error: message, code: "R2_ERROR" };
+  }
+
+  try {
+    await getS3Client().send(
+      new DeleteObjectCommand({
+        Bucket: getBucketName(),
+        Key: safeKey,
+      }),
+    );
+    return { ok: true, key: safeKey, existedBefore, deleted: true };
+  } catch (err) {
+    // DeleteObject en S3/R2 es idempotente; NotFound no debería ocurrir, pero lo toleramos.
+    if (isNotFoundError(err)) {
+      return { ok: true, key: safeKey, existedBefore: false, deleted: true };
+    }
+    const message = err instanceof Error ? err.message : "Error DeleteObject R2";
+    return { ok: false, key: safeKey, error: message, code: "R2_ERROR" };
+  }
 }

@@ -3,7 +3,10 @@
  */
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { isR2Configured } from "@/lib/r2-client";
+import { assertSafeR2Key } from "@/lib/r2-key-policy";
 import { urlToR2Key } from "@/lib/editorial-photo-previews/url-to-r2-key";
+
+export { assertSafeR2Key } from "@/lib/r2-key-policy";
 
 let s3Client: S3Client | null = null;
 
@@ -27,19 +30,6 @@ function getS3Client(): S3Client {
     credentials: { accessKeyId, secretAccessKey },
   });
   return s3Client;
-}
-
-/** Solo keys relativas del bucket (sin http/https, sin ..). */
-export function assertSafeR2Key(key: string): string {
-  const trimmed = key.trim().replace(/^\/+/, "");
-  if (!trimmed) throw new Error("Key R2 vacía");
-  if (/^https?:\/\//i.test(trimmed)) {
-    throw new Error("No se permiten URLs externas como origen de importación");
-  }
-  if (trimmed.includes("..") || trimmed.includes("\\")) {
-    throw new Error("Key R2 inválida");
-  }
-  return trimmed;
 }
 
 export async function readR2ObjectBuffer(key: string): Promise<Buffer> {
