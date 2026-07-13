@@ -2,12 +2,13 @@
 
 **Fecha:** 2026-07-13  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**HEAD Production:** `78efb7e`  
+**HEAD Production:** `fa55a2d`  
+**Deployment Production:** `dpl_9Br5hao77qMeTxrGzXBjSmdUWabY` (Ready)  
 **Proyecto Vercel:** `infospot-dnxsuite`  
 **Decisión:** **GO operativo** en `https://infospot-dnxsuite.vercel.app` · **NO-GO** dominio propio `infospot.com.ar`  
-**Estado:** servicios críticos (Neon, CLF readonly, crons, deploy) listos; faltan keys S3 R2 + Director + DNS DonWeb.
+**Estado:** Neon, CLF readonly, crons, deploy y **ciclo multimedia R2** listos; faltan Director + DNS DonWeb + OAuth día D + Search Console.
 
-**Actualización 2026-07-13 (Etapa 22C):** reauditoría R2 — `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` siguen sin `updatedAt` fresco (2026-07-11). Smoke no ejecutado. Ver [`47-r2-production-smoke-report.md`](./47-r2-production-smoke-report.md).
+**Actualización 2026-07-13 (Etapa 22H):** smoke 22G verificado; gate multimedia **COMPLETE** · `R2_STATUS = VERIFIED_WORKING`. Ver [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md), [`47-r2-production-smoke-report.md`](./47-r2-production-smoke-report.md).
 
 Este documento es el runbook de salida a producción y rollback. **No incluye secretos.**
 

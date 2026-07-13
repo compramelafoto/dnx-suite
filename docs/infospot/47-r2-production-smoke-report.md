@@ -1,123 +1,81 @@
-# 47 — R2 production smoke report (Etapa 22C)
+# 47 — R2 production smoke report
 
-**Estado de etapa (22F):** **`BLOCKED_SECRET_NOT_EXPORTABLE`** → desbloqueo **`MANUAL_CLOUDFLARE_ACTION_REQUIRED`**  
-Ver auditoría: [`48-r2-cross-project-credential-audit.md`](./48-r2-cross-project-credential-audit.md).
+**Estado de etapa (22H):** **`COMPLETE`** — ciclo multimedia verificado; gate [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)  
+**Estado (22G):** smoke Production **PASS** · `R2_STATUS = VERIFIED_WORKING`  
+**Histórico bloqueos:** 22F `BLOCKED_SECRET_NOT_EXPORTABLE` · 22E/22D `BLOCKED_BY_VERCEL_ENV` · 22B/22C `BLOCKED_BY_MANUAL_R2_TOKEN`
 
-**Estado previo (22E/22D):** **`BLOCKED_BY_VERCEL_ENV`** (keys S3 sin `updatedAt` fresco)  
-**Antes:** 22B/22C `BLOCKED_BY_MANUAL_R2_TOKEN`  
 **Production alias:** `https://infospot-dnxsuite.vercel.app`  
-**Commit servido (runtime):** `78efb7e` · health `db:ok`  
+**Commit smoke / Production:** **`fa55a2d`** · deployment `dpl_9Br5hao77qMeTxrGzXBjSmdUWabY` · health `db:ok`  
+**Bucket:** `infospot-media` · público `pub-3cc4a4641be54ab9aeca101179467a60.r2.dev`
 
-No se ejecutó smoke upload/read/delete ni pipeline de derivados.  
-No se hizo redeploy en 22D/22E/22F (sin keys nuevas exportables/configuradas).
-
----
-
-## 0. Etapa 22F — cross-project (resumen)
-
-- Proyectos con Access+Secret en Production: `infospot-dnxsuite`, `compramelafoto`.  
-- `vercel env pull` no recupera `sensitive` → no se pueden copiar keys.  
-- MCP sin `R2_ACCESS_*`. Crear token API → 403.  
-- **No** se creó bucket nuevo.  
-- Acción: token Cloudflare scoped a `infospot-media` → Vercel Info Spot Production.
+No incluye secretos. **No se re-ejecutó smoke en 22H** (evidencia 22G + reconfirmación 404).
 
 ---
 
-## 0. Etapa 22E — regrabar y validar (2026-07-13)
+## 1. Resultado 22G / verificación 22H
 
-Auditoría Vercel Production (presencia + `updatedAt`, sin valores):
-
-| Variable | Estado | updatedAt |
-|----------|--------|-----------|
-| `R2_ACCESS_KEY_ID` | PRESENTE | **2026-07-11T23:22:49.683Z** (vieja — rechazada) |
-| `R2_SECRET_ACCESS_KEY` | PRESENTE | **2026-07-11T23:22:53.006Z** (vieja — rechazada) |
-| `R2_ACCOUNT_ID` | PRESENTE | 2026-07-13T09:10:24Z |
-| `R2_BUCKET_NAME` | PRESENTE | 2026-07-13T09:10:28Z |
-| `R2_ENDPOINT` | PRESENTE | 2026-07-13T09:10:32Z |
-| `R2_PUBLIC_URL` | PRESENTE | 2026-07-13T09:10:36Z |
-
-**¿Revisión nueva de keys S3?** No.  
-**Redeploy 22E:** No.  
-**Smoke multimedia 22E:** No.  
-**R2 credentials activated:** No.
-
-### Cómo regrabar (panel Vercel)
-
-1. Proyecto `infospot-dnxsuite` → Settings → Environment Variables → Production.  
-2. **Edit** o **Remove + Add** `R2_ACCESS_KEY_ID` y `R2_SECRET_ACCESS_KEY` (Sensitive).  
-3. Pegar Access Key / Secret del token Cloudflare scoped a `infospot-media`.  
-4. Guardar y confirmar en `vercel env ls production` que ambas digan minutos/segundos (**no** «1d ago»).  
-5. Re-lanzar Etapa 22E.
+| Fase | Resultado | Evidencia |
+|------|-----------|-----------|
+| Upload | PASS | `POST /api/redaccion/upload` **201** · key `infospot/covers/40023359-…-infospot_22g_smoke.jpg` |
+| HeadObject | PASS | `existedBefore: true` en delete |
+| GetObject | PASS | Derivados `READY` (lectura server-side del original) |
+| Lectura pública | PASS | GET r2.dev **200** · 11970 B · JPEG 160×120 |
+| WebP | PASS | `…/w160.webp` (fixture pequeño → solo 160; esperado) |
+| JPEG fallback | PASS | `…/w160.jpg` |
+| Delete original / WebP / JPEG | PASS | 3× `deleted: true` · `existedBefore: true` |
+| Segundo delete | PASS | Idempotente · `existedBefore: false` |
+| 404 post-delete | PASS | Cover + derivados **404** (reconfirmado 22H) |
+| Cleanup DB | PASS | Filas smoke eliminadas |
+| Cleanup R2 | PASS | Sin residuos 22F/22G |
+| Rechazo CLF | PASS | `albums/…` → **422** |
+| Cleanup sin sesión | PASS | **401** |
 
 ---
 
-## 0b. Etapa 22D — activación de credenciales (2026-07-13)
+## 2. Residuos 22F
 
-Auditoría Vercel Production (solo presencia + `updatedAt`, sin valores):
+| Key | Estado final |
+|-----|----------------|
+| `infospot/covers/34c16c95-ffac-4cc0-b6c6-782929130756-infospot_r2_smoke.jpg` | **DELETED** |
+| `infospot/editorial/clf/smoke-22f-1783939581621/w128.webp` | **DELETED** |
+| `infospot/editorial/clf/smoke-22f-1783939581621/w128.jpg` | **DELETED** |
 
-| Variable | Estado | updatedAt (UTC) |
-|----------|--------|-----------------|
-| `R2_ACCESS_KEY_ID` | PRESENTE | **2026-07-11T23:22:49Z** (vieja) |
-| `R2_SECRET_ACCESS_KEY` | PRESENTE | **2026-07-11T23:22:53Z** (vieja) |
-| `R2_ACCOUNT_ID` | PRESENTE | 2026-07-13T09:10:24Z |
-| `R2_BUCKET_NAME` | PRESENTE | 2026-07-13T09:10:28Z |
-| `R2_ENDPOINT` | PRESENTE | 2026-07-13T09:10:32Z |
-| `R2_PUBLIC_URL` | PRESENTE | 2026-07-13T09:10:36Z |
-
-**¿Vercel tomó nuevas credenciales S3?** No — ambas keys siguen en la revisión del 11-jul.  
-**Redeploy 22D:** No.  
-**R2 credentials activated:** No.
-
-Para pasar a COMPLETE en una re-corrida 22D: regrabar las dos keys en Production hasta que `vercel env ls` muestre minutos/segundos (no «1d ago»), luego redeploy.
+En 22G: `existedBefore: true` al borrar. En 22H: GET público **404**.
 
 ---
 
-## 1. Auditoría de variables (sin valores)
+## 3. Runtime (logs Production ventana smoke)
 
-| Variable | Estado | Evidencia |
-|----------|--------|-----------|
-| `R2_ACCESS_KEY_ID` | **AUSENTE / no actualizada** | Entrada Production existe pero `updatedAt` = **2026-07-11** («1d ago» en CLI) |
-| `R2_SECRET_ACCESS_KEY` | **AUSENTE / no actualizada** | Idem **2026-07-11** |
-| `R2_ACCOUNT_ID` | **PRESENTE** | Actualizada 2026-07-13 |
-| `R2_BUCKET_NAME` | **PRESENTE** | Actualizada 2026-07-13 (`R2_BUCKET` no definida; el código acepta `R2_BUCKET_NAME`) |
-| `R2_ENDPOINT` | **PRESENTE** | Actualizada 2026-07-13 |
-| `R2_PUBLIC_URL` | **PRESENTE** | Actualizada 2026-07-13 |
+Secuencia observada sin 500: login → cleanup 422/200 → upload 201 → cobertura + retry → cleanup 200×2. Crons posteriores 200. Health 200.
 
-`vercel env pull` / `vercel env run -e production` **no revelan** valores `sensitive` (aparecen vacíos aunque existan). La evidencia de «cargadas de verdad» es el **timestamp de update** + prueba runtime. Las keys S3 no fueron retocadas desde el placeholder del 11-jul.
+**Nota:** un log truncado `prisma:er…` en health fuera de la ventana crítica no invalidó `db:ok`.
 
 ---
 
-## 2. Fases no ejecutadas (bloqueo)
+## 4. Medición
 
-| Fase | Resultado |
-|------|-----------|
-| Redeploy por R2 | Omitido (nada nuevo que inyectar) |
-| Smoke upload/read/delete | No |
-| Errores R2 | No |
-| Pipeline derivados | No |
-| Selector / previews / OG | No (requiere media + Director) |
-| Medición worker | No |
-| Cleanup R2 smoke | N/A |
-
-Crons / CLF readonly / health: sin regresión observada (cron sin secret → 401).
+| Ítem | Valor |
+|------|--------|
+| Fixture | 160×120 JPEG ~12 KB |
+| Anchos derivados | Solo **160** (sin 640–1920 — esperado) |
+| Ventana derivados (aprox. logs) | ~13 s |
+| Pipeline | **`APTO_CON_LIMITACIONES`** — sync OK; worker no obligatorio pre-lanzamiento alias |
 
 ---
 
-## 3. Qué hacer para desbloquear 22C
+## 5. Histórico (bloqueos previos)
 
-1. Vercel → `infospot-dnxsuite` → Settings → Environment Variables → **Production**.  
-2. **Edit** (o remove + add) `R2_ACCESS_KEY_ID` y `R2_SECRET_ACCESS_KEY` con el token Cloudflare scoped a `infospot-media`.  
-3. Confirmar en `vercel env ls production` que ambas pasan a «hace unos segundos / minutos» (no «1d ago»).  
-4. Redeploy Production.  
-5. Re-lanzar Etapa 22C.
+Las secciones 22B–22F documentaron keys S3 con `updatedAt` antiguo y secretos no exportables entre proyectos. **Quedan como historial:** el smoke 22G demostró Put/Get/Delete reales en Production con las credenciales vigentes (`VERIFIED_WORKING`), independientemente del timestamp de panel.
 
-Procedimiento Cloudflare: [`46-r2-production-readiness.md`](./46-r2-production-readiness.md).
+Auditoría cross-project: [`48-r2-cross-project-credential-audit.md`](./48-r2-cross-project-credential-audit.md).  
+Lifecycle: [`49-r2-object-lifecycle-and-cleanup.md`](./49-r2-object-lifecycle-and-cleanup.md).
 
 ---
 
-## 4. Confirmaciones
+## 6. Confirmaciones
 
 - Google Cloud **no** configurado.  
 - `infospot.com.ar` **no** lanzado públicamente.  
-- No se imprimieron ni guardaron secretos.  
-- No se simuló éxito de media.
+- No se imprimieron secretos.  
+- Originales CLF **no** borrados.  
+- Smoke **no** republished / no import masivo.

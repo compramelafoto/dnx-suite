@@ -2,12 +2,12 @@
 
 **Fecha:** 2026-07-13  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**HEAD Production:** `78efb7e`  
-**Decisión:** **GO operativo en alias Vercel** · **NO-GO** dominio propio — falta DonWeb + keys R2 S3 + Director.
+**HEAD Production:** `fa55a2d`  
+**Decisión:** **GO operativo en alias Vercel** · **NO-GO** dominio propio — falta DonWeb + Director + OAuth día D + Search Console.
 
-**Alcance:** producción usable en `infospot-dnxsuite.vercel.app` **sin** dominio, **sin** Google Cloud / Search Console, **sin** features.
+**Alcance:** producción usable en `infospot-dnxsuite.vercel.app` **sin** dominio, **sin** Google Cloud / Search Console, **sin** features nuevas en 22H.
 
-Ver también: [`42-production-go-live.md`](./42-production-go-live.md), detalle de servicios en [`45-production-services-readiness.md`](./45-production-services-readiness.md).
+Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`45-production-services-readiness.md`](./45-production-services-readiness.md), [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md).
 
 ---
 
@@ -16,20 +16,20 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), detalle 
 | Pieza | Estado | Notas |
 |-------|--------|-------|
 | Git / rama | OK | `migration-legacy-clf-to-monorepo` |
-| Vercel project `infospot-dnxsuite` | OK | Production sirve `78efb7e` · alias Ready |
-| Neon **infospot-production** | OK | `wandering-pine-79918137` · `ep-bitter-salad-…` · 36 migraciones |
-| R2 bucket `infospot-media` | OK (parcial) | Bucket + CORS + r2.dev · keys S3 stale; 22F no pudo reutilizar secretos de otros proyectos (`BLOCKED_SECRET_NOT_EXPORTABLE`) · [doc 48](./48-r2-cross-project-credential-audit.md) |
+| Vercel project `infospot-dnxsuite` | OK | Production sirve **`fa55a2d`** · alias Ready · `dpl_9Br5hao…` |
+| Neon **infospot-production** | OK | `wandering-pine-79918137` · `ep-bitter-salad-…` · schema válido; **2 migraciones CLF gap pendientes** (no aplicadas en 22H) |
+| R2 bucket `infospot-media` | **OK** | Upload/read/derivados/delete verificados (22G/22H) · `VERIFIED_WORKING` · [doc 50](./50-multimedia-production-gate.md) |
 | CLF readonly | OK | CLF prod falling-darkness · sync inbound a `DRAFT` verificado |
 | SMTP / Resend | Opcional | Degradación segura sin key |
 | CRON_SECRET + schedules | OK | 401 sin secret · dry-run/sync OK |
 | Analytics Measurement ID | Opcional | Internas OK; GA4 no cargado |
-| Director | Pendiente | 0 users — seed tras primer login |
+| Director | Pendiente | Seed tras primer login real |
 | Dominio `infospot.com.ar` | Pendiente DonWeb | Verificado en Vercel; DNS público pendiente |
 | Google Cloud OAuth console | **No tocado** | Callback el día D |
 | Search Console | **No tocado** | |
 
-**Launch Readiness estimado: ~88%**  
-Para 100% en dominio propio: DNS + SSL + canónicos + OAuth + Search Console + R2 S3 keys + Director + smoke uploads autenticado.
+**Launch Readiness estimado: ~94%**  
+Para 100% en dominio propio: DNS + SSL + canónicos + OAuth + Search Console + Director. Multimedia R2 **cerrado**.
 
 ---
 
@@ -90,18 +90,13 @@ Incluye migraciones Info Spot + gaps CLF del monorepo (schema compartido).
 | Bucket `infospot-media` | **OK** (creado 2026-07-13, ENAM) |
 | Dominio público r2.dev | **OK** `https://pub-3cc4a4641be54ab9aeca101179467a60.r2.dev` |
 | CORS | **OK** — origins: vercel.app, infospot.com.ar, www, localhost:3004 · GET/HEAD/PUT/POST |
-| Lifecycle / Object Lock | No configurado (opcional posterior) |
-| Prefijos editorial / previews / derivados | Convención app (`infospot/…`) — listo cuando haya keys |
-| `R2_BUCKET_NAME` / `R2_PUBLIC_URL` / `R2_ACCOUNT_ID` / `R2_ENDPOINT` | **OK** en Vercel Production |
-| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | **Falta** — crear API token S3 en Cloudflare (DNX-MCP bloquea crear buckets `*-prod` y no genera keys de prod) |
+| Lifecycle app (delete seguro) | **OK** — [`49-r2-object-lifecycle-and-cleanup.md`](./49-r2-object-lifecycle-and-cleanup.md) |
+| Object Lock Cloudflare | No configurado (opcional) |
+| Prefijos editorial / previews / derivados | `infospot/covers|editorial|events|avatars` — smoke PASS |
+| `R2_BUCKET_NAME` / `R2_PUBLIC_URL` / `R2_ACCOUNT_ID` / `R2_ENDPOINT` | **OK** |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | **OK operativo** (`VERIFIED_WORKING` vía smoke 22G) |
 
-### Manual pendiente (R2 keys)
-
-1. Cloudflare → R2 → Manage R2 API Tokens → Create (Object Read & Write en `infospot-media`).  
-2. `vercel env add R2_ACCESS_KEY_ID production` / `R2_SECRET_ACCESS_KEY production` (sensitive).  
-3. Redeploy Production.
-
-Nombre del bucket: `infospot-media` (evita el guard `*-prod` de DNX-MCP; es el bucket **de producción** de Info Spot).
+Gate: [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md).
 
 ---
 
@@ -156,7 +151,7 @@ Auth: `Authorization: Bearer $CRON_SECRET`. Sin secreto → 503 (comportamiento 
 | `CRON_SECRET` | OK |
 | `INFOSPOT_IP_HASH_SALT` | OK |
 | `R2_BUCKET_NAME` / `PUBLIC_URL` / `ACCOUNT_ID` / `ENDPOINT` | OK |
-| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | **Falta** (manual Cloudflare — ver doc 45 §3) |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | **OK** (smoke 22G / gate 22H) |
 | `COMPRAMELAFOTO_PUBLIC_URL` | OK (`https://compramelafoto.com`) |
 | `CLF_READONLY_DATABASE_URL` | **OK** (CLF prod readonly operativo) |
 | `RESEND_API_KEY` / `EMAIL_FROM` | Opcional / ausente |
@@ -215,14 +210,14 @@ La DB prod está **vacía de contenido** (sin demo seed). Home/listados deben re
 4. □ Actualizar canónicos: `NEXT_PUBLIC_INFOSPOT_URL`, `APP_URL`, `AUTH_URL` → `https://infospot.com.ar`.  
 5. □ Actualizar `GOOGLE_REDIRECT_URI` + callback en la consola OAuth existente (**sin** crear proyecto Google nuevo en esta etapa histórica; solo URI).  
 6. □ Opcional: `COOKIE_DOMAIN=.infospot.com.ar` si SSO multi-subdominio.  
-7. □ Completar `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` (único bloqueante técnico restante no-DNS).  
+7. □ ~~R2 S3 keys + smoke multimedia~~ — **hecho** (22G/22H · gate doc 50).  
 8. □ ~~CLF readonly~~ — **hecho** en alias Vercel.  
 9. □ Promover Director tras primer login (`db:seed:infospot`).  
 10. □ (Opcional) `RESEND_API_KEY` + `EMAIL_FROM`.  
 11. □ (Opcional) `NEXT_PUBLIC_GA_MEASUREMENT_ID`.  
-12. □ Redeploy Production tras keys R2.  
-13. □ Smoke final en host canónico: health, home, login, redacción, upload R2.  
-14. □ Search Console: propiedad + sitemap (**ahora sí**).  
+12. □ Smoke final en host canónico: health, home, login, redacción, upload R2.  
+13. □ Search Console: propiedad + sitemap (**ahora sí**).  
+14. □ Revisar/aplicar migraciones CLF gap pendientes en Neon prod (etapa dedicada).  
 15. □ Declarar **GO** dominio propio.
 
 ---
