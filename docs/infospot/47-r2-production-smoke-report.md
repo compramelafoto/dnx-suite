@@ -1,13 +1,33 @@
 # 47 — R2 production smoke report (Etapa 22C)
 
-**Fecha:** 2026-07-13  
-**Rama:** `migration-legacy-clf-to-monorepo`  
-**HEAD docs:** ver git  
+**Estado de etapa:** **`BLOCKED_BY_VERCEL_ENV`** (Etapa 22D — keys S3 sin `updatedAt` fresco)  
+**Antes:** `BLOCKED_BY_MANUAL_R2_TOKEN` (22B/22C)  
 **Production alias:** `https://infospot-dnxsuite.vercel.app`  
 **Commit servido (runtime):** `78efb7e` · health `db:ok`  
-**Estado de etapa:** **`BLOCKED_BY_MANUAL_R2_TOKEN`**
 
-No se ejecutó smoke upload/read/delete ni pipeline de derivados: las keys S3 en Vercel Production **no muestran actualización** posterior al checklist manual.
+No se ejecutó smoke upload/read/delete ni pipeline de derivados.  
+No se hizo redeploy en 22D (las keys no muestran reemplazo).
+
+---
+
+## 0. Etapa 22D — activación de credenciales (2026-07-13)
+
+Auditoría Vercel Production (solo presencia + `updatedAt`, sin valores):
+
+| Variable | Estado | updatedAt (UTC) |
+|----------|--------|-----------------|
+| `R2_ACCESS_KEY_ID` | PRESENTE | **2026-07-11T23:22:49Z** (vieja) |
+| `R2_SECRET_ACCESS_KEY` | PRESENTE | **2026-07-11T23:22:53Z** (vieja) |
+| `R2_ACCOUNT_ID` | PRESENTE | 2026-07-13T09:10:24Z |
+| `R2_BUCKET_NAME` | PRESENTE | 2026-07-13T09:10:28Z |
+| `R2_ENDPOINT` | PRESENTE | 2026-07-13T09:10:32Z |
+| `R2_PUBLIC_URL` | PRESENTE | 2026-07-13T09:10:36Z |
+
+**¿Vercel tomó nuevas credenciales S3?** No — ambas keys siguen en la revisión del 11-jul.  
+**Redeploy 22D:** No.  
+**R2 credentials activated:** No.
+
+Para pasar a COMPLETE en una re-corrida 22D: regrabar las dos keys en Production hasta que `vercel env ls` muestre minutos/segundos (no «1d ago»), luego redeploy.
 
 ---
 
