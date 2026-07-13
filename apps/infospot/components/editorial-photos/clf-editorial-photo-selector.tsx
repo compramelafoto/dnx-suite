@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { selectEditorialPhotoAction } from "@/app/actions/editorial-photos";
+import { EditorialPhotoThumbnail } from "@/components/editorial-photos/editorial-photo-thumbnail";
+import { toEditorialPhotoPreview } from "@/lib/editorial-photo-previews";
 
 type PhotoHit = {
   id: number;
@@ -138,27 +140,25 @@ export function ClfEditorialPhotoSelector({
       ) : null}
 
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-        {photos.map((p) => (
-          <li key={p.id} className="space-y-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={p.thumbApiPath}
-              alt=""
-              draggable={false}
-              className="aspect-square w-full rounded object-cover"
-              onContextMenu={(e) => e.preventDefault()}
-            />
-            <p className="truncate text-xs text-[var(--is-muted)]">{p.photographerName}</p>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => select(p.id)}
-              className="w-full rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-2 py-2 text-xs font-semibold text-white disabled:opacity-60"
-            >
-              {pending ? "Procesando…" : "Seleccionar"}
-            </button>
-          </li>
-        ))}
+        {photos.map((p) => {
+          const preview = toEditorialPhotoPreview({
+            photoId: p.id,
+            albumId,
+            photographerName: p.photographerName,
+            albumName: albumTitle,
+          });
+          if (p.thumbApiPath) preview.previewUrl = p.thumbApiPath;
+          return (
+            <li key={p.id}>
+              <EditorialPhotoThumbnail
+                preview={preview}
+                selectable
+                selectLabel={pending ? "Procesando…" : "Seleccionar"}
+                onSelect={() => select(p.id)}
+              />
+            </li>
+          );
+        })}
       </ul>
 
       {hasMore ? (

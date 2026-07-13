@@ -9,6 +9,8 @@ import {
   removeArticleAssetLinkAction,
 } from "@/app/actions/clf-link";
 import { formatDateEs } from "@/lib/dates";
+import { EditorialPhotoThumbnail } from "@/components/editorial-photos/editorial-photo-thumbnail";
+import { toEditorialPhotoPreview } from "@/lib/editorial-photo-previews";
 
 type EventHit = {
   id: number;
@@ -729,12 +731,17 @@ export function ClfEventPicker({
                         : "border-[var(--is-border)] hover:border-[var(--is-border-strong)]"
                     }`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={photo.thumbApiPath}
-                      alt=""
-                      className="aspect-square w-full object-cover"
-                      draggable={false}
+                    <EditorialPhotoThumbnail
+                      preview={{
+                        ...toEditorialPhotoPreview({
+                          photoId: photo.id,
+                          albumId: albumId!,
+                          photographerName: photo.photographerName,
+                        }),
+                        previewUrl: photo.thumbApiPath,
+                      }}
+                      showPhotographer={false}
+                      className="pointer-events-none"
                     />
                     <div className="space-y-1 p-2 text-[10px] leading-snug text-[var(--is-muted)]">
                       <p className="font-semibold text-[var(--is-text)]">{photo.photographerName}</p>

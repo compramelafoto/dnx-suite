@@ -4,6 +4,8 @@ import { useEffect, useId, useState, useTransition } from "react";
 import type { EditorialImageAttrs } from "@repo/editor";
 import { importClfPhotosAction } from "@/app/actions/clf-link";
 import { formatDateEs } from "@/lib/dates";
+import { EditorialPhotoThumbnail } from "@/components/editorial-photos/editorial-photo-thumbnail";
+import { toEditorialPhotoPreview } from "@/lib/editorial-photo-previews";
 
 type EventHit = {
   id: number;
@@ -316,11 +318,17 @@ export function ClfPhotoPickerDialog({
                         : "border-[var(--is-border)]"
                     }`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={photo.thumbApiPath}
-                      alt=""
-                      className="aspect-square w-full object-cover"
+                    <EditorialPhotoThumbnail
+                      preview={{
+                        ...toEditorialPhotoPreview({
+                          photoId: photo.id,
+                          albumId: album!.id,
+                          photographerName: photo.photographerName,
+                        }),
+                        previewUrl: photo.thumbApiPath,
+                      }}
+                      showPhotographer={false}
+                      className="pointer-events-none"
                     />
                     <span className="block px-2 py-2 text-[11px] text-[var(--is-muted)]">
                       {photo.photographerName}

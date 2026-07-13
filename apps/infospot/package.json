@@ -17,6 +17,7 @@
     "test:distribution": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/distribution/distribution.test.ts",
     "test:coverage": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/coverage/coverage.test.ts",
     "test:editorial-photos": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-photos/editorial-photos.test.ts",
+    "test:editorial-photo-previews": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-photo-previews/editorial-photo-previews.test.ts",
     "test:public-coverage": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/public-coverage/public-coverage.test.ts",
     "test:stabilization": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/stabilization.test.ts",
     "smoke:seed": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/e11-smoke-seed.ts seed",

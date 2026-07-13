@@ -3,6 +3,7 @@
  */
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { isR2Configured } from "@/lib/r2-client";
+import { urlToR2Key } from "@/lib/editorial-photo-previews/url-to-r2-key";
 
 let s3Client: S3Client | null = null;
 
@@ -56,7 +57,8 @@ export async function readR2ObjectBuffer(key: string): Promise<Buffer> {
 
 /**
  * Resuelve key interna desde campos Photo CLF.
- * Prioriza variantes watermarked/preview; nunca usa URL http arbitraria del cliente.
+ * Prioriza variantes watermarked/preview; si previewUrl es HTTPS pública del
+ * mismo bucket R2, extrae la key (sin fetch externo).
  */
 export function resolveClfPhotoSourceKey(photo: {
   originalKey: string;
@@ -70,12 +72,16 @@ export function resolveClfPhotoSourceKey(photo: {
   if (photo.thumbWatermarkedKey?.trim()) {
     return assertSafeR2Key(photo.thumbWatermarkedKey);
   }
+  // previewUrl relativa = key; absoluta http(s) del CDN R2 → pathname.
+  if (photo.previewUrl?.trim()) {
+    try {
+      return assertSafeR2Key(urlToR2Key(photo.previewUrl));
+    } catch {
+      // continuar a originalKey
+    }
+  }
   if (photo.originalKey?.trim()) {
     return assertSafeR2Key(photo.originalKey);
-  }
-  // previewUrl a veces es key relativa; si es URL absoluta, rechazar (no fetch externo).
-  if (photo.previewUrl?.trim() && !/^https?:\/\//i.test(photo.previewUrl)) {
-    return assertSafeR2Key(photo.previewUrl);
   }
   throw new Error("La fotografía no tiene una key R2 interna utilizable");
 }

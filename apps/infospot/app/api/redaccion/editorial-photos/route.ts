@@ -8,6 +8,7 @@ import {
 } from "@/lib/infospot-access";
 import { getClfReadonlyClient, probeClfReadonlyConnection } from "@/lib/clf-readonly-db";
 import { resolveClfAlbumCommercialAvailability } from "@repo/db";
+import { buildClfThumbApiPath } from "@/lib/editorial-photo-previews";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
         id: p.id,
         photographerId: author?.id ?? p.userId,
         photographerName: name,
-        thumbApiPath: `/api/redaccion/clf-photos/${p.id}/thumb`,
+        thumbApiPath: buildClfThumbApiPath(p.id, albumId),
         editorialPhotoId: ed?.id ?? null,
         processStatus: ed?.processStatus ?? null,
         commercialStatus: ed?.commercialStatus ?? null,

@@ -1,5 +1,6 @@
 import { prisma, resolveClfAlbumCommercialAvailability } from "@repo/db";
 import { getClfReadonlyClient } from "@/lib/clf-readonly-db";
+import { buildClfThumbApiPath } from "@/lib/editorial-photo-previews";
 
 export async function searchClfEvents(query: string, take = 20) {
   const q = query.trim();
@@ -203,7 +204,7 @@ export async function listClfPhotosForAlbum(albumId: number, photographerId?: nu
       photographerName: photographer.name?.trim() || photographer.email,
       hasEditorialCopy: assetByPhoto.has(photo.id),
       editorialAssetId: assetByPhoto.get(photo.id) ?? null,
-      thumbApiPath: `/api/redaccion/clf-photos/${photo.id}/thumb?albumId=${photo.albumId}`,
+      thumbApiPath: buildClfThumbApiPath(photo.id, photo.albumId),
     };
   });
 }
