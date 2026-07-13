@@ -459,11 +459,15 @@ export async function POST(
       baseData.preCompraPaymentRef = idempotencyKey;
     }
 
+    // Solo items: `photo: true` fuerza SELECT de todas las columnas Photo (p.ej. exifMetadataStatus)
+    // y rompe staging cuando el schema Prisma adelanta a la DB.
+    const orderCreateInclude = { items: true } as const;
+
     let order;
     try {
       order = await prisma.order.create({
         data: baseData,
-        include: { items: { include: { photo: true } } },
+        include: orderCreateInclude,
       });
     } catch (createErr: any) {
       const msg = String(createErr?.message ?? "");
@@ -486,7 +490,7 @@ export async function POST(
       if (fallbackData !== baseData) {
         order = await prisma.order.create({
           data: fallbackData,
-          include: { items: { include: { photo: true } } },
+          include: orderCreateInclude,
         });
       } else {
         throw createErr;
