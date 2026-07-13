@@ -92,9 +92,8 @@ type ArticleFormProps = {
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 
-const fieldClass =
-  "mt-2 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white px-3 py-3 text-base text-[var(--is-text)] outline-none focus:border-[var(--is-accent)] focus:ring-2 focus:ring-[var(--is-accent)]/20";
-const labelClass = "text-sm font-semibold text-[var(--is-text)]";
+const fieldClass = "is-input mt-2";
+const labelClass = "is-input-label";
 
 export function ArticleForm({
   mode,
@@ -649,81 +648,77 @@ export function ArticleForm({
     >
       <input type="hidden" name="slug" value={slug || autoSlug} />
 
-      <div className="sticky top-0 z-20 -mx-4 border-b border-[var(--is-border)] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-0 sm:rounded-[var(--is-radius-md)] sm:border sm:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--is-accent)]">
-              Escritura
-            </p>
-            <p
-              className={`mt-1 text-sm transition-colors duration-200 ${
-                saveState === "error"
-                  ? "text-red-700"
-                  : saveState === "dirty"
-                    ? "text-amber-800"
-                    : saveState === "saved"
-                      ? "text-teal-800"
-                      : "text-[var(--is-muted)]"
-              }`}
-            >
-              {saveLabel}
-              {saveError ? ` — ${saveError}` : null}
-            </p>
-          </div>
-          <div className="flex max-w-full flex-wrap items-center gap-2 overflow-x-hidden">
-            {canUseAiImport ? (
-              <AiImportButton onClick={() => setAiImportOpen(true)} />
+      <div className="is-editorial-toolbar -mx-4 sm:-mx-0">
+        <div>
+          <p className="is-editorial-eyebrow">Escritura</p>
+          <p
+            className={`mt-1 text-sm transition-colors duration-200 ${
+              saveState === "error"
+                ? "text-red-700"
+                : saveState === "dirty"
+                  ? "text-amber-800"
+                  : saveState === "saved"
+                    ? "text-teal-800"
+                    : "text-[var(--is-muted)]"
+            }`}
+          >
+            {saveLabel}
+            {saveError ? ` — ${saveError}` : null}
+          </p>
+        </div>
+        <div className="flex max-w-full flex-wrap items-center gap-2 overflow-x-hidden">
+          {canUseAiImport ? (
+            <AiImportButton onClick={() => setAiImportOpen(true)} />
+          ) : null}
+          <button
+            type="button"
+            className="is-btn is-btn-secondary lg:hidden"
+            onClick={() => setSideDrawer("library")}
+          >
+            Material
+          </button>
+          <button
+            type="button"
+            className="is-btn is-btn-secondary"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
+                setConfigOpen(true);
+              } else {
+                setSideDrawer("config");
+              }
+            }}
+          >
+            Configuración
+            {checklistMissing.length > 0 ? (
+              <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-900">
+                {checklistMissing.length}
+              </span>
             ) : null}
-            <button
-              type="button"
-              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium transition hover:border-[var(--is-accent)] lg:hidden"
-              onClick={() => setSideDrawer("library")}
+          </button>
+          {mode === "edit" && initial ? (
+            <Link
+              href={`/redaccion/noticias/${initial.id}/preview`}
+              className="is-btn is-btn-secondary"
             >
-              Material
-            </button>
-            <button
-              type="button"
-              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium transition hover:border-[var(--is-accent)]"
-              onClick={() => {
-                if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
-                  setConfigOpen(true);
-                } else {
-                  setSideDrawer("config");
-                }
-              }}
-            >
-              Configuración
-              {checklistMissing.length > 0 ? (
-                <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-900">
-                  {checklistMissing.length}
-                </span>
-              ) : null}
-            </button>
-            {mode === "edit" && initial ? (
-              <Link
-                href={`/redaccion/noticias/${initial.id}/preview`}
-                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-medium transition hover:border-[var(--is-accent)]"
-              >
-                Vista previa
-              </Link>
-            ) : null}
-            <button
-              type="submit"
-              disabled={pending || saveState === "saving"}
-              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--is-accent-hover)] disabled:opacity-60"
-            >
-              {mode === "edit"
-                ? status === "PUBLISHED"
-                  ? "Guardar cambios"
-                  : "Guardar"
-                : "Guardar borrador"}
-            </button>
-          </div>
+              Vista previa
+            </Link>
+          ) : null}
+          <button
+            type="submit"
+            disabled={pending || saveState === "saving"}
+            className="is-btn is-btn-primary disabled:opacity-60"
+          >
+            {mode === "edit"
+              ? status === "PUBLISHED"
+                ? "Guardar cambios"
+                : "Guardar"
+              : "Guardar borrador"}
+          </button>
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="mx-auto w-full max-w-[48rem] space-y-8">
+      <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="is-writing-surface space-y-10">
           {importBanner ? (
             <p
               className="rounded-[var(--is-radius-sm)] border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-950"
@@ -754,7 +749,7 @@ export function ArticleForm({
                 if (!slugTouched) setSlug(slugifyTitle(e.target.value));
                 markDirty();
               }}
-              className="w-full border-0 border-b border-[var(--is-border)] bg-transparent px-0 py-3 font-[family-name:var(--font-source-serif)] text-3xl font-semibold tracking-tight text-[var(--is-text)] outline-none placeholder:text-[var(--is-muted)] focus:border-[var(--is-accent)] sm:text-4xl"
+              className="is-input-title"
               placeholder="Título de la historia"
             />
           </div>
@@ -772,7 +767,7 @@ export function ArticleForm({
                 setExcerpt(e.target.value);
                 markDirty();
               }}
-              className="w-full resize-y border-0 bg-transparent px-0 text-lg leading-relaxed text-[var(--is-text)] outline-none placeholder:text-[var(--is-muted)] focus:ring-0"
+              className="is-input-dek"
               placeholder="Bajada — una o dos oraciones"
             />
           </div>
@@ -807,7 +802,7 @@ export function ArticleForm({
         </div>
 
         <aside className="hidden lg:block">
-          <div className="sticky top-28 max-h-[calc(100dvh-8rem)] overflow-y-auto rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5">
+          <div className="is-editorial-rail is-editorial-panel is-editorial-panel--bordered">
             {library}
           </div>
         </aside>
@@ -815,20 +810,20 @@ export function ArticleForm({
 
       {/* Drawer móvil: biblioteca o configuración */}
       {sideDrawer ? (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="is-editorial-drawer-overlay lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0"
             aria-label="Cerrar panel"
             onClick={closeDrawers}
           />
           <div
-            className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-hidden bg-white shadow-xl"
+            className="is-editorial-drawer"
             role="dialog"
             aria-modal="true"
             aria-label={sideDrawer === "library" ? "Material editorial" : "Configuración"}
           >
-            <div className="flex items-center justify-between border-b border-[var(--is-border)] px-4 py-3">
+            <div className="is-editorial-drawer__header">
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -855,14 +850,14 @@ export function ArticleForm({
               </div>
               <button
                 type="button"
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)]"
+                className="is-btn is-btn-icon"
                 onClick={closeDrawers}
                 aria-label="Cerrar"
               >
                 ✕
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <div className="is-editorial-drawer__body">
               {sideDrawer === "library" ? library : configPanel}
             </div>
           </div>
@@ -871,38 +866,36 @@ export function ArticleForm({
 
       {/* Drawer desktop: solo configuración */}
       {configOpen ? (
-        <div className="fixed inset-0 z-40 hidden lg:block">
+        <div className="is-editorial-drawer-overlay hidden lg:block">
           <button
             type="button"
-            className="absolute inset-0 bg-black/30"
+            className="absolute inset-0"
             aria-label="Cerrar configuración"
             onClick={closeDrawers}
           />
           <div
-            className="absolute inset-y-0 right-0 flex w-full max-w-lg flex-col overflow-hidden bg-white shadow-xl"
+            className="is-editorial-drawer"
             role="dialog"
             aria-modal="true"
             aria-label="Configuración editorial"
           >
-            <div className="flex items-center justify-between border-b border-[var(--is-border)] px-5 py-4">
+            <div className="is-editorial-drawer__header">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--is-accent)]">
-                  Fuera de la escritura
-                </p>
-                <h2 className="mt-1 font-[family-name:var(--font-source-serif)] text-xl font-semibold">
+                <p className="is-editorial-eyebrow">Fuera de la escritura</p>
+                <h2 className="mt-1 is-font-serif text-xl font-semibold">
                   Configuración
                 </h2>
               </div>
               <button
                 type="button"
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)]"
+                className="is-btn is-btn-icon"
                 onClick={closeDrawers}
                 aria-label="Cerrar"
               >
                 ✕
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">{configPanel}</div>
+            <div className="is-editorial-drawer__body">{configPanel}</div>
           </div>
         </div>
       ) : null}

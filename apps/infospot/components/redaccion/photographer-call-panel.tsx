@@ -8,8 +8,7 @@ import {
 } from "@/app/actions/photographer-call";
 import { CLF_EVENT_TYPES } from "@/lib/clf-event-provisioning/category-type-map";
 
-const fieldClass =
-  "mt-2 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white px-3 py-3 text-base text-[var(--is-text)] outline-none focus:border-[var(--is-accent)] focus:ring-2 focus:ring-[var(--is-accent)]/20";
+const fieldClass = "is-input mt-2";
 
 export type PhotographerCallShape = {
   enabled: boolean;

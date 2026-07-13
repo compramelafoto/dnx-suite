@@ -21,8 +21,7 @@ import {
 import { buildEventPublishChecklist, checklistWarnings } from "@/lib/launch-content";
 import type { InfoSpotPermissionSubject } from "@repo/db";
 
-const fieldClass =
-  "mt-2 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] bg-white px-3 py-3 text-base text-[var(--is-text)] outline-none focus:border-[var(--is-accent)] focus:ring-2 focus:ring-[var(--is-accent)]/20";
+const fieldClass = "is-input mt-2";
 
 type Category = { id: string; name: string };
 

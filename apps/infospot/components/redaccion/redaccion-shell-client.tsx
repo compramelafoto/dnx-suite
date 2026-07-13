@@ -111,7 +111,7 @@ function EditorFocusHeader({
 
   return (
     <header className="sticky top-0 z-20 border-b border-[var(--is-border)] bg-[var(--is-bg)]/95 backdrop-blur-sm">
-      <div className="flex min-h-14 items-center gap-3 px-4 py-2 sm:px-6">
+      <div className="flex min-h-12 items-center gap-3 px-4 py-1.5 sm:px-6">
         <Link
           href={backHref}
           className="shrink-0 text-sm font-medium text-[var(--is-accent)] hover:underline"

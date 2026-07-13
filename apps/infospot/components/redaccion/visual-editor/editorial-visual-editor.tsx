@@ -162,14 +162,14 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
     void articleId;
 
     return (
-      <div className="overflow-hidden rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white">
+      <div className="is-editor-shell">
         <input type="hidden" name={name} value={markdown} />
         <EditorToolbar
           editor={editor}
           onInsertImage={() => setImageOpen(true)}
         />
         <EditorContent editor={editor} />
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--is-border)] px-4 py-3 text-xs text-[var(--is-muted)] sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--is-border)]/70 px-4 py-4 text-xs text-[var(--is-muted)] sm:px-6">
           <p>El material fotográfico se inserta desde la biblioteca.</p>
           <p className="tabular-nums">{wordCount} palabras</p>
         </div>

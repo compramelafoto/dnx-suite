@@ -7,8 +7,7 @@ import {
   type ProfileFormState,
 } from "@/app/actions/profile";
 
-const fieldClass =
-  "mt-2 min-h-11 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg)] px-4 text-sm text-[var(--is-text)]";
+const fieldClass = "is-input mt-2";
 
 const initial: ProfileFormState = { error: null };
 
