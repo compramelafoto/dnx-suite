@@ -40,4 +40,10 @@ export const marathonsPageContent = {
     howItWorks: { label: "Cómo funciona", href: routes.howItWorks },
     organize: { label: "Organizá una", href: routes.organize },
   },
+  /** Enlace técnico — no es un anuncio de edición. */
+  demo: {
+    label: "Ver ficha técnica de demostración",
+    href: routes.marathonDemo,
+    note: "Datos ficticios para validar la presentación pública. No es una maratón anunciada.",
+  },
 } as const;

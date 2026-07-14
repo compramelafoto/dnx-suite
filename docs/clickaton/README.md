@@ -56,7 +56,21 @@ Home pública institucional con arquitectura de contenido en `content/home.ts`.
 - Navegación por rutas reales (`config/navigation.ts`)
 - Modelo tipado `PublicMarathon` y relacionados (`types/marathon.ts`)
 - Documento: [PUBLIC_ARCHITECTURE.md](./PUBLIC_ARCHITECTURE.md)
-- Sin eventos inventados; ficha `/maratones/[slug]` pendiente (Etapa 05)
+
+### Etapa 05 — Ficha pública de maratón + contrato FotoRank
+
+- Ruta `/maratones/[slug]` con fixture `/maratones/demo`
+- Ficha completa: cronograma, categorías, bases, validaciones, premios, jurado, sponsors, organización, FAQ, estados
+- Seguridad de consignas: `lib/challenges.ts`
+- Contrato: [FOTORANK_INTEGRATION_CONTRACT.md](./FOTORANK_INTEGRATION_CONTRACT.md)
+- Sin inscripción, pagos, backend ni integración real
+
+### Etapa 05A — Consolidación de contratos satélite
+
+- Tipos separados en `apps/clickaton/types/public/*` (inscripción, cupos, resultados, galería, capabilities, etc.)
+- `PublicMarathon` permanece estructural; sin cambios de UI
+- Documentación de arquitectura, matriz de consumo y dependencias Identity/Payments/CLF
+- Sin endpoints ni comportamiento
 
 ### Backlog
 

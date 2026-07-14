@@ -52,10 +52,19 @@ export default function MarathonsPage() {
       </Section>
 
       <Section>
-        <Container className="max-w-3xl">
+        <Container className="max-w-3xl space-y-6">
           <Card variant="yellow">
             <h2 className="ck-heading-lg">{content.notes.title}</h2>
             <p className="ck-body-md mt-4 text-ck-gray-700">{content.notes.body}</p>
+          </Card>
+          <Card variant="outlined">
+            <h2 className="ck-heading-md">Vista técnica</h2>
+            <p className="ck-body-sm mt-3 text-ck-text-secondary">{content.demo.note}</p>
+            <div className="mt-5">
+              <Button href={content.demo.href} variant="outline">
+                {content.demo.label}
+              </Button>
+            </div>
           </Card>
         </Container>
       </Section>

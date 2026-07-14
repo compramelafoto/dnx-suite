@@ -1,7 +1,17 @@
 /**
- * Modelo funcional público de maratón — contrato Clickaton (pre-FotoRank).
+ * Modelo estructural público de maratón — contrato Clickaton (pre-FotoRank).
  * Independiente de Prisma. No copiar el modelo interno de FotoRank.
+ *
+ * Etapa 05A: `PublicMarathon` permanece como ficha estructural.
+ * Contratos satélite (inscripción, cupos, resultados, galería, etc.):
+ * `apps/clickaton/types/public/*` — importar desde `@/types/public`.
+ *
+ * Campos embebidos marcados como “transicional” coexisten con la UI actual
+ * de Etapa 05; el consumo futuro preferirá contratos satélite por recurso.
  */
+
+import type { PublicValidationRule } from "./public/validation";
+
 
 export type MarathonStatus =
   | "draft"
@@ -139,8 +149,22 @@ export type PublicRulesDocument = {
 };
 
 /**
+ * Política pública de validaciones (resumen en ficha).
+ * Detalle por regla: `PublicValidationRule` en `types/public/validation.ts`.
+ */
+export type PublicValidationPolicy = {
+  timeWindowEnforced: boolean;
+  gpsMayBeRequired: boolean;
+  exifMayBeRequired: boolean;
+  summary: string;
+  notes?: string[];
+  /** Lista opcional de reglas públicas tipadas (Etapa 05A). */
+  rules?: PublicValidationRule[];
+};
+
+/**
  * Consigna pública. Puede permanecer oculta hasta releaseAt.
- * No publicar consignas ficticias en la UI todavía.
+ * Nunca renderizar title/description si `revealed` es false o status !== "released".
  */
 export type PublicChallenge = {
   id: string;
@@ -155,6 +179,24 @@ export type PublicChallenge = {
   educationalGoal?: string;
 };
 
+/**
+ * Ficha estructural pública de una edición.
+ *
+ * Incluye identidad, territorio, estados resumidos y contenido editorial
+ * necesario para renderizar `/maratones/[slug]` sin consultas de usuario.
+ *
+ * No incluir acá:
+ * - oferta/precios de inscripción → `PublicRegistrationOffer`
+ * - elegibilidad de usuario → `RegistrationEligibility`
+ * - inscripción del participante → `ParticipantRegistrationSummary`
+ * - flags de acciones → `PublicMarathonCapabilities`
+ * - cupos vivos → `PublicCapacity` / `PublicCategoryCapacity`
+ * - ranking completo → `PublicMarathonResults`
+ * - imágenes de galería → `PublicMarathonGallery`
+ * - ventanas operativas finas → `PublicScheduleWindow`
+ * - versionado de aceptación → `PublicRulesVersion`
+ * - contingencias → `PublicEventNotice`
+ */
 export type PublicMarathon = {
   id: string;
   slug: string;
@@ -167,6 +209,8 @@ export type PublicMarathon = {
   format: MarathonFormat;
   modality: string;
   featured: boolean;
+  /** Fixture técnico; no es una edición anunciada. */
+  isDemo?: boolean;
   city: string;
   provinceOrRegion: string;
   country: string;
@@ -175,28 +219,37 @@ export type PublicMarathon = {
   timezone: string;
   startAt: string;
   endAt: string;
+  /** Transicional: preferir `PublicScheduleWindow` kind=registration. */
   registrationOpenAt?: string;
+  /** Transicional: preferir `PublicScheduleWindow` kind=registration. */
   registrationCloseAt?: string;
+  /** Transicional: preferir `PublicCapacity.participantLimit`. */
   participantLimit?: number;
   minimumAge?: number;
   allowedDevices: AllowedDevice[];
   coverImage?: string;
+  /** Transicional: preferir `PublicMarathonGallery` cuando exista payload. */
   galleryPreview: string[];
   organizer: PublicOrganizer;
   localVenue?: PublicVenue;
   categories: PublicCategory[];
   schedule: PublicScheduleItem[];
+  /** Premios anunciados en ficha; awards adjudicados → `PublicMarathonResults`. */
   prizes: PublicPrize[];
   jury: PublicJuryMember[];
   sponsors: PublicSponsor[];
   faq: PublicFAQItem[];
+  /** Transicional: preferir también `PublicRulesVersion` para aceptación/hash. */
   rules?: PublicRulesDocument;
+  validationPolicy?: PublicValidationPolicy;
   accessibilityNotes?: string;
   contactInfo?: string;
   socialLinks?: SocialLinks;
+  /** Resumen de estado; payload → `PublicMarathonResults`. */
   resultsStatus: ResultsStatus;
+  /** Resumen de estado; payload → `PublicMarathonGallery`. */
   galleryStatus: GalleryStatus;
-  /** Consignas: contrato futuro; no exponer en UI hasta integración. */
+  /** Consignas: filtrar antes de UI (`lib/challenges.ts`). */
   challenges?: PublicChallenge[];
   createdAt: string;
   updatedAt: string;
@@ -235,4 +288,44 @@ export const allowedDeviceLabels: Record<AllowedDevice, string> = {
   smartphone: "Celular",
   camera: "Cámara",
   drone: "Drone",
+};
+
+export const resultsStatusLabels: Record<ResultsStatus, string> = {
+  not_available: "No disponibles",
+  pending: "Pendientes",
+  partial: "Parciales",
+  published: "Publicados",
+  archived: "Archivados",
+};
+
+export const galleryStatusLabels: Record<GalleryStatus, string> = {
+  not_available: "No disponible",
+  coming_soon: "Próximamente",
+  published: "Publicada",
+  archived: "Archivada",
+};
+
+export const challengeStatusLabels: Record<ChallengeStatus, string> = {
+  scheduled: "Programada",
+  released: "Liberada",
+  closed: "Cerrada",
+  hidden: "Oculta",
+};
+
+export const scheduleItemTypeLabels: Record<PublicScheduleItem["type"], string> = {
+  briefing: "Briefing",
+  start: "Inicio",
+  checkpoint: "Punto de control",
+  deadline: "Cierre de entrega",
+  ceremony: "Ceremonia",
+  other: "Actividad",
+};
+
+export const organizerTypeLabels: Record<PublicOrganizer["type"], string> = {
+  club: "Club",
+  association: "Asociación",
+  institution: "Institución",
+  municipality: "Municipio",
+  producer: "Productora",
+  other: "Organización",
 };

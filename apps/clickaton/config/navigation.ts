@@ -12,7 +12,13 @@ export const routes = {
   about: "/nosotros",
   contact: "/contacto",
   designSystem: "/design-system",
+  /** Ficha técnica de demostración — noindex, fuera del nav principal. */
+  marathonDemo: "/maratones/demo",
 } as const;
+
+export function marathonPath(slug: string): string {
+  return `/maratones/${slug}`;
+}
 
 export type AppRoute = (typeof routes)[keyof typeof routes];
 

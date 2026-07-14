@@ -35,12 +35,14 @@
 - Producto de venta fotográfica de eventos (ecosistema hermano)
 - No es el frontend de Clickaton ni el motor de maratones
 
-## 6. Rutas públicas (Etapa 04)
+## 6. Rutas públicas
 
 | Ruta | Rol |
 |------|-----|
 | `/` | Home de lanzamiento |
 | `/maratones` | Catálogo / prelanzamiento |
+| `/maratones/[slug]` | Ficha pública de edición |
+| `/maratones/demo` | Fixture técnico (`isDemo`, noindex) |
 | `/como-funciona` | Experiencia completa |
 | `/comunidad` | Dimensión comunitaria y pedagógica |
 | `/organizar` | Programa de sedes (en desarrollo) |
@@ -49,7 +51,7 @@
 | `/contacto` | Contacto sin canales inventados |
 | `/design-system` | Catálogo interno (`noindex`) |
 
-**No creadas todavía:** tienda, blog, ranking, galería, hall de la fama, perfil, login, checkout, paneles.
+**No creadas todavía:** tienda, blog, ranking, galería dedicada, hall de la fama, perfil, login, checkout, paneles.
 
 ## 7. Navegación principal
 
@@ -57,23 +59,21 @@ Header: Inicio · Maratones · Cómo funciona · Comunidad · Organizá una · S
 
 Footer: mismas + Nosotros · Contacto.
 
-Fuente única: `config/navigation.ts` (`routes`).
+Fuente única: `config/navigation.ts` (`routes`). La demo **no** entra al nav principal.
 
-## 8. Entidades visibles (futuro)
+## 8. Entidades visibles
 
-Maratón pública, organizador, sede local, categorías, cronograma, premios, jurado, sponsors, FAQ, bases.
+Maratón pública, organizador, sede local, categorías, cronograma, premios, jurado, sponsors, FAQ, bases, política de validaciones, estados de resultados/galería.
 
 ## 9. Modelo funcional
 
-Tipos en `apps/clickaton/types/marathon.ts`:
+Tipos estructurales: `apps/clickaton/types/marathon.ts` (`PublicMarathon` + relacionados de ficha).
 
-- `PublicMarathon`
-- `PublicOrganizer`, `PublicVenue`, `PublicCategory`
-- `PublicScheduleItem`, `PublicPrize`, `PublicJuryMember`
-- `PublicSponsor`, `PublicFAQItem`, `PublicRulesDocument`
-- `PublicChallenge` (puede permanecer oculta)
+Contratos satélite (Etapa 05A): `apps/clickaton/types/public/*` — inscripción, elegibilidad, capacidades, cupos, resultados, galería, ventanas, versionado, avisos, reglas de validación.
 
-Independiente de Prisma / FotoRank.
+Documento: [FOTORANK_INTEGRATION_CONTRACT.md](./FOTORANK_INTEGRATION_CONTRACT.md).
+
+Catálogo local estructural: `content/demo-marathon.ts` · acceso: `lib/marathons.ts`.
 
 ## 10. Estados públicos
 
@@ -88,19 +88,22 @@ Etiquetas de UI en el mismo archivo (`*Labels`).
 
 | Momento | Visible |
 |---------|---------|
-| Antes | Nombre, territorio, fechas, estado inscripción, formato, bases, categorías |
-| Durante | Estado en curso, deadlines públicos, puntos de encuentro si aplica |
-| Después | Resultados, galería si publicada, relatos |
+| Antes | Nombre, territorio, fechas, estado inscripción, formato, bases, categorías, cronograma público |
+| Durante | Estado en curso, deadlines públicos, consignas liberadas |
+| Después | Resultados / galería si publicadas |
 
 ## 12. Qué permanece oculto
 
-- Consignas no liberadas
+- Consignas no liberadas (`lib/challenges.ts`)
+- Ítems de cronograma con `publicBeforeEvent=false` (antes del evento)
 - Datos personales de participantes
 - Criterios internos de jurado no publicados
 - Condiciones económicas de sedes/sponsors no aprobadas
 - Credenciales y paneles
 
 ## 13. Contrato futuro Clickaton ↔ FotoRank
+
+Documento detallado: [FOTORANK_INTEGRATION_CONTRACT.md](./FOTORANK_INTEGRATION_CONTRACT.md).
 
 ```
 Clickaton
@@ -110,11 +113,9 @@ Clickaton
   → vuelve a experiencia / resultados en Clickaton
 ```
 
-Sin API schemas finales en esta etapa.
-
 ## 14. Pendientes
 
-Ver `BACKLOG.md` (ficha `/maratones/[slug]`, inscripción, sedes reales, sponsors, legales, contacto, redes, tienda, etc.).
+Ver `BACKLOG.md` (inscripción, sedes reales, sponsors reales, legales, contacto, redes, tienda, API FotoRank, etc.).
 
 ## 15. Decisiones abiertas
 
@@ -123,3 +124,4 @@ Ver `BACKLOG.md` (ficha `/maratones/[slug]`, inscripción, sedes reales, sponsor
 - Production branch / deploys automáticos
 - Cuándo activar indexación
 - Momento de revelación de consignas por edición
+- URL canónica de inscripción FotoRank

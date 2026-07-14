@@ -2,16 +2,12 @@ import { cn } from "@/lib/cn";
 
 type ViewfinderFrameProps = {
   className?: string;
-  label?: string;
 };
 
 /**
  * Visor fotográfico abstracto. No es logo ni isotipo institucional.
  */
-export function ViewfinderFrame({
-  className,
-  label = "CLICK · TIME",
-}: ViewfinderFrameProps) {
+export function ViewfinderFrame({ className }: ViewfinderFrameProps) {
   return (
     <div
       className={cn(
@@ -40,10 +36,6 @@ export function ViewfinderFrame({
       <span className="absolute bottom-[12%] left-1/2 h-2.5 w-0.5 -translate-x-1/2 bg-ck-black" />
       <span className="absolute left-[12%] top-1/2 h-0.5 w-2.5 -translate-y-1/2 bg-ck-black" />
       <span className="absolute right-[12%] top-1/2 h-0.5 w-2.5 -translate-y-1/2 bg-ck-black" />
-
-      <span className="ck-mono absolute bottom-[10%] left-1/2 -translate-x-1/2 rounded-[var(--ck-radius-sm)] bg-ck-black px-2 py-1 text-ck-yellow">
-        {label}
-      </span>
     </div>
   );
 }
