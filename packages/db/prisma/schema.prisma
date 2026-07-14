@@ -195,6 +195,10 @@ model User {
   infoSpotEditorialPhotoUsagesCreated  InfoSpotEditorialPhotoUsage[] @relation("InfoSpotEditorialPhotoUsageCreator")
   dnxInvitationsSent                   DnxAppInvitation[]           @relation("DnxAppInvitationInvitedBy")
   dnxInvitationsAccepted               DnxAppInvitation[]           @relation("DnxAppInvitationAcceptedBy")
+  /// Capacidades públicas multi-perfil (CUSTOMER / PHOTOGRAPHER / ORGANIZER). No editorial.
+  dnxPublicProfiles                    DnxUserProfile[]
+  /// Preferencias de Info Spot (onboarding, ubicación, notificaciones). No permisos.
+  infoSpotPreferences                  InfoSpotUserPreferences?
   contestOrganizationsCreated           ContestOrganization[]        @relation("FrOrgCreator")
   frContestOrgInvitesSent               ContestOrganizationMember[]  @relation("FrCOrgMemberInviter")
   frContestOrgMemberships               ContestOrganizationMember[]  @relation("FrCOrgMemberUser")
@@ -808,6 +812,64 @@ model DnxAppInvitation {
   @@index([email, app, status])
   @@index([expiresAt])
   @@index([invitedByUserId])
+}
+
+/// Perfil/capacidad pública DNX (multi). No incluye roles editoriales ni admin.
+enum DnxPublicProfileType {
+  CUSTOMER
+  PHOTOGRAPHER
+  ORGANIZER
+}
+
+enum DnxPublicProfileStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+}
+
+enum DnxPublicProfileSource {
+  SELF_SELECTED
+  CLF_EXISTING
+  ADMIN_ASSIGNED
+}
+
+/// Capacidades públicas del usuario (varios por User). Fuente de verdad multi-perfil.
+/// `User.role` permanece como legacy CLF (enum único).
+model DnxUserProfile {
+  id          String                 @id @default(cuid())
+  userId      Int
+  profileType DnxPublicProfileType
+  status      DnxPublicProfileStatus @default(ACTIVE)
+  source      DnxPublicProfileSource @default(SELF_SELECTED)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, profileType])
+  @@index([profileType, status])
+  @@index([userId, status])
+}
+
+/// Preferencias Info Spot (1:1). No mezcla permisos ni roles editoriales.
+model InfoSpotUserPreferences {
+  id                     String    @id @default(cuid())
+  userId                 Int       @unique
+  onboardingCompletedAt  DateTime?
+  city                   String?
+  province               String?
+  latitude               Float?
+  longitude              Float?
+  radiusKm               Int?
+  /// Slugs de categorías de interés (InfoSpotCategory.slug).
+  interestCategorySlugs  String[]  @default([])
+  notifyEventsNearby     Boolean   @default(false)
+  notifyCategories       Boolean   @default(false)
+  notifyCalls            Boolean   @default(false)
+  geoConsentAt           DateTime?
+  notificationsConsentAt DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum InfoSpotMemberStatus {
