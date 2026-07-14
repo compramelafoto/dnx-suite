@@ -1,8 +1,8 @@
 import type { MetadataRoute } from "next";
 
 /**
- * Robots provisionales: indexación deshabilitada hasta confirmar dominio y lanzamiento.
- * /design-system permanece excluida explícitamente.
+ * Robots provisionales: sitio en prelanzamiento (noindex general).
+ * /design-system permanece excluida de forma explícita.
  */
 export default function robots(): MetadataRoute.Robots {
   return {

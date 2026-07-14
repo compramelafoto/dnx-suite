@@ -61,7 +61,7 @@ apps/clickaton/
 - Recursos: `ViewfinderFrame`, `CoordinateGrid`, `EditorialLabel`, `BrushStroke`
 - **Sin shadcn/ui** (no existe en el monorepo; componentes propios)
 
-Doc: [`docs/clickaton/DESIGN_SYSTEM.md`](../../docs/clickaton/DESIGN_SYSTEM.md).
+Doc: [`docs/clickaton/DESIGN_SYSTEM.md`](../../docs/clickaton/DESIGN_SYSTEM.md) · [`docs/clickaton/PUBLIC_ARCHITECTURE.md`](../../docs/clickaton/PUBLIC_ARCHITECTURE.md).
 
 ## Decisiones técnicas
 

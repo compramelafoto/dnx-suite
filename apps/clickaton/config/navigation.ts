@@ -1,47 +1,65 @@
 /**
- * Navegación MVP — solo anclas a contenido existente en la Home.
+ * Rutas públicas tipadas — fuente única para nav, CTAs y metadata.
  */
+
+export const routes = {
+  home: "/",
+  marathons: "/maratones",
+  howItWorks: "/como-funciona",
+  community: "/comunidad",
+  organize: "/organizar",
+  sponsors: "/sponsors",
+  about: "/nosotros",
+  contact: "/contacto",
+  designSystem: "/design-system",
+} as const;
+
+export type AppRoute = (typeof routes)[keyof typeof routes];
 
 export type NavItem = {
   label: string;
-  href: string;
+  href: AppRoute | string;
 };
 
+/** Navegación principal del header (rutas reales). */
 export const mainNavigation: readonly NavItem[] = [
-  { label: "Qué es", href: "#que-es" },
-  { label: "Cómo funciona", href: "#como-funciona" },
-  { label: "Próximas", href: "#proximas" },
-  { label: "Comunidad", href: "#comunidad" },
-  { label: "Organizá una", href: "#organiza" },
-  { label: "Sponsors", href: "#sponsors" },
+  { label: "Inicio", href: routes.home },
+  { label: "Maratones", href: routes.marathons },
+  { label: "Cómo funciona", href: routes.howItWorks },
+  { label: "Comunidad", href: routes.community },
+  { label: "Organizá una", href: routes.organize },
+  { label: "Sponsors", href: routes.sponsors },
 ] as const;
 
+/** Footer: nav principal + páginas institucionales. */
 export const footerNavigation: readonly NavItem[] = [
-  { label: "Qué es", href: "#que-es" },
-  { label: "Cómo funciona", href: "#como-funciona" },
-  { label: "Próximas", href: "#proximas" },
-  { label: "Aprender", href: "#aprender" },
-  { label: "Comunidad", href: "#comunidad" },
-  { label: "Organizá una", href: "#organiza" },
-  { label: "Sponsors", href: "#sponsors" },
-  { label: "Preguntas", href: "#faq" },
+  { label: "Maratones", href: routes.marathons },
+  { label: "Cómo funciona", href: routes.howItWorks },
+  { label: "Comunidad", href: routes.community },
+  { label: "Organizá una", href: routes.organize },
+  { label: "Sponsors", href: routes.sponsors },
+  { label: "Nosotros", href: routes.about },
+  { label: "Contacto", href: routes.contact },
 ] as const;
 
 export const headerCta: NavItem = {
-  label: "Ver próximas maratones",
-  href: "#proximas",
+  label: "Ver maratones",
+  href: routes.marathons,
 };
 
-/** Áreas futuras — documentadas, sin enlaces rotos en la UI. */
+/** Áreas futuras — sin enlaces públicos todavía. */
 export const futureAreas = [
   "tienda",
+  "blog",
   "ranking",
   "galería",
-  "blog",
+  "hall de la fama",
   "perfiles",
+  "login",
   "inscripciones",
-  "jurados",
-  "paneles privados",
+  "checkout",
+  "paneles",
+  "términos",
+  "privacidad",
   "newsletter",
-  "contacto funcional",
 ] as const;

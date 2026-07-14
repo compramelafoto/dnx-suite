@@ -48,13 +48,15 @@ Catálogo interno: `/design-system` (noindex, fuera de la navegación pública).
 
 ### Etapa 03 — Home MVP de lanzamiento
 
-Home pública institucional con arquitectura de contenido en `content/home.ts`:
+Home pública institucional con arquitectura de contenido en `content/home.ts`.
 
-- Qué es, pilares, cómo funciona, próximas (placeholder)
-- Pedagogía, comunidad, programa de sedes, sponsors
-- Manifiesto, FAQ (`details`/`summary`), CTA final
-- Sin datos inventados (ciudades, fechas, precios, logos)
-- Sin inscripción, FotoRank, pagos ni tienda
+### Etapa 04 — Arquitectura pública y modelo de maratones
+
+- Rutas: `/maratones`, `/como-funciona`, `/comunidad`, `/organizar`, `/sponsors`, `/nosotros`, `/contacto`
+- Navegación por rutas reales (`config/navigation.ts`)
+- Modelo tipado `PublicMarathon` y relacionados (`types/marathon.ts`)
+- Documento: [PUBLIC_ARCHITECTURE.md](./PUBLIC_ARCHITECTURE.md)
+- Sin eventos inventados; ficha `/maratones/[slug]` pendiente (Etapa 05)
 
 ### Backlog
 

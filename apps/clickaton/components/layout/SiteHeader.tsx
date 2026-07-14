@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Wordmark } from "@/components/brand/Wordmark";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/Button";
-import { headerCta, mainNavigation } from "@/config/navigation";
+import { headerCta, mainNavigation, routes } from "@/config/navigation";
 import { cn } from "@/lib/cn";
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
@@ -27,21 +30,38 @@ export function SiteHeader() {
     };
   }, [open]);
 
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   return (
     <header className="sticky top-0 z-50 border-b border-ck-border bg-ck-white/95 backdrop-blur-sm">
       <Container className="flex h-16 items-center justify-between gap-4 lg:h-[4.25rem]">
-        <Wordmark />
+        <Wordmark href={routes.home} />
 
         <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Principal">
-          {mainNavigation.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="rounded-[var(--ck-radius-sm)] px-2.5 py-2 text-sm font-medium text-ck-text-secondary transition-colors hover:bg-ck-gray-100 hover:text-ck-text"
-            >
-              {item.label}
-            </a>
-          ))}
+          {mainNavigation.map((item) => {
+            const active =
+              item.href === routes.home
+                ? pathname === routes.home
+                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "rounded-[var(--ck-radius-sm)] px-2.5 py-2 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-ck-yellow text-ck-black"
+                    : "text-ck-text-secondary hover:bg-ck-gray-100 hover:text-ck-text",
+                )}
+                aria-current={active ? "page" : undefined}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -93,16 +113,27 @@ export function SiteHeader() {
         >
           <Container>
             <nav className="flex flex-col gap-1 py-4" aria-label="Móvil">
-              {mainNavigation.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className="rounded-[var(--ck-radius-sm)] px-3 py-3 text-base font-medium text-ck-text hover:bg-ck-gray-100"
-                  onClick={() => setOpen(false)}
-                >
-                  {item.label}
-                </a>
-              ))}
+              {mainNavigation.map((item) => {
+                const active =
+                  item.href === routes.home
+                    ? pathname === routes.home
+                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "rounded-[var(--ck-radius-sm)] px-3 py-3 text-base font-medium",
+                      active ? "bg-ck-yellow text-ck-black" : "text-ck-text hover:bg-ck-gray-100",
+                    )}
+                    aria-current={active ? "page" : undefined}
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
               <Button
                 href={headerCta.href}
                 className="mt-2"

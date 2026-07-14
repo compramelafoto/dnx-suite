@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { Wordmark } from "@/components/brand/Wordmark";
 import { Container } from "@/components/layout/Container";
 import { Divider } from "@/components/ui/Divider";
-import { footerNavigation } from "@/config/navigation";
+import { footerNavigation, routes } from "@/config/navigation";
 import { siteConfig } from "@/config/site";
 
 export function SiteFooter() {
@@ -11,11 +12,11 @@ export function SiteFooter() {
     <footer className="border-t border-ck-border bg-ck-black text-ck-white">
       <Container className="grid gap-10 py-12 md:grid-cols-[1.2fr_1fr]">
         <div className="space-y-4">
-          <Wordmark tone="inverse" href="#inicio" />
+          <Wordmark tone="inverse" href={routes.home} />
           <p className="ck-body-sm max-w-md text-ck-gray-200">{siteConfig.descriptor}</p>
           <p className="ck-body-sm max-w-md text-ck-gray-500">
-            Proyecto en desarrollo. Home pública de lanzamiento — sin inscripciones, catálogo
-            ni formularios activos todavía.
+            Proyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones,
+            catálogo ni formularios activos todavía.
           </p>
           <p className="ck-body-sm max-w-md text-ck-yellow/80">{siteConfig.promise}</p>
         </div>
@@ -25,12 +26,12 @@ export function SiteFooter() {
           <ul className="mt-4 space-y-2">
             {footerNavigation.map((item) => (
               <li key={item.href}>
-                <a
+                <Link
                   href={item.href}
                   className="ck-body-sm text-ck-gray-200 underline-offset-4 hover:text-ck-yellow hover:underline"
                 >
                   {item.label}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

@@ -1,3 +1,5 @@
+import { routes } from "@/config/navigation";
+
 /**
  * Contenido editorial de la Home MVP de lanzamiento.
  * Centralizado para revisión y futura migración a CMS / FotoRank.
@@ -16,8 +18,8 @@ export const homeContent = {
     description:
       "Una experiencia que transforma la ciudad en escenario y cada consigna en una oportunidad para crear, aprender y compartir.",
     tagline: "Fotografía + creatividad + comunidad",
-    primaryCta: { label: "Conocé cómo funciona", href: "#como-funciona" } satisfies HomeLink,
-    secondaryCta: { label: "Próximas maratones", href: "#proximas" } satisfies HomeLink,
+    primaryCta: { label: "Conocé cómo funciona", href: routes.howItWorks } satisfies HomeLink,
+    secondaryCta: { label: "Próximas maratones", href: routes.marathons } satisfies HomeLink,
   },
 
   whatIs: {
@@ -97,7 +99,7 @@ export const homeContent = {
     status: "Próximamente",
     message: "Próximamente anunciaremos las primeras ciudades y fechas.",
     note: "Las fechas se van a comunicar por los canales oficiales de Clickaton. No publicamos sedes, cupos ni precios inventados.",
-    cta: { label: "Ver próximas maratones", href: "#proximas" } satisfies HomeLink,
+    cta: { label: "Ver próximas maratones", href: routes.marathons } satisfies HomeLink,
   },
 
   learning: {
@@ -144,7 +146,7 @@ export const homeContent = {
     ],
     cta: {
       label: "Formá parte desde el comienzo",
-      href: "#proximas",
+      href: routes.community,
       note: "Próximamente — sin formulario activo todavía.",
     },
   },
@@ -166,7 +168,7 @@ export const homeContent = {
     ],
     cta: {
       label: "Quiero conocer el programa de sedes",
-      href: "#organiza",
+      href: routes.organize,
       note: "Próximamente — información y contacto sin formulario persistente en esta etapa.",
     },
   },
@@ -189,7 +191,7 @@ export const homeContent = {
     ],
     cta: {
       label: "Quiero acompañar el proyecto",
-      href: "#sponsors",
+      href: routes.sponsors,
       note: "Próximamente — sin planes comerciales ni logos inventados.",
     },
   },
@@ -251,8 +253,8 @@ export const homeContent = {
     id: "cta-final",
     title: "La primera Clickaton empieza mucho antes del disparo.",
     body: "Empieza cuando una comunidad decide salir a mirar su ciudad de otra manera.",
-    primaryCta: { label: "Conocé las próximas novedades", href: "#proximas" } satisfies HomeLink,
-    secondaryCta: { label: "Explorá cómo funciona", href: "#como-funciona" } satisfies HomeLink,
+    primaryCta: { label: "Conocé las próximas novedades", href: routes.marathons } satisfies HomeLink,
+    secondaryCta: { label: "Explorá cómo funciona", href: routes.howItWorks } satisfies HomeLink,
     note: "Sin newsletter ficticia ni captura de correos en esta etapa.",
   },
 } as const;

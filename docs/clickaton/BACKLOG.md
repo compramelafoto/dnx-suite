@@ -79,14 +79,19 @@ Documentado como pendiente para la preventa (no implementar en esta etapa):
 - CMS editorial (opcional)
 - Imágenes Open Graph oficiales
 
-## Home pública / producto (post Etapa 03)
+## Home pública / producto (post Etapa 03–04)
 
+- Ficha pública `/maratones/[slug]` (Etapa 05)
 - Eventos / maratones desde FotoRank
 - Inscripción real
 - Programa real de sedes (postulación y acompañamiento)
 - Propuesta comercial de sponsors (sin planes inventados todavía)
+- Aprobación del relato de origen y presentación de socios
+- Canales de contacto y redes oficiales
+- Páginas legales (términos / privacidad)
 - Tienda y merchandising para preventa
 - Galería / resultados / ranking públicos
+- Blog / CMS editorial
 
 ## Design System (post-MVP)
 

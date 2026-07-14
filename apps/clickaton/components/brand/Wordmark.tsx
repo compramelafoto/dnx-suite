@@ -13,7 +13,7 @@ type WordmarkProps = {
  */
 export function Wordmark({
   className = "",
-  href = "#inicio",
+  href = "/",
   tone = "default",
 }: WordmarkProps) {
   const toneClass = tone === "inverse" ? "text-ck-yellow" : "text-ck-black";
