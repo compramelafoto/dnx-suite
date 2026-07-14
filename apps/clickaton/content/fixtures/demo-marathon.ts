@@ -1,9 +1,10 @@
+/**
+ * Fixture técnico de ficha pública (desarrollo / Etapa 06).
+ * No es una edición anunciada. Ciudad, fechas, premios y personas son de ejemplo.
+ * Consumir solo vía `@/data/public-marathons` — no importar desde páginas.
+ */
 import type { PublicMarathon } from "@/types/marathon";
 
-/**
- * Fixture técnico de ficha pública.
- * No es una edición anunciada. Ciudad, fechas, premios y personas son de ejemplo.
- */
 export const demoMarathon: PublicMarathon = {
   id: "demo-marathon-001",
   slug: "demo",

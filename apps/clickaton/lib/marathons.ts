@@ -1,35 +1,17 @@
-import { marathonCatalog } from "@/content/demo-marathon";
+/**
+ * Helpers de presentación para la ficha (no son fuente de datos).
+ * El acceso a catálogo vive en `@/data/public-marathons`.
+ */
+
+import { isScheduleItemPublic } from "@/data/public-marathons/visibility";
 import type { PublicMarathon, PublicScheduleItem } from "@/types/marathon";
 
-/** Catálogo local provisional. En el futuro lo reemplaza FotoRank. */
-export function listMarathons(): PublicMarathon[] {
-  return [...marathonCatalog];
-}
-
-export function listPublicMarathons(): PublicMarathon[] {
-  return listMarathons().filter((m) => !m.isDemo && m.status !== "draft" && m.status !== "cancelled");
-}
-
-export function getMarathonBySlug(slug: string): PublicMarathon | undefined {
-  return listMarathons().find((m) => m.slug === slug);
-}
-
-export function getMarathonSlugs(): string[] {
-  return listMarathons().map((m) => m.slug);
-}
-
-/** Ítems de cronograma visibles antes del evento. */
+/** Ítems de cronograma visibles (idempotente si el payload ya viene sanitizado). */
 export function getPublicSchedule(
   marathon: Pick<PublicMarathon, "schedule" | "status">,
 ): PublicScheduleItem[] {
-  const duringOrAfter =
-    marathon.status === "in_progress" ||
-    marathon.status === "judging" ||
-    marathon.status === "results_published" ||
-    marathon.status === "archived";
-
   return marathon.schedule
-    .filter((item) => item.publicBeforeEvent || duringOrAfter)
+    .filter((item) => isScheduleItemPublic(item, marathon.status))
     .sort((a, b) => a.startAt.localeCompare(b.startAt));
 }
 

@@ -73,7 +73,9 @@ Contratos satélite (Etapa 05A): `apps/clickaton/types/public/*` — inscripció
 
 Documento: [FOTORANK_INTEGRATION_CONTRACT.md](./FOTORANK_INTEGRATION_CONTRACT.md).
 
-Catálogo local estructural: `content/demo-marathon.ts` · acceso: `lib/marathons.ts`.
+Catálogo local estructural: `content/fixtures/demo-marathon.ts` · acceso: `data/public-marathons` (servicio + fuente local).
+
+Ver [DATA_ACCESS_ARCHITECTURE.md](./DATA_ACCESS_ARCHITECTURE.md).
 
 ## 10. Estados públicos
 

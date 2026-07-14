@@ -3,20 +3,25 @@ import { notFound } from "next/navigation";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { MarathonDetailView } from "@/components/marathon/MarathonDetailView";
 import { routes } from "@/config/navigation";
-import { getMarathonBySlug, getMarathonSlugs } from "@/lib/marathons";
+import {
+  getPublicMarathonBySlug,
+  getPublicMarathonVisibility,
+  listRoutableMarathonSlugs,
+} from "@/data/public-marathons";
 import { buildPageMetadata } from "@/lib/seo";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export function generateStaticParams() {
-  return getMarathonSlugs().map((slug) => ({ slug }));
+export async function generateStaticParams() {
+  const slugs = await listRoutableMarathonSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const marathon = getMarathonBySlug(slug);
+  const marathon = await getPublicMarathonBySlug(slug);
   if (!marathon) {
     return buildPageMetadata({
       title: "Maratón no encontrada",
@@ -26,20 +31,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     });
   }
 
+  const visibility = getPublicMarathonVisibility(marathon);
+
   return buildPageMetadata({
-    title: marathon.isDemo
+    title: visibility.isDemo
       ? `${marathon.name} — ficha técnica`
       : `${marathon.name} — ${marathon.city}`,
     description: marathon.shortDescription,
     path: `/maratones/${marathon.slug}`,
+    // Prelanzamiento: forzar noindex. Cuando se active indexación, usar !visibility.indexable.
     noIndex: true,
   });
 }
 
 export default async function MarathonDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const marathon = getMarathonBySlug(slug);
+  const marathon = await getPublicMarathonBySlug(slug);
   if (!marathon) notFound();
+
+  const visibility = getPublicMarathonVisibility(marathon);
 
   return (
     <>
@@ -47,7 +57,7 @@ export default async function MarathonDetailPage({ params }: PageProps) {
         items={[
           { label: "Inicio", href: routes.home },
           { label: "Maratones", href: routes.marathons },
-          { label: marathon.isDemo ? "Demo técnica" : marathon.name },
+          { label: visibility.isDemo ? "Demo técnica" : marathon.name },
         ]}
       />
       <MarathonDetailView marathon={marathon} />

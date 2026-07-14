@@ -72,6 +72,14 @@ Home pública institucional con arquitectura de contenido en `content/home.ts`.
 - Documentación de arquitectura, matriz de consumo y dependencias Identity/Payments/CLF
 - Sin endpoints ni comportamiento
 
+### Etapa 06 — Adaptador / fuente de datos intercambiable
+
+- Interfaz `PublicMarathonDataSource` + fuente local + servicio público
+- Páginas sin import directo de fixtures
+- Normalización, visibilidad y sanitizado servidor
+- Documento: [DATA_ACCESS_ARCHITECTURE.md](./DATA_ACCESS_ARCHITECTURE.md)
+- Sin fetch real a FotoRank
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).

@@ -7,6 +7,7 @@ import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { marathonsPageContent } from "@/content/marathons";
+import { listPublicMarathons } from "@/data/public-marathons";
 import { buildPageMetadata } from "@/lib/seo";
 import { routes } from "@/config/navigation";
 
@@ -18,7 +19,10 @@ export const metadata: Metadata = buildPageMetadata({
   path: routes.marathons,
 });
 
-export default function MarathonsPage() {
+export default async function MarathonsPage() {
+  const listed = await listPublicMarathons();
+  const hasPublicEditions = listed.length > 0;
+
   return (
     <>
       <SimpleBreadcrumb current="Maratones" />
@@ -41,13 +45,15 @@ export default function MarathonsPage() {
           <h2 id="empty-marathons-title" className="sr-only">
             Estado de próximas maratones
           </h2>
-          <EmptyMarathonsState
-            message={content.empty.message}
-            note={content.empty.note}
-            formats={content.empty.formats}
-            registrationStatuses={content.empty.registrationStatuses}
-            cardHints={content.empty.cardHints}
-          />
+          {!hasPublicEditions ? (
+            <EmptyMarathonsState
+              message={content.empty.message}
+              note={content.empty.note}
+              formats={content.empty.formats}
+              registrationStatuses={content.empty.registrationStatuses}
+              cardHints={content.empty.cardHints}
+            />
+          ) : null}
         </Container>
       </Section>
 

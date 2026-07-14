@@ -1,7 +1,7 @@
 # Clickaton ↔ FotoRank — contrato de integración
 
 Documento de contrato funcional. **No es un schema de API final.**  
-Etapas: **05** (ficha + consignas) · **05A** (contratos satélite, sin UI).
+Etapas: **05** (ficha) · **05A** (contratos satélite) · **06** (fuente de datos intercambiable).
 
 ## 1. Principio
 
@@ -15,12 +15,37 @@ Etapas: **05** (ficha + consignas) · **05A** (contratos satélite, sin UI).
 
 ```
 FotoRank (datos públicos aprobados)
-  → Clickaton presenta /maratones/[slug]
+  → adaptador PublicMarathonDataSource (futuro)
+  → normalize + sanitize (Clickaton)
+  → servicio público
+  → páginas /maratones/[slug]
   → CTA inscripción → flujo FotoRank + DNX Identity
   → pagos → DNX Payments
-  → resultados / galería → contratos satélite
-  → compra de fotos ganadoras (futuro) → ComprameLaFoto
 ```
+
+Frontera contrato ↔ fuente: ver [DATA_ACCESS_ARCHITECTURE.md](./DATA_ACCESS_ARCHITECTURE.md).
+
+---
+
+## 1bis. Acceso a datos (Etapa 06)
+
+| Pieza | Rol |
+|-------|-----|
+| Contrato tipado | `PublicMarathon` + `types/public/*` |
+| Interfaz fuente | `PublicMarathonDataSource` |
+| Fuente actual | `local-source` + `content/fixtures/` |
+| Servicio | `data/public-marathons/service.ts` |
+| Adaptador FotoRank | **documentado, no implementado** (sin fetch) |
+
+Responsabilidad del adaptador futuro: mapear DTO → contratos Clickaton, sin filtrar seguridad a medias (usa `normalize` + `sanitize` compartidos).
+
+Filtrado servidor obligatorio antes de UI: consignas, cronograma, visibilidad.
+
+Errores tipados: `PublicMarathonNotFoundError`, `PayloadError`, `NotPublicError`, `SourceUnavailableError`.
+
+Caching futuro: tags por listado/ficha; consignas/resultados con invalidación corta; **datos personalizados nunca en caché pública**.
+
+Datos personalizados (eligibility, mi inscripción, QR, fotos) **fuera** del servicio público anónimo.
 
 ---
 
@@ -327,7 +352,7 @@ FotoRank public DTOs
   → …
 ```
 
-Hoy: `content/demo-marathon.ts` + `lib/marathons.ts` (solo estructural).
+Hoy: `content/fixtures/demo-marathon.ts` + `data/public-marathons/local-source.ts` vía servicio público.
 
 ---
 

@@ -92,8 +92,9 @@ Documentado como pendiente para la preventa (no implementar en esta etapa):
 - Tienda y merchandising para preventa
 - Galería / resultados / ranking públicos (payload real)
 - Blog / CMS editorial
-- Adaptador API FotoRank → `PublicMarathon` + contratos satélite (`types/public/*`)
+- Adaptador API FotoRank que implemente `PublicMarathonDataSource`
 - Consumo UI de `PublicRegistrationOffer` / `RegistrationEligibility` / results / gallery
+- Suite de tests unitarios en Clickaton (hoy sin infra de test)
 - URL canónica de inscripción + Identity
 
 ## Design System (post-MVP)

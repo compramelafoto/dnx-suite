@@ -59,11 +59,11 @@ apps/clickaton/
     home/              # Secciones de la Home
     content/           # PageHero, breadcrumbs, etc.
     marathon/          # Ficha pública de edición
-  lib/                 # cn, seo, marathons, challenges, datetime
-  types/marathon.ts    # Contrato público
-  styles/tokens.css + utilities.css
-  config/ + content/
-  public/brand/        # Futuros logos oficiales
+  lib/                 # cn, seo, challenges, helpers de presentación
+  data/public-marathons/ # servicio + fuente local intercambiable
+  types/marathon.ts    # Contrato público estructural
+  types/public/        # Contratos satélite
+  content/             # Copy editorial + fixtures/
 ```
 
 ## Sistema de Diseño MVP
