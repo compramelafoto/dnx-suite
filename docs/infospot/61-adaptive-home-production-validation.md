@@ -3,8 +3,10 @@
 **Fecha:** 2026-07-14  
 **Rama:** `migration-legacy-clf-to-monorepo`  
 **Estado de etapa:** **`COMPLETE_WITH_PROFILE_FIXTURES_LIMITED`**  
-**HEAD remoto:** `0641a25`  
-**Commits 22S:** `a0c93a1` (feat) · `5a231a1` (docs)
+**HEAD remoto:** `06a8701` (docs 22T)  
+**Production alias:** sirve **`06a8701`** · deploy `dpl_3TF4zf3gg66dnbmC4KfdkTB7hrkN`  
+**Commits 22S:** `a0c93a1` (feat) · `5a231a1` (docs)  
+**Feat Home en árbol:** incluido desde `a0c93a1` (ancestro de Production)
 
 No incluye secretos ni emails. Google Cloud **no** recreado. `infospot.com.ar` **no** lanzado públicamente (sin cutover DNS/OAuth día D).
 
@@ -12,17 +14,28 @@ No incluye secretos ni emails. Google Cloud **no** recreado. `infospot.com.ar` *
 
 ## 1. Matriz inicial
 
+### Production Neon (`bitter-salad`) — reconfirmado 2026-07-14
+
 | Área | Estado |
 |------|--------|
-| HEAD remoto | `0641a25` |
-| Production previa | `1dc8831` · `dpl_HanqYmsg…` / `ev4yocaz7` · health `db:ok` |
-| CUSTOMER ACTIVE | 15 (Preview/staging DB usada en QA auth) |
+| HEAD remoto | `06a8701` |
+| Production servida | `06a8701` · `dpl_3TF4zf3…` · health `db:ok` |
+| Schema | **up to date** (40 migraciones · ninguna aplicada en 22T) |
+| Users | 3 |
+| CUSTOMER ACTIVE | 3 |
+| PHOTOGRAPHER ACTIVE | 0 |
+| ORGANIZER ACTIVE | 0 |
+| Roles editoriales | DIRECTOR 2 · REDACTOR 1 (todos ACTIVE) |
+| Home Production | Resolver 22S activo (guest / CUSTOMER editorial) |
+
+### Preview QA auth (DB Preview/staging — no confundir con Prod)
+
+| Área | Estado |
+|------|--------|
+| CUSTOMER ACTIVE | 15 |
 | PHOTOGRAPHER ACTIVE | 8 |
 | ORGANIZER ACTIVE | 1 |
-| Roles editoriales | DIRECTOR 1 · REDACTOR 4 · COLABORADOR 1 |
-| Home previa en Production | Sin resolver 22S (commit anterior a `a0c93a1`) |
-
-Combos ACTIVE observados (sin PII): `CUSTOMER`×6 · `CUSTOMER+PHOTOGRAPHER`×8 · `CUSTOMER+ORGANIZER`×1. Sin triple perfil.
+| Combos | `CUSTOMER`×6 · `CUSTOMER+PHOTOGRAPHER`×8 · `CUSTOMER+ORGANIZER`×1 · sin triple |
 
 ---
 
@@ -102,20 +115,22 @@ Limitación fixtures: no hay PHOTOGRAPHER u ORGANIZER ACTIVE sin CUSTOMER; PHOTO
 
 | Ítem | Valor |
 |------|-------|
-| Deploy | `dpl_GUdFRJyVZJ8hXBfwR1iQ6pJcDudA` (promote desde Preview) |
-| URL deploy | `infospot-dnxsuite-5gx691nmj-…vercel.app` |
+| Deploy | `dpl_3TF4zf3gg66dnbmC4KfdkTB7hrkN` |
+| URL deploy | `infospot-dnxsuite-35nyodc2x-…vercel.app` |
 | Alias | `https://infospot-dnxsuite.vercel.app` |
-| Commit servido | **`0641a25`** |
-| Health | `status=ok` · `db=ok` · `version=0641a25` |
-| Dominio propio | **No** asociado/lanzado en esta etapa |
+| Commit servido | **`06a8701`** |
+| Health | `status=ok` · `db=ok` · `version=06a8701` |
+| Dominio propio | DNS/Vercel domains existen; **lanzamiento público NO-GO** (OAuth día D / Search Console / cutover) |
 
-### Smoke Production
+### Smoke Production (reconfirmado)
 
 | Check | Resultado |
 |-------|-----------|
-| Anónimo Home | 200 · guest · sin «Ver como» · sin `/redaccion` · cache privada |
-| `/redaccion` anónimo | 307 |
-| Auth Production | **No repetido** — `DATABASE_URL` Production es **sensitive** (CLI no exporta valor). Sesiones mintadas en staging no aplican a Production runtime. |
+| Anónimo Home | 200 · guest · sin «Ver como» · sin Panel · CTA Publicar · `Cache-Control: private, no-cache, no-store` |
+| `/redaccion` anónimo | **307** → `/ingresar?forbidden=login` |
+| `/completar-perfil` anónimo | **307** → login |
+| `/admin` anónimo | **307** → login |
+| Auth Production PHOTOGRAPHER/ORGANIZER | **Limitado** — Prod solo tiene CUSTOMER×3 (+ editorial). Multi PHOTO/ORG validado en Preview. |
 
 ---
 

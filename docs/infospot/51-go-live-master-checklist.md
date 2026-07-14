@@ -13,7 +13,7 @@
 | Launch Readiness (pre-DNS) | **~96%** |
 | Multimedia R2 | **COMPLETE** · `VERIFIED_WORKING` ([doc 50](./50-multimedia-production-gate.md)) |
 | Home adaptativa (22S/22T) | **Production** sirve `0641a25` · QA Preview auth OK · [doc 61](./61-adaptive-home-production-validation.md) |
-| Production commit | **`0641a25`** · deploy `dpl_GUdFRJyVZJ8hXBfwR1iQ6pJcDudA` · Ready · health `db:ok` |
+| Production commit | **`06a8701`** · deploy `dpl_3TF4zf3…` · Ready · health `db:ok` |
 
 Referencias: [`42-production-go-live.md`](./42-production-go-live.md) · [`43-launch-readiness.md`](./43-launch-readiness.md) · [`44-editorial-operations-manual.md`](./44-editorial-operations-manual.md) · [`45-production-services-readiness.md`](./45-production-services-readiness.md) · [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)
 
