@@ -132,6 +132,15 @@ Limitación fixtures: no hay PHOTOGRAPHER u ORGANIZER ACTIVE sin CUSTOMER; PHOTO
 | `/admin` anónimo | **307** → login |
 | Auth Production PHOTOGRAPHER/ORGANIZER | **Limitado** — Prod solo tiene CUSTOMER×3 (+ editorial). Multi PHOTO/ORG validado en Preview. |
 
+### 22U (cuenta editorial)
+
+| Check | Resultado |
+|-------|-----------|
+| Panel Redacción en Home | Visible con membresía |
+| «Ver como» | Ausente (solo CUSTOMER; sin PHOTO/ORG — válido) |
+| Cache privada | Sin cambio |
+| Evidencia | [62](./62-editorial-roles-and-day-one-content-gate.md) |
+
 ---
 
 ## 7. Responsive / a11y / consola
@@ -172,6 +181,6 @@ QA visual viewport-by-viewport y Lighthouse completo: **no** ejecutados en brows
 
 ## 10. Siguiente etapa recomendada
 
-1. Smoke autenticado Production vía OAuth Director real (o export autorizado de `DATABASE_URL`).  
-2. Checklist día D dominio ([`51`](./51-go-live-master-checklist.md)).  
+1. ~~Smoke autenticado Production~~ → cerrado en **22U** ([62](./62-editorial-roles-and-day-one-content-gate.md)); OAuth browser humano pendiente.  
+2. Contenido Día 1 reales (`COMPLETE_PENDING_REAL_CONTENT`) + checklist día D dominio ([`51`](./51-go-live-master-checklist.md)).  
 3. No mezclar con features nuevas de Home.

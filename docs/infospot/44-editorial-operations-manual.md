@@ -427,6 +427,8 @@ Fuente de verdad: `packages/db/src/infospot-permissions.ts`.
 
 **SUPER_ADMIN** de la suite DNX: bypass editorial (tratar como Director).
 
+**Validación Production 22U:** membresías Director×2 + Redactor×1 clasificadas `VALID_*`; Redactor con `canPublish=true` (distribución y publish según flag). Evidencia y matriz smoke en [62](./62-editorial-roles-and-day-one-content-gate.md). Cleanup R2: solo Director (Redactor 403).
+
 ---
 
 ## 10. Coberturas, convocatorias y distribución (resumen operativo)

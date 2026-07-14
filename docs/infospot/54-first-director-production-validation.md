@@ -4,7 +4,8 @@
 **Rama:** `migration-legacy-clf-to-monorepo`  
 **Alias:** `https://infospot-dnxsuite.vercel.app`  
 **Precondición:** login Google operativo (ver [55](./55-google-login-production-fix.md))  
-**Estado 22Q:** Director **ACTIVE** asignado vía `db:grant-infospot-director` (idempotente OK). Re-login del operador pendiente para entrar a `/redaccion`.
+**Estado 22Q:** Director **ACTIVE** asignado vía `db:grant-infospot-director` (idempotente OK).  
+**Estado 22U:** Director×2 + Redactor×1 auditados `VALID_*`; smoke sesión `/redaccion` **200**; OAuth browser completo sigue **PENDING_HUMAN**. Ver [62](./62-editorial-roles-and-day-one-content-gate.md).
 
 No incluye emails ni secretos.
 
