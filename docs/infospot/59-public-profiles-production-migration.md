@@ -5,8 +5,8 @@
 **Estado de etapa:** **`COMPLETE`**  
 **Neon:** `infospot-production` / `ep-bitter-salad…`  
 **Alias:** `https://infospot-dnxsuite.vercel.app`  
-**App Production:** `1dc8831` · health `db:ok`  
-**Código onboarding:** desde `fb3d236` (22R-B); sin redeploy requerido en 22R-C (solo DB)
+**App Production:** `0641a25` (Home adaptativa 22T · [`61`](./61-adaptive-home-production-validation.md)) · health `db:ok`  
+**Código onboarding:** desde `fb3d236` (22R-B); migración DB en 22R-C; Home adaptativa desplegada en 22T
 
 No incluye emails, URLs de DB ni secretos.  
 Base: [`57-public-profile-onboarding-and-editorial-access.md`](./57-public-profile-onboarding-and-editorial-access.md).

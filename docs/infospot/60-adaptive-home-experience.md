@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-07-14  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**Estado:** implementado en código  
+**Estado:** implementado en código · **validado en Production** (Etapa 22T · [`61`](./61-adaptive-home-production-validation.md)) · commit servido `0641a25`  
 **Dependencias:** [`57`](./57-public-profile-onboarding-and-editorial-access.md) · [`59`](./59-public-profiles-production-migration.md)
 
 No incluye secretos. Sin cambios Prisma / OAuth / Redacción / CLF / DNS.

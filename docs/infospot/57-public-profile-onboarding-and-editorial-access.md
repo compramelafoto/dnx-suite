@@ -2,7 +2,8 @@
 
 **Fecha:** 2026-07-13  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**Estado:** implementado; **staging** (`ep-dawn-dew…`) migrado + backfill; **Production** (`ep-bitter-salad…`) migrado + backfill en 22R-C — ver [`59`](./59-public-profiles-production-migration.md)
+**Estado:** implementado; **staging** (`ep-dawn-dew…`) migrado + backfill; **Production** (`ep-bitter-salad…`) migrado + backfill en 22R-C — ver [`59`](./59-public-profiles-production-migration.md)  
+**Home adaptativa:** validada en Preview + desplegada en Production (`0641a25`) — ver [`60`](./60-adaptive-home-experience.md) · [`61`](./61-adaptive-home-production-validation.md)
 
 No incluye emails ni secretos.
 
