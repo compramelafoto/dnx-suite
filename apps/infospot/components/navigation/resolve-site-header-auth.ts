@@ -5,14 +5,37 @@ import {
   toPermissionSubject,
 } from "@/lib/infospot-access";
 import { getAuthUser } from "@/lib/auth";
+import { listActivePublicProfiles } from "@/lib/dnx-user-profiles";
+import {
+  resolveHomeExperience,
+  type HomeHeaderLink,
+} from "@/lib/home-experience";
+import { readPreferredHomeModeFromCookie } from "@/app/actions/home-experience";
 import type { SiteHeaderAuth } from "@/components/navigation/HeaderAuthActions";
 
-/** Resuelve estado de sesión para el header público (sin lanzar redirects). */
-export async function resolveSiteHeaderAuth(): Promise<SiteHeaderAuth | null> {
-  const user = await getAuthUser();
-  if (!user) return null;
+export type SiteHeaderChrome = {
+  auth: SiteHeaderAuth | null;
+  primaryCta: HomeHeaderLink | null;
+  secondaryLinks: HomeHeaderLink[];
+};
 
-  const membership = await getInfoSpotMembership(user.id);
+/** Resuelve sesión + CTAs de Home adaptativa para el header público. */
+export async function resolveSiteHeaderChrome(): Promise<SiteHeaderChrome> {
+  const user = await getAuthUser();
+  if (!user) {
+    const guest = resolveHomeExperience({ activeProfiles: [] });
+    return {
+      auth: null,
+      primaryCta: guest.headerPrimaryCta,
+      secondaryLinks: guest.headerSecondaryLinks,
+    };
+  }
+
+  const [membership, profiles, preferredMode] = await Promise.all([
+    getInfoSpotMembership(user.id),
+    listActivePublicProfiles(user.id),
+    readPreferredHomeModeFromCookie(),
+  ]);
   const subject = toPermissionSubject(user, membership);
   const hasPanel =
     user.globalRole === "SUPER_ADMIN" ||
@@ -24,9 +47,24 @@ export async function resolveSiteHeaderAuth(): Promise<SiteHeaderAuth | null> {
     : user.email;
   const label = user.name?.trim() || emailLocal;
 
+  const experience = resolveHomeExperience({
+    activeProfiles: profiles.map((p) => p.profileType),
+    preferredMode,
+  });
+
   return {
-    label,
-    panelHref: hasPanel ? "/redaccion" : "/",
-    panelLabel: hasPanel ? "Panel" : "Inicio",
+    auth: {
+      label,
+      panelHref: hasPanel ? "/redaccion" : "/",
+      panelLabel: hasPanel ? "Panel" : "Inicio",
+    },
+    primaryCta: experience.headerPrimaryCta,
+    secondaryLinks: experience.headerSecondaryLinks,
   };
+}
+
+/** @deprecated Preferí resolveSiteHeaderChrome */
+export async function resolveSiteHeaderAuth(): Promise<SiteHeaderAuth | null> {
+  const chrome = await resolveSiteHeaderChrome();
+  return chrome.auth;
 }

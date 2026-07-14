@@ -17,3 +17,5 @@ export { HomeWeekendAgenda } from "./HomeWeekendAgenda";
 export { HomeLatestCoverages } from "./HomeLatestCoverages";
 export { HomeMostRead } from "./HomeMostRead";
 export { HomeUpcomingEvents } from "./HomeUpcomingEvents";
+export { HomeExperienceSwitcher } from "./HomeExperienceSwitcher";
+export { HomeAdaptiveSections } from "./HomeAdaptiveSections";

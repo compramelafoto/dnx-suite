@@ -12,6 +12,7 @@ import {
   mobileNavGroups,
   primaryNavLinks,
 } from "@/components/navigation/nav-links";
+import type { HomeHeaderLink } from "@/lib/home-experience";
 
 export type NavLink = {
   href: string;
@@ -21,6 +22,8 @@ export type NavLink = {
 type Props = {
   links: NavLink[];
   auth?: SiteHeaderAuth | null;
+  primaryCta?: HomeHeaderLink | null;
+  secondaryLinks?: HomeHeaderLink[];
 };
 
 function NavIcon({ label }: { label: string }) {
@@ -93,7 +96,12 @@ function NavIcon({ label }: { label: string }) {
   }
 }
 
-export function MobileNavigation({ links, auth = null }: Props) {
+export function MobileNavigation({
+  links,
+  auth = null,
+  primaryCta = null,
+  secondaryLinks = [],
+}: Props) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const panelId = useId();
@@ -199,20 +207,23 @@ export function MobileNavigation({ links, auth = null }: Props) {
                   className="mb-2"
                   onNavigate={() => setOpen(false)}
                 />
-                <Link
-                  href="/publicar-evento"
-                  className="is-btn is-btn-solid h-11 w-full text-sm font-semibold transition-opacity hover:opacity-90"
-                  onClick={() => setOpen(false)}
-                >
-                  Publicar evento
-                </Link>
-                <Link
-                  href="/quienes-somos"
-                  className="inline-flex h-11 w-full items-center justify-center text-sm font-medium text-[var(--is-text-secondary)] ring-1 ring-[var(--is-border)] transition-colors hover:text-[var(--is-text)]"
-                  onClick={() => setOpen(false)}
-                >
-                  Quiero cubrir como fotógrafo
-                </Link>
+                {(primaryCta
+                  ? [primaryCta, ...secondaryLinks]
+                  : [{ href: "/publicar-evento", label: "Publicar evento" }, ...secondaryLinks]
+                ).map((link, index) => (
+                  <Link
+                    key={`${link.href}-${link.label}`}
+                    href={link.href}
+                    className={
+                      index === 0
+                        ? "is-btn is-btn-solid h-11 w-full text-sm font-semibold transition-opacity hover:opacity-90"
+                        : "inline-flex h-11 w-full items-center justify-center text-sm font-medium text-[var(--is-text-secondary)] ring-1 ring-[var(--is-border)] transition-colors hover:text-[var(--is-text)]"
+                    }
+                    onClick={() => setOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
               </div>
             </div>
           </div>,

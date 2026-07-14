@@ -14,6 +14,7 @@ import {
   type NavLink,
 } from "@/components/navigation/MobileNavigation";
 import { primaryNavLinks } from "@/components/navigation/nav-links";
+import type { HomeHeaderLink } from "@/lib/home-experience";
 
 export { primaryNavLinks };
 
@@ -21,6 +22,10 @@ type Props = {
   links?: NavLink[];
   /** Sesión DNX resuelta en el layout (null = visitante). */
   auth?: SiteHeaderAuth | null;
+  /** CTA principal según experiencia de Home. */
+  primaryCta?: HomeHeaderLink | null;
+  /** Accesos secundarios del perfil activo (sin acciones editoriales). */
+  secondaryLinks?: HomeHeaderLink[];
 };
 
 function MastheadBar() {
@@ -94,7 +99,12 @@ function SearchField({ className }: { className?: string }) {
  * Masthead scrollea fuera del flujo; la barra sticky mantiene altura fija
  * (evitar colapsar padding/filas con JS: causa jitter al pelear con sticky).
  */
-export function SiteHeader({ links = primaryNavLinks, auth = null }: Props) {
+export function SiteHeader({
+  links = primaryNavLinks,
+  auth = null,
+  primaryCta = null,
+  secondaryLinks = [],
+}: Props) {
   const [scrolled, setScrolled] = useState(false);
   const mobileLinks: NavLink[] = [{ href: "/", label: "Inicio" }, ...links];
 
@@ -112,6 +122,8 @@ export function SiteHeader({ links = primaryNavLinks, auth = null }: Props) {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const cta = primaryCta ?? { href: "/publicar-evento", label: "Publicar evento" };
 
   return (
     <>
@@ -132,16 +144,31 @@ export function SiteHeader({ links = primaryNavLinks, auth = null }: Props) {
             <div className="flex min-w-0 flex-1 items-center justify-end gap-2.5 md:gap-3 lg:gap-5">
               <SearchField className="hidden min-w-0 flex-1 md:block lg:max-w-md xl:max-w-xl" />
 
+              {secondaryLinks.map((link) => (
+                <Link
+                  key={`${link.href}-${link.label}`}
+                  href={link.href}
+                  className="hidden h-8 shrink-0 items-center px-2.5 text-[13px] font-medium tracking-[-0.01em] text-[var(--is-text-secondary)] transition-colors duration-200 hover:text-[var(--is-text)] lg:inline-flex"
+                >
+                  {link.label}
+                </Link>
+              ))}
+
               <Link
-                href="/publicar-evento"
+                href={cta.href}
                 className="hidden h-8 shrink-0 items-center px-3 text-[13px] font-medium tracking-[-0.01em] text-[var(--is-text-secondary)] ring-1 ring-[var(--is-border)] transition-colors duration-200 hover:text-[var(--is-text)] hover:ring-[var(--is-graphite-400)] sm:inline-flex"
               >
-                Publicar evento
+                {cta.label}
               </Link>
 
               <HeaderAuthActions auth={auth} />
 
-              <MobileNavigation links={mobileLinks} auth={auth} />
+              <MobileNavigation
+                links={mobileLinks}
+                auth={auth}
+                primaryCta={cta}
+                secondaryLinks={secondaryLinks}
+              />
             </div>
           </div>
 

@@ -22,6 +22,7 @@
     "test:r2-read": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/r2-read.test.ts",
     "test:google-oauth-start": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/google-oauth-start.test.ts",
     "test:post-login-destination": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/post-login-destination.test.ts",
+    "test:home-experience": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/home-experience.test.ts",
     "admin:grant-director": "pnpm --filter @repo/db db:grant-infospot-director",
     "test:editorial-assistant": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-assistant/editorial-assistant.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/redaccion-ia.test.ts",
     "test:public-coverage": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/public-coverage/public-coverage.test.ts",
