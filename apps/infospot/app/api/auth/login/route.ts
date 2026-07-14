@@ -2,16 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
 import { verifyPassword } from "@repo/auth";
 import {
+  EDITORIAL_ACCESS_DENIED_NOTICE,
   attachInfoSpotSessionCookieToResponse,
   loadPostLoginDestination,
   safeInfoSpotNextPath,
 } from "@/lib/google-login";
-import {
-  canAccessInfoSpotAdmin,
-  canAccessInfoSpotRedaccion,
-  getInfoSpotMembership,
-  toPermissionSubject,
-} from "@/lib/infospot-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,14 +19,9 @@ function redirectIngresar(baseUrl: string, message: string) {
 
 /**
  * Login email/contraseña vía Route Handler (Set-Cookie fiable, mismo patrón que OAuth).
- *
- * Importante: el redirect post-login usa el **origin del request** (no APP_URL del env).
- * Si redirigimos a otro host (p. ej. .com.ar → *.vercel.app), el browser no envía
- * la cookie y el usuario vuelve a `/ingresar?forbidden=login`.
  */
 export async function POST(req: Request) {
   const origin = new URL(req.url).origin;
-  // Solo para mensajes de error absolutos hacia /ingresar en el mismo host.
   const baseUrl = origin;
 
   try {
@@ -39,7 +29,7 @@ export async function POST(req: Request) {
     const email = form.get("email")?.toString()?.trim().toLowerCase() ?? "";
     const password = form.get("password")?.toString() ?? "";
     const rememberMe = form.get("rememberMe") === "on";
-    const next = safeInfoSpotNextPath(form.get("next")?.toString());
+    const next = safeInfoSpotNextPath(form.get("next")?.toString(), "/");
 
     if (!email) return redirectIngresar(baseUrl, "El email es obligatorio.");
     if (!password) return redirectIngresar(baseUrl, "La contraseña es obligatoria.");
@@ -79,33 +69,7 @@ export async function POST(req: Request) {
       return redirectIngresar(baseUrl, "Email o contraseña incorrectos.");
     }
 
-    const isSuperAdmin = user.role === "SUPER_ADMIN";
-    const membership = await getInfoSpotMembership(user.id);
-    const subject = toPermissionSubject(
-      {
-        id: user.id,
-        name: null,
-        email,
-        role: user.role,
-        globalRole: isSuperAdmin ? "SUPER_ADMIN" : "USER",
-        avatarUrl: null,
-        currentWorkspaceId: null,
-        workspaceRole: null,
-        appAccess: [],
-      },
-      membership,
-    );
-
-    const canEnter =
-      isSuperAdmin ||
-      canAccessInfoSpotRedaccion(subject) ||
-      canAccessInfoSpotAdmin(subject);
-
-    let destinationPath = "/ingresar/acceso-pendiente";
-    if (canEnter) {
-      const destination = await loadPostLoginDestination(user.id, user.role, next);
-      destinationPath = destination.path;
-    }
+    const destination = await loadPostLoginDestination(user.id, user.role, next);
 
     try {
       await prisma.user.update({
@@ -116,13 +80,9 @@ export async function POST(req: Request) {
       console.error("[infospot/login] lastLoginAt update failed:", err);
     }
 
-    // Relative Location: misma host que el POST → la cookie Set-Cookie aplica al siguiente GET.
-    const target = new URL(destinationPath, origin);
-    if (!canEnter) {
-      target.searchParams.set(
-        "notice",
-        "No tenés acceso editorial. Solicitá permisos al Director.",
-      );
+    const target = new URL(destination.path, origin);
+    if (destination.reason === "editorial_denied") {
+      target.searchParams.set("notice", EDITORIAL_ACCESS_DENIED_NOTICE);
     }
 
     const res = NextResponse.redirect(target);

@@ -112,7 +112,7 @@ export async function requireInfoSpotRedaccionAccess(): Promise<InfoSpotAccessCo
   const membership = await getInfoSpotMembership(user.id);
   const subject = toPermissionSubject(user, membership);
   if (!canAccessInfoSpotRedaccion(subject)) {
-    redirect("/ingresar?forbidden=infospot-redaccion");
+    redirect("/ingresar?forbidden=infospot-redaccion&next=%2Fredaccion");
   }
   return { user, membership, subject: subject! };
 }
@@ -122,7 +122,7 @@ export async function requireInfoSpotAdminAccess(): Promise<InfoSpotAccessContex
   const membership = await getInfoSpotMembership(user.id);
   const subject = toPermissionSubject(user, membership);
   if (!canAccessInfoSpotAdmin(subject)) {
-    redirect("/ingresar?forbidden=infospot-admin");
+    redirect("/ingresar?forbidden=infospot-admin&next=%2Fadmin");
   }
   return { user, membership, subject: subject! };
 }

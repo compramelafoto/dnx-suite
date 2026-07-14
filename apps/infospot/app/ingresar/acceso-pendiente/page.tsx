@@ -5,7 +5,7 @@ import { getAuthUser } from "@/lib/auth";
 import { logoutAction } from "../actions";
 
 export const metadata: Metadata = {
-  title: "Acceso pendiente",
+  title: "Sin acceso a Redacción",
   robots: { index: false, follow: false },
 };
 
@@ -22,12 +22,12 @@ export default async function AccesoPendientePage({
   const user = await getAuthUser();
   const notice =
     params.notice?.trim() ||
-    "No tenés acceso editorial. Solicitá permisos al Director.";
+    "Tu cuenta está activa, pero todavía no tiene acceso a la Redacción.";
 
   return (
     <PageShell
-      title="Sin acceso editorial"
-      description="Tu identidad DNX está lista; falta el rol editorial de Info Spot."
+      title="Sin acceso a la Redacción"
+      description="Tu cuenta pública de Info Spot funciona; el acceso editorial es solo por invitación."
     >
       <div className="mx-auto w-full max-w-lg space-y-8">
         <p
@@ -39,28 +39,33 @@ export default async function AccesoPendientePage({
 
         {user ? (
           <p className="text-sm leading-relaxed text-[var(--is-muted)]">
-            Sesión: <span className="font-medium text-[var(--is-text)]">{user.email}</span>
+            Sesión activa. Esto no bloquea el resto del sitio.
           </p>
         ) : null}
 
         <p className="text-sm leading-relaxed text-[var(--is-muted)]">
-          Los permisos se administran solo desde el panel del Director (
-          <code className="text-xs">/admin/usuarios</code>). Cuando te asignen un rol activo,
-          volvé a ingresar.
+          Si te invitaron al equipo, usá el enlace de invitación. El Director asigna roles
+          desde el panel interno; no hay autoasignación.
         </p>
 
         <div className="flex flex-wrap gap-3">
           <Link
+            href="/"
+            className="inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-[var(--is-bg)]"
+          >
+            Volver a Info Spot
+          </Link>
+          <Link
             href="/ingresar"
             className="inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white px-4 text-sm font-semibold text-[var(--is-text)]"
           >
-            Volver a ingresar
+            Aceptar una invitación
           </Link>
           {user ? (
             <form action={logoutAction}>
               <button
                 type="submit"
-                className="inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-[var(--is-bg)]"
+                className="inline-flex min-h-11 items-center justify-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-semibold text-[var(--is-text)]"
               >
                 Cerrar sesión
               </button>

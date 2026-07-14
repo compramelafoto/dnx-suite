@@ -14,6 +14,7 @@ import {
 import { prisma } from "@repo/db";
 import {
   INFOSPOT_GOOGLE_OAUTH_APP,
+  EDITORIAL_ACCESS_DENIED_NOTICE,
   activateInfoSpotInvitationForUser,
   attachInfoSpotSessionCookieToResponse,
   findInfoSpotPendingInvitation,
@@ -23,9 +24,6 @@ import { SESSION_COOKIE_OPTIONS } from "@/lib/session-cookie";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const NO_EDITORIAL_ACCESS_NOTICE =
-  "No tenés acceso editorial. Solicitá permisos al Director.";
 
 function redirectIngresar(baseUrl: string, message: string) {
   const url = new URL("/ingresar", baseUrl);
@@ -142,8 +140,8 @@ export async function GET(req: Request) {
     });
 
     const target = new URL(destination.path, origin);
-    if (!destination.hasAccess) {
-      target.searchParams.set("notice", NO_EDITORIAL_ACCESS_NOTICE);
+    if (destination.reason === "editorial_denied") {
+      target.searchParams.set("notice", EDITORIAL_ACCESS_DENIED_NOTICE);
     }
 
     const res = NextResponse.redirect(target);

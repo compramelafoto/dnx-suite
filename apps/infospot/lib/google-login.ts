@@ -15,7 +15,14 @@ import {
   toPermissionSubject,
 } from "@/lib/infospot-access";
 import type { AuthUser } from "@/lib/auth";
-import { safeInfoSpotNextPath } from "@/lib/google-oauth-start";
+import {
+  hasActivePublicProfile,
+  isOnboardingComplete,
+} from "@/lib/dnx-user-profiles";
+import {
+  resolveInfoSpotPostLoginDestination,
+  type PostLoginDestination,
+} from "@/lib/post-login-destination";
 
 export {
   buildGoogleOAuthStartHref,
@@ -25,9 +32,12 @@ export {
 
 export const INFOSPOT_GOOGLE_OAUTH_APP = "infospot";
 
+export const EDITORIAL_ACCESS_DENIED_NOTICE =
+  "Tu cuenta está activa, pero todavía no tiene acceso a la Redacción.";
+
 /**
- * Destino post-login según rol Info Spot.
- * Si `next` es un path seguro distinto del default y el usuario tiene acceso, se respeta.
+ * @deprecated Prefer `resolveInfoSpotPostLoginDestination` (multi-perfil).
+ * Conservado para tests legacy de membresía editorial.
  */
 export function resolveInfoSpotPostLoginPath(params: {
   suiteRole: string;
@@ -36,8 +46,7 @@ export function resolveInfoSpotPostLoginPath(params: {
   next?: string | null;
 }): { path: string; hasAccess: boolean } {
   const isSuperAdmin = params.suiteRole === "SUPER_ADMIN";
-  const active =
-    params.membershipStatus === "ACTIVE" || isSuperAdmin;
+  const active = params.membershipStatus === "ACTIVE" || isSuperAdmin;
   const role = isSuperAdmin
     ? params.membershipRole ?? "INFOSPOT_DIRECTOR"
     : params.membershipRole;
@@ -71,18 +80,19 @@ export function resolveInfoSpotPostLoginPath(params: {
     canAccessInfoSpotRedaccion(subject) ||
     canAccessInfoSpotAdmin(subject);
 
-  if (!hasAccess) {
-    return { path: "/ingresar/acceso-pendiente", hasAccess: false };
-  }
+  const dest = resolveInfoSpotPostLoginDestination({
+    suiteRole: params.suiteRole,
+    membershipRole: params.membershipRole,
+    membershipStatus: params.membershipStatus,
+    next: params.next,
+    hasEditorialAccess: hasAccess,
+    // Legacy helper: sin datos de onboarding → asumir completo si no hay acceso editorial
+    // para no romper callers viejos; loadPostLoginDestination usa datos reales.
+    onboardingCompleted: true,
+    hasActivePublicProfile: true,
+  });
 
-  // Director / Redactor / Colaborador → /redaccion (default).
-  // Se respeta `next` seguro distinto del login.
-  const next = safeInfoSpotNextPath(params.next, "");
-  if (next && next !== "/redaccion" && next !== "/ingresar" && next !== "/ingresar/acceso-pendiente") {
-    return { path: next, hasAccess: true };
-  }
-
-  return { path: "/redaccion", hasAccess: true };
+  return { path: dest.path, hasAccess: dest.hasEditorialAccess };
 }
 
 export async function attachInfoSpotSessionCookieToResponse(
@@ -161,12 +171,53 @@ export async function findInfoSpotPendingInvitation(email: string) {
   });
 }
 
-export async function loadPostLoginDestination(userId: number, suiteRole: string, next?: string | null) {
+export async function loadPostLoginDestination(
+  userId: number,
+  suiteRole: string,
+  next?: string | null,
+): Promise<PostLoginDestination> {
   const membership = await getInfoSpotMembership(userId);
-  return resolveInfoSpotPostLoginPath({
+  const isSuperAdmin = suiteRole === "SUPER_ADMIN";
+  const subject = toPermissionSubject(
+    {
+      id: userId,
+      name: null,
+      email: "",
+      role: suiteRole,
+      globalRole: isSuperAdmin ? "SUPER_ADMIN" : "USER",
+      avatarUrl: null,
+      currentWorkspaceId: null,
+      workspaceRole: null,
+      appAccess: [],
+    } satisfies AuthUser,
+    membership,
+  );
+  const hasEditorialAccess =
+    isSuperAdmin ||
+    canAccessInfoSpotRedaccion(subject) ||
+    canAccessInfoSpotAdmin(subject);
+
+  // Editorial activo: no forzar onboarding público.
+  const onboardingCompleted =
+    hasEditorialAccess || (await isOnboardingComplete(userId));
+  const hasPublic = hasEditorialAccess || (await hasActivePublicProfile(userId));
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  const pendingInvite = user?.email
+    ? await findInfoSpotPendingInvitation(user.email)
+    : null;
+
+  return resolveInfoSpotPostLoginDestination({
     suiteRole,
     membershipRole: membership?.role ?? null,
     membershipStatus: membership?.status ?? null,
     next,
+    hasEditorialAccess,
+    onboardingCompleted,
+    hasActivePublicProfile: hasPublic,
+    hasPendingEditorialInvite: Boolean(pendingInvite),
   });
 }

@@ -35,7 +35,11 @@ export default async function IngresarPage({
   const next =
     params.next && params.next.startsWith("/") && !params.next.startsWith("//")
       ? params.next
-      : "/redaccion";
+      : params.forbidden?.startsWith("infospot-")
+        ? params.forbidden === "infospot-admin"
+          ? "/admin"
+          : "/redaccion"
+        : "/";
   await redirectIfAlreadySignedIn(next);
 
   const deniedMessage = params.forbidden ? DENIED[params.forbidden] ?? null : null;

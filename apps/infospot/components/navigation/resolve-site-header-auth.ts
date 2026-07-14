@@ -26,7 +26,7 @@ export async function resolveSiteHeaderAuth(): Promise<SiteHeaderAuth | null> {
 
   return {
     label,
-    panelHref: hasPanel ? "/redaccion" : "/ingresar/acceso-pendiente",
-    panelLabel: hasPanel ? "Panel" : "Acceso",
+    panelHref: hasPanel ? "/redaccion" : "/",
+    panelLabel: hasPanel ? "Panel" : "Inicio",
   };
 }
