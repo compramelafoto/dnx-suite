@@ -1,13 +1,14 @@
 # 46 — R2 production readiness
 
-**Fecha:** 2026-07-13  
+**Fecha:** 2026-07-14  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**Estado de etapa:** **`COMPLETE`** (credenciales operativas + smoke 22G + gate 22H)  
+**Estado de etapa:** **`COMPLETE`** (rotación keys + smoke post-deploy 22G + gate 22H)  
 **R2_STATUS:** **`VERIFIED_WORKING`**  
-**Alias:** `https://infospot-dnxsuite.vercel.app` (commit **`fa55a2d`**, health `db:ok`)  
+**Alias:** `https://infospot-dnxsuite.vercel.app` (deploy **`dpl_F8uop3SQc7aCbEiet59KC2TLjPs1`**, commit **`3d0cd77`**, health `db:ok`)  
 **Bucket:** `infospot-media`
 
-Informe smoke: [`47-r2-production-smoke-report.md`](./47-r2-production-smoke-report.md).  
+Informe smoke histórico: [`47-r2-production-smoke-report.md`](./47-r2-production-smoke-report.md).  
+Validación post-rotación: [`56-r2-post-deploy-validation.md`](./56-r2-post-deploy-validation.md).  
 Gate multimedia: [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md).  
 Lifecycle: [`49-r2-object-lifecycle-and-cleanup.md`](./49-r2-object-lifecycle-and-cleanup.md).
 
@@ -20,17 +21,17 @@ No incluye secretos.
 El token API de DNX-MCP puede listar buckets / CORS / r2.dev, pero **no** crear User API Tokens (`POST /user/tokens` → 403).  
 `vercel env pull` no exporta valores `sensitive`. Cross-project copy bloqueado → [`48-r2-cross-project-credential-audit.md`](./48-r2-cross-project-credential-audit.md).
 
-Las keys S3 en Production se consideraron “stale” por `updatedAt` del 11-jul; el smoke 22G demostró que **funcionan** (Put/Get/Delete). No renovar ni reimprimir valores.
+Tras rotación manual (2026-07-14): Access Key / Secret con `updatedAt` fresco; redeploy Production Ready; smoke post-deploy **PASS**.
 
 ---
 
 ## 2. Auditoría de variables (Production)
 
-| Variable | Estado 22H |
-|----------|------------|
+| Variable | Estado 22G post-deploy |
+|----------|------------------------|
 | `R2_ACCOUNT_ID` | Presente |
-| `R2_ACCESS_KEY_ID` | Presente · **operativa** (smoke) |
-| `R2_SECRET_ACCESS_KEY` | Presente · **operativa** (smoke) |
+| `R2_ACCESS_KEY_ID` | Presente · **rotada** · `updatedAt=2026-07-14T00:05:00.719Z` |
+| `R2_SECRET_ACCESS_KEY` | Presente · **rotada** · `updatedAt=2026-07-14T00:05:37.157Z` |
 | `R2_BUCKET_NAME` | Presente → `infospot-media` |
 | `R2_ENDPOINT` | Presente |
 | `R2_PUBLIC_URL` | Presente (r2.dev) |
@@ -53,8 +54,8 @@ Las keys S3 en Production se consideraron “stale” por `updatedAt` del 11-jul
 
 ## 4. Criterio de cierre
 
-- **COMPLETE** — keys operativas + Production `fa55a2d` + smoke upload/read/derivados/delete/cleanup + sin exposición de secretos.  
-- Procedimiento manual Cloudflare queda como runbook de **rotación** futura (no acción abierta).
+- **COMPLETE** — keys rotadas con `updatedAt` fresco + Production `dpl_F8uop3SQ…` (`3d0cd77`) + smoke upload/read/derivados/delete/cleanup + sin exposición de secretos.  
+- Procedimiento manual Cloudflare queda como runbook de **rotación** futura.
 
 ---
 

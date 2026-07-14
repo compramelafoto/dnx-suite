@@ -1,18 +1,38 @@
 # 47 — R2 production smoke report
 
-**Estado de etapa (22H):** **`COMPLETE`** — ciclo multimedia verificado; gate [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)  
-**Estado (22G):** smoke Production **PASS** · `R2_STATUS = VERIFIED_WORKING`  
+**Estado de etapa (22G post-rotación 2026-07-14):** **`COMPLETE`** · `R2_STATUS = VERIFIED_WORKING`  
+**Detalle post-deploy:** [`56-r2-post-deploy-validation.md`](./56-r2-post-deploy-validation.md)  
+**Estado (22H):** gate multimedia **COMPLETE** · [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)  
 **Histórico bloqueos:** 22F `BLOCKED_SECRET_NOT_EXPORTABLE` · 22E/22D `BLOCKED_BY_VERCEL_ENV` · 22B/22C `BLOCKED_BY_MANUAL_R2_TOKEN`
 
 **Production alias:** `https://infospot-dnxsuite.vercel.app`  
-**Commit smoke / Production:** **`fa55a2d`** · deployment `dpl_9Br5hao77qMeTxrGzXBjSmdUWabY` · health `db:ok`  
+**Commit / deploy post-rotación:** **`3d0cd77`** · `dpl_F8uop3SQc7aCbEiet59KC2TLjPs1` · health `db:ok`  
 **Bucket:** `infospot-media` · público `pub-3cc4a4641be54ab9aeca101179467a60.r2.dev`
 
-No incluye secretos. **No se re-ejecutó smoke en 22H** (evidencia 22G + reconfirmación 404).
+No incluye secretos.
 
 ---
 
-## 1. Resultado 22G / verificación 22H
+## 1. Resultado 22G post-rotación (2026-07-14)
+
+| Fase | Resultado | Evidencia |
+|------|-----------|-----------|
+| Env keys frescas | PASS | Access/Secret `updatedAt` 2026-07-14T00:05:0xZ |
+| Deploy Ready | PASS | `dpl_F8uop3SQ…` Ready 00:07:31Z |
+| Upload | PASS | `POST /api/redaccion/upload` **201** |
+| GetObject / lectura pública | PASS | GET r2.dev **200** · match exacto fixture |
+| CORS | PASS | OPTIONS **204** · ACAO alias Vercel |
+| Derivados 640–1920 WebP + JPEG | PASS | `READY` · ~3.6 s · ratio ~1.5 · sin upscale |
+| Retry `FAILED`→`READY` | PASS | Idempotente |
+| Delete + 404 | PASS | 12 keys · segundo delete `existedBefore:false` |
+| Rechazo CLF / unauth cleanup | PASS | **422** / **401** |
+| Cleanup DB | PASS | Sin residuos smoke |
+| Worker | **`APTO_SINCRONICO`** | No implementado |
+| Previews UI Director | `PENDING_AUTHENTICATED_SMOKE` | — |
+
+---
+
+## 2. Resultado 22G histórico / verificación 22H
 
 | Fase | Resultado | Evidencia |
 |------|-----------|-----------|
@@ -32,7 +52,7 @@ No incluye secretos. **No se re-ejecutó smoke en 22H** (evidencia 22G + reconfi
 
 ---
 
-## 2. Residuos 22F
+## 3. Residuos 22F
 
 | Key | Estado final |
 |-----|----------------|
@@ -44,7 +64,7 @@ En 22G: `existedBefore: true` al borrar. En 22H: GET público **404**.
 
 ---
 
-## 3. Runtime (logs Production ventana smoke)
+## 4. Runtime (logs Production ventana smoke)
 
 Secuencia observada sin 500: login → cleanup 422/200 → upload 201 → cobertura + retry → cleanup 200×2. Crons posteriores 200. Health 200.
 
@@ -52,27 +72,27 @@ Secuencia observada sin 500: login → cleanup 422/200 → upload 201 → cobert
 
 ---
 
-## 4. Medición
+## 5. Medición
 
 | Ítem | Valor |
 |------|--------|
-| Fixture | 160×120 JPEG ~12 KB |
-| Anchos derivados | Solo **160** (sin 640–1920 — esperado) |
-| Ventana derivados (aprox. logs) | ~13 s |
-| Pipeline | **`APTO_CON_LIMITACIONES`** — sync OK; worker no obligatorio pre-lanzamiento alias |
+| Fixture post-rotación | 2048×1365 + 160×120 técnicos |
+| Anchos derivados | **640 / 960 / 1280 / 1920** (+ JPEG fallback) |
+| Ventana derivados | ~3.6 s |
+| Pipeline | **`APTO_SINCRONICO`** |
 
 ---
 
-## 5. Histórico (bloqueos previos)
+## 6. Histórico (bloqueos previos)
 
-Las secciones 22B–22F documentaron keys S3 con `updatedAt` antiguo y secretos no exportables entre proyectos. **Quedan como historial:** el smoke 22G demostró Put/Get/Delete reales en Production con las credenciales vigentes (`VERIFIED_WORKING`), independientemente del timestamp de panel.
+Las secciones 22B–22F documentaron keys S3 con `updatedAt` antiguo y secretos no exportables entre proyectos. **Cerrado** tras rotación 2026-07-14 + smoke post-deploy ([`56`](./56-r2-post-deploy-validation.md)).
 
 Auditoría cross-project: [`48-r2-cross-project-credential-audit.md`](./48-r2-cross-project-credential-audit.md).  
 Lifecycle: [`49-r2-object-lifecycle-and-cleanup.md`](./49-r2-object-lifecycle-and-cleanup.md).
 
 ---
 
-## 6. Confirmaciones
+## 7. Confirmaciones
 
 - Google Cloud **no** configurado.  
 - `infospot.com.ar` **no** lanzado públicamente.  

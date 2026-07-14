@@ -1,13 +1,13 @@
 # 45 — Production services readiness (alias Vercel operativo)
 
-**Fecha:** 2026-07-13  
+**Fecha:** 2026-07-14  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**HEAD servido en Production:** `fa55a2d`  
+**HEAD servido en Production:** `3d0cd77`  
 **Alias operativo:** `https://infospot-dnxsuite.vercel.app`  
-**Deployment Production:** `dpl_9Br5hao77qMeTxrGzXBjSmdUWabY` (Ready)  
+**Deployment Production:** `dpl_F8uop3SQc7aCbEiet59KC2TLjPs1` (Ready · post-rotación R2)  
 **Decisión:** **GO operativo en alias Vercel** · **NO-GO** dominio propio (`infospot.com.ar`)
 
-**Alcance de esta etapa (histórico + 22H):** servicios listos sin DonWeb. Multimedia R2 **cerrado** (gate [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)). Sin Google Cloud, sin Search Console, sin `db push` / `migrate reset`.
+**Alcance:** servicios listos sin DonWeb. Multimedia R2 **revalidado** tras rotación de keys ([`56-r2-post-deploy-validation.md`](./56-r2-post-deploy-validation.md); gate [`50`](./50-multimedia-production-gate.md)). Sin Google Cloud, sin Search Console, sin `db push` / `migrate reset`.
 
 Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`43-launch-readiness.md`](./43-launch-readiness.md), [`44-editorial-operations-manual.md`](./44-editorial-operations-manual.md).
 
@@ -19,13 +19,13 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`43-lau
 |---------|--------|------------------|
 | Neon prod (`infospot-production` / bitter-salad) | **OK** | Schema **up to date** (22J `migrate deploy`). |
 | R2 bucket `infospot-media` | **OK** | CORS + r2.dev + ciclo upload/read/derivados/delete. |
-| R2 token S3 (`R2_ACCESS_KEY_ID` / `SECRET`) | **OK operativo** | Smoke 22G PASS · `VERIFIED_WORKING`. |
+| R2 token S3 (`R2_ACCESS_KEY_ID` / `SECRET`) | **OK operativo** | Rotadas 2026-07-14 · smoke post-deploy PASS · `VERIFIED_WORKING`. |
 | CLF readonly | **OK** | Apunta a CLF prod (`compramelafoto` / falling-darkness). Proxy anti-write en app. |
 | Cron | **OK** | `CRON_SECRET` Production · schedules en `vercel.json` · auth 401 sin secret. |
 | Resend / SMTP | **Opcional** | Degradación segura sin `RESEND_API_KEY`. Ver §8. |
 | Analytics GA4 | **Opcional** | Métricas internas OK; Measurement ID no cargado. Ver §9. |
 | Director | **Pendiente** | Tras primer login OAuth → seed rol. Ver §7. |
-| Deploy alias Vercel | **OK** | Health `db:ok`, version `fa55a2d`. |
+| Deploy alias Vercel | **OK** | Health `db:ok`, version `3d0cd77`. |
 | Dominio / SSL / canónicos / OAuth / Search Console | **Pendiente DonWeb** | Fuera de multimedia. |
 
 **Launch readiness estimado: ~96%**  

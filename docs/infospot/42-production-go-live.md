@@ -18,6 +18,8 @@
 
 **Actualización 2026-07-13 (Etapa 22H):** smoke 22G verificado; gate multimedia **COMPLETE** · `R2_STATUS = VERIFIED_WORKING`. Ver [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md), [`47-r2-production-smoke-report.md`](./47-r2-production-smoke-report.md).
 
+**Actualización 2026-07-14 (Etapa 22G post-rotación):** keys S3 R2 rotadas (`updatedAt` 2026-07-14T00:05Z); deploy `dpl_F8uop3SQ…` Ready; smoke upload/read/derivados/delete/CORS **PASS** · worker **`APTO_SINCRONICO`**. Ver [`56-r2-post-deploy-validation.md`](./56-r2-post-deploy-validation.md).
+
 Este documento es el runbook de salida a producción y rollback. **No incluye secretos.**
 
 ---
