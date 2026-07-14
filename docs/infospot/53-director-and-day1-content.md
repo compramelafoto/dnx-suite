@@ -4,14 +4,14 @@
 **Rama:** `migration-legacy-clf-to-monorepo`  
 **Alias:** `https://infospot-dnxsuite.vercel.app`  
 **Production:** `fa55a2d` · health `db:ok` · schema up to date  
-**Estado de etapa:** **`BLOCKED_BY_FIRST_DIRECTOR_LOGIN`** (login Google en corrección 22O — ver [55](./55-google-login-production-fix.md))  
-**Estado producto objetivo:** `READY_FOR_DNS_AND_PUBLICATION` — **aún no alcanzado**  
-**Launch Readiness:** **~96%**  
+**Estado de etapa (actualizado 22U):** roles editoriales **validados** · contenido Día 1 **`COMPLETE_PENDING_REAL_CONTENT`** — ver [62](./62-editorial-roles-and-day-one-content-gate.md)  
+**Estado producto objetivo:** `READY_FOR_DNS_AND_PUBLICATION` — **aún no** (faltan eventos futuros reales + cutover dominio)  
+**Launch Readiness:** **~96%** (ops); contenido agenda futura = bloqueante soft  
 **Dominio `infospot.com.ar`:** **NO-GO**
 
 No incluye emails, secretos ni URLs de base de datos.
 
-Ver: [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md), [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md), [`44-editorial-operations-manual.md`](./44-editorial-operations-manual.md), [`55-google-login-production-fix.md`](./55-google-login-production-fix.md), [`54-first-director-production-validation.md`](./54-first-director-production-validation.md).
+Ver: [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md), [`51-go-live-master-checklist.md`](./51-go-live-master-checklist.md), [`44-editorial-operations-manual.md`](./44-editorial-operations-manual.md), [`55-google-login-production-fix.md`](./55-google-login-production-fix.md), [`54-first-director-production-validation.md`](./54-first-director-production-validation.md), [`62-editorial-roles-and-day-one-content-gate.md`](./62-editorial-roles-and-day-one-content-gate.md).
 
 ---
 
@@ -33,6 +33,8 @@ Ver: [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md), [
 
 ## 1. Matriz
 
+### Histórico 22K/L (bloqueado por primer login)
+
 | Área | Estado |
 |------|--------|
 | Usuarios | **0** |
@@ -41,15 +43,35 @@ Ver: [`52-pre-dns-production-closure.md`](./52-pre-dns-production-closure.md), [
 | Eventos futuros | **0** (40 DRAFT finalizados) |
 | Coberturas / convocatorias / placements | 0 |
 
+### Reconfirmado 22U (Production)
+
+| Área | Estado |
+|------|--------|
+| Users | **3** |
+| Director / Redactor ACTIVE | **2** / **1** (`VALID_*`) |
+| Noticias DRAFT / PUBLISHED | **4** / **0** |
+| Eventos futuros | **0** (41 DRAFT históricos) |
+| Coberturas / placements | **120** / **0** |
+
 ---
 
 ## 2. Código de parada
+
+### Histórico 22K–22M
 
 ```text
 BLOCKED_BY_FIRST_DIRECTOR_LOGIN
 ```
 
 **No** se creó usuario artificial. **No** se ejecutó grant. **No** se inventó email.
+
+### 22U
+
+```text
+COMPLETE_PENDING_REAL_CONTENT
+```
+
+Roles editoriales desbloqueados; falta agenda futura verificable + OAuth browser humano. Dominio sigue **NO-GO**.
 
 ### Desbloqueo (orden estricto)
 
