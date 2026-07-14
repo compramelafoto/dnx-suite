@@ -152,6 +152,38 @@ export async function authorizeEditorialPhotoLicenseAction(photoId: string) {
   return { ok: true as const };
 }
 
+export async function updateEditorialCoverFocalAction(input: {
+  usageId: string;
+  focalX: number;
+  focalY: number;
+}) {
+  const access = await requireInfoSpotRedaccionAccess();
+  if (!canCreateInfoSpotArticle(access.subject)) {
+    return { ok: false as const, error: "Sin permiso." };
+  }
+  const parsed = z
+    .object({
+      usageId: z.string().min(1),
+      focalX: z.number().min(0).max(1),
+      focalY: z.number().min(0).max(1),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false as const, error: "Datos inválidos." };
+
+  const { updateEditorialCoverFocal } = await import("@/lib/editorial-photos");
+  const result = await updateEditorialCoverFocal(parsed.data);
+  if (result.ok) {
+    const usage = await prisma.infoSpotEditorialPhotoUsage.findUnique({
+      where: { id: parsed.data.usageId },
+      select: { articleId: true, photo: { select: { coverageId: true } } },
+    });
+    if (usage) {
+      await revalidateArticle(usage.articleId, usage.photo.coverageId);
+    }
+  }
+  return result;
+}
+
 export async function retryEditorialDerivativeFormAction(formData: FormData) {
   const photoId = String(formData.get("photoId") || "");
   if (!photoId) return;

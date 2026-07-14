@@ -184,11 +184,40 @@ export async function readR2ObjectBuffer(key: string): Promise<Buffer> {
 }
 
 /**
- * Resuelve key interna desde campos Photo CLF.
- * Prioriza variantes watermarked/preview; si previewUrl es HTTPS pública del
- * CDN CLF, extrae la key (sin fetch externo aquí).
+ * Resuelve key interna desde campos Photo CLF para derivados editoriales Info Spot.
+ * Prioriza el **original sin marca de agua** (uso editorial autorizado).
+ * Fallback: previewUrl → preview WM → thumb WM (solo si no hay original).
  */
 export function resolveClfPhotoSourceKey(photo: {
+  originalKey: string;
+  previewUrl: string;
+  previewWatermarkedKey: string | null;
+  thumbWatermarkedKey: string | null;
+}): string {
+  if (photo.originalKey?.trim()) {
+    return assertSafeR2Key(photo.originalKey);
+  }
+  if (photo.previewUrl?.trim()) {
+    try {
+      return assertSafeR2Key(urlToR2Key(photo.previewUrl));
+    } catch {
+      // continuar a variantes WM
+    }
+  }
+  if (photo.previewWatermarkedKey?.trim()) {
+    return assertSafeR2Key(photo.previewWatermarkedKey);
+  }
+  if (photo.thumbWatermarkedKey?.trim()) {
+    return assertSafeR2Key(photo.thumbWatermarkedKey);
+  }
+  throw new Error("La fotografía no tiene una key R2 interna utilizable");
+}
+
+/**
+ * Variante watermarked (solo previews de redacción / thumbs del selector).
+ * No usar para derivados públicos.
+ */
+export function resolveClfPhotoPreviewSourceKey(photo: {
   originalKey: string;
   previewUrl: string;
   previewWatermarkedKey: string | null;
@@ -204,7 +233,7 @@ export function resolveClfPhotoSourceKey(photo: {
     try {
       return assertSafeR2Key(urlToR2Key(photo.previewUrl));
     } catch {
-      // continuar a originalKey
+      // continuar
     }
   }
   if (photo.originalKey?.trim()) {

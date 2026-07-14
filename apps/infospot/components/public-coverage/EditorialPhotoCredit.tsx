@@ -13,11 +13,11 @@ export function EditorialPhotoCredit({
   const text = credit?.trim() || (photographerName ? `Foto: ${photographerName}` : "");
   if (!text) return null;
   return (
-    <p
+    <span
       className={`text-xs leading-relaxed text-[var(--is-muted)] ${className}`.trim()}
       data-testid="editorial-photo-credit"
     >
       {text}
-    </p>
+    </span>
   );
 }

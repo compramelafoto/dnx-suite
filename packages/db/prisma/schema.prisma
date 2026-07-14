@@ -1634,7 +1634,7 @@ model InfoSpotEditorialPhoto {
   editorialUsageStatus    InfoSpotEditorialUsageStatus       @default(ACTIVE)
   processStatus           InfoSpotEditorialPhotoProcessStatus @default(PENDING)
   processError            String?                            @db.Text
-  /// Key fuente usada para derivar (preview WM preferida). Nunca exponer al cliente.
+  /// Key fuente usada para derivar (original CLF preferido). Nunca exponer al cliente.
   sourceStorageKey        String?
   /// Key del derivado master editorial (p. ej. 1920).
   editorialMasterKey      String?
@@ -1687,6 +1687,9 @@ model InfoSpotEditorialPhotoUsage {
   altText        String?
   isCover        Boolean                        @default(false)
   displaySize    String?                        @default("wide")
+  /// Encuadre de portada (object-position), 0–1. Solo relevante para COVER.
+  focalX         Float?
+  focalY         Float?
   createdByUserId Int?
   createdAt      DateTime                       @default(now())
   updatedAt      DateTime                       @updatedAt

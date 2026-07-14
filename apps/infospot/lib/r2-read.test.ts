@@ -11,7 +11,7 @@ import {
   getClfR2PublicBaseUrl,
   isClfR2ReadConfigured,
 } from "./r2-clf-config";
-import { resolveClfPhotoSourceKey } from "./r2-read";
+import { resolveClfPhotoPreviewSourceKey, resolveClfPhotoSourceKey } from "./r2-read";
 
 const prev = {
   CLF_R2_BUCKET_NAME: process.env.CLF_R2_BUCKET_NAME,
@@ -62,7 +62,15 @@ try {
     previewWatermarkedKey: "photo-variants/9/preview_wm_v7.jpg",
     thumbWatermarkedKey: "photo-variants/9/thumb_wm_v7.jpg",
   });
-  assert.equal(key, "photo-variants/9/preview_wm_v7.jpg");
+  assert.equal(key, "albums/1/original.jpg");
+
+  const previewKey = resolveClfPhotoPreviewSourceKey({
+    originalKey: "albums/1/original.jpg",
+    previewUrl: "https://pub-clf.example.r2.dev/albums/1/preview.jpg",
+    previewWatermarkedKey: "photo-variants/9/preview_wm_v7.jpg",
+    thumbWatermarkedKey: "photo-variants/9/thumb_wm_v7.jpg",
+  });
+  assert.equal(previewKey, "photo-variants/9/preview_wm_v7.jpg");
 
   console.log("r2-read tests: ok");
 } finally {

@@ -31,10 +31,30 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
   const access = await requireInfoSpotRedaccionAccess();
   const { id } = await params;
   const query = await searchParams;
-  const [article, categories, assets] = await Promise.all([
+  const [article, categories, assets, coverUsage] = await Promise.all([
     getArticleByIdForEditor(id),
     getCategories(),
     listUploadAssets(),
+    prisma.infoSpotEditorialPhotoUsage.findFirst({
+      where: { articleId: id, usageType: "COVER" },
+      select: {
+        id: true,
+        focalX: true,
+        focalY: true,
+        photo: {
+          select: {
+            id: true,
+            variants: {
+              where: { format: "webp" },
+              orderBy: { width: "desc" },
+              take: 1,
+              select: { url: true },
+            },
+            deliveryAsset: { select: { url: true, thumbnailUrl: true } },
+          },
+        },
+      },
+    }),
   ]);
   if (!article) notFound();
 
@@ -104,6 +124,23 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
         authorLabel={authorDisplayName(article.author)}
         latestReturn={latestReturn}
         fromAssistant={query.from === "asistente"}
+        coverFocal={
+          coverUsage &&
+          (coverUsage.photo.variants[0]?.url ||
+            coverUsage.photo.deliveryAsset?.url ||
+            coverUsage.photo.deliveryAsset?.thumbnailUrl)
+            ? {
+                usageId: coverUsage.id,
+                imageSrc:
+                  coverUsage.photo.variants[0]?.url ||
+                  coverUsage.photo.deliveryAsset?.url ||
+                  coverUsage.photo.deliveryAsset?.thumbnailUrl ||
+                  "",
+                focalX: coverUsage.focalX,
+                focalY: coverUsage.focalY,
+              }
+            : null
+        }
         clf={{
           eventId: article.eventId,
           albumId: article.clfAlbumId,

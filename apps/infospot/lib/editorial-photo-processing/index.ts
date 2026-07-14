@@ -1,6 +1,7 @@
 /**
  * Pipeline de derivados editoriales CLF → Info Spot.
- * Nunca entrega ni reexpone el original comercial.
+ * Deriva desde el original CLF (sin marca de agua) y publica solo variantes
+ * propias en el namespace Info Spot — nunca reexpone la key del original.
  */
 
 import sharp from "sharp";
@@ -15,8 +16,9 @@ export type EditorialVariantWidth = (typeof EDITORIAL_VARIANT_WIDTHS)[number];
 const WEBP_QUALITY = 82;
 const JPEG_QUALITY = 84;
 
+/** Namespace v2: derivados limpios desde original (sin watermark). */
 export function editorialClfNamespace(sourcePhotoId: string | number): string {
-  return `infospot/editorial/clf/${sourcePhotoId}`;
+  return `infospot/editorial/clf/${sourcePhotoId}/clean`;
 }
 
 export function stripSensitiveMetadata() {

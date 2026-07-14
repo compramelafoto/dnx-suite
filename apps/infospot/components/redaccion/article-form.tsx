@@ -11,6 +11,7 @@ import {
 import { slugifyTitle } from "@/lib/slug";
 import { toDatetimeLocalValue } from "@/lib/dates";
 import { CoverImageField, type CoverAssetOption } from "@/components/redaccion/cover-image-field";
+import { CoverFocalEditor } from "@/components/redaccion/cover-focal-editor";
 import { PublishChecklist } from "@/components/redaccion/publish-checklist";
 import { EditorialActionsPanel } from "@/components/redaccion/editorial-actions-panel";
 import {
@@ -59,6 +60,13 @@ type ArticleFormProps = {
     albumTitle: string | null;
     linkedAssets: LinkedClfAsset[];
   };
+  /** Encuadre de portada CLF (usage COVER). */
+  coverFocal?: {
+    usageId: string;
+    imageSrc: string;
+    focalX: number | null;
+    focalY: number | null;
+  } | null;
   latestReturn?: {
     message: string;
     createdAt: Date | string;
@@ -105,6 +113,7 @@ export function ArticleForm({
   subject,
   authorLabel,
   clf,
+  coverFocal = null,
   latestReturn,
   fromAssistant = false,
   initial,
@@ -567,19 +576,29 @@ export function ArticleForm({
           {
             id: "cover",
             title: "Portada avanzada",
-            hint: "Subir o elegir de biblioteca",
+            hint: "Subir, elegir o encuadrar",
             children: (
-              <CoverImageField
-                articleId={initial?.id}
-                initialCoverImageId={coverImageId || null}
-                initialCredit={coverCredit}
-                assets={assets}
-                onChange={(next) => {
-                  setCoverImageId(next.id);
-                  setCoverCredit(next.credit);
-                  markDirty();
-                }}
-              />
+              <div className="space-y-6">
+                <CoverImageField
+                  articleId={initial?.id}
+                  initialCoverImageId={coverImageId || null}
+                  initialCredit={coverCredit}
+                  assets={assets}
+                  onChange={(next) => {
+                    setCoverImageId(next.id);
+                    setCoverCredit(next.credit);
+                    markDirty();
+                  }}
+                />
+                {coverFocal ? (
+                  <CoverFocalEditor
+                    usageId={coverFocal.usageId}
+                    imageSrc={coverFocal.imageSrc}
+                    initialFocalX={coverFocal.focalX}
+                    initialFocalY={coverFocal.focalY}
+                  />
+                ) : null}
+              </div>
             ),
           },
           ...(mode === "edit" && initial

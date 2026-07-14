@@ -25,6 +25,8 @@ type UsageRow = {
   caption: string | null;
   altText: string | null;
   displaySize: string | null;
+  focalX?: number | null;
+  focalY?: number | null;
   photo: PhotoRow;
 };
 
@@ -56,8 +58,11 @@ export function toPublicEditorialPhoto(
     photo.commercialStatus === "AVAILABLE" &&
     Boolean(photo.purchaseUrl || photo.albumUrl);
 
-  const hasSpecificPurchaseUrl = Boolean(photo.purchaseUrl?.trim());
-  const albumTarget = photo.albumUrl;
+  const purchaseTarget = photo.purchaseUrl?.trim() || null;
+  const albumTarget = photo.albumUrl?.trim() || null;
+  const hasSpecificPurchaseUrl = Boolean(
+    purchaseTarget && albumTarget && purchaseTarget !== albumTarget,
+  );
 
   return {
     id: photo.id,
@@ -77,9 +82,9 @@ export function toPublicEditorialPhoto(
     canShowPurchaseCta: canBuy,
     hasSpecificPurchaseUrl,
     purchaseHref:
-      canBuy && hasSpecificPurchaseUrl && photo.purchaseUrl
+      canBuy && hasSpecificPurchaseUrl && purchaseTarget
         ? buildTrackedHref({
-            to: photo.purchaseUrl,
+            to: purchaseTarget,
             kind: "PURCHASE_CLICK",
             articleId: ctx.articleId,
             eventId: ctx.eventId,
@@ -95,5 +100,13 @@ export function toPublicEditorialPhoto(
           })
         : null,
     photographerProfileHref: photo.photographerProfileUrl,
+    focalX:
+      typeof usage.focalX === "number" && Number.isFinite(usage.focalX)
+        ? Math.min(1, Math.max(0, usage.focalX))
+        : null,
+    focalY:
+      typeof usage.focalY === "number" && Number.isFinite(usage.focalY)
+        ? Math.min(1, Math.max(0, usage.focalY))
+        : null,
   };
 }

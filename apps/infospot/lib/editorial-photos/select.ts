@@ -143,6 +143,10 @@ export async function selectEditorialPhoto(input: {
     include: { variants: true },
   });
 
+  const previousSourceKey = existing?.sourceStorageKey ?? null;
+  const sourceChanged =
+    Boolean(previousSourceKey) && previousSourceKey !== sourceKey;
+
   let created = false;
   let editorialPhoto =
     existing ??
@@ -182,10 +186,14 @@ export async function selectEditorialPhoto(input: {
         albumUrl: commercial.albumUrl,
         purchaseUrl: commercial.purchaseUrl,
         commercialStatus: commercial.status,
-        sourceStorageKey: existing.sourceStorageKey || sourceKey,
+        // Siempre refrescar a original limpio (sin watermark).
+        sourceStorageKey: sourceKey,
         credit: existing.credit || credit,
         copyrightText: existing.copyrightText || copyrightText,
         lastSyncedAt: new Date(),
+        ...(sourceChanged
+          ? { processStatus: "PENDING" as const, processError: null }
+          : {}),
       },
       include: { variants: true },
     });
@@ -210,12 +218,20 @@ export async function selectEditorialPhoto(input: {
   }
 
   const processNow = input.processNow !== false;
-  if (
+  const needsProcess =
     processNow &&
-    (editorialPhoto.processStatus === "PENDING" ||
+    (sourceChanged ||
+      editorialPhoto.processStatus === "PENDING" ||
       editorialPhoto.processStatus === "FAILED" ||
-      editorialPhoto.variants.length === 0)
-  ) {
+      editorialPhoto.variants.length === 0 ||
+      // Reprocesar si aún apunta a path legacy con watermark (pre-clean).
+      editorialPhoto.variants.some(
+        (v) =>
+          v.r2Key.includes(`/clf/${externalId}/w`) &&
+          !v.r2Key.includes(`/clf/${externalId}/clean/`),
+      ));
+
+  if (needsProcess) {
     await processEditorialDerivative(editorialPhoto.id);
     editorialPhoto = (await prisma.infoSpotEditorialPhoto.findUnique({
       where: { id: editorialPhoto.id },
@@ -338,7 +354,60 @@ export async function removeEditorialPhotoUsage(input: {
 }
 
 export async function retryEditorialPhotoDerivative(photoId: string) {
+  const editorial = await prisma.infoSpotEditorialPhoto.findUnique({
+    where: { id: photoId },
+    select: { id: true, sourcePhotoExternalId: true },
+  });
+  if (!editorial) return { ok: false as const, error: "Foto editorial no encontrada" };
+
+  const clfPhotoId = Number(editorial.sourcePhotoExternalId);
+  if (Number.isFinite(clfPhotoId) && clfPhotoId > 0) {
+    try {
+      const clf = getClfReadonlyClient();
+      const photo = await clf.photo.findFirst({
+        where: { id: clfPhotoId, isRemoved: false, storageDeletedAt: null },
+        select: {
+          originalKey: true,
+          previewUrl: true,
+          previewWatermarkedKey: true,
+          thumbWatermarkedKey: true,
+        },
+      });
+      if (photo) {
+        const sourceKey = resolveClfPhotoSourceKey(photo);
+        await prisma.infoSpotEditorialPhoto.update({
+          where: { id: photoId },
+          data: { sourceStorageKey: sourceKey },
+        });
+      }
+    } catch {
+      // Si CLF no está disponible, reintenta con la key ya guardada.
+    }
+  }
+
   return requestEditorialDerivative(photoId);
+}
+
+export async function updateEditorialCoverFocal(input: {
+  usageId: string;
+  focalX: number;
+  focalY: number;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const usage = await prisma.infoSpotEditorialPhotoUsage.findUnique({
+    where: { id: input.usageId },
+    select: { id: true, usageType: true },
+  });
+  if (!usage) return { ok: false, error: "Uso no encontrado." };
+  if (usage.usageType !== "COVER") {
+    return { ok: false, error: "El encuadre solo aplica a la portada." };
+  }
+  const focalX = Math.min(1, Math.max(0, input.focalX));
+  const focalY = Math.min(1, Math.max(0, input.focalY));
+  await prisma.infoSpotEditorialPhotoUsage.update({
+    where: { id: input.usageId },
+    data: { focalX, focalY },
+  });
+  return { ok: true };
 }
 
 export async function reorderGalleryUsages(input: {

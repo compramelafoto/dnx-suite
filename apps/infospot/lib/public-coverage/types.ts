@@ -25,6 +25,9 @@ export type PublicEditorialPhotoViewModel = {
   /** true si hay URL de compra específica (no solo álbum). */
   hasSpecificPurchaseUrl: boolean;
   photographerProfileHref: string | null;
+  /** Encuadre portada 0–1 (object-position). */
+  focalX: number | null;
+  focalY: number | null;
 };
 
 export type PublicCoveragePhotographer = {

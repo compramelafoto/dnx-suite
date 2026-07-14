@@ -8,7 +8,7 @@ import {
   toPermissionSubject,
 } from "@/lib/infospot-access";
 import { getClfReadonlyClient } from "@/lib/clf-readonly-db";
-import { readR2ObjectBuffer, resolveClfPhotoSourceKey } from "@/lib/r2-read";
+import { readR2ObjectBuffer, resolveClfPhotoPreviewSourceKey } from "@/lib/r2-read";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -109,7 +109,7 @@ export async function GET(request: Request, context: Ctx) {
   if (!photo) return NextResponse.json({ error: "Foto no encontrada" }, { status: 404 });
 
   try {
-    const key = resolveClfPhotoSourceKey(photo);
+    const key = resolveClfPhotoPreviewSourceKey(photo);
     return await jpegThumbResponse(await readR2ObjectBuffer(key));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error al generar thumb";
