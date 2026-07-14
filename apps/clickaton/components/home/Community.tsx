@@ -10,7 +10,7 @@ export function Community() {
   const { community } = homeContent;
 
   return (
-    <Section id={community.id} tone="muted" aria-labelledby="community-title">
+    <Section id={community.id} tone="accent" aria-labelledby="community-title">
       <Container className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center">
         <div>
           <SectionHeader
@@ -19,14 +19,14 @@ export function Community() {
             description={community.lead}
             titleId="community-title"
           />
-          <ul className="mt-8 flex flex-wrap gap-2">
+          <ul className="mt-[var(--ck-stack-subtitle-to-content)] flex flex-wrap gap-2">
             {community.roles.map((role) => (
               <li key={role}>
-                <Badge variant="neutral">{role}</Badge>
+                <Badge variant="accent">{role}</Badge>
               </li>
             ))}
           </ul>
-          <div className="mt-8 flex flex-col items-start gap-2">
+          <div className="mt-[var(--ck-stack-content-to-actions)] flex flex-col items-start gap-2">
             <Button href={community.cta.href} variant="secondary">
               {community.cta.label}
             </Button>

@@ -1,79 +1,92 @@
 /**
- * Clickaton — utilidades tipográficas y visuales del DS MVP
+ * Clickaton — utilidades tipográficas y visuales (DS V1)
  */
 
-/* Type scale */
-.ck-display-xl {
+/* ——— Display (Bebas Neue, all-caps editorial) ——— */
+.ck-display-xl,
+.ck-display-lg,
+.ck-display-md,
+.ck-heading-xl,
+.ck-heading-lg,
+.ck-heading-md,
+.ck-heading-sm {
   font-family: var(--ck-font-display);
+  font-weight: var(--ck-weight-regular);
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.ck-display-xl {
   font-size: var(--ck-text-display-xl);
-  font-weight: var(--ck-weight-bold);
   line-height: var(--ck-leading-tight);
   letter-spacing: var(--ck-tracking-display);
-  text-wrap: balance;
 }
 
 .ck-display-lg {
-  font-family: var(--ck-font-display);
   font-size: var(--ck-text-display-lg);
-  font-weight: var(--ck-weight-bold);
   line-height: var(--ck-leading-tight);
   letter-spacing: var(--ck-tracking-display);
-  text-wrap: balance;
 }
 
 .ck-display-md {
-  font-family: var(--ck-font-display);
   font-size: var(--ck-text-display-md);
-  font-weight: var(--ck-weight-bold);
   line-height: var(--ck-leading-tight);
-  letter-spacing: var(--ck-tracking-display);
-  text-wrap: balance;
+  letter-spacing: var(--ck-tracking-heading);
 }
 
 .ck-heading-xl {
-  font-family: var(--ck-font-display);
   font-size: var(--ck-text-heading-xl);
-  font-weight: var(--ck-weight-bold);
   line-height: var(--ck-leading-snug);
-  letter-spacing: var(--ck-tracking-display);
-  text-wrap: balance;
+  letter-spacing: var(--ck-tracking-heading);
 }
 
 .ck-heading-lg {
-  font-family: var(--ck-font-display);
   font-size: var(--ck-text-heading-lg);
-  font-weight: var(--ck-weight-bold);
   line-height: var(--ck-leading-snug);
-  text-wrap: balance;
+  letter-spacing: var(--ck-tracking-heading);
 }
 
 .ck-heading-md {
-  font-family: var(--ck-font-display);
   font-size: var(--ck-text-heading-md);
-  font-weight: var(--ck-weight-bold);
   line-height: var(--ck-leading-snug);
-  text-wrap: balance;
+  letter-spacing: var(--ck-tracking-heading);
+}
+
+.ck-heading-sm {
+  font-size: var(--ck-text-heading-sm);
+  line-height: var(--ck-leading-snug);
+  letter-spacing: var(--ck-tracking-heading);
+}
+
+/* ——— Body (Montserrat) ——— */
+.ck-body-lg,
+.ck-body-md,
+.ck-body-sm {
+  font-family: var(--ck-font-sans);
+  font-weight: var(--ck-weight-regular);
+  line-height: var(--ck-leading-body);
 }
 
 .ck-body-lg {
-  font-family: var(--ck-font-sans);
   font-size: var(--ck-text-body-lg);
-  font-weight: var(--ck-weight-regular);
-  line-height: var(--ck-leading-body);
 }
 
 .ck-body-md {
-  font-family: var(--ck-font-sans);
   font-size: var(--ck-text-body-md);
-  font-weight: var(--ck-weight-regular);
-  line-height: var(--ck-leading-body);
 }
 
 .ck-body-sm {
-  font-family: var(--ck-font-sans);
   font-size: var(--ck-text-body-sm);
-  font-weight: var(--ck-weight-regular);
-  line-height: var(--ck-leading-body);
+}
+
+/* ——— Labels / Overline / Caption / Button ——— */
+.ck-overline {
+  font-family: var(--ck-font-sans);
+  font-size: var(--ck-text-overline);
+  font-weight: var(--ck-weight-bold);
+  letter-spacing: var(--ck-tracking-overline);
+  line-height: 1.3;
+  text-transform: uppercase;
 }
 
 .ck-label {
@@ -89,16 +102,26 @@
   font-family: var(--ck-font-sans);
   font-size: var(--ck-text-caption);
   font-weight: var(--ck-weight-medium);
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--ck-text-muted);
+}
+
+.ck-button-label {
+  font-family: var(--ck-font-sans);
+  font-size: var(--ck-text-button);
+  font-weight: var(--ck-weight-semibold);
+  letter-spacing: var(--ck-tracking-button);
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .ck-numeric-display {
   font-family: var(--ck-font-display);
   font-size: var(--ck-text-numeric);
-  font-weight: var(--ck-weight-extrabold);
+  font-weight: var(--ck-weight-regular);
   line-height: var(--ck-leading-tight);
   letter-spacing: var(--ck-tracking-display);
+  text-transform: uppercase;
   font-variant-numeric: tabular-nums;
 }
 
@@ -109,10 +132,41 @@
   text-transform: uppercase;
 }
 
-/* Readable measure */
-.ck-prose-width {
-  max-width: var(--ck-content-readable);
+/* Frases cortas del Manual (manuscrita) — usar con moderación */
+.ck-accent-script {
+  font-family: var(--ck-font-accent);
+  font-weight: var(--ck-weight-regular);
+  line-height: 1.2;
+  text-transform: none;
+  letter-spacing: 0.01em;
 }
+
+/* Stack helpers — ritmo semántico DS */
+.ck-stack-title {
+  margin-top: var(--ck-stack-title-to-subtitle);
+}
+
+.ck-stack-content {
+  margin-top: var(--ck-stack-subtitle-to-content);
+}
+
+.ck-stack-block {
+  margin-top: var(--ck-stack-block);
+}
+
+.ck-stack-actions {
+  margin-top: var(--ck-stack-content-to-actions);
+}
+
+/* Alias corto: numerales / pasos (Bebas) */
+.ck-display {
+  font-family: var(--ck-font-display);
+  font-weight: var(--ck-weight-regular);
+  text-transform: uppercase;
+  letter-spacing: var(--ck-tracking-heading);
+  line-height: var(--ck-leading-snug);
+}
+
 
 /* Grain overlay utility */
 .ck-grain {
@@ -126,18 +180,18 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  opacity: 0.045;
+  opacity: 0.04;
   mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 @media (max-width: 640px) {
   .ck-grain::after {
-    opacity: 0.03;
+    opacity: 0.028;
   }
 }
 
-/* Motion primitives */
+/* Motion primitives — enfoque / obturador */
 @keyframes ck-pulse-ring {
   0%,
   100% {
@@ -165,6 +219,18 @@
   }
 }
 
+@keyframes ck-shutter {
+  0% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.15;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
 .ck-frame-pulse {
   animation: ck-pulse-ring 4s var(--ck-easing-standard) infinite;
 }
@@ -173,9 +239,14 @@
   animation: ck-scan 5s linear infinite;
 }
 
+.ck-motion-shutter {
+  animation: ck-shutter var(--ck-duration-fast) var(--ck-easing-shutter);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ck-frame-pulse,
-  .ck-frame-scan {
+  .ck-frame-scan,
+  .ck-motion-shutter {
     animation: none;
   }
 }

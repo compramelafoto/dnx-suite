@@ -1,21 +1,28 @@
 import type { Metadata, Viewport } from "next";
-import { Barlow_Condensed, DM_Sans } from "next/font/google";
+import { Bebas_Neue, Caveat, Montserrat } from "next/font/google";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { siteConfig } from "@/config/site";
 import "./globals.css";
 
-const display = Barlow_Condensed({
+const display = Bebas_Neue({
   variable: "--font-ck-display",
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: "400",
   display: "swap",
 });
 
-const sans = DM_Sans({
+const sans = Montserrat({
   variable: "--font-ck-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const accent = Caveat({
+  variable: "--font-ck-accent",
+  subsets: ["latin"],
+  weight: ["400", "600"],
   display: "swap",
 });
 
@@ -31,7 +38,13 @@ export const metadata: Metadata = {
     canonical: "/",
   },
   icons: {
-    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    icon: [
+      { url: "/favicon.png", type: "image/png", sizes: "64x64" },
+      { url: "/brand/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    shortcut: ["/favicon.png"],
   },
   openGraph: {
     type: "website",
@@ -40,11 +53,20 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     title: siteConfig.nameFull,
     description: siteConfig.description,
+    images: [
+      {
+        url: "/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: siteConfig.nameFull,
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: siteConfig.nameFull,
     description: siteConfig.description,
+    images: ["/og-default.png"],
   },
   robots: {
     index: false,
@@ -55,7 +77,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#FFE600",
+  themeColor: "#FFC400",
 };
 
 export default function RootLayout({
@@ -64,7 +86,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es-AR" className={`${display.variable} ${sans.variable}`}>
+    <html
+      lang="es-AR"
+      className={`${display.variable} ${sans.variable} ${accent.variable}`}
+    >
       <body className="min-h-dvh antialiased">
         <a
           href="#contenido-principal"

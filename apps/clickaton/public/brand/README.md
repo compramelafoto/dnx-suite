@@ -1,27 +1,46 @@
 # Recursos de marca — Clickaton
 
-Estado: **provisional**. El isologotipo conceptual todavía no es logo de producción.
+**Fuente de verdad:** Manual de Marca oficial + lámina de variantes.
 
-## Ubicación prevista de assets oficiales
+## Referencia
 
-Colocar aquí (cuando existan archivos definitivos):
+| Archivo | Uso |
+|---------|-----|
+| `manual-de-marca.png` | Manual completo (identidad, paleta, tipografía, iconografía, UI) |
+| `logo-sheet.png` | Lámina de variantes del logo |
 
-| Archivo sugerido | Uso |
-|------------------|-----|
-| `logo-principal.svg` | Logo principal |
-| `logo-horizontal.svg` | Logo horizontal |
-| `logo-vertical.svg` | Logo vertical |
-| `isotipo.svg` | Isotipo |
-| `logo-mono-negro.svg` | Monocromático negro |
-| `logo-mono-blanco.svg` | Monocromático blanco |
-| `logo-mono-amarillo.svg` | Monocromático amarillo |
-| `favicon.ico` / `favicon.svg` | Favicon oficial |
-| `social-avatar.png` | Avatar redes |
-| `og-default.png` | Open Graph |
+## Assets de uso en producto
 
-## Mientras tanto
+Extraídos de la lámina oficial (no reinterpretados):
 
-La UI usa el **wordmark tipográfico** `CLICKATON!` (`components/brand/Wordmark.tsx`).
+| Archivo | Uso |
+|---------|-----|
+| `logo-principal.png` | Logo stacked / sticker (fondos oscuros, hero) |
+| `logo-vertical.png` | Vertical color (fondos claros) |
+| `logo-horizontal.png` | Navbar / header |
+| `logo-horizontal-mono.png` | Horizontal monocromático |
+| `logo-mono-negro.png` | Vertical monocromático |
+| `isotipo.png` | Isotipo circular |
+| `isotipo-amarillo.png` | Isotipo fondo amarillo |
+| `isotipo-gris.png` | Isotipo fondo gris |
+| `favicon-32.png` | Favicon 32×32 |
+| `apple-touch-icon.png` | Apple touch 180×180 |
+| `icon-512.png` / `social-avatar.png` | Avatar / PWA |
+| `og-default.png` | Open Graph 1200×630 |
 
-No vectorizar ni reconstruir el logo conceptual por CSS.
-No inventar un isotipo adicional.
+También en raíz `public/`:
+
+| Archivo | Uso |
+|---------|-----|
+| `/favicon.png` · `/favicon.svg` | Favicon navegador |
+| `/apple-touch-icon.png` | iOS home screen |
+| `/og-default.png` | Thumbnail redes / compartir |
+
+API en código: `components/brand/Logo.tsx` + `Wordmark.tsx`. Metadata en `app/layout.tsx` + `lib/seo.ts`.
+
+## Reglas
+
+1. **No modificar** el logo ni reconstruirlo tipográficamente.
+2. **No** usar Bebas Neue / Montserrat para simular el wordmark del logo (el wordmark es asset gráfico).
+3. Preferir SVG vectoriales definitivos cuando el estudio de marca los entregue; hasta entonces estos PNG son la referencia operativa.
+4. El amarillo oficial es `#FFC400` (no variantes aproximadas).

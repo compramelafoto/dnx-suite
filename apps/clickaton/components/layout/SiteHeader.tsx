@@ -51,7 +51,7 @@ export function SiteHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "rounded-[var(--ck-radius-sm)] px-2.5 py-2 text-sm font-medium transition-colors",
+                  "ck-label rounded-[var(--ck-radius-sm)] px-2.5 py-2 transition-colors duration-[var(--ck-duration-fast)]",
                   active
                     ? "bg-ck-yellow text-ck-black"
                     : "text-ck-text-secondary hover:bg-ck-gray-100 hover:text-ck-text",
@@ -124,7 +124,7 @@ export function SiteHeader() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "rounded-[var(--ck-radius-sm)] px-3 py-3 text-base font-medium",
+                      "ck-label rounded-[var(--ck-radius-sm)] px-3 py-3",
                       active ? "bg-ck-yellow text-ck-black" : "text-ck-text hover:bg-ck-gray-100",
                     )}
                     aria-current={active ? "page" : undefined}

@@ -26,13 +26,13 @@ export function MarathonChallengesNotice({ marathon }: MarathonChallengesNoticeP
         <SectionHeader
           eyebrow="Consignas"
           title="Se liberan en el momento definido"
-          description="Clickaton no anticipa consignas. Solo muestra las que FotoRank marque como reveladas y liberadas."
+          description="Clickatón no anticipa consignas. Solo muestra las que FotoRank marque como reveladas y liberadas."
           titleId="marathon-challenges-title"
-          className="[&_.ck-label]:text-ck-yellow [&_h2]:text-ck-yellow [&_p]:text-ck-gray-200"
+          tone="inverse"
         />
 
         {visible.length === 0 ? (
-          <Card variant="outlined" className="mt-10 border-ck-yellow/40 bg-ck-black text-ck-yellow">
+          <Card variant="outlined" className="mt-[var(--ck-stack-subtitle-to-content)] border-ck-yellow/40 bg-ck-black text-ck-yellow">
             <p className="ck-heading-md text-ck-yellow">Consignas aún no liberadas</p>
             <p className="ck-body-md mt-4 text-ck-gray-200">
               Cuando comience la maratón (o en el horario definido por las bases), las consignas

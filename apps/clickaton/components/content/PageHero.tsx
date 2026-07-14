@@ -9,7 +9,7 @@ type PageHeroProps = {
   titleId?: string;
   description?: string;
   actions?: ReactNode;
-  tone?: "default" | "yellow" | "dark" | "muted";
+  tone?: "default" | "yellow" | "dark" | "muted" | "accent";
   grain?: boolean;
   children?: ReactNode;
   className?: string;
@@ -37,8 +37,10 @@ export function PageHero({
         {eyebrow ? (
           <p
             className={cn(
-              "ck-label",
-              tone === "dark" ? "text-ck-yellow" : "text-ck-text-secondary",
+              "ck-overline",
+              tone === "dark" ? "text-ck-yellow" : "text-ck-text-muted",
+              tone === "yellow" && "text-ck-black/70",
+              tone === "accent" && "text-ck-accent",
             )}
           >
             {eyebrow}
@@ -47,9 +49,10 @@ export function PageHero({
         <h1
           id={titleId}
           className={cn(
-            "ck-display-lg mt-3",
+            "ck-display-lg mt-[var(--ck-stack-title-to-subtitle)]",
             tone === "dark" && "text-ck-yellow",
-            tone === "yellow" && "text-ck-black",
+            (tone === "yellow" || tone === "accent" || tone === "default" || tone === "muted") &&
+              "text-ck-black",
           )}
         >
           {title}
@@ -57,14 +60,18 @@ export function PageHero({
         {description ? (
           <p
             className={cn(
-              "ck-body-lg mt-5 max-w-prose",
+              "ck-body-lg mt-[var(--ck-stack-title-to-subtitle)] max-w-prose",
               tone === "dark" ? "text-ck-gray-200" : "text-ck-text-secondary",
             )}
           >
             {description}
           </p>
         ) : null}
-        {actions ? <div className="mt-8 flex flex-wrap gap-3">{actions}</div> : null}
+        {actions ? (
+          <div className="mt-[var(--ck-stack-content-to-actions)] flex flex-wrap gap-3">
+            {actions}
+          </div>
+        ) : null}
         {children}
       </Container>
     </Section>

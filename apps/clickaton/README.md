@@ -66,13 +66,16 @@ apps/clickaton/
   content/             # Copy editorial + fixtures/
 ```
 
-## Sistema de Diseño MVP
+## Design System V1
 
-- Tokens semánticos + tipografía fluida
+- Fuente de verdad: Manual de Marca en `public/brand/`
+- Tokens: `#FFC400` / negro / blanco + secundarios de estado
+- Tipografía: **Bebas Neue** (display) + **Montserrat** (UI) + Caveat (acento)
+- Logo oficial vía `Logo` / `Wordmark` (no wordmark tipográfico)
 - Primitives: `Container`, `Section`, `SectionHeader`, `Stack`
-- UI: `Button`, `Badge`, `Card`, `IconFrame`, `Divider`, `FocusMark`
+- UI base: `Button`, `Badge`, `Card`, `IconFrame`, `Divider`, `FocusMark`
 - Recursos: `ViewfinderFrame`, `CoordinateGrid`, `EditorialLabel`, `BrushStroke`
-- **Sin shadcn/ui** (no existe en el monorepo; componentes propios)
+- **Sin shadcn/ui** — componentes propios
 
 Doc: [`docs/clickaton/DESIGN_SYSTEM.md`](../../docs/clickaton/DESIGN_SYSTEM.md) · [`docs/clickaton/PUBLIC_ARCHITECTURE.md`](../../docs/clickaton/PUBLIC_ARCHITECTURE.md).
 
@@ -80,7 +83,7 @@ Doc: [`docs/clickaton/DESIGN_SYSTEM.md`](../../docs/clickaton/DESIGN_SYSTEM.md) 
 
 1. Package `clickaton`, puerto `3005`.
 2. Dominio: `https://maratonfotografica.com` (Vercel: `clickaton-dnxsuite`).
-3. Tipografía: Barlow Condensed + DM Sans vía `next/font`.
+3. Tipografía: Bebas Neue + Montserrat (+ Caveat) vía `next/font`.
 4. Cliente solo en header (menú) y `error.tsx`.
 5. `robots`: disallow / noindex hasta lanzamiento público.
 6. Sin lucide ni Radix: iconografía mínima propia.

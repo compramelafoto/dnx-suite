@@ -65,11 +65,13 @@ Documentado como pendiente para la preventa (no implementar en esta etapa):
 
 ## Branding / producto
 
-- Reemplazar wordmark tipográfico por logos oficiales en `/public/brand/`
-- Isotipo y versiones monocromáticas oficiales
-- Favicon definitivo
-- Manual completo de marca
-- Iconografía definitiva
+- ~~Manual de marca + lámina de logo en `/public/brand/`~~ (Etapa 01 DS V1)
+- ~~Tokens alineados al Manual (`#FFC400`, Bebas Neue, Montserrat)~~
+- ~~Logo / Wordmark oficiales en chrome~~
+- Entregar SVG vectoriales definitivos del estudio (reemplazar PNG de lámina)
+- Favicon vectorial definitivo (hoy: isotipo + SVG provisional de reloj)
+- Iconografía definitiva (set propio, no Material)
+- Componentes restantes del DS (inputs, modal, tabs, toast, tables, commerce cards)
 - Fotografías reales de ediciones (sin stock externo)
 - Confirmar dominio público y URL canónica → **hecho:** `https://maratonfotografica.com`
 - Activar indexación (robots) en lanzamiento (hoy: noindex)

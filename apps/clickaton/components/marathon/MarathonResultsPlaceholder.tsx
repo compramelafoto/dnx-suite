@@ -30,7 +30,7 @@ export function MarathonResultsPlaceholder({ marathon }: MarathonResultsPlacehol
               <Badge variant="neutral">{resultsStatusLabels[marathon.resultsStatus]}</Badge>
             </div>
             <p className="ck-body-sm mt-4 text-ck-text-secondary">
-              Cuando el estado sea “Publicados”, Clickaton mostrará el ranking y reconocimientos
+              Cuando el estado sea “Publicados”, Clickatón mostrará el ranking y reconocimientos
               públicos de la edición.
             </p>
           </Card>

@@ -1,8 +1,8 @@
 export const communityPageContent = {
   meta: {
-    title: "Comunidad Clickaton",
+    title: "Comunidad Clickatón",
     description:
-      "Clickaton es un espacio de desarrollo creativo y pedagógico: participantes, clubes, jurados, docentes y ciudades.",
+      "Clickatón es un espacio de desarrollo creativo y pedagógico: participantes, clubes, jurados, docentes y ciudades.",
   },
   hero: {
     eyebrow: "Comunidad",

@@ -1,5 +1,5 @@
 /**
- * Clickaton — estilos globales
+ * Clickatón — estilos globales (Design System V1)
  */
 
 @import "tailwindcss";
@@ -28,8 +28,11 @@
   --color-ck-text: var(--ck-text-primary);
   --color-ck-text-secondary: var(--ck-text-secondary);
   --color-ck-text-muted: var(--ck-text-muted);
-  --color-ck-accent: var(--ck-brand-accent);
-  --color-ck-accent-soft: var(--ck-brand-accent-soft);
+  --color-ck-accent: var(--ck-brand-violet);
+  --color-ck-accent-soft: var(--ck-brand-violet-soft);
+  --color-ck-violet: var(--ck-brand-violet);
+  --color-ck-blue: var(--ck-brand-blue);
+  --color-ck-green: var(--ck-brand-green);
   --color-ck-gray-100: var(--ck-gray-100);
   --color-ck-gray-200: var(--ck-gray-200);
   --color-ck-gray-500: var(--ck-gray-500);
@@ -38,6 +41,8 @@
   --color-ck-warning: var(--ck-warning);
   --color-ck-danger: var(--ck-danger);
   --color-ck-info: var(--ck-info);
+  --color-ck-community: var(--ck-community);
+  --color-ck-community-soft: var(--ck-community-soft);
 }
 
 html {
@@ -84,9 +89,10 @@ body {
   h2,
   h3 {
     font-family: var(--ck-font-display);
-    font-weight: var(--ck-weight-bold);
+    font-weight: var(--ck-weight-regular);
     line-height: var(--ck-leading-tight);
     letter-spacing: var(--ck-tracking-display);
+    text-transform: uppercase;
     text-wrap: balance;
   }
 }

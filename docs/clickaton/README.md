@@ -10,7 +10,7 @@ Creación de `apps/clickaton` en DNX Suite: frontend público independiente, int
 - Home fundacional responsive (amarillo / negro / blanco)
 - Configuración central de marca y navegación MVP
 - Tokens visuales base
-- Wordmark tipográfico provisional
+- Tokens base (luego alineados a Manual en DS V1)
 - Preparación de carpetas para assets oficiales
 - `vercel.json` para despliegue independiente futuro
 
@@ -40,9 +40,9 @@ pnpm --filter clickaton build
 - `www.maratonfotografica.com` → redirect 308 al apex
 - Indexación: todavía `noindex` hasta el lanzamiento público
 
-### Sistema de Diseño MVP (Etapa 02)
+### Design System V1 — Identidad visual
 
-Ver [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md).
+Ver [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md). Manual + logo en `apps/clickaton/public/brand/`.
 
 Catálogo interno: `/design-system` (noindex, fuera de la navegación pública).
 

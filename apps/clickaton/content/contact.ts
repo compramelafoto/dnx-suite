@@ -4,7 +4,7 @@ export const contactPageContent = {
   meta: {
     title: "Contacto",
     description:
-      "Motivos de contacto institucionales de Clickaton. Los canales oficiales se publicarán próximamente.",
+      "Motivos de contacto institucionales de Clickatón. Los canales oficiales se publicarán próximamente.",
   },
   hero: {
     eyebrow: "Contacto",
@@ -19,7 +19,7 @@ export const contactPageContent = {
     { title: "Sponsors", body: "Alianzas de marca, educación, cultura o tecnología." },
     { title: "Prensa", body: "Cobertura, entrevistas y material institucional." },
     { title: "Alianzas", body: "Instituciones, clubes y organizaciones afines." },
-    { title: "Consultas generales", body: "Otras preguntas sobre Clickaton." },
+    { title: "Consultas generales", body: "Otras preguntas sobre Clickatón." },
   ],
   links: [
     { label: "Ver maratones", href: routes.marathons },

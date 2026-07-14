@@ -13,9 +13,9 @@ const variantClass = {
 } as const;
 
 const sizeClass = {
-  sm: "min-h-10 gap-1.5 px-3 py-2 text-sm",
-  md: "min-h-11 gap-2 px-5 py-2.5 text-[0.9375rem]",
-  lg: "min-h-12 gap-2 px-6 py-3 text-base",
+  sm: "min-h-10 gap-1.5 px-3 py-2",
+  md: "min-h-11 gap-2 px-5 py-2.5",
+  lg: "min-h-12 gap-2 px-6 py-3",
 } as const;
 
 type CommonProps = {
@@ -52,7 +52,7 @@ function buttonClasses({
   disabled?: boolean;
 }) {
   return cn(
-    "inline-flex items-center justify-center rounded-[var(--ck-radius-sm)] border-2 font-sans font-semibold leading-none transition-[background-color,color,border-color,transform,box-shadow] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
+    "ck-button-label inline-flex items-center justify-center rounded-[var(--ck-radius-control)] border-2 transition-[background-color,color,border-color,transform,box-shadow] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
     variant !== "text" && "shadow-[var(--ck-shadow-subtle)] hover:-translate-y-px active:translate-y-px",
     variantClass[variant],
     sizeClass[size],

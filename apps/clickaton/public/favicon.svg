@@ -1,5 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Clickaton">
-  <rect width="32" height="32" fill="#FFE600"/>
-  <rect x="4" y="4" width="24" height="24" fill="none" stroke="#0A0A0A" stroke-width="2"/>
-  <text x="16" y="22" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="14" font-weight="800" fill="#0A0A0A">C</text>
+  <rect width="32" height="32" rx="6" fill="#FFC400"/>
+  <rect x="6" y="10" width="20" height="14" rx="2" fill="#000000"/>
+  <rect x="8" y="7" width="10" height="4" rx="1" fill="#000000"/>
+  <circle cx="16" cy="17" r="5.5" fill="#FFFFFF"/>
+  <circle cx="16" cy="17" r="4.5" fill="none" stroke="#000000" stroke-width="1"/>
+  <circle cx="16" cy="17" r="0.8" fill="#000000"/>
+  <line x1="16" y1="17" x2="16" y2="13.5" stroke="#000000" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="16" y1="17" x2="18.8" y2="18.2" stroke="#000000" stroke-width="1.2" stroke-linecap="round"/>
 </svg>

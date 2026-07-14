@@ -27,20 +27,23 @@ export default function CommunityPage() {
         eyebrow={content.hero.eyebrow}
         title={content.hero.title}
         description={content.hero.description}
+        tone="accent"
         actions={<Button href={routes.marathons}>Ver maratones</Button>}
       />
 
-      <Section tone="muted" aria-labelledby="community-audience-title">
+      <Section tone="accent" aria-labelledby="community-audience-title">
         <Container>
           <SectionHeader
             eyebrow="Quiénes forman parte"
             title="Una comunidad amplia y diversa"
             titleId="community-audience-title"
           />
-          <div className="mt-8">
+          <div className="mt-[var(--ck-stack-subtitle-to-content)]">
             <AudienceGrid items={content.audiences} variant="brand" />
           </div>
-          <p className="ck-body-md mt-8 max-w-prose text-ck-text-secondary">{content.future}</p>
+          <p className="ck-body-md mt-[var(--ck-stack-block)] max-w-prose text-ck-text-secondary">
+            {content.future}
+          </p>
         </Container>
       </Section>
 
@@ -51,7 +54,7 @@ export default function CommunityPage() {
             title="Cómo queremos convivir"
             titleId="community-values-title"
           />
-          <ul className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-[var(--ck-stack-subtitle-to-content)] grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {content.values.map((value) => (
               <li key={value.title}>
                 <Card className="h-full">

@@ -1,12 +1,12 @@
 export const organizePageContent = {
   meta: {
-    title: "Organizá una Clickaton en tu ciudad",
+    title: "Organizá una Clickatón en tu ciudad",
     description:
       "Programa de sedes en desarrollo: metodología común, identidad compartida y acompañamiento para clubes, instituciones y referentes locales.",
   },
   hero: {
     eyebrow: "Programa de sedes",
-    title: "Organizá una Clickaton.",
+    title: "Organizá una Clickatón.",
     description:
       "Proyectamos una red de sedes con metodología e identidad compartidas. El programa está en desarrollo.",
   },

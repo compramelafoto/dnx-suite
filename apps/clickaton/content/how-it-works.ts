@@ -1,14 +1,14 @@
 export const howItWorksPageContent = {
   meta: {
-    title: "Cómo funciona Clickaton",
+    title: "Cómo funciona Clickatón",
     description:
-      "Recorrido completo de una Clickaton: inscripción, consignas, recorrido, carga, evaluación, resultados y aprendizaje.",
+      "Recorrido completo de una Clickatón: inscripción, consignas, recorrido, carga, evaluación, resultados y aprendizaje.",
   },
   hero: {
     eyebrow: "La experiencia",
     title: "Del primer disparo a la comunidad que queda.",
     description:
-      "Una Clickaton combina desafío creativo, tiempo, territorio y aprendizaje. Cada edición define sus reglas; acá te contamos el recorrido general.",
+      "Una Clickatón combina desafío creativo, tiempo, territorio y aprendizaje. Cada edición define sus reglas; acá te contamos el recorrido general.",
   },
   disclaimer:
     "Las bases específicas de cada edición prevalecen. Duración, consignas y dispositivos no son universales.",
@@ -23,7 +23,7 @@ export const howItWorksPageContent = {
     },
     {
       title: "Bases y categorías",
-      body: "Cada Clickaton publica modalidades, dispositivos admitidos, edades y criterios. Leelas antes de participar.",
+      body: "Cada Clickatón publica modalidades, dispositivos admitidos, edades y criterios. Leelas antes de participar.",
     },
     {
       title: "Inicio y acreditación",
@@ -59,7 +59,7 @@ export const howItWorksPageContent = {
     },
     {
       title: "Devolución pedagógica",
-      body: "Clickaton busca construir espacios de aprendizaje. No se garantiza devolución individual en todas las ediciones.",
+      body: "Clickatón busca construir espacios de aprendizaje. No se garantiza devolución individual en todas las ediciones.",
     },
     {
       title: "Comunidad posterior",
@@ -77,7 +77,7 @@ export const howItWorksPageContent = {
     },
     {
       question: "¿Puedo usar celular?",
-      answer: "Depende de los dispositivos habilitados en esa Clickaton.",
+      answer: "Depende de los dispositivos habilitados en esa Clickatón.",
     },
   ],
 } as const;

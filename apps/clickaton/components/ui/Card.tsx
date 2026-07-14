@@ -26,7 +26,7 @@ export function Card({
   return (
     <Tag
       className={cn(
-        "rounded-[var(--ck-radius-md)] border-2 p-5 sm:p-6",
+        "rounded-[var(--ck-radius-card)] border-2 p-5 sm:p-6",
         variantClass[variant],
         className,
       )}

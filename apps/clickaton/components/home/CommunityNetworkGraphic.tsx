@@ -13,7 +13,7 @@ export function CommunityNetworkGraphic({
   return (
     <div
       className={cn(
-        "relative aspect-square w-full max-w-md overflow-hidden rounded-[var(--ck-radius-md)] border-2 border-ck-border-strong bg-ck-black p-6 text-ck-yellow",
+        "relative aspect-square w-full max-w-md overflow-hidden rounded-[var(--ck-radius-card)] border-2 border-ck-accent bg-ck-black p-6 text-ck-accent",
         className,
       )}
       aria-hidden="true"
@@ -41,7 +41,7 @@ export function CommunityNetworkGraphic({
         {roles.slice(0, 6).map((role) => (
           <span
             key={role}
-            className="ck-label rounded-[var(--ck-radius-sm)] border border-ck-yellow/40 bg-ck-black/70 px-2 py-1 text-ck-yellow"
+            className="ck-label rounded-[var(--ck-radius-sm)] border border-ck-accent/50 bg-ck-black/70 px-2 py-1 text-ck-accent"
           >
             {role}
           </span>

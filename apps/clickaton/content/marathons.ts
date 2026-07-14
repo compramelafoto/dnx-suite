@@ -5,11 +5,11 @@ export const marathonsPageContent = {
   meta: {
     title: "Próximas maratones fotográficas",
     description:
-      "Conocé cómo se anunciarán las próximas ediciones de Clickaton: fechas, sedes, categorías, bases e inscripción.",
+      "Conocé cómo se anunciarán las próximas ediciones de Clickatón: fechas, sedes, categorías, bases e inscripción.",
   },
   hero: {
     eyebrow: "Próximas experiencias",
-    title: "Cada ciudad puede convertirse en una Clickaton.",
+    title: "Cada ciudad puede convertirse en una Clickatón.",
     description:
       "Las próximas ediciones reunirán fotografía, consignas, recorrido, tiempo limitado y comunidad. Acá vas a encontrar fechas, sedes, categorías, bases e inscripción cuando sean anunciadas oficialmente.",
   },
@@ -34,7 +34,7 @@ export const marathonsPageContent = {
   },
   notes: {
     title: "Cada edición define sus reglas",
-    body: "Duración, cantidad de consignas, dispositivos admitidos y modalidades se publican en las bases de esa Clickaton. Lo que ves acá es el marco común; el detalle lo marca cada edición.",
+    body: "Duración, cantidad de consignas, dispositivos admitidos y modalidades se publican en las bases de esa Clickatón. Lo que ves acá es el marco común; el detalle lo marca cada edición.",
   },
   ctas: {
     howItWorks: { label: "Cómo funciona", href: routes.howItWorks },

@@ -21,7 +21,9 @@ export function ProcessTimeline({ steps }: ProcessTimelineProps) {
               className="absolute -top-3 left-5 size-8"
               label={`Paso ${index + 1}`}
             >
-              <span className="ck-display text-sm font-bold text-ck-yellow">{index + 1}</span>
+              <span className="ck-display text-[0.7rem] text-ck-yellow">
+                {index + 1}
+              </span>
             </IconFrame>
             <h3 className="ck-heading-md">{step.title}</h3>
             <p className="ck-body-sm mt-3 text-ck-text-secondary">{step.body}</p>

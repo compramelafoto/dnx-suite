@@ -30,11 +30,20 @@ export function buildPageMetadata({
       siteName: siteConfig.name,
       locale: "es_AR",
       type: "website",
+      images: [
+        {
+          url: "/og-default.png",
+          width: 1200,
+          height: 630,
+          alt: siteConfig.nameFull,
+        },
+      ],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: `${title} — ${siteConfig.name}`,
       description,
+      images: ["/og-default.png"],
     },
     robots: noIndex
       ? { index: false, follow: false, nocache: true }

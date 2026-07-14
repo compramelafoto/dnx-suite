@@ -25,12 +25,12 @@ export const homeContent = {
   whatIs: {
     id: "que-es",
     eyebrow: "Qué es",
-    title: "Clickaton es una experiencia fotográfica.",
+    title: "Clickatón es una experiencia fotográfica.",
     lead: "La maratón es el formato. El crecimiento de la mirada y la creación de comunidad son el propósito.",
     paragraphs: [
       "Es una maratón fotográfica: durante un período delimitado, salís a recorrer un territorio con consignas que despiertan la observación.",
       "La jornada invita a mirar, crear y entregar fotografías. También es un espacio de encuentro, intercambio y aprendizaje entre personas de distintos niveles.",
-      "Cada edición define su duración, recorrido, consignas y modalidad. Las reglas específicas se publican en las bases de esa Clickaton.",
+      "Cada edición define su duración, recorrido, consignas y modalidad. Las reglas específicas se publican en las bases de esa Clickatón.",
     ],
   },
 
@@ -62,11 +62,11 @@ export const homeContent = {
     id: "como-funciona",
     eyebrow: "Cómo funciona",
     title: "Un recorrido claro, una experiencia intensa.",
-    lead: "Este es el flujo conceptual de una Clickaton. La inscripción y la carga real se activarán cuando exista la integración con FotoRank.",
+    lead: "Este es el flujo conceptual de una Clickatón. La inscripción y la carga real se activarán cuando exista la integración con FotoRank.",
     note: "Explicación conceptual — sin formularios ni pagos en esta etapa.",
     steps: [
       {
-        title: "Elegís una Clickaton",
+        title: "Elegís una Clickatón",
         body: "Conocés la edición, su territorio y la propuesta creativa de esa jornada.",
       },
       {
@@ -98,7 +98,7 @@ export const homeContent = {
     title: "Próximas maratones",
     status: "Próximamente",
     message: "Próximamente anunciaremos las primeras ciudades y fechas.",
-    note: "Las fechas se van a comunicar por los canales oficiales de Clickaton. No publicamos sedes, cupos ni precios inventados.",
+    note: "Las fechas se van a comunicar por los canales oficiales de Clickatón. No publicamos sedes, cupos ni precios inventados.",
     cta: { label: "Ver próximas maratones", href: routes.marathons } satisfies HomeLink,
   },
 
@@ -106,7 +106,7 @@ export const homeContent = {
     id: "aprender",
     eyebrow: "Pedagogía",
     title: "Aprender mientras participás.",
-    lead: "Clickaton no se limita a competir. Busca construir progresivamente un espacio pedagógico alrededor de cada experiencia.",
+    lead: "Clickatón no se limita a competir. Busca construir progresivamente un espacio pedagógico alrededor de cada experiencia.",
     points: [
       {
         title: "Consignas que abren la mirada",
@@ -133,7 +133,7 @@ export const homeContent = {
     id: "comunidad",
     eyebrow: "Comunidad",
     title: "Una red de miradas en movimiento.",
-    lead: "Clickaton reúne a quienes salen a observar, crear y compartir: participantes, fotógrafos, jurados, docentes, clubes, asociaciones, organizadores y ciudades.",
+    lead: "Clickatón reúne a quienes salen a observar, crear y compartir: participantes, fotógrafos, jurados, docentes, clubes, asociaciones, organizadores y ciudades.",
     roles: [
       "Participantes",
       "Fotógrafos",
@@ -154,7 +154,7 @@ export const homeContent = {
   venues: {
     id: "organiza",
     eyebrow: "Sedes",
-    title: "Organizá una Clickaton.",
+    title: "Organizá una Clickatón.",
     lead: "Proyectamos una red de sedes con una metodología y una identidad compartidas.",
     body: "En el futuro, distintas ciudades podrán postularse para organizar una edición oficial con acompañamiento, herramientas y lineamientos comunes.",
     audience: [
@@ -177,7 +177,7 @@ export const homeContent = {
     id: "sponsors",
     eyebrow: "Alianzas",
     title: "Sponsors y alianzas.",
-    lead: "Estamos construyendo las primeras alianzas de Clickaton.",
+    lead: "Estamos construyendo las primeras alianzas de Clickatón.",
     body: "Buscamos acompañamiento de marcas e instituciones que quieran potenciar la fotografía, la creatividad y la comunidad.",
     categories: [
       "Marcas fotográficas",
@@ -203,7 +203,7 @@ export const homeContent = {
       "No importa solamente la cámara que llevás.",
       "Importa cómo mirás.",
     ],
-    body: "Cada ciudad guarda historias, luces, gestos y detalles que suelen pasar desapercibidos. Clickaton es una invitación a salir, observar, crear y compartir esas miradas con otras personas.",
+    body: "Cada ciudad guarda historias, luces, gestos y detalles que suelen pasar desapercibidos. Clickatón es una invitación a salir, observar, crear y compartir esas miradas con otras personas.",
   },
 
   faq: {
@@ -214,15 +214,15 @@ export const homeContent = {
       {
         question: "¿Necesito ser fotógrafo profesional?",
         answer:
-          "No. Clickaton está pensado para distintos niveles. Cada edición podrá definir categorías o modalidades específicas en sus bases.",
+          "No. Clickatón está pensado para distintos niveles. Cada edición podrá definir categorías o modalidades específicas en sus bases.",
       },
       {
         question: "¿Puedo participar con celular?",
         answer:
-          "Depende de cada edición. Los dispositivos habilitados se van a indicar en las bases y condiciones de esa Clickaton.",
+          "Depende de cada edición. Los dispositivos habilitados se van a indicar en las bases y condiciones de esa Clickatón.",
       },
       {
-        question: "¿Todas las Clickaton funcionan igual?",
+        question: "¿Todas las Clickatón funcionan igual?",
         answer:
           "Comparten una identidad y una metodología común, pero cada edición define duración, consignas, recorrido y modalidades propias.",
       },
@@ -239,7 +239,7 @@ export const homeContent = {
       {
         question: "¿Dónde se anuncian las próximas fechas?",
         answer:
-          "Las fechas se anunciarán mediante los canales oficiales de Clickaton. Todavía no publicamos un calendario inventado.",
+          "Las fechas se anunciarán mediante los canales oficiales de Clickatón. Todavía no publicamos un calendario inventado.",
       },
       {
         question: "¿Puede mi ciudad organizar una edición?",
@@ -251,7 +251,7 @@ export const homeContent = {
 
   finalCta: {
     id: "cta-final",
-    title: "La primera Clickaton empieza mucho antes del disparo.",
+    title: "La primera Clickatón empieza mucho antes del disparo.",
     body: "Empieza cuando una comunidad decide salir a mirar su ciudad de otra manera.",
     primaryCta: { label: "Conocé las próximas novedades", href: routes.marathons } satisfies HomeLink,
     secondaryCta: { label: "Explorá cómo funciona", href: routes.howItWorks } satisfies HomeLink,

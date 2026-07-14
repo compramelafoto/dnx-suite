@@ -1,35 +1,33 @@
-import { siteConfig } from "@/config/site";
+import { Logo, type LogoVariant } from "@/components/brand/Logo";
 import { cn } from "@/lib/cn";
 
 type WordmarkProps = {
   className?: string;
   href?: string;
+  /** `inverse` = logo mono para fondos oscuros (Manual). */
   tone?: "default" | "inverse";
+  height?: number;
 };
 
 /**
- * Wordmark tipográfico provisional.
- * Reemplazar cuando existan assets en /public/brand/.
+ * Marca Clickatón en chrome (header/footer).
+ * Usa assets oficiales — no reconstrucción tipográfica.
  */
 export function Wordmark({
   className = "",
   href = "/",
   tone = "default",
+  height = 40,
 }: WordmarkProps) {
-  const toneClass = tone === "inverse" ? "text-ck-yellow" : "text-ck-black";
+  const variant: LogoVariant = tone === "inverse" ? "horizontalMono" : "horizontal";
 
   return (
-    <a
+    <Logo
+      variant={variant}
       href={href}
-      className={cn(
-        "ck-heading-md inline-flex items-baseline gap-0.5 tracking-tight",
-        toneClass,
-        className,
-      )}
-      aria-label={`${siteConfig.name} — inicio`}
-    >
-      <span>{siteConfig.wordmark.replace("!", "")}</span>
-      <span aria-hidden="true">!</span>
-    </a>
+      height={height}
+      priority
+      className={cn(className)}
+    />
   );
 }

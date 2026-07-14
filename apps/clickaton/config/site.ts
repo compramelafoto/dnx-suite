@@ -1,18 +1,18 @@
 /**
- * Configuración central de marca — Clickaton.
+ * Configuración central de marca — Clickatón.
  */
 
 export const siteConfig = {
-  name: "Clickaton",
-  nameFull: "Clickaton — Maratón Fotográfica Internacional",
-  wordmark: "CLICKATON!",
+  name: "Clickatón",
+  nameFull: "Clickatón — Maratón Fotográfica Internacional",
+  wordmark: "CLICKATÓN!",
   descriptor: "Maratón Fotográfica Internacional",
   description:
     "Una experiencia de fotografía, creatividad, aprendizaje y comunidad que transforma cada ciudad en un nuevo desafío.",
   /** Dominio público confirmado (Vercel). */
   url: "https://maratonfotografica.com",
-  tagline: "Cada Clickaton te ayuda a mirar mejor.",
-  promise: "Cada Clickaton te ayuda a mirar mejor.",
+  tagline: "Cada Clickatón te ayuda a mirar mejor.",
+  promise: "Cada Clickatón te ayuda a mirar mejor.",
   editorialLine: "Salí a buscar el instante.",
   contactEmail: "" as string,
   social: {
@@ -21,13 +21,14 @@ export const siteConfig = {
     youtube: "" as string,
     tiktok: "" as string,
   },
-  /** Recursos de marca oficiales aún no disponibles. */
   brandAssets: {
-    status: "provisional" as const,
-    note:
-      "Usar wordmark tipográfico hasta reemplazar por logos oficiales en /public/brand/.",
+    status: "official" as const,
+    favicon: "/favicon.png",
+    appleTouchIcon: "/apple-touch-icon.png",
+    ogImage: "/og-default.png",
+    socialAvatar: "/brand/social-avatar.png",
   },
-  copyrightOwner: "Clickaton",
+  copyrightOwner: "Clickatón",
 } as const;
 
 export type SiteConfig = typeof siteConfig;

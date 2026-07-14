@@ -8,12 +8,12 @@ import type { PublicMarathon } from "@/types/marathon";
 export const demoMarathon: PublicMarathon = {
   id: "demo-marathon-001",
   slug: "demo",
-  name: "Clickaton Demo",
+  name: "Clickatón Demo",
   editionName: "Edición de referencia técnica",
   shortDescription:
     "Ficha pública de ejemplo para validar la presentación de una maratón antes de la integración con FotoRank.",
   fullDescription:
-    "Esta página demuestra cómo Clickaton presentará una edición oficial: territorio, fechas, categorías, cronograma, bases, validaciones, premios, jurado, sponsors, organización y FAQ. Los datos son ficticios y solo sirven como contrato visual y tipado. Cuando exista una maratón real, FotoRank será la fuente de verdad y esta ficha se alimentará con datos públicos aprobados.",
+    "Esta página demuestra cómo Clickatón presentará una edición oficial: territorio, fechas, categorías, cronograma, bases, validaciones, premios, jurado, sponsors, organización y FAQ. Los datos son ficticios y solo sirven como contrato visual y tipado. Cuando exista una maratón real, FotoRank será la fuente de verdad y esta ficha se alimentará con datos públicos aprobados.",
   status: "announced",
   registrationStatus: "coming_soon",
   format: "individual",
@@ -35,7 +35,7 @@ export const demoMarathon: PublicMarathon = {
   allowedDevices: ["smartphone", "camera"],
   galleryPreview: [],
   organizer: {
-    name: "Organización Demo Clickaton",
+    name: "Organización Demo Clickatón",
     type: "producer",
     description:
       "Organizador de ejemplo. En ediciones reales, este bloque mostrará club, asociación, institución o productora responsable.",
@@ -199,7 +199,7 @@ export const demoMarathon: PublicMarathon = {
     {
       question: "¿Dónde están las consignas?",
       answer:
-        "Las consignas no se publican anticipadamente. Cuando una edición esté en curso, FotoRank liberará las consignas autorizadas y Clickaton las mostrará solo si están reveladas.",
+        "Las consignas no se publican anticipadamente. Cuando una edición esté en curso, FotoRank liberará las consignas autorizadas y Clickatón las mostrará solo si están reveladas.",
     },
     {
       question: "¿Las validaciones GPS y EXIF son obligatorias?",
@@ -208,7 +208,7 @@ export const demoMarathon: PublicMarathon = {
     },
   ],
   rules: {
-    title: "Bases de ejemplo — Clickaton Demo",
+    title: "Bases de ejemplo — Clickatón Demo",
     summary:
       "Documento de referencia para mostrar cómo se presentarán las bases públicas. No tiene valor legal.",
     version: "0.1-demo",
@@ -224,14 +224,14 @@ export const demoMarathon: PublicMarathon = {
       "En esta edición de ejemplo se controla la ventana de tiempo. GPS y EXIF pueden requerirse para validar recorrido y momento de captura.",
     notes: [
       "La obligatoriedad exacta la definen las bases de cada edición.",
-      "Clickaton solo muestra la política pública aprobada; FotoRank ejecuta la validación.",
+      "Clickatón solo muestra la política pública aprobada; FotoRank ejecuta la validación.",
       "No se exponen datos crudos de ubicación de participantes en esta ficha.",
     ],
   },
   accessibilityNotes:
     "Punto de encuentro de ejemplo en espacio abierto. En ediciones reales se publicarán notas de accesibilidad específicas del territorio.",
   contactInfo:
-    "Los canales oficiales de contacto de Clickaton se publicarán próximamente. Esta demo no incluye correo ni teléfono inventados.",
+    "Los canales oficiales de contacto de Clickatón se publicarán próximamente. Esta demo no incluye correo ni teléfono inventados.",
   resultsStatus: "not_available",
   galleryStatus: "coming_soon",
   challenges: [

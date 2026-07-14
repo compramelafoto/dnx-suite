@@ -38,7 +38,7 @@ export default function SponsorsPage() {
         <Container>
           <SectionHeader
             eyebrow="Visión"
-            title="Por qué acompañar Clickaton"
+            title="Por qué acompañar Clickatón"
             titleId="sponsors-why"
           />
           <ul className="mt-8 grid gap-3 sm:grid-cols-2">

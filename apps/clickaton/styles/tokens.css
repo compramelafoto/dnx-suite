@@ -1,33 +1,44 @@
 /**
- * Clickaton — design tokens (Sistema de Diseño MVP)
- * Tokens semánticos centralizados. No codificar hex en componentes.
+ * Clickaton — Design Tokens V1
+ * Fuente de verdad: Manual de Marca oficial.
+ * No hardcodear hex en componentes; usar estos tokens.
  */
 
 :root {
-  /* ——— Brand ——— */
-  --ck-brand-primary: #ffe600;
-  --ck-brand-primary-hover: #e6cf00;
-  --ck-brand-primary-active: #d4bf00;
-  --ck-brand-ink: #0a0a0a;
+  /* ——— Brand (Manual §04) ——— */
+  --ck-brand-primary: #ffc400;
+  --ck-brand-primary-hover: #e6b000;
+  --ck-brand-primary-active: #cc9c00;
+  --ck-brand-primary-soft: #fff6d6;
+  --ck-brand-ink: #000000;
   --ck-brand-paper: #ffffff;
-  --ck-brand-accent: #3b1f6e;
-  --ck-brand-accent-soft: #f0ebf8;
 
-  /* Aliases legacy (compat Etapa 01) */
+  /* Secundarios — solo estados / acentos controlados (Manual §04) */
+  --ck-brand-gray: #f2f2f2;
+  --ck-brand-violet: #6c53ff;
+  --ck-brand-violet-soft: #efeaff;
+  --ck-brand-blue: #00aeef;
+  --ck-brand-blue-soft: #e5f7fd;
+  --ck-brand-green: #4caf50;
+  --ck-brand-green-soft: #e8f5e9;
+
+  /* Aliases compat */
   --ck-yellow: var(--ck-brand-primary);
   --ck-yellow-dark: var(--ck-brand-primary-hover);
-  --ck-yellow-ink: #1a1a1a;
+  --ck-yellow-ink: #000000;
   --ck-black: var(--ck-brand-ink);
   --ck-white: var(--ck-brand-paper);
+  --ck-brand-accent: var(--ck-brand-violet);
+  --ck-brand-accent-soft: var(--ck-brand-violet-soft);
 
-  /* ——— Neutrals (warm) ——— */
-  --ck-gray-50: #f7f6f3;
-  --ck-gray-100: #efece6;
-  --ck-gray-200: #ddd8cf;
-  --ck-gray-300: #c4bdb2;
-  --ck-gray-500: #7a746a;
-  --ck-gray-700: #3f3b36;
-  --ck-gray-900: #1c1a17;
+  /* ——— Neutrals (claros, luminosos — nunca oscuros como default) ——— */
+  --ck-gray-50: #fafafa;
+  --ck-gray-100: #f2f2f2;
+  --ck-gray-200: #e5e5e5;
+  --ck-gray-300: #d4d4d4;
+  --ck-gray-500: #737373;
+  --ck-gray-700: #404040;
+  --ck-gray-900: #171717;
 
   /* ——— Interface ——— */
   --ck-background: var(--ck-brand-paper);
@@ -52,94 +63,136 @@
   --ck-text: var(--ck-text-primary);
   --ck-text-on-yellow: var(--ck-text-on-brand);
 
-  /* ——— Semantic ——— */
-  --ck-success: #1f7a45;
-  --ck-success-soft: #e8f6ee;
-  --ck-warning: #9a6b00;
-  --ck-warning-soft: #fff6db;
-  --ck-danger: #b42318;
-  --ck-danger-soft: #fdeceb;
-  --ck-info: #3b1f6e;
-  --ck-info-soft: var(--ck-brand-accent-soft);
+  /* ——— Semantic (secundarios del Manual) ——— */
+  --ck-success: var(--ck-brand-green);
+  --ck-success-soft: var(--ck-brand-green-soft);
+  --ck-warning: #c79100;
+  --ck-warning-soft: var(--ck-brand-primary-soft);
+  --ck-danger: #d32f2f;
+  --ck-danger-soft: #fdecea;
+  --ck-info: var(--ck-brand-blue);
+  --ck-info-soft: var(--ck-brand-blue-soft);
+  --ck-community: var(--ck-brand-violet);
+  --ck-community-soft: var(--ck-brand-violet-soft);
 
-  /* ——— Typography ——— */
-  --ck-font-display: var(--font-ck-display), "Arial Narrow", Impact, sans-serif;
-  --ck-font-sans: var(--font-ck-sans), system-ui, sans-serif;
+  /* ——— Typography (Manual §05) ——— */
+  /* Display / Heading: Bebas Neue — impact editorial, all-caps */
+  --ck-font-display: var(--font-ck-display), "Bebas Neue", "Arial Narrow", Impact, sans-serif;
+  /* Body / UI: Montserrat */
+  --ck-font-sans: var(--font-ck-sans), "Montserrat", system-ui, sans-serif;
+  /* Coordenadas / sellos técnicos */
   --ck-font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  /* Acento manuscrito (frases cortas del Manual) — opcional vía utility */
+  --ck-font-accent: var(--font-ck-accent), "Caveat", cursive;
 
   --ck-weight-regular: 400;
   --ck-weight-medium: 500;
   --ck-weight-semibold: 600;
   --ck-weight-bold: 700;
-  --ck-weight-extrabold: 800;
 
-  --ck-tracking-display: 0.01em;
-  --ck-tracking-label: 0.12em;
+  /* Bebas Neue se lee mejor con tracking abierto en display */
+  --ck-tracking-display: 0.04em;
+  --ck-tracking-heading: 0.03em;
+  --ck-tracking-overline: 0.14em;
+  --ck-tracking-label: 0.1em;
+  --ck-tracking-button: 0.06em;
 
   --ck-leading-tight: 0.95;
-  --ck-leading-snug: 1.2;
+  --ck-leading-snug: 1.15;
   --ck-leading-body: 1.65;
+  --ck-leading-relaxed: 1.75;
 
-  /* Fluid type scale */
-  --ck-text-display-xl: clamp(2.75rem, 8.5vw, 5.25rem);
-  --ck-text-display-lg: clamp(2.25rem, 6vw, 4rem);
-  --ck-text-display-md: clamp(1.85rem, 4.5vw, 3rem);
-  --ck-text-heading-xl: clamp(1.75rem, 3.5vw, 2.5rem);
-  --ck-text-heading-lg: clamp(1.5rem, 2.8vw, 2rem);
+  /* Escala tipográfica completa */
+  --ck-text-display-xl: clamp(3rem, 9vw, 5.5rem);
+  --ck-text-display-lg: clamp(2.5rem, 6.5vw, 4.25rem);
+  --ck-text-display-md: clamp(2rem, 4.5vw, 3.25rem);
+  --ck-text-heading-xl: clamp(1.75rem, 3.2vw, 2.5rem);
+  --ck-text-heading-lg: clamp(1.5rem, 2.6vw, 2rem);
   --ck-text-heading-md: clamp(1.25rem, 2vw, 1.5rem);
-  --ck-text-body-lg: clamp(1.0625rem, 1.2vw, 1.1875rem);
+  --ck-text-heading-sm: 1.125rem;
+  --ck-text-body-lg: clamp(1.0625rem, 1.15vw, 1.1875rem);
   --ck-text-body-md: 1rem;
   --ck-text-body-sm: 0.875rem;
   --ck-text-label: 0.75rem;
-  --ck-text-caption: 0.6875rem;
+  --ck-text-caption: 0.75rem;
+  --ck-text-overline: 0.6875rem;
+  --ck-text-button: 0.875rem;
   --ck-text-numeric: clamp(2rem, 5vw, 3.5rem);
 
-  /* ——— Radius ——— */
-  --ck-radius-sm: 0.25rem;
-  --ck-radius-md: 0.375rem;
-  --ck-radius-lg: 0.5rem;
-  --ck-radius-pill: 9999px;
+  /* ——— Radius (editorial, no SaaS pill) ——— */
+  --ck-radius-none: 0;
+  --ck-radius-sm: 0.25rem; /* 4px — badges, chips */
+  --ck-radius-md: 0.5rem; /* 8px — inputs, cards pequeñas */
+  --ck-radius-lg: 0.75rem; /* 12px — cards, botones */
+  --ck-radius-xl: 1rem; /* 16px — paneles */
+  --ck-radius-pill: 9999px; /* solo chips / floating excepcionales */
   --ck-radius-full: var(--ck-radius-pill);
+  --ck-radius-control: var(--ck-radius-lg);
+  --ck-radius-card: var(--ck-radius-md);
 
-  /* ——— Shadows ——— */
-  --ck-shadow-subtle: 0 1px 2px rgb(10 10 10 / 0.06);
-  --ck-shadow-elevated: 0 8px 24px rgb(10 10 10 / 0.1);
-  --ck-shadow-strong: 0 0 0 2px var(--ck-brand-ink), 0 12px 40px rgb(10 10 10 / 0.14);
+  /* ——— Elevaciones (suaves; priorizar espacio) ——— */
+  --ck-shadow-none: none;
+  --ck-shadow-subtle: 0 1px 2px rgb(0 0 0 / 0.04);
+  --ck-shadow-elevated: 0 4px 16px rgb(0 0 0 / 0.06);
+  --ck-shadow-strong: 0 0 0 2px var(--ck-brand-ink), 0 8px 28px rgb(0 0 0 / 0.1);
   --ck-shadow-sm: var(--ck-shadow-subtle);
   --ck-shadow-md: var(--ck-shadow-elevated);
   --ck-shadow-frame: var(--ck-shadow-strong);
 
-  /* ——— Layout ——— */
+  /* ——— Grid / Layout (mobile first) ——— */
+  --ck-breakpoint-sm: 40rem; /* 640 */
+  --ck-breakpoint-md: 48rem; /* 768 */
+  --ck-breakpoint-lg: 64rem; /* 1024 */
+  --ck-breakpoint-xl: 80rem; /* 1280 */
+
   --ck-content-readable: 40rem;
   --ck-content-standard: 72rem;
   --ck-content-wide: 80rem;
-  --ck-gutter-mobile: 1rem;
-  --ck-gutter-desktop: 2rem;
+  --ck-gutter-mobile: 1rem; /* 16 */
+  --ck-gutter-tablet: 1.5rem; /* 24 */
+  --ck-gutter-desktop: 2rem; /* 32 */
   --ck-gutter: clamp(var(--ck-gutter-mobile), 4vw, var(--ck-gutter-desktop));
-  --ck-section-spacing: clamp(3rem, 8vw, 5.5rem);
+  --ck-section-spacing: clamp(3.5rem, 8vw, 6rem);
   --ck-max-width: var(--ck-content-standard);
   --ck-max-width-narrow: var(--ck-content-readable);
+  --ck-columns-mobile: 4;
+  --ck-columns-tablet: 8;
+  --ck-columns-desktop: 12;
 
-  /* ——— Spacing (aligned with Tailwind rem steps) ——— */
-  --ck-space-1: 0.25rem;
-  --ck-space-2: 0.5rem;
-  --ck-space-3: 0.75rem;
-  --ck-space-4: 1rem;
-  --ck-space-5: 1.25rem;
-  --ck-space-6: 1.5rem;
-  --ck-space-8: 2rem;
-  --ck-space-10: 2.5rem;
-  --ck-space-12: 3rem;
-  --ck-space-16: 4rem;
-  --ck-space-20: 5rem;
-  --ck-space-24: 6rem;
+  /* ——— Spacing scale (base 4px) ——— */
+  --ck-space-0: 0;
+  --ck-space-1: 0.25rem; /* 4 */
+  --ck-space-2: 0.5rem; /* 8 */
+  --ck-space-3: 0.75rem; /* 12 */
+  --ck-space-4: 1rem; /* 16 */
+  --ck-space-5: 1.25rem; /* 20 */
+  --ck-space-6: 1.5rem; /* 24 */
+  --ck-space-8: 2rem; /* 32 */
+  --ck-space-10: 2.5rem; /* 40 */
+  --ck-space-12: 3rem; /* 48 */
+  --ck-space-16: 4rem; /* 64 */
+  --ck-space-20: 5rem; /* 80 */
+  --ck-space-24: 6rem; /* 96 */
 
-  /* ——— Motion ——— */
-  --ck-duration-fast: 120ms;
-  --ck-duration-base: 220ms;
+  /* Ritmo vertical semántico */
+  --ck-stack-title-to-subtitle: var(--ck-space-4);
+  --ck-stack-subtitle-to-content: var(--ck-space-6);
+  --ck-stack-block: var(--ck-space-8);
+  --ck-stack-section: var(--ck-section-spacing);
+  --ck-stack-content-to-actions: var(--ck-space-10);
+
+  /* ——— Motion (enfoque / obturador) ——— */
+  --ck-duration-instant: 80ms;
+  --ck-duration-fast: 150ms;
+  --ck-duration-base: 240ms;
   --ck-duration-slow: 400ms;
   --ck-easing-standard: cubic-bezier(0.22, 1, 0.36, 1);
   --ck-easing-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --ck-easing-shutter: cubic-bezier(0.65, 0, 0.35, 1);
   --ck-ease: var(--ck-easing-standard);
   --ck-duration: var(--ck-duration-base);
+
+  /* ——— Borders ——— */
+  --ck-border-width: 1px;
+  --ck-border-width-strong: 2px;
 }

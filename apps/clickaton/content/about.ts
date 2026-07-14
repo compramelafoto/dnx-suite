@@ -1,14 +1,14 @@
 export const aboutPageContent = {
   meta: {
-    title: "Sobre Clickaton",
+    title: "Sobre Clickatón",
     description:
-      "Clickaton nace de una idea compartida: fotografía, creatividad, desafío y comunidad, con una dimensión pedagógica y una red de sedes en construcción.",
+      "Clickatón nace de una idea compartida: fotografía, creatividad, desafío y comunidad, con una dimensión pedagógica y una red de sedes en construcción.",
   },
   hero: {
     eyebrow: "Nosotros",
     title: "Una idea compartida en movimiento.",
     description:
-      "Clickaton está siendo desarrollada por un equipo vinculado a la fotografía, la tecnología y la producción de experiencias.",
+      "Clickatón está siendo desarrollada por un equipo vinculado a la fotografía, la tecnología y la producción de experiencias.",
   },
   story: [
     "Nace de una voluntad compartida: crear una experiencia fotográfica replicable, cercana y pedagógica.",

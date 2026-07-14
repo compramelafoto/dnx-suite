@@ -20,7 +20,7 @@ export function ExperienceSteps() {
           action={<Badge variant="neutral">{howItWorks.note}</Badge>}
         />
 
-        <ol className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <ol className="mt-[var(--ck-stack-subtitle-to-content)] grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {howItWorks.steps.map((step, index) => (
             <li key={step.title}>
               <Card variant="interactive" className="relative h-full pt-8">
@@ -29,7 +29,7 @@ export function ExperienceSteps() {
                   className="absolute -top-3 left-5 size-8"
                   label={`Paso ${index + 1}`}
                 >
-                  <span className="ck-display text-sm font-bold text-ck-yellow">
+                  <span className="ck-display text-[0.7rem] text-ck-yellow">
                     {index + 1}
                   </span>
                 </IconFrame>

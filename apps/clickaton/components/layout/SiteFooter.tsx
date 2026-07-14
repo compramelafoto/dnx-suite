@@ -12,7 +12,7 @@ export function SiteFooter() {
     <footer className="border-t border-ck-border bg-ck-black text-ck-white">
       <Container className="grid gap-10 py-12 md:grid-cols-[1.2fr_1fr]">
         <div className="space-y-4">
-          <Wordmark tone="inverse" href={routes.home} />
+          <Wordmark tone="inverse" href={routes.home} height={36} />
           <p className="ck-body-sm max-w-md text-ck-gray-200">{siteConfig.descriptor}</p>
           <p className="ck-body-sm max-w-md text-ck-gray-500">
             Proyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones,
@@ -22,8 +22,8 @@ export function SiteFooter() {
         </div>
 
         <nav aria-label="Pie de página">
-          <p className="ck-label text-ck-yellow">Navegación</p>
-          <ul className="mt-4 space-y-2">
+          <p className="ck-overline text-ck-yellow">Navegación</p>
+          <ul className="mt-[var(--ck-stack-title-to-subtitle)] space-y-2">
             {footerNavigation.map((item) => (
               <li key={item.href}>
                 <Link
@@ -44,7 +44,7 @@ export function SiteFooter() {
           © {year} {siteConfig.copyrightOwner}. Todos los derechos reservados.
         </p>
         <p className="ck-caption text-ck-gray-500">
-          Wordmark tipográfico provisional — logo oficial pendiente.
+          Identidad visual oficial — Design System V1
         </p>
       </Container>
     </footer>

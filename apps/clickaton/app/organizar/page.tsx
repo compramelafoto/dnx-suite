@@ -62,7 +62,7 @@ export default function OrganizePage() {
             </ul>
           </Card>
           <Card variant="yellow">
-            <h2 className="ck-heading-lg">Qué aporta Clickaton</h2>
+            <h2 className="ck-heading-lg">Qué aporta Clickatón</h2>
             <ul className="mt-4 space-y-2">
               {content.clickatonContributes.map((item) => (
                 <li key={item} className="ck-body-sm text-ck-gray-700">
