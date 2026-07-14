@@ -225,20 +225,50 @@ export async function removeArticleAssetLinkAction(
 
   const link = await prisma.infoSpotArticleAsset.findFirst({
     where: { id: linkId, articleId },
-    select: { id: true, usageType: true, assetId: true, article: { select: { slug: true, coverImageId: true } } },
+    select: {
+      id: true,
+      usageType: true,
+      assetId: true,
+      article: { select: { slug: true, coverImageId: true } },
+    },
   });
   if (!link) return { ok: false, error: "Relación no encontrada" };
 
   await prisma.infoSpotArticleAsset.delete({ where: { id: link.id } });
+
+  // También retirar el usage canónico InfoSpotEditorialPhotoUsage (mismo asset).
+  const usageType =
+    link.usageType === "FEATURED"
+      ? ("FEATURED" as const)
+      : link.usageType === "COVER"
+        ? ("COVER" as const)
+        : link.usageType === "GALLERY"
+          ? ("GALLERY" as const)
+          : ("INLINE" as const);
+
+  const editorialPhoto = await prisma.infoSpotEditorialPhoto.findFirst({
+    where: { deliveryAssetId: link.assetId },
+    select: { id: true },
+  });
+  if (editorialPhoto) {
+    await prisma.infoSpotEditorialPhotoUsage.deleteMany({
+      where: {
+        articleId,
+        photoId: editorialPhoto.id,
+        usageType,
+      },
+    });
+  }
+
   if (link.usageType === "COVER" && link.article.coverImageId === link.assetId) {
     await prisma.infoSpotArticle.update({
       where: { id: articleId },
-      data: { coverImageId: null },
+      data: { coverImageId: null, coverOverridden: false },
     });
   }
 
   revalidateArticle(articleId, link.article.slug);
-  return { ok: true, message: "Imagen quitada de la noticia" };
+  return { ok: true, message: "Foto quitada de la nota" };
 }
 
 export async function reorderArticleAssetsAction(

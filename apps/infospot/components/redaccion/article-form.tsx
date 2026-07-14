@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   extractEditorialFigures,
   findFiguresMissingAlt,
@@ -25,6 +24,7 @@ import { buildArticlePublishChecklist } from "@/lib/launch-content";
 import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
 import type { InfoSpotPermissionSubject } from "@repo/db";
 import { autosaveArticleDraftAction } from "@/app/actions/articles";
+import { removeArticleAssetLinkAction } from "@/app/actions/clf-link";
 import type { AiImportMergeMode, ArticleFormImportValues } from "@/lib/ai-import";
 
 type CategoryOption = { id: string; name: string; slug: string };
@@ -103,6 +103,16 @@ type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 const fieldClass = "is-input mt-2";
 const labelClass = "is-input-label";
 
+/** Quita figuras editoriales del cuerpo por data-asset-id. */
+function stripFiguresByAssetId(markdown: string, assetId: string): string {
+  const escaped = assetId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(
+    `<figure\\b[^>]*data-asset-id=["']${escaped}["'][^>]*>[\\s\\S]*?<\\/figure>`,
+    "gi",
+  );
+  return markdown.replace(re, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function ArticleForm({
   mode,
   action,
@@ -118,7 +128,6 @@ export function ArticleForm({
   fromAssistant = false,
   initial,
 }: ArticleFormProps) {
-  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const editorRef = useRef<EditorialVisualEditorHandle>(null);
   const [pending, startTransition] = useTransition();
@@ -148,8 +157,18 @@ export function ArticleForm({
   const [aiImportOpen, setAiImportOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   const [importBanner, setImportBanner] = useState<string | null>(null);
+  const [localLinkedAssets, setLocalLinkedAssets] = useState<LinkedClfAsset[]>(
+    () => clf?.linkedAssets ?? [],
+  );
+  const [unlinkingLinkId, setUnlinkingLinkId] = useState<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingLock = useRef(false);
+  const saveStateRef = useRef<SaveState>("idle");
+  saveStateRef.current = saveState;
+
+  useEffect(() => {
+    setLocalLinkedAssets(clf?.linkedAssets ?? []);
+  }, [clf?.linkedAssets]);
 
   const autoSlug = useMemo(() => slugifyTitle(title), [title]);
   const figuresMissingCredit = useMemo(() => findFiguresMissingCredit(content), [content]);
@@ -267,17 +286,29 @@ export function ArticleForm({
   );
 
   const runAutosave = useCallback(async () => {
-    if (mode !== "edit" || !initial?.id || !formRef.current) return;
+    if (mode !== "edit" || !initial?.id) return;
     if (savingLock.current) return;
 
     savingLock.current = true;
     setSaveState("saving");
     setSaveError(null);
     try {
-      const formData = new FormData(formRef.current);
-      // El servidor nunca publica desde autosave; conserva PUBLISHED/UNPUBLISHED.
-      if (expectedUpdatedAt) formData.set("expectedUpdatedAt", expectedUpdatedAt);
-      const result = await autosaveArticleDraftAction(initial.id, formData);
+      // Guardar desde el estado React (no FormData del DOM): el cuerpo TipTap
+      // y los campos controlados quedan sincronizados aunque se cierre la pestaña.
+      const result = await autosaveArticleDraftAction(initial.id, {
+        title: title.trim() || "Sin título",
+        slug: (slug || autoSlug || "sin-titulo").trim(),
+        excerpt,
+        content,
+        categoryId: categoryId || null,
+        coverImageId: coverImageId || null,
+        coverCredit: coverCredit || undefined,
+        seoTitle: seoTitle || undefined,
+        seoDescription: seoDescription || undefined,
+        sourceName: sourceName || undefined,
+        sourceUrl: sourceUrl || undefined,
+        expectedUpdatedAt: expectedUpdatedAt || undefined,
+      });
       if (!result.ok) {
         setSaveState("error");
         setSaveError(result.error);
@@ -291,19 +322,77 @@ export function ArticleForm({
     } finally {
       savingLock.current = false;
     }
-  }, [expectedUpdatedAt, initial?.id, mode]);
+  }, [
+    autoSlug,
+    categoryId,
+    content,
+    coverCredit,
+    coverImageId,
+    excerpt,
+    expectedUpdatedAt,
+    initial?.id,
+    mode,
+    seoDescription,
+    seoTitle,
+    slug,
+    sourceName,
+    sourceUrl,
+    title,
+  ]);
 
+  // Debounce corto: guardar mientras se escribe.
   useEffect(() => {
     if (mode !== "edit") return;
     if (saveState !== "dirty") return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
       void runAutosave();
-    }, 4000);
+    }, 1200);
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     };
-  }, [saveState, content, title, excerpt, categoryId, seoTitle, seoDescription, sourceName, runAutosave, mode]);
+  }, [
+    saveState,
+    content,
+    title,
+    excerpt,
+    categoryId,
+    seoTitle,
+    seoDescription,
+    sourceName,
+    sourceUrl,
+    coverCredit,
+    coverImageId,
+    slug,
+    runAutosave,
+    mode,
+  ]);
+
+  // Al ocultar la pestaña / cerrar la ventana: forzar guardado pendiente.
+  useEffect(() => {
+    if (mode !== "edit") return;
+
+    const flushIfDirty = () => {
+      if (savingLock.current) return;
+      if (saveStateRef.current !== "dirty" && saveStateRef.current !== "error") return;
+      if (autosaveTimer.current) {
+        clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
+      void runAutosave();
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushIfDirty();
+    };
+
+    window.addEventListener("pagehide", flushIfDirty);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flushIfDirty);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [mode, runAutosave]);
 
   useEffect(() => {
     if (!sideDrawer && !configOpen) return;
@@ -331,7 +420,7 @@ export function ArticleForm({
   const checklistMissing = checklist.filter((i) => i.required && !i.ok).map((i) => i.label);
   const linkedAssets = useMemo(
     () =>
-      (clf?.linkedAssets ?? []).map((a) => ({
+      localLinkedAssets.map((a) => ({
         ...a,
         coverageTitle: a.coverageTitle ?? clf?.albumTitle ?? null,
         albumTitle: a.albumTitle ?? clf?.albumTitle ?? null,
@@ -339,7 +428,50 @@ export function ArticleForm({
           a.availability ??
           (a.thumbnailUrl || a.url ? ("ready" as const) : ("unavailable" as const)),
       })),
-    [clf],
+    [localLinkedAssets, clf?.albumTitle],
+  );
+
+  const unlinkAsset = useCallback(
+    async (linkId: string, asset: LinkedClfAsset) => {
+      if (!initial?.id) return;
+      if (
+        !window.confirm(
+          asset.usageType === "COVER"
+            ? "¿Quitar esta foto de portada de la nota?"
+            : "¿Quitar esta foto de la nota?",
+        )
+      ) {
+        return;
+      }
+      setUnlinkingLinkId(linkId);
+      try {
+        const result = await removeArticleAssetLinkAction(initial.id, linkId);
+        if (!result.ok) {
+          setSaveError(result.error);
+          setSaveState("error");
+          return;
+        }
+        setLocalLinkedAssets((prev) => prev.filter((a) => a.linkId !== linkId));
+        if (asset.usageType === "COVER" && asset.assetId && coverImageId === asset.assetId) {
+          setCoverImageId("");
+          setCoverCredit("");
+        }
+        if (asset.assetId && asset.usageType === "INLINE") {
+          const nextContent = stripFiguresByAssetId(content, asset.assetId);
+          if (nextContent !== content) {
+            setContent(nextContent);
+            setEditorKey((k) => k + 1);
+          }
+        }
+        markDirty();
+      } catch {
+        setSaveError("No se pudo quitar la foto.");
+        setSaveState("error");
+      } finally {
+        setUnlinkingLinkId(null);
+      }
+    },
+    [content, coverImageId, initial?.id, markDirty],
   );
 
   const usedAssetIds = useMemo(() => {
@@ -360,6 +492,8 @@ export function ArticleForm({
       linkedAssets={linkedAssets}
       usedAssetIds={usedAssetIds}
       highlightedAssetId={highlightedAssetId}
+      unlinkingLinkId={unlinkingLinkId}
+      onUnlink={(linkId, asset) => unlinkAsset(linkId, asset)}
       onInsertInline={(attrs) => {
         editorRef.current?.insertImage(attrs);
       }}
@@ -809,7 +943,8 @@ export function ArticleForm({
             }}
             onCoverImported={() => {
               markDirty();
-              router.refresh();
+              // No hacer router.refresh() acá: remonta el formulario y borra
+              // el texto local que todavía no se guardó.
             }}
           />
 

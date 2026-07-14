@@ -337,6 +337,25 @@ export async function removeEditorialPhotoUsage(input: {
 
   await prisma.infoSpotEditorialPhotoUsage.delete({ where: { id: usage.id } });
 
+  // Compat: también quitar el ArticleAsset legacy del mismo vínculo.
+  if (usage.photo.deliveryAssetId) {
+    const legacyUsage =
+      usage.usageType === "FEATURED"
+        ? "FEATURED"
+        : usage.usageType === "COVER"
+          ? "COVER"
+          : usage.usageType === "GALLERY"
+            ? "GALLERY"
+            : "INLINE";
+    await prisma.infoSpotArticleAsset.deleteMany({
+      where: {
+        articleId: usage.articleId,
+        assetId: usage.photo.deliveryAssetId,
+        usageType: legacyUsage,
+      },
+    });
+  }
+
   if (usage.isCover || usage.usageType === "COVER") {
     const article = await prisma.infoSpotArticle.findUnique({
       where: { id: usage.articleId },
@@ -345,7 +364,7 @@ export async function removeEditorialPhotoUsage(input: {
     if (article?.coverImageId && usage.photo.deliveryAssetId === article.coverImageId) {
       await prisma.infoSpotArticle.update({
         where: { id: usage.articleId },
-        data: { coverImageId: null },
+        data: { coverImageId: null, coverOverridden: false },
       });
     }
   }

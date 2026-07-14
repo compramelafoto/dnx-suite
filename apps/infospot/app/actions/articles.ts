@@ -264,10 +264,45 @@ export async function updateArticleAction(
 /**
  * Autosave de borrador: no publica, respeta expectedUpdatedAt para evitar
  * sobrescribir una versión más nueva.
+ * Acepta FormData (submit clásico) o un payload plano desde el editor React.
  */
+export type AutosaveDraftPayload = {
+  title?: string;
+  slug?: string;
+  excerpt?: string;
+  content?: string;
+  categoryId?: string | null;
+  coverImageId?: string | null;
+  coverCredit?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  expectedUpdatedAt?: string;
+};
+
+function normalizeAutosaveRaw(
+  input: FormData | AutosaveDraftPayload,
+): Record<string, string> {
+  if (input instanceof FormData) {
+    const raw = Object.fromEntries(input.entries());
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      out[k] = typeof v === "string" ? v : String(v);
+    }
+    return out;
+  }
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (v == null) continue;
+    out[k] = String(v);
+  }
+  return out;
+}
+
 export async function autosaveArticleDraftAction(
   articleId: string,
-  formData: FormData,
+  input: FormData | AutosaveDraftPayload,
 ): Promise<ActionResult> {
   const access = await requireInfoSpotRedaccionAccess();
   const existing = await prisma.infoSpotArticle.findUnique({
@@ -280,6 +315,7 @@ export async function autosaveArticleDraftAction(
       publishedAt: true,
       coverImageId: true,
       updatedAt: true,
+      title: true,
     },
   });
   if (!existing) return { ok: false, error: "Noticia no encontrada." };
@@ -287,9 +323,22 @@ export async function autosaveArticleDraftAction(
   const denied = await assertCanMutateArticle(access, existing);
   if (denied) return denied;
 
-  const raw = Object.fromEntries(formData.entries());
+  const raw = normalizeAutosaveRaw(input);
+  // Autosave no debe fallar por título vacío: el redactor puede escribir el cuerpo primero.
+  const title =
+    (typeof raw.title === "string" && raw.title.trim()) ||
+    existing.title?.trim() ||
+    "Sin título";
+  const slugSeed =
+    (typeof raw.slug === "string" && raw.slug.trim()) ||
+    slugifyTitle(title) ||
+    existing.slug ||
+    "sin-titulo";
+
   const parsed = articleDraftSchema.safeParse({
     ...raw,
+    title,
+    slug: slugSeed,
     // Nunca publicar desde autosave
     status: existing.status === "ARCHIVED" ? "ARCHIVED" : "DRAFT",
   });
@@ -338,9 +387,6 @@ export async function autosaveArticleDraftAction(
       sourceName: data.sourceName ?? null,
       sourceUrl: data.sourceUrl ?? null,
       status: nextStatus,
-      ...(data.coverImageId && data.coverCredit?.trim()
-        ? {}
-        : {}),
     },
   });
 

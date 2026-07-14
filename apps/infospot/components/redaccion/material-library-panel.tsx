@@ -34,6 +34,9 @@ type Props = {
   highlightedAssetId?: string | null;
   onInsertInline: (attrs: EditorialImageAttrs) => void;
   onGoToUsed?: (assetId: string) => void;
+  /** Desvincular foto de la nota (ArticleAsset linkId). */
+  onUnlink?: (linkId: string, asset: LibraryAsset) => void | Promise<void>;
+  unlinkingLinkId?: string | null;
 };
 
 const FAVORITES_KEY = "infospot-material-favorites-v1";
@@ -88,6 +91,8 @@ export function MaterialLibraryPanel({
   highlightedAssetId,
   onInsertInline,
   onGoToUsed,
+  onUnlink,
+  unlinkingLinkId = null,
 }: Props) {
   const used = useMemo(() => {
     if (!usedAssetIds) return new Set<string>();
@@ -478,6 +483,18 @@ function LibrarySection({
                           onClick={() => onGoToUsed(asset.assetId!)}
                         >
                           Ir al texto
+                        </button>
+                      ) : null}
+                      {onUnlink ? (
+                        <button
+                          type="button"
+                          className="is-btn is-btn-ghost !min-h-0 px-2.5 py-1 text-[11px] text-red-700 hover:text-red-800"
+                          disabled={unlinkingLinkId === asset.linkId}
+                          onClick={() => void onUnlink(asset.linkId, asset)}
+                        >
+                          {unlinkingLinkId === asset.linkId
+                            ? "Quitando…"
+                            : "Quitar de la nota"}
                         </button>
                       ) : null}
                     </div>
