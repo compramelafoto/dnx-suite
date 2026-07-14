@@ -21,7 +21,7 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`45-pro
 |-------|--------|-------|
 | Git / rama | OK | `migration-legacy-clf-to-monorepo` |
 | Vercel project `infospot-dnxsuite` | OK | Production sirve **`3d0cd77`** · alias Ready · `dpl_F8uop3SQ…` |
-| Neon **infospot-production** | OK | Migración `dnx_public_profiles…` **pendiente** en Prod ([`57`](./57-public-profile-onboarding-and-editorial-access.md)); **staging** sí migrada + backfill |
+| Neon **infospot-production** | OK | Schema up to date · perfiles públicos migrados (22R-C · [`59`](./59-public-profiles-production-migration.md)) |
 | R2 bucket `infospot-media` | **OK** | `VERIFIED_WORKING` post-rotación · [doc 56](./56-r2-post-deploy-validation.md) |
 | CLF readonly | OK | Sync inbound → 40 eventos DRAFT (todos finalizados) |
 | SMTP / Resend | Opcional | Degradación segura sin key |

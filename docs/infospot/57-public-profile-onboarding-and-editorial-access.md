@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-07-13  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**Estado:** implementado; **staging** (`ep-dawn-dew…`) con migrate + backfill OK; **Production no migrada** (requiere autorización explícita)
+**Estado:** implementado; **staging** (`ep-dawn-dew…`) migrado + backfill; **Production** (`ep-bitter-salad…`) migrado + backfill en 22R-C — ver [`59`](./59-public-profiles-production-migration.md)
 
 No incluye emails ni secretos.
 
@@ -52,7 +52,7 @@ pnpm --filter @repo/db db:backfill-dnx-user-profiles
 | Build Info Spot | OK (`/completar-perfil` en rutas) |
 | Tests | `test:post-login-destination` OK |
 
-Production: solo tras auditoría y autorización explícita (no en 22R-B automática).
+Production: aplicada en 22R-C ([`59`](./59-public-profiles-production-migration.md)).
 
 ---
 
