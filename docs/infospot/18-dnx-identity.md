@@ -29,11 +29,16 @@ Info Spot **reutiliza** el mismo `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` de 
 Política Info Spot:
 
 - Usuario **existente**: inicia sesión (vincula `googleId` si faltaba). No cambia contraseña.
-- Usuario **nuevo**: crea `User` (nombre, email, avatar en `logoUrl`, `emailVerifiedAt`, rol suite `CUSTOMER`). **Sin** rol editorial.
+- Usuario **nuevo**: crea `User` (nombre, email, avatar en `logoUrl`, `emailVerifiedAt`, rol suite `CUSTOMER`). **Sin** rol editorial ni `DnxUserProfile` hasta onboarding.
 - Invitación **PENDING** con el mismo email: se activa `InfoSpotUserRole` y la invitación queda `ACCEPTED` (sin duplicar User).
 - Google **no** asigna permisos editoriales; eso vive en `/admin/usuarios`.
 
-Redirects post-login: Director / Redactor / Colaborador → `/redaccion`; sin rol editorial → `/ingresar/acceso-pendiente`.
+Redirects post-login (ver [`57`](./57-public-profile-onboarding-and-editorial-access.md)):
+
+1. Sin onboarding / sin perfiles públicos ACTIVE → `/completar-perfil`
+2. Con perfiles públicos → `/` (o `next` seguro)
+3. Destino editorial sin `InfoSpotUserRole` → `/ingresar/acceso-pendiente` (cuenta pública no bloqueada)
+4. Con rol editorial → `/redaccion` (o `next`)
 
 Variables requeridas:
 
