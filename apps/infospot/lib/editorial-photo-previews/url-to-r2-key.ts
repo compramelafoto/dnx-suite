@@ -1,6 +1,6 @@
 /**
  * Extrae key R2 relativa desde previewUrl CLF (URL pública o path).
- * No hace fetch externo: solo parsea pathname → key del bucket compartido.
+ * No hace fetch externo: solo parsea pathname → key del bucket.
  */
 export function urlToR2Key(urlOrPath: string): string {
   const raw = urlOrPath.trim();
@@ -10,12 +10,15 @@ export function urlToR2Key(urlOrPath: string): string {
     try {
       const url = new URL(raw);
       let pathname = url.pathname.replace(/^\//, "");
-      const bucketName = process.env.R2_BUCKET_NAME || process.env.R2_BUCKET;
-      if (
-        bucketName &&
-        (pathname === bucketName || pathname.startsWith(`${bucketName}/`))
-      ) {
-        pathname = pathname.replace(new RegExp(`^${bucketName}/?`), "");
+      const bucketCandidates = [
+        process.env.CLF_R2_BUCKET_NAME || process.env.CLF_R2_BUCKET,
+        process.env.R2_BUCKET_NAME || process.env.R2_BUCKET,
+      ].filter((b): b is string => Boolean(b?.trim()));
+      for (const bucketName of bucketCandidates) {
+        if (pathname === bucketName || pathname.startsWith(`${bucketName}/`)) {
+          pathname = pathname.replace(new RegExp(`^${bucketName}/?`), "");
+          break;
+        }
       }
       if (!pathname) throw new Error("Key R2 vacía tras parsear URL");
       return pathname;
