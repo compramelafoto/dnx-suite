@@ -100,6 +100,7 @@ export function RedaccionNav({
       ? [{ href: "/admin/usuarios", label: "Equipo y roles", short: "U" }]
       : []),
     { href: "/admin/eventos", label: "Eventos (admin)", short: "Ev" },
+    { href: "/admin/ayuda", label: "Cómo publicar", short: "?" },
     { href: "/admin/configuracion", label: "Configuración", short: "⚙" },
   ];
 

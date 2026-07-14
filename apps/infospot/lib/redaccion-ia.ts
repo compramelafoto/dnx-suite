@@ -10,6 +10,7 @@ export type NewsroomNavId =
   | "agenda"
   | "publicados"
   | "portada"
+  | "ayuda"
   | "estadisticas";
 
 export type NewsroomNavItem = {
@@ -68,6 +69,13 @@ export const NEWSROOM_NAV: readonly NewsroomNavItem[] = [
     hint: "Qué se destaca en la home",
   },
   {
+    id: "ayuda",
+    href: "/redaccion/ayuda",
+    label: "Cómo publicar",
+    short: "?",
+    hint: "Paso a paso según el origen de la nota",
+  },
+  {
     id: "estadisticas",
     href: "/redaccion#estadisticas",
     label: "Estadísticas",
@@ -91,6 +99,7 @@ export const NEWSROOM_COPY = {
   newsroom: "Centro Editorial",
   inbox: "Bandeja",
   agenda: "Agenda",
+  howToPublish: "Cómo publicar",
 } as const;
 
 /** Flujo mental del Asistente Editorial (preparación → escritura). */
@@ -132,6 +141,9 @@ export function newsroomNavActive(
   }
   if (item.id === "portada") {
     return path.startsWith("/redaccion/distribucion");
+  }
+  if (item.id === "ayuda") {
+    return path === "/redaccion/ayuda" || path.startsWith("/redaccion/ayuda/");
   }
   if (item.exact) return path === item.href.split("?")[0];
   const base = item.href.split("?")[0]!;

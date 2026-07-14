@@ -139,6 +139,16 @@ export function NewsroomDesk({
             </Link>
           ) : null}
         </div>
+        <p className="text-sm text-[var(--is-muted)]">
+          ¿Primera vez?{" "}
+          <Link
+            href="/redaccion/ayuda"
+            className="font-semibold text-[var(--is-accent)] underline-offset-2 hover:underline"
+          >
+            {NEWSROOM_COPY.howToPublish} una historia según el origen
+          </Link>
+          .
+        </p>
       </section>
 
       <section

@@ -35,5 +35,14 @@ assert.equal(
   ),
   true,
 );
+assert.equal(
+  newsroomNavActive(
+    "/redaccion/ayuda",
+    "",
+    NEWSROOM_NAV.find((n) => n.id === "ayuda")!,
+  ),
+  true,
+);
+assert.ok(NEWSROOM_NAV.some((n) => n.id === "ayuda"));
 
 console.log("redaccion-ia tests: ok");

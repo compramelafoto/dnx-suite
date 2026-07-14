@@ -115,6 +115,7 @@ export default async function RedaccionPage({ searchParams }: PageProps) {
       ? [{ label: NEWSROOM_COPY.clfImport, href: "/redaccion/desde-clf" }]
       : []),
     { label: "Abrir bandeja", href: "/redaccion/bandeja" },
+    { label: NEWSROOM_COPY.howToPublish, href: "/redaccion/ayuda" },
   ];
 
   return (
