@@ -4,7 +4,7 @@ Aplicación pública de **Clickaton** (Maratón Fotográfica Internacional) dent
 
 ## Propósito
 
-Experiencia digital de marca pública. Etapa 01: Home fundacional. Etapa 02: Sistema de Diseño MVP aplicado a la Home.
+Experiencia digital de marca pública. Etapa 01: foundation. Etapa 02: Design System MVP. Etapa 03: Home de lanzamiento.
 
 ## Relación Clickaton ↔ FotoRank
 

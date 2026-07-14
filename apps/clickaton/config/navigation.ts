@@ -1,6 +1,5 @@
 /**
  * Navegación MVP — solo anclas a contenido existente en la Home.
- * Rutas futuras (tienda, ranking, galería, etc.) no se exponen como enlaces.
  */
 
 export type NavItem = {
@@ -9,20 +8,29 @@ export type NavItem = {
 };
 
 export const mainNavigation: readonly NavItem[] = [
-  { label: "Inicio", href: "#inicio" },
   { label: "Qué es", href: "#que-es" },
   { label: "Cómo funciona", href: "#como-funciona" },
-  { label: "Próximas maratones", href: "#proximas-maratones" },
+  { label: "Próximas", href: "#proximas" },
   { label: "Comunidad", href: "#comunidad" },
+  { label: "Organizá una", href: "#organiza" },
+  { label: "Sponsors", href: "#sponsors" },
 ] as const;
 
 export const footerNavigation: readonly NavItem[] = [
-  { label: "Inicio", href: "#inicio" },
   { label: "Qué es", href: "#que-es" },
   { label: "Cómo funciona", href: "#como-funciona" },
-  { label: "Próximas maratones", href: "#proximas-maratones" },
+  { label: "Próximas", href: "#proximas" },
+  { label: "Aprender", href: "#aprender" },
   { label: "Comunidad", href: "#comunidad" },
+  { label: "Organizá una", href: "#organiza" },
+  { label: "Sponsors", href: "#sponsors" },
+  { label: "Preguntas", href: "#faq" },
 ] as const;
+
+export const headerCta: NavItem = {
+  label: "Ver próximas maratones",
+  href: "#proximas",
+};
 
 /** Áreas futuras — documentadas, sin enlaces rotos en la UI. */
 export const futureAreas = [
@@ -30,10 +38,10 @@ export const futureAreas = [
   "ranking",
   "galería",
   "blog",
-  "organizadores",
   "perfiles",
   "inscripciones",
   "jurados",
-  "sponsors",
   "paneles privados",
+  "newsletter",
+  "contacto funcional",
 ] as const;

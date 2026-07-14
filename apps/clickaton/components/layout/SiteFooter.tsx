@@ -14,9 +14,10 @@ export function SiteFooter() {
           <Wordmark tone="inverse" href="#inicio" />
           <p className="ck-body-sm max-w-md text-ck-gray-200">{siteConfig.descriptor}</p>
           <p className="ck-body-sm max-w-md text-ck-gray-500">
-            Proyecto en desarrollo. Experiencia pública fundacional — sin inscripciones ni
-            catálogo activos en esta etapa.
+            Proyecto en desarrollo. Home pública de lanzamiento — sin inscripciones, catálogo
+            ni formularios activos todavía.
           </p>
+          <p className="ck-body-sm max-w-md text-ck-yellow/80">{siteConfig.promise}</p>
         </div>
 
         <nav aria-label="Pie de página">

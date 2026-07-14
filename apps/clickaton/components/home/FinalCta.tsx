@@ -9,6 +9,7 @@ export function FinalCta() {
 
   return (
     <Section
+      id={finalCta.id}
       tone="dark"
       className="border-t border-ck-border"
       aria-labelledby="final-cta-title"
@@ -22,9 +23,12 @@ export function FinalCta() {
           {finalCta.body}
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Button href={finalCta.ctaHref}>{finalCta.ctaLabel}</Button>
+          <Button href={finalCta.primaryCta.href}>{finalCta.primaryCta.label}</Button>
+          <Button href={finalCta.secondaryCta.href} variant="outline" className="border-ck-yellow text-ck-yellow hover:bg-ck-yellow hover:text-ck-black">
+            {finalCta.secondaryCta.label}
+          </Button>
         </div>
-        <p className="ck-body-sm mt-6 text-ck-gray-500">{finalCta.note}</p>
+        <p className="ck-caption mt-6 text-ck-gray-500">{finalCta.note}</p>
       </Container>
     </Section>
   );

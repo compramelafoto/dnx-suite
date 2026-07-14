@@ -6,6 +6,7 @@ import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { FocusMark } from "@/components/ui/FocusMark";
 import { homeContent } from "@/content/home";
 
 export function Hero() {
@@ -13,18 +14,18 @@ export function Hero() {
 
   return (
     <Section
-      id="inicio"
+      id={hero.id}
       tone="yellow"
       grain
-      className="relative overflow-hidden border-b border-ck-border-strong"
+      className="relative overflow-hidden border-b-2 border-ck-border-strong"
       aria-labelledby="hero-title"
     >
-      <CoordinateGrid className="opacity-[0.08]" />
-      <Container className="relative z-[2] grid items-center gap-10 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] md:gap-12">
-        <div className="max-w-xl">
+      <CoordinateGrid className="opacity-[0.07]" />
+      <Container className="relative z-[2] grid items-center gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-14">
+        <div className="max-w-2xl">
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant="brand">{hero.eyebrow}</Badge>
-            <EditorialLabel tone="dark">Experiencia</EditorialLabel>
+            <EditorialLabel tone="dark">{hero.tagline}</EditorialLabel>
           </div>
           <h1 id="hero-title" className="ck-display-xl mt-5 text-ck-black">
             {hero.title}
@@ -37,9 +38,13 @@ export function Hero() {
               {hero.secondaryCta.label}
             </Button>
           </div>
+          <p className="ck-caption mt-6 flex items-center gap-2 text-ck-gray-700">
+            <FocusMark size="sm" className="text-ck-black" />
+            Mirar · crear · aprender · compartir
+          </p>
         </div>
 
-        <div className="justify-self-center md:justify-self-end">
+        <div className="relative justify-self-center lg:justify-self-end">
           <ViewfinderFrame />
         </div>
       </Container>

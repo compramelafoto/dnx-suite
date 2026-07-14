@@ -46,6 +46,16 @@ Ver [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md).
 
 Catálogo interno: `/design-system` (noindex, fuera de la navegación pública).
 
+### Etapa 03 — Home MVP de lanzamiento
+
+Home pública institucional con arquitectura de contenido en `content/home.ts`:
+
+- Qué es, pilares, cómo funciona, próximas (placeholder)
+- Pedagogía, comunidad, programa de sedes, sponsors
+- Manifiesto, FAQ (`details`/`summary`), CTA final
+- Sin datos inventados (ciudades, fechas, precios, logos)
+- Sin inscripción, FotoRank, pagos ni tienda
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).

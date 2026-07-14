@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { Wordmark } from "@/components/brand/Wordmark";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/Button";
-import { mainNavigation } from "@/config/navigation";
+import { headerCta, mainNavigation } from "@/config/navigation";
 import { cn } from "@/lib/cn";
 
 export function SiteHeader() {
@@ -29,15 +29,15 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-ck-border bg-ck-white/95 backdrop-blur-sm">
-      <Container className="flex h-16 items-center justify-between gap-4">
+      <Container className="flex h-16 items-center justify-between gap-4 lg:h-[4.25rem]">
         <Wordmark />
 
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="Principal">
+        <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Principal">
           {mainNavigation.map((item) => (
             <a
               key={item.href}
               href={item.href}
-              className="rounded-[var(--ck-radius-sm)] px-3 py-2 text-sm font-medium text-ck-text-secondary transition-colors hover:bg-ck-gray-100 hover:text-ck-text"
+              className="rounded-[var(--ck-radius-sm)] px-2.5 py-2 text-sm font-medium text-ck-text-secondary transition-colors hover:bg-ck-gray-100 hover:text-ck-text"
             >
               {item.label}
             </a>
@@ -45,15 +45,15 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button href="#proximas-maratones" className="hidden sm:inline-flex" size="sm">
-            Próximamente
+          <Button href={headerCta.href} className="hidden sm:inline-flex" size="sm">
+            {headerCta.label}
           </Button>
 
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="min-w-11 px-3 lg:hidden"
+            className="min-w-11 px-3 xl:hidden"
             aria-expanded={open}
             aria-controls={panelId}
             onClick={() => setOpen((value) => !value)}
@@ -86,7 +86,7 @@ export function SiteHeader() {
       {open ? (
         <div
           id={panelId}
-          className="border-t border-ck-border bg-ck-white lg:hidden"
+          className="border-t border-ck-border bg-ck-white xl:hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Menú de navegación"
@@ -104,11 +104,11 @@ export function SiteHeader() {
                 </a>
               ))}
               <Button
-                href="#proximas-maratones"
+                href={headerCta.href}
                 className="mt-2"
                 onClick={() => setOpen(false)}
               >
-                Conocé Clickaton
+                {headerCta.label}
               </Button>
             </nav>
           </Container>

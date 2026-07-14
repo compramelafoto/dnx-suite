@@ -70,9 +70,23 @@ Documentado como pendiente para la preventa (no implementar en esta etapa):
 - Favicon definitivo
 - Manual completo de marca
 - Iconografía definitiva
+- Fotografías reales de ediciones (sin stock externo)
 - Confirmar dominio público y URL canónica → **hecho:** `https://maratonfotografica.com`
 - Activar indexación (robots) en lanzamiento (hoy: noindex)
-- Definir slogan definitivo y perfiles sociales
+- Definir slogan definitivo y perfiles / redes sociales
+- Newsletter funcional
+- Contacto funcional (sin captura ficticia)
+- CMS editorial (opcional)
+- Imágenes Open Graph oficiales
+
+## Home pública / producto (post Etapa 03)
+
+- Eventos / maratones desde FotoRank
+- Inscripción real
+- Programa real de sedes (postulación y acompañamiento)
+- Propuesta comercial de sponsors (sin planes inventados todavía)
+- Tienda y merchandising para preventa
+- Galería / resultados / ranking públicos
 
 ## Design System (post-MVP)
 

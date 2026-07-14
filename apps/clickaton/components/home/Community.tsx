@@ -1,45 +1,40 @@
-import { BrushStroke } from "@/components/brand/BrushStroke";
+import { CommunityNetworkGraphic } from "@/components/home/CommunityNetworkGraphic";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { homeContent } from "@/content/home";
-
-const highlights = [
-  "Todos los niveles",
-  "Equipos diversos",
-  "Mirada pedagógica",
-  "Desafío creativo",
-] as const;
 
 export function Community() {
   const { community } = homeContent;
 
   return (
     <Section id={community.id} tone="muted" aria-labelledby="community-title">
-      <Container className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-center">
+      <Container className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center">
         <div>
-          <div className="mb-4 flex flex-wrap gap-2">
-            <Badge variant="accent">Comunidad</Badge>
-            <Badge variant="brand">Aprendizaje</Badge>
-          </div>
           <SectionHeader
+            eyebrow={community.eyebrow}
             title={community.title}
-            titleId="community-title"
             description={community.lead}
+            titleId="community-title"
           />
-          <BrushStroke className="mt-4" />
-          <p className="ck-body-md mt-4 max-w-prose text-ck-text-secondary">{community.body}</p>
+          <ul className="mt-8 flex flex-wrap gap-2">
+            {community.roles.map((role) => (
+              <li key={role}>
+                <Badge variant="neutral">{role}</Badge>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8 flex flex-col items-start gap-2">
+            <Button href={community.cta.href} variant="secondary">
+              {community.cta.label}
+            </Button>
+            <p className="ck-caption">{community.cta.note}</p>
+          </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          {highlights.map((item) => (
-            <Card key={item} variant="yellow" className="text-center">
-              <p className="ck-heading-md">{item}</p>
-            </Card>
-          ))}
-        </div>
+        <CommunityNetworkGraphic roles={community.roles} className="justify-self-center" />
       </Container>
     </Section>
   );

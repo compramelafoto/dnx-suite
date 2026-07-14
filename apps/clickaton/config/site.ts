@@ -8,10 +8,12 @@ export const siteConfig = {
   wordmark: "CLICKATON!",
   descriptor: "Maratón Fotográfica Internacional",
   description:
-    "Una experiencia fotográfica de creatividad, aprendizaje y comunidad.",
+    "Una experiencia de fotografía, creatividad, aprendizaje y comunidad que transforma cada ciudad en un nuevo desafío.",
   /** Dominio público confirmado (Vercel). */
   url: "https://maratonfotografica.com",
-  tagline: "Cada Clickaton te convierte en un mejor fotógrafo.",
+  tagline: "Cada Clickaton te ayuda a mirar mejor.",
+  promise: "Cada Clickaton te ayuda a mirar mejor.",
+  editorialLine: "Salí a buscar el instante.",
   contactEmail: "" as string,
   social: {
     instagram: "" as string,
