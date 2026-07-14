@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ManualOriginDetails } from "@/components/redaccion/manual-origin-details";
 import {
   PUBLISH_MANUAL,
   type ManualAudience,
@@ -256,7 +257,7 @@ export function EditorialPublishManual({
 
         <div className="space-y-4">
           {origins.map((origin) => (
-            <details
+            <ManualOriginDetails
               key={origin.id}
               id={`origen-${origin.id}`}
               className="group rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white open:border-[var(--is-accent)]"
@@ -281,7 +282,7 @@ export function EditorialPublishManual({
               <div className="border-t border-[var(--is-border)] px-5 py-6 sm:px-6 sm:py-8">
                 <StepList steps={origin.steps} />
               </div>
-            </details>
+            </ManualOriginDetails>
           ))}
         </div>
       </section>
