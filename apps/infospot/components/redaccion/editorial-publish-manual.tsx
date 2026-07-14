@@ -1,7 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { useMemo, useState } from "react";
 import {
   PUBLISH_MANUAL,
   type ManualAudience,
@@ -11,7 +8,7 @@ import {
 
 type Props = {
   audience?: ManualAudience;
-  /** Origen inicial (p. ej. deep link ?origen=web-intake). */
+  /** Origen abierto por defecto (p. ej. deep link ?origen=web-intake). */
   initialOrigin?: ManualOriginId;
   /** Si false, el padre ya muestra título (p. ej. PageShell). */
   showChromeHeader?: boolean;
@@ -116,7 +113,7 @@ function RoleChecklist({
 
 /**
  * Manual operativo in-app: publicar una historia según origen.
- * Misma fuente de verdad para Redacción y Dirección.
+ * Server Component + <details> nativo (sin depender de JS de tabs).
  */
 export function EditorialPublishManual({
   audience = "both",
@@ -124,15 +121,9 @@ export function EditorialPublishManual({
   showChromeHeader = true,
 }: Props) {
   const origins = PUBLISH_MANUAL.origins;
-  const validInitial = origins.some((o) => o.id === initialOrigin)
+  const openOrigin = origins.some((o) => o.id === initialOrigin)
     ? initialOrigin
     : origins[0]!.id;
-  const [activeId, setActiveId] = useState<ManualOriginId>(validInitial);
-
-  const active = useMemo(
-    () => origins.find((o) => o.id === activeId) ?? origins[0]!,
-    [activeId, origins],
-  );
 
   const showRedactor = audience === "redactor" || audience === "both";
   const showDirector = audience === "director" || audience === "both";
@@ -170,7 +161,6 @@ export function EditorialPublishManual({
         </div>
       )}
 
-      {/* Intro */}
       <section
         aria-labelledby="manual-intro"
         className="space-y-6 rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 sm:p-8"
@@ -221,7 +211,10 @@ export function EditorialPublishManual({
                 key={item}
                 className="flex items-start gap-2 text-sm text-[var(--is-text)]"
               >
-                <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--is-accent)]" />
+                <span
+                  aria-hidden
+                  className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--is-accent)]"
+                />
                 {item}
               </li>
             ))}
@@ -229,7 +222,6 @@ export function EditorialPublishManual({
         </div>
       </section>
 
-      {/* Callout */}
       <aside
         role="note"
         className="rounded-[var(--is-radius-md)] border border-[var(--is-orange-200)] bg-[var(--is-orange-50)] px-5 py-5 sm:px-6"
@@ -248,65 +240,52 @@ export function EditorialPublishManual({
         </p>
       </aside>
 
-      {/* Orígenes */}
       <section aria-labelledby="manual-origenes" className="space-y-6">
-        <h2
-          id="manual-origenes"
-          className="font-[family-name:var(--font-source-serif)] text-xl font-semibold tracking-tight sm:text-2xl"
-        >
-          {PUBLISH_MANUAL.originsTitle}
-        </h2>
-
-        <div
-          role="tablist"
-          aria-label="Origen de la nota"
-          className="flex flex-wrap gap-2"
-        >
-          {origins.map((origin) => {
-            const selected = origin.id === active.id;
-            return (
-              <button
-                key={origin.id}
-                type="button"
-                role="tab"
-                id={`tab-${origin.id}`}
-                aria-selected={selected}
-                aria-controls={`panel-${origin.id}`}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => setActiveId(origin.id)}
-                className={[
-                  "inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] px-4 text-sm font-semibold transition-colors",
-                  selected
-                    ? "bg-[var(--is-accent)] text-white"
-                    : "border border-[var(--is-border-strong)] bg-white text-[var(--is-text)] hover:border-[var(--is-accent)] hover:text-[var(--is-accent)]",
-                ].join(" ")}
-              >
-                <span className="sm:hidden">{origin.short}</span>
-                <span className="hidden sm:inline">{origin.title}</span>
-              </button>
-            );
-          })}
+        <div className="max-w-2xl space-y-3">
+          <h2
+            id="manual-origenes"
+            className="font-[family-name:var(--font-source-serif)] text-xl font-semibold tracking-tight sm:text-2xl"
+          >
+            {PUBLISH_MANUAL.originsTitle}
+          </h2>
+          <p className="text-sm leading-relaxed text-[var(--is-muted)]">
+            Tocá un origen para abrir o cerrar el paso a paso. Podés dejar varios
+            abiertos a la vez.
+          </p>
         </div>
 
-        <div
-          role="tabpanel"
-          id={`panel-${active.id}`}
-          aria-labelledby={`tab-${active.id}`}
-          className="space-y-6 rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 sm:p-8"
-        >
-          <div className="max-w-2xl">
-            <h3 className="font-[family-name:var(--font-source-serif)] text-2xl font-semibold tracking-tight">
-              {active.title}
-            </h3>
-            <p className="mt-3 text-sm leading-relaxed text-[var(--is-muted)] sm:text-base">
-              {active.summary}
-            </p>
-          </div>
-          <StepList steps={active.steps} />
+        <div className="space-y-4">
+          {origins.map((origin) => (
+            <details
+              key={origin.id}
+              id={`origen-${origin.id}`}
+              className="group rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white open:border-[var(--is-accent)]"
+              defaultOpen={origin.id === openOrigin}
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-left marker:content-none [&::-webkit-details-marker]:hidden sm:px-6 sm:py-5">
+                <span className="min-w-0">
+                  <span className="block font-[family-name:var(--font-source-serif)] text-lg font-semibold tracking-tight text-[var(--is-text)] sm:text-xl">
+                    {origin.title}
+                  </span>
+                  <span className="mt-1 block text-sm leading-relaxed text-[var(--is-muted)]">
+                    {origin.summary}
+                  </span>
+                </span>
+                <span
+                  aria-hidden
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full border border-[var(--is-border)] text-[var(--is-muted)] transition-transform group-open:rotate-45 group-open:border-[var(--is-accent)] group-open:text-[var(--is-accent)]"
+                >
+                  +
+                </span>
+              </summary>
+              <div className="border-t border-[var(--is-border)] px-5 py-6 sm:px-6 sm:py-8">
+                <StepList steps={origin.steps} />
+              </div>
+            </details>
+          ))}
         </div>
       </section>
 
-      {/* Paso común */}
       <section
         aria-labelledby="manual-comun"
         className="space-y-6 rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 sm:p-8"
@@ -320,7 +299,6 @@ export function EditorialPublishManual({
         <StepList steps={PUBLISH_MANUAL.commonSteps} />
       </section>
 
-      {/* Por rol */}
       <div
         className={[
           "grid gap-6",
