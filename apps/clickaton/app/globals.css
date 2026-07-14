@@ -1,0 +1,92 @@
+/**
+ * Clickaton — estilos globales
+ */
+
+@import "tailwindcss";
+@import "../styles/tokens.css";
+@import "../styles/utilities.css";
+
+:root {
+  color-scheme: light;
+}
+
+@theme inline {
+  --font-sans: var(--ck-font-sans);
+  --font-display: var(--ck-font-display);
+  --font-mono: var(--ck-font-mono);
+
+  --color-ck-yellow: var(--ck-brand-primary);
+  --color-ck-yellow-dark: var(--ck-brand-primary-hover);
+  --color-ck-black: var(--ck-brand-ink);
+  --color-ck-white: var(--ck-brand-paper);
+  --color-ck-bg: var(--ck-background);
+  --color-ck-bg-alt: var(--ck-surface-muted);
+  --color-ck-surface: var(--ck-surface);
+  --color-ck-surface-strong: var(--ck-surface-strong);
+  --color-ck-border: var(--ck-border);
+  --color-ck-border-strong: var(--ck-border-strong);
+  --color-ck-text: var(--ck-text-primary);
+  --color-ck-text-secondary: var(--ck-text-secondary);
+  --color-ck-text-muted: var(--ck-text-muted);
+  --color-ck-accent: var(--ck-brand-accent);
+  --color-ck-accent-soft: var(--ck-brand-accent-soft);
+  --color-ck-gray-100: var(--ck-gray-100);
+  --color-ck-gray-200: var(--ck-gray-200);
+  --color-ck-gray-500: var(--ck-gray-500);
+  --color-ck-gray-700: var(--ck-gray-700);
+  --color-ck-success: var(--ck-success);
+  --color-ck-warning: var(--ck-warning);
+  --color-ck-danger: var(--ck-danger);
+  --color-ck-info: var(--ck-info);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  background: var(--ck-background);
+  color: var(--ck-text-primary);
+  font-family: var(--ck-font-sans);
+  font-size: var(--ck-text-body-md);
+  line-height: var(--ck-leading-body);
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--ck-focus-ring);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 6px var(--ck-focus-offset);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--ck-font-display);
+    font-weight: var(--ck-weight-bold);
+    line-height: var(--ck-leading-tight);
+    letter-spacing: var(--ck-tracking-display);
+    text-wrap: balance;
+  }
+}

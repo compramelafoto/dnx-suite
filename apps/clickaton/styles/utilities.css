@@ -1,0 +1,181 @@
+/**
+ * Clickaton — utilidades tipográficas y visuales del DS MVP
+ */
+
+/* Type scale */
+.ck-display-xl {
+  font-family: var(--ck-font-display);
+  font-size: var(--ck-text-display-xl);
+  font-weight: var(--ck-weight-bold);
+  line-height: var(--ck-leading-tight);
+  letter-spacing: var(--ck-tracking-display);
+  text-wrap: balance;
+}
+
+.ck-display-lg {
+  font-family: var(--ck-font-display);
+  font-size: var(--ck-text-display-lg);
+  font-weight: var(--ck-weight-bold);
+  line-height: var(--ck-leading-tight);
+  letter-spacing: var(--ck-tracking-display);
+  text-wrap: balance;
+}
+
+.ck-display-md {
+  font-family: var(--ck-font-display);
+  font-size: var(--ck-text-display-md);
+  font-weight: var(--ck-weight-bold);
+  line-height: var(--ck-leading-tight);
+  letter-spacing: var(--ck-tracking-display);
+  text-wrap: balance;
+}
+
+.ck-heading-xl {
+  font-family: var(--ck-font-display);
+  font-size: var(--ck-text-heading-xl);
+  font-weight: var(--ck-weight-bold);
+  line-height: var(--ck-leading-snug);
+  letter-spacing: var(--ck-tracking-display);
+  text-wrap: balance;
+}
+
+.ck-heading-lg {
+  font-family: var(--ck-font-display);
+  font-size: var(--ck-text-heading-lg);
+  font-weight: var(--ck-weight-bold);
+  line-height: var(--ck-leading-snug);
+  text-wrap: balance;
+}
+
+.ck-heading-md {
+  font-family: var(--ck-font-display);
+  font-size: var(--ck-text-heading-md);
+  font-weight: var(--ck-weight-bold);
+  line-height: var(--ck-leading-snug);
+  text-wrap: balance;
+}
+
+.ck-body-lg {
+  font-family: var(--ck-font-sans);
+  font-size: var(--ck-text-body-lg);
+  font-weight: var(--ck-weight-regular);
+  line-height: var(--ck-leading-body);
+}
+
+.ck-body-md {
+  font-family: var(--ck-font-sans);
+  font-size: var(--ck-text-body-md);
+  font-weight: var(--ck-weight-regular);
+  line-height: var(--ck-leading-body);
+}
+
+.ck-body-sm {
+  font-family: var(--ck-font-sans);
+  font-size: var(--ck-text-body-sm);
+  font-weight: var(--ck-weight-regular);
+  line-height: var(--ck-leading-body);
+}
+
+.ck-label {
+  font-family: var(--ck-font-sans);
+  font-size: var(--ck-text-label);
+  font-weight: var(--ck-weight-bold);
+  letter-spacing: var(--ck-tracking-label);
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.ck-caption {
+  font-family: var(--ck-font-sans);
+  font-size: var(--ck-text-caption);
+  font-weight: var(--ck-weight-medium);
+  line-height: 1.4;
+  color: var(--ck-text-muted);
+}
+
+.ck-numeric-display {
+  font-family: var(--ck-font-display);
+  font-size: var(--ck-text-numeric);
+  font-weight: var(--ck-weight-extrabold);
+  line-height: var(--ck-leading-tight);
+  letter-spacing: var(--ck-tracking-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.ck-mono {
+  font-family: var(--ck-font-mono);
+  font-size: var(--ck-text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Readable measure */
+.ck-prose-width {
+  max-width: var(--ck-content-readable);
+}
+
+/* Grain overlay utility */
+.ck-grain {
+  position: relative;
+  isolation: isolate;
+}
+
+.ck-grain::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.045;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (max-width: 640px) {
+  .ck-grain::after {
+    opacity: 0.03;
+  }
+}
+
+/* Motion primitives */
+@keyframes ck-pulse-ring {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes ck-scan {
+  0% {
+    transform: translateY(-10%);
+    opacity: 0;
+  }
+  20%,
+  80% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+}
+
+.ck-frame-pulse {
+  animation: ck-pulse-ring 4s var(--ck-easing-standard) infinite;
+}
+
+.ck-frame-scan {
+  animation: ck-scan 5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ck-frame-pulse,
+  .ck-frame-scan {
+    animation: none;
+  }
+}

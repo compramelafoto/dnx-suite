@@ -8,7 +8,10 @@ Monorepo para la suite de aplicaciones de fotografía DNX.
 dnx-suite/
 ├── apps/
 │   ├── fotorank/       # App Fotorank
-│   └── compramelafoto/ # App CompraMeLaFoto
+│   ├── compramelafoto/ # App CompraMeLaFoto
+│   ├── infospot/       # App Info Spot
+│   ├── fotoffice/      # App Fotoffice
+│   └── clickaton/      # App Clickaton (Maratón Fotográfica Internacional)
 ├── packages/
 │   ├── ui/             # Componentes UI compartidos
 │   ├── eslint-config/  # Configuración ESLint
@@ -18,6 +21,8 @@ dnx-suite/
 ```
 
 Documentación del MCP: [`docs/dnx-mcp.md`](docs/dnx-mcp.md) · [`services/dnx-mcp/README.md`](services/dnx-mcp/README.md)
+
+Documentación Clickaton: [`docs/clickaton/README.md`](docs/clickaton/README.md) · [`apps/clickaton/README.md`](apps/clickaton/README.md)
 
 ## Requisitos
 
@@ -57,6 +62,7 @@ pnpm dev
 # Desarrollo de una app específica
 pnpm --filter fotorank dev
 pnpm --filter compramelafoto dev
+pnpm --filter clickaton dev
 
 # Build de todo el monorepo
 pnpm build
