@@ -155,3 +155,7 @@ Sin 500. Sin secretos en cuerpo.
 - `infospot.com.ar` **no** lanzado públicamente (alias Vercel únicamente para smoke).  
 - No se imprimieron secretos.  
 - No se modificó Prisma schema / workflow / UX / sync CLF.
+
+## 12. Actualización 22H (smoke autenticado)
+
+Ver [`60-profile-migration-and-authenticated-smoke.md`](./60-profile-migration-and-authenticated-smoke.md): migración perfiles ya alineada; typecheck/build OK; DRAFT con portada/inline/galería/preview; cleanup confirmado.

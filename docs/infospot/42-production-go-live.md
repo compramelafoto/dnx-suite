@@ -20,6 +20,8 @@
 
 **Actualización 2026-07-14 (Etapa 22G post-rotación):** keys S3 R2 rotadas (`updatedAt` 2026-07-14T00:05Z); deploy `dpl_F8uop3SQ…` Ready; smoke upload/read/derivados/delete/CORS **PASS** · worker **`APTO_SINCRONICO`**. Ver [`56-r2-post-deploy-validation.md`](./56-r2-post-deploy-validation.md).
 
+**Actualización 2026-07-14 (Etapa 22H):** migración perfiles **ya alineada** staging+prod; typecheck/build Info Spot **OK**; smoke autenticado DRAFT (portada/inline/galería/preview) **PASS**; cron-with-secret pendiente export sensitive. Ver [`60-profile-migration-and-authenticated-smoke.md`](./60-profile-migration-and-authenticated-smoke.md).
+
 Este documento es el runbook de salida a producción y rollback. **No incluye secretos.**
 
 ---

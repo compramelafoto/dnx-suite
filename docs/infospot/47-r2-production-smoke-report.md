@@ -1,12 +1,13 @@
 # 47 — R2 production smoke report
 
+**Estado de etapa (22H auth smoke 2026-07-14):** **`COMPLETE`** · smoke autenticado DRAFT · ver [`60`](./60-profile-migration-and-authenticated-smoke.md)  
 **Estado de etapa (22G post-rotación 2026-07-14):** **`COMPLETE`** · `R2_STATUS = VERIFIED_WORKING`  
 **Detalle post-deploy:** [`56-r2-post-deploy-validation.md`](./56-r2-post-deploy-validation.md)  
-**Estado (22H):** gate multimedia **COMPLETE** · [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)  
+**Estado (22H gate multimedia histórico):** [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)  
 **Histórico bloqueos:** 22F `BLOCKED_SECRET_NOT_EXPORTABLE` · 22E/22D `BLOCKED_BY_VERCEL_ENV` · 22B/22C `BLOCKED_BY_MANUAL_R2_TOKEN`
 
 **Production alias:** `https://infospot-dnxsuite.vercel.app`  
-**Commit / deploy post-rotación:** **`3d0cd77`** · `dpl_F8uop3SQc7aCbEiet59KC2TLjPs1` · health `db:ok`  
+**Health (22H):** `db:ok` · version `1dc8831`  
 **Bucket:** `infospot-media` · público `pub-3cc4a4641be54ab9aeca101179467a60.r2.dev`
 
 No incluye secretos.

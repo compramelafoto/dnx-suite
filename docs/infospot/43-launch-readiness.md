@@ -2,8 +2,8 @@
 
 **Fecha:** 2026-07-14  
 **Rama:** `migration-legacy-clf-to-monorepo`  
-**HEAD Production (post-rotación R2):** `3d0cd77` · `dpl_F8uop3SQc7aCbEiet59KC2TLjPs1`  
-**Decisión:** **GO operativo en alias Vercel** · **NO-GO** dominio propio — falta DonWeb + OAuth día D + Search Console + contenido publicado (recomendado). R2 **revalidado** tras rotación ([`56`](./56-r2-post-deploy-validation.md)).
+**HEAD repo:** `5a231a1` · **Production health:** `1dc8831` · `db:ok`  
+**Decisión:** **GO operativo en alias Vercel** · **NO-GO** dominio propio — falta DonWeb + OAuth día D + Search Console + contenido publicado (recomendado). R2 **revalidado**; migración perfiles **alineada**; smoke autenticado DRAFT **OK** ([`60`](./60-profile-migration-and-authenticated-smoke.md)).
 
 **Alcance:** producción usable en `infospot-dnxsuite.vercel.app` **sin** dominio, **sin** Google Cloud / Search Console.
 
@@ -20,14 +20,14 @@ Ver también: [`42-production-go-live.md`](./42-production-go-live.md), [`45-pro
 | Pieza | Estado | Notas |
 |-------|--------|-------|
 | Git / rama | OK | `migration-legacy-clf-to-monorepo` |
-| Vercel project `infospot-dnxsuite` | OK | Production sirve **`3d0cd77`** · alias Ready · `dpl_F8uop3SQ…` |
+| Vercel project `infospot-dnxsuite` | OK | Health `db:ok` · version `1dc8831` · alias Ready |
 | Neon **infospot-production** | OK | Schema up to date · perfiles públicos migrados (22R-C · [`59`](./59-public-profiles-production-migration.md)) |
-| R2 bucket `infospot-media` | **OK** | `VERIFIED_WORKING` post-rotación · [doc 56](./56-r2-post-deploy-validation.md) |
+| R2 bucket `infospot-media` | **OK** | `VERIFIED_WORKING` · auth smoke 22H · [doc 60](./60-profile-migration-and-authenticated-smoke.md) |
 | CLF readonly | OK | Sync inbound → 40 eventos DRAFT (todos finalizados) |
 | SMTP / Resend | Opcional | Degradación segura sin key |
-| CRON_SECRET + schedules | OK | 401 sin secret |
+| CRON_SECRET + schedules | Parcial | 401 sin secret · con secret pendiente export sensitive (22H) |
 | Analytics Measurement ID | Opcional | Internas OK; GA4 no cargado |
-| Director | **Bloqueado** | 0 users — login OAuth + grant · [doc 53](./53-director-and-day1-content.md) |
+| Director | **OK** | `INFOSPOT_DIRECTOR` ACTIVE existentes · smoke autenticado 22H · [doc 60](./60-profile-migration-and-authenticated-smoke.md) |
 | Contenido PUBLISHED | Pendiente | 0 · plan en doc 52 (0 eventos futuros candidatos) |
 | Dominio `infospot.com.ar` | Pendiente DonWeb | DNS público vacío |
 | Google Cloud OAuth console | **No tocado** | Callback el día D |
