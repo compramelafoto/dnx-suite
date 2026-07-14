@@ -3,7 +3,8 @@ import { cn } from "@/lib/cn";
 
 type WordmarkProps = {
   className?: string;
-  href?: string;
+  /** `null` = marca estática, sin enlace. */
+  href?: string | null;
   /** `inverse` = logo mono para fondos oscuros (Manual). */
   tone?: "default" | "inverse";
   height?: number;
@@ -15,9 +16,9 @@ type WordmarkProps = {
  */
 export function Wordmark({
   className = "",
-  href = "/",
+  href = null,
   tone = "default",
-  height = 40,
+  height = 56,
 }: WordmarkProps) {
   const variant: LogoVariant = tone === "inverse" ? "horizontalMono" : "horizontal";
 
@@ -27,7 +28,7 @@ export function Wordmark({
       href={href}
       height={height}
       priority
-      className={cn(className)}
+      className={cn("bg-transparent", className)}
     />
   );
 }

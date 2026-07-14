@@ -27,9 +27,8 @@ export type NavItem = {
   href: AppRoute | string;
 };
 
-/** Navegación principal del header (rutas reales). */
+/** Navegación principal del header (rutas reales). Sin “Inicio”: el logo no enlaza al home. */
 export const mainNavigation: readonly NavItem[] = [
-  { label: "Inicio", href: routes.home },
   { label: "Maratones", href: routes.marathons },
   { label: "Cómo funciona", href: routes.howItWorks },
   { label: "Comunidad", href: routes.community },

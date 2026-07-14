@@ -42,8 +42,8 @@ const variantMeta: Record<
 > = {
   horizontal: {
     src: brandAssets.horizontal,
-    width: 280,
-    height: 92,
+    width: 1200,
+    height: 291,
   },
   horizontalMono: {
     src: brandAssets.horizontalMono,
@@ -92,16 +92,27 @@ export function Logo({
   const meta = variantMeta[variant];
   const scale = height / meta.height;
   const width = Math.round(meta.width * scale);
+  // Si el caller pasa clases de altura (h-*), no forzar style inline.
+  const sizedByClass = Boolean(className && /\bh-/.test(className));
+
+  const imageClassName = cn(
+    "w-auto max-w-none object-contain bg-transparent",
+    sizedByClass ? null : "h-auto",
+    href === null ? className : undefined,
+  );
+
+  const imageStyle = sizedByClass ? undefined : { height, width: "auto" as const };
 
   const image = (
     <Image
       src={meta.src}
-      alt={siteConfig.nameFull}
+      alt={href === null ? siteConfig.nameFull : ""}
       width={width}
       height={height}
       priority={priority}
-      className={cn("h-auto w-auto object-contain", className)}
-      style={{ height, width: "auto" }}
+      className={imageClassName}
+      style={imageStyle}
+      aria-hidden={href === null ? undefined : true}
     />
   );
 
@@ -112,7 +123,7 @@ export function Logo({
   return (
     <a
       href={href}
-      className={cn("inline-flex items-center", className)}
+      className={cn("inline-flex items-center bg-transparent", className)}
       aria-label={`${siteConfig.name} — inicio`}
     >
       <Image
@@ -121,8 +132,11 @@ export function Logo({
         width={width}
         height={height}
         priority={priority}
-        className="h-auto w-auto object-contain"
-        style={{ height, width: "auto" }}
+        className={cn(
+          "w-auto max-w-none object-contain bg-transparent",
+          sizedByClass ? "h-full" : "h-auto",
+        )}
+        style={imageStyle}
         aria-hidden
       />
     </a>

@@ -12,21 +12,19 @@ type ProcessTimelineProps = {
 
 export function ProcessTimeline({ steps }: ProcessTimelineProps) {
   return (
-    <ol className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <ol className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
       {steps.map((step, index) => (
         <li key={step.title}>
-          <Card variant="interactive" className="relative h-full pt-8">
-            <IconFrame
-              tone="dark"
-              className="absolute -top-3 left-5 size-8"
-              label={`Paso ${index + 1}`}
-            >
-              <span className="ck-display text-[0.7rem] text-ck-yellow">
+          <Card variant="interactive" className="flex h-full flex-col gap-4">
+            <IconFrame tone="dark" className="size-10 shrink-0" label={`Paso ${index + 1}`}>
+              <span className="font-display text-lg leading-none text-ck-yellow">
                 {index + 1}
               </span>
             </IconFrame>
-            <h3 className="ck-heading-md">{step.title}</h3>
-            <p className="ck-body-sm mt-3 text-ck-text-secondary">{step.body}</p>
+            <div className="min-w-0 space-y-3">
+              <h3 className="ck-heading-md">{step.title}</h3>
+              <p className="ck-body-sm text-ck-text-secondary">{step.body}</p>
+            </div>
           </Card>
         </li>
       ))}

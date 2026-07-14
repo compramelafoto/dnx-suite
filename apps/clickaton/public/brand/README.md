@@ -17,7 +17,7 @@ Extraídos de la lámina oficial (no reinterpretados):
 |---------|-----|
 | `logo-principal.png` | Logo stacked / sticker (fondos oscuros, hero) |
 | `logo-vertical.png` | Vertical color (fondos claros) |
-| `logo-horizontal.png` | Navbar / header |
+| `logo-horizontal.png` | Navbar / header (PNG oficial transparente) |
 | `logo-horizontal-mono.png` | Horizontal monocromático |
 | `logo-mono-negro.png` | Vertical monocromático |
 | `isotipo.png` | Isotipo circular |
