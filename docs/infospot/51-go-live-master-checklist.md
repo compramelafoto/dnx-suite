@@ -16,7 +16,8 @@
 | Roles editoriales (22U) | **PASS** · [doc 62](./62-editorial-roles-and-day-one-content-gate.md) |
 | OAuth humano + Día 1 (22V) | Diagnóstico host · [doc 63](./63-oauth-human-and-day-one-content-readiness.md) |
 | Dominio + migración focal (22W) | DNS/SSL **GO** · migrate focal **applied** · [doc 64](./64-domain-oauth-and-minimum-launch-content.md) |
-| OAuth humano + contenido (22X) | OAuth **PENDING_HUMAN** · presentación DRAFT · eventos **0** · **`BLOCKED_BY_CONTENT_SOURCE`** · [doc 65](./65-human-oauth-and-real-launch-content-gate.md) |
+| OAuth humano + contenido (22X) | OAuth **PENDING_HUMAN** · presentación DRAFT · [doc 65](./65-human-oauth-and-real-launch-content-gate.md) |
+| Fuentes verificadas (22Y) | **`BLOCKED_BY_CONTENT_SOURCE`** — sin ≥3 eventos/fuentes nuevas · [doc 66](./66-verified-launch-content-and-final-gate.md) |
 | Production commit | **`ef63026`** (health) · Ready · `db:ok` · schema **up to date** |
 
 Referencias: [`42-production-go-live.md`](./42-production-go-live.md) · [`43-launch-readiness.md`](./43-launch-readiness.md) · [`44-editorial-operations-manual.md`](./44-editorial-operations-manual.md) · [`45-production-services-readiness.md`](./45-production-services-readiness.md) · [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)

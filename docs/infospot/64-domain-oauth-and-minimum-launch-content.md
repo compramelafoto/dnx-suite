@@ -215,4 +215,5 @@ Sin smoke DRAFT nuevo en 22W. Conteos estables. **0** DEMO/smoke PUBLISHED.
 3. Completar fuente/SEO/portada de drafts REAL (incl. presentación `presentacion-info-spot` de 22X).  
 4. Re-evaluar `READY_FOR_DOMAIN_GO_LIVE`.
 
-**Seguimiento 22X:** [65](./65-human-oauth-and-real-launch-content-gate.md) — `BLOCKED_BY_CONTENT_SOURCE` · OAuth **PENDING_HUMAN**.
+**Seguimiento 22X:** [65](./65-human-oauth-and-real-launch-content-gate.md) — `BLOCKED_BY_CONTENT_SOURCE` · OAuth **PENDING_HUMAN**.  
+**Seguimiento 22Y:** [66](./66-verified-launch-content-and-final-gate.md) — etapa detenida: siguen faltando ≥3 fuentes/eventos verificables.

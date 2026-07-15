@@ -194,6 +194,8 @@ Home actual estable · **0** PUBLISHED.
 4. Completar fuentes de las 3 noticias `REAL_NEEDS_SOURCE`.  
 5. Re-evaluar `READY_FOR_DOMAIN_GO_LIVE` / `READY_FOR_DOMAIN_GO_LIVE_PENDING_PUBLICATION`.
 
+**22Y:** sin fuentes nuevas → gate detenido en [66](./66-verified-launch-content-and-final-gate.md).
+
 ## Nota
 
 La presentación DRAFT vive en Production DB (slug `presentacion-info-spot`); no versionada en git.
