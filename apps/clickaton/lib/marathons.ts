@@ -21,8 +21,19 @@ export function marathonLocationLabel(
   return [marathon.city, marathon.provinceOrRegion, marathon.country].filter(Boolean).join(", ");
 }
 
-export function canShowRegistrationCta(marathon: PublicMarathon): boolean {
-  return (
-    marathon.registrationStatus === "open" || marathon.registrationStatus === "last_places"
-  );
+/**
+ * CTA de inscripción: estado de fechas + capability real.
+ * Sin `capabilities` (fixture legacy): solo registrationStatus.
+ * Con capabilities: exige `canRegister` (FotoRank V1 hoy es false).
+ */
+export function canShowRegistrationCta(
+  marathon: PublicMarathon,
+  capabilities?: { canRegister: boolean } | null,
+): boolean {
+  const statusAllows =
+    marathon.registrationStatus === "open" ||
+    marathon.registrationStatus === "last_places";
+  if (!statusAllows) return false;
+  if (capabilities && !capabilities.canRegister) return false;
+  return true;
 }

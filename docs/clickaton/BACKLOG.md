@@ -11,8 +11,8 @@ Auditoría Etapa 07: [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_INTEGR
 - ~~**08A** Serializers / DTO públicos seguros (FR)~~ → `apps/fotorank/app/lib/public-api/v1/`
 - ~~**08B** Route Handlers públicos v1 (listado + detalle)~~ → `GET /api/public/v1/events` · `GET /api/public/v1/events/[slug]` (ruta genérica `events`, no `marathons`)
 - ~~**08C** Endpoint ficha pública v1~~ → absorbido en 08B (mismo detalle por slug)
-- **08D** Adaptador HTTP `PublicMarathonDataSource` en Clickaton (server-to-server; sin CORS navegador)
-- **08E** Caché e invalidación (tags; hoy solo `Cache-Control` corto en FR)
+- ~~**08D** Adaptador HTTP `PublicMarathonDataSource` en Clickaton (server-to-server; sin CORS navegador)~~ → `data/public-marathons/*` + [`FOTORANK_PUBLIC_INTEGRATION.md`](./FOTORANK_PUBLIC_INTEGRATION.md)
+- **08E** Caché e invalidación (tags; hoy `revalidate=60` + Cache-Control FR)
 - **09** Sesión Identity + eligibility
 - **10** Inscripción real
 - **11** Pagos (DNX Payments / MP)

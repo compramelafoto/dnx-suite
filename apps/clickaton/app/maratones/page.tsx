@@ -14,6 +14,9 @@ import { routes } from "@/config/navigation";
 
 const content = marathonsPageContent;
 
+/** Alineado a Cache-Control de FotoRank Public API V1. */
+export const revalidate = 60;
+
 export const metadata: Metadata = buildPageMetadata({
   title: content.meta.title,
   description: content.meta.description,

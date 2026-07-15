@@ -13,16 +13,21 @@ import { MarathonSchedule } from "@/components/marathon/MarathonSchedule";
 import { MarathonSponsors } from "@/components/marathon/MarathonSponsors";
 import { MarathonValidations } from "@/components/marathon/MarathonValidations";
 import type { PublicMarathon } from "@/types/marathon";
+import type { PublicMarathonCapabilities } from "@/types/public";
 
 type MarathonDetailViewProps = {
   marathon: PublicMarathon;
+  capabilities?: PublicMarathonCapabilities | null;
 };
 
-export function MarathonDetailView({ marathon }: MarathonDetailViewProps) {
+export function MarathonDetailView({
+  marathon,
+  capabilities = null,
+}: MarathonDetailViewProps) {
   return (
     <article>
       {marathon.isDemo ? <MarathonDemoBanner /> : null}
-      <MarathonHero marathon={marathon} />
+      <MarathonHero marathon={marathon} capabilities={capabilities} />
       <MarathonKeyFacts marathon={marathon} />
       <MarathonSchedule marathon={marathon} />
       <MarathonCategories marathon={marathon} />

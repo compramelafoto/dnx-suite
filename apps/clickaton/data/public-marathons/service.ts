@@ -3,7 +3,10 @@
  * No importar fixtures desde UI; usar estas funciones.
  */
 
+import "server-only";
+
 import { localPublicMarathonDataSource } from "@/data/public-marathons/local-source";
+import { resolvePublicMarathonDataSource } from "@/data/public-marathons/resolve-source";
 import type { PublicMarathonDataSource } from "@/data/public-marathons/types";
 import {
   canShowPublicGallery,
@@ -19,29 +22,57 @@ import type {
   PublicRegistrationOffer,
 } from "@/types/public";
 
-let activeSource: PublicMarathonDataSource = localPublicMarathonDataSource;
+let activeSource: PublicMarathonDataSource | null = null;
+let resolved = false;
+
+function ensureSource(): PublicMarathonDataSource {
+  if (!resolved || !activeSource) {
+    try {
+      activeSource = resolvePublicMarathonDataSource();
+    } catch (error) {
+      // Config inválida en bootstrap: caer a fixture solo si no se pidió fotorank.
+      // Si fotorank está mal configurado, re-lanzar (fail loud).
+      const kind = (process.env.CLICKATON_PUBLIC_DATA_SOURCE ?? "fixture")
+        .trim()
+        .toLowerCase();
+      if (kind === "fotorank") {
+        throw error;
+      }
+      activeSource = localPublicMarathonDataSource;
+    }
+    resolved = true;
+  }
+  return activeSource;
+}
 
 /** Solo para tests o sustitución futura controlada. */
 export function setPublicMarathonDataSource(source: PublicMarathonDataSource): void {
   activeSource = source;
+  resolved = true;
 }
 
 export function getPublicMarathonDataSource(): PublicMarathonDataSource {
-  return activeSource;
+  return ensureSource();
+}
+
+/** Reinicia la resolución (tests / self-checks). */
+export function resetPublicMarathonDataSourceResolution(): void {
+  activeSource = null;
+  resolved = false;
 }
 
 export async function listPublicMarathons(): Promise<PublicMarathon[]> {
-  return Promise.resolve(activeSource.listListed());
+  return Promise.resolve(ensureSource().listListed());
 }
 
 export async function getPublicMarathonBySlug(
   slug: string,
 ): Promise<PublicMarathon | null> {
-  return Promise.resolve(activeSource.getBySlug(slug));
+  return Promise.resolve(ensureSource().getBySlug(slug));
 }
 
 export async function listRoutableMarathonSlugs(): Promise<string[]> {
-  return Promise.resolve(activeSource.listRoutableSlugs());
+  return Promise.resolve(ensureSource().listRoutableSlugs());
 }
 
 export async function getPublicMarathonVisibilityBySlug(
@@ -55,22 +86,25 @@ export async function getPublicMarathonVisibilityBySlug(
 export async function getPublicRegistrationOffer(
   marathonId: string,
 ): Promise<PublicRegistrationOffer | null> {
-  if (!activeSource.getRegistrationOffer) return null;
-  return Promise.resolve(activeSource.getRegistrationOffer(marathonId));
+  const source = ensureSource();
+  if (!source.getRegistrationOffer) return null;
+  return Promise.resolve(source.getRegistrationOffer(marathonId));
 }
 
 export async function getPublicMarathonCapabilities(
   marathonId: string,
 ): Promise<PublicMarathonCapabilities | null> {
-  if (!activeSource.getCapabilities) return null;
-  return Promise.resolve(activeSource.getCapabilities(marathonId));
+  const source = ensureSource();
+  if (!source.getCapabilities) return null;
+  return Promise.resolve(source.getCapabilities(marathonId));
 }
 
 export async function getPublicMarathonResults(
   marathonId: string,
 ): Promise<PublicMarathonResults | null> {
-  if (!activeSource.getResults) return null;
-  const results = await Promise.resolve(activeSource.getResults(marathonId));
+  const source = ensureSource();
+  if (!source.getResults) return null;
+  const results = await Promise.resolve(source.getResults(marathonId));
   if (!results) return null;
   if (!canShowPublicResults(results.status)) return null;
   return results;
@@ -79,8 +113,9 @@ export async function getPublicMarathonResults(
 export async function getPublicMarathonGallery(
   marathonId: string,
 ): Promise<PublicMarathonGallery | null> {
-  if (!activeSource.getGallery) return null;
-  const gallery = await Promise.resolve(activeSource.getGallery(marathonId));
+  const source = ensureSource();
+  if (!source.getGallery) return null;
+  const gallery = await Promise.resolve(source.getGallery(marathonId));
   if (!gallery) return null;
   if (!canShowPublicGallery(gallery.status)) return null;
   return gallery;

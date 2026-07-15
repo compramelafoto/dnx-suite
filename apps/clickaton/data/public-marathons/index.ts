@@ -25,4 +25,22 @@ export {
   getPublicMarathonGallery,
   setPublicMarathonDataSource,
   getPublicMarathonDataSource,
+  resetPublicMarathonDataSourceResolution,
 } from "@/data/public-marathons/service";
+export {
+  parseClickatonPublicDataSourceKind,
+  resolvePublicMarathonDataSource,
+  createHybridPublicMarathonDataSource,
+  type ClickatonPublicDataSourceKind,
+} from "@/data/public-marathons/resolve-source";
+export {
+  createFotorankHttpPublicMarathonDataSource,
+  createFotorankPublicMarathonDataSource,
+  type FotorankHttpPublicMarathonDataSourceOptions,
+} from "@/data/public-marathons/fotorank-http-source";
+export {
+  mapFotorankEventToPublicMarathon,
+  mapFotorankEventListItemToPublicMarathon,
+  mapFotorankCapabilitiesToClickaton,
+  toPublicHttpUrl,
+} from "@/data/public-marathons/map-fotorank-event";

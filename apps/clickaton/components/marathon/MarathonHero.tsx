@@ -9,13 +9,15 @@ import { canShowRegistrationCta, marathonLocationLabel } from "@/lib/marathons";
 import { routes } from "@/config/navigation";
 import type { PublicMarathon } from "@/types/marathon";
 import { marathonFormatLabels } from "@/types/marathon";
+import type { PublicMarathonCapabilities } from "@/types/public";
 
 type MarathonHeroProps = {
   marathon: PublicMarathon;
+  capabilities?: PublicMarathonCapabilities | null;
 };
 
-export function MarathonHero({ marathon }: MarathonHeroProps) {
-  const showRegister = canShowRegistrationCta(marathon);
+export function MarathonHero({ marathon, capabilities = null }: MarathonHeroProps) {
+  const showRegister = canShowRegistrationCta(marathon, capabilities);
 
   return (
     <Section

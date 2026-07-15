@@ -19,9 +19,10 @@ Experiencia digital de marca pública.
 | **Clickaton** | Marca pública y experiencia de comunicación |
 | **FotoRank** | Motor tecnológico (eventos, inscripciones, pagos, consignas, GPS/EXIF, jurados, rankings, resultados) |
 
-Contrato: [`docs/clickaton/FOTORANK_INTEGRATION_CONTRACT.md`](../../docs/clickaton/FOTORANK_INTEGRATION_CONTRACT.md).
+Contrato: [`docs/clickaton/FOTORANK_INTEGRATION_CONTRACT.md`](../../docs/clickaton/FOTORANK_INTEGRATION_CONTRACT.md).  
+Adaptador público: [`docs/clickaton/FOTORANK_PUBLIC_INTEGRATION.md`](../../docs/clickaton/FOTORANK_PUBLIC_INTEGRATION.md).
 
-Sin integración real todavía. Sin autenticación, base de datos, pagos ni catálogo comercial.
+Integración HTTP opcional hacia FotoRank Public API V1 (listado/ficha). Default: fixtures. Sin autenticación, pagos ni inscripción en Clickaton.
 
 ## Desarrollo
 
@@ -42,8 +43,16 @@ pnpm --filter clickaton check-types
 pnpm --filter clickaton build
 ```
 
-No requiere variables de entorno para las páginas públicas actuales.
+### Variables de entorno
 
+Ver [`.env.example`](./.env.example).
+
+| Variable | Valores | Default |
+|----------|---------|---------|
+| `CLICKATON_PUBLIC_DATA_SOURCE` | `fixture` \| `fotorank` | `fixture` |
+| `FOTORANK_PUBLIC_API_BASE_URL` | URL base de FotoRank (`http`/`https`, sin credenciales) | requerida si `fotorank` |
+
+Con `fotorank`, Clickaton hace fetch server-to-server a `/api/public/v1/events`. Contests V1 no se publican como maratones oficiales (ver docs). No hay CORS de navegador.
 ## Arquitectura
 
 ```
@@ -90,9 +99,9 @@ Doc: [`docs/clickaton/DESIGN_SYSTEM.md`](../../docs/clickaton/DESIGN_SYSTEM.md) 
 
 ## Alcance
 
-Incluye: app, Home, DS, rutas públicas, ficha demo, contrato tipado, docs.
+Incluye: app, Home, DS, rutas públicas, ficha demo, contrato tipado, adaptador FotoRank HTTP (opcional), docs.
 
-No incluye: FotoRank API, auth, DB, pagos, tienda, merchandising, formularios, Storybook.
+No incluye: auth, DB propia, pagos, tienda, merchandising, formularios, Storybook.
 
 ## Pendientes
 
