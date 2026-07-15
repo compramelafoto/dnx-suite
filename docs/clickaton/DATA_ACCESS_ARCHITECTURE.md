@@ -31,7 +31,9 @@ Misma interfaz `PublicMarathonDataSource`.
 
 Responsabilidades del adaptador:
 
-1. Fetch / client HTTP hacia API pública de FotoRank (aún no existe; recomendada en Etapa 07: `/api/public/v1/...` en `apps/fotorank`).
+1. Fetch / client HTTP hacia API pública de FotoRank (**Etapa 08B hecha**):
+   - `GET /api/public/v1/events`
+   - `GET /api/public/v1/events/[slug]`
 2. Mapear DTO → contratos Clickaton (`PublicMarathon`, satélites).
 3. Delegar normalización y sanitizado compartidos.
 4. Propagar errores tipados (`NotFound`, `PayloadInvalid`, `SourceUnavailable`).
@@ -42,7 +44,11 @@ Hallazgos de código real: [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_
 
 Arquitectura recomendada (Etapa 07): Route Handlers públicos en FotoRank + adaptador HTTP en Clickaton. Alternativa: paquete `@repo/fotorank-public` (mayor acoplamiento de versión).
 
-**Etapa 08A (hecha en FotoRank):** contratos + serializers + loaders en `apps/fotorank/app/lib/public-api/v1/` (`FotorankPublicEventV1`). Aún sin HTTP ni adaptador Clickaton.
+**Etapa 08A (hecha en FotoRank):** contratos + serializers + loaders en `apps/fotorank/app/lib/public-api/v1/` (`FotorankPublicEventV1`).
+
+**Etapa 08B (hecha en FotoRank):** Route Handlers HTTP V1. Endpoints públicos sin auth; **sin CORS abierto** (consumo previsto server-to-server). Caché inicial: `s-maxage=60, stale-while-revalidate=300`. Errores: `INVALID_REQUEST` / `EVENT_NOT_FOUND` / `INTERNAL_ERROR`. Doc: `apps/fotorank/app/api/public/v1/README.md`.
+
+**Pendiente Etapa 08D:** adaptador Clickaton + env URL FotoRank. Integración real **no** completada.
 
 No crear stub Clickaton hasta Etapa 08D.
 

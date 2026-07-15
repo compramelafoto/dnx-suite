@@ -42,7 +42,7 @@ Frontera contrato ↔ fuente: ver [DATA_ACCESS_ARCHITECTURE.md](./DATA_ACCESS_AR
 | Interfaz fuente | `PublicMarathonDataSource` |
 | Fuente actual | `local-source` + `content/fixtures/` |
 | Servicio | `data/public-marathons/service.ts` |
-| Adaptador FotoRank | **documentado, no implementado** (sin fetch). Tras Etapa 07: consumir Route Handlers públicos v1 recomendados, no Prisma. |
+| Adaptador FotoRank | **documentado; HTTP FR existe (08B); adaptador Clickaton no implementado** (sin fetch). Consumir `/api/public/v1/events`, no Prisma. |
 
 Responsabilidad del adaptador futuro: mapear DTO → contratos Clickaton, sin filtrar seguridad a medias (usa `normalize` + `sanitize` compartidos).
 
@@ -389,8 +389,9 @@ Hoy: `content/fixtures/demo-marathon.ts` + `data/public-marathons/local-source.t
 
 ## 15. Pendientes abiertos
 
-- OpenAPI / tRPC / route handlers
-- Adaptadores FotoRank → contratos públicos
+- ~~Route Handlers públicos V1 listado + detalle (08B)~~ → `/api/public/v1/events`
+- Adaptador HTTP Clickaton → FotoRank (08D; server-to-server; sin CORS navegador aún)
+- OpenAPI / documentación externa
 - URL canónica de inscripción
 - Evaluación real de `RegistrationEligibility` y capabilities
 - Payload vivo de resultados y galería
@@ -398,3 +399,7 @@ Hoy: `content/fixtures/demo-marathon.ts` + `data/public-marathons/local-source.t
 - Indexación por edición
 - Integración ComprameLaFoto / Payments / Identity
 - Migrar UI de campos transicionales a contratos satélite
+
+### Incompatibilidad contractual documentada (08B)
+
+Clickaton tipa `PublicMarathon` / `eventType` de maratón; FotoRank V1 expone `FotorankPublicEventV1` con `eventType: "contest"` en ruta `/events`. El adaptador 08D debe mapear sin inventar `MARATHON` en Prisma.

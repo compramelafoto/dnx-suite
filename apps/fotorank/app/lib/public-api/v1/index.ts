@@ -47,3 +47,28 @@ export {
 } from "./serializers";
 
 export { getPublicEventV1BySlug, listPublicEventsV1 } from "./loaders";
+
+export {
+  assertPublicEventSlugV1,
+  isValidPublicEventSlugV1,
+} from "./slug";
+
+export {
+  PUBLIC_API_CACHE_CONTROL_ERROR,
+  PUBLIC_API_CACHE_CONTROL_SUCCESS,
+  PUBLIC_API_VERSION,
+  PUBLIC_API_VERSION_HEADER,
+  logPublicApiUnexpectedError,
+  publicApiErrorResponseV1,
+  publicApiSuccessResponseV1,
+  publicEventDetailResponseV1,
+  publicEventsListResponseV1,
+  toPublicApiErrorResponseV1,
+  type PublicApiErrorCodeV1,
+  type PublicApiErrorResponseV1,
+  type PublicApiSuccessResponseV1,
+  type PublicEventDetailDataV1,
+  type PublicEventDetailResponseV1,
+  type PublicEventsListDataV1,
+  type PublicEventsListResponseV1,
+} from "./http";

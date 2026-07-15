@@ -93,10 +93,22 @@ Hallazgo clave: FotoRank tiene concursos/jurados/landing; **no** tiene maratón 
 
 Serialización pública segura en `apps/fotorank/app/lib/public-api/v1/` (`FotorankPublicEventV1`, loaders, visibility).
 
-- Sin Route Handlers HTTP (08B/08C)
+- Sin Route Handlers HTTP (completado en 08B)
 - Sin adaptador Clickaton (08D)
 - Sin cambios Prisma
 - Doc local: `apps/fotorank/app/lib/public-api/v1/README.md`
+
+### Etapa 08B — Route Handlers públicos V1 (FotoRank)
+
+Endpoints HTTP versionados (listado + detalle):
+
+- `GET /api/public/v1/events`
+- `GET /api/public/v1/events/[slug]`
+
+Consumen loaders/serializers 08A. Envelope V1, headers de versión, caché corta, **sin CORS abierto**. Clickaton **aún no** los consume (adaptador server-to-server = 08D).
+
+- Doc: `apps/fotorank/app/api/public/v1/README.md`
+- Sin cambios en `apps/clickaton` (código)
 
 ### Backlog
 

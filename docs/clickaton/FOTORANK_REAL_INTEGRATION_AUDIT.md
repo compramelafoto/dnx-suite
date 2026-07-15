@@ -395,9 +395,9 @@ Registrar (futuro):
 | Etapa | Objetivo | App | Dependencias | Riesgo | Criterio de aceptación |
 |-------|----------|-----|--------------|--------|------------------------|
 | **08A** ✅ | Serializers + DTO públicos seguros (sin HTTP) | fotorank `app/lib/public-api/v1` | Etapa 07 | Medio | Contrato V1 sin PII/`rulesData`; selfcheck OK |
-| **08B** | `GET /api/public/v1/marathons` listado | fotorank | 08A | Medio | JSON mapeable a `PublicMarathon` listed |
-| **08C** | `GET /api/public/v1/marathons/[slug]` ficha | fotorank | 08A | Medio | Demo + un contest PUBLIC |
-| **08D** | Adaptador `FotorankPublicMarathonSource` | clickaton | 08B/C | Medio | Toggle env; fallback local |
+| **08B** ✅ | `GET /api/public/v1/events` + `/events/[slug]` | fotorank | 08A | Medio | Envelope V1; loaders 08A; sin CORS abierto; sin PII |
+| **08C** ✅ | Ficha por slug (absorbido en 08B) | fotorank | 08A | Medio | Mismo detalle; ruta genérica `events` (no `marathons`) |
+| **08D** | Adaptador `FotorankPublicMarathonSource` | clickaton | 08B | Medio | Toggle env; fetch server-to-server; fallback local |
 | **08E** | Caché tags + revalidate | ambos | 08D | Medio | Invalidación al publicar |
 | **09** | Identity + eligibility endpoints | fotorank + clickaton | Identity | Alto | Sesión; sin cache público |
 | **10** | Inscripción real | fotorank | 09 + modelo registration | Alto | Alta + category + bases |
@@ -407,18 +407,19 @@ Registrar (futuro):
 | **14** | Resultados + galería públicos | fotorank + clickaton | scoring existente | Medio | Payload published only |
 | **15** | GPS/EXIF + sedes | fotorank | 10 | Alto | Reglas públicas vs antifraude |
 
-Ninguna etapa de este plan está implementada en Etapa 07.
+Estado post-08B: serializers + HTTP listado/detalle en FotoRank. **Integración real Clickaton pendiente (08D).** Sin CORS abierto; sin fetch desde Clickaton.
 
 ---
 
-## 22. Fuera de alcance (confirmado)
+## 22. Fuera de alcance (confirmado en 07; actualizado)
 
-Sin endpoints, fetch, adaptador real, Prisma/migrations, auth, pagos, UI, tests nuevos, deploy, env, webhooks.
+Sin adaptador Clickaton, Prisma/migrations desde Clickaton, auth, pagos, UI, deploy, env de URL FR en Clickaton, webhooks. 08A/08B **sí** entregaron capa segura + HTTP en FotoRank.
 
 ---
 
 ## 23. Referencias de código
 
+- Public API V1: `apps/fotorank/app/lib/public-api/v1/` · HTTP `apps/fotorank/app/api/public/v1/`
 - Landing: `apps/fotorank/app/lib/fotorank/publicContestLanding.ts`
 - Entries: `apps/fotorank/app/actions/fotorank-contest-entries.ts`, `fotorankContestEntryDomain.ts`
 - Economía: `apps/fotorank/app/lib/fotorank/prizesRewards.ts`

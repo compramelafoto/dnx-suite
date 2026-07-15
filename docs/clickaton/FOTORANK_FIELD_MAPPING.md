@@ -155,18 +155,34 @@ Loader actual: `visibility: PUBLIC` + `status in [PUBLISHED, ACTIVE]` — `ACTIV
 
 ---
 
-## 10. Endpoints futuros sugeridos (no implementados)
+## 10. Endpoints públicos V1
+
+### Implementados (Etapa 08B — FotoRank)
 
 | Método | Ruta | Auth | Respuesta |
 |--------|------|------|-----------|
-| GET | `/api/public/v1/marathons` | no | listado `PublicMarathon` |
-| GET | `/api/public/v1/marathons/:slug` | no | ficha |
-| GET | `/api/public/v1/marathons/:slug/offer` | no | `PublicRegistrationOffer` |
-| GET | `/api/public/v1/marathons/:slug/capabilities` | no | capabilities |
-| GET | `/api/public/v1/marathons/:slug/capacity` | no | capacity |
-| GET | `/api/public/v1/marathons/:slug/results` | no | results if published |
-| GET | `/api/public/v1/marathons/:slug/gallery` | no | gallery if published |
-| GET | `/api/public/v1/marathons/:slug/eligibility` | session | eligibility |
+| GET | `/api/public/v1/events` | no | listado envelope V1 (`FotorankPublicEventListItemV1[]`) |
+| GET | `/api/public/v1/events/:slug` | no | ficha envelope V1 (`FotorankPublicEventV1`) |
+
+Notas 08B:
+
+- Ruta genérica **`events`** (no `marathons` / `contests`): contrato común para tipos futuros.
+- Hoy `eventType: "contest"`; no existe `MARATHON` en Prisma.
+- Sin CORS abierto; consumo previsto **server-to-server** desde Clickaton (08D pendiente).
+- Caché: `public, s-maxage=60, stale-while-revalidate=300`.
+- Errores: `INVALID_REQUEST` (400), `EVENT_NOT_FOUND` (404), `INTERNAL_ERROR` (500).
+- Doc: `apps/fotorank/app/api/public/v1/README.md`.
+
+### Futuros (no implementados)
+
+| Método | Ruta | Auth | Respuesta |
+|--------|------|------|-----------|
+| GET | `/api/public/v1/events/:slug/offer` | no | `PublicRegistrationOffer` |
+| GET | `/api/public/v1/events/:slug/capabilities` | no | capabilities |
+| GET | `/api/public/v1/events/:slug/capacity` | no | capacity |
+| GET | `/api/public/v1/events/:slug/results` | no | results if published |
+| GET | `/api/public/v1/events/:slug/gallery` | no | gallery if published |
+| GET | `/api/public/v1/events/:slug/eligibility` | session | eligibility |
 | GET | `/api/me/registrations` | session | summaries |
 
 ---
