@@ -11,7 +11,7 @@ export function BrandPillars() {
   const { pillars } = homeContent;
 
   return (
-    <Section id={pillars.id} tone="muted" aria-labelledby="pillars-title">
+    <Section id={pillars.id} tone="raised" aria-labelledby="pillars-title">
       <Container>
         <SectionHeader
           eyebrow={pillars.eyebrow}
@@ -25,7 +25,7 @@ export function BrandPillars() {
               <Card className="relative h-full overflow-hidden border-t-4 border-t-ck-yellow">
                 <div className="mb-4 flex items-center justify-between">
                   <span className="ck-mono text-ck-text-muted">{marks[index]}</span>
-                  <FocusMark size="sm" className="text-ck-black/45" />
+                  <FocusMark size="sm" className="text-ck-yellow/50" />
                 </div>
                 <h3 className="ck-heading-md">{item.title}</h3>
                 <p className="ck-body-sm mt-3 text-ck-text-secondary">{item.body}</p>

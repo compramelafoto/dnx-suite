@@ -1,27 +1,29 @@
+import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-type EditorialLabelProps = {
-  children: string;
-  className?: string;
+type EditorialLabelProps = HTMLAttributes<HTMLSpanElement> & {
   tone?: "default" | "yellow" | "dark";
+  children: ReactNode;
 };
 
 export function EditorialLabel({
-  children,
-  className,
   tone = "default",
+  className,
+  children,
+  ...props
 }: EditorialLabelProps) {
   return (
     <span
       className={cn(
-        "ck-mono inline-flex items-center gap-2 border-2 px-2.5 py-1",
-        tone === "default" && "border-ck-border-strong bg-ck-white text-ck-black",
-        tone === "yellow" && "border-ck-border-strong bg-ck-yellow text-ck-black",
-        tone === "dark" && "border-ck-yellow bg-ck-black text-ck-yellow",
+        "ck-label inline-flex w-fit items-center rounded-[var(--ck-radius-sm)] border px-2.5 py-1",
+        tone === "default" && "border-ck-border bg-ck-surface text-ck-text-secondary",
+        tone === "yellow" &&
+          "border-ck-yellow/50 bg-[var(--ck-brand-primary-soft)] text-ck-yellow",
+        tone === "dark" && "border-ck-yellow/40 bg-ck-bg text-ck-yellow",
         className,
       )}
+      {...props}
     >
-      <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
       {children}
     </span>
   );

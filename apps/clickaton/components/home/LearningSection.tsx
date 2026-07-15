@@ -1,4 +1,5 @@
 import { BrushStroke } from "@/components/brand/BrushStroke";
+import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { SectionHeader } from "@/components/layout/SectionHeader";
@@ -11,13 +12,21 @@ export function LearningSection() {
   return (
     <Section id={learning.id} aria-labelledby="learning-title">
       <Container>
-        <SectionHeader
-          eyebrow={learning.eyebrow}
-          title={learning.title}
-          description={learning.lead}
-          titleId="learning-title"
-        />
-        <BrushStroke className="mt-4" />
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-end lg:gap-14">
+          <SectionHeader
+            eyebrow={learning.eyebrow}
+            title={learning.title}
+            description={learning.lead}
+            titleId="learning-title"
+          />
+          <PhotoFrame
+            variant="editorial"
+            alt="Momento de revisión y aprendizaje fotográfico"
+            overlay="soft"
+            className="max-w-xl lg:justify-self-end"
+          />
+        </div>
+        <BrushStroke className="mt-6" />
 
         <ul className="mt-12 grid gap-5 sm:grid-cols-2">
           {learning.points.map((point) => (

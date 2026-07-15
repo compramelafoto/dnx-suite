@@ -9,7 +9,7 @@ type SectionHeaderProps = {
   titleId?: string;
   className?: string;
   action?: ReactNode;
-  /** En secciones oscuras / amarillas / accent. */
+  /** `onBrand` queda como alias editorial de acento (V2 sin banda amarilla). */
   tone?: "default" | "inverse" | "onBrand";
 };
 
@@ -24,21 +24,14 @@ export function SectionHeader({
   tone = "default",
 }: SectionHeaderProps) {
   const eyebrowClass =
-    tone === "inverse"
+    tone === "inverse" || tone === "onBrand"
       ? "ck-overline text-ck-yellow"
-      : tone === "onBrand"
-        ? "ck-overline text-ck-black/70"
-        : "ck-overline text-ck-text-muted";
+      : "ck-overline text-ck-text-muted";
 
   const titleClass =
-    tone === "inverse"
-      ? "ck-display-md text-ck-yellow"
-      : "ck-display-md text-ck-text";
+    tone === "inverse" ? "ck-display-md text-ck-yellow" : "ck-display-md text-ck-text";
 
-  const descriptionClass =
-    tone === "inverse"
-      ? "ck-body-lg text-ck-gray-200"
-      : "ck-body-lg text-ck-text-secondary";
+  const descriptionClass = "ck-body-lg text-ck-text-secondary";
 
   return (
     <div

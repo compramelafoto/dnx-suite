@@ -9,26 +9,26 @@ export function SiteFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-ck-border bg-ck-black text-ck-white">
-      <Container className="grid gap-10 py-12 md:grid-cols-[1.2fr_1fr]">
-        <div className="space-y-4">
+    <footer className="border-t border-ck-border bg-ck-bg-alt text-ck-text">
+      <Container className="grid gap-12 py-16 md:grid-cols-[1.2fr_1fr]">
+        <div className="space-y-5">
           <Wordmark tone="inverse" href={null} height={36} />
-          <p className="ck-body-sm max-w-md text-ck-gray-200">{siteConfig.descriptor}</p>
-          <p className="ck-body-sm max-w-md text-ck-gray-500">
+          <p className="ck-body-sm max-w-md text-ck-text-secondary">{siteConfig.descriptor}</p>
+          <p className="ck-body-sm max-w-md text-ck-text-muted">
             Proyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones,
             catálogo ni formularios activos todavía.
           </p>
-          <p className="ck-body-sm max-w-md text-ck-yellow/80">{siteConfig.promise}</p>
+          <p className="ck-body-sm max-w-md text-ck-yellow/85">{siteConfig.promise}</p>
         </div>
 
         <nav aria-label="Pie de página">
           <p className="ck-overline text-ck-yellow">Navegación</p>
-          <ul className="mt-[var(--ck-stack-title-to-subtitle)] space-y-2">
+          <ul className="mt-[var(--ck-stack-title-to-subtitle)] space-y-3">
             {footerNavigation.map((item) => (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className="ck-body-sm text-ck-gray-200 underline-offset-4 hover:text-ck-yellow hover:underline"
+                  className="ck-body-sm text-ck-text-secondary underline-offset-4 transition-colors duration-[var(--ck-duration-base)] hover:text-ck-yellow hover:underline"
                 >
                   {item.label}
                 </Link>
@@ -38,13 +38,13 @@ export function SiteFooter() {
         </nav>
       </Container>
 
-      <Divider className="border-white/10" />
-      <Container className="flex flex-col gap-2 py-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="ck-caption text-ck-gray-500">
+      <Divider className="border-ck-border" />
+      <Container className="flex flex-col gap-2 py-6 sm:flex-row sm:items-center sm:justify-between">
+        <p className="ck-caption text-ck-text-muted">
           © {year} {siteConfig.copyrightOwner}. Todos los derechos reservados.
         </p>
-        <p className="ck-caption text-ck-gray-500">
-          Identidad visual oficial — Design System V1
+        <p className="ck-caption text-ck-text-muted">
+          Identidad visual — Design System V2
         </p>
       </Container>
     </footer>

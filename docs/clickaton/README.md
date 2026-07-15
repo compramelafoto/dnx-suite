@@ -40,11 +40,13 @@ pnpm --filter clickaton build
 - `www.maratonfotografica.com` → redirect 308 al apex
 - Indexación: todavía `noindex` hasta el lanzamiento público
 
-### Design System V1 — Identidad visual
+### Design System V2 — Identidad visual editorial
 
 Ver [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md). Manual + logo en `apps/clickaton/public/brand/`.
 
-Catálogo interno: `/design-system` (noindex, fuera de la navegación pública).
+- Fondo oscuro `#111`; amarillo `#FFC400` solo como acento (nunca hero fill)
+- Sistema fotográfico: [PHOTOGRAPHY_GUIDELINES.md](./PHOTOGRAPHY_GUIDELINES.md) · `PhotoFrame` / variantes
+- Catálogo interno: `/design-system` (noindex, fuera de la navegación pública)
 
 ### Etapa 03 — Home MVP de lanzamiento
 

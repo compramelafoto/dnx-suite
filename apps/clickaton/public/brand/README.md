@@ -17,7 +17,8 @@ Extraídos de la lámina oficial (no reinterpretados):
 |---------|-----|
 | `logo-principal.png` | Logo stacked / sticker (fondos oscuros, hero) |
 | `logo-vertical.png` | Vertical color (fondos claros) |
-| `logo-horizontal.png` | Navbar / header (PNG oficial transparente) |
+| `logo-horizontal.png` | Original de estudio (1200px, conservar) |
+| `logo-horizontal-web.png` | UI / catálogo (960px, menor peso) |
 | `logo-horizontal-mono.png` | Horizontal monocromático |
 | `logo-mono-negro.png` | Vertical monocromático |
 | `isotipo.png` | Isotipo circular |

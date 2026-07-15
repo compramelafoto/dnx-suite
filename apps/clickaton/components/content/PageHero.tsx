@@ -9,7 +9,8 @@ type PageHeroProps = {
   titleId?: string;
   description?: string;
   actions?: ReactNode;
-  tone?: "default" | "yellow" | "dark" | "muted" | "accent";
+  /** `yellow` → banda oscura editorial (sin fill amarillo). */
+  tone?: "default" | "yellow" | "dark" | "muted" | "accent" | "base" | "raised";
   grain?: boolean;
   children?: ReactNode;
   className?: string;
@@ -21,26 +22,29 @@ export function PageHero({
   titleId = "page-title",
   description,
   actions,
-  tone = "yellow",
+  tone = "dark",
   grain = true,
   children,
   className,
 }: PageHeroProps) {
+  const sectionTone = tone === "yellow" ? "dark" : tone;
+
   return (
     <Section
-      tone={tone}
+      tone={sectionTone}
       grain={grain}
-      className={cn("border-b-2 border-ck-border-strong", className)}
+      className={cn(
+        "ck-vignette relative overflow-hidden border-b border-ck-border",
+        className,
+      )}
       aria-labelledby={titleId}
     >
-      <Container className="max-w-3xl">
+      <Container className="relative z-[2] max-w-3xl py-5 sm:py-8 md:py-12">
         {eyebrow ? (
           <p
             className={cn(
               "ck-overline",
-              tone === "dark" ? "text-ck-yellow" : "text-ck-text-muted",
-              tone === "yellow" && "text-ck-black/70",
-              tone === "accent" && "text-ck-accent",
+              tone === "accent" ? "text-ck-accent" : "text-ck-yellow",
             )}
           >
             {eyebrow}
@@ -48,27 +52,17 @@ export function PageHero({
         ) : null}
         <h1
           id={titleId}
-          className={cn(
-            "ck-display-lg mt-[var(--ck-stack-title-to-subtitle)]",
-            tone === "dark" && "text-ck-yellow",
-            (tone === "yellow" || tone === "accent" || tone === "default" || tone === "muted") &&
-              "text-ck-black",
-          )}
+          className="ck-display-lg mt-[var(--ck-stack-title-to-subtitle)] break-words text-ck-text [overflow-wrap:anywhere]"
         >
           {title}
         </h1>
         {description ? (
-          <p
-            className={cn(
-              "ck-body-lg mt-[var(--ck-stack-title-to-subtitle)] max-w-prose",
-              tone === "dark" ? "text-ck-gray-200" : "text-ck-text-secondary",
-            )}
-          >
+          <p className="ck-body-lg mt-4 max-w-prose text-ck-text-secondary sm:mt-[var(--ck-stack-title-to-subtitle)]">
             {description}
           </p>
         ) : null}
         {actions ? (
-          <div className="mt-[var(--ck-stack-content-to-actions)] flex flex-wrap gap-3">
+          <div className="mt-8 flex w-full flex-col gap-3 sm:mt-[var(--ck-stack-content-to-actions)] sm:w-auto sm:flex-row sm:flex-wrap [&_a]:w-full [&_a]:sm:w-auto [&_button]:w-full [&_button]:sm:w-auto">
             {actions}
           </div>
         ) : null}

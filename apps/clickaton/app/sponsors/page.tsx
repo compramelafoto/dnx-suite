@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AudienceGrid } from "@/components/content/AudienceGrid";
 import { PageHero } from "@/components/content/PageHero";
+import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
@@ -59,6 +60,13 @@ export default function SponsorsPage() {
           <div className="mt-6">
             <AudienceGrid items={content.sectors} />
           </div>
+          <PhotoFrame
+            variant="sponsor-feature"
+            alt="Activación de marca en experiencia Clickatón"
+            overlay="medium"
+            caption="Stands, premiación y presencia urbana — material futuro autorizado."
+            className="mt-12 max-w-3xl"
+          />
           <ul className="mt-12 grid gap-5 sm:grid-cols-2">
             {content.opportunities.map((item) => (
               <li key={item.title}>

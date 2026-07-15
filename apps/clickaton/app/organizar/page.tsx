@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AudienceGrid } from "@/components/content/AudienceGrid";
 import { PageHero } from "@/components/content/PageHero";
+import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { ProcessTimeline } from "@/components/content/ProcessTimeline";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
@@ -30,13 +31,13 @@ export default function OrganizePage() {
         title={content.hero.title}
         description={content.hero.description}
         actions={
-          <Button href={routes.contact} variant="outline">
+          <Button href={routes.contact} variant="secondary">
             Ir a contacto
           </Button>
         }
       />
 
-      <Section tone="muted">
+      <Section tone="raised">
         <Container>
           <Badge variant="warning">Programa en desarrollo</Badge>
           <p className="ck-body-lg mt-4 max-w-prose text-ck-text-secondary">{content.status}</p>
@@ -50,6 +51,15 @@ export default function OrganizePage() {
       </Section>
 
       <Section>
+        <Container className="mb-10">
+          <PhotoFrame
+            variant="editorial"
+            alt="Convocatoria y encuentro de sede local"
+            overlay="medium"
+            caption="Kits, sedes y premiación — cuando haya material autorizado."
+            className="max-w-4xl"
+          />
+        </Container>
         <Container className="grid gap-6 lg:grid-cols-2">
           <Card>
             <h2 className="ck-heading-lg">Qué aporta el equipo local</h2>
@@ -65,7 +75,7 @@ export default function OrganizePage() {
             <h2 className="ck-heading-lg">Qué aporta Clickatón</h2>
             <ul className="mt-4 space-y-2">
               {content.clickatonContributes.map((item) => (
-                <li key={item} className="ck-body-sm text-ck-gray-700">
+                <li key={item} className="ck-body-sm text-ck-text-secondary">
                   · {item}
                 </li>
               ))}
@@ -74,7 +84,7 @@ export default function OrganizePage() {
         </Container>
       </Section>
 
-      <Section tone="muted" aria-labelledby="organize-steps-title">
+      <Section tone="raised" aria-labelledby="organize-steps-title">
         <Container>
           <SectionHeader
             eyebrow="Camino"

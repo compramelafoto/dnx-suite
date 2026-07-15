@@ -8,6 +8,7 @@ export const brandAssets = {
   principal: brandAssetPaths.principal,
   vertical: brandAssetPaths.vertical,
   horizontal: brandAssetPaths.horizontal,
+  horizontalWeb: brandAssetPaths.horizontalWeb,
   horizontalMono: brandAssetPaths.horizontalMono,
   mono: brandAssetPaths.mono,
   isotipo: brandAssetPaths.isotipo,
@@ -17,6 +18,7 @@ export const brandAssets = {
 
 export type LogoVariant =
   | "horizontal"
+  | "horizontalWeb"
   | "horizontalMono"
   | "vertical"
   | "principal"
@@ -42,6 +44,11 @@ const variantMeta: Record<
     src: brandAssetPaths.horizontal,
     width: 1200,
     height: 291,
+  },
+  horizontalWeb: {
+    src: brandAssetPaths.horizontalWeb,
+    width: 960,
+    height: 233,
   },
   horizontalMono: {
     src: brandAssetPaths.horizontalMono,
@@ -85,7 +92,7 @@ const variantMeta: Record<
  * No reinterpretar ni reconstruir tipográficamente el wordmark.
  */
 export function Logo({
-  variant = "horizontal",
+  variant = "horizontalWeb",
   height = 40,
   className,
   href = "/",

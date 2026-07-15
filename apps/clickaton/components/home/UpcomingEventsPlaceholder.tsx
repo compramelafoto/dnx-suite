@@ -15,7 +15,7 @@ export function UpcomingEventsPlaceholder() {
   const { upcoming } = homeContent;
 
   return (
-    <Section id={upcoming.id} tone="muted" aria-labelledby="upcoming-title">
+    <Section id={upcoming.id} tone="raised" aria-labelledby="upcoming-title">
       <Container>
         <SectionHeader
           eyebrow={upcoming.eyebrow}
@@ -26,7 +26,7 @@ export function UpcomingEventsPlaceholder() {
 
         <Card
           variant="outlined"
-          className="mt-10 border-dashed bg-ck-white"
+          className="mt-10 border-dashed bg-ck-surface"
           aria-label="Espacio reservado para próximas maratones"
         >
           <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">

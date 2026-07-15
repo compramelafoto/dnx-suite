@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AudienceGrid } from "@/components/content/AudienceGrid";
 import { PageHero } from "@/components/content/PageHero";
+import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
@@ -27,23 +28,34 @@ export default function CommunityPage() {
         eyebrow={content.hero.eyebrow}
         title={content.hero.title}
         description={content.hero.description}
-        tone="accent"
         actions={<Button href={routes.marathons}>Ver maratones</Button>}
       />
 
-      <Section tone="accent" aria-labelledby="community-audience-title">
-        <Container>
-          <SectionHeader
-            eyebrow="Quiénes forman parte"
-            title="Una comunidad amplia y diversa"
-            titleId="community-audience-title"
-          />
-          <div className="mt-[var(--ck-stack-subtitle-to-content)]">
-            <AudienceGrid items={content.audiences} variant="brand" />
+      <Section tone="raised" aria-labelledby="community-audience-title">
+        <Container className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start lg:gap-12">
+          <div>
+            <SectionHeader
+              eyebrow="Quiénes forman parte"
+              title="Una comunidad amplia y diversa"
+              titleId="community-audience-title"
+            />
+            <div className="mt-[var(--ck-stack-subtitle-to-content)]">
+              <AudienceGrid items={content.audiences} variant="brand" />
+            </div>
+            <p className="ck-body-md mt-[var(--ck-stack-block)] max-w-prose text-ck-text-secondary">
+              {content.future}
+            </p>
           </div>
-          <p className="ck-body-md mt-[var(--ck-stack-block)] max-w-prose text-ck-text-secondary">
-            {content.future}
-          </p>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <PhotoFrame
+              variant="editorial"
+              alt="Recorrido urbano de la comunidad Clickatón"
+              overlay="soft"
+              className="col-span-2"
+            />
+            <PhotoFrame variant="portrait" alt="Participante fotografiando en la calle" overlay="soft" />
+            <PhotoFrame variant="portrait" alt="Intercambio y revisión entre participantes" overlay="soft" />
+          </div>
         </Container>
       </Section>
 

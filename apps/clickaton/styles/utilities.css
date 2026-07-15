@@ -1,5 +1,5 @@
 /**
- * Clickaton — utilidades tipográficas y visuales (DS V1)
+ * Clickaton — utilidades tipográficas y visuales (DS V2)
  */
 
 /* ——— Display (Bebas Neue, all-caps editorial) ——— */
@@ -65,6 +65,7 @@
   font-family: var(--ck-font-sans);
   font-weight: var(--ck-weight-regular);
   line-height: var(--ck-leading-body);
+  color: var(--ck-text-secondary);
 }
 
 .ck-body-lg {
@@ -132,16 +133,16 @@
   text-transform: uppercase;
 }
 
-/* Frases cortas del Manual (manuscrita) — usar con moderación */
+/* Manuscrita — más fina / elegante (V2) */
 .ck-accent-script {
   font-family: var(--ck-font-accent);
   font-weight: var(--ck-weight-regular);
-  line-height: 1.2;
+  line-height: 1.25;
   text-transform: none;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
+  font-optical-sizing: auto;
 }
 
-/* Stack helpers — ritmo semántico DS */
 .ck-stack-title {
   margin-top: var(--ck-stack-title-to-subtitle);
 }
@@ -158,7 +159,6 @@
   margin-top: var(--ck-stack-content-to-actions);
 }
 
-/* Alias corto: numerales / pasos (Bebas) */
 .ck-display {
   font-family: var(--ck-font-display);
   font-weight: var(--ck-weight-regular);
@@ -167,8 +167,7 @@
   line-height: var(--ck-leading-snug);
 }
 
-
-/* Grain overlay utility */
+/* ——— Atmosphere: grain + vignette + urban grid ——— */
 .ck-grain {
   position: relative;
   isolation: isolate;
@@ -180,18 +179,96 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  opacity: 0.04;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: var(--ck-opacity-grain);
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.ck-vignette {
+  position: relative;
+}
+
+.ck-vignette::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(
+    ellipse 75% 65% at 50% 40%,
+    transparent 40%,
+    rgb(0 0 0 / var(--ck-opacity-vignette)) 100%
+  );
+}
+
+.ck-atmosphere {
+  position: relative;
+  isolation: isolate;
+}
+
+.ck-atmosphere::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: var(--ck-opacity-grid);
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.55) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.55) 1px, transparent 1px);
+  background-size: var(--ck-grid-size) var(--ck-grid-size);
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 20%, transparent 75%);
+}
+
+.ck-photo-overlay,
+.ck-photo-overlay-soft,
+.ck-photo-overlay-medium,
+.ck-photo-overlay-strong {
+  position: relative;
+}
+
+.ck-photo-overlay::after,
+.ck-photo-overlay-medium::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--ck-photo-overlay-medium);
+}
+
+.ck-photo-overlay-soft::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--ck-photo-overlay-soft);
+}
+
+.ck-photo-overlay-strong::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--ck-photo-overlay-strong);
+}
+
+.ck-photo-fallback {
+  background:
+    radial-gradient(ellipse 70% 55% at 72% 28%, rgb(255 196 0 / 0.08), transparent 58%),
+    radial-gradient(ellipse 80% 60% at 30% 80%, rgb(42 42 42 / 0.95), transparent 55%),
+    linear-gradient(145deg, #1a1a1a 0%, #222222 42%, #141414 100%);
 }
 
 @media (max-width: 640px) {
   .ck-grain::after {
-    opacity: 0.028;
+    opacity: 0.04;
   }
 }
 
-/* Motion primitives — enfoque / obturador */
+/* Motion — opacity / translateY / scale sutil */
 @keyframes ck-pulse-ring {
   0%,
   100% {
@@ -199,8 +276,8 @@
     transform: scale(1);
   }
   50% {
-    opacity: 0.7;
-    transform: scale(1.03);
+    opacity: 0.65;
+    transform: scale(1.02);
   }
 }
 
@@ -211,7 +288,7 @@
   }
   20%,
   80% {
-    opacity: 0.55;
+    opacity: 0.45;
   }
   100% {
     transform: translateY(110%);
@@ -224,29 +301,57 @@
     opacity: 1;
   }
   40% {
-    opacity: 0.15;
+    opacity: 0.2;
   }
   100% {
     opacity: 1;
   }
 }
 
+@keyframes ck-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .ck-frame-pulse {
-  animation: ck-pulse-ring 4s var(--ck-easing-standard) infinite;
+  animation: ck-pulse-ring 4.5s var(--ck-easing-standard) infinite;
 }
 
 .ck-frame-scan {
-  animation: ck-scan 5s linear infinite;
+  animation: ck-scan 5.5s linear infinite;
 }
 
 .ck-motion-shutter {
   animation: ck-shutter var(--ck-duration-fast) var(--ck-easing-shutter);
 }
 
+.ck-fade-up {
+  animation: ck-fade-up var(--ck-duration-slow) var(--ck-easing-standard) both;
+}
+
+.ck-interactive {
+  transition: var(--ck-transition-interactive);
+}
+
+.ck-interactive:hover {
+  transform: translateY(-2px) scale(1.01);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ck-frame-pulse,
   .ck-frame-scan,
-  .ck-motion-shutter {
+  .ck-motion-shutter,
+  .ck-fade-up {
     animation: none;
+  }
+
+  .ck-interactive:hover {
+    transform: none;
   }
 }

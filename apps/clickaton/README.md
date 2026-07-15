@@ -66,18 +66,17 @@ apps/clickaton/
   content/             # Copy editorial + fixtures/
 ```
 
-## Design System V1
+## Design System V2
 
-- Fuente de verdad: Manual de Marca en `public/brand/`
-- Tokens: `#FFC400` / negro / blanco + secundarios de estado
-- Tipografía: **Bebas Neue** (display) + **Montserrat** (UI) + Caveat (acento)
-- Logo oficial vía `Logo` / `Wordmark` (no wordmark tipográfico)
+- Identidad editorial oscura (`#111` / `#1B1B1B` / `#2A2A2A`) — amarillo `#FFC400` solo como acento
+- Tipografía: **Bebas Neue** (display) + **Montserrat** (UI) + Caveat (acento fino)
+- Logo oficial vía `Logo` / `Wordmark` (chrome: `horizontalMono`)
 - Primitives: `Container`, `Section`, `SectionHeader`, `Stack`
-- UI base: `Button`, `Badge`, `Card`, `IconFrame`, `Divider`, `FocusMark`
-- Recursos: `ViewfinderFrame`, `CoordinateGrid`, `EditorialLabel`, `BrushStroke`
+- UI: `Button`, `Badge`, `Card`, `IconFrame`, `Divider`, `FocusMark`, `Input`, `Select`, `Textarea`
+- Recursos: `ViewfinderFrame`, `CoordinateGrid`, `EditorialLabel`, `BrushStroke`, grain/vignette
 - **Sin shadcn/ui** — componentes propios
 
-Doc: [`docs/clickaton/DESIGN_SYSTEM.md`](../../docs/clickaton/DESIGN_SYSTEM.md) · [`docs/clickaton/PUBLIC_ARCHITECTURE.md`](../../docs/clickaton/PUBLIC_ARCHITECTURE.md).
+Doc: [`docs/clickaton/DESIGN_SYSTEM.md`](../../docs/clickaton/DESIGN_SYSTEM.md) · catálogo `/design-system`.
 
 ## Decisiones técnicas
 

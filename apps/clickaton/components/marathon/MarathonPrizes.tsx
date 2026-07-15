@@ -27,19 +27,19 @@ export function MarathonPrizes({ marathon }: MarathonPrizesProps) {
           {marathon.prizes.map((prize) => (
             <Card key={prize.id} variant="yellow" className="h-full">
               {typeof prize.position === "number" && prize.position > 0 ? (
-                <p className="ck-label text-ck-black/70">Puesto {prize.position}</p>
+                <p className="ck-label text-ck-yellow">Puesto {prize.position}</p>
               ) : (
-                <p className="ck-label text-ck-black/70">Mención</p>
+                <p className="ck-label text-ck-yellow">Mención</p>
               )}
-              <h3 className="ck-heading-md mt-3">{prize.title}</h3>
-              <p className="ck-body-sm mt-3 text-ck-gray-700">{prize.description}</p>
+              <h3 className="ck-heading-md mt-3 text-ck-text">{prize.title}</h3>
+              <p className="ck-body-sm mt-3 text-ck-text-secondary">{prize.description}</p>
               {prize.categoryId ? (
-                <p className="ck-caption mt-4 text-ck-black/70">
+                <p className="ck-caption mt-4 text-ck-text-muted">
                   Categoría: {categoryName(prize.categoryId) ?? prize.categoryId}
                 </p>
               ) : null}
               {prize.sponsorName ? (
-                <p className="ck-caption mt-2 text-ck-black/70">
+                <p className="ck-caption mt-2 text-ck-text-muted">
                   Con el apoyo de {prize.sponsorName}
                 </p>
               ) : null}

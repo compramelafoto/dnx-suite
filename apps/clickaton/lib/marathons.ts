@@ -15,7 +15,9 @@ export function getPublicSchedule(
     .sort((a, b) => a.startAt.localeCompare(b.startAt));
 }
 
-export function marathonLocationLabel(marathon: PublicMarathon): string {
+export function marathonLocationLabel(
+  marathon: Pick<PublicMarathon, "city" | "provinceOrRegion" | "country" | "venueName">,
+): string {
   return [marathon.city, marathon.provinceOrRegion, marathon.country].filter(Boolean).join(", ");
 }
 

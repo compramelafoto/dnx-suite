@@ -9,17 +9,22 @@ import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { Stack } from "@/components/layout/Stack";
+import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Divider } from "@/components/ui/Divider";
+import { Field } from "@/components/ui/Field";
 import { FocusMark } from "@/components/ui/FocusMark";
 import { IconFrame } from "@/components/ui/IconFrame";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
 
 export const metadata: Metadata = {
-  title: "Design System V1 (interno)",
+  title: "Design System V2 (interno)",
   description:
-    "Catálogo interno del Design System V1 de Clickaton — identidad visual oficial.",
+    "Catálogo interno del Design System V2 de Clickaton — identidad editorial oscura.",
   robots: {
     index: false,
     follow: false,
@@ -28,16 +33,24 @@ export const metadata: Metadata = {
 };
 
 const primarySwatches = [
-  { name: "Amarillo Clickaton", token: "brand-primary", className: "bg-ck-yellow", hex: "#FFC400" },
-  { name: "Negro", token: "brand-ink", className: "bg-ck-black", hex: "#000000" },
-  { name: "Blanco", token: "brand-paper", className: "bg-ck-white border border-ck-border", hex: "#FFFFFF" },
+  { name: "Negro profundo", token: "core-black", className: "bg-ck-black", hex: "#111111" },
+  { name: "Gris oscuro", token: "core-gray-dark", className: "bg-ck-gray-100", hex: "#1B1B1B" },
+  { name: "Gris medio", token: "core-gray-mid", className: "bg-ck-gray-200", hex: "#2A2A2A" },
+  {
+    name: "Blanco",
+    token: "core-white",
+    className: "bg-ck-white border border-ck-border",
+    hex: "#FFFFFF",
+  },
+  { name: "Texto secundario", token: "text-secondary", className: "bg-[#B9B9B9]", hex: "#B9B9B9" },
+  { name: "Acento marca", token: "brand-primary", className: "bg-ck-yellow", hex: "#FFC400" },
 ] as const;
 
 const secondarySwatches = [
-  { name: "Gris", token: "brand-gray", className: "bg-ck-gray-100", hex: "#F2F2F2" },
   { name: "Violeta Comunidad", token: "brand-violet", className: "bg-ck-violet", hex: "#6C53FF" },
   { name: "Azul Tecnología", token: "brand-blue", className: "bg-ck-blue", hex: "#00AEEF" },
   { name: "Verde Éxito", token: "brand-green", className: "bg-ck-green", hex: "#4CAF50" },
+  { name: "Peligro", token: "danger", className: "bg-[var(--ck-danger)]", hex: "#FF5C5C" },
 ] as const;
 
 function CatalogBlock({
@@ -49,7 +62,7 @@ function CatalogBlock({
 }) {
   return (
     <Stack gap="md" className="scroll-mt-24">
-      <h3 className="ck-heading-md border-b-2 border-ck-border pb-2">{title}</h3>
+      <h3 className="ck-heading-md border-b border-ck-border pb-3">{title}</h3>
       {children}
     </Stack>
   );
@@ -65,11 +78,11 @@ function SwatchGrid({
       {items.map((swatch) => (
         <div
           key={swatch.token}
-          className="overflow-hidden rounded-[var(--ck-radius-md)] border-2 border-ck-border"
+          className="overflow-hidden rounded-[var(--ck-radius-md)] border border-ck-border bg-ck-surface"
         >
           <div className={`h-20 ${swatch.className}`} />
           <div className="space-y-1 p-3">
-            <p className="ck-label">{swatch.name}</p>
+            <p className="ck-label text-ck-text">{swatch.name}</p>
             <p className="ck-caption !text-ck-text-secondary">{swatch.token}</p>
             <p className="ck-mono text-ck-text-muted">{swatch.hex}</p>
           </div>
@@ -82,61 +95,65 @@ function SwatchGrid({
 export default function DesignSystemPage() {
   return (
     <>
-      <Section tone="yellow" className="border-b-2 border-ck-border-strong">
-        <Container>
-          <p className="ck-overline text-ck-black">Etapa 01 · Interno</p>
-          <h1 className="ck-display-lg mt-3 text-ck-black">Design System V1</h1>
-          <p className="ck-body-md mt-4 max-w-[var(--ck-content-readable)] text-ck-black/80">
-            Identidad visual oficial de Clickaton. Catálogo de desarrollo — no es una página
-            pública de marketing. Ruta noindex, fuera de la navegación principal.
+      <Section
+        tone="dark"
+        grain
+        className="ck-vignette border-b border-ck-border"
+      >
+        <Container className="relative z-[2] max-w-3xl py-8 md:py-14">
+          <p className="ck-overline text-ck-yellow">Etapa 05 · Interno</p>
+          <h1 className="ck-display-lg mt-4 text-ck-text">Design System V2</h1>
+          <p className="ck-body-md mt-5 max-w-[var(--ck-content-readable)] text-ck-text-secondary">
+            Identidad editorial oscura. El amarillo es un golpe visual — nunca el fondo. Catálogo
+            de desarrollo (noindex).
           </p>
-          <p className="ck-accent-script mt-6 text-3xl text-ck-black md:text-4xl">
+          <p className="ck-accent-script mt-8 text-2xl text-ck-text-secondary md:text-3xl">
             Salí. Encontrá. Compartí.
           </p>
         </Container>
       </Section>
 
       <Section>
-        <Container className="space-y-16">
+        <Container className="space-y-20">
           <CatalogBlock title="Logo oficial">
             <p className="ck-body-sm text-ck-text-secondary">
               Assets del Manual — no reinterpretar. Componente <code className="ck-mono">Logo</code>.
             </p>
             <div className="mt-6 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border-2 border-ck-border bg-ck-white p-6">
+              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border border-ck-border bg-ck-surface p-6">
                 <Logo variant="horizontal" href={null} height={48} />
                 <p className="ck-caption">Horizontal</p>
               </div>
-              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border-2 border-ck-border bg-ck-white p-6">
+              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border border-ck-border bg-ck-surface p-6">
                 <Logo variant="vertical" href={null} height={120} />
                 <p className="ck-caption">Vertical</p>
               </div>
-              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border-2 border-ck-border bg-ck-black p-6">
+              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border border-ck-border bg-ck-bg p-6">
                 <Logo variant="principal" href={null} height={120} />
-                <p className="ck-caption text-ck-gray-200">Principal (oscuro)</p>
+                <p className="ck-caption">Principal</p>
               </div>
-              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border-2 border-ck-border bg-ck-white p-6">
+              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border border-ck-border bg-ck-surface p-6">
                 <Logo variant="isotipoAmarillo" href={null} height={72} />
                 <p className="ck-caption">Isotipo amarillo</p>
               </div>
-              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border-2 border-ck-border bg-ck-white p-6">
-                <Logo variant="mono" href={null} height={120} />
-                <p className="ck-caption">Monocromático</p>
+              <div className="flex flex-col items-center gap-3 rounded-[var(--ck-radius-md)] border border-ck-border bg-ck-surface p-6">
+                <Logo variant="horizontalMono" href={null} height={40} />
+                <p className="ck-caption">Mono (chrome oscuro)</p>
               </div>
-              <div className="flex flex-col items-center justify-center gap-3 rounded-[var(--ck-radius-md)] border-2 border-ck-border bg-ck-white p-6">
-                <Wordmark href="/design-system" />
-                <p className="ck-caption">Wordmark (chrome)</p>
+              <div className="flex flex-col items-center justify-center gap-3 rounded-[var(--ck-radius-md)] border border-ck-border bg-ck-surface p-6">
+                <Wordmark href={null} tone="inverse" />
+                <p className="ck-caption">Wordmark inverse</p>
               </div>
             </div>
           </CatalogBlock>
 
-          <CatalogBlock title="Paleta primaria">
+          <CatalogBlock title="Core colors">
             <SwatchGrid items={primarySwatches} />
           </CatalogBlock>
 
-          <CatalogBlock title="Paleta secundaria (estados)">
+          <CatalogBlock title="Semantic / estados">
             <p className="ck-body-sm text-ck-text-secondary">
-              Solo para estados del sistema y acentos controlados. No competir con el amarillo.
+              Solo estados del sistema. No compiten con el amarillo de marca.
             </p>
             <div className="mt-4">
               <SwatchGrid items={secondarySwatches} />
@@ -146,40 +163,28 @@ export default function DesignSystemPage() {
           <CatalogBlock title="Tipografía">
             <Stack gap="lg">
               <div>
-                <p className="ck-overline text-ck-text-muted">Display · Bebas Neue</p>
-                <p className="ck-display-xl mt-2">Salí a buscar el instante</p>
-                <p className="ck-display-lg mt-2">Maratón Fotográfica</p>
-                <p className="ck-display-md mt-2">Comunidad y aprendizaje</p>
-              </div>
-              <div>
-                <p className="ck-overline text-ck-text-muted">Heading</p>
-                <p className="ck-heading-xl mt-2">Heading XL</p>
-                <p className="ck-heading-lg mt-2">Heading LG</p>
-                <p className="ck-heading-md mt-2">Heading MD</p>
-                <p className="ck-heading-sm mt-2">Heading SM</p>
+                <p className="ck-overline text-ck-yellow">Display · Bebas Neue</p>
+                <p className="ck-display-xl mt-2 text-ck-text">Salí a buscar el instante</p>
+                <p className="ck-display-lg mt-2 text-ck-text">Maratón Fotográfica</p>
+                <p className="ck-display-md mt-2 text-ck-text">Comunidad y aprendizaje</p>
               </div>
               <div>
                 <p className="ck-overline text-ck-text-muted">Body · Montserrat</p>
-                <p className="ck-body-lg mt-2 text-ck-text-secondary">
+                <p className="ck-body-lg mt-2">
                   Body LG — Una experiencia fotográfica que combina creatividad, desafío y
                   comunidad.
                 </p>
-                <p className="ck-body-md mt-2 text-ck-text-secondary">
-                  Body MD — Texto de interfaz y lectura estándar.
-                </p>
+                <p className="ck-body-md mt-2">Body MD — Texto de interfaz y lectura estándar.</p>
                 <p className="ck-body-sm mt-2 text-ck-text-muted">
                   Body SM — Ayudas y notas secundarias.
                 </p>
               </div>
               <div className="flex flex-wrap items-end gap-6">
-                <div>
-                  <p className="ck-label">Label</p>
-                  <p className="ck-caption mt-2">Caption — Nota editorial</p>
-                  <p className="ck-overline mt-2">Overline</p>
-                </div>
-                <p className="ck-numeric-display">01:24</p>
-                <p className="ck-mono">-32.9442° S · -60.6505° W</p>
-                <p className="ck-accent-script text-3xl text-ck-black">Luz · Sombras · Texturas</p>
+                <p className="ck-numeric-display text-ck-yellow">01:24</p>
+                <p className="ck-mono text-ck-text-muted">-32.9442° S · -60.6505° W</p>
+                <p className="ck-accent-script text-3xl text-ck-text-secondary">
+                  Luz · Sombras · Texturas
+                </p>
               </div>
             </Stack>
           </CatalogBlock>
@@ -194,10 +199,130 @@ export default function DesignSystemPage() {
               <Button disabled>Disabled</Button>
               <Button loading>Loading</Button>
             </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <Button size="sm">Small</Button>
-              <Button size="md">Medium</Button>
-              <Button size="lg">Large</Button>
+          </CatalogBlock>
+
+          <CatalogBlock title="Formularios">
+            <div className="grid max-w-xl gap-5">
+              <Field id="ds-name" label="Nombre" hint="Label visible; el placeholder no lo reemplaza." required>
+                <Input placeholder="Tu nombre" />
+              </Field>
+              <Field id="ds-city" label="Ciudad">
+                <Select defaultValue="">
+                  <option value="" disabled>
+                    Elegí una ciudad
+                  </option>
+                  <option>Rosario</option>
+                  <option>Buenos Aires</option>
+                </Select>
+              </Field>
+              <Field id="ds-message" label="Mensaje">
+                <Textarea placeholder="Contanos..." />
+              </Field>
+              <Field id="ds-error" label="Con error" error="Este campo es obligatorio.">
+                <Input placeholder="Campo con error" />
+              </Field>
+              <Field id="ds-disabled" label="Disabled">
+                <Input placeholder="No editable" disabled />
+              </Field>
+            </div>
+          </CatalogBlock>
+
+          <CatalogBlock title="Superficies de sección">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-[var(--ck-radius-md)] border border-ck-border bg-[var(--ck-surface-base)] p-5">
+                <p className="ck-label text-ck-yellow">surface-base</p>
+                <p className="ck-caption mt-2">Fondo página `#111`</p>
+              </div>
+              <div className="rounded-[var(--ck-radius-md)] border border-ck-border bg-[var(--ck-surface-raised)] p-5">
+                <p className="ck-label text-ck-yellow">surface-raised</p>
+                <p className="ck-caption mt-2">Banda alternada</p>
+              </div>
+              <div className="rounded-[var(--ck-radius-md)] border border-ck-border bg-[var(--ck-surface-band)] p-5">
+                <p className="ck-label text-ck-yellow">surface-elevated / band</p>
+                <p className="ck-caption mt-2">Sección elevada `#1B1B1B`</p>
+              </div>
+            </div>
+          </CatalogBlock>
+
+          <CatalogBlock title="Sistema fotográfico">
+            <p className="ck-body-sm text-ck-text-secondary">
+              Proporción guía: 70% superficies · 20% foto · 10% amarillo. Overlays negros únicamente.
+              Fallbacks editoriales sin copy “placeholder” hacia el visitante.
+            </p>
+            <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <PhotoFrame
+                variant="hero"
+                alt="Variante hero"
+                overlay="medium"
+                eyebrow="hero"
+                caption="Texto dominante + imagen secundaria"
+                revealFallbackLabel
+              />
+              <PhotoFrame
+                variant="editorial"
+                alt="Variante editorial"
+                overlay="soft"
+                eyebrow="editorial"
+                revealFallbackLabel
+              />
+              <PhotoFrame
+                variant="card"
+                alt="Variante card"
+                overlay="soft"
+                eyebrow="card"
+                revealFallbackLabel
+              />
+              <PhotoFrame
+                variant="portrait"
+                alt="Variante portrait"
+                overlay="soft"
+                eyebrow="portrait"
+                revealFallbackLabel
+              />
+              <PhotoFrame
+                variant="gallery"
+                alt="Variante gallery"
+                overlay="none"
+                eyebrow="gallery"
+                revealFallbackLabel
+              />
+              <PhotoFrame
+                variant="jury"
+                alt="Variante jury"
+                overlay="none"
+                eyebrow="jury"
+                className="max-w-[10rem]"
+                revealFallbackLabel
+              />
+            </div>
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              <PhotoFrame variant="editorial" alt="" decorative overlay="soft" revealFallbackLabel caption="overlay soft" />
+              <PhotoFrame variant="editorial" alt="" decorative overlay="medium" revealFallbackLabel caption="overlay medium" />
+              <PhotoFrame variant="editorial" alt="" decorative overlay="strong" revealFallbackLabel caption="overlay strong" />
+            </div>
+            <PhotoFrame
+              variant="editorial"
+              alt="Ejemplo con crédito"
+              overlay="soft"
+              caption="Caption discreta sobre zona segura"
+              credit="Archivo Clickatón"
+              className="mt-8 max-w-xl"
+              revealFallbackLabel
+            />
+          </CatalogBlock>
+
+          <CatalogBlock title="Motion">
+            <p className="ck-body-sm text-ck-text-secondary">
+              Duraciones 180–340ms. Solo opacity / translateY / scale ≤ 1.02. Respetar{" "}
+              <code className="ck-mono">prefers-reduced-motion</code>.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-4">
+              <Card variant="interactive" className="min-w-[12rem]">
+                <p className="ck-label">Hover card</p>
+                <p className="ck-caption mt-2">scale + elevación</p>
+              </Card>
+              <Button>Hover CTA</Button>
+              <Button variant="secondary">Secondary</Button>
             </div>
           </CatalogBlock>
 
@@ -213,62 +338,63 @@ export default function DesignSystemPage() {
           </CatalogBlock>
 
           <CatalogBlock title="Cards">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               <Card>
                 <p className="ck-heading-md">Default</p>
-                <p className="ck-body-sm mt-2 text-ck-text-secondary">Superficie estándar.</p>
+                <p className="ck-body-sm mt-2">Superficie gris oscuro.</p>
               </Card>
               <Card variant="outlined">
                 <p className="ck-heading-md">Outlined</p>
-                <p className="ck-body-sm mt-2 text-ck-text-secondary">Borde fuerte.</p>
+                <p className="ck-body-sm mt-2">Borde fino editorial.</p>
               </Card>
               <Card variant="interactive">
                 <p className="ck-heading-md">Interactive</p>
-                <p className="ck-body-sm mt-2 text-ck-text-secondary">Hover con elevación.</p>
+                <p className="ck-body-sm mt-2">Hover lento + scale sutil.</p>
               </Card>
               <Card variant="yellow">
-                <p className="ck-heading-md">Yellow</p>
-                <p className="ck-body-sm mt-2">Acento energético — usar con moderación.</p>
+                <p className="ck-heading-md">Accent (yellow)</p>
+                <p className="ck-body-sm mt-2">
+                  Sin fill amarillo — borde superior de acento.
+                </p>
               </Card>
               <Card variant="dark">
                 <p className="ck-heading-md text-ck-yellow">Dark</p>
-                <p className="ck-body-sm mt-2 text-ck-gray-200">Fondo inverso puntual.</p>
+                <p className="ck-body-sm mt-2">Fondo más profundo.</p>
               </Card>
             </div>
           </CatalogBlock>
 
-          <CatalogBlock title="Layout">
+          <CatalogBlock title="Layout & marks">
             <SectionHeader
               eyebrow="Ejemplo"
               title="SectionHeader"
               description="Eyebrow, título y descripción con ancho legible."
             />
-            <Divider className="my-6" />
+            <Divider className="my-8" />
             <div className="flex flex-wrap items-center gap-4">
               <IconFrame tone="yellow">
                 <FocusMark size="sm" />
               </IconFrame>
-              <IconFrame tone="dark">
+              <IconFrame tone="dark" label="Paso 1">
                 <span className="ck-label text-ck-yellow">01</span>
               </IconFrame>
-              <FocusMark size="lg" className="text-ck-black" />
+              <FocusMark size="lg" className="text-ck-yellow" />
             </div>
           </CatalogBlock>
 
           <CatalogBlock title="Recursos gráficos">
             <div className="grid gap-8 lg:grid-cols-2">
-              <div className="relative overflow-hidden rounded-[var(--ck-radius-md)] border-2 border-ck-border bg-ck-yellow p-8">
+              <div className="relative overflow-hidden rounded-[var(--ck-radius-md)] border border-ck-border bg-ck-surface p-8">
                 <CoordinateGrid />
                 <ViewfinderFrame className="relative z-[1] max-w-[16rem]" />
               </div>
               <Stack gap="lg">
                 <EditorialLabel>Enfocar · Explorar · Compartir</EditorialLabel>
-                <EditorialLabel tone="yellow">Yellow label</EditorialLabel>
+                <EditorialLabel tone="yellow">Accent label</EditorialLabel>
                 <EditorialLabel tone="dark">Dark label</EditorialLabel>
                 <BrushStroke />
                 <p className="ck-body-sm text-ck-text-muted">
-                  Decorativos con aria-hidden. Nunca sustituyen al logo oficial. Usar con
-                  moderación.
+                  Decorativos con aria-hidden. Nunca sustituyen al logo oficial.
                 </p>
               </Stack>
             </div>
@@ -280,31 +406,14 @@ export default function DesignSystemPage() {
         <Container>
           <SectionHeader
             align="center"
-            eyebrow="Principio"
-            title="El amarillo es acento"
-            description="Fondos luminosos. Contraste negro/blanco. Amarillo Clickaton para CTA y energía — no como color de relleno masivo."
+            eyebrow="Principio V2"
+            title="El amarillo es un golpe"
+            description="Fondos oscuros. Contraste blanco/gris. Amarillo solo en CTA, links, líneas e indicadores."
           />
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
             <Button>Inscribirme</Button>
-            <Button variant="outline">Cómo funciona</Button>
-            <Button variant="secondary">Ver maratones</Button>
-          </div>
-        </Container>
-      </Section>
-
-      <Section tone="dark">
-        <Container>
-          <SectionHeader
-            align="center"
-            eyebrow="Fondo negro"
-            title="Contraste inverso"
-            description="Bandas oscuras puntuales — nunca el modo default de la interfaz."
-            className="[&_.ck-label]:text-ck-yellow [&_h2]:text-ck-yellow [&_p]:text-ck-gray-200"
-          />
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Button>Primary</Button>
-            <Badge variant="brand">Maratón Fotográfica</Badge>
-            <Badge variant="accent">Comunidad</Badge>
+            <Button variant="secondary">Cómo funciona</Button>
+            <Button variant="ghost">Ver maratones</Button>
           </div>
         </Container>
       </Section>

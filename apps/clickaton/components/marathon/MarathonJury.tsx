@@ -1,3 +1,4 @@
+import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { SectionHeader } from "@/components/layout/SectionHeader";
@@ -12,7 +13,7 @@ export function MarathonJury({ marathon }: MarathonJuryProps) {
   if (marathon.jury.length === 0) return null;
 
   return (
-    <Section tone="muted" aria-labelledby="marathon-jury-title">
+    <Section tone="raised" aria-labelledby="marathon-jury-title">
       <Container>
         <SectionHeader
           eyebrow="Jurado"
@@ -23,15 +24,14 @@ export function MarathonJury({ marathon }: MarathonJuryProps) {
         <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {marathon.jury.map((member) => (
             <Card key={member.id} className="h-full">
-              <div
-                aria-hidden="true"
-                className="mb-5 flex size-16 items-center justify-center border-2 border-ck-border-strong bg-ck-yellow font-mono text-lg font-bold text-ck-black"
-              >
-                {member.name
-                  .split(" ")
-                  .slice(0, 2)
-                  .map((part) => part[0])
-                  .join("")}
+              <div className="mb-5 w-24">
+                <PhotoFrame
+                  variant="jury"
+                  src={member.portrait}
+                  alt={member.portrait ? `Retrato de ${member.name}` : ""}
+                  decorative={!member.portrait}
+                  overlay="none"
+                />
               </div>
               <h3 className="ck-heading-md">{member.name}</h3>
               <p className="ck-label mt-2 text-ck-text-muted">{member.role}</p>

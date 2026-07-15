@@ -26,7 +26,7 @@ export function EmptyMarathonsState({
 }: EmptyMarathonsStateProps) {
   return (
     <div className="space-y-8">
-      <Card variant="outlined" className="border-dashed bg-ck-white">
+      <Card variant="outlined" className="border-dashed bg-ck-surface">
         <EditorialLabel>Agenda en preparación</EditorialLabel>
         <p className="ck-heading-lg mt-4">{message}</p>
         <p className="ck-body-sm mt-3 max-w-prose text-ck-text-muted">{note}</p>

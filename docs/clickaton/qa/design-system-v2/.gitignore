@@ -1,0 +1,3 @@
+# Artefactos pesados de auditoría local (Etapa 06).
+# Conservar README; regenerar PNG con Playwright cuando haga falta.
+*.png

@@ -1,19 +1,26 @@
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
+import {
+  forwardRef,
+  type AnchorHTMLAttributes,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { cn } from "@/lib/cn";
 
 const variantClass = {
   primary:
-    "border-ck-border-strong bg-ck-yellow text-ck-black hover:bg-ck-yellow-dark active:bg-[var(--ck-brand-primary-active)]",
+    "border-[var(--ck-core-ink-on-brand)] bg-ck-yellow text-[var(--ck-text-on-brand)] shadow-[var(--ck-shadow-subtle)] hover:bg-ck-yellow-dark hover:shadow-[var(--ck-shadow-glow)] hover:-translate-y-0.5 active:translate-y-px active:bg-[var(--ck-brand-primary-active)]",
   secondary:
-    "border-ck-border-strong bg-ck-black text-ck-yellow hover:bg-ck-gray-700 active:bg-ck-black",
+    "border-ck-yellow bg-transparent text-ck-yellow hover:bg-ck-yellow hover:text-[var(--ck-text-on-brand)] hover:-translate-y-0.5 active:translate-y-px",
   outline:
-    "border-ck-border-strong bg-transparent text-ck-text hover:bg-ck-black hover:text-ck-white",
-  ghost: "border-transparent bg-transparent text-ck-text hover:bg-ck-gray-100",
-  text: "border-transparent bg-transparent px-0 text-ck-text underline-offset-4 hover:underline",
+    "border-ck-border-strong bg-transparent text-ck-text hover:border-ck-yellow hover:text-ck-yellow",
+  ghost:
+    "border-transparent bg-transparent text-ck-text-secondary hover:bg-ck-surface-strong hover:text-ck-text",
+  text: "border-transparent bg-transparent px-0 text-ck-yellow underline-offset-4 hover:underline",
 } as const;
 
 const sizeClass = {
-  sm: "min-h-10 gap-1.5 px-3 py-2",
+  sm: "min-h-10 gap-1.5 px-3.5 py-2",
   md: "min-h-11 gap-2 px-5 py-2.5",
   lg: "min-h-12 gap-2 px-6 py-3",
 } as const;
@@ -52,59 +59,62 @@ function buttonClasses({
   disabled?: boolean;
 }) {
   return cn(
-    "ck-button-label inline-flex items-center justify-center rounded-[var(--ck-radius-control)] border-2 transition-[background-color,color,border-color,transform,box-shadow] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
-    variant !== "text" && "shadow-[var(--ck-shadow-subtle)] hover:-translate-y-px active:translate-y-px",
+    "ck-button-label inline-flex items-center justify-center rounded-[var(--ck-radius-control)] border-2 transition-[background-color,color,border-color,transform,box-shadow,filter] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
     variantClass[variant],
     sizeClass[size],
-    (disabled || loading) && "pointer-events-none opacity-55",
+    (disabled || loading) && "pointer-events-none opacity-[var(--ck-opacity-muted)]",
     className,
   );
 }
 
-export function Button(props: ButtonProps) {
-  const {
-    variant = "primary",
-    size = "md",
-    loading = false,
-    className,
-    children,
-    ...rest
-  } = props;
+export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonProps>(
+  function Button(props, ref) {
+    const {
+      variant = "primary",
+      size = "md",
+      loading = false,
+      className,
+      children,
+      ...rest
+    } = props;
 
-  if ("href" in props && props.href) {
-    const { href, ...linkRest } = rest as AnchorHTMLAttributes<HTMLAnchorElement> & {
-      href: string;
-    };
+    if ("href" in props && props.href) {
+      const { href, ...linkRest } = rest as AnchorHTMLAttributes<HTMLAnchorElement> & {
+        href: string;
+      };
+      return (
+        <a
+          ref={ref as Ref<HTMLAnchorElement>}
+          href={href}
+          className={buttonClasses({ variant, size, loading, className })}
+          aria-busy={loading || undefined}
+          {...linkRest}
+        >
+          {loading ? <span className="sr-only">Cargando</span> : null}
+          {children}
+        </a>
+      );
+    }
+
+    const buttonRest = rest as ButtonHTMLAttributes<HTMLButtonElement>;
     return (
-      <a
-        href={href}
-        className={buttonClasses({ variant, size, loading, className })}
+      <button
+        ref={ref as Ref<HTMLButtonElement>}
+        type={buttonRest.type ?? "button"}
+        className={buttonClasses({
+          variant,
+          size,
+          loading,
+          className,
+          disabled: buttonRest.disabled,
+        })}
+        disabled={buttonRest.disabled || loading}
         aria-busy={loading || undefined}
-        {...linkRest}
+        {...buttonRest}
       >
         {loading ? <span className="sr-only">Cargando</span> : null}
         {children}
-      </a>
+      </button>
     );
-  }
-
-  const buttonRest = rest as ButtonHTMLAttributes<HTMLButtonElement>;
-  return (
-    <button
-      type={buttonRest.type ?? "button"}
-      className={buttonClasses({
-        variant,
-        size,
-        loading,
-        className,
-        disabled: buttonRest.disabled,
-      })}
-      disabled={buttonRest.disabled || loading}
-      aria-busy={loading || undefined}
-      {...buttonRest}
-    >
-      {loading ? <span className="sr-only">Cargando</span> : null}
-      {children}
-    </button>
-  );
-}
+  },
+);

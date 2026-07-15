@@ -1,4 +1,4 @@
-# Clickaton — Design System V1 (Identidad Visual)
+# Clickaton — Design System V2 (Identidad Visual Editorial)
 
 **Rol:** foundation de producto para todo el ecosistema Clickaton (sitio, inscripción, paneles, tienda, app, marketing).
 
@@ -8,156 +8,94 @@
 
 ---
 
-## Concepto
+## Concepto V2
 
-Clickaton no es solo una competencia: es una comunidad internacional donde fotografía, creatividad, aprendizaje y exploración se unen en experiencias.
+Competencia · fotografía · energía · ciudad · exploración · editorial premium accesible.
 
-**Personalidad de interfaz:** moderna, luminosa, amigable, optimista, cercana, profesional, elegante, divertida, creativa.
+Inspiración de *lenguaje* (nunca copiar): Nike · Red Bull · National Geographic · Adobe · festivales urbanos · fotografía documental.
 
 | Sí | No |
 |----|-----|
-| Editorial, cálida, memorable | Tecnológica / SaaS genérico |
-| Fondos claros, amarillo como acento | Oscura por defecto / gamer |
-| Bebas Neue + Montserrat | Reinterpretar tipografías del Manual |
-| Logo oficial (asset) | Reconstruir wordmark con fuentes UI |
-| Sombras suaves, espacio primero | Bordes hiper-redondeados, glow, plantillas |
-
-Inspiración de *lenguaje* (nunca copiar): Leica · Patagonia · Domestika · Strava · Red Bull · National Geographic.
+| Oscuro editorial (`#111`) | Landing amarilla dominante |
+| Amarillo solo como acento | Fondos / héroes fill `#FFC400` |
+| Mucho aire, composición izquierda | Bloques densos centrados |
+| Bebas Neue + Montserrat + Caveat fina | Reinterpretar tipografías del Manual |
+| Grain / grilla / viñeta sutiles | Glow, pills SaaS, ruido visual |
+| Foto con overlay oscuro | Overlay amarillo sobre foto |
 
 ---
 
 ## Foundation
 
-### Color (Manual §04)
+### Core colors
 
 | Token | Hex | Uso |
 |-------|-----|-----|
-| `brand-primary` | `#FFC400` | Acento / CTA (no saturar) |
-| `brand-ink` | `#000000` | Texto, estructura |
-| `brand-paper` | `#FFFFFF` | Fondos |
-| `brand-gray` | `#F2F2F2` | Superficies secundarias |
-| `brand-violet` | `#6C53FF` | Comunidad / acento controlado |
-| `brand-blue` | `#00AEEF` | Info / tecnología |
-| `brand-green` | `#4CAF50` | Éxito |
+| `core-black` | `#111111` | Fondo principal |
+| `core-gray-dark` | `#1B1B1B` | Superficies / cards |
+| `core-gray-mid` | `#2A2A2A` | Elevaciones / hovers |
+| `core-white` | `#FFFFFF` | Texto primario |
+| `core-text-secondary` | `#B9B9B9` | Body / descripciones |
+| `core-brand` | `#FFC400` | Acento (CTA, links, líneas, íconos) |
 
-Semánticos (`success`, `warning`, `danger`, `info`, `community`) solo para estados.
+### Semantic
+
+`--ck-background`, `--ck-surface`, `--ck-border`, `--ck-text-*`, success / warning / danger / info / community (softs calibrados para dark).
 
 ### Tipografía (Manual §05)
 
-| Rol | Familia | Clase / token |
-|-----|---------|---------------|
-| Display | **Bebas Neue** | `.ck-display-*` |
-| Heading | **Bebas Neue** | `.ck-heading-*` |
+| Rol | Familia | Clase |
+|-----|---------|-------|
+| Display / Heading | **Bebas Neue** | `.ck-display-*` / `.ck-heading-*` |
 | Body | **Montserrat** | `.ck-body-*` |
-| Caption | Montserrat | `.ck-caption` |
-| Labels | Montserrat bold uppercase | `.ck-label` |
-| Overline | Montserrat bold uppercase | `.ck-overline` |
-| Buttons | Montserrat semibold uppercase | `.ck-button-label` |
-| Accent script | Caveat (frases cortas) | `.ck-accent-script` |
-| Mono | System mono | `.ck-mono` (coordenadas / sellos) |
+| Accent script | **Caveat** (fina) | `.ck-accent-script` |
 
-Display/Heading van en **mayúsculas** (naturaleza de Bebas Neue). El wordmark del logo **no** se tipografía: es PNG/SVG oficial.
+Display/Heading en **mayúsculas**, escala aumentada en V2. El wordmark **no** se tipografía: es asset oficial.
 
-### Espaciado
+### Spacing / Grid / Containers
 
-Escala base **4px** (`--ck-space-*`). Ritmo semántico: `title-to-subtitle`, `subtitle-to-content`, `block`, `section`, `content-to-actions`.
+Escala base **4px**. Ritmo semántico ampliado (`section` ~72–128px). Gutters 16/24/32. Contenedores: readable 40rem · standard 72rem · wide 80rem.
 
-### Grid (mobile first)
+### Radius
 
-| Breakpoint | Columnas | Gutter |
-|------------|----------|--------|
-| Mobile | 4 | 16px |
-| Tablet | 8 | 24px |
-| Desktop | 12 | 32px |
+Botones / controles: **14px** (`--ck-radius-control`). Cards: 12px. Sin pills salvo chips excepcionales.
 
-Contenedores: readable 40rem · standard 72rem · wide 80rem.
+### Elevation / Blur / Opacity
 
-### Bordes y radios
-
-Identidad editorial, no “pill SaaS”:
-
-- Controles / botones: `--ck-radius-control` (12px)
-- Cards: `--ck-radius-card` (8px)
-- Pill solo en chips excepcionales
-
-Borde fuerte negro (`2px`) como firma de contraste.
-
-### Elevaciones
-
-Sombras muy suaves (`subtle` / `elevated`). Priorizar separación por espacio sobre sombra.
+Sombras profundas suaves + glow amarillo mínimo en hover de CTA. Header: blur ~18px al scroll. Grilla urbana ~3.5% opacity. Grain ~5.5%.
 
 ### Motion
 
-Rápido, elegante, inspirado en enfoque / obturador:
-
-- Duraciones: 80 / 150 / 240 / 400ms
-- Easing: standard, emphasized, shutter
-- Respetar `prefers-reduced-motion`
-
-### Iconografía e ilustración
-
-- Iconos lineales de peso consistente (fotografía, mapas, comunidad, exploración) — **no Material Design**.
-- Recursos gráficos con moderación: pinceladas, grain (`.ck-grain`), coordenadas, sellos, `EditorialLabel`, `BrushStroke`, `ViewfinderFrame`.
-- Máximo un recurso decorativo dominante por sección (salvo hero compuesto a propósito).
+250–350ms. Solo opacity, translateY, scale ≤ 1.02, blur leve. Respetar `prefers-reduced-motion`.
 
 ### Fotografía
 
-Personas reales, emoción, ciudades, exploración, backstage, aprendizaje. Sin catálogo stock genérico.
+Protagonista. Overlays **oscuros** (`.ck-photo-overlay`). Amarillo solo como detalle gráfico.
 
 ### Logo
 
-Rutas centralizadas: `apps/clickaton/config/brand-assets.ts`.
-
-Componente `Logo` / `Wordmark` → assets en `/public/brand/`.
-
 | Contexto | Variante |
 |----------|----------|
-| Hero | `principal` |
-| Header | `horizontal` |
-| Footer oscuro | `horizontalMono` |
-| Favicon | `/favicon.png` (+ `favicon-32` en brand) |
-
-**Prohibido:** distorsionar, recolorear fuera de variantes oficiales, reconstruir con fuentes.
+| Header / footer oscuro | `horizontalMono` (`Wordmark tone="inverse"`) |
+| Superficies claras de catálogo | `horizontal` / color |
+| Favicon | `/favicon.png` |
 
 ---
 
-## Components (estado V1)
+## Components (estado V2)
 
 | Pieza | Estado |
 |-------|--------|
 | Button (primary / secondary / outline / ghost / text) | ✅ |
-| Badge | ✅ |
-| Card | ✅ |
-| Divider, IconFrame, FocusMark | ✅ |
+| Badge, Card, Divider, IconFrame, FocusMark | ✅ |
+| Input, Select, Textarea | ✅ |
 | Container, Section, SectionHeader, Stack | ✅ |
-| Navbar / Footer | ✅ (chrome) |
+| SiteHeader (blur on scroll), SiteFooter | ✅ |
+| PageHero / Hero editorial oscuro | ✅ |
 | Logo oficial | ✅ |
-| Inputs, Modal, Tabs, Toast, Tables, Commerce… | ⏳ backlog DS |
+| Modal, Tabs, Toast, Tables, Commerce… | ⏳ backlog |
 
-## Aplicación en producto (Etapa 06B)
-
-El DS V1 ya no es solo catálogo: Home, chrome y páginas públicas usan tokens, tipografía Manual y logos oficiales vía `config/brand-assets.ts`.
-
-Pendientes visuales: SVG vectoriales definitivos, optimizar peso de `logo-horizontal.png` (~476KB), fotografías reales, motion de marca, templates de redes.
-
----
-
-## Patterns & templates (roadmap)
-
-Login · Registro · Checkout · Inscripción · Perfil · Dashboard · Ranking · Galería · Tienda · Evento · Jurado · Organización · Home · Landing · Panel.
-
-Se construyen **sobre** estos tokens — no como pantallas aisladas.
-
----
-
-## Accesibilidad
-
-- Foco visible global
-- Contraste AA negro / blanco / amarillo `#FFC400` + texto negro en CTA
-- Targets táctiles ≥ 44px (botones md+)
-- Decoraciones `aria-hidden`
-- Skip link
-- `prefers-reduced-motion`
+`Section tone="yellow"` y `Card variant="yellow"` **ya no pintan fill amarillo**: son aliases editoriales (superficie oscura + acento).
 
 ---
 
@@ -165,12 +103,116 @@ Se construyen **sobre** estos tokens — no como pantallas aisladas.
 
 1. Tokens antes que hex sueltos.
 2. Tipografía vía utilidades `.ck-*`.
-3. Amarillo como acento, no como fondo de página completa salvo bandas deliberadas.
+3. Amarillo = golpe visual, nunca fondo de página.
 4. Logo solo vía `Logo` / `Wordmark`.
-5. No importar estética de FotoRank (oscuro) ni ComprameLaFoto (terracota).
+5. No importar estética terracota de ComprameLaFoto.
+
+---
+
+## Sistema fotográfico
+
+Proporción guía: **70%** superficies editoriales · **20%** fotografía · **10%** amarillo.
+
+- Componente base: `PhotoFrame` (`apps/clickaton/components/content/PhotoFrame.tsx`)
+- Presets: `apps/clickaton/lib/photography.ts`
+- Galería simple: `PhotoGallery` (sin lightbox)
+- Cards de listado: `MarathonCard` (portada opcional + fallback)
+- Guías operativas: [PHOTOGRAPHY_GUIDELINES.md](./PHOTOGRAPHY_GUIDELINES.md)
+
+### Variantes
+
+`hero` · `editorial` · `card` · `gallery` · `portrait` · `jury` · `sponsor-feature` · `background` · `thumbnail`
+
+Cada una define aspect ratio, `sizes`, overlay por defecto, borde/radio y hover.
+
+### Tokens foto
+
+`--ck-photo-overlay-soft|medium|strong`, `--ck-photo-radius`, `--ck-photo-border`, `--ck-photo-caption-bg`, `--ck-photo-safe-inset`, grain/vignette reutilizados.
+
+### Créditos y a11y
+
+- Crédito opcional (`Foto: …` / `© …` / texto ya formateado).
+- Informativas: `alt` útil; decorativas: `decorative` → `alt=""`.
+- Crédito fuera del `alt`.
+- Sin overlays amarillos sobre foto.
+
+### Real vs temporal
+
+Sin material documental aún: fallback abstracto del sistema. No inventar bancos de stock ni créditos.
+
+---
+
+## QA visual y responsive
+
+Auditoría Etapa 06 sobre la implementación real del DS V2 (sin redesign de identidad).
+
+### Breakpoints reales
+
+| Nombre | Ancho | Uso |
+|--------|-------|-----|
+| Mobile | ≤ 639px | CTAs apilados, menú hamburguesa, display `clamp` reducido |
+| Tablet | 640–1279px | Menú hamburguesa hasta `xl`, grillas 2 columnas |
+| Desktop | ≥ 1280px (`xl`) | Nav completa + CTA header |
+| Contenido | gutters 16 / 24 / 32 · max 72rem |
+
+### Reglas del hero
+
+- Fondo `surface-base` (`#111`), grilla técnica ~4% opacity, grain + vignette suaves.
+- Sin superficies amarillas dominantes.
+- Título Bebas con `clamp` + `break-words` / `overflow-wrap`.
+- Descripción `max-w-prose`, texto secundario `#B9B9B9`.
+- CTA primary amarillo + secondary borde amarillo; en mobile `w-full` apilados.
+- Padding vertical contenido (no viewport forzado vacío).
+
+### Uso permitido del amarillo
+
+CTA primary, secondary outline/hover, overlines, underlines activos, bordes superiores de acento en cards, indicadores FAQ/timeline, focus ring. **Prohibido** como fondo de sección/hero.
+
+### Alternancia de superficies
+
+| Tone `Section` | Token | Uso |
+|----------------|-------|-----|
+| `base` / `default` / `dark` | `--ck-surface-base` | Fondo página / héroes |
+| `raised` / `muted` | `--ck-surface-raised` | Bandas alternadas |
+| `elevated` / `yellow` | `--ck-surface-band` | Bandas elevadas (sin fill amarillo) |
+| `accent` | community soft | Uso puntual comunidad |
+
+### Tratamiento de fotografías
+
+- Componente `PhotoFrame` + utilidad `.ck-photo-overlay` (overlay oscuro).
+- `next/image` con `sizes`; fallback controlado si no hay `src`.
+- Sin tintes amarillos ni URLs externas inventadas.
+
+### Header
+
+- Compacto (`h-14` / `md:h-16`), logo mono inverse.
+- Scroll: blur + fondo semitransparente.
+- Mobile: menú dialog con `aria-label`, Escape, cierre explícito, scroll lock, CTA dentro del panel.
+
+### Responsive
+
+- Corregir causa de overflow (títulos, botones, logos); no `overflow-x: hidden` global.
+- Botones hero/page hero a ancho completo en mobile.
+- FAQ/acordeones con focus ring amarillo.
+
+### Motion reducido
+
+`prefers-reduced-motion: reduce` en `globals.css` y utilidades (`.ck-frame-*`, `.ck-fade-up`, `.ck-interactive`).
+
+### Componentes revisados (Etapa 06)
+
+Button (forwardRef), Badge, Card, Field, Input, Select, Textarea, IconFrame, Section/SectionHeader, SiteHeader/Footer, PageHero/Hero, FAQ, PhotoFrame, showroom `/design-system`.
+
+### Decisiones pendientes
+
+- Fotografías reales de producto (assets locales).
+- Optimizar peso PNG del logo horizontal.
+- Modal / tabs / tablas.
+- Evaluar nav desktop desde `lg` si crece el menú.
+- Capturas QA en `docs/clickaton/qa/design-system-v2/` (locales; no obligatorias en repo).
 
 ---
 
 ## Pendientes
 
-Ver `BACKLOG.md`: SVG vectoriales definitivos del estudio, set de iconos propio, formularios, cards de dominio, Storybook si el volumen lo justifica.
+Fotografías reales de producto, set de iconos lineal propio, modales/tablas, motion de entrada por sección, optimizar peso de logos PNG.

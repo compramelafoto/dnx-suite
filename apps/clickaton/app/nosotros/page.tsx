@@ -35,7 +35,7 @@ export default function AboutPage() {
             </p>
           ))}
           <Card variant="yellow" className="mt-4">
-            <p className="ck-body-md text-ck-gray-700">{content.respect}</p>
+            <p className="ck-body-md text-ck-text-secondary">{content.respect}</p>
           </Card>
         </Container>
       </Section>

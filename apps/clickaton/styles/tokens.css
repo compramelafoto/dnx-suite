@@ -1,88 +1,96 @@
 /**
- * Clickaton — Design Tokens V1
- * Fuente de verdad: Manual de Marca oficial.
- * No hardcodear hex en componentes; usar estos tokens.
+ * Clickaton — Design Tokens V2 (Identidad Visual Editorial Oscura)
+ * Amarillo (#FFC400) = acento únicamente. Nunca fondo dominante.
  */
 
 :root {
-  /* ——— Brand (Manual §04) ——— */
-  --ck-brand-primary: #ffc400;
-  --ck-brand-primary-hover: #e6b000;
-  --ck-brand-primary-active: #cc9c00;
-  --ck-brand-primary-soft: #fff6d6;
-  --ck-brand-ink: #000000;
-  --ck-brand-paper: #ffffff;
+  /* ——— Core colors ——— */
+  --ck-core-black: #111111;
+  --ck-core-gray-dark: #1b1b1b;
+  --ck-core-gray-mid: #2a2a2a;
+  --ck-core-white: #ffffff;
+  --ck-core-text-secondary: #b9b9b9;
+  --ck-core-brand: #ffc400;
+  --ck-core-brand-hover: #e6b000;
+  --ck-core-brand-active: #cc9c00;
+  --ck-core-ink-on-brand: #111111;
 
-  /* Secundarios — solo estados / acentos controlados (Manual §04) */
-  --ck-brand-gray: #f2f2f2;
+  /* Brand aliases (compat + Manual) */
+  --ck-brand-primary: var(--ck-core-brand);
+  --ck-brand-primary-hover: var(--ck-core-brand-hover);
+  --ck-brand-primary-active: var(--ck-core-brand-active);
+  --ck-brand-primary-soft: rgb(255 196 0 / 0.12);
+  --ck-brand-ink: var(--ck-core-black);
+  --ck-brand-paper: var(--ck-core-white);
+  --ck-brand-gray: var(--ck-core-gray-mid);
   --ck-brand-violet: #6c53ff;
-  --ck-brand-violet-soft: #efeaff;
+  --ck-brand-violet-soft: rgb(108 83 255 / 0.16);
   --ck-brand-blue: #00aeef;
-  --ck-brand-blue-soft: #e5f7fd;
+  --ck-brand-blue-soft: rgb(0 174 239 / 0.14);
   --ck-brand-green: #4caf50;
-  --ck-brand-green-soft: #e8f5e9;
+  --ck-brand-green-soft: rgb(76 175 80 / 0.14);
 
-  /* Aliases compat */
   --ck-yellow: var(--ck-brand-primary);
   --ck-yellow-dark: var(--ck-brand-primary-hover);
-  --ck-yellow-ink: #000000;
-  --ck-black: var(--ck-brand-ink);
-  --ck-white: var(--ck-brand-paper);
+  --ck-yellow-ink: var(--ck-core-ink-on-brand);
+  --ck-black: var(--ck-core-black);
+  --ck-white: var(--ck-core-white);
   --ck-brand-accent: var(--ck-brand-violet);
   --ck-brand-accent-soft: var(--ck-brand-violet-soft);
 
-  /* ——— Neutrals (claros, luminosos — nunca oscuros como default) ——— */
-  --ck-gray-50: #fafafa;
-  --ck-gray-100: #f2f2f2;
-  --ck-gray-200: #e5e5e5;
-  --ck-gray-300: #d4d4d4;
-  --ck-gray-500: #737373;
-  --ck-gray-700: #404040;
-  --ck-gray-900: #171717;
+  /* Neutrals (escala oscura) */
+  --ck-gray-50: #161616;
+  --ck-gray-100: #1b1b1b;
+  --ck-gray-200: #2a2a2a;
+  --ck-gray-300: #3a3a3a;
+  --ck-gray-500: #8a8a8a;
+  --ck-gray-700: #b9b9b9;
+  --ck-gray-900: #f5f5f5;
 
-  /* ——— Interface ——— */
-  --ck-background: var(--ck-brand-paper);
-  --ck-foreground: var(--ck-brand-ink);
-  --ck-surface: var(--ck-brand-paper);
-  --ck-surface-strong: var(--ck-gray-100);
-  --ck-surface-muted: var(--ck-gray-50);
-  --ck-border: var(--ck-gray-200);
-  --ck-border-strong: var(--ck-brand-ink);
-  --ck-text-primary: var(--ck-brand-ink);
-  --ck-text-secondary: var(--ck-gray-700);
-  --ck-text-muted: var(--ck-gray-500);
-  --ck-text-on-brand: var(--ck-yellow-ink);
-  --ck-text-inverse: var(--ck-brand-paper);
-  --ck-focus-ring: var(--ck-brand-ink);
-  --ck-focus-offset: var(--ck-brand-primary);
+  /* ——— Semantic colors ——— */
+  --ck-background: var(--ck-core-black);
+  --ck-foreground: var(--ck-core-white);
+  --ck-surface: var(--ck-core-gray-dark);
+  --ck-surface-strong: var(--ck-core-gray-mid);
+  --ck-surface-muted: #151515;
+  --ck-surface-elevated: #222222;
+  /* Alternancia editorial de secciones (aliases semánticos) */
+  --ck-surface-base: var(--ck-background);
+  --ck-surface-raised: var(--ck-surface-muted);
+  --ck-surface-band: var(--ck-surface);
+  --ck-border: rgb(255 255 255 / 0.1);
+  --ck-border-strong: rgb(255 255 255 / 0.22);
+  --ck-border-accent: var(--ck-brand-primary);
+  --ck-text-primary: var(--ck-core-white);
+  --ck-text-secondary: var(--ck-core-text-secondary);
+  --ck-text-muted: #9a9a9a;
+  --ck-text-on-brand: var(--ck-core-ink-on-brand);
+  --ck-text-inverse: var(--ck-core-black);
+  --ck-focus-ring: var(--ck-brand-primary);
+  --ck-focus-offset: rgb(255 196 0 / 0.28);
 
-  /* Compat */
   --ck-bg: var(--ck-background);
   --ck-bg-alt: var(--ck-surface-muted);
-  --ck-surface-inverse: var(--ck-brand-ink);
+  --ck-surface-inverse: var(--ck-core-white);
   --ck-text: var(--ck-text-primary);
   --ck-text-on-yellow: var(--ck-text-on-brand);
 
-  /* ——— Semantic (secundarios del Manual) ——— */
-  --ck-success: var(--ck-brand-green);
+  --ck-success: #5fbf63;
   --ck-success-soft: var(--ck-brand-green-soft);
-  --ck-warning: #c79100;
+  --ck-warning: #ffc400;
   --ck-warning-soft: var(--ck-brand-primary-soft);
-  --ck-danger: #d32f2f;
-  --ck-danger-soft: #fdecea;
-  --ck-info: var(--ck-brand-blue);
+  --ck-danger: #ff5c5c;
+  --ck-danger-soft: rgb(255 92 92 / 0.14);
+  --ck-info: #33c2f5;
   --ck-info-soft: var(--ck-brand-blue-soft);
   --ck-community: var(--ck-brand-violet);
   --ck-community-soft: var(--ck-brand-violet-soft);
 
-  /* ——— Typography (Manual §05) ——— */
-  /* Display / Heading: Bebas Neue — impact editorial, all-caps */
+  /* ——— Typography ——— */
+  /* Display: Bebas Neue (Manual §05) — impacto editorial, all-caps */
   --ck-font-display: var(--font-ck-display), "Bebas Neue", "Arial Narrow", Impact, sans-serif;
-  /* Body / UI: Montserrat */
   --ck-font-sans: var(--font-ck-sans), "Montserrat", system-ui, sans-serif;
-  /* Coordenadas / sellos técnicos */
   --ck-font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  /* Acento manuscrito (frases cortas del Manual) — opcional vía utility */
   --ck-font-accent: var(--font-ck-accent), "Caveat", cursive;
 
   --ck-weight-regular: 400;
@@ -90,109 +98,163 @@
   --ck-weight-semibold: 600;
   --ck-weight-bold: 700;
 
-  /* Bebas Neue se lee mejor con tracking abierto en display */
-  --ck-tracking-display: 0.04em;
-  --ck-tracking-heading: 0.03em;
-  --ck-tracking-overline: 0.14em;
+  --ck-tracking-display: 0.03em;
+  --ck-tracking-heading: 0.025em;
+  --ck-tracking-overline: 0.16em;
   --ck-tracking-label: 0.1em;
   --ck-tracking-button: 0.06em;
 
-  --ck-leading-tight: 0.95;
-  --ck-leading-snug: 1.15;
-  --ck-leading-body: 1.65;
-  --ck-leading-relaxed: 1.75;
+  --ck-leading-tight: 0.92;
+  --ck-leading-snug: 1.12;
+  --ck-leading-body: 1.7;
+  --ck-leading-relaxed: 1.8;
 
-  /* Escala tipográfica completa */
-  --ck-text-display-xl: clamp(3rem, 9vw, 5.5rem);
-  --ck-text-display-lg: clamp(2.5rem, 6.5vw, 4.25rem);
-  --ck-text-display-md: clamp(2rem, 4.5vw, 3.25rem);
-  --ck-text-heading-xl: clamp(1.75rem, 3.2vw, 2.5rem);
-  --ck-text-heading-lg: clamp(1.5rem, 2.6vw, 2rem);
+  /* Escala tipográfica — impacto en desktop, controlada en mobile */
+  --ck-text-display-xl: clamp(2.75rem, 10vw, 6.5rem);
+  --ck-text-display-lg: clamp(2.25rem, 7vw, 4.75rem);
+  --ck-text-display-md: clamp(1.875rem, 4.8vw, 3.5rem);
+  --ck-text-heading-xl: clamp(1.875rem, 3.4vw, 2.75rem);
+  --ck-text-heading-lg: clamp(1.5rem, 2.8vw, 2.125rem);
   --ck-text-heading-md: clamp(1.25rem, 2vw, 1.5rem);
   --ck-text-heading-sm: 1.125rem;
-  --ck-text-body-lg: clamp(1.0625rem, 1.15vw, 1.1875rem);
+  --ck-text-body-lg: clamp(1.0625rem, 1.2vw, 1.25rem);
   --ck-text-body-md: 1rem;
   --ck-text-body-sm: 0.875rem;
   --ck-text-label: 0.75rem;
   --ck-text-caption: 0.75rem;
   --ck-text-overline: 0.6875rem;
   --ck-text-button: 0.875rem;
-  --ck-text-numeric: clamp(2rem, 5vw, 3.5rem);
+  --ck-text-numeric: clamp(2.25rem, 5.5vw, 4rem);
 
-  /* ——— Radius (editorial, no SaaS pill) ——— */
+  /* ——— Radius ——— */
   --ck-radius-none: 0;
-  --ck-radius-sm: 0.25rem; /* 4px — badges, chips */
-  --ck-radius-md: 0.5rem; /* 8px — inputs, cards pequeñas */
-  --ck-radius-lg: 0.75rem; /* 12px — cards, botones */
-  --ck-radius-xl: 1rem; /* 16px — paneles */
-  --ck-radius-pill: 9999px; /* solo chips / floating excepcionales */
+  --ck-radius-sm: 0.25rem;
+  --ck-radius-md: 0.5rem;
+  --ck-radius-lg: 0.875rem; /* ~14px botones V2 */
+  --ck-radius-xl: 1rem;
+  --ck-radius-pill: 9999px;
   --ck-radius-full: var(--ck-radius-pill);
-  --ck-radius-control: var(--ck-radius-lg);
-  --ck-radius-card: var(--ck-radius-md);
+  --ck-radius-control: 0.875rem; /* 14px */
+  --ck-radius-card: 0.75rem;
 
-  /* ——— Elevaciones (suaves; priorizar espacio) ——— */
+  /* ——— Elevation / Shadows ——— */
   --ck-shadow-none: none;
-  --ck-shadow-subtle: 0 1px 2px rgb(0 0 0 / 0.04);
-  --ck-shadow-elevated: 0 4px 16px rgb(0 0 0 / 0.06);
-  --ck-shadow-strong: 0 0 0 2px var(--ck-brand-ink), 0 8px 28px rgb(0 0 0 / 0.1);
+  --ck-shadow-subtle: 0 1px 2px rgb(0 0 0 / 0.35);
+  --ck-shadow-elevated: 0 8px 28px rgb(0 0 0 / 0.45);
+  --ck-shadow-strong: 0 0 0 1px rgb(255 196 0 / 0.35), 0 12px 40px rgb(0 0 0 / 0.55);
+  --ck-shadow-glow: 0 0 24px rgb(255 196 0 / 0.18);
   --ck-shadow-sm: var(--ck-shadow-subtle);
   --ck-shadow-md: var(--ck-shadow-elevated);
   --ck-shadow-frame: var(--ck-shadow-strong);
 
-  /* ——— Grid / Layout (mobile first) ——— */
-  --ck-breakpoint-sm: 40rem; /* 640 */
-  --ck-breakpoint-md: 48rem; /* 768 */
-  --ck-breakpoint-lg: 64rem; /* 1024 */
-  --ck-breakpoint-xl: 80rem; /* 1280 */
+  /* ——— Opacity ——— */
+  --ck-opacity-muted: 0.55;
+  --ck-opacity-soft: 0.72;
+  --ck-opacity-grid: 0.035;
+  --ck-opacity-grain: 0.055;
+  --ck-opacity-vignette: 0.55;
+
+  /* ——— Blur ——— */
+  --ck-blur-sm: 8px;
+  --ck-blur-md: 16px;
+  --ck-blur-lg: 24px;
+  --ck-blur-header: 18px;
+
+  /* ——— Grid / Containers / Breakpoints ——— */
+  --ck-breakpoint-sm: 40rem;
+  --ck-breakpoint-md: 48rem;
+  --ck-breakpoint-lg: 64rem;
+  --ck-breakpoint-xl: 80rem;
 
   --ck-content-readable: 40rem;
   --ck-content-standard: 72rem;
   --ck-content-wide: 80rem;
-  --ck-gutter-mobile: 1rem; /* 16 */
-  --ck-gutter-tablet: 1.5rem; /* 24 */
-  --ck-gutter-desktop: 2rem; /* 32 */
+  --ck-gutter-mobile: 1rem;
+  --ck-gutter-tablet: 1.5rem;
+  --ck-gutter-desktop: 2rem;
   --ck-gutter: clamp(var(--ck-gutter-mobile), 4vw, var(--ck-gutter-desktop));
-  --ck-section-spacing: clamp(3.5rem, 8vw, 6rem);
+  --ck-section-spacing: clamp(4.5rem, 10vw, 8rem);
   --ck-max-width: var(--ck-content-standard);
   --ck-max-width-narrow: var(--ck-content-readable);
   --ck-columns-mobile: 4;
   --ck-columns-tablet: 8;
   --ck-columns-desktop: 12;
+  --ck-grid-size: 2.5rem;
 
-  /* ——— Spacing scale (base 4px) ——— */
+  /* ——— Spacing (base 4px) ——— */
   --ck-space-0: 0;
-  --ck-space-1: 0.25rem; /* 4 */
-  --ck-space-2: 0.5rem; /* 8 */
-  --ck-space-3: 0.75rem; /* 12 */
-  --ck-space-4: 1rem; /* 16 */
-  --ck-space-5: 1.25rem; /* 20 */
-  --ck-space-6: 1.5rem; /* 24 */
-  --ck-space-8: 2rem; /* 32 */
-  --ck-space-10: 2.5rem; /* 40 */
-  --ck-space-12: 3rem; /* 48 */
-  --ck-space-16: 4rem; /* 64 */
-  --ck-space-20: 5rem; /* 80 */
-  --ck-space-24: 6rem; /* 96 */
+  --ck-space-1: 0.25rem;
+  --ck-space-2: 0.5rem;
+  --ck-space-3: 0.75rem;
+  --ck-space-4: 1rem;
+  --ck-space-5: 1.25rem;
+  --ck-space-6: 1.5rem;
+  --ck-space-8: 2rem;
+  --ck-space-10: 2.5rem;
+  --ck-space-12: 3rem;
+  --ck-space-16: 4rem;
+  --ck-space-20: 5rem;
+  --ck-space-24: 6rem;
 
-  /* Ritmo vertical semántico */
-  --ck-stack-title-to-subtitle: var(--ck-space-4);
-  --ck-stack-subtitle-to-content: var(--ck-space-6);
-  --ck-stack-block: var(--ck-space-8);
+  --ck-stack-title-to-subtitle: var(--ck-space-5);
+  --ck-stack-subtitle-to-content: var(--ck-space-8);
+  --ck-stack-block: var(--ck-space-10);
   --ck-stack-section: var(--ck-section-spacing);
-  --ck-stack-content-to-actions: var(--ck-space-10);
+  --ck-stack-content-to-actions: var(--ck-space-12);
 
-  /* ——— Motion (enfoque / obturador) ——— */
+  /* ——— Motion / Transitions ——— */
   --ck-duration-instant: 80ms;
-  --ck-duration-fast: 150ms;
-  --ck-duration-base: 240ms;
-  --ck-duration-slow: 400ms;
+  --ck-duration-fast: 180ms;
+  --ck-duration-base: 280ms;
+  --ck-duration-slow: 340ms;
   --ck-easing-standard: cubic-bezier(0.22, 1, 0.36, 1);
   --ck-easing-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
   --ck-easing-shutter: cubic-bezier(0.65, 0, 0.35, 1);
   --ck-ease: var(--ck-easing-standard);
   --ck-duration: var(--ck-duration-base);
+  --ck-transition-interactive: opacity var(--ck-duration-base) var(--ck-easing-standard),
+    transform var(--ck-duration-base) var(--ck-easing-standard),
+    box-shadow var(--ck-duration-base) var(--ck-easing-standard),
+    background-color var(--ck-duration-base) var(--ck-easing-standard),
+    border-color var(--ck-duration-base) var(--ck-easing-standard),
+    color var(--ck-duration-base) var(--ck-easing-standard),
+    filter var(--ck-duration-base) var(--ck-easing-standard);
 
   /* ——— Borders ——— */
   --ck-border-width: 1px;
-  --ck-border-width-strong: 2px;
+  --ck-border-width-strong: 1px;
+  --ck-border-width-accent: 2px;
+
+  /* ——— Photography system ——— */
+  --ck-photo-radius: var(--ck-radius-card);
+  --ck-photo-border: var(--ck-border);
+  --ck-photo-caption-bg: linear-gradient(
+    to top,
+    rgb(17 17 17 / 0.92) 0%,
+    rgb(17 17 17 / 0.55) 55%,
+    transparent 100%
+  );
+  --ck-photo-overlay-soft: linear-gradient(
+    to top,
+    rgb(17 17 17 / 0.55) 0%,
+    rgb(17 17 17 / 0.2) 50%,
+    rgb(17 17 17 / 0.08) 100%
+  );
+  --ck-photo-overlay-medium: linear-gradient(
+    to top,
+    rgb(17 17 17 / 0.82) 0%,
+    rgb(17 17 17 / 0.4) 48%,
+    rgb(17 17 17 / 0.18) 100%
+  );
+  --ck-photo-overlay-strong: linear-gradient(
+    to top,
+    rgb(17 17 17 / 0.94) 0%,
+    rgb(17 17 17 / 0.62) 42%,
+    rgb(17 17 17 / 0.35) 100%
+  );
+  --ck-photo-grain-opacity: var(--ck-opacity-grain);
+  --ck-photo-vignette: var(--ck-opacity-vignette);
+  --ck-photo-safe-inset: var(--ck-space-5);
+  --ck-photo-shadow: var(--ck-shadow-subtle);
+  --ck-photo-transition: var(--ck-transition-interactive);
 }

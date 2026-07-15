@@ -39,7 +39,7 @@ export function MarathonSchedule({ marathon }: MarathonScheduleProps) {
                 <div className="flex items-start gap-3">
                   <span
                     aria-hidden="true"
-                    className="inline-flex size-10 shrink-0 items-center justify-center border-2 border-ck-border-strong bg-ck-yellow font-mono text-sm font-bold text-ck-black"
+                    className="inline-flex size-10 shrink-0 items-center justify-center border border-ck-yellow/50 bg-[var(--ck-brand-primary-soft)] font-mono text-sm font-bold text-ck-yellow"
                   >
                     {String(index + 1).padStart(2, "0")}
                   </span>
