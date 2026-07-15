@@ -1,6 +1,5 @@
 import { BrushStroke } from "@/components/brand/BrushStroke";
 import { CoordinateGrid } from "@/components/brand/CoordinateGrid";
-import { Logo } from "@/components/brand/Logo";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/Button";
@@ -19,13 +18,6 @@ export function Hero() {
     >
       <CoordinateGrid className="opacity-[0.07]" />
       <Container className="relative z-[2] max-w-3xl">
-        <Logo
-          variant="principal"
-          href={null}
-          height={112}
-          priority
-          className="mb-6 max-h-24 w-auto max-w-[11rem] sm:max-h-28 sm:max-w-[13rem]"
-        />
         <p className="ck-overline text-ck-black/70">{hero.eyebrow}</p>
         <h1
           id="hero-title"
