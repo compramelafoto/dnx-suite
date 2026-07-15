@@ -37,9 +37,13 @@ export type * from "./sdk/index.js";
 export {
   runSandboxPreflight,
   loadSandboxEnvFromProcess,
+  auditSandboxCredentials,
+  isTestPartnerEmail,
+  isNumericOwnerUserId,
 } from "./sandbox/preflight.js";
 export type {
   SandboxPreflightInput,
   SandboxPreflightResult,
   SandboxPreflightStatus,
+  SandboxCredentialAuditRow,
 } from "./sandbox/preflight.js";

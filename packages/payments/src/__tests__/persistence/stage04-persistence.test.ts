@@ -49,7 +49,19 @@ describe("sandbox preflight", () => {
       environment: "sandbox",
       confirm: true,
     });
-    assert.equal(result.status, "INVALID_TEST_PARTNER");
+    assert.equal(result.status, "BLOCKED_BY_TEST_PARTNER_EMAIL");
+  });
+
+  it("rejects numeric partner user id as email", () => {
+    const result = runSandboxPreflight({
+      accessToken: "TEST-abc",
+      ownerUserId: "123",
+      partnerEmail: "987654321",
+      environment: "sandbox",
+      dryRun: true,
+    });
+    assert.equal(result.status, "BLOCKED_BY_TEST_PARTNER_EMAIL");
+    assert.equal(result.checks.partnerLooksLikeUserId, true);
   });
 
   it("requires confirmation when not dry-run", () => {

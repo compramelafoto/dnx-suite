@@ -95,14 +95,22 @@ declare module "@repo/payments" {
     | "MISSING_TEST_TOKEN"
     | "INVALID_TEST_OWNER"
     | "INVALID_TEST_PARTNER"
+    | "BLOCKED_BY_TEST_PARTNER_EMAIL"
     | "PRODUCTION_TOKEN_REJECTED"
     | "CONFIRMATION_REQUIRED"
-    | "BLOCKED_BY_SANDBOX_CREDENTIALS";
+    | "BLOCKED_BY_SANDBOX_CREDENTIALS"
+    | "BLOCKED_BY_TEST_PAYMENT_TOKEN";
 
   export function runSandboxPreflight(input: unknown): {
     status: SandboxPreflightStatus;
     checks: Record<string, boolean>;
     hints: string[];
+    credentialAudit?: Array<{
+      name: string;
+      present: boolean;
+      formatValid: boolean;
+      reason: string;
+    }>;
   };
 
   export interface DnxPaymentsPersistence {

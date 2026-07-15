@@ -9,6 +9,7 @@
  * Never prints secrets. Blocks Production writes.
  */
 
+import { resolve } from "node:path";
 import {
   loadSandboxEnvFromProcess,
   runSandboxPreflight,
@@ -31,8 +32,10 @@ function exitCodeFor(status: SandboxPreflightStatus): number {
     case "MISSING_TEST_TOKEN":
     case "INVALID_TEST_OWNER":
     case "INVALID_TEST_PARTNER":
+    case "BLOCKED_BY_TEST_PARTNER_EMAIL":
     case "PRODUCTION_TOKEN_REJECTED":
     case "BLOCKED_BY_SANDBOX_CREDENTIALS":
+    case "BLOCKED_BY_TEST_PAYMENT_TOKEN":
       return 3;
     default:
       return 1;
@@ -41,7 +44,9 @@ function exitCodeFor(status: SandboxPreflightStatus): number {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const envInput = loadSandboxEnvFromProcess();
+  // Resolve monorepo root when launched via pnpm filter from packages/payments.
+  const repoRoot = resolve(process.cwd(), "../..");
+  const envInput = loadSandboxEnvFromProcess(process.env, { cwd: repoRoot });
   const preflight = runSandboxPreflight({
     ...envInput,
     confirm: args.confirm,
@@ -51,13 +56,14 @@ async function main(): Promise<void> {
 
   const correlationId = crypto.randomUUID();
   const report = {
-    stage: "04",
+    stage: "05A",
     command: "smoke:mp-split-sandbox",
     correlationId,
     dryRun: args.dryRun,
     cleanupRequested: args.cleanup,
     preflightStatus: preflight.status,
     checks: preflight.checks,
+    credentialAudit: preflight.credentialAudit,
     hints: preflight.hints,
     productionWritesAllowed: false,
     blockA:
@@ -65,7 +71,7 @@ async function main(): Promise<void> {
         ? "READY_TO_EXECUTE"
         : preflight.status === "READY" && args.dryRun
           ? "DRY_RUN_ONLY"
-          : "BLOCKED_BY_SANDBOX_CREDENTIALS",
+          : preflight.status,
     waitingMpConfirmation: [
       "fee_allocation",
       "owner_definitive",
@@ -88,7 +94,7 @@ async function main(): Promise<void> {
       JSON.stringify(
         {
           message: "Dry-run OK. No Mercado Pago writes executed.",
-          next: "Re-run with --confirm once TEST credentials and payment token are set.",
+          next: "Re-run with --confirm once TEST payment token + device id are set.",
         },
         null,
         2,
@@ -98,8 +104,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Real HTTP smoke is gated; without LIVE execution credentials beyond preflight READY
-  // this CLI still refuses to invent a payment token.
   if (!envInput.paymentToken || !envInput.deviceId) {
     console.log(
       JSON.stringify(
@@ -121,7 +125,7 @@ async function main(): Promise<void> {
       {
         blockA: "NOT_EXECUTED_IN_THIS_RUN",
         message:
-          "Preflight READY with payment token present, but automated live order creation is intentionally deferred to an operator-confirmed session with MCP tools.",
+          "Preflight READY with payment token present, but automated live order creation remains operator-confirmed via MCP tools.",
       },
       null,
       2,
