@@ -25,7 +25,8 @@
     "test": "node --import tsx --test 'src/**/*.test.ts'",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "smoke:mp-split-sandbox": "tsx src/cli/smoke-mp-split-sandbox.ts",
-    "smoke:persistence-staging": "tsx src/cli/smoke-persistence-staging.ts"
+    "smoke:persistence-staging": "tsx src/cli/smoke-persistence-staging.ts",
+    "smoke:split-consent-sandbox": "tsx src/cli/smoke-split-consent-sandbox.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0"
