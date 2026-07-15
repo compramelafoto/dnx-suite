@@ -9,6 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { headerCta, mainNavigation } from "@/config/navigation";
 import { cn } from "@/lib/cn";
 
+function isActivePath(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -36,38 +40,53 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-ck-border bg-ck-white/95 backdrop-blur-sm">
-      <Container className="flex h-[4.5rem] items-center justify-between gap-4 md:h-[5.25rem] lg:h-[5.75rem]">
-        <Wordmark
-          href={null}
-          height={68}
-          className="h-14 w-auto md:h-16 lg:h-[4.5rem]"
-        />
+      <Container className="flex h-[4.25rem] items-center gap-6 md:h-[4.75rem] md:gap-8 lg:h-[5.25rem]">
+        <div className="shrink-0">
+          <Wordmark
+            href={null}
+            height={52}
+            className="h-11 w-auto md:h-12 lg:h-14"
+          />
+        </div>
 
-        <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Principal">
-          {mainNavigation.map((item) => {
-            const active =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
+        <div className="ml-auto hidden items-center gap-8 xl:flex 2xl:gap-10">
+          <nav className="flex items-center gap-1" aria-label="Principal">
+            {mainNavigation.map((item) => {
+              const active = isActivePath(pathname, item.href);
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "ck-label rounded-[var(--ck-radius-sm)] px-2.5 py-2 transition-colors duration-[var(--ck-duration-fast)]",
-                  active
-                    ? "bg-ck-yellow text-ck-black"
-                    : "text-ck-text-secondary hover:bg-ck-gray-100 hover:text-ck-text",
-                )}
-                aria-current={active ? "page" : undefined}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "ck-label whitespace-nowrap rounded-[var(--ck-radius-sm)] px-3.5 py-2.5 transition-colors duration-[var(--ck-duration-fast)]",
+                    active
+                      ? "bg-ck-yellow text-ck-black"
+                      : "text-ck-text-secondary hover:bg-ck-gray-100 hover:text-ck-text",
+                  )}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
 
-        <div className="flex items-center gap-2">
-          <Button href={headerCta.href} className="hidden sm:inline-flex" size="sm">
+          <Button
+            href={headerCta.href}
+            size="sm"
+            className="shrink-0 whitespace-nowrap px-5"
+          >
+            {headerCta.label}
+          </Button>
+        </div>
+
+        <div className="ml-auto flex items-center gap-3 xl:hidden">
+          <Button
+            href={headerCta.href}
+            className="hidden whitespace-nowrap sm:inline-flex"
+            size="sm"
+          >
             {headerCta.label}
           </Button>
 
@@ -75,7 +94,7 @@ export function SiteHeader() {
             type="button"
             variant="ghost"
             size="sm"
-            className="min-w-11 px-3 xl:hidden"
+            className="min-h-11 min-w-11 px-0"
             aria-expanded={open}
             aria-controls={panelId}
             onClick={() => setOpen((value) => !value)}
@@ -114,18 +133,19 @@ export function SiteHeader() {
           aria-label="Menú de navegación"
         >
           <Container>
-            <nav className="flex flex-col gap-1 py-4" aria-label="Móvil">
+            <nav className="flex flex-col gap-2 py-5" aria-label="Móvil">
               {mainNavigation.map((item) => {
-                const active =
-                  pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const active = isActivePath(pathname, item.href);
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "ck-label rounded-[var(--ck-radius-sm)] px-3 py-3",
-                      active ? "bg-ck-yellow text-ck-black" : "text-ck-text hover:bg-ck-gray-100",
+                      "rounded-[var(--ck-radius-md)] px-4 py-3 text-base font-semibold",
+                      active
+                        ? "bg-ck-yellow text-ck-black"
+                        : "text-ck-text hover:bg-ck-gray-100",
                     )}
                     aria-current={active ? "page" : undefined}
                     onClick={() => setOpen(false)}
@@ -136,7 +156,7 @@ export function SiteHeader() {
               })}
               <Button
                 href={headerCta.href}
-                className="mt-2"
+                className="mt-3 whitespace-nowrap"
                 onClick={() => setOpen(false)}
               >
                 {headerCta.label}

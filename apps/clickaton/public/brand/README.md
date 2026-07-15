@@ -36,7 +36,23 @@ También en raíz `public/`:
 | `/apple-touch-icon.png` | iOS home screen |
 | `/og-default.png` | Thumbnail redes / compartir |
 
-API en código: `components/brand/Logo.tsx` + `Wordmark.tsx`. Metadata en `app/layout.tsx` + `lib/seo.ts`.
+API en código:
+
+- Rutas: `config/brand-assets.ts` (`brandAssetPaths` + `brandAssetUsage`)
+- Componente: `components/brand/Logo.tsx` + `Wordmark.tsx`
+- Metadata: `app/layout.tsx` + `lib/seo.ts`
+
+### Uso por contexto
+
+| Contexto | Variante |
+|----------|----------|
+| Hero Home | `principal` |
+| Header | `horizontal` (Wordmark) |
+| Footer oscuro | `horizontalMono` |
+| Favicon | `/favicon.png` + `/brand/favicon-32.png` (lectura pequeña) |
+| Open Graph | `/og-default.png` |
+
+**Tipografía de producto (Manual):** Bebas Neue (display) · Montserrat (UI) · Caveat (acento editorial corto). El wordmark del logo **no** se tipografía.
 
 ## Reglas
 

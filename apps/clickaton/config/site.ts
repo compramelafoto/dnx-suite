@@ -1,3 +1,5 @@
+import { brandAssetPaths } from "@/config/brand-assets";
+
 /**
  * Configuración central de marca — Clickatón.
  */
@@ -26,7 +28,9 @@ export const siteConfig = {
     favicon: "/favicon.png",
     appleTouchIcon: "/apple-touch-icon.png",
     ogImage: "/og-default.png",
-    socialAvatar: "/brand/social-avatar.png",
+    favicon32: brandAssetPaths.favicon32,
+    socialAvatar: brandAssetPaths.socialAvatar,
+    ogDefaultBrand: brandAssetPaths.ogDefault,
   },
   copyrightOwner: "Clickatón",
 } as const;

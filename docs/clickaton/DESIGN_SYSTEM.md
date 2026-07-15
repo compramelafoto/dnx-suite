@@ -106,7 +106,16 @@ Personas reales, emoción, ciudades, exploración, backstage, aprendizaje. Sin c
 
 ### Logo
 
-Componente `Logo` / `Wordmark` → assets en `/public/brand/`. Variantes: principal, vertical, horizontal, mono, isotipos.
+Rutas centralizadas: `apps/clickaton/config/brand-assets.ts`.
+
+Componente `Logo` / `Wordmark` → assets en `/public/brand/`.
+
+| Contexto | Variante |
+|----------|----------|
+| Hero | `principal` |
+| Header | `horizontal` |
+| Footer oscuro | `horizontalMono` |
+| Favicon | `/favicon.png` (+ `favicon-32` en brand) |
 
 **Prohibido:** distorsionar, recolorear fuera de variantes oficiales, reconstruir con fuentes.
 
@@ -125,7 +134,11 @@ Componente `Logo` / `Wordmark` → assets en `/public/brand/`. Variantes: princi
 | Logo oficial | ✅ |
 | Inputs, Modal, Tabs, Toast, Tables, Commerce… | ⏳ backlog DS |
 
-Catálogo: `/design-system`.
+## Aplicación en producto (Etapa 06B)
+
+El DS V1 ya no es solo catálogo: Home, chrome y páginas públicas usan tokens, tipografía Manual y logos oficiales vía `config/brand-assets.ts`.
+
+Pendientes visuales: SVG vectoriales definitivos, optimizar peso de `logo-horizontal.png` (~476KB), fotografías reales, motion de marca, templates de redes.
 
 ---
 
