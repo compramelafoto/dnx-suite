@@ -72,15 +72,20 @@ Loader actual: `visibility: PUBLIC` + `status in [PUBLISHED, ACTIVE]` — `ACTIV
 
 | Contrato / campo | Fuente FR | Estado | Visibilidad | Endpoint futuro | Prioridad |
 |------------------|-----------|--------|-------------|-----------------|-----------|
-| `PublicRegistrationOffer.*` | economy JSON | PARCIAL / AUSENTE real | public | `.../offer` | P0 |
+| `PublicRegistrationOffer.*` / `PublicRegistrationSummary` | pricing explícito (09A+) | AUSENTE real / tipos Clickaton listos | public | embebido en event o `.../offer` | P0 |
+| `pricingMode` free\|paid | config admin (no inferir) | AUSENTE | public | offer / event | P0 |
+| `displayPrice` (centavos + currency) | base/sale vigentes | AUSENTE | public | offer / event | P0 |
+| `hasOptionalMerchandise` | catálogo merch | AUSENTE | public | offer / event | P1 |
+| `checkoutUrl` | handoff FR | AUSENTE | public | offer / event | P0 |
 | `requiresAuthentication` | — | AUSENTE | public | offer | P0 |
-| `requiresPayment` / precios | `entryMode`, `entryFeeAmount` | PARCIAL (simulado) | public | offer | P0 |
-| `registrationUrl` | — | AUSENTE | public | offer | P1 |
+| `requiresPayment` (legacy) | alias de `pricingMode === "paid"` | PARCIAL tipos | public | offer | P2 |
 | `RegistrationEligibility` | — | AUSENTE | authenticated | `.../eligibility` | P0 |
-| `ParticipantRegistrationSummary` | — | AUSENTE | authenticated | `.../me/registration` | P0 |
+| `ParticipantRegistrationSummary` + `registrationStatus` / `paymentStatus` | inscripción + orden | AUSENTE | authenticated | `.../me/registration` | P0 |
 | `PublicCapacity` | — | AUSENTE | public (agregado) | `.../capacity` | P1 |
 | `PublicCategoryCapacity` | `maxFiles` ≠ cupo | AUSENTE | public | capacity | P1 |
 | `PublicMarathonCapabilities` | fechas + flags | REQUIERE_CALCULO | public | `.../capabilities` | P1 |
+
+Detalle de alcance: [STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md](./STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md).
 
 ---
 

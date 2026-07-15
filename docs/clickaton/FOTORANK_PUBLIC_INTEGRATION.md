@@ -39,19 +39,27 @@ CLICKATON_PUBLIC_DATA_SOURCE=fixture
 - Timeout: **8000ms**.
 - Caché fetch / ISR: `revalidate: 60`.
 
-## Política de `eventType` (08D)
+## Política de publicación Clickatón (09A)
 
-V1 expone solo `eventType: "contest"`.
+Regla oficial para maratón Clickatón:
 
-| Acción | Comportamiento |
-|--------|----------------|
-| Mapper | Puede mapear a `PublicMarathon` con `modality: "Concurso fotográfico"` |
-| `listListed` | **Vacío** para contests (no aparecen en `/maratones`) |
-| `getBySlug` | Contest remoto → `null` → `notFound()` |
-| CTA inscripción | Respeta `canRegister` (hoy false en FR) |
-| Demo | `/maratones/demo` sigue siendo fixture local (hybrid) |
+```text
+experienceType = marathon
+AND
+distributionChannel = clickaton
+```
 
-Sin discriminador de canal/marca todavía. Los concursos FotoRank **no** se presentan como maratones oficiales Clickatón.
+El adaptador pide `?channel=clickaton` (FR filtra MARATHON + CLICKATON) y revalida con `isOfficialClickatonMarathon`.
+
+| Caso | ¿Aparece en Clickatón? |
+|------|------------------------|
+| CONTEST + null/FOTORANK | No |
+| CONTEST + CLICKATON (incoherente; bloqueado en admin) | No |
+| MARATHON + null/FOTORANK | No (maratón externa) |
+| MARATHON + CLICKATON | **Sí** |
+
+CTA inscripción: respeta `canRegister` (hoy false en FR hasta flujo real).  
+Demo: `/maratones/demo` sigue siendo fixture local (hybrid).
 
 ## Hybrid
 
@@ -71,8 +79,7 @@ pnpm exec tsx --conditions=react-server --tsconfig tsconfig.json \
 
 ## Limitaciones
 
-- Sin inscripción/pagos/auth
+- Sin inscripción/pagos reales / auth (contratos free/paid preparados; cobros = 09B)
 - Sin results/gallery payload
-- Sin discriminador de canal (pendiente)
-- Contests no publicables como maratones
+- Contests y maratones no-CLICKATON no publicables como Clickatón oficial
 - UNLISTED futuros: sin endpoint de slugs routables

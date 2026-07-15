@@ -9,6 +9,10 @@ import { normalizeSlug } from "../lib/fotorank/slug";
 import { canBulkReplaceContestCategories } from "../lib/fotorank/contestCategoryPolicy";
 import { autoMapNewContestCategory, countContestJudgeAssignments } from "../lib/fotorank/contestCategoryService";
 import { routes } from "../lib/routes";
+import {
+  incoherentExperienceChannelMessage,
+  isIncoherentExperienceChannelCombo,
+} from "../lib/public-api/v1/experience";
 
 export type ContestCategoryInput = {
   name: string;
@@ -31,6 +35,10 @@ export type CreateFotorankContestInput = {
   resultsAt?: string;
   status: "DRAFT" | "SETUP_IN_PROGRESS" | "READY_TO_PUBLISH" | "PUBLISHED" | "CLOSED" | "ARCHIVED" | "ACTIVE";
   visibility: "PUBLIC" | "PRIVATE" | "UNLISTED";
+  /** Tipo de experiencia. Default CONTEST. */
+  experienceType?: "CONTEST" | "MARATHON";
+  /** Canal de publicación. null = Solo FotoRank (no Clickatón). */
+  distributionChannel?: "FOTORANK" | "CLICKATON" | null;
   categories: ContestCategoryInput[];
 };
 
@@ -50,6 +58,8 @@ export type UpdateFotorankContestInput = Partial<{
   resultsAt: string;
   status: "DRAFT" | "SETUP_IN_PROGRESS" | "READY_TO_PUBLISH" | "PUBLISHED" | "CLOSED" | "ARCHIVED" | "ACTIVE";
   visibility: "PUBLIC" | "PRIVATE" | "UNLISTED";
+  experienceType: "CONTEST" | "MARATHON";
+  distributionChannel: "FOTORANK" | "CLICKATON" | null;
   categories: ContestCategoryInput[];
 }>;
 
@@ -160,6 +170,17 @@ export async function createFotorankContest(
   });
   if (dateError) return { ok: false, error: dateError };
 
+  const experienceType = input.experienceType ?? "CONTEST";
+  const distributionChannel = input.distributionChannel ?? null;
+  if (
+    isIncoherentExperienceChannelCombo({
+      experienceType,
+      distributionChannel,
+    })
+  ) {
+    return { ok: false, error: incoherentExperienceChannelMessage() };
+  }
+
   const contest = await prisma.$transaction(async (tx) => {
     const c = await tx.fotorankContest.create({
       data: {
@@ -171,6 +192,8 @@ export async function createFotorankContest(
         coverImageUrl: input.coverImageUrl?.trim() || null,
         status: input.status ?? "DRAFT",
         visibility: input.visibility ?? "PUBLIC",
+        experienceType,
+        distributionChannel,
         startAt,
         submissionDeadline,
         judgingStartAt,
@@ -248,6 +271,20 @@ export async function updateFotorankContest(
   const dateError = validateDateSequence(newDates);
   if (dateError) return { ok: false, error: dateError };
 
+  const nextExperienceType = input.experienceType ?? contest.experienceType;
+  const nextDistributionChannel =
+    input.distributionChannel !== undefined
+      ? input.distributionChannel
+      : contest.distributionChannel;
+  if (
+    isIncoherentExperienceChannelCombo({
+      experienceType: nextExperienceType,
+      distributionChannel: nextDistributionChannel,
+    })
+  ) {
+    return { ok: false, error: incoherentExperienceChannelMessage() };
+  }
+
   if (input.categories !== undefined) {
     const assignmentCount = await countContestJudgeAssignments(contestId);
     if (
@@ -277,6 +314,12 @@ export async function updateFotorankContest(
     if (input.rulesText !== undefined) updateData.rulesText = input.rulesText?.trim() || null;
     if (input.status !== undefined) updateData.status = input.status;
     if (input.visibility !== undefined) updateData.visibility = input.visibility;
+    if (input.experienceType !== undefined) {
+      updateData.experienceType = input.experienceType;
+    }
+    if (input.distributionChannel !== undefined) {
+      updateData.distributionChannel = input.distributionChannel;
+    }
     if (input.startAt !== undefined) updateData.startAt = newDates.startAt;
     if (input.submissionDeadline !== undefined) updateData.submissionDeadline = newDates.submissionDeadline;
     if (input.judgingStartAt !== undefined) updateData.judgingStartAt = newDates.judgingStartAt;
@@ -414,7 +457,7 @@ export async function updateContestFromFormModal(formData: FormData): Promise<Up
   const title = formData.get("title")?.toString()?.trim();
   const shortDescription = formData.get("shortDescription")?.toString()?.trim() ?? "";
   const fullDescription = formData.get("fullDescription")?.toString()?.trim() ?? "";
-  let statusRaw = formData.get("status")?.toString();
+  const statusRaw = formData.get("status")?.toString();
   if (!title) return { ok: false, error: "El título es obligatorio." };
   const validStatuses = ["DRAFT", "SETUP_IN_PROGRESS", "READY_TO_PUBLISH", "READY", "PUBLISHED", "CLOSED", "ARCHIVED", "ACTIVE"];
   if (statusRaw && !validStatuses.includes(statusRaw)) return { ok: false, error: "Estado no válido." };

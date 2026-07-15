@@ -13,22 +13,23 @@ Auditoría Etapa 07: [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_INTEGR
 - ~~**08C** Endpoint ficha pública v1~~ → absorbido en 08B (mismo detalle por slug)
 - ~~**08D** Adaptador HTTP `PublicMarathonDataSource` en Clickaton (server-to-server; sin CORS navegador)~~ → `data/public-marathons/*` + [`FOTORANK_PUBLIC_INTEGRATION.md`](./FOTORANK_PUBLIC_INTEGRATION.md)
 - **08E** Caché e invalidación (tags; hoy `revalidate=60` + Cache-Control FR)
-- **09** Sesión Identity + eligibility
-- **10** Inscripción real
-- **11** Pagos (DNX Payments / MP)
-- **12** Área del participante
-- **13** Consignas + release server-side
-- **14** Resultados + galería públicos
-- **15** GPS/EXIF + sedes
+- **09A** Tipo de experiencia (`CONTEST`/`MARATHON`) + consolidación canal Clickatón (`MARATHON`+`CLICKATON`) + contratos públicos free/paid (sin cobros) → migraciones canal + experienceType · [`FOTORANK_PUBLIC_INTEGRATION.md`](./FOTORANK_PUBLIC_INTEGRATION.md) · [`STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md`](./STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md)
+- **09B** Checkout transaccional: admin cobro, órdenes, productos/variantes/stock, MP, webhook, idempotencia
+- **09C** Split, collector organizador, comisiones por línea, devoluciones, conciliación, panel económico
+- **10** Sesión Identity + eligibility (acoplado al handoff 09A / checkout 09B)
+- **11** Área del participante
+- **12** Consignas + release server-side
+- **13** Resultados + galería públicos
+- **14** GPS/EXIF + sedes
 
 ### Capacidad producto (sigue pendiente)
 
-- Catálogo de maratones reales
+- Catálogo de maratones reales (canal Clickatón)
 - Página pública de evento (datos vivos)
-- Inscripciones
-- Pagos
-- Participantes
-- Cuenta del participante
+- Inscripciones free/paid (09A contratos → 09B checkout)
+- Merchandising opcional en checkout (09B)
+- Pagos / split (09B–09C)
+- Participantes + cuenta del participante
 - Consignas
 - GPS y EXIF
 - Jurados (público)
@@ -46,22 +47,19 @@ Auditoría Etapa 07: [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_INTEGR
 
 ## C. Merchandising
 
-Documentado como pendiente para la preventa (no implementar en esta etapa):
+Alcance producto alineado a Etapa 09 ([STAGE_09…](./STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md)):
 
-- Catálogo
-- Variantes
-- Talles
-- Colores
-- Personalización con nombres
-- Previsualización
-- Carrito
-- Pedidos
-- Integración con Dreamful / Tiendanube
+- **09A** Contratos públicos (`hasOptionalMerchandise`, precios, checkoutUrl) — sin catálogo operativo
+- **09B** Catálogo evento/global, variantes (talle/color/pack…), stock + reserva, checkout unificado con inscripción, fulfillment v1 = retiro en acreditación
+- **09C** Comisiones por línea, liquidaciones, reportes
+
+Pendientes adicionales (no bloquean 09B):
+
+- Personalización con nombres / previsualización
+- Envíos a domicilio (zonas, transportistas, tracking)
+- Integración con Dreamful / Tiendanube (opcional)
 - Exportación operativa a Google Sheets
-- Costos de producción
-- Comisiones de Mercado Pago
-- Distribución de margen entre Daniel, Rodir y Tammy
-- Liquidaciones mediante DNX Payments
+- Costos de producción internos
 
 ## D. Comunidad
 
@@ -103,20 +101,19 @@ Documentado como pendiente para la preventa (no implementar en esta etapa):
 ## Home pública / producto (post Etapa 03–05)
 
 - ~~Ficha pública `/maratones/[slug]` (Etapa 05)~~ → demo en `/maratones/demo`
-- Eventos / maratones reales desde FotoRank
-- Inscripción real
+- Eventos / maratones reales desde FotoRank (canal `clickaton`)
+- Inscripción free/paid + handoff (09A) → checkout real (09B)
 - Programa real de sedes (postulación y acompañamiento)
 - Propuesta comercial de sponsors (sin planes inventados todavía)
 - Aprobación del relato de origen y presentación de socios
 - Canales de contacto y redes oficiales
 - Páginas legales (términos / privacidad)
-- Tienda y merchandising para preventa
+- Merchandising opcional en checkout (09B); tienda standalone opcional después
 - Galería / resultados / ranking públicos (payload real)
 - Blog / CMS editorial
-- Adaptador API FotoRank que implemente `PublicMarathonDataSource`
-- Consumo UI de `PublicRegistrationOffer` / `RegistrationEligibility` / results / gallery
+- Consumo UI de `PublicRegistrationOffer` / `PublicRegistrationSummary` / eligibility / results / gallery
 - Suite de tests unitarios en Clickaton (hoy sin infra de test)
-- URL canónica de inscripción + Identity
+- URL canónica de inscripción / checkout + Identity
 
 ## Design System (post-MVP)
 

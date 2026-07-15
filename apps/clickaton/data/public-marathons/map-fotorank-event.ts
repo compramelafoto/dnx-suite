@@ -248,8 +248,10 @@ export function mapFotorankEventToPublicMarathon(
     status,
     registrationStatus: mapFotorankRegistrationStatus(event.registrationStatus),
     format: "individual",
-    /** Descripción de fuente FR; no convierte el evento en maratón Clickatón publicable. */
-    modality: "Concurso fotográfico",
+    modality:
+      event.experienceType === "marathon"
+        ? "Maratón fotográfica"
+        : "Concurso fotográfico",
     featured: event.featured,
     city: event.territory.city ?? "",
     provinceOrRegion: event.territory.provinceOrRegion ?? "",
@@ -312,8 +314,10 @@ export function mapFotorankEventListItemToPublicMarathon(
     status,
     registrationStatus: mapFotorankRegistrationStatus(item.registrationStatus),
     format: "individual",
-    /** Descripción de fuente FR; no convierte el evento en maratón Clickatón publicable. */
-    modality: "Concurso fotográfico",
+    modality:
+      item.experienceType === "marathon"
+        ? "Maratón fotográfica"
+        : "Concurso fotográfico",
     featured: item.featured,
     city: item.territory.city ?? "",
     provinceOrRegion: item.territory.provinceOrRegion ?? "",

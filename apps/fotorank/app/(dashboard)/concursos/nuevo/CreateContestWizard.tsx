@@ -74,6 +74,10 @@ export type WizardData = {
   resultsAt: string;
   status: "DRAFT" | "SETUP_IN_PROGRESS" | "READY_TO_PUBLISH" | "PUBLISHED" | "CLOSED" | "ARCHIVED";
   visibility: "PUBLIC" | "PRIVATE" | "UNLISTED";
+  /** CONTEST = concurso tradicional; MARATHON = maratón (requerido para Clickatón). */
+  experienceType: "CONTEST" | "MARATHON";
+  /** null = Solo FotoRank (no aparece en Clickatón). Requiere MARATHON para CLICKATON. */
+  distributionChannel: "CLICKATON" | null;
   categories: ContestCategoryInput[];
 };
 
@@ -90,6 +94,8 @@ const initialData: WizardData = {
   resultsAt: "",
   status: "DRAFT",
   visibility: "PUBLIC",
+  experienceType: "CONTEST",
+  distributionChannel: null,
   categories: [{ name: "", slug: "", description: "", maxFiles: 1, sortOrder: 0 }],
 };
 
@@ -152,6 +158,8 @@ function buildUpdatePayload(data: WizardData): UpdateFotorankContestInput {
     resultsAt: data.resultsAt || undefined,
     status: data.status,
     visibility: data.visibility,
+    experienceType: data.experienceType,
+    distributionChannel: data.distributionChannel,
     categories: mapWizardCategories(data),
   };
 }
@@ -170,6 +178,8 @@ function buildCreatePayload(data: WizardData): CreateFotorankContestInput {
     resultsAt: data.resultsAt || undefined,
     status: "DRAFT",
     visibility: "PUBLIC",
+    experienceType: data.experienceType,
+    distributionChannel: data.distributionChannel,
     categories: mapWizardCategories(data),
   };
 }

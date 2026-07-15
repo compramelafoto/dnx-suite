@@ -1,15 +1,18 @@
 /**
- * `FotorankHttpPublicMarathonDataSource` — adaptador HTTP V1 (Etapa 08D).
+ * `FotorankHttpPublicMarathonDataSource` — adaptador HTTP V1 (Etapa 08D + 09A).
  * Implementa `PublicMarathonDataSource` sin Prisma ni imports internos de FotoRank.
  *
- * Política de producto (08D): V1 solo expone `eventType: "contest"`.
- * Esos eventos se mapean internamente pero **no** se publican como maratones
- * oficiales de Clickatón (listado vacío; detalle remoto → null) hasta existir
- * discriminador de canal/marca o tipo de evento compatible.
+ * Regla oficial Clickatón:
+ *   experienceType === "marathon"
+ *   AND distributionChannel === "clickaton"
+ *
+ * Consulta FotoRank con `?channel=clickaton` (el API ya exige MARATHON + CLICKATON)
+ * y revalida en el adaptador por defensa en profundidad.
  */
 
 import "server-only";
 
+import { CLICKATON_PUBLIC_CHANNEL } from "@/config/public-channel";
 import {
   PublicMarathonNotFoundError,
   PublicMarathonPayloadError,
@@ -19,6 +22,7 @@ import {
   createFotorankPublicClient,
   type FotorankPublicClient,
 } from "@/data/public-marathons/fotorank-public-client";
+import { isOfficialClickatonMarathon } from "@/data/public-marathons/is-official-clickaton-marathon";
 import {
   mapFotorankCapabilitiesToClickaton,
   mapFotorankEventListItemToPublicMarathon,
@@ -40,11 +44,6 @@ function prepareMapped(
   marathon: ReturnType<typeof mapFotorankEventToPublicMarathon>,
 ) {
   return sanitizePublicMarathon(normalizePublicMarathon(marathon));
-}
-
-/** V1 solo emite contest; no son maratones Clickatón publicables. */
-function isPublishableAsClickatonMarathon(eventType: string): boolean {
-  return eventType !== "contest";
 }
 
 export function createFotorankHttpPublicMarathonDataSource(
@@ -70,9 +69,11 @@ export function createFotorankHttpPublicMarathonDataSource(
   return {
     async listListed() {
       try {
-        const items = await client.listEvents();
+        const items = await client.listEvents({
+          channel: CLICKATON_PUBLIC_CHANNEL,
+        });
         return items
-          .filter((item) => isPublishableAsClickatonMarathon(item.eventType))
+          .filter((item) => isOfficialClickatonMarathon(item))
           .map((item) => {
             const mapped = prepareMapped(
               mapFotorankEventListItemToPublicMarathon(item),
@@ -101,8 +102,10 @@ export function createFotorankHttpPublicMarathonDataSource(
       if (!normalizedSlug) return null;
 
       try {
-        const event = await client.getEventBySlug(normalizedSlug);
-        if (!isPublishableAsClickatonMarathon(event.eventType)) {
+        const event = await client.getEventBySlug(normalizedSlug, {
+          channel: CLICKATON_PUBLIC_CHANNEL,
+        });
+        if (!isOfficialClickatonMarathon(event)) {
           return null;
         }
         const mapped = prepareMapped(mapFotorankEventToPublicMarathon(event));
@@ -128,8 +131,7 @@ export function createFotorankHttpPublicMarathonDataSource(
     },
 
     async listRoutableSlugs() {
-      // Solo slugs publicables. Contests V1 no entran.
-      // UNLISTED routable de futuros tipos: limitación sin endpoint dedicado.
+      // Solo maratones oficiales Clickatón (MARATHON + CLICKATON).
       const listed = await this.listListed();
       return listed.map((item) => item.slug);
     },

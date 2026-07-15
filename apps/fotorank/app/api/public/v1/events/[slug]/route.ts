@@ -1,4 +1,5 @@
 import { getPublicEventV1BySlug } from "../../../../../lib/public-api/v1";
+import { parsePublicChannelQueryParam } from "../../../../../lib/public-api/v1/channel";
 import {
   logPublicApiUnexpectedError,
   publicApiErrorResponseV1,
@@ -17,8 +18,9 @@ type RouteContext = {
 /**
  * GET /api/public/v1/events/[slug]
  * Detalle público: PUBLIC y UNLISTED routable. PRIVATE / inexistente → 404.
+ * Query opcional: `?channel=clickaton|fotorank` — si no coincide → 404.
  */
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   try {
     const { slug: rawSlug } = await context.params;
     const slug = assertPublicEventSlugV1(rawSlug);
@@ -28,7 +30,19 @@ export async function GET(_request: Request, context: RouteContext) {
       });
     }
 
-    const event = await getPublicEventV1BySlug(slug);
+    const url = new URL(request.url);
+    const channelParam = parsePublicChannelQueryParam(
+      url.searchParams.get("channel"),
+    );
+    if (channelParam === null) {
+      return publicApiErrorResponseV1("INVALID_REQUEST", {
+        message: "Parámetro channel inválido. Use clickaton o fotorank.",
+      });
+    }
+
+    const event = await getPublicEventV1BySlug(slug, {
+      channel: channelParam,
+    });
     if (!event) {
       return publicApiErrorResponseV1("EVENT_NOT_FOUND");
     }

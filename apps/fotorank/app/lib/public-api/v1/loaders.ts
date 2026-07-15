@@ -1,5 +1,15 @@
 import { prisma } from "@repo/db";
-import type { FotorankPublicEventListItemV1, FotorankPublicEventV1 } from "./contracts";
+import type {
+  FotorankPublicDistributionChannelV1,
+  FotorankPublicEventListItemV1,
+  FotorankPublicEventV1,
+} from "./contracts";
+import {
+  distributionChannelWhereForPublicFilter,
+  eventMatchesPublicChannel,
+  type InternalDistributionChannel,
+} from "./channel";
+import type { InternalExperienceType } from "./experience";
 import {
   serializePublicEventListItemV1,
   serializePublicEventV1,
@@ -42,6 +52,8 @@ type ContestLike = {
   resultsAt: Date | null;
   status: string;
   visibility: string;
+  experienceType: InternalExperienceType;
+  distributionChannel: InternalDistributionChannel;
   createdAt: Date;
   updatedAt: Date;
   organization: {
@@ -122,6 +134,8 @@ function toSerializeSource(contest: ContestLike): PublicEventSerializeSource {
     resultsAt: contest.resultsAt,
     status: contest.status,
     visibility: contest.visibility,
+    experienceType: contest.experienceType ?? "CONTEST",
+    distributionChannel: contest.distributionChannel ?? null,
     createdAt: contest.createdAt,
     updatedAt: contest.updatedAt,
     organization: {
@@ -151,18 +165,33 @@ function toSerializeSource(contest: ContestLike): PublicEventSerializeSource {
   };
 }
 
+export type ListPublicEventsV1Options = {
+  limit?: number;
+  /** Filtro opcional por canal público (`?channel=`). */
+  channel?: FotorankPublicDistributionChannelV1;
+};
+
+export type GetPublicEventV1BySlugOptions = {
+  /** Si se indica, el evento debe pertenecer a ese canal o se trata como no encontrado. */
+  channel?: FotorankPublicDistributionChannelV1;
+};
+
 /**
  * Ficha pública V1 por slug (PUBLIC o UNLISTED).
- * Sin HTTP — para consumo servidor / futuros Route Handlers.
+ * Sin HTTP — para consumo servidor / Route Handlers.
  */
 export async function getPublicEventV1BySlug(
   slug: string,
+  options?: GetPublicEventV1BySlugOptions,
 ): Promise<FotorankPublicEventV1 | null> {
   const contest = await prisma.fotorankContest.findFirst({
     where: {
       slug,
       status: { in: [...PUBLIC_STATUSES] },
       visibility: { in: ["PUBLIC", "UNLISTED"] },
+      ...(options?.channel
+        ? distributionChannelWhereForPublicFilter(options.channel)
+        : {}),
     },
     include: {
       organization: true,
@@ -190,20 +219,37 @@ export async function getPublicEventV1BySlug(
     return null;
   }
 
-  return serializePublicEventV1(toSerializeSource(contest));
+  const event = serializePublicEventV1(toSerializeSource(contest as ContestLike));
+
+  if (
+    options?.channel &&
+    !eventMatchesPublicChannel(
+      event.distributionChannel,
+      options.channel,
+      event.experienceType,
+    )
+  ) {
+    return null;
+  }
+
+  return event;
 }
 
 /**
  * Listado público V1 (solo PUBLIC + publicados).
+ * Filtro opcional por `channel` (Etapa 08C).
  */
-export async function listPublicEventsV1(options?: {
-  limit?: number;
-}): Promise<FotorankPublicEventListItemV1[]> {
+export async function listPublicEventsV1(
+  options?: ListPublicEventsV1Options,
+): Promise<FotorankPublicEventListItemV1[]> {
   const limit = options?.limit ?? 24;
   const contests = await prisma.fotorankContest.findMany({
     where: {
       visibility: "PUBLIC",
       status: { in: [...PUBLIC_STATUSES] },
+      ...(options?.channel
+        ? distributionChannelWhereForPublicFilter(options.channel)
+        : {}),
     },
     include: {
       organization: true,
@@ -255,7 +301,20 @@ export async function listPublicEventsV1(options?: {
     ) {
       continue;
     }
-    items.push(serializePublicEventListItemV1(toSerializeSource(contest)));
+    const item = serializePublicEventListItemV1(
+      toSerializeSource(contest as ContestLike),
+    );
+    if (
+      options?.channel &&
+      !eventMatchesPublicChannel(
+        item.distributionChannel,
+        options.channel,
+        item.experienceType,
+      )
+    ) {
+      continue;
+    }
+    items.push(item);
   }
   return items;
 }

@@ -79,7 +79,8 @@ assert.deepEqual(getPublicEventVisibility({ visibility: "PRIVATE", status: "PUBL
     slug: "demo",
     name: "Demo",
     shortDescription: null,
-    eventType: "contest",
+    experienceType: "contest",
+    distributionChannel: "clickaton",
     status: "published",
     registrationStatus: "unknown",
     featured: false,
@@ -126,7 +127,8 @@ assert.deepEqual(getPublicEventVisibility({ visibility: "PRIVATE", status: "PUBL
     name: "Demo",
     shortDescription: null,
     fullDescription: null,
-    eventType: "contest",
+    experienceType: "contest",
+    distributionChannel: null,
     status: "published",
     registrationStatus: "unknown",
     featured: false,
@@ -177,7 +179,7 @@ assert.deepEqual(getPublicEventVisibility({ visibility: "PRIVATE", status: "PUBL
   };
   assert.equal(body.version, "v1");
   assert.equal(body.data.event.slug, "demo");
-  assert.equal(body.data.event.eventType, "contest");
+  assert.equal(body.data.event.experienceType, "contest");
   assert.equal(body.data.event.capabilities.canViewResults, false);
   assert.equal(body.data.event.capabilities.canViewGallery, false);
 }

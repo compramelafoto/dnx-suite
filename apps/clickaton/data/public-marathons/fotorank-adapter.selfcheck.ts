@@ -45,7 +45,8 @@ const baseEvent: FotorankPublicEventV1 = {
   name: "Concurso Demo FR",
   shortDescription: "Desc corta",
   fullDescription: "Desc larga",
-  eventType: "contest",
+  experienceType: "contest",
+  distributionChannel: null,
   status: "published",
   registrationStatus: "open",
   featured: false,
@@ -168,7 +169,8 @@ const listItem: FotorankPublicEventListItemV1 = {
   slug: "demo-fr",
   name: "Concurso Demo FR",
   shortDescription: "Desc",
-  eventType: "contest",
+  experienceType: "contest",
+  distributionChannel: null,
   status: "published",
   registrationStatus: "closed",
   featured: false,
@@ -199,23 +201,72 @@ assert.equal(parseClickatonPublicDataSourceKind("fotorank"), "fotorank");
 assert.throws(() => parseClickatonPublicDataSourceKind("bogus"));
 
 async function runSourceChecks() {
+  const officialMarathon: FotorankPublicEventV1 = {
+    ...baseEvent,
+    id: "evt_m1",
+    slug: "clickaton-oficial",
+    name: "Clickaton Oficial",
+    experienceType: "marathon",
+    distributionChannel: "clickaton",
+  };
+  const officialListItem: FotorankPublicEventListItemV1 = {
+    ...listItem,
+    id: "evt_m1",
+    slug: "clickaton-oficial",
+    name: "Clickaton Oficial",
+    experienceType: "marathon",
+    distributionChannel: "clickaton",
+    registrationStatus: "open",
+  };
+
   const listedPayload = {
     version: "v1",
-    data: { items: [listItem] },
-    meta: { count: 1 },
+    data: { items: [listItem, officialListItem] },
+    meta: { count: 2 },
   };
-  const detailPayload = {
+  const detailContestPayload = {
     version: "v1",
     data: { event: baseEvent },
+  };
+  const detailMarathonPayload = {
+    version: "v1",
+    data: { event: officialMarathon },
   };
 
   const fetchImpl: typeof fetch = async (input) => {
     const url = String(input);
-    if (url.endsWith("/api/public/v1/events")) {
-      return new Response(JSON.stringify(listedPayload), { status: 200 });
+    if (url.includes("/api/public/v1/events?") || url.endsWith("/api/public/v1/events")) {
+      // Simula filtro FR ?channel=clickaton → solo MARATHON+CLICKATON
+      const channel = new URL(url).searchParams.get("channel");
+      const items =
+        channel === "clickaton"
+          ? [officialListItem]
+          : [listItem, officialListItem];
+      return new Response(
+        JSON.stringify({
+          version: "v1",
+          data: { items },
+          meta: { count: items.length },
+        }),
+        { status: 200 },
+      );
+    }
+    if (url.includes("/api/public/v1/events/clickaton-oficial")) {
+      return new Response(JSON.stringify(detailMarathonPayload), { status: 200 });
     }
     if (url.includes("/api/public/v1/events/demo-fr")) {
-      return new Response(JSON.stringify(detailPayload), { status: 200 });
+      // Con channel=clickaton FR devolvería 404; sin canal, contest
+      const channel = new URL(url).searchParams.get("channel");
+      if (channel === "clickaton") {
+        return new Response(
+          JSON.stringify({
+            version: "v1",
+            error: { code: "EVENT_NOT_FOUND", message: "gone" },
+          }),
+          { status: 404 },
+        );
+      }
+      return new Response(JSON.stringify(detailContestPayload), { status: 200 });
     }
     if (url.includes("/api/public/v1/events/missing")) {
       return new Response(
@@ -249,13 +300,20 @@ async function runSourceChecks() {
     timeoutMs: 1000,
   });
 
-  // contest no aparece en listado oficial
+  // Solo maratón oficial (MARATHON + CLICKATON) en listado
   const listed = await source.listListed();
-  assert.equal(listed.length, 0);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0]?.slug, "clickaton-oficial");
+  assert.equal(listed[0]?.modality, "Maratón fotográfica");
 
   // contest no se resuelve como maratón publicable
-  const detail = await source.getBySlug("demo-fr");
-  assert.equal(detail, null);
+  const detailContest = await source.getBySlug("demo-fr");
+  assert.equal(detailContest, null);
+
+  // maratón oficial sí
+  const detailOfficial = await source.getBySlug("clickaton-oficial");
+  assert.equal(detailOfficial?.slug, "clickaton-oficial");
+  assert.equal(detailOfficial?.modality, "Maratón fotográfica");
 
   const missing = await source.getBySlug("missing");
   assert.equal(missing, null);
@@ -282,14 +340,16 @@ async function runSourceChecks() {
     (err: unknown) => err instanceof PublicMarathonPayloadError,
   );
 
-  // Hybrid: demo local + remoto sin publicar contests
+  // Hybrid: demo local + remoto con maratón oficial
   const hybrid = createHybridPublicMarathonDataSource(source, localPublicMarathonDataSource);
   const demo = await hybrid.getBySlug("demo");
   assert.ok(demo?.isDemo);
   const hybridListed = await Promise.resolve(hybrid.listListed());
-  assert.equal(hybridListed.length, 0);
+  assert.equal(hybridListed.length, 1);
+  assert.equal(hybridListed[0]?.slug, "clickaton-oficial");
   const routable = await Promise.resolve(hybrid.listRoutableSlugs());
   assert.ok(routable.includes("demo"));
+  assert.ok(routable.includes("clickaton-oficial"));
   assert.equal(routable.includes("demo-fr"), false);
 
   // Timeout → SourceUnavailable (no fixture)
@@ -328,6 +388,34 @@ async function runSourceChecks() {
     async () => Promise.resolve(hybridDead.listListed()),
     (err: unknown) => err instanceof PublicMarathonSourceUnavailableError,
   );
+
+  // Defensa: contest + clickaton no es oficial
+  const { isOfficialClickatonMarathon } = await import(
+    "./is-official-clickaton-marathon"
+  );
+  assert.equal(
+    isOfficialClickatonMarathon({
+      experienceType: "contest",
+      distributionChannel: "clickaton",
+    }),
+    false,
+  );
+  assert.equal(
+    isOfficialClickatonMarathon({
+      experienceType: "marathon",
+      distributionChannel: "clickaton",
+    }),
+    true,
+  );
+  assert.equal(
+    isOfficialClickatonMarathon({
+      experienceType: "marathon",
+      distributionChannel: "fotorank",
+    }),
+    false,
+  );
+
+  void listedPayload;
 }
 
 async function main() {

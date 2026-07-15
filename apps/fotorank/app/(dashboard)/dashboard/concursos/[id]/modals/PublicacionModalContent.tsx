@@ -48,6 +48,12 @@ export function PublicacionModalContent({ contest, onSuccess, onCancel, readOnly
     contest.status === "ACTIVE" ? "PUBLISHED" : (contest.status as "DRAFT" | "READY_TO_PUBLISH" | "PUBLISHED" | "CLOSED" | "ARCHIVED")
   );
   const [visibility, setVisibility] = useState<"PUBLIC" | "UNLISTED" | "PRIVATE">(contest.visibility);
+  const [experienceType, setExperienceType] = useState<"CONTEST" | "MARATHON">(
+    contest.experienceType === "MARATHON" ? "MARATHON" : "CONTEST",
+  );
+  const [distributionChannel, setDistributionChannel] = useState<"CLICKATON" | "">(
+    contest.distributionChannel === "CLICKATON" ? "CLICKATON" : "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -88,6 +94,8 @@ export function PublicacionModalContent({ contest, onSuccess, onCancel, readOnly
         prizesSummary: prizesSummary.trim(),
         sponsorsText: sponsorsText.trim(),
         visibility,
+        experienceType,
+        distributionChannel: distributionChannel === "CLICKATON" ? "CLICKATON" : null,
         status: publishNow ? "PUBLISHED" : status,
       });
       if (!result.ok) {
@@ -170,6 +178,46 @@ export function PublicacionModalContent({ contest, onSuccess, onCancel, readOnly
             </select>
           </label>
         </div>
+        <label className="fr-field-stack">
+          <span className="text-sm font-medium text-fr-primary">Tipo de experiencia</span>
+          <select
+            className={inputBase}
+            value={experienceType}
+            onChange={(e) => {
+              const next = e.target.value as "CONTEST" | "MARATHON";
+              setExperienceType(next);
+              if (next === "CONTEST" && distributionChannel === "CLICKATON") {
+                setDistributionChannel("");
+              }
+            }}
+            disabled={readOnly || pending}
+          >
+            <option value="CONTEST">Concurso</option>
+            <option value="MARATHON">Maratón</option>
+          </select>
+          <p className="text-xs text-fr-muted">
+            Clickatón oficial requiere Maratón + canal Clickatón. Independiente de la visibilidad.
+          </p>
+        </label>
+        <label className="fr-field-stack">
+          <span className="text-sm font-medium text-fr-primary">Canal de publicación</span>
+          <select
+            className={inputBase}
+            value={distributionChannel}
+            onChange={(e) => {
+              const next = e.target.value === "CLICKATON" ? "CLICKATON" : "";
+              setDistributionChannel(next);
+              if (next === "CLICKATON") setExperienceType("MARATHON");
+            }}
+            disabled={readOnly || pending}
+          >
+            <option value="">Solo FotoRank</option>
+            <option value="CLICKATON">Clickatón</option>
+          </select>
+          <p className="text-xs text-fr-muted">
+            Define en qué portal público podrá aparecer este evento. La visibilidad del evento se configura por separado.
+          </p>
+        </label>
       </section>
 
       <section className="space-y-4">

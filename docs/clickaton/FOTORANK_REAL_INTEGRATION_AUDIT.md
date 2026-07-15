@@ -399,13 +399,14 @@ Registrar (futuro):
 | **08C** ✅ | Ficha por slug (absorbido en 08B) | fotorank | 08A | Medio | Mismo detalle; ruta genérica `events` (no `marathons`) |
 | **08D** | Adaptador `FotorankPublicMarathonSource` | clickaton | 08B | Medio | Toggle env; fetch server-to-server; fallback local |
 | **08E** | Caché tags + revalidate | ambos | 08D | Medio | Invalidación al publicar |
-| **09** | Identity + eligibility endpoints | fotorank + clickaton | Identity | Alto | Sesión; sin cache público |
-| **10** | Inscripción real | fotorank | 09 + modelo registration | Alto | Alta + category + bases |
-| **11** | Pagos | fotorank + payments | 10 | Alto | FREE/PAID real; webhooks |
-| **12** | Área participante | clickaton + fotorank | 10–11 | Alto | Summary + QR stub |
-| **13** | Consignas + release | fotorank | 08A | Crítico | Imposible leer antes de release |
-| **14** | Resultados + galería públicos | fotorank + clickaton | scoring existente | Medio | Payload published only |
-| **15** | GPS/EXIF + sedes | fotorank | 10 | Alto | Reglas públicas vs antifraude |
+| **09A** | Contratos free/paid + merch + handoff (sin cobros reales) | fotorank + clickaton | 08D/canal | Medio | `registration` público; estados separados; ver STAGE_09 |
+| **09B** | Checkout: admin cobro, órdenes, merch/stock, MP, webhook | fotorank (+ payments) | 09A + Identity | Alto | Confirmación idempotente; stock RESERVED→PAID/RELEASED |
+| **09C** | Split, collector org, comisiones por línea, panel económico | fotorank + payments | 09B | Alto | Liquidación sin comisión ciega al total |
+| **10** | Identity + eligibility | fotorank + clickaton | Identity | Alto | Sesión; sin cache público |
+| **11** | Área participante | clickaton + fotorank | 09B–10 | Alto | Summary + QR stub |
+| **12** | Consignas + release | fotorank | 08A | Crítico | Imposible leer antes de release |
+| **13** | Resultados + galería públicos | fotorank + clickaton | scoring existente | Medio | Payload published only |
+| **14** | GPS/EXIF + sedes | fotorank | 09B | Alto | Reglas públicas vs antifraude |
 
 Estado post-08B: serializers + HTTP listado/detalle en FotoRank. **Integración real Clickaton pendiente (08D).** Sin CORS abierto; sin fetch desde Clickaton.
 

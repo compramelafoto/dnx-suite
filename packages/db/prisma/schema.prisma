@@ -6641,6 +6641,12 @@ model FotorankContest {
   sponsorsText              String?
   status                    FotorankContestStatus              @default(DRAFT)
   visibility                FotorankContestVisibility          @default(PUBLIC)
+  /// Formato público de la experiencia (independiente de canal y visibility).
+  /// Default CONTEST: filas legacy / existentes no se convierten en maratón.
+  experienceType            FotorankExperienceType             @default(CONTEST)
+  /// Canal de distribución pública (independiente de visibility).
+  /// NULL = portal general FotoRank; no aparece en Clickatón.
+  distributionChannel       FotorankDistributionChannel?
   rulesText                 String?
   rulesData                 Json?
   startAt                   DateTime?
@@ -6666,6 +6672,9 @@ model FotorankContest {
   @@index([organizationId])
   @@index([status])
   @@index([createdByUserId])
+  @@index([visibility, status, distributionChannel])
+  /// Listados públicos Clickatón: channel=clickaton + experienceType=MARATHON.
+  @@index([visibility, status, experienceType, distributionChannel])
 }
 
 model FotorankContestCategory {
@@ -7116,6 +7125,18 @@ enum FotorankContestVisibility {
   UNLISTED
 }
 
+/// Formato público de la experiencia (no confundir con canal ni modalidad).
+enum FotorankExperienceType {
+  CONTEST
+  MARATHON
+}
+
+/// Canal / marca de publicación pública (no confundir con visibility).
+enum FotorankDistributionChannel {
+  FOTORANK
+  CLICKATON
+}
+
 enum FotorankJudgeAccountStatus {
   INVITED
   PENDING_REGISTRATION
@@ -7346,6 +7367,7 @@ enum FotorankDiplomaIssuedStatus {
   REVOKED
   REPLACED
 }
+
 
 // =============================================================================
 // DNX Payments — core persistence (Etapa 04)

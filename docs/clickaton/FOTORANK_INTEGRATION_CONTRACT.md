@@ -124,12 +124,20 @@ PublicMarathonGallery / PublicGalleryImage → galería
 
 Sin integración en esta etapa.
 
-### 2.6 Qué depende de DNX Payments
+### 2.6 Qué depende de DNX Payments / cobro (Etapa 09)
 
-- `PublicRegistrationOffer.requiresPayment`, precios, moneda
-- `ParticipantRegistrationSummary.paymentStatus`
+- `PublicRegistrationOffer.pricingMode` (`free` \| `paid`) — **explícito**, no inferido por precio
+- `displayPrice` / moneda / promo (unidades mínimas enteras)
+- `hasOptionalMerchandise`, `checkoutUrl` (handoff a FotoRank)
+- `ParticipantRegistrationSummary.registrationStatus` + `paymentStatus` (estados separados)
+- Órdenes con líneas `registration` \| `merchandise` (operativo en FotoRank / Payments — 09B)
+- Split, collector, comisiones por línea (09C)
 
-Sin Mercado Pago ni checkout en Clickaton todavía.
+**09A:** contratos y puntos de extensión.  
+**No** ejecutar procesamiento real de pagos ni split en Clickaton.  
+Checkout y webhooks viven en FotoRank (+ DNX Payments); Clickaton solo presenta y deriva.
+
+Ver [STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md](./STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md).
 
 ### 2.7 Qué depende de DNX Identity
 

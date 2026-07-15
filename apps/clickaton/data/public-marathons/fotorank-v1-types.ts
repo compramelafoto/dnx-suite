@@ -3,12 +3,18 @@
  * No importa apps/fotorank (evita Prisma y acoplamiento de build).
  * Fuente de verdad: apps/fotorank/app/lib/public-api/v1/contracts.ts
  *
- * Etapa 08D: sin discriminador de canal/marca (pendiente).
+ * Etapa 09A: experienceType (contest | marathon) + distributionChannel.
+ * Clickatón oficial = marathon + clickaton.
  */
 
 export type FotorankPublicContractVersion = "v1";
 
-export type FotorankPublicEventTypeV1 = "contest";
+export type FotorankPublicExperienceTypeV1 = "contest" | "marathon";
+
+/** @deprecated Preferir FotorankPublicExperienceTypeV1 */
+export type FotorankPublicEventTypeV1 = FotorankPublicExperienceTypeV1;
+
+export type FotorankPublicDistributionChannelV1 = "fotorank" | "clickaton";
 
 export type FotorankPublicEventStatusV1 =
   | "draft"
@@ -35,6 +41,23 @@ export type FotorankPublicCapabilitiesV1 = {
   canRegister: boolean;
   canViewResults: boolean;
   canViewGallery: boolean;
+};
+
+export type FotorankPublicRegistrationPricingModeV1 = "free" | "paid";
+
+export type FotorankPublicDisplayPriceV1 = {
+  amount: number;
+  currency: string;
+};
+
+/** Bloque público de inscripción (09A+). Opcional en el payload hasta serialización estable. */
+export type FotorankPublicRegistrationV1 = {
+  mode: FotorankPublicRegistrationPricingModeV1;
+  status: FotorankPublicRegistrationStatusV1;
+  canRegister: boolean;
+  displayPrice: FotorankPublicDisplayPriceV1 | null;
+  hasOptionalMerchandise: boolean;
+  checkoutUrl: string | null;
 };
 
 export type FotorankPublicOrganizationV1 = {
@@ -94,7 +117,8 @@ export type FotorankPublicEventListItemV1 = {
   slug: string;
   name: string;
   shortDescription: string | null;
-  eventType: FotorankPublicEventTypeV1;
+  experienceType: FotorankPublicExperienceTypeV1;
+  distributionChannel: FotorankPublicDistributionChannelV1 | null;
   status: FotorankPublicEventStatusV1;
   registrationStatus: FotorankPublicRegistrationStatusV1;
   featured: boolean;
@@ -110,6 +134,7 @@ export type FotorankPublicEventListItemV1 = {
   juryPublished: boolean;
   resultsStatus: FotorankPublicResultsStatusV1;
   capabilities: FotorankPublicCapabilitiesV1;
+  registration?: FotorankPublicRegistrationV1;
   updatedAt: string;
 };
 
@@ -120,7 +145,8 @@ export type FotorankPublicEventV1 = {
   name: string;
   shortDescription: string | null;
   fullDescription: string | null;
-  eventType: FotorankPublicEventTypeV1;
+  experienceType: FotorankPublicExperienceTypeV1;
+  distributionChannel: FotorankPublicDistributionChannelV1 | null;
   status: FotorankPublicEventStatusV1;
   registrationStatus: FotorankPublicRegistrationStatusV1;
   featured: boolean;
@@ -135,6 +161,7 @@ export type FotorankPublicEventV1 = {
   sponsorsText: string | null;
   resultsStatus: FotorankPublicResultsStatusV1;
   capabilities: FotorankPublicCapabilitiesV1;
+  registration?: FotorankPublicRegistrationV1;
   createdAt: string;
   updatedAt: string;
 };

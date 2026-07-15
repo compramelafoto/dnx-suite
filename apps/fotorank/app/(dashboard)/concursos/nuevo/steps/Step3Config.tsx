@@ -50,6 +50,56 @@ export function Step3Config({ data, updateData }: Step3ConfigProps) {
           <option value="PRIVATE">Privado</option>
         </select>
       </FormField>
+
+      <FormField
+        id="experienceType"
+        label="Tipo de experiencia"
+        variant="wizard"
+        microcopy="Define el formato público. Clickatón oficial requiere Maratón + canal Clickatón. Independiente de la visibilidad."
+      >
+        <select
+          id="experienceType"
+          value={data.experienceType}
+          onChange={(e) => {
+            const experienceType = e.target.value as WizardData["experienceType"];
+            updateData({
+              experienceType,
+              // Concurso tradicional no puede ir a Clickatón.
+              ...(experienceType === "CONTEST" && data.distributionChannel === "CLICKATON"
+                ? { distributionChannel: null }
+                : {}),
+            });
+          }}
+          className={selectWizard}
+        >
+          <option value="CONTEST">Concurso</option>
+          <option value="MARATHON">Maratón</option>
+        </select>
+      </FormField>
+
+      <FormField
+        id="distributionChannel"
+        label="Canal de publicación"
+        variant="wizard"
+        microcopy="Define en qué portal público podrá aparecer este evento. La visibilidad del evento se configura por separado."
+      >
+        <select
+          id="distributionChannel"
+          value={data.distributionChannel ?? ""}
+          onChange={(e) => {
+            const channel = e.target.value === "CLICKATON" ? "CLICKATON" : null;
+            updateData({
+              distributionChannel: channel,
+              // Clickatón implica maratón oficial.
+              ...(channel === "CLICKATON" ? { experienceType: "MARATHON" as const } : {}),
+            });
+          }}
+          className={selectWizard}
+        >
+          <option value="">Solo FotoRank</option>
+          <option value="CLICKATON">Clickatón</option>
+        </select>
+      </FormField>
     </WizardSection>
   );
 }

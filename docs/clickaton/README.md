@@ -112,6 +112,25 @@ Consumen loaders/serializers 08A. Envelope V1, headers de versión, caché corta
 - Doc: `apps/fotorank/app/api/public/v1/README.md`
 - Sin cambios en `apps/clickaton` (código)
 
+### Etapa 08C / 09A — Canal + tipo de experiencia
+
+- Discriminador `distributionChannel` (08C) + `experienceType` CONTEST|MARATHON (09A)
+- Clickatón oficial = `MARATHON` + `CLICKATON`
+- Adaptador HTTP Clickaton → FR ([FOTORANK_PUBLIC_INTEGRATION.md](./FOTORANK_PUBLIC_INTEGRATION.md))
+- Migraciones aditivas: `20260715150000_fotorank_public_event_channel` · `20260715160000_fotorank_experience_type`
+
+### Etapa 09 — Inscripciones pagas y merchandising (alcance)
+
+Documento: [STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md](./STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md)
+
+| Sub-etapa | Entrega |
+|-----------|---------|
+| **09A** | Contratos/estados free\|paid, `displayPrice`, merch opcional, `checkoutUrl`; handoff. **Sin** cobros reales ni split |
+| **09B** | Admin cobro, órdenes+líneas, productos/variantes/stock, checkout, MP, webhook, idempotencia |
+| **09C** | Split, collector organizador, comisiones por línea, devoluciones, panel económico |
+
+Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).

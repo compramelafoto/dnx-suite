@@ -8,8 +8,25 @@ export const FOTORANK_PUBLIC_CONTRACT_VERSION = "v1" as const;
 
 export type PublicContractVersion = typeof FOTORANK_PUBLIC_CONTRACT_VERSION;
 
-/** Tipo de competencia pública. Hoy solo contest; maratón/rally llegan después. */
-export type FotorankPublicEventTypeV1 = "contest";
+/**
+ * Tipo de experiencia pública (Etapa 09A).
+ * Independiente del enum Prisma y del canal de distribución.
+ * Reemplaza el literal fijo eventType: "contest".
+ */
+export type FotorankPublicExperienceTypeV1 = "contest" | "marathon";
+
+/**
+ * @deprecated Preferir `FotorankPublicExperienceTypeV1` / campo `experienceType`.
+ * Conservado solo como alias de transición en tipos internos.
+ */
+export type FotorankPublicEventTypeV1 = FotorankPublicExperienceTypeV1;
+
+/**
+ * Canal / marca de publicación pública (Etapa 08C).
+ * Independiente de visibility. Singular: un evento → un canal.
+ * null / ausente = portal general FotoRank (no Clickatón).
+ */
+export type FotorankPublicDistributionChannelV1 = "fotorank" | "clickaton";
 
 /**
  * Ciclo de vida público (no copia enums internos Prisma).
@@ -49,6 +66,65 @@ export type FotorankPublicCapabilitiesV1 = {
   /** Siempre false hasta existir galería pública de evento. */
   canViewGallery: boolean;
 };
+
+/**
+ * Modalidad económica explícita (Etapa 09A).
+ * No inferir desde precio. Independiente de visibility / distributionChannel / status.
+ */
+export type FotorankPublicRegistrationPricingModeV1 = "free" | "paid";
+
+/**
+ * Precio público. `amount` en unidades mínimas enteras (centavos). Nunca float.
+ * No incluye comisiones ni costos internos.
+ */
+export type FotorankPublicDisplayPriceV1 = {
+  amount: number;
+  currency: string;
+};
+
+/**
+ * Bloque público de inscripción para Clickatón / consumidores (Etapa 09A).
+ * Extensión del evento; no expone órdenes, collector, stock admin ni liquidación.
+ *
+ * Hasta existir configuración administrativa persistida (09B), el serializer puede
+ * omitir el campo o emitir un stub honesto (free, sin checkout, sin merch).
+ */
+export type FotorankPublicRegistrationV1 = {
+  mode: FotorankPublicRegistrationPricingModeV1;
+  /** Alineado a `registrationStatus` del evento (ventana pública). */
+  status: FotorankPublicRegistrationStatusV1;
+  canRegister: boolean;
+  displayPrice: FotorankPublicDisplayPriceV1 | null;
+  hasOptionalMerchandise: boolean;
+  /** URL de handoff a inscripción/checkout en FotoRank. null hasta existir flujo. */
+  checkoutUrl: string | null;
+};
+
+/**
+ * Estados de una inscripción concreta (participante). No son la ventana del evento.
+ * Persistencia y transiciones: Etapa 09B.
+ */
+export type FotorankParticipantRegistrationStatusV1 =
+  | "draft"
+  | "pending_payment"
+  | "confirmed"
+  | "cancelled"
+  | "expired"
+  | "waitlisted";
+
+/**
+ * Estados de pago asociados a inscripción/orden.
+ * Persistencia, webhook e idempotencia: Etapa 09B. Split: 09C.
+ */
+export type FotorankRegistrationPaymentStatusV1 =
+  | "not_required"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "refunded"
+  | "partially_refunded"
+  | "expired";
 
 export type FotorankPublicOrganizationV1 = {
   id: string;
@@ -112,7 +188,10 @@ export type FotorankPublicEventListItemV1 = {
   slug: string;
   name: string;
   shortDescription: string | null;
-  eventType: FotorankPublicEventTypeV1;
+  /** Formato de experiencia pública (contest | marathon). Independiente del canal. */
+  experienceType: FotorankPublicExperienceTypeV1;
+  /** Canal de distribución. null = portal general FotoRank. */
+  distributionChannel: FotorankPublicDistributionChannelV1 | null;
   status: FotorankPublicEventStatusV1;
   registrationStatus: FotorankPublicRegistrationStatusV1;
   featured: boolean;
@@ -125,6 +204,11 @@ export type FotorankPublicEventListItemV1 = {
   juryPublished: boolean;
   resultsStatus: FotorankPublicResultsStatusV1;
   capabilities: FotorankPublicCapabilitiesV1;
+  /**
+   * Resumen de cobro/inscripción (09A+). Opcional hasta serialización estable.
+   * Cards Clickatón: Gratis / Desde $X / merch opcional.
+   */
+  registration?: FotorankPublicRegistrationV1;
   updatedAt: string;
 };
 
@@ -135,7 +219,10 @@ export type FotorankPublicEventV1 = {
   name: string;
   shortDescription: string | null;
   fullDescription: string | null;
-  eventType: FotorankPublicEventTypeV1;
+  /** Formato de experiencia pública (contest | marathon). Independiente del canal. */
+  experienceType: FotorankPublicExperienceTypeV1;
+  /** Canal de distribución. null = portal general FotoRank. */
+  distributionChannel: FotorankPublicDistributionChannelV1 | null;
   status: FotorankPublicEventStatusV1;
   registrationStatus: FotorankPublicRegistrationStatusV1;
   featured: boolean;
@@ -152,6 +239,11 @@ export type FotorankPublicEventV1 = {
   sponsorsText: string | null;
   resultsStatus: FotorankPublicResultsStatusV1;
   capabilities: FotorankPublicCapabilitiesV1;
+  /**
+   * Resumen de cobro/inscripción (09A+). Opcional hasta serialización estable.
+   * No mezclar con `rulesData`/economía interna simulada.
+   */
+  registration?: FotorankPublicRegistrationV1;
   createdAt: string;
   updatedAt: string;
 };

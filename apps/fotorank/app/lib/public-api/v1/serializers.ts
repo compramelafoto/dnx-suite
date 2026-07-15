@@ -8,6 +8,14 @@ import {
   type FotorankPublicOrganizationV1,
   type FotorankPublicRulesV1,
 } from "./contracts";
+import {
+  mapInternalDistributionChannelToPublic,
+  type InternalDistributionChannel,
+} from "./channel";
+import {
+  mapInternalExperienceTypeToPublic,
+  type InternalExperienceType,
+} from "./experience";
 import { FotorankPublicSerializationError } from "./errors";
 import {
   deriveRegistrationStatus,
@@ -42,6 +50,10 @@ export type PublicEventSerializeSource = {
   resultsAt: Date | null;
   status: InternalContestStatus;
   visibility: InternalContestVisibility;
+  /** Tipo de experiencia interna; default conceptual CONTEST. */
+  experienceType?: InternalExperienceType;
+  /** Canal interno Prisma; null = portal general. */
+  distributionChannel?: InternalDistributionChannel;
   createdAt: Date;
   updatedAt: Date;
   organization: {
@@ -209,7 +221,12 @@ export function serializePublicEventV1(
     name: source.title,
     shortDescription: source.shortDescription,
     fullDescription: source.fullDescription,
-    eventType: "contest",
+    experienceType: mapInternalExperienceTypeToPublic(
+      source.experienceType ?? "CONTEST",
+    ),
+    distributionChannel: mapInternalDistributionChannelToPublic(
+      source.distributionChannel ?? null,
+    ),
     status,
     registrationStatus,
     featured: false,
@@ -276,7 +293,8 @@ export function serializePublicEventListItemV1(
     slug: detail.slug,
     name: detail.name,
     shortDescription: detail.shortDescription,
-    eventType: detail.eventType,
+    experienceType: detail.experienceType,
+    distributionChannel: detail.distributionChannel,
     status: detail.status,
     registrationStatus: detail.registrationStatus,
     featured: detail.featured,

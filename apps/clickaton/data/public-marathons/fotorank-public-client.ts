@@ -81,7 +81,7 @@ function isListItem(value: unknown): value is FotorankPublicEventListItemV1 {
     typeof value.id === "string" &&
     typeof value.slug === "string" &&
     typeof value.name === "string" &&
-    typeof value.eventType === "string" &&
+    typeof value.experienceType === "string" &&
     typeof value.status === "string" &&
     typeof value.registrationStatus === "string" &&
     typeof value.resultsStatus === "string" &&
@@ -100,7 +100,7 @@ function isDetailEvent(value: unknown): value is FotorankPublicEventV1 {
     typeof value.id !== "string" ||
     typeof value.slug !== "string" ||
     typeof value.name !== "string" ||
-    typeof value.eventType !== "string" ||
+    typeof value.experienceType !== "string" ||
     typeof value.status !== "string" ||
     typeof value.registrationStatus !== "string" ||
     typeof value.resultsStatus !== "string" ||
@@ -222,16 +222,27 @@ export function createFotorankPublicClient(options: FotorankPublicClientOptions)
   }
 
   return {
-    async listEvents(): Promise<FotorankPublicEventListItemV1[]> {
-      const body = await requestJson(buildUrl("/api/public/v1/events"));
+    async listEvents(options?: {
+      channel?: "clickaton" | "fotorank";
+    }): Promise<FotorankPublicEventListItemV1[]> {
+      const url = new URL(buildUrl("/api/public/v1/events"));
+      if (options?.channel) {
+        url.searchParams.set("channel", options.channel);
+      }
+      const body = await requestJson(url.toString());
       return parseListEnvelope(body);
     },
 
-    async getEventBySlug(slug: string): Promise<FotorankPublicEventV1> {
+    async getEventBySlug(
+      slug: string,
+      options?: { channel?: "clickaton" | "fotorank" },
+    ): Promise<FotorankPublicEventV1> {
       const encoded = encodeURIComponent(slug);
-      const body = await requestJson(
-        buildUrl(`/api/public/v1/events/${encoded}`),
-      );
+      const url = new URL(buildUrl(`/api/public/v1/events/${encoded}`));
+      if (options?.channel) {
+        url.searchParams.set("channel", options.channel);
+      }
+      const body = await requestJson(url.toString());
       return parseDetailEnvelope(body);
     },
   };

@@ -23,7 +23,7 @@ Los handlers **no** consultan Prisma ni reconstruyen el contrato.
 
 No existen en V1: `/results`, `/gallery`, `/registration`, `/marathons`, `/contests`.
 
-Nombre genérico **`events`**: contrato común para futuros tipos de evento fotográfico. Hoy `eventType` es siempre `"contest"`.
+Nombre genérico **`events`**: contrato común para concursos y maratones. Campo `experienceType`: `"contest"` \| `"marathon"` (independiente de `distributionChannel`).
 
 ## Envelopes
 
@@ -47,7 +47,7 @@ Nombre genérico **`events`**: contrato común para futuros tipos de evento foto
 {
   "version": "v1",
   "data": {
-    "event": { "contractVersion": "v1", "slug": "ejemplo", "eventType": "contest" }
+    "event": { "contractVersion": "v1", "slug": "ejemplo", "experienceType": "contest" }
   }
 }
 ```
@@ -84,6 +84,27 @@ PRIVATE / inexistente / no autorizado se responden **igual** (404) para no filtr
 | PUBLIC + publicado | sí | sí |
 | UNLISTED + publicado | no | sí |
 | PRIVATE / draft | no | 404 |
+
+## Canal de distribución (Etapa 08C)
+
+Campo público: `distributionChannel`: `"fotorank"` \| `"clickaton"` \| `null`.
+
+- Independiente de `visibility`.
+- `null` = portal general FotoRank (no Clickatón).
+- Query opcional: `?channel=clickaton` \| `?channel=fotorank`.
+  - `clickaton` → solo `distributionChannel=CLICKATON` **y** `experienceType=MARATHON`
+  - `fotorank` → `FOTORANK` o `null` (cualquier experienceType)
+- Canal inválido → `400 INVALID_REQUEST`.
+- Detalle con `channel` que no coincide → `404 EVENT_NOT_FOUND`.
+
+```http
+GET /api/public/v1/events?channel=clickaton
+GET /api/public/v1/events/mi-slug?channel=clickaton
+```
+
+Admin FotoRank: **Canal de publicación** (Solo FotoRank / Clickatón) en wizard y modal de Publicación.
+
+Migración Prisma: `20260715150000_fotorank_public_event_channel` (columna nullable + enum; sin backfill).
 
 ## Headers
 
@@ -135,21 +156,23 @@ Invalidación por tags: pendiente (loaders no usan `fetch` cacheable de Next).
 
 ## Limitaciones actuales
 
-- Sin paginación, filtros, búsqueda ni orden configurable (orden del loader: `submissionDeadline` asc, `updatedAt` desc)
-- Sin inscripción, pagos, resultados ni galería
+- Sin paginación, búsqueda ni orden configurable (orden del loader: `submissionDeadline` asc, `updatedAt` desc)
+- Filtro de canal vía `?channel=` (08C/09A); `clickaton` exige también MARATHON
+- Sin inscripción/pagos reales ni resultados/galería (contratos de registration preparados; campo `registration?` aún no serializado en HTTP)
 - Sin tipo `MARATHON`
 - Sin rate limiting (pendiente antes de exposición masiva)
 - Sin API keys ni auth entre apps
-- Clickaton **aún no consume** estos endpoints
 
 ## Ejemplos ficticios
 
 ```http
 GET /api/public/v1/events
+GET /api/public/v1/events?channel=clickaton
 ```
 
 ```http
 GET /api/public/v1/events/concurso-demo
+GET /api/public/v1/events/concurso-demo?channel=clickaton
 ```
 
 ```http
@@ -166,6 +189,7 @@ GET /api/public/v1/events/slug-que-no-existe
 
 ```sh
 pnpm --filter fotorank exec tsx app/lib/public-api/v1/serializers.selfcheck.ts
+pnpm --filter fotorank exec tsx app/lib/public-api/v1/channel.selfcheck.ts
 pnpm --filter fotorank exec tsx app/lib/public-api/v1/http.selfcheck.ts
 pnpm --filter fotorank exec tsx app/lib/public-api/v1/routes.selfcheck.ts
 ```
@@ -174,6 +198,6 @@ Nota: si `tsx` no está en el PATH del filtro, usar el binario del monorepo (`no
 
 ## Próximas etapas
 
-- **08C/08D:** adaptador HTTP en Clickaton (server-to-server), variables de entorno, mapeo a `PublicMarathon`
 - Rate limiting, observabilidad, CORS explícito si hace falta navegador
 - Endpoints satélite (offer, results, gallery) solo cuando existan datos seguros
+- Canales adicionales / white-label si el producto lo requiere

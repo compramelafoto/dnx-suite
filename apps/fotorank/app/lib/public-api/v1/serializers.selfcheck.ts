@@ -30,6 +30,7 @@ const base: PublicEventSerializeSource = {
   resultsAt: new Date("2027-01-15T12:00:00.000Z"),
   status: "PUBLISHED",
   visibility: "PUBLIC",
+  distributionChannel: null,
   createdAt: new Date("2025-01-01T00:00:00.000Z"),
   updatedAt: new Date("2025-06-01T00:00:00.000Z"),
   organization: {
@@ -84,7 +85,8 @@ const event = serializePublicEventV1(base, {
 });
 
 assert.equal(event.contractVersion, "v1");
-assert.equal(event.eventType, "contest");
+assert.equal(event.experienceType, "contest");
+assert.equal(event.distributionChannel, null);
 assert.equal(event.name, "Concurso Demo");
 assert.equal(event.organization.city, "Rosario");
 assert.equal(
@@ -111,6 +113,30 @@ const listItem = serializePublicEventListItemV1(base, {
 });
 assert.equal(listItem.categoryCount, 1);
 assert.equal(listItem.juryPublished, true);
+assert.equal(listItem.distributionChannel, null);
+
+const clickatonEvent = serializePublicEventV1({
+  ...base,
+  experienceType: "MARATHON",
+  distributionChannel: "CLICKATON",
+});
+assert.equal(clickatonEvent.experienceType, "marathon");
+assert.equal(clickatonEvent.distributionChannel, "clickaton");
+
+const fotorankEvent = serializePublicEventV1({
+  ...base,
+  distributionChannel: "FOTORANK",
+});
+assert.equal(fotorankEvent.experienceType, "contest");
+assert.equal(fotorankEvent.distributionChannel, "fotorank");
+
+const marathonExternal = serializePublicEventV1({
+  ...base,
+  experienceType: "MARATHON",
+  distributionChannel: null,
+});
+assert.equal(marathonExternal.experienceType, "marathon");
+assert.equal(marathonExternal.distributionChannel, null);
 
 assert.throws(
   () =>

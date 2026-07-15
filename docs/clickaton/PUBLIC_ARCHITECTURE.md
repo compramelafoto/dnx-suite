@@ -8,7 +8,7 @@
 - Presentación de maratones
 - Red de sedes (presentación)
 - Sponsors y alianzas (presentación)
-- Tienda futura y merchandising (backlog)
+- Presentación de precios / merchandising opcional (datos desde FotoRank; checkout en FR — Etapa 09)
 - Navegación y SEO público
 
 ## 2. Qué pertenece a FotoRank
