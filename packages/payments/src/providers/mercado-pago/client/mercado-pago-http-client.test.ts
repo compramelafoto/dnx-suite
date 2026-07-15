@@ -18,16 +18,31 @@ describe("MercadoPagoHttpClient", () => {
     );
   });
 
-  it("blocks POST without TEST- token", async () => {
+  it("blocks POST without sandbox-eligible token", async () => {
     const config = createMercadoPagoProviderConfig({
       environment: "sandbox",
-      accessToken: "APP_USR-not-test",
+      accessToken: "INVALID-not-sandbox",
     });
     const client = new MercadoPagoHttpClient(config);
     await assert.rejects(
       () => client.request({ method: "POST", path: "/v1/orders", body: {} }),
       MercadoPagoProductionWriteBlockedError,
     );
+  });
+
+  it("allows APP_USR- token in sandbox (MLA test panel)", async () => {
+    let called = false;
+    const fetchImpl = async () => {
+      called = true;
+      return new Response(JSON.stringify({ id: "ok" }), { status: 201 });
+    };
+    const config = createMercadoPagoProviderConfig({
+      environment: "sandbox",
+      accessToken: "APP_USR-fake-test-panel",
+    });
+    const client = new MercadoPagoHttpClient(config, fetchImpl);
+    await client.request({ method: "POST", path: "/v1/orders", body: {}, idempotencyKey: crypto.randomUUID() });
+    assert.equal(called, true);
   });
 
   it("retries 503 with same idempotency key", async () => {

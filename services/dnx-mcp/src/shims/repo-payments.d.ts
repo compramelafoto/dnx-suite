@@ -24,6 +24,7 @@ declare module "@repo/payments" {
 
   export class MercadoPagoProductionWriteBlockedError extends Error {}
   export function isTestAccessToken(token: string): boolean;
+  export function isSandboxAccessToken(token: string): boolean;
   export function createMercadoPagoProviderConfig(partial: {
     environment?: PaymentEnvironment;
     accessToken: string;

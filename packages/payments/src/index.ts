@@ -21,6 +21,7 @@ export {
   isTestAccessToken,
   assertSandboxWriteAllowed,
   assertSandboxToken,
+  isSandboxAccessToken,
 } from "./providers/mercado-pago/index.js";
 export type {
   MercadoPagoProviderConfig,

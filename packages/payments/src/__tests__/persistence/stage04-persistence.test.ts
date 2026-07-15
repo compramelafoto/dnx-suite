@@ -30,15 +30,27 @@ describe("sandbox preflight", () => {
     assert.equal(result.status, "MISSING_TEST_TOKEN");
   });
 
-  it("rejects APP_USR production token", () => {
+  it("rejects APP_USR production environment even with APP_USR token", () => {
+    const result = runSandboxPreflight({
+      accessToken: "APP_USR-secret",
+      ownerUserId: "123",
+      partnerEmail: "TESTUSER1@testuser.com",
+      environment: "production",
+      confirm: true,
+    });
+    assert.equal(result.status, "PRODUCTION_TOKEN_REJECTED");
+  });
+
+  it("accepts APP_USR- MLA test panel token in sandbox dry-run when partner ok", () => {
     const result = runSandboxPreflight({
       accessToken: "APP_USR-secret",
       ownerUserId: "123",
       partnerEmail: "TESTUSER1@testuser.com",
       environment: "sandbox",
-      confirm: true,
+      dryRun: true,
     });
-    assert.equal(result.status, "PRODUCTION_TOKEN_REJECTED");
+    assert.equal(result.status, "READY");
+    assert.equal(result.checks.tokenIsSandboxEligible, true);
   });
 
   it("rejects invalid partner email", () => {

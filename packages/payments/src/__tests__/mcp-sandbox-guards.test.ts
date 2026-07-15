@@ -4,7 +4,9 @@ import { MercadoPagoProductionWriteBlockedError } from "../errors/provider-error
 import {
   createMercadoPagoProviderConfig,
   assertSandboxWriteAllowed,
+  assertSandboxToken,
   isTestAccessToken,
+  isSandboxAccessToken,
 } from "../providers/mercado-pago/client/mercado-pago-environment.js";
 
 describe("MCP Mercado Pago sandbox guards", () => {
@@ -16,8 +18,18 @@ describe("MCP Mercado Pago sandbox guards", () => {
     assert.throws(() => assertSandboxWriteAllowed(config), MercadoPagoProductionWriteBlockedError);
   });
 
-  it("requires TEST- token shape for sandbox writes", () => {
+  it("detects legacy TEST- prefix separately from sandbox eligibility", () => {
     assert.equal(isTestAccessToken("TEST-abc"), true);
     assert.equal(isTestAccessToken("APP_USR-abc"), false);
+    assert.equal(isSandboxAccessToken("TEST-abc"), true);
+    assert.equal(isSandboxAccessToken("APP_USR-abc"), true);
+  });
+
+  it("allows APP_USR- tokens in sandbox (MLA Credenciales de prueba)", () => {
+    const config = createMercadoPagoProviderConfig({
+      environment: "sandbox",
+      accessToken: "APP_USR-fake-test-panel",
+    });
+    assert.doesNotThrow(() => assertSandboxToken(config));
   });
 });

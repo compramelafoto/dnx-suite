@@ -4,16 +4,16 @@
 
 | Variable | Presente | Formato válido | Motivo |
 |---|---:|---:|---|
-| `MERCADOPAGO_TEST_ACCESS_TOKEN` | sí | **no** | `APP_USR_REJECTED` |
-| `MERCADOPAGO_TEST_PUBLIC_KEY` | sí | **no** | `APP_USR_not_accepted_for_sandbox_policy` |
-| `MERCADOPAGO_TEST_OWNER_USER_ID` | sí | sí | `numeric_ok` (Seller Primary) |
-| `MERCADOPAGO_TEST_PARTNER_EMAIL` | **no** | no | `missing` → `BLOCKED_BY_TEST_PARTNER_EMAIL` |
+| `MERCADOPAGO_TEST_ACCESS_TOKEN` | sí | sí | `APP_USR_test_panel_ok_mla` (Credenciales de prueba) |
+| `MERCADOPAGO_TEST_PUBLIC_KEY` | sí | sí | `APP_USR_test_panel_ok_mla` |
+| `MERCADOPAGO_TEST_OWNER_USER_ID` | sí | sí | `numeric_ok` (Vendedor 1 = Seller Primary) |
+| `MERCADOPAGO_TEST_PARTNER_EMAIL` | **no** | no | falta **Vendedor 2** → `BLOCKED_BY_TEST_PARTNER_EMAIL` |
 | `MERCADOPAGO_TEST_DEVICE_ID` | no | no | opcional hasta crear orden |
-| `MERCADOPAGO_TEST_PAYMENT_TOKEN` | no | no | bloquea orden → `BLOCKED_BY_TEST_PAYMENT_TOKEN` |
+| `MERCADOPAGO_TEST_PAYMENT_TOKEN` | no | no | bloquea orden |
 
-**Preflight actual:** `PRODUCTION_TOKEN_REJECTED` (token `APP_USR-`).
+**Nota MLA:** las Credenciales de prueba pueden venir con prefijo `APP_USR-`. El monorepo las acepta en `environment=sandbox`; Production sigue denegado.
 
-No se ejecuta Split Consent ni órdenes hasta corregir token + partner email.
+**Vendedor 1** = Owner (no partner). El partner debe ser **otro** vendedor TEST.
 
 ## Seller Primary vs Secondary
 

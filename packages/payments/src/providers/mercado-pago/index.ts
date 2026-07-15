@@ -18,6 +18,7 @@ export {
   assertSandboxWriteAllowed,
   assertSandboxToken,
   isTestAccessToken,
+  isSandboxAccessToken,
   MP_API_BASE_URL,
   CURRENCY_DECIMAL_SCALE,
 } from "./client/mercado-pago-environment.js";

@@ -1,4 +1,8 @@
-import { isTestAccessToken, MP_API_BASE_URL } from "../providers/mercado-pago/client/mercado-pago-environment.js";
+import {
+  isSandboxAccessToken,
+  isTestAccessToken,
+  MP_API_BASE_URL,
+} from "../providers/mercado-pago/client/mercado-pago-environment.js";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -39,9 +43,10 @@ export interface SandboxPreflightResult {
   checks: {
     tokenPresent: boolean;
     tokenIsTest: boolean;
+    tokenIsSandboxEligible: boolean;
     tokenIsProductionPrefixed: boolean;
     publicKeyPresent: boolean;
-    publicKeyLooksTest: boolean;
+    publicKeyLooksSandbox: boolean;
     ownerPresent: boolean;
     ownerLooksNumeric: boolean;
     partnerPresent: boolean;
@@ -70,6 +75,24 @@ export function isNumericOwnerUserId(ownerUserId: string): boolean {
   return NUMERIC_ID_RE.test(ownerUserId.trim());
 }
 
+function tokenAuditReason(token: string): { valid: boolean; reason: string } {
+  if (!token) return { valid: false, reason: "missing" };
+  if (token.startsWith("TEST-")) return { valid: true, reason: "TEST_prefix_ok" };
+  if (token.startsWith("APP_USR-")) return { valid: true, reason: "APP_USR_test_panel_ok_mla" };
+  return { valid: false, reason: "unexpected_prefix" };
+}
+
+function publicKeyAuditReason(key: string): { valid: boolean; reason: string } {
+  if (!key) return { valid: false, reason: "missing" };
+  if (key.startsWith("TEST-") || key.startsWith("APP_USR-")) {
+    return {
+      valid: true,
+      reason: key.startsWith("TEST-") ? "TEST_prefix_ok" : "APP_USR_test_panel_ok_mla",
+    };
+  }
+  return { valid: false, reason: "unexpected_prefix" };
+}
+
 export function auditSandboxCredentials(input: SandboxPreflightInput): SandboxCredentialAuditRow[] {
   const token = input.accessToken?.trim() ?? "";
   const publicKey = input.publicKey?.trim() ?? "";
@@ -77,31 +100,21 @@ export function auditSandboxCredentials(input: SandboxPreflightInput): SandboxCr
   const partner = input.partnerEmail?.trim() ?? "";
   const deviceId = input.deviceId?.trim() ?? "";
   const paymentToken = input.paymentToken?.trim() ?? "";
+  const tokenMeta = tokenAuditReason(token);
+  const pkMeta = publicKeyAuditReason(publicKey);
 
   return [
     {
       name: "MERCADOPAGO_TEST_ACCESS_TOKEN",
       present: token.length > 0,
-      formatValid: token.startsWith("TEST-"),
-      reason: !token
-        ? "missing"
-        : token.startsWith("APP_USR-")
-          ? "APP_USR_REJECTED"
-          : token.startsWith("TEST-")
-            ? "TEST_prefix_ok"
-            : "unexpected_prefix",
+      formatValid: tokenMeta.valid,
+      reason: tokenMeta.reason,
     },
     {
       name: "MERCADOPAGO_TEST_PUBLIC_KEY",
       present: publicKey.length > 0,
-      formatValid: publicKey.startsWith("TEST-"),
-      reason: !publicKey
-        ? "missing"
-        : publicKey.startsWith("TEST-")
-          ? "TEST_prefix_ok"
-          : publicKey.startsWith("APP_USR-")
-            ? "APP_USR_not_accepted_for_sandbox_policy"
-            : "unexpected_prefix",
+      formatValid: pkMeta.valid,
+      reason: pkMeta.reason,
     },
     {
       name: "MERCADOPAGO_TEST_OWNER_USER_ID",
@@ -156,9 +169,10 @@ export function runSandboxPreflight(input: SandboxPreflightInput): SandboxPrefli
 
   const tokenPresent = token.length > 0;
   const tokenIsTest = tokenPresent && isTestAccessToken(token);
-  const tokenIsProductionPrefixed = token.startsWith("APP_USR-");
+  const tokenIsSandboxEligible = tokenPresent && isSandboxAccessToken(token);
   const publicKeyPresent = publicKey.length > 0;
-  const publicKeyLooksTest = publicKey.startsWith("TEST-");
+  const publicKeyLooksSandbox =
+    publicKey.startsWith("TEST-") || publicKey.startsWith("APP_USR-");
   const ownerPresent = owner.length > 0;
   const ownerLooksNumeric = isNumericOwnerUserId(owner);
   const partnerPresent = partner.length > 0;
@@ -174,9 +188,10 @@ export function runSandboxPreflight(input: SandboxPreflightInput): SandboxPrefli
   const checks = {
     tokenPresent,
     tokenIsTest,
-    tokenIsProductionPrefixed,
+    tokenIsSandboxEligible,
+    tokenIsProductionPrefixed: false,
     publicKeyPresent,
-    publicKeyLooksTest,
+    publicKeyLooksSandbox,
     ownerPresent,
     ownerLooksNumeric,
     partnerPresent,
@@ -195,21 +210,17 @@ export function runSandboxPreflight(input: SandboxPreflightInput): SandboxPrefli
     return { status: "PRODUCTION_TOKEN_REJECTED", checks, hints, credentialAudit };
   }
 
-  if (tokenIsProductionPrefixed) {
+  if (!tokenPresent || !tokenIsSandboxEligible) {
     hints.push(
-      "MERCADOPAGO_TEST_ACCESS_TOKEN starts with APP_USR- — use Credenciales de prueba (TEST-), not Production",
+      "Set MERCADOPAGO_TEST_ACCESS_TOKEN from Credenciales de prueba (TEST- or APP_USR- MLA panel)",
     );
-    return { status: "PRODUCTION_TOKEN_REJECTED", checks, hints, credentialAudit };
+    return { status: "MISSING_TEST_TOKEN", checks, hints, credentialAudit };
   }
 
-  if (!tokenPresent || !tokenIsTest) {
-    hints.push("Set MERCADOPAGO_TEST_ACCESS_TOKEN (TEST- prefix required)");
-    return {
-      status: tokenPresent ? "PRODUCTION_TOKEN_REJECTED" : "MISSING_TEST_TOKEN",
-      checks,
-      hints,
-      credentialAudit,
-    };
+  if (token.startsWith("APP_USR-") && !tokenIsTest) {
+    hints.push(
+      "Access token uses APP_USR- from Credenciales de prueba (accepted for MLA sandbox; Production env still denied)",
+    );
   }
 
   if (!ownerPresent || !ownerLooksNumeric) {
@@ -224,7 +235,7 @@ export function runSandboxPreflight(input: SandboxPreflightInput): SandboxPrefli
       );
     } else if (!partnerPresent) {
       hints.push(
-        "Create a TEST seller user in MP Developers and set MERCADOPAGO_TEST_PARTNER_EMAIL to the TESTUSER…@testuser.com email shown at creation",
+        "Create a second TEST seller (Vendedor 2), different from Owner, and set MERCADOPAGO_TEST_PARTNER_EMAIL to its TESTUSER…@testuser.com email",
       );
     } else {
       hints.push("Set MERCADOPAGO_TEST_PARTNER_EMAIL to TESTUSER…@testuser.com (no real emails)");
@@ -238,7 +249,7 @@ export function runSandboxPreflight(input: SandboxPreflightInput): SandboxPrefli
   }
 
   if (input.requirePaymentToken && !paymentTokenPresent) {
-    hints.push("Payment token TEST required (MercadoPago.js + public key TEST) — order creation blocked");
+    hints.push("Payment token TEST required (MercadoPago.js + public key) — order creation blocked");
     return { status: "BLOCKED_BY_TEST_PAYMENT_TOKEN", checks, hints, credentialAudit };
   }
 
@@ -250,12 +261,6 @@ export function runSandboxPreflight(input: SandboxPreflightInput): SandboxPrefli
   if (!dryRun && !confirmed) {
     hints.push("Pass --confirm to execute real sandbox writes");
     return { status: "CONFIRMATION_REQUIRED", checks, hints, credentialAudit };
-  }
-
-  if (publicKeyPresent && !publicKeyLooksTest) {
-    hints.push(
-      "Public key is present but not TEST- prefixed; tokenization may fail — prefer Credenciales de prueba",
-    );
   }
 
   return { status: "READY", checks, hints, credentialAudit };
@@ -275,9 +280,6 @@ function parseEnvFile(path: string): Record<string, string> {
   return out;
 }
 
-/**
- * Loads sandbox vars from process.env and optional local env files (never prints values).
- */
 export function loadSandboxEnvFromProcess(
   env: NodeJS.ProcessEnv = process.env,
   options?: { cwd?: string },

@@ -62,6 +62,16 @@ export function isTestAccessToken(token: string): boolean {
   return token.startsWith("TEST-");
 }
 
+/**
+ * Sandbox-eligible access token shape.
+ * Mercado Pago MLA "Credenciales de prueba" often issue `APP_USR-` (not only legacy `TEST-`).
+ * Production writes remain blocked by `environment === "production"` + confirm gates.
+ */
+export function isSandboxAccessToken(token: string): boolean {
+  const t = token.trim();
+  return t.startsWith("TEST-") || t.startsWith("APP_USR-");
+}
+
 export function assertSandboxWriteAllowed(config: MercadoPagoProviderConfig): void {
   if (config.environment === "production") {
     throw new MercadoPagoProductionWriteBlockedError();
@@ -69,9 +79,14 @@ export function assertSandboxWriteAllowed(config: MercadoPagoProviderConfig): vo
 }
 
 export function assertSandboxToken(config: MercadoPagoProviderConfig): void {
-  if (!isTestAccessToken(config.accessToken)) {
+  if (config.environment !== "sandbox") {
     throw new MercadoPagoProductionWriteBlockedError(
-      "Mercado Pago write operations require a TEST- access token in sandbox mode",
+      "Mercado Pago write operations require sandbox environment",
+    );
+  }
+  if (!isSandboxAccessToken(config.accessToken)) {
+    throw new MercadoPagoProductionWriteBlockedError(
+      "Mercado Pago sandbox writes require a TEST- or APP_USR- access token from Credenciales de prueba",
     );
   }
 }

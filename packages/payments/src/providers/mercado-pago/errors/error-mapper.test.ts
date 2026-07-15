@@ -9,6 +9,7 @@ import {
   assertSandboxWriteAllowed,
   createMercadoPagoProviderConfig,
   isTestAccessToken,
+  isSandboxAccessToken,
 } from "../client/mercado-pago-environment.js";
 import { mapMercadoPagoHttpError } from "../errors/error-mapper.js";
 
@@ -16,6 +17,12 @@ describe("Mercado Pago environment safety", () => {
   it("isTestAccessToken detects TEST- prefix", () => {
     assert.equal(isTestAccessToken("TEST-abc"), true);
     assert.equal(isTestAccessToken("APP_USR-abc"), false);
+  });
+
+  it("isSandboxAccessToken accepts TEST- and APP_USR-", () => {
+    assert.equal(isSandboxAccessToken("TEST-abc"), true);
+    assert.equal(isSandboxAccessToken("APP_USR-abc"), true);
+    assert.equal(isSandboxAccessToken("OTHER"), false);
   });
 
   it("assertSandboxWriteAllowed blocks production", () => {
@@ -26,10 +33,18 @@ describe("Mercado Pago environment safety", () => {
     assert.throws(() => assertSandboxWriteAllowed(config), MercadoPagoProductionWriteBlockedError);
   });
 
-  it("assertSandboxToken requires TEST- token for writes", () => {
+  it("assertSandboxToken allows APP_USR- in sandbox", () => {
     const config = createMercadoPagoProviderConfig({
       environment: "sandbox",
       accessToken: "APP_USR-fake",
+    });
+    assert.doesNotThrow(() => assertSandboxToken(config));
+  });
+
+  it("assertSandboxToken rejects invalid token shapes", () => {
+    const config = createMercadoPagoProviderConfig({
+      environment: "sandbox",
+      accessToken: "INVALID-token",
     });
     assert.throws(() => assertSandboxToken(config), MercadoPagoProductionWriteBlockedError);
   });
