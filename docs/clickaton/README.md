@@ -80,6 +80,15 @@ Home pública institucional con arquitectura de contenido en `content/home.ts`.
 - Documento: [DATA_ACCESS_ARCHITECTURE.md](./DATA_ACCESS_ARCHITECTURE.md)
 - Sin fetch real a FotoRank
 
+### Etapa 07 — Auditoría de integración real con FotoRank
+
+Solo documentación (sin endpoints, Prisma ni cambios funcionales):
+
+- [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_INTEGRATION_AUDIT.md) — estado real FR, gaps, riesgos, arquitectura, plan 08+
+- [FOTORANK_FIELD_MAPPING.md](./FOTORANK_FIELD_MAPPING.md) — mapeo campo a campo
+
+Hallazgo clave: FotoRank tiene concursos/jurados/landing; **no** tiene maratón tipado, inscripción pública, pagos, consignas ni GPS/EXIF sobre obras FR.
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).

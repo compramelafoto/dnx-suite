@@ -1,7 +1,14 @@
 # Clickaton ↔ FotoRank — contrato de integración
 
 Documento de contrato funcional. **No es un schema de API final.**  
-Etapas: **05** (ficha) · **05A** (contratos satélite) · **06** (fuente de datos intercambiable).
+Etapas: **05** (ficha) · **05A** (contratos satélite) · **06** (fuente de datos) · **07** (auditoría código real FR).
+
+Auditoría de implementación existente en FotoRank (sin integración aún):
+
+- [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_INTEGRATION_AUDIT.md)
+- [FOTORANK_FIELD_MAPPING.md](./FOTORANK_FIELD_MAPPING.md)
+
+**Implicación Etapa 07:** el contrato tipado de Clickaton sigue siendo la frontera. FotoRank hoy cubre solo una fracción (concurso + org + categorías + jurado público + bases/fechas). Inscripción, pagos, consignas, timezone, sedes, resultados/galería públicos y GPS/EXIF **no existen** como fuente real — hay que construir DTO/endpoints antes del adaptador.
 
 ## 1. Principio
 
@@ -35,7 +42,7 @@ Frontera contrato ↔ fuente: ver [DATA_ACCESS_ARCHITECTURE.md](./DATA_ACCESS_AR
 | Interfaz fuente | `PublicMarathonDataSource` |
 | Fuente actual | `local-source` + `content/fixtures/` |
 | Servicio | `data/public-marathons/service.ts` |
-| Adaptador FotoRank | **documentado, no implementado** (sin fetch) |
+| Adaptador FotoRank | **documentado, no implementado** (sin fetch). Tras Etapa 07: consumir Route Handlers públicos v1 recomendados, no Prisma. |
 
 Responsabilidad del adaptador futuro: mapear DTO → contratos Clickaton, sin filtrar seguridad a medias (usa `normalize` + `sanitize` compartidos).
 

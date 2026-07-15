@@ -31,13 +31,18 @@ Misma interfaz `PublicMarathonDataSource`.
 
 Responsabilidades del adaptador:
 
-1. Fetch / client HTTP hacia API pública de FotoRank (aún no existe en Clickaton).
+1. Fetch / client HTTP hacia API pública de FotoRank (aún no existe; recomendada en Etapa 07: `/api/public/v1/...` en `apps/fotorank`).
 2. Mapear DTO → contratos Clickaton (`PublicMarathon`, satélites).
 3. Delegar normalización y sanitizado compartidos.
 4. Propagar errores tipados (`NotFound`, `PayloadInvalid`, `SourceUnavailable`).
 5. Nunca mezclar datos autenticados en respuestas públicas.
+6. **No** importar Prisma ni `@repo/db` desde Clickaton.
 
-No crear stub ejecutable muerto en esta etapa.
+Hallazgos de código real: [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_INTEGRATION_AUDIT.md) · mapeo [FOTORANK_FIELD_MAPPING.md](./FOTORANK_FIELD_MAPPING.md).
+
+Arquitectura recomendada (Etapa 07): Route Handlers públicos en FotoRank + adaptador HTTP en Clickaton. Alternativa: paquete `@repo/fotorank-public` (mayor acoplamiento de versión).
+
+No crear stub ejecutable muerto hasta Etapa 08D.
 
 ## 5. Contratos
 
@@ -67,12 +72,15 @@ La UI puede volver a filtrar de forma idempotente; la seguridad no depende de es
 
 ## 8. Caching futuro (sin implementar)
 
+Detalle ampliado en la auditoría Etapa 07 §19.
+
 | Recurso | Idea |
 |---------|------|
-| Listado | `revalidate` periódico o tag `marathons` |
+| Listado | `revalidate` periódico o tag `marathons:list` (60–300s) |
 | Ficha | tag `marathon:{slug}` |
-| Consignas liberadas | invalidación inmediata; TTL corto |
-| Resultados / galería | invalidar al publicar |
+| Offer / cupos | TTL corto (15–60s) |
+| Consignas liberadas | invalidación inmediata; TTL corto; revalidar en `releaseAt` |
+| Resultados / galería | invalidar al publicar / retractar |
 | Datos personalizados | **nunca** en caché pública compartida |
 
 ## 9. Datos públicos versus autenticados

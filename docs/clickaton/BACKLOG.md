@@ -4,15 +4,34 @@ Pendientes registrados en Etapa 01. **No definir porcentajes ni reglas económic
 
 ## A. Integración con FotoRank
 
-- Catálogo de maratones
-- Página pública de evento
+Auditoría Etapa 07: [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_INTEGRATION_AUDIT.md) · mapeo [FOTORANK_FIELD_MAPPING.md](./FOTORANK_FIELD_MAPPING.md).
+
+### Plan post-auditoría (sin implementar)
+
+- **08A** Serializers / DTO públicos seguros (FR)
+- **08B** Endpoint listado público v1
+- **08C** Endpoint ficha pública v1
+- **08D** Adaptador `PublicMarathonDataSource` en Clickaton
+- **08E** Caché e invalidación
+- **09** Sesión Identity + eligibility
+- **10** Inscripción real
+- **11** Pagos (DNX Payments / MP)
+- **12** Área del participante
+- **13** Consignas + release server-side
+- **14** Resultados + galería públicos
+- **15** GPS/EXIF + sedes
+
+### Capacidad producto (sigue pendiente)
+
+- Catálogo de maratones reales
+- Página pública de evento (datos vivos)
 - Inscripciones
 - Pagos
 - Participantes
 - Cuenta del participante
 - Consignas
 - GPS y EXIF
-- Jurados
+- Jurados (público)
 - Ranking
 - Resultados
 
