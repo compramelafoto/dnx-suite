@@ -193,3 +193,7 @@ Home actual estable · **0** PUBLISHED.
 3. Completar portada de la presentación.  
 4. Completar fuentes de las 3 noticias `REAL_NEEDS_SOURCE`.  
 5. Re-evaluar `READY_FOR_DOMAIN_GO_LIVE` / `READY_FOR_DOMAIN_GO_LIVE_PENDING_PUBLICATION`.
+
+## Nota
+
+La presentación DRAFT vive en Production DB (slug `presentacion-info-spot`); no versionada en git.
