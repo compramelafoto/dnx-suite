@@ -17,9 +17,10 @@ Extraídos de la lámina oficial (no reinterpretados):
 |---------|-----|
 | `logo-principal.png` | Logo stacked / sticker (fondos oscuros, hero) |
 | `logo-vertical.png` | Vertical color (fondos claros) |
-| `logo-horizontal.png` | Original de estudio (1200px, conservar) |
-| `logo-horizontal-web.png` | UI / catálogo (960px, menor peso) |
-| `logo-horizontal-mono.png` | Horizontal monocromático |
+| `logo-horizontal-color.png` | Horizontal color oficial (transparencia) — header |
+| `logo-horizontal.png` / `-web.png` | Copias del color (compat) |
+| `logo-horizontal-prev.png` | Backup del horizontal anterior |
+| `logo-horizontal-mono.png` | Horizontal monocromático (legado) |
 | `logo-mono-negro.png` | Vertical monocromático |
 | `isotipo.png` | Isotipo circular |
 | `isotipo-amarillo.png` | Isotipo fondo amarillo |
@@ -48,8 +49,8 @@ API en código:
 | Contexto | Variante |
 |----------|----------|
 | Hero Home | `principal` |
-| Header | `horizontal` (Wordmark) |
-| Footer oscuro | `horizontalMono` |
+| Header | `horizontalWeb` (Wordmark color) |
+| Footer oscuro | `horizontalWeb` |
 | Favicon | `/favicon.png` + `/brand/favicon-32.png` (lectura pequeña) |
 | Open Graph | `/og-default.png` |
 

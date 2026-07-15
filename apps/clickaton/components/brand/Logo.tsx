@@ -42,13 +42,13 @@ const variantMeta: Record<
 > = {
   horizontal: {
     src: brandAssetPaths.horizontal,
-    width: 1200,
-    height: 291,
+    width: 850,
+    height: 228,
   },
   horizontalWeb: {
     src: brandAssetPaths.horizontalWeb,
-    width: 960,
-    height: 233,
+    width: 850,
+    height: 228,
   },
   horizontalMono: {
     src: brandAssetPaths.horizontalMono,

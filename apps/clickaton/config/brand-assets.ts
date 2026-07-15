@@ -6,10 +6,11 @@
 export const brandAssetPaths = {
   principal: "/brand/logo-principal.png",
   vertical: "/brand/logo-vertical.png",
-  /** Original de estudio (conservar). */
-  horizontal: "/brand/logo-horizontal.png",
-  /** Variante web optimizada (960px, menor peso) — uso UI. */
-  horizontalWeb: "/brand/logo-horizontal-web.png",
+  /** Horizontal color oficial con transparencia — header / UI oscura. */
+  horizontal: "/brand/logo-horizontal-color.png",
+  /** Alias UI del horizontal color. */
+  horizontalWeb: "/brand/logo-horizontal-color.png",
+  /** Horizontal mono (legado; preferir color en superficies oscuras). */
   horizontalMono: "/brand/logo-horizontal-mono.png",
   mono: "/brand/logo-mono-negro.png",
   isotipo: "/brand/isotipo.png",
@@ -29,10 +30,10 @@ export type BrandAssetKey = keyof typeof brandAssetPaths;
 /** Variante recomendada por superficie de producto. */
 export const brandAssetUsage = {
   hero: "principal",
-  header: "horizontalMono",
-  /** Superficies claras / catálogo: variante web optimizada. */
+  header: "horizontalWeb",
+  /** Superficies oscuras / catálogo: horizontal color. */
   horizontalUi: "horizontalWeb",
-  footerDark: "horizontalMono",
+  footerDark: "horizontalWeb",
   favicon: "favicon32",
   openGraph: "ogDefault",
 } as const;

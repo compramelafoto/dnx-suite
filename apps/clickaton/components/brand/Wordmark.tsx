@@ -13,6 +13,7 @@ type WordmarkProps = {
 /**
  * Marca Clickatón en chrome (header/footer).
  * Usa assets oficiales — no reconstrucción tipográfica.
+ * En fondos oscuros (`inverse`) se usa el horizontal color (cámara + wordmark).
  */
 export function Wordmark({
   className = "",
@@ -20,7 +21,8 @@ export function Wordmark({
   tone = "default",
   height = 56,
 }: WordmarkProps) {
-  const variant: LogoVariant = tone === "inverse" ? "horizontalMono" : "horizontal";
+  const variant: LogoVariant =
+    tone === "inverse" ? "horizontalWeb" : "horizontal";
 
   return (
     <Logo

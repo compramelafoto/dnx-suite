@@ -61,13 +61,13 @@ export function SiteHeader() {
           : "border-transparent bg-transparent backdrop-blur-0",
       )}
     >
-      <Container className="flex h-14 items-center gap-4 md:h-16 md:gap-8">
-        <div className="min-w-0 shrink-0">
+      <Container className="flex min-h-24 items-center gap-4 py-5 md:min-h-28 md:gap-8 md:py-6">
+        <div className="flex shrink-0 items-center">
           <Wordmark
-            href={null}
+            href="/"
             tone="inverse"
-            height={44}
-            className="h-8 w-auto max-w-[10.5rem] sm:h-9 sm:max-w-none md:h-10"
+            height={72}
+            className="h-12 w-auto max-w-[15.5rem] sm:h-[3.25rem] sm:max-w-[17rem] md:h-14 md:max-w-[19.5rem]"
           />
         </div>
 
