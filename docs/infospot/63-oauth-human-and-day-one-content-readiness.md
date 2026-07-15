@@ -6,6 +6,8 @@
 **Production health:** `db:ok` · `version=ef63026` (posterior a `db5987d`)  
 **Deploy Production observado:** `dpl_H2rbr7k…` (Ready)  
 **Dominio anuncio público:** **NO-GO**  
+**Actualización 22X:** OAuth humano sigue **PENDING_HUMAN**; CLF PUBLIC futuros = **0**; creada nota DRAFT `presentacion-info-spot`; decisión **`BLOCKED_BY_CONTENT_SOURCE`**. Ver [65](./65-human-oauth-and-real-launch-content-gate.md).
+
 **Actualización 22W:** DNS/SSL OK · migrate focal **aplicada** · OAuth humano sigue PENDING · contenido `BLOCKED_BY_CONTENT_SOURCE` — ver [64](./64-domain-oauth-and-minimum-launch-content.md).  
 **Estado etapa (cierre 22V):**
 
@@ -15,7 +17,7 @@ COMPLETE_PENDING_REAL_CONTENT
 
 No incluye emails, cookies, tokens, secretos ni URLs de DB.
 
-Relacionado: [62](./62-editorial-roles-and-day-one-content-gate.md) · [51](./51-go-live-master-checklist.md) · [64](./64-domain-oauth-and-minimum-launch-content.md)
+Relacionado: [62](./62-editorial-roles-and-day-one-content-gate.md) · [51](./51-go-live-master-checklist.md) · [64](./64-domain-oauth-and-minimum-launch-content.md) · [65](./65-human-oauth-and-real-launch-content-gate.md)
 
 ---
 

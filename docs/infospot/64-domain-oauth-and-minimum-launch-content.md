@@ -212,5 +212,7 @@ Sin smoke DRAFT nuevo en 22W. Conteos estables. **0** DEMO/smoke PUBLISHED.
 
 1. Operador: OAuth en `https://infospot.com.ar/ingresar`.  
 2. Proveer ≥3 eventos futuros verificables (CLF PUBLIC+slug o fuentes oficiales).  
-3. Completar fuente/SEO/portada de drafts REAL.  
+3. Completar fuente/SEO/portada de drafts REAL (incl. presentación `presentacion-info-spot` de 22X).  
 4. Re-evaluar `READY_FOR_DOMAIN_GO_LIVE`.
+
+**Seguimiento 22X:** [65](./65-human-oauth-and-real-launch-content-gate.md) — `BLOCKED_BY_CONTENT_SOURCE` · OAuth **PENDING_HUMAN**.
