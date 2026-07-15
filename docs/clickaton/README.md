@@ -89,6 +89,15 @@ Solo documentación (sin endpoints, Prisma ni cambios funcionales):
 
 Hallazgo clave: FotoRank tiene concursos/jurados/landing; **no** tiene maratón tipado, inscripción pública, pagos, consignas ni GPS/EXIF sobre obras FR.
 
+### Etapa 08A — Contrato servidor V1 (FotoRank)
+
+Serialización pública segura en `apps/fotorank/app/lib/public-api/v1/` (`FotorankPublicEventV1`, loaders, visibility).
+
+- Sin Route Handlers HTTP (08B/08C)
+- Sin adaptador Clickaton (08D)
+- Sin cambios Prisma
+- Doc local: `apps/fotorank/app/lib/public-api/v1/README.md`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).

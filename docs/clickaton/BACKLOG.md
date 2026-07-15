@@ -6,9 +6,9 @@ Pendientes registrados en Etapa 01. **No definir porcentajes ni reglas económic
 
 Auditoría Etapa 07: [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_INTEGRATION_AUDIT.md) · mapeo [FOTORANK_FIELD_MAPPING.md](./FOTORANK_FIELD_MAPPING.md).
 
-### Plan post-auditoría (sin implementar)
+### Plan post-auditoría
 
-- **08A** Serializers / DTO públicos seguros (FR)
+- ~~**08A** Serializers / DTO públicos seguros (FR)~~ → `apps/fotorank/app/lib/public-api/v1/`
 - **08B** Endpoint listado público v1
 - **08C** Endpoint ficha pública v1
 - **08D** Adaptador `PublicMarathonDataSource` en Clickaton

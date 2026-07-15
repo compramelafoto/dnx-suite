@@ -42,7 +42,9 @@ Hallazgos de código real: [FOTORANK_REAL_INTEGRATION_AUDIT.md](./FOTORANK_REAL_
 
 Arquitectura recomendada (Etapa 07): Route Handlers públicos en FotoRank + adaptador HTTP en Clickaton. Alternativa: paquete `@repo/fotorank-public` (mayor acoplamiento de versión).
 
-No crear stub ejecutable muerto hasta Etapa 08D.
+**Etapa 08A (hecha en FotoRank):** contratos + serializers + loaders en `apps/fotorank/app/lib/public-api/v1/` (`FotorankPublicEventV1`). Aún sin HTTP ni adaptador Clickaton.
+
+No crear stub Clickaton hasta Etapa 08D.
 
 ## 5. Contratos
 

@@ -394,7 +394,7 @@ Registrar (futuro):
 
 | Etapa | Objetivo | App | Dependencias | Riesgo | Criterio de aceptación |
 |-------|----------|-----|--------------|--------|------------------------|
-| **08A** | Serializers + DTO públicos seguros (sin HTTP) | fotorank (+ types opc. package) | Etapa 07 | Medio | Tests unitarios: consignas filtradas; no PII |
+| **08A** ✅ | Serializers + DTO públicos seguros (sin HTTP) | fotorank `app/lib/public-api/v1` | Etapa 07 | Medio | Contrato V1 sin PII/`rulesData`; selfcheck OK |
 | **08B** | `GET /api/public/v1/marathons` listado | fotorank | 08A | Medio | JSON mapeable a `PublicMarathon` listed |
 | **08C** | `GET /api/public/v1/marathons/[slug]` ficha | fotorank | 08A | Medio | Demo + un contest PUBLIC |
 | **08D** | Adaptador `FotorankPublicMarathonSource` | clickaton | 08B/C | Medio | Toggle env; fallback local |
