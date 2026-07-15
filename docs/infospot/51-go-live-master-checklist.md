@@ -9,12 +9,13 @@
 | Decisión actual | Valor |
 |-----------------|--------|
 | Alias Vercel operativo | **GO técnico** · `https://infospot-dnxsuite.vercel.app` |
-| Dominio propio `infospot.com.ar` | **NO-GO** hasta checklist día D |
-| Launch Readiness (pre-DNS) | **~96%** |
+| Dominio propio `infospot.com.ar` | DNS/health OK · **anuncio público NO-GO** hasta checklist día D + contenido |
+| Launch Readiness | **~96%** ops · contenido Día 1 **bloqueante** |
 | Multimedia R2 | **COMPLETE** · `VERIFIED_WORKING` ([doc 50](./50-multimedia-production-gate.md)) |
-| Home adaptativa (22S/22T) | **Production** sirve `06a8701` · QA Preview auth OK · [doc 61](./61-adaptive-home-production-validation.md) |
-| Roles editoriales + Día 1 (22U) | Roles **PASS** · contenido **`COMPLETE_PENDING_REAL_CONTENT`** · [doc 62](./62-editorial-roles-and-day-one-content-gate.md) |
-| Production commit | **`06a8701`** · deploy observado `dpl_5YhNoZC3…` · Ready · health `db:ok` |
+| Home adaptativa (22S/22T) | Validada · [doc 61](./61-adaptive-home-production-validation.md) |
+| Roles editoriales (22U) | **PASS** · [doc 62](./62-editorial-roles-and-day-one-content-gate.md) |
+| OAuth humano + Día 1 (22V) | OAuth **PENDING_HUMAN** (host dominio) · **`COMPLETE_PENDING_REAL_CONTENT`** · [doc 63](./63-oauth-human-and-day-one-content-readiness.md) |
+| Production commit | **`ef63026`** (health) · Ready · `db:ok` |
 
 Referencias: [`42-production-go-live.md`](./42-production-go-live.md) · [`43-launch-readiness.md`](./43-launch-readiness.md) · [`44-editorial-operations-manual.md`](./44-editorial-operations-manual.md) · [`45-production-services-readiness.md`](./45-production-services-readiness.md) · [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)
 
