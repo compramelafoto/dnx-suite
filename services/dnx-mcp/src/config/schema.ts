@@ -33,8 +33,16 @@ export const envSchema = z.object({
   CLOUDFLARE_API_TOKEN: z.string().optional(),
   CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
 
-  // Mercado Pago
+  // Mercado Pago — sandbox Split only (nunca Production / APP_USR-)
+  /** @deprecated Prefer MERCADOPAGO_TEST_ACCESS_TOKEN for Split sandbox. */
   MERCADOPAGO_ACCESS_TOKEN: z.string().optional(),
+  MERCADOPAGO_TEST_ACCESS_TOKEN: z.string().optional(),
+  MERCADOPAGO_TEST_PUBLIC_KEY: z.string().optional(),
+  MERCADOPAGO_TEST_OWNER_USER_ID: z.string().optional(),
+  MERCADOPAGO_TEST_PARTNER_EMAIL: z.string().optional(),
+  MERCADOPAGO_TEST_DEVICE_ID: z.string().optional(),
+  /** Ephemeral card token from MercadoPago.js — never log. */
+  MERCADOPAGO_TEST_PAYMENT_TOKEN: z.string().optional(),
 
   // Cloudflare R2
   R2_ACCOUNT_ID: z.string().optional(),

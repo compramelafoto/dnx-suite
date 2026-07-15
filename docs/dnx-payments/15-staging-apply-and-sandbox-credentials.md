@@ -83,7 +83,16 @@ pnpm --filter @repo/payments smoke:persistence-staging -- --confirm --cleanup
 5. **Nunca** enviar PAN/CVV al backend.
 6. Si falta: `BLOCKED_BY_TEST_PAYMENT_TOKEN`.
 
-### 7. Preflight
+### 7. Configurar MCP DNX (Mercado Pago)
+
+Las tools viven en **DNX MCP** (`mp_split_*`), no en un servidor MCP aparte de Mercado Pago.
+
+1. Editar `services/dnx-mcp/.env.local` con las vars `MERCADOPAGO_TEST_*` (ver `.env.example`).
+2. Reiniciar el MCP **DNX MCP** en Cursor.
+3. Llamar `mp_split_preflight_status` con `dryRun: true`.
+4. Cuando status = `READY`, usar tools de consent/order con `confirm: true`.
+
+### 8. Preflight CLI (alternativa)
 
 ```bash
 pnpm --filter @repo/payments smoke:mp-split-sandbox -- --dry-run

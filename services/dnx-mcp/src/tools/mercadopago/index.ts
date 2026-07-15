@@ -28,22 +28,63 @@ import {
 /** Process-local sandbox persistence for MCP read/reconcile dry-runs (not Production). */
 const mcpSandboxPersistence = createInMemoryDnxPaymentsPersistence();
 
-function tokenMeta() {
+function resolveSandboxAccessToken(): string {
   const env = loadEnv();
-  const token = env.MERCADOPAGO_ACCESS_TOKEN?.trim() ?? "";
+  return (
+    env.MERCADOPAGO_TEST_ACCESS_TOKEN?.trim() ||
+    env.MERCADOPAGO_ACCESS_TOKEN?.trim() ||
+    ""
+  );
+}
+
+function sandboxCredentialPresence() {
+  const env = loadEnv();
+  const token = resolveSandboxAccessToken();
   return {
-    present: token.length > 0,
-    isTestPrefix: token.length > 0 ? isTestAccessToken(token) : false,
-    length: token.length,
+    accessToken: {
+      present: token.length > 0,
+      isTestPrefix: token.length > 0 ? isTestAccessToken(token) : false,
+      isProductionPrefixed: token.startsWith("APP_USR-"),
+      source: env.MERCADOPAGO_TEST_ACCESS_TOKEN?.trim()
+        ? "MERCADOPAGO_TEST_ACCESS_TOKEN"
+        : env.MERCADOPAGO_ACCESS_TOKEN?.trim()
+          ? "MERCADOPAGO_ACCESS_TOKEN"
+          : "missing",
+    },
+    publicKeyPresent: Boolean(env.MERCADOPAGO_TEST_PUBLIC_KEY?.trim()),
+    ownerUserIdPresent: Boolean(env.MERCADOPAGO_TEST_OWNER_USER_ID?.trim()),
+    partnerEmailPresent: Boolean(env.MERCADOPAGO_TEST_PARTNER_EMAIL?.trim()),
+    deviceIdPresent: Boolean(env.MERCADOPAGO_TEST_DEVICE_ID?.trim()),
+    paymentTokenPresent: Boolean(env.MERCADOPAGO_TEST_PAYMENT_TOKEN?.trim()),
+  };
+}
+
+function tokenMeta() {
+  const creds = sandboxCredentialPresence();
+  return {
+    present: creds.accessToken.present,
+    isTestPrefix: creds.accessToken.isTestPrefix,
+    source: creds.accessToken.source,
+    credentials: {
+      publicKeyPresent: creds.publicKeyPresent,
+      ownerUserIdPresent: creds.ownerUserIdPresent,
+      partnerEmailPresent: creds.partnerEmailPresent,
+      deviceIdPresent: creds.deviceIdPresent,
+      paymentTokenPresent: creds.paymentTokenPresent,
+    },
   };
 }
 
 function requireSandboxHttp() {
-  const env = loadEnv();
-  const token = env.MERCADOPAGO_ACCESS_TOKEN?.trim() ?? "";
+  const token = resolveSandboxAccessToken();
   if (!token || !isTestAccessToken(token)) {
     throw new MercadoPagoProductionWriteBlockedError(
-      "MERCADOPAGO_ACCESS_TOKEN must be present and TEST- prefixed for MCP sandbox tools",
+      "MERCADOPAGO_TEST_ACCESS_TOKEN (or MERCADOPAGO_ACCESS_TOKEN) must be present and TEST- prefixed for MCP sandbox tools",
+    );
+  }
+  if (token.startsWith("APP_USR-")) {
+    throw new MercadoPagoProductionWriteBlockedError(
+      "APP_USR- tokens are rejected for MCP Mercado Pago sandbox tools",
     );
   }
   const config = createMercadoPagoProviderConfig({
@@ -612,9 +653,11 @@ export function registerMercadoPagoTools(server: McpServer): void {
         .parse(input);
       const env = loadEnv();
       const result = runSandboxPreflight({
-        accessToken: env.MERCADOPAGO_ACCESS_TOKEN,
-        ownerUserId: process.env.MERCADOPAGO_TEST_OWNER_USER_ID,
-        partnerEmail: process.env.MERCADOPAGO_TEST_PARTNER_EMAIL,
+        accessToken: resolveSandboxAccessToken(),
+        ownerUserId: env.MERCADOPAGO_TEST_OWNER_USER_ID,
+        partnerEmail: env.MERCADOPAGO_TEST_PARTNER_EMAIL,
+        paymentToken: env.MERCADOPAGO_TEST_PAYMENT_TOKEN,
+        deviceId: env.MERCADOPAGO_TEST_DEVICE_ID,
         environment: "sandbox",
         dryRun: parsed.dryRun,
         confirm: Boolean(parsed.confirm),
@@ -631,6 +674,7 @@ export function registerMercadoPagoTools(server: McpServer): void {
             status: result.status,
             checks: result.checks,
             hints: result.hints,
+            credentialPresence: sandboxCredentialPresence(),
             productionWritesAllowed: false,
           }),
       );
