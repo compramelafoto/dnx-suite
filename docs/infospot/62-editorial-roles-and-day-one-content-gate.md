@@ -15,16 +15,17 @@ No incluye emails, IDs personales, tokens, cookies ni URLs de base de datos.
 
 | Gate | Código |
 |------|--------|
-| Roles / sesión / permisos (ops) | **PASS** (con OAuth browser humano pendiente) |
-| Contenido Día 1 (borradores reales) | **`COMPLETE_PENDING_REAL_CONTENT`** |
-| Objetivo declarado `READY_FOR_DOMAIN_GO_LIVE` | **Parcial** — ops listo; contenido futuro insuficiente |
-| Dominio `infospot.com.ar` | **NO-GO** (intencional) |
+| Roles / sesión / permisos (ops) | **PASS** (22U) |
+| OAuth humano (22V) | **PENDING_HUMAN** — ver [63](./63-oauth-human-and-day-one-content-readiness.md); no usar alias |
+| Contenido Día 1 (borradores reales) | **`COMPLETE_PENDING_REAL_CONTENT`** (reconfirmado 22V) |
+| Objetivo declarado `READY_FOR_DOMAIN_GO_LIVE` | **NO** — contenido futuro PUBLIC = 0 |
+| Dominio anuncio público | **NO-GO** |
 
 ```text
 COMPLETE_PENDING_REAL_CONTENT
 ```
 
-Motivo contenido: en Production hay **0** eventos futuros; en CLF readonly del entorno local hay **0** eventos públicos futuros con `shareSlug`. No se inventaron piezas ni se publicaron DEMO.
+Motivo contenido (22U + 22V): Production **0** eventos futuros; CLF prod **0** PUBLIC futuros con `shareSlug` (hay **1** futuro no público — no importable). No se inventaron piezas ni se publicaron DEMO.
 
 ---
 
