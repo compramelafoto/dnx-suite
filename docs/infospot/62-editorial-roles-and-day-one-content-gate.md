@@ -16,16 +16,17 @@ No incluye emails, IDs personales, tokens, cookies ni URLs de base de datos.
 | Gate | Código |
 |------|--------|
 | Roles / sesión / permisos (ops) | **PASS** (22U) |
-| OAuth humano (22V) | **PENDING_HUMAN** — ver [63](./63-oauth-human-and-day-one-content-readiness.md); no usar alias |
-| Contenido Día 1 (borradores reales) | **`COMPLETE_PENDING_REAL_CONTENT`** (reconfirmado 22V) |
-| Objetivo declarado `READY_FOR_DOMAIN_GO_LIVE` | **NO** — contenido futuro PUBLIC = 0 |
+| OAuth humano (22V/22W) | **PENDING_HUMAN** — iniciar en `https://infospot.com.ar/ingresar` · [63](./63-oauth-human-and-day-one-content-readiness.md) · [64](./64-domain-oauth-and-minimum-launch-content.md) |
+| Contenido Día 1 | **`BLOCKED_BY_CONTENT_SOURCE`** (0 eventos PUBLIC futuros; drafts incompletos) |
+| Migración focal (22W) | **Aplicada** en Production (`SAFE_ADDITIVE`) |
+| Objetivo `READY_FOR_DOMAIN_GO_LIVE` | **NO** |
 | Dominio anuncio público | **NO-GO** |
 
 ```text
-COMPLETE_PENDING_REAL_CONTENT
+BLOCKED_BY_CONTENT_SOURCE
 ```
 
-Motivo contenido (22U + 22V): Production **0** eventos futuros; CLF prod **0** PUBLIC futuros con `shareSlug` (hay **1** futuro no público — no importable). No se inventaron piezas ni se publicaron DEMO.
+Motivo (22W): CLF prod sigue con **0** PUBLIC futuros + slug; no se inventaron eventos. DNS/SSL/canónicos de dominio **OK**; migrate focal aplicada.
 
 ---
 

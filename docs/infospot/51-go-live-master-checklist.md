@@ -14,8 +14,9 @@
 | Multimedia R2 | **COMPLETE** · `VERIFIED_WORKING` ([doc 50](./50-multimedia-production-gate.md)) |
 | Home adaptativa (22S/22T) | Validada · [doc 61](./61-adaptive-home-production-validation.md) |
 | Roles editoriales (22U) | **PASS** · [doc 62](./62-editorial-roles-and-day-one-content-gate.md) |
-| OAuth humano + Día 1 (22V) | OAuth **PENDING_HUMAN** (host dominio) · **`COMPLETE_PENDING_REAL_CONTENT`** · [doc 63](./63-oauth-human-and-day-one-content-readiness.md) |
-| Production commit | **`ef63026`** (health) · Ready · `db:ok` |
+| OAuth humano + Día 1 (22V) | Diagnóstico host · [doc 63](./63-oauth-human-and-day-one-content-readiness.md) |
+| Dominio + migración focal (22W) | DNS/SSL **GO** · migrate focal **applied** · OAuth humano **PENDING** · contenido **`BLOCKED_BY_CONTENT_SOURCE`** · [doc 64](./64-domain-oauth-and-minimum-launch-content.md) |
+| Production commit | **`ef63026`** (health) · Ready · `db:ok` · schema **up to date** |
 
 Referencias: [`42-production-go-live.md`](./42-production-go-live.md) · [`43-launch-readiness.md`](./43-launch-readiness.md) · [`44-editorial-operations-manual.md`](./44-editorial-operations-manual.md) · [`45-production-services-readiness.md`](./45-production-services-readiness.md) · [`50-multimedia-production-gate.md`](./50-multimedia-production-gate.md)
 

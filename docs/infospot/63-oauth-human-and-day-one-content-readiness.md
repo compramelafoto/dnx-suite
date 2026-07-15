@@ -6,7 +6,8 @@
 **Production health:** `db:ok` · `version=ef63026` (posterior a `db5987d`)  
 **Deploy Production observado:** `dpl_H2rbr7k…` (Ready)  
 **Dominio anuncio público:** **NO-GO**  
-**Estado etapa:**
+**Actualización 22W:** DNS/SSL OK · migrate focal **aplicada** · OAuth humano sigue PENDING · contenido `BLOCKED_BY_CONTENT_SOURCE` — ver [64](./64-domain-oauth-and-minimum-launch-content.md).  
+**Estado etapa (cierre 22V):**
 
 ```text
 COMPLETE_PENDING_REAL_CONTENT
@@ -14,7 +15,7 @@ COMPLETE_PENDING_REAL_CONTENT
 
 No incluye emails, cookies, tokens, secretos ni URLs de DB.
 
-Relacionado: [62](./62-editorial-roles-and-day-one-content-gate.md) · [51](./51-go-live-master-checklist.md)
+Relacionado: [62](./62-editorial-roles-and-day-one-content-gate.md) · [51](./51-go-live-master-checklist.md) · [64](./64-domain-oauth-and-minimum-launch-content.md)
 
 ---
 
@@ -26,7 +27,7 @@ Relacionado: [62](./62-editorial-roles-and-day-one-content-gate.md) · [51](./51
 | Working tree Info Spot | Limpio (docs 22V) |
 | Cambio ajeno preservado | `apps/compramelafoto/.gitignore` (+ docs clickaton ajenos — **no mezclar**) |
 | Health alias / dominio apex | `db:ok` |
-| Schema Production | **1 migración pendiente** `20260714120000_infospot_editorial_cover_focal` — **no aplicada** en 22V |
+| Schema Production | **up to date** (focal aplicada en 22W — [64](./64-domain-oauth-and-minimum-launch-content.md)); en 22V estaba pendiente `20260714120000_infospot_editorial_cover_focal` |
 | Noticias DRAFT / PUBLISHED | **4** / **0** |
 | Eventos futuros Info Spot | **0** |
 | Eventos DRAFT históricos | 41 |
