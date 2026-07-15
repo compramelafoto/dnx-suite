@@ -3,7 +3,7 @@
  * Fuente única de verdad para métricas públicas agregadas.
  */
 import { prisma } from "@/lib/prisma";
-import { excludeTestOrderWhere, excludeTestPreCompraOrderWhere } from "@/lib/reporting/exclude-test-rows";
+import { excludeTestOrderWhere } from "@/lib/reporting/exclude-test-rows";
 import { getPhotosUploadedTotal } from "@/lib/platform-metrics";
 
 /** Fecha de inicio de la plataforma: 24 de febrero de 2026 */
@@ -40,8 +40,9 @@ export async function getPlatformLandingStats(): Promise<PlatformLandingStats> {
         where: { ...excludeTestOrderWhere, status: "PAID" },
         _sum: { totalCents: true },
       }),
+      // Staging aún no tiene PreCompraOrder.isTest (drift vs schema). Filtrar solo por status.
       prisma.preCompraOrder.aggregate({
-        where: { ...excludeTestPreCompraOrderWhere, status: "PAID_HELD" },
+        where: { status: "PAID_HELD" },
         _sum: { totalCents: true },
       }),
     ]);
