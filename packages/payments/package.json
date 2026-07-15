@@ -1,0 +1,30 @@
+{
+  "name": "@repo/payments",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DNX Payments domain contracts, money, distribution and ledger rules (no PSP integration yet).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./money": "./src/money/index.ts",
+    "./distribution": "./src/distribution/index.ts",
+    "./ledger": "./src/ledger/index.ts",
+    "./contracts": "./src/contracts/index.ts",
+    "./providers": "./src/providers/index.ts",
+    "./events": "./src/events/index.ts",
+    "./core": "./src/core/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit -p tsconfig.json",
+    "test": "node --import tsx --test src/__tests__/*.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.2",
+    "typescript": "5.9.2"
+  }
+}
