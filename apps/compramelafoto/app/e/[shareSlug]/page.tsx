@@ -16,6 +16,7 @@ import {
   normalizedPricingFromEventDb,
 } from "@/lib/event-photo-pricing";
 import Link from "next/link";
+import { canAccessEventByShareSlug } from "@/lib/public/public-events";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   PUBLIC_SESSION: "Sesión pública",
@@ -95,7 +96,7 @@ export default async function PublicEventPage({
       invitedPhotographers: { select: { userId: true } },
     },
   });
-  if (!event) return notFound();
+  if (!event || !canAccessEventByShareSlug(event)) return notFound();
 
   await ensureEventAlbumTitles(event.id, event.title);
 

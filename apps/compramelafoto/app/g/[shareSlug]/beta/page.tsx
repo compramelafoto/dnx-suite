@@ -24,6 +24,7 @@ import GalleryMediaTypeBadges from "@/components/gallery/GalleryMediaTypeBadges"
 import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
 import { listPublicReadyVideosForEvent } from "@/lib/videos/public-event-videos";
 import { resolveEventPublicVideoAccessContext } from "@/lib/videos/public-event-video-access";
+import { canAccessEventByShareSlug } from "@/lib/public/public-events";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -44,9 +45,17 @@ export default async function EventGalleryPublicBetaPage({
 
   const event = await prisma.event.findUnique({
     where: { shareSlug },
-    select: { id: true, creatorId: true, title: true, city: true, coverImageKey: true },
+    select: {
+      id: true,
+      creatorId: true,
+      title: true,
+      city: true,
+      coverImageKey: true,
+      visibility: true,
+      archivedAt: true,
+    },
   });
-  if (!event) return notFound();
+  if (!event || !canAccessEventByShareSlug(event)) return notFound();
 
   const activeFolders = await prisma.eventFolder.findMany({
     where: {
