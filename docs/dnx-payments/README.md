@@ -14,10 +14,12 @@ Módulo transversal de cobros, distribución, ledger y liquidación para product
 | [11-orders-sandbox-safety-and-idempotency.md](./11-orders-sandbox-safety-and-idempotency.md) | Safety + idempotency |
 | [13-prisma-persistence.md](./13-prisma-persistence.md) | Persistencia Prisma core |
 | [14-smoke-sandbox.md](./14-smoke-sandbox.md) | Smoke sandbox + preflight CLI |
+| [15-staging-apply-and-sandbox-credentials.md](./15-staging-apply-and-sandbox-credentials.md) | Apply staging + guía TEST |
 
 Código: `packages/payments` (`@repo/payments`).
 
 **Etapa 03:** adapter Mercado Pago Orders/Consent **sandbox-only**.  
 **Etapa 04:** persistencia Prisma core + CLI preflight/smoke.  
-**Bloque A smoke real:** `BLOCKED_BY_SANDBOX_CREDENTIALS` hasta tener vars TEST.  
-**No:** cutover CLF, refunds reales, production writes.
+**Etapa 05:** migración payments aplicada en staging (`ep-round-fog`); smoke persistente; guía credenciales TEST.  
+**Bloque A smoke real MP:** sigue `BLOCKED_BY_SANDBOX_CREDENTIALS` hasta vars TEST.  
+**No:** cutover CLF, refunds reales, production writes, migrate deploy Production.
