@@ -197,6 +197,8 @@ model User {
   dnxInvitationsAccepted               DnxAppInvitation[]           @relation("DnxAppInvitationAcceptedBy")
   /// Capacidades públicas multi-perfil (CUSTOMER / PHOTOGRAPHER / ORGANIZER). No editorial.
   dnxPublicProfiles                    DnxUserProfile[]
+  /// Beneficiarios DNX Payments vinculados a este usuario (opcional).
+  dnxPaymentRecipients                 DnxPaymentRecipient[]
   /// Preferencias de Info Spot (onboarding, ubicación, notificaciones). No permisos.
   infoSpotPreferences                  InfoSpotUserPreferences?
   contestOrganizationsCreated           ContestOrganization[]        @relation("FrOrgCreator")
@@ -7345,3 +7347,374 @@ enum FotorankDiplomaIssuedStatus {
   REPLACED
 }
 
+// =============================================================================
+// DNX Payments — core persistence (Etapa 04)
+// Sandbox-ready domain tables. No CLF cutover. No payouts/settlements/refunds.
+// =============================================================================
+
+enum DnxPaymentRecipientType {
+  PLATFORM
+  PHOTOGRAPHER
+  ORGANIZER
+  LAB
+  INFOSPOT_EDITOR
+  REFERRAL
+  AMBASSADOR
+  DELEGATE
+  SPONSOR
+  AFFILIATE
+  OTHER
+}
+
+enum DnxPaymentRecipientStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum DnxPaymentProvider {
+  MERCADOPAGO
+  MERCADOPAGO_PREFERENCES_LEGACY
+  STRIPE
+  PAYPAL
+  TRANSFER
+  MANUAL
+  OTHER
+}
+
+enum DnxPaymentEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+enum DnxProviderRecipientAccountStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  REVOKED
+}
+
+enum DnxSplitConsentStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  CANCELED
+  EXPIRED
+}
+
+enum DnxSplitConsentSource {
+  SMOKE
+  MCP
+  APPLICATION
+  MANUAL
+  IMPORT
+}
+
+enum DnxPaymentIntentStatus {
+  DRAFT
+  READY
+  SUBMITTED
+  SUCCEEDED
+  FAILED
+  CANCELED
+  EXPIRED
+}
+
+enum DnxPaymentOrderStatus {
+  CREATED
+  AWAITING_PROVIDER
+  AUTHORIZED
+  CAPTURED
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  CHARGED_BACK
+  FAILED
+  CANCELED
+}
+
+enum DnxProviderOrderMappedStatus {
+  PENDING
+  OPEN
+  PROCESSED
+  REFUNDED
+  CHARGED_BACK
+  FAILED
+  CANCELED
+  UNKNOWN
+}
+
+enum DnxProviderSplitReceiverType {
+  OWNER
+  PARTNER
+}
+
+enum DnxProviderSplitStatus {
+  PLANNED
+  SUBMITTED
+  CONFIRMED
+  FAILED
+}
+
+enum DnxPaymentIdempotencyStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CONFLICT
+}
+
+enum DnxPaymentWebhookProcessingStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+  DEAD_LETTER
+}
+
+enum DnxPaymentAuditActorType {
+  SYSTEM
+  USER
+  PROVIDER
+  OPS
+}
+
+enum DnxPaymentAuditResult {
+  SUCCEEDED
+  FAILED
+  DENIED
+  SKIPPED
+}
+
+/// Beneficiario interno DNX Payments (sin secretos ni % por defecto).
+model DnxPaymentRecipient {
+  id                String                    @id @default(cuid())
+  userId            Int?
+  recipientType     DnxPaymentRecipientType
+  status            DnxPaymentRecipientStatus @default(ACTIVE)
+  displayReference  String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  user                       User?                         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  providerAccounts           DnxProviderRecipientAccount[]
+  splitConsents              DnxSplitConsent[]
+  ownedPaymentOrders         DnxPaymentOrder[]             @relation("PaymentOrderOwner")
+  providerSplits             DnxProviderSplit[]
+
+  @@index([userId])
+  @@index([recipientType, status])
+}
+
+/// Identidad del recipient en un PSP (environment obligatorio).
+model DnxProviderRecipientAccount {
+  id                        String                             @id @default(cuid())
+  recipientId               String
+  provider                  DnxPaymentProvider
+  environment               DnxPaymentEnvironment
+  providerAccountReference  String
+  providerOwnerEligible     Boolean                            @default(false)
+  status                    DnxProviderRecipientAccountStatus  @default(PENDING)
+  metadataSanitized         Json?
+  createdAt                 DateTime                           @default(now())
+  updatedAt                 DateTime                           @updatedAt
+
+  recipient DnxPaymentRecipient @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+
+  @@unique([recipientId, provider, environment, providerAccountReference])
+  @@index([provider, environment, providerAccountReference])
+  @@index([recipientId])
+}
+
+/// Consentimiento Split (receiver_id ≠ email). Cancelación no borra.
+model DnxSplitConsent {
+  id                               String                 @id @default(cuid())
+  provider                         DnxPaymentProvider
+  environment                      DnxPaymentEnvironment
+  primaryProviderAccountReference  String
+  providerReceiverId               String?
+  recipientId                      String?
+  status                           DnxSplitConsentStatus  @default(PENDING)
+  invitationReference              String?
+  providerCreatedAt                DateTime?
+  providerUpdatedAt                DateTime?
+  lastCheckedAt                    DateTime?
+  source                           DnxSplitConsentSource  @default(APPLICATION)
+  createdAt                        DateTime               @default(now())
+  updatedAt                        DateTime               @updatedAt
+
+  recipient DnxPaymentRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, environment, providerReceiverId])
+  @@index([provider, environment, status])
+  @@index([recipientId])
+  @@index([primaryProviderAccountReference, environment])
+}
+
+/// Intención de cobro (externalReference opaca para Payments).
+model DnxPaymentIntent {
+  id                  String                 @id @default(cuid())
+  sourceProduct       String
+  externalReference   String
+  currency            String
+  totalMinor          BigInt
+  status              DnxPaymentIntentStatus @default(DRAFT)
+  distributionSnapshot Json?
+  providerPreference  String?
+  environment         DnxPaymentEnvironment
+  isTestFixture       Boolean                @default(false)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  paymentOrders DnxPaymentOrder[]
+
+  @@unique([sourceProduct, externalReference])
+  @@index([status])
+  @@index([environment, isTestFixture])
+}
+
+/// Orden interna (no confundir con DnxProviderOrder).
+model DnxPaymentOrder {
+  id                   String                @id @default(cuid())
+  paymentIntentId      String
+  provider             DnxPaymentProvider
+  environment          DnxPaymentEnvironment
+  status               DnxPaymentOrderStatus @default(CREATED)
+  amountMinor          BigInt
+  currency             String
+  ownerRecipientId     String
+  distributionSnapshot Json?
+  idempotencyRecordId  String?               @unique
+  isTestFixture        Boolean               @default(false)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  paymentIntent     DnxPaymentIntent             @relation(fields: [paymentIntentId], references: [id], onDelete: Restrict)
+  ownerRecipient    DnxPaymentRecipient          @relation("PaymentOrderOwner", fields: [ownerRecipientId], references: [id], onDelete: Restrict)
+  idempotencyRecord DnxPaymentIdempotencyRecord? @relation(fields: [idempotencyRecordId], references: [id], onDelete: SetNull)
+  providerOrders    DnxProviderOrder[]
+
+  @@index([paymentIntentId])
+  @@index([provider, environment, status])
+  @@index([ownerRecipientId])
+}
+
+/// Orden en el PSP (providerOrderId único por env).
+model DnxProviderOrder {
+  id                     String                       @id @default(cuid())
+  paymentOrderId         String
+  provider               DnxPaymentProvider
+  environment            DnxPaymentEnvironment
+  providerOrderId        String
+  providerStatus         String?
+  providerStatusDetail   String?
+  mappedStatus           DnxProviderOrderMappedStatus @default(PENDING)
+  totalMinor             BigInt
+  currency               String
+  rawResponseSanitized   Json?
+  lastFetchedAt          DateTime?
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+
+  paymentOrder DnxPaymentOrder   @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
+  splits       DnxProviderSplit[]
+
+  @@unique([provider, environment, providerOrderId])
+  @@index([paymentOrderId])
+  @@index([mappedStatus])
+}
+
+/// Snapshot inmutable de splits de una provider order.
+model DnxProviderSplit {
+  id                         String                      @id @default(cuid())
+  providerOrderId            String
+  recipientId                String
+  providerReceiverReference  String
+  receiverType               DnxProviderSplitReceiverType
+  amountMinor                BigInt?
+  percentageBps              Int?
+  currency                   String
+  description                String?
+  status                     DnxProviderSplitStatus      @default(PLANNED)
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+
+  providerOrder DnxProviderOrder    @relation(fields: [providerOrderId], references: [id], onDelete: Restrict)
+  recipient     DnxPaymentRecipient @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+
+  @@index([providerOrderId])
+  @@index([recipientId])
+  @@unique([providerOrderId, receiverType, providerReceiverReference])
+}
+
+/// Idempotencia persistente (nunca borrar para reutilizar key).
+model DnxPaymentIdempotencyRecord {
+  id                 String                      @id @default(cuid())
+  operation          String
+  aggregateType      String?
+  aggregateId        String?
+  provider           DnxPaymentProvider
+  environment        DnxPaymentEnvironment
+  idempotencyKey     String
+  payloadHash        String
+  status             DnxPaymentIdempotencyStatus @default(PROCESSING)
+  providerReference  String?
+  responseHash       String?
+  lockedAt           DateTime?
+  succeededAt        DateTime?
+  failedAt           DateTime?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  paymentOrder DnxPaymentOrder?
+
+  @@unique([provider, environment, idempotencyKey])
+  @@index([status])
+  @@index([aggregateType, aggregateId])
+}
+
+/// Inbox append-oriented de webhooks (sin endpoint productivo aún).
+model DnxPaymentWebhookInbox {
+  id                  String                            @id @default(cuid())
+  provider            DnxPaymentProvider
+  environment         DnxPaymentEnvironment
+  eventType           String
+  providerEventId     String?
+  providerResourceId  String?
+  headersHash         String?
+  rawBodyHash         String
+  payloadSanitized    Json?
+  receivedAt          DateTime                          @default(now())
+  processingStatus    DnxPaymentWebhookProcessingStatus @default(RECEIVED)
+  attempts            Int                               @default(0)
+  processedAt         DateTime?
+  errorCodeSanitized  String?
+  createdAt           DateTime                          @default(now())
+  updatedAt           DateTime                          @updatedAt
+
+  @@unique([provider, environment, providerEventId, providerResourceId])
+  @@index([processingStatus, receivedAt])
+  @@index([provider, environment, eventType])
+}
+
+/// Auditoría append-only sanitizada (sin update/delete desde servicios normales).
+model DnxPaymentAuditEvent {
+  id              String                   @id @default(cuid())
+  actorType       DnxPaymentAuditActorType
+  actorReference  String?
+  action          String
+  aggregateType   String
+  aggregateId     String
+  provider        DnxPaymentProvider?
+  environment     DnxPaymentEnvironment?
+  correlationId   String?
+  result          DnxPaymentAuditResult
+  errorCode       String?
+  metadata        Json?
+  createdAt       DateTime                 @default(now())
+
+  @@index([aggregateType, aggregateId])
+  @@index([correlationId])
+  @@index([provider, environment, createdAt])
+  @@index([action, createdAt])
+}

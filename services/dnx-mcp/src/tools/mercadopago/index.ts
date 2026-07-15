@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   buildMercadoPagoSplitOrderRequest,
   calculateDistribution,
+  createInMemoryDnxPaymentsPersistence,
   createMercadoPagoProviderConfig,
   isTestAccessToken,
   money,
@@ -10,6 +11,7 @@ import {
   MercadoPagoOrdersAdapter,
   MercadoPagoProductionWriteBlockedError,
   MercadoPagoSplitConsentAdapter,
+  runSandboxPreflight,
   validateSplitOrderForMercadoPago,
   type RecipientRole,
 } from "@repo/payments";
@@ -22,6 +24,9 @@ import {
   resolveExecutionGate,
   withAudit,
 } from "../shared/index.js";
+
+/** Process-local sandbox persistence for MCP read/reconcile dry-runs (not Production). */
+const mcpSandboxPersistence = createInMemoryDnxPaymentsPersistence();
 
 function tokenMeta() {
   const env = loadEnv();
@@ -584,6 +589,102 @@ export function registerMercadoPagoTools(server: McpServer): void {
           return jsonResult({
             providerOrderIdPrefix: created.providerOrderId.slice(0, 12),
             status: created.status,
+          });
+        },
+      );
+    },
+  );
+
+  server.registerTool(
+    "mp_split_preflight_status",
+    {
+      title: "MP Split sandbox preflight",
+      description: "Preflight estricto sandbox (sin secretos).",
+      inputSchema: {
+        dryRun: dryRunSchema,
+        confirm: confirmSchema.optional(),
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    },
+    async (input) => {
+      const parsed = z
+        .object({ dryRun: dryRunSchema, confirm: confirmSchema.optional() })
+        .parse(input);
+      const env = loadEnv();
+      const result = runSandboxPreflight({
+        accessToken: env.MERCADOPAGO_ACCESS_TOKEN,
+        ownerUserId: process.env.MERCADOPAGO_TEST_OWNER_USER_ID,
+        partnerEmail: process.env.MERCADOPAGO_TEST_PARTNER_EMAIL,
+        environment: "sandbox",
+        dryRun: parsed.dryRun,
+        confirm: Boolean(parsed.confirm),
+      });
+      return withAudit(
+        {
+          tool: "mp_split_preflight_status",
+          action: "preflight",
+          dryRun: parsed.dryRun,
+          confirmed: Boolean(parsed.confirm),
+        },
+        async () =>
+          jsonResult({
+            status: result.status,
+            checks: result.checks,
+            hints: result.hints,
+            productionWritesAllowed: false,
+          }),
+      );
+    },
+  );
+
+  server.registerTool(
+    "mp_split_persistence_reconcile_dry_run",
+    {
+      title: "Reconcile persisted sandbox order (dry-run)",
+      description:
+        "Compara providerOrderId vs persistencia local MCP (sin writes Production, sin secretos).",
+      inputSchema: {
+        providerOrderId: z.string().min(1),
+        dryRun: dryRunSchema,
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    },
+    async (input) => {
+      const parsed = z
+        .object({ providerOrderId: z.string().min(1), dryRun: dryRunSchema })
+        .parse(input);
+      return withAudit(
+        {
+          tool: "mp_split_persistence_reconcile_dry_run",
+          action: "reconcile",
+          dryRun: parsed.dryRun,
+          confirmed: false,
+        },
+        async () => {
+          const stored = await mcpSandboxPersistence.providerOrders.findByProviderOrderId(
+            "mercadopago",
+            "sandbox",
+            parsed.providerOrderId,
+          );
+          const splits = stored
+            ? await mcpSandboxPersistence.providerSplits.listByProviderOrderId(stored.id)
+            : [];
+          const auditEvents = stored
+            ? await mcpSandboxPersistence.audit.list({
+                aggregateType: "provider_order",
+                aggregateId: stored.id,
+              })
+            : [];
+          return jsonResult({
+            dryRun: true,
+            foundInPersistence: Boolean(stored),
+            mappedStatus: stored?.mappedStatus ?? null,
+            splitCount: splits.length,
+            ownerCount: splits.filter((s) => s.receiverType === "OWNER").length,
+            partnerCount: splits.filter((s) => s.receiverType === "PARTNER").length,
+            auditCount: auditEvents.length,
+            productionWritesAllowed: false,
+            note: "Persistencia MCP es in-memory de proceso; Prisma staging se consulta vía apps/ops con migrate deploy.",
           });
         },
       );

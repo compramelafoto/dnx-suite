@@ -34,3 +34,12 @@ export * from "./application/index.js";
 export type * from "./webhooks/index.js";
 export type * from "./audit/index.js";
 export type * from "./sdk/index.js";
+export {
+  runSandboxPreflight,
+  loadSandboxEnvFromProcess,
+} from "./sandbox/preflight.js";
+export type {
+  SandboxPreflightInput,
+  SandboxPreflightResult,
+  SandboxPreflightStatus,
+} from "./sandbox/preflight.js";

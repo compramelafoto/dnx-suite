@@ -12,9 +12,12 @@ Módulo transversal de cobros, distribución, ledger y liquidación para product
 | [09-mercado-pago-orders-sandbox-adapter.md](./09-mercado-pago-orders-sandbox-adapter.md) | Adapter Orders sandbox |
 | [10-split-consent-sandbox-flow.md](./10-split-consent-sandbox-flow.md) | Split Consent sandbox |
 | [11-orders-sandbox-safety-and-idempotency.md](./11-orders-sandbox-safety-and-idempotency.md) | Safety + idempotency |
-| [12-mcp-mercado-pago-sandbox-tools.md](./12-mcp-mercado-pago-sandbox-tools.md) | MCP tools |
+| [13-prisma-persistence.md](./13-prisma-persistence.md) | Persistencia Prisma core |
+| [14-smoke-sandbox.md](./14-smoke-sandbox.md) | Smoke sandbox + preflight CLI |
 
 Código: `packages/payments` (`@repo/payments`).
 
 **Etapa 03:** adapter Mercado Pago Orders/Consent **sandbox-only**.  
-**No:** Prisma DNX Payments, cutover CLF, refunds reales, production writes.
+**Etapa 04:** persistencia Prisma core + CLI preflight/smoke.  
+**Bloque A smoke real:** `BLOCKED_BY_SANDBOX_CREDENTIALS` hasta tener vars TEST.  
+**No:** cutover CLF, refunds reales, production writes.

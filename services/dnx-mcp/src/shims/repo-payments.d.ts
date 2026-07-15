@@ -89,4 +89,42 @@ declare module "@repo/payments" {
     headers: Record<string, string>;
     payloadHash: string;
   };
+
+  export type SandboxPreflightStatus =
+    | "READY"
+    | "MISSING_TEST_TOKEN"
+    | "INVALID_TEST_OWNER"
+    | "INVALID_TEST_PARTNER"
+    | "PRODUCTION_TOKEN_REJECTED"
+    | "CONFIRMATION_REQUIRED"
+    | "BLOCKED_BY_SANDBOX_CREDENTIALS";
+
+  export function runSandboxPreflight(input: unknown): {
+    status: SandboxPreflightStatus;
+    checks: Record<string, boolean>;
+    hints: string[];
+  };
+
+  export interface DnxPaymentsPersistence {
+    providerOrders: {
+      findByProviderOrderId(
+        provider: string,
+        environment: PaymentEnvironment,
+        providerOrderId: string,
+      ): Promise<{ id: string; mappedStatus?: string } | null>;
+    };
+    providerSplits: {
+      listByProviderOrderId(
+        providerOrderId: string,
+      ): Promise<Array<{ receiverType: string }>>;
+    };
+    audit: {
+      list(filter?: {
+        aggregateType?: string;
+        aggregateId?: string;
+      }): Promise<unknown[]>;
+    };
+  }
+
+  export function createInMemoryDnxPaymentsPersistence(): DnxPaymentsPersistence;
 }

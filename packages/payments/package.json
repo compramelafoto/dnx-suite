@@ -15,12 +15,16 @@
     "./providers": "./src/providers/index.ts",
     "./mercado-pago": "./src/providers/mercado-pago/index.ts",
     "./events": "./src/events/index.ts",
-    "./core": "./src/core/index.ts"
+    "./core": "./src/core/index.ts",
+    "./persistence": "./src/application/persistence/index.ts",
+    "./infrastructure/prisma": "./src/infrastructure/prisma/index.ts",
+    "./sandbox": "./src/sandbox/preflight.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
     "test": "node --import tsx --test 'src/**/*.test.ts'",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "smoke:mp-split-sandbox": "tsx src/cli/smoke-mp-split-sandbox.ts"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
