@@ -9,8 +9,12 @@ Módulo transversal de cobros, distribución, ledger y liquidación para product
 | [06-distribution-engine.md](./06-distribution-engine.md) | Motor de distribución |
 | [07-provider-abstraction.md](./07-provider-abstraction.md) | Capa de providers |
 | [08-domain-events.md](./08-domain-events.md) | Domain events |
+| [09-mercado-pago-orders-sandbox-adapter.md](./09-mercado-pago-orders-sandbox-adapter.md) | Adapter Orders sandbox |
+| [10-split-consent-sandbox-flow.md](./10-split-consent-sandbox-flow.md) | Split Consent sandbox |
+| [11-orders-sandbox-safety-and-idempotency.md](./11-orders-sandbox-safety-and-idempotency.md) | Safety + idempotency |
+| [12-mcp-mercado-pago-sandbox-tools.md](./12-mcp-mercado-pago-sandbox-tools.md) | MCP tools |
 
-Código de contratos y reglas puras: `packages/payments` (`@repo/payments`).
+Código: `packages/payments` (`@repo/payments`).
 
-**Etapa actual:** diseño de dominio (Etapa 02).  
-**No implementado aún:** Orders API Mercado Pago, Prisma, cutover de ComprameLaFoto.
+**Etapa 03:** adapter Mercado Pago Orders/Consent **sandbox-only**.  
+**No:** Prisma DNX Payments, cutover CLF, refunds reales, production writes.

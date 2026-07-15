@@ -5,7 +5,32 @@ export * from "./ledger/index.js";
 export * from "./core/index.js";
 export type * from "./events/index.js";
 export type * from "./providers/index.js";
-export { MERCADOPAGO_ORDERS_CAPABILITIES } from "./providers/index.js";
+export {
+  MERCADOPAGO_ORDERS_CAPABILITIES,
+  createMercadoPagoProviderConfig,
+  MercadoPagoHttpClient,
+  MercadoPagoSplitConsentAdapter,
+  MercadoPagoOrdersAdapter,
+  moneyToMercadoPagoAmount,
+  percentageBpsToMercadoPagoAmount,
+  validateSplitOrderForMercadoPago,
+  buildMercadoPagoSplitOrderRequest,
+  mapMercadoPagoOrderStatus,
+  parseMercadoPagoOrdersWebhook,
+  FakeMercadoPagoHttpClient,
+  isTestAccessToken,
+  assertSandboxWriteAllowed,
+  assertSandboxToken,
+} from "./providers/mercado-pago/index.js";
+export type {
+  MercadoPagoProviderConfig,
+  MercadoPagoEnvironment,
+  MercadoPagoOrdersAdapterOptions,
+  CreateSplitOrderInput,
+} from "./providers/mercado-pago/index.js";
+export * from "./errors/provider-errors.js";
+export * from "./idempotency/store.js";
+export * from "./application/index.js";
 export type * from "./webhooks/index.js";
 export type * from "./audit/index.js";
 export type * from "./sdk/index.js";

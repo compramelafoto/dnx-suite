@@ -188,10 +188,10 @@ export function calculateDistribution(input: CalculateDistributionInput): Calcul
       bpsMap.set(f.rule.recipientId, (bpsMap.get(f.rule.recipientId) ?? 0) + 1);
       rem -= 1;
     }
-    pctRules = pctRules.map((r) => ({
-      ...r,
-      percentageBps: bpsMap.get(r.recipientId) ?? r.percentageBps,
-    }));
+    pctRules = pctRules.map((r) => {
+      const nextBps = bpsMap.get(r.recipientId) ?? r.percentageBps;
+      return nextBps === undefined ? { ...r } : { ...r, percentageBps: nextBps };
+    });
   }
 
   if (optionalPolicy === "DROP_TO_PLATFORM" && dropped.length > 0) {

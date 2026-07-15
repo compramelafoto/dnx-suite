@@ -44,8 +44,10 @@ export function createLedgerEntry(input: CreateLedgerEntryInput): Readonly<Ledge
     causeId: input.causeId,
     purpose: input.purpose,
     postedAt: input.postedAt,
-    metadata: input.metadata ? { ...input.metadata } : undefined,
   };
+  if (input.metadata) {
+    entry.metadata = { ...input.metadata };
+  }
   Object.freeze(entry.legs);
   if (entry.metadata) Object.freeze(entry.metadata);
   return Object.freeze(entry);

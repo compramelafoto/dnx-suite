@@ -13,12 +13,13 @@
     "./ledger": "./src/ledger/index.ts",
     "./contracts": "./src/contracts/index.ts",
     "./providers": "./src/providers/index.ts",
+    "./mercado-pago": "./src/providers/mercado-pago/index.ts",
     "./events": "./src/events/index.ts",
     "./core": "./src/core/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test src/__tests__/*.test.ts",
+    "test": "node --import tsx --test 'src/**/*.test.ts'",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
