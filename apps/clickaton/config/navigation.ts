@@ -11,6 +11,8 @@ export const routes = {
   sponsors: "/sponsors",
   about: "/nosotros",
   contact: "/contacto",
+  /** Manual de marca público para sedes y diseñadores. */
+  brandManual: "/manualdemarca",
   designSystem: "/design-system",
   /** Ficha técnica de demostración — noindex, fuera del nav principal. */
   marathonDemo: "/maratones/demo",
@@ -44,6 +46,7 @@ export const footerNavigation: readonly NavItem[] = [
   { label: "Organizá una", href: routes.organize },
   { label: "Sponsors", href: routes.sponsors },
   { label: "Nosotros", href: routes.about },
+  { label: "Manual de marca", href: routes.brandManual },
   { label: "Contacto", href: routes.contact },
 ] as const;
 

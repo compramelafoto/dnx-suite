@@ -5,7 +5,7 @@ type WordmarkProps = {
   className?: string;
   /** `null` = marca estática, sin enlace. */
   href?: string | null;
-  /** `inverse` = logo mono para fondos oscuros (Manual). */
+  /** `inverse` = horizontal color para fondos oscuros (Manual). */
   tone?: "default" | "inverse";
   height?: number;
 };
@@ -13,7 +13,7 @@ type WordmarkProps = {
 /**
  * Marca Clickatón en chrome (header/footer).
  * Usa assets oficiales — no reconstrucción tipográfica.
- * En fondos oscuros (`inverse`) se usa el horizontal color (cámara + wordmark).
+ * En fondos oscuros (`inverse`) se usa el isologotipo color corregido.
  */
 export function Wordmark({
   className = "",

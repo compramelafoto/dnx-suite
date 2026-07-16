@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Wordmark } from "@/components/brand/Wordmark";
 import { Container } from "@/components/layout/Container";
 import { Divider } from "@/components/ui/Divider";
-import { footerNavigation } from "@/config/navigation";
+import { footerNavigation, routes } from "@/config/navigation";
 import { siteConfig } from "@/config/site";
 
 export function SiteFooter() {
@@ -44,7 +44,14 @@ export function SiteFooter() {
           © {year} {siteConfig.copyrightOwner}. Todos los derechos reservados.
         </p>
         <p className="ck-caption text-ck-text-muted">
-          Identidad visual — Design System V2
+          <Link
+            href={routes.brandManual}
+            className="underline-offset-4 transition-colors hover:text-ck-yellow hover:underline"
+          >
+            Manual de marca
+          </Link>
+          {" · "}
+          Identidad visual
         </p>
       </Container>
     </footer>
