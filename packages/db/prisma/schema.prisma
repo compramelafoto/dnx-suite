@@ -6647,6 +6647,19 @@ model FotorankContest {
   /// Canal de distribución pública (independiente de visibility).
   /// NULL = portal general FotoRank; no aparece en Clickatón.
   distributionChannel       FotorankDistributionChannel?
+  /// Inscripción pública (09B1): habilitación explícita. null/false = no operativa.
+  registrationEnabled          Boolean                            @default(false)
+  /// Modalidad económica explícita. null = no configurada (no inferir free por precio nulo).
+  registrationPricingMode      FotorankRegistrationPricingMode?
+  /// Precio en unidades mínimas enteras (centavos). Solo si PAID.
+  registrationPriceAmountMinor Int?
+  registrationCurrency         String?
+  registrationOpensAt          DateTime?
+  registrationClosesAt         DateTime?
+  /// Cupo de participantes. null = sin límite publicado.
+  registrationCapacity         Int?
+  /// Solo comunica disponibilidad futura de merch opcional (informativo). Sin catálogo ni cobro en 09B1.
+  hasOptionalMerchandise       Boolean                            @default(false)
   rulesText                 String?
   rulesData                 Json?
   startAt                   DateTime?
@@ -7135,6 +7148,11 @@ enum FotorankExperienceType {
 enum FotorankDistributionChannel {
   FOTORANK
   CLICKATON
+}
+
+enum FotorankRegistrationPricingMode {
+  FREE
+  PAID
 }
 
 enum FotorankJudgeAccountStatus {

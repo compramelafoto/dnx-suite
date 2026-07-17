@@ -1,7 +1,47 @@
 /**
  * Contratos públicos Clickaton ↔ FotoRank — inscripción y participante.
- * Solo tipos. Sin comportamiento, sin fetch, sin Identity/Payments.
+ * Etapa 09A operativa: precio visible + handoff. Sin cobros reales.
  */
+
+/** Modalidad económica del evento (explícita; no inferir por precio). */
+export type RegistrationPricingMode = "free" | "paid";
+
+/**
+ * Precio público. amountMinor = unidades mínimas enteras.
+ * formatted es solo presentación.
+ */
+export type PublicDisplayPrice = {
+  amountMinor: number;
+  currency: string;
+  formatted: string;
+};
+
+export type PublicRegistrationWindowStatus =
+  | "not_open"
+  | "open"
+  | "closed"
+  | "full"
+  | "cancelled"
+  | "finished"
+  | "unknown"
+  | string;
+
+/**
+ * Bloque público mínimo que Clickatón consume desde la Public API.
+ */
+export type PublicRegistrationSummary = {
+  mode: RegistrationPricingMode;
+  status: PublicRegistrationWindowStatus;
+  canRegister: boolean;
+  displayPrice: PublicDisplayPrice | null;
+  hasOptionalMerchandise: boolean;
+  registrationUrl: string | null;
+  checkoutUrl: string | null;
+  opensAt: string | null;
+  closesAt: string | null;
+  capacity: number | null;
+  remainingSpots: number | null;
+};
 
 export type RegistrationOfferMode =
   | "unavailable"
@@ -13,7 +53,6 @@ export type RegistrationOfferMode =
 
 /**
  * Oferta pública de inscripción para construir el bloque de CTA/caja.
- * No calcula precios ni integra Mercado Pago.
  */
 export type PublicRegistrationOffer = {
   marathonId: string;
@@ -22,14 +61,22 @@ export type PublicRegistrationOffer = {
   label: string;
   description?: string;
   requiresAuthentication: boolean;
+  /** @deprecated Preferir `pricingMode === "paid"`. */
   requiresPayment: boolean;
+  pricingMode: RegistrationPricingMode;
   currency?: string;
-  /** Monto base en unidades menores o decimales según acuerdo futuro; no calcular en Clickaton. */
-  basePrice?: number;
-  promotionalPrice?: number;
-  promotionEndsAt?: string;
+  basePrice?: number | null;
+  promotionalPrice?: number | null;
+  promotionStartsAt?: string | null;
+  promotionEndsAt?: string | null;
+  displayPrice?: PublicDisplayPrice | null;
   taxesIncluded?: boolean;
-  /** URL de inscripción (FotoRank / Identity). Opcional hasta integración. */
+  includes?: string[];
+  paymentDeadlineAt?: string | null;
+  cancellationPolicySummary?: string | null;
+  hasOptionalMerchandise: boolean;
+  checkoutUrl?: string | null;
+  /** @deprecated Preferir `checkoutUrl` / summary.registrationUrl. */
   registrationUrl?: string;
   disabledReason?: string;
   updatedAt: string;
@@ -45,6 +92,8 @@ export type EligibilityBlockedReasonCode =
   | "geo_restricted"
   | "requirements_pending"
   | "banned"
+  | "payment_pending"
+  | "payment_failed"
   | "other";
 
 export type EligibilityBlockedReason = {
@@ -52,10 +101,6 @@ export type EligibilityBlockedReason = {
   message: string;
 };
 
-/**
- * Elegibilidad dependiente del usuario autenticado.
- * No consultar usuario en esta etapa.
- */
 export type RegistrationEligibility = {
   marathonId: string;
   eligible: boolean;
@@ -68,13 +113,25 @@ export type RegistrationEligibility = {
   evaluatedAt: string;
 };
 
+export type ParticipantRegistrationStatus =
+  | "draft"
+  | "pending_payment"
+  | "confirmed"
+  | "cancelled"
+  | "expired"
+  | "waitlisted";
+
 export type RegistrationPaymentStatus =
   | "not_required"
   | "pending"
-  | "paid"
-  | "failed"
+  | "approved"
+  | "rejected"
+  | "cancelled"
   | "refunded"
-  | "cancelled";
+  | "partially_refunded"
+  | "expired"
+  | "paid"
+  | "failed";
 
 export type AccreditationStatus =
   | "not_started"
@@ -83,10 +140,7 @@ export type AccreditationStatus =
   | "no_show"
   | "cancelled";
 
-/**
- * Resumen de una inscripción existente (vista “mi inscripción”).
- * No genera QR; solo indica si está disponible.
- */
+
 export type ParticipantRegistrationSummary = {
   registrationId: string;
   marathonId: string;
@@ -94,9 +148,11 @@ export type ParticipantRegistrationSummary = {
   teamName?: string;
   categoryId: string;
   categoryName: string;
+  registrationStatus: ParticipantRegistrationStatus;
   paymentStatus: RegistrationPaymentStatus;
   accreditationStatus: AccreditationStatus;
   qrAvailable: boolean;
+  hasMerchandiseOrder?: boolean;
   createdAt: string;
   updatedAt?: string;
 };

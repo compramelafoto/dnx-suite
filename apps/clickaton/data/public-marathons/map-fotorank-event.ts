@@ -26,6 +26,35 @@ import type {
   PublicSponsor,
 } from "@/types/marathon";
 import type { PublicMarathonCapabilities } from "@/types/public";
+import type { PublicRegistrationSummary } from "@/types/public/registration";
+
+function mapRegistration(
+  registration:
+    | FotorankPublicEventV1["registration"]
+    | FotorankPublicEventListItemV1["registration"]
+    | undefined,
+): PublicRegistrationSummary | undefined {
+  if (!registration) return undefined;
+  return {
+    mode: registration.mode,
+    status: registration.status,
+    canRegister: registration.canRegister,
+    displayPrice: registration.displayPrice
+      ? {
+          amountMinor: registration.displayPrice.amountMinor,
+          currency: registration.displayPrice.currency,
+          formatted: registration.displayPrice.formatted,
+        }
+      : null,
+    hasOptionalMerchandise: registration.hasOptionalMerchandise,
+    registrationUrl: registration.registrationUrl,
+    checkoutUrl: registration.checkoutUrl,
+    opensAt: registration.opensAt,
+    closesAt: registration.closesAt,
+    capacity: registration.capacity,
+    remainingSpots: registration.remainingSpots,
+  };
+}
 
 /** Solo URLs públicas http(s). Relativas / privadas → omitidas (PhotoFrame fallback). */
 export function toPublicHttpUrl(url: string | null | undefined): string | undefined {
@@ -259,7 +288,13 @@ export function mapFotorankEventToPublicMarathon(
     timezone: event.schedule.timezone || "UTC",
     startAt,
     endAt,
-    registrationCloseAt: event.schedule.submissionDeadline ?? undefined,
+    registrationOpenAt: event.registration?.opensAt ?? undefined,
+    registrationCloseAt:
+      event.registration?.closesAt ??
+      event.schedule.submissionDeadline ??
+      undefined,
+    participantLimit: event.registration?.capacity ?? undefined,
+    registration: mapRegistration(event.registration),
     allowedDevices: [],
     coverImage: toPublicHttpUrl(event.coverImageUrl),
     galleryPreview: [],
@@ -325,7 +360,11 @@ export function mapFotorankEventListItemToPublicMarathon(
     timezone: "UTC",
     startAt,
     endAt,
-    registrationCloseAt: item.submissionDeadline ?? undefined,
+    registrationOpenAt: item.registration?.opensAt ?? undefined,
+    registrationCloseAt:
+      item.registration?.closesAt ?? item.submissionDeadline ?? undefined,
+    participantLimit: item.registration?.capacity ?? undefined,
+    registration: mapRegistration(item.registration),
     allowedDevices: [],
     coverImage: toPublicHttpUrl(item.coverImageUrl),
     galleryPreview: [],

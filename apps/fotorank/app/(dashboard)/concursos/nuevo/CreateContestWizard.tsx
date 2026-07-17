@@ -78,6 +78,16 @@ export type WizardData = {
   experienceType: "CONTEST" | "MARATHON";
   /** null = Solo FotoRank (no aparece en Clickatón). Requiere MARATHON para CLICKATON. */
   distributionChannel: "CLICKATON" | null;
+  /** Inscripción pública (Etapa 09A). Default deshabilitada. */
+  registrationEnabled: boolean;
+  registrationPricingMode: "FREE" | "PAID" | null;
+  /** Precio en unidades mínimas (string del input). */
+  registrationPriceAmountMinor: string;
+  registrationCurrency: string;
+  registrationOpensAt: string;
+  registrationClosesAt: string;
+  registrationCapacity: string;
+  hasOptionalMerchandise: boolean;
   categories: ContestCategoryInput[];
 };
 
@@ -96,6 +106,14 @@ const initialData: WizardData = {
   visibility: "PUBLIC",
   experienceType: "CONTEST",
   distributionChannel: null,
+  registrationEnabled: false,
+  registrationPricingMode: null,
+  registrationPriceAmountMinor: "",
+  registrationCurrency: "",
+  registrationOpensAt: "",
+  registrationClosesAt: "",
+  registrationCapacity: "",
+  hasOptionalMerchandise: false,
   categories: [{ name: "", slug: "", description: "", maxFiles: 1, sortOrder: 0 }],
 };
 
@@ -144,6 +162,35 @@ function mapWizardCategories(data: WizardData): ContestCategoryInput[] {
     }));
 }
 
+function parseOptionalPositiveInt(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const n = Number.parseInt(t, 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+function buildRegistrationPayload(data: WizardData) {
+  const enabled = Boolean(data.registrationEnabled);
+  const mode = enabled ? data.registrationPricingMode ?? "FREE" : null;
+  return {
+    registrationEnabled: enabled,
+    registrationPricingMode: mode,
+    registrationPriceAmountMinor:
+      enabled && mode === "PAID"
+        ? parseOptionalPositiveInt(data.registrationPriceAmountMinor)
+        : null,
+    registrationCurrency:
+      enabled && mode === "PAID" ? data.registrationCurrency.trim().toUpperCase() || null : null,
+    registrationOpensAt: enabled && data.registrationOpensAt ? data.registrationOpensAt : null,
+    registrationClosesAt: enabled && data.registrationClosesAt ? data.registrationClosesAt : null,
+    registrationCapacity: enabled
+      ? parseOptionalPositiveInt(data.registrationCapacity)
+      : null,
+    hasOptionalMerchandise: Boolean(data.hasOptionalMerchandise),
+  };
+}
+
 function buildUpdatePayload(data: WizardData): UpdateFotorankContestInput {
   return {
     title: data.title,
@@ -160,6 +207,7 @@ function buildUpdatePayload(data: WizardData): UpdateFotorankContestInput {
     visibility: data.visibility,
     experienceType: data.experienceType,
     distributionChannel: data.distributionChannel,
+    ...buildRegistrationPayload(data),
     categories: mapWizardCategories(data),
   };
 }
@@ -180,6 +228,7 @@ function buildCreatePayload(data: WizardData): CreateFotorankContestInput {
     visibility: "PUBLIC",
     experienceType: data.experienceType,
     distributionChannel: data.distributionChannel,
+    ...buildRegistrationPayload(data),
     categories: mapWizardCategories(data),
   };
 }

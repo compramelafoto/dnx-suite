@@ -39,13 +39,16 @@ export type FotorankPublicEventStatusV1 =
   | "archived";
 
 /**
- * Inscripción pública derivada de fechas existentes.
- * No implica que exista flujo de alta de participante.
+ * Inscripción pública derivada de fechas + config (Etapa 09A).
+ * Incluye cupo completo / cancelado / finalizado además de open/closed.
  */
 export type FotorankPublicRegistrationStatusV1 =
   | "not_open"
   | "open"
   | "closed"
+  | "full"
+  | "cancelled"
+  | "finished"
   | "unknown";
 
 /** Resultados públicos (sin payload de ranking en V1). */
@@ -74,30 +77,35 @@ export type FotorankPublicCapabilitiesV1 = {
 export type FotorankPublicRegistrationPricingModeV1 = "free" | "paid";
 
 /**
- * Precio público. `amount` en unidades mínimas enteras (centavos). Nunca float.
- * No incluye comisiones ni costos internos.
+ * Precio público. `amountMinor` en unidades mínimas enteras (centavos). Nunca float.
+ * `formatted` es solo presentación; la lógica usa amountMinor + currency.
  */
 export type FotorankPublicDisplayPriceV1 = {
-  amount: number;
+  amountMinor: number;
   currency: string;
+  formatted: string;
 };
 
 /**
  * Bloque público de inscripción para Clickatón / consumidores (Etapa 09A).
- * Extensión del evento; no expone órdenes, collector, stock admin ni liquidación.
- *
- * Hasta existir configuración administrativa persistida (09B), el serializer puede
- * omitir el campo o emitir un stub honesto (free, sin checkout, sin merch).
+ * No expone órdenes, collector, stock admin ni liquidación.
  */
 export type FotorankPublicRegistrationV1 = {
+  /** Modalidad económica (`pricingMode` en el spec; nombre estable: `mode`). */
   mode: FotorankPublicRegistrationPricingModeV1;
-  /** Alineado a `registrationStatus` del evento (ventana pública). */
   status: FotorankPublicRegistrationStatusV1;
   canRegister: boolean;
   displayPrice: FotorankPublicDisplayPriceV1 | null;
   hasOptionalMerchandise: boolean;
-  /** URL de handoff a inscripción/checkout en FotoRank. null hasta existir flujo. */
+  /** Inicio del flujo público en FotoRank (landing / login). */
+  registrationUrl: string | null;
+  /** Checkout real (09B). null en 09A. */
   checkoutUrl: string | null;
+  opensAt: string | null;
+  closesAt: string | null;
+  capacity: number | null;
+  /** Solo si el cupo es fiable; null si ilimitado o no publicado. */
+  remainingSpots: number | null;
 };
 
 /**

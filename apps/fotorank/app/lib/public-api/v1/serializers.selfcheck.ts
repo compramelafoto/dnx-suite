@@ -96,9 +96,12 @@ assert.equal(
 );
 assert.equal(event.jury.length, 1);
 assert.equal(event.jury[0]?.publicSlug, "ana-perez");
+assert.ok(event.registration);
+assert.equal(event.registration?.mode, "free");
+assert.equal(event.registration?.canRegister, false);
+assert.equal(event.registration?.checkoutUrl, null);
 assert.equal(event.capabilities.canRegister, false);
 assert.equal(event.capabilities.canViewResults, false);
-assert.equal(event.registrationStatus, "open");
 assert.equal(event.resultsStatus, "scheduled");
 assert.ok(event.rules?.content?.includes("Bases"));
 
@@ -114,6 +117,50 @@ const listItem = serializePublicEventListItemV1(base, {
 assert.equal(listItem.categoryCount, 1);
 assert.equal(listItem.juryPublished, true);
 assert.equal(listItem.distributionChannel, null);
+assert.equal(listItem.registration?.status, event.registration?.status);
+assert.equal(listItem.registration?.checkoutUrl, null);
+
+const openReg = serializePublicEventV1(
+  {
+    ...base,
+    experienceType: "MARATHON",
+    distributionChannel: "CLICKATON",
+    registrationEnabled: true,
+    registrationPricingMode: "FREE",
+    registrationOpensAt: new Date("2026-01-01T00:00:00.000Z"),
+    registrationClosesAt: new Date("2026-12-31T00:00:00.000Z"),
+  },
+  {
+    now: new Date("2026-06-01T00:00:00.000Z"),
+    webBaseUrl: "http://localhost:3000",
+  },
+);
+assert.equal(openReg.registration?.status, "open");
+assert.equal(openReg.registration?.canRegister, true);
+assert.ok(openReg.registration?.registrationUrl?.includes("source=clickaton"));
+assert.equal(openReg.capabilities.canRegister, true);
+
+const paidReg = serializePublicEventV1(
+  {
+    ...base,
+    experienceType: "MARATHON",
+    distributionChannel: "CLICKATON",
+    registrationEnabled: true,
+    registrationPricingMode: "PAID",
+    registrationPriceAmountMinor: 150000,
+    registrationCurrency: "ARS",
+    hasOptionalMerchandise: true,
+    registrationOpensAt: new Date("2026-01-01T00:00:00.000Z"),
+    registrationClosesAt: new Date("2026-12-31T00:00:00.000Z"),
+  },
+  {
+    now: new Date("2026-06-01T00:00:00.000Z"),
+    webBaseUrl: "http://localhost:3000",
+  },
+);
+assert.equal(paidReg.registration?.mode, "paid");
+assert.equal(paidReg.registration?.displayPrice?.amountMinor, 150000);
+assert.equal(paidReg.registration?.hasOptionalMerchandise, true);
 
 const clickatonEvent = serializePublicEventV1({
   ...base,

@@ -39,6 +39,15 @@ export type CreateFotorankContestInput = {
   experienceType?: "CONTEST" | "MARATHON";
   /** Canal de publicación. null = Solo FotoRank (no Clickatón). */
   distributionChannel?: "FOTORANK" | "CLICKATON" | null;
+  registrationEnabled?: boolean;
+  registrationPricingMode?: "FREE" | "PAID" | null;
+  /** Precio en unidades mínimas (centavos). */
+  registrationPriceAmountMinor?: number | null;
+  registrationCurrency?: string | null;
+  registrationOpensAt?: string | null;
+  registrationClosesAt?: string | null;
+  registrationCapacity?: number | null;
+  hasOptionalMerchandise?: boolean;
   categories: ContestCategoryInput[];
 };
 
@@ -60,6 +69,14 @@ export type UpdateFotorankContestInput = Partial<{
   visibility: "PUBLIC" | "PRIVATE" | "UNLISTED";
   experienceType: "CONTEST" | "MARATHON";
   distributionChannel: "FOTORANK" | "CLICKATON" | null;
+  registrationEnabled: boolean;
+  registrationPricingMode: "FREE" | "PAID" | null;
+  registrationPriceAmountMinor: number | null;
+  registrationCurrency: string | null;
+  registrationOpensAt: string | null;
+  registrationClosesAt: string | null;
+  registrationCapacity: number | null;
+  hasOptionalMerchandise: boolean;
   categories: ContestCategoryInput[];
 }>;
 
@@ -125,6 +142,45 @@ function validateCategories(categories: ContestCategoryInput[]): string | null {
   return null;
 }
 
+function validateRegistrationConfig(input: {
+  registrationEnabled?: boolean;
+  registrationPricingMode?: "FREE" | "PAID" | null;
+  registrationPriceAmountMinor?: number | null;
+  registrationCurrency?: string | null;
+  registrationOpensAt?: Date | null;
+  registrationClosesAt?: Date | null;
+  registrationCapacity?: number | null;
+}): string | null {
+  const enabled = Boolean(input.registrationEnabled);
+  const mode = input.registrationPricingMode ?? null;
+  if (enabled && !mode) {
+    return "Si habilitás la inscripción, elegí modalidad Gratuita o Paga.";
+  }
+  if (mode === "PAID") {
+    const amount = input.registrationPriceAmountMinor;
+    if (amount == null || !Number.isInteger(amount) || amount <= 0) {
+      return "La inscripción paga requiere un precio mayor a cero (en centavos).";
+    }
+    if (!input.registrationCurrency?.trim()) {
+      return "La inscripción paga requiere moneda (ej. ARS).";
+    }
+  }
+  if (
+    input.registrationOpensAt &&
+    input.registrationClosesAt &&
+    input.registrationClosesAt.getTime() < input.registrationOpensAt.getTime()
+  ) {
+    return "El cierre de inscripción no puede ser anterior a la apertura.";
+  }
+  if (
+    input.registrationCapacity != null &&
+    (!Number.isInteger(input.registrationCapacity) || input.registrationCapacity < 1)
+  ) {
+    return "El cupo debe ser un entero positivo, o vacío para sin límite.";
+  }
+  return null;
+}
+
 export async function createFotorankContest(
   input: CreateFotorankContestInput
 ): Promise<CreateFotorankContestResult> {
@@ -181,6 +237,35 @@ export async function createFotorankContest(
     return { ok: false, error: incoherentExperienceChannelMessage() };
   }
 
+  const registrationOpensAt = parseDate(input.registrationOpensAt ?? undefined);
+  const registrationClosesAt = parseDate(input.registrationClosesAt ?? undefined);
+  const registrationEnabled = Boolean(input.registrationEnabled);
+  const registrationPricingMode = input.registrationPricingMode ?? null;
+  const registrationPriceAmountMinor =
+    registrationPricingMode === "PAID"
+      ? (input.registrationPriceAmountMinor ?? null)
+      : null;
+  const registrationCurrency =
+    registrationPricingMode === "PAID"
+      ? (input.registrationCurrency?.trim().toUpperCase() || null)
+      : null;
+  const registrationCapacity =
+    input.registrationCapacity != null && input.registrationCapacity > 0
+      ? input.registrationCapacity
+      : null;
+  const hasOptionalMerchandise = Boolean(input.hasOptionalMerchandise);
+
+  const regError = validateRegistrationConfig({
+    registrationEnabled,
+    registrationPricingMode,
+    registrationPriceAmountMinor,
+    registrationCurrency,
+    registrationOpensAt,
+    registrationClosesAt,
+    registrationCapacity,
+  });
+  if (regError) return { ok: false, error: regError };
+
   const contest = await prisma.$transaction(async (tx) => {
     const c = await tx.fotorankContest.create({
       data: {
@@ -194,6 +279,14 @@ export async function createFotorankContest(
         visibility: input.visibility ?? "PUBLIC",
         experienceType,
         distributionChannel,
+        registrationEnabled,
+        registrationPricingMode,
+        registrationPriceAmountMinor,
+        registrationCurrency,
+        registrationOpensAt,
+        registrationClosesAt,
+        registrationCapacity,
+        hasOptionalMerchandise,
         startAt,
         submissionDeadline,
         judgingStartAt,
@@ -285,6 +378,47 @@ export async function updateFotorankContest(
     return { ok: false, error: incoherentExperienceChannelMessage() };
   }
 
+  const nextRegistrationEnabled =
+    input.registrationEnabled !== undefined
+      ? input.registrationEnabled
+      : contest.registrationEnabled;
+  const nextPricingMode =
+    input.registrationPricingMode !== undefined
+      ? input.registrationPricingMode
+      : contest.registrationPricingMode;
+  const nextPriceMinor =
+    input.registrationPriceAmountMinor !== undefined
+      ? input.registrationPriceAmountMinor
+      : contest.registrationPriceAmountMinor;
+  const nextCurrency =
+    input.registrationCurrency !== undefined
+      ? input.registrationCurrency
+      : contest.registrationCurrency;
+  const nextRegOpens =
+    input.registrationOpensAt !== undefined
+      ? parseDate(input.registrationOpensAt ?? undefined)
+      : contest.registrationOpensAt;
+  const nextRegCloses =
+    input.registrationClosesAt !== undefined
+      ? parseDate(input.registrationClosesAt ?? undefined)
+      : contest.registrationClosesAt;
+  const nextCapacity =
+    input.registrationCapacity !== undefined
+      ? input.registrationCapacity
+      : contest.registrationCapacity;
+
+  const regUpdateError = validateRegistrationConfig({
+    registrationEnabled: nextRegistrationEnabled,
+    registrationPricingMode: nextPricingMode,
+    registrationPriceAmountMinor:
+      nextPricingMode === "PAID" ? nextPriceMinor : null,
+    registrationCurrency: nextPricingMode === "PAID" ? nextCurrency : null,
+    registrationOpensAt: nextRegOpens,
+    registrationClosesAt: nextRegCloses,
+    registrationCapacity: nextCapacity,
+  });
+  if (regUpdateError) return { ok: false, error: regUpdateError };
+
   if (input.categories !== undefined) {
     const assignmentCount = await countContestJudgeAssignments(contestId);
     if (
@@ -319,6 +453,41 @@ export async function updateFotorankContest(
     }
     if (input.distributionChannel !== undefined) {
       updateData.distributionChannel = input.distributionChannel;
+    }
+    if (input.registrationEnabled !== undefined) {
+      updateData.registrationEnabled = input.registrationEnabled;
+    }
+    if (input.registrationPricingMode !== undefined) {
+      updateData.registrationPricingMode = input.registrationPricingMode;
+    }
+    if (input.registrationPriceAmountMinor !== undefined) {
+      updateData.registrationPriceAmountMinor =
+        nextPricingMode === "PAID" ? input.registrationPriceAmountMinor : null;
+    } else if (input.registrationPricingMode === "FREE") {
+      updateData.registrationPriceAmountMinor = null;
+    }
+    if (input.registrationCurrency !== undefined) {
+      updateData.registrationCurrency =
+        nextPricingMode === "PAID"
+          ? input.registrationCurrency?.trim().toUpperCase() || null
+          : null;
+    } else if (input.registrationPricingMode === "FREE") {
+      updateData.registrationCurrency = null;
+    }
+    if (input.registrationOpensAt !== undefined) {
+      updateData.registrationOpensAt = nextRegOpens;
+    }
+    if (input.registrationClosesAt !== undefined) {
+      updateData.registrationClosesAt = nextRegCloses;
+    }
+    if (input.registrationCapacity !== undefined) {
+      updateData.registrationCapacity =
+        input.registrationCapacity != null && input.registrationCapacity > 0
+          ? input.registrationCapacity
+          : null;
+    }
+    if (input.hasOptionalMerchandise !== undefined) {
+      updateData.hasOptionalMerchandise = input.hasOptionalMerchandise;
     }
     if (input.startAt !== undefined) updateData.startAt = newDates.startAt;
     if (input.submissionDeadline !== undefined) updateData.submissionDeadline = newDates.submissionDeadline;

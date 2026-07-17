@@ -1,6 +1,7 @@
 # FotoRank Public API — HTTP V1
 
-**Etapa 08B.** Route Handlers HTTP públicos versionados. Consumen exclusivamente la capa segura de la Etapa 08A (`app/lib/public-api/v1`).
+**Etapa 08B.** Route Handlers HTTP públicos versionados. Consumen exclusivamente la capa segura de la Etapa 08A (`app/lib/public-api/v1`).  
+**Etapa 09B:** `registration.checkoutUrl` puede emitirse cuando el gate de pagos está operativo; la Public API **no** expone órdenes ni pagos.
 
 ## Arquitectura
 
@@ -158,7 +159,7 @@ Invalidación por tags: pendiente (loaders no usan `fetch` cacheable de Next).
 
 - Sin paginación, búsqueda ni orden configurable (orden del loader: `submissionDeadline` asc, `updatedAt` desc)
 - Filtro de canal vía `?channel=` (08C/09A); `clickaton` exige también MARATHON
-- Sin inscripción/pagos reales ni resultados/galería (contratos de registration preparados; campo `registration?` aún no serializado en HTTP)
+- Sin inscripción/pagos reales ni resultados/galería (`registration` sí se serializa en listado/detalle; `checkoutUrl` = null hasta 09B)
 - Sin tipo `MARATHON`
 - Sin rate limiting (pendiente antes de exposición masiva)
 - Sin API keys ni auth entre apps

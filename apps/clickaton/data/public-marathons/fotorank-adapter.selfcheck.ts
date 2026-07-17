@@ -104,6 +104,19 @@ const baseEvent: FotorankPublicEventV1 = {
   sponsorsText: null,
   resultsStatus: "scheduled",
   capabilities: { ...capabilities },
+  registration: {
+    mode: "free",
+    status: "open",
+    canRegister: true,
+    displayPrice: null,
+    hasOptionalMerchandise: false,
+    registrationUrl: "http://localhost:3000/concursos/demo-fr?source=clickaton",
+    checkoutUrl: null,
+    opensAt: "2026-01-01T00:00:00.000Z",
+    closesAt: "2026-12-31T00:00:00.000Z",
+    capacity: null,
+    remainingSpots: null,
+  },
   createdAt: "2025-01-01T00:00:00.000Z",
   updatedAt: "2025-06-01T00:00:00.000Z",
 };
@@ -144,6 +157,10 @@ assert.equal(mapped.format, "individual");
 assert.equal(mapped.modality, "Concurso fotográfico");
 assert.equal(mapped.coverImage, "https://example.com/cover.jpg");
 assert.equal(mapped.status, "registration_open");
+assert.equal(mapped.registration?.mode, "free");
+assert.equal(mapped.registration?.canRegister, true);
+assert.ok(mapped.registration?.registrationUrl?.includes("source=clickaton"));
+assert.equal(mapped.registration?.checkoutUrl, null);
 
 const json = JSON.stringify(mapped);
 assert.equal(json.includes("rulesData"), false);

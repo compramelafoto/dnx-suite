@@ -223,6 +223,8 @@ export type PublicMarathon = {
   registrationOpenAt?: string;
   /** Transicional: preferir `PublicScheduleWindow` kind=registration. */
   registrationCloseAt?: string;
+  /** Bloque público de inscripción (09A). Preferir sobre flags sueltos. */
+  registration?: import("./public/registration").PublicRegistrationSummary;
   /** Transicional: preferir `PublicCapacity.participantLimit`. */
   participantLimit?: number;
   minimumAge?: number;

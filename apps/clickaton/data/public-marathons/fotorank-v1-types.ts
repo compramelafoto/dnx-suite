@@ -26,6 +26,9 @@ export type FotorankPublicRegistrationStatusV1 =
   | "not_open"
   | "open"
   | "closed"
+  | "full"
+  | "cancelled"
+  | "finished"
   | "unknown";
 
 export type FotorankPublicResultsStatusV1 =
@@ -46,18 +49,24 @@ export type FotorankPublicCapabilitiesV1 = {
 export type FotorankPublicRegistrationPricingModeV1 = "free" | "paid";
 
 export type FotorankPublicDisplayPriceV1 = {
-  amount: number;
+  amountMinor: number;
   currency: string;
+  formatted: string;
 };
 
-/** Bloque público de inscripción (09A+). Opcional en el payload hasta serialización estable. */
+/** Bloque público de inscripción (09A operativa). */
 export type FotorankPublicRegistrationV1 = {
   mode: FotorankPublicRegistrationPricingModeV1;
   status: FotorankPublicRegistrationStatusV1;
   canRegister: boolean;
   displayPrice: FotorankPublicDisplayPriceV1 | null;
   hasOptionalMerchandise: boolean;
+  registrationUrl: string | null;
   checkoutUrl: string | null;
+  opensAt: string | null;
+  closesAt: string | null;
+  capacity: number | null;
+  remainingSpots: number | null;
 };
 
 export type FotorankPublicOrganizationV1 = {

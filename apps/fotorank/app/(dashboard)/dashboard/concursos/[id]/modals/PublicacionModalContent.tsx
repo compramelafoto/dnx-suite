@@ -36,6 +36,21 @@ function isValidSlug(slug: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
 }
 
+function toDatetimeLocalValue(value: Date | string | null | undefined): string {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocalValue(value: string): string | null {
+  if (!value.trim()) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 export function PublicacionModalContent({ contest, onSuccess, onCancel, readOnly, restrictionMessage }: Props) {
   const [title, setTitle] = useState(contest.title ?? "");
   const [slug, setSlug] = useState(contest.slug ?? "");
@@ -53,6 +68,32 @@ export function PublicacionModalContent({ contest, onSuccess, onCancel, readOnly
   );
   const [distributionChannel, setDistributionChannel] = useState<"CLICKATON" | "">(
     contest.distributionChannel === "CLICKATON" ? "CLICKATON" : "",
+  );
+  const [registrationEnabled, setRegistrationEnabled] = useState(
+    Boolean(contest.registrationEnabled),
+  );
+  const [registrationPricingMode, setRegistrationPricingMode] = useState<"FREE" | "PAID">(
+    contest.registrationPricingMode === "PAID" ? "PAID" : "FREE",
+  );
+  const [registrationPriceAmountMinor, setRegistrationPriceAmountMinor] = useState(
+    contest.registrationPriceAmountMinor != null
+      ? String(contest.registrationPriceAmountMinor)
+      : "",
+  );
+  const [registrationCurrency, setRegistrationCurrency] = useState(
+    contest.registrationCurrency ?? "ARS",
+  );
+  const [registrationOpensAt, setRegistrationOpensAt] = useState(
+    toDatetimeLocalValue(contest.registrationOpensAt),
+  );
+  const [registrationClosesAt, setRegistrationClosesAt] = useState(
+    toDatetimeLocalValue(contest.registrationClosesAt),
+  );
+  const [registrationCapacity, setRegistrationCapacity] = useState(
+    contest.registrationCapacity != null ? String(contest.registrationCapacity) : "",
+  );
+  const [hasOptionalMerchandise, setHasOptionalMerchandise] = useState(
+    Boolean(contest.hasOptionalMerchandise),
   );
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -96,6 +137,28 @@ export function PublicacionModalContent({ contest, onSuccess, onCancel, readOnly
         visibility,
         experienceType,
         distributionChannel: distributionChannel === "CLICKATON" ? "CLICKATON" : null,
+        registrationEnabled,
+        registrationPricingMode: registrationEnabled ? registrationPricingMode : null,
+        registrationPriceAmountMinor:
+          registrationEnabled && registrationPricingMode === "PAID"
+            ? Number(registrationPriceAmountMinor) || null
+            : null,
+        registrationCurrency:
+          registrationEnabled && registrationPricingMode === "PAID"
+            ? registrationCurrency.trim() || null
+            : null,
+        registrationOpensAt: registrationEnabled
+          ? fromDatetimeLocalValue(registrationOpensAt)
+          : null,
+        registrationClosesAt: registrationEnabled
+          ? fromDatetimeLocalValue(registrationClosesAt)
+          : null,
+        registrationCapacity: registrationEnabled
+          ? registrationCapacity.trim()
+            ? Number(registrationCapacity)
+            : null
+          : null,
+        hasOptionalMerchandise,
         status: publishNow ? "PUBLISHED" : status,
       });
       if (!result.ok) {
@@ -217,6 +280,115 @@ export function PublicacionModalContent({ contest, onSuccess, onCancel, readOnly
           <p className="text-xs text-fr-muted">
             Define en qué portal público podrá aparecer este evento. La visibilidad del evento se configura por separado.
           </p>
+        </label>
+      </section>
+
+      <section className="space-y-4">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-fr-muted">Inscripción</h3>
+        <label className="flex items-center gap-3 text-sm text-fr-primary">
+          <input
+            type="checkbox"
+            checked={registrationEnabled}
+            onChange={(e) => setRegistrationEnabled(e.target.checked)}
+            disabled={readOnly || pending}
+            className="size-4 rounded border-fr-border"
+          />
+          Habilitar inscripción pública
+        </label>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="fr-field-stack">
+            <span className="text-sm font-medium text-fr-primary">Modalidad</span>
+            <select
+              className={inputBase}
+              value={registrationPricingMode}
+              onChange={(e) =>
+                setRegistrationPricingMode(e.target.value as "FREE" | "PAID")
+              }
+              disabled={readOnly || pending || !registrationEnabled}
+            >
+              <option value="FREE">Gratuita</option>
+              <option value="PAID">Paga</option>
+            </select>
+          </label>
+          <label className="fr-field-stack">
+            <span className="text-sm font-medium text-fr-primary">Moneda</span>
+            <input
+              className={inputBase}
+              value={registrationCurrency}
+              onChange={(e) => setRegistrationCurrency(e.target.value.toUpperCase())}
+              disabled={readOnly || pending || !registrationEnabled || registrationPricingMode !== "PAID"}
+              placeholder="ARS"
+            />
+          </label>
+        </div>
+        {registrationPricingMode === "PAID" ? (
+          <label className="fr-field-stack">
+            <span className="text-sm font-medium text-fr-primary">Precio (centavos)</span>
+            <input
+              className={inputBase}
+              type="number"
+              min={1}
+              step={1}
+              value={registrationPriceAmountMinor}
+              onChange={(e) => setRegistrationPriceAmountMinor(e.target.value)}
+              disabled={readOnly || pending || !registrationEnabled}
+              placeholder="2000000 = $20.000,00 ARS"
+            />
+            <p className="text-xs text-fr-muted">
+              Unidades mínimas enteras (sin decimales). Ej.: 2000000 = $20.000 ARS.
+            </p>
+          </label>
+        ) : null}
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="fr-field-stack">
+            <span className="text-sm font-medium text-fr-primary">Apertura inscripción</span>
+            <input
+              className={inputBase}
+              type="datetime-local"
+              value={registrationOpensAt}
+              onChange={(e) => setRegistrationOpensAt(e.target.value)}
+              disabled={readOnly || pending || !registrationEnabled}
+            />
+          </label>
+          <label className="fr-field-stack">
+            <span className="text-sm font-medium text-fr-primary">Cierre inscripción</span>
+            <input
+              className={inputBase}
+              type="datetime-local"
+              value={registrationClosesAt}
+              onChange={(e) => setRegistrationClosesAt(e.target.value)}
+              disabled={readOnly || pending || !registrationEnabled}
+            />
+          </label>
+        </div>
+        <label className="fr-field-stack">
+          <span className="text-sm font-medium text-fr-primary">Cupo (opcional)</span>
+          <input
+            className={inputBase}
+            type="number"
+            min={1}
+            step={1}
+            value={registrationCapacity}
+            onChange={(e) => setRegistrationCapacity(e.target.value)}
+            disabled={readOnly || pending || !registrationEnabled}
+            placeholder="Vacío = sin límite publicado"
+          />
+        </label>
+        <label className="flex items-start gap-3 text-sm text-fr-primary">
+          <input
+            type="checkbox"
+            checked={hasOptionalMerchandise}
+            onChange={(e) => setHasOptionalMerchandise(e.target.checked)}
+            disabled={readOnly || pending}
+            className="mt-1 size-4 rounded border-fr-border"
+          />
+          <span>
+            Ofrecer merchandising opcional
+            <span className="mt-1 block text-xs text-fr-muted">
+              El merchandising se configura en el panel del concurso (Etapa 09B). Esta opción
+              habilita el aviso público y el catálogo opcional en el checkout.
+            </span>
+          </span>
         </label>
       </section>
 

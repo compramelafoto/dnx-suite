@@ -64,6 +64,10 @@ export function mapFotorankRegistrationStatus(
       return "open";
     case "closed":
       return "closed";
+    case "full":
+      return "closed";
+    case "cancelled":
+    case "finished":
     case "unknown":
     default:
       return "unavailable";

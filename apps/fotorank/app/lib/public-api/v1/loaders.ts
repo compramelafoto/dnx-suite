@@ -10,6 +10,7 @@ import {
   type InternalDistributionChannel,
 } from "./channel";
 import type { InternalExperienceType } from "./experience";
+import type { InternalRegistrationPricingMode } from "./registration";
 import {
   serializePublicEventListItemV1,
   serializePublicEventV1,
@@ -54,6 +55,14 @@ type ContestLike = {
   visibility: string;
   experienceType: InternalExperienceType;
   distributionChannel: InternalDistributionChannel;
+  registrationEnabled: boolean;
+  registrationPricingMode: InternalRegistrationPricingMode;
+  registrationPriceAmountMinor: number | null;
+  registrationCurrency: string | null;
+  registrationOpensAt: Date | null;
+  registrationClosesAt: Date | null;
+  registrationCapacity: number | null;
+  hasOptionalMerchandise: boolean;
   createdAt: Date;
   updatedAt: Date;
   organization: {
@@ -136,6 +145,15 @@ function toSerializeSource(contest: ContestLike): PublicEventSerializeSource {
     visibility: contest.visibility,
     experienceType: contest.experienceType ?? "CONTEST",
     distributionChannel: contest.distributionChannel ?? null,
+    registrationEnabled: Boolean(contest.registrationEnabled),
+    registrationPricingMode: contest.registrationPricingMode ?? null,
+    registrationPriceAmountMinor: contest.registrationPriceAmountMinor ?? null,
+    registrationCurrency: contest.registrationCurrency ?? null,
+    registrationOpensAt: contest.registrationOpensAt ?? null,
+    registrationClosesAt: contest.registrationClosesAt ?? null,
+    registrationCapacity: contest.registrationCapacity ?? null,
+    hasOptionalMerchandise: Boolean(contest.hasOptionalMerchandise),
+    registrationConfirmedCount: null,
     createdAt: contest.createdAt,
     updatedAt: contest.updatedAt,
     organization: {

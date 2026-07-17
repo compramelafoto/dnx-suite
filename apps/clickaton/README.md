@@ -22,7 +22,9 @@ Experiencia digital de marca pública.
 Contrato: [`docs/clickaton/FOTORANK_INTEGRATION_CONTRACT.md`](../../docs/clickaton/FOTORANK_INTEGRATION_CONTRACT.md).  
 Adaptador público: [`docs/clickaton/FOTORANK_PUBLIC_INTEGRATION.md`](../../docs/clickaton/FOTORANK_PUBLIC_INTEGRATION.md).
 
-Integración HTTP opcional hacia FotoRank Public API V1 (listado/ficha). Default: fixtures. Sin autenticación, pagos ni inscripción en Clickaton.
+Integración HTTP opcional hacia FotoRank Public API V1 (listado/ficha). Default: fixtures. Sin autenticación, pagos ni carrito en Clickaton — el CTA deriva a FotoRank (`registrationUrl`). `checkoutUrl` permanece null hasta 09B2/DNX Payments.
+
+Docs: [`docs/clickaton/REGISTRATION_HANDOFF.md`](../../docs/clickaton/REGISTRATION_HANDOFF.md). Cobro futuro: DNX Payments (09B2), no Preferences en FotoRank.
 
 ## Desarrollo
 
@@ -34,6 +36,7 @@ pnpm --filter clickaton dev
 
 App en [http://localhost:3005](http://localhost:3005).  
 Producción: [https://maratonfotografica.com](https://maratonfotografica.com) (proyecto Vercel `clickaton-dnxsuite`).  
+Manual de marca (diseñadores / sedes): [http://localhost:3005/manualdemarca](http://localhost:3005/manualdemarca) · [https://maratonfotografica.com/manualdemarca](https://maratonfotografica.com/manualdemarca).  
 Catálogo interno DS: [http://localhost:3005/design-system](http://localhost:3005/design-system) (`noindex`).  
 Ficha demo: [http://localhost:3005/maratones/demo](http://localhost:3005/maratones/demo) (`noindex`).
 
@@ -50,9 +53,11 @@ Ver [`.env.example`](./.env.example).
 | Variable | Valores | Default |
 |----------|---------|---------|
 | `CLICKATON_PUBLIC_DATA_SOURCE` | `fixture` \| `fotorank` | `fixture` |
-| `FOTORANK_PUBLIC_API_BASE_URL` | URL base de FotoRank (`http`/`https`, sin credenciales) | requerida si `fotorank` |
+| `FOTORANK_PUBLIC_API_BASE_URL` | URL base API FotoRank (`http`/`https`) | requerida si `fotorank` |
+| `FOTORANK_PUBLIC_WEB_BASE_URL` | URL web FotoRank (handoff; fallback API) | opcional |
+| `CLICKATON_PUBLIC_WEB_BASE_URL` | Origen público Clickatón (`returnTo`) | opcional |
 
-Con `fotorank`, Clickaton hace fetch server-to-server a `/api/public/v1/events`. Contests V1 no se publican como maratones oficiales (ver docs). No hay CORS de navegador.
+Con `fotorank`, Clickaton hace fetch server-to-server a `/api/public/v1/events` y muestra `registration` (precio/CTA). Handoff: [REGISTRATION_HANDOFF.md](../../docs/clickaton/REGISTRATION_HANDOFF.md). Sin cobros en Clickaton.
 ## Arquitectura
 
 ```

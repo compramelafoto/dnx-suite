@@ -5,7 +5,8 @@ import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/Button";
 import { MarathonStatusBadges } from "@/components/marathon/MarathonStatusBadges";
 import { formatMarathonDateRange, formatMarathonDateTime } from "@/lib/datetime";
-import { canShowRegistrationCta, marathonLocationLabel } from "@/lib/marathons";
+import { marathonLocationLabel } from "@/lib/marathons";
+import { presentRegistrationCta } from "@/lib/registration-cta";
 import { routes } from "@/config/navigation";
 import type { PublicMarathon } from "@/types/marathon";
 import { marathonFormatLabels } from "@/types/marathon";
@@ -17,7 +18,10 @@ type MarathonHeroProps = {
 };
 
 export function MarathonHero({ marathon, capabilities = null }: MarathonHeroProps) {
-  const showRegister = canShowRegistrationCta(marathon, capabilities);
+  const reg = presentRegistrationCta(marathon.registration);
+  const showResults =
+    marathon.status === "results_published" ||
+    marathon.resultsStatus === "published";
 
   return (
     <Section
@@ -61,32 +65,62 @@ export function MarathonHero({ marathon, capabilities = null }: MarathonHeroProp
               </dd>
             </div>
             <div>
-              <dt className="ck-label text-ck-text-muted">Modalidad</dt>
-              <dd className="ck-heading-md mt-2 text-ck-text">{marathon.modality}</dd>
+              <dt className="ck-label text-ck-text-muted">Inscripción</dt>
+              <dd className="ck-heading-md mt-2 text-ck-text">{reg.headline}</dd>
+              {reg.secondaryLine ? (
+                <dd className="ck-body-sm mt-2 text-ck-text-secondary">{reg.secondaryLine}</dd>
+              ) : null}
             </div>
           </dl>
 
-          {marathon.registrationOpenAt ? (
+          {marathon.registration?.opensAt || marathon.registrationOpenAt ? (
             <p className="ck-caption mt-8 text-ck-text-muted">
               Inscripción prevista desde{" "}
-              {formatMarathonDateTime(marathon.registrationOpenAt, marathon.timezone)}
-              {marathon.registrationCloseAt
-                ? ` hasta ${formatMarathonDateTime(marathon.registrationCloseAt, marathon.timezone)}`
+              {formatMarathonDateTime(
+                marathon.registration?.opensAt ?? marathon.registrationOpenAt!,
+                marathon.timezone,
+              )}
+              {marathon.registration?.closesAt || marathon.registrationCloseAt
+                ? ` hasta ${formatMarathonDateTime(
+                    marathon.registration?.closesAt ?? marathon.registrationCloseAt!,
+                    marathon.timezone,
+                  )}`
                 : null}
               .
             </p>
           ) : null}
 
+          {marathon.registration?.capacity != null ? (
+            <p className="ck-caption mt-3 text-ck-text-muted">
+              Cupo: {marathon.registration.capacity}
+              {marathon.registration.remainingSpots != null
+                ? ` · Quedan ${marathon.registration.remainingSpots}`
+                : null}
+            </p>
+          ) : null}
+
+          {marathon.registration?.hasOptionalMerchandise ? (
+            <p className="ck-body-sm mt-6 max-w-prose text-ck-text-secondary">
+              Durante la inscripción vas a poder sumar productos oficiales de Clickatón de
+              manera opcional.
+            </p>
+          ) : null}
+
           <div className="mt-10 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">
-            {showRegister ? (
-              <Button disabled aria-disabled="true" className="w-full sm:w-auto">
-                Inscripción (próximamente)
+            {reg.ctaEnabled && reg.ctaHref && reg.ctaLabel ? (
+              <Button href={reg.ctaHref} className="w-full sm:w-auto">
+                {reg.ctaLabel}
               </Button>
             ) : (
               <Button disabled aria-disabled="true" className="w-full sm:w-auto">
-                Inscripción no disponible
+                {reg.headline}
               </Button>
             )}
+            {showResults && capabilities?.canViewResults ? (
+              <Button href="#resultados" variant="secondary" className="w-full sm:w-auto">
+                Ver resultados
+              </Button>
+            ) : null}
             <Button href={routes.howItWorks} variant="secondary" className="w-full sm:w-auto">
               Cómo funciona
             </Button>

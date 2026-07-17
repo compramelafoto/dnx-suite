@@ -27,8 +27,12 @@ export type {
 
 export type {
   PublicRegistrationOffer,
+  PublicRegistrationSummary,
+  PublicDisplayPrice,
+  RegistrationPricingMode,
   RegistrationEligibility,
   ParticipantRegistrationSummary,
+  ParticipantRegistrationStatus,
   RegistrationOfferMode,
   EligibilityBlockedReason,
   EligibilityBlockedReasonCode,

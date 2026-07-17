@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { formatMarathonDateRange } from "@/lib/datetime";
 import { marathonLocationLabel } from "@/lib/marathons";
+import { presentRegistrationCta } from "@/lib/registration-cta";
 import { routes } from "@/config/navigation";
 import {
   marathonFormatLabels,
@@ -31,15 +32,17 @@ type MarathonCardProps = {
     | "timezone"
     | "coverImage"
     | "featured"
+    | "registration"
   >;
 };
 
 /**
  * Card de listado con portada fotográfica opcional.
- * Sin coverImage → fallback editorial del sistema (no rompe layout).
+ * Copy de inscripción desde `registration` (API); sin inferir precios locales.
  */
 export function MarathonCard({ marathon }: MarathonCardProps) {
   const href = `${routes.marathons}/${marathon.slug}`;
+  const reg = presentRegistrationCta(marathon.registration);
 
   return (
     <Card
@@ -61,7 +64,8 @@ export function MarathonCard({ marathon }: MarathonCardProps) {
           {marathon.featured ? <Badge variant="brand">Destacada</Badge> : null}
           <Badge variant="neutral">{marathonStatusLabels[marathon.status]}</Badge>
           <Badge variant="warning">
-            {registrationStatusLabels[marathon.registrationStatus]}
+            {registrationStatusLabels[marathon.registrationStatus] ??
+              marathon.registrationStatus}
           </Badge>
         </div>
         <div>
@@ -98,10 +102,30 @@ export function MarathonCard({ marathon }: MarathonCardProps) {
               <dd className="mt-1 text-ck-text">{marathon.modality}</dd>
             </div>
           </div>
+          {marathon.registration ? (
+            <div>
+              <dt className="ck-label text-ck-text-muted">Inscripción</dt>
+              <dd className="mt-1 text-ck-text">{reg.headline}</dd>
+              {reg.secondaryLine ? (
+                <dd className="mt-1 text-ck-text-secondary">{reg.secondaryLine}</dd>
+              ) : null}
+            </div>
+          ) : null}
         </dl>
-        <Button href={href} variant="secondary" className="mt-2 w-full sm:w-auto">
-          Ver ficha
-        </Button>
+        <div className="mt-2 flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap">
+          {reg.ctaEnabled && reg.ctaHref && reg.ctaLabel ? (
+            <Button
+              href={reg.ctaHref}
+              variant="primary"
+              className="w-full sm:w-auto"
+            >
+              {reg.ctaLabel}
+            </Button>
+          ) : null}
+          <Button href={href} variant="secondary" className="w-full sm:w-auto">
+            Ver ficha
+          </Button>
+        </div>
       </div>
     </Card>
   );

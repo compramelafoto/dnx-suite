@@ -18,7 +18,10 @@ import {
 } from "./experience";
 import { FotorankPublicSerializationError } from "./errors";
 import {
-  deriveRegistrationStatus,
+  serializePublicRegistrationV1,
+  type InternalRegistrationPricingMode,
+} from "./registration";
+import {
   deriveResultsStatus,
   mapInternalStatusToPublic,
   toIsoOrNull,
@@ -54,6 +57,16 @@ export type PublicEventSerializeSource = {
   experienceType?: InternalExperienceType;
   /** Canal interno Prisma; null = portal general. */
   distributionChannel?: InternalDistributionChannel;
+  registrationEnabled?: boolean;
+  registrationPricingMode?: InternalRegistrationPricingMode;
+  registrationPriceAmountMinor?: number | null;
+  registrationCurrency?: string | null;
+  registrationOpensAt?: Date | null;
+  registrationClosesAt?: Date | null;
+  registrationCapacity?: number | null;
+  hasOptionalMerchandise?: boolean;
+  /** Conteos confirmados públicos; null = no exponer remaining. */
+  registrationConfirmedCount?: number | null;
   createdAt: Date;
   updatedAt: Date;
   organization: {
@@ -98,12 +111,13 @@ function buildCapabilities(input: {
   rules: FotorankPublicRulesV1 | null;
   juryCount: number;
   categoryCount: number;
+  canRegister?: boolean;
 }): FotorankPublicCapabilitiesV1 {
   return {
     canViewRules: Boolean(input.rules?.content || input.rules?.summary),
     canViewJury: input.juryCount > 0,
     canViewCategories: input.categoryCount > 0,
-    canRegister: false,
+    canRegister: Boolean(input.canRegister),
     canViewResults: false,
     canViewGallery: false,
   };
@@ -174,7 +188,12 @@ export function serializePublicRulesV1(
  */
 export function serializePublicEventV1(
   source: PublicEventSerializeSource,
-  options?: { now?: Date; enforceVisibility?: boolean },
+  options?: {
+    now?: Date;
+    enforceVisibility?: boolean;
+    webBaseUrl?: string | null;
+    clickatonOrigin?: string | null;
+  },
 ): FotorankPublicEventV1 {
   const enforce = options?.enforceVisibility !== false;
   if (
@@ -205,12 +224,37 @@ export function serializePublicEventV1(
   const categories = serializePublicCategoriesV1(source.categories);
   const jury = serializePublicJuryV1(source.judges);
   const rules = serializePublicRulesV1(source.rulesText);
-  const registrationStatus = deriveRegistrationStatus({
-    now,
-    startAt: source.startAt,
-    submissionDeadline: source.submissionDeadline,
-    eventStatus: status,
-  });
+
+  const registration = serializePublicRegistrationV1(
+    {
+      slug: source.slug,
+      eventStatus: status,
+      registrationEnabled: Boolean(source.registrationEnabled),
+      pricingMode: source.registrationPricingMode ?? null,
+      priceAmountMinor: source.registrationPriceAmountMinor ?? null,
+      currency: source.registrationCurrency ?? null,
+      opensAt: source.registrationOpensAt ?? null,
+      closesAt: source.registrationClosesAt ?? null,
+      submissionDeadline: source.submissionDeadline,
+      eventStartAt: source.startAt,
+      capacity: source.registrationCapacity ?? null,
+      confirmedCount: source.registrationConfirmedCount ?? null,
+      hasOptionalMerchandise: Boolean(source.hasOptionalMerchandise),
+    },
+    {
+      now,
+      webBaseUrl: options?.webBaseUrl,
+      source:
+        source.distributionChannel === "CLICKATON" ? "clickaton" : undefined,
+      includeReturnTo: source.distributionChannel === "CLICKATON",
+      clickatonOrigin:
+        options?.clickatonOrigin ??
+        process.env.CLICKATON_PUBLIC_WEB_BASE_URL ??
+        null,
+    },
+  );
+
+  const registrationStatus = registration.status;
   const resultsStatus = deriveResultsStatus({ now, resultsAt: source.resultsAt });
   const organization = serializePublicOrganizationV1(source.organization);
 
@@ -255,7 +299,9 @@ export function serializePublicEventV1(
       rules,
       juryCount: jury.length,
       categoryCount: categories.length,
+      canRegister: registration.canRegister,
     }),
+    registration,
     createdAt: source.createdAt.toISOString(),
     updatedAt: source.updatedAt.toISOString(),
   };
@@ -263,7 +309,13 @@ export function serializePublicEventV1(
 
 export function serializePublicEventListItemV1(
   source: PublicEventSerializeSource,
-  options?: { now?: Date; enforceVisibility?: boolean; juryPublished?: boolean },
+  options?: {
+    now?: Date;
+    enforceVisibility?: boolean;
+    juryPublished?: boolean;
+    webBaseUrl?: string | null;
+    clickatonOrigin?: string | null;
+  },
 ): FotorankPublicEventListItemV1 {
   const enforce = options?.enforceVisibility !== false;
   if (
@@ -282,6 +334,8 @@ export function serializePublicEventListItemV1(
   const detail = serializePublicEventV1(source, {
     now: options?.now,
     enforceVisibility: false,
+    webBaseUrl: options?.webBaseUrl,
+    clickatonOrigin: options?.clickatonOrigin,
   });
 
   const juryPublished =
@@ -312,6 +366,7 @@ export function serializePublicEventListItemV1(
     juryPublished,
     resultsStatus: detail.resultsStatus,
     capabilities: detail.capabilities,
+    registration: detail.registration,
     updatedAt: detail.updatedAt,
   };
 }

@@ -25,7 +25,18 @@ export {
 
 export {
   buildPublicRegistrationStubV1,
-  type BuildPublicRegistrationV1Input,
+  buildDisplayPriceV1,
+  buildRegistrationHandoffUrl,
+  formatMoneyMinor,
+  getFotorankPublicWebBaseUrl,
+  isSafeClickatonReturnTo,
+  resolvePublicRegistrationState,
+  serializePublicRegistrationV1,
+  type BuildRegistrationHandoffUrlInput,
+  type InternalRegistrationPricingMode,
+  type PublicRegistrationConfigSource,
+  type ResolvePublicRegistrationStateInput,
+  type SerializePublicRegistrationV1Options,
 } from "./registration";
 
 export {
