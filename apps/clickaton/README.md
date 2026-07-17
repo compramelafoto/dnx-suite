@@ -63,21 +63,16 @@ Con `fotorank`, Clickaton hace fetch server-to-server a `/api/public/v1/events` 
 ```
 apps/clickaton/
   app/
-    maratones/         # Catálogo + [slug] ficha
-    design-system/     # Catálogo interno (noindex)
-    layout.tsx / page.tsx / error / not-found / robots
+    (public)/          # Sitio público (header/footer)
+    admin/             # Panel operativo (shell propio)
+    layout.tsx / robots / not-found raíz
   components/
-    brand/             # Wordmark, Viewfinder, graphics
-    layout/            # Container, Section, Header, Footer
-    ui/                # Button, Badge, Card, …
-    home/              # Secciones de la Home
-    content/           # PageHero, breadcrumbs, etc.
-    marathon/          # Ficha pública de edición
-  lib/                 # cn, seo, challenges, helpers de presentación
-  data/public-marathons/ # servicio + fuente local intercambiable
-  types/marathon.ts    # Contrato público estructural
-  types/public/        # Contratos satélite
-  content/             # Copy editorial + fixtures/
+    brand/ layout/ ui/ home/ content/ marathon/
+    admin/             # Shell, sidebar, empty states
+  config/admin/        # Menú, admins, integraciones
+  lib/admin/           # Auth guards server-side
+  data/public-marathons/
+  types/ … content/
 ```
 
 ## Design System V2
@@ -102,11 +97,22 @@ Doc: [`docs/clickaton/DESIGN_SYSTEM.md`](../../docs/clickaton/DESIGN_SYSTEM.md) 
 6. Sin lucide ni Radix: iconografía mínima propia.
 7. Consignas filtradas en servidor antes de UI (`lib/challenges.ts`).
 
+## Panel admin (Etapa 10B)
+
+- Rutas: `/admin` (shell + menú MVP). Login: `/admin/login`.
+- Separado del chrome público (`app/(public)` vs `app/admin`).
+- Auth: cookie `dnx_session` + política centralizada de administradores (`config/admin/admins.ts`).
+- Doc: [`docs/clickaton/ADMIN_PANEL.md`](../../docs/clickaton/ADMIN_PANEL.md).
+
+```sh
+pnpm --filter clickaton selfcheck:admin-auth
+```
+
 ## Alcance
 
-Incluye: app, Home, DS, rutas públicas, ficha demo, contrato tipado, adaptador FotoRank HTTP (opcional), docs.
+Incluye: app, Home, DS, rutas públicas, ficha demo, contrato tipado, adaptador FotoRank HTTP (opcional), panel admin shell, docs.
 
-No incluye: auth, DB propia, pagos, tienda, merchandising, formularios, Storybook.
+No incluye: CRUD de ediciones/sedes/inscripciones/sponsors, pagos, tienda, Storybook, DNX Communications.
 
 ## Pendientes
 

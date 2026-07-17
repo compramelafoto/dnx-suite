@@ -55,7 +55,7 @@ export const headerCta: NavItem = {
   href: routes.marathons,
 };
 
-/** Áreas futuras — sin enlaces públicos todavía. */
+/** Áreas futuras o fuera del nav público. */
 export const futureAreas = [
   "tienda",
   "blog",
@@ -63,10 +63,11 @@ export const futureAreas = [
   "galería",
   "hall de la fama",
   "perfiles",
-  "login",
-  "inscripciones",
+  "login participante",
+  "inscripciones públicas",
   "checkout",
-  "paneles",
+  /** Panel operativo: `/admin` (Etapa 10B), fuera del nav público. */
+  "panel admin",
   "términos",
   "privacidad",
   "newsletter",

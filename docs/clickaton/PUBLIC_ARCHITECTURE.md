@@ -23,7 +23,8 @@
 ## 3. Qué pertenece a DNX Identity
 
 - Autenticación y cuenta de participante / organizador
-- Sesión compartida del ecosistema DNX (futuro)
+- Sesión compartida del ecosistema DNX (`dnx_session`)
+- Acceso al panel Clickatón (Etapa 10B: política centralizada de administradores; deuda `appAccess` CLICKATON)
 
 ## 4. Qué pertenece a DNX Payments
 
@@ -51,7 +52,9 @@
 | `/contacto` | Contacto sin canales inventados |
 | `/design-system` | Catálogo interno (`noindex`) |
 
-**No creadas todavía:** tienda, blog, ranking, galería dedicada, hall de la fama, perfil, login, checkout, paneles.
+**Panel admin (Etapa 10B):** `/admin` y subrutas — shell operativo separado del chrome público. Ver [ADMIN_PANEL.md](./ADMIN_PANEL.md).
+
+**No creadas todavía:** tienda, blog, ranking, galería dedicada, hall de la fama, perfil participante, checkout, paneles avanzados.
 
 ## 7. Navegación principal
 

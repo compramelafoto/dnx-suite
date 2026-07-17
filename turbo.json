@@ -38,20 +38,38 @@
     "AUTH_URL",
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
-    "GOOGLE_REDIRECT_URI"
+    "GOOGLE_REDIRECT_URI",
+    "CLICKATON_PUBLIC_DATA_SOURCE",
+    "CLICKATON_PUBLIC_WEB_BASE_URL",
+    "CLICKATON_FOTORANK_ADMIN_URL",
+    "CLICKATON_PAYMENTS_ADMIN_URL",
+    "FOTORANK_PUBLIC_WEB_BASE_URL",
+    "FOTORANK_PUBLIC_API_BASE_URL",
+    "NEXT_PUBLIC_APP_URL"
   ],
-
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**"
+      ]
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": [
+        "^lint"
+      ]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": [
+        "^check-types"
+      ]
     },
     "dev": {
       "cache": false,

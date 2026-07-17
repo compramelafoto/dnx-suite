@@ -1,14 +1,13 @@
 import Link from "next/link";
 
-export default function NotFound() {
+export default function RootNotFound() {
   return (
-    <div className="ck-container flex min-h-[50vh] flex-col items-center justify-center py-20 text-center">
-      <p className="ck-eyebrow">404</p>
-      <h1 className="mt-3 text-[clamp(2rem,6vw,3.5rem)]">No encontramos esa página</h1>
-      <p className="mt-4 max-w-md text-ck-text-secondary">
-        El enlace puede haber cambiado o la sección todavía no existe.
-      </p>
-      <Link href="/" className="ck-btn ck-btn-primary mt-8">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-ck-bg px-4 text-center text-ck-text">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ck-yellow">404</p>
+      <h1 className="font-[family-name:var(--font-ck-display)] text-3xl tracking-wide">
+        Página no encontrada
+      </h1>
+      <Link href="/" className="text-sm text-ck-yellow hover:underline">
         Volver al inicio
       </Link>
     </div>

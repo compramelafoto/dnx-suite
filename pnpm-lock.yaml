@@ -20,6 +20,12 @@ importers:
 
   apps/clickaton:
     dependencies:
+      '@repo/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       next:
         specifier: 16.2.1
         version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -54,6 +60,9 @@ importers:
       tailwindcss:
         specifier: ^4.2.2
         version: 4.2.2
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.0
       typescript:
         specifier: 5.9.2
         version: 5.9.2

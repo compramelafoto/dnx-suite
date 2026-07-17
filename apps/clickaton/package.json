@@ -8,12 +8,15 @@
     "build": "next build",
     "start": "next start --port 3005",
     "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit"
+    "check-types": "next typegen && tsc --noEmit",
+    "selfcheck:admin-auth": "tsx lib/admin/auth.selfcheck.ts"
   },
   "dependencies": {
     "next": "16.2.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "@repo/auth": "workspace:*",
+    "@repo/db": "workspace:*"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -24,6 +27,7 @@
     "@types/react-dom": "19.2.2",
     "eslint": "^9.39.1",
     "tailwindcss": "^4.2.2",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "tsx": "^4.19.2"
   }
 }

@@ -80,6 +80,16 @@ Pendientes adicionales (no bloquean 09B):
 - Liquidaciones y comisiones
 - Manual operativo
 
+## F. Panel admin Clickatón
+
+- ~~**10A** Auditoría panel + menú MVP~~
+- ~~**10B** Shell `/admin`, auth DNX, empty states, integraciones informativas~~ → [ADMIN_PANEL.md](./ADMIN_PANEL.md)
+- **10C** Modelo y CRUD mínimo de ediciones y sedes
+- **10D** Inscripciones operativas (acreditación / QR / check-in / kit) + lectura Payments
+- **10E** Sponsors (CRM básico, sin portal)
+- Migrar allowlist admin → `appAccess` `CLICKATON` cuando WorkspaceAppAccess vuelva al schema
+- DNX Communications / email marketing — **Etapa 2** (fuera del MVP)
+
 ## Branding / producto
 
 - ~~Manual de marca + lámina de logo en `/public/brand/`~~ (Etapa 01 DS V1)

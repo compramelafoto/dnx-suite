@@ -131,6 +131,13 @@ Documento: [STAGE_09_PAID_REGISTRATION_AND_MERCHANDISING.md](./STAGE_09_PAID_REG
 
 Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 
+### Etapa 10B — Panel admin shell
+
+- Rutas `/admin/*` separadas del sitio público (`app/(public)` vs `app/admin`)
+- Auth DNX Identity (`dnx_session`) + `requireClickatonAdmin()`
+- Menú MVP + empty states + integraciones informativas (FotoRank / DNX Payments)
+- Doc: [ADMIN_PANEL.md](./ADMIN_PANEL.md)
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
