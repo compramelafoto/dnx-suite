@@ -9,7 +9,8 @@
     "start": "next start --port 3005",
     "lint": "eslint --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit",
-    "selfcheck:admin-auth": "tsx lib/admin/auth.selfcheck.ts"
+    "selfcheck:admin-auth": "tsx lib/admin/auth.selfcheck.ts",
+    "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
   },
   "dependencies": {
     "next": "16.2.1",

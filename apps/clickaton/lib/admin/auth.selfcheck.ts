@@ -33,11 +33,27 @@ assert.equal(
   }),
   true,
 );
+assert.equal(
+  hasClickatonAdminAccess({
+    email: " TammyTamerph@gmail.com ",
+    globalRole: "USER",
+  }),
+  true,
+);
+assert.equal(
+  hasClickatonAdminAccess({
+    email: "intruso@dnx.example",
+    globalRole: "USER",
+  }),
+  false,
+);
 
 assert.equal(sanitizeAdminReturnPath("/admin/ediciones"), "/admin/ediciones");
+assert.equal(sanitizeAdminReturnPath("/admin/integraciones"), "/admin/integraciones");
 assert.equal(sanitizeAdminReturnPath("https://evil.example"), "/admin");
 assert.equal(sanitizeAdminReturnPath("//evil"), "/admin");
 assert.equal(sanitizeAdminReturnPath("/maratones"), "/admin");
 assert.equal(sanitizeAdminReturnPath("/admin/login"), "/admin");
+assert.equal(sanitizeAdminReturnPath("/admin/login?x=1"), "/admin");
 
 console.log("clickaton admin auth.selfcheck: ok");

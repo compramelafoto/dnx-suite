@@ -71,6 +71,19 @@ Ver `apps/clickaton/.env.example`:
 - `CLICKATON_PAYMENTS_ADMIN_URL` — enlace Payments (opcional)
 - `COOKIE_DOMAIN` — opcional, alineado al resto de la suite
 
+## Validación de acceso (Etapa 10B1)
+
+| Email | En Identity | Notas |
+|-------|-------------|--------|
+| `dnxfotografia@gmail.com` | Sí | Allowlist + password/Google; login real del panel = prueba manual del propietario |
+| `rodrigorincon40@gmail.com` | No | Pendiente de alta manual en DNX Identity |
+| `tammytamerph@gmail.com` | No | Pendiente de alta manual en DNX Identity |
+
+No se inventan usuarios ni contraseñas. No se envían invitaciones automáticas.  
+Deuda `WorkspaceAppAccess` / app `CLICKATON` permanece abierta.
+
+Auditoría local: `pnpm --filter clickaton audit:admin-identity`
+
 ## Próxima etapa
 
 **10C — Modelo y CRUD mínimo de ediciones y sedes** (sin comenzar en este documento).
