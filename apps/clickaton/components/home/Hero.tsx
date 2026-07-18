@@ -1,6 +1,5 @@
+import Image from "next/image";
 import { BrushStroke } from "@/components/brand/BrushStroke";
-import { CoordinateGrid } from "@/components/brand/CoordinateGrid";
-import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/Button";
@@ -17,8 +16,22 @@ export function Hero() {
       className="ck-vignette relative overflow-hidden border-b border-ck-border"
       aria-labelledby="hero-title"
     >
-      <CoordinateGrid className="opacity-[0.04]" />
-      <Container className="relative z-[2] grid items-center gap-10 py-6 sm:py-10 md:py-14 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:gap-14 lg:py-20">
+      <div
+        className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+        aria-hidden
+      >
+        <Image
+          src="/images/hero-city-photographer.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="scale-110 object-cover object-[center_40%] grayscale opacity-[0.14] blur-[6px]"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.55)_0%,rgb(17_17_17_/_0.72)_45%,rgb(17_17_17_/_0.88)_100%)]" />
+      </div>
+
+      <Container className="relative z-[2] py-6 sm:py-10 md:py-14 lg:py-20">
         <div className="max-w-3xl">
           <p className="ck-overline text-ck-yellow">{hero.eyebrow}</p>
           <h1
@@ -50,16 +63,6 @@ export function Hero() {
             Mirar · crear · aprender · compartir
           </p>
         </div>
-
-        <PhotoFrame
-          variant="hero"
-          alt="Escena urbana de maratón fotográfica"
-          overlay="medium"
-          eyebrow="Encuadre"
-          caption="La ciudad como escenario."
-          className="shadow-[var(--ck-photo-shadow)] lg:justify-self-end lg:max-w-md"
-          priority
-        />
       </Container>
     </Section>
   );

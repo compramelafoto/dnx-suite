@@ -2,4 +2,6 @@
 
 Reservado para fotografías e imágenes editoriales de la experiencia Clickaton.
 
-En Etapa 01 la Home no depende de imágenes raster.
+## Hero
+
+- `hero-city-photographer.jpg` — textura de fondo del hero (persona fotografiando en ciudad). Se usa en escala de grises, desenfocada y con opacidad baja.
