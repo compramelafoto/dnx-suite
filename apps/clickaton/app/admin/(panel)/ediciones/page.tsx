@@ -1,10 +1,22 @@
-import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
+import { AdminDataTable, AdminTableLink } from "@/components/admin/AdminDataTable";
+import { AdminFlashMessage } from "@/components/admin/AdminFlashMessage";
+import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminStatusBadge } from "@/components/admin/AdminStatusBadge";
 import { Button } from "@/components/ui/Button";
+import { adminRoutes } from "@/config/admin/navigation";
+import { formatAdminDateTime } from "@/lib/admin/datetime-input";
+import { listEditions } from "@/lib/admin/editions/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 
-export default async function AdminEditionsPage() {
+type Props = {
+  searchParams: Promise<{ flash?: string }>;
+};
+
+export default async function AdminEditionsPage({ searchParams }: Props) {
   await requireClickatonAdmin();
+  const { flash } = await searchParams;
+  const result = await listEditions();
 
   return (
     <div className="space-y-8">
@@ -13,22 +25,80 @@ export default async function AdminEditionsPage() {
         description="Cada edición de Clickatón puede tener una o varias sedes. Aquí se administrará el producto de marca; la competencia asociada se ejecutará en FotoRank."
         breadcrumbs={[{ label: "Ediciones" }]}
         actions={
-          <Button type="button" variant="primary" disabled title="Disponible en la Etapa 10C">
+          <Button href={`${adminRoutes.editions}/nueva`} variant="primary">
             Crear edición
           </Button>
         }
       />
 
-      <AdminEmptyState
-        title="No hay ediciones todavía"
-        description="El listado y el alta de ediciones se implementarán en la próxima etapa. Esta pantalla no muestra datos simulados."
-        note="Próxima etapa: modelo y CRUD mínimo de ediciones y sedes (10C)."
-        action={
-          <Button type="button" variant="secondary" disabled>
-            Crear edición (próximamente)
-          </Button>
-        }
-      />
+      <AdminFlashMessage flash={flash} />
+
+      {!result.ok ? (
+        <AdminMigrationNotice message={result.message} />
+      ) : result.data.length === 0 ? (
+        <div className="rounded-[var(--ck-radius-card)] border border-dashed border-ck-border px-4 py-10 text-center">
+          <p className="text-lg text-ck-text">No hay ediciones todavía</p>
+          <p className="mt-2 text-sm text-ck-text-secondary">
+            Creá la primera edición para definir fechas, estado operativo y sedes.
+          </p>
+          <div className="mt-6">
+            <Button href={`${adminRoutes.editions}/nueva`} variant="primary">
+              Crear edición
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <AdminDataTable
+          rows={result.data}
+          rowKey={(row) => row.id}
+          columns={[
+            {
+              key: "name",
+              header: "Edición",
+              cell: (row) => (
+                <AdminTableLink href={`${adminRoutes.editions}/${row.id}`}>{row.name}</AdminTableLink>
+              ),
+            },
+            {
+              key: "status",
+              header: "Estado",
+              cell: (row) => (
+                <AdminStatusBadge status={row.status} published={row.isPublished} />
+              ),
+            },
+            {
+              key: "dates",
+              header: "Inicio",
+              hideOnMobile: true,
+              cell: (row) => formatAdminDateTime(row.startAt, row.timezone ?? undefined),
+            },
+            {
+              key: "venues",
+              header: "Sedes",
+              cell: (row) => String(row.venueCount ?? 0),
+            },
+            {
+              key: "actions",
+              header: "",
+              cell: (row) => (
+                <AdminTableLink href={`${adminRoutes.editions}/${row.id}/editar`}>
+                  Editar
+                </AdminTableLink>
+              ),
+            },
+          ]}
+          mobileCard={(row) => (
+            <>
+              <AdminTableLink href={`${adminRoutes.editions}/${row.id}`}>{row.name}</AdminTableLink>
+              <AdminStatusBadge status={row.status} published={row.isPublished} />
+              <p className="text-sm text-ck-text-secondary">
+                Inicio: {formatAdminDateTime(row.startAt, row.timezone ?? undefined)}
+              </p>
+              <p className="text-sm text-ck-text-muted">Sedes: {row.venueCount ?? 0}</p>
+            </>
+          )}
+        />
+      )}
     </div>
   );
 }

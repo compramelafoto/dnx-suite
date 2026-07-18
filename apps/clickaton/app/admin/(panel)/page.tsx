@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
+import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -7,11 +8,14 @@ import { Card } from "@/components/ui/Card";
 import { getAdminIntegrations } from "@/config/admin/integrations";
 import { adminRoutes } from "@/config/admin/navigation";
 import { siteConfig } from "@/config/site";
+import { formatAdminDateTime } from "@/lib/admin/datetime-input";
+import { getEditionDashboardMetrics } from "@/lib/admin/editions/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 
 export default async function AdminDashboardPage() {
   const user = await requireClickatonAdmin();
   const integrations = getAdminIntegrations();
+  const metricsResult = await getEditionDashboardMetrics();
 
   return (
     <div className="space-y-8">
@@ -35,6 +39,60 @@ export default async function AdminDashboardPage() {
         </p>
       </Card>
 
+      {!metricsResult.ok ? (
+        <AdminMigrationNotice message={metricsResult.message} />
+      ) : metricsResult.data.totalEditions === 0 ? (
+        <AdminEmptyState
+          title="Todavía no hay una edición configurada"
+          description="Creá la primera edición para habilitar sedes y métricas operativas reales. No se muestran inscriptos, recaudación ni kits en esta etapa."
+          action={
+            <Button href={`${adminRoutes.editions}/nueva`} variant="primary">
+              Crear edición
+            </Button>
+          }
+        />
+      ) : (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              label: "Ediciones",
+              value: String(metricsResult.data.totalEditions),
+              hint: `${metricsResult.data.operativeEditions} operativas`,
+            },
+            {
+              label: "Próxima edición",
+              value: metricsResult.data.nextEdition?.name ?? "—",
+              hint: metricsResult.data.nextEdition?.startAt
+                ? formatAdminDateTime(
+                    metricsResult.data.nextEdition.startAt,
+                    metricsResult.data.nextEdition.timezone ?? undefined,
+                  )
+                : "Sin fecha de inicio",
+            },
+            {
+              label: "Sedes",
+              value: String(metricsResult.data.totalVenues),
+              hint: "Todas las ediciones",
+            },
+            {
+              label: "Capacidad total",
+              value: String(metricsResult.data.totalCapacity),
+              hint: "Suma de capacidades de sedes o default de edición",
+            },
+          ].map((metric) => (
+            <Card key={metric.label} variant="outlined" className="space-y-2 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ck-text-muted">
+                {metric.label}
+              </p>
+              <p className="font-[family-name:var(--font-ck-display)] text-2xl text-ck-text">
+                {metric.value}
+              </p>
+              <p className="text-sm text-ck-text-secondary">{metric.hint}</p>
+            </Card>
+          ))}
+        </section>
+      )}
+
       <section className="space-y-4">
         <h2 className="font-[family-name:var(--font-ck-display)] text-2xl tracking-wide text-ck-text">
           Accesos rápidos
@@ -56,16 +114,6 @@ export default async function AdminDashboardPage() {
           ))}
         </div>
       </section>
-
-      <AdminEmptyState
-        title="Todavía no hay una edición configurada"
-        description="Cuando exista el modelo de ediciones (Etapa 10C), este panel mostrará la edición activa y métricas reales. Por ahora no se inventan inscriptos, recaudación ni kits."
-        action={
-          <Button href={adminRoutes.editions} variant="primary">
-            Ir a Ediciones
-          </Button>
-        }
-      />
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">

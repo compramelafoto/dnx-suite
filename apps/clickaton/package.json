@@ -10,6 +10,8 @@
     "lint": "eslint --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit",
     "selfcheck:admin-auth": "tsx lib/admin/auth.selfcheck.ts",
+    "selfcheck:admin-editions-validation": "tsx lib/admin/editions/validation.selfcheck.ts",
+    "selfcheck:admin-venues-validation": "tsx lib/admin/venues/validation.selfcheck.ts",
     "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
   },
   "dependencies": {
