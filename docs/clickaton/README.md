@@ -138,6 +138,12 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Menú MVP + empty states + integraciones informativas (FotoRank / DNX Payments)
 - Doc: [ADMIN_PANEL.md](./ADMIN_PANEL.md)
 
+### Etapa 10B2 — Google OAuth obligatorio (panel)
+
+- Login `/admin/login` con **Continuar con Google** (OAuth DNX Suite / `@repo/auth`)
+- Callback `/api/auth/google/callback`; allowlist de tres administradores; auth ≠ autorización
+- Doc: [GOOGLE_OAUTH_ADMIN.md](./GOOGLE_OAUTH_ADMIN.md)
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).

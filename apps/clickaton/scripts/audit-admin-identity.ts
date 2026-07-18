@@ -47,7 +47,7 @@ async function main() {
             email,
             globalRole: "USER",
           }),
-          status: "PENDIENTE_DE_ALTA_MANUAL_DEL_USUARIO",
+          status: "PENDIENTE_PRIMER_LOGIN_GOOGLE",
         }),
       );
       continue;

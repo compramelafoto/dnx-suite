@@ -10,28 +10,9 @@ import {
 import { adminRoutes } from "@/config/admin/navigation";
 import { normalizeEmail } from "@/config/admin/admins";
 import { hasClickatonAdminAccess, sanitizeAdminReturnPath } from "@/lib/admin/access";
+import { SESSION_COOKIE_OPTIONS } from "@/lib/admin/session-cookie";
 
 export { hasClickatonAdminAccess, sanitizeAdminReturnPath } from "@/lib/admin/access";
-
-const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN?.trim() || undefined;
-const APP_URL =
-  process.env.CLICKATON_PUBLIC_WEB_BASE_URL?.trim() ||
-  process.env.APP_URL?.trim() ||
-  process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-  process.env.AUTH_URL?.trim() ||
-  "";
-const IS_SECURE_CONTEXT =
-  process.env.VERCEL === "1" ||
-  process.env.NODE_ENV === "production" ||
-  APP_URL.startsWith("https://");
-
-const SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: IS_SECURE_CONTEXT,
-  sameSite: "lax" as const,
-  path: "/",
-  ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
-};
 
 export type ClickatonAuthUser = {
   id: number;

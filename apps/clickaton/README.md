@@ -55,7 +55,10 @@ Ver [`.env.example`](./.env.example).
 | `CLICKATON_PUBLIC_DATA_SOURCE` | `fixture` \| `fotorank` | `fixture` |
 | `FOTORANK_PUBLIC_API_BASE_URL` | URL base API FotoRank (`http`/`https`) | requerida si `fotorank` |
 | `FOTORANK_PUBLIC_WEB_BASE_URL` | URL web FotoRank (handoff; fallback API) | opcional |
-| `CLICKATON_PUBLIC_WEB_BASE_URL` | Origen público Clickatón (`returnTo`) | opcional |
+| `CLICKATON_PUBLIC_WEB_BASE_URL` | Origen público Clickatón (`returnTo` / OAuth base) | opcional |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth DNX Suite (panel `/admin`) | requerido para login Google |
+
+Panel admin: Google OAuth vía DNX Identity — [`docs/clickaton/GOOGLE_OAUTH_ADMIN.md`](../../docs/clickaton/GOOGLE_OAUTH_ADMIN.md).
 
 Con `fotorank`, Clickaton hace fetch server-to-server a `/api/public/v1/events` y muestra `registration` (precio/CTA). Handoff: [REGISTRATION_HANDOFF.md](../../docs/clickaton/REGISTRATION_HANDOFF.md). Sin cobros en Clickaton.
 ## Arquitectura

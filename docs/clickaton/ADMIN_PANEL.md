@@ -28,9 +28,14 @@ Fuera de alcance MVP: comunicaciones, comunidad interna, academia, reportes avan
 ## Autenticación
 
 - Cookie compartida `dnx_session` (`@repo/auth`).
-- Login en `/admin/login` (email/contraseña DNX Identity).
+- Método visible en `/admin/login`: **Continuar con Google** (DNX Identity / OAuth Suite).
+- Rutas: `/api/auth/google` + `/api/auth/google/callback` (helpers `@repo/auth`, mismo Client ID que el resto de la suite).
 - Guard server-side: `requireClickatonAdmin()` en `apps/clickaton/lib/admin/auth.ts`.
-- Decisión única: `hasClickatonAdminAccess()` en `apps/clickaton/lib/admin/access.ts`.
+- Decisión única de permiso: `hasClickatonAdminAccess()` en `apps/clickaton/lib/admin/access.ts`.
+
+**Autenticación ≠ autorización:** Google crea/enlaza identidad DNX y sesión; el panel solo se abre si el email está en la allowlist (o es `SUPER_ADMIN`). Detalle: [GOOGLE_OAUTH_ADMIN.md](./GOOGLE_OAUTH_ADMIN.md).
+
+El login email/contraseña **no** se muestra en Clickatón; sigue disponible en otras apps DNX.
 
 ### Administradores iniciales (acceso completo)
 
@@ -59,8 +64,10 @@ Cuando el modelo unificado vuelva al schema:
 | `/admin/ediciones` … | CRUD ediciones — ver [EDITIONS_AND_VENUES.md](./EDITIONS_AND_VENUES.md) |
 | `/admin/sedes` … | CRUD sedes — filtros por edición y estado activo |
 | `/admin/inscripciones` … `/admin/integraciones` | Empty states / configuración lectura |
-| `/admin/login` | Acceso |
+| `/admin/login` | Acceso (Google OAuth) |
 | `/admin/acceso-denegado` | Autenticado sin permiso |
+| `/api/auth/google` | Inicio OAuth |
+| `/api/auth/google/callback` | Callback OAuth |
 
 El chrome público (`SiteHeader` / `SiteFooter`) vive solo en `app/(public)/`.
 
@@ -77,19 +84,23 @@ El chrome público (`SiteHeader` / `SiteFooter`) vive solo en `app/(public)/`.
 Ver `apps/clickaton/.env.example`:
 
 - `DATABASE_URL` — requerida para login/sesión y CRUD
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — OAuth DNX Suite (server-only)
+- `GOOGLE_REDIRECT_URI` — opcional; default `{base}/api/auth/google/callback`
+- `CLICKATON_PUBLIC_WEB_BASE_URL` — base pública (local `http://localhost:3005`)
 - `CLICKATON_FOTORANK_ADMIN_URL` / `FOTORANK_PUBLIC_WEB_BASE_URL` — enlace FotoRank (opcional)
 - `CLICKATON_PAYMENTS_ADMIN_URL` — enlace Payments (opcional)
 - `COOKIE_DOMAIN` — opcional, alineado al resto de la suite
 
-## Validación de acceso (Etapa 10B1)
+## Validación de acceso (Etapa 10B1 / 10B2)
 
 | Email | En Identity | Notas |
 |-------|-------------|--------|
-| `dnxfotografia@gmail.com` | Sí | Allowlist + password/Google; login real del panel = prueba manual del propietario |
-| `rodrigorincon40@gmail.com` | No | Pendiente de alta manual en DNX Identity |
-| `tammytamerph@gmail.com` | No | Pendiente de alta manual en DNX Identity |
+| `dnxfotografia@gmail.com` | Sí | Allowlist; acceso oficial vía Google OAuth |
+| `rodrigorincon40@gmail.com` | Puede crearse en el primer login Google | Allowlist; sin contraseña compartida |
+| `tammytamerph@gmail.com` | Puede crearse en el primer login Google | Allowlist; sin contraseña compartida |
 
-No se inventan usuarios ni contraseñas. No se envían invitaciones automáticas.  
+No se inventan contraseñas ni se envían invitaciones automáticas.  
+Google Cloud debe incluir el callback local/prod (ver [GOOGLE_OAUTH_ADMIN.md](./GOOGLE_OAUTH_ADMIN.md)).  
 Deuda `WorkspaceAppAccess` / app `CLICKATON` permanece abierta.
 
 Auditoría local: `pnpm --filter clickaton audit:admin-identity`
@@ -111,6 +122,7 @@ Detalle: [EDITIONS_AND_VENUES.md](./EDITIONS_AND_VENUES.md)
 
 ```bash
 pnpm --filter clickaton selfcheck:admin-auth
+pnpm --filter clickaton selfcheck:admin-google-oauth
 pnpm --filter clickaton selfcheck:admin-editions-validation
 pnpm --filter clickaton selfcheck:admin-venues-validation
 pnpm --filter clickaton check-types
