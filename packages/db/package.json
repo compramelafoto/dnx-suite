@@ -23,7 +23,9 @@
     "db:seed:infospot-events": "tsx prisma/scripts/seed-infospot-demo-events.ts",
     "db:seed:infospot-launch-drafts": "tsx prisma/scripts/seed-infospot-launch-drafts.ts",
     "test:clf-availability": "tsx src/clf-album-availability.test.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "audit:migration-state": "tsx scripts/audit-migration-state.mts",
+    "audit:schema-baseline": "tsx scripts/verify-schema-baseline.mts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
