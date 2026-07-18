@@ -16,10 +16,15 @@ const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL?.trim() ||
   process.env.AUTH_URL?.trim() ||
   "";
+/** Local HTTP must never set Secure (VERCEL=1 in the shell is common with CLI). */
+const IS_LOCAL_HTTP =
+  APP_URL.startsWith("http://localhost") ||
+  APP_URL.startsWith("http://127.0.0.1");
 const IS_SECURE_CONTEXT =
-  process.env.VERCEL === "1" ||
-  process.env.NODE_ENV === "production" ||
-  APP_URL.startsWith("https://");
+  !IS_LOCAL_HTTP &&
+  (process.env.VERCEL === "1" ||
+    process.env.NODE_ENV === "production" ||
+    APP_URL.startsWith("https://"));
 
 const SESSION_COOKIE_OPTIONS = {
   httpOnly: true,
