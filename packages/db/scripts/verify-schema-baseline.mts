@@ -11,7 +11,7 @@ import { PrismaClient } from "@prisma/client";
 
 const ORPHAN = "20260711160000_infospot_role_audit";
 const NEON_ORPHAN_CHECKSUM =
-  "6f8e61ef3427db1cb927bbdc751f8ea500963aa2de35831799446c1d693be83f";
+  "59bc655d2789c5c5ee0cc3988caf2a61bb0d91cb0a2361c06eab4ef1c714ddb9"; // post-10C4B reconstructed
 
 function parseArgs(argv: string[]) {
   const out: { url?: string } = {};
