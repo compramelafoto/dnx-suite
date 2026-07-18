@@ -25,7 +25,8 @@
     "test:clf-availability": "tsx src/clf-album-availability.test.ts",
     "db:studio": "prisma studio",
     "audit:migration-state": "tsx scripts/audit-migration-state.mts",
-    "audit:schema-baseline": "tsx scripts/verify-schema-baseline.mts"
+    "audit:schema-baseline": "tsx scripts/verify-schema-baseline.mts",
+    "audit:gap-objects": "tsx scripts/verify-gap-objects.mts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

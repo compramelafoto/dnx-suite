@@ -7,6 +7,9 @@
  *
  * Safety: SELECT-only. Refuses if --allow-write is passed (there is no write mode).
  * Prefer a read-only DB role. Do not use this script to mutate Neon.
+ *
+ * Checksum comparison uses the successful row (finished_at IS NOT NULL).
+ * Rolled-back failed attempts are reported separately and do not count as mismatches.
  */
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
@@ -16,6 +19,14 @@ import { PrismaClient } from "@prisma/client";
 const ORPHAN = "20260711160000_infospot_role_audit";
 const NEON_ORPHAN_CHECKSUM =
   "6f8e61ef3427db1cb927bbdc751f8ea500963aa2de35831799446c1d693be83f";
+
+type Row = {
+  migration_name: string;
+  checksum: string;
+  finished_at: Date | null;
+  rolled_back_at: Date | null;
+  applied_steps_count: number;
+};
 
 function parseArgs(argv: string[]) {
   const out: { url?: string; migrationsDir?: string } = {};
@@ -45,6 +56,18 @@ function listLocalMigrations(dir: string): string[] {
     .sort();
 }
 
+function sanitizeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "(invalid-url)";
+  }
+}
+
+function pickSuccessful(rows: Row[], name: string): Row | undefined {
+  return rows.find((r) => r.migration_name === name && r.finished_at != null);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const url = args.url ?? process.env.DATABASE_URL ?? process.env.AUDIT_DATABASE_URL;
@@ -56,13 +79,12 @@ async function main() {
   }
   if (/neon\.tech/i.test(url)) {
     console.warn(
-      "WARN: URL looks like Neon. Continuing READ-ONLY (SELECT). Do not use write credentials.",
+      `WARN: host=${sanitizeHost(url)} looks like Neon. Continuing READ-ONLY (SELECT).`,
     );
   }
 
   const migrationsDir = resolve(
-    args.migrationsDir ??
-      join(process.cwd(), "prisma", "migrations"),
+    args.migrationsDir ?? join(process.cwd(), "prisma", "migrations"),
   );
   const local = listLocalMigrations(migrationsDir);
   const localSet = new Set(local);
@@ -72,24 +94,24 @@ async function main() {
   });
 
   try {
-    const rows = await prisma.$queryRaw<
-      Array<{
-        migration_name: string;
-        checksum: string;
-        finished_at: Date | null;
-        rolled_back_at: Date | null;
-      }>
-    >`
-      SELECT migration_name, checksum, finished_at, rolled_back_at
+    const rows = await prisma.$queryRaw<Row[]>`
+      SELECT migration_name, checksum, finished_at, rolled_back_at, applied_steps_count
       FROM "_prisma_migrations"
-      ORDER BY migration_name ASC
+      ORDER BY migration_name ASC, started_at ASC NULLS LAST
     `;
 
-    const dbNames = rows.map((r) => r.migration_name);
-    const dbSet = new Set(dbNames);
+    const successfulNames = [
+      ...new Set(
+        rows.filter((r) => r.finished_at != null).map((r) => r.migration_name),
+      ),
+    ];
+    const dbSet = new Set(successfulNames);
+    const rolledBackOnly = rows.filter(
+      (r) => r.rolled_back_at != null && r.finished_at == null,
+    );
 
     const onlyLocal = local.filter((n) => !dbSet.has(n));
-    const onlyDb = dbNames.filter((n) => !localSet.has(n));
+    const onlyDb = successfulNames.filter((n) => !localSet.has(n));
     const common = local.filter((n) => dbSet.has(n));
 
     const checksumMismatches: Array<{
@@ -97,25 +119,52 @@ async function main() {
       db: string;
       file: string;
     }> = [];
+    const checksumMatchesFinished: string[] = [];
     for (const name of common) {
       const file = join(migrationsDir, name, "migration.sql");
       const fileSum = sha256File(file);
-      const dbSum = rows.find((r) => r.migration_name === name)?.checksum ?? "";
+      const ok = pickSuccessful(rows, name);
+      const dbSum = ok?.checksum ?? "";
       if (fileSum !== dbSum) {
         checksumMismatches.push({ name, db: dbSum, file: fileSum });
+      } else {
+        checksumMatchesFinished.push(name);
       }
     }
 
+    const falsePositiveRisk = rolledBackOnly
+      .filter((r) => {
+        const ok = pickSuccessful(rows, r.migration_name);
+        if (!ok) return false;
+        const file = join(migrationsDir, r.migration_name, "migration.sql");
+        if (!existsSync(file)) return false;
+        return sha256File(file) === ok.checksum && sha256File(file) !== r.checksum;
+      })
+      .map((r) => ({
+        name: r.migration_name,
+        rolledBackChecksum: r.checksum,
+        finishedChecksum: pickSuccessful(rows, r.migration_name)?.checksum ?? null,
+      }));
+
     const orphanLocal = localSet.has(ORPHAN);
-    const orphanDb = rows.find((r) => r.migration_name === ORPHAN);
+    const orphanDb = pickSuccessful(rows, ORPHAN) ?? rows.find((r) => r.migration_name === ORPHAN);
 
     const report = {
+      host: sanitizeHost(url),
       migrationsDir,
       localCount: local.length,
-      dbCount: rows.length,
+      dbRowCount: rows.length,
+      dbSuccessfulCount: successfulNames.length,
       onlyLocal,
       onlyDb,
       checksumMismatches,
+      checksumMatchesFinishedCount: checksumMatchesFinished.length,
+      rolledBackAttempts: rolledBackOnly.map((r) => ({
+        name: r.migration_name,
+        checksum: r.checksum,
+        rolled_back_at: r.rolled_back_at,
+      })),
+      falsePositiveChecksumRisk: falsePositiveRisk,
       orphan: {
         name: ORPHAN,
         presentLocally: orphanLocal,
