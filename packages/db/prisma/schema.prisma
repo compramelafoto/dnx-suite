@@ -1013,6 +1013,8 @@ model InfoSpotUserRole {
   assignedByUserId Int?
   /// Quién realizó el último cambio de rol/estado/política.
   lastChangedByUserId Int?
+  /// Timestamp del último cambio de rol (columna ya presente en Neon; migración huérfana reconciliada 10C4B).
+  lastChangedAt DateTime?
   createdAt  DateTime              @default(now())
   updatedAt  DateTime              @updatedAt
   user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
