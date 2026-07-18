@@ -1,4 +1,4 @@
-import { Prisma, StudentSourceType, type AlbumStudentRosterEntry, type Student, type StudentEnrollment } from "@/lib/prisma";
+import { Prisma, StudentSourceType, type AlbumStudentRosterEntry, type SchoolStudent, type StudentEnrollment } from "@/lib/prisma";
 import { buildNormalizedKey, normalizeDniForComparison, normalizeFullName, normalizePersonNamePart } from "./student-normalize";
 
 export type Tx = Prisma.TransactionClient;
@@ -10,7 +10,7 @@ export async function findStudentInSchoolWithDniMeta(
   lastName: string,
   externalStudentId: string | null | undefined,
   dni?: string | null | undefined
-): Promise<{ student: Student | null; ambiguousDniMatch: boolean }> {
+): Promise<{ student: SchoolStudent | null; ambiguousDniMatch: boolean }> {
   const ext = externalStudentId?.trim();
   if (ext) {
     const byExt = await tx.student.findFirst({
@@ -61,7 +61,7 @@ export async function findStudentInSchool(
   lastName: string,
   externalStudentId: string | null | undefined,
   dni?: string | null | undefined
-): Promise<Student | null> {
+): Promise<SchoolStudent | null> {
   const { student } = await findStudentInSchoolWithDniMeta(
     tx,
     schoolId,
@@ -81,7 +81,7 @@ export async function createStudentInSchool(
   externalStudentId: string | null | undefined,
   dni: string | null | undefined,
   sourceType: StudentSourceType
-): Promise<Student> {
+): Promise<SchoolStudent> {
   const ext = externalStudentId?.trim() || null;
   const dniVal = dni?.trim() || null;
   const fnStore = normalizePersonNamePart(firstName);

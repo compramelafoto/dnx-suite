@@ -43,9 +43,8 @@ export async function toggleCoursesSalesModuleAction(
   prev: ToggleModuleState | undefined,
   formData: FormData,
 ): Promise<ToggleModuleState> {
-  const payload = new FormData(formData);
-  if (!payload.get("moduleKey")) {
-    payload.set("moduleKey", COURSES_SALES_MODULE_KEY);
+  if (!formData.get("moduleKey")) {
+    formData.set("moduleKey", COURSES_SALES_MODULE_KEY);
   }
-  return toggleWorkspaceModuleAction(prev, payload);
+  return toggleWorkspaceModuleAction(prev, formData);
 }

@@ -13,6 +13,7 @@ model User {
   email                                String                       @unique
   password                             String?
   role                                 Role                         @default(PHOTOGRAPHER)
+  globalRole                           GlobalRole                   @default(USER)
   name                                 String?
   createdAt                            DateTime                     @default(now())
   handler                              String?                      @unique
@@ -2658,7 +2659,7 @@ model School {
   organizerCommissions       OrganizerCommission[]
   organizerInvitations       SchoolOrganizerInvitation[]
   courses                    SchoolCourse[]
-  students                   Student[]
+  students                   SchoolStudent[]
   studentEnrollments         StudentEnrollment[]
   studentRosterImportBatches StudentRosterImportBatch[]
   convertedLeads             SchoolLead[]                @relation("SchoolLeadConvertedSchool")
@@ -2771,7 +2772,7 @@ model AcademicYear {
 }
 
 /// Alumno base histórico por escuela
-model Student {
+model SchoolStudent {
   id                 Int                       @id @default(autoincrement())
   schoolId           Int
   externalStudentId  String?
@@ -2794,6 +2795,7 @@ model Student {
   @@index([schoolId])
   @@index([schoolId, lastName, firstName])
   @@index([schoolId, normalizedFullName])
+  @@map("SchoolStudent")
 }
 
 /// Matrícula anual del alumno
@@ -2815,7 +2817,7 @@ model StudentEnrollment {
   albumRosterSyncFromAlbumEntries AlbumStudentRosterEntry[] @relation("RosterSyncSourceEnrollment")
   academicYear       AcademicYear              @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   school             School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student            Student                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student            SchoolStudent             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   importRowsMatched  StudentRosterImportRow[]  @relation("StudentRosterImportRowMatchedEnrollment")
 
   @@unique([studentId, academicYearId])
@@ -2860,7 +2862,7 @@ model AlbumStudentRosterEntry {
   syncSourceEnrollment StudentEnrollment? @relation("RosterSyncSourceEnrollment", fields: [syncSourceEnrollmentId], references: [id], onDelete: SetNull)
   photosTakenBy       User?              @relation("AlbumStudentRosterEntryPhotosTakenBy", fields: [photosTakenByUserId], references: [id])
   school              School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student             Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student             SchoolStudent      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   preCompraOrders     PreCompraOrder[]
 
   @@unique([albumId, studentId])
@@ -2919,7 +2921,7 @@ model StudentRosterImportRow {
   createdAt           DateTime                 @default(now())
   batch               StudentRosterImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   matchedEnrollment   StudentEnrollment?       @relation("StudentRosterImportRowMatchedEnrollment", fields: [matchedEnrollmentId], references: [id])
-  matchedStudent      Student?                 @relation("StudentRosterImportRowMatchedStudent", fields: [matchedStudentId], references: [id])
+  matchedStudent      SchoolStudent?           @relation("StudentRosterImportRowMatchedStudent", fields: [matchedStudentId], references: [id])
 
   @@index([batchId])
   @@index([status])
@@ -3626,7 +3628,7 @@ model PreCompraOrder {
   albumRosterEntry        AlbumStudentRosterEntry? @relation(fields: [albumRosterEntryId], references: [id])
   photosTakenBy           User?                    @relation("PreCompraOrderPhotosTakenBy", fields: [photosTakenByUserId], references: [id])
   schoolCourse            SchoolCourse?            @relation(fields: [schoolCourseId], references: [id])
-  student                 Student?                 @relation(fields: [studentId], references: [id])
+  student                 SchoolStudent?           @relation(fields: [studentId], references: [id])
   items                   PreCompraOrderItem[]
   subjects                Subject[]
   selfies                 SubjectSelfie[]
@@ -6523,17 +6525,445 @@ model FotorankGlobalCategoryAlias {
   @@index([globalCategoryId])
 }
 
-/// Stub mínimo restaurado para FK de jurados FotoRank (tabla legacy Workspace).
-/// Otros dominios Fotoffice/cursos pueden ampliar este modelo después.
+/// Workspace compartido (FotoRank judges + Fotoffice / cursos / evaluaciones).
 model Workspace {
-  id                       String                 @id @default(cuid())
-  name                     String
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
-  fotorankJudgeAccounts    FotorankJudgeAccount[]
-  memberships              Membership[]
+  id                          String                        @id @default(cuid())
+  name                        String
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  courses                     Course[]
+  courseEnrollments           CourseEnrollment[]
+  courseSalesCourses          CourseSalesCourse[]
+  courseSalesLeads            CourseSalesLead[]
+  courseSalesTeachers         CourseSalesTeacher[]
+  courseSalesSettings         CourseSalesWorkspaceSettings?
+  fotofficeBranding           FotofficeWorkspaceBranding?
+  fotorankJudgeAccounts       FotorankJudgeAccount[]
+  memberships                 Membership[]
+  serviceLeadForms            ServiceLeadForm[]
+  serviceSalesLeads           ServiceSalesLead[]
+  evaluationContexts          EvaluationContext[]
+  students                    Student[]
+  featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
 }
+
+model WorkspaceFeatureModule {
+  id          String    @id @default(cuid())
+  workspaceId String
+  moduleKey   String
+  enabled     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, moduleKey])
+  @@index([moduleKey])
+}
+
+/// Branding y slug público para landings Fotoffice (`/w/[publicSlug]/...`).
+
+model FotofficeWorkspaceBranding {
+  id              String    @id @default(cuid())
+  workspaceId     String    @unique
+  publicSlug      String    @unique
+  commercialName  String
+  logoUrl         String?
+  coverImageUrl   String?
+  primaryColor    String?
+  secondaryColor  String?
+  backgroundColor String?
+  textColor       String?
+  accentColor     String?
+  contactEmail    String?
+  phone           String?
+  whatsapp        String?
+  instagram       String?
+  website         String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model CourseSalesWorkspaceSettings {
+  id                 String    @id @default(cuid())
+  workspaceId        String    @unique
+  defaultCurrency    String    @default("ARS")
+  enrollmentCtaLabel String?   @default("Quiero inscribirme")
+  coursesFeePercent  Decimal   @default(10) @db.Decimal(5, 2)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model EvaluationContext {
+  id          String                     @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  createdById String?
+  ownerType   String
+  ownerId     String?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  workspace   Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  students    EvaluationContextStudent[]
+  activities  EvaluationActivity[]
+
+  @@index([workspaceId])
+  @@index([ownerType, ownerId])
+}
+
+model Student {
+  id          String                     @id @default(cuid())
+  workspaceId String
+  fullName    String
+  email       String?
+  externalId  String?
+  createdAt   DateTime                   @default(now())
+  workspace   Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contexts    EvaluationContextStudent[]
+  results     EvaluationResult[]
+
+  @@unique([workspaceId, externalId])
+  @@index([workspaceId])
+  @@index([email])
+}
+
+model EvaluationContextStudent {
+  id        String            @id @default(cuid())
+  contextId String
+  studentId String
+  context   EvaluationContext @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  student   Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([contextId, studentId])
+  @@index([studentId])
+}
+
+model EvaluationActivity {
+  id          String             @id @default(cuid())
+  contextId   String
+  title       String
+  description String?
+  maxScore    Decimal?           @db.Decimal(8, 2)
+  createdById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  context     EvaluationContext  @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  rubric      Rubric?
+  results     EvaluationResult[]
+
+  @@index([contextId])
+}
+
+model Rubric {
+  id         String             @id @default(cuid())
+  activityId String             @unique
+  title      String
+  activity   EvaluationActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  criteria   RubricCriteria[]
+}
+
+model RubricCriteria {
+  id          String                 @id @default(cuid())
+  rubricId    String
+  title       String
+  weight      Decimal?               @db.Decimal(8, 2)
+  position    Int                    @default(0)
+  rubric      Rubric                 @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  levels      RubricLevel[]
+  resultItems EvaluationResultItem[]
+
+  @@index([rubricId])
+}
+
+model RubricLevel {
+  id           String                 @id @default(cuid())
+  criteriaId   String
+  label        String
+  score        Decimal                @db.Decimal(8, 2)
+  feedbackText String
+  position     Int                    @default(0)
+  criteria     RubricCriteria         @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
+  resultItems  EvaluationResultItem[]
+
+  @@index([criteriaId])
+}
+
+model EvaluationResult {
+  id            String                 @id @default(cuid())
+  activityId    String
+  studentId     String
+  totalScore    Decimal                @db.Decimal(8, 2)
+  finalFeedback String
+  status        String                 @default("draft")
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  activity      EvaluationActivity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student       Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  items         EvaluationResultItem[]
+
+  @@unique([activityId, studentId])
+  @@index([studentId])
+}
+
+model EvaluationResultItem {
+  id         String           @id @default(cuid())
+  resultId   String
+  criteriaId String
+  levelId    String
+  score      Decimal          @db.Decimal(8, 2)
+  result     EvaluationResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  criteria   RubricCriteria   @relation(fields: [criteriaId], references: [id], onDelete: Restrict)
+  level      RubricLevel      @relation(fields: [levelId], references: [id], onDelete: Restrict)
+
+  @@unique([resultId, criteriaId])
+  @@index([levelId])
+}
+
+model Course {
+  id                    String             @id @default(cuid())
+  workspaceId           String
+  title                 String
+  slug                  String
+  shortDescription      String?
+  longDescription       String?
+  coverImageUrl         String?
+  thumbnailImageUrl     String?
+  instructorName        String?
+  level                 String?
+  faqJson               Json?
+  classroomLink         String?
+  classroomCode         String?
+  classroomInstructions String?
+  status                CourseStatus       @default(DRAFT)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instances             CourseInstance[]
+  enrollments           CourseEnrollment[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, status])
+}
+
+model CourseInstance {
+  id              String               @id @default(cuid())
+  courseId        String
+  title           String?
+  startDateTime   DateTime
+  endDateTime     DateTime
+  locationName    String
+  locationAddress String?
+  priceArs        Decimal              @db.Decimal(12, 2)
+  capacity        Int
+  status          CourseInstanceStatus @default(ACTIVE)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  course          Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollments     CourseEnrollment[]
+
+  @@index([courseId, status])
+}
+
+model CourseEnrollment {
+  id                     String                        @id @default(cuid())
+  workspaceId            String
+  courseId               String
+  courseInstanceId       String
+  name                   String
+  email                  String
+  whatsapp               String
+  dni                    String
+  city                   String?
+  instagram              String?
+  paymentStatus          CourseEnrollmentPaymentStatus @default(PENDING)
+  paymentMethod          CourseEnrollmentPaymentMethod @default(MERCADO_PAGO)
+  paymentProvider        CourseEnrollmentPaymentMethod @default(MERCADO_PAGO)
+  paymentRef             String?
+  amountArs              Decimal                       @db.Decimal(12, 2)
+  platformFeePercent     Decimal                       @db.Decimal(5, 2)
+  platformFeeArs         Decimal                       @db.Decimal(12, 2)
+  netAmountArs           Decimal                       @db.Decimal(12, 2)
+  classroomAccessShownAt DateTime?
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+  workspace              Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  course                 Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseInstance         CourseInstance                @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, paymentStatus])
+  @@index([courseId, paymentStatus])
+  @@index([courseInstanceId, paymentStatus])
+  @@index([paymentRef])
+}
+
+model CourseSalesTeacher {
+  id              String              @id @default(cuid())
+  workspaceId     String
+  firstName       String
+  lastName        String
+  fullName        String
+  slug            String
+  profileImageUrl String?
+  shortBio        String?
+  longBio         String?
+  email           String?
+  whatsapp        String?
+  instagram       String?
+  website         String?
+  specialty       String?
+  experienceYears Int?
+  city            String?
+  country         String?
+  isPublished     Boolean             @default(false)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  courses         CourseSalesCourse[]
+  workspace       Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
+}
+
+model CourseSalesCourse {
+  id                    String                  @id @default(cuid())
+  workspaceId           String
+  teacherId             String
+  title                 String
+  subtitle              String?
+  slug                  String
+  shortDescription      String?
+  longDescription       String?
+  modality              CourseSalesModality
+  level                 CourseSalesLevel
+  category              String?
+  targetAudience        String?
+  prerequisites         String?
+  objectives            String?
+  durationText          String?
+  startDate             DateTime?
+  endDate               DateTime?
+  scheduleText          String?
+  seats                 Int?
+  price                 Decimal                 @default(0) @db.Decimal(12, 2)
+  currency              String                  @default("ARS")
+  discountPrice         Decimal?                @db.Decimal(12, 2)
+  includesCertificate   Boolean                 @default(false)
+  includesRecordings    Boolean                 @default(false)
+  includesDownloadables Boolean                 @default(false)
+  coverImageUrl         String?
+  galleryImages         String[]                @default([])
+  status                CourseSalesCourseStatus @default(DRAFT)
+  seoTitle              String?
+  seoDescription        String?
+  landingBlocksJson     Json?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  teacher               CourseSalesTeacher      @relation(fields: [teacherId], references: [id])
+  workspace             Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads                 CourseSalesLead[]
+  sections              CourseSalesSection[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
+  @@index([teacherId])
+}
+
+model CourseSalesSection {
+  id        String              @id @default(cuid())
+  courseId  String
+  title     String
+  sortOrder Int                 @default(0)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  lessons   CourseSalesLesson[]
+  course    CourseSalesCourse   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+}
+
+model CourseSalesLesson {
+  id        String             @id @default(cuid())
+  sectionId String
+  title     String
+  summary   String?
+  sortOrder Int                @default(0)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  section   CourseSalesSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+}
+
+model CourseSalesLead {
+  id          String                @id @default(cuid())
+  workspaceId String
+  courseId    String
+  name        String
+  email       String
+  phone       String?
+  message     String?
+  status      CourseSalesLeadStatus @default(NEW)
+  metadata    Json?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  course      CourseSalesCourse     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([courseId])
+}
+
+model ServiceSalesLead {
+  id            String            @id @default(cuid())
+  workspaceId   String
+  name          String
+  email         String?
+  phone         String?
+  eventType     String
+  eventDate     DateTime?
+  eventLocation String?
+  message       String?
+  status        ServiceLeadStatus @default(NEW)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  eventSubtype  String?
+  metaJson      Json?
+  formId        String?
+  formSlug      String?
+  form          ServiceLeadForm?  @relation(fields: [formId], references: [id])
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([eventType])
+}
+
+model ServiceLeadForm {
+  id          String             @id @default(cuid())
+  workspaceId String
+  slug        String
+  name        String
+  eventType   String
+  title       String?
+  description String?
+  isActive    Boolean            @default(true)
+  isDefault   Boolean            @default(false)
+  configJson  Json
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  formMode    String             @default("SPECIFIC")
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id])
+  leads       ServiceSalesLead[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, isActive])
+  @@index([workspaceId, eventType])
+}
+
+
 
 model Membership {
   id          String         @id @default(cuid())
@@ -7098,6 +7528,12 @@ model FotorankJudgeSession {
 enum MembershipRole {
   ADMIN
   MEMBER
+}
+
+enum GlobalRole {
+  SUPER_ADMIN
+  PLATFORM_SUPPORT
+  USER
 }
 
 enum WorkspaceRole {
@@ -7757,4 +8193,70 @@ model DnxPaymentAuditEvent {
   @@index([correlationId])
   @@index([provider, environment, createdAt])
   @@index([action, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// CLICKATON ADMIN — ediciones y sedes (Etapa 10C)
+// ---------------------------------------------------------------------------
+
+enum ClickatonEditionStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model ClickatonEdition {
+  id                   String                 @id @default(cuid())
+  name                 String
+  slug                 String                 @unique
+  shortDescription     String?
+  description          String?
+  status               ClickatonEditionStatus @default(DRAFT)
+  isPublished          Boolean                @default(false)
+  timezone             String?
+  startAt              DateTime?
+  endAt                DateTime?
+  registrationOpenAt   DateTime?
+  registrationCloseAt  DateTime?
+  defaultCapacity      Int?
+  fotorankContestId    String?
+  coverImageUrl        String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  venues               ClickatonVenue[]
+
+  @@index([status])
+  @@index([isPublished])
+  @@index([startAt])
+  @@index([fotorankContestId])
+}
+
+model ClickatonVenue {
+  id              String           @id @default(cuid())
+  editionId       String
+  name            String
+  slug            String
+  city            String
+  provinceOrState String?
+  country         String           @default("AR")
+  address         String?
+  meetingPoint    String?
+  capacity        Int?
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  edition         ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@unique([editionId, slug])
+  @@index([editionId])
+  @@index([city])
+  @@index([isActive])
 }

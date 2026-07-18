@@ -28,7 +28,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    const activeStudents = await prisma.student.findMany({
+    const activeStudents = await prisma.schoolStudent.findMany({
       where: {
         schoolId,
         isActive: true,

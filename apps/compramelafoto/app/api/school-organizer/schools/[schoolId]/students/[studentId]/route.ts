@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
     const body = (await req.json().catch(() => ({}))) as PatchBody;
 
-    const student = await prisma.student.findFirst({
+    const student = await prisma.schoolStudent.findFirst({
       where: { id: studentId, schoolId, isActive: true },
       select: {
         id: true,
@@ -261,7 +261,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    const student = await prisma.student.findFirst({
+    const student = await prisma.schoolStudent.findFirst({
       where: { id: studentId, schoolId, isActive: true },
       select: {
         id: true,

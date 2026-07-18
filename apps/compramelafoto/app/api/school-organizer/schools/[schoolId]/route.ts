@@ -57,7 +57,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
           deletedAt: null,
         },
       }),
-      prisma.student.count({
+      prisma.schoolStudent.count({
         where: {
           schoolId,
           isActive: true,
