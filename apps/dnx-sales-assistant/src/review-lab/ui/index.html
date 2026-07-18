@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DNX Sales Assistant — Review Lab</title>
+    <link rel="stylesheet" href="/review-lab/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Laboratorio local de revisión conversacional</h1>
+      <p>
+        Telegram es el canal principal de conversación. El laboratorio es una herramienta técnica secundaria.
+        No debe desplegarse ni exponerse a usuarios finales.
+        Una respuesta con score 100 puede igualmente requerir ajustes.
+      </p>
+    </header>
+    <main>
+      <section class="panel" aria-labelledby="chat-title">
+        <h2 id="chat-title">Conversación</h2>
+        <div class="toolbar">
+          <label>
+            Motor
+            <select id="engine" aria-label="Motor de estilo">
+              <option value="dani-conversation-v1">Dani V1</option>
+              <option value="legacy">Legacy</option>
+            </select>
+          </label>
+          <label>
+            Escenario
+            <select id="scenario" aria-label="Escenario guardado">
+              <option value="">Conversación libre</option>
+            </select>
+          </label>
+          <button type="button" id="btn-new">Nueva conversación</button>
+          <button type="button" id="btn-load-scenario">Cargar escenario</button>
+          <button type="button" id="btn-step">Ejecutar turno</button>
+          <button type="button" id="btn-run-all">Ejecutar todo</button>
+          <button type="button" id="btn-export" class="primary">Guardar revisión / Exportar</button>
+        </div>
+        <div id="chat" class="chat" aria-live="polite"></div>
+        <form id="composer" class="composer">
+          <label for="message">Mensaje</label>
+          <textarea id="message" name="message" maxlength="5000" required placeholder="Escribí como fotógrafo…"></textarea>
+          <div class="toolbar">
+            <button type="submit" class="primary">Enviar</button>
+            <button type="button" id="btn-compare">Comparar legacy vs Dani</button>
+          </div>
+        </form>
+        <p id="error" class="error" hidden role="alert"></p>
+        <div id="compare-box" class="compare" hidden></div>
+      </section>
+
+      <aside class="panel diag" aria-labelledby="diag-title">
+        <h2 id="diag-title">Diagnóstico del último turno</h2>
+        <p id="engine-badge" class="badge info">Motor: —</p>
+        <dl id="diag-list">
+          <dt>Intención</dt><dd id="d-intent">—</dd>
+          <dt>Estado</dt><dd id="d-status">—</dd>
+          <dt>Quote</dt><dd id="d-quote">—</dd>
+          <dt>Conocidos</dt><dd id="d-known">—</dd>
+          <dt>Aprendidos</dt><dd id="d-learned">—</dd>
+          <dt>Corregidos</dt><dd id="d-corrected">—</dd>
+          <dt>Faltantes</dt><dd id="d-missing">—</dd>
+          <dt>Campo preguntado</dt><dd id="d-asked">—</dd>
+          <dt>Tipo respuesta</dt><dd id="d-type">—</dd>
+          <dt>Estilo</dt><dd id="d-style">—</dd>
+          <dt>Score</dt><dd id="d-score">—</dd>
+          <dt>Pricing silencioso</dt><dd id="d-pricing">—</dd>
+        </dl>
+        <h3>Flags</h3>
+        <ul id="d-flags" class="flags"><li>none</li></ul>
+        <div class="visual-box" aria-labelledby="visual-title">
+          <h3 id="visual-title">Referencias visuales</h3>
+          <p id="visual-status">Referencia visual solicitada: No</p>
+          <p id="visual-meta" class="muted">
+            Proveedor: Catálogo local curado. Solo laboratorio local — el asistente público no muestra imágenes.
+          </p>
+          <div id="visual-grid" class="visual-grid" aria-live="polite"></div>
+        </div>
+        <div id="review-panel" hidden>
+          <h3>Revisión humana</h3>
+          <div class="review-row">
+            <button type="button" data-verdict="APPROVED">Aprobada</button>
+            <button type="button" data-verdict="NEEDS_ADJUSTMENT">Necesita ajuste</button>
+            <button type="button" data-verdict="INCORRECT">Incorrecta</button>
+          </div>
+          <label for="note">Observación</label>
+          <textarea id="note" maxlength="2000" placeholder="Ej: Yo no diría Buenísimo acá."></textarea>
+        </div>
+        <div id="summary" class="notice">
+          La evaluación automática orienta la revisión. La aprobación final es de Dani.
+        </div>
+      </aside>
+
+      <section class="panel pricing-review" aria-labelledby="pricing-title">
+        <h2 id="pricing-title">Revisión de presupuesto</h2>
+        <p class="muted">
+          Solo laboratorio local. Los importes permanecen ocultos hasta que actives «Mostrar valores internos».
+          La revisión de presupuesto existe únicamente para verificar el funcionamiento del motor y la claridad
+          de sus explicaciones antes de habilitar resultados económicos para usuarios.
+        </p>
+        <div class="toolbar">
+          <button type="button" id="btn-pricing-calc" class="primary">Calcular / actualizar</button>
+          <label class="inline">
+            <input type="checkbox" id="pricing-show-amounts" />
+            Mostrar valores internos
+          </label>
+          <label class="inline">
+            <input type="checkbox" id="pricing-allow-synthetic" />
+            Usar perfil sintético de prueba (solo lab)
+          </label>
+          <button type="button" id="btn-pricing-export">Exportar revisión financiera</button>
+        </div>
+        <p id="pricing-synthetic-banner" class="notice" hidden></p>
+        <p id="pricing-status" class="badge info">Estado: —</p>
+        <dl id="pricing-summary">
+          <dt>Mínimo sostenible</dt><dd id="p-min">oculto</dd>
+          <dt>Recomendado</dt><dd id="p-rec">oculto</dd>
+          <dt>Factor comercial</dt><dd id="p-factor">—</dd>
+          <dt>Moneda</dt><dd id="p-currency">—</dd>
+          <dt>Versión motor</dt><dd id="p-engine">—</dd>
+          <dt>Versión explicación</dt><dd id="p-expl-ver">dani-pricing-explanation-v1</dd>
+        </dl>
+        <h3>Datos utilizados</h3>
+        <ul id="p-fields" class="flags"><li>—</li></ul>
+        <h3>Faltantes</h3>
+        <ul id="p-missing" class="flags"><li>—</li></ul>
+        <h3>Supuestos</h3>
+        <ul id="p-assumptions" class="flags"><li>—</li></ul>
+        <h3>Componentes</h3>
+        <ul id="p-components" class="flags"><li>—</li></ul>
+        <h3>Advertencias</h3>
+        <ul id="p-warnings" class="flags"><li>—</li></ul>
+        <h3>Explicación Dani</h3>
+        <p id="p-dani" class="notice">—</p>
+        <h3>Explicación estructurada</h3>
+        <pre id="p-structured" class="notice">—</pre>
+        <div class="review-row">
+          <button type="button" data-pricing-verdict="APPROVED">Aprobada</button>
+          <button type="button" data-pricing-verdict="NEEDS_ADJUSTMENT">Necesita ajuste</button>
+          <button type="button" data-pricing-verdict="INCORRECT">Incorrecta</button>
+        </div>
+        <label for="pricing-code">Categoría</label>
+        <select id="pricing-code" aria-label="Categoría de explicación">
+          <option value="">(opcional)</option>
+          <option value="PRICING_EXPLANATION_TOO_TECHNICAL">Demasiado técnica</option>
+          <option value="PRICING_EXPLANATION_TOO_LONG">Demasiado larga</option>
+          <option value="PRICING_EXPLANATION_UNCLEAR">Poco clara</option>
+          <option value="PRICING_EXPLANATION_MISSING_COMPONENT">Falta componente</option>
+          <option value="PRICING_EXPLANATION_WRONG_ASSUMPTION">Supuesto incorrecto</option>
+          <option value="PRICING_EXPLANATION_MINIMUM_UNCLEAR">Mínimo poco claro</option>
+          <option value="PRICING_EXPLANATION_RECOMMENDED_UNCLEAR">Recomendado poco claro</option>
+          <option value="PRICING_EXPLANATION_OTHER">Otra</option>
+        </select>
+        <label for="pricing-note">Notas</label>
+        <textarea id="pricing-note" maxlength="2000" placeholder="Observación sobre la explicación…"></textarea>
+      </section>
+
+      <section class="panel calibration" aria-labelledby="cal-title">
+        <h2 id="cal-title">Calibración</h2>
+        <p class="muted">
+          Usá conversaciones ficticias o anonimizadas siempre que sea posible.
+          Las revisiones humanas no modifican automáticamente el comportamiento del asistente.
+        </p>
+        <div class="toolbar">
+          <button type="button" id="btn-cal-ingest">Enviar sesión a calibración</button>
+          <label class="inline">
+            <input type="checkbox" id="cal-redact" />
+            Redactar datos personales
+          </label>
+          <button type="button" id="btn-cal-refresh">Actualizar bandeja</button>
+          <button type="button" id="btn-cal-candidates">Generar candidatos</button>
+          <button type="button" id="btn-cal-export">Exportar reporte</button>
+        </div>
+        <div id="cal-quality" class="notice"></div>
+        <div class="toolbar">
+          <label>Veredicto
+            <select id="cal-filter-verdict" aria-label="Filtro veredicto">
+              <option value="">Todos</option>
+              <option value="APPROVED">Aprobadas</option>
+              <option value="NEEDS_ADJUSTMENT">Necesitan ajuste</option>
+              <option value="INCORRECT">Incorrectas</option>
+            </select>
+          </label>
+          <label>Código
+            <input id="cal-filter-code" placeholder="CALIBRATION_…" aria-label="Filtro código" />
+          </label>
+          <label>Copy ID
+            <input id="cal-filter-copy" placeholder="ASK_…" aria-label="Filtro copy" />
+          </label>
+        </div>
+        <div id="cal-inbox" class="cal-inbox" aria-live="polite"></div>
+        <div id="cal-groups" class="cal-groups"></div>
+        <div id="cal-sim" class="compare" hidden></div>
+      </section>
+    </main>
+    <script type="module" src="/review-lab/app.js"></script>
+  </body>
+</html>

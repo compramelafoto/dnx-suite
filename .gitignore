@@ -86,3 +86,12 @@ apps/fotorank/.env.staging.local
 apps/compramelafoto/data/import/
 .cursor/
 .env*.local
+
+# DNX Sales Assistant — configuración económica local (no versionar sin decisión explícita)
+apps/dnx-sales-assistant/config/pricing/*.local.json
+
+# DNX Sales Assistant — salida temporal de evaluación conversacional
+apps/dnx-sales-assistant/.tmp-evaluation/
+
+# DNX Sales Assistant — laboratorio local de revisión humana
+apps/dnx-sales-assistant/.local/

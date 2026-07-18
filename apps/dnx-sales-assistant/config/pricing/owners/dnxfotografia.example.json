@@ -1,0 +1,125 @@
+{
+  "id": "dnxfotografia-owner-example",
+  "name": "DNX Fotografía owner (example — no cotizar)",
+  "configured": false,
+  "profileVersion": "unconfigured",
+  "formulaVersion": "unconfigured",
+  "currency": "",
+  "commercialPositioningId": "",
+  "source": "DNX_STUDIO_CONFIG",
+  "updatedAt": "1970-01-01T00:00:00.000Z",
+  "notes": "PLACEHOLDER — copiar a dnxfotografia.local.json (nunca cargar .example.json) y completar con valores reales autorizados. Asociado a dnxfotografia@gmail.com solo tras autorización.",
+  "income": {
+    "livesOnlyFromPhotography": "yes",
+    "externalMonthlyIncome": 0
+  },
+  "personalExpenses": [
+    {
+      "id": "housing-rent",
+      "label": "Alquiler / hipoteca",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "housing"
+    },
+    {
+      "id": "food",
+      "label": "Alimentación",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "food"
+    }
+  ],
+  "businessExpenses": [
+    {
+      "id": "rent",
+      "label": "Alquiler / estudio",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "rent"
+    },
+    {
+      "id": "software",
+      "label": "Software",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "software"
+    },
+    {
+      "id": "marketing",
+      "label": "Marketing",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "marketing"
+    },
+    {
+      "id": "insurance",
+      "label": "Seguros",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "insurance"
+    },
+    {
+      "id": "internet",
+      "label": "Internet",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "internet"
+    },
+    {
+      "id": "phone",
+      "label": "Telefonía",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "phone"
+    },
+    {
+      "id": "mobility",
+      "label": "Movilidad estable",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "mobility"
+    },
+    {
+      "id": "employees",
+      "label": "Empleados / colaboradores",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "employees"
+    },
+    {
+      "id": "taxes",
+      "label": "Impuestos fijos",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "taxes"
+    },
+    {
+      "id": "other",
+      "label": "Otros gastos",
+      "monthlyAmount": 0,
+      "enabled": false,
+      "category": "other"
+    }
+  ],
+  "availability": {
+    "weeklyHours": 0,
+    "timeDistribution": {
+      "coverage": 0,
+      "editing": 0,
+      "administration": 0,
+      "sales": 0,
+      "marketing": 0,
+      "training": 0
+    },
+    "billableHoursWeekly": 0,
+    "vacationWeeksPerYear": 0,
+    "nonWorkingWeeksPerYear": 0
+  },
+  "reserves": {
+    "equipmentRenewalMonthly": 0,
+    "emergencyFundMonthly": 0,
+    "savingsGoalsMonthly": 0,
+    "vacationReserveMonthly": 0
+  },
+  "equipment": []
+}

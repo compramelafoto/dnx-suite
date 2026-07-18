@@ -8,6 +8,7 @@
     "start": "next start --port 3002",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:cuantocobro:characterization": "pnpm --filter @repo/cuanto-cobro-core test && ../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.cuantocobro.config.ts lib/cuantocobro/calculate-cuanto-cobro.characterization.test.ts lib/cuantocobro/__fixtures__/adapter-shape-contract.test.ts",
     "prisma:generate": "pnpm --filter @repo/db run db:generate"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
     "@repo/auth": "workspace:*",
     "@repo/auth-guards": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/cuanto-cobro-core": "workspace:*",
     "@repo/design-system": "workspace:*",
     "bcryptjs": "^3.0.3",
     "@aws-sdk/client-rekognition": "^3.985.0",

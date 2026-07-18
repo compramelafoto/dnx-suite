@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-18T00:00:00.000Z",
+  "references": [
+    {
+      "id": "vr-example-sports-01",
+      "version": 1,
+      "title": "Ejemplo (no usar — deshabilitado)",
+      "description": "Entrada de ejemplo del catálogo versionado. No apunta a una fotografía real autorizada.",
+      "niches": ["fotografía deportiva"],
+      "imagePath": "example-not-resolvable.png",
+      "orientation": "LANDSCAPE",
+      "educationalPurpose": ["congelamiento de acción", "uso del fondo"],
+      "tags": ["example", "disabled"],
+      "source": {
+        "kind": "LOCAL_CURATED",
+        "originalFilename": "example-not-resolvable.png"
+      },
+      "rights": {
+        "usageAuthorized": false,
+        "authorizedForInternalReview": false,
+        "authorizedForPublicAssistant": false,
+        "authorizationBasis": "UNKNOWN",
+        "attributionRequired": false,
+        "notes": "Fixture de ejemplo: no aprobar ni mostrar."
+      },
+      "status": "DISABLED",
+      "createdAt": "2026-07-18T00:00:00.000Z",
+      "updatedAt": "2026-07-18T00:00:00.000Z"
+    }
+  ]
+}

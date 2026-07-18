@@ -1,0 +1,458 @@
+{
+  "configured": false,
+  "catalogVersion": "unconfigured",
+  "formulaVersion": "unconfigured",
+  "templates": [
+    {
+      "id": "tpl-wedding",
+      "configured": false,
+      "serviceType": "WEDDING",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-wedding-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-fifteenth_birthday",
+      "configured": false,
+      "serviceType": "FIFTEENTH_BIRTHDAY",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-fifteenth_birthday-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-birthday",
+      "configured": false,
+      "serviceType": "BIRTHDAY",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-birthday-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-corporate_event",
+      "configured": false,
+      "serviceType": "CORPORATE_EVENT",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-corporate_event-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-social_event",
+      "configured": false,
+      "serviceType": "SOCIAL_EVENT",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-social_event-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-portrait_session",
+      "configured": false,
+      "serviceType": "PORTRAIT_SESSION",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-portrait_session-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-family_session",
+      "configured": false,
+      "serviceType": "FAMILY_SESSION",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-family_session-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-product_photography",
+      "configured": false,
+      "serviceType": "PRODUCT_PHOTOGRAPHY",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-product_photography-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-school_photography",
+      "configured": false,
+      "serviceType": "SCHOOL_PHOTOGRAPHY",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-school_photography-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-sports_event",
+      "configured": false,
+      "serviceType": "SPORTS_EVENT",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-sports_event-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    },
+    {
+      "id": "tpl-other",
+      "configured": false,
+      "serviceType": "OTHER",
+      "templateVersion": "unconfigured",
+      "formulaVersion": "unconfigured",
+      "coverage": {
+        "minimumHours": 0,
+        "maximumHours": 0,
+        "defaultHours": 0
+      },
+      "editing": {
+        "mode": "FIXED_HOURS",
+        "fixedHours": 0
+      },
+      "generalClientHours": {
+        "sales": 0,
+        "meetings": 0,
+        "preparation": 0,
+        "coordination": 0,
+        "billing": 0,
+        "followUp": 0,
+        "deliveryAdministration": 0
+      },
+      "concepts": [
+        {
+          "id": "c-other-own",
+          "configured": false,
+          "type": "OWN_SERVICE",
+          "label": "PLACEHOLDER_DO_NOT_USE",
+          "calculationMode": "FIXED",
+          "hours": 0,
+          "directCost": 0,
+          "marginPercent": 0,
+          "quantity": 0,
+          "includeEquipmentWear": false
+        }
+      ],
+      "requiredQuestions": [],
+      "notes": "PLACEHOLDER — requiere confirmación humana. No cotizar."
+    }
+  ]
+}
