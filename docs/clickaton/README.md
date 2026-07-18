@@ -150,6 +150,18 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Header: Iniciar sesión / menú de cuenta; `/mi-cuenta`
 - Doc: [UNIFIED_LOGIN.md](./UNIFIED_LOGIN.md)
 
+### Etapa 10C / 10C4B — Prisma ediciones/sedes + reconciliación
+
+- Modelos `ClickatonEdition` / `ClickatonVenue` + admin CRUD
+- Orphan Infospot reconciliado (10C4B GO)
+- Doc: [INFOSPOT_ORPHAN_RECONCILIATION_10C4B.md](./INFOSPOT_ORPHAN_RECONCILIATION_10C4B.md)
+
+### Etapa 10D1 — Auditoría inscripción / QR / check-in / kit
+
+- Diseño funcional + modelo de datos + contratos TypeScript (sin migración)
+- Doc: [REGISTRATION_QR_CHECKIN_KIT_AUDIT_10D1.md](./REGISTRATION_QR_CHECKIN_KIT_AUDIT_10D1.md)
+- Contratos: `apps/clickaton/lib/registration/design/`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
