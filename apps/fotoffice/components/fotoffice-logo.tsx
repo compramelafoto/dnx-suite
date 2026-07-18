@@ -1,9 +1,9 @@
 import Image from "next/image";
 
-/** Copiá el PNG con transparencia en `public/fotoffice.png`. Ajustá proporción si tu archivo difiere. */
+/** Asset oficial PNG con transparencia: `public/fotoffice.png`. */
 const LOGO_SRC = "/fotoffice.png";
-const LOGO_WIDTH = 1024;
-const LOGO_HEIGHT = 576;
+const LOGO_WIDTH = 1536;
+const LOGO_HEIGHT = 1024;
 
 export type FotofficeLogoVariant = "hero" | "compact" | "sidebar";
 

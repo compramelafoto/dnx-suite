@@ -1,34 +1,44 @@
-# Fotoffice (DNX Suite)
+# FotOffice (DNX Suite)
 
-App de Fotoffice dentro del monorepo `dnx-suite`.
+App de FotOffice dentro del monorepo `dnx-suite`.
 
 ## Desarrollo local
-
-Desde la raíz del monorepo:
 
 ```bash
 pnpm --filter fotoffice dev
 ```
 
-## Variables de entorno (cursos + Mercado Pago)
+Puerto por defecto: **3010**.
 
-Usar `apps/fotoffice/.env.example` como base y copiarlo a `.env.local`.
+## Autenticación unificada
 
-Variables necesarias para el flujo de cursos con Mercado Pago:
+Identidad DNX (Google OAuth + cookie `dnx_session`). **No Auth0.**
 
-- `MP_ACCESS_TOKEN`: token de Mercado Pago para crear preferencias y consultar pagos.
-- `MP_WEBHOOK_SECRET`: secreto configurado en Mercado Pago para validar firma del webhook.
-- `APP_URL`: URL pública/canónica de Fotoffice usada para `back_urls` y `notification_url`.
-- `NEXT_PUBLIC_APP_URL`: URL pública del cliente (mantener consistente con `APP_URL` por entorno).
+Documentación: [`docs/AUTH.md`](./docs/AUTH.md).
+
+Logo oficial (PNG con transparencia): `public/fotoffice.png`.
+
+## Variables de entorno
+
+Usar `apps/fotoffice/.env.example` → `.env.local`.
+
+Incluye Google OAuth (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`), `APP_URL`, `COOKIE_DOMAIN` y Mercado Pago.
 
 ### Nota de seguridad webhook
 
 - En `development`, si `MP_WEBHOOK_SECRET` no está definido, el webhook permite pruebas y registra un warning.
-- En `production`, `MP_WEBHOOK_SECRET` es obligatorio; si falta o la firma es inválida, el webhook se rechaza.
+- En `production`, `MP_WEBHOOK_SECRET` es obligatorio.
+
+## Migración onboarding
+
+`packages/db/prisma/migrations/20260718140000_fotoffice_photographer_onboarding/`
+
+No aplicar a producción sin autorización explícita.
 
 ## Validación
 
 ```bash
+pnpm --filter fotoffice test
 pnpm --filter fotoffice lint
 pnpm --filter fotoffice build
 ```

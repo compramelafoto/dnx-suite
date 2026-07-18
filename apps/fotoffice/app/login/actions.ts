@@ -1,11 +1,12 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { prisma, type Prisma } from "@repo/db";
 import { createFotofficeSessionForUser } from "@/lib/auth";
+import { resolveFotofficePostLoginDestination } from "@/lib/post-login";
 import { verifyPassword } from "@/lib/security/password";
-import { COURSES_SALES_MODULE_KEY, FOTOFFICE_WORKSPACE_COOKIE } from "@/lib/courses-sales/constants";
+import { FOTOFFICE_WORKSPACE_COOKIE } from "@/lib/courses-sales/constants";
 
 const loginSelect = {
   id: true,
@@ -42,7 +43,7 @@ export async function fotofficeLoginAction(
     return { error: "Tu cuenta está suspendida. Contactá al administrador." };
   }
   if (!user.password) {
-    return { error: "Esta cuenta no tiene contraseña configurada." };
+    return { error: "Esta cuenta no tiene contraseña configurada. Usá Continuar con Google." };
   }
   if (!verifyPassword(password, user.password)) {
     return { error: "Email o contraseña incorrectos." };
@@ -50,34 +51,14 @@ export async function fotofficeLoginAction(
 
   try {
     await createFotofficeSessionForUser(user.id);
-    const unifiedMemberships = await prisma.workspaceMembership.findMany({
-      where: { userId: user.id },
-      select: { workspaceId: true },
-      orderBy: { createdAt: "asc" },
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
     });
-    const effectiveWorkspaceIds =
-      unifiedMemberships.length > 0
-        ? unifiedMemberships.map((m) => m.workspaceId)
-        : (
-            await prisma.membership.findMany({
-              where: { userId: user.id },
-              select: { workspaceId: true },
-              orderBy: { id: "asc" },
-            })
-          ).map((m) => m.workspaceId);
-    if (effectiveWorkspaceIds.length > 0) {
-      const enabledWorkspace = await prisma.workspaceFeatureModule.findFirst({
-        where: {
-          workspaceId: { in: effectiveWorkspaceIds },
-          moduleKey: COURSES_SALES_MODULE_KEY,
-          enabled: true,
-        },
-        select: { workspaceId: true },
-        orderBy: { createdAt: "asc" },
-      });
-      const preferredWorkspaceId = enabledWorkspace?.workspaceId ?? effectiveWorkspaceIds[0]!;
+    const dest = await resolveFotofficePostLoginDestination({ userId: user.id });
+    if (dest.workspaceId) {
       const cookieStore = await cookies();
-      cookieStore.set(FOTOFFICE_WORKSPACE_COOKIE, preferredWorkspaceId, {
+      cookieStore.set(FOTOFFICE_WORKSPACE_COOKIE, dest.workspaceId, {
         path: "/",
         maxAge: 60 * 60 * 24 * 365,
         sameSite: "lax",
@@ -85,13 +66,10 @@ export async function fotofficeLoginAction(
         secure: process.env.NODE_ENV === "production",
       });
     }
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
-  } catch {
+    redirect(dest.path);
+  } catch (e) {
+    // redirect() throws; rethrow
+    if (e && typeof e === "object" && "digest" in e) throw e;
     return { error: "No se pudo guardar la sesión." };
   }
-
-  redirect("/dashboard");
 }

@@ -2,11 +2,11 @@
 const PLATFORM_SUPER_ADMIN_ROLES = new Set(["SUPER_ADMIN"]);
 
 /**
- * Destino tras login en Fotoffice.
- * Solo SUPER_ADMIN va al hub `/admin`; el resto al dashboard de workspace.
+ * Destino tras login en Fotoffice (atajo síncrono).
+ * El flujo completo (workspace / onboarding) vive en `resolveFotofficePostLoginDestination`.
  */
-export function getFotofficePostLoginPath(role: string): "/admin" | "/dashboard" {
-  return PLATFORM_SUPER_ADMIN_ROLES.has(role) ? "/admin" : "/dashboard";
+export function getFotofficePostLoginPath(role: string): "/admin" | "/workspace" {
+  return PLATFORM_SUPER_ADMIN_ROLES.has(role) ? "/admin" : "/workspace";
 }
 
 export function resolvePlatformRole(input: { globalRole?: string | null; legacyRole?: string | null }): string {

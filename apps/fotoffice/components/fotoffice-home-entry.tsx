@@ -14,22 +14,23 @@ export function FotofficeHomeEntry({ dbUnavailable }: { dbUnavailable?: boolean 
           <div className="fo-card fo-alert-warning text-left" role="status">
             <p className="text-sm font-medium text-[var(--fo-text)]">Base de datos no disponible</p>
             <p className="text-sm text-[var(--fo-muted)] mt-2 leading-relaxed">
-              No se pudo cargar tu perfil. Revisá que el servidor PostgreSQL (Neon) esté en línea y que{" "}
+              No se pudo cargar tu perfil. Revisá PostgreSQL y{" "}
               <code className="text-xs bg-[var(--fo-code-bg)] px-1 py-0.5 rounded border border-[var(--fo-border)]">
                 DATABASE_URL
-              </code>{" "}
-              sea correcta en tu entorno.
+              </code>
+              .
             </p>
           </div>
         ) : null}
         <div className="space-y-6">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--fo-accent)]">
-            DNX Suite
-          </p>
-          <h1 className="sr-only">Fotoffice</h1>
-          <FotofficeLogo variant="hero" priority />
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed max-w-md mx-auto">
-            Venta de cursos y administración por workspace. Iniciá sesión para continuar.
+          <div className="inline-flex rounded-2xl bg-white px-6 py-4 mx-auto">
+            <FotofficeLogo variant="hero" priority />
+          </div>
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[var(--fo-text)] text-balance leading-[1.2]">
+            Administrá tu negocio fotográfico en un solo lugar
+          </h1>
+          <p className="text-sm md:text-base text-[var(--fo-muted)] leading-relaxed max-w-md mx-auto text-balance">
+            Ingresá con la misma cuenta de fotógrafo del ecosistema DNX (ComprameLaFoto y FotoRank).
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
@@ -50,7 +51,7 @@ export function FotofficeHomeEntry({ dbUnavailable }: { dbUnavailable?: boolean 
           <kbd className="px-1.5 py-0.5 rounded border border-[var(--fo-kbd-border)] bg-[var(--fo-kbd-bg)] font-mono text-[10px] shadow-[var(--fo-shadow-xs)]">
             Mayús
           </kbd>{" "}
-          + clic en «Iniciar sesión» para el acceso de administración de plataforma.
+          + clic para acceso administración de plataforma.
         </p>
       </div>
     </div>
