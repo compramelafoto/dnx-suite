@@ -1,81 +1,28 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { GoogleLoginButton } from "@/app/admin/login/GoogleLoginButton";
-import { LoginForm } from "@/app/admin/login/LoginForm";
-import { Card } from "@/components/ui/Card";
-import { adminRoutes } from "@/config/admin/navigation";
-import { siteConfig } from "@/config/site";
 import {
-  getClickatonAuthUser,
-  hasClickatonAdminAccess,
-  sanitizeAdminReturnPath,
-} from "@/lib/admin/auth";
-import { friendlyGoogleLoginError } from "@/lib/admin/google-oauth";
+  CLICKATON_LOGIN_PATH,
+  sanitizeClickatonReturnPath,
+} from "@/lib/auth/return-path";
+import { adminRoutes } from "@/config/admin/navigation";
 
 type Props = {
   searchParams: Promise<{ next?: string; error?: string }>;
 };
 
-export default async function AdminLoginPage({ searchParams }: Props) {
+/**
+ * Compat: `/admin/login` → login unificado `/login`.
+ * Conserva `next` administrativo seguro y errores OAuth legados.
+ */
+export default async function AdminLoginRedirectPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const nextPath = sanitizeAdminReturnPath(sp.next);
-  const oauthError = friendlyGoogleLoginError(sp.error);
-  const user = await getClickatonAuthUser();
-  if (user && hasClickatonAdminAccess(user)) {
-    redirect(nextPath);
+  const next = sanitizeClickatonReturnPath(sp.next, adminRoutes.dashboard);
+  const safeNext = next.startsWith("/admin") ? next : adminRoutes.dashboard;
+
+  const url = new URL(CLICKATON_LOGIN_PATH, "http://local.invalid");
+  url.searchParams.set("next", safeNext);
+  if (sp.error?.trim()) {
+    url.searchParams.set("error", sp.error.trim().slice(0, 160));
   }
-  if (user && !hasClickatonAdminAccess(user)) {
-    redirect(adminRoutes.forbidden);
-  }
 
-  return (
-    <div className="flex min-h-dvh items-center justify-center bg-ck-bg px-4 py-12">
-      <Card variant="default" className="w-full max-w-md space-y-8">
-        <div className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ck-yellow">
-            {siteConfig.name}
-          </p>
-          <h1 className="font-[family-name:var(--font-ck-display)] text-3xl tracking-wide text-ck-text">
-            Acceso al panel de Clickatón
-          </h1>
-          <p className="text-sm leading-relaxed text-ck-text-secondary">
-            Ingresá con Google o con tu email y contraseña de DNX Identity. Solo
-            administradores autorizados acceden al panel.
-          </p>
-        </div>
-
-        {oauthError ? (
-          <p
-            className="rounded-[var(--ck-radius-control)] border border-[var(--ck-danger)]/40 bg-[var(--ck-danger)]/10 px-4 py-3 text-sm text-[var(--ck-danger)]"
-            role="alert"
-          >
-            {oauthError}
-          </p>
-        ) : null}
-
-        <div className="space-y-6">
-          <GoogleLoginButton nextPath={nextPath} />
-
-          <div className="relative py-1">
-            <div className="absolute inset-0 flex items-center" aria-hidden>
-              <div className="w-full border-t border-ck-border" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-ck-card px-3 text-xs uppercase tracking-wide text-ck-text-muted">
-                o email
-              </span>
-            </div>
-          </div>
-
-          <LoginForm nextPath={nextPath} />
-        </div>
-
-        <p className="text-center text-sm text-ck-text-muted">
-          <Link href="/" className="text-ck-yellow hover:underline">
-            Volver al sitio público
-          </Link>
-        </p>
-      </Card>
-    </div>
-  );
+  redirect(`${CLICKATON_LOGIN_PATH}?${url.searchParams.toString()}`);
 }

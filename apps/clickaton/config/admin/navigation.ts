@@ -10,7 +10,9 @@ export const adminRoutes = {
   sponsors: "/admin/sponsors",
   settings: "/admin/configuracion",
   integrations: "/admin/integraciones",
+  /** Compat: redirige al login unificado `/login`. */
   login: "/admin/login",
+  unifiedLogin: "/login",
   forbidden: "/admin/acceso-denegado",
 } as const;
 

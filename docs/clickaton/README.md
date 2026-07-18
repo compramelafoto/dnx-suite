@@ -140,10 +140,15 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 
 ### Etapa 10B2 — Google OAuth + email/clave (panel)
 
-- Login `/admin/login`: **Continuar con Google** y email/contraseña DNX Identity
-- Ambos métodos → `dnx_session` → guard allowlist (auth ≠ autorización)
+- Login Google + email/contraseña DNX Identity → `dnx_session` + allowlist
 - Callback `/api/auth/google/callback`
 - Doc: [GOOGLE_OAUTH_ADMIN.md](./GOOGLE_OAUTH_ADMIN.md)
+
+### Etapa 10B3 — Login unificado (usuarios + administradores)
+
+- Ruta oficial `/login`; `/admin/login` redirige
+- Header: Iniciar sesión / menú de cuenta; `/mi-cuenta`
+- Doc: [UNIFIED_LOGIN.md](./UNIFIED_LOGIN.md)
 
 ### Backlog
 

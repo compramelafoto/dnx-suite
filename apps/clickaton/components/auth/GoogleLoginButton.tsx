@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type MouseEvent } from "react";
-import { buildGoogleOAuthStartHref } from "@/lib/admin/google-oauth";
+import { buildGoogleOAuthStartHref } from "@/lib/auth/google-oauth";
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -30,7 +30,6 @@ type Props = {
   nextPath: string;
 };
 
-/** Inicio Google OAuth (método principal junto a email/contraseña DNX Identity). */
 export function GoogleLoginButton({ nextPath }: Props) {
   const [pending, setPending] = useState(false);
   const googleHref = buildGoogleOAuthStartHref({ next: nextPath });

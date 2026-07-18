@@ -1,11 +1,25 @@
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import {
+  getClickatonAuthUser,
+  hasClickatonAdminAccess,
+} from "@/lib/admin/auth";
 
-export default function PublicLayout({
+export default async function PublicLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await getClickatonAuthUser();
+  const authUser = user
+    ? {
+        name: user.name,
+        email: user.email,
+        logoUrl: user.logoUrl,
+        isAdmin: hasClickatonAdminAccess(user),
+      }
+    : null;
+
   return (
     <>
       <a
@@ -14,7 +28,7 @@ export default function PublicLayout({
       >
         Saltar al contenido
       </a>
-      <SiteHeader />
+      <SiteHeader authUser={authUser} />
       <main id="contenido-principal">{children}</main>
       <SiteFooter />
     </>

@@ -28,12 +28,12 @@ Fuera de alcance MVP: comunicaciones, comunidad interna, academia, reportes avan
 ## Autenticación
 
 - Cookie compartida `dnx_session` (`@repo/auth`).
-- Métodos en `/admin/login`: **Continuar con Google** y **email/contraseña** DNX Identity (mismo patrón suite).
-- Rutas Google: `/api/auth/google` + `/api/auth/google/callback` (helpers `@repo/auth`, mismo Client ID que el resto de la suite).
-- Guard server-side: `requireClickatonAdmin()` en `apps/clickaton/lib/admin/auth.ts`.
-- Decisión única de permiso: `hasClickatonAdminAccess()` en `apps/clickaton/lib/admin/access.ts`.
+- Login unificado: `/login` (Google + email/contraseña). `/admin/login` solo redirige.
+- Rutas Google: `/api/auth/google` + `/api/auth/google/callback` (helpers `@repo/auth`).
+- Guard server-side: `requireClickatonAdmin()` → `/login?next=…` si no hay sesión.
+- Decisión de permiso: `hasClickatonAdminAccess()` (allowlist / `SUPER_ADMIN`).
 
-**Autenticación ≠ autorización:** Google o email/clave crean la sesión DNX; el panel solo se abre si el email está en la allowlist (o es `SUPER_ADMIN`). Detalle: [GOOGLE_OAUTH_ADMIN.md](./GOOGLE_OAUTH_ADMIN.md).
+**Autenticación ≠ autorización.** Detalle: [UNIFIED_LOGIN.md](./UNIFIED_LOGIN.md) · [GOOGLE_OAUTH_ADMIN.md](./GOOGLE_OAUTH_ADMIN.md).
 
 ### Administradores iniciales (acceso completo)
 
@@ -62,8 +62,10 @@ Cuando el modelo unificado vuelva al schema:
 | `/admin/ediciones` … | CRUD ediciones — ver [EDITIONS_AND_VENUES.md](./EDITIONS_AND_VENUES.md) |
 | `/admin/sedes` … | CRUD sedes — filtros por edición y estado activo |
 | `/admin/inscripciones` … `/admin/integraciones` | Empty states / configuración lectura |
-| `/admin/login` | Acceso (Google OAuth) |
-| `/admin/acceso-denegado` | Autenticado sin permiso |
+| `/login` | Login unificado (usuarios + admin) |
+| `/mi-cuenta` | Cuenta mínima post-login |
+| `/admin/login` | Redirect → `/login?next=/admin…` |
+| `/admin/acceso-denegado` | Autenticado sin permiso admin |
 | `/api/auth/google` | Inicio OAuth |
 | `/api/auth/google/callback` | Callback OAuth |
 
@@ -119,6 +121,7 @@ Detalle: [EDITIONS_AND_VENUES.md](./EDITIONS_AND_VENUES.md)
 ## Scripts de calidad
 
 ```bash
+pnpm --filter clickaton selfcheck:auth
 pnpm --filter clickaton selfcheck:admin-auth
 pnpm --filter clickaton selfcheck:admin-google-oauth
 pnpm --filter clickaton selfcheck:admin-editions-validation

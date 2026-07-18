@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import {
   DNX_GOOGLE_OAUTH_COOKIE,
+  DNX_GOOGLE_OAUTH_COOKIE_MAX_AGE,
   buildGoogleAuthorizationUrl,
   createGoogleOAuthTransit,
   getGoogleOAuthCredentials,
-  resolveAppBaseUrl,
-  resolveGoogleRedirectUri,
 } from "@repo/auth";
 import {
   CLICKATON_GOOGLE_OAUTH_APP,
-  safeClickatonAdminNextPath,
-} from "@/lib/admin/google-oauth";
-import { SESSION_COOKIE_OPTIONS } from "@/lib/admin/session-cookie";
-import { adminRoutes } from "@/config/admin/navigation";
+  safeClickatonNextPath,
+} from "@/lib/auth/google-oauth";
+import { cookieOptionsForRequest } from "@/lib/auth/session-cookie";
+import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,21 +19,14 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
+    // redirect_uri = origin de la request (no GOOGLE_REDIRECT_URI / APP_URL).
+    // Cookie host-only + callback del mismo host → evita "Sesión de Google inválida".
     const origin = url.origin;
-    const baseUrl = resolveAppBaseUrl({
-      originFromRequest: origin,
-      envKeys: [
-        "CLICKATON_PUBLIC_WEB_BASE_URL",
-        "APP_URL",
-        "NEXT_PUBLIC_APP_URL",
-        "AUTH_URL",
-      ],
-      fallback: "http://localhost:3005",
-    });
+    const redirectUri = `${origin}/api/auth/google/callback`;
 
     const credentials = getGoogleOAuthCredentials();
     if (!credentials) {
-      const login = new URL(adminRoutes.login, baseUrl);
+      const login = new URL(CLICKATON_LOGIN_PATH, origin);
       login.searchParams.set(
         "error",
         "Google OAuth no está configurado (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).",
@@ -42,14 +34,13 @@ export async function GET(req: Request) {
       return NextResponse.redirect(login.toString());
     }
 
-    const next = safeClickatonAdminNextPath(url.searchParams.get("next"));
+    const next = safeClickatonNextPath(url.searchParams.get("next"));
 
     const transit = createGoogleOAuthTransit({
       app: CLICKATON_GOOGLE_OAUTH_APP,
       ...(next ? { next } : {}),
     });
 
-    const redirectUri = resolveGoogleRedirectUri(baseUrl);
     const authUrl = buildGoogleAuthorizationUrl({
       clientId: credentials.clientId,
       redirectUri,
@@ -57,11 +48,10 @@ export async function GET(req: Request) {
     });
 
     const res = NextResponse.redirect(authUrl);
+    const cookieOpts = cookieOptionsForRequest(req.url, { oauthTransit: true });
     res.cookies.set(DNX_GOOGLE_OAUTH_COOKIE, transit.cookieValue, {
-      ...SESSION_COOKIE_OPTIONS,
-      maxAge: transit.maxAge,
-      httpOnly: true,
-      sameSite: "lax",
+      ...cookieOpts,
+      maxAge: transit.maxAge || DNX_GOOGLE_OAUTH_COOKIE_MAX_AGE,
     });
     return res;
   } catch (err) {

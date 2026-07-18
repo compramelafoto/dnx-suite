@@ -7,8 +7,6 @@ import {
   getGoogleOAuthCredentials,
   hashEmailForLog,
   parseAndVerifyGoogleOAuthTransit,
-  resolveAppBaseUrl,
-  resolveGoogleRedirectUri,
   resolveOrLinkGoogleUser,
 } from "@repo/auth";
 import { prisma } from "@repo/db";
@@ -16,19 +14,20 @@ import {
   CLICKATON_GOOGLE_OAUTH_APP,
   attachClickatonSessionCookieToResponse,
   resolveClickatonPostGoogleLoginPath,
-} from "@/lib/admin/google-oauth";
-import { SESSION_COOKIE_OPTIONS } from "@/lib/admin/session-cookie";
-import { adminRoutes } from "@/config/admin/navigation";
+} from "@/lib/auth/google-oauth";
+import { cookieOptionsForRequest } from "@/lib/auth/session-cookie";
+import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function redirectLogin(baseUrl: string, message: string) {
-  const url = new URL(adminRoutes.login, baseUrl);
+function redirectLogin(requestUrl: string, message: string) {
+  const origin = new URL(requestUrl).origin;
+  const url = new URL(CLICKATON_LOGIN_PATH, origin);
   url.searchParams.set("error", message);
   const res = NextResponse.redirect(url.toString());
   res.cookies.set(DNX_GOOGLE_OAUTH_COOKIE, "", {
-    ...SESSION_COOKIE_OPTIONS,
+    ...cookieOptionsForRequest(requestUrl, { oauthTransit: true }),
     maxAge: 0,
     expires: new Date(0),
   });
@@ -37,19 +36,7 @@ function redirectLogin(baseUrl: string, message: string) {
 
 export async function GET(req: Request) {
   const origin = new URL(req.url).origin;
-  // Redirects de UX en el mismo host del callback (evita perder cookie cross-host).
-  const baseUrl = origin;
-  // Token exchange debe usar el redirect_uri registrado (env / APP_URL).
-  const oauthBaseUrl = resolveAppBaseUrl({
-    originFromRequest: origin,
-    envKeys: [
-      "CLICKATON_PUBLIC_WEB_BASE_URL",
-      "APP_URL",
-      "NEXT_PUBLIC_APP_URL",
-      "AUTH_URL",
-    ],
-    fallback: "http://localhost:3005",
-  });
+  const redirectUri = `${origin}/api/auth/google/callback`;
 
   try {
     const url = new URL(req.url);
@@ -66,31 +53,34 @@ export async function GET(req: Request) {
     });
 
     if (!transit) {
+      console.info("[clickaton] Google OAuth transit invalid", {
+        hasState: Boolean(state),
+        hasCookie: Boolean(oauthCookie),
+      });
       return redirectLogin(
-        baseUrl,
+        req.url,
         "Sesión de Google inválida o expirada. Intentá de nuevo.",
       );
     }
 
     if (oauthError) {
       if (oauthError === "access_denied") {
-        return redirectLogin(baseUrl, "Cancelaste el acceso con Google.");
+        return redirectLogin(req.url, "Cancelaste el acceso con Google.");
       }
       return redirectLogin(
-        baseUrl,
+        req.url,
         "No pudimos iniciar sesión con Google. Volvé a intentarlo.",
       );
     }
     if (!code) {
-      return redirectLogin(baseUrl, "Google no devolvió un código de autorización.");
+      return redirectLogin(req.url, "Google no devolvió un código de autorización.");
     }
 
     const credentials = getGoogleOAuthCredentials();
     if (!credentials) {
-      return redirectLogin(baseUrl, "Google OAuth no está configurado en el servidor.");
+      return redirectLogin(req.url, "Google OAuth no está configurado en el servidor.");
     }
 
-    const redirectUri = resolveGoogleRedirectUri(oauthBaseUrl);
     const { accessToken } = await exchangeGoogleAuthCode({
       code,
       clientId: credentials.clientId,
@@ -126,7 +116,7 @@ export async function GET(req: Request) {
         msg,
       );
       return redirectLogin(
-        baseUrl,
+        req.url,
         msg.includes("vinculad") || msg.includes("bloqueada")
           ? msg
           : "No pudimos iniciar sesión con Google. Volvé a intentarlo.",
@@ -149,18 +139,20 @@ export async function GET(req: Request) {
     const target = new URL(destination.path, origin);
     const res = NextResponse.redirect(target);
     res.cookies.set(DNX_GOOGLE_OAUTH_COOKIE, "", {
-      ...SESSION_COOKIE_OPTIONS,
+      ...cookieOptionsForRequest(req.url, { oauthTransit: true }),
       maxAge: 0,
       expires: new Date(0),
     });
 
     try {
-      await attachClickatonSessionCookieToResponse(res, resolved.userId);
+      await attachClickatonSessionCookieToResponse(res, resolved.userId, {
+        requestUrl: req.url,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("[clickaton] Google session create failed:", message);
       return redirectLogin(
-        baseUrl,
+        req.url,
         "No se pudo guardar la sesión. Volvé a intentarlo.",
       );
     }
@@ -168,7 +160,7 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error("[clickaton] Google OAuth callback error", err);
     return redirectLogin(
-      baseUrl,
+      req.url,
       "No pudimos iniciar sesión con Google. Volvé a intentarlo.",
     );
   }

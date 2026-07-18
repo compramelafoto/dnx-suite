@@ -10,7 +10,8 @@ import {
 import { adminRoutes } from "@/config/admin/navigation";
 import { normalizeEmail } from "@/config/admin/admins";
 import { hasClickatonAdminAccess, sanitizeAdminReturnPath } from "@/lib/admin/access";
-import { SESSION_COOKIE_OPTIONS } from "@/lib/admin/session-cookie";
+import { getDefaultSessionCookieOptions } from "@/lib/auth/session-cookie";
+import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 
 export { hasClickatonAdminAccess, sanitizeAdminReturnPath } from "@/lib/admin/access";
 
@@ -21,6 +22,7 @@ export type ClickatonAuthUser = {
   role: string;
   globalRole: string;
   emailVerifiedAt: Date | null;
+  logoUrl: string | null;
   /** Email normalizado usado para autorización. */
   trustedEmail: string;
 };
@@ -59,6 +61,7 @@ export async function getClickatonAuthUser(): Promise<ClickatonAuthUser | null> 
     role: sessionUser.role,
     globalRole,
     emailVerifiedAt: sessionUser.emailVerifiedAt ?? null,
+    logoUrl: sessionUser.logoUrl ?? null,
     trustedEmail: normalizeEmail(email),
   };
 }
@@ -69,14 +72,13 @@ export async function requireClickatonAuth(options?: {
   const user = await getClickatonAuthUser();
   if (!user) {
     const next = sanitizeAdminReturnPath(options?.returnTo ?? adminRoutes.dashboard);
-    redirect(`${adminRoutes.login}?next=${encodeURIComponent(next)}`);
+    redirect(`${CLICKATON_LOGIN_PATH}?next=${encodeURIComponent(next)}`);
   }
   return user;
 }
 
 /**
- * Guard server-side del panel. Redirige a login o acceso denegado.
- * No debe usarse en la página de login.
+ * Guard server-side del panel. Redirige a login unificado o acceso denegado.
  */
 export async function requireClickatonAdmin(options?: {
   returnTo?: string;
@@ -92,7 +94,7 @@ export async function createClickatonSession(userId: number): Promise<void> {
   const session = await createUserSession(userId);
   const cookieStore = await cookies();
   cookieStore.set(DNX_SESSION_COOKIE, session.rawToken, {
-    ...SESSION_COOKIE_OPTIONS,
+    ...getDefaultSessionCookieOptions(),
     maxAge: session.maxAge,
   });
 }
@@ -104,7 +106,7 @@ export async function destroyClickatonSession(): Promise<void> {
     await destroyUserSessionByRawToken(raw);
   }
   cookieStore.set(DNX_SESSION_COOKIE, "", {
-    ...SESSION_COOKIE_OPTIONS,
+    ...getDefaultSessionCookieOptions(),
     maxAge: 0,
     expires: new Date(0),
   });

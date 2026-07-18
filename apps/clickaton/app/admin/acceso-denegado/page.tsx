@@ -1,15 +1,18 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { adminRoutes } from "@/config/admin/navigation";
-import { logoutAdminAction } from "@/app/admin/login/actions";
+import { logoutClickatonAction } from "@/app/(public)/login/actions";
 import { getClickatonAuthUser } from "@/lib/admin/auth";
-import { redirect } from "next/navigation";
+import {
+  CLICKATON_ACCOUNT_PATH,
+  CLICKATON_LOGIN_PATH,
+} from "@/lib/auth/return-path";
 
 export default async function AdminForbiddenPage() {
   const user = await getClickatonAuthUser();
   if (!user) {
-    redirect(adminRoutes.login);
+    redirect(`${CLICKATON_LOGIN_PATH}?next=${encodeURIComponent("/admin")}`);
   }
 
   return (
@@ -22,21 +25,25 @@ export default async function AdminForbiddenPage() {
           Sin permiso para el panel
         </h1>
         <p className="text-sm leading-relaxed text-ck-text-secondary">
-          La sesión activa ({user.email}) no está autorizada para administrar Clickatón. Si
-          necesitás acceso, contactá a un administrador DNX.
+          La sesión activa ({user.email}) no está autorizada para administrar Clickatón.
+          Podés seguir usando el sitio como usuario. Si necesitás acceso, contactá a un
+          administrador DNX.
         </p>
         <div className="flex flex-wrap gap-3">
+          <Button href={CLICKATON_ACCOUNT_PATH} variant="primary">
+            Ir a mi cuenta
+          </Button>
           <Button href="/" variant="secondary">
             Ir al sitio público
           </Button>
-          <form action={logoutAdminAction}>
+          <form action={logoutClickatonAction}>
             <Button type="submit" variant="outline">
               Cerrar sesión
             </Button>
           </form>
         </div>
         <p className="text-sm text-ck-text-muted">
-          <Link href={adminRoutes.login} className="text-ck-yellow hover:underline">
+          <Link href={CLICKATON_LOGIN_PATH} className="text-ck-yellow hover:underline">
             Probar con otra cuenta
           </Link>
         </p>

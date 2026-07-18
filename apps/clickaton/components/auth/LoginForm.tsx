@@ -5,18 +5,18 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import {
-  loginAdminAction,
-  type AdminLoginFormState,
-} from "@/app/admin/login/actions";
+  loginClickatonAction,
+  type ClickatonLoginFormState,
+} from "@/app/(public)/login/actions";
 
-const initialState: AdminLoginFormState = { error: null };
+const initialState: ClickatonLoginFormState = { error: null };
 
 type Props = {
   nextPath: string;
 };
 
 export function LoginForm({ nextPath }: Props) {
-  const [state, formAction, pending] = useActionState(loginAdminAction, initialState);
+  const [state, formAction, pending] = useActionState(loginClickatonAction, initialState);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -45,7 +45,7 @@ export function LoginForm({ nextPath }: Props) {
         </p>
       ) : null}
       <Button type="submit" variant="primary" className="w-full" loading={pending}>
-        Ingresar al panel
+        Ingresar
       </Button>
     </form>
   );

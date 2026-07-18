@@ -1,9 +1,11 @@
 /**
- * Política centralizada de administradores Clickatón (Etapa 10B).
+ * Política centralizada de administradores Clickatón (Etapa 10B / 10B3).
  *
- * Deuda documentada: migrar a WorkspaceAppAccess / appAccess `CLICKATON`
+ * Autorización del panel — no confundir con autenticación (`/login`).
+ * No repetir esta lista en componentes públicos del header o login.
+ *
+ * Deuda: migrar a WorkspaceAppAccess / appAccess `CLICKATON`
  * cuando el modelo de identidad unificado esté disponible en schema activo.
- * No repetir esta lista en páginas o componentes.
  */
 
 /** Administradores iniciales con acceso completo al panel MVP. */

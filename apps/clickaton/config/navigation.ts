@@ -16,6 +16,9 @@ export const routes = {
   designSystem: "/design-system",
   /** Ficha técnica de demostración — noindex, fuera del nav principal. */
   marathonDemo: "/maratones/demo",
+  /** Login unificado (usuarios + administradores). */
+  login: "/login",
+  account: "/mi-cuenta",
 } as const;
 
 export function marathonPath(slug: string): string {
@@ -63,10 +66,9 @@ export const futureAreas = [
   "galería",
   "hall de la fama",
   "perfiles",
-  "login participante",
   "inscripciones públicas",
   "checkout",
-  /** Panel operativo: `/admin` (Etapa 10B), fuera del nav público. */
+  /** Panel operativo: `/admin` (Etapa 10B), fuera del nav público. Login: `/login`. */
   "panel admin",
   "términos",
   "privacidad",

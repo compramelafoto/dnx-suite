@@ -2,12 +2,12 @@
 
 ## Decisión
 
-El panel `/admin` ofrece los mismos dos caminos que el resto de DNX Suite:
+La pantalla oficial es el **login unificado** `/login` (Etapa 10B3). Ofrece:
 
 1. **Continuar con Google** (OAuth unificado DNX Suite / `@repo/auth`)
 2. **Email + contraseña** de DNX Identity
 
-Ambos autenticán la misma identidad DNX (`dnx_session`) y, si el email está autorizado, llevan al panel admin. No hay contraseña compartida ni OAuth exclusivo de Clickatón.
+Ambos autenticán la misma identidad DNX (`dnx_session`). El acceso a `/admin` depende de la allowlist. Ver [UNIFIED_LOGIN.md](./UNIFIED_LOGIN.md).
 
 ## Autenticación vs autorización
 
@@ -30,24 +30,25 @@ Comparación: trim + lowercase. No se muestran en la UI de login.
 
 ## Flujo
 
-1. `/admin` → redirect `/admin/login?next=/admin…`
+1. `/admin` → `/login?next=/admin…` (o `/admin/login` → mismo destino)
 2. Botón **Continuar con Google** → `GET /api/auth/google?next=…`
-3. Redirect a Google (`openid email profile`) con `state` + cookie HttpOnly `dnx_google_oauth`
-4. Callback `GET /api/auth/google/callback`
+3. Redirect a Google (`openid email profile`) con `state` + cookie HttpOnly `dnx_google_oauth` (host-only)
+4. Callback `GET {origin}/api/auth/google/callback`
 5. Valida `state` / cookie; exige `email_verified`
 6. `resolveOrLinkGoogleUser` (crea o enlaza por email; no duplica)
 7. Crea `dnx_session`
-8. Si autorizado → `next` sanitizado bajo `/admin`; si no → `/admin/acceso-denegado`
+8. Destino: `next` seguro o `/mi-cuenta`; `/admin…` sin permiso → `/admin/acceso-denegado`
 
 ## Rutas
 
 | Ruta | Rol |
 |------|-----|
-| `/admin/login` | UI (solo Google visible) |
+| `/login` | Login unificado |
+| `/admin/login` | Redirect a `/login` |
 | `/api/auth/google` | Inicio OAuth |
 | `/api/auth/google/callback` | Callback por host de Clickatón |
 
-Ambos métodos viven en `/admin/login`. El login email/contraseña de otras apps DNX no se modifica.
+El login email/contraseña de otras apps DNX no se modifica.
 
 ## Variables de entorno (nombres)
 

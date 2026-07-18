@@ -4,16 +4,22 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Wordmark } from "@/components/brand/Wordmark";
+import { AccountMenu, type HeaderAuthUser } from "@/components/layout/AccountMenu";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/Button";
 import { headerCta, mainNavigation } from "@/config/navigation";
+import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { cn } from "@/lib/cn";
 
 function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function SiteHeader() {
+type Props = {
+  authUser?: HeaderAuthUser | null;
+};
+
+export function SiteHeader({ authUser = null }: Props) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const panelId = useId();
@@ -51,6 +57,11 @@ export function SiteHeader() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const loginHref =
+    pathname && pathname !== CLICKATON_LOGIN_PATH
+      ? `${CLICKATON_LOGIN_PATH}?next=${encodeURIComponent(pathname)}`
+      : CLICKATON_LOGIN_PATH;
 
   return (
     <header
@@ -104,23 +115,42 @@ export function SiteHeader() {
             })}
           </nav>
 
-          <Button
-            href={headerCta.href}
-            size="sm"
-            className="shrink-0 whitespace-nowrap px-5"
-          >
-            {headerCta.label}
-          </Button>
+          <div className="flex shrink-0 items-center gap-3">
+            {authUser ? (
+              <AccountMenu user={authUser} />
+            ) : (
+              <Button
+                href={loginHref}
+                variant="secondary"
+                size="sm"
+                className="whitespace-nowrap px-5"
+              >
+                Iniciar sesión
+              </Button>
+            )}
+            <Button
+              href={headerCta.href}
+              size="sm"
+              className="whitespace-nowrap px-5"
+            >
+              {headerCta.label}
+            </Button>
+          </div>
         </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3 xl:hidden">
-          <Button
-            href={headerCta.href}
-            className="hidden whitespace-nowrap sm:inline-flex"
-            size="sm"
-          >
-            {headerCta.label}
-          </Button>
+          {authUser ? (
+            <AccountMenu user={authUser} />
+          ) : (
+            <Button
+              href={loginHref}
+              variant="secondary"
+              size="sm"
+              className="whitespace-nowrap"
+            >
+              Iniciar sesión
+            </Button>
+          )}
 
           <Button
             ref={menuButtonRef}
@@ -202,6 +232,16 @@ export function SiteHeader() {
                   </Link>
                 );
               })}
+              {!authUser ? (
+                <Button
+                  href={loginHref}
+                  variant="secondary"
+                  className="mt-3 w-full whitespace-nowrap"
+                  onClick={() => setOpen(false)}
+                >
+                  Iniciar sesión
+                </Button>
+              ) : null}
               <Button
                 href={headerCta.href}
                 className="mt-3 w-full whitespace-nowrap"
