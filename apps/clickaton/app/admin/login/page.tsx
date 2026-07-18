@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { GoogleLoginButton } from "@/app/admin/login/GoogleLoginButton";
+import { LoginForm } from "@/app/admin/login/LoginForm";
 import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
 import { siteConfig } from "@/config/site";
@@ -38,7 +39,8 @@ export default async function AdminLoginPage({ searchParams }: Props) {
             Acceso al panel de Clickatón
           </h1>
           <p className="text-sm leading-relaxed text-ck-text-secondary">
-            Ingresá con tu cuenta de Google autorizada para administrar Clickatón.
+            Ingresá con Google o con tu email y contraseña de DNX Identity. Solo
+            administradores autorizados acceden al panel.
           </p>
         </div>
 
@@ -51,7 +53,22 @@ export default async function AdminLoginPage({ searchParams }: Props) {
           </p>
         ) : null}
 
-        <GoogleLoginButton nextPath={nextPath} />
+        <div className="space-y-6">
+          <GoogleLoginButton nextPath={nextPath} />
+
+          <div className="relative py-1">
+            <div className="absolute inset-0 flex items-center" aria-hidden>
+              <div className="w-full border-t border-ck-border" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-ck-card px-3 text-xs uppercase tracking-wide text-ck-text-muted">
+                o email
+              </span>
+            </div>
+          </div>
+
+          <LoginForm nextPath={nextPath} />
+        </div>
 
         <p className="text-center text-sm text-ck-text-muted">
           <Link href="/" className="text-ck-yellow hover:underline">

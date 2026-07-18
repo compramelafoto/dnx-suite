@@ -163,17 +163,23 @@ const callbackRouteSrc = readFileSync(
   );
 }
 
-// 7. UI: Google primario, sin formulario password visible
+// 7. UI: Google + email/contraseña (ambos llevan al panel si hay autorización)
 {
   assert.match(loginPageSrc, /GoogleLoginButton/);
+  assert.match(loginPageSrc, /LoginForm/);
   assert.match(loginPageSrc, /Acceso al panel de Clickatón/);
   assert.match(loginPageSrc, /friendlyGoogleLoginError/);
-  assert.doesNotMatch(loginPageSrc, /LoginForm/);
-  assert.doesNotMatch(loginPageSrc, /type="password"/);
+  assert.match(loginPageSrc, /o email/);
   assert.match(googleButtonSrc, /Continuar con Google/);
   assert.match(googleButtonSrc, /buildGoogleOAuthStartHref/);
   assert.match(googleButtonSrc, /href=\{googleHref\}/);
   assert.match(googleButtonSrc, /Redirigiendo a Google/);
+  const loginFormSrc = readFileSync(
+    join(here, "../../app/admin/login/LoginForm.tsx"),
+    "utf8",
+  );
+  assert.match(loginFormSrc, /type="password"/);
+  assert.match(loginFormSrc, /loginAdminAction/);
 }
 
 // 8. Rutas usan helpers compartidos @repo/auth

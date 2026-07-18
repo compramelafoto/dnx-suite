@@ -2,14 +2,12 @@
 
 ## Decisión
 
-El acceso oficial a `/admin` es **Continuar con Google**, usando la aplicación OAuth unificada **DNX Suite** (`@repo/auth`) — la misma que Info Spot, FotoOffice y el resto del ecosistema.
+El panel `/admin` ofrece los mismos dos caminos que el resto de DNX Suite:
 
-No existe:
+1. **Continuar con Google** (OAuth unificado DNX Suite / `@repo/auth`)
+2. **Email + contraseña** de DNX Identity
 
-- contraseña compartida entre administradores;
-- contraseña especial de Clickatón;
-- OAuth exclusivo/separado de Clickatón;
-- segunda cuenta DNX por el mismo email.
+Ambos autenticán la misma identidad DNX (`dnx_session`) y, si el email está autorizado, llevan al panel admin. No hay contraseña compartida ni OAuth exclusivo de Clickatón.
 
 ## Autenticación vs autorización
 
@@ -49,7 +47,7 @@ Comparación: trim + lowercase. No se muestran en la UI de login.
 | `/api/auth/google` | Inicio OAuth |
 | `/api/auth/google/callback` | Callback por host de Clickatón |
 
-El formulario email/contraseña **no** se muestra en Clickatón. El login email/contraseña global de otras apps DNX no se modifica.
+Ambos métodos viven en `/admin/login`. El login email/contraseña de otras apps DNX no se modifica.
 
 ## Variables de entorno (nombres)
 

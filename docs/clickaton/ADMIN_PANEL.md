@@ -28,14 +28,12 @@ Fuera de alcance MVP: comunicaciones, comunidad interna, academia, reportes avan
 ## Autenticación
 
 - Cookie compartida `dnx_session` (`@repo/auth`).
-- Método visible en `/admin/login`: **Continuar con Google** (DNX Identity / OAuth Suite).
-- Rutas: `/api/auth/google` + `/api/auth/google/callback` (helpers `@repo/auth`, mismo Client ID que el resto de la suite).
+- Métodos en `/admin/login`: **Continuar con Google** y **email/contraseña** DNX Identity (mismo patrón suite).
+- Rutas Google: `/api/auth/google` + `/api/auth/google/callback` (helpers `@repo/auth`, mismo Client ID que el resto de la suite).
 - Guard server-side: `requireClickatonAdmin()` en `apps/clickaton/lib/admin/auth.ts`.
 - Decisión única de permiso: `hasClickatonAdminAccess()` en `apps/clickaton/lib/admin/access.ts`.
 
-**Autenticación ≠ autorización:** Google crea/enlaza identidad DNX y sesión; el panel solo se abre si el email está en la allowlist (o es `SUPER_ADMIN`). Detalle: [GOOGLE_OAUTH_ADMIN.md](./GOOGLE_OAUTH_ADMIN.md).
-
-El login email/contraseña **no** se muestra en Clickatón; sigue disponible en otras apps DNX.
+**Autenticación ≠ autorización:** Google o email/clave crean la sesión DNX; el panel solo se abre si el email está en la allowlist (o es `SUPER_ADMIN`). Detalle: [GOOGLE_OAUTH_ADMIN.md](./GOOGLE_OAUTH_ADMIN.md).
 
 ### Administradores iniciales (acceso completo)
 

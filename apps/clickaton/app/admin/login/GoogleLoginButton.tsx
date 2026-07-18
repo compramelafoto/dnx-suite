@@ -30,10 +30,7 @@ type Props = {
   nextPath: string;
 };
 
-/**
- * Único método visible de acceso al panel Clickatón.
- * Email/contraseña DNX Identity permanece disponible a nivel suite en otras apps.
- */
+/** Inicio Google OAuth (método principal junto a email/contraseña DNX Identity). */
 export function GoogleLoginButton({ nextPath }: Props) {
   const [pending, setPending] = useState(false);
   const googleHref = buildGoogleOAuthStartHref({ next: nextPath });
