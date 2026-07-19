@@ -24,9 +24,15 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const roleFilter = searchParams.get("role") as Role | null;
+    const rolesParam = searchParams.get("roles")?.trim() || "";
     const q = searchParams.get("q")?.toLowerCase().trim() || "";
     const cuantoCobroOnly = searchParams.get("cuantoCobro") === "true";
     const includeSchoolOrganizerMeta = searchParams.get("includeSchoolOrganizerMeta") === "true";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const pageSize = Math.min(
+      Math.max(1, parseInt(searchParams.get("pageSize") || "100", 10) || 100),
+      500
+    );
 
     const where: any = {};
 
@@ -34,8 +40,14 @@ export async function GET(req: NextRequest) {
       where.cuantoCobroUser = true;
     }
 
-    // Filtrar por rol
-    if (roleFilter && Object.values(Role).includes(roleFilter)) {
+    // Filtrar por uno o varios roles (roles=PHOTOGRAPHER,LAB_PHOTOGRAPHER)
+    const rolesFromParam = rolesParam
+      .split(",")
+      .map((r) => r.trim())
+      .filter((r): r is Role => Object.values(Role).includes(r as Role));
+    if (rolesFromParam.length > 0) {
+      where.role = { in: rolesFromParam };
+    } else if (roleFilter && Object.values(Role).includes(roleFilter)) {
       where.role = roleFilter;
     }
 
@@ -48,55 +60,61 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const users = await prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        phone: true,
-        city: true,
-        province: true,
-        country: true,
-        createdAt: true,
-        isBlocked: true,
-        blockedAt: true,
-        blockedReason: true,
-        allowUnpaidOrderClientData: true,
-        platformCommissionPercentOverride: true,
-        mpAccessToken: true,
-        mpUserId: true,
-        mpConnectedAt: true,
-        publicPageHandler: true,
-        isPublicPageEnabled: true,
-        lastLoginAt: true,
-        cuantoCobroUser: true,
-        cuantoCobroFirstSeenAt: true,
-        cuantoCobroLastSeenAt: true,
-        referralCodeOwned: { select: { code: true } },
-        ...(includeSchoolOrganizerMeta
-          ? {
-              schoolOrganizerMemberships: {
-                where: { status: "ACTIVE" },
-                select: {
-                  schoolId: true,
-                  school: {
-                    select: {
-                      id: true,
-                      name: true,
-                    },
+    const select = {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      phone: true,
+      city: true,
+      province: true,
+      country: true,
+      createdAt: true,
+      isBlocked: true,
+      blockedAt: true,
+      blockedReason: true,
+      allowUnpaidOrderClientData: true,
+      platformCommissionPercentOverride: true,
+      mpAccessToken: true,
+      mpUserId: true,
+      mpConnectedAt: true,
+      publicPageHandler: true,
+      isPublicPageEnabled: true,
+      lastLoginAt: true,
+      cuantoCobroUser: true,
+      cuantoCobroFirstSeenAt: true,
+      cuantoCobroLastSeenAt: true,
+      referralCodeOwned: { select: { code: true } },
+      ...(includeSchoolOrganizerMeta
+        ? {
+            schoolOrganizerMemberships: {
+              where: { status: "ACTIVE" },
+              select: {
+                schoolId: true,
+                school: {
+                  select: {
+                    id: true,
+                    name: true,
                   },
                 },
               },
-            }
-          : {}),
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 500, // Límite razonable
-    });
+            },
+          }
+        : {}),
+    } as const;
+
+    const [total, users] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        select,
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
 
     const list = users.map((u) => {
       const { referralCodeOwned, ...rest } = u;
@@ -106,7 +124,18 @@ export async function GET(req: NextRequest) {
       return { ...rest, referralUrl };
     });
 
-    return NextResponse.json(list);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return NextResponse.json({
+      users: list,
+      total,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+      },
+    });
   } catch (err: any) {
     console.error("GET /api/admin/users ERROR >>>", err);
     return NextResponse.json(

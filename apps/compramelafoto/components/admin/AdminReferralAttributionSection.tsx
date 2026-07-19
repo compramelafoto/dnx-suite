@@ -96,10 +96,12 @@ export default function AdminReferralAttributionSection({
     }
     setSearchingReferrer(true);
     try {
-      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}`, {
-        credentials: "include",
-      });
-      const list = await res.json();
+      const res = await fetch(
+        `/api/admin/users?q=${encodeURIComponent(q)}&pageSize=20`,
+        { credentials: "include" }
+      );
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : Array.isArray(data?.users) ? data.users : [];
       if (!res.ok || !Array.isArray(list)) {
         setReferrerResults([]);
         return;

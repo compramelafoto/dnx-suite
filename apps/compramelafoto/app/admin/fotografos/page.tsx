@@ -30,6 +30,8 @@ interface UserRow {
 export default function AdminFotografosPage() {
   const [loading, setLoading] = useState(true);
   const [photographers, setPhotographers] = useState<UserRow[]>([]);
+  const [photographersTotal, setPhotographersTotal] = useState(0);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 50, totalPages: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [platformDefaultPercent, setPlatformDefaultPercent] = useState(10);
@@ -38,7 +40,7 @@ export default function AdminFotografosPage() {
 
   useEffect(() => {
     loadPhotographers();
-  }, [searchQuery]);
+  }, [searchQuery, pagination.page]);
 
   useEffect(() => {
     loadPlatformDefault();
@@ -63,21 +65,25 @@ export default function AdminFotografosPage() {
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.set("q", searchQuery);
+      params.set("roles", "PHOTOGRAPHER,LAB_PHOTOGRAPHER");
+      params.set("page", String(pagination.page));
+      params.set("pageSize", String(pagination.pageSize));
 
-      const [resPhotographer, resLabPhotographer] = await Promise.all([
-        fetch(`/api/admin/users?role=PHOTOGRAPHER&${params.toString()}`, { credentials: "include" }),
-        fetch(`/api/admin/users?role=LAB_PHOTOGRAPHER&${params.toString()}`, { credentials: "include" }),
-      ]);
+      const res = await fetch(`/api/admin/users?${params.toString()}`, { credentials: "include" });
+      const data = res.ok ? await res.json() : { users: [], total: 0 };
+      const users = Array.isArray(data) ? data : Array.isArray(data?.users) ? data.users : [];
+      const total = Array.isArray(data) ? users.length : (typeof data?.total === "number" ? data.total : users.length);
+      const totalPages =
+        data?.pagination?.totalPages ?? Math.max(1, Math.ceil(total / pagination.pageSize));
 
-      const dataPhotographer = resPhotographer.ok ? await resPhotographer.json() : [];
-      const dataLabPhotographer = resLabPhotographer.ok ? await resLabPhotographer.json() : [];
-
-      const combined = [...dataPhotographer, ...dataLabPhotographer] as UserRow[];
-      combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setPhotographers(combined);
+      setPhotographers(users as UserRow[]);
+      setPhotographersTotal(total);
+      setPagination((prev) => ({ ...prev, totalPages }));
       setSelected(new Set());
     } catch (err) {
       console.error("Error cargando fotógrafos:", err);
+      setPhotographers([]);
+      setPhotographersTotal(0);
     } finally {
       setLoading(false);
     }
@@ -250,7 +256,7 @@ export default function AdminFotografosPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Fotógrafos</h1>
-        <p className="text-gray-600 mt-1">Total: {photographers.length} fotógrafos registrados</p>
+        <p className="text-gray-600 mt-1">Total: {photographersTotal} fotógrafos registrados</p>
       </div>
 
       {selected.size > 0 && (
@@ -294,7 +300,10 @@ export default function AdminFotografosPage() {
             type="text"
             placeholder="Email, nombre, teléfono..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPagination((p) => ({ ...p, page: 1 }));
+            }}
           />
         </div>
       </Card>
@@ -453,6 +462,31 @@ export default function AdminFotografosPage() {
             </tbody>
           </table>
         </div>
+        {pagination.totalPages > 1 && (
+          <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+            <span className="text-sm text-gray-700">
+              Página {pagination.page} de {pagination.totalPages}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPagination((p) => ({ ...p, page: p.page - 1 }))}
+                disabled={pagination.page === 1}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPagination((p) => ({ ...p, page: p.page + 1 }))}
+                disabled={pagination.page >= pagination.totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

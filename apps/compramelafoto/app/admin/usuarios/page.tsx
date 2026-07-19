@@ -99,6 +99,27 @@ function downloadCsv(content: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function parseAdminUsersResponse(data: unknown): {
+  users: any[];
+  total: number;
+  pagination?: { page: number; pageSize: number; total: number; totalPages: number };
+} {
+  if (Array.isArray(data)) {
+    return { users: data, total: data.length };
+  }
+  if (data && typeof data === "object") {
+    const obj = data as {
+      users?: unknown;
+      total?: unknown;
+      pagination?: { page: number; pageSize: number; total: number; totalPages: number };
+    };
+    const users = Array.isArray(obj.users) ? obj.users : [];
+    const total = typeof obj.total === "number" ? obj.total : users.length;
+    return { users, total, pagination: obj.pagination };
+  }
+  return { users: [], total: 0 };
+}
+
 function buildWhatsappUrl(phone: string | null | undefined, _name?: string | null): string | null {
   if (!phone || !String(phone).trim()) return null;
   const clean = String(phone).replace(/\D/g, "");
@@ -215,8 +236,26 @@ export default function AdminUsuariosPage() {
   });
   const [labs, setLabs] = useState<LabRow[]>([]);
   const [photographers, setPhotographers] = useState<UserRow[]>([]);
+  const [photographersPagination, setPhotographersPagination] = useState({
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    totalPages: 0,
+  });
   const [organizers, setOrganizers] = useState<UserRow[]>([]);
+  const [organizersPagination, setOrganizersPagination] = useState({
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    totalPages: 0,
+  });
   const [schoolOrganizers, setSchoolOrganizers] = useState<SchoolOrganizerRow[]>([]);
+  const [schoolOrganizersPagination, setSchoolOrganizersPagination] = useState({
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    totalPages: 0,
+  });
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -250,7 +289,15 @@ export default function AdminUsuariosPage() {
     } else if (tab === "administradores-escuela") {
       loadSchoolOrganizers();
     }
-  }, [tab, searchQuery, customersPagination.page, cuantoCobroFilter]);
+  }, [
+    tab,
+    searchQuery,
+    customersPagination.page,
+    photographersPagination.page,
+    organizersPagination.page,
+    schoolOrganizersPagination.page,
+    cuantoCobroFilter,
+  ]);
 
   async function loadCustomers() {
     setLoading(true);
@@ -299,18 +346,29 @@ export default function AdminUsuariosPage() {
       const params = new URLSearchParams();
       if (searchQuery) params.set("q", searchQuery);
       if (cuantoCobroFilter) params.set("cuantoCobro", "true");
-      const [r1, r2] = await Promise.all([
-        fetch(`/api/admin/users?role=PHOTOGRAPHER&${params.toString()}`, { credentials: "include" }),
-        fetch(`/api/admin/users?role=LAB_PHOTOGRAPHER&${params.toString()}`, { credentials: "include" }),
-      ]);
-      const d1 = r1.ok ? await r1.json() : [];
-      const d2 = r2.ok ? await r2.json() : [];
-      const combined = [...(Array.isArray(d1) ? d1 : []), ...(Array.isArray(d2) ? d2 : [])];
-      combined.sort((a: UserRow, b: UserRow) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setPhotographers(combined);
+      params.set("roles", "PHOTOGRAPHER,LAB_PHOTOGRAPHER");
+      params.set("page", photographersPagination.page.toString());
+      params.set("pageSize", photographersPagination.pageSize.toString());
+      const res = await fetch(`/api/admin/users?${params.toString()}`, { credentials: "include" });
+      if (!res.ok) {
+        setPhotographers([]);
+        setPhotographersPagination((prev) => ({ ...prev, total: 0, totalPages: 0 }));
+        return;
+      }
+      const data = await res.json();
+      const parsed = parseAdminUsersResponse(data);
+      setPhotographers(parsed.users as UserRow[]);
+      setPhotographersPagination((prev) => ({
+        ...prev,
+        total: parsed.total,
+        totalPages: parsed.pagination?.totalPages ?? Math.max(1, Math.ceil(parsed.total / prev.pageSize)),
+        page: parsed.pagination?.page ?? prev.page,
+        pageSize: parsed.pagination?.pageSize ?? prev.pageSize,
+      }));
     } catch (err) {
       console.error("Error cargando fotógrafos:", err);
       setPhotographers([]);
+      setPhotographersPagination((prev) => ({ ...prev, total: 0, totalPages: 0 }));
     } finally {
       setLoading(false);
     }
@@ -322,16 +380,28 @@ export default function AdminUsuariosPage() {
       const params = new URLSearchParams();
       if (searchQuery) params.set("q", searchQuery);
       params.set("role", "ORGANIZER");
+      params.set("page", organizersPagination.page.toString());
+      params.set("pageSize", organizersPagination.pageSize.toString());
       const res = await fetch(`/api/admin/users?${params.toString()}`, { credentials: "include" });
       if (!res.ok) {
         setOrganizers([]);
+        setOrganizersPagination((prev) => ({ ...prev, total: 0, totalPages: 0 }));
         return;
       }
       const data = await res.json();
-      setOrganizers(Array.isArray(data) ? data : []);
+      const parsed = parseAdminUsersResponse(data);
+      setOrganizers(parsed.users as UserRow[]);
+      setOrganizersPagination((prev) => ({
+        ...prev,
+        total: parsed.total,
+        totalPages: parsed.pagination?.totalPages ?? Math.max(1, Math.ceil(parsed.total / prev.pageSize)),
+        page: parsed.pagination?.page ?? prev.page,
+        pageSize: parsed.pagination?.pageSize ?? prev.pageSize,
+      }));
     } catch (err) {
       console.error("Error cargando organizadores:", err);
       setOrganizers([]);
+      setOrganizersPagination((prev) => ({ ...prev, total: 0, totalPages: 0 }));
     } finally {
       setLoading(false);
     }
@@ -344,18 +414,30 @@ export default function AdminUsuariosPage() {
       if (searchQuery) params.set("q", searchQuery);
       params.set("role", "SCHOOL_ORGANIZER");
       params.set("includeSchoolOrganizerMeta", "true");
+      params.set("page", schoolOrganizersPagination.page.toString());
+      params.set("pageSize", schoolOrganizersPagination.pageSize.toString());
       const res = await fetch(`/api/admin/users?${params.toString()}`, {
         credentials: "include",
       });
       if (!res.ok) {
         setSchoolOrganizers([]);
+        setSchoolOrganizersPagination((prev) => ({ ...prev, total: 0, totalPages: 0 }));
         return;
       }
       const data = await res.json();
-      setSchoolOrganizers(Array.isArray(data) ? data : []);
+      const parsed = parseAdminUsersResponse(data);
+      setSchoolOrganizers(parsed.users as SchoolOrganizerRow[]);
+      setSchoolOrganizersPagination((prev) => ({
+        ...prev,
+        total: parsed.total,
+        totalPages: parsed.pagination?.totalPages ?? Math.max(1, Math.ceil(parsed.total / prev.pageSize)),
+        page: parsed.pagination?.page ?? prev.page,
+        pageSize: parsed.pagination?.pageSize ?? prev.pageSize,
+      }));
     } catch (err) {
       console.error("Error cargando administradores de escuela:", err);
       setSchoolOrganizers([]);
+      setSchoolOrganizersPagination((prev) => ({ ...prev, total: 0, totalPages: 0 }));
     } finally {
       setLoading(false);
     }
@@ -570,21 +652,44 @@ export default function AdminUsuariosPage() {
     downloadCsv(csv, `usuarios-labs-${new Date().toISOString().slice(0, 10)}.csv`);
   }
 
-  function exportCsvFotografos() {
-    const headers = ["ID", "Email", "Nombre", "Teléfono", "Ubicación", "Rol", "Estado", "Días sin conectar", "Fecha alta"];
-    const rows = photographers.map((u) => [
-      u.id,
-      escapeCsvCell(u.email),
-      escapeCsvCell(u.name),
-      escapeCsvCell(u.phone),
-      escapeCsvCell([u.city, u.province].filter(Boolean).join(", ")),
-      getRoleLabel(u.role),
-      u.isBlocked ? "Bloqueado" : "Activo",
-      daysSinceLastLogin(u.lastLoginAt),
-      escapeCsvCell(u.createdAt),
-    ].join(","));
-    const csv = [headers.join(","), ...rows].join("\r\n");
-    downloadCsv(csv, `usuarios-fotografos-${new Date().toISOString().slice(0, 10)}.csv`);
+  async function exportCsvFotografos() {
+    try {
+      const all: UserRow[] = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const params = new URLSearchParams();
+        if (searchQuery) params.set("q", searchQuery);
+        if (cuantoCobroFilter) params.set("cuantoCobro", "true");
+        params.set("roles", "PHOTOGRAPHER,LAB_PHOTOGRAPHER");
+        params.set("page", String(page));
+        params.set("pageSize", "500");
+        const res = await fetch(`/api/admin/users?${params.toString()}`, { credentials: "include" });
+        if (!res.ok) break;
+        const parsed = parseAdminUsersResponse(await res.json());
+        all.push(...(parsed.users as UserRow[]));
+        totalPages = parsed.pagination?.totalPages ?? 1;
+        page += 1;
+      } while (page <= totalPages);
+
+      const headers = ["ID", "Email", "Nombre", "Teléfono", "Ubicación", "Rol", "Estado", "Días sin conectar", "Fecha alta"];
+      const rows = all.map((u) => [
+        u.id,
+        escapeCsvCell(u.email),
+        escapeCsvCell(u.name),
+        escapeCsvCell(u.phone),
+        escapeCsvCell([u.city, u.province].filter(Boolean).join(", ")),
+        getRoleLabel(u.role),
+        u.isBlocked ? "Bloqueado" : "Activo",
+        daysSinceLastLogin(u.lastLoginAt),
+        escapeCsvCell(u.createdAt),
+      ].join(","));
+      const csv = [headers.join(","), ...rows].join("\r\n");
+      downloadCsv(csv, `usuarios-fotografos-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch (err) {
+      console.error("Error exportando fotógrafos:", err);
+      alert("No se pudo exportar el CSV de fotógrafos.");
+    }
   }
 
   function exportCsvOrganizadores() {
@@ -634,15 +739,15 @@ export default function AdminUsuariosPage() {
       : tab === "labs"
         ? labs.length
         : tab === "fotografos"
-          ? photographers.length
+          ? photographersPagination.total
           : tab === "organizadores"
-            ? organizers.length
-            : schoolOrganizers.length;
+            ? organizersPagination.total
+            : schoolOrganizersPagination.total;
 
   const handleExportCsv = () => {
     if (tab === "clientes") exportCsvClientes();
     else if (tab === "labs") exportCsvLabs();
-    else if (tab === "fotografos") exportCsvFotografos();
+    else if (tab === "fotografos") void exportCsvFotografos();
     else if (tab === "organizadores") exportCsvOrganizadores();
     else exportCsvSchoolOrganizers();
   };
@@ -714,6 +819,11 @@ export default function AdminUsuariosPage() {
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 if (tab === "clientes") setCustomersPagination((p) => ({ ...p, page: 1 }));
+                else if (tab === "fotografos") setPhotographersPagination((p) => ({ ...p, page: 1 }));
+                else if (tab === "organizadores") setOrganizersPagination((p) => ({ ...p, page: 1 }));
+                else if (tab === "administradores-escuela") {
+                  setSchoolOrganizersPagination((p) => ({ ...p, page: 1 }));
+                }
               }}
               onKeyDown={(e) =>
                 e.key === "Enter" &&
@@ -732,7 +842,10 @@ export default function AdminUsuariosPage() {
               <input
                 type="checkbox"
                 checked={cuantoCobroFilter}
-                onChange={(e) => setCuantoCobroFilter(e.target.checked)}
+                onChange={(e) => {
+                  setCuantoCobroFilter(e.target.checked);
+                  setPhotographersPagination((p) => ({ ...p, page: 1 }));
+                }}
                 className="h-4 w-4 rounded border-gray-300"
               />
               Solo usuarios de ¿Cuánto Cobro?
@@ -1044,6 +1157,31 @@ export default function AdminUsuariosPage() {
                   </tbody>
                 </table>
               </div>
+              {photographersPagination.totalPages > 1 && (
+                <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+                  <span className="text-sm text-gray-700">
+                    Página {photographersPagination.page} de {photographersPagination.totalPages}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setPhotographersPagination((p) => ({ ...p, page: p.page - 1 }))}
+                      disabled={photographersPagination.page === 1}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setPhotographersPagination((p) => ({ ...p, page: p.page + 1 }))}
+                      disabled={photographersPagination.page >= photographersPagination.totalPages}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
@@ -1134,6 +1272,31 @@ export default function AdminUsuariosPage() {
                   </tbody>
                 </table>
               </div>
+              {organizersPagination.totalPages > 1 && (
+                <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+                  <span className="text-sm text-gray-700">
+                    Página {organizersPagination.page} de {organizersPagination.totalPages}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setOrganizersPagination((p) => ({ ...p, page: p.page - 1 }))}
+                      disabled={organizersPagination.page === 1}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setOrganizersPagination((p) => ({ ...p, page: p.page + 1 }))}
+                      disabled={organizersPagination.page >= organizersPagination.totalPages}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
@@ -1248,6 +1411,31 @@ export default function AdminUsuariosPage() {
                   </tbody>
                 </table>
               </div>
+              {schoolOrganizersPagination.totalPages > 1 && (
+                <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+                  <span className="text-sm text-gray-700">
+                    Página {schoolOrganizersPagination.page} de {schoolOrganizersPagination.totalPages}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setSchoolOrganizersPagination((p) => ({ ...p, page: p.page - 1 }))}
+                      disabled={schoolOrganizersPagination.page === 1}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setSchoolOrganizersPagination((p) => ({ ...p, page: p.page + 1 }))}
+                      disabled={schoolOrganizersPagination.page >= schoolOrganizersPagination.totalPages}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
