@@ -175,6 +175,13 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Contratos: `apps/clickaton/lib/admin-catalog/design/`
 - Selfcheck: `pnpm --filter clickaton selfcheck:admin-catalog-design`
 
+### Etapa 10D3B — Backend administrativo del catálogo
+
+- Casos de uso, repos, adapter Prisma, validación, auth, logs, selfchecks
+- Sin UI productiva, sin cambios de schema, sin Neon writes
+- Doc: [ADMIN_CATALOG_BACKEND_10D3B.md](./ADMIN_CATALOG_BACKEND_10D3B.md)
+- Selfchecks: `selfcheck:admin-catalog-domain` · `selfcheck:admin-catalog-prisma`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
