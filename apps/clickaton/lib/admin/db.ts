@@ -1,4 +1,4 @@
-import { prisma } from "@repo/db";
+import { Prisma, prisma } from "@repo/db";
 
 export type ClickatonDbUnavailableReason = "migration_pending" | "db_error";
 
@@ -42,4 +42,4 @@ export async function withClickatonDb<T>(
   }
 }
 
-export { prisma };
+export { Prisma, prisma };

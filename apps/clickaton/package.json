@@ -17,6 +17,8 @@
     "selfcheck:registration-design": "tsx lib/registration/design/design.selfcheck.ts",
     "selfcheck:registration-domain": "tsx lib/registration/domain/domain.selfcheck.ts",
     "selfcheck:admin-catalog-design": "tsx lib/admin-catalog/design/selfcheck.ts",
+    "selfcheck:admin-catalog-domain": "tsx lib/admin-catalog/testing/domain.selfcheck.ts",
+    "selfcheck:admin-catalog-prisma": "tsx lib/admin-catalog/testing/prisma.selfcheck.ts",
     "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
   },
   "dependencies": {
