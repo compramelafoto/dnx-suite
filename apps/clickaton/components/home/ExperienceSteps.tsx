@@ -13,7 +13,6 @@ export function ExperienceSteps() {
     <Section id={howItWorks.id} aria-labelledby="how-title">
       <Container>
         <SectionHeader
-          align="center"
           eyebrow={howItWorks.eyebrow}
           title={howItWorks.title}
           description={howItWorks.lead}
