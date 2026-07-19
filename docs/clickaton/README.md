@@ -162,6 +162,19 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [REGISTRATION_QR_CHECKIN_KIT_AUDIT_10D1.md](./REGISTRATION_QR_CHECKIN_KIT_AUDIT_10D1.md)
 - Contratos: `apps/clickaton/lib/registration/design/`
 
+### Etapa 10D2 / 10D2B — Modelo + migración de inscripciones
+
+- Modelo Prisma + migración aplicada en Neon (GO)
+- Docs: [REGISTRATION_DATA_MODEL_10D2.md](./REGISTRATION_DATA_MODEL_10D2.md) · [REGISTRATION_MIGRATION_DEPLOY_10D2B.md](./REGISTRATION_MIGRATION_DEPLOY_10D2B.md)
+
+### Etapa 10D3A — Auditoría catálogo administrativo
+
+- Diseño de entradas / productos / variantes / composición (kits vía TicketTypeItem)
+- Sin UI productiva, sin migración, sin Neon writes
+- Doc: [ADMIN_CATALOG_AUDIT_10D3A.md](./ADMIN_CATALOG_AUDIT_10D3A.md)
+- Contratos: `apps/clickaton/lib/admin-catalog/design/`
+- Selfcheck: `pnpm --filter clickaton selfcheck:admin-catalog-design`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
