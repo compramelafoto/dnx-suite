@@ -13,9 +13,9 @@ export const catalogAdminRoutes = {
   productNew: "/admin/catalogo/productos/nuevo",
   productDetail: (productId: string) => `/admin/catalogo/productos/${productId}`,
   productEdit: (productId: string) => `/admin/catalogo/productos/${productId}/editar`,
-  /** Atajo desde detalle de edición → mismo hub con filtro. */
+  /** Atajo desde detalle de edición → productos filtrados (10D3C). */
   editionCatalog: (editionId: string) =>
-    `/admin/catalogo/entradas?editionId=${encodeURIComponent(editionId)}`,
+    `/admin/catalogo/productos?editionId=${encodeURIComponent(editionId)}`,
 } as const;
 
 export type CatalogRouteArchitecture = {

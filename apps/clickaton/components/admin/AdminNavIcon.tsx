@@ -42,6 +42,17 @@ export function AdminNavIcon({ name, className }: Props) {
           <circle cx="12" cy="10" r="2.25" stroke="currentColor" strokeWidth="1.75" />
         </svg>
       );
+    case "catalog":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>
+          <path
+            d="M4 5h7v7H4V5Zm9 0h7v4h-7V5ZM4 14h7v5H4v-5Zm9 2h7v3h-7v-3Z"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="square"
+          />
+        </svg>
+      );
     case "registrations":
       return (
         <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>

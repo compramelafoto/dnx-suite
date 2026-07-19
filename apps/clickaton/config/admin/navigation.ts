@@ -6,6 +6,7 @@ export const adminRoutes = {
   dashboard: "/admin",
   editions: "/admin/ediciones",
   venues: "/admin/sedes",
+  catalog: "/admin/catalogo",
   registrations: "/admin/inscripciones",
   sponsors: "/admin/sponsors",
   settings: "/admin/configuracion",
@@ -20,6 +21,7 @@ export type AdminNavIcon =
   | "dashboard"
   | "editions"
   | "venues"
+  | "catalog"
   | "registrations"
   | "sponsors"
   | "settings"
@@ -36,6 +38,7 @@ export const adminNavigation: readonly AdminNavItem[] = [
   { label: "Dashboard", href: adminRoutes.dashboard, icon: "dashboard", section: "main" },
   { label: "Ediciones", href: adminRoutes.editions, icon: "editions", section: "main" },
   { label: "Sedes", href: adminRoutes.venues, icon: "venues", section: "main" },
+  { label: "Catálogo", href: adminRoutes.catalog, icon: "catalog", section: "main" },
   {
     label: "Inscripciones",
     href: adminRoutes.registrations,
