@@ -26,7 +26,8 @@
     "db:studio": "prisma studio",
     "audit:migration-state": "tsx scripts/audit-migration-state.mts",
     "audit:schema-baseline": "tsx scripts/verify-schema-baseline.mts",
-    "audit:gap-objects": "tsx scripts/verify-gap-objects.mts"
+    "audit:gap-objects": "tsx scripts/verify-gap-objects.mts",
+    "audit:clickaton-registration-schema": "tsx scripts/audit-clickaton-registration-schema.mts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
