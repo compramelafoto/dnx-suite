@@ -19,6 +19,7 @@
     "selfcheck:admin-catalog-design": "tsx lib/admin-catalog/design/selfcheck.ts",
     "selfcheck:admin-catalog-domain": "tsx lib/admin-catalog/testing/domain.selfcheck.ts",
     "selfcheck:admin-catalog-prisma": "tsx lib/admin-catalog/testing/prisma.selfcheck.ts",
+    "selfcheck:admin-catalog-products-ui": "tsx lib/admin-catalog/testing/products-ui.selfcheck.ts",
     "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
   },
   "dependencies": {
