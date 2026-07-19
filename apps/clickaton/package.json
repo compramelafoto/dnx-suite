@@ -15,6 +15,7 @@
     "selfcheck:admin-editions-validation": "tsx lib/admin/editions/validation.selfcheck.ts",
     "selfcheck:admin-venues-validation": "tsx lib/admin/venues/validation.selfcheck.ts",
     "selfcheck:registration-design": "tsx lib/registration/design/design.selfcheck.ts",
+    "selfcheck:registration-domain": "tsx lib/registration/domain/domain.selfcheck.ts",
     "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
   },
   "dependencies": {

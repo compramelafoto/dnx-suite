@@ -1,6 +1,11 @@
 /**
  * Contratos de diseño 10D1 — inscripción / QR / check-in / kit.
  * Solo tipos: no persisten, no tocan Neon, no generan migración.
+ *
+ * Refinamiento 10D2 (persistencia):
+ * - Estados de pago viven en `ClickatonPaymentStatus` (ver domain/types).
+ * - `ClickatonKit` / `ClickatonKitItem` → `ClickatonTicketTypeItem` (productos incluidos en ticket).
+ * - Este archivo conserva el vocabulario de diseño 10D1 para selfcheck y auditoría.
  */
 
 /** Ciclo de vida comercial de la inscripción (sin mezclar check-in ni kit). */
@@ -53,8 +58,7 @@ export type ClickatonRegistrationDesignEntity =
   | "ClickatonTicketType"
   | "ClickatonProduct"
   | "ClickatonProductVariant"
-  | "ClickatonKit"
-  | "ClickatonKitItem"
+  | "ClickatonTicketTypeItem"
   | "ClickatonRegistration"
   | "ClickatonRegistrationItem"
   | "ClickatonRegistrationStatusHistory"
@@ -65,15 +69,15 @@ export type ClickatonRegistrationDesignEntity =
   | "ClickatonKitDeliveryItem"
   | "ClickatonRegistrationAudit"
   | "ClickatonCapacityHold"
-  | "ClickatonStockHold";
+  | "ClickatonStockHold"
+  | "ClickatonEditionSequence";
 
 export const CLICKATON_REGISTRATION_MVP_ENTITIES: readonly ClickatonRegistrationDesignEntity[] =
   [
     "ClickatonTicketType",
     "ClickatonProduct",
     "ClickatonProductVariant",
-    "ClickatonKit",
-    "ClickatonKitItem",
+    "ClickatonTicketTypeItem",
     "ClickatonRegistration",
     "ClickatonRegistrationItem",
     "ClickatonRegistrationStatusHistory",
@@ -83,6 +87,8 @@ export const CLICKATON_REGISTRATION_MVP_ENTITIES: readonly ClickatonRegistration
     "ClickatonKitDelivery",
     "ClickatonRegistrationAudit",
     "ClickatonCapacityHold",
+    "ClickatonStockHold",
+    "ClickatonEditionSequence",
   ] as const;
 
 export type ClickatonAdminCapability =
