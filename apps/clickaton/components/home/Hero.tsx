@@ -11,8 +11,7 @@ export function Hero() {
     <Section
       id={hero.id}
       tone="base"
-      grain
-      className="ck-vignette relative overflow-hidden border-b border-ck-border"
+      className="relative overflow-hidden"
       aria-labelledby="hero-title"
     >
       <Container className="relative z-[2] py-8 sm:py-12 md:py-16 lg:py-24">

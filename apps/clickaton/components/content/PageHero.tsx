@@ -25,7 +25,7 @@ export function PageHero({
   actions,
   tone = "dark",
   align = "left",
-  grain = true,
+  grain = false,
   children,
   className,
 }: PageHeroProps) {
@@ -36,10 +36,7 @@ export function PageHero({
     <Section
       tone={sectionTone}
       grain={grain}
-      className={cn(
-        "ck-vignette relative overflow-hidden border-b border-ck-border",
-        className,
-      )}
+      className={cn("relative overflow-hidden", className)}
       aria-labelledby={titleId}
     >
       <Container

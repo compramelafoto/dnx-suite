@@ -2,22 +2,22 @@ import type { ElementType, HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 /**
- * Alternancia editorial V2:
- * - base / default / dark → fondo página
- * - raised / muted → banda ligeramente elevada
- * - elevated / yellow → superficie card-like de sección
- * - accent → tinte comunidad (uso puntual)
- * `yellow` nunca es fill amarillo.
+ * Secciones públicas transparentes sobre PageBackdrop.
+ * La jerarquía visual vive en cards/contenido, no en bandas de opacidad
+ * que cortan el fondo fotográfico.
+ *
+ * Los tonos se mantienen por API (compatibilidad), pero no pintan fills
+ * distintos que generen segmentos claros/oscuros.
  */
 const toneClass = {
   base: "bg-transparent text-ck-text",
   default: "bg-transparent text-ck-text",
   dark: "bg-transparent text-ck-text",
-  raised: "bg-[rgb(21_21_21_/_0.68)] text-ck-text",
-  muted: "bg-[rgb(21_21_21_/_0.68)] text-ck-text",
-  elevated: "bg-[rgb(34_34_34_/_0.74)] text-ck-text",
-  yellow: "bg-[rgb(34_34_34_/_0.74)] text-ck-text",
-  accent: "bg-[color-mix(in_srgb,var(--ck-community-soft)_78%,transparent)] text-ck-text",
+  raised: "bg-transparent text-ck-text",
+  muted: "bg-transparent text-ck-text",
+  elevated: "bg-transparent text-ck-text",
+  yellow: "bg-transparent text-ck-text",
+  accent: "bg-transparent text-ck-text",
 } as const;
 
 type SectionProps = HTMLAttributes<HTMLElement> & {
@@ -40,6 +40,7 @@ export function Section({
       className={cn(
         "py-[var(--ck-section-spacing)]",
         toneClass[tone],
+        // Grain solo si se pide explícito; por defecto off para no crear bandas.
         grain && "ck-grain",
         className,
       )}

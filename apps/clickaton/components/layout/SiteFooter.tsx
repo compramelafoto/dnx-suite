@@ -9,7 +9,7 @@ export function SiteFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-ck-border bg-ck-bg-alt text-ck-text">
+    <footer className="border-t border-ck-border/60 bg-transparent text-ck-text">
       <Container className="grid gap-12 py-16 md:grid-cols-[1.2fr_1fr]">
         <div className="space-y-5">
           <Wordmark tone="inverse" href="/" height={48} className="h-12 w-auto max-w-[14rem]" />

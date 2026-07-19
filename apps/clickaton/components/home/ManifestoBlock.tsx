@@ -11,8 +11,7 @@ export function ManifestoBlock() {
     <Section
       id={manifesto.id}
       tone="dark"
-      grain
-      className="relative overflow-hidden border-y border-ck-yellow/60"
+      className="relative overflow-hidden"
       aria-labelledby="manifesto-title"
     >
       <CoordinateGrid className="opacity-[0.05]" />

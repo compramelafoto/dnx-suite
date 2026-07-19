@@ -2,7 +2,7 @@ import Image from "next/image";
 
 /**
  * Atmósfera fotográfica fija detrás del sitio público.
- * Baja opacidad a propósito: se percibe sin competir con el contenido.
+ * Overlay uniforme: sin bandas por sección ni cortes de transparencia.
  */
 export function PageBackdrop() {
   return (
@@ -16,9 +16,11 @@ export function PageBackdrop() {
         fill
         priority
         sizes="100vw"
-        className="scale-105 object-cover object-[center_35%] grayscale opacity-[0.28] blur-[1.5px]"
+        className="scale-105 object-cover object-[center_35%] grayscale opacity-[0.26] blur-[1.5px]"
       />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.42)_0%,rgb(17_17_17_/_0.58)_45%,rgb(17_17_17_/_0.72)_100%)]" />
+      {/* Veladura plana + viñeta suave de viewport (continua, no por sección) */}
+      <div className="absolute inset-0 bg-[rgb(17_17_17_/_0.58)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_70%_at_50%_35%,transparent_45%,rgb(17_17_17_/_0.45)_100%)]" />
     </div>
   );
 }

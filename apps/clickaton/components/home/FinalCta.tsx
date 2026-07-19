@@ -12,7 +12,7 @@ export function FinalCta() {
     <Section
       id={finalCta.id}
       tone="dark"
-      className="relative overflow-hidden border-t border-ck-yellow/70"
+      className="relative overflow-hidden"
       aria-labelledby="final-cta-title"
     >
       <Container className="relative z-[2] max-w-3xl text-center">
