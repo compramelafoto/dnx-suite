@@ -1,4 +1,3 @@
-import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/Button";
@@ -16,15 +15,6 @@ export function FinalCta() {
       className="relative overflow-hidden border-t border-ck-yellow/70"
       aria-labelledby="final-cta-title"
     >
-      <div className="pointer-events-none absolute inset-0 opacity-40" aria-hidden>
-        <PhotoFrame
-          variant="background"
-          alt=""
-          decorative
-          overlay="strong"
-          className="h-full min-h-full rounded-none border-0"
-        />
-      </div>
       <Container className="relative z-[2] max-w-3xl text-center">
         <FocusMark className="mx-auto text-ck-yellow" size="lg" />
         <p className="ck-overline mt-[var(--ck-stack-title-to-subtitle)] text-ck-yellow">

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { AudienceGrid } from "@/components/content/AudienceGrid";
 import { PageHero } from "@/components/content/PageHero";
-import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { ProcessTimeline } from "@/components/content/ProcessTimeline";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
@@ -27,6 +26,7 @@ export default function OrganizePage() {
     <>
       <SimpleBreadcrumb current="Organizá una" />
       <PageHero
+        align="center"
         eyebrow={content.hero.eyebrow}
         title={content.hero.title}
         description={content.hero.description}
@@ -38,11 +38,18 @@ export default function OrganizePage() {
       />
 
       <Section tone="raised">
-        <Container>
+        <Container className="mx-auto max-w-3xl text-center">
           <Badge variant="warning">Programa en desarrollo</Badge>
-          <p className="ck-body-lg mt-4 max-w-prose text-ck-text-secondary">{content.status}</p>
+          <p className="ck-body-lg mx-auto mt-4 max-w-prose text-ck-text-secondary">
+            {content.status}
+          </p>
           <div className="mt-10">
-            <SectionHeader eyebrow="Público" title="¿Para quién es?" titleId="organize-audience" />
+            <SectionHeader
+              align="center"
+              eyebrow="Público"
+              title="¿Para quién es?"
+              titleId="organize-audience"
+            />
             <div className="mt-6">
               <AudienceGrid items={content.audience} variant="brand" />
             </div>
@@ -51,15 +58,6 @@ export default function OrganizePage() {
       </Section>
 
       <Section>
-        <Container className="mb-10">
-          <PhotoFrame
-            variant="editorial"
-            alt="Convocatoria y encuentro de sede local"
-            overlay="medium"
-            caption="Kits, sedes y premiación — cuando haya material autorizado."
-            className="max-w-4xl"
-          />
-        </Container>
         <Container className="grid gap-6 lg:grid-cols-2">
           <Card>
             <h2 className="ck-heading-lg">Qué aporta el equipo local</h2>
@@ -87,6 +85,7 @@ export default function OrganizePage() {
       <Section tone="raised" aria-labelledby="organize-steps-title">
         <Container>
           <SectionHeader
+            align="center"
             eyebrow="Camino"
             title="Etapas preliminares"
             titleId="organize-steps-title"
@@ -94,7 +93,7 @@ export default function OrganizePage() {
           <div className="mt-10">
             <ProcessTimeline steps={content.steps} />
           </div>
-          <p className="ck-body-sm mt-8 max-w-prose border-l-4 border-ck-yellow pl-4 text-ck-text-muted">
+          <p className="ck-body-sm mx-auto mt-8 max-w-prose border-l-4 border-ck-yellow pl-4 text-left text-ck-text-muted">
             {content.note}
           </p>
         </Container>

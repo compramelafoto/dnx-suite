@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { AudienceGrid } from "@/components/content/AudienceGrid";
 import { PageHero } from "@/components/content/PageHero";
-import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
@@ -25,6 +24,7 @@ export default function CommunityPage() {
     <>
       <SimpleBreadcrumb current="Comunidad" />
       <PageHero
+        align="center"
         eyebrow={content.hero.eyebrow}
         title={content.hero.title}
         description={content.hero.description}
@@ -32,36 +32,26 @@ export default function CommunityPage() {
       />
 
       <Section tone="raised" aria-labelledby="community-audience-title">
-        <Container className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start lg:gap-12">
-          <div>
-            <SectionHeader
-              eyebrow="Quiénes forman parte"
-              title="Una comunidad amplia y diversa"
-              titleId="community-audience-title"
-            />
-            <div className="mt-[var(--ck-stack-subtitle-to-content)]">
-              <AudienceGrid items={content.audiences} variant="brand" />
-            </div>
-            <p className="ck-body-md mt-[var(--ck-stack-block)] max-w-prose text-ck-text-secondary">
-              {content.future}
-            </p>
+        <Container className="mx-auto max-w-3xl text-center">
+          <SectionHeader
+            align="center"
+            eyebrow="Quiénes forman parte"
+            title="Una comunidad amplia y diversa"
+            titleId="community-audience-title"
+          />
+          <div className="mt-[var(--ck-stack-subtitle-to-content)]">
+            <AudienceGrid items={content.audiences} variant="brand" />
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <PhotoFrame
-              variant="editorial"
-              alt="Recorrido urbano de la comunidad Clickatón"
-              overlay="soft"
-              className="col-span-2"
-            />
-            <PhotoFrame variant="portrait" alt="Participante fotografiando en la calle" overlay="soft" />
-            <PhotoFrame variant="portrait" alt="Intercambio y revisión entre participantes" overlay="soft" />
-          </div>
+          <p className="ck-body-md mx-auto mt-[var(--ck-stack-block)] max-w-prose text-ck-text-secondary">
+            {content.future}
+          </p>
         </Container>
       </Section>
 
       <Section aria-labelledby="community-values-title">
         <Container>
           <SectionHeader
+            align="center"
             eyebrow="Valores"
             title="Cómo queremos convivir"
             titleId="community-values-title"
@@ -69,7 +59,7 @@ export default function CommunityPage() {
           <ul className="mt-[var(--ck-stack-subtitle-to-content)] grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {content.values.map((value) => (
               <li key={value.title}>
-                <Card className="h-full">
+                <Card className="h-full text-center sm:text-left">
                   <h3 className="ck-heading-md">{value.title}</h3>
                   <p className="ck-body-sm mt-3 text-ck-text-secondary">{value.body}</p>
                 </Card>

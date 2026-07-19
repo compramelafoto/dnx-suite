@@ -10,6 +10,7 @@ export function FAQList() {
     <Section id={faq.id} aria-labelledby="faq-title">
       <Container className="max-w-3xl">
         <SectionHeader
+          align="center"
           eyebrow={faq.eyebrow}
           title={faq.title}
           titleId="faq-title"

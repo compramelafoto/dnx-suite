@@ -10,14 +10,14 @@ import { cn } from "@/lib/cn";
  * `yellow` nunca es fill amarillo.
  */
 const toneClass = {
-  base: "bg-[var(--ck-surface-base)] text-ck-text",
-  default: "bg-[var(--ck-surface-base)] text-ck-text",
-  dark: "bg-[var(--ck-surface-base)] text-ck-text",
-  raised: "bg-[var(--ck-surface-raised)] text-ck-text",
-  muted: "bg-[var(--ck-surface-raised)] text-ck-text",
-  elevated: "bg-[var(--ck-surface-band)] text-ck-text",
-  yellow: "bg-[var(--ck-surface-band)] text-ck-text",
-  accent: "bg-[var(--ck-community-soft)] text-ck-text",
+  base: "bg-transparent text-ck-text",
+  default: "bg-transparent text-ck-text",
+  dark: "bg-transparent text-ck-text",
+  raised: "bg-[rgb(21_21_21_/_0.68)] text-ck-text",
+  muted: "bg-[rgb(21_21_21_/_0.68)] text-ck-text",
+  elevated: "bg-[rgb(34_34_34_/_0.74)] text-ck-text",
+  yellow: "bg-[rgb(34_34_34_/_0.74)] text-ck-text",
+  accent: "bg-[color-mix(in_srgb,var(--ck-community-soft)_78%,transparent)] text-ck-text",
 } as const;
 
 type SectionProps = HTMLAttributes<HTMLElement> & {

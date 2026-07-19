@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { BrushStroke } from "@/components/brand/BrushStroke";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
@@ -16,38 +15,23 @@ export function Hero() {
       className="ck-vignette relative overflow-hidden border-b border-ck-border"
       aria-labelledby="hero-title"
     >
-      <div
-        className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
-        aria-hidden
-      >
-        <Image
-          src="/images/hero-city-photographer.jpg"
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="scale-110 object-cover object-[center_40%] grayscale opacity-[0.14] blur-[6px]"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.55)_0%,rgb(17_17_17_/_0.72)_45%,rgb(17_17_17_/_0.88)_100%)]" />
-      </div>
-
-      <Container className="relative z-[2] py-6 sm:py-10 md:py-14 lg:py-20">
-        <div className="max-w-3xl">
+      <Container className="relative z-[2] py-8 sm:py-12 md:py-16 lg:py-24">
+        <div className="mx-auto max-w-3xl text-center">
           <p className="ck-overline text-ck-yellow">{hero.eyebrow}</p>
           <h1
             id="hero-title"
-            className="ck-display-xl mt-[var(--ck-stack-title-to-subtitle)] max-w-[16ch] break-words text-ck-text [overflow-wrap:anywhere]"
+            className="ck-display-xl mt-[var(--ck-stack-title-to-subtitle)] mx-auto max-w-[16ch] break-words text-ck-text [overflow-wrap:anywhere]"
           >
             {hero.title}
           </h1>
           <p className="ck-accent-script mt-5 text-xl text-ck-text-secondary sm:mt-6 md:text-2xl">
             {hero.tagline}
           </p>
-          <BrushStroke className="mt-4 sm:mt-5" />
-          <p className="ck-body-lg mt-6 max-w-prose text-ck-text-secondary sm:mt-[var(--ck-stack-subtitle-to-content)]">
+          <BrushStroke className="mx-auto mt-4 sm:mt-5" />
+          <p className="ck-body-lg mx-auto mt-6 max-w-prose text-ck-text-secondary sm:mt-[var(--ck-stack-subtitle-to-content)]">
             {hero.description}
           </p>
-          <div className="mt-8 flex w-full flex-col gap-3 sm:mt-[var(--ck-stack-content-to-actions)] sm:w-auto sm:flex-row sm:flex-wrap">
+          <div className="mt-8 flex w-full flex-col items-stretch justify-center gap-3 sm:mt-[var(--ck-stack-content-to-actions)] sm:flex-row sm:flex-wrap sm:items-center">
             <Button href={hero.primaryCta.href} className="w-full sm:w-auto">
               {hero.primaryCta.label}
             </Button>

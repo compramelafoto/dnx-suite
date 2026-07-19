@@ -11,6 +11,7 @@ type PageHeroProps = {
   actions?: ReactNode;
   /** `yellow` → banda oscura editorial (sin fill amarillo). */
   tone?: "default" | "yellow" | "dark" | "muted" | "accent" | "base" | "raised";
+  align?: "left" | "center";
   grain?: boolean;
   children?: ReactNode;
   className?: string;
@@ -23,11 +24,13 @@ export function PageHero({
   description,
   actions,
   tone = "dark",
+  align = "left",
   grain = true,
   children,
   className,
 }: PageHeroProps) {
   const sectionTone = tone === "yellow" ? "dark" : tone;
+  const centered = align === "center";
 
   return (
     <Section
@@ -39,7 +42,12 @@ export function PageHero({
       )}
       aria-labelledby={titleId}
     >
-      <Container className="relative z-[2] max-w-3xl py-5 sm:py-8 md:py-12">
+      <Container
+        className={cn(
+          "relative z-[2] max-w-3xl py-5 sm:py-8 md:py-12",
+          centered && "mx-auto text-center",
+        )}
+      >
         {eyebrow ? (
           <p
             className={cn(
@@ -57,12 +65,22 @@ export function PageHero({
           {title}
         </h1>
         {description ? (
-          <p className="ck-body-lg mt-4 max-w-prose text-ck-text-secondary sm:mt-[var(--ck-stack-title-to-subtitle)]">
+          <p
+            className={cn(
+              "ck-body-lg mt-4 max-w-prose text-ck-text-secondary sm:mt-[var(--ck-stack-title-to-subtitle)]",
+              centered && "mx-auto",
+            )}
+          >
             {description}
           </p>
         ) : null}
         {actions ? (
-          <div className="mt-8 flex w-full flex-col gap-3 sm:mt-[var(--ck-stack-content-to-actions)] sm:w-auto sm:flex-row sm:flex-wrap [&_a]:w-full [&_a]:sm:w-auto [&_button]:w-full [&_button]:sm:w-auto">
+          <div
+            className={cn(
+              "mt-8 flex w-full flex-col gap-3 sm:mt-[var(--ck-stack-content-to-actions)] sm:w-auto sm:flex-row sm:flex-wrap [&_a]:w-full [&_a]:sm:w-auto [&_button]:w-full [&_button]:sm:w-auto",
+              centered && "items-center justify-center sm:mx-auto",
+            )}
+          >
             {actions}
           </div>
         ) : null}

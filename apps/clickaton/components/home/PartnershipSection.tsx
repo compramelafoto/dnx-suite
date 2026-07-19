@@ -11,20 +11,21 @@ export function PartnershipSection() {
 
   return (
     <Section id={partnerships.id} tone="muted" aria-labelledby="partners-title">
-      <Container>
+      <Container className="mx-auto max-w-3xl text-center">
         <SectionHeader
+          align="center"
           eyebrow={partnerships.eyebrow}
           title={partnerships.title}
           description={partnerships.lead}
           titleId="partners-title"
         />
-        <p className="ck-body-md mt-4 max-w-[var(--ck-content-readable)] text-ck-text-secondary">
+        <p className="ck-body-md mx-auto mt-4 max-w-[var(--ck-content-readable)] text-ck-text-secondary">
           {partnerships.body}
         </p>
 
-        <Card variant="outlined" className="mt-10 border-dashed">
+        <Card variant="outlined" className="mt-10 border-dashed text-center">
           <p className="ck-label text-ck-text-muted">Espacios de alianza posibles</p>
-          <ul className="mt-4 flex flex-wrap gap-2">
+          <ul className="mt-4 flex flex-wrap justify-center gap-2">
             {partnerships.categories.map((category) => (
               <li key={category}>
                 <Badge variant="neutral">{category}</Badge>
@@ -36,7 +37,7 @@ export function PartnershipSection() {
           </p>
         </Card>
 
-        <div className="mt-8 flex flex-col items-start gap-2">
+        <div className="mt-8 flex flex-col items-center gap-2">
           <Button href={partnerships.cta.href} variant="secondary">
             {partnerships.cta.label}
           </Button>

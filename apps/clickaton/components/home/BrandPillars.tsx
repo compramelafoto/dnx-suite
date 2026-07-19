@@ -14,6 +14,7 @@ export function BrandPillars() {
     <Section id={pillars.id} tone="raised" aria-labelledby="pillars-title">
       <Container>
         <SectionHeader
+          align="center"
           eyebrow={pillars.eyebrow}
           title={pillars.title}
           titleId="pillars-title"

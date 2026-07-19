@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { AudienceGrid } from "@/components/content/AudienceGrid";
 import { PageHero } from "@/components/content/PageHero";
-import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
@@ -25,6 +24,7 @@ export default function SponsorsPage() {
     <>
       <SimpleBreadcrumb current="Sponsors" />
       <PageHero
+        align="center"
         eyebrow={content.hero.eyebrow}
         title={content.hero.title}
         description={content.hero.description}
@@ -38,6 +38,7 @@ export default function SponsorsPage() {
       <Section tone="muted">
         <Container>
           <SectionHeader
+            align="center"
             eyebrow="Visión"
             title="Por qué acompañar Clickatón"
             titleId="sponsors-why"
@@ -45,7 +46,7 @@ export default function SponsorsPage() {
           <ul className="mt-8 grid gap-3 sm:grid-cols-2">
             {content.why.map((item) => (
               <li key={item}>
-                <Card className="h-full">
+                <Card className="h-full text-center sm:text-left">
                   <p className="ck-body-sm text-ck-text-secondary">{item}</p>
                 </Card>
               </li>
@@ -56,28 +57,26 @@ export default function SponsorsPage() {
 
       <Section>
         <Container>
-          <SectionHeader eyebrow="Rubros" title="Posibles aliados" titleId="sponsors-sectors" />
+          <SectionHeader
+            align="center"
+            eyebrow="Rubros"
+            title="Posibles aliados"
+            titleId="sponsors-sectors"
+          />
           <div className="mt-6">
             <AudienceGrid items={content.sectors} />
           </div>
-          <PhotoFrame
-            variant="sponsor-feature"
-            alt="Activación de marca en experiencia Clickatón"
-            overlay="medium"
-            caption="Stands, premiación y presencia urbana — material futuro autorizado."
-            className="mt-12 max-w-3xl"
-          />
           <ul className="mt-12 grid gap-5 sm:grid-cols-2">
             {content.opportunities.map((item) => (
               <li key={item.title}>
-                <Card variant="outlined" className="h-full">
+                <Card variant="outlined" className="h-full text-center sm:text-left">
                   <h3 className="ck-heading-md">{item.title}</h3>
                   <p className="ck-body-sm mt-3 text-ck-text-secondary">{item.body}</p>
                 </Card>
               </li>
             ))}
           </ul>
-          <p className="ck-body-sm mt-8 max-w-prose border-l-4 border-ck-yellow pl-4 text-ck-text-muted">
+          <p className="ck-body-sm mx-auto mt-8 max-w-prose border-l-4 border-ck-yellow pl-4 text-left text-ck-text-muted">
             {content.note}
           </p>
         </Container>
