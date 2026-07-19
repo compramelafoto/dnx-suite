@@ -1,0 +1,9 @@
+export { AlliesExpo } from "@/components/founding-allies/AlliesExpo";
+export { AlliesFinalCta } from "@/components/founding-allies/AlliesFinalCta";
+export { AlliesHero } from "@/components/founding-allies/AlliesHero";
+export { AlliesImagine } from "@/components/founding-allies/AlliesImagine";
+export { AlliesMerch } from "@/components/founding-allies/AlliesMerch";
+export { AlliesMovement } from "@/components/founding-allies/AlliesMovement";
+export { AlliesVision } from "@/components/founding-allies/AlliesVision";
+export { AlliesWays } from "@/components/founding-allies/AlliesWays";
+export { AlliesWhyJoin } from "@/components/founding-allies/AlliesWhyJoin";

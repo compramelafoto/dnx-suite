@@ -8,7 +8,10 @@ export const routes = {
   howItWorks: "/como-funciona",
   community: "/comunidad",
   organize: "/organizar",
+  /** @deprecated Preferir `foundingAllies`. Se mantiene por compatibilidad. */
   sponsors: "/sponsors",
+  /** Experiencia pública “Aliados Fundadores” (propuesta para empresas). */
+  foundingAllies: "/aliados-fundadores",
   about: "/nosotros",
   contact: "/contacto",
   /** Manual de marca público para sedes y diseñadores. */
@@ -38,7 +41,7 @@ export const mainNavigation: readonly NavItem[] = [
   { label: "Cómo funciona", href: routes.howItWorks },
   { label: "Comunidad", href: routes.community },
   { label: "Organizá una", href: routes.organize },
-  { label: "Sponsors", href: routes.sponsors },
+  { label: "Aliados", href: routes.foundingAllies },
 ] as const;
 
 /** Footer: nav principal + páginas institucionales. */
@@ -47,7 +50,7 @@ export const footerNavigation: readonly NavItem[] = [
   { label: "Cómo funciona", href: routes.howItWorks },
   { label: "Comunidad", href: routes.community },
   { label: "Organizá una", href: routes.organize },
-  { label: "Sponsors", href: routes.sponsors },
+  { label: "Aliados Fundadores", href: routes.foundingAllies },
   { label: "Nosotros", href: routes.about },
   { label: "Manual de marca", href: routes.brandManual },
   { label: "Contacto", href: routes.contact },

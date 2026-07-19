@@ -16,7 +16,10 @@ export const contactPageContent = {
   reasons: [
     { title: "Participar", body: "Consultas sobre próximas ediciones y cómo sumarte." },
     { title: "Organizar una sede", body: "Interés en el programa de sedes y acompañamiento." },
-    { title: "Sponsors", body: "Alianzas de marca, educación, cultura o tecnología." },
+    {
+      title: "Aliados Fundadores",
+      body: "Marcas e instituciones que quieran construir experiencias con Clickatón.",
+    },
     { title: "Prensa", body: "Cobertura, entrevistas y material institucional." },
     { title: "Alianzas", body: "Instituciones, clubes y organizaciones afines." },
     { title: "Consultas generales", body: "Otras preguntas sobre Clickatón." },
@@ -24,7 +27,7 @@ export const contactPageContent = {
   links: [
     { label: "Ver maratones", href: routes.marathons },
     { label: "Organizá una", href: routes.organize },
-    { label: "Sponsors", href: routes.sponsors },
+    { label: "Aliados Fundadores", href: routes.foundingAllies },
   ],
   note: "No publicamos correo, teléfono, dirección ni redes inventadas.",
 } as const;

@@ -32,7 +32,7 @@ export function PartnershipSection() {
             ))}
           </ul>
           <p className="ck-body-sm mt-6 text-ck-text-muted">
-            Sin logos inventados. Sin planes comerciales definidos todavía.
+            Sin logos inventados. Sin precios. Una invitación a construir juntos.
           </p>
         </Card>
 

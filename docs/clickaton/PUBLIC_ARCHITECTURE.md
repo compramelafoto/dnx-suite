@@ -47,7 +47,8 @@
 | `/como-funciona` | Experiencia completa |
 | `/comunidad` | Dimensión comunitaria y pedagógica |
 | `/organizar` | Programa de sedes (en desarrollo) |
-| `/sponsors` | Alianzas (sin paquetes comerciales) |
+| `/aliados-fundadores` | Experiencia “Aliados Fundadores” (propuesta para empresas; sin precios ni sponsors inventados) |
+| `/sponsors` | Redirect permanente de compatibilidad → `/aliados-fundadores` |
 | `/nosotros` | Origen prudente |
 | `/contacto` | Contacto sin canales inventados |
 | `/design-system` | Catálogo interno (`noindex`) |
