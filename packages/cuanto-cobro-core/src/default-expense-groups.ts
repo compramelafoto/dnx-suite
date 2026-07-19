@@ -1,4 +1,4 @@
-import type { MonthlyExpenseGroup } from "./types.js";
+import type { MonthlyExpenseGroup } from "./types";
 
 export const CC_PERSONAL_FINANCE_GROUP_DESC =
   "Compromisos financieros que ya forman parte de tu presupuesto mensual de vida (deudas, tarjetas, ahorro corriente, etc.).";

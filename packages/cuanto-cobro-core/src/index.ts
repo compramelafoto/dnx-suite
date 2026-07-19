@@ -17,7 +17,7 @@ export {
   CUANTO_COBRO_LOW_BILLABLE_MONTHLY_HOURS,
   type CuantoCobroCalculationComplete,
   type CuantoCobroCalculationIncomplete,
-} from "./calculate-cuanto-cobro.js";
+} from "./calculate-cuanto-cobro";
 
 export type {
   CuantoCobroProfileInput,
@@ -31,7 +31,7 @@ export type {
   MonthlyExpenseGroup,
   MonthlyExpenseItem,
   PhotographyTimeDistribution,
-} from "./types.js";
+} from "./types";
 
 export {
   CC_WIZARD_STEPS,
@@ -40,13 +40,13 @@ export {
   INITIAL_CUANTO_COBRO_CLIENT,
   INITIAL_CUANTO_COBRO_CLIENT_HOURS,
   INITIAL_CUANTO_COBRO_WIZARD_STATE,
-} from "./types.js";
+} from "./types";
 
 export {
   parseCuantoCobroAmount,
   formatCuantoCobroPriceInput,
   normalizeCuantoCobroPriceInput,
-} from "./amount-format.js";
+} from "./amount-format";
 
 export {
   computeMinimumSustainablePrice,
@@ -58,16 +58,16 @@ export {
   DEFAULT_COMMERCIAL_POSITIONING_ID,
   roundCuantoCobroPrice,
   type CommercialPositioningId,
-} from "./commercial-positioning.js";
+} from "./commercial-positioning";
 
 export {
   getProfileCostHour,
   getProfileMonthlyNeed,
   getQuoteLaborRates,
-} from "./hourly-rates.js";
+} from "./hourly-rates";
 
-export { calculateQuoteSummary } from "./quote-item-calculations.js";
-export { calculateClientCosts } from "./client-calculations.js";
+export { calculateQuoteSummary } from "./quote-item-calculations";
+export { calculateClientCosts } from "./client-calculations";
 export {
   DEFAULT_PHOTOGRAPHY_TIME_DISTRIBUTION,
   WEEKS_PER_MONTH,
@@ -75,10 +75,10 @@ export {
   computeMonthlyBillableHours,
   isTimeDistributionComplete,
   isTimeDistributionValid,
-} from "./availability.js";
+} from "./availability";
 
-export type { CuantoCobroEquipmentInventory } from "./equipment/types.js";
-export { INITIAL_EQUIPMENT_INVENTORY } from "./equipment/normalize.js";
-export { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "./payment/payment-options-types.js";
-export type { CuantoCobroPaymentOptionsInput } from "./payment/payment-options-types.js";
-export type { CuantoCobroCommercialDisplayMode } from "./commercial-presentation.js";
+export type { CuantoCobroEquipmentInventory } from "./equipment/types";
+export { INITIAL_EQUIPMENT_INVENTORY } from "./equipment/normalize";
+export { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "./payment/payment-options-types";
+export type { CuantoCobroPaymentOptionsInput } from "./payment/payment-options-types";
+export type { CuantoCobroCommercialDisplayMode } from "./commercial-presentation";

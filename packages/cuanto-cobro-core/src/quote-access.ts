@@ -1,4 +1,4 @@
-import type { CuantoCobroClientInput, CuantoCobroQuoteInput, CuantoCobroQuoteItem } from "./types.js";
+import type { CuantoCobroClientInput, CuantoCobroQuoteInput, CuantoCobroQuoteItem } from "./types";
 
 /** Líneas del presupuesto (alias interno: `quote.concepts`). */
 export function getQuoteConcepts(quote: CuantoCobroQuoteInput): CuantoCobroQuoteItem[] {

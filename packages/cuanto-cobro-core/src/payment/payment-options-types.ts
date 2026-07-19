@@ -1,4 +1,4 @@
-import type { EconomicIndexRateMetadata, EconomicIndexRateSource } from "./economic-index-types.js";
+import type { EconomicIndexRateMetadata, EconomicIndexRateSource } from "./economic-index-types";
 
 export type CuantoCobroInstallmentInterestMode = "none" | "manual" | "index_suggested";
 

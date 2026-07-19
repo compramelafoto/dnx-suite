@@ -1,5 +1,5 @@
-import { parseCuantoCobroAmount } from "../amount-format.js";
-import type { CuantoCobroProfileInput } from "../types.js";
+import { parseCuantoCobroAmount } from "../amount-format";
+import type { CuantoCobroProfileInput } from "../types";
 import {
   AA_BATTERIES_PER_SPEEDLIGHT,
   DEFAULT_COMPUTER_LIFESPAN_YEARS,
@@ -8,20 +8,20 @@ import {
   DEFAULT_STORAGE_AMORTIZATION_YEARS,
   MEMORY_CARD_REPLACEMENT_MONTHS,
   RENEWAL_CATEGORY_META,
-} from "./constants.js";
+} from "./constants";
 import {
   hasStructuredEquipmentData,
   INITIAL_EQUIPMENT_INVENTORY,
   normalizeEquipmentInventory,
   usesLegacyRenewalFallback,
-} from "./normalize.js";
+} from "./normalize";
 import type {
   CuantoCobroEquipmentInventory,
   EquipmentCategoryCardMeta,
   EquipmentRenewalCategoryId,
   EquipmentSavingsBreakdown,
   RenewalCameraData,
-} from "./types.js";
+} from "./types";
 
 function parseCount(value: string | undefined): number {
   const parsed = parseCuantoCobroAmount(value ?? "");

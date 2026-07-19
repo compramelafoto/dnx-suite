@@ -1,8 +1,8 @@
-import { parseCuantoCobroAmount } from "./amount-format.js";
-import { getEffectiveRenewalMonthly } from "./equipment/calculations.js";
-import type { CuantoCobroProfileInput, CuantoCobroQuoteInput } from "./types.js";
-import { getQuoteConcepts } from "./quote-access.js";
-import { getQuoteTotalEstimatedShots } from "./quote-items.js";
+import { parseCuantoCobroAmount } from "./amount-format";
+import { getEffectiveRenewalMonthly } from "./equipment/calculations";
+import type { CuantoCobroProfileInput, CuantoCobroQuoteInput } from "./types";
+import { getQuoteConcepts } from "./quote-access";
+import { getQuoteTotalEstimatedShots } from "./quote-items";
 
 export type EquipmentDepreciationMode = "structural" | "per-job";
 

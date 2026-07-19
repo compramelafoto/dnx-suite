@@ -55,7 +55,7 @@ export type CuantoCobroProfileInput = {
   /** Disparos anuales estimados para calcular aporte de renovación. */
   estimatedAnnualShots: string;
   /** Inventario estructurado de equipamiento (renovación y ampliación). */
-  equipmentInventory?: import("./equipment/types.js").CuantoCobroEquipmentInventory;
+  equipmentInventory?: import("./equipment/types").CuantoCobroEquipmentInventory;
   /** Aporte mensual a fondo de emergencia. */
   emergencyFundMonthly: string;
   /** Aporte mensual para vacaciones y objetivos personales. */
@@ -177,11 +177,11 @@ export type CuantoCobroClientInput = {
 
 export type CuantoCobroQuoteDisplayMode = "total-only" | "item-detail";
 
-export type { CuantoCobroCommercialDisplayMode } from "./commercial-presentation.js";
-import type { CuantoCobroCommercialDisplayMode } from "./commercial-presentation.js";
-import { CC_DEFAULT_COMMERCIAL_NOTE } from "./commercial-presentation.js";
-import type { CuantoCobroPaymentOptionsInput } from "./payment/payment-options-types.js";
-import { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "./payment/payment-options-types.js";
+export type { CuantoCobroCommercialDisplayMode } from "./commercial-presentation";
+import type { CuantoCobroCommercialDisplayMode } from "./commercial-presentation";
+import { CC_DEFAULT_COMMERCIAL_NOTE } from "./commercial-presentation";
+import type { CuantoCobroPaymentOptionsInput } from "./payment/payment-options-types";
+import { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "./payment/payment-options-types";
 
 /** Preparado para futura persistencia en DB. */
 export type CuantoCobroQuoteStatus = "draft" | "sent" | "accepted" | "rejected";
@@ -389,13 +389,13 @@ export const CC_SAVINGS_GOALS_VS_PERSONAL_VACATIONS =
 export const CC_DATA_SECURITY_NOTICE =
   "Tus datos quedan asociados a tu usuario y se utilizan únicamente para calcular tus presupuestos. No se muestran públicamente ni se comparten con clientes.";
 
-import type { CameraWearAnalysis, EquipmentDepreciationMode } from "./camera-equipment.js";
-import type { EquipmentSavingsBreakdown } from "./equipment/types.js";
-import type { CuantoCobroClientCostSummary } from "./client-calculations.js";
-import type { CuantoCobroQuoteSummary } from "./quote-item-calculations.js";
-import type { ChosenPriceCommercialStatus, ProfitabilityStatus } from "./quote-profitability.js";
-import { DEFAULT_PHOTOGRAPHY_TIME_DISTRIBUTION } from "./availability.js";
-import { createDefaultPersonalExpenseGroups } from "./default-expense-groups.js";
+import type { CameraWearAnalysis, EquipmentDepreciationMode } from "./camera-equipment";
+import type { EquipmentSavingsBreakdown } from "./equipment/types";
+import type { CuantoCobroClientCostSummary } from "./client-calculations";
+import type { CuantoCobroQuoteSummary } from "./quote-item-calculations";
+import type { ChosenPriceCommercialStatus, ProfitabilityStatus } from "./quote-profitability";
+import { DEFAULT_PHOTOGRAPHY_TIME_DISTRIBUTION } from "./availability";
+import { createDefaultPersonalExpenseGroups } from "./default-expense-groups";
 
 export const INITIAL_CUANTO_COBRO_PROFILE: CuantoCobroProfileInput = {
   currency: "",

@@ -1,9 +1,9 @@
 import {
   CONCEPT_OWN_SERVICE_UI_HOUR_FIELDS,
   type ConceptOwnServiceUiHourField,
-} from "./normalize-quote-hours.js";
-import { parseQuoteItemHours, consolidateOwnServicePostProductionHours } from "./quote-items.js";
-import type { CuantoCobroQuoteItem } from "./types.js";
+} from "./normalize-quote-hours";
+import { parseQuoteItemHours, consolidateOwnServicePostProductionHours } from "./quote-items";
+import type { CuantoCobroQuoteItem } from "./types";
 
 /** Horas editables en conceptos de servicio propio (sin `selectionHours` legacy). */
 export const QUOTE_ITEM_OWN_HOUR_FIELDS = CONCEPT_OWN_SERVICE_UI_HOUR_FIELDS;
@@ -31,7 +31,7 @@ export function getOwnServicePostProductionHours(item: CuantoCobroQuoteItem): nu
   return parseQuoteItemHours(item.editingHours) + parseQuoteItemHours(item.selectionHours);
 }
 
-export { consolidateOwnServicePostProductionHours } from "./quote-items.js";
+export { consolidateOwnServicePostProductionHours } from "./quote-items";
 
 /** Horas propias del ítem (excluye ventas/administración legacy). */
 export function sumOwnServiceHours(item: CuantoCobroQuoteItem): number {

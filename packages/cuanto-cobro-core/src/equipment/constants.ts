@@ -1,4 +1,4 @@
-import type { EquipmentRenewalCategoryId, FutureEquipmentCategoryId } from "./types.js";
+import type { EquipmentRenewalCategoryId, FutureEquipmentCategoryId } from "./types";
 
 export const EQUIPMENT_PURPOSE = {
   RENEWAL: "RENEWAL_CURRENT_EQUIPMENT",

@@ -1,10 +1,10 @@
-import { parseQuoteItemHours } from "./quote-items.js";
+import { parseQuoteItemHours } from "./quote-items";
 import type {
   CuantoCobroClientHoursInput,
   CuantoCobroClientInput,
   CuantoCobroQuoteInput,
   CuantoCobroQuoteItem,
-} from "./types.js";
+} from "./types";
 
 export type QuoteHoursNormalizationResult = {
   quote: CuantoCobroQuoteInput;

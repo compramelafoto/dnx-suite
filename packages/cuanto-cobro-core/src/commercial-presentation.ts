@@ -1,4 +1,4 @@
-import type { CuantoCobroQuoteDisplayMode, CuantoCobroQuoteItemType } from "./types.js";
+import type { CuantoCobroQuoteDisplayMode, CuantoCobroQuoteItemType } from "./types";
 
 export type CuantoCobroCommercialDisplayMode = "detailed" | "total-only" | "grouped";
 

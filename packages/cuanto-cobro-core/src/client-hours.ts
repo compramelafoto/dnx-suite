@@ -1,6 +1,6 @@
-import { parseQuoteItemHours } from "./quote-items.js";
-import type { CuantoCobroClientHoursInput } from "./types.js";
-import type { QuoteLaborRates } from "./hourly-rates.js";
+import { parseQuoteItemHours } from "./quote-items";
+import type { CuantoCobroClientHoursInput } from "./types";
+import type { QuoteLaborRates } from "./hourly-rates";
 
 export const CLIENT_HOUR_FIELDS = [
   "salesHours",

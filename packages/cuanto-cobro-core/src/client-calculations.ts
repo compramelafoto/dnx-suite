@@ -1,7 +1,7 @@
-import { CLIENT_HOUR_FIELDS, CLIENT_HOUR_LABELS, CLIENT_HOUR_RATE_KEY } from "./client-hours.js";
-import { parseQuoteItemHours } from "./quote-items.js";
-import type { QuoteLaborRates } from "./hourly-rates.js";
-import type { CuantoCobroClientInput } from "./types.js";
+import { CLIENT_HOUR_FIELDS, CLIENT_HOUR_LABELS, CLIENT_HOUR_RATE_KEY } from "./client-hours";
+import { parseQuoteItemHours } from "./quote-items";
+import type { QuoteLaborRates } from "./hourly-rates";
+import type { CuantoCobroClientInput } from "./types";
 
 export type ClientHourLine = {
   field: (typeof CLIENT_HOUR_FIELDS)[number];

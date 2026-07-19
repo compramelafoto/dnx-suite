@@ -12,8 +12,8 @@ import { describe, expect, it } from "vitest";
 import {
   calculateCuantoCobro,
   getCuantoCobroMissingFields,
-} from "./calculate-cuanto-cobro.js";
-import { createEmptyQuoteItem } from "./quote-items.js";
+} from "./calculate-cuanto-cobro";
+import { createEmptyQuoteItem } from "./quote-items";
 import {
   createBaseCompleteProfile,
   createBaseCompleteQuote,
@@ -27,7 +27,7 @@ import {
   withWeeklyHours,
   withZeroBusinessAndReserves,
   withZeroPersonalExpenses,
-} from "./__fixtures__/characterization-fixtures.js";
+} from "./__fixtures__/characterization-fixtures";
 
 /** Golden — perfil base + trabajo base (valores sintéticos). */
 const GOLDEN_BASE = {

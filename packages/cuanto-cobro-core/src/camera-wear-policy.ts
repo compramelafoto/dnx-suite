@@ -1,13 +1,13 @@
-import { parseCuantoCobroAmount } from "./amount-format.js";
+import { parseCuantoCobroAmount } from "./amount-format";
 import {
   getCameraCostPerShot,
   getEquipmentDepreciationMode,
   isCameraWearConfigured,
   resolveShutterRating,
   type EquipmentDepreciationMode,
-} from "./camera-equipment.js";
-import { parseQuoteItemQuantity } from "./quote-items.js";
-import type { CuantoCobroProfileInput, CuantoCobroQuoteItem } from "./types.js";
+} from "./camera-equipment";
+import { parseQuoteItemQuantity } from "./quote-items";
+import type { CuantoCobroProfileInput, CuantoCobroQuoteItem } from "./types";
 
 export type { EquipmentDepreciationMode };
 
