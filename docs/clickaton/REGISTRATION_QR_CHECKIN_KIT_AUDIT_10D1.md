@@ -1,12 +1,18 @@
 # Clickatón 10D1 — Auditoría inscripción, QR, check-in y kit
 
 **Date:** 2026-07-18  
-**Status:** **PLAN APROBABLE — LISTO PARA 10D2**  
-**Scope:** diseño únicamente — sin migraciones, sin Neon writes, sin MP real  
+**Status:** **PLAN APROBABLE — IMPLEMENTADO EN 10D2** (ver `REGISTRATION_DATA_MODEL_10D2.md`)  
+**Scope (este doc):** diseño — la persistencia vive en 10D2  
 **Depends on:** 10C4B GO (`29d30b2`) · ediciones/sedes (`ClickatonEdition` / `ClickatonVenue`)
 
 Contratos TypeScript: `apps/clickaton/lib/registration/design/contracts.ts`  
 Selfcheck: `pnpm --filter clickaton selfcheck:registration-design`
+
+### Addendum 10D2 (refinamientos de persistencia)
+
+- Estados de pago → enum separado `ClickatonPaymentStatus` (los valores `PAYMENT_*` / `TRANSFER_*` de este diseño mapean a pares status+payment).
+- `ClickatonKit` / `ClickatonKitItem` → `ClickatonTicketTypeItem` en schema MVP.
+- Modelo + migración: `docs/clickaton/REGISTRATION_DATA_MODEL_10D2.md`.
 
 ---
 
@@ -370,5 +376,4 @@ Catálogo público debe **converger** a Prisma Edition (dejar fixtures/FR API co
 
 ## 25. Próximo paso
 
-**CLICKATÓN — ETAPA 10D2 — MODELO DE DATOS Y MIGRACIÓN DE INSCRIPCIONES**  
-(solo tras aprobación explícita; no iniciar aquí).
+Completado en **10D2**. Siguiente autorizado: **10D2B — aplicación controlada de migración** (no iniciar sin autorización).
