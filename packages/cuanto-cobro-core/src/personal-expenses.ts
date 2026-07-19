@@ -1,17 +1,17 @@
-import { parseCuantoCobroAmount } from "./amount-format.js";
-import { normalizeCameraProfileFields } from "./camera-equipment.js";
-import { normalizeEquipmentProfileFields } from "./equipment/normalize.js";
-import { normalizeProfileAvailability } from "./availability.js";
+import { parseCuantoCobroAmount } from "./amount-format";
+import { normalizeCameraProfileFields } from "./camera-equipment";
+import { normalizeEquipmentProfileFields } from "./equipment/normalize";
+import { normalizeProfileAvailability } from "./availability";
 import {
   createDefaultPersonalExpenseGroups,
   createCustomExpenseItemId,
-} from "./default-expense-groups.js";
+} from "./default-expense-groups";
 import {
   INITIAL_CUANTO_COBRO_PROFILE,
   type CuantoCobroProfileInput,
   type MonthlyExpenseGroup,
   type MonthlyExpenseItem,
-} from "./types.js";
+} from "./types";
 
 type LegacyProfileFields = {
   personalHousing?: string;

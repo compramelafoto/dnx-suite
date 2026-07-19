@@ -6,12 +6,12 @@
  * El JSON replica la forma del DTO del adaptador.
  */
 import { describe, expect, it } from "vitest";
-import { calculateCuantoCobro } from "../calculate-cuanto-cobro.js";
+import { calculateCuantoCobro } from "../calculate-cuanto-cobro";
 import type {
   CuantoCobroProfileInput,
   CuantoCobroQuoteInput,
-} from "../types.js";
-import { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "../payment/payment-options-types.js";
+} from "../types";
+import { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "../payment/payment-options-types";
 
 /** Fixture espejo del output READY del adaptador (sintético). */
 const mirrorProfile = {

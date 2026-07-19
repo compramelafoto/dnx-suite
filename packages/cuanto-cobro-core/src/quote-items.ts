@@ -1,5 +1,5 @@
-import { parseCuantoCobroAmount } from "./amount-format.js";
-import type { CuantoCobroQuoteItem, CuantoCobroQuoteItemType, CuantoCobroProductServiceTemplateValues } from "./types.js";
+import { parseCuantoCobroAmount } from "./amount-format";
+import type { CuantoCobroQuoteItem, CuantoCobroQuoteItemType, CuantoCobroProductServiceTemplateValues } from "./types";
 
 export const QUOTE_ITEM_TYPE_LABELS: Record<CuantoCobroQuoteItemType, string> = {
   "own-service": "Servicio propio",

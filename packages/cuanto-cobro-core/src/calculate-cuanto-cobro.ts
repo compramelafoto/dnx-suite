@@ -2,29 +2,29 @@ import {
   formatCuantoCobroPriceInput,
   normalizeCuantoCobroPriceInput,
   parseCuantoCobroAmount,
-} from "./amount-format.js";
-import { calculateClientCosts } from "./client-calculations.js";
-import { analyzeCameraWear } from "./camera-equipment.js";
-import { buildCameraWearPolicy, buildCameraWearWarnings, sumQuoteEstimatedShots } from "./camera-wear-policy.js";
-import { computeEquipmentSavings } from "./equipment/calculations.js";
-import { calculateQuoteSummary } from "./quote-item-calculations.js";
-import { sumOwnServiceHoursIncludingLegacy } from "./quote-item-hours.js";
-import { normalizeQuoteHoursForCalculation } from "./normalize-quote-hours.js";
-import { parseQuoteItemHours } from "./quote-items.js";
-import { getQuoteConcepts } from "./quote-access.js";
-import { getProfileCostHour, getProfileMonthlyNeed, getQuoteLaborRates } from "./hourly-rates.js";
+} from "./amount-format";
+import { calculateClientCosts } from "./client-calculations";
+import { analyzeCameraWear } from "./camera-equipment";
+import { buildCameraWearPolicy, buildCameraWearWarnings, sumQuoteEstimatedShots } from "./camera-wear-policy";
+import { computeEquipmentSavings } from "./equipment/calculations";
+import { calculateQuoteSummary } from "./quote-item-calculations";
+import { sumOwnServiceHoursIncludingLegacy } from "./quote-item-hours";
+import { normalizeQuoteHoursForCalculation } from "./normalize-quote-hours";
+import { parseQuoteItemHours } from "./quote-items";
+import { getQuoteConcepts } from "./quote-access";
+import { getProfileCostHour, getProfileMonthlyNeed, getQuoteLaborRates } from "./hourly-rates";
 import {
   buildMonthlyRecoveryWarning,
   computeChosenPriceMetrics,
   computeQuoteProfitabilityMetrics,
-} from "./quote-profitability.js";
-import { sumPersonalExpenseGroups } from "./personal-expenses.js";
+} from "./quote-profitability";
+import { sumPersonalExpenseGroups } from "./personal-expenses";
 import {
   computeMinimumSustainablePrice,
   computeRecommendedBusinessPrice,
   getCommercialPositioningOption,
   getEffectiveCommercialPositioningId,
-} from "./commercial-positioning.js";
+} from "./commercial-positioning";
 import {
   computeMonthlyAvailableHours,
   computeMonthlyBillableHours,
@@ -35,26 +35,26 @@ import {
   isTimeDistributionValid,
   setTimeDistributionWeeklyHours,
   sumDistributionWeeklyHours,
-} from "./availability.js";
+} from "./availability";
 import type {
   CuantoCobroCalculationResult,
   CuantoCobroProfileInput,
   CuantoCobroQuoteInput,
   CuantoCobroQuoteItem,
   CuantoCobroStepId,
-} from "./types.js";
-import { CC_WIZARD_STEPS } from "./types.js";
+} from "./types";
+import { CC_WIZARD_STEPS } from "./types";
 
 export type {
   CuantoCobroCalculationResult,
   CuantoCobroProfileInput,
   CuantoCobroQuoteInput,
   CuantoCobroWizardData,
-} from "./types.js";
+} from "./types";
 
-export { CC_WIZARD_STEPS } from "./types.js";
-export { calculateQuoteSummary } from "./quote-item-calculations.js";
-export { normalizeQuoteHoursForCalculation } from "./normalize-quote-hours.js";
+export { CC_WIZARD_STEPS } from "./types";
+export { calculateQuoteSummary } from "./quote-item-calculations";
+export { normalizeQuoteHoursForCalculation } from "./normalize-quote-hours";
 
 export const CUANTO_COBRO_WEEKS_PER_MONTH = 4.33;
 export const CUANTO_COBRO_RECOMMENDED_MULTIPLIER = 1.3;
@@ -64,7 +64,7 @@ export {
   formatCuantoCobroPriceInput,
   normalizeCuantoCobroPriceInput,
   parseCuantoCobroAmount,
-} from "./amount-format.js";
+} from "./amount-format";
 
 export type CuantoCobroCalculationComplete = Extract<CuantoCobroCalculationResult, { status: "complete" }>;
 export type CuantoCobroCalculationIncomplete = Extract<CuantoCobroCalculationResult, { status: "incomplete" }>;

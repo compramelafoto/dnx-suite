@@ -1,17 +1,17 @@
-import { parseCuantoCobroAmount } from "./amount-format.js";
+import { parseCuantoCobroAmount } from "./amount-format";
 import {
   computeMonthlyAvailableHours,
   computeMonthlyBillableHours,
   getCategoryWeeklyHours,
   PHOTOGRAPHY_TIME_DISTRIBUTION_KEYS,
   WEEKS_PER_MONTH,
-} from "./availability.js";
+} from "./availability";
 import {
   getEffectiveExpansionMonthly,
   getEffectiveRenewalMonthly,
-} from "./equipment/calculations.js";
-import { sumPersonalExpenseGroups } from "./personal-expenses.js";
-import type { CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types.js";
+} from "./equipment/calculations";
+import { sumPersonalExpenseGroups } from "./personal-expenses";
+import type { CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types";
 
 function sumAmounts(...values: string[]): number {
   return values.reduce((total, value) => total + (parseCuantoCobroAmount(value) ?? 0), 0);

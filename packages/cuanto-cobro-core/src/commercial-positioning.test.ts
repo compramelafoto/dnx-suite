@@ -6,7 +6,7 @@ import {
   DEFAULT_COMMERCIAL_POSITIONING_ID,
   getCommercialPositioningFactor,
   getEffectiveCommercialPositioningId,
-} from "./commercial-positioning.js";
+} from "./commercial-positioning";
 
 describe("commercial positioning", () => {
   const minimumSustainable = 100_000;

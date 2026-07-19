@@ -1,14 +1,14 @@
-import { parseCuantoCobroAmount } from "./amount-format.js";
-import type { CameraWearPolicy } from "./camera-wear-policy.js";
-import { calculateConceptCameraWear } from "./camera-wear-policy.js";
-import type { QuoteLaborRates } from "./hourly-rates.js";
-import { getOwnServicePostProductionHours } from "./quote-item-hours.js";
+import { parseCuantoCobroAmount } from "./amount-format";
+import type { CameraWearPolicy } from "./camera-wear-policy";
+import { calculateConceptCameraWear } from "./camera-wear-policy";
+import type { QuoteLaborRates } from "./hourly-rates";
+import { getOwnServicePostProductionHours } from "./quote-item-hours";
 import {
   computeQuoteItemPriceFromBaseCost,
   parseQuoteItemHours,
   parseQuoteItemQuantity,
-} from "./quote-items.js";
-import type { CuantoCobroQuoteItem, CuantoCobroQuoteItemType } from "./types.js";
+} from "./quote-items";
+import type { CuantoCobroQuoteItem, CuantoCobroQuoteItemType } from "./types";
 
 export type CuantoCobroQuoteItemCalculated = {
   item: CuantoCobroQuoteItem;
@@ -168,4 +168,4 @@ export function calculateQuoteSummary(
   };
 }
 
-export { sumConceptOwnServiceHours as sumOwnServiceHours } from "./normalize-quote-hours.js";
+export { sumConceptOwnServiceHours as sumOwnServiceHours } from "./normalize-quote-hours";

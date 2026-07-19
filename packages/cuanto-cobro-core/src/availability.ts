@@ -1,5 +1,5 @@
-import { parseCuantoCobroAmount } from "./amount-format.js";
-import type { CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types.js";
+import { parseCuantoCobroAmount } from "./amount-format";
+import type { CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types";
 
 export const WEEKS_PER_MONTH = 4.33;
 

@@ -1,19 +1,19 @@
-import { parseCuantoCobroAmount } from "../amount-format.js";
-import type { CuantoCobroProfileInput } from "../types.js";
+import { parseCuantoCobroAmount } from "../amount-format";
+import type { CuantoCobroProfileInput } from "../types";
 import {
   DEFAULT_CAMERA_SHUTTER_RATING,
   DEFAULT_COMPUTER_LIFESPAN_YEARS,
   DEFAULT_MONITOR_LIFESPAN_YEARS,
   DEFAULT_SPEEDLIGHT_LIFESPAN_YEARS,
   DEFAULT_STUDIO_FLASH_LIFESPAN_YEARS,
-} from "./constants.js";
+} from "./constants";
 import type {
   CuantoCobroEquipmentInventory,
   CuantoCobroEquipmentRenewal,
   FutureEquipmentItem,
   RenewalCameraData,
   RenewalLensItem,
-} from "./types.js";
+} from "./types";
 
 export const INITIAL_EQUIPMENT_RENEWAL: CuantoCobroEquipmentRenewal = {
   camera: null,

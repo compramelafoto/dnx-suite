@@ -2,18 +2,18 @@
  * Fixtures sintéticos para caracterización de `calculateCuantoCobro`.
  * Valores técnicos inventados — no representan costos reales de DNX Estudio.
  */
-import { DEFAULT_PHOTOGRAPHY_TIME_DISTRIBUTION } from "../availability.js";
-import { createDefaultPersonalExpenseGroups } from "../default-expense-groups.js";
-import { INITIAL_EQUIPMENT_INVENTORY } from "../equipment/normalize.js";
-import { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "../payment/payment-options-types.js";
-import { createEmptyQuoteItem } from "../quote-items.js";
+import { DEFAULT_PHOTOGRAPHY_TIME_DISTRIBUTION } from "../availability";
+import { createDefaultPersonalExpenseGroups } from "../default-expense-groups";
+import { INITIAL_EQUIPMENT_INVENTORY } from "../equipment/normalize";
+import { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "../payment/payment-options-types";
+import { createEmptyQuoteItem } from "../quote-items";
 import type {
   CuantoCobroProfileInput,
   CuantoCobroQuoteInput,
   CuantoCobroQuoteItem,
   MonthlyExpenseGroup,
-} from "../types.js";
-import type { CommercialPositioningId } from "../commercial-positioning.js";
+} from "../types";
+import type { CommercialPositioningId } from "../commercial-positioning";
 
 function withPersonalExpenseAmount(
   groups: MonthlyExpenseGroup[],
