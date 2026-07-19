@@ -182,6 +182,13 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [ADMIN_CATALOG_BACKEND_10D3B.md](./ADMIN_CATALOG_BACKEND_10D3B.md)
 - Selfchecks: `selfcheck:admin-catalog-domain` · `selfcheck:admin-catalog-prisma`
 
+### Etapa 10D3C — UI administrativa de productos y variantes
+
+- Hub `/admin/catalogo`, listado/alta/detalle de productos, variantes, ajuste de stock
+- Server actions delgadas sobre backend 10D3B; sin Prisma en client; sin hard delete
+- Doc: [ADMIN_CATALOG_PRODUCTS_UI_10D3C.md](./ADMIN_CATALOG_PRODUCTS_UI_10D3C.md)
+- Selfcheck: `selfcheck:admin-catalog-products-ui`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
