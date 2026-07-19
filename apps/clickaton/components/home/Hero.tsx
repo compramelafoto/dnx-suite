@@ -11,10 +11,10 @@ export function Hero() {
     <Section
       id={hero.id}
       tone="base"
-      className="relative overflow-hidden"
+      className="relative overflow-hidden !py-0"
       aria-labelledby="hero-title"
     >
-      <Container className="relative z-[2] py-8 sm:py-12 md:py-16 lg:py-24">
+      <Container className="relative z-[2] pb-12 pt-4 sm:pb-16 sm:pt-5 md:pb-20 md:pt-6 lg:pb-24">
         <div className="mx-auto max-w-3xl text-center">
           <p className="ck-overline text-ck-yellow">{hero.eyebrow}</p>
           <h1
