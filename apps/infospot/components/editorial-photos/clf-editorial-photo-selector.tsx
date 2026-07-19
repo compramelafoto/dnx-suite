@@ -40,6 +40,7 @@ export function ClfEditorialPhotoSelector({
   const [cursor, setCursor] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [usage, setUsage] = useState(defaultUsage);
+  const [altText, setAltText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [albumTitle, setAlbumTitle] = useState<string>("");
   const [pending, startTransition] = useTransition();
@@ -89,11 +90,17 @@ export function ClfEditorialPhotoSelector({
   const select = (photoId: number) => {
     startTransition(async () => {
       setError(null);
+      const trimmedAlt = altText.trim();
+      if (!trimmedAlt) {
+        setError("Completá la descripción (alt text) antes de seleccionar la foto.");
+        return;
+      }
       const result = await selectEditorialPhotoAction({
         clfPhotoId: photoId,
         articleId,
         coverageId,
         usageType: usage,
+        altText: trimmedAlt,
       });
       if (!result.ok) {
         setError(result.error);
@@ -132,6 +139,21 @@ export function ClfEditorialPhotoSelector({
           </select>
         </label>
       </div>
+
+      <label className="block text-sm">
+        <span className="font-semibold">Descripción (alt text) *</span>
+        <textarea
+          value={altText}
+          onChange={(e) => setAltText(e.target.value)}
+          rows={2}
+          maxLength={300}
+          placeholder="Describí la foto que vas a seleccionar"
+          className="mt-1 w-full rounded border border-[var(--is-border)] px-3 py-2 text-sm"
+        />
+        <span className="mt-1 block text-xs text-[var(--is-muted)]">
+          Se aplica a la próxima foto que selecciones. Obligatorio para publicar.
+        </span>
+      </label>
 
       {error ? (
         <p className="text-sm text-red-700" role="alert">

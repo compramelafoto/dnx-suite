@@ -27,6 +27,7 @@ type CommitPhoto = {
   albumId: number;
   coverageId?: string;
   role: PhotoRole;
+  altText?: string;
 };
 
 type CommitInput = {
@@ -84,6 +85,7 @@ export async function commitEditorialAssistantAction(
         coverageId: photo.coverageId,
         usageType: photo.role,
         sortOrder: index,
+        altText: photo.altText?.trim() || null,
         selectedByUserId: access.user.id,
         processNow: true,
       });
@@ -229,6 +231,7 @@ export async function commitEditorialAssistantAction(
       coverageId: photo.coverageId,
       usageType: photo.role,
       sortOrder: index,
+      altText: photo.altText?.trim() || null,
       selectedByUserId: access.user.id,
       processNow: true,
     });

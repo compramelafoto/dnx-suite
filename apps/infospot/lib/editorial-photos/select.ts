@@ -429,6 +429,48 @@ export async function updateEditorialCoverFocal(input: {
   return { ok: true };
 }
 
+/** Actualiza descripción (alt text) y/o epígrafe de un uso editorial. */
+export async function updateEditorialPhotoUsageMeta(input: {
+  usageId: string;
+  altText?: string | null;
+  caption?: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const usage = await prisma.infoSpotEditorialPhotoUsage.findUnique({
+    where: { id: input.usageId },
+    select: { id: true, photo: { select: { deliveryAssetId: true } }, articleId: true },
+  });
+  if (!usage) return { ok: false, error: "Uso no encontrado." };
+
+  const altText =
+    input.altText !== undefined
+      ? input.altText?.trim() || null
+      : undefined;
+  const caption =
+    input.caption !== undefined
+      ? input.caption?.trim() || null
+      : undefined;
+
+  await prisma.infoSpotEditorialPhotoUsage.update({
+    where: { id: input.usageId },
+    data: {
+      ...(altText !== undefined ? { altText } : {}),
+      ...(caption !== undefined ? { caption } : {}),
+    },
+  });
+
+  if (caption !== undefined && usage.photo.deliveryAssetId) {
+    await prisma.infoSpotArticleAsset.updateMany({
+      where: {
+        articleId: usage.articleId,
+        assetId: usage.photo.deliveryAssetId,
+      },
+      data: { captionOverride: caption },
+    });
+  }
+
+  return { ok: true };
+}
+
 export async function reorderGalleryUsages(input: {
   articleId: string;
   orderedUsageIds: string[];

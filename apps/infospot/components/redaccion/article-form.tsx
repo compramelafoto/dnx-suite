@@ -25,6 +25,7 @@ import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
 import type { InfoSpotPermissionSubject } from "@repo/db";
 import { autosaveArticleDraftAction } from "@/app/actions/articles";
 import { removeArticleAssetLinkAction } from "@/app/actions/clf-link";
+import { updateEditorialPhotoUsageMetaAction } from "@/app/actions/editorial-photos";
 import type { AiImportMergeMode, ArticleFormImportValues } from "@/lib/ai-import";
 
 type CategoryOption = { id: string; name: string; slug: string };
@@ -39,6 +40,8 @@ type LinkedClfAsset = {
   credit: string | null;
   photographerName: string | null;
   assetId?: string | null;
+  usageId?: string | null;
+  altText?: string | null;
   coverageTitle?: string | null;
   albumTitle?: string | null;
   availability?: "ready" | "processing" | "unavailable";
@@ -161,6 +164,7 @@ export function ArticleForm({
     () => clf?.linkedAssets ?? [],
   );
   const [unlinkingLinkId, setUnlinkingLinkId] = useState<string | null>(null);
+  const [savingAltUsageId, setSavingAltUsageId] = useState<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingLock = useRef(false);
   const saveStateRef = useRef<SaveState>("idle");
@@ -474,6 +478,38 @@ export function ArticleForm({
     [content, coverImageId, initial?.id, markDirty],
   );
 
+  const saveAltText = useCallback(
+    async (usageId: string, altText: string, asset: LinkedClfAsset) => {
+      setSavingAltUsageId(usageId);
+      try {
+        const result = await updateEditorialPhotoUsageMetaAction({
+          usageId,
+          altText,
+        });
+        if (!result.ok) {
+          setSaveError(result.error);
+          setSaveState("error");
+          return;
+        }
+        setLocalLinkedAssets((prev) =>
+          prev.map((a) =>
+            a.linkId === asset.linkId || a.usageId === usageId
+              ? { ...a, altText: altText.trim() || null }
+              : a,
+          ),
+        );
+        setSaveError(null);
+        setSaveState("saved");
+      } catch {
+        setSaveError("No se pudo guardar la descripción de la foto.");
+        setSaveState("error");
+      } finally {
+        setSavingAltUsageId(null);
+      }
+    },
+    [],
+  );
+
   const usedAssetIds = useMemo(() => {
     const ids = new Set<string>();
     for (const fig of extractEditorialFigures(content)) {
@@ -494,6 +530,10 @@ export function ArticleForm({
       highlightedAssetId={highlightedAssetId}
       unlinkingLinkId={unlinkingLinkId}
       onUnlink={(linkId, asset) => unlinkAsset(linkId, asset)}
+      savingAltUsageId={savingAltUsageId}
+      onSaveAltText={(usageId, altText, asset) =>
+        saveAltText(usageId, altText, asset)
+      }
       onInsertInline={(attrs) => {
         editorRef.current?.insertImage(attrs);
       }}

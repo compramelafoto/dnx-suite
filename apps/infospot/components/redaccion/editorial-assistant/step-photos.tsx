@@ -142,6 +142,14 @@ export function StepPhotos({
     );
   };
 
+  const setAltText = (clfPhotoId: number, altText: string) => {
+    onChange(
+      selected.map((p) =>
+        p.clfPhotoId === clfPhotoId ? { ...p, altText } : p,
+      ),
+    );
+  };
+
   return (
     <div className="space-y-6 pb-36">
       <header className="max-w-2xl">
@@ -267,22 +275,40 @@ export function StepPhotos({
                 </button>
               </div>
               {sel ? (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {(["COVER", "GALLERY", "INLINE"] as const).map((role) => (
-                    <button
-                      key={role}
-                      type="button"
-                      onClick={() => setRole(photo.id, role)}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                        sel.role === role
-                          ? "bg-[var(--is-accent)] text-white"
-                          : "bg-[var(--is-bg-muted)] text-[var(--is-muted)]"
+                <div className="mt-1 space-y-1">
+                  <div className="flex flex-wrap gap-1">
+                    {(["COVER", "GALLERY", "INLINE"] as const).map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => setRole(photo.id, role)}
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                          sel.role === role
+                            ? "bg-[var(--is-accent)] text-white"
+                            : "bg-[var(--is-bg-muted)] text-[var(--is-muted)]"
+                        }`}
+                        aria-label={photoRoleLabel(role)}
+                      >
+                        {role === "COVER" ? "★" : role === "GALLERY" ? "▣" : "¶"}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="block">
+                    <span className="sr-only">Descripción de la foto</span>
+                    <textarea
+                      value={sel.altText ?? ""}
+                      onChange={(e) => setAltText(photo.id, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      rows={2}
+                      maxLength={300}
+                      placeholder="Descripción (alt text) *"
+                      className={`w-full resize-y rounded border px-1.5 py-1 text-[10px] leading-snug ${
+                        sel.altText?.trim()
+                          ? "border-[var(--is-border)] bg-white"
+                          : "border-amber-300 bg-amber-50/70"
                       }`}
-                      aria-label={photoRoleLabel(role)}
-                    >
-                      {role === "COVER" ? "★" : role === "GALLERY" ? "▣" : "¶"}
-                    </button>
-                  ))}
+                    />
+                  </label>
                 </div>
               ) : null}
             </div>

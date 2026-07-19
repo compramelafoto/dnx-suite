@@ -128,6 +128,7 @@ export function ClfEventPicker({
   const [selected, setSelected] = useState<number[]>([]);
   const [usage, setUsage] = useState<UsageType>("COVER");
   const [captions, setCaptions] = useState<Record<number, string>>({});
+  const [altTexts, setAltTexts] = useState<Record<number, string>>({});
   const [photographerFilter, setPhotographerFilter] = useState<number | "ALL">("ALL");
   const [hydrated, setHydrated] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -299,6 +300,7 @@ export function ClfEventPicker({
         photoIds: selected,
         usageType: usage,
         captions,
+        altTexts,
       });
       if (!result.ok) {
         flash(null, result.error);
@@ -748,10 +750,26 @@ export function ClfEventPicker({
                       )}
                     </div>
                     {isOn ? (
-                      <div className="border-t border-[var(--is-border)] p-2">
+                      <div
+                        className="space-y-1.5 border-t border-[var(--is-border)] p-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <textarea
+                          value={altTexts[photo.id] ?? ""}
+                          onChange={(e) =>
+                            setAltTexts((prev) => ({ ...prev, [photo.id]: e.target.value }))
+                          }
+                          rows={2}
+                          maxLength={300}
+                          placeholder="Descripción (alt text) *"
+                          className={`w-full resize-y rounded border px-2 py-1 text-xs ${
+                            (altTexts[photo.id] ?? "").trim()
+                              ? "border-[var(--is-border)]"
+                              : "border-amber-300 bg-amber-50/70"
+                          }`}
+                        />
                         <input
                           value={captions[photo.id] ?? ""}
-                          onClick={(e) => e.stopPropagation()}
                           onChange={(e) =>
                             setCaptions((prev) => ({ ...prev, [photo.id]: e.target.value }))
                           }

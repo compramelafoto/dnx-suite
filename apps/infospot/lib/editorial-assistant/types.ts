@@ -40,6 +40,8 @@ export type SelectedPhoto = {
   thumbApiPath: string;
   photographerName: string;
   role: PhotoRole;
+  /** Descripción / alt text (requerido para publicar). */
+  altText?: string;
 };
 
 export type SelectedCoverage = {

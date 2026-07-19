@@ -31,7 +31,7 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
   const access = await requireInfoSpotRedaccionAccess();
   const { id } = await params;
   const query = await searchParams;
-  const [article, categories, assets, coverUsage] = await Promise.all([
+  const [article, categories, assets, coverUsage, editorialUsages] = await Promise.all([
     getArticleByIdForEditor(id),
     getCategories(),
     listUploadAssets(),
@@ -55,8 +55,27 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
         },
       },
     }),
+    prisma.infoSpotEditorialPhotoUsage.findMany({
+      where: { articleId: id },
+      select: {
+        id: true,
+        altText: true,
+        caption: true,
+        usageType: true,
+        photo: { select: { deliveryAssetId: true } },
+      },
+    }),
   ]);
   if (!article) notFound();
+
+  const usageByAssetAndType = new Map(
+    editorialUsages
+      .filter((u) => u.photo.deliveryAssetId)
+      .map((u) => [
+        `${u.photo.deliveryAssetId}:${u.usageType === "FEATURED" ? "FEATURED" : u.usageType}`,
+        u,
+      ] as const),
+  );
 
   const [event, album] = await Promise.all([
     article.eventId
@@ -146,20 +165,28 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
           albumId: article.clfAlbumId,
           eventTitle: event?.title ?? null,
           albumTitle: album?.title ?? null,
-          linkedAssets: article.articleAssets.map((link) => ({
-            linkId: link.id,
-            usageType: link.usageType as "COVER" | "INLINE" | "GALLERY",
-            sortOrder: link.sortOrder,
-            captionOverride: link.captionOverride,
-            url: link.asset.url,
-            thumbnailUrl: link.asset.thumbnailUrl,
-            credit: link.asset.credit,
-            photographerName: link.asset.photographerName,
-            assetId: link.asset.id,
-            coverageTitle: album?.title ?? null,
-            albumTitle: album?.title ?? null,
-            availability: link.asset.thumbnailUrl || link.asset.url ? "ready" : "unavailable",
-          })),
+          linkedAssets: article.articleAssets.map((link) => {
+            const usage =
+              usageByAssetAndType.get(`${link.asset.id}:${link.usageType}`) ??
+              usageByAssetAndType.get(`${link.asset.id}:FEATURED`) ??
+              null;
+            return {
+              linkId: link.id,
+              usageType: link.usageType as "COVER" | "INLINE" | "GALLERY",
+              sortOrder: link.sortOrder,
+              captionOverride: link.captionOverride ?? usage?.caption ?? null,
+              url: link.asset.url,
+              thumbnailUrl: link.asset.thumbnailUrl,
+              credit: link.asset.credit,
+              photographerName: link.asset.photographerName,
+              assetId: link.asset.id,
+              usageId: usage?.id ?? null,
+              altText: usage?.altText ?? null,
+              coverageTitle: album?.title ?? null,
+              albumTitle: album?.title ?? null,
+              availability: link.asset.thumbnailUrl || link.asset.url ? "ready" : "unavailable",
+            };
+          }),
         }}
         initial={{
           id: article.id,

@@ -14,6 +14,10 @@ export type LibraryAsset = {
   credit: string | null;
   photographerName: string | null;
   assetId?: string | null;
+  /** InfoSpotEditorialPhotoUsage.id — necesario para guardar alt text. */
+  usageId?: string | null;
+  /** Texto alternativo / descripción de accesibilidad. */
+  altText?: string | null;
   /** Título de cobertura / material (periodístico). */
   coverageTitle?: string | null;
   albumTitle?: string | null;
@@ -37,6 +41,13 @@ type Props = {
   /** Desvincular foto de la nota (ArticleAsset linkId). */
   onUnlink?: (linkId: string, asset: LibraryAsset) => void | Promise<void>;
   unlinkingLinkId?: string | null;
+  /** Guardar descripción (alt text) de una foto CLF. */
+  onSaveAltText?: (
+    usageId: string,
+    altText: string,
+    asset: LibraryAsset,
+  ) => void | Promise<void>;
+  savingAltUsageId?: string | null;
 };
 
 const FAVORITES_KEY = "infospot-material-favorites-v1";
@@ -93,6 +104,8 @@ export function MaterialLibraryPanel({
   onGoToUsed,
   onUnlink,
   unlinkingLinkId = null,
+  onSaveAltText,
+  savingAltUsageId = null,
 }: Props) {
   const used = useMemo(() => {
     if (!usedAssetIds) return new Set<string>();
@@ -216,6 +229,10 @@ export function MaterialLibraryPanel({
           onToggleFavorite={articleId ? toggleFavorite : undefined}
           onInsertInline={onInsertInline}
           onGoToUsed={onGoToUsed}
+          onUnlink={onUnlink}
+          unlinkingLinkId={unlinkingLinkId}
+          onSaveAltText={onSaveAltText}
+          savingAltUsageId={savingAltUsageId}
         />
       ) : null}
 
@@ -228,6 +245,10 @@ export function MaterialLibraryPanel({
         used={used}
         albumFallback={albumTitle}
         onToggleFavorite={articleId ? toggleFavorite : undefined}
+        onUnlink={onUnlink}
+        unlinkingLinkId={unlinkingLinkId}
+        onSaveAltText={onSaveAltText}
+        savingAltUsageId={savingAltUsageId}
       />
 
       <LibrarySection
@@ -239,6 +260,10 @@ export function MaterialLibraryPanel({
         used={used}
         albumFallback={albumTitle}
         onToggleFavorite={articleId ? toggleFavorite : undefined}
+        onUnlink={onUnlink}
+        unlinkingLinkId={unlinkingLinkId}
+        onSaveAltText={onSaveAltText}
+        savingAltUsageId={savingAltUsageId}
       />
 
       <LibrarySection
@@ -252,6 +277,10 @@ export function MaterialLibraryPanel({
         onToggleFavorite={articleId ? toggleFavorite : undefined}
         onInsertInline={onInsertInline}
         onGoToUsed={onGoToUsed}
+        onUnlink={onUnlink}
+        unlinkingLinkId={unlinkingLinkId}
+        onSaveAltText={onSaveAltText}
+        savingAltUsageId={savingAltUsageId}
       />
 
       <LibrarySection
@@ -264,6 +293,10 @@ export function MaterialLibraryPanel({
         albumFallback={albumTitle}
         onToggleFavorite={articleId ? toggleFavorite : undefined}
         onGoToUsed={onGoToUsed}
+        onUnlink={onUnlink}
+        unlinkingLinkId={unlinkingLinkId}
+        onSaveAltText={onSaveAltText}
+        savingAltUsageId={savingAltUsageId}
         forceUsedBadge
       />
 
@@ -277,6 +310,10 @@ export function MaterialLibraryPanel({
           used={used}
           albumFallback={albumTitle}
           onToggleFavorite={articleId ? toggleFavorite : undefined}
+          onUnlink={onUnlink}
+          unlinkingLinkId={unlinkingLinkId}
+          onSaveAltText={onSaveAltText}
+          savingAltUsageId={savingAltUsageId}
         />
       ) : null}
 
@@ -290,6 +327,10 @@ export function MaterialLibraryPanel({
           used={used}
           albumFallback={albumTitle}
           onToggleFavorite={articleId ? toggleFavorite : undefined}
+          onUnlink={onUnlink}
+          unlinkingLinkId={unlinkingLinkId}
+          onSaveAltText={onSaveAltText}
+          savingAltUsageId={savingAltUsageId}
         />
       ) : null}
 
@@ -353,6 +394,10 @@ function LibrarySection({
   onToggleFavorite,
   onInsertInline,
   onGoToUsed,
+  onUnlink,
+  unlinkingLinkId = null,
+  onSaveAltText,
+  savingAltUsageId = null,
   forceUsedBadge,
 }: {
   title: string;
@@ -365,6 +410,14 @@ function LibrarySection({
   onToggleFavorite?: (linkId: string) => void;
   onInsertInline?: (attrs: EditorialImageAttrs) => void;
   onGoToUsed?: (assetId: string) => void;
+  onUnlink?: (linkId: string, asset: LibraryAsset) => void | Promise<void>;
+  unlinkingLinkId?: string | null;
+  onSaveAltText?: (
+    usageId: string,
+    altText: string,
+    asset: LibraryAsset,
+  ) => void | Promise<void>;
+  savingAltUsageId?: string | null;
   forceUsedBadge?: boolean;
 }) {
   if (items.length === 0 && !empty) return null;
@@ -391,9 +444,12 @@ function LibrarySection({
               highlightedAssetId === asset.assetId;
             const coverage =
               asset.coverageTitle || asset.albumTitle || albumFallback || "Cobertura";
-            const label = asset.photographerName
-              ? `Foto de ${asset.photographerName}`
-              : "Fotografía editorial";
+            const label =
+              asset.altText?.trim() ||
+              (asset.photographerName
+                ? `Foto de ${asset.photographerName}`
+                : "Fotografía editorial");
+            const needsAlt = Boolean(asset.usageId) && !asset.altText?.trim();
 
             const variantClass = [
               "is-material-item",
@@ -457,6 +513,40 @@ function LibrarySection({
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-800">
                         Usada en el artículo
                       </p>
+                    ) : null}
+                    {asset.usageId && onSaveAltText ? (
+                      <label className="block pt-1">
+                        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--is-muted)]">
+                          Descripción (alt text){needsAlt ? " *" : ""}
+                        </span>
+                        <textarea
+                          key={`${asset.usageId}:${asset.altText ?? ""}`}
+                          defaultValue={asset.altText ?? ""}
+                          rows={2}
+                          maxLength={300}
+                          placeholder="Describí la foto para accesibilidad y publicación"
+                          className={`w-full resize-y rounded-[var(--is-radius-sm)] border px-2 py-1.5 text-[11px] leading-snug text-[var(--is-text)] ${
+                            needsAlt
+                              ? "border-red-300 bg-red-50/60"
+                              : "border-[var(--is-border)] bg-white"
+                          }`}
+                          disabled={savingAltUsageId === asset.usageId}
+                          onBlur={(e) => {
+                            const next = e.target.value.trim();
+                            if (next === (asset.altText ?? "").trim()) return;
+                            void onSaveAltText(asset.usageId!, next, asset);
+                          }}
+                        />
+                        {savingAltUsageId === asset.usageId ? (
+                          <span className="mt-0.5 block text-[10px] text-[var(--is-muted)]">
+                            Guardando…
+                          </span>
+                        ) : needsAlt ? (
+                          <span className="mt-0.5 block text-[10px] text-red-700">
+                            Obligatorio para publicar
+                          </span>
+                        ) : null}
+                      </label>
                     ) : null}
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {onInsertInline && asset.usageType === "INLINE" && !isUsed ? (

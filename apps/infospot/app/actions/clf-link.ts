@@ -7,6 +7,7 @@ import {
   requireInfoSpotRedaccionAccess,
 } from "@/lib/infospot-access";
 import { importClfPhotoToArticle, type ImportUsage } from "@/lib/clf-import";
+import { selectEditorialPhoto } from "@/lib/editorial-photos";
 import { getClfAlbumDetail, getClfEventSummary } from "@/lib/clf-queries";
 
 export type ClfActionResult =
@@ -129,6 +130,8 @@ export async function importClfPhotosAction(input: {
   photoIds: number[];
   usageType: ImportUsage;
   captions?: Record<number, string>;
+  /** Descripción / alt text por photoId (requerido para publicar). */
+  altTexts?: Record<number, string>;
   /** Si true y el artículo no tiene álbum, lo vincula automáticamente. */
   autoLinkAlbum?: boolean;
 }): Promise<ClfActionResult> {
@@ -174,16 +177,30 @@ export async function importClfPhotosAction(input: {
   try {
     let order = 0;
     for (const photoId of input.photoIds) {
+      const sortOrder = order++;
+      const caption = input.captions?.[photoId] ?? null;
+      const altText = input.altTexts?.[photoId]?.trim() || null;
       const result = await importClfPhotoToArticle({
         articleId: input.articleId,
         photoId,
         expectedAlbumId: input.albumId,
         expectedEventId: article.eventId ?? album.eventId,
         usageType: input.usageType,
-        sortOrder: order++,
-        captionOverride: input.captions?.[photoId] ?? null,
+        sortOrder,
+        captionOverride: caption,
         selectedByUserId: access.user.id,
         allowMissingPhotographer: isDirector,
+      });
+      // Uso canónico + checklist de publicación (alt text / derivados).
+      await selectEditorialPhoto({
+        clfPhotoId: photoId,
+        articleId: input.articleId,
+        usageType: input.usageType,
+        sortOrder,
+        caption,
+        altText,
+        selectedByUserId: access.user.id,
+        processNow: true,
       });
       imported.push({
         id: result.asset.id,

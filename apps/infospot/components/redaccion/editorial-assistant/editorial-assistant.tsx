@@ -233,6 +233,7 @@ export function EditorialAssistant({ bootstrap, deepLink }: Props) {
         eventId: state.event?.id ?? null,
         coverageIds: state.coverages.map((c) => c.id),
         photos: state.photos.map((p) => ({
+          altText: p.altText,
           clfPhotoId: p.clfPhotoId,
           albumId: p.albumId,
           coverageId: p.coverageId,
