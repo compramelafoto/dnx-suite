@@ -531,12 +531,15 @@ export async function ensureEditorialPhotoAltText(input: {
       : null);
 
   if (!photo && input.sourcePhotoId != null) {
+    if (input.selectedByUserId == null) {
+      return { ok: false, error: "Sin usuario para crear el uso editorial." };
+    }
     const selected = await selectEditorialPhoto({
       clfPhotoId: input.sourcePhotoId,
       articleId: input.articleId,
       usageType,
       altText,
-      selectedByUserId: input.selectedByUserId ?? undefined,
+      selectedByUserId: input.selectedByUserId,
       processNow: true,
     });
     if (!selected.ok) return { ok: false, error: selected.error };
@@ -552,12 +555,15 @@ export async function ensureEditorialPhotoAltText(input: {
       select: { sourcePhotoId: true, sourceType: true },
     });
     if (asset?.sourceType === "CLF_PHOTO" && asset.sourcePhotoId != null) {
+      if (input.selectedByUserId == null) {
+        return { ok: false, error: "Sin usuario para crear el uso editorial." };
+      }
       const selected = await selectEditorialPhoto({
         clfPhotoId: asset.sourcePhotoId,
         articleId: input.articleId,
         usageType,
         altText,
-        selectedByUserId: input.selectedByUserId ?? undefined,
+        selectedByUserId: input.selectedByUserId,
         processNow: true,
       });
       if (!selected.ok) return { ok: false, error: selected.error };
