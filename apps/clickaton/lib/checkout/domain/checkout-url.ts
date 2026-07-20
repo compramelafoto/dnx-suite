@@ -21,6 +21,12 @@ export function assertSafeCheckoutUrl(
     "payments.test",
     "localhost",
     "127.0.0.1",
+    "www.mercadopago.com",
+    "www.mercadopago.com.ar",
+    "mercadopago.com",
+    "mercadopago.com.ar",
+    "sandbox.mercadopago.com",
+    "sandbox.mercadopago.com.ar",
   ]);
   const extra = (process.env.CLICKATON_CHECKOUT_ALLOWED_HOSTS ?? "")
     .split(",")

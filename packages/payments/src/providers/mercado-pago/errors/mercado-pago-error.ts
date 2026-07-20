@@ -1,4 +1,4 @@
-import type { Rfc7807Problem } from "../client/mercado-pago-response.js";
+import type { Rfc7807Problem } from "../client/mercado-pago-response";
 
 export interface MercadoPagoErrorBody {
   message?: string;

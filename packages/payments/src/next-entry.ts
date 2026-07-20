@@ -20,4 +20,16 @@ export type {
   ApplyNormalizedCheckoutEventResult,
   ReconcileClickatonCheckoutResult,
   NormalizedCheckoutStatus,
+  ClickatonCheckoutProviderBridge,
 } from "./application/services/clickaton-checkout/types";
+export {
+  validateMercadoPagoTestCredentials,
+  createMercadoPagoCheckoutProTestAdapter,
+  createMercadoPagoTestClickatonProviderBridge,
+  resolveClickatonPaymentsProviderMode,
+  mapMercadoPagoPaymentStatusToNormalized,
+  sanitizeMercadoPagoPreferenceResponse,
+  assertNoSecretLeak,
+} from "./providers/mercado-pago/checkout-pro";
+export { MercadoPagoHttpClient } from "./providers/mercado-pago/client/mercado-pago-http-client";
+export { createMercadoPagoProviderConfig } from "./providers/mercado-pago/client/mercado-pago-environment";

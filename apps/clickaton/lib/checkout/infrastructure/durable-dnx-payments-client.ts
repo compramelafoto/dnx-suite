@@ -5,6 +5,7 @@ import {
   type DurableCheckoutOrder,
   type NormalizedCheckoutEvent as DurableEvent,
   type DnxPaymentsPersistence,
+  type ClickatonCheckoutProviderBridge,
 } from "@repo/payments/next";
 import { hashCreateOrderPayload } from "../domain/idempotency";
 import { CheckoutError } from "../domain/errors";
@@ -64,6 +65,8 @@ export function createDurableDnxPaymentsClient(deps: {
   persistence: DnxPaymentsPersistence;
   webhookSecret: string;
   checkoutBaseUrl?: string;
+  notificationUrl?: string;
+  providerBridge?: ClickatonCheckoutProviderBridge;
   isTestFixture?: boolean;
 }): DnxPaymentsClient & {
   service: ClickatonCheckoutService;
@@ -77,7 +80,9 @@ export function createDurableDnxPaymentsClient(deps: {
     sourceId?: string;
   }): Promise<NormalizedPaymentEvent>;
 } {
-  const service = createClickatonCheckoutService(deps.persistence);
+  const service = createClickatonCheckoutService(deps.persistence, {
+    ...(deps.providerBridge ? { providerBridge: deps.providerBridge } : {}),
+  });
 
   return {
     service,
@@ -126,6 +131,7 @@ export function createDurableDnxPaymentsClient(deps: {
         failureUrl: input.failureUrl,
         payerEmail: input.payer?.email,
         checkoutBaseUrl: deps.checkoutBaseUrl,
+        notificationUrl: deps.notificationUrl,
         isTestFixture: deps.isTestFixture,
       });
       if (result.outcome === "conflict") {

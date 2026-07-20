@@ -28,7 +28,49 @@ export type CreateClickatonCheckoutOrderInput = {
   environment?: PaymentEnvironment;
   /** Base URL del checkout fake (sin query). */
   checkoutBaseUrl?: string;
+  /** HTTPS notification URL for Mercado Pago TEST (Preferences). */
+  notificationUrl?: string;
   isTestFixture?: boolean;
+};
+
+/** Bridge opcional: fake manual o Checkout Pro TEST. */
+export type ClickatonCheckoutProviderBridge = {
+  mode: "manual" | "mercado_pago_test";
+  /** Provider name persisted on DNX orders. */
+  providerName: ProviderName;
+  createCheckout(input: {
+    orderId: string;
+    amountMinor: number;
+    currency: CurrencyCode;
+    description: string;
+    externalReference: string;
+    idempotencyKey: string;
+    payloadHash: string;
+    payerEmail?: string;
+    successUrl: string;
+    pendingUrl: string;
+    failureUrl: string;
+    notificationUrl?: string;
+    checkoutBaseUrl?: string;
+    sourceId: string;
+  }): Promise<{
+    checkoutUrl: string;
+    providerOrderId: string;
+    rawSanitized: Record<string, unknown>;
+  }>;
+  refreshCheckout?(input: {
+    providerOrderId: string;
+    externalReference: string;
+    expectedAmountMinor: number;
+    expectedCurrency: CurrencyCode;
+  }): Promise<{
+    status: NormalizedCheckoutStatus;
+    amountMinor: number;
+    currency: CurrencyCode;
+    externalReference: string | null;
+    liveMode: boolean;
+    rawSanitized: Record<string, unknown>;
+  } | null>;
 };
 
 export type DurableCheckoutOrder = {

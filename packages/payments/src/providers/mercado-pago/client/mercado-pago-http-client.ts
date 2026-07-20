@@ -1,14 +1,14 @@
-import { PaymentProviderTemporaryError } from "../../../errors/provider-errors.js";
+import { PaymentProviderTemporaryError } from "../../../errors/provider-errors";
 import {
   assertSandboxToken,
   assertSandboxWriteAllowed,
   MP_API_BASE_URL,
   type MercadoPagoProviderConfig,
-} from "./mercado-pago-environment.js";
-import { isRetryableStatus, mapMercadoPagoHttpError } from "../errors/error-mapper.js";
-import type { MercadoPagoRequestOptions } from "./mercado-pago-request.js";
-import { parseRfc7807, type ParsedMpResponse } from "./mercado-pago-response.js";
-import type { MercadoPagoErrorBody } from "../errors/mercado-pago-error.js";
+} from "./mercado-pago-environment";
+import { isRetryableStatus, mapMercadoPagoHttpError } from "../errors/error-mapper";
+import type { MercadoPagoRequestOptions } from "./mercado-pago-request";
+import { parseRfc7807, type ParsedMpResponse } from "./mercado-pago-response";
+import type { MercadoPagoErrorBody } from "../errors/mercado-pago-error";
 
 const WRITE_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 const BASE_BACKOFF_MS = 100;

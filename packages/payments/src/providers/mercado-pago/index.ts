@@ -40,3 +40,4 @@ export {
 export { parseMercadoPagoOrdersWebhook } from "./webhooks/parser.js";
 export { FakeMercadoPagoHttpClient } from "./testing/fake-client.js";
 export * from "./testing/fixtures.js";
+export * from "./checkout-pro/index.js";

@@ -14,16 +14,45 @@ import {
 } from "./map-status";
 import type {
   ApplyNormalizedCheckoutEventResult,
+  ClickatonCheckoutProviderBridge,
   CreateClickatonCheckoutOrderInput,
   CreateClickatonCheckoutOrderResult,
   DurableCheckoutOrder,
   NormalizedCheckoutEvent,
   ReconcileClickatonCheckoutResult,
 } from "./types";
+import type { ProviderName } from "../../../contracts/primitives";
 
 const SOURCE_PRODUCT = "clickaton";
-const PROVIDER = "manual" as const;
 const DEFAULT_CHECKOUT_BASE = "https://payments.test/checkout";
+
+function createManualProviderBridge(): ClickatonCheckoutProviderBridge {
+  return {
+    mode: "manual",
+    providerName: "manual",
+    async createCheckout(input) {
+      const checkoutBase = (input.checkoutBaseUrl ?? DEFAULT_CHECKOUT_BASE).replace(
+        /\/$/,
+        "",
+      );
+      const checkoutToken = createHash("sha256")
+        .update(`${input.orderId}:${input.payloadHash}`)
+        .digest("hex")
+        .slice(0, 24);
+      const checkoutUrl = `${checkoutBase}/${input.orderId}?t=${checkoutToken}`;
+      return {
+        checkoutUrl,
+        providerOrderId: `fake_${input.orderId}`,
+        rawSanitized: {
+          checkoutUrl,
+          sourceApp: "CLICKATON",
+          sourceType: "REGISTRATION",
+          sourceId: input.sourceId,
+        },
+      };
+    },
+  };
+}
 
 function externalRefForRegistration(sourceId: string): string {
   return `clickaton:registration:${sourceId}`;
@@ -113,12 +142,45 @@ async function buildDurableOrder(
   };
 }
 
-export function createClickatonCheckoutService(db: DnxPaymentsPersistence) {
+function isCompleteReusableOrder(order: DurableCheckoutOrder): boolean {
+  return isReusableNormalized(order.status) && Boolean(order.checkoutUrl);
+}
+
+async function waitForCheckoutUrl(
+  db: DnxPaymentsPersistence,
+  orderId: string,
+  opts: { idempotencyKey: string; payloadHash: string },
+  attempts = 25,
+): Promise<DurableCheckoutOrder | null> {
+  for (let i = 0; i < attempts; i++) {
+    const order = await db.paymentOrders.findById(orderId);
+    if (!order) return null;
+    const durable = await buildDurableOrder(db, order, opts);
+    if (durable.checkoutUrl) return durable;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  const order = await db.paymentOrders.findById(orderId);
+  return order ? buildDurableOrder(db, order, opts) : null;
+}
+
+export function createClickatonCheckoutService(
+  db: DnxPaymentsPersistence,
+  opts?: { providerBridge?: ClickatonCheckoutProviderBridge },
+) {
+  const bridge = opts?.providerBridge ?? createManualProviderBridge();
+  const PROVIDER: ProviderName = bridge.providerName;
+
   return {
+    providerMode: bridge.mode,
+    providerName: PROVIDER,
+
     async createOrder(
       input: CreateClickatonCheckoutOrderInput,
     ): Promise<CreateClickatonCheckoutOrderResult> {
       const environment = input.environment ?? "sandbox";
+      if (environment === "production") {
+        throw new Error("clickaton_checkout_production_forbidden");
+      }
       const now = new Date().toISOString();
       const externalReference = externalRefForRegistration(input.sourceId);
       const { ownerRecipientId, partnerRecipientId } =
@@ -139,14 +201,17 @@ export function createClickatonCheckoutService(db: DnxPaymentsPersistence) {
           };
         }
         if (existingIdempo.aggregateId) {
-          const order = await db.paymentOrders.findById(existingIdempo.aggregateId);
-          if (order) {
-            const durable = await buildDurableOrder(db, order, {
-              idempotencyKey: input.idempotencyKey,
-              payloadHash: input.payloadHash,
-            });
+          const durable = await waitForCheckoutUrl(db, existingIdempo.aggregateId, {
+            idempotencyKey: input.idempotencyKey,
+            payloadHash: input.payloadHash,
+          });
+          if (durable && isCompleteReusableOrder(durable)) {
             return { outcome: "reused", order: durable };
           }
+          if (durable?.checkoutUrl) {
+            return { outcome: "reused", order: durable };
+          }
+          // Orden incompleta (carrera): no devolver URL null; continuar solo si no hay orden.
         }
       }
 
@@ -166,6 +231,22 @@ export function createClickatonCheckoutService(db: DnxPaymentsPersistence) {
                 code: "IDEMPOTENCY_CONFLICT",
                 message: "Hay una orden pendiente con monto o moneda distintos.",
               };
+            }
+            if (!durable.checkoutUrl) {
+              const waited = await waitForCheckoutUrl(db, o.id, {
+                idempotencyKey: input.idempotencyKey,
+                payloadHash: input.payloadHash,
+              });
+              if (waited?.checkoutUrl) {
+                return { outcome: "reused", order: waited };
+              }
+              // incompleta: dejar que el creador original termine; reintentar wait
+              const again = await waitForCheckoutUrl(db, o.id, {
+                idempotencyKey: input.idempotencyKey,
+                payloadHash: input.payloadHash,
+              });
+              if (again?.checkoutUrl) return { outcome: "reused", order: again };
+              continue;
             }
             return { outcome: "reused", order: durable };
           }
@@ -258,12 +339,11 @@ export function createClickatonCheckoutService(db: DnxPaymentsPersistence) {
       if (reserveResult.kind === "SAME_PAYLOAD") {
         const existingId = reserveResult.record.aggregateId;
         if (existingId) {
-          const existing = await db.paymentOrders.findById(existingId);
-          if (existing) {
-            const durable = await buildDurableOrder(db, existing, {
-              idempotencyKey: input.idempotencyKey,
-              payloadHash: input.payloadHash,
-            });
+          const durable = await waitForCheckoutUrl(db, existingId, {
+            idempotencyKey: input.idempotencyKey,
+            payloadHash: input.payloadHash,
+          });
+          if (durable?.checkoutUrl) {
             return { outcome: "reused", order: durable };
           }
         }
@@ -307,16 +387,58 @@ export function createClickatonCheckoutService(db: DnxPaymentsPersistence) {
 
       const reserve = reserveResult.record;
 
-      // Fake provider call (outside TX) — deterministic checkout URL
-      const checkoutBase = (input.checkoutBaseUrl ?? DEFAULT_CHECKOUT_BASE).replace(/\/$/, "");
-      const checkoutToken = createHash("sha256")
-        .update(`${orderId}:${input.payloadHash}`)
-        .digest("hex")
-        .slice(0, 24);
-      const checkoutUrl = `${checkoutBase}/${orderId}?t=${checkoutToken}`;
-      const providerOrderId = `fake_${orderId}`;
-      const providerRowId = `dnx_po_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+      // Provider call (manual fake or Mercado Pago Checkout Pro TEST)
       const now2 = new Date().toISOString();
+      let checkoutUrl: string;
+      let providerOrderId: string;
+      let rawSanitized: Record<string, unknown>;
+      try {
+        const created = await bridge.createCheckout({
+          orderId,
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          description: input.description,
+          externalReference,
+          idempotencyKey: input.idempotencyKey,
+          payloadHash: input.payloadHash,
+          payerEmail: input.payerEmail,
+          successUrl: input.successUrl,
+          pendingUrl: input.pendingUrl,
+          failureUrl: input.failureUrl,
+          notificationUrl: input.notificationUrl,
+          checkoutBaseUrl: input.checkoutBaseUrl,
+          sourceId: input.sourceId,
+        });
+        checkoutUrl = created.checkoutUrl;
+        providerOrderId = created.providerOrderId;
+        rawSanitized = {
+          ...created.rawSanitized,
+          checkoutUrl: created.checkoutUrl,
+          sourceApp: "CLICKATON",
+          sourceType: "REGISTRATION",
+          sourceId: input.sourceId,
+        };
+      } catch (error) {
+        await db.idempotency.markFailed(reserve.id, now2);
+        await db.audit.append({
+          id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+          actorType: "system",
+          action: "clickaton.checkout.provider.failed",
+          aggregateType: "payment_order",
+          aggregateId: orderId,
+          provider: PROVIDER,
+          environment,
+          result: "FAILED",
+          errorCode: "PROVIDER_CREATE_FAILED",
+          metadata: {
+            message: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+          },
+          createdAt: now2,
+        });
+        throw error;
+      }
+
+      const providerRowId = `dnx_po_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
 
       try {
         await registerProviderOrderUnit(db, {
@@ -330,12 +452,7 @@ export function createClickatonCheckoutService(db: DnxPaymentsPersistence) {
             mappedStatus: "OPEN",
             totalMinor: BigInt(input.amountMinor),
             currency: input.currency,
-            rawResponseSanitized: {
-              checkoutUrl,
-              sourceApp: "CLICKATON",
-              sourceType: "REGISTRATION",
-              sourceId: input.sourceId,
-            },
+            rawResponseSanitized: rawSanitized,
             lastFetchedAt: now2,
             createdAt: now2,
             updatedAt: now2,
@@ -468,7 +585,66 @@ export function createClickatonCheckoutService(db: DnxPaymentsPersistence) {
       const order = await db.paymentOrders.findById(orderId);
       if (!order) return null;
       const providerOrder = await db.providerOrders.findByPaymentOrderId(orderId);
+      const intent = await db.intents.findById(order.paymentIntentId);
       const now = new Date().toISOString();
+
+      if (bridge.refreshCheckout && providerOrder && intent) {
+        const refreshed = await bridge.refreshCheckout({
+          providerOrderId: providerOrder.providerOrderId,
+          externalReference: intent.externalReference,
+          expectedAmountMinor: Number(order.amountMinor),
+          expectedCurrency: order.currency,
+        });
+        if (refreshed) {
+          if (refreshed.liveMode) {
+            await db.audit.append({
+              id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+              actorType: "system",
+              action: "clickaton.checkout.refresh.blocked_live_mode",
+              aggregateType: "payment_order",
+              aggregateId: orderId,
+              provider: order.provider,
+              environment: order.environment,
+              result: "FAILED",
+              errorCode: "LIVE_MODE_FORBIDDEN",
+              createdAt: now,
+            });
+            return buildDurableOrder(db, order);
+          }
+          await db.providerOrders.save({
+            ...providerOrder,
+            providerStatus: refreshed.status.toLowerCase(),
+            mappedStatus:
+              refreshed.status === "APPROVED"
+                ? "PROCESSED"
+                : refreshed.status === "REJECTED" || refreshed.status === "CANCELLED"
+                  ? "CANCELED"
+                  : "OPEN",
+            rawResponseSanitized: {
+              ...(providerOrder.rawResponseSanitized ?? {}),
+              ...refreshed.rawSanitized,
+              normalizedStatus: refreshed.status,
+            },
+            lastFetchedAt: now,
+            updatedAt: now,
+          });
+          await this.applyNormalizedEvent({
+            eventId: `refresh_${orderId}_${now}`,
+            orderId,
+            status: refreshed.status,
+            amountMinor: refreshed.amountMinor,
+            currency: refreshed.currency,
+            provider: order.provider,
+            externalReference:
+              refreshed.externalReference ?? intent.externalReference,
+            sourceId: extractSourceId(intent.externalReference),
+            receivedAt: now,
+          });
+          const updated = await db.paymentOrders.findById(orderId);
+          return updated ? buildDurableOrder(db, updated) : null;
+        }
+      }
+
       if (providerOrder) {
         await db.providerOrders.save({
           ...providerOrder,

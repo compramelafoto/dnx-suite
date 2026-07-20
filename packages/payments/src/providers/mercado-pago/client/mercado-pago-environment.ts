@@ -1,5 +1,5 @@
-import type { CurrencyCode } from "../../../contracts/primitives.js";
-import { MercadoPagoProductionWriteBlockedError } from "../../../errors/provider-errors.js";
+import type { CurrencyCode } from "../../../contracts/primitives";
+import { MercadoPagoProductionWriteBlockedError } from "../../../errors/provider-errors";
 
 export type MercadoPagoEnvironment = "sandbox" | "production";
 

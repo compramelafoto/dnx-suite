@@ -1,0 +1,94 @@
+/**
+ * Factory: Clickatón provider bridge (manual fake | Mercado Pago Checkout Pro TEST).
+ */
+import type { ClickatonCheckoutProviderBridge } from "../../../application/services/clickaton-checkout/types";
+import {
+  createMercadoPagoCheckoutProTestAdapter,
+  type MercadoPagoCheckoutProTestAdapter,
+} from "./preference-adapter";
+
+export function createManualClickatonProviderBridge(): ClickatonCheckoutProviderBridge {
+  // Deferred to createClickatonCheckoutService default — this export is for explicit wiring.
+  return {
+    mode: "manual",
+    providerName: "manual",
+    async createCheckout(input) {
+      const base = (input.checkoutBaseUrl ?? "https://payments.test/checkout").replace(/\/$/, "");
+      const checkoutUrl = `${base}/${input.orderId}`;
+      return {
+        checkoutUrl,
+        providerOrderId: `fake_${input.orderId}`,
+        rawSanitized: { checkoutUrl, mode: "manual" },
+      };
+    },
+  };
+}
+
+export function createMercadoPagoTestClickatonProviderBridge(input: {
+  adapter: MercadoPagoCheckoutProTestAdapter;
+}): ClickatonCheckoutProviderBridge {
+  const adapter = input.adapter;
+  return {
+    mode: "mercado_pago_test",
+    providerName: "mercadopago_preferences_legacy",
+    async createCheckout(params) {
+      if (!params.notificationUrl) {
+        throw new Error("notification_url_required_for_mercado_pago_test");
+      }
+      const created = await adapter.createPreference({
+        amountMinor: params.amountMinor,
+        currency: params.currency,
+        description: params.description,
+        externalReference: params.externalReference,
+        idempotencyKey: params.idempotencyKey,
+        payerEmail: params.payerEmail,
+        successUrl: params.successUrl,
+        pendingUrl: params.pendingUrl,
+        failureUrl: params.failureUrl,
+        notificationUrl: params.notificationUrl,
+        metadata: { source_id: params.sourceId },
+      });
+      return {
+        checkoutUrl: created.checkoutUrl,
+        providerOrderId: created.providerPreferenceId,
+        rawSanitized: created.rawSanitized,
+      };
+    },
+    async refreshCheckout(params) {
+      // Preference id stored as providerOrderId; payment refresh requires payment id.
+      // When providerOrderId looks numeric (payment), query payment; else re-fetch preference only.
+      if (/^\d+$/.test(params.providerOrderId)) {
+        const payment = await adapter.getPayment(params.providerOrderId);
+        if (payment.liveMode) {
+          return { ...payment, status: payment.status };
+        }
+        return payment;
+      }
+      const pref = await adapter.getPreference(params.providerOrderId);
+      return {
+        status: "PENDING",
+        amountMinor: params.expectedAmountMinor,
+        currency: params.expectedCurrency,
+        externalReference: pref.externalReference,
+        liveMode: false,
+        rawSanitized: pref.rawSanitized,
+      };
+    },
+  };
+}
+
+export function resolveClickatonPaymentsProviderMode(
+  raw: string | undefined,
+): "manual" | "mercado_pago_test" {
+  const v = (raw ?? "manual").trim().toLowerCase();
+  if (v === "mercado_pago_test" || v === "mercadopago_test" || v === "mp_test") {
+    return "mercado_pago_test";
+  }
+  if (v === "manual" || v === "" || v === "fake") return "manual";
+  if (v === "mercado_pago_production" || v === "production") {
+    throw new Error("mercado_pago_production_forbidden");
+  }
+  throw new Error(`unknown_clickaton_payments_provider:${v}`);
+}
+
+export { createMercadoPagoCheckoutProTestAdapter };

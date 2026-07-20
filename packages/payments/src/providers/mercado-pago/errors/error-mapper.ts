@@ -8,13 +8,13 @@ import {
   PaymentProviderValidationError,
   RecipientNotEligibleError,
   sanitizeProviderMessage,
-} from "../../../errors/provider-errors.js";
-import type { Rfc7807Problem } from "../client/mercado-pago-response.js";
+} from "../../../errors/provider-errors";
+import type { Rfc7807Problem } from "../client/mercado-pago-response";
 import {
   extractMpErrorCodes,
   extractMpErrorMessage,
   type MercadoPagoErrorBody,
-} from "./mercado-pago-error.js";
+} from "./mercado-pago-error";
 
 const CONSENT_NOT_ACTIVE_CODES = new Set([
   "CONSENT_NOT_ACTIVE",

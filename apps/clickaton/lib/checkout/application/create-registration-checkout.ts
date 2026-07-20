@@ -122,7 +122,7 @@ export function createRegistrationCheckoutUseCase(deps: {
         idempotencyKey,
         amountMinor: eligible.amountMinor,
         currency: "ARS",
-        description: `Inscripción Clickatón · ${eligible.publicCode ?? registration.id.slice(0, 8)}`,
+        description: `Inscripción Clickatón TEST · ${eligible.publicCode ?? registration.id.slice(0, 8)}`,
         payer: {
           email: registration.participant.email,
           firstName: registration.participant.firstName,
