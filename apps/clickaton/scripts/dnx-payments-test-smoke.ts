@@ -1,13 +1,14 @@
 /**
- * Smoke externo DNX Payments / Mercado Pago TEST — dry-run por defecto.
+ * Smoke externo DNX Payments / Mercado Pago TEST.
  *
- * Uso:
- *   pnpm --filter clickaton smoke:dnx-payments-test
- *   pnpm --filter clickaton smoke:dnx-payments-test -- --execute --confirm-test-only
+ * Modos:
+ *   --check-config   (default si no hay --execute) — sin órdenes ni cobros
+ *   --execute --confirm-test-only — solo si todos los controles TEST están verdes
  *
  * Nunca imprime secretos. Rechaza producción. No toca Neon prod. No hace push.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(process.cwd());
@@ -19,8 +20,13 @@ function hasFlag(name: string): boolean {
 }
 
 function present(name: string): boolean {
-  const v = process.env[name];
+  const v = (process.env as Record<string, string | undefined>)[name];
   return typeof v === "string" && v.trim().length > 0;
+}
+
+function readEnv(name: string): string | undefined {
+  const v = (process.env as Record<string, string | undefined>)[name]?.trim();
+  return v || undefined;
 }
 
 function looksLikeProductionUrl(raw: string | undefined): boolean {
@@ -33,38 +39,82 @@ function looksLikeProductionUrl(raw: string | undefined): boolean {
   );
 }
 
-function tokenLooksTest(name: string): boolean | null {
-  if (!present(name)) return null;
-  const v = process.env[name] ?? "";
-  return v.startsWith("TEST-");
-}
-
-function readClickatonCheckoutService(): string {
-  const candidates = [
-    join(ROOT, "../../packages/payments/src/application/services/clickaton-checkout/clickaton-checkout-service.ts"),
-    join(ROOT, "../../../packages/payments/src/application/services/clickaton-checkout/clickaton-checkout-service.ts"),
-  ];
-  for (const p of candidates) {
-    if (existsSync(p)) return readFileSync(p, "utf8");
+function isHttpsPublic(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.hostname !== "localhost";
+  } catch {
+    return false;
   }
-  return "";
 }
 
-function main() {
+function gitHead(): string {
+  try {
+    return execSync("git rev-parse HEAD", { cwd: join(ROOT, "../.."), encoding: "utf8" }).trim();
+  } catch {
+    return "unknown";
+  }
+}
+
+function isAncestor(commit: string): boolean {
+  try {
+    execSync(`git merge-base --is-ancestor ${commit} HEAD`, {
+      cwd: join(ROOT, "../.."),
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function main() {
   const execute = hasFlag("--execute");
   const confirm = hasFlag("--confirm-test-only");
-  const dryRun = !execute;
+  const checkConfig = hasFlag("--check-config") || !execute;
 
   console.log("=== dnx-payments-test-smoke ===");
-  console.log(`mode=${dryRun ? "DRY-RUN" : "EXECUTE"}`);
+  console.log(`mode=${execute ? "EXECUTE" : "CHECK-CONFIG"}`);
   console.log(`confirm_test_only=${confirm}`);
+  console.log(`local_head=${gitHead().slice(0, 12)}`);
 
   const checks: Check[] = [];
+  let blockedReason:
+    | "CREDENCIALES"
+    | "DEPLOYMENT"
+    | "BASE"
+    | "ADAPTER"
+    | "PRODUCCION"
+    | null = null;
+
+  // Local code: adapter present
+  const adapterPath = join(
+    ROOT,
+    "../../packages/payments/src/providers/mercado-pago/checkout-pro/preference-adapter.ts",
+  );
+  const adapterOk = existsSync(adapterPath);
+  checks.push({
+    name: "adapter.checkout_pro_preferences",
+    ok: adapterOk,
+    note: adapterOk ? "present" : "missing",
+  });
+  if (!adapterOk) blockedReason = "ADAPTER";
+
+  const providerMode = readEnv("CLICKATON_DNX_PAYMENTS_PROVIDER") ?? "manual";
+  checks.push({
+    name: "provider.mode",
+    ok: providerMode === "manual" || providerMode === "mercado_pago_test",
+    note: providerMode,
+  });
+  if (providerMode === "mercado_pago_production") blockedReason = "PRODUCCION";
 
   for (const key of [
     "MERCADOPAGO_TEST_ACCESS_TOKEN",
     "MERCADOPAGO_TEST_PUBLIC_KEY",
+    "MERCADOPAGO_CREDENTIALS_SOURCE",
     "DNX_PAYMENTS_WEBHOOK_SECRET",
+    "DNX_PAYMENTS_WEBHOOK_PUBLIC_URL",
     "CLICKATON_PUBLIC_URL",
     "DATABASE_URL",
   ]) {
@@ -75,76 +125,118 @@ function main() {
     });
   }
 
-  checks.push({
-    name: "env.CLICKATON_DNX_PAYMENTS_MODE",
-    ok: true,
-    note: present("CLICKATON_DNX_PAYMENTS_MODE")
-      ? "present (value hidden)"
-      : "absent → default prisma",
-  });
-
-  const dbUrl = process.env.DATABASE_URL;
+  const dbUrl = readEnv("DATABASE_URL");
   const dbProd = looksLikeProductionUrl(dbUrl);
   checks.push({
     name: "db.not_production",
     ok: !dbProd,
-    note: dbUrl
-      ? dbProd
-        ? "REJECT production-like DATABASE_URL"
-        : "non-production-like host"
-      : "DATABASE_URL absent",
+    note: dbUrl ? (dbProd ? "REJECT production-like" : "non-production-like") : "absent",
   });
+  if (dbProd) blockedReason = "PRODUCCION";
 
-  const publicUrl = process.env.CLICKATON_PUBLIC_URL;
+  const publicUrl = readEnv("CLICKATON_PUBLIC_URL");
+  const webhookUrl =
+    readEnv("DNX_PAYMENTS_WEBHOOK_PUBLIC_URL") ??
+    (publicUrl ? `${publicUrl.replace(/\/$/, "")}/api/webhooks/dnx-payments` : undefined);
   checks.push({
-    name: "public_url.https_staging_or_local",
-    ok: !publicUrl || publicUrl.startsWith("https://") || publicUrl.includes("localhost"),
-    note: publicUrl ? "present (value hidden)" : "absent",
+    name: "url.public_https_staging",
+    ok: isHttpsPublic(publicUrl),
+    note: publicUrl ? (isHttpsPublic(publicUrl) ? "https public" : "not https staging") : "absent",
   });
-
-  const mpTestPrefix = tokenLooksTest("MERCADOPAGO_TEST_ACCESS_TOKEN");
   checks.push({
-    name: "mp.token_test_prefix",
-    ok: mpTestPrefix !== false,
-    note:
-      mpTestPrefix === null
-        ? "token absent"
-        : mpTestPrefix
-          ? "TEST- prefix detected"
-          : "present but not TEST- prefix",
+    name: "url.webhook_https",
+    ok: isHttpsPublic(webhookUrl),
+    note: webhookUrl ? (isHttpsPublic(webhookUrl) ? "https" : "invalid") : "absent",
   });
 
-  const serviceSrc = readClickatonCheckoutService();
-  const providerManual =
-    serviceSrc.includes('PROVIDER = "manual"') || serviceSrc.includes('provider: "manual"');
+  // Credential classification (fail-closed for APP_USR without attestation + seller)
+  let credSafe = false;
+  if (present("MERCADOPAGO_TEST_ACCESS_TOKEN")) {
+    const { validateMercadoPagoTestCredentials } = await import("@repo/payments/next");
+    const token = readEnv("MERCADOPAGO_TEST_ACCESS_TOKEN")!;
+    const sourceRaw = readEnv("MERCADOPAGO_CREDENTIALS_SOURCE") ?? "unknown";
+    const credentialsSource =
+      sourceRaw === "credenciales_de_prueba"
+        ? "credenciales_de_prueba"
+        : sourceRaw === "production_panel"
+          ? "production_panel"
+          : "unknown";
+    const result = await validateMercadoPagoTestCredentials({
+      accessToken: token,
+      declaredEnvironment: "sandbox",
+      credentialsSource,
+      // No network users/me in check-config unless explicitly allowed later
+    });
+    credSafe = result.safeToExecute;
+    checks.push({
+      name: "mp.credentials_safe_to_execute",
+      ok: credSafe,
+      note: `${result.environment}/${result.sellerType}/${result.reason}`,
+    });
+    if (!credSafe) blockedReason = blockedReason ?? "CREDENCIALES";
+  } else {
+    checks.push({
+      name: "mp.credentials_safe_to_execute",
+      ok: false,
+      note: "token absent",
+    });
+    blockedReason = blockedReason ?? "CREDENCIALES";
+  }
+
+  // Staging deploy ancestry (local knowledge: require eefc001 as ancestor of deployed commit — operator fills)
+  const requiredAncestor = "eefc001";
+  const localHas = isAncestor(requiredAncestor);
   checks.push({
-    name: "adapter.clickaton_manual_fake",
-    ok: true,
-    note: providerManual
-      ? "Clickatón checkout provider=manual (fake) — Nivel C no cableado"
-      : serviceSrc
-        ? "provider source reviewed"
-        : "service source not found",
+    name: "git.local_has_10d3h",
+    ok: localHas,
+    note: localHas ? `${requiredAncestor} ancestor of HEAD` : "missing ancestor",
   });
+  const deployedSha = readEnv("CLICKATON_STAGING_DEPLOYED_SHA");
+  if (deployedSha) {
+    checks.push({
+      name: "staging.deployed_sha_declared",
+      ok: Boolean(deployedSha),
+      note: `declared=${deployedSha.slice(0, 12)} (operator attestation)`,
+    });
+    if (!deployedSha.startsWith("eefc001") && deployedSha !== gitHead()) {
+      checks.push({
+        name: "staging.commit_vs_head",
+        ok: false,
+        note: "declared deploy ≠ HEAD — treat as blocked until verified",
+      });
+      blockedReason = blockedReason ?? "DEPLOYMENT";
+    }
+  } else {
+    checks.push({
+      name: "staging.deployed_sha_declared",
+      ok: false,
+      note: "CLICKATON_STAGING_DEPLOYED_SHA absent — deploy not verified",
+    });
+    blockedReason = blockedReason ?? "DEPLOYMENT";
+  }
 
+  // Buyer TEST attestation (never print)
   checks.push({
-    name: "flags.no_real_money",
-    ok: true,
-    note: "script never charges real money",
+    name: "mp.buyer_test_attested",
+    ok: present("MERCADOPAGO_TEST_BUYER_EMAIL"),
+    note: present("MERCADOPAGO_TEST_BUYER_EMAIL") ? "present" : "absent",
   });
 
+  let failed = 0;
   for (const c of checks) {
+    if (!c.ok) failed += 1;
     console.log(`[${c.ok ? "OK" : "BLOCK"}] ${c.name}: ${c.note}`);
   }
 
-  if (dryRun) {
+  if (checkConfig && !execute) {
     console.log("");
-    console.log("DRY-RUN complete. No HTTP calls. No DB writes. No MP API.");
-    console.log("To attempt Nivel C (when adapter + staging TEST ready):");
     console.log(
-      "  pnpm --filter clickaton smoke:dnx-payments-test -- --execute --confirm-test-only",
+      failed === 0
+        ? "CHECK-CONFIG: all green (still requires operator deploy attestation for execute)."
+        : `CHECK-CONFIG: ${failed} blocking check(s). blocked=${blockedReason ?? "PARTIAL"}`,
     );
-    process.exit(0);
+    console.log("No HTTP payment calls. No DB writes. No MP preference create.");
+    process.exit(failed > 0 ? 2 : 0);
   }
 
   if (!confirm) {
@@ -152,24 +244,26 @@ function main() {
     process.exit(2);
   }
   if (dbProd) {
-    console.error("ABORT: production-like DATABASE_URL rejected");
+    console.error("ABORT: production-like DATABASE_URL");
     process.exit(2);
   }
-  if (providerManual) {
-    console.error(
-      "ABORT: Clickatón checkout still uses provider=manual. Wire Mercado Pago TEST adapter before --execute.",
-    );
+  if (providerMode !== "mercado_pago_test") {
+    console.error("ABORT: set CLICKATON_DNX_PAYMENTS_PROVIDER=mercado_pago_test");
     process.exit(2);
   }
-  if (!present("MERCADOPAGO_TEST_ACCESS_TOKEN") || mpTestPrefix === false) {
-    console.error("ABORT: missing or non-TEST Mercado Pago credentials");
+  if (!credSafe) {
+    console.error("ABORT: credentials not safeToExecute (fail-closed)");
+    process.exit(2);
+  }
+  if (blockedReason === "DEPLOYMENT" || !isHttpsPublic(publicUrl) || !isHttpsPublic(webhookUrl)) {
+    console.error("ABORT: staging/URL controls failed");
     process.exit(2);
   }
 
   console.error(
-    "ABORT: execute path reserved for 10D3H-B once MP TEST adapter is wired end-to-end.",
+    "ABORT: execute path reserved for 10D3H-C after manual staging deploy + verified TEST seller via /users/me.",
   );
   process.exit(2);
 }
 
-main();
+void main();
