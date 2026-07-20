@@ -238,6 +238,11 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [MERCADO_PAGO_TEST_CONFIGURATION_AND_SMOKE_10D3H_B.md](./MERCADO_PAGO_TEST_CONFIGURATION_AND_SMOKE_10D3H_B.md)
 - Selfcheck: `selfcheck:mercado-pago-test-adapter`
 
+### Etapa 10D3H-C — Ejecución final smoke Mercado Pago TEST
+
+- Preview en `dd14f37`; smoke externo bloqueado por variables y SSO de webhook
+- Doc: [MERCADO_PAGO_TEST_FINAL_EXECUTION_10D3H_C.md](./MERCADO_PAGO_TEST_FINAL_EXECUTION_10D3H_C.md)
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
