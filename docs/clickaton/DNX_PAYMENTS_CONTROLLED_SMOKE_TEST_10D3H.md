@@ -15,7 +15,8 @@ Determinar si la integración está lista para Mercado Pago TEST externo.
 ## Fecha / commit
 
 - **Fecha:** 2026-07-20
-- **Commit de documentación:** (este documento, post-smoke)
+- **Commit de documentación:** `e21c26c`
+- **Commits smoke:** `2a7611b`, `f340f05`, `e21c26c`
 - **Base previa:** `ac13be0` (10D3G-B)
 - **Selfcheck:** `selfcheck:dnx-payments-smoke`
 
