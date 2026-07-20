@@ -63,6 +63,26 @@ function isAncestor(commit: string): boolean {
   }
 }
 
+/** True if A is ancestor of B or B is ancestor of A (same lineage). */
+function isSameGitLineage(a: string, b: string): boolean {
+  const repo = join(ROOT, "../..");
+  for (const [x, y] of [
+    [a, b],
+    [b, a],
+  ] as const) {
+    try {
+      execSync(`git merge-base --is-ancestor ${x} ${y}`, {
+        cwd: repo,
+        stdio: "ignore",
+      });
+      return true;
+    } catch {
+      /* try reverse */
+    }
+  }
+  return false;
+}
+
 async function main() {
   const execute = hasFlag("--execute");
   const confirm = hasFlag("--confirm-test-only");
@@ -158,7 +178,7 @@ async function main() {
     note: webhookUrl ? (isHttpsPublic(webhookUrl) ? "https" : "invalid") : "absent",
   });
 
-  // Credential classification (fail-closed for APP_USR without attestation + seller)
+  // Credential classification (fail-closed for APP_USR without attestation + seller S2S)
   let credSafe = false;
   if (present("MERCADOPAGO_TEST_ACCESS_TOKEN")) {
     const { validateMercadoPagoTestCredentials } = await import("@repo/payments/next");
@@ -174,7 +194,26 @@ async function main() {
       accessToken: token,
       declaredEnvironment: "sandbox",
       credentialsSource,
-      // No network users/me in check-config unless explicitly allowed later
+      fetchUsersMe: async () => {
+        const res = await fetch("https://api.mercadopago.com/users/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          throw new Error(`users_me_http_${res.status}`);
+        }
+        const j = (await res.json()) as {
+          id?: unknown;
+          nickname?: unknown;
+          email?: unknown;
+          site_id?: unknown;
+        };
+        return {
+          id: j.id,
+          nickname: typeof j.nickname === "string" ? j.nickname : undefined,
+          email: typeof j.email === "string" ? j.email : undefined,
+          site_id: typeof j.site_id === "string" ? j.site_id : undefined,
+        };
+      },
     });
     credSafe = result.safeToExecute;
     checks.push({
@@ -201,20 +240,25 @@ async function main() {
     note: localHas ? `${requiredAncestor} ancestor of HEAD` : "missing ancestor",
   });
   const deployedSha = readEnv("CLICKATON_STAGING_DEPLOYED_SHA");
+  const head = gitHead();
   if (deployedSha) {
+    const lineageOk =
+      deployedSha === head ||
+      deployedSha.startsWith("eefc001") ||
+      isSameGitLineage(deployedSha, head);
     checks.push({
       name: "staging.deployed_sha_declared",
       ok: Boolean(deployedSha),
       note: `declared=${deployedSha.slice(0, 12)} (operator attestation)`,
     });
-    if (!deployedSha.startsWith("eefc001") && deployedSha !== gitHead()) {
-      checks.push({
-        name: "staging.commit_vs_head",
-        ok: false,
-        note: "declared deploy ≠ HEAD — treat as blocked until verified",
-      });
-      blockedReason = blockedReason ?? "DEPLOYMENT";
-    }
+    checks.push({
+      name: "staging.commit_vs_head",
+      ok: lineageOk,
+      note: lineageOk
+        ? "declared deploy shares lineage with HEAD"
+        : "declared deploy unrelated to HEAD — blocked",
+    });
+    if (!lineageOk) blockedReason = blockedReason ?? "DEPLOYMENT";
   } else {
     checks.push({
       name: "staging.deployed_sha_declared",
@@ -225,11 +269,26 @@ async function main() {
   }
 
   // Buyer TEST attestation (never print)
+  const buyerEmail = readEnv("MERCADOPAGO_TEST_BUYER_EMAIL")?.toLowerCase() ?? "";
+  const buyerOk =
+    Boolean(buyerEmail) &&
+    (buyerEmail.endsWith("@testuser.com") || buyerEmail.endsWith("@example.test"));
   checks.push({
     name: "mp.buyer_test_attested",
-    ok: present("MERCADOPAGO_TEST_BUYER_EMAIL"),
-    note: present("MERCADOPAGO_TEST_BUYER_EMAIL") ? "present" : "absent",
+    ok: buyerOk,
+    note: buyerOk ? "test_buyer_domain" : present("MERCADOPAGO_TEST_BUYER_EMAIL") ? "non_test_domain" : "absent",
   });
+  if (!buyerOk) blockedReason = blockedReason ?? "CREDENCIALES";
+
+  // Provider must be TEST for green check-config of MP smoke
+  checks.push({
+    name: "provider.mercado_pago_test",
+    ok: providerMode === "mercado_pago_test",
+    note: providerMode,
+  });
+  if (providerMode !== "mercado_pago_test") {
+    blockedReason = blockedReason ?? "CREDENCIALES";
+  }
 
   let failed = 0;
   for (const c of checks) {
