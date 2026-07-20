@@ -1,6 +1,6 @@
 "use server";
 
-/** Re-export para páginas del panel; implementación en lib/admin-catalog/actions. */
+/** Re-export para páginas del panel. */
 export {
   adjustStockFormAction,
   createProductFormAction,
@@ -8,3 +8,10 @@ export {
   updateProductFormAction,
   updateVariantFormAction,
 } from "@/lib/admin-catalog/actions/product-forms";
+
+export {
+  addTicketProductFormAction,
+  createTicketTypeFormAction,
+  updateTicketProductFormAction,
+  updateTicketTypeFormAction,
+} from "@/lib/admin-catalog/actions/ticket-forms";

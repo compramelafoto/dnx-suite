@@ -18,6 +18,13 @@ const FLASH_MESSAGES: Record<string, { title: string; body?: string; tone: "succ
   variant_activated: { title: "Variante reactivada", tone: "success" },
   variant_deactivated: { title: "Variante desactivada", tone: "success" },
   stock_adjusted: { title: "Stock ajustado", tone: "success" },
+  ticket_created: { title: "Entrada creada", tone: "success" },
+  ticket_updated: { title: "Entrada actualizada", tone: "success" },
+  ticket_activated: { title: "Entrada reactivada", tone: "success" },
+  ticket_deactivated: { title: "Entrada desactivada", tone: "success" },
+  ticket_item_added: { title: "Producto agregado al kit", tone: "success" },
+  ticket_item_updated: { title: "Composición actualizada", tone: "success" },
+  ticket_item_removed: { title: "Producto quitado del kit", tone: "success" },
   migration_pending: {
     title: "Migración pendiente",
     body: "Las tablas de ediciones y sedes aún no están disponibles en la base conectada.",

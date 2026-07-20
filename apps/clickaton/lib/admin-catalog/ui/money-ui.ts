@@ -58,6 +58,15 @@ export function displayPrice(
   return formatArsDisplay(minor, currency ?? "ARS");
 }
 
+/** Precio de tipo de entrada (soporta gratis). */
+export function displayTicketPrice(
+  minor: MinorUnits,
+  currency: CatalogCurrency = "ARS",
+): string {
+  if (minor === 0) return "Gratis";
+  return formatArsDisplay(minor, currency);
+}
+
 /** Umbral visual documentado: stock disponible ≤ 5 → “poco stock”. */
 export const LOW_STOCK_THRESHOLD = 5;
 
