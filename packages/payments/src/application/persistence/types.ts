@@ -1,11 +1,11 @@
-import type { CurrencyCode, PaymentEnvironment, ProductId, ProviderName } from "../../contracts/primitives.js";
+import type { CurrencyCode, PaymentEnvironment, ProductId, ProviderName } from "../../contracts/primitives";
 import type {
   PaymentIntentStatus,
   PaymentOrderStatus,
   ProviderOrderStatus,
   SplitConsentStatus,
   WebhookInboxStatus,
-} from "../../contracts/entities.js";
+} from "../../contracts/entities";
 
 export type PersistedRecipientType =
   | "PLATFORM"

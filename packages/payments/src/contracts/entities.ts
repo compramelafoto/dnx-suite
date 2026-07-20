@@ -6,8 +6,8 @@ import type {
   ProviderName,
   RecipientRole,
   WaitingMpConfirmation,
-} from "./primitives.js";
-import type { Money } from "../money/types.js";
+} from "./primitives";
+import type { Money } from "../money/types";
 
 export type PaymentIntentStatus =
   | "DRAFT"

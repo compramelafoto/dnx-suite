@@ -1,4 +1,4 @@
-import type { PaymentEnvironment, ProviderName } from "../../contracts/primitives.js";
+import type { PaymentEnvironment, ProviderName } from "../../contracts/primitives";
 import type {
   IdempotencyReserveResult,
   PersistedAuditEvent,
@@ -12,7 +12,7 @@ import type {
   PersistedSplitConsent,
   PersistedWebhookInbox,
   WebhookIngestResult,
-} from "./types.js";
+} from "./types";
 
 export interface PaymentRecipientStore {
   save(recipient: PersistedPaymentRecipient): Promise<void>;
@@ -53,6 +53,8 @@ export interface PaymentIntentStore {
 export interface PaymentOrderStore {
   save(order: PersistedPaymentOrder): Promise<void>;
   findById(id: string): Promise<PersistedPaymentOrder | null>;
+  /** Órdenes internas de un intent (más recientes primero). */
+  listByPaymentIntentId(paymentIntentId: string): Promise<PersistedPaymentOrder[]>;
 }
 
 export interface ProviderOrderStore {
@@ -63,6 +65,7 @@ export interface ProviderOrderStore {
     providerOrderId: string,
   ): Promise<PersistedProviderOrder | null>;
   findById(id: string): Promise<PersistedProviderOrder | null>;
+  findByPaymentOrderId(paymentOrderId: string): Promise<PersistedProviderOrder | null>;
 }
 
 export interface ProviderSplitStore {

@@ -1,4 +1,4 @@
-export type * from "./types.js";
+export type * from "./types";
 export {
   MoneyError,
   money,
@@ -12,4 +12,4 @@ export {
   moneyToJson,
   moneyFromJson,
   assertSameCurrency,
-} from "./money.js";
+} from "./money";

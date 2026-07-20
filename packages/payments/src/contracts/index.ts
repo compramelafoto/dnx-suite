@@ -1,3 +1,3 @@
-export type * from "./primitives.js";
-export type * from "./entities.js";
-export type * from "./commands.js";
+export type * from "./primitives";
+export type * from "./entities";
+export type * from "./commands";

@@ -2,6 +2,7 @@ import { createCheckoutEligibilityUseCase } from "@/lib/public-registration/appl
 import type { PublicRegistrationRepository } from "@/lib/public-registration/domain/repository";
 import { PublicRegistrationError } from "@/lib/public-registration/domain/errors";
 import { buildCheckoutIdempotencyKey } from "../domain/idempotency";
+import { assertSafeCheckoutUrl } from "../domain/checkout-url";
 import { CheckoutError } from "../domain/errors";
 import type { CheckoutLogSink } from "../domain/observability";
 import type { CheckoutRegistrationPort } from "../domain/checkout-registration-port";
@@ -150,6 +151,10 @@ export function createRegistrationCheckoutUseCase(deps: {
       const order = result.order;
       if (!order.checkoutUrl) {
         throw new CheckoutError("PROVIDER_UNAVAILABLE", "No hay URL de checkout.");
+      }
+      const urlCheck = assertSafeCheckoutUrl(order.checkoutUrl);
+      if (!urlCheck.ok) {
+        throw new CheckoutError(urlCheck.code, urlCheck.message);
       }
 
       const paymentStatus =

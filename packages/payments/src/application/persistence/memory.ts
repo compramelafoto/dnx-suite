@@ -1,5 +1,5 @@
-import type { PaymentEnvironment, ProviderName } from "../../contracts/primitives.js";
-import type { DnxPaymentsPersistence } from "./ports.js";
+import type { PaymentEnvironment, ProviderName } from "../../contracts/primitives";
+import type { DnxPaymentsPersistence } from "./ports";
 import type {
   IdempotencyReserveResult,
   PersistedAuditEvent,
@@ -13,7 +13,7 @@ import type {
   PersistedSplitConsent,
   PersistedWebhookInbox,
   WebhookIngestResult,
-} from "./types.js";
+} from "./types";
 
 export class PersistenceConflictError extends Error {
   constructor(message: string) {
@@ -221,6 +221,11 @@ export function createInMemoryDnxPaymentsPersistence(): DnxPaymentsPersistence {
       async findById(id) {
         return paymentOrders.get(id) ?? null;
       },
+      async listByPaymentIntentId(paymentIntentId) {
+        return [...paymentOrders.values()]
+          .filter((o) => o.paymentIntentId === paymentIntentId)
+          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      },
     },
     providerOrders: {
       async save(order) {
@@ -240,6 +245,13 @@ export function createInMemoryDnxPaymentsPersistence(): DnxPaymentsPersistence {
       },
       async findById(id) {
         return providerOrders.get(id) ?? null;
+      },
+      async findByPaymentOrderId(paymentOrderId) {
+        const matches = [...providerOrders.values()].filter(
+          (o) => o.paymentOrderId === paymentOrderId,
+        );
+        matches.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        return matches[0] ?? null;
       },
     },
     providerSplits: {

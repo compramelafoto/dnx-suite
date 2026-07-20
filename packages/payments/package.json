@@ -18,6 +18,8 @@
     "./core": "./src/core/index.ts",
     "./persistence": "./src/application/persistence/index.ts",
     "./infrastructure/prisma": "./src/infrastructure/prisma/index.ts",
+    "./clickaton-checkout": "./src/application/services/clickaton-checkout/index.ts",
+    "./next": "./src/next-entry.ts",
     "./sandbox": "./src/sandbox/preflight.ts"
   },
   "scripts": {

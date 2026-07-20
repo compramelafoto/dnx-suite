@@ -21,6 +21,7 @@ import {
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { listVenues } from "@/lib/admin/venues/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { getCheckoutService } from "@/lib/checkout/actions/runtime";
 
 type Props = {
   params: Promise<{ registrationId: string }>;
@@ -68,6 +69,22 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
   const listHref = `${adminRoutes.registrations}?editionId=${encodeURIComponent(reg.editionId)}`;
   const canAssign = ["DRAFT", "PENDING_PAYMENT", "WAITLISTED"].includes(reg.status);
   const internalNotes = reg.audits.filter((a) => a.action === "INTERNAL_NOTE");
+
+  let durableOrder: Awaited<
+    ReturnType<ReturnType<typeof getCheckoutService>["getPaymentOrder"]>
+  > = null;
+  let reconcile:
+    | Awaited<ReturnType<ReturnType<typeof getCheckoutService>["reconcileRegistration"]>>
+    | null = null;
+  try {
+    if (reg.paymentOrderId) {
+      durableOrder = await getCheckoutService().getPaymentOrder(reg.paymentOrderId);
+    }
+    reconcile = await getCheckoutService().reconcileRegistration(reg.id);
+  } catch {
+    durableOrder = null;
+    reconcile = null;
+  }
 
   return (
     <div className="space-y-10">
@@ -231,6 +248,50 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
             </dd>
           </div>
         </dl>
+        {durableOrder ? (
+          <dl className="mt-4 grid gap-3 border-t border-ck-border pt-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <dt className="text-ck-text-secondary">Estado DNX (durable)</dt>
+              <dd>{durableOrder.status}</dd>
+            </div>
+            <div>
+              <dt className="text-ck-text-secondary">Intento</dt>
+              <dd>{durableOrder.attempt}</dd>
+            </div>
+            <div>
+              <dt className="text-ck-text-secondary">Eventos / último</dt>
+              <dd>
+                {durableOrder.lastEventId
+                  ? `${durableOrder.lastEventId.slice(0, 8)}…`
+                  : "—"}
+                <br />
+                <span className="text-xs text-ck-text-muted">
+                  {durableOrder.lastEventAt
+                    ? formatArDateTime(durableOrder.lastEventAt)
+                    : "sin eventos"}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-ck-text-secondary">Creada (DNX)</dt>
+              <dd>{formatArDateTime(durableOrder.createdAt)}</dd>
+            </div>
+            <div>
+              <dt className="text-ck-text-secondary">Aprobación (DNX)</dt>
+              <dd>
+                {durableOrder.approvedAt
+                  ? formatArDateTime(durableOrder.approvedAt)
+                  : "—"}
+              </dd>
+            </div>
+          </dl>
+        ) : null}
+        {reconcile && reconcile.status !== "CONSISTENT" ? (
+          <p className="text-sm text-amber-700" role="status">
+            Reconciliación: {reconcile.status}. Hallazgos:{" "}
+            {reconcile.findings.join(", ") || "—"}.
+          </p>
+        ) : null}
         {reg.paymentStatus === "MANUAL_REVIEW" ? (
           <p className="text-sm text-amber-700" role="status">
             Advertencia: pago en revisión manual (p. ej. aprobación con holds vencidos o

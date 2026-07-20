@@ -1,4 +1,4 @@
-import type { CurrencyCode } from "../contracts/primitives.js";
+import type { CurrencyCode } from "../contracts/primitives";
 
 /**
  * Money is always integer minor units (centavos, cents, …).

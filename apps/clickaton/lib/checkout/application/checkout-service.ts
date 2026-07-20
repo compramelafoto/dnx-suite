@@ -6,6 +6,7 @@ import type { CheckoutRegistrationMutations } from "../domain/checkout-registrat
 import { createApplyPaymentEventUseCase } from "./apply-payment-event";
 import { createRegistrationCheckoutUseCase } from "./create-registration-checkout";
 import { createGetRegistrationPaymentStatusUseCase } from "./get-registration-payment-status";
+import { createReconcileRegistrationPaymentUseCase } from "./reconcile-registration-payment";
 
 export function createCheckoutService(deps: {
   publicRepo: PublicRegistrationRepository;
@@ -34,6 +35,10 @@ export function createCheckoutService(deps: {
     payments: deps.payments,
     registrationPort,
   });
+  const reconcile = createReconcileRegistrationPaymentUseCase({
+    payments: deps.payments,
+    registrationPort,
+  });
 
   const defaultBase =
     deps.publicBaseUrl ??
@@ -59,6 +64,9 @@ export function createCheckoutService(deps: {
     getCheckoutReturn: status.getReturnResult.bind(status),
     applyNormalizedEvent: applyEvent.execute.bind(applyEvent),
     verifyWebhook: deps.payments.verifyWebhook.bind(deps.payments),
+    getPaymentOrder: (orderId: string) => deps.payments.getOrder(orderId),
+    reconcileRegistration: (registrationId: string) =>
+      reconcile.execute({ registrationId }),
   };
 }
 

@@ -1,4 +1,4 @@
-import type { PaymentEnvironment, ProviderName } from "../../contracts/primitives.js";
+import type { PaymentEnvironment, ProviderName } from "../../contracts/primitives";
 import type {
   PersistedAuditEvent,
   PersistedIdempotencyRecord,
@@ -10,9 +10,9 @@ import type {
   PersistedProviderSplit,
   PersistedSplitConsent,
   PersistedWebhookInbox,
-} from "../../application/persistence/types.js";
-import type { DnxPaymentsPersistence } from "../../application/persistence/ports.js";
-import { sanitizeMetadata } from "../../application/persistence/memory.js";
+} from "../../application/persistence/types";
+import type { DnxPaymentsPersistence } from "../../application/persistence/ports";
+import { sanitizeMetadata } from "../../application/persistence/memory";
 
 /** Narrow Prisma surface so core tests do not need a live DB. */
 export interface DnxPaymentsPrismaDelegates {
@@ -38,10 +38,12 @@ export interface DnxPaymentsPrismaDelegates {
   dnxPaymentOrder: {
     upsert: (args: unknown) => Promise<unknown>;
     findUnique: (args: unknown) => Promise<Record<string, unknown> | null>;
+    findMany: (args: unknown) => Promise<Record<string, unknown>[]>;
   };
   dnxProviderOrder: {
     upsert: (args: unknown) => Promise<unknown>;
     findUnique: (args: unknown) => Promise<Record<string, unknown> | null>;
+    findFirst: (args: unknown) => Promise<Record<string, unknown> | null>;
   };
   dnxProviderSplit: {
     createMany: (args: unknown) => Promise<unknown>;
@@ -528,6 +530,13 @@ export function createPrismaDnxPaymentsPersistence(
         const row = await prisma.dnxPaymentOrder.findUnique({ where: { id } });
         return row ? mapPaymentOrder(row) : null;
       },
+      async listByPaymentIntentId(paymentIntentId) {
+        const rows = await prisma.dnxPaymentOrder.findMany({
+          where: { paymentIntentId },
+          orderBy: { createdAt: "desc" },
+        });
+        return rows.map(mapPaymentOrder);
+      },
     },
     providerOrders: {
       async save(order) {
@@ -573,6 +582,13 @@ export function createPrismaDnxPaymentsPersistence(
       },
       async findById(id) {
         const row = await prisma.dnxProviderOrder.findUnique({ where: { id } });
+        return row ? mapProviderOrder(row) : null;
+      },
+      async findByPaymentOrderId(paymentOrderId) {
+        const row = await prisma.dnxProviderOrder.findFirst({
+          where: { paymentOrderId },
+          orderBy: { createdAt: "desc" },
+        });
         return row ? mapProviderOrder(row) : null;
       },
     },

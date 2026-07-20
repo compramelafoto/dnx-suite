@@ -5,8 +5,15 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * Webhook de eventos ya normalizados por DNX Payments.
- * No recibe payloads crudos de Mercado Pago ni confirma por query params.
+ * Adapter temporal de entrada HTTP.
+ *
+ * Arquitectura objetivo:
+ *   Proveedor → endpoint DNX Payments → inbox → normalización → efecto Clickatón
+ *
+ * Hoy no hay host HTTP productivo separado de DNX Payments: esta ruta
+ * verifica la firma y delega inmediatamente a `CheckoutService`
+ * (cliente tipado → `createClickatonCheckoutService` + efectos de inscripción).
+ * No contiene lógica comercial de Clickatón ni parser MP crudo.
  *
  * Headers:
  * - x-dnx-payments-signature: HMAC-SHA256 hex del body (DNX_PAYMENTS_WEBHOOK_SECRET)

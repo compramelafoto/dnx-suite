@@ -1,4 +1,4 @@
-import type { DnxPaymentsPersistence } from "./ports.js";
+import type { DnxPaymentsPersistence } from "./ports";
 import type {
   PersistedAuditEvent,
   PersistedIdempotencyRecord,
@@ -6,7 +6,7 @@ import type {
   PersistedPaymentOrder,
   PersistedProviderOrder,
   PersistedProviderSplit,
-} from "./types.js";
+} from "./types";
 
 /**
  * Transactional boundaries for DNX Payments persistence.

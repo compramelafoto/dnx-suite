@@ -1,4 +1,4 @@
-export type * from "./types.js";
-export type * from "./ports.js";
-export * from "./memory.js";
-export * from "./transactions.js";
+export type * from "./types";
+export type * from "./ports";
+export * from "./memory";
+export * from "./transactions";
