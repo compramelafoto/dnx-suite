@@ -10,6 +10,10 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import {
+  classifySmokeDatabaseUrl,
+  isProductionLikeDatabaseUrl,
+} from "./lib/classify-smoke-database-url.ts";
 
 const ROOT = join(process.cwd());
 
@@ -27,16 +31,6 @@ function present(name: string): boolean {
 function readEnv(name: string): string | undefined {
   const v = (process.env as Record<string, string | undefined>)[name]?.trim();
   return v || undefined;
-}
-
-function looksLikeProductionUrl(raw: string | undefined): boolean {
-  if (!raw) return false;
-  const v = raw.toLowerCase();
-  return (
-    v.includes("neon.tech") ||
-    v.includes("maratonfotografica.com") ||
-    (v.includes("vercel.app") && !v.includes("-git-") && !v.includes("preview"))
-  );
 }
 
 function isHttpsPublic(url: string | undefined): boolean {
@@ -126,13 +120,28 @@ async function main() {
   }
 
   const dbUrl = readEnv("DATABASE_URL");
-  const dbProd = looksLikeProductionUrl(dbUrl);
+  const dbClass = classifySmokeDatabaseUrl(dbUrl);
+  const dbProd = isProductionLikeDatabaseUrl(dbUrl);
   checks.push({
     name: "db.not_production",
     ok: !dbProd,
-    note: dbUrl ? (dbProd ? "REJECT production-like" : "non-production-like") : "absent",
+    note: dbUrl
+      ? dbProd
+        ? `REJECT ${dbClass.classification}/${dbClass.reason}`
+        : `${dbClass.classification}/${dbClass.reason}`
+      : "absent",
+  });
+  checks.push({
+    name: "db.safe_for_test_smoke",
+    ok: dbClass.safeForTestSmoke,
+    note: dbUrl
+      ? dbClass.safeForTestSmoke
+        ? `${dbClass.classification} ok`
+        : `BLOCK ${dbClass.classification}/${dbClass.reason}`
+      : "absent",
   });
   if (dbProd) blockedReason = "PRODUCCION";
+  else if (dbUrl && !dbClass.safeForTestSmoke) blockedReason = blockedReason ?? "BASE";
 
   const publicUrl = readEnv("CLICKATON_PUBLIC_URL");
   const webhookUrl =
@@ -243,8 +252,8 @@ async function main() {
     console.error("ABORT: --execute requires --confirm-test-only");
     process.exit(2);
   }
-  if (dbProd) {
-    console.error("ABORT: production-like DATABASE_URL");
+  if (dbProd || !dbClass.safeForTestSmoke) {
+    console.error("ABORT: DATABASE_URL not safe for TEST smoke");
     process.exit(2);
   }
   if (providerMode !== "mercado_pago_test") {

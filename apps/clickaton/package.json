@@ -29,6 +29,7 @@
     "selfcheck:dnx-payments-smoke": "tsx scripts/dnx-payments-smoke.selfcheck.ts",
     "selfcheck:mercado-pago-test-adapter": "tsx scripts/mercado-pago-test-adapter.selfcheck.ts",
     "smoke:dnx-payments-test": "tsx scripts/dnx-payments-test-smoke.ts",
+    "test:smoke-db-classify": "tsx --test scripts/classify-smoke-database-url.test.ts",
     "registrations:expire-holds": "tsx scripts/expire-registration-holds.ts",
     "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
   },
