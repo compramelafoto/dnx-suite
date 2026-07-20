@@ -202,6 +202,12 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [ADMIN_REGISTRATIONS_AND_ORDERS_UI_10D3E.md](./ADMIN_REGISTRATIONS_AND_ORDERS_UI_10D3E.md)
 - Selfcheck: `selfcheck:admin-registrations-orders-ui`
 
+### Etapa 10D3F — Flujo público de inscripción y reserva
+
+- Wizard `/maratones/[slug]/inscripcion`, holds temporales, resumen con token HMAC; sin checkout/pago
+- Doc: [PUBLIC_REGISTRATION_AND_RESERVATION_FLOW_10D3F.md](./PUBLIC_REGISTRATION_AND_RESERVATION_FLOW_10D3F.md)
+- Selfcheck: `selfcheck:public-registration-reservation`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
