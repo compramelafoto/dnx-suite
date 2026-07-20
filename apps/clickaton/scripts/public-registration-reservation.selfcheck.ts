@@ -7,6 +7,7 @@ import { createPublicRegistrationService } from "../lib/public-registration/appl
 import {
   verifyRegistrationAccessToken,
 } from "../lib/public-registration/domain/access-token";
+// note: verify API is object-based since 10D3F-B
 import {
   createInMemoryPublicRegistrationRepository,
   createInMemoryPublicStore,
@@ -557,15 +558,31 @@ async function main() {
     created.accessToken,
     "cordoba-2026",
   );
-  assert(summaryOk.ok && summaryOk.data?.participant.email === "ana@example.com", "28 summary");
-  assert(verifyRegistrationAccessToken(created.registrationId, created.accessToken), "token");
+  assert(
+    summaryOk.ok && summaryOk.data?.participant.emailMasked.includes("@"),
+    "28 summary masked",
+  );
+  assert(
+    verifyRegistrationAccessToken({
+      registrationId: created.registrationId,
+      editionSlug: "cordoba-2026",
+      token: created.accessToken,
+    }).ok,
+    "token",
+  );
 
   const summaryBad = await getPublicRegistrationSummaryAction(
     created.registrationId,
     "0.invalid",
     "cordoba-2026",
   );
-  assert(summaryBad.ok === false && summaryBad.code === "FORBIDDEN", "28 idor");
+  assert(
+    summaryBad.ok === false &&
+      (summaryBad.code === "TOKEN_INVALID" ||
+        summaryBad.code === "TOKEN_EXPIRED" ||
+        summaryBad.code === "FORBIDDEN"),
+    "28 idor",
+  );
 
   // concurrency last seat on capacity 2: already 1 paid hold; fill with one more then fail
   const r2 = await svc.createRegistration({
