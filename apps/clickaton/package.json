@@ -24,6 +24,7 @@
     "selfcheck:admin-registrations-orders-ui": "tsx scripts/admin-registrations-orders-ui.selfcheck.ts",
     "selfcheck:public-registration-reservation": "tsx scripts/public-registration-reservation.selfcheck.ts",
     "selfcheck:public-registration-hardening": "tsx scripts/public-registration-hardening.selfcheck.ts",
+    "selfcheck:dnx-payments-checkout": "tsx scripts/dnx-payments-checkout.selfcheck.ts",
     "registrations:expire-holds": "tsx scripts/expire-registration-holds.ts",
     "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
   },
