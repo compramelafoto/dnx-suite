@@ -206,12 +206,48 @@ export async function updateEditorialPhotoUsageMetaAction(input: {
   const result = await updateEditorialPhotoUsageMeta(parsed.data);
   if (result.ok) {
     const usage = await prisma.infoSpotEditorialPhotoUsage.findUnique({
-      where: { id: parsed.data.usageId },
+      where: { id: result.usageId },
       select: { articleId: true, photo: { select: { coverageId: true } } },
     });
     if (usage) {
       await revalidateArticle(usage.articleId, usage.photo.coverageId);
     }
+  }
+  return result;
+}
+
+/** Guarda descripción aunque el panel no tenga usageId todavía. */
+export async function ensureEditorialPhotoAltTextAction(input: {
+  articleId: string;
+  altText: string;
+  usageId?: string | null;
+  assetId?: string | null;
+  sourcePhotoId?: number | null;
+  usageType?: "COVER" | "INLINE" | "GALLERY" | "FEATURED";
+}) {
+  const access = await requireInfoSpotRedaccionAccess();
+  if (!canCreateInfoSpotArticle(access.subject)) {
+    return { ok: false as const, error: "Sin permiso." };
+  }
+  const parsed = z
+    .object({
+      articleId: z.string().min(1),
+      altText: z.string().min(1).max(300),
+      usageId: z.string().min(1).nullish(),
+      assetId: z.string().min(1).nullish(),
+      sourcePhotoId: z.number().int().positive().nullish(),
+      usageType: z.enum(["COVER", "INLINE", "GALLERY", "FEATURED"]).optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false as const, error: "Datos inválidos." };
+
+  const { ensureEditorialPhotoAltText } = await import("@/lib/editorial-photos");
+  const result = await ensureEditorialPhotoAltText({
+    ...parsed.data,
+    selectedByUserId: access.user.id,
+  });
+  if (result.ok) {
+    await revalidateArticle(parsed.data.articleId, null);
   }
   return result;
 }

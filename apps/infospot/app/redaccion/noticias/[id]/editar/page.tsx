@@ -238,6 +238,7 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
                   link.asset.photographerName ?? usage?.photo.photographerName ?? null,
                 assetId: link.asset.id,
                 usageId: usage?.id ?? null,
+                sourcePhotoId: link.asset.sourcePhotoId,
                 altText: usage?.altText ?? null,
                 coverageTitle: album?.title ?? null,
                 albumTitle: album?.title ?? null,
@@ -269,6 +270,9 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
                 photographerName: u.photo.photographerName,
                 assetId: u.photo.deliveryAssetId,
                 usageId: u.id,
+                sourcePhotoId: Number.isFinite(Number(u.photo.sourcePhotoExternalId))
+                  ? Number(u.photo.sourcePhotoExternalId)
+                  : null,
                 altText: u.altText,
                 coverageTitle: album?.title ?? null,
                 albumTitle: album?.title ?? null,

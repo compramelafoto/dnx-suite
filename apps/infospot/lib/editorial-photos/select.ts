@@ -452,7 +452,7 @@ export async function updateEditorialPhotoUsageMeta(input: {
   usageId: string;
   altText?: string | null;
   caption?: string | null;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<{ ok: true; usageId: string } | { ok: false; error: string }> {
   const usage = await prisma.infoSpotEditorialPhotoUsage.findUnique({
     where: { id: input.usageId },
     select: { id: true, photo: { select: { deliveryAssetId: true } }, articleId: true },
@@ -486,7 +486,117 @@ export async function updateEditorialPhotoUsageMeta(input: {
     });
   }
 
-  return { ok: true };
+  return { ok: true, usageId: usage.id };
+}
+
+/**
+ * Guarda alt text aunque el editor no tenga usageId:
+ * resuelve el uso por usageId, deliveryAssetId o sourcePhotoId y lo crea si hace falta.
+ */
+export async function ensureEditorialPhotoAltText(input: {
+  articleId: string;
+  altText: string;
+  usageId?: string | null;
+  assetId?: string | null;
+  sourcePhotoId?: number | null;
+  usageType?: "COVER" | "INLINE" | "GALLERY" | "FEATURED";
+  selectedByUserId?: number | null;
+}): Promise<{ ok: true; usageId: string } | { ok: false; error: string }> {
+  const altText = input.altText.trim();
+  if (!altText) {
+    return { ok: false, error: "La descripción no puede quedar vacía." };
+  }
+
+  if (input.usageId) {
+    return updateEditorialPhotoUsageMeta({
+      usageId: input.usageId,
+      altText,
+    });
+  }
+
+  const usageType = input.usageType ?? "GALLERY";
+
+  let photo =
+    (input.assetId
+      ? await prisma.infoSpotEditorialPhoto.findFirst({
+          where: { deliveryAssetId: input.assetId },
+          select: { id: true },
+        })
+      : null) ??
+    (input.sourcePhotoId != null
+      ? await prisma.infoSpotEditorialPhoto.findUnique({
+          where: { sourcePhotoExternalId: String(input.sourcePhotoId) },
+          select: { id: true },
+        })
+      : null);
+
+  if (!photo && input.sourcePhotoId != null) {
+    const selected = await selectEditorialPhoto({
+      clfPhotoId: input.sourcePhotoId,
+      articleId: input.articleId,
+      usageType,
+      altText,
+      selectedByUserId: input.selectedByUserId ?? undefined,
+      processNow: true,
+    });
+    if (!selected.ok) return { ok: false, error: selected.error };
+    if (selected.usageId) {
+      return { ok: true, usageId: selected.usageId };
+    }
+    photo = { id: selected.photoId };
+  }
+
+  if (!photo && input.assetId) {
+    const asset = await prisma.infoSpotEditorialAsset.findUnique({
+      where: { id: input.assetId },
+      select: { sourcePhotoId: true, sourceType: true },
+    });
+    if (asset?.sourceType === "CLF_PHOTO" && asset.sourcePhotoId != null) {
+      const selected = await selectEditorialPhoto({
+        clfPhotoId: asset.sourcePhotoId,
+        articleId: input.articleId,
+        usageType,
+        altText,
+        selectedByUserId: input.selectedByUserId ?? undefined,
+        processNow: true,
+      });
+      if (!selected.ok) return { ok: false, error: selected.error };
+      if (selected.usageId) {
+        return { ok: true, usageId: selected.usageId };
+      }
+      photo = { id: selected.photoId };
+    }
+  }
+
+  if (!photo) {
+    return {
+      ok: false,
+      error:
+        "No encontramos el uso editorial de esta foto. Quitála y volvé a seleccionarla desde Agregar material.",
+    };
+  }
+
+  const usage = await prisma.infoSpotEditorialPhotoUsage.upsert({
+    where: {
+      articleId_photoId_usageType: {
+        articleId: input.articleId,
+        photoId: photo.id,
+        usageType,
+      },
+    },
+    create: {
+      articleId: input.articleId,
+      photoId: photo.id,
+      usageType,
+      altText,
+      isCover: usageType === "COVER",
+      createdByUserId: input.selectedByUserId ?? undefined,
+    },
+    update: { altText },
+    select: { id: true },
+  });
+
+  return { ok: true, usageId: usage.id };
 }
 
 export async function reorderGalleryUsages(input: {

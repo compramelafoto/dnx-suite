@@ -26,8 +26,8 @@ import type { InfoSpotPermissionSubject } from "@repo/db";
 import { autosaveArticleDraftAction } from "@/app/actions/articles";
 import { removeArticleAssetLinkAction } from "@/app/actions/clf-link";
 import {
+  ensureEditorialPhotoAltTextAction,
   removeEditorialPhotoUsageAction,
-  updateEditorialPhotoUsageMetaAction,
 } from "@/app/actions/editorial-photos";
 import type { AiImportMergeMode, ArticleFormImportValues } from "@/lib/ai-import";
 
@@ -44,6 +44,7 @@ type LinkedClfAsset = {
   photographerName: string | null;
   assetId?: string | null;
   usageId?: string | null;
+  sourcePhotoId?: number | null;
   altText?: string | null;
   coverageTitle?: string | null;
   albumTitle?: string | null;
@@ -167,7 +168,7 @@ export function ArticleForm({
     () => clf?.linkedAssets ?? [],
   );
   const [unlinkingLinkId, setUnlinkingLinkId] = useState<string | null>(null);
-  const [savingAltUsageId, setSavingAltUsageId] = useState<string | null>(null);
+  const [savingAltLinkId, setSavingAltLinkId] = useState<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingLock = useRef(false);
   const saveStateRef = useRef<SaveState>("idle");
@@ -491,12 +492,17 @@ export function ArticleForm({
   );
 
   const saveAltText = useCallback(
-    async (usageId: string, altText: string, asset: LinkedClfAsset) => {
-      setSavingAltUsageId(usageId);
+    async (altText: string, asset: LinkedClfAsset) => {
+      if (!initial?.id) return;
+      setSavingAltLinkId(asset.linkId);
       try {
-        const result = await updateEditorialPhotoUsageMetaAction({
-          usageId,
+        const result = await ensureEditorialPhotoAltTextAction({
+          articleId: initial.id,
           altText,
+          usageId: asset.usageId,
+          assetId: asset.assetId,
+          sourcePhotoId: asset.sourcePhotoId,
+          usageType: asset.usageType,
         });
         if (!result.ok) {
           setSaveError(result.error);
@@ -505,8 +511,12 @@ export function ArticleForm({
         }
         setLocalLinkedAssets((prev) =>
           prev.map((a) =>
-            a.linkId === asset.linkId || a.usageId === usageId
-              ? { ...a, altText: altText.trim() || null }
+            a.linkId === asset.linkId
+              ? {
+                  ...a,
+                  altText: altText.trim() || null,
+                  usageId: result.usageId,
+                }
               : a,
           ),
         );
@@ -516,10 +526,10 @@ export function ArticleForm({
         setSaveError("No se pudo guardar la descripción de la foto.");
         setSaveState("error");
       } finally {
-        setSavingAltUsageId(null);
+        setSavingAltLinkId(null);
       }
     },
-    [],
+    [initial?.id],
   );
 
   const usedAssetIds = useMemo(() => {
@@ -542,10 +552,8 @@ export function ArticleForm({
       highlightedAssetId={highlightedAssetId}
       unlinkingLinkId={unlinkingLinkId}
       onUnlink={(linkId, asset) => unlinkAsset(linkId, asset)}
-      savingAltUsageId={savingAltUsageId}
-      onSaveAltText={(usageId, altText, asset) =>
-        saveAltText(usageId, altText, asset)
-      }
+      savingAltLinkId={savingAltLinkId}
+      onSaveAltText={(altText, asset) => saveAltText(altText, asset)}
       onInsertInline={(attrs) => {
         editorRef.current?.insertImage(attrs);
       }}

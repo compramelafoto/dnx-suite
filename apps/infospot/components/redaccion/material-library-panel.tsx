@@ -14,8 +14,10 @@ export type LibraryAsset = {
   credit: string | null;
   photographerName: string | null;
   assetId?: string | null;
-  /** InfoSpotEditorialPhotoUsage.id — necesario para guardar alt text. */
+  /** InfoSpotEditorialPhotoUsage.id — si existe, guarda directo. */
   usageId?: string | null;
+  /** CLF photo id — permite crear el uso editorial al guardar alt. */
+  sourcePhotoId?: number | null;
   /** Texto alternativo / descripción de accesibilidad. */
   altText?: string | null;
   /** Título de cobertura / material (periodístico). */
@@ -42,12 +44,9 @@ type Props = {
   onUnlink?: (linkId: string, asset: LibraryAsset) => void | Promise<void>;
   unlinkingLinkId?: string | null;
   /** Guardar descripción (alt text) de una foto CLF. */
-  onSaveAltText?: (
-    usageId: string,
-    altText: string,
-    asset: LibraryAsset,
-  ) => void | Promise<void>;
-  savingAltUsageId?: string | null;
+  onSaveAltText?: (altText: string, asset: LibraryAsset) => void | Promise<void>;
+  /** linkId de la foto cuya descripción se está guardando. */
+  savingAltLinkId?: string | null;
 };
 
 const FAVORITES_KEY = "infospot-material-favorites-v1";
@@ -105,7 +104,7 @@ export function MaterialLibraryPanel({
   onUnlink,
   unlinkingLinkId = null,
   onSaveAltText,
-  savingAltUsageId = null,
+  savingAltLinkId = null,
 }: Props) {
   const used = useMemo(() => {
     if (!usedAssetIds) return new Set<string>();
@@ -194,6 +193,14 @@ export function MaterialLibraryPanel({
             </div>
           ) : null}
         </dl>
+        {linkedAssets.length > 0 ? (
+          <p className="rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg-muted)] px-3 py-2 text-[12px] leading-relaxed text-[var(--is-muted)]">
+            En cada foto: escribí la <strong className="text-[var(--is-text)]">descripción</strong>{" "}
+            (obligatoria para publicar) y usá <strong className="text-[var(--is-text)]">Quitar</strong>{" "}
+            para eliminarla de la nota. Para sumar o cambiar fotos:{" "}
+            <strong className="text-[var(--is-text)]">Agregar material</strong>.
+          </p>
+        ) : null}
       </header>
 
       {linkedAssets.length > 0 ? (
@@ -232,7 +239,7 @@ export function MaterialLibraryPanel({
           onUnlink={onUnlink}
           unlinkingLinkId={unlinkingLinkId}
           onSaveAltText={onSaveAltText}
-          savingAltUsageId={savingAltUsageId}
+          savingAltLinkId={savingAltLinkId}
         />
       ) : null}
 
@@ -248,7 +255,7 @@ export function MaterialLibraryPanel({
         onUnlink={onUnlink}
         unlinkingLinkId={unlinkingLinkId}
         onSaveAltText={onSaveAltText}
-        savingAltUsageId={savingAltUsageId}
+        savingAltLinkId={savingAltLinkId}
       />
 
       <LibrarySection
@@ -263,7 +270,7 @@ export function MaterialLibraryPanel({
         onUnlink={onUnlink}
         unlinkingLinkId={unlinkingLinkId}
         onSaveAltText={onSaveAltText}
-        savingAltUsageId={savingAltUsageId}
+        savingAltLinkId={savingAltLinkId}
       />
 
       <LibrarySection
@@ -280,7 +287,7 @@ export function MaterialLibraryPanel({
         onUnlink={onUnlink}
         unlinkingLinkId={unlinkingLinkId}
         onSaveAltText={onSaveAltText}
-        savingAltUsageId={savingAltUsageId}
+        savingAltLinkId={savingAltLinkId}
       />
 
       <LibrarySection
@@ -296,7 +303,7 @@ export function MaterialLibraryPanel({
         onUnlink={onUnlink}
         unlinkingLinkId={unlinkingLinkId}
         onSaveAltText={onSaveAltText}
-        savingAltUsageId={savingAltUsageId}
+        savingAltLinkId={savingAltLinkId}
         forceUsedBadge
       />
 
@@ -313,7 +320,7 @@ export function MaterialLibraryPanel({
           onUnlink={onUnlink}
           unlinkingLinkId={unlinkingLinkId}
           onSaveAltText={onSaveAltText}
-          savingAltUsageId={savingAltUsageId}
+          savingAltLinkId={savingAltLinkId}
         />
       ) : null}
 
@@ -330,7 +337,7 @@ export function MaterialLibraryPanel({
           onUnlink={onUnlink}
           unlinkingLinkId={unlinkingLinkId}
           onSaveAltText={onSaveAltText}
-          savingAltUsageId={savingAltUsageId}
+          savingAltLinkId={savingAltLinkId}
         />
       ) : null}
 
@@ -397,7 +404,7 @@ function LibrarySection({
   onUnlink,
   unlinkingLinkId = null,
   onSaveAltText,
-  savingAltUsageId = null,
+  savingAltLinkId = null,
   forceUsedBadge,
 }: {
   title: string;
@@ -412,12 +419,8 @@ function LibrarySection({
   onGoToUsed?: (assetId: string) => void;
   onUnlink?: (linkId: string, asset: LibraryAsset) => void | Promise<void>;
   unlinkingLinkId?: string | null;
-  onSaveAltText?: (
-    usageId: string,
-    altText: string,
-    asset: LibraryAsset,
-  ) => void | Promise<void>;
-  savingAltUsageId?: string | null;
+  onSaveAltText?: (altText: string, asset: LibraryAsset) => void | Promise<void>;
+  savingAltLinkId?: string | null;
   forceUsedBadge?: boolean;
 }) {
   if (items.length === 0 && !empty) return null;
@@ -449,7 +452,8 @@ function LibrarySection({
               (asset.photographerName
                 ? `Foto de ${asset.photographerName}`
                 : "Fotografía editorial");
-            const needsAlt = Boolean(asset.usageId) && !asset.altText?.trim();
+            const needsAlt = !asset.altText?.trim();
+            const savingAlt = savingAltLinkId === asset.linkId;
 
             const variantClass = [
               "is-material-item",
@@ -514,41 +518,45 @@ function LibrarySection({
                         Usada en el artículo
                       </p>
                     ) : null}
-                    {asset.usageId && onSaveAltText ? (
-                      <label className="block pt-1">
+                    {onSaveAltText ? (
+                      <label className="block pt-2">
                         <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--is-muted)]">
-                          Descripción (alt text){needsAlt ? " *" : ""}
+                          Descripción{needsAlt ? " *" : ""}
                         </span>
                         <textarea
-                          key={`${asset.usageId}:${asset.altText ?? ""}`}
+                          key={`${asset.linkId}:${asset.usageId ?? "new"}:${asset.altText ?? ""}`}
                           defaultValue={asset.altText ?? ""}
                           rows={2}
                           maxLength={300}
-                          placeholder="Describí la foto para accesibilidad y publicación"
+                          placeholder="Ej: Perro blanco en la largada del evento"
                           className={`w-full resize-y rounded-[var(--is-radius-sm)] border px-2 py-1.5 text-[11px] leading-snug text-[var(--is-text)] ${
                             needsAlt
                               ? "border-red-300 bg-red-50/60"
                               : "border-[var(--is-border)] bg-white"
                           }`}
-                          disabled={savingAltUsageId === asset.usageId}
+                          disabled={savingAlt}
                           onBlur={(e) => {
                             const next = e.target.value.trim();
                             if (next === (asset.altText ?? "").trim()) return;
-                            void onSaveAltText(asset.usageId!, next, asset);
+                            void onSaveAltText(next, asset);
                           }}
                         />
-                        {savingAltUsageId === asset.usageId ? (
+                        {savingAlt ? (
                           <span className="mt-0.5 block text-[10px] text-[var(--is-muted)]">
                             Guardando…
                           </span>
                         ) : needsAlt ? (
                           <span className="mt-0.5 block text-[10px] text-red-700">
-                            Obligatorio para publicar
+                            Obligatorio para publicar — escribí y tocá afuera para guardar
                           </span>
-                        ) : null}
+                        ) : (
+                          <span className="mt-0.5 block text-[10px] text-teal-800">
+                            Descripción guardada
+                          </span>
+                        )}
                       </label>
                     ) : null}
-                    <div className="flex flex-wrap gap-1.5 pt-1">
+                    <div className="flex flex-wrap gap-1.5 pt-2">
                       {onInsertInline && asset.usageType === "INLINE" && !isUsed ? (
                         <button
                           type="button"
@@ -578,13 +586,13 @@ function LibrarySection({
                       {onUnlink ? (
                         <button
                           type="button"
-                          className="is-btn is-btn-ghost !min-h-0 px-2.5 py-1 text-[11px] text-red-700 hover:text-red-800"
+                          className="is-btn is-btn-secondary !min-h-0 border-red-200 px-2.5 py-1 text-[11px] text-red-700 hover:border-red-300 hover:bg-red-50"
                           disabled={unlinkingLinkId === asset.linkId}
                           onClick={() => void onUnlink(asset.linkId, asset)}
                         >
                           {unlinkingLinkId === asset.linkId
                             ? "Quitando…"
-                            : "Quitar de la nota"}
+                            : "Quitar"}
                         </button>
                       ) : null}
                     </div>
