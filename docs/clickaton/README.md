@@ -232,6 +232,12 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [DNX_PAYMENTS_CONTROLLED_SMOKE_TEST_10D3H.md](./DNX_PAYMENTS_CONTROLLED_SMOKE_TEST_10D3H.md)
 - Selfcheck: `selfcheck:dnx-payments-smoke`
 
+### Etapa 10D3H-B — Mercado Pago TEST (configuración)
+
+- Adapter Checkout Pro Preferences + validación fail-closed de credenciales; smoke externo bloqueado por credenciales/deploy
+- Doc: [MERCADO_PAGO_TEST_CONFIGURATION_AND_SMOKE_10D3H_B.md](./MERCADO_PAGO_TEST_CONFIGURATION_AND_SMOKE_10D3H_B.md)
+- Selfcheck: `selfcheck:mercado-pago-test-adapter`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
