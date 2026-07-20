@@ -220,6 +220,12 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [DNX_PAYMENTS_CHECKOUT_INTEGRATION_10D3G.md](./DNX_PAYMENTS_CHECKOUT_INTEGRATION_10D3G.md)
 - Selfcheck: `selfcheck:dnx-payments-checkout`
 
+### Etapa 10D3G-B — Persistencia durable y cableado
+
+- Órdenes/eventos en `DnxPayment*`, cliente Prisma tipado, inbox, reconciliación, PG local descartable
+- Doc: [DNX_PAYMENTS_PERSISTENCE_AND_WIRING_10D3G_B.md](./DNX_PAYMENTS_PERSISTENCE_AND_WIRING_10D3G_B.md)
+- Selfcheck: `selfcheck:dnx-payments-persistence`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
