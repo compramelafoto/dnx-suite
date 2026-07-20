@@ -208,6 +208,12 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [PUBLIC_REGISTRATION_AND_RESERVATION_FLOW_10D3F.md](./PUBLIC_REGISTRATION_AND_RESERVATION_FLOW_10D3F.md)
 - Selfcheck: `selfcheck:public-registration-reservation`
 
+### Etapa 10D3F-B — Hardening de reservas y seguridad
+
+- Expiración idempotente de holds, token v2, PII enmascarada, eligibility de checkout, script dry-run
+- Doc: [PUBLIC_REGISTRATION_HARDENING_10D3F_B.md](./PUBLIC_REGISTRATION_HARDENING_10D3F_B.md)
+- Selfcheck: `selfcheck:public-registration-hardening`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
