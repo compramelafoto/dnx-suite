@@ -5,7 +5,10 @@
 import { prisma, resolveClfAlbumCommercialAvailability } from "@repo/db";
 import { getClfReadonlyClient } from "../clf-readonly-db";
 import { isR2Configured } from "../r2-client";
-import { resolveClfPhotoSourceKey } from "../r2-read";
+import {
+  isWatermarkedClfSourceKey,
+  resolveClfPhotoSourceKey,
+} from "../r2-read";
 import {
   processEditorialDerivative,
   requestEditorialDerivative,
@@ -113,7 +116,22 @@ export async function selectEditorialPhoto(input: {
     cleanupStatus: photo.album.cleanupStatus,
   });
 
-  const sourceKey = resolveClfPhotoSourceKey(photo);
+  let sourceKey: string;
+  try {
+    sourceKey = resolveClfPhotoSourceKey(photo);
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Sin original editorial disponible.",
+    };
+  }
+  if (isWatermarkedClfSourceKey(sourceKey)) {
+    return {
+      ok: false,
+      error:
+        "Esta foto solo tiene preview con marca de agua. No se puede publicar hasta que exista el original en CLF.",
+    };
+  }
   const credit = buildEditorialPhotoCredit({ photographerName });
   const copyrightText = buildEditorialPhotoCopyright(photographerName);
   const externalId = String(photo.id);

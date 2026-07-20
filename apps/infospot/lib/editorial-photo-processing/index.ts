@@ -8,7 +8,7 @@ import sharp from "sharp";
 import { prisma } from "@repo/db";
 import { isR2Configured, uploadToR2 } from "../r2-client";
 import { getPublicUrl } from "../r2-public-url";
-import { readR2ObjectBuffer } from "../r2-read";
+import { isWatermarkedClfSourceKey, readR2ObjectBuffer } from "../r2-read";
 
 export const EDITORIAL_VARIANT_WIDTHS = [640, 960, 1280, 1920] as const;
 export type EditorialVariantWidth = (typeof EDITORIAL_VARIANT_WIDTHS)[number];
@@ -122,6 +122,20 @@ export async function processEditorialDerivative(photoId: string): Promise<{
       },
     });
     return { ok: false, error: "Sin sourceStorageKey" };
+  }
+  if (isWatermarkedClfSourceKey(photo.sourceStorageKey)) {
+    await prisma.infoSpotEditorialPhoto.update({
+      where: { id: photoId },
+      data: {
+        processStatus: "FAILED",
+        processError:
+          "La fuente es una preview con marca de agua; se requiere el original CLF.",
+      },
+    });
+    return {
+      ok: false,
+      error: "Fuente con marca de agua: se requiere original CLF.",
+    };
   }
 
   await prisma.infoSpotEditorialPhoto.update({

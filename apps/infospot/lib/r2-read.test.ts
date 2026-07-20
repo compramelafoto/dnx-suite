@@ -64,6 +64,17 @@ try {
   });
   assert.equal(key, "albums/1/original.jpg");
 
+  assert.throws(
+    () =>
+      resolveClfPhotoSourceKey({
+        originalKey: "",
+        previewUrl: "https://pub-clf.example.r2.dev/albums/1/preview.jpg",
+        previewWatermarkedKey: "photo-variants/9/preview_wm_v7.jpg",
+        thumbWatermarkedKey: "photo-variants/9/thumb_wm_v7.jpg",
+      }),
+    /original disponible/,
+  );
+
   const previewKey = resolveClfPhotoPreviewSourceKey({
     originalKey: "albums/1/original.jpg",
     previewUrl: "https://pub-clf.example.r2.dev/albums/1/preview.jpg",

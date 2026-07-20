@@ -54,6 +54,7 @@ export const articleListInclude = {
           photographerName: true,
           copyrightText: true,
           sourceType: true,
+          sourcePhotoId: true,
         },
       },
     },

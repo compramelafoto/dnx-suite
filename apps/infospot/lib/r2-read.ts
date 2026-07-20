@@ -185,32 +185,34 @@ export async function readR2ObjectBuffer(key: string): Promise<Buffer> {
 
 /**
  * Resuelve key interna desde campos Photo CLF para derivados editoriales Info Spot.
- * Prioriza el **original sin marca de agua** (uso editorial autorizado).
- * Fallback: previewUrl → preview WM → thumb WM (solo si no hay original).
+ * Solo acepta el **original sin marca de agua** (uso editorial autorizado).
+ * Las previews WM quedan para el selector (`resolveClfPhotoPreviewSourceKey`).
  */
 export function resolveClfPhotoSourceKey(photo: {
-  originalKey: string;
-  previewUrl: string;
-  previewWatermarkedKey: string | null;
-  thumbWatermarkedKey: string | null;
+  originalKey: string | null;
+  previewUrl?: string | null;
+  previewWatermarkedKey?: string | null;
+  thumbWatermarkedKey?: string | null;
 }): string {
   if (photo.originalKey?.trim()) {
     return assertSafeR2Key(photo.originalKey);
   }
-  if (photo.previewUrl?.trim()) {
-    try {
-      return assertSafeR2Key(urlToR2Key(photo.previewUrl));
-    } catch {
-      // continuar a variantes WM
-    }
-  }
-  if (photo.previewWatermarkedKey?.trim()) {
-    return assertSafeR2Key(photo.previewWatermarkedKey);
-  }
-  if (photo.thumbWatermarkedKey?.trim()) {
-    return assertSafeR2Key(photo.thumbWatermarkedKey);
-  }
-  throw new Error("La fotografía no tiene una key R2 interna utilizable");
+  throw new Error(
+    "La fotografía no tiene original disponible en CLF. No se puede generar la versión editorial sin marca de agua.",
+  );
+}
+
+/** True si la key parece una variante con marca de agua (nunca usar para publicar). */
+export function isWatermarkedClfSourceKey(key: string | null | undefined): boolean {
+  if (!key?.trim()) return false;
+  const k = key.toLowerCase();
+  return (
+    k.includes("preview_wm") ||
+    k.includes("thumb_wm") ||
+    k.includes("watermark") ||
+    k.includes("/wm_") ||
+    k.includes("_wm.")
+  );
 }
 
 /**

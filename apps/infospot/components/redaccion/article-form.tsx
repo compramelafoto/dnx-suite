@@ -25,7 +25,10 @@ import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
 import type { InfoSpotPermissionSubject } from "@repo/db";
 import { autosaveArticleDraftAction } from "@/app/actions/articles";
 import { removeArticleAssetLinkAction } from "@/app/actions/clf-link";
-import { updateEditorialPhotoUsageMetaAction } from "@/app/actions/editorial-photos";
+import {
+  removeEditorialPhotoUsageAction,
+  updateEditorialPhotoUsageMetaAction,
+} from "@/app/actions/editorial-photos";
 import type { AiImportMergeMode, ArticleFormImportValues } from "@/lib/ai-import";
 
 type CategoryOption = { id: string; name: string; slug: string };
@@ -449,11 +452,20 @@ export function ArticleForm({
       }
       setUnlinkingLinkId(linkId);
       try {
-        const result = await removeArticleAssetLinkAction(initial.id, linkId);
-        if (!result.ok) {
-          setSaveError(result.error);
-          setSaveState("error");
-          return;
+        if (linkId.startsWith("usage:") && asset.usageId) {
+          const result = await removeEditorialPhotoUsageAction(asset.usageId);
+          if (!result.ok) {
+            setSaveError(result.error);
+            setSaveState("error");
+            return;
+          }
+        } else {
+          const result = await removeArticleAssetLinkAction(initial.id, linkId);
+          if (!result.ok) {
+            setSaveError(result.error);
+            setSaveState("error");
+            return;
+          }
         }
         setLocalLinkedAssets((prev) => prev.filter((a) => a.linkId !== linkId));
         if (asset.usageType === "COVER" && asset.assetId && coverImageId === asset.assetId) {

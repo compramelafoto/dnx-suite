@@ -62,20 +62,68 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
         altText: true,
         caption: true,
         usageType: true,
-        photo: { select: { deliveryAssetId: true } },
+        sortOrder: true,
+        photo: {
+          select: {
+            id: true,
+            deliveryAssetId: true,
+            sourcePhotoExternalId: true,
+            processStatus: true,
+            photographerName: true,
+            credit: true,
+            variants: {
+              where: { format: "webp" },
+              orderBy: { width: "desc" },
+              take: 1,
+              select: { url: true },
+            },
+            deliveryAsset: {
+              select: { id: true, url: true, thumbnailUrl: true },
+            },
+          },
+        },
       },
     }),
   ]);
   if (!article) notFound();
 
-  const usageByAssetAndType = new Map(
-    editorialUsages
-      .filter((u) => u.photo.deliveryAssetId)
-      .map((u) => [
-        `${u.photo.deliveryAssetId}:${u.usageType === "FEATURED" ? "FEATURED" : u.usageType}`,
-        u,
-      ] as const),
-  );
+  type UsageRow = (typeof editorialUsages)[number];
+  const usageByAssetAndType = new Map<string, UsageRow>();
+  const usageBySourcePhotoAndType = new Map<string, UsageRow>();
+  for (const u of editorialUsages) {
+    const typeKey = u.usageType === "FEATURED" ? "FEATURED" : u.usageType;
+    if (u.photo.deliveryAssetId) {
+      usageByAssetAndType.set(`${u.photo.deliveryAssetId}:${typeKey}`, u);
+    }
+    const sourcePhotoId = Number(u.photo.sourcePhotoExternalId);
+    if (Number.isFinite(sourcePhotoId)) {
+      usageBySourcePhotoAndType.set(`${sourcePhotoId}:${typeKey}`, u);
+    }
+  }
+
+  function resolveUsageForLink(link: {
+    asset: { id: string; sourcePhotoId: number | null };
+    usageType: string;
+  }): UsageRow | null {
+    return (
+      usageByAssetAndType.get(`${link.asset.id}:${link.usageType}`) ??
+      usageByAssetAndType.get(`${link.asset.id}:FEATURED`) ??
+      (link.asset.sourcePhotoId != null
+        ? usageBySourcePhotoAndType.get(`${link.asset.sourcePhotoId}:${link.usageType}`) ??
+          usageBySourcePhotoAndType.get(`${link.asset.sourcePhotoId}:FEATURED`)
+        : null) ??
+      null
+    );
+  }
+
+  function processAvailability(
+    status: string | null | undefined,
+  ): "ready" | "processing" | "unavailable" {
+    if (status === "READY") return "ready";
+    if (status === "PROCESSING" || status === "PENDING") return "processing";
+    if (status === "FAILED") return "unavailable";
+    return "ready";
+  }
 
   const [event, album] = await Promise.all([
     article.eventId
@@ -165,28 +213,70 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
           albumId: article.clfAlbumId,
           eventTitle: event?.title ?? null,
           albumTitle: album?.title ?? null,
-          linkedAssets: article.articleAssets.map((link) => {
-            const usage =
-              usageByAssetAndType.get(`${link.asset.id}:${link.usageType}`) ??
-              usageByAssetAndType.get(`${link.asset.id}:FEATURED`) ??
-              null;
-            return {
-              linkId: link.id,
-              usageType: link.usageType as "COVER" | "INLINE" | "GALLERY",
-              sortOrder: link.sortOrder,
-              captionOverride: link.captionOverride ?? usage?.caption ?? null,
-              url: link.asset.url,
-              thumbnailUrl: link.asset.thumbnailUrl,
-              credit: link.asset.credit,
-              photographerName: link.asset.photographerName,
-              assetId: link.asset.id,
-              usageId: usage?.id ?? null,
-              altText: usage?.altText ?? null,
-              coverageTitle: album?.title ?? null,
-              albumTitle: album?.title ?? null,
-              availability: link.asset.thumbnailUrl || link.asset.url ? "ready" : "unavailable",
-            };
-          }),
+          linkedAssets: (() => {
+            const matchedUsageIds = new Set<string>();
+            const fromLinks = article.articleAssets.map((link) => {
+              const usage = resolveUsageForLink(link);
+              if (usage) matchedUsageIds.add(usage.id);
+              const cleanUrl =
+                usage?.photo.variants[0]?.url ||
+                usage?.photo.deliveryAsset?.url ||
+                null;
+              const cleanThumb =
+                usage?.photo.deliveryAsset?.thumbnailUrl ||
+                usage?.photo.variants[0]?.url ||
+                null;
+              return {
+                linkId: link.id,
+                usageType: link.usageType as "COVER" | "INLINE" | "GALLERY",
+                sortOrder: link.sortOrder,
+                captionOverride: link.captionOverride ?? usage?.caption ?? null,
+                url: cleanUrl || link.asset.url,
+                thumbnailUrl: cleanThumb || link.asset.thumbnailUrl,
+                credit: link.asset.credit ?? usage?.photo.credit ?? null,
+                photographerName:
+                  link.asset.photographerName ?? usage?.photo.photographerName ?? null,
+                assetId: link.asset.id,
+                usageId: usage?.id ?? null,
+                altText: usage?.altText ?? null,
+                coverageTitle: album?.title ?? null,
+                albumTitle: album?.title ?? null,
+                availability: usage
+                  ? processAvailability(usage.photo.processStatus)
+                  : link.asset.thumbnailUrl || link.asset.url
+                    ? ("ready" as const)
+                    : ("unavailable" as const),
+              };
+            });
+            // Usages canónicos sin ArticleAsset: igual deben editar alt text.
+            const orphanUsages = editorialUsages
+              .filter((u) => !matchedUsageIds.has(u.id))
+              .filter((u) => u.usageType !== "FEATURED")
+              .map((u) => ({
+                linkId: `usage:${u.id}`,
+                usageType: u.usageType as "COVER" | "INLINE" | "GALLERY",
+                sortOrder: u.sortOrder,
+                captionOverride: u.caption,
+                url:
+                  u.photo.variants[0]?.url ||
+                  u.photo.deliveryAsset?.url ||
+                  "",
+                thumbnailUrl:
+                  u.photo.deliveryAsset?.thumbnailUrl ||
+                  u.photo.variants[0]?.url ||
+                  null,
+                credit: u.photo.credit,
+                photographerName: u.photo.photographerName,
+                assetId: u.photo.deliveryAssetId,
+                usageId: u.id,
+                altText: u.altText,
+                coverageTitle: album?.title ?? null,
+                albumTitle: album?.title ?? null,
+                availability: processAvailability(u.photo.processStatus),
+              }))
+              .filter((a) => Boolean(a.url));
+            return [...fromLinks, ...orphanUsages];
+          })(),
         }}
         initial={{
           id: article.id,

@@ -191,8 +191,8 @@ export async function importClfPhotosAction(input: {
         selectedByUserId: access.user.id,
         allowMissingPhotographer: isDirector,
       });
-      // Uso canónico + checklist de publicación (alt text / derivados).
-      await selectEditorialPhoto({
+      // Uso canónico + checklist de publicación (alt text / derivados clean).
+      const selected = await selectEditorialPhoto({
         clfPhotoId: photoId,
         articleId: input.articleId,
         usageType: input.usageType,
@@ -202,9 +202,17 @@ export async function importClfPhotosAction(input: {
         selectedByUserId: access.user.id,
         processNow: true,
       });
+      if (!selected.ok) {
+        throw new Error(selected.error);
+      }
+      if (selected.processStatus !== "READY" || !selected.deliverySrc) {
+        throw new Error(
+          "La foto todavía no tiene versión editorial lista (sin marca de agua). Reintentá en unos segundos o elegí otra foto.",
+        );
+      }
       imported.push({
         id: result.asset.id,
-        url: result.asset.url,
+        url: selected.deliverySrc || result.asset.url,
         thumbnailUrl: result.asset.thumbnailUrl,
         credit: result.asset.credit,
         caption: result.link.captionOverride ?? result.asset.caption,
