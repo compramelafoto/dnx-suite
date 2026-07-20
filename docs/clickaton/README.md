@@ -196,6 +196,12 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [ADMIN_CATALOG_TICKETS_AND_KITS_UI_10D3D.md](./ADMIN_CATALOG_TICKETS_AND_KITS_UI_10D3D.md)
 - Selfcheck: `selfcheck:admin-catalog-tickets-ui`
 
+### Etapa 10D3E — UI administrativa de órdenes e inscripciones
+
+- Listado/detalle/transiciones de `ClickatonRegistration`; soft refs de pago (sin entidad Order)
+- Doc: [ADMIN_REGISTRATIONS_AND_ORDERS_UI_10D3E.md](./ADMIN_REGISTRATIONS_AND_ORDERS_UI_10D3E.md)
+- Selfcheck: `selfcheck:admin-registrations-orders-ui`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
