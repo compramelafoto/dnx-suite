@@ -25,6 +25,9 @@ const FLASH_MESSAGES: Record<string, { title: string; body?: string; tone: "succ
   ticket_item_added: { title: "Producto agregado al kit", tone: "success" },
   ticket_item_updated: { title: "Composición actualizada", tone: "success" },
   ticket_item_removed: { title: "Producto quitado del kit", tone: "success" },
+  registration_updated: { title: "Inscripción actualizada", tone: "success" },
+  note_added: { title: "Observación interna agregada", tone: "success" },
+  assignment_updated: { title: "Asignación actualizada", tone: "success" },
   migration_pending: {
     title: "Migración pendiente",
     body: "Las tablas de ediciones y sedes aún no están disponibles en la base conectada.",
