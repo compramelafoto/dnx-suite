@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   classifySmokeDatabaseUrl,
   isProductionLikeDatabaseUrl,
-} from "./lib/classify-smoke-database-url.ts";
+} from "./lib/classify-smoke-database-url";
 
 describe("classifySmokeDatabaseUrl", () => {
   it("rejects production domain in connection string", () => {

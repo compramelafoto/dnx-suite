@@ -13,7 +13,7 @@ import { join } from "node:path";
 import {
   classifySmokeDatabaseUrl,
   isProductionLikeDatabaseUrl,
-} from "./lib/classify-smoke-database-url.ts";
+} from "./lib/classify-smoke-database-url";
 
 const ROOT = join(process.cwd());
 
