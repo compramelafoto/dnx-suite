@@ -189,6 +189,13 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [ADMIN_CATALOG_PRODUCTS_UI_10D3C.md](./ADMIN_CATALOG_PRODUCTS_UI_10D3C.md)
 - Selfcheck: `selfcheck:admin-catalog-products-ui`
 
+### Etapa 10D3D — UI administrativa de entradas y kits
+
+- Listado/alta/detalle de tipos de entrada, cupos, períodos y composición de kits
+- Actions delgadas sobre `replaceTicketTypeItems`; sin reserva de stock ni Prisma changes
+- Doc: [ADMIN_CATALOG_TICKETS_AND_KITS_UI_10D3D.md](./ADMIN_CATALOG_TICKETS_AND_KITS_UI_10D3D.md)
+- Selfcheck: `selfcheck:admin-catalog-tickets-ui`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
