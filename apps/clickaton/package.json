@@ -21,6 +21,7 @@
     "selfcheck:admin-catalog-prisma": "tsx lib/admin-catalog/testing/prisma.selfcheck.ts",
     "selfcheck:admin-catalog-products-ui": "tsx lib/admin-catalog/testing/products-ui.selfcheck.ts",
     "selfcheck:admin-catalog-tickets-ui": "tsx scripts/admin-catalog-tickets-ui.selfcheck.ts",
+    "selfcheck:admin-registrations-orders-ui": "tsx scripts/admin-registrations-orders-ui.selfcheck.ts",
     "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
   },
   "dependencies": {
