@@ -226,6 +226,12 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [DNX_PAYMENTS_PERSISTENCE_AND_WIRING_10D3G_B.md](./DNX_PAYMENTS_PERSISTENCE_AND_WIRING_10D3G_B.md)
 - Selfcheck: `selfcheck:dnx-payments-persistence`
 
+### Etapa 10D3H — Smoke test controlado
+
+- Smoke Nivel A (local + fake durable), checklist Nivel C dry-run, reparación selfcheck Prisma descartable
+- Doc: [DNX_PAYMENTS_CONTROLLED_SMOKE_TEST_10D3H.md](./DNX_PAYMENTS_CONTROLLED_SMOKE_TEST_10D3H.md)
+- Selfcheck: `selfcheck:dnx-payments-smoke`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
