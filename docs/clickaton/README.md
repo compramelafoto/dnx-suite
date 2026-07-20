@@ -214,6 +214,12 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [PUBLIC_REGISTRATION_HARDENING_10D3F_B.md](./PUBLIC_REGISTRATION_HARDENING_10D3F_B.md)
 - Selfcheck: `selfcheck:public-registration-hardening`
 
+### Etapa 10D3G — Checkout con DNX Payments
+
+- Cliente tipado + fake provider, CTA de pago, retornos, webhook normalizado, confirmación/liberación de holds
+- Doc: [DNX_PAYMENTS_CHECKOUT_INTEGRATION_10D3G.md](./DNX_PAYMENTS_CHECKOUT_INTEGRATION_10D3G.md)
+- Selfcheck: `selfcheck:dnx-payments-checkout`
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
