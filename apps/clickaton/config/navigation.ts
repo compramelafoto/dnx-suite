@@ -28,6 +28,11 @@ export function marathonPath(slug: string): string {
   return `/maratones/${slug}`;
 }
 
+/** Flujo público de inscripción/reserva (10D3F). */
+export function marathonRegistrationPath(slug: string): string {
+  return `/maratones/${slug}/inscripcion`;
+}
+
 export type AppRoute = (typeof routes)[keyof typeof routes];
 
 export type NavItem = {

@@ -15,10 +15,21 @@ import type { PublicMarathonCapabilities } from "@/types/public";
 type MarathonHeroProps = {
   marathon: PublicMarathon;
   capabilities?: PublicMarathonCapabilities | null;
+  /** Oferta nativa 10D3F cuando hay edición Prisma publicada con entradas. */
+  nativeRegistrationHref?: string | null;
+  nativeRegistrationLabel?: string | null;
 };
 
-export function MarathonHero({ marathon, capabilities = null }: MarathonHeroProps) {
-  const reg = presentRegistrationCta(marathon.registration);
+export function MarathonHero({
+  marathon,
+  capabilities = null,
+  nativeRegistrationHref = null,
+  nativeRegistrationLabel = null,
+}: MarathonHeroProps) {
+  const reg = presentRegistrationCta(marathon.registration, {
+    nativeHref: nativeRegistrationHref,
+    nativeLabel: nativeRegistrationLabel,
+  });
   const showResults =
     marathon.status === "results_published" ||
     marathon.resultsStatus === "published";

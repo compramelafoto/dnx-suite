@@ -9,6 +9,7 @@ import {
   getPublicMarathonVisibility,
   listRoutableMarathonSlugs,
 } from "@/data/public-marathons";
+import { getPublicRegistrationOfferAction } from "@/lib/public-registration/actions/public-registration";
 import { buildPageMetadata } from "@/lib/seo";
 
 type PageProps = {
@@ -54,7 +55,11 @@ export default async function MarathonDetailPage({ params }: PageProps) {
   if (!marathon) notFound();
 
   const visibility = getPublicMarathonVisibility(marathon);
-  const capabilities = await getPublicMarathonCapabilities(marathon.id);
+  const [capabilities, offerResult] = await Promise.all([
+    getPublicMarathonCapabilities(marathon.id),
+    getPublicRegistrationOfferAction(slug),
+  ]);
+  const offer = offerResult.ok ? offerResult.data : null;
 
   return (
     <>
@@ -65,7 +70,12 @@ export default async function MarathonDetailPage({ params }: PageProps) {
           { label: visibility.isDemo ? "Demo técnica" : marathon.name },
         ]}
       />
-      <MarathonDetailView marathon={marathon} capabilities={capabilities} />
+      <MarathonDetailView
+        marathon={marathon}
+        capabilities={capabilities}
+        nativeRegistrationHref={offer?.available ? offer.href : null}
+        nativeRegistrationLabel={offer?.available ? offer.label : null}
+      />
     </>
   );
 }

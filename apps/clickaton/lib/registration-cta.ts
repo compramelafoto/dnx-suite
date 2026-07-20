@@ -16,8 +16,18 @@ export type RegistrationCtaPresentation = {
 
 export function presentRegistrationCta(
   registration: PublicRegistrationSummary | null | undefined,
+  options?: { nativeHref?: string | null; nativeLabel?: string | null },
 ): RegistrationCtaPresentation {
   if (!registration) {
+    if (options?.nativeHref) {
+      return {
+        headline: "Inscripción abierta",
+        secondaryLine: null,
+        ctaLabel: options.nativeLabel ?? "Inscribirme",
+        ctaHref: options.nativeHref,
+        ctaEnabled: true,
+      };
+    }
     return {
       headline: "Inscripción no disponible",
       secondaryLine: null,
@@ -81,15 +91,21 @@ export function presentRegistrationCta(
           : priceLabel
             ? `Inscripción: ${priceLabel}`
             : "Inscripción paga";
-      // 09B1: solo handoff informativo a FotoRank. checkoutUrl queda null hasta 09B2/DNX Payments.
-      const href =
-        registration.canRegister
+      // Preferir flujo nativo Clickatón (10D3F) cuando hay oferta publicada en catálogo.
+      const href = options?.nativeHref
+        ? options.nativeHref
+        : registration.canRegister
           ? registration.registrationUrl ?? null
           : null;
+      const label = href
+        ? (options?.nativeHref
+            ? (options.nativeLabel ?? "Inscribirme")
+            : "Inscribirme")
+        : null;
       return {
         headline,
         secondaryLine: merch,
-        ctaLabel: href ? "Inscribirme" : null,
+        ctaLabel: label,
         ctaHref: href,
         ctaEnabled: Boolean(href),
       };

@@ -18,16 +18,25 @@ import type { PublicMarathonCapabilities } from "@/types/public";
 type MarathonDetailViewProps = {
   marathon: PublicMarathon;
   capabilities?: PublicMarathonCapabilities | null;
+  nativeRegistrationHref?: string | null;
+  nativeRegistrationLabel?: string | null;
 };
 
 export function MarathonDetailView({
   marathon,
   capabilities = null,
+  nativeRegistrationHref = null,
+  nativeRegistrationLabel = null,
 }: MarathonDetailViewProps) {
   return (
     <article>
       {marathon.isDemo ? <MarathonDemoBanner /> : null}
-      <MarathonHero marathon={marathon} capabilities={capabilities} />
+      <MarathonHero
+        marathon={marathon}
+        capabilities={capabilities}
+        nativeRegistrationHref={nativeRegistrationHref}
+        nativeRegistrationLabel={nativeRegistrationLabel}
+      />
       <MarathonKeyFacts marathon={marathon} />
       <MarathonSchedule marathon={marathon} />
       <MarathonCategories marathon={marathon} />

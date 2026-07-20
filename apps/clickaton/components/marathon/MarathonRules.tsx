@@ -15,7 +15,7 @@ export function MarathonRules({ marathon }: MarathonRulesProps) {
   const paragraphs = rules.content?.split("\n").filter(Boolean) ?? [];
 
   return (
-    <Section aria-labelledby="marathon-rules-title">
+    <Section id="bases" aria-labelledby="marathon-rules-title">
       <Container className="max-w-3xl">
         <SectionHeader
           eyebrow="Bases"
