@@ -1,6 +1,8 @@
 import type { ClickatonRegistrationRecord } from "@/lib/registration/domain/types";
 import type {
+  CheckoutEligibilityDto,
   CreatePublicRegistrationInput,
+  ExpirePendingBatchResult,
   PublicEditionDto,
   PublicRegistrationSummaryDto,
   PublicTicketDto,
@@ -22,6 +24,16 @@ export type IdempotencyRecord = {
   createdAt: Date;
 };
 
+export type ExpireOneResult =
+  | {
+      outcome: "expired";
+      registrationId: string;
+      releasedCapacityHolds: number;
+      releasedStockHolds: number;
+    }
+  | { outcome: "skipped"; registrationId: string; reason: string }
+  | { outcome: "already_processed"; registrationId: string };
+
 /** Puerto de persistencia + catálogo para el flujo público. */
 export interface PublicRegistrationRepository {
   getEditionBySlug(slug: string): Promise<PublicCatalogEdition | null>;
@@ -35,6 +47,12 @@ export interface PublicRegistrationRepository {
   findActiveByEditionEmail(
     editionId: string,
     email: string,
+    now?: Date,
+  ): Promise<ClickatonRegistrationRecord | null>;
+  findActiveByEditionDocument?(
+    editionId: string,
+    documentNumber: string,
+    now?: Date,
   ): Promise<ClickatonRegistrationRecord | null>;
   findByIdempotencyKey(key: string): Promise<IdempotencyRecord | null>;
   resolveUserId(email: string, name: string): Promise<number>;
@@ -45,13 +63,30 @@ export interface PublicRegistrationRepository {
     holdExpiresAt: Date;
   }): Promise<ClickatonRegistrationRecord>;
   getRegistration(id: string): Promise<ClickatonRegistrationRecord | null>;
+  /** Holds ACTIVE + variant reservedStock para eligibility. */
+  getHoldSnapshot(registrationId: string): Promise<{
+    capacityHoldActive: boolean;
+    stockHoldsActive: number;
+  }>;
+  listExpireCandidates(input: {
+    now: Date;
+    limit: number;
+  }): Promise<string[]>;
+  expireRegistration(input: {
+    registrationId: string;
+    now: Date;
+    dryRun: boolean;
+  }): Promise<ExpireOneResult>;
   buildSummary(input: {
     registration: ClickatonRegistrationRecord;
     edition: PublicCatalogEdition;
     venueName: string | null;
     ticketName: string;
     accessToken: string;
+    isExpired: boolean;
+    reservationActive: boolean;
+    checkoutEligible: boolean;
   }): PublicRegistrationSummaryDto;
 }
 
-export type { CreatePublicRegistrationInput };
+export type { CreatePublicRegistrationInput, ExpirePendingBatchResult, CheckoutEligibilityDto };

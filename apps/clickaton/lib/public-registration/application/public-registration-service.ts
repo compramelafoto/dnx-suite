@@ -4,22 +4,33 @@ import {
   signRegistrationAccessToken,
   verifyRegistrationAccessToken,
 } from "../domain/access-token";
+import { createCheckoutEligibilityUseCase } from "./checkout-eligibility";
+import { createExpirePendingRegistrationsUseCase } from "./expire-pending-registrations";
+import {
+  EXPIRATION_TARGET,
+  isStalePendingHold,
+} from "../domain/expiration-rules";
 import {
   PublicRegistrationError,
   PublicRegistrationValidationError,
 } from "../domain/errors";
+import { normalizeDocument, normalizeEmail } from "../domain/pii";
+import {
+  createInMemoryRateLimitStore,
+  hashRateLimitSubject,
+  PUBLIC_REGISTRATION_RATE_LIMIT,
+  type RateLimitStore,
+} from "../domain/rate-limit";
 import type { PublicRegistrationRepository } from "../domain/repository";
 import type {
+  CheckoutEligibilityDto,
   CreatePublicRegistrationInput,
+  ExpirePendingBatchResult,
   PublicRegistrationContextDto,
   PublicRegistrationOffer,
   PublicRegistrationSummaryDto,
   PublicTicketDto,
 } from "../domain/types";
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
 
 function fingerprint(input: {
   editionId: string;
@@ -159,8 +170,13 @@ function buildItemsFromTicket(
 
 export function createPublicRegistrationService(deps: {
   repo: PublicRegistrationRepository;
+  rateLimit?: RateLimitStore | null;
+  rateLimitSubject?: string | null;
 }) {
   const { repo } = deps;
+  const rateLimit = deps.rateLimit ?? null;
+  const expireUseCase = createExpirePendingRegistrationsUseCase({ repo });
+  const eligibilityUseCase = createCheckoutEligibilityUseCase({ repo });
 
   return {
     async getOffer(slug: string): Promise<PublicRegistrationOffer> {
@@ -273,6 +289,20 @@ export function createPublicRegistrationService(deps: {
     async createRegistration(
       input: CreatePublicRegistrationInput,
     ): Promise<PublicRegistrationSummaryDto> {
+      if (rateLimit && deps.rateLimitSubject) {
+        const rl = await rateLimit.consume(
+          hashRateLimitSubject(`create:${deps.rateLimitSubject}`),
+          PUBLIC_REGISTRATION_RATE_LIMIT.limit,
+          PUBLIC_REGISTRATION_RATE_LIMIT.windowMs,
+        );
+        if (!rl.allowed) {
+          throw new PublicRegistrationError(
+            "RATE_LIMITED",
+            "Demasiados intentos. Esperá un momento e intentá de nuevo.",
+            { retryAfterMs: rl.retryAfterMs },
+          );
+        }
+      }
       if (!input.idempotencyKey?.trim() || input.idempotencyKey.length < 8) {
         throw new PublicRegistrationValidationError({
           idempotencyKey: "Falta el token de idempotencia.",
@@ -363,12 +393,23 @@ export function createPublicRegistrationService(deps: {
         return this.toSummary(existing.id, edition.slug);
       }
 
-      const duplicate = await repo.findActiveByEditionEmail(edition.id, email);
+      const nowCheck = new Date();
+      const duplicate = await repo.findActiveByEditionEmail(edition.id, email, nowCheck);
       if (duplicate) {
         throw new PublicRegistrationError(
           "DUPLICATE_REGISTRATION",
           "Ya existe una inscripción activa con este email para esta edición.",
         );
+      }
+      const doc = normalizeDocument(input.participant.documentNumber);
+      if (doc && repo.findActiveByEditionDocument) {
+        const dupDoc = await repo.findActiveByEditionDocument(edition.id, doc, nowCheck);
+        if (dupDoc) {
+          throw new PublicRegistrationError(
+            "DUPLICATE_REGISTRATION",
+            "Ya existe una inscripción activa con este documento para esta edición.",
+          );
+        }
       }
 
       const items = buildItemsFromTicket(ticket, input.variantChoices);
@@ -426,13 +467,37 @@ export function createPublicRegistrationService(deps: {
       accessToken: string;
       editionSlug: string;
     }): Promise<PublicRegistrationSummaryDto> {
-      if (!verifyRegistrationAccessToken(input.registrationId, input.accessToken)) {
+      const verified = verifyRegistrationAccessToken({
+        registrationId: input.registrationId,
+        editionSlug: input.editionSlug,
+        token: input.accessToken,
+      });
+      if (!verified.ok) {
         throw new PublicRegistrationError(
-          "FORBIDDEN",
-          "No tenés acceso a este resumen de inscripción.",
+          verified.code,
+          verified.code === "TOKEN_EXPIRED"
+            ? "El enlace del resumen expiró."
+            : "No tenés acceso a este resumen de inscripción.",
         );
       }
       return this.toSummary(input.registrationId, input.editionSlug);
+    },
+
+    async expirePendingRegistrations(input?: {
+      now?: Date;
+      limit?: number;
+      dryRun?: boolean;
+    }): Promise<ExpirePendingBatchResult> {
+      return expireUseCase.execute(input);
+    },
+
+    async getRegistrationCheckoutEligibility(input: {
+      registrationId: string;
+      editionSlug: string;
+      accessToken: string;
+      now?: Date;
+    }): Promise<CheckoutEligibilityDto> {
+      return eligibilityUseCase.getRegistrationCheckoutEligibility(input);
     },
 
     async toSummary(
@@ -451,17 +516,55 @@ export function createPublicRegistrationService(deps: {
       const venueName =
         venues.find((v) => v.id === registration.venueId)?.name ?? null;
       const ticket = await repo.getTicketDetail(registration.ticketTypeId);
-      const expiresMs = registration.holdExpiresAt?.getTime() ?? Date.now() + 20 * 60_000;
-      const accessToken = signRegistrationAccessToken(registration.id, expiresMs);
+      const now = new Date();
+      const stale = isStalePendingHold({
+        status: registration.status,
+        holdExpiresAt: registration.holdExpiresAt,
+        now,
+      });
+      const expiredMaterialized =
+        registration.status === EXPIRATION_TARGET.status &&
+        registration.paymentStatus === EXPIRATION_TARGET.paymentStatus;
+      const isExpired = stale || expiredMaterialized;
+      const holds = await repo.getHoldSnapshot(registration.id);
+      const reservationActive =
+        !isExpired &&
+        (registration.status === "PENDING_PAYMENT" || registration.status === "DRAFT") &&
+        holds.capacityHoldActive;
+      const checkoutEligible =
+        reservationActive &&
+        registration.paymentStatus !== "APPROVED" &&
+        registration.money.totalAmount >= 0 &&
+        (registration.status === "PENDING_PAYMENT" || registration.status === "DRAFT");
+
+      // Token de acceso: al menos 5 min tras apertura; no extender artificialmente reservas vencidas.
+      const holdMs = registration.holdExpiresAt?.getTime();
+      const tokenExpMs =
+        holdMs && holdMs > Date.now()
+          ? holdMs
+          : Date.now() + 30 * 60_000;
+      const accessToken = signRegistrationAccessToken({
+        registrationId: registration.id,
+        editionSlug: edition.slug,
+        expiresAtMs: tokenExpMs,
+      });
       return repo.buildSummary({
         registration,
         edition,
         venueName,
         ticketName: ticket?.name ?? registration.ticketTypeId,
         accessToken,
+        isExpired,
+        reservationActive,
+        checkoutEligible,
       });
     },
   };
+}
+
+/** Helper tests: rate limit store por defecto. */
+export function createTestRateLimitStore(): RateLimitStore {
+  return createInMemoryRateLimitStore();
 }
 
 export type PublicRegistrationService = ReturnType<typeof createPublicRegistrationService>;

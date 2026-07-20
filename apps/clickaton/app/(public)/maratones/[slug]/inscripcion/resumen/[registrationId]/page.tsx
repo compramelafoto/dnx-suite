@@ -43,7 +43,9 @@ export default async function PublicRegistrationSummaryPage({
         <Container className="space-y-6 py-12">
           <h1 className="ck-display-md">Resumen no disponible</h1>
           <p className="text-ck-text-secondary" role="alert">
-            {result.code === "FORBIDDEN"
+            {result.code === "TOKEN_INVALID" ||
+            result.code === "TOKEN_EXPIRED" ||
+            result.code === "FORBIDDEN"
               ? "Este enlace de resumen no es válido o expiró. Si acabás de inscribirte, usá el enlace completo que recibiste al finalizar."
               : (result.message ?? "No se pudo mostrar el resumen.")}
           </p>
@@ -73,8 +75,11 @@ export default async function PublicRegistrationSummaryPage({
           <h1 className="ck-display-md">Tu inscripción quedó reservada</h1>
           <p className="max-w-2xl text-ck-text-secondary" role="status">
             Estado: {s.status.replaceAll("_", " ")} · Cobro:{" "}
-            {s.paymentStatus.replaceAll("_", " ")}. Todavía no hay pago realizado ni
-            confirmación definitiva.
+            {s.paymentStatus.replaceAll("_", " ")}
+            {s.isExpired ? " · Reserva vencida" : ""}.
+            {!s.isExpired
+              ? " Todavía no hay pago realizado ni confirmación definitiva."
+              : " El cupo puede haber sido liberado."}
           </p>
         </header>
 
@@ -101,9 +106,10 @@ export default async function PublicRegistrationSummaryPage({
             <div>
               <dt className="text-ck-text-secondary">Participante</dt>
               <dd>
-                {s.participant.firstName} {s.participant.lastName}
+                {s.participant.firstName} {s.participant.lastNameInitial}
               </dd>
-              <dd className="text-ck-text-muted">{s.participant.email}</dd>
+              <dd className="text-ck-text-muted">{s.participant.emailMasked}</dd>
+              <dd className="text-ck-text-muted">Tel. {s.participant.phoneMasked}</dd>
             </div>
             <div>
               <dt className="text-ck-text-secondary">Importe</dt>
@@ -135,8 +141,9 @@ export default async function PublicRegistrationSummaryPage({
         <div className="rounded border border-ck-border bg-ck-surface p-5">
           <p className="font-semibold">{s.nextStepMessage}</p>
           <p className="mt-2 text-sm text-ck-text-secondary">
-            No hay botón de pago activo en esta etapa. Si la reserva vence sin completar
-            el proceso, el cupo puede liberarse.
+            {s.checkoutEligible
+              ? "No hay botón de pago activo en esta etapa. La reserva sigue vigente hasta el vencimiento."
+              : "No podés continuar al checkout con esta inscripción en su estado actual."}
           </p>
         </div>
 

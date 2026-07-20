@@ -6,6 +6,14 @@ import {
   createInMemoryRegistrationRepository,
   type InMemoryClickatonStore,
 } from "@/lib/registration/domain/in-memory";
+import { countsAsActiveRegistration, EXPIRATION_TARGET, isExpireCandidate } from "../domain/expiration-rules";
+import {
+  displayPublicFirstName,
+  maskDocument,
+  maskEmail,
+  maskPhone,
+  normalizeDocument,
+} from "../domain/pii";
 import type {
   IdempotencyRecord,
   PublicCatalogEdition,
@@ -56,6 +64,8 @@ export type InMemoryPublicStore = {
   nextUserId: number;
   /** Mutex simple para simular concurrencia de cupo. */
   capacityLocks: Map<string, Promise<void>>;
+  /** Mutex por registrationId para expiración concurrente. */
+  expireLocks: Map<string, Promise<void>>;
 };
 
 export function createInMemoryPublicStore(): InMemoryPublicStore {
@@ -69,6 +79,7 @@ export function createInMemoryPublicStore(): InMemoryPublicStore {
     usersByEmail: new Map(),
     nextUserId: 100,
     capacityLocks: new Map(),
+    expireLocks: new Map(),
   };
 }
 
@@ -202,12 +213,40 @@ export function createInMemoryPublicRegistrationRepository(
       return { confirmed, activeHolds };
     },
 
-    async findActiveByEditionEmail(editionId, email) {
+    async findActiveByEditionEmail(editionId, email, now = new Date()) {
       const normalized = email.trim().toLowerCase();
       for (const r of store.domain.registrations.values()) {
         if (r.editionId !== editionId) continue;
         if (r.participant.email.toLowerCase() !== normalized) continue;
-        if (["CANCELLED", "REFUNDED", "DISQUALIFIED"].includes(r.status)) continue;
+        if (
+          !countsAsActiveRegistration({
+            status: r.status,
+            holdExpiresAt: r.holdExpiresAt,
+            now,
+          })
+        ) {
+          continue;
+        }
+        return structuredClone(r);
+      }
+      return null;
+    },
+
+    async findActiveByEditionDocument(editionId, documentNumber, now = new Date()) {
+      const normalized = normalizeDocument(documentNumber);
+      if (!normalized) return null;
+      for (const r of store.domain.registrations.values()) {
+        if (r.editionId !== editionId) continue;
+        if (normalizeDocument(r.participant.documentNumber) !== normalized) continue;
+        if (
+          !countsAsActiveRegistration({
+            status: r.status,
+            holdExpiresAt: r.holdExpiresAt,
+            now,
+          })
+        ) {
+          continue;
+        }
         return structuredClone(r);
       }
       return null;
@@ -347,21 +386,171 @@ export function createInMemoryPublicRegistrationRepository(
       return domainRegs.getById(id);
     },
 
-    buildSummary({ registration, edition, venueName, ticketName, accessToken }) {
+    async getHoldSnapshot(registrationId) {
+      const capacityHoldActive = [...store.domain.capacityHolds.values()].some(
+        (h) =>
+          h.registrationId === registrationId &&
+          h.status === "ACTIVE" &&
+          h.expiresAt.getTime() > Date.now(),
+      );
+      const stockHoldsActive = [...store.domain.stockHolds.values()].filter(
+        (h) =>
+          h.registrationId === registrationId &&
+          h.status === "ACTIVE" &&
+          h.expiresAt.getTime() > Date.now(),
+      ).length;
+      return { capacityHoldActive, stockHoldsActive };
+    },
+
+    async listExpireCandidates({ now, limit }) {
+      const ids: string[] = [];
+      for (const r of store.domain.registrations.values()) {
+        if (
+          isExpireCandidate({
+            status: r.status,
+            paymentStatus: r.paymentStatus,
+            holdExpiresAt: r.holdExpiresAt,
+            now,
+          })
+        ) {
+          ids.push(r.id);
+        }
+        if (ids.length >= limit) break;
+      }
+      return ids;
+    },
+
+    async expireRegistration({ registrationId, now, dryRun }) {
+      const prev = store.expireLocks.get(registrationId) ?? Promise.resolve();
+      let release!: () => void;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      store.expireLocks.set(
+        registrationId,
+        prev.then(() => gate),
+      );
+      await prev;
+      try {
+        const r = store.domain.registrations.get(registrationId);
+        if (!r) return { outcome: "skipped", registrationId, reason: "not_found" };
+        if (
+          r.status === EXPIRATION_TARGET.status &&
+          r.paymentStatus === EXPIRATION_TARGET.paymentStatus
+        ) {
+          return { outcome: "already_processed", registrationId };
+        }
+        if (
+          !isExpireCandidate({
+            status: r.status,
+            paymentStatus: r.paymentStatus,
+            holdExpiresAt: r.holdExpiresAt,
+            now,
+          })
+        ) {
+          return { outcome: "skipped", registrationId, reason: "not_candidate" };
+        }
+
+        let releasedCapacityHolds = 0;
+        let releasedStockHolds = 0;
+        for (const h of store.domain.capacityHolds.values()) {
+          if (h.registrationId === registrationId && h.status === "ACTIVE") {
+            releasedCapacityHolds += 1;
+          }
+        }
+        for (const h of store.domain.stockHolds.values()) {
+          if (h.registrationId === registrationId && h.status === "ACTIVE") {
+            releasedStockHolds += 1;
+          }
+        }
+
+        if (dryRun) {
+          return {
+            outcome: "expired",
+            registrationId,
+            releasedCapacityHolds,
+            releasedStockHolds,
+          };
+        }
+
+        for (const h of store.domain.capacityHolds.values()) {
+          if (h.registrationId === registrationId && h.status === "ACTIVE") {
+            h.status = "EXPIRED";
+            h.releasedAt = now;
+          }
+        }
+        for (const h of store.domain.stockHolds.values()) {
+          if (h.registrationId === registrationId && h.status === "ACTIVE") {
+            const variant = store.domain.variants.get(h.productVariantId);
+            if (variant) {
+              variant.reservedStock = Math.max(0, variant.reservedStock - h.quantity);
+            }
+            const pub = store.variants.get(h.productVariantId);
+            if (pub) {
+              pub.reservedStock = Math.max(0, pub.reservedStock - h.quantity);
+            }
+            h.status = "EXPIRED";
+            h.releasedAt = now;
+          }
+        }
+
+        r.status = EXPIRATION_TARGET.status;
+        r.paymentStatus = EXPIRATION_TARGET.paymentStatus;
+        r.cancelledAt = now;
+        store.domain.registrations.set(r.id, r);
+        store.domain.statusHistory.push({
+          registrationId: r.id,
+          previousStatus: "PENDING_PAYMENT",
+          newStatus: EXPIRATION_TARGET.status,
+          previousPaymentStatus: "PENDING",
+          newPaymentStatus: EXPIRATION_TARGET.paymentStatus,
+        });
+        store.domain.audits.push({
+          registrationId: r.id,
+          action: EXPIRATION_TARGET.auditAction,
+          source: "expire_holds",
+          metadata: { reason: "hold_expired" },
+        });
+
+        return {
+          outcome: "expired",
+          registrationId,
+          releasedCapacityHolds,
+          releasedStockHolds,
+        };
+      } finally {
+        release();
+      }
+    },
+
+    buildSummary({
+      registration,
+      edition,
+      venueName,
+      ticketName,
+      accessToken,
+      isExpired,
+      reservationActive,
+      checkoutEligible,
+    }) {
+      const last = registration.participant.lastName?.trim() ?? "";
       return {
         registrationId: registration.id,
         publicCode: registration.visibleCode ?? null,
         status: registration.status,
         paymentStatus: registration.paymentStatus,
+        isExpired,
+        reservationActive,
         editionName: edition.name,
         editionSlug: edition.slug,
         venueName,
         ticketName,
         participant: {
-          firstName: registration.participant.firstName,
-          lastName: registration.participant.lastName,
-          email: registration.participant.email,
-          phone: registration.participant.phone ?? null,
+          firstName: displayPublicFirstName(registration.participant.firstName),
+          lastNameInitial: last ? `${last[0]!.toUpperCase()}.` : "—",
+          emailMasked: maskEmail(registration.participant.email),
+          phoneMasked: maskPhone(registration.participant.phone),
+          documentMasked: maskDocument(registration.participant.documentNumber),
         },
         totalAmount: registration.money.totalAmount,
         currency: registration.money.currency,
@@ -372,7 +561,12 @@ export function createInMemoryPublicRegistrationRepository(
         })),
         holdExpiresAt: registration.holdExpiresAt ?? null,
         accessToken,
-        nextStepMessage: "Próximamente: continuar al pago.",
+        nextStepMessage: checkoutEligible
+          ? "Próximamente: continuar al pago."
+          : isExpired
+            ? "La reserva venció. El cupo fue liberado."
+            : "Esta inscripción no admite continuar al pago.",
+        checkoutEligible,
       };
     },
   };

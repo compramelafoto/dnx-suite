@@ -134,3 +134,20 @@ export async function getPublicRegistrationSummaryAction(
     return pubFailure<PublicRegistrationSummaryDto>(error);
   }
 }
+
+export async function getRegistrationCheckoutEligibilityAction(
+  registrationId: string,
+  accessToken: string,
+  editionSlug: string,
+): Promise<PublicRegistrationActionState<import("../domain/types").CheckoutEligibilityDto>> {
+  try {
+    const data = await getPublicRegistrationService().getRegistrationCheckoutEligibility({
+      registrationId,
+      accessToken,
+      editionSlug,
+    });
+    return pubSuccess(data);
+  } catch (error) {
+    return pubFailure(error);
+  }
+}

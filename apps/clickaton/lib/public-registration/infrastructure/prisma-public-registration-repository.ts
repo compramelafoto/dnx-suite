@@ -1,7 +1,15 @@
 import { Prisma, prisma } from "@/lib/admin/db";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
 import type { ClickatonRegistrationRecord } from "@/lib/registration/domain/types";
+import { countsAsActiveRegistration, EXPIRATION_TARGET, isExpireCandidate } from "../domain/expiration-rules";
 import { PublicRegistrationError } from "../domain/errors";
+import {
+  displayPublicFirstName,
+  maskDocument,
+  maskEmail,
+  maskPhone,
+  normalizeDocument,
+} from "../domain/pii";
 import type {
   PublicCatalogEdition,
   PublicCatalogTicket,
@@ -308,8 +316,8 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
       return countUsage(ticketTypeId);
     },
 
-    async findActiveByEditionEmail(editionId, email) {
-      const row = await prisma.clickatonRegistration.findFirst({
+    async findActiveByEditionEmail(editionId, email, now = new Date()) {
+      const rows = await prisma.clickatonRegistration.findMany({
         where: {
           editionId,
           email: email.trim().toLowerCase(),
@@ -317,8 +325,50 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
         },
         include: { items: true },
         orderBy: { createdAt: "desc" },
+        take: 10,
       });
-      return row ? mapRecord(row) : null;
+      for (const row of rows) {
+        const mapped = mapRecord(row);
+        if (
+          countsAsActiveRegistration({
+            status: mapped.status,
+            holdExpiresAt: mapped.holdExpiresAt,
+            now,
+          })
+        ) {
+          return mapped;
+        }
+      }
+      return null;
+    },
+
+    async findActiveByEditionDocument(editionId, documentNumber, now = new Date()) {
+      const normalized = normalizeDocument(documentNumber);
+      if (!normalized) return null;
+      const rows = await prisma.clickatonRegistration.findMany({
+        where: {
+          editionId,
+          documentNumber: { not: null },
+          status: { notIn: ["CANCELLED", "REFUNDED", "DISQUALIFIED"] },
+        },
+        include: { items: true },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+      for (const row of rows) {
+        if (normalizeDocument(row.documentNumber) !== normalized) continue;
+        const mapped = mapRecord(row);
+        if (
+          countsAsActiveRegistration({
+            status: mapped.status,
+            holdExpiresAt: mapped.holdExpiresAt,
+            now,
+          })
+        ) {
+          return mapped;
+        }
+      }
+      return null;
     },
 
     async findByIdempotencyKey(key) {
@@ -416,6 +466,31 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
                 "Sin stock suficiente para completar la reserva.",
               );
             }
+          }
+
+          const nowTx = new Date();
+          const emailDupes = await tx.clickatonRegistration.findMany({
+            where: {
+              editionId: input.cmd.editionId,
+              email: input.cmd.participant.email,
+              status: { notIn: ["CANCELLED", "REFUNDED", "DISQUALIFIED"] },
+            },
+            select: { id: true, status: true, holdExpiresAt: true },
+            take: 10,
+          });
+          if (
+            emailDupes.some((d) =>
+              countsAsActiveRegistration({
+                status: d.status,
+                holdExpiresAt: d.holdExpiresAt,
+                now: nowTx,
+              }),
+            )
+          ) {
+            throw new PublicRegistrationError(
+              "DUPLICATE_REGISTRATION",
+              "Ya existe una inscripción activa con este email para esta edición.",
+            );
           }
 
           const paymentStatus =
@@ -542,21 +617,179 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
       return row ? mapRecord(row) : null;
     },
 
-    buildSummary({ registration, edition, venueName, ticketName, accessToken }) {
+    async getHoldSnapshot(registrationId) {
+      const now = new Date();
+      const [capacity, stock] = await Promise.all([
+        prisma.clickatonCapacityHold.count({
+          where: {
+            registrationId,
+            status: "ACTIVE",
+            expiresAt: { gt: now },
+          },
+        }),
+        prisma.clickatonStockHold.count({
+          where: {
+            registrationId,
+            status: "ACTIVE",
+            expiresAt: { gt: now },
+          },
+        }),
+      ]);
+      return { capacityHoldActive: capacity > 0, stockHoldsActive: stock };
+    },
+
+    async listExpireCandidates({ now, limit }) {
+      const rows = await prisma.clickatonRegistration.findMany({
+        where: {
+          status: { in: ["PENDING_PAYMENT", "DRAFT"] },
+          paymentStatus: { not: "APPROVED" },
+          holdExpiresAt: { lte: now },
+        },
+        select: { id: true, status: true, paymentStatus: true, holdExpiresAt: true },
+        orderBy: { holdExpiresAt: "asc" },
+        take: limit,
+      });
+      return rows
+        .filter((r) =>
+          isExpireCandidate({
+            status: r.status,
+            paymentStatus: r.paymentStatus,
+            holdExpiresAt: r.holdExpiresAt,
+            now,
+          }),
+        )
+        .map((r) => r.id);
+    },
+
+    async expireRegistration({ registrationId, now, dryRun }) {
+      return prisma.$transaction(async (tx) => {
+        const row = await tx.clickatonRegistration.findUnique({
+          where: { id: registrationId },
+          include: {
+            capacityHold: true,
+            stockHolds: true,
+          },
+        });
+        if (!row) return { outcome: "skipped" as const, registrationId, reason: "not_found" };
+
+        if (
+          row.status === EXPIRATION_TARGET.status &&
+          row.paymentStatus === EXPIRATION_TARGET.paymentStatus
+        ) {
+          return { outcome: "already_processed" as const, registrationId };
+        }
+
+        if (
+          !isExpireCandidate({
+            status: row.status,
+            paymentStatus: row.paymentStatus,
+            holdExpiresAt: row.holdExpiresAt,
+            now,
+          })
+        ) {
+          return { outcome: "skipped" as const, registrationId, reason: "not_candidate" };
+        }
+
+        let releasedCapacityHolds = 0;
+        let releasedStockHolds = 0;
+        if (row.capacityHold?.status === "ACTIVE") releasedCapacityHolds = 1;
+        releasedStockHolds = row.stockHolds.filter((h) => h.status === "ACTIVE").length;
+
+        if (dryRun) {
+          return {
+            outcome: "expired" as const,
+            registrationId,
+            releasedCapacityHolds,
+            releasedStockHolds,
+          };
+        }
+
+        if (row.capacityHold?.status === "ACTIVE") {
+          await tx.clickatonCapacityHold.update({
+            where: { id: row.capacityHold.id },
+            data: { status: "EXPIRED", releasedAt: now },
+          });
+        }
+
+        for (const hold of row.stockHolds) {
+          if (hold.status !== "ACTIVE") continue;
+          await tx.clickatonStockHold.update({
+            where: { id: hold.id },
+            data: { status: "EXPIRED", releasedAt: now },
+          });
+          await tx.clickatonProductVariant.update({
+            where: { id: hold.productVariantId },
+            data: { reservedStock: { decrement: hold.quantity } },
+          });
+        }
+
+        await tx.clickatonRegistration.update({
+          where: { id: registrationId },
+          data: {
+            status: EXPIRATION_TARGET.status,
+            paymentStatus: EXPIRATION_TARGET.paymentStatus,
+            cancelledAt: now,
+          },
+        });
+
+        await tx.clickatonRegistrationStatusHistory.create({
+          data: {
+            registrationId,
+            previousStatus: row.status,
+            newStatus: EXPIRATION_TARGET.status,
+            previousPaymentStatus: row.paymentStatus,
+            newPaymentStatus: EXPIRATION_TARGET.paymentStatus,
+            source: "expire_holds",
+            reason: "hold_expired",
+          },
+        });
+
+        await tx.clickatonRegistrationAudit.create({
+          data: {
+            registrationId,
+            action: EXPIRATION_TARGET.auditAction,
+            source: "expire_holds",
+            metadata: { reason: "hold_expired" },
+          },
+        });
+
+        return {
+          outcome: "expired" as const,
+          registrationId,
+          releasedCapacityHolds,
+          releasedStockHolds,
+        };
+      });
+    },
+
+    buildSummary({
+      registration,
+      edition,
+      venueName,
+      ticketName,
+      accessToken,
+      isExpired,
+      reservationActive,
+      checkoutEligible,
+    }) {
+      const last = registration.participant.lastName?.trim() ?? "";
       return {
         registrationId: registration.id,
         publicCode: registration.visibleCode ?? null,
         status: registration.status,
         paymentStatus: registration.paymentStatus,
+        isExpired,
+        reservationActive,
         editionName: edition.name,
         editionSlug: edition.slug,
         venueName,
         ticketName,
         participant: {
-          firstName: registration.participant.firstName,
-          lastName: registration.participant.lastName,
-          email: registration.participant.email,
-          phone: registration.participant.phone ?? null,
+          firstName: displayPublicFirstName(registration.participant.firstName),
+          lastNameInitial: last ? `${last[0]!.toUpperCase()}.` : "—",
+          emailMasked: maskEmail(registration.participant.email),
+          phoneMasked: maskPhone(registration.participant.phone),
+          documentMasked: maskDocument(registration.participant.documentNumber),
         },
         totalAmount: registration.money.totalAmount,
         currency: registration.money.currency,
@@ -567,7 +800,12 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
         })),
         holdExpiresAt: registration.holdExpiresAt ?? null,
         accessToken,
-        nextStepMessage: "Próximamente: continuar al pago.",
+        nextStepMessage: checkoutEligible
+          ? "Próximamente: continuar al pago."
+          : isExpired
+            ? "La reserva venció. El cupo fue liberado."
+            : "Esta inscripción no admite continuar al pago.",
+        checkoutEligible,
       };
     },
   };

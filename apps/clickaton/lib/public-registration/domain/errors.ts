@@ -14,6 +14,13 @@ export type PublicRegistrationErrorCode =
   | "VALIDATION"
   | "NOT_FOUND"
   | "FORBIDDEN"
+  | "REGISTRATION_EXPIRED"
+  | "REGISTRATION_NOT_PAYABLE"
+  | "HOLD_ALREADY_RELEASED"
+  | "HOLD_CONFLICT"
+  | "TOKEN_INVALID"
+  | "TOKEN_EXPIRED"
+  | "RATE_LIMITED"
   | "UNEXPECTED";
 
 export class PublicRegistrationError extends Error {

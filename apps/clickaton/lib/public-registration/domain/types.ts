@@ -110,15 +110,20 @@ export type PublicRegistrationSummaryDto = {
   publicCode: string | null;
   status: ClickatonRegistrationStatus;
   paymentStatus: ClickatonPaymentStatus;
+  /** true si holdExpiresAt venció o status ya materializó expiración. */
+  isExpired: boolean;
+  reservationActive: boolean;
   editionName: string;
   editionSlug: string;
   venueName: string | null;
   ticketName: string;
+  /** PII enmascarada para superficie pública. */
   participant: {
     firstName: string;
-    lastName: string;
-    email: string;
-    phone: string | null;
+    lastNameInitial: string;
+    emailMasked: string;
+    phoneMasked: string;
+    documentMasked: string;
   };
   totalAmount: number;
   currency: string;
@@ -130,6 +135,31 @@ export type PublicRegistrationSummaryDto = {
   holdExpiresAt: Date | null;
   accessToken: string;
   nextStepMessage: string;
+  checkoutEligible: boolean;
+};
+
+export type ExpirePendingBatchResult = {
+  scanned: number;
+  expired: number;
+  skipped: number;
+  failed: number;
+  releasedCapacityHolds: number;
+  releasedStockHolds: number;
+  errors: Array<{ registrationId: string; code: string }>;
+  dryRun: boolean;
+};
+
+export type CheckoutEligibilityDto = {
+  eligible: boolean;
+  reason: string | null;
+  registrationStatus: ClickatonRegistrationStatus;
+  paymentStatus: ClickatonPaymentStatus;
+  expiresAt: Date | null;
+  amountMinor: number;
+  currency: string;
+  editionId: string;
+  ticketTypeId: string;
+  publicCode: string | null;
 };
 
 export type PublicRegistrationOffer = {

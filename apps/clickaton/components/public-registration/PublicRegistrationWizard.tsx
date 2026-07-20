@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { createPublicRegistrationAction } from "@/lib/public-registration/actions/public-registration";
@@ -19,9 +19,30 @@ type Props = {
 
 type Step = "venue" | "ticket" | "participant" | "review";
 
+function stableIdempotencyKey(editionSlug: string, seed: string): string {
+  if (typeof window === "undefined") return seed;
+  const storageKey = `ck_reg_idem_${editionSlug}`;
+  try {
+    const existing = sessionStorage.getItem(storageKey);
+    if (existing && existing.length >= 8) return existing;
+    sessionStorage.setItem(storageKey, seed);
+    return seed;
+  } catch {
+    return seed;
+  }
+}
+
 export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const idemRef = useRef(idempotencyKey);
+  const [idemKey, setIdemKey] = useState(idempotencyKey);
+
+  useEffect(() => {
+    const key = stableIdempotencyKey(context.edition.slug, idempotencyKey);
+    idemRef.current = key;
+    setIdemKey(key);
+  }, [context.edition.slug, idempotencyKey]);
   const [step, setStep] = useState<Step>(
     context.venues.length > 1 ? "venue" : "ticket",
   );
@@ -137,15 +158,21 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     if (acceptTerms) fd.set("acceptTerms", "true");
     if (acceptPrivacy) fd.set("acceptPrivacy", "true");
     if (acceptImage) fd.set("acceptImage", "true");
-    fd.set("idempotencyKey", idempotencyKey);
+    fd.set("idempotencyKey", idemRef.current || idemKey);
 
     startTransition(async () => {
       const result = await createPublicRegistrationAction(undefined, fd);
       if (!result.ok || !result.data) {
         setError(result.message ?? "No se pudo crear la inscripción.");
         setFieldErrors(result.errors ?? {});
-        setStep("participant");
+        if (result.code === "RATE_LIMITED") setStep("review");
+        else setStep("participant");
         return;
+      }
+      try {
+        sessionStorage.removeItem(`ck_reg_idem_${context.edition.slug}`);
+      } catch {
+        /* ignore */
       }
       const href = `${marathonPath(context.edition.slug)}/inscripcion/resumen/${result.data.registrationId}?t=${encodeURIComponent(result.data.accessToken)}`;
       router.push(href);
