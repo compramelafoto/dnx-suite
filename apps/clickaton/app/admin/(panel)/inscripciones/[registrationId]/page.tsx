@@ -180,9 +180,10 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
           Comercial (soft refs DNX Payments)
         </h2>
         <p className="text-sm text-ck-text-secondary">
-          No es una orden Clickatón local. Solo referencias opacas al proveedor de pagos.
+          No es una orden Clickatón local. Referencias opacas a DNX Payments (sin access
+          token, sin payload crudo del proveedor).
         </p>
-        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <dt className="text-ck-text-secondary">Importe</dt>
             <dd className="text-lg font-semibold">
@@ -194,22 +195,48 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
             </dd>
           </div>
           <div>
-            <dt className="text-ck-text-secondary">paymentOrderId</dt>
-            <dd className="break-all font-mono text-xs">{reg.paymentOrderId ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-ck-text-secondary">Proveedor / ref.</dt>
-            <dd className="text-xs">
-              {reg.paymentProvider ?? "—"}
-              <br />
-              {reg.paymentExternalReference ?? "—"}
+            <dt className="text-ck-text-secondary">Orden (enmascarada)</dt>
+            <dd className="break-all font-mono text-xs">
+              {reg.paymentOrderId
+                ? `${reg.paymentOrderId.slice(0, 6)}…${reg.paymentOrderId.slice(-4)}`
+                : "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-ck-text-secondary">Estado cobro</dt>
+            <dt className="text-ck-text-secondary">Proveedor</dt>
+            <dd className="text-xs">{reg.paymentProvider ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Ref. externa (enmascarada)</dt>
+            <dd className="break-all font-mono text-xs">
+              {reg.paymentExternalReference
+                ? `${reg.paymentExternalReference.slice(0, 4)}…${reg.paymentExternalReference.slice(-4)}`
+                : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Estado cobro normalizado</dt>
             <dd>{paymentStatusLabel(reg.paymentStatus)}</dd>
           </div>
+          <div>
+            <dt className="text-ck-text-secondary">Confirmación / idempotency</dt>
+            <dd className="text-xs">
+              {formatArDateTime(reg.confirmedAt)}
+              <br />
+              <span className="font-mono">
+                {reg.paymentIdempotencyKey
+                  ? `${reg.paymentIdempotencyKey.slice(0, 8)}…`
+                  : "—"}
+              </span>
+            </dd>
+          </div>
         </dl>
+        {reg.paymentStatus === "MANUAL_REVIEW" ? (
+          <p className="text-sm text-amber-700" role="status">
+            Advertencia: pago en revisión manual (p. ej. aprobación con holds vencidos o
+            inconsistencia). No forzar acciones peligrosas.
+          </p>
+        ) : null}
       </section>
 
       <section className="space-y-4" aria-labelledby="kit-heading">

@@ -4,6 +4,7 @@ import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/Button";
 import { routes, marathonPath } from "@/config/navigation";
+import { CheckoutPayButton } from "@/components/public-registration/CheckoutPayButton";
 import { getPublicRegistrationSummaryAction } from "@/lib/public-registration/actions/public-registration";
 import { formatHoldExpiry, formatPublicPrice } from "@/lib/public-registration/ui/format";
 import { buildPageMetadata } from "@/lib/seo";
@@ -138,13 +139,25 @@ export default async function PublicRegistrationSummaryPage({
           </section>
         ) : null}
 
-        <div className="rounded border border-ck-border bg-ck-surface p-5">
+        <div className="space-y-4 rounded border border-ck-border bg-ck-surface p-5">
           <p className="font-semibold">{s.nextStepMessage}</p>
-          <p className="mt-2 text-sm text-ck-text-secondary">
-            {s.checkoutEligible
-              ? "No hay botón de pago activo en esta etapa. La reserva sigue vigente hasta el vencimiento."
-              : "No podés continuar al checkout con esta inscripción en su estado actual."}
-          </p>
+          {s.checkoutEligible ? (
+            <CheckoutPayButton
+              registrationId={s.registrationId}
+              editionSlug={s.editionSlug}
+              accessToken={s.accessToken}
+              amountMinor={s.totalAmount}
+              currency={s.currency}
+              expiresLabel={formatHoldExpiry(s.holdExpiresAt)}
+              eligible={s.checkoutEligible}
+            />
+          ) : (
+            <p className="text-sm text-ck-text-secondary">
+              {s.isExpired
+                ? "La reserva venció. Si querés participar, iniciá una nueva inscripción."
+                : "No podés continuar al checkout con esta inscripción en su estado actual."}
+            </p>
+          )}
         </div>
 
         <Button href={marathonPath(slug)} variant="secondary">
