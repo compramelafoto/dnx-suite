@@ -25,6 +25,8 @@ export type EditorialVisualEditorHandle = {
   focus: () => void;
   /** Resalta y hace scroll a la figura con data-asset-id. */
   scrollToAsset: (assetId: string) => boolean;
+  /** Quita la figura del cuerpo (no desvincula el material de la nota). */
+  removeAssetFromText: (assetId: string) => boolean;
   getSelectedAssetId: () => string | null;
 };
 
@@ -141,6 +143,27 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
       [editor],
     );
 
+    const removeAssetFromText = useCallback(
+      (assetId: string) => {
+        if (!editor) return false;
+        const ranges: { from: number; to: number }[] = [];
+        editor.state.doc.descendants((node, pos) => {
+          if (node.type.name === "editorialImage" && node.attrs.assetId === assetId) {
+            ranges.push({ from: pos, to: pos + node.nodeSize });
+          }
+        });
+        if (ranges.length === 0) return false;
+        let chain = editor.chain().focus();
+        for (const range of ranges.reverse()) {
+          chain = chain.deleteRange(range);
+        }
+        chain.run();
+        syncFromEditor(editor.getHTML(), true);
+        return true;
+      },
+      [editor, syncFromEditor],
+    );
+
     useImperativeHandle(
       ref,
       () => ({
@@ -149,12 +172,13 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
           editor?.commands.focus();
         },
         scrollToAsset,
+        removeAssetFromText,
         getSelectedAssetId: () => {
           if (!editor?.isActive("editorialImage")) return null;
           return (editor.getAttributes("editorialImage").assetId as string | null) || null;
         },
       }),
-      [editor, insertImage, scrollToAsset],
+      [editor, insertImage, scrollToAsset, removeAssetFromText],
     );
 
     // onCoverImported kept for API compat; local upload dialog may call parent refresh

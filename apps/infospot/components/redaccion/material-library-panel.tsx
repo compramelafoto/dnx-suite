@@ -40,7 +40,9 @@ type Props = {
   highlightedAssetId?: string | null;
   onInsertInline: (attrs: EditorialImageAttrs) => void;
   onGoToUsed?: (assetId: string) => void;
-  /** Desvincular foto de la nota (ArticleAsset linkId). */
+  /** Quitar la figura del cuerpo del artículo (sigue en la biblioteca). */
+  onRemoveFromText?: (assetId: string) => void;
+  /** Desvincular foto de la nota por completo. */
   onUnlink?: (linkId: string, asset: LibraryAsset) => void | Promise<void>;
   unlinkingLinkId?: string | null;
   /** Guardar descripción (alt text) de una foto CLF. */
@@ -101,6 +103,7 @@ export function MaterialLibraryPanel({
   highlightedAssetId,
   onInsertInline,
   onGoToUsed,
+  onRemoveFromText,
   onUnlink,
   unlinkingLinkId = null,
   onSaveAltText,
@@ -113,6 +116,8 @@ export function MaterialLibraryPanel({
 
   const [query, setQuery] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set());
+  const [zoomAsset, setZoomAsset] = useState<LibraryAsset | null>(null);
+  const [zoomAltDraft, setZoomAltDraft] = useState("");
 
   useEffect(() => {
     if (!articleId) return;
@@ -166,6 +171,27 @@ export function MaterialLibraryPanel({
   const usedItems = filtered.filter((a) => a.assetId && used.has(a.assetId));
   const favoriteItems = filtered.filter((a) => favorites.has(a.linkId));
 
+  const openZoom = (asset: LibraryAsset) => {
+    setZoomAsset(asset);
+    setZoomAltDraft(asset.altText ?? "");
+  };
+
+  const sectionShared = {
+    highlightedAssetId,
+    favorites,
+    used,
+    albumFallback: albumTitle,
+    onToggleFavorite: articleId ? toggleFavorite : undefined,
+    onInsertInline,
+    onGoToUsed,
+    onRemoveFromText,
+    onUnlink,
+    unlinkingLinkId,
+    onSaveAltText,
+    savingAltLinkId,
+    onZoom: openZoom,
+  } as const;
+
   return (
     <aside className="space-y-8" aria-label="Biblioteca de material editorial">
       <header className="space-y-3">
@@ -195,10 +221,11 @@ export function MaterialLibraryPanel({
         </dl>
         {linkedAssets.length > 0 ? (
           <p className="rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg-muted)] px-3 py-2 text-[12px] leading-relaxed text-[var(--is-muted)]">
-            En cada foto: escribí la <strong className="text-[var(--is-text)]">descripción</strong>{" "}
-            (obligatoria para publicar) y usá <strong className="text-[var(--is-text)]">Quitar</strong>{" "}
-            para eliminarla de la nota. Para sumar o cambiar fotos:{" "}
-            <strong className="text-[var(--is-text)]">Agregar material</strong>.
+            <strong className="text-[var(--is-text)]">Zoom</strong> para ver la foto y editar la
+            descripción. <strong className="text-[var(--is-text)]">Quitar del texto</strong> la saca
+            del cuerpo sin borrarla de la nota.{" "}
+            <strong className="text-[var(--is-text)]">Quitar de la nota</strong> la desvincula por
+            completo.
           </p>
         ) : null}
       </header>
@@ -225,120 +252,48 @@ export function MaterialLibraryPanel({
       ) : null}
 
       {favoriteItems.length > 0 ? (
-        <LibrarySection
-          title="★ Favoritas"
-          empty=""
-          items={favoriteItems}
-          highlightedAssetId={highlightedAssetId}
-          favorites={favorites}
-          used={used}
-          albumFallback={albumTitle}
-          onToggleFavorite={articleId ? toggleFavorite : undefined}
-          onInsertInline={onInsertInline}
-          onGoToUsed={onGoToUsed}
-          onUnlink={onUnlink}
-          unlinkingLinkId={unlinkingLinkId}
-          onSaveAltText={onSaveAltText}
-          savingAltLinkId={savingAltLinkId}
-        />
+        <LibrarySection title="★ Favoritas" empty="" items={favoriteItems} {...sectionShared} />
       ) : null}
 
       <LibrarySection
         title="Portada"
         empty="Todavía no hay portada."
         items={cover}
-        highlightedAssetId={highlightedAssetId}
-        favorites={favorites}
-        used={used}
-        albumFallback={albumTitle}
-        onToggleFavorite={articleId ? toggleFavorite : undefined}
-        onUnlink={onUnlink}
-        unlinkingLinkId={unlinkingLinkId}
-        onSaveAltText={onSaveAltText}
-        savingAltLinkId={savingAltLinkId}
+        {...sectionShared}
       />
 
       <LibrarySection
         title="Galería"
         empty="Sin fotos de galería."
         items={gallery}
-        highlightedAssetId={highlightedAssetId}
-        favorites={favorites}
-        used={used}
-        albumFallback={albumTitle}
-        onToggleFavorite={articleId ? toggleFavorite : undefined}
-        onUnlink={onUnlink}
-        unlinkingLinkId={unlinkingLinkId}
-        onSaveAltText={onSaveAltText}
-        savingAltLinkId={savingAltLinkId}
+        {...sectionShared}
       />
 
       <LibrarySection
         title="Para insertar"
         empty="Sin fotos listas para el texto."
-        items={available.length ? available : insertables.filter((a) => !(a.assetId && used.has(a.assetId)))}
-        highlightedAssetId={highlightedAssetId}
-        favorites={favorites}
-        used={used}
-        albumFallback={albumTitle}
-        onToggleFavorite={articleId ? toggleFavorite : undefined}
-        onInsertInline={onInsertInline}
-        onGoToUsed={onGoToUsed}
-        onUnlink={onUnlink}
-        unlinkingLinkId={unlinkingLinkId}
-        onSaveAltText={onSaveAltText}
-        savingAltLinkId={savingAltLinkId}
+        items={
+          available.length
+            ? available
+            : insertables.filter((a) => !(a.assetId && used.has(a.assetId)))
+        }
+        {...sectionShared}
       />
 
       <LibrarySection
         title="Usadas en el texto"
         empty="Ninguna foto insertada todavía."
         items={usedItems}
-        highlightedAssetId={highlightedAssetId}
-        favorites={favorites}
-        used={used}
-        albumFallback={albumTitle}
-        onToggleFavorite={articleId ? toggleFavorite : undefined}
-        onGoToUsed={onGoToUsed}
-        onUnlink={onUnlink}
-        unlinkingLinkId={unlinkingLinkId}
-        onSaveAltText={onSaveAltText}
-        savingAltLinkId={savingAltLinkId}
+        {...sectionShared}
         forceUsedBadge
       />
 
       {processing.length > 0 ? (
-        <LibrarySection
-          title="Procesando"
-          empty=""
-          items={processing}
-          highlightedAssetId={highlightedAssetId}
-          favorites={favorites}
-          used={used}
-          albumFallback={albumTitle}
-          onToggleFavorite={articleId ? toggleFavorite : undefined}
-          onUnlink={onUnlink}
-          unlinkingLinkId={unlinkingLinkId}
-          onSaveAltText={onSaveAltText}
-          savingAltLinkId={savingAltLinkId}
-        />
+        <LibrarySection title="Procesando" empty="" items={processing} {...sectionShared} />
       ) : null}
 
       {unavailable.length > 0 ? (
-        <LibrarySection
-          title="No disponibles"
-          empty=""
-          items={unavailable}
-          highlightedAssetId={highlightedAssetId}
-          favorites={favorites}
-          used={used}
-          albumFallback={albumTitle}
-          onToggleFavorite={articleId ? toggleFavorite : undefined}
-          onUnlink={onUnlink}
-          unlinkingLinkId={unlinkingLinkId}
-          onSaveAltText={onSaveAltText}
-          savingAltLinkId={savingAltLinkId}
-        />
+        <LibrarySection title="No disponibles" empty="" items={unavailable} {...sectionShared} />
       ) : null}
 
       {articleId ? (
@@ -352,6 +307,96 @@ export function MaterialLibraryPanel({
           <p className="is-input-helper">
             Abre el asistente. Al terminar volvés al editor con el material listo.
           </p>
+        </div>
+      ) : null}
+
+      {zoomAsset ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 md:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vista ampliada de la fotografía"
+          onClick={() => setZoomAsset(null)}
+        >
+          <div
+            className="flex max-h-[95dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--is-radius-md)] bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--is-border)] px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[var(--is-text)]">
+                  {zoomAsset.photographerName || "Fotografía"}
+                </p>
+                <p className="truncate text-xs text-[var(--is-muted)]">
+                  {zoomAsset.credit || "Vista ampliada"}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="is-btn is-btn-ghost !min-h-10 px-3"
+                onClick={() => setZoomAsset(null)}
+                aria-label="Cerrar"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
+              <div className="flex max-h-[50vh] items-center justify-center overflow-hidden rounded-[var(--is-radius-sm)] bg-[var(--is-bg-muted)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={zoomAsset.url || zoomAsset.thumbnailUrl || ""}
+                  alt={zoomAltDraft.trim() || zoomAsset.altText || "Fotografía editorial"}
+                  className="max-h-[50vh] w-full object-contain"
+                />
+              </div>
+              {onSaveAltText ? (
+                <label className="block space-y-2">
+                  <span className="text-sm font-semibold text-[var(--is-text)]">
+                    Descripción (texto alternativo) *
+                  </span>
+                  <textarea
+                    value={zoomAltDraft}
+                    onChange={(e) => setZoomAltDraft(e.target.value)}
+                    rows={3}
+                    maxLength={300}
+                    placeholder="Describí lo que se ve en la foto"
+                    className="is-input"
+                    autoFocus
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="is-btn is-btn-primary"
+                      disabled={
+                        savingAltLinkId === zoomAsset.linkId ||
+                        !zoomAltDraft.trim() ||
+                        zoomAltDraft.trim() === (zoomAsset.altText ?? "").trim()
+                      }
+                      onClick={() => {
+                        const next = zoomAltDraft.trim();
+                        if (!next) return;
+                        void onSaveAltText(next, zoomAsset);
+                        setZoomAsset((prev) =>
+                          prev ? { ...prev, altText: next } : prev,
+                        );
+                      }}
+                    >
+                      {savingAltLinkId === zoomAsset.linkId
+                        ? "Guardando…"
+                        : "Guardar descripción"}
+                    </button>
+                    <button
+                      type="button"
+                      className="is-btn is-btn-secondary"
+                      onClick={() => setZoomAsset(null)}
+                    >
+                      Listo
+                    </button>
+                  </div>
+                </label>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
     </aside>
@@ -401,10 +446,12 @@ function LibrarySection({
   onToggleFavorite,
   onInsertInline,
   onGoToUsed,
+  onRemoveFromText,
   onUnlink,
   unlinkingLinkId = null,
   onSaveAltText,
   savingAltLinkId = null,
+  onZoom,
   forceUsedBadge,
 }: {
   title: string;
@@ -417,10 +464,12 @@ function LibrarySection({
   onToggleFavorite?: (linkId: string) => void;
   onInsertInline?: (attrs: EditorialImageAttrs) => void;
   onGoToUsed?: (assetId: string) => void;
+  onRemoveFromText?: (assetId: string) => void;
   onUnlink?: (linkId: string, asset: LibraryAsset) => void | Promise<void>;
   unlinkingLinkId?: string | null;
   onSaveAltText?: (altText: string, asset: LibraryAsset) => void | Promise<void>;
   savingAltLinkId?: string | null;
+  onZoom?: (asset: LibraryAsset) => void;
   forceUsedBadge?: boolean;
 }) {
   if (items.length === 0 && !empty) return null;
@@ -476,12 +525,17 @@ function LibrarySection({
                 className={variantClass}
               >
                 <div className="flex gap-3 p-3">
-                  <div className="relative size-16 shrink-0 overflow-hidden rounded-[var(--is-radius-sm)] bg-[var(--is-bg-muted)]">
+                  <button
+                    type="button"
+                    className="relative size-16 shrink-0 overflow-hidden rounded-[var(--is-radius-sm)] bg-[var(--is-bg-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--is-accent)]"
+                    onClick={() => onZoom?.(asset)}
+                    aria-label="Ampliar foto y editar descripción"
+                  >
                     <LibraryThumb
                       src={asset.thumbnailUrl || asset.url}
                       label={label}
                     />
-                  </div>
+                  </button>
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-start justify-between gap-2">
                       <p className="truncate text-sm font-semibold text-[var(--is-text)]">
@@ -557,6 +611,15 @@ function LibrarySection({
                       </label>
                     ) : null}
                     <div className="flex flex-wrap gap-1.5 pt-2">
+                      {onZoom ? (
+                        <button
+                          type="button"
+                          className="is-btn is-btn-secondary !min-h-0 px-2.5 py-1 text-[11px]"
+                          onClick={() => onZoom(asset)}
+                        >
+                          Zoom
+                        </button>
+                      ) : null}
                       {onInsertInline && asset.usageType === "INLINE" && !isUsed ? (
                         <button
                           type="button"
@@ -571,7 +634,7 @@ function LibrarySection({
                             })
                           }
                         >
-                          Insertar
+                          Insertar en texto
                         </button>
                       ) : null}
                       {isUsed && asset.assetId && onGoToUsed ? (
@@ -583,6 +646,15 @@ function LibrarySection({
                           Ir al texto
                         </button>
                       ) : null}
+                      {isUsed && asset.assetId && onRemoveFromText ? (
+                        <button
+                          type="button"
+                          className="is-btn is-btn-secondary !min-h-0 px-2.5 py-1 text-[11px]"
+                          onClick={() => onRemoveFromText(asset.assetId!)}
+                        >
+                          Quitar del texto
+                        </button>
+                      ) : null}
                       {onUnlink ? (
                         <button
                           type="button"
@@ -592,7 +664,7 @@ function LibrarySection({
                         >
                           {unlinkingLinkId === asset.linkId
                             ? "Quitando…"
-                            : "Quitar"}
+                            : "Quitar de la nota"}
                         </button>
                       ) : null}
                     </div>

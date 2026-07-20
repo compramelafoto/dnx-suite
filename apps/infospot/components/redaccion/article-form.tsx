@@ -18,6 +18,7 @@ import {
   type EditorialVisualEditorHandle,
 } from "@/components/redaccion/visual-editor/editorial-visual-editor";
 import { MaterialLibraryPanel } from "@/components/redaccion/material-library-panel";
+import { ArticlePublishToolbar } from "@/components/redaccion/article-publish-toolbar";
 import { EditorConfigAccordion } from "@/components/redaccion/editor-config-accordion";
 import { AiImportButton, AiImportDialog } from "@/components/ai-import";
 import { buildArticlePublishChecklist } from "@/lib/launch-content";
@@ -557,6 +558,13 @@ export function ArticleForm({
       onInsertInline={(attrs) => {
         editorRef.current?.insertImage(attrs);
       }}
+      onRemoveFromText={(assetId) => {
+        const removed = editorRef.current?.removeAssetFromText(assetId);
+        if (removed) {
+          setHighlightedAssetId(null);
+          markDirty();
+        }
+      }}
       onGoToUsed={(assetId) => {
         editorRef.current?.scrollToAsset(assetId);
         setHighlightedAssetId(assetId);
@@ -577,7 +585,7 @@ export function ArticleForm({
             id: "publish",
             title: "Publicación",
             hint: "Enviar, publicar o devolver — sin salir de la escritura",
-            defaultOpen: false,
+            defaultOpen: true,
             children:
               mode === "edit" && initial ? (
                 <EditorialActionsPanel
@@ -919,7 +927,7 @@ export function ArticleForm({
           <button
             type="submit"
             disabled={pending || saveState === "saving"}
-            className="is-btn is-btn-primary disabled:opacity-60"
+            className="is-btn is-btn-secondary disabled:opacity-60"
           >
             {mode === "edit"
               ? status === "PUBLISHED"
@@ -927,6 +935,15 @@ export function ArticleForm({
                 : "Guardar"
               : "Guardar borrador"}
           </button>
+          {mode === "edit" && initial ? (
+            <ArticlePublishToolbar
+              articleId={initial.id}
+              status={status}
+              subject={subject}
+              canPublish={canPublish}
+              checklistMissing={checklistMissing}
+            />
+          ) : null}
         </div>
       </div>
 
