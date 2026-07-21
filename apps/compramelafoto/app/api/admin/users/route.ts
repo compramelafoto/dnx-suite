@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
-import { Role } from "@prisma/client";
+import { Role, SchoolOrganizerStatus } from "@prisma/client";
 import { logAdminAction, getRequestMetadata } from "@/lib/admin/audit";
 
 const APP_URL = process.env.APP_URL || "https://www.compramelafoto.com";
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       ...(includeSchoolOrganizerMeta
         ? {
             schoolOrganizerMemberships: {
-              where: { status: "ACTIVE" },
+              where: { status: SchoolOrganizerStatus.ACTIVE },
               select: {
                 schoolId: true,
                 school: {

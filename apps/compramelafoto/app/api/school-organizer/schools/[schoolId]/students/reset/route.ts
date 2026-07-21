@@ -90,7 +90,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
           },
           data: { status: "INACTIVE" },
         });
-        await tx.student.updateMany({
+        await tx.schoolStudent.updateMany({
           where: {
             id: { in: deletableStudentIds },
           },

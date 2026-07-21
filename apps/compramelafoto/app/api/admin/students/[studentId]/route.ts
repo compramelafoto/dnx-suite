@@ -97,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     const changedFields: string[] = [];
 
     const result = await prisma.$transaction(async (tx) => {
-      const updatedStudent = await tx.student.update({
+      const updatedStudent = await tx.schoolStudent.update({
         where: { id: studentId },
         data: {
           firstName: nextFirstName,
@@ -307,7 +307,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
         where: { studentId },
         data: { status: "INACTIVE" },
       });
-      await tx.student.update({
+      await tx.schoolStudent.update({
         where: { id: studentId },
         data: { isActive: false },
       });

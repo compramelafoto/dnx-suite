@@ -40,7 +40,13 @@ const photoViewTraceExcludes = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@repo/db", "@repo/auth", "@repo/auth-guards", "@repo/design-system"],
+  transpilePackages: [
+    "@repo/db",
+    "@repo/auth",
+    "@repo/auth-guards",
+    "@repo/design-system",
+    "@repo/cuanto-cobro-core",
+  ],
   serverExternalPackages: ["sharp", "sanitize-html"],
   images: {
     localPatterns: [

@@ -13,7 +13,9 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
 
   const where = {
-    editorialLicenseStatus: { in: ["PENDING", "UNKNOWN"] as const },
+    editorialLicenseStatus: {
+      in: ["PENDING", "UNKNOWN"] as Array<"PENDING" | "UNKNOWN">,
+    },
   };
 
   const count = await prisma.infoSpotEditorialPhoto.count({ where });
