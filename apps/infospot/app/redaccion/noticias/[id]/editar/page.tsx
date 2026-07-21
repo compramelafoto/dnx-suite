@@ -71,6 +71,9 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
             processStatus: true,
             photographerName: true,
             credit: true,
+            editorialLicenseStatus: true,
+            commercialStatus: true,
+            editorialMasterKey: true,
             variants: {
               where: { format: "webp" },
               orderBy: { width: "desc" },
@@ -247,6 +250,12 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
                   : link.asset.thumbnailUrl || link.asset.url
                     ? ("ready" as const)
                     : ("unavailable" as const),
+                processStatus: usage?.photo.processStatus ?? null,
+                editorialLicenseStatus: usage?.photo.editorialLicenseStatus ?? null,
+                commercialStatus: usage?.photo.commercialStatus ?? null,
+                hasDerivative: usage
+                  ? Boolean(usage.photo.editorialMasterKey || usage.photo.variants.length > 0)
+                  : null,
               };
             });
             // Usages canónicos sin ArticleAsset: igual deben editar alt text.
@@ -277,10 +286,30 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
                 coverageTitle: album?.title ?? null,
                 albumTitle: album?.title ?? null,
                 availability: processAvailability(u.photo.processStatus),
+                processStatus: u.photo.processStatus,
+                editorialLicenseStatus: u.photo.editorialLicenseStatus,
+                commercialStatus: u.photo.commercialStatus,
+                hasDerivative: Boolean(
+                  u.photo.editorialMasterKey || u.photo.variants.length > 0,
+                ),
               }))
               .filter((a) => Boolean(a.url));
             return [...fromLinks, ...orphanUsages];
           })(),
+          /** Misma base que `assertPublishChecklist` (incluye FEATURED). */
+          checklistPhotos: editorialUsages.map((u) => ({
+            usageId: u.id,
+            processStatus: u.photo.processStatus,
+            photographerName: u.photo.photographerName,
+            credit: u.photo.credit,
+            editorialLicenseStatus: u.photo.editorialLicenseStatus,
+            hasDerivative: Boolean(
+              u.photo.editorialMasterKey || u.photo.variants.length > 0,
+            ),
+            commercialStatus: u.photo.commercialStatus,
+            usageType: u.usageType,
+            altText: u.altText,
+          })),
         }}
         initial={{
           id: article.id,

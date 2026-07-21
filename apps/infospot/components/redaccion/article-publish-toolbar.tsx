@@ -114,7 +114,11 @@ export function ArticlePublishToolbar({
       ) : null}
 
       {error ? (
-        <span className="max-w-[14rem] truncate text-[11px] text-red-700" title={error}>
+        <span
+          className="max-w-md text-[11px] leading-snug text-red-700 sm:max-w-lg"
+          title={error}
+          role="alert"
+        >
           {error}
         </span>
       ) : null}

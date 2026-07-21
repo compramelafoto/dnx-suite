@@ -15,11 +15,11 @@ export function PublishChecklist({
       </p>
       {missing.length > 0 ? (
         <p className="mt-2 text-sm text-amber-800" role="status">
-          Faltan campos requeridos antes de publicar: {missing.map((m) => m.label).join(", ")}.
+          Faltan requisitos antes de publicar: {missing.map((m) => m.label).join(", ")}.
         </p>
       ) : (
         <p className="mt-2 text-sm text-teal-800" role="status">
-          Campos requeridos completos. Revisá los opcionales antes de publicar.
+          Checklist completo (editorial y fotos CLF). Revisá los opcionales antes de publicar.
         </p>
       )}
       <ul className="mt-4 space-y-2">

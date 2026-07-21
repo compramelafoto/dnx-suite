@@ -22,6 +22,10 @@ import { ArticlePublishToolbar } from "@/components/redaccion/article-publish-to
 import { EditorConfigAccordion } from "@/components/redaccion/editor-config-accordion";
 import { AiImportButton, AiImportDialog } from "@/components/ai-import";
 import { buildArticlePublishChecklist } from "@/lib/launch-content";
+import {
+  evaluateEditorialPhotosForPublish,
+  type EditorialPhotoChecklistInput,
+} from "@/lib/editorial-photos/checklist";
 import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
 import type { InfoSpotPermissionSubject } from "@repo/db";
 import { autosaveArticleDraftAction } from "@/app/actions/articles";
@@ -50,7 +54,13 @@ type LinkedClfAsset = {
   coverageTitle?: string | null;
   albumTitle?: string | null;
   availability?: "ready" | "processing" | "unavailable";
+  processStatus?: string | null;
+  editorialLicenseStatus?: string | null;
+  commercialStatus?: string | null;
+  hasDerivative?: boolean | null;
 };
+
+type ClfChecklistPhoto = EditorialPhotoChecklistInput & { usageId: string };
 
 type ArticleFormProps = {
   mode: "create" | "edit";
@@ -67,6 +77,8 @@ type ArticleFormProps = {
     eventTitle: string | null;
     albumTitle: string | null;
     linkedAssets: LinkedClfAsset[];
+    /** Misma validación server-side de fotos CLF al publicar. */
+    checklistPhotos?: ClfChecklistPhoto[];
   };
   /** Encuadre de portada CLF (usage COVER). */
   coverFocal?: {
@@ -168,6 +180,9 @@ export function ArticleForm({
   const [localLinkedAssets, setLocalLinkedAssets] = useState<LinkedClfAsset[]>(
     () => clf?.linkedAssets ?? [],
   );
+  const [localChecklistPhotos, setLocalChecklistPhotos] = useState<ClfChecklistPhoto[]>(
+    () => clf?.checklistPhotos ?? [],
+  );
   const [unlinkingLinkId, setUnlinkingLinkId] = useState<string | null>(null);
   const [savingAltLinkId, setSavingAltLinkId] = useState<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -179,6 +194,10 @@ export function ArticleForm({
     setLocalLinkedAssets(clf?.linkedAssets ?? []);
   }, [clf?.linkedAssets]);
 
+  useEffect(() => {
+    setLocalChecklistPhotos(clf?.checklistPhotos ?? []);
+  }, [clf?.checklistPhotos]);
+
   const autoSlug = useMemo(() => slugifyTitle(title), [title]);
   const figuresMissingCredit = useMemo(() => findFiguresMissingCredit(content), [content]);
   const figuresMissingAlt = useMemo(() => findFiguresMissingAlt(content), [content]);
@@ -186,38 +205,39 @@ export function ArticleForm({
     figuresMissingCredit.length === 0 &&
     (!coverImageId || Boolean(coverCredit?.trim() || initial?.coverCredit?.trim()));
 
-  const checklist = useMemo(
-    () =>
-      buildArticlePublishChecklist({
-        title,
-        excerpt,
-        content,
-        categoryId: categoryId || null,
-        coverImageId: coverImageId || null,
-        authorId: initial?.authorId ?? 1,
-        publishedAt: initial?.publishedAt,
-        seoTitle,
-        seoDescription,
-        slug,
-        contentTag: "REAL",
-        sourceName,
-        creditOk,
-      }),
-    [
+  const checklist = useMemo(() => {
+    const editorial = buildArticlePublishChecklist({
       title,
       excerpt,
       content,
-      categoryId,
-      coverImageId,
-      initial?.authorId,
-      initial?.publishedAt,
+      categoryId: categoryId || null,
+      coverImageId: coverImageId || null,
+      authorId: initial?.authorId ?? 1,
+      publishedAt: initial?.publishedAt,
       seoTitle,
       seoDescription,
       slug,
+      contentTag: "REAL",
       sourceName,
       creditOk,
-    ],
-  );
+    });
+    const clfPhotos = evaluateEditorialPhotosForPublish(localChecklistPhotos);
+    return [...editorial, ...clfPhotos];
+  }, [
+    title,
+    excerpt,
+    content,
+    categoryId,
+    coverImageId,
+    initial?.authorId,
+    initial?.publishedAt,
+    seoTitle,
+    seoDescription,
+    slug,
+    sourceName,
+    creditOk,
+    localChecklistPhotos,
+  ]);
 
   const markDirty = useCallback(() => {
     setSaveState((prev) => (prev === "saving" ? prev : "dirty"));
@@ -470,6 +490,9 @@ export function ArticleForm({
           }
         }
         setLocalLinkedAssets((prev) => prev.filter((a) => a.linkId !== linkId));
+        if (asset.usageId) {
+          setLocalChecklistPhotos((prev) => prev.filter((p) => p.usageId !== asset.usageId));
+        }
         if (asset.usageType === "COVER" && asset.assetId && coverImageId === asset.assetId) {
           setCoverImageId("");
           setCoverCredit("");
@@ -510,17 +533,47 @@ export function ArticleForm({
           setSaveState("error");
           return;
         }
+        const nextAlt = altText.trim() || null;
         setLocalLinkedAssets((prev) =>
           prev.map((a) =>
             a.linkId === asset.linkId
               ? {
                   ...a,
-                  altText: altText.trim() || null,
+                  altText: nextAlt,
                   usageId: result.usageId,
                 }
               : a,
           ),
         );
+        setLocalChecklistPhotos((prev) => {
+          const usageId = result.usageId;
+          if (!usageId) return prev;
+          const idx = prev.findIndex((p) => p.usageId === usageId);
+          if (idx >= 0) {
+            return prev.map((p, i) => (i === idx ? { ...p, altText: nextAlt } : p));
+          }
+          // Usage nuevo: completar checklist con datos del asset local.
+          return [
+            ...prev,
+            {
+              usageId,
+              processStatus:
+                asset.processStatus ||
+                (asset.availability === "processing"
+                  ? "PROCESSING"
+                  : asset.availability === "unavailable"
+                    ? "FAILED"
+                    : "READY"),
+              photographerName: asset.photographerName,
+              credit: asset.credit,
+              editorialLicenseStatus: asset.editorialLicenseStatus || "PENDING",
+              hasDerivative: asset.hasDerivative ?? true,
+              commercialStatus: asset.commercialStatus || "AVAILABLE",
+              usageType: asset.usageType,
+              altText: nextAlt,
+            },
+          ];
+        });
         setSaveError(null);
         setSaveState("saved");
       } catch {
