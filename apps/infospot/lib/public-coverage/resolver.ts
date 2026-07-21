@@ -28,6 +28,7 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
       excerpt: true,
       eventId: true,
       clfAlbumId: true,
+      authorId: true,
       coverImage: { select: { url: true, credit: true } },
       categoryId: true,
       category: { select: { id: true, slug: true } },
@@ -56,7 +57,11 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
 
   if (!article) return null;
 
-  const ctx = { articleId: article.id, eventId: null as string | null };
+  const ctx = {
+    articleId: article.id,
+    eventId: null as string | null,
+    authorId: article.authorId as number | null,
+  };
 
   const photos: PublicEditorialPhotoViewModel[] = article.editorialPhotoUsages.map((u) =>
     toPublicEditorialPhoto(
@@ -188,6 +193,7 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
               kind: "CLF_REGISTRATION_CLICK",
               articleId: article.id,
               eventId: infoSpotEvent.id,
+              authorId: article.authorId,
             })
           : null,
     };
@@ -207,6 +213,7 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
               kind: "ALBUM_CLICK",
               articleId: article.id,
               eventId: ctx.eventId,
+              authorId: article.authorId,
             })
           : null,
       profileHref: null as string | null,
@@ -243,6 +250,7 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
         kind: "ALBUM_CLICK",
         articleId: article.id,
         eventId: ctx.eventId,
+        authorId: article.authorId,
       }),
       trackedPurchaseHref: coverageLink.canShowPurchaseCta
         ? buildTrackedHref({
@@ -250,6 +258,7 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
             kind: "PURCHASE_CLICK",
             articleId: article.id,
             eventId: ctx.eventId,
+            authorId: article.authorId,
           })
         : null,
     });
@@ -272,12 +281,14 @@ async function resolveUncached(slug: string): Promise<PublicEditorialCoverage | 
           kind: "ALBUM_CLICK",
           articleId: article.id,
           eventId: ctx.eventId,
+          authorId: article.authorId,
         }),
         trackedPurchaseHref: buildTrackedHref({
           to: firstWithAlbum.photo.albumUrl,
           kind: "PURCHASE_CLICK",
           articleId: article.id,
           eventId: ctx.eventId,
+          authorId: article.authorId,
         }),
       });
     }

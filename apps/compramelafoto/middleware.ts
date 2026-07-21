@@ -11,6 +11,8 @@ import {
 const REFERRAL_COOKIE_NAME = "clf_ref";
 /** JSON: { "sourceType": "TRAINING", "sourceEntityId": number } — capacitación desde la que vino el click */
 const REFERRAL_META_COOKIE_NAME = "clf_ref_meta";
+/** Atribución Info Spot (redactor de la nota) para comisión futura en compras. */
+const INFOSPOT_ATTR_COOKIE_NAME = "clf_infospot_attr";
 const REFERRAL_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 días en segundos
 
 function buildCookieHeader(
@@ -96,6 +98,19 @@ export function middleware(request: NextRequest) {
   const hasTrainingMeta =
     sourceParam === "training" && trainingIdNum !== null && trainingIdNum > 0;
 
+  // Info Spot → atribución al redactor (is_author) + artículo (is_article)
+  const isArticleParam = request.nextUrl.searchParams.get("is_article");
+  const isAuthorParam = request.nextUrl.searchParams.get("is_author");
+  const isEventParam = request.nextUrl.searchParams.get("is_event");
+  const authorIdNum =
+    typeof isAuthorParam === "string" && /^\d+$/.test(isAuthorParam.trim())
+      ? parseInt(isAuthorParam.trim(), 10)
+      : null;
+  const hasInfospotAttr =
+    sourceParam === "infospot" &&
+    authorIdNum !== null &&
+    authorIdNum > 0;
+
   const response = NextResponse.next({
     request: { headers: blogVisitor.requestHeaders },
   });
@@ -124,6 +139,25 @@ export function middleware(request: NextRequest) {
     response.headers.append(
       "Set-Cookie",
       buildCookieHeader(REFERRAL_META_COOKIE_NAME, "", 0)
+    );
+  }
+
+  if (hasInfospotAttr) {
+    const attrPayload = JSON.stringify({
+      source: "infospot",
+      authorId: authorIdNum,
+      articleId:
+        typeof isArticleParam === "string" && isArticleParam.trim()
+          ? isArticleParam.trim()
+          : null,
+      eventId:
+        typeof isEventParam === "string" && isEventParam.trim()
+          ? isEventParam.trim()
+          : null,
+    });
+    response.headers.append(
+      "Set-Cookie",
+      buildCookieHeader(INFOSPOT_ATTR_COOKIE_NAME, attrPayload, REFERRAL_COOKIE_MAX_AGE)
     );
   }
 

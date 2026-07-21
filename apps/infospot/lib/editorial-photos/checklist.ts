@@ -62,7 +62,7 @@ export function evaluateEditorialPhotosForPublish(
     },
     {
       id: "clf-photos-license",
-      label: "Licencia editorial AUTHORIZED",
+      label: "Licencia editorial autorizada en todas las fotos",
       ok: allLicensed && !deletedWithoutLicense,
       required: true,
     },
@@ -75,13 +75,27 @@ export function evaluateEditorialPhotosForPublish(
   ];
 }
 
+const FAIL_HINTS: Record<string, string> = {
+  "clf-photos-ready":
+    "Hay fotos CLF que aún no están listas (PROCESSING/PENDING/FAILED).",
+  "clf-photos-author": "Falta el nombre del fotógrafo en alguna foto CLF.",
+  "clf-photos-credit": "Falta el crédito en alguna foto CLF.",
+  "clf-photos-alt":
+    "Falta la descripción (alt text) en alguna foto CLF. Completala en Biblioteca.",
+  "clf-photos-license":
+    "Hay fotos CLF con licencia pendiente (PENDING). En producción las fotos importadas quedan PENDING hasta que Dirección las autorice, o hasta activar el contrato editorial automático.",
+  "clf-photos-derivative":
+    "Faltan derivados editoriales en alguna foto CLF (reprocesar / esperar el job).",
+};
+
 export function assertEditorialPhotosPublishable(
   photos: EditorialPhotoChecklistInput[],
 ): { ok: true } | { ok: false; error: string } {
   const items = evaluateEditorialPhotosForPublish(photos);
   const failed = items.find((i) => i.required && !i.ok);
   if (failed) {
-    return { ok: false, error: `Checklist fotos CLF: ${failed.label}` };
+    const hint = FAIL_HINTS[failed.id] ?? failed.label;
+    return { ok: false, error: `Checklist fotos CLF: ${hint}` };
   }
   return { ok: true };
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { PublicEditorialPhotoViewModel } from "@/lib/public-coverage";
+import { EDITORIAL_ZOOM_IMAGE_CLASS } from "@/lib/public-coverage/zoom-image-class";
 import { PublicEditorialPhoto } from "./PublicEditorialPhoto";
 import { EditorialPhotoCredit } from "./EditorialPhotoCredit";
 
@@ -138,7 +139,7 @@ export function PublicEditorialGallery({
           }}
         >
           <div
-            className="relative max-h-[90vh] w-full max-w-5xl"
+            className="relative flex max-h-[95vh] w-full max-w-5xl flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -147,10 +148,10 @@ export function PublicEditorialGallery({
               srcSet={active.srcSet || undefined}
               sizes="(max-width: 1024px) 100vw, 1024px"
               alt={active.altText}
-              className="max-h-[75vh] w-full object-contain"
+              className={EDITORIAL_ZOOM_IMAGE_CLASS}
               draggable={false}
             />
-            <div className="mt-4 space-y-2 text-white">
+            <div className="mt-4 w-full max-w-2xl space-y-2 text-center text-white">
               {active.caption ? <p className="text-sm">{active.caption}</p> : null}
               <EditorialPhotoCredit
                 credit={active.credit}
@@ -160,17 +161,11 @@ export function PublicEditorialGallery({
               {active.canShowPurchaseCta &&
               (active.purchaseHref || active.albumHref) ? (
                 <a
-                  href={
-                    active.hasSpecificPurchaseUrl
-                      ? active.purchaseHref || "#"
-                      : active.albumHref || "#"
-                  }
+                  href={active.purchaseHref || active.albumHref || "#"}
                   className="inline-block min-h-11 text-sm font-semibold text-[var(--is-orange-300)] hover:underline focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
                   rel="noopener noreferrer"
                 >
-                  {active.hasSpecificPurchaseUrl
-                    ? "Ver y comprar esta foto"
-                    : "Buscar esta foto en el álbum"}
+                  Comprar fotos
                 </a>
               ) : null}
             </div>

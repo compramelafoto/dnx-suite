@@ -1,7 +1,9 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ProtectedEditorialImage } from "@/components/editorial-photos/protected-editorial-image";
 import type { PublicEditorialPhotoViewModel } from "@/lib/public-coverage";
+import { EDITORIAL_ZOOM_IMAGE_CLASS } from "@/lib/public-coverage/zoom-image-class";
 import { EditorialPhotoCredit } from "./EditorialPhotoCredit";
 import { EditorialPhotoUnavailable } from "./EditorialPhotoUnavailable";
 
@@ -30,6 +32,7 @@ function objectPosition(photo: PublicEditorialPhotoViewModel): string | undefine
 /**
  * Render público seguro de foto editorial CLF.
  * Solo acepta view model — sin storage keys ni originales.
+ * Zoom: relación de aspecto original (object-contain, sin crop).
  */
 export function PublicEditorialPhoto({
   photo,
@@ -37,6 +40,26 @@ export function PublicEditorialPhoto({
   className = "",
   onOpen,
 }: Props) {
+  const [internalZoom, setInternalZoom] = useState(false);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  const closeZoom = useCallback(() => setInternalZoom(false), []);
+
+  useEffect(() => {
+    if (!internalZoom) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeZoom();
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [internalZoom, closeZoom]);
+
   if (photo.unavailable || !photo.src) {
     return (
       <EditorialPhotoUnavailable
@@ -50,13 +73,14 @@ export function PublicEditorialPhoto({
   const isCover = photo.usageType === "COVER";
   const ctaHref =
     photo.canShowPurchaseCta
-      ? photo.hasSpecificPurchaseUrl
-        ? photo.purchaseHref
-        : photo.albumHref
+      ? photo.purchaseHref || photo.albumHref
       : null;
-  const ctaLabel = ctaHref ? "Comprar Fotos" : null;
+  const ctaLabel = ctaHref ? "Comprar fotos" : null;
   const position = objectPosition(photo);
 
+  const handleOpen = onOpen ?? (() => setInternalZoom(true));
+
+  // En página: cover puede croppear; inline respeta aspect. Zoom siempre contain.
   const imgClass = isCover
     ? "h-full w-full object-cover"
     : "h-auto w-full object-contain";
@@ -94,39 +118,29 @@ export function PublicEditorialPhoto({
       <ProtectedEditorialImage
         photographerName={photo.photographerName}
         credit={photo.credit}
-        purchaseHref={
-          photo.canShowPurchaseCta && photo.hasSpecificPurchaseUrl
-            ? photo.purchaseHref
-            : null
-        }
+        purchaseHref={photo.canShowPurchaseCta ? photo.purchaseHref : null}
         albumHref={photo.canShowPurchaseCta ? photo.albumHref : null}
       >
         {isCover ? (
           <div className="aspect-[16/10] w-full overflow-hidden bg-[var(--is-bg-muted)]">
-            {onOpen ? (
-              <button
-                type="button"
-                className="block h-full w-full cursor-zoom-in text-left focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--is-accent)]"
-                onClick={onOpen}
-                aria-label={`Ampliar fotografía: ${photo.altText}`}
-              >
-                {img}
-              </button>
-            ) : (
-              img
-            )}
+            <button
+              type="button"
+              className="block h-full w-full cursor-zoom-in text-left focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--is-accent)]"
+              onClick={handleOpen}
+              aria-label={`Ampliar fotografía: ${photo.altText}`}
+            >
+              {img}
+            </button>
           </div>
-        ) : onOpen ? (
+        ) : (
           <button
             type="button"
             className="block w-full cursor-zoom-in text-left focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--is-accent)]"
-            onClick={onOpen}
+            onClick={handleOpen}
             aria-label={`Ampliar fotografía: ${photo.altText}`}
           >
             {img}
           </button>
-        ) : (
-          img
         )}
       </ProtectedEditorialImage>
       <figcaption className="mt-3 space-y-1.5">
@@ -151,6 +165,58 @@ export function PublicEditorialPhoto({
           ) : null}
         </div>
       </figcaption>
+
+      {internalZoom ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Foto ampliada: ${photo.altText}`}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+          onClick={closeZoom}
+          data-testid="editorial-photo-lightbox"
+        >
+          <div
+            className="relative flex max-h-[95vh] w-full max-w-5xl flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photo.src}
+              srcSet={photo.srcSet || undefined}
+              sizes="(max-width: 1024px) 100vw, 1024px"
+              alt={photo.altText}
+              className={EDITORIAL_ZOOM_IMAGE_CLASS}
+              draggable={false}
+            />
+            <div className="mt-4 w-full max-w-2xl space-y-2 text-center text-white">
+              {photo.caption ? <p className="text-sm">{photo.caption}</p> : null}
+              <EditorialPhotoCredit
+                credit={photo.credit}
+                photographerName={photo.photographerName}
+                className="!text-white/80"
+              />
+              {ctaHref ? (
+                <a
+                  href={ctaHref}
+                  className="inline-block min-h-11 text-sm font-semibold text-[var(--is-orange-300)] hover:underline focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
+                  rel="noopener noreferrer"
+                >
+                  Comprar fotos
+                </a>
+              ) : null}
+            </div>
+            <button
+              ref={closeRef}
+              type="button"
+              className="absolute right-0 top-0 min-h-11 min-w-11 rounded bg-white/10 px-3 py-2 text-white focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
+              aria-label="Cerrar foto ampliada"
+              onClick={closeZoom}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      ) : null}
     </figure>
   );
 }

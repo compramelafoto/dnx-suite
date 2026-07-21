@@ -32,7 +32,12 @@ type UsageRow = {
 
 export function toPublicEditorialPhoto(
   usage: UsageRow,
-  ctx: { articleId: string; eventId?: string | null },
+  ctx: {
+    articleId: string;
+    eventId?: string | null;
+    /** Redactor de la nota — atribución de comisión. */
+    authorId?: number | null;
+  },
 ): PublicEditorialPhotoViewModel {
   const photo = usage.photo;
   const revoked = photo.editorialLicenseStatus === "REVOKED";
@@ -63,6 +68,12 @@ export function toPublicEditorialPhoto(
   const hasSpecificPurchaseUrl = Boolean(
     purchaseTarget && albumTarget && purchaseTarget !== albumTarget,
   );
+  const buyTarget = purchaseTarget || albumTarget;
+  const trackCtx = {
+    articleId: ctx.articleId,
+    eventId: ctx.eventId,
+    authorId: ctx.authorId,
+  };
 
   return {
     id: photo.id,
@@ -82,12 +93,11 @@ export function toPublicEditorialPhoto(
     canShowPurchaseCta: canBuy,
     hasSpecificPurchaseUrl,
     purchaseHref:
-      canBuy && hasSpecificPurchaseUrl && purchaseTarget
+      canBuy && buyTarget
         ? buildTrackedHref({
-            to: purchaseTarget,
+            to: buyTarget,
             kind: "PURCHASE_CLICK",
-            articleId: ctx.articleId,
-            eventId: ctx.eventId,
+            ...trackCtx,
           })
         : null,
     albumHref:
@@ -95,8 +105,7 @@ export function toPublicEditorialPhoto(
         ? buildTrackedHref({
             to: albumTarget,
             kind: "ALBUM_CLICK",
-            articleId: ctx.articleId,
-            eventId: ctx.eventId,
+            ...trackCtx,
           })
         : null,
     photographerProfileHref: photo.photographerProfileUrl,

@@ -129,14 +129,16 @@ function main() {
     assert.ok(p.purchaseHref?.includes("PURCHASE_CLICK"));
   }
 
-  // 9. Solo álbum → buscar en álbum, sin purchaseHref específico
+  // 9. Solo álbum → purchaseHref apunta al álbum (CTA Comprar fotos)
   {
     const p = toPublicEditorialPhoto(
       usage(basePhoto({ purchaseUrl: null, albumUrl: "https://compramelafoto.com/a/x" })),
-      { articleId: "art-1" },
+      { articleId: "art-1", authorId: 42 },
     );
     assert.equal(p.hasSpecificPurchaseUrl, false);
-    assert.equal(p.purchaseHref, null);
+    assert.ok(p.purchaseHref?.includes("PURCHASE_CLICK"));
+    assert.ok(p.purchaseHref?.includes("authorId=42"));
+    assert.ok(p.purchaseHref?.includes("source%3Dinfospot") || p.purchaseHref?.includes("source=infospot"));
     assert.ok(p.albumHref?.includes("ALBUM_CLICK"));
     assert.equal(p.canShowPurchaseCta, true);
   }
@@ -233,9 +235,15 @@ function main() {
       to: "https://compramelafoto.com/a/1",
       kind: "PURCHASE_CLICK",
       articleId: "art-1",
+      authorId: 7,
     });
     assert.ok(href.startsWith("/api/r?"));
     assert.ok(href.includes("kind=PURCHASE_CLICK"));
+    assert.ok(href.includes("authorId=7"));
+    assert.ok(
+      href.includes("is_author%3D7") || href.includes("is_author=7"),
+      "atribución al redactor en URL CLF",
+    );
     assert.equal(
       isSafeExternalRedirect("https://evil.com/x", ["https://compramelafoto.com"]),
       false,

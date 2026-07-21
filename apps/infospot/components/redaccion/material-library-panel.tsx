@@ -341,12 +341,12 @@ export function MaterialLibraryPanel({
               </button>
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
-              <div className="flex max-h-[50vh] items-center justify-center overflow-hidden rounded-[var(--is-radius-sm)] bg-[var(--is-bg-muted)]">
+              <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-[var(--is-radius-sm)] bg-[var(--is-bg-muted)] p-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={zoomAsset.url || zoomAsset.thumbnailUrl || ""}
                   alt={zoomAltDraft.trim() || zoomAsset.altText || "Fotografía editorial"}
-                  className="max-h-[50vh] w-full object-contain"
+                  className="mx-auto max-h-[65vh] max-w-full h-auto w-auto object-contain"
                 />
               </div>
               {onSaveAltText ? (

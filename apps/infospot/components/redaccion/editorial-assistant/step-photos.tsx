@@ -391,7 +391,7 @@ export function StepPhotos({
           <img
             src={zoomPath}
             alt=""
-            className="max-h-[90vh] max-w-[90vw] object-contain"
+            className="mx-auto max-h-[90vh] max-w-[90vw] h-auto w-auto object-contain"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
