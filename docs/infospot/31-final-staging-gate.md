@@ -19,7 +19,7 @@
 | Info Spot staging | `https://infospot-dnxsuite.vercel.app` | Health OK; WebKit home OK (hydration #418 en deploy) |
 | `COMPRAMELAFOTO_PUBLIC_URL` (env IS local) | `compramelafoto.com` | **Producción** — no usar para join |
 | R2 local gate | Ausente | Blocker operativo storage |
-| Licencia | `INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT` no seteada | Correcto fuera de prod |
+| Licencia | Términos CLF ≥ 2026-07-21 → AUTHORIZED por defecto; kill switch `CONTRACT=0` | Contrato en términos |
 
 ---
 
@@ -79,7 +79,7 @@ Frecuencias sugeridas staging (no prod): inbound 5–15 min; álbumes 10–15; c
 2. **R2 staging Info Spot** con derivados reales (640/960/1280/1920 WebP+JPEG, sin original en cliente).
 3. **Safari/iPhone físico** — mapa Leaflet drag, swipe galería, lightbox (WebKit headless solo home).
 4. **Hydration #418** en deploy Vercel Info Spot (local limpio post-E12; redeploy rama).
-5. **`INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT=1`** solo con contrato — no configurar en prod todavía.
+5. **Licencia editorial:** contrato en términos CLF (§5 Info Spot). Kill switch `INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT=0` si hace falta desactivar.
 6. Medición derivados síncronos con fotos grandes + R2 real (posible blocker UX editor).
 
 ---

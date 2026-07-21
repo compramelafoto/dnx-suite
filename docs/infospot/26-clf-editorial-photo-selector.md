@@ -34,14 +34,16 @@ Enums: `processStatus` (PENDING→READY/FAILED), `editorialLicenseStatus`, `edit
 
 ## Licencia
 
-| Entorno | Default al seleccionar foto | Cómo autorizar |
-|---------|----------------------------|----------------|
-| Staging/dev | `PENDING`, o `AUTHORIZED` si `INFOSPOT_ALLOW_STAGING_EDITORIAL_LICENSE=1` | Flag staging o Director |
-| Producción | **Siempre `PENDING`** salvo contrato | Director foto a foto, o `INFOSPOT_CLF_EDITORIAL_LICENSE_DEFAULT=AUTHORIZED` **y** `INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT=1` |
+Contrato vigente en términos de álbum CLF (`TERMS_VERSION` ≥ `2026-07-21`, §5 Info Spot) y registro fotógrafo `v3`.
 
-Bloqueo explícito: en producción, `DEFAULT=AUTHORIZED` **sin** `CONTRACT=1` se ignora (`license-policy.ts`).
+| Entorno | Default al seleccionar foto | Notas |
+|---------|----------------------------|-------|
+| Todos (con contrato de términos) | **`AUTHORIZED`** | Kill switch: `INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT=0` → `PENDING` |
+| Override | `INFOSPOT_CLF_EDITORIAL_LICENSE_DEFAULT=PENDING\|UNKNOWN` | Solo si hace falta bajar el default |
 
-**Pendiente de producto:** actualizar términos CLF que habiliten difusión editorial formal antes de activar contrato.
+Backfill de fotos ya importadas:  
+`pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-photos/authorize-all-editorial-licenses.ts`  
+(`--dry-run` disponible). No modifica `REVOKED`.
 
 Revocación (`REVOKED`): placeholder público; sin CTA; nota no se rompe.  
 Eliminación comercial (`DELETED`): derivados `AUTHORIZED` pueden permanecer; CTA desaparece.

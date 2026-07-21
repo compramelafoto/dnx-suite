@@ -1,4 +1,4 @@
-export const PHOTOGRAPHER_TERMS_VERSION = "v2";
+export const PHOTOGRAPHER_TERMS_VERSION = "v3";
 
 export const PHOTOGRAPHER_TERMS_TEXT = `# TÉRMINOS Y CONDICIONES – FOTÓGRAFOS
 
@@ -83,33 +83,43 @@ En caso de habilitar venta de impresiones:
 - Los cobros pueden ingresarse primero en la cuenta de la plataforma y luego transferirse al fotógrafo
 - Los tiempos de acreditación y transferencia dependen de Mercado Pago
 
-## 8. RESPONSABILIDAD SOBRE DERECHOS DE IMAGEN
+## 8. INFO SPOT – USO EDITORIAL LIMITADO PARA PROMOVER LA VENTA
+
+Al operar en ComprameLaFoto y aceptar estos términos (y, en particular, al crear o actualizar un álbum), el fotógrafo autoriza a Info Spot (medio editorial administrado por ComprameLaFoto) a:
+
+- Seleccionar un número limitado de fotografías del álbum/galería (el mínimo operativo que la plataforma determine para coberturas editoriales)
+- Publicarlas en notas, coberturas y contenidos de Info Spot con crédito al fotógrafo
+- Usar esas imágenes con el fin principal de difundir el evento/cobertura y promover la venta de fotografías del álbum en ComprameLaFoto (incluyendo enlaces de compra)
+
+Esta autorización es limitada, no exclusiva y no implica cesión de derechos de autor. No autoriza reventa ni uso comercial ajeno al ecosistema ComprameLaFoto / Info Spot.
+
+## 9. RESPONSABILIDAD SOBRE DERECHOS DE IMAGEN
 
 El fotógrafo declara que cuenta con las autorizaciones necesarias para fotografiar y comercializar las imágenes. ComprameLaFoto actúa como intermediario tecnológico y no es responsable por reclamos derivados del contenido cargado por el fotógrafo.
 
-## 9. ELIMINACIÓN DE ÁLBUMES Y CONTENIDO
+## 10. ELIMINACIÓN DE ÁLBUMES Y CONTENIDO
 
-Los álbumes pueden expirar y eliminarse automáticamente. Al eliminarse, las fotografías dejan de estar disponibles para la venta. ComprameLaFoto puede conservar copias técnicas temporales por razones operativas, de seguridad o legales.
+Los álbumes pueden expirar y eliminarse automáticamente. Al eliminarse, las fotografías dejan de estar disponibles para la venta. ComprameLaFoto puede conservar copias técnicas temporales por razones operativas, de seguridad o legales. Los derivados editoriales ya publicados en Info Spot pueden permanecer según la política editorial vigente y el crédito al fotógrafo.
 
-## 10. SOLICITUDES DE REMOCIÓN (DERECHO DE IMAGEN)
+## 11. SOLICITUDES DE REMOCIÓN (DERECHO DE IMAGEN)
 
 ComprameLaFoto ofrece un mecanismo para que terceros soliciten la remoción de una fotografía por razones de derecho de imagen u otros motivos legítimos. El fotógrafo recibirá dichas solicitudes en su panel y podrá aprobar o rechazar la remoción. En caso de aprobación, la foto dejará de estar disponible públicamente y no podrá continuar vendiéndose desde la plataforma.
 
-## 11. NO HAY REEMBOLSOS NI CANCELACIONES
+## 12. NO HAY REEMBOLSOS NI CANCELACIONES
 
 **Regla del negocio**: No se permiten reembolsos ni cancelaciones una vez que el pedido está en producción o pagado. Esta regla aplica tanto para clientes como para fotógrafos.
 
-## 12. COMUNICACIÓN CON ADMINISTRACIÓN
+## 13. COMUNICACIÓN CON ADMINISTRACIÓN
 
 - Existe una bandeja de mensajes interna para comunicación Admin ↔ Fotógrafo
 - Podés crear tickets de soporte al Admin con prioridad (low/med/high)
 - El Admin puede responder vía mensajes o dentro del ticket
 
-## 13. ACTUALIZACIÓN DE TÉRMINOS
+## 14. ACTUALIZACIÓN DE TÉRMINOS
 
 Si cambia la versión activa de estos términos, deberás re-aceptarlos antes de continuar operando en la plataforma.
 
-## 14. ACEPTACIÓN
+## 15. ACEPTACIÓN
 
 Al registrarte y aceptar estos términos, declarás haber leído, comprendido y aceptado todas las cláusulas aquí establecidas.
 

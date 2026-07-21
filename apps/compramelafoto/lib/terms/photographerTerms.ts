@@ -1,4 +1,5 @@
-export const TERMS_VERSION = "2026-01-26";
+/** Versión con cláusula Info Spot (autorización editorial limitada). */
+export const TERMS_VERSION = "2026-07-21";
 
 export const TERMS_TEXT = `TÉRMINOS Y CONDICIONES – FOTÓGRAFOS (Aceptados al crear un álbum)
 
@@ -27,14 +28,22 @@ En caso de habilitar venta de impresiones:
 - El fotógrafo autoriza a enviar los archivos necesarios al laboratorio seleccionado para producir copias.
 - El laboratorio no adquiere derechos sobre las fotografías, solo autorización para imprimirlas para cumplir el pedido.
 
-5. Uso promocional limitado (etapa actual)
-En esta primera etapa, no se habilita automáticamente ningún uso promocional por parte de organizadores u otros terceros. Cualquier acuerdo especial será optativo y regulado en etapas posteriores.
+5. Info Spot – uso editorial limitado para promover la venta
+Al crear o actualizar un álbum y aceptar estos términos, el fotógrafo autoriza a Info Spot (medio editorial administrado por ComprameLaFoto) a:
+- Seleccionar un número limitado de fotografías del álbum/galería (el mínimo operativo que la plataforma determine para coberturas editoriales).
+- Publicarlas en notas, coberturas y contenidos de Info Spot con crédito al fotógrafo.
+- Usar esas imágenes con el fin principal de difundir el evento/cobertura y promover la venta de fotografías del álbum en ComprameLaFoto (incluyendo enlaces de compra).
+Esta autorización:
+- Es limitada, no exclusiva y no implica cesión de derechos de autor.
+- No autoriza reventa ni uso comercial ajeno al ecosistema ComprameLaFoto / Info Spot.
+- Puede revocarse para una foto concreta mediante los mecanismos de remoción o gestión editorial disponibles, sin afectar el resto del álbum salvo disposición en contrario.
+Las fotografías ya cargadas en álbumes sujetos a estos términos (incluida la aceptación vigente al actualizar ventas) quedan alcanzadas por esta autorización editorial limitada.
 
 6. Responsabilidad sobre derechos de imagen
 El fotógrafo declara que cuenta con las autorizaciones necesarias para fotografiar y comercializar las imágenes. ComprameLaFoto actúa como intermediario tecnológico y no es responsable por reclamos derivados del contenido cargado por el fotógrafo.
 
 7. Eliminación de álbumes y contenido
-Los álbumes pueden expirar y eliminarse automáticamente. Al eliminarse, las fotografías dejan de estar disponibles para la venta. ComprameLaFoto puede conservar copias técnicas temporales por razones operativas, de seguridad o legales.
+Los álbumes pueden expirar y eliminarse automáticamente. Al eliminarse, las fotografías dejan de estar disponibles para la venta. ComprameLaFoto puede conservar copias técnicas temporales por razones operativas, de seguridad o legales. Los derivados editoriales ya publicados en Info Spot pueden permanecer según la política editorial vigente y el crédito al fotógrafo.
 
 8. Aceptación
 Al crear o actualizar un álbum, el fotógrafo declara haber leído, comprendido y aceptado estos Términos y Condiciones.

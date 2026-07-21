@@ -326,25 +326,26 @@ async function main() {
     ok: availablePhotographerSlots({ maxPhotographers: 3, activePhotographerCount: 1 }) === 2,
   });
 
-  // License
+  // License: kill switch CONTRACT=0 vs términos vigentes (default AUTHORIZED)
   const prevForce = process.env.INFOSPOT_FORCE_PRODUCTION_LICENSE_POLICY;
   const prevContract = process.env.INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT;
   const prevDefault = process.env.INFOSPOT_CLF_EDITORIAL_LICENSE_DEFAULT;
   process.env.INFOSPOT_FORCE_PRODUCTION_LICENSE_POLICY = "1";
-  delete process.env.INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT;
+  process.env.INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT = "0";
   process.env.INFOSPOT_CLF_EDITORIAL_LICENSE_DEFAULT = "AUTHORIZED";
   const blockedLic = assertProductionLicensePolicy();
   const pending = resolveDefaultEditorialLicenseStatus();
   steps.push({
-    name: "license_blocks_without_contract",
+    name: "license_kill_switch_blocks",
     ok: blockedLic.ok === false && pending === "PENDING",
     detail: `assert=${blockedLic.ok} default=${pending}`,
   });
-  process.env.INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT = "1";
+  delete process.env.INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT;
+  delete process.env.INFOSPOT_CLF_EDITORIAL_LICENSE_DEFAULT;
   const okLic = assertProductionLicensePolicy();
   const auth = resolveDefaultEditorialLicenseStatus();
   steps.push({
-    name: "license_ok_with_contract",
+    name: "license_ok_with_terms_contract",
     ok: okLic.ok && auth === "AUTHORIZED",
   });
   if (prevForce == null) delete process.env.INFOSPOT_FORCE_PRODUCTION_LICENSE_POLICY;

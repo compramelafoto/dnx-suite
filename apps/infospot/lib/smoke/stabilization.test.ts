@@ -36,16 +36,29 @@ function withEnv(
 
 function main() {
   // Licencia: simular producción vía flags (sin mutar NODE_ENV tipado)
+  // Kill switch: CONTRACT=0 → PENDING aunque DEFAULT=AUTHORIZED
   withEnv(
     {
-      // force production path using a helper flag in policy — see below
       INFOSPOT_FORCE_PRODUCTION_LICENSE_POLICY: "1",
       INFOSPOT_CLF_EDITORIAL_LICENSE_DEFAULT: "AUTHORIZED",
-      INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT: undefined,
+      INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT: "0",
     },
     () => {
       assert.equal(resolveDefaultEditorialLicenseStatus(), "PENDING");
       assert.equal(assertProductionLicensePolicy().ok, false);
+    },
+  );
+
+  // Contrato de términos vigente (default): AUTHORIZED
+  withEnv(
+    {
+      INFOSPOT_FORCE_PRODUCTION_LICENSE_POLICY: "1",
+      INFOSPOT_CLF_EDITORIAL_LICENSE_DEFAULT: undefined,
+      INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT: undefined,
+    },
+    () => {
+      assert.equal(resolveDefaultEditorialLicenseStatus(), "AUTHORIZED");
+      assert.equal(assertProductionLicensePolicy().ok, true);
     },
   );
 

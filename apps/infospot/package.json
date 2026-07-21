@@ -26,6 +26,7 @@
     "admin:grant-director": "pnpm --filter @repo/db db:grant-infospot-director",
     "test:editorial-assistant": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-assistant/editorial-assistant.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/redaccion-ia.test.ts",
     "test:public-coverage": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/public-coverage/public-coverage.test.ts",
+    "editorial:authorize-licenses": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-photos/authorize-all-editorial-licenses.ts",
     "test:stabilization": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/stabilization.test.ts",
     "smoke:seed": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/e11-smoke-seed.ts seed",
     "smoke:cleanup": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/smoke/e11-smoke-seed.ts cleanup",

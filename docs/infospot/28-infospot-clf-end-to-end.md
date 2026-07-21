@@ -53,7 +53,7 @@ Marcador: `[SMOKE-E11]` / `smoke-e11-*`. Solo borrar ese set.
 Ver [26](./26-clf-editorial-photo-selector.md) y `lib/editorial-photos/license-policy.ts`.
 
 - Default producción: `PENDING`.
-- `AUTHORIZED` automático en producción exige `INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT=1`.
+- `AUTHORIZED` automático: términos CLF ≥ `2026-07-21` (§5 Info Spot). Kill switch: `INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT=0`.
 - Staging: `INFOSPOT_ALLOW_STAGING_EDITORIAL_LICENSE=1`.
 - Director puede autorizar foto a foto.
 - `REVOKED` → placeholder público; crédito se conserva en metadatos internos.

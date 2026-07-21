@@ -81,7 +81,7 @@ Este documento es el runbook de salida a producción y rollback. **No incluye se
 - `CRON_SECRET` (crons responden 503)
 - `COOKIE_DOMAIN` (opcional hasta dominio propio)
 - MercadoPago / SMTP / Analytics IDs (no bloquean home; no verificados como requeridos día 1)
-- `INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT` (correcto **no** setear en prod salvo contrato)
+- `INFOSPOT_CLF_EDITORIAL_LICENSE_CONTRACT` — contrato vive en términos CLF ≥ `2026-07-21`; kill switch `=0` si hace falta desactivar. Default de import = `AUTHORIZED`.
 
 ### Acción requerida (manual)
 

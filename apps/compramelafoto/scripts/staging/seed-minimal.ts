@@ -34,7 +34,7 @@ const BLOG_POST_SLUG = "staging-clf-bienvenida";
 const BLOG_CATEGORY_SLUG = "staging-clf";
 const BLOG_AUTHOR_SLUG = "staging-clf-equipo";
 
-const TERMS_VERSION = "2026-01-26";
+const TERMS_VERSION = "2026-07-21";
 const DIGITAL_PRICE_CENTS = 5000;
 
 const PLACEHOLDER_PHOTOS = [
