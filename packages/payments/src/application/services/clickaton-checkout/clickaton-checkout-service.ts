@@ -14,6 +14,7 @@ import {
 } from "./map-status";
 import type {
   ApplyNormalizedCheckoutEventResult,
+  CheckoutEventOrigin,
   ClickatonCheckoutProviderBridge,
   CreateClickatonCheckoutOrderInput,
   CreateClickatonCheckoutOrderResult,
@@ -74,6 +75,30 @@ function extractSourceId(externalReference: string): string {
   return externalReference.startsWith(prefix)
     ? externalReference.slice(prefix.length)
     : externalReference;
+}
+
+function inferCheckoutEventOrigin(event: NormalizedCheckoutEvent): CheckoutEventOrigin {
+  if (event.origin) return event.origin;
+  if (event.eventId.startsWith("refresh_")) return "S2S_REFRESH";
+  if (event.eventId.startsWith("mp_wh_")) return "HTTP_WEBHOOK";
+  if (event.eventId.startsWith("sim_")) return "SIMULATION";
+  if (event.eventId.startsWith("recon_")) return "RECONCILIATION";
+  return "NORMALIZED";
+}
+
+/**
+ * Acepta live_mode=true solo con attestation de sandbox TEST
+ * (bridge mercado_pago_test + orden SANDBOX / fixture).
+ * No usa "if staging then ignore".
+ */
+function isSandboxLiveModeAttested(input: {
+  bridgeMode: ClickatonCheckoutProviderBridge["mode"];
+  orderEnvironment: string;
+  isTestFixture?: boolean;
+}): boolean {
+  if (input.isTestFixture) return true;
+  const env = String(input.orderEnvironment).toUpperCase();
+  return input.bridgeMode === "mercado_pago_test" && env === "SANDBOX";
 }
 
 async function buildDurableOrder(
@@ -596,20 +621,52 @@ export function createClickatonCheckoutService(
           expectedCurrency: order.currency,
         });
         if (refreshed) {
-          if (refreshed.liveMode) {
+          // Mercado Pago puede reportar live_mode=true en Checkout Pro con usuarios TEST.
+          // Solo se acepta con attestation sandbox (bridge TEST + orden SANDBOX / fixture).
+          const attested = isSandboxLiveModeAttested({
+            bridgeMode: bridge.mode,
+            orderEnvironment: order.environment,
+            isTestFixture: order.isTestFixture,
+          });
+          const liveModeBlocked = refreshed.liveMode && !attested;
+          if (liveModeBlocked) {
             await db.audit.append({
               id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
               actorType: "system",
-              action: "clickaton.checkout.refresh.blocked_live_mode",
+              action: "clickaton.checkout.refresh.blocked_live_mode_unattested",
               aggregateType: "payment_order",
               aggregateId: orderId,
               provider: order.provider,
               environment: order.environment,
               result: "FAILED",
               errorCode: "LIVE_MODE_FORBIDDEN",
+              metadata: {
+                bridgeMode: bridge.mode,
+                orderEnvironment: order.environment,
+                liveModeReported: true,
+              },
               createdAt: now,
             });
             return buildDurableOrder(db, order);
+          }
+          if (refreshed.liveMode && attested) {
+            await db.audit.append({
+              id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+              actorType: "system",
+              action: "clickaton.checkout.refresh.live_mode_attested_sandbox",
+              aggregateType: "payment_order",
+              aggregateId: orderId,
+              provider: order.provider,
+              environment: order.environment,
+              result: "SUCCEEDED",
+              metadata: {
+                status: refreshed.status,
+                bridgeMode: bridge.mode,
+                liveModeReported: true,
+                attestation: "mercado_pago_test_sandbox_order",
+              },
+              createdAt: now,
+            });
           }
           await db.providerOrders.save({
             ...providerOrder,
@@ -624,6 +681,7 @@ export function createClickatonCheckoutService(
               ...(providerOrder.rawResponseSanitized ?? {}),
               ...refreshed.rawSanitized,
               normalizedStatus: refreshed.status,
+              liveModeReported: refreshed.liveMode,
             },
             lastFetchedAt: now,
             updatedAt: now,
@@ -639,6 +697,8 @@ export function createClickatonCheckoutService(
               refreshed.externalReference ?? intent.externalReference,
             sourceId: extractSourceId(intent.externalReference),
             receivedAt: now,
+            origin: "S2S_REFRESH",
+            liveModeReported: refreshed.liveMode,
           });
           const updated = await db.paymentOrders.findById(orderId);
           return updated ? buildDurableOrder(db, updated) : null;
@@ -703,6 +763,7 @@ export function createClickatonCheckoutService(
       }
 
       const inboxId = `wh_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+      const origin = inferCheckoutEventOrigin(event);
       const rawBodyHash = createHash("sha256")
         .update(JSON.stringify({ eventId: event.eventId, orderId: event.orderId, status: event.status }))
         .digest("hex");
@@ -720,6 +781,8 @@ export function createClickatonCheckoutService(
           amountMinor: event.amountMinor,
           currency: event.currency,
           sourceId: event.sourceId,
+          origin,
+          liveModeReported: event.liveModeReported ?? null,
         },
         receivedAt: now,
         processingStatus: "RECEIVED",
@@ -798,6 +861,125 @@ export function createClickatonCheckoutService(
         );
         throw error;
       }
+    },
+
+    /**
+     * Webhook HTTP firmado → S2S getPayment → applyNormalizedEvent (origin HTTP_WEBHOOK).
+     */
+    async applyProviderPaymentNotification(input: {
+      providerPaymentId: string;
+      eventId: string;
+      liveModeReported?: boolean | null;
+      action?: string | null;
+    }): Promise<ApplyNormalizedCheckoutEventResult> {
+      if (!bridge.fetchPaymentById) {
+        return { outcome: "not_found", order: null, inboxId: null };
+      }
+      const payment = await bridge.fetchPaymentById(input.providerPaymentId);
+      if (!payment?.externalReference) {
+        return { outcome: "not_found", order: null, inboxId: null };
+      }
+      const sourceId = extractSourceId(payment.externalReference);
+      const order = await this.findActiveOrderBySource(sourceId);
+      if (!order) {
+        return { outcome: "not_found", order: null, inboxId: null };
+      }
+
+      const durable = await db.paymentOrders.findById(order.id);
+      if (!durable) {
+        return { outcome: "not_found", order: null, inboxId: null };
+      }
+
+      const attested = isSandboxLiveModeAttested({
+        bridgeMode: bridge.mode,
+        orderEnvironment: durable.environment,
+        isTestFixture: durable.isTestFixture,
+      });
+      const liveMode = payment.liveMode;
+      if (liveMode && !attested) {
+        const now = new Date().toISOString();
+        await db.audit.append({
+          id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+          actorType: "system",
+          action: "clickaton.checkout.webhook.blocked_live_mode_unattested",
+          aggregateType: "payment_order",
+          aggregateId: order.id,
+          provider: durable.provider,
+          environment: durable.environment,
+          result: "FAILED",
+          errorCode: "LIVE_MODE_FORBIDDEN",
+          metadata: {
+            bridgeMode: bridge.mode,
+            providerPaymentIdMasked: `${input.providerPaymentId.slice(0, 4)}…`,
+            action: input.action ?? null,
+          },
+          createdAt: now,
+        });
+        return {
+          outcome: "conflict",
+          conflictCode: "LIVE_MODE_FORBIDDEN",
+          order: await buildDurableOrder(db, durable),
+          inboxId: null,
+        };
+      }
+
+      const providerOrder = await db.providerOrders.findByPaymentOrderId(order.id);
+      const now = new Date().toISOString();
+      if (providerOrder) {
+        await db.providerOrders.save({
+          ...providerOrder,
+          providerStatus: payment.status.toLowerCase(),
+          mappedStatus:
+            payment.status === "APPROVED"
+              ? "PROCESSED"
+              : payment.status === "REJECTED" || payment.status === "CANCELLED"
+                ? "CANCELED"
+                : "OPEN",
+          rawResponseSanitized: {
+            ...(providerOrder.rawResponseSanitized ?? {}),
+            ...payment.rawSanitized,
+            normalizedStatus: payment.status,
+            liveModeReported: liveMode,
+            webhookAction: input.action ?? null,
+            providerPaymentId: input.providerPaymentId,
+          },
+          lastFetchedAt: now,
+          updatedAt: now,
+        });
+      }
+
+      if (liveMode && attested) {
+        await db.audit.append({
+          id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+          actorType: "system",
+          action: "clickaton.checkout.webhook.live_mode_attested_sandbox",
+          aggregateType: "payment_order",
+          aggregateId: order.id,
+          provider: durable.provider,
+          environment: durable.environment,
+          result: "SUCCEEDED",
+          metadata: {
+            status: payment.status,
+            bridgeMode: bridge.mode,
+            attestation: "mercado_pago_test_sandbox_order",
+          },
+          createdAt: now,
+        });
+      }
+
+      return this.applyNormalizedEvent({
+        eventId: input.eventId,
+        orderId: order.id,
+        status: payment.status,
+        amountMinor: payment.amountMinor,
+        currency: payment.currency,
+        provider: durable.provider,
+        externalReference: payment.externalReference ?? order.externalReference,
+        sourceId,
+        receivedAt: now,
+        origin: "HTTP_WEBHOOK",
+        liveModeReported: liveMode,
+      });
     },
 
     async listOrderEvents(orderId: string) {

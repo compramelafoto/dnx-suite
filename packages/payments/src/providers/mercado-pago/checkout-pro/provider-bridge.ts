@@ -55,23 +55,40 @@ export function createMercadoPagoTestClickatonProviderBridge(input: {
       };
     },
     async refreshCheckout(params) {
-      // Preference id stored as providerOrderId; payment refresh requires payment id.
-      // When providerOrderId looks numeric (payment), query payment; else re-fetch preference only.
+      // Preference id is stored as providerOrderId. Prefer payment id when numeric;
+      // otherwise resolve payment via external_reference search (Checkout Pro S2S).
       if (/^\d+$/.test(params.providerOrderId)) {
         const payment = await adapter.getPayment(params.providerOrderId);
-        if (payment.liveMode) {
-          return { ...payment, status: payment.status };
-        }
         return payment;
+      }
+      const found = await adapter.searchPaymentsByExternalReference(params.externalReference);
+      if (found) {
+        return found;
       }
       const pref = await adapter.getPreference(params.providerOrderId);
       return {
         status: "PENDING",
         amountMinor: params.expectedAmountMinor,
         currency: params.expectedCurrency,
-        externalReference: pref.externalReference,
+        externalReference: pref.externalReference ?? params.externalReference,
         liveMode: false,
-        rawSanitized: pref.rawSanitized,
+        rawSanitized: {
+          ...pref.rawSanitized,
+          refresh_note: "preference_pending_no_payment_yet",
+        },
+      };
+    },
+    async fetchPaymentById(paymentId) {
+      if (!/^\d+$/.test(paymentId)) return null;
+      const payment = await adapter.getPayment(paymentId);
+      return {
+        status: payment.status,
+        amountMinor: payment.amountMinor,
+        currency: payment.currency,
+        externalReference: payment.externalReference,
+        liveMode: payment.liveMode,
+        providerPaymentId: payment.providerPaymentId,
+        rawSanitized: payment.rawSanitized,
       };
     },
   };

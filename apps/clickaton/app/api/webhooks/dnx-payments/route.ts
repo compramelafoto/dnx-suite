@@ -5,27 +5,63 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * Adapter temporal de entrada HTTP.
+ * Entrada HTTP de notificaciones de pago.
  *
- * Arquitectura objetivo:
- *   Proveedor → endpoint DNX Payments → inbox → normalización → efecto Clickatón
+ * Arquitectura:
+ *   Proveedor (Mercado Pago Webhooks firmados) → firma x-signature →
+ *   S2S getPayment → inbox (origin HTTP_WEBHOOK) → efectos Clickatón
  *
- * Hoy no hay host HTTP productivo separado de DNX Payments: esta ruta
- * verifica la firma y delega inmediatamente a `CheckoutService`
- * (cliente tipado → `createClickatonCheckoutService` + efectos de inscripción).
- * No contiene lógica comercial de Clickatón ni parser MP crudo.
+ * También acepta eventos ya normalizados DNX con `x-dnx-payments-signature`
+ * (selfchecks / bridge interno). No acepta unsigned. No es IPN.
  *
- * Headers:
- * - x-dnx-payments-signature: HMAC-SHA256 hex del body (DNX_PAYMENTS_WEBHOOK_SECRET)
+ * Headers MP:
+ * - x-signature: ts=…,v1=… (HMAC-SHA256 del manifest oficial)
+ * - x-request-id
+ * Query/body: data.id, type=payment
  */
 export async function POST(request: Request) {
   const rawBody = await request.text();
+  const url = new URL(request.url);
   const headers: Record<string, string | undefined> = {
     "x-dnx-payments-signature":
       request.headers.get("x-dnx-payments-signature") ?? undefined,
+    "x-signature": request.headers.get("x-signature") ?? undefined,
+    "x-request-id": request.headers.get("x-request-id") ?? undefined,
   };
 
   const service = getCheckoutService();
+
+  // Preferir Webhooks firmados de Mercado Pago cuando viene x-signature.
+  if (headers["x-signature"]) {
+    const mp = await service.ingestMercadoPagoWebhook({
+      headers,
+      rawBody,
+      queryDataId: url.searchParams.get("data.id"),
+      queryType: url.searchParams.get("type"),
+      queryTopic: url.searchParams.get("topic"),
+    });
+    if (!mp.ok) {
+      const status =
+        mp.code === "WEBHOOK_INVALID_SIGNATURE" || mp.code === "LIVE_MODE_FORBIDDEN"
+          ? 401
+          : mp.code === "WEBHOOK_IGNORED_TYPE"
+            ? 200
+            : 400;
+      if (mp.code === "WEBHOOK_IGNORED_TYPE") {
+        return NextResponse.json({ ok: true, ignored: true, code: mp.code });
+      }
+      return NextResponse.json({ ok: false, code: mp.code }, { status });
+    }
+    return NextResponse.json({
+      ok: true,
+      applied: mp.apply.outcome === "applied",
+      duplicate: mp.apply.outcome === "duplicate",
+      conflict: mp.apply.outcome === "conflict",
+      conflictCode: mp.apply.conflictCode ?? null,
+      origin: "HTTP_WEBHOOK",
+    });
+  }
+
   const verified = service.verifyWebhook(headers, rawBody);
   if (!verified.ok) {
     return NextResponse.json(
@@ -42,6 +78,7 @@ export async function POST(request: Request) {
       duplicate: result.duplicate,
       conflict: result.conflict,
       conflictCode: result.conflictCode ?? null,
+      origin: "NORMALIZED",
     });
   } catch {
     return NextResponse.json({ ok: false, code: "UNEXPECTED" }, { status: 500 });

@@ -6,6 +6,8 @@ import {
   type NormalizedCheckoutEvent as DurableEvent,
   type DnxPaymentsPersistence,
   type ClickatonCheckoutProviderBridge,
+  verifyMercadoPagoWebhookSignature,
+  parseMercadoPagoPaymentNotification,
 } from "@repo/payments/next";
 import { hashCreateOrderPayload } from "../domain/idempotency";
 import { CheckoutError } from "../domain/errors";
@@ -79,6 +81,22 @@ export function createDurableDnxPaymentsClient(deps: {
     currency?: "ARS";
     sourceId?: string;
   }): Promise<NormalizedPaymentEvent>;
+  ingestMercadoPagoSignedWebhook(input: {
+    headers: Record<string, string | undefined>;
+    rawBody: string;
+    queryDataId?: string | null;
+    queryType?: string | null;
+    queryTopic?: string | null;
+  }): Promise<
+    | {
+        ok: true;
+        event: NormalizedPaymentEvent;
+        apply: Awaited<
+          ReturnType<ClickatonCheckoutService["applyProviderPaymentNotification"]>
+        >;
+      }
+    | { ok: false; code: string }
+  >;
 } {
   const service = createClickatonCheckoutService(deps.persistence, {
     ...(deps.providerBridge ? { providerBridge: deps.providerBridge } : {}),
@@ -197,6 +215,93 @@ export function createDurableDnxPaymentsClient(deps: {
         signature: sig,
       };
       return { ok: true as const, event };
+    },
+
+    async ingestMercadoPagoSignedWebhook(input: {
+      headers: Record<string, string | undefined>;
+      rawBody: string;
+      queryDataId?: string | null;
+      queryType?: string | null;
+      queryTopic?: string | null;
+    }) {
+      const signatureHeader =
+        input.headers["x-signature"] ?? input.headers["X-Signature"];
+      const requestIdHeader =
+        input.headers["x-request-id"] ?? input.headers["X-Request-Id"];
+
+      if (!signatureHeader) {
+        return { ok: false as const, code: "WEBHOOK_UNSIGNED" };
+      }
+
+      const parsed = parseMercadoPagoPaymentNotification({
+        rawBody: input.rawBody,
+        queryDataId: input.queryDataId,
+        queryType: input.queryType,
+        queryTopic: input.queryTopic,
+      });
+      if (!parsed.ok) {
+        return { ok: false as const, code: parsed.code };
+      }
+
+      // Sin maxSkewMs: MP puede reintentar tarde; HMAC sigue siendo obligatorio.
+      const verified = verifyMercadoPagoWebhookSignature({
+        signatureHeader,
+        requestIdHeader,
+        dataId: parsed.notification.dataId,
+        secret: deps.webhookSecret,
+      });
+      if (!verified.ok) {
+        if (verified.reason === "missing_data_id") {
+          return { ok: false as const, code: "WEBHOOK_MISSING_DATA_ID" };
+        }
+        if (verified.reason === "missing_request_id") {
+          return { ok: false as const, code: "WEBHOOK_MISSING_REQUEST_ID" };
+        }
+        if (verified.reason === "missing_secret") {
+          return { ok: false as const, code: "WEBHOOK_SECRET_MISSING" };
+        }
+        return { ok: false as const, code: "WEBHOOK_INVALID_SIGNATURE" };
+      }
+
+      const paymentId = parsed.notification.dataId;
+      const requestId = String(requestIdHeader).slice(0, 80);
+      const eventId = `mp_wh_${requestId}_${paymentId}`;
+
+      const apply = await service.applyProviderPaymentNotification({
+        providerPaymentId: paymentId,
+        eventId,
+        liveModeReported: parsed.notification.liveMode,
+        action: parsed.notification.action,
+      });
+
+      if (apply.outcome === "not_found") {
+        return { ok: false as const, code: "WEBHOOK_ORDER_NOT_FOUND" };
+      }
+      if (apply.outcome === "conflict") {
+        return {
+          ok: false as const,
+          code: apply.conflictCode ?? "PAYMENT_CONFLICT",
+        };
+      }
+
+      const order = apply.order;
+      if (!order) {
+        return { ok: false as const, code: "WEBHOOK_ORDER_NOT_FOUND" };
+      }
+
+      const event: NormalizedPaymentEvent = {
+        eventId,
+        orderId: order.id,
+        status: order.status as DnxNormalizedPaymentStatus,
+        amountMinor: order.amountMinor,
+        currency: "ARS",
+        provider: order.provider,
+        externalReference: order.externalReference,
+        sourceId: order.sourceId,
+        receivedAt: new Date(),
+        signature: "x-signature",
+      };
+      return { ok: true as const, event, apply };
     },
 
     async applyVerifiedEvent(event: NormalizedPaymentEvent) {

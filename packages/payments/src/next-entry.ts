@@ -31,5 +31,16 @@ export {
   sanitizeMercadoPagoPreferenceResponse,
   assertNoSecretLeak,
 } from "./providers/mercado-pago/checkout-pro";
+export {
+  verifyMercadoPagoWebhookSignature,
+  parseMercadoPagoSignatureHeader,
+  buildMercadoPagoWebhookManifest,
+  normalizeMercadoPagoDataId,
+} from "./providers/mercado-pago/webhooks/signature";
+export {
+  parseMercadoPagoPaymentNotification,
+  extractMercadoPagoDataId,
+} from "./providers/mercado-pago/webhooks/payment-notification";
+export type { CheckoutEventOrigin } from "./application/services/clickaton-checkout/types";
 export { MercadoPagoHttpClient } from "./providers/mercado-pago/client/mercado-pago-http-client";
 export { createMercadoPagoProviderConfig } from "./providers/mercado-pago/client/mercado-pago-environment";

@@ -64,6 +64,34 @@ export function createCheckoutService(deps: {
     getCheckoutReturn: status.getReturnResult.bind(status),
     applyNormalizedEvent: applyEvent.execute.bind(applyEvent),
     verifyWebhook: deps.payments.verifyWebhook.bind(deps.payments),
+    async ingestMercadoPagoWebhook(input: {
+      headers: Record<string, string | undefined>;
+      rawBody: string;
+      queryDataId?: string | null;
+      queryType?: string | null;
+      queryTopic?: string | null;
+    }) {
+      if (!deps.payments.ingestMercadoPagoSignedWebhook) {
+        return { ok: false as const, code: "WEBHOOK_MP_UNSUPPORTED" };
+      }
+      const ingested = await deps.payments.ingestMercadoPagoSignedWebhook(input);
+      if (!ingested.ok) return ingested;
+      // Efectos Clickatón (confirm/holds). Idempotente si S2S ya confirmó.
+      const effects = await applyEvent.execute(ingested.event);
+      return {
+        ok: true as const,
+        event: ingested.event,
+        apply: {
+          outcome: effects.duplicate
+            ? ("duplicate" as const)
+            : effects.conflict
+              ? ("conflict" as const)
+              : ("applied" as const),
+          conflictCode: effects.conflictCode,
+          effects,
+        },
+      };
+    },
     getPaymentOrder: (orderId: string) => deps.payments.getOrder(orderId),
     reconcileRegistration: (registrationId: string) =>
       reconcile.execute({ registrationId }),

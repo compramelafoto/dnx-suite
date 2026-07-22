@@ -38,6 +38,24 @@ export {
   stablePayloadHash,
 } from "./orders/mapper.js";
 export { parseMercadoPagoOrdersWebhook } from "./webhooks/parser.js";
+export {
+  verifyMercadoPagoWebhookSignature,
+  parseMercadoPagoSignatureHeader,
+  buildMercadoPagoWebhookManifest,
+  normalizeMercadoPagoDataId,
+} from "./webhooks/signature.js";
+export type {
+  VerifyMercadoPagoWebhookSignatureInput,
+  VerifyMercadoPagoWebhookSignatureResult,
+} from "./webhooks/signature.js";
+export {
+  parseMercadoPagoPaymentNotification,
+  extractMercadoPagoDataId,
+} from "./webhooks/payment-notification.js";
+export type {
+  MercadoPagoPaymentNotification,
+  ParseMercadoPagoPaymentNotificationResult,
+} from "./webhooks/payment-notification.js";
 export { FakeMercadoPagoHttpClient } from "./testing/fake-client.js";
 export * from "./testing/fixtures.js";
 export * from "./checkout-pro/index.js";

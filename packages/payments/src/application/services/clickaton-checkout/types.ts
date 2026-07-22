@@ -71,7 +71,25 @@ export type ClickatonCheckoutProviderBridge = {
     liveMode: boolean;
     rawSanitized: Record<string, unknown>;
   } | null>;
+  /** S2S por payment id (webhooks firmados Checkout Pro). */
+  fetchPaymentById?(paymentId: string): Promise<{
+    status: NormalizedCheckoutStatus;
+    amountMinor: number;
+    currency: CurrencyCode;
+    externalReference: string | null;
+    liveMode: boolean;
+    providerPaymentId: string;
+    rawSanitized: Record<string, unknown>;
+  } | null>;
 };
+
+/** Origen durable del evento normalizado (inbox / auditoría). */
+export type CheckoutEventOrigin =
+  | "HTTP_WEBHOOK"
+  | "S2S_REFRESH"
+  | "RECONCILIATION"
+  | "SIMULATION"
+  | "NORMALIZED";
 
 export type DurableCheckoutOrder = {
   id: string;
@@ -112,6 +130,9 @@ export type NormalizedCheckoutEvent = {
   externalReference: string;
   sourceId: string;
   receivedAt: string;
+  /** Si se omite, se infiere por prefijo de eventId. */
+  origin?: CheckoutEventOrigin;
+  liveModeReported?: boolean | null;
 };
 
 export type ApplyNormalizedCheckoutEventResult = {

@@ -190,8 +190,9 @@ async function main() {
     "runtime defaults to durable",
   );
   assert(
-    file("app/api/webhooks/dnx-payments/route.ts").includes("Adapter temporal"),
-    "webhook documented as temporary adapter",
+    file("app/api/webhooks/dnx-payments/route.ts").includes("x-signature") &&
+      file("app/api/webhooks/dnx-payments/route.ts").includes("No acepta unsigned"),
+    "webhook documented as signed Mercado Pago + DNX paths",
   );
 
   // URL safety

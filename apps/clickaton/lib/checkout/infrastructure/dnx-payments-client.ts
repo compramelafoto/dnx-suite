@@ -13,13 +13,34 @@ export interface DnxPaymentsClient {
   createOrder(input: CreatePaymentOrderInput): Promise<CreatePaymentOrderResult>;
   getOrder(orderId: string): Promise<PaymentOrder | null>;
   refreshOrder(orderId: string): Promise<PaymentOrder | null>;
-  /** Verifica autenticidad de webhook normalizado (firma HMAC). */
+  /** Verifica autenticidad de webhook normalizado (firma HMAC DNX). */
   verifyWebhook(
     headers: Record<string, string | undefined>,
     rawBody: string,
   ): { ok: true; event: NormalizedPaymentEvent } | { ok: false; code: string };
   /** Aplica un evento ya verificado al store de órdenes (idempotente). */
   applyVerifiedEvent(event: NormalizedPaymentEvent): Promise<PaymentOrder | null>;
+  /**
+   * Opcional: Webhooks firmados Mercado Pago (x-signature) → S2S → DNX.
+   * Presente en el cliente durable; ausente en fake in-memory.
+   */
+  ingestMercadoPagoSignedWebhook?(input: {
+    headers: Record<string, string | undefined>;
+    rawBody: string;
+    queryDataId?: string | null;
+    queryType?: string | null;
+    queryTopic?: string | null;
+  }): Promise<
+    | {
+        ok: true;
+        event: NormalizedPaymentEvent;
+        apply: {
+          outcome: string;
+          conflictCode?: string;
+        };
+      }
+    | { ok: false; code: string }
+  >;
 }
 
 export type FakeProviderScenario =

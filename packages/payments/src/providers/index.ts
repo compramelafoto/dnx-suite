@@ -9,6 +9,12 @@ export {
   percentageBpsToMercadoPagoAmount,
   validateSplitOrderForMercadoPago,
   parseMercadoPagoOrdersWebhook,
+  verifyMercadoPagoWebhookSignature,
+  parseMercadoPagoSignatureHeader,
+  buildMercadoPagoWebhookManifest,
+  normalizeMercadoPagoDataId,
+  parseMercadoPagoPaymentNotification,
+  extractMercadoPagoDataId,
   FakeMercadoPagoHttpClient,
 } from "./mercado-pago/index.js";
 export type {
