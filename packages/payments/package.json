@@ -20,7 +20,11 @@
     "./infrastructure/prisma": "./src/infrastructure/prisma/index.ts",
     "./clickaton-checkout": "./src/application/services/clickaton-checkout/index.ts",
     "./next": "./src/next-entry.ts",
-    "./sandbox": "./src/sandbox/preflight.ts"
+    "./sandbox": "./src/sandbox/preflight.ts",
+    "./financial-identity": "./src/financial-identity/index.ts",
+    "./economic-agreement": "./src/economic-agreement/index.ts",
+    "./finance-permissions": "./src/finance-permissions/index.ts",
+    "./legacy/clf": "./src/legacy/clf/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",

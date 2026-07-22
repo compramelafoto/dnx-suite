@@ -208,6 +208,13 @@ model User {
   dnxPublicProfiles                     DnxUserProfile[]
   /// Beneficiarios DNX Payments vinculados a este usuario (opcional).
   dnxPaymentRecipients                  DnxPaymentRecipient[]
+  dnxFinancialIdentities                DnxFinancialIdentity[]                 @relation("FinancialIdentityOwner")
+  dnxFinanceGrants                      DnxFinanceGrant[]                      @relation("FinanceGrantUser")
+  dnxFinanceGrantsGranted               DnxFinanceGrant[]                      @relation("FinanceGrantGrantedBy")
+  dnxEconomicAgreementsCreated          DnxEconomicAgreement[]                 @relation("EconomicAgreementCreatedBy")
+  dnxAgreementParticipantsInvited       DnxAgreementParticipant[]              @relation("AgreementParticipantInvitedBy")
+  dnxAgreementParticipantsApproved      DnxAgreementParticipant[]              @relation("AgreementParticipantApprovedBy")
+  dnxDistributionVersionsPublished      DnxDistributionVersion[]               @relation("DistributionVersionPublishedBy")
   /// Preferencias de Info Spot (onboarding, ubicación, notificaciones). No permisos.
   infoSpotPreferences                   InfoSpotUserPreferences?
   contestOrganizationsCreated           ContestOrganization[]                  @relation("FrOrgCreator")
@@ -8224,6 +8231,312 @@ model DnxPaymentAuditEvent {
   @@index([action, createdAt])
 }
 
+// =============================================================================
+// DNX Financial Identity + Economic Agreements (Etapa 10D3I-C)
+// Additive only. No CLF cutover. No Orders 1:N activation. No token migration.
+// =============================================================================
+
+enum DnxFinancialSubjectType {
+  PERSON
+  ORGANIZATION
+}
+
+enum DnxFinancialIdentityStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+/// Environment del módulo financiero (TEST↔SANDBOX, PROD↔PRODUCTION en bridge Payments).
+enum DnxFinancialEnvironment {
+  TEST
+  PROD
+}
+
+enum DnxPaymentAccountStatus {
+  PENDING
+  ACTIVE
+  NEEDS_REAUTH
+  REVOKED
+  DISABLED
+}
+
+enum DnxPaymentAccountCapability {
+  COLLECTOR
+  SPLIT_RECEIVER
+  PAYOUT_DESTINATION
+}
+
+enum DnxEconomicAgreementStatus {
+  DRAFT
+  ACTIVE
+  SUPERSEDED
+  CLOSED
+  SUSPENDED
+}
+
+enum DnxAgreementParticipantStatus {
+  INVITED
+  ACCEPTED
+  ACTIVE
+  PAUSED
+  EXITED
+  REMOVED
+}
+
+enum DnxAgreementParticipantRoleLabel {
+  PARTNER
+  VENUE_ORGANIZER
+  SPONSOR_SCOUT
+  SPONSOR
+  PLATFORM
+  PHOTOGRAPHER
+  ORGANIZER
+  OTHER
+}
+
+enum DnxDistributionVersionStatus {
+  DRAFT
+  PUBLISHED
+  SUPERSEDED
+}
+
+enum DnxDistributionRuleKind {
+  PERCENTAGE
+  FIXED
+}
+
+enum DnxFinanceCapability {
+  DNX_FINANCE_OWNER
+  DNX_FINANCE_ADMIN
+  PRODUCT_FINANCE_MANAGER
+  PRODUCT_FINANCE_VIEWER
+}
+
+enum DnxFinanceGrantStatus {
+  ACTIVE
+  REVOKED
+}
+
+/// Identidad financiera canónica (persona u organización). Sin % ni secretos PSP.
+model DnxFinancialIdentity {
+  id          String                     @id @default(cuid())
+  subjectType DnxFinancialSubjectType
+  /// Owner primario (persona). Nullable para organizaciones gestionadas por memberships.
+  ownerUserId Int?
+  /// Identidad personal primaria del User (solo PERSON).
+  isPrimary   Boolean                    @default(false)
+  legalName   String?
+  taxId       String?
+  countryCode String
+  status      DnxFinancialIdentityStatus @default(DRAFT)
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  ownerUser        User?                               @relation("FinancialIdentityOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  paymentAccounts  DnxPaymentAccount[]
+  participants     DnxAgreementParticipant[]
+  linkedRecipients DnxFinancialIdentityRecipientLink[]
+
+  @@index([ownerUserId, subjectType, status])
+  @@index([status])
+}
+
+/// Cuenta financiera (MP hoy; Stripe/banco/wallet extensibles). Sin tokens plaintext.
+model DnxPaymentAccount {
+  id                  String                        @id @default(cuid())
+  financialIdentityId String
+  provider            DnxPaymentProvider
+  environment         DnxFinancialEnvironment
+  providerUserId      String?
+  externalReference   String?
+  /// Referencia opaca a vault futuro — nunca token MP en claro.
+  credentialReference String?
+  /// Referencia a Split Consent / receiver (sanitizada).
+  consentReference    String?
+  originApp           String?
+  capabilities        DnxPaymentAccountCapability[] @default([])
+  isPrimary           Boolean                       @default(false)
+  status              DnxPaymentAccountStatus       @default(PENDING)
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+
+  financialIdentity DnxFinancialIdentity      @relation(fields: [financialIdentityId], references: [id], onDelete: Restrict)
+  participants      DnxAgreementParticipant[]
+
+  @@index([financialIdentityId, status])
+  @@index([provider, environment, providerUserId])
+  @@index([status])
+}
+
+/// Acuerdo económico versionado (productKey + scope opaco). Sin % sueltos.
+model DnxEconomicAgreement {
+  id               String                     @id @default(cuid())
+  productKey       String
+  scopeType        String
+  scopeId          String
+  name             String
+  countryCode      String
+  currency         String
+  status           DnxEconomicAgreementStatus @default(DRAFT)
+  currentVersionId String?                    @unique
+  createdByUserId  Int
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  createdBy      User                           @relation("EconomicAgreementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  currentVersion DnxDistributionVersion?        @relation("AgreementCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  participants   DnxAgreementParticipant[]
+  versions       DnxDistributionVersion[]       @relation("AgreementVersions")
+  snapshots      DnxOrderDistributionSnapshot[]
+
+  @@unique([productKey, scopeType, scopeId])
+  @@index([productKey, status])
+  @@index([createdByUserId])
+}
+
+/// Participante de un acuerdo. roleLabel = metadata económica, no rol de app.
+model DnxAgreementParticipant {
+  id                  String                           @id @default(cuid())
+  agreementId         String
+  financialIdentityId String
+  paymentAccountId    String?
+  roleLabel           DnxAgreementParticipantRoleLabel
+  status              DnxAgreementParticipantStatus    @default(INVITED)
+  validFrom           DateTime?
+  validTo             DateTime?
+  invitedByUserId     Int
+  approvedByUserId    Int?
+  acceptedAt          DateTime?
+  createdAt           DateTime                         @default(now())
+  updatedAt           DateTime                         @updatedAt
+
+  agreement         DnxEconomicAgreement  @relation(fields: [agreementId], references: [id], onDelete: Restrict)
+  financialIdentity DnxFinancialIdentity  @relation(fields: [financialIdentityId], references: [id], onDelete: Restrict)
+  paymentAccount    DnxPaymentAccount?    @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
+  invitedBy         User                  @relation("AgreementParticipantInvitedBy", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  approvedBy        User?                 @relation("AgreementParticipantApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  rules             DnxDistributionRule[]
+
+  @@unique([agreementId, financialIdentityId])
+  @@index([financialIdentityId, status])
+  @@index([agreementId, status])
+}
+
+/// Versión de distribución. PUBLISHED es inmutable.
+model DnxDistributionVersion {
+  id                  String                       @id @default(cuid())
+  agreementId         String
+  versionNumber       Int
+  status              DnxDistributionVersionStatus @default(DRAFT)
+  roundingPolicy      String                       @default("LARGEST_REMAINDER")
+  feePolicy           String?
+  publishedAt         DateTime?
+  publishedByUserId   Int?
+  supersedesVersionId String?
+  rulesHash           String?
+  createdAt           DateTime                     @default(now())
+
+  agreement           DnxEconomicAgreement           @relation("AgreementVersions", fields: [agreementId], references: [id], onDelete: Restrict)
+  publishedBy         User?                          @relation("DistributionVersionPublishedBy", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  supersedes          DnxDistributionVersion?        @relation("VersionSupersedes", fields: [supersedesVersionId], references: [id], onDelete: SetNull)
+  supersededBy        DnxDistributionVersion[]       @relation("VersionSupersedes")
+  currentForAgreement DnxEconomicAgreement?          @relation("AgreementCurrentVersion")
+  rules               DnxDistributionRule[]
+  snapshots           DnxOrderDistributionSnapshot[]
+
+  @@unique([agreementId, versionNumber])
+  @@index([agreementId, status])
+}
+
+/// Regla de una versión (bps o fijo). Fuente de % = versión, no User.
+model DnxDistributionRule {
+  id                     String                  @id @default(cuid())
+  distributionVersionId  String
+  agreementParticipantId String
+  kind                   DnxDistributionRuleKind
+  /// PERCENTAGE: basis points (10000 = 100%). FIXED: minor units.
+  value                  BigInt
+  priority               Int                     @default(100)
+  optional               Boolean                 @default(false)
+  createdAt              DateTime                @default(now())
+
+  distributionVersion  DnxDistributionVersion  @relation(fields: [distributionVersionId], references: [id], onDelete: Cascade)
+  agreementParticipant DnxAgreementParticipant @relation(fields: [agreementParticipantId], references: [id], onDelete: Restrict)
+
+  @@unique([distributionVersionId, agreementParticipantId])
+  @@index([distributionVersionId])
+}
+
+/// Snapshot formal append-only de distribución por orden/intent.
+/// Dual-write compatible con distributionSnapshot Json en Intent/Order.
+model DnxOrderDistributionSnapshot {
+  id                    String    @id @default(cuid())
+  schemaVersion         Int       @default(1)
+  agreementId           String
+  distributionVersionId String
+  versionNumber         Int
+  productKey            String
+  scopeType             String
+  scopeId               String
+  currency              String
+  totalMinor            BigInt
+  /// Payload tipado sanitizado (sin credentialReference sensible).
+  payload               Json
+  engineInputHash       String
+  publishedByUserId     Int?
+  publishedAt           DateTime?
+  paymentIntentId       String?
+  paymentOrderId        String?
+  externalReference     String?
+  createdAt             DateTime  @default(now())
+
+  agreement           DnxEconomicAgreement   @relation(fields: [agreementId], references: [id], onDelete: Restrict)
+  distributionVersion DnxDistributionVersion @relation(fields: [distributionVersionId], references: [id], onDelete: Restrict)
+
+  @@index([agreementId, versionNumber])
+  @@index([paymentIntentId])
+  @@index([paymentOrderId])
+  @@index([productKey, externalReference])
+  @@index([engineInputHash])
+}
+
+/// Bridge opcional FinancialIdentity → DnxPaymentRecipient (sin cutover).
+model DnxFinancialIdentityRecipientLink {
+  id                  String   @id @default(cuid())
+  financialIdentityId String
+  paymentRecipientId  String
+  createdAt           DateTime @default(now())
+
+  financialIdentity DnxFinancialIdentity @relation(fields: [financialIdentityId], references: [id], onDelete: Cascade)
+
+  @@unique([financialIdentityId, paymentRecipientId])
+  @@index([paymentRecipientId])
+}
+
+/// Grants financieros explícitos (sin email hardcodeado en runtime).
+model DnxFinanceGrant {
+  id              String                @id @default(cuid())
+  userId          Int
+  capability      DnxFinanceCapability
+  /// Requerido para PRODUCT_FINANCE_*.
+  productKey      String?
+  scopeType       String?
+  scopeId         String?
+  status          DnxFinanceGrantStatus @default(ACTIVE)
+  grantedByUserId Int?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  user      User  @relation("FinanceGrantUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("FinanceGrantGrantedBy", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([capability, productKey, status])
+  @@index([productKey, scopeType, scopeId])
+}
+
 // ---------------------------------------------------------------------------
 // CLICKATON ADMIN — ediciones y sedes (Etapa 10C)
 // ---------------------------------------------------------------------------
@@ -8734,21 +9047,21 @@ model ClickatonRegistrationAudit {
 
 /// Mensajes del formulario público de contacto / Formá parte (casilla admin Clickatón).
 model ClickatonContactMessage {
-  id          String    @id @default(cuid())
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  name        String
-  email       String
-  company     String?
-  phone       String?
+  id         String    @id @default(cuid())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  name       String
+  email      String
+  company    String?
+  phone      String?
   /// Clave estable del motivo (ej. formar-parte, aliados, general).
-  reason      String
-  message     String
+  reason     String
+  message    String
   /// Origen del envío (contacto, formar-parte, sponsors).
-  source      String    @default("contacto")
-  isRead      Boolean   @default(false)
-  readAt      DateTime?
-  archivedAt  DateTime?
+  source     String    @default("contacto")
+  isRead     Boolean   @default(false)
+  readAt     DateTime?
+  archivedAt DateTime?
 
   @@index([createdAt])
   @@index([isRead, createdAt])

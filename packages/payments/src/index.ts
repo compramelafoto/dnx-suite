@@ -48,3 +48,16 @@ export type {
   SandboxPreflightStatus,
   SandboxCredentialAuditRow,
 } from "./sandbox/preflight.js";
+export * from "./financial-identity/index.js";
+export * from "./economic-agreement/index.js";
+export * from "./finance-permissions/index.js";
+export * from "./legacy/clf/index.js";
+export * from "./bridges/index.js";
+export {
+  actor as createFinanceTestActor,
+  createTestFinancialServices,
+  FIXTURE_MP_IDS,
+  FIXTURE_USERS,
+  grant as createFinanceTestGrant,
+  seedClickatonPartnersFixture,
+} from "./testing/financial-fixtures.js";
