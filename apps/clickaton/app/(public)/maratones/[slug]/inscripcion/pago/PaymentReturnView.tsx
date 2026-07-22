@@ -28,12 +28,19 @@ export async function PaymentReturnView({
   );
 
   if (!result.ok || !result.data) {
+    const code = result.code ?? "";
+    const hint =
+      code === "TOKEN_EXPIRED"
+        ? "El enlace de acceso expiró. El retorno del navegador no confirma el pago; el sistema lo verifica por separado."
+        : code === "TOKEN_INVALID" || !accessToken
+          ? "No pudimos validar el enlace de acceso (token ausente, truncado o firmado con otro secreto). El retorno del navegador no confirma el pago."
+          : (result.message ?? "Enlace inválido o expirado.");
     return (
       <Section>
         <Container className="space-y-6 py-12">
           <h1 className="ck-display-md">No pudimos verificar el pago</h1>
           <p className="text-ck-text-secondary" role="alert">
-            {result.message ?? "Enlace inválido o expirado."}
+            {hint}
           </p>
           <Button href={marathonPath(slug)} variant="secondary">
             Volver a la maratón
