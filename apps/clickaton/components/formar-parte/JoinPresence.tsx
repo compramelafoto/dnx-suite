@@ -6,19 +6,21 @@ import { formarParteContent } from "@/content/formar-parte";
 
 const { presence } = formarParteContent;
 
-const sizeClass = {
+const sizeClass: Record<string, string> = {
   hero: "sm:col-span-2 lg:col-span-3 aspect-[16/9] min-h-[16rem]",
   wide: "sm:col-span-2 aspect-[16/10] min-h-[15rem]",
   /**
    * Roll-up físico vertical: celda angosta fija + contain
-   * para ver el banner completo (sin crop ni estirado).
+   * (content puede usar size portrait o rollup).
    */
+  portrait:
+    "aspect-[2/3] w-[min(100%,11.5rem)] max-w-[11.5rem] justify-self-center min-h-0 sm:w-[12.5rem] sm:max-w-[12.5rem] lg:row-span-2 lg:w-[13rem] lg:max-w-[13rem] xl:w-[14rem] xl:max-w-[14rem]",
   rollup:
     "aspect-[2/3] w-[min(100%,11.5rem)] max-w-[11.5rem] justify-self-center min-h-0 sm:w-[12.5rem] sm:max-w-[12.5rem] lg:row-span-2 lg:w-[13rem] lg:max-w-[13rem] xl:w-[14rem] xl:max-w-[14rem]",
   /** Par lado a lado (remeras / credenciales). */
   pair: "aspect-[3/4] min-h-[18rem]",
   square: "aspect-square min-h-[14rem]",
-} as const;
+};
 
 /** Fotos de escena que pueden recortarse con cover. */
 const coverSizes = new Set(["hero", "pair"]);
@@ -41,8 +43,9 @@ export function JoinPresence() {
 
         <ul className="mt-14 grid grid-cols-1 gap-4 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3 lg:auto-rows-[minmax(14rem,auto)] lg:gap-5">
           {presence.collage.map((item) => {
-            const useCover = coverSizes.has(item.size);
-            const isRollup = item.size === "rollup";
+            const size = String(item.size);
+            const useCover = coverSizes.has(size);
+            const isRollup = size === "portrait" || size === "rollup";
 
             return (
               <li
@@ -50,7 +53,7 @@ export function JoinPresence() {
                 tabIndex={0}
                 className={cn(
                   "group relative overflow-hidden border border-ck-border bg-[#0a0a0a] outline-none focus-visible:ring-2 focus-visible:ring-ck-yellow/70",
-                  sizeClass[item.size],
+                  sizeClass[size],
                 )}
               >
                 <Image
@@ -58,9 +61,9 @@ export function JoinPresence() {
                   alt={item.alt}
                   fill
                   sizes={
-                    item.size === "hero"
+                    size === "hero"
                       ? "100vw"
-                      : item.size === "wide"
+                      : size === "wide"
                         ? "(max-width: 1024px) 100vw, 66vw"
                         : isRollup
                           ? "14rem"
