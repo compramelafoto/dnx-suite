@@ -97,27 +97,24 @@ export default function BrandManualPage() {
           <ManualSection id="logos">
             <SectionHeader
               eyebrow="01 · Marca"
-              title="Isologotipos oficiales"
-              description="Archivos originales listos para descargar (sin modificar). Usá cada variante según el fondo. No redibujes ni tipografíes el wordmark."
+              title="Logos principales"
+              description="Tres variantes oficiales con fondo transparente. El preview usa damero solo en pantalla; al descargar recibís el PNG original sin modificar."
             />
-            <div className="grid gap-8 lg:grid-cols-2">
+            <div className="grid gap-8 lg:grid-cols-3">
               {brandLogoDownloads.map((logo) => (
                 <Card key={logo.id} className="flex flex-col gap-6">
                   <div
                     className={cn(
-                      "ck-transparency-checkerboard flex min-h-[12rem] items-center justify-center rounded-[var(--ck-radius-md)] border border-ck-border px-6 py-10",
+                      "ck-transparency-checkerboard flex min-h-[14rem] items-center justify-center rounded-[var(--ck-radius-md)] border border-ck-border px-6 py-10",
                     )}
                   >
                     <Image
                       src={logo.previewSrc}
                       alt={logo.name}
-                      width={1536}
-                      height={1024}
+                      width={1024}
+                      height={logo.id === "principal-v2-mono" ? 682 : 485}
                       unoptimized
-                      className={cn(
-                        "h-auto w-full bg-transparent object-contain",
-                        logo.id === "principal" ? "max-w-[14rem]" : "max-w-md",
-                      )}
+                      className="h-auto w-full max-w-sm bg-transparent object-contain"
                     />
                   </div>
                   <div className="flex flex-1 flex-col gap-4">

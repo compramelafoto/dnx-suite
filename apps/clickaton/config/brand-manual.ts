@@ -12,13 +12,11 @@ export const brandManualMeta = {
   path: "/manualdemarca",
 } as const;
 
-/** Paths de descarga en `public/brand/downloads/logos/`. */
+/** Paths de descarga en `public/brand/downloads/logos/` (PNG originales con transparencia). */
 export const brandLogoOriginals = {
-  principal: "/brand/downloads/logos/clickaton-principal.png",
-  colorFondoNegro: "/brand/downloads/logos/clickaton-color-fondo-negro.png",
-  monoFondoNegro: "/brand/downloads/logos/clickaton-fondo-negro.png",
-  monoFondoBlanco: "/brand/downloads/logos/clickaton-fondo-blanco.png",
-  isologotipo: "/brand/downloads/logos/clickaton-isologotipo.png",
+  principalV3Color: "/brand/downloads/logos/clickaton-principal-v3-color.png",
+  principalV2Color: "/brand/downloads/logos/clickaton-principal-v2-color.png",
+  principalV2Mono: "/brand/downloads/logos/clickaton-principal-v2-mono.png",
 } as const;
 
 export type BrandLogoDownload = {
@@ -33,49 +31,34 @@ export type BrandLogoDownload = {
 
 export const brandLogoDownloads: readonly BrandLogoDownload[] = [
   {
-    id: "principal",
-    name: "Logo principal",
-    description: "Versión stacked / sticker.",
+    id: "principal-v3-color",
+    name: "Logo principal — color V3",
+    description:
+      "Versión sticker a color (CLICK en amarillo). PNG con fondo transparente.",
     previewSurface: "dark",
-    previewSrc: brandLogoOriginals.principal,
-    downloadHref: brandLogoOriginals.principal,
-    downloadFileName: "clickaton-principal.png",
+    previewSrc: brandLogoOriginals.principalV3Color,
+    downloadHref: brandLogoOriginals.principalV3Color,
+    downloadFileName: "clickaton-principal-v3-color.png",
   },
   {
-    id: "color-dark",
-    name: "Isologotipo color — fondo negro",
-    description: "Horizontal a color para fondos oscuros.",
+    id: "principal-v2-color",
+    name: "Logo principal — color V2",
+    description:
+      "Versión sticker a color (ATÓN! en amarillo). PNG con fondo transparente.",
     previewSurface: "dark",
-    previewSrc: brandLogoOriginals.colorFondoNegro,
-    downloadHref: brandLogoOriginals.colorFondoNegro,
-    downloadFileName: "clickaton-color-fondo-negro.png",
+    previewSrc: brandLogoOriginals.principalV2Color,
+    downloadHref: brandLogoOriginals.principalV2Color,
+    downloadFileName: "clickaton-principal-v2-color.png",
   },
   {
-    id: "mono-dark",
-    name: "Isologotipo mono — fondo negro",
-    description: "Monocromo para fondos oscuros.",
+    id: "principal-v2-mono",
+    name: "Logo principal — mono",
+    description:
+      "Versión sticker monocromática. PNG con fondo transparente.",
     previewSurface: "dark",
-    previewSrc: brandLogoOriginals.monoFondoNegro,
-    downloadHref: brandLogoOriginals.monoFondoNegro,
-    downloadFileName: "clickaton-fondo-negro.png",
-  },
-  {
-    id: "mono-light",
-    name: "Isologotipo mono — fondo blanco",
-    description: "Monocromo para fondos claros. Preview sobre blanco.",
-    previewSurface: "light",
-    previewSrc: brandLogoOriginals.monoFondoBlanco,
-    downloadHref: brandLogoOriginals.monoFondoBlanco,
-    downloadFileName: "clickaton-fondo-blanco.png",
-  },
-  {
-    id: "isologotipo",
-    name: "Isologotipo (cámara)",
-    description: "Isotipo / marca gráfica.",
-    previewSurface: "dark",
-    previewSrc: brandLogoOriginals.isologotipo,
-    downloadHref: brandLogoOriginals.isologotipo,
-    downloadFileName: "clickaton-isologotipo.png",
+    previewSrc: brandLogoOriginals.principalV2Mono,
+    downloadHref: brandLogoOriginals.principalV2Mono,
+    downloadFileName: "clickaton-principal-v2-mono.png",
   },
 ] as const;
 
@@ -217,15 +200,15 @@ export const brandFonts: readonly BrandFontSpec[] = [
 export const brandUsageRules = {
   do: [
     "Usá siempre los PNG oficiales descargables (no redibujar ni tipografiar el logo).",
-    "Respetá el área libre alrededor del isologotipo (como mínimo la altura de la cámara).",
-    "Sobre fondos oscuros: versión color o mono claro. Sobre fondos claros: mono para fondo blanco.",
+    "Respetá el área libre alrededor del logo (como mínimo la altura de la cámara).",
+    "Los tres logos principales tienen fondo transparente: usalos sobre oscuro o claro según contraste.",
     "El amarillo `#FFC400` es un golpe visual: CTAs, links, líneas e íconos — nunca el fondo de página.",
     "Tipografía de piezas: Bebas Neue + Montserrat + Caveat según el rol indicado.",
   ],
   dont: [
     "No distorsionar, rotar, cambiar colores ni agregar sombras/glow al logo.",
     "No reconstruir “CLICKATÓN!” con Bebas Neue u otra fuente: el wordmark es asset gráfico.",
-    "No usar el isologotipo incorrecto o legacy (versión con tipografía errónea).",
+    "No aplastar ni recortar el contorno blanco del sticker.",
     "No llenar héroes o fondos enteros de amarillo.",
     "No mezclar con paletas ajenas (terracota, púrpura SaaS genérico, etc.).",
   ],
