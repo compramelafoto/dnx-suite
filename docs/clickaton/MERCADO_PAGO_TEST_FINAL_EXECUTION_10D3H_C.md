@@ -4,131 +4,88 @@
 
 | Campo | Valor |
 | ----- | ----- |
-| Fecha | 2026-07-21 |
+| Fecha | 2026-07-22 |
 | Rama | `migration-legacy-clf-to-monorepo` |
-| HEAD local / origin | `f508a19` (ahead 0 / behind 0; contiene `9d94ac2` + `1693491`) |
-| Push autorizado | Realizado (`1693491`, `9d94ac2`); origin luego avanzó con `f508a19` (InfoSpot) |
-| Proyecto staging | `clickaton-staging` |
-| URL | `https://clickaton-staging.vercel.app` |
-| Deploy READY | `dpl_38pam3gHVUgL5PMofbRgXw7GWeDu` — SHA `9d94ac2` |
-| Neon staging | proyecto `clickaton-staging` (`plain-sky-50672248`) / DB `clickaton_staging` — 61/61 |
+| HEAD | `ead6565` (contiene `9d94ac2`) |
+| Staging alias | `https://clickaton-staging.vercel.app` |
+| Deploy alias SHA | `9d94ac2` (READY) |
+| Neon | `clickaton-staging` / `clickaton_staging` |
 | Provider | `mercado_pago_test` |
-| Smoke externo pago | **No ejecutado** — bloqueado por webhook Mercado Pago (panel no confirmable sin sesión) |
+| Smoke externo pago | **Ejecutado** — aprobado vía Checkout Pro TEST + S2S |
 
-## Objetivo
+## Push / producción
 
-```text
-Clickatón staging → inscripción TEST → reserva → orden DNX → preferencia MP TEST
-→ Checkout Pro TEST → retorno → S2S / webhook → confirmación → reconciliación
-```
+- Push de código de pagos: **no** en esta corrida.
+- Producción comercial / Neon prod / `clickaton-dnxsuite`: **intactos**.
 
-## Push
+## Check-config
 
-| Control | Resultado |
-| ------- | --------- |
-| Comando | `git push origin migration-legacy-clf-to-monorepo` (sin force) |
-| Resultado | Commits `1693491` / `9d94ac2` en origin; estado final `0 0` |
-| Force / tags / otras ramas | No |
+`pnpm --filter clickaton smoke:dnx-payments-test -- --check-config` → **exit 0**
 
-## Deployment staging
+Seller `TEST_USER` / `safeToExecute=true` · buyer `@testuser.com` · DB staging · URLs staging.
 
-| Control | Resultado |
-| ------- | --------- |
-| Proyecto | `clickaton-staging` (`prj_MM6Bkdi8…`) |
-| Rama | `migration-legacy-clf-to-monorepo` |
-| SHA desplegado | `9d94ac2` (ancestro de HEAD `f508a19`) |
-| Build | READY |
-| Dominio | `clickaton-staging.vercel.app` |
-| SSO / password | Off (`ssoProtection: null`) |
-| DB | Neon staging `clickaton_staging` |
-| `clickaton-dnxsuite` / Production comercial | Intactos |
-| `maratonfotografica.com` | No tocado |
+## Execute (sanitizado)
 
-## Webhook público (app)
+| Recurso | ID sanitizado | Estado final |
+| --- | --- | --- |
+| Registration | `cmrvt7…1nub` | CONFIRMED |
+| Order DNX | `dnx_or…4c04` | PAID / SANDBOX |
+| Preference | `314137…9b3a` | approved (mapped PROCESSED) |
+| Payment MP | `169962…0634` | APPROVED |
+| Hold capacidad | — | CONSUMED |
+| Amount | 1500 minor | ARS ($ 15) |
+| External ref | `clickaton:registration:cmrvt7…` | match |
 
-| Probe | Resultado |
-| ----- | --------- |
-| GET `/api/webhooks/dnx-payments` | **405** `METHOD_NOT_ALLOWED` |
-| POST sin firma | **400** `WEBHOOK_UNSIGNED` |
-| 302 / Vercel 401 / 404 | Ausentes |
+## Checkout visual
 
-## Webhook Mercado Pago (panel)
+- Descripción: Inscripción Clickatón TEST
+- Importe: $ 15 ARS
+- Host: `www.mercadopago.com.ar`
+- Medio: tarjeta TEST oficial (APRO)
+- Primera apertura con sesión personal: **abortada** (saldo/tarjetas reales)
+- Pago completado en perfil limpio sin cuenta personal
 
-| Control | Resultado |
-| ------- | --------- |
-| App | CLICKATON / Pruebas (requerido) |
-| URL esperada | `https://clickaton-staging.vercel.app/api/webhooks/dnx-payments` |
-| Evento | Pagos |
-| Verificación Browser MCP | **No confirmada** — redirect a login ML/MP |
-| MCP save_webhook | Ausente |
-| Veredicto paso 5 | **BLOQUEADO POR WEBHOOK MERCADO PAGO** |
+## Retorno
 
-No se usó ComprameLaFoto, webhook de producción, `maratonfotografica.com` ni `clickaton-dnxsuite.vercel.app`.
+`clickaton-staging.vercel.app/.../pago/exito` con `status=approved` y `payment_id` presente.  
+La UI staging mostró “Enlace de acceso inválido” (token/`AUTH_SECRET` vs deploy) — **no** se usó el redirect como confirmación.
 
-## Check-config final
+## S2S / reconciliación
 
-```text
-pnpm --filter clickaton smoke:dnx-payments-test -- --check-config
-→ exit 0
-```
+- Refresh 1: APPROVED / CONFIRMED / APPROVED
+- Refresh 2: idéntico (idempotente)
+- Reconciliación: **CONSISTENT**
+- Nota: MP reportó `live_mode=true` en pago TEST; audit `live_mode_ignored_for_test` (bridge TEST)
 
-| Control | Resultado |
-| ------- | --------- |
-| Seller TEST | `safeToExecute` — `TEST/TEST_USER/app_usr_attested_and_test_seller_verified` |
-| Buyer TEST | dominio `@testuser.com` |
-| Credentials source | `credenciales_de_prueba` |
-| Provider | `mercado_pago_test` |
-| DB | staging / `clickaton_staging` |
-| URL / webhook | staging HTTPS |
-| SHA declarado | `9d94ac2` (lineage OK con HEAD) |
-| Production | Ausente |
+## Webhook HTTP externo
 
-## Execute
+Inbox staging: eventos `clickaton.normalized_payment` por **refresh S2S** (PROCESSED).  
+**No** quedó evidencia de POST firmado `payment.created/updated` desde MP en inbox (posible firma/secret en deploy o entrega).  
 
-No ejecutado (`--execute --confirm-test-only` retenido) por bloqueo de panel webhook MP.
+Simulación previa del panel: 400 `WEBHOOK_UNSIGNED` controlado.
 
-## Escenarios
+## Escenarios secundarios
 
 | Escenario | Estado |
-| --------- | ------ |
-| Aprobado | No ejecutado |
+| --- | --- |
+| Aprobado | Ejecutado completo |
 | Rechazado | No ejecutado |
 | Pendiente | No ejecutado |
-| Webhook externo / S2S / idempotencia / reconciliación | No ejecutados |
 
-## Tests locales (sin pago)
+## Tests posteriores
 
-| Comando | Resultado |
-| ------- | --------- |
-| `test:smoke-db-classify` | OK |
-| `prisma validate` / `generate` | OK |
-| `@repo/payments test` | OK (120) |
-| `selfcheck:dnx-payments-checkout` | OK |
-| `selfcheck:dnx-payments-persistence` | OK |
-| `selfcheck:dnx-payments-smoke` | OK |
-| `selfcheck:mercado-pago-test-adapter` | OK |
-| `check-types` | OK |
-| `lint` | OK |
-| `build` | OK |
+smoke-db-classify, prisma validate/generate, `@repo/payments` (120), selfchecks DNX/MP, check-types, lint — **OK**. Build clickaton — OK.
 
-## Seguridad
+## WIP execute (no pusheado)
 
-- Sin secretos en docs ni logs.
-- Sin dinero real / cuentas productivas en checkout.
-- Neon producción y Vercel Production comercial no modificados.
-- Stash `10d3b-temp-aside-before-switch*` intacto.
-- Sin segundo push.
-
-## Bloqueos restantes
-
-1. Confirmar en panel MP (CLICKATON / Pruebas) la URL de webhook staging + evento Pagos.
-2. Tras confirmación explícita: ejecutar `--execute --confirm-test-only` + checkout visual TEST.
-3. Código execute local (`run-mp-test-execute.ts` + refresh S2S WIP) aún no commiteado — listo para uso local post-desbloqueo.
+Scripts/adapters locales necesarios para search-by-external-reference + confirm S2S. No se comprometieron en esta etapa.
 
 ## Veredicto
 
-**SMOKE BLOQUEADO — CONFIGURACIÓN PENDIENTE** (webhook Mercado Pago panel).
+**MERCADO PAGO TEST APROBADO — WEBHOOK REQUIERE AJUSTE**
+
+Pago real TEST + S2S + persistencia + reconciliación OK; falta cerrar entrega HTTP firmada del webhook en staging.
 
 ## Próximo paso (no iniciado)
 
-Tras smoke aprobado: **10D3I — PREPARACIÓN DE STAGING OPERATIVO Y OBSERVABILIDAD**.
+Tras ajustar webhook firmado en staging: **10D3I**.
