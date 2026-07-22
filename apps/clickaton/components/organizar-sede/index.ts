@@ -1,0 +1,12 @@
+export { OrganizerBenefits } from "@/components/organizar-sede/OrganizerBenefits";
+export { OrganizerEconomics } from "@/components/organizar-sede/OrganizerEconomics";
+export { OrganizerFaq } from "@/components/organizar-sede/OrganizerFaq";
+export { OrganizerFinalCta } from "@/components/organizar-sede/OrganizerFinalCta";
+export { OrganizerForm } from "@/components/organizar-sede/OrganizerForm";
+export { OrganizerHero } from "@/components/organizar-sede/OrganizerHero";
+export { OrganizerHow } from "@/components/organizar-sede/OrganizerHow";
+export { OrganizerMap } from "@/components/organizar-sede/OrganizerMap";
+export { OrganizerNeeds } from "@/components/organizar-sede/OrganizerNeeds";
+export { OrganizerReceive } from "@/components/organizar-sede/OrganizerReceive";
+export { OrganizerWhatIs } from "@/components/organizar-sede/OrganizerWhatIs";
+export { OrganizerWho } from "@/components/organizar-sede/OrganizerWho";

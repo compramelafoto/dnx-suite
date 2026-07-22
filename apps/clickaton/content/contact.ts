@@ -20,7 +20,7 @@ export const contactPageContent = {
   })),
   links: [
     { label: "Ver maratones", href: routes.marathons },
-    { label: "Organizá una", href: routes.organize },
+    { label: "Llevá Clickatón a tu ciudad", href: routes.organize },
     { label: "Formá parte", href: routes.joinUs },
   ],
   note: "Usamos tus datos solo para responder esta consulta.",

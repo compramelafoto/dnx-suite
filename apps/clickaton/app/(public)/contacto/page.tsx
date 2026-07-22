@@ -28,7 +28,11 @@ export default async function ContactPage({ searchParams }: Props) {
   const defaultReason = resolveContactReason(params.motivo);
   const source =
     params.source?.trim() ||
-    (params.motivo === "formar-parte" ? "formar-parte" : "contacto");
+    (params.motivo === "formar-parte"
+      ? "formar-parte"
+      : params.motivo === "organizar"
+        ? "organizar"
+        : "contacto");
 
   return (
     <>

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { routes } from "@/config/navigation";
 
-/** Compatibilidad: la experiencia vive en `/sponsors`. */
+/** Compatibilidad: Aliados Fundadores vive en `/formar-parte`. */
 export default function AliadosFundadoresRedirectPage() {
-  redirect(routes.sponsors);
+  redirect(routes.joinUs);
 }

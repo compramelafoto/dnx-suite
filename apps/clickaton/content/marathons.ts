@@ -38,7 +38,7 @@ export const marathonsPageContent = {
   },
   ctas: {
     howItWorks: { label: "Cómo funciona", href: routes.howItWorks },
-    organize: { label: "Organizá una", href: routes.organize },
+    organize: { label: "Llevá Clickatón a tu ciudad", href: routes.organize },
   },
   /** Enlace técnico — no es un anuncio de edición. */
   demo: {

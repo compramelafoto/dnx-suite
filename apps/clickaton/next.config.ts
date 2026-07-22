@@ -11,6 +11,25 @@ const nextConfig: NextConfig = {
     // Silencia detección errónea de root por lockfiles fuera del monorepo.
     root: path.join(appDir, "../.."),
   },
+  async redirects() {
+    return [
+      {
+        source: "/organizar-sede",
+        destination: "/organizar",
+        permanent: true,
+      },
+      {
+        source: "/sponsors",
+        destination: "/formar-parte",
+        permanent: true,
+      },
+      {
+        source: "/aliados-fundadores",
+        destination: "/formar-parte",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

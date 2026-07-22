@@ -154,9 +154,9 @@ export const homeContent = {
   venues: {
     id: "organiza",
     eyebrow: "Sedes",
-    title: "Organizá una Clickatón.",
-    lead: "Proyectamos una red de sedes con una metodología y una identidad compartidas.",
-    body: "En el futuro, distintas ciudades podrán postularse para organizar una edición oficial con acompañamiento, herramientas y lineamientos comunes.",
+    title: "Llevá Clickatón a tu ciudad.",
+    lead: "Convertite en Organizador Oficial de Sede y hacé posible la maratón fotográfica en tu territorio.",
+    body: "Recibís capacitación, infraestructura, marca y acompañamiento. No es un empleo: es representar a Clickatón en tu ciudad.",
     audience: [
       "Clubes fotográficos",
       "Asociaciones",
@@ -167,9 +167,9 @@ export const homeContent = {
       "Referentes comunitarios",
     ],
     cta: {
-      label: "Quiero conocer el programa de sedes",
+      label: "Quiero ser Organizador",
       href: routes.organize,
-      note: "Próximamente — información y contacto sin formulario persistente en esta etapa.",
+      note: "Postulate como Organizador Oficial de Sede.",
     },
   },
 
@@ -191,8 +191,8 @@ export const homeContent = {
     ],
     cta: {
       label: "Quiero formar parte",
-      href: routes.sponsors,
-      note: "Visualizaciones conceptuales. Sin precios ni sponsors inventados.",
+      href: routes.joinUs,
+      note: "Conocé cómo empresas e instituciones pueden acompañar Clickatón.",
     },
   },
 
@@ -244,7 +244,7 @@ export const homeContent = {
       {
         question: "¿Puede mi ciudad organizar una edición?",
         answer:
-          "Esa es la dirección del proyecto. El programa de sedes se presentará cuando esté listo el acompañamiento y los lineamientos comunes.",
+          "Sí. Podés postularte como Organizador Oficial de Sede desde la página Llevá Clickatón a tu ciudad. Allí está el formulario y el detalle del programa.",
       },
     ],
   },

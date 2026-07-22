@@ -1,104 +1,69 @@
 import type { Metadata } from "next";
-import { AudienceGrid } from "@/components/content/AudienceGrid";
-import { PageHero } from "@/components/content/PageHero";
-import { PhotoFrame } from "@/components/content/PhotoFrame";
-import { ProcessTimeline } from "@/components/content/ProcessTimeline";
-import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
-import { Container } from "@/components/layout/Container";
-import { Section } from "@/components/layout/Section";
-import { SectionHeader } from "@/components/layout/SectionHeader";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { organizePageContent } from "@/content/organize";
+import {
+  OrganizerBenefits,
+  OrganizerEconomics,
+  OrganizerFaq,
+  OrganizerFinalCta,
+  OrganizerForm,
+  OrganizerHero,
+  OrganizerHow,
+  OrganizerMap,
+  OrganizerNeeds,
+  OrganizerReceive,
+  OrganizerWhatIs,
+  OrganizerWho,
+} from "@/components/organizar-sede";
 import { routes } from "@/config/navigation";
-import { buildPageMetadata } from "@/lib/seo";
+import { siteConfig } from "@/config/site";
+import { organizarSedeContent } from "@/content/organizar-sede";
 
-const content = organizePageContent;
+const content = organizarSedeContent;
+const path = routes.organize;
+const pageUrl = new URL(path, siteConfig.url).toString();
 
-export const metadata: Metadata = buildPageMetadata({
-  title: content.meta.title,
+export const metadata: Metadata = {
+  title: {
+    absolute: content.meta.title,
+  },
   description: content.meta.description,
-  path: routes.organize,
-});
+  alternates: {
+    canonical: path,
+  },
+  openGraph: {
+    title: `${content.meta.title} — ${siteConfig.name}`,
+    description: content.meta.description,
+    url: pageUrl,
+    siteName: siteConfig.name,
+    locale: "es_AR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${content.meta.title} — ${siteConfig.name}`,
+    description: content.meta.description,
+  },
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
+/** Landing “Llevá Clickatón a tu ciudad” — reemplaza el stub anterior de /organizar. */
 export default function OrganizePage() {
   return (
-    <>
-      <SimpleBreadcrumb current="Organizá una" />
-      <PageHero
-        eyebrow={content.hero.eyebrow}
-        title={content.hero.title}
-        description={content.hero.description}
-        actions={
-          <Button href={routes.contact} variant="secondary">
-            Ir a contacto
-          </Button>
-        }
-      />
-
-      <Section tone="raised">
-        <Container>
-          <Badge variant="warning">Programa en desarrollo</Badge>
-          <p className="ck-body-lg mt-4 max-w-prose text-ck-text-secondary">{content.status}</p>
-          <div className="mt-10">
-            <SectionHeader eyebrow="Público" title="¿Para quién es?" titleId="organize-audience" />
-            <div className="mt-6">
-              <AudienceGrid items={content.audience} variant="brand" />
-            </div>
-          </div>
-        </Container>
-      </Section>
-
-      <Section>
-        <Container className="mb-10">
-          <PhotoFrame
-            variant="editorial"
-            alt="Convocatoria y encuentro de sede local"
-            overlay="medium"
-            caption="Kits, sedes y premiación — cuando haya material autorizado."
-            className="max-w-4xl"
-          />
-        </Container>
-        <Container className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <h2 className="ck-heading-lg">Qué aporta el equipo local</h2>
-            <ul className="mt-4 space-y-2">
-              {content.localContributes.map((item) => (
-                <li key={item} className="ck-body-sm text-ck-text-secondary">
-                  · {item}
-                </li>
-              ))}
-            </ul>
-          </Card>
-          <Card variant="yellow">
-            <h2 className="ck-heading-lg">Qué aporta Clickatón</h2>
-            <ul className="mt-4 space-y-2">
-              {content.clickatonContributes.map((item) => (
-                <li key={item} className="ck-body-sm text-ck-text-secondary">
-                  · {item}
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </Container>
-      </Section>
-
-      <Section tone="raised" aria-labelledby="organize-steps-title">
-        <Container>
-          <SectionHeader
-            eyebrow="Camino"
-            title="Etapas preliminares"
-            titleId="organize-steps-title"
-          />
-          <div className="mt-10">
-            <ProcessTimeline steps={content.steps} />
-          </div>
-          <p className="ck-body-sm mt-8 max-w-prose border-l-4 border-ck-yellow pl-4 text-ck-text-muted">
-            {content.note}
-          </p>
-        </Container>
-      </Section>
-    </>
+    <article>
+      <OrganizerHero />
+      <OrganizerWhatIs />
+      <OrganizerBenefits />
+      <OrganizerReceive />
+      <OrganizerEconomics />
+      <OrganizerWho />
+      <OrganizerNeeds />
+      <OrganizerMap />
+      <OrganizerHow />
+      <OrganizerFaq />
+      <OrganizerForm />
+      <OrganizerFinalCta />
+    </article>
   );
 }
