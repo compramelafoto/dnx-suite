@@ -16,6 +16,7 @@
     "@repo/auth": "workspace:*",
     "@repo/auth-guards": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/payments": "workspace:*",
     "@repo/cuanto-cobro-core": "workspace:*",
     "@repo/design-system": "workspace:*",
     "bcryptjs": "^3.0.3",

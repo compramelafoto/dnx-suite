@@ -55,6 +55,7 @@ export class FinancialIdentityService {
       subjectType: "PERSON",
       ownerUserId: input.userId,
       isPrimary: true,
+      organizationRef: null,
       legalName: input.legalName ?? null,
       taxId: null,
       countryCode: input.countryCode ?? "AR",
@@ -79,6 +80,7 @@ export class FinancialIdentityService {
     legalName: string;
     taxId?: string | null;
     ownerUserId?: number | null;
+    organizationRef?: string | null;
   }): FinancialIdentity {
     const now = new Date();
     const identity: FinancialIdentity = {
@@ -86,6 +88,7 @@ export class FinancialIdentityService {
       subjectType: "ORGANIZATION",
       ownerUserId: input.ownerUserId ?? null,
       isPrimary: false,
+      organizationRef: input.organizationRef ?? null,
       legalName: input.legalName,
       taxId: input.taxId ?? null,
       countryCode: input.countryCode,
@@ -172,6 +175,9 @@ export class FinancialIdentityService {
       credentialReference: input.credentialReference ?? null,
       consentReference: input.consentReference ?? null,
       originApp: input.originApp ?? null,
+      legacySource: null,
+      tokenFingerprint: null,
+      connectedAt: null,
       capabilities: input.capabilities ?? ["COLLECTOR", "SPLIT_RECEIVER"],
       isPrimary: Boolean(input.isPrimary),
       status: input.status ?? "ACTIVE",

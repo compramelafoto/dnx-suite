@@ -8321,26 +8321,47 @@ enum DnxFinanceGrantStatus {
 
 /// Identidad financiera canónica (persona u organización). Sin % ni secretos PSP.
 model DnxFinancialIdentity {
-  id          String                     @id @default(cuid())
-  subjectType DnxFinancialSubjectType
+  id              String                     @id @default(cuid())
+  subjectType     DnxFinancialSubjectType
   /// Owner primario (persona). Nullable para organizaciones gestionadas por memberships.
-  ownerUserId Int?
+  ownerUserId     Int?
   /// Identidad personal primaria del User (solo PERSON).
-  isPrimary   Boolean                    @default(false)
-  legalName   String?
-  taxId       String?
-  countryCode String
-  status      DnxFinancialIdentityStatus @default(DRAFT)
-  createdAt   DateTime                   @default(now())
-  updatedAt   DateTime                   @updatedAt
+  isPrimary       Boolean                    @default(false)
+  /// Ref opaca de organización de producto (ej. lab:123). Unique cuando set.
+  organizationRef String?
+  legalName       String?
+  taxId           String?
+  countryCode     String
+  status          DnxFinancialIdentityStatus @default(DRAFT)
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
 
   ownerUser        User?                               @relation("FinancialIdentityOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   paymentAccounts  DnxPaymentAccount[]
   participants     DnxAgreementParticipant[]
   linkedRecipients DnxFinancialIdentityRecipientLink[]
 
+  @@unique([organizationRef])
   @@index([ownerUserId, subjectType, status])
   @@index([status])
+}
+
+/// Credencial cifrada (AES-256-GCM). Nunca plaintext. Solo Payments internos.
+model DnxEncryptedCredential {
+  id          String                  @id @default(cuid())
+  provider    DnxPaymentProvider
+  environment DnxFinancialEnvironment
+  purpose     String
+  ciphertext  String
+  nonce       String
+  authTag     String
+  keyVersion  String
+  createdAt   DateTime                @default(now())
+  rotatedAt   DateTime?
+  revokedAt   DateTime?
+
+  @@index([provider, environment, purpose])
+  @@index([revokedAt])
 }
 
 /// Cuenta financiera (MP hoy; Stripe/banco/wallet extensibles). Sin tokens plaintext.
@@ -8351,11 +8372,16 @@ model DnxPaymentAccount {
   environment         DnxFinancialEnvironment
   providerUserId      String?
   externalReference   String?
-  /// Referencia opaca a vault futuro — nunca token MP en claro.
+  /// Referencia opaca a DnxEncryptedCredential.id — nunca token MP en claro.
   credentialReference String?
   /// Referencia a Split Consent / receiver (sanitizada).
   consentReference    String?
   originApp           String?
+  /// compramelafoto_legacy_user | compramelafoto_legacy_lab | …
+  legacySource        String?
+  /// Fingerprint sha256 del access token (conflicto); no reversible a token.
+  tokenFingerprint    String?
+  connectedAt         DateTime?
   capabilities        DnxPaymentAccountCapability[] @default([])
   isPrimary           Boolean                       @default(false)
   status              DnxPaymentAccountStatus       @default(PENDING)
@@ -8367,6 +8393,8 @@ model DnxPaymentAccount {
 
   @@index([financialIdentityId, status])
   @@index([provider, environment, providerUserId])
+  @@index([tokenFingerprint])
+  @@index([legacySource])
   @@index([status])
 }
 

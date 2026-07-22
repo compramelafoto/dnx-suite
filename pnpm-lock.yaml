@@ -120,6 +120,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@tanstack/react-virtual':
         specifier: ^3.13.19
         version: 3.14.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

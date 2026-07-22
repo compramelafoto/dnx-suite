@@ -3,6 +3,7 @@ import {
   resolveEventPaymentCollectorFromData,
   type ResolvedEventPaymentCollector,
 } from "@/lib/events/resolve-event-payment-collector";
+import { resolveUserMpAccessTokenDualRead } from "@/lib/mercadopago/financial-identity-dual-read";
 
 export type { ResolvedEventPaymentCollector };
 
@@ -33,22 +34,18 @@ export async function resolveAlbumOrderMercadoPagoCredentials(params: {
 
   let photographerMpAccessToken: string | null | undefined;
   if (params.photographerUserId != null) {
-    const photographer = await prisma.user.findUnique({
-      where: { id: params.photographerUserId },
-      select: { mpAccessToken: true },
-    });
-    photographerMpAccessToken = photographer?.mpAccessToken;
+    const photographer = await resolveUserMpAccessTokenDualRead(
+      params.photographerUserId,
+    );
+    photographerMpAccessToken = photographer.accessToken;
   }
 
   let organizerMpAccessToken: string | null | undefined;
   let organizerMpUserId: string | null | undefined;
   if (event != null) {
-    const organizer = await prisma.user.findUnique({
-      where: { id: event.creatorId },
-      select: { mpAccessToken: true, mpUserId: true },
-    });
-    organizerMpAccessToken = organizer?.mpAccessToken;
-    organizerMpUserId = organizer?.mpUserId;
+    const organizer = await resolveUserMpAccessTokenDualRead(event.creatorId);
+    organizerMpAccessToken = organizer.accessToken;
+    organizerMpUserId = organizer.mpUserId;
   }
 
   return resolveEventPaymentCollectorFromData({

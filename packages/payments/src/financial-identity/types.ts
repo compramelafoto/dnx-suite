@@ -35,6 +35,7 @@ export interface FinancialIdentity {
   subjectType: FinancialSubjectType;
   ownerUserId: number | null;
   isPrimary: boolean;
+  organizationRef: string | null;
   legalName: string | null;
   taxId: string | null;
   countryCode: string;
@@ -54,6 +55,9 @@ export interface PaymentAccount {
   credentialReference: string | null;
   consentReference: string | null;
   originApp: string | null;
+  legacySource: string | null;
+  tokenFingerprint: string | null;
+  connectedAt: Date | null;
   capabilities: PaymentAccountCapability[];
   isPrimary: boolean;
   status: PaymentAccountStatus;
@@ -61,13 +65,16 @@ export interface PaymentAccount {
   updatedAt: Date;
 }
 
-/** Public view — strips credentialReference. */
-export type PublicPaymentAccount = Omit<PaymentAccount, "credentialReference"> & {
+/** Public view — strips credentialReference and token fingerprint. */
+export type PublicPaymentAccount = Omit<
+  PaymentAccount,
+  "credentialReference" | "tokenFingerprint"
+> & {
   hasCredentialReference: boolean;
 };
 
 export function toPublicPaymentAccount(account: PaymentAccount): PublicPaymentAccount {
-  const { credentialReference, ...rest } = account;
+  const { credentialReference, tokenFingerprint: _fp, ...rest } = account;
   return {
     ...rest,
     hasCredentialReference: Boolean(credentialReference),

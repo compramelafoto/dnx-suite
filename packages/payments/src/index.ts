@@ -53,6 +53,8 @@ export * from "./economic-agreement/index.js";
 export * from "./finance-permissions/index.js";
 export * from "./legacy/clf/index.js";
 export * from "./bridges/index.js";
+export * from "./credential-vault/index.js";
+export * from "./dual-read/index.js";
 export {
   actor as createFinanceTestActor,
   createTestFinancialServices,
