@@ -55,15 +55,12 @@ export function createMercadoPagoTestClickatonProviderBridge(input: {
       };
     },
     async refreshCheckout(params) {
-      // Preference id is stored as providerOrderId. Prefer payment id when numeric;
-      // otherwise resolve payment via external_reference search (Checkout Pro S2S).
+      // Preference id is stored as providerOrderId. Prefer payment id when numeric.
+      // Search-by-external_reference stays in a follow-up adapter commit; webhook
+      // path uses fetchPaymentById → getPayment.
       if (/^\d+$/.test(params.providerOrderId)) {
         const payment = await adapter.getPayment(params.providerOrderId);
         return payment;
-      }
-      const found = await adapter.searchPaymentsByExternalReference(params.externalReference);
-      if (found) {
-        return found;
       }
       const pref = await adapter.getPreference(params.providerOrderId);
       return {
