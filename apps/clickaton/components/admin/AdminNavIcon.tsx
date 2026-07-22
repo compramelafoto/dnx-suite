@@ -75,6 +75,18 @@ export function AdminNavIcon({ name, className }: Props) {
           />
         </svg>
       );
+    case "messages":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>
+          <path
+            d="M4 6h16v12H4V6Zm0 0 8 7 8-7"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="square"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
     case "settings":
       return (
         <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>

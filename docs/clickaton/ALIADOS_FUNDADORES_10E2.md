@@ -4,8 +4,8 @@ Experiencia pública de invitación a marcas (no dossier comercial, no tiers Oro
 
 ## Ruta
 
-- Canonical: `/aliados-fundadores`
-- Compatibilidad: `/sponsors` → redirect a `/aliados-fundadores`
+- Canonical: `/sponsors`
+- Compatibilidad: `/aliados-fundadores` → redirect a `/sponsors`
 
 ## Contenido
 

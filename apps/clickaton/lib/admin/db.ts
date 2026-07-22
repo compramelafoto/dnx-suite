@@ -14,7 +14,9 @@ function isMissingTableError(error: unknown): boolean {
     "message" in error && typeof (error as { message?: unknown }).message === "string"
       ? (error as { message: string }).message
       : "";
-  return /does not exist|relation .* does not exist|ClickatonEdition/i.test(message);
+  return /does not exist|relation .* does not exist|ClickatonEdition|ClickatonContactMessage/i.test(
+    message,
+  );
 }
 
 export async function withClickatonDb<T>(

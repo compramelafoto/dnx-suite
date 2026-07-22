@@ -1,0 +1,12 @@
+export { AlliesLogoMarquee } from "@/components/formar-parte/AlliesLogoMarquee";
+export { JoinAllies } from "@/components/formar-parte/JoinAllies";
+export { JoinEcosystem } from "@/components/formar-parte/JoinEcosystem";
+export { JoinFaq } from "@/components/formar-parte/JoinFaq";
+export { JoinFinalCta } from "@/components/formar-parte/JoinFinalCta";
+export { JoinHero } from "@/components/formar-parte/JoinHero";
+export { JoinLevels } from "@/components/formar-parte/JoinLevels";
+export { JoinPresence } from "@/components/formar-parte/JoinPresence";
+export { JoinTimeline } from "@/components/formar-parte/JoinTimeline";
+export { JoinTouchpoints } from "@/components/formar-parte/JoinTouchpoints";
+export { JoinWhatIs } from "@/components/formar-parte/JoinWhatIs";
+export { JoinWhy } from "@/components/formar-parte/JoinWhy";

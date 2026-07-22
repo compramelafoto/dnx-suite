@@ -1,33 +1,27 @@
 import { routes } from "@/config/navigation";
+import { CONTACT_REASON_OPTIONS } from "@/lib/contact/reasons";
 
 export const contactPageContent = {
   meta: {
     title: "Contacto",
     description:
-      "Motivos de contacto institucionales de Clickatón. Los canales oficiales se publicarán próximamente.",
+      "Escribinos para formar parte, alianzas, sedes, prensa u otras consultas institucionales de Clickatón.",
   },
   hero: {
     eyebrow: "Contacto",
-    title: "Escribinos cuando abramos los canales oficiales.",
+    title: "Contanos cómo querés sumarte.",
     description:
-      "Estamos preparando las vías de comunicación institucionales. Mientras tanto, podés recorrer el sitio y conocer el proyecto.",
+      "Completá el formulario y tu mensaje llega a la casilla del equipo Clickatón. Te respondemos por email.",
   },
-  status: "Los canales oficiales se publicarán próximamente.",
-  reasons: [
-    { title: "Participar", body: "Consultas sobre próximas ediciones y cómo sumarte." },
-    { title: "Organizar una sede", body: "Interés en el programa de sedes y acompañamiento." },
-    {
-      title: "Aliados Fundadores",
-      body: "Marcas e instituciones que quieran construir experiencias con Clickatón.",
-    },
-    { title: "Prensa", body: "Cobertura, entrevistas y material institucional." },
-    { title: "Alianzas", body: "Instituciones, clubes y organizaciones afines." },
-    { title: "Consultas generales", body: "Otras preguntas sobre Clickatón." },
-  ],
+  status: "Formulario activo — tus datos llegan al equipo Clickatón.",
+  reasons: CONTACT_REASON_OPTIONS.map((reason) => ({
+    title: reason.label,
+    body: reason.description,
+  })),
   links: [
     { label: "Ver maratones", href: routes.marathons },
     { label: "Organizá una", href: routes.organize },
-    { label: "Aliados Fundadores", href: routes.foundingAllies },
+    { label: "Formá parte", href: routes.joinUs },
   ],
-  note: "No publicamos correo, teléfono, dirección ni redes inventadas.",
+  note: "Usamos tus datos solo para responder esta consulta.",
 } as const;

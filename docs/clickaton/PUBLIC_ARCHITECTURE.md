@@ -47,8 +47,9 @@
 | `/como-funciona` | Experiencia completa |
 | `/comunidad` | Dimensión comunitaria y pedagógica |
 | `/organizar` | Programa de sedes (en desarrollo) |
-| `/aliados-fundadores` | Experiencia “Aliados Fundadores” (propuesta para empresas; sin precios ni sponsors inventados) |
-| `/sponsors` | Redirect permanente de compatibilidad → `/aliados-fundadores` |
+| `/sponsors` | Experiencia “Aliados Fundadores” (propuesta para empresas; sin precios ni sponsors inventados) |
+| `/aliados-fundadores` | Redirect de compatibilidad → `/sponsors` |
+| `/formar-parte` | Landing institucional para empresas e instituciones (Etapa 18; sin formularios ni precios) |
 | `/nosotros` | Origen prudente |
 | `/contacto` | Contacto sin canales inventados |
 | `/design-system` | Catálogo interno (`noindex`) |
@@ -59,9 +60,9 @@
 
 ## 7. Navegación principal
 
-Header: Inicio · Maratones · Cómo funciona · Comunidad · Organizá una · Sponsors · CTA “Ver maratones”.
+Header: Maratones · Cómo funciona · Comunidad · Organizá una · Aliados · Formá parte · CTA “Ver maratones”.
 
-Footer: mismas + Nosotros · Contacto.
+Footer: mismas + Nosotros · Manual de marca · Contacto.
 
 Fuente única: `config/navigation.ts` (`routes`). La demo **no** entra al nav principal.
 

@@ -191,7 +191,7 @@ export const homeContent = {
     ],
     cta: {
       label: "Quiero formar parte",
-      href: routes.foundingAllies,
+      href: routes.sponsors,
       note: "Visualizaciones conceptuales. Sin precios ni sponsors inventados.",
     },
   },

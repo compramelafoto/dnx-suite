@@ -8,10 +8,12 @@ export const routes = {
   howItWorks: "/como-funciona",
   community: "/comunidad",
   organize: "/organizar",
-  /** @deprecated Preferir `foundingAllies`. Se mantiene por compatibilidad. */
-  sponsors: "/sponsors",
   /** Experiencia pública “Aliados Fundadores” (propuesta para empresas). */
-  foundingAllies: "/aliados-fundadores",
+  sponsors: "/sponsors",
+  /** @deprecated Preferir `sponsors`. Redirect de compatibilidad en `/aliados-fundadores`. */
+  foundingAllies: "/sponsors",
+  /** Landing institucional para empresas e instituciones que quieran acompañar Clickatón. */
+  joinUs: "/formar-parte",
   about: "/nosotros",
   contact: "/contacto",
   /** Manual de marca público para sedes y diseñadores. */
@@ -46,7 +48,8 @@ export const mainNavigation: readonly NavItem[] = [
   { label: "Cómo funciona", href: routes.howItWorks },
   { label: "Comunidad", href: routes.community },
   { label: "Organizá una", href: routes.organize },
-  { label: "Aliados", href: routes.foundingAllies },
+  { label: "Aliados", href: routes.sponsors },
+  { label: "Formá parte", href: routes.joinUs },
 ] as const;
 
 /** Footer: nav principal + páginas institucionales. */
@@ -55,7 +58,8 @@ export const footerNavigation: readonly NavItem[] = [
   { label: "Cómo funciona", href: routes.howItWorks },
   { label: "Comunidad", href: routes.community },
   { label: "Organizá una", href: routes.organize },
-  { label: "Aliados Fundadores", href: routes.foundingAllies },
+  { label: "Aliados Fundadores", href: routes.sponsors },
+  { label: "Formá parte", href: routes.joinUs },
   { label: "Nosotros", href: routes.about },
   { label: "Manual de marca", href: routes.brandManual },
   { label: "Contacto", href: routes.contact },

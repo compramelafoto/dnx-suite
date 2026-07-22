@@ -9,6 +9,7 @@ export const adminRoutes = {
   catalog: "/admin/catalogo",
   registrations: "/admin/inscripciones",
   sponsors: "/admin/sponsors",
+  messages: "/admin/mensajes",
   settings: "/admin/configuracion",
   integrations: "/admin/integraciones",
   /** Compat: redirige al login unificado `/login`. */
@@ -24,6 +25,7 @@ export type AdminNavIcon =
   | "catalog"
   | "registrations"
   | "sponsors"
+  | "messages"
   | "settings"
   | "integrations";
 
@@ -46,6 +48,7 @@ export const adminNavigation: readonly AdminNavItem[] = [
     section: "main",
   },
   { label: "Sponsors", href: adminRoutes.sponsors, icon: "sponsors", section: "main" },
+  { label: "Mensajes", href: adminRoutes.messages, icon: "messages", section: "main" },
   { label: "Configuración", href: adminRoutes.settings, icon: "settings", section: "system" },
   {
     label: "Integraciones",

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 72" fill="none">
+  <circle cx="28" cy="36" r="18" fill="#ffffff"/>
+  <text x="58" y="44" font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="600" fill="#ffffff">FotOffice</text>
+  <line x1="58" y1="52" x2="250" y2="52" stroke="#ffffff" stroke-width="1.5"/>
+</svg>

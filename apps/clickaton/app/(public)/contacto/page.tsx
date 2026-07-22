@@ -1,16 +1,14 @@
 import type { Metadata } from "next";
+import { ContactForm } from "@/components/contact/ContactForm";
 import { PageHero } from "@/components/content/PageHero";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Field } from "@/components/ui/Field";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Textarea } from "@/components/ui/Textarea";
 import { contactPageContent } from "@/content/contact";
 import { routes } from "@/config/navigation";
+import { resolveContactReason } from "@/lib/contact/reasons";
 import { buildPageMetadata } from "@/lib/seo";
 
 const content = contactPageContent;
@@ -21,7 +19,17 @@ export const metadata: Metadata = buildPageMetadata({
   path: routes.contact,
 });
 
-export default function ContactPage() {
+type Props = {
+  searchParams?: Promise<{ motivo?: string; source?: string }>;
+};
+
+export default async function ContactPage({ searchParams }: Props) {
+  const params = searchParams ? await searchParams : {};
+  const defaultReason = resolveContactReason(params.motivo);
+  const source =
+    params.source?.trim() ||
+    (params.motivo === "formar-parte" ? "formar-parte" : "contacto");
+
   return (
     <>
       <SimpleBreadcrumb current="Contacto" />
@@ -33,7 +41,7 @@ export default function ContactPage() {
 
       <Section tone="raised">
         <Container className="max-w-3xl">
-          <Card variant="outlined" className="border-dashed">
+          <Card variant="outlined">
             <p className="ck-heading-md">{content.status}</p>
             <p className="ck-body-sm mt-3 text-ck-text-muted">{content.note}</p>
           </Card>
@@ -50,74 +58,15 @@ export default function ContactPage() {
             ))}
           </ul>
 
-          <Card className="mt-12">
-            <h2 className="ck-heading-lg">Formulario (próximamente)</h2>
+          <Card className="mt-12" id="formulario">
+            <h2 className="ck-heading-lg">Formulario</h2>
             <p className="ck-body-sm mt-3 max-w-prose text-ck-text-muted">
-              Vista previa del patrón de formularios V2. El envío permanece deshabilitado hasta
-              publicar canales oficiales — sin backend en esta etapa.
+              Nombre, email y mensaje son obligatorios. Si venís desde Formá parte, el motivo
+              ya queda preseleccionado.
             </p>
-            <form className="mt-8 grid gap-6" aria-disabled="true">
-              <Field
-                id="contact-name"
-                label="Nombre"
-                hint="Como preferís que te nombremos."
-                required
-              >
-                <Input
-                  name="name"
-                  placeholder="Tu nombre"
-                  disabled
-                  autoComplete="name"
-                />
-              </Field>
-              <Field
-                id="contact-email"
-                label="Email"
-                hint="Solo se usará para responder tu consulta."
-                required
-              >
-                <Input
-                  name="email"
-                  type="email"
-                  placeholder="nombre@ejemplo.com"
-                  disabled
-                  autoComplete="email"
-                />
-              </Field>
-              <Field id="contact-reason" label="Motivo" required>
-                <Select name="reason" disabled defaultValue="">
-                  <option value="" disabled>
-                    Elegí un motivo
-                  </option>
-                  {content.reasons.map((reason) => (
-                    <option key={reason.title} value={reason.title}>
-                      {reason.title}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field
-                id="contact-message"
-                label="Mensaje"
-                hint="Contanos el contexto en pocas líneas."
-                required
-              >
-                <Textarea
-                  name="message"
-                  placeholder="Escribí tu mensaje…"
-                  disabled
-                  rows={5}
-                />
-              </Field>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Button type="submit" disabled className="w-full sm:w-auto">
-                  Enviar (próximamente)
-                </Button>
-                <p className="ck-caption text-ck-text-muted">
-                  Estado: deshabilitado · sin envío de datos
-                </p>
-              </div>
-            </form>
+            <div className="mt-8">
+              <ContactForm defaultReason={defaultReason} source={source} />
+            </div>
           </Card>
 
           <div className="mt-10 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">

@@ -343,6 +343,48 @@
   transform: translateY(-2px) scale(1.01);
 }
 
+/** Marquee horizontal infinito (aliados / logos). */
+@keyframes ck-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ck-marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 8%,
+    #000 92%,
+    transparent
+  );
+}
+
+.ck-marquee__track {
+  display: flex;
+  width: max-content;
+  animation: ck-marquee 70s linear infinite;
+}
+
+.ck-marquee:hover .ck-marquee__track {
+  animation-play-state: paused;
+}
+
+.ck-logo-bw {
+  filter: grayscale(1) brightness(0) invert(1);
+  opacity: 0.72;
+  transition: opacity var(--ck-duration-base) var(--ck-easing-standard);
+}
+
+.ck-logo-bw:hover,
+.group:hover .ck-logo-bw {
+  opacity: 1;
+}
+
 /**
  * Patrón de transparencia (preview de logos).
  * Solo fondo CSS del contenedor — nunca se incorpora al PNG.
@@ -366,7 +408,8 @@
   .ck-frame-pulse,
   .ck-frame-scan,
   .ck-motion-shutter,
-  .ck-fade-up {
+  .ck-fade-up,
+  .ck-marquee__track {
     animation: none;
   }
 

@@ -1,5 +1,7 @@
 # Aliados Fundadores — visualizaciones conceptuales
 
+Renders y mockups de merchandising / activación para la experiencia pública `/sponsors`.
+
 Mockups compuestos con **logos oficiales** Clickatón.
 
 ## Fuente de logos

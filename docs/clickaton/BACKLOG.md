@@ -114,7 +114,7 @@ Pendientes adicionales (no bloquean 09B):
 - Eventos / maratones reales desde FotoRank (canal `clickaton`)
 - Inscripción free/paid + handoff (09A) → checkout real (09B)
 - Programa real de sedes (postulación y acompañamiento)
-- ~~Propuesta comercial de sponsors (sin planes inventados todavía)~~ → Etapa 10E2: experiencia pública `/aliados-fundadores` (sin precios ni sponsors inventados)
+- ~~Propuesta comercial de sponsors (sin planes inventados todavía)~~ → Etapa 10E2: experiencia pública `/sponsors` (sin precios ni sponsors inventados)
 - Aprobación del relato de origen y presentación de socios
 - Canales de contacto y redes oficiales
 - Páginas legales (términos / privacidad)
