@@ -69,14 +69,33 @@ Con `LEGACY_ONLY` el comportamiento es idéntico al histórico.
 3. Opcional: `rollbackMigratedPaymentAccount` → status `DISABLED`
 4. No revocar tokens MP, no borrar columnas legacy, no borrar audit
 
-## Staging
+## Staging (actualizado 10D3I-D2)
 
-DNX Payments staging documentado: Neon `ep-round-fog*`.
-`ep-dawn-dew` es ambiguo (InfoSpot / riesgo prod histórico) — **no** aplicar migraciones allí sin autorización explícita.
+| Host | Clasificación | Evidencia |
+|---|---|---|
+| `ep-round-fog*` | **CLF_PREVIEW_CONFIRMED** + candidato DNX Payments | Vercel `compramelafoto-dnxsuite` Preview; fingerprint read-only (45 migraciones; `DnxPaymentIntent` sí; tablas 10D3I-C/D **no**; 3 users testish) |
+| `ep-falling-darkness*` | **PRODUCTION_CONFIRMED** (CLF) | Vercel `compramelafoto-dnxsuite` Production |
+| `ep-dawn-dew*` | **PRODUCTION_CONFIRMED** (FotoRank) / **AMBIGUOUS_DO_NOT_USE** | Vercel `fotorank-dnxsuite` Production; InfoSpot histórico |
+| `clickaton-staging` DB | **AMBIGUOUS_DO_NOT_USE** | `DATABASE_URL` tipo `sensitive`; pull CLI vacío; host desconocido |
+
+**Decisión 10D3I-D2:** `NO_STAGING_INEQUÍVOCO` — no migrate remoto, no PREFER, no backfill apply.
+
+Detalle: [`docs/clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md`](../clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md).
+
+### Fingerprint `ep-round-fog*` (sanitizado)
+
+- DB `neondb` / schema `public`
+- `_prisma_migrations`: 45; head `20260715170000_dnx_payments_core_persistence`
+- FI tables: ausentes
+- Users/Labs: 3/1; MP token presente en 1 user; emails testish 3/3
+
+### Bloqueo Clickatón
+
+Sin host inequívoco de `clickaton-staging` no se puede afirmar `SHARED_DNX_STAGING_CONFIRMED`. Financial Identity no debe duplicarse en una DB Clickatón separada sin decisión explícita.
 
 ## Runbook (resumen)
 
-1. Identificar staging (`ep-round-fog` + evidencia)
+1. Identificar staging inequívoco (CLF `ep-round-fog*` **y** Clickatón alineado) — **pendiente D2**
 2. Dry-run fixture local
 3. Aplicar migraciones 10D3I-C/D solo en staging confirmado
 4. Dry-run DB (sin apply) → revisar conflictos

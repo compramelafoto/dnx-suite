@@ -95,3 +95,6 @@ apps/dnx-sales-assistant/.tmp-evaluation/
 
 # DNX Sales Assistant — laboratorio local de revisión humana
 apps/dnx-sales-assistant/.local/
+
+# Auditorías / fingerprints / reportes locales (pueden contener metadatos operativos)
+.local/
