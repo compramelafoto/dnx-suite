@@ -57,12 +57,10 @@ Registration
 
 ## External reference
 
-Estable: `clickaton:registration:{registrationId}`
+- Preferences / manual: `clickaton:registration:{registrationId}`
+- Orders 1:N TEST: `clickaton-registration-{registrationId}`
 
-- Única por `(sourceProduct, externalReference)`
-- Sin secretos ni emails
-- Persistida antes del create a MP
-- Reutilizable en reconciliación
+Mercado Pago Orders rechaza `:` en `external_reference` (`property_value` / pattern). El path Orders usa guiones; el fulfillment acepta ambos prefijos.
 
 ## Idempotencia
 
@@ -153,10 +151,33 @@ Al finalizar (siempre, incluso si E2E falla):
 
 ## Limitaciones
 
-- Payment token MP TEST es efímero; create real puede quedar `BLOCKED_BY_PAYMENT_TOKEN`
-- HTTP webhook real desde panel MP sigue pendiente (signed replay validado en G + H local)
+- Payment token MP TEST es efímero (single-use); regenerar antes de cada create sandbox
+- Monto sandbox Visa TEST: usar total válido (p. ej. 1000.00 ARS); montos muy bajos → `invalid_transaction_amount`
+- HTTP webhook real desde panel MP sigue pendiente (H2 cerró con signed replay del order real)
 - No cutover productivo
+
+## 10D3I-H2 — E2E SANDBOX REAL
+
+Fecha: 2026-07-23
+
+| Ítem | Resultado |
+| ---- | --------- |
+| Payment token | regenerado (Visa TEST + MercadoPago.js); no expuesto; solo `.env.local` gitignored |
+| Device ID | regenerado en la misma sesión browser (`security.js` view=checkout) |
+| Preflight staging | `clickaton_staging` / `ep-divine-smoke-av8hmt7s*` / 64 migraciones / acuerdo ACTIVE |
+| Fixture | Registration TEST PENDING_PAYMENT · total 100000 minor (1000.00 ARS) |
+| Order sandbox | **CREADA** · prefix `ORDTST01KY…` · `PROCESSED_ACCREDITED` / accredited |
+| External ref Orders | `clickaton-registration-{id}` |
+| Observe | `SIGNED_REPLAY_REAL_ORDER` + GET live |
+| Fulfillment | PaymentOrder APPROVED · Registration CONFIRMED · paidAt presente |
+| Credential / QR | 1 / 1 · replay sin duplicar |
+| Snapshot E | intacto (`ods_d16a37…` / `ba5dedcc6bcd…`) |
+| Flags finales | checkout OFF · create OFF · observe OFF |
+
+Evidencia: `.local/audit-10d3i-h2/` (gitignored).
+
+Veredicto H2: **VALIDADO — CHECKOUT CLICKATÓN + DNX PAYMENTS SANDBOX E2E OK**
 
 ## Próxima etapa (no iniciar)
 
-**10D3I-I** — Conexión controlada de cuentas Mercado Pago reales de los socios.
+**10D3I-I** — Diseño y conexión controlada de cuentas Mercado Pago reales de los socios.

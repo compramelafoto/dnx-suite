@@ -13,7 +13,15 @@ import type {
 import type { OrdersObserveResult } from "../orders-1n-observe/types.js";
 import { isClickatonDnxCheckoutEnabled } from "../clickaton-checkout/checkout-dnx-flag.js";
 
-const REG_PREFIX = "clickaton:registration:";
+const REG_PREFIXES = ["clickaton:registration:", "clickaton-registration-"] as const;
+
+function parseRegistrationSourceId(ext: string | null | undefined): string | null {
+  if (!ext) return null;
+  for (const prefix of REG_PREFIXES) {
+    if (ext.startsWith(prefix)) return ext.slice(prefix.length);
+  }
+  return null;
+}
 
 function mapOrdersStatusToNormalized(
   status: string,
@@ -100,10 +108,10 @@ export async function fulfillRegistrationFromOrdersObserve(
     const intent = await input.persistence.intents.findById(
       paymentOrder.paymentIntentId,
     );
-    if (!intent?.externalReference?.startsWith(REG_PREFIX)) {
+    const sourceId = parseRegistrationSourceId(intent?.externalReference);
+    if (!sourceId || !intent?.externalReference) {
       return { fulfilled: false, reason: "EXTERNAL_REF_NOT_REGISTRATION" };
     }
-    const sourceId = intent.externalReference.slice(REG_PREFIX.length);
     const event: NormalizedCheckoutEvent = {
       eventId: observe.eventId,
       orderId: paymentOrder.id,
@@ -127,10 +135,10 @@ export async function fulfillRegistrationFromOrdersObserve(
   }
 
   const ext = canonical.externalReference;
-  if (!ext?.startsWith(REG_PREFIX)) {
+  const sourceId = parseRegistrationSourceId(ext);
+  if (!sourceId || !ext) {
     return { fulfilled: false, reason: "EXTERNAL_REF_NOT_REGISTRATION" };
   }
-  const sourceId = ext.slice(REG_PREFIX.length);
 
   const po = await input.persistence.providerOrders.findByProviderOrderId(
     "mercadopago",

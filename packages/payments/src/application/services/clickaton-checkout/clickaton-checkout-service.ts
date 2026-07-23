@@ -55,8 +55,36 @@ function createManualProviderBridge(): ClickatonCheckoutProviderBridge {
   };
 }
 
-function externalRefForRegistration(sourceId: string): string {
+function externalRefForRegistration(
+  sourceId: string,
+  mode: ClickatonCheckoutProviderBridge["mode"] = "manual",
+): string {
+  // Mercado Pago Orders rejects ':' in external_reference (property_value pattern).
+  // Preferences/manual keep the historical colon form.
+  if (mode === "mercado_pago_orders_test") {
+    return `clickaton-registration-${sourceId}`;
+  }
   return `clickaton:registration:${sourceId}`;
+}
+
+function extractSourceId(externalReference: string): string {
+  const colonPrefix = "clickaton:registration:";
+  const hyphenPrefix = "clickaton-registration-";
+  if (externalReference.startsWith(colonPrefix)) {
+    return externalReference.slice(colonPrefix.length);
+  }
+  if (externalReference.startsWith(hyphenPrefix)) {
+    return externalReference.slice(hyphenPrefix.length);
+  }
+  return externalReference;
+}
+
+export function isClickatonRegistrationExternalRef(ref: string | null | undefined): boolean {
+  if (!ref) return false;
+  return (
+    ref.startsWith("clickaton:registration:") ||
+    ref.startsWith("clickaton-registration-")
+  );
 }
 
 function extractCheckoutUrl(
@@ -68,13 +96,6 @@ function extractCheckoutUrl(
   const fromOrder = paymentOrder?.distributionSnapshot?.checkoutUrl;
   if (typeof fromOrder === "string" && fromOrder.length > 0) return fromOrder;
   return null;
-}
-
-function extractSourceId(externalReference: string): string {
-  const prefix = "clickaton:registration:";
-  return externalReference.startsWith(prefix)
-    ? externalReference.slice(prefix.length)
-    : externalReference;
 }
 
 function inferCheckoutEventOrigin(event: NormalizedCheckoutEvent): CheckoutEventOrigin {
@@ -227,7 +248,7 @@ export function createClickatonCheckoutService(
         throw new Error("clickaton_checkout_production_forbidden");
       }
       const now = new Date().toISOString();
-      const externalReference = externalRefForRegistration(input.sourceId);
+      const externalReference = externalRefForRegistration(input.sourceId, bridge.mode);
       const { ownerRecipientId, partnerRecipientId } =
         await ensureClickatonPlatformRecipients(db);
 
@@ -637,19 +658,28 @@ export function createClickatonCheckoutService(
     },
 
     async findActiveOrderBySource(sourceId: string): Promise<DurableCheckoutOrder | null> {
-      const intent = await db.intents.findByExternalReference(
-        SOURCE_PRODUCT,
-        externalRefForRegistration(sourceId),
-      );
-      if (!intent) return null;
-      const orders = await db.paymentOrders.listByPaymentIntentId(intent.id);
-      for (const o of orders) {
-        const durable = await buildDurableOrder(db, o);
-        if (isReusableNormalized(durable.status) || durable.status === "APPROVED") {
-          return durable;
+      const refs = [
+        externalRefForRegistration(sourceId, bridge.mode),
+        externalRefForRegistration(sourceId, "manual"),
+        externalRefForRegistration(sourceId, "mercado_pago_orders_test"),
+      ];
+      const uniqueRefs = [...new Set(refs)];
+      for (const externalReference of uniqueRefs) {
+        const intent = await db.intents.findByExternalReference(
+          SOURCE_PRODUCT,
+          externalReference,
+        );
+        if (!intent) continue;
+        const orders = await db.paymentOrders.listByPaymentIntentId(intent.id);
+        for (const o of orders) {
+          const durable = await buildDurableOrder(db, o);
+          if (isReusableNormalized(durable.status) || durable.status === "APPROVED") {
+            return durable;
+          }
         }
+        if (orders[0]) return buildDurableOrder(db, orders[0]);
       }
-      return orders[0] ? buildDurableOrder(db, orders[0]) : null;
+      return null;
     },
 
     async findOrderByIdempotencyKey(

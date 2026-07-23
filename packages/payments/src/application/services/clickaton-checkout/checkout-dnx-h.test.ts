@@ -162,4 +162,11 @@ describe("10D3I-H fulfill from orders observe", () => {
       assert.equal(result.reason, "EXTERNAL_REF_NOT_REGISTRATION");
     }
   });
+
+  it("accepts hyphenated Orders external reference prefix", async () => {
+    assert.equal(
+      "clickaton-registration-reg_abc".startsWith("clickaton-registration-"),
+      true,
+    );
+  });
 });

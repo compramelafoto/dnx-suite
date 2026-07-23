@@ -373,19 +373,32 @@ async function main() {
         });
       }
       let ticket = await prisma.clickatonTicketType.findFirst({
-        where: { editionId: edition.id, isActive: true },
+        where: { editionId: edition.id, isActive: true, code: "H10-TEST" },
       });
+      if (!ticket) {
+        ticket = await prisma.clickatonTicketType.findFirst({
+          where: { editionId: edition.id, isActive: true },
+        });
+      }
+      // MP sandbox Visa TEST rejects very low totals (invalid_transaction_amount).
+      // H2 uses 1000.00 ARS (= 100000 minor), matching validated F amount.
+      const requiredAmountMinor = 100_000;
       if (!ticket) {
         ticket = await prisma.clickatonTicketType.create({
           data: {
             editionId: edition.id,
             name: "Entrada TEST H",
             code: "H10-TEST",
-            priceAmount: 10000,
+            priceAmount: requiredAmountMinor,
             currency: "ARS",
             isActive: true,
             holdMinutes: 30,
           },
+        });
+      } else if (ticket.priceAmount !== requiredAmountMinor) {
+        ticket = await prisma.clickatonTicketType.update({
+          where: { id: ticket.id },
+          data: { priceAmount: requiredAmountMinor },
         });
       }
 
@@ -421,7 +434,7 @@ async function main() {
       });
 
       const amountMinor = registration.totalAmount;
-      const externalReference = `clickaton:registration:${registration.id}`;
+      const externalReference = `clickaton-registration-${registration.id}`;
 
       const snapBefore = await buildClickatonOperationalSnapshot({
         prisma,
@@ -505,28 +518,33 @@ async function main() {
         const tokenExpired =
           /token|expired|unauthorized|401|403|payment_method|invalid.*card|card_token/i.test(
             createError ?? "",
-          ) ||
-          /Mercado Pago request failed with status 400/i.test(createError ?? "");
+          );
+        const amountInvalid = /invalid_transaction_amount/i.test(createError ?? "");
+        const classification = tokenExpired
+          ? "BLOCKED_BY_PAYMENT_TOKEN"
+          : amountInvalid
+            ? "BLOQUEADO_ORDEN_NO_CREADA"
+            : /Mercado Pago request failed with status 400/i.test(createError ?? "")
+              ? "BLOQUEADO_ORDEN_NO_CREADA"
+              : "BLOQUEADO_ORDEN_NO_CREADA";
         const path = writeReport(reportDir, "e2e_create.json", {
           created: false,
           error: createError ?? (created && "outcome" in created ? created : null),
-          classification: tokenExpired
-            ? "BLOCKED_BY_PAYMENT_TOKEN"
-            : "BLOQUEADO_ORDEN_NO_CREADA",
+          classification,
           registrationIdPrefix: prefix(registration.id),
           snapBeforePrefix: snapBefore.snapshotIdPrefix,
           eSnapshotIntact: Boolean(eSnap),
           note: tokenExpired
             ? "Payment token is ephemeral; regenerate via MP TEST card form before re-run."
-            : undefined,
+            : amountInvalid
+              ? "Use sandbox-valid total (e.g. 1000.00 ARS) with Visa TEST token."
+              : undefined,
         });
         console.log(
           JSON.stringify({
             ok: false,
             mode: "e2e-sandbox",
-            classification: tokenExpired
-              ? "BLOCKED_BY_PAYMENT_TOKEN"
-              : "BLOQUEADO_ORDEN_NO_CREADA",
+            classification,
             path,
           }),
         );
