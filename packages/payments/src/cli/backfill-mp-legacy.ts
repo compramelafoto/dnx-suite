@@ -4,13 +4,15 @@
  * Default: --dry-run (never writes).
  *
  * Remote --apply requires:
+ *   --remote
  *   --confirm-staging
  *   DNX_FINANCIAL_IDENTITY_BACKFILL_ENABLED=true
- *   host fingerprint ep-round-fog* (documented DNX Payments staging)
+ *   host fingerprint ep-divine-smoke-av8hmt7s* (or ep-round-fog*)
  *
  * Never prints tokens.
  */
 import { writeFileSync } from "node:fs";
+import { PrismaClient } from "@prisma/client";
 import {
   createMemoryCredentialStore,
   UNIT_TEST_MASTER_KEY_BASE64,
@@ -22,6 +24,14 @@ import {
 } from "../legacy/clf/backfill.js";
 import type { LegacyLabMpRow, LegacyUserMpRow } from "../dual-read/types.js";
 import type { FinancialEnvironment } from "../financial-identity/types.js";
+import { createPrismaCredentialStore } from "../infrastructure/prisma/credential-store.js";
+import { assertFinancialIdentityStagingHost } from "./staging-host-gate.js";
+import {
+  hydrateFinancialStoreFromPrisma,
+  loadLegacyMpRowsFromPrisma,
+  persistFinancialStoreDelta,
+  type LegacyMpBackfillPrisma,
+} from "../infrastructure/prisma/legacy-mp-backfill-remote.js";
 
 type Args = {
   dryRun: boolean;
@@ -33,6 +43,7 @@ type Args = {
   reportFile?: string;
   confirmStaging: boolean;
   fixture: boolean;
+  remote: boolean;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -43,6 +54,7 @@ function parseArgs(argv: string[]): Args {
     source: "all",
     confirmStaging: false,
     fixture: false,
+    remote: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
@@ -53,6 +65,7 @@ function parseArgs(argv: string[]): Args {
     }
     if (a === "--confirm-staging") args.confirmStaging = true;
     if (a === "--fixture") args.fixture = true;
+    if (a === "--remote") args.remote = true;
     if (a.startsWith("--environment=")) {
       const v = a.slice("--environment=".length).toLowerCase();
       args.environment = v === "prod" ? "PROD" : "TEST";
@@ -75,9 +88,10 @@ function parseArgs(argv: string[]): Args {
 }
 
 function assertStagingGate(args: Args): void {
-  if (!args.apply) return;
-  if (!args.fixture) {
-    // Remote apply path: require explicit staging confirmation + flag + host gate.
+  if (!args.apply && !args.remote) return;
+  if (args.fixture && !args.remote) return;
+
+  if (args.apply) {
     if (process.env.DNX_FINANCIAL_IDENTITY_BACKFILL_ENABLED !== "true") {
       throw new Error(
         "APPLY_BLOCKED: set DNX_FINANCIAL_IDENTITY_BACKFILL_ENABLED=true",
@@ -86,18 +100,14 @@ function assertStagingGate(args: Args): void {
     if (!args.confirmStaging) {
       throw new Error("APPLY_BLOCKED: pass --confirm-staging");
     }
-    const url = process.env.DATABASE_URL ?? "";
-    const hostMatch = url.match(/@([^/]+)\//);
-    const host = hostMatch?.[1] ?? "";
-    if (!host.startsWith("ep-round-fog") || !host.includes("neon.tech")) {
-      throw new Error(
-        `APPLY_BLOCKED: expected documented staging host ep-round-fog*, got prefix=${host.slice(0, 24) || "missing"}`,
-      );
-    }
   }
-  // Never allow PROD apply via this CLI in 10D3I-D.
+
+  if (args.remote || args.apply) {
+    assertFinancialIdentityStagingHost();
+  }
+
   if (args.environment === "PROD" && !args.fixture) {
-    throw new Error("APPLY_BLOCKED: PROD backfill not authorized in 10D3I-D");
+    throw new Error("APPLY_BLOCKED: PROD backfill not authorized");
   }
 }
 
@@ -151,46 +161,96 @@ function fixtureRows(): { users: LegacyUserMpRow[]; labs: LegacyLabMpRow[] } {
   };
 }
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
-  assertStagingGate(args);
+function sanitizeReport(summary: BackfillSummary): unknown {
+  return {
+    dryRun: summary.dryRun,
+    environment: summary.environment,
+    written: summary.written,
+    counts: summary.counts,
+    rows: summary.rows.map((r) => ({
+      sourceType: r.sourceType,
+      legacyRecordId: r.legacyRecordId,
+      classification: r.classification,
+      reason: r.reason,
+      actionProposed: r.actionProposed,
+      mpUserIdSanitized: r.mpUserIdSanitized,
+      destinationIdentityId: r.destinationIdentityId
+        ? `${r.destinationIdentityId.slice(0, 10)}*`
+        : null,
+      destinationAccountId: r.destinationAccountId
+        ? `${r.destinationAccountId.slice(0, 10)}*`
+        : null,
+    })),
+  };
+}
 
-  // Ensure TEST vault key for fixture runs.
-  if (args.fixture && !process.env.DNX_FINANCIAL_CREDENTIAL_MASTER_KEY_TEST) {
-    process.env.DNX_FINANCIAL_CREDENTIAL_MASTER_KEY_TEST =
-      UNIT_TEST_MASTER_KEY_BASE64;
+async function runRemote(args: Args): Promise<BackfillSummary> {
+  const gate = assertFinancialIdentityStagingHost();
+  if (!process.env.DNX_FINANCIAL_CREDENTIAL_MASTER_KEY_TEST) {
+    throw new Error(
+      "VAULT_BLOCKED: DNX_FINANCIAL_CREDENTIAL_MASTER_KEY_TEST required for remote",
+    );
   }
 
-  if (!args.fixture) {
-    console.error(
-      JSON.stringify({
-        status: "DRY_RUN_OR_APPLY_REQUIRES_FIXTURE_OR_PRISMA_LOADER",
-        note: "10D3I-D CLI ships fixture mode for local validation. Remote DB loaders require confirmed staging + authorized apply.",
-        dryRun: args.dryRun,
-      }),
+  const prisma = new PrismaClient();
+  const prismaFi = prisma as unknown as LegacyMpBackfillPrisma;
+  try {
+    const { users, labs } = await loadLegacyMpRowsFromPrisma(prismaFi, {
+      userId: args.userId,
+    });
+    const store = createFinancialDomainStore();
+    await hydrateFinancialStoreFromPrisma(prismaFi, store);
+    const priorIdentityIds = new Set(store.identities.keys());
+    const priorAccountIds = new Set(store.accounts.keys());
+    const priorAuditCount = store.audit.length;
+
+    const credentialStore = createPrismaCredentialStore(
+      prisma as unknown as import("../infrastructure/prisma/credential-store.js").EncryptedCredentialPrismaDelegate,
     );
-    if (!args.dryRun) {
-      process.exit(2);
-    }
-    // dry-run without fixture → empty report (safe)
-    const empty: BackfillSummary = {
-      dryRun: true,
+
+    const summary = await runLegacyMpBackfill({
+      store,
+      credentialStore,
+      users,
+      labs,
       environment: args.environment,
-      rows: [],
-      counts: {
-        ELIGIBLE: 0,
-        ALREADY_MIGRATED: 0,
-        CONFLICT_PROVIDER_ID: 0,
-        CONFLICT_IDENTITY: 0,
-        INCOMPLETE: 0,
-        ENVIRONMENT_UNKNOWN: 0,
-        REVIEW_REQUIRED: 0,
-        SKIPPED: 0,
-      },
-      written: 0,
-    };
-    emit(empty, args.reportFile);
-    return;
+      dryRun: args.dryRun,
+      source: args.source,
+      limit: args.limit,
+    });
+
+    if (!args.dryRun && summary.written > 0) {
+      const persisted = await persistFinancialStoreDelta(
+        prismaFi,
+        store,
+        priorIdentityIds,
+        priorAccountIds,
+        priorAuditCount,
+      );
+      (summary as BackfillSummary & { persisted?: unknown }).persisted = {
+        hostPrefix: gate.host.slice(0, 28),
+        database: gate.database,
+        ...persisted,
+      };
+    } else {
+      (summary as BackfillSummary & { staging?: unknown }).staging = {
+        hostPrefix: gate.host.slice(0, 28),
+        database: gate.database,
+        loadedUsers: users.length,
+        loadedLabs: labs.length,
+      };
+    }
+
+    return summary;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function runFixture(args: Args): Promise<BackfillSummary> {
+  if (!process.env.DNX_FINANCIAL_CREDENTIAL_MASTER_KEY_TEST) {
+    process.env.DNX_FINANCIAL_CREDENTIAL_MASTER_KEY_TEST =
+      UNIT_TEST_MASTER_KEY_BASE64;
   }
 
   const { users, labs } = fixtureRows();
@@ -211,7 +271,6 @@ async function main(): Promise<void> {
     limit: args.limit,
   });
 
-  // Second pass idempotency check when applying fixtures.
   if (!args.dryRun) {
     const again = await runLegacyMpBackfill({
       store,
@@ -225,17 +284,37 @@ async function main(): Promise<void> {
     summary.counts.ALREADY_MIGRATED += again.counts.ALREADY_MIGRATED;
   }
 
+  return summary;
+}
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  assertStagingGate(args);
+
+  if (!args.fixture && !args.remote) {
+    console.error(
+      JSON.stringify({
+        status: "MODE_REQUIRED",
+        note: "Pass --remote (staging DB) or --fixture (local memory).",
+        dryRun: args.dryRun,
+      }),
+    );
+    process.exit(2);
+  }
+
+  if (args.remote && args.fixture) {
+    throw new Error("MODE_CONFLICT: use --remote or --fixture, not both");
+  }
+
+  const summary = args.remote
+    ? await runRemote(args)
+    : await runFixture(args);
+
   emit(summary, args.reportFile);
 }
 
 function emit(summary: BackfillSummary, reportFile?: string): void {
-  const payload = {
-    dryRun: summary.dryRun,
-    environment: summary.environment,
-    written: summary.written,
-    counts: summary.counts,
-    rows: summary.rows,
-  };
+  const payload = sanitizeReport(summary);
   const text = JSON.stringify(payload, null, 2);
   if (reportFile) {
     writeFileSync(reportFile, text, "utf8");

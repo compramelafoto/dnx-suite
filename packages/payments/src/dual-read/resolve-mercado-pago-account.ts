@@ -49,20 +49,31 @@ export async function resolveMercadoPagoAccountForUser(
     const decrypted = await decryptFi(ports, fiAccount, input.environment, false);
     if (!decrypted.ok) return decrypted;
 
-    if (
-      legacy?.mpUserId &&
-      decrypted.mpUserId &&
-      legacy.mpUserId !== decrypted.mpUserId
-    ) {
+    const fiProviderUserId =
+      fiAccount.providerUserId ?? decrypted.mpUserId ?? null;
+    const vaultDivergesFromAccount =
+      Boolean(fiAccount.providerUserId) &&
+      Boolean(decrypted.mpUserId) &&
+      fiAccount.providerUserId !== decrypted.mpUserId;
+    const legacyDivergesFromFi =
+      Boolean(legacy?.mpUserId) &&
+      Boolean(fiProviderUserId) &&
+      legacy!.mpUserId !== fiProviderUserId;
+
+    if (vaultDivergesFromAccount || legacyDivergesFromFi) {
       ports.recordAudit?.({
         action: "PAYMENT_ACCOUNT_CONFLICT",
         aggregateType: "User",
         aggregateId: String(input.userId),
         result: "DENIED",
         metadata: sanitizeCredentialAuditMeta({
-          legacyMpUserId: sanitizeMpUserId(legacy.mpUserId),
-          fiMpUserId: sanitizeMpUserId(decrypted.mpUserId),
+          legacyMpUserId: sanitizeMpUserId(legacy?.mpUserId ?? null),
+          fiMpUserId: sanitizeMpUserId(fiProviderUserId),
+          vaultMpUserId: sanitizeMpUserId(decrypted.mpUserId),
           productKey: input.productKey ?? null,
+          reason: vaultDivergesFromAccount
+            ? "vault_providerUserId_mismatch"
+            : "legacy_providerUserId_mismatch",
         }),
       });
       return {

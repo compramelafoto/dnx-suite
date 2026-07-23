@@ -45,13 +45,21 @@ pnpm --filter @repo/payments financial-identity:backfill-mp -- --dry-run --fixtu
 pnpm --filter @repo/payments financial-identity:backfill-mp -- --apply --fixture --environment=test
 ```
 
-Remote apply (no autorizado en 10D3I-D salvo staging `ep-round-fog*` confirmado):
+Remote dry-run / apply (staging confirmado `ep-divine-smoke-av8hmt7s*` / `clickaton_staging`):
 
 ```bash
+# Dry-run
+pnpm --filter @repo/payments exec tsx src/cli/backfill-mp-legacy.ts \
+  --remote --dry-run --confirm-staging --environment=test --source=all
+
+# Apply controlado
 DNX_FINANCIAL_IDENTITY_BACKFILL_ENABLED=true \
-pnpm --filter @repo/payments financial-identity:backfill-mp -- \
-  --apply --confirm-staging --environment=test
+pnpm --filter @repo/payments exec tsx src/cli/backfill-mp-legacy.ts \
+  --remote --apply --confirm-staging --environment=test \
+  --source=user --user-id=<id> --limit=1
 ```
+
+Host gate: `ep-divine-smoke-av8hmt7s*` (preferido) o `ep-round-fog*` (legacy docs). Bloquea `ep-dawn-dew*` / `ep-falling-darkness*`.
 
 Clasificaciones: `ELIGIBLE`, `ALREADY_MIGRATED`, `CONFLICT_PROVIDER_ID`, `CONFLICT_IDENTITY`, `INCOMPLETE`, `ENVIRONMENT_UNKNOWN`, `REVIEW_REQUIRED`, `SKIPPED`.
 
@@ -78,17 +86,20 @@ Con `LEGACY_ONLY` el comportamiento es idéntico al histórico.
 | `ep-falling-darkness*` | **PRODUCTION_CONFIRMED** (CLF) | Vercel `compramelafoto-dnxsuite` Production |
 | `ep-dawn-dew*` | **PRODUCTION_CONFIRMED** (FotoRank) / **NO USAR** | Vercel `fotorank-dnxsuite` Production |
 
-**Decisión 10D3I-D3:** migraciones 10D3I-C/D **aplicadas** en `ep-divine-smoke*` / `clickaton_staging`. Runtime sigue `LEGACY_ONLY`. Sin backfill / sin PREFER.
+**Decisión 10D3I-D3:** migraciones 10D3I-C/D **aplicadas** en `ep-divine-smoke*` / `clickaton_staging`.  
+**Decisión 10D3I-D4:** dry-run + backfill TEST `limit=1` + PREFER temporal validado; runtime final `LEGACY_ONLY`.
 
 Detalle apply: [`docs/clickaton/FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md`](../clickaton/FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md).  
+Detalle D4: [`docs/clickaton/FINANCIAL_IDENTITY_BACKFILL_AND_DUAL_READ_10D3I_D4.md`](../clickaton/FINANCIAL_IDENTITY_BACKFILL_AND_DUAL_READ_10D3I_D4.md).  
 Auditoría D2 (bloqueo previo): [`docs/clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md`](../clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md).
 
-### Fingerprint post-migrate `ep-divine-smoke*`
+### Fingerprint post-D4 `ep-divine-smoke*`
 
 - DB `clickaton_staging` / schema `public`
-- `_prisma_migrations`: 64; head `20260722230000_add_encrypted_credentials_and_legacy_mp_fields`
-- FI tables: presentes; filas FI/account/credential: 0
+- `_prisma_migrations`: 64; up to date
+- FI: 1 identity / 1 account (`DISABLED` tras rollback TEST) / 1 encrypted credential
 - Backup branch Neon: `pre-10d3i-financial-identity`
+- CLI remoto: `--remote` + host gate `ep-divine-smoke-av8hmt7s*`
 
 ## Runbook (resumen)
 

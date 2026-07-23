@@ -14,3 +14,10 @@ export {
   createPrismaDualReadPorts,
   type DualReadPrismaDelegates,
 } from "./financial-identity-ports.js";
+export {
+  loadLegacyMpRowsFromPrisma,
+  hydrateFinancialStoreFromPrisma,
+  persistFinancialStoreDelta,
+  disablePaymentAccountRemote,
+  type LegacyMpBackfillPrisma,
+} from "./legacy-mp-backfill-remote.js";
