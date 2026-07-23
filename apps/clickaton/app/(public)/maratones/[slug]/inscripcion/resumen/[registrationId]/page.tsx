@@ -8,6 +8,7 @@ import { CheckoutPayButton } from "@/components/public-registration/CheckoutPayB
 import { getPublicRegistrationSummaryAction } from "@/lib/public-registration/actions/public-registration";
 import { formatHoldExpiry, formatPublicPrice } from "@/lib/public-registration/ui/format";
 import { buildPageMetadata } from "@/lib/seo";
+import { isClickatonDnxCheckoutEnabled } from "@repo/payments/next";
 
 type PageProps = {
   params: Promise<{ slug: string; registrationId: string }>;
@@ -150,6 +151,7 @@ export default async function PublicRegistrationSummaryPage({
               currency={s.currency}
               expiresLabel={formatHoldExpiry(s.holdExpiresAt)}
               eligible={s.checkoutEligible}
+              testEnvironment={isClickatonDnxCheckoutEnabled()}
             />
           ) : (
             <p className="text-sm text-ck-text-secondary">

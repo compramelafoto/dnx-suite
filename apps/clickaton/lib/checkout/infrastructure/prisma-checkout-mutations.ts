@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@repo/db";
 import type { CheckoutRegistrationMutations } from "../domain/checkout-registration-port";
 import { CheckoutError } from "../domain/errors";
@@ -5,6 +6,10 @@ import { CheckoutError } from "../domain/errors";
 function formatVisibleCode(prefix: string, seq: number, width = 5): string {
   const safe = prefix.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 8) || "CK";
   return `${safe}-${String(seq).padStart(width, "0")}`;
+}
+
+function hashToken(plaintext: string): string {
+  return createHash("sha256").update(plaintext, "utf8").digest("hex");
 }
 
 function mapRecord(row: {
@@ -214,6 +219,62 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
             metadata: { paymentOrderId: input.paymentOrderId, requestId: input.requestId },
           },
         });
+
+        // Credential + QR once (idempotent). Never depends on browser redirect.
+        let credential = await tx.clickatonParticipantCredential.findUnique({
+          where: { registrationId: input.registrationId },
+        });
+        if (!credential) {
+          const publicCode =
+            visibleCode ??
+            `CK-${input.registrationId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10).toUpperCase()}`;
+          credential = await tx.clickatonParticipantCredential.create({
+            data: {
+              registrationId: input.registrationId,
+              status: "ACTIVE",
+              publicCode,
+            },
+          });
+          await tx.clickatonRegistrationAudit.create({
+            data: {
+              registrationId: input.registrationId,
+              action: "CREDENTIAL_ISSUED",
+              source: input.source,
+              metadata: {
+                credentialIdPrefix: credential.id.slice(0, 10),
+                publicCodePrefix: publicCode.slice(0, 8),
+              },
+            },
+          });
+        }
+
+        const activeQr = await tx.clickatonQrToken.findFirst({
+          where: { credentialId: credential.id, status: "ACTIVE", revokedAt: null },
+        });
+        if (!activeQr) {
+          const plaintext = randomBytes(32).toString("base64url");
+          const tokenHash = hashToken(plaintext);
+          await tx.clickatonQrToken.create({
+            data: {
+              credentialId: credential.id,
+              tokenHash,
+              tokenPrefix: plaintext.slice(0, 8),
+              status: "ACTIVE",
+            },
+          });
+          await tx.clickatonRegistrationAudit.create({
+            data: {
+              registrationId: input.registrationId,
+              action: "QR_TOKEN_ISSUED",
+              source: input.source,
+              metadata: {
+                credentialIdPrefix: credential.id.slice(0, 10),
+                tokenPrefix: plaintext.slice(0, 8),
+                // plaintext never persisted in audit
+              },
+            },
+          });
+        }
 
         return mapRecord(updated);
       });

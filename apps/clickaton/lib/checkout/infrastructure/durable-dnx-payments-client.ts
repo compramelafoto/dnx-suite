@@ -6,12 +6,16 @@ import {
   type NormalizedCheckoutEvent as DurableEvent,
   type DnxPaymentsPersistence,
   type ClickatonCheckoutProviderBridge,
+  type FetchCanonicalOrder,
+  type ClickatonOperationalSnapshotHook,
   verifyMercadoPagoWebhookSignature,
   parseMercadoPagoPaymentNotification,
   parseMercadoPagoOrdersNotification,
   isMercadoPagoOrdersWebhookType,
   observeOrdersWebhook,
   isOrders1nWebhookObserveEnabled,
+  fulfillRegistrationFromOrdersObserve,
+  isClickatonDnxCheckoutEnabled,
 } from "@repo/payments/next";
 import { hashCreateOrderPayload } from "../domain/idempotency";
 import { CheckoutError } from "../domain/errors";
@@ -74,6 +78,8 @@ export function createDurableDnxPaymentsClient(deps: {
   notificationUrl?: string;
   providerBridge?: ClickatonCheckoutProviderBridge;
   isTestFixture?: boolean;
+  fetchOrdersCanonical?: FetchCanonicalOrder;
+  buildOperationalSnapshot?: ClickatonOperationalSnapshotHook;
 }): DnxPaymentsClient & {
   service: ClickatonCheckoutService;
   signWebhook(rawBody: string): string;
@@ -104,12 +110,17 @@ export function createDurableDnxPaymentsClient(deps: {
         observed: true;
         outcome: "processed" | "duplicate";
         mismatchCount?: number;
+        event?: NormalizedPaymentEvent;
+        fulfillmentReason?: string;
       }
     | { ok: false; code: string }
   >;
 } {
   const service = createClickatonCheckoutService(deps.persistence, {
     ...(deps.providerBridge ? { providerBridge: deps.providerBridge } : {}),
+    ...(deps.buildOperationalSnapshot
+      ? { buildOperationalSnapshot: deps.buildOperationalSnapshot }
+      : {}),
   });
 
   return {
@@ -243,7 +254,7 @@ export function createDurableDnxPaymentsClient(deps: {
         return { ok: false as const, code: "WEBHOOK_UNSIGNED" };
       }
 
-      // Orders 1:N observe path (10D3I-G) — no registration fulfillment.
+      // Orders 1:N observe (+ optional registration fulfillment when H checkout flag ON).
       const ordersParsed = parseMercadoPagoOrdersNotification({
         rawBody: input.rawBody,
         queryDataId: input.queryDataId,
@@ -260,6 +271,7 @@ export function createDurableDnxPaymentsClient(deps: {
           queryType: input.queryType,
           webhookSecret: deps.webhookSecret,
           persistence: deps.persistence,
+          fetchCanonicalOrder: deps.fetchOrdersCanonical,
           allowCliBypass: false,
           deliveryClass: "HTTP_DELIVERED_FROM_MP",
           environment: "sandbox",
@@ -267,11 +279,43 @@ export function createDurableDnxPaymentsClient(deps: {
         if (!observed.ok) {
           return { ok: false as const, code: observed.code };
         }
+
+        const fulfillment = await fulfillRegistrationFromOrdersObserve({
+          observe: observed,
+          persistence: deps.persistence,
+          applyNormalizedEvent: (e) => service.applyNormalizedEvent(e),
+          checkoutFlagEnabled: isClickatonDnxCheckoutEnabled(),
+          environment: "sandbox",
+        });
+
+        if (fulfillment.fulfilled) {
+          const event: NormalizedPaymentEvent = {
+            eventId: fulfillment.event.eventId,
+            orderId: fulfillment.event.orderId,
+            status: fulfillment.event.status as DnxNormalizedPaymentStatus,
+            amountMinor: fulfillment.event.amountMinor,
+            currency: "ARS",
+            provider: String(fulfillment.event.provider),
+            externalReference: fulfillment.event.externalReference,
+            sourceId: fulfillment.event.sourceId,
+            receivedAt: new Date(fulfillment.event.receivedAt),
+            signature: "x-signature",
+          };
+          return {
+            ok: true as const,
+            observed: true as const,
+            outcome: observed.outcome,
+            mismatchCount: observed.mismatches.length,
+            event,
+          };
+        }
+
         return {
           ok: true as const,
           observed: true as const,
           outcome: observed.outcome,
           mismatchCount: observed.mismatches.length,
+          fulfillmentReason: fulfillment.reason,
         };
       }
 

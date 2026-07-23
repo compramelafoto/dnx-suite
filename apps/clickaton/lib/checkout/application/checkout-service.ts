@@ -76,8 +76,27 @@ export function createCheckoutService(deps: {
       }
       const ingested = await deps.payments.ingestMercadoPagoSignedWebhook(input);
       if (!ingested.ok) return ingested;
-      // Orders 1:N observe-only (no registration effects).
+      // Orders observe: fulfill registration only when event is present (H flag ON).
       if ("observed" in ingested && ingested.observed) {
+        if ("event" in ingested && ingested.event) {
+          const effects = await applyEvent.execute(ingested.event);
+          return {
+            ok: true as const,
+            observed: true as const,
+            outcome: ingested.outcome,
+            mismatchCount: ingested.mismatchCount ?? 0,
+            event: ingested.event,
+            apply: {
+              outcome: effects.duplicate
+                ? ("duplicate" as const)
+                : effects.conflict
+                  ? ("conflict" as const)
+                  : ("applied" as const),
+              conflictCode: effects.conflictCode,
+              effects,
+            },
+          };
+        }
         return {
           ok: true as const,
           observed: true as const,

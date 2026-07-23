@@ -4,9 +4,19 @@ import {
   createPrismaDnxPaymentsPersistence,
   createMercadoPagoCheckoutProTestAdapter,
   createMercadoPagoTestClickatonProviderBridge,
+  createMercadoPagoOrders1nClickatonBridge,
   resolveClickatonPaymentsProviderMode,
+  createMercadoPagoProviderConfig,
+  MercadoPagoHttpClient,
+  MercadoPagoOrdersAdapter,
+  isClickatonDnxCheckoutEnabled,
+  isOrders1nStagingFlagEnabled,
+  buildClickatonOperationalSnapshot,
+  isSandboxAccessToken,
+  mapMercadoPagoOrderResponse,
   type DnxPaymentsPrismaDelegates,
   type ClickatonCheckoutProviderBridge,
+  type FetchCanonicalOrder,
 } from "@repo/payments/next";
 import { createCheckoutService, type CheckoutService } from "../application/checkout-service";
 import { createPrismaCheckoutMutations } from "../infrastructure/prisma-checkout-mutations";
@@ -44,11 +54,120 @@ function readOptionalEnv(name: string): string | undefined {
   return (process.env as Record<string, string | undefined>)[name]?.trim() || undefined;
 }
 
-function resolveProviderBridge(): ClickatonCheckoutProviderBridge | undefined {
+function parseAmountToMinor(amount: string | undefined): string | null {
+  if (!amount) return null;
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return null;
+  return String(Math.round(n * 100));
+}
+
+function buildOrdersHttp(): {
+  adapter: MercadoPagoOrdersAdapter;
+  fetchOrdersCanonical: FetchCanonicalOrder;
+} | null {
+  const token = readOptionalEnv("MERCADOPAGO_TEST_ACCESS_TOKEN");
+  const owner = readOptionalEnv("MERCADOPAGO_TEST_OWNER_USER_ID");
+  if (!token || !owner || !isSandboxAccessToken(token)) return null;
+  const config = createMercadoPagoProviderConfig({
+    environment: "sandbox",
+    accessToken: token,
+    ...(readOptionalEnv("MERCADOPAGO_TEST_PUBLIC_KEY")
+      ? { publicKey: readOptionalEnv("MERCADOPAGO_TEST_PUBLIC_KEY") }
+      : {}),
+  });
+  const http = new MercadoPagoHttpClient(config);
+  const adapter = new MercadoPagoOrdersAdapter({
+    config,
+    ownerUserId: owner,
+    httpClient: http,
+    enforceOrders1nStagingGate: true,
+    confirmStaging: process.env.DNX_CONFIRM_STAGING === "true",
+    confirmOrdersTest: process.env.DNX_CONFIRM_ORDERS_TEST === "true",
+    verifyAfterCreate: true,
+  });
+  const fetchOrdersCanonical: FetchCanonicalOrder = async (providerOrderId) => {
+    const raw = await http.request<{
+      id: string;
+      status: string;
+      status_detail?: string;
+      external_reference?: string;
+      total_amount?: string;
+      currency?: string;
+      splits?: Array<{ amount?: string }>;
+      transactions?: { payments?: unknown[] };
+    }>({ method: "GET", path: `/v1/orders/${providerOrderId}` });
+    const body = raw.body;
+    if (!body?.id) return null;
+    const mapped = mapMercadoPagoOrderResponse(body as never);
+    return {
+      providerOrderId: mapped.providerOrderId,
+      status: mapped.status,
+      statusDetail: mapped.statusDetail ?? null,
+      externalReference: body.external_reference ?? null,
+      totalMinor: parseAmountToMinor(body.total_amount),
+      currency: body.currency ?? "ARS",
+      splitAmounts: (body.splits ?? []).map((s) => String(s.amount ?? "0")),
+      paymentCount: body.transactions?.payments?.length ?? mapped.payments.length,
+    };
+  };
+  return { adapter, fetchOrdersCanonical };
+}
+
+function resolveProviderBridge(): {
+  bridge: ClickatonCheckoutProviderBridge | undefined;
+  fetchOrdersCanonical?: FetchCanonicalOrder;
+  buildOperationalSnapshot?: Parameters<
+    typeof createDurableDnxPaymentsClient
+  >[0]["buildOperationalSnapshot"];
+} {
   const mode = resolveClickatonPaymentsProviderMode(
     readOptionalEnv("CLICKATON_DNX_PAYMENTS_PROVIDER") ?? "manual",
   );
-  if (mode === "manual") return undefined;
+
+  if (mode === "manual") {
+    return { bridge: undefined };
+  }
+
+  if (mode === "mercado_pago_orders_test") {
+    if (!isClickatonDnxCheckoutEnabled() || !isOrders1nStagingFlagEnabled()) {
+      throw new Error(
+        "mercado_pago_orders_test_requires_DNX_CLICKATON_DNX_PAYMENTS_CHECKOUT_ENABLED_and_DNX_MP_ORDERS_1N_STAGING_ENABLED",
+      );
+    }
+    const orders = buildOrdersHttp();
+    if (!orders) {
+      throw new Error("mercado_pago_orders_test_requires_sandbox_token_and_owner");
+    }
+    const receiver1 = readOptionalEnv("MERCADOPAGO_TEST_PARTNER_RECEIVER_ID");
+    const receiver2 = readOptionalEnv("MERCADOPAGO_TEST_PARTNER_RECEIVER_ID_2");
+    const paymentToken = readOptionalEnv("MERCADOPAGO_TEST_PAYMENT_TOKEN");
+    const deviceId = readOptionalEnv("MERCADOPAGO_TEST_DEVICE_ID");
+    if (!receiver1 || !receiver2 || !paymentToken || !deviceId) {
+      throw new Error("mercado_pago_orders_test_missing_receivers_token_or_device");
+    }
+    const bridge = createMercadoPagoOrders1nClickatonBridge({
+      adapter: orders.adapter,
+      ownerUserId: readOptionalEnv("MERCADOPAGO_TEST_OWNER_USER_ID")!,
+      partnerReceiverId: receiver1,
+      partnerReceiverId2: receiver2,
+      paymentToken,
+      deviceSessionId: deviceId,
+      confirmStaging: process.env.DNX_CONFIRM_STAGING === "true",
+      confirmOrdersTest: process.env.DNX_CONFIRM_ORDERS_TEST === "true",
+    });
+    return {
+      bridge,
+      fetchOrdersCanonical: orders.fetchOrdersCanonical,
+      buildOperationalSnapshot: async (input) =>
+        buildClickatonOperationalSnapshot({
+          prisma,
+          totalMinor: input.totalMinor,
+          externalReference: input.externalReference,
+          paymentIntentId: input.paymentIntentId,
+          paymentOrderId: input.paymentOrderId,
+        }),
+    };
+  }
 
   const token = readOptionalEnv("MERCADOPAGO_TEST_ACCESS_TOKEN");
   if (!token) {
@@ -67,7 +186,11 @@ function resolveProviderBridge(): ClickatonCheckoutProviderBridge | undefined {
     publicKey: readOptionalEnv("MERCADOPAGO_TEST_PUBLIC_KEY"),
     credentialsSource,
   });
-  return createMercadoPagoTestClickatonProviderBridge({ adapter });
+  const orders = buildOrdersHttp();
+  return {
+    bridge: createMercadoPagoTestClickatonProviderBridge({ adapter }),
+    fetchOrdersCanonical: orders?.fetchOrdersCanonical,
+  };
 }
 
 function buildPaymentsClient(): DnxPaymentsClient {
@@ -79,10 +202,16 @@ function buildPaymentsClient(): DnxPaymentsClient {
     readOptionalEnv("DNX_PAYMENTS_WEBHOOK_PUBLIC_URL") ??
     (publicUrl ? `${publicUrl.replace(/\/$/, "")}/api/webhooks/dnx-payments` : undefined);
   const mode = paymentsMode();
-  const providerBridge = resolveProviderBridge();
+  const resolved = resolveProviderBridge();
+  const providerBridge = resolved.bridge;
+  const fetchOrdersCanonical =
+    resolved.fetchOrdersCanonical ?? buildOrdersHttp()?.fetchOrdersCanonical;
 
   if (mode === "memory") {
-    if (providerBridge?.mode === "mercado_pago_test") {
+    if (
+      providerBridge?.mode === "mercado_pago_test" ||
+      providerBridge?.mode === "mercado_pago_orders_test"
+    ) {
       throw new Error("mercado_pago_test_incompatible_with_memory_mode");
     }
     const store = createInMemoryDnxPaymentsStore({ webhookSecret, checkoutBaseUrl });
@@ -97,6 +226,8 @@ function buildPaymentsClient(): DnxPaymentsClient {
       notificationUrl: webhookPublic,
       providerBridge,
       isTestFixture: true,
+      fetchOrdersCanonical,
+      buildOperationalSnapshot: resolved.buildOperationalSnapshot,
     });
   }
 
@@ -109,13 +240,15 @@ function buildPaymentsClient(): DnxPaymentsClient {
     notificationUrl: webhookPublic,
     providerBridge,
     isTestFixture: process.env.NODE_ENV !== "production",
+    fetchOrdersCanonical,
+    buildOperationalSnapshot: resolved.buildOperationalSnapshot,
   });
 }
 
 /**
  * Runtime: DNX Payments durable (Prisma) por defecto.
- * Provider: CLICKATON_DNX_PAYMENTS_PROVIDER=manual|mercado_pago_test (default manual).
- * Llamada interna tipada vía `@repo/payments/next`.
+ * Provider: CLICKATON_DNX_PAYMENTS_PROVIDER=manual|mercado_pago_test|mercado_pago_orders_test
+ * Orders path requires staging flags ON (default OFF). Legacy Preferences path unchanged.
  */
 export function getCheckoutService(): CheckoutService {
   const override = g().__clickatonCheckoutService;

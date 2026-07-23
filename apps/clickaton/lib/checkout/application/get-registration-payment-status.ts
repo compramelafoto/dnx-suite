@@ -34,7 +34,7 @@ export function createGetRegistrationPaymentStatusUseCase(deps: {
       );
     }
 
-    const registration = await deps.registrationPort.getRegistration(input.registrationId);
+    let registration = await deps.registrationPort.getRegistration(input.registrationId);
     if (!registration) throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");
 
     let order = registration.paymentOrderId
@@ -42,6 +42,45 @@ export function createGetRegistrationPaymentStatusUseCase(deps: {
       : null;
     if (input.refresh && registration.paymentOrderId) {
       order = await deps.payments.refreshOrder(registration.paymentOrderId);
+      // S2S refresh actualiza DNX; sincronizar efectos Clickatón (no confiar en redirect).
+      if (order) {
+        const syncEffect = mapDnxStatusToClickatonEffect(order.status);
+        if (
+          syncEffect.holds === "confirm" &&
+          registration.status !== "CONFIRMED" &&
+          order.amountMinor === registration.money.totalAmount &&
+          order.currency === "ARS"
+        ) {
+          const holds = await deps.registrationPort.getHoldSnapshot(registration.id);
+          const holdExpired =
+            registration.holdExpiresAt != null &&
+            registration.holdExpiresAt.getTime() < Date.now();
+          if (!holdExpired && holds.capacityHoldActive) {
+            const prefix = await deps.registrationPort.getEditionPrefix(registration.editionId);
+            registration = await deps.registrationPort.confirmPaid({
+              registrationId: registration.id,
+              paymentOrderId: order.id,
+              source: "dnx_payments_s2s_refresh",
+              requestId: `s2s_refresh_${order.id}_${Date.now()}`,
+              editionPrefix: prefix,
+            });
+          }
+        } else if (
+          (order.status === "REJECTED" || order.status === "CANCELLED") &&
+          registration.paymentStatus !== "FAILED" &&
+          registration.paymentStatus !== "CANCELLED" &&
+          registration.status !== "CONFIRMED"
+        ) {
+          registration = await deps.registrationPort.markPaymentStatus({
+            registrationId: registration.id,
+            paymentStatus: order.status === "CANCELLED" ? "CANCELLED" : "FAILED",
+            registrationStatus: "PENDING_PAYMENT",
+            source: "dnx_payments_s2s_refresh",
+            reason: `s2s_${order.status.toLowerCase()}`,
+            requestId: `s2s_refresh_${order.id}_${Date.now()}`,
+          });
+        }
+      }
     }
 
     // Fallback desde soft refs (orden DNX no en memoria del proceso).

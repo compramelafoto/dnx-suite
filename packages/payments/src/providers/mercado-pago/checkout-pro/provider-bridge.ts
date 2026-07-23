@@ -93,10 +93,18 @@ export function createMercadoPagoTestClickatonProviderBridge(input: {
 
 export function resolveClickatonPaymentsProviderMode(
   raw: string | undefined,
-): "manual" | "mercado_pago_test" {
+): "manual" | "mercado_pago_test" | "mercado_pago_orders_test" {
   const v = (raw ?? "manual").trim().toLowerCase();
   if (v === "mercado_pago_test" || v === "mercadopago_test" || v === "mp_test") {
     return "mercado_pago_test";
+  }
+  if (
+    v === "mercado_pago_orders_test" ||
+    v === "mercadopago_orders_test" ||
+    v === "mp_orders_test" ||
+    v === "orders_1n_test"
+  ) {
+    return "mercado_pago_orders_test";
   }
   if (v === "manual" || v === "" || v === "fake") return "manual";
   if (v === "mercado_pago_production" || v === "production") {

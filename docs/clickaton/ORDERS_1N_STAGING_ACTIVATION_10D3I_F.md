@@ -165,6 +165,8 @@ Webhook firmado + reconciliación GET + snapshot intacto validados. Ver:
 
 `docs/clickaton/ORDERS_1N_WEBHOOK_RECONCILIATION_10D3I_G.md`
 
-## Próximo paso (no iniciado)
+## Seguimiento 10D3I-H
 
-Configurar delivery HTTP real desde panel MP TEST (URL pública + secret), sin cutover productivo.
+Checkout de inscripción Clickatón ↔ DNX Payments ↔ Orders 1:N (staging). Ver:
+
+`docs/clickaton/REGISTRATION_CHECKOUT_DNX_PAYMENTS_STAGING_10D3I_H.md`

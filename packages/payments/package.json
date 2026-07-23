@@ -39,7 +39,8 @@
     "financial-identity:smoke-dual-read-staging": "tsx src/cli/smoke-dual-read-staging.ts",
     "economic-agreement:configure-clickaton-staging": "tsx src/cli/configure-clickaton-agreement-staging.ts",
     "orders-1n:activate-staging": "tsx src/cli/activate-orders-1n-staging.ts",
-    "orders-1n:observe-staging": "tsx src/cli/observe-orders-1n-staging.ts"
+    "orders-1n:observe-staging": "tsx src/cli/observe-orders-1n-staging.ts",
+    "checkout:registration-dnx-staging": "tsx src/cli/registration-checkout-dnx-staging.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0"

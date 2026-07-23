@@ -12,6 +12,7 @@ export {
   createClickatonCheckoutService,
   type ClickatonCheckoutService,
 } from "./application/services/clickaton-checkout/clickaton-checkout-service";
+export type { ClickatonOperationalSnapshotHook } from "./application/services/clickaton-checkout/clickaton-checkout-service";
 export type {
   DurableCheckoutOrder,
   NormalizedCheckoutEvent,
@@ -49,10 +50,39 @@ export {
   observeOrdersWebhook,
   createOrdersObserveCounters,
 } from "./application/services/orders-1n-observe";
+export type { FetchCanonicalOrder } from "./application/services/orders-1n-observe";
 export {
   ORDERS_1N_WEBHOOK_OBSERVE_FLAG,
   isOrders1nWebhookObserveEnabled,
 } from "./providers/mercado-pago/orders/orders-1n-observe-flag";
+export {
+  ORDERS_1N_STAGING_FLAG,
+  isOrders1nStagingFlagEnabled,
+  assertOrders1nStagingCreateAllowed,
+} from "./providers/mercado-pago/orders/orders-1n-flag";
+export {
+  CLICKATON_DNX_CHECKOUT_FLAG,
+  isClickatonDnxCheckoutEnabled,
+  assertClickatonDnxCheckoutAllowed,
+  buildClickatonOperationalSnapshot,
+  CLICKATON_STAGING_AGREEMENT_SCOPE,
+  createMercadoPagoOrders1nClickatonBridge,
+  fulfillRegistrationFromOrdersObserve,
+} from "./application/services/clickaton-checkout";
+export type {
+  OperationalSnapshotResult,
+  Orders1nRegistrationBridgeDeps,
+  FulfillFromOrdersObserveResult,
+} from "./application/services/clickaton-checkout";
 export type { CheckoutEventOrigin } from "./application/services/clickaton-checkout/types";
 export { MercadoPagoHttpClient } from "./providers/mercado-pago/client/mercado-pago-http-client";
 export { createMercadoPagoProviderConfig } from "./providers/mercado-pago/client/mercado-pago-environment";
+export { MercadoPagoOrdersAdapter } from "./providers/mercado-pago/orders/adapter";
+export { isSandboxAccessToken } from "./providers/mercado-pago/client/mercado-pago-environment";
+export { loadSandboxEnvFromProcess } from "./sandbox/preflight";
+export {
+  buildOrdersWebhookFixtureBody,
+  signMercadoPagoTestWebhook,
+} from "./providers/mercado-pago/webhooks/sign-test-fixture";
+export { mapMercadoPagoOrderResponse } from "./providers/mercado-pago/orders/mapper";
+

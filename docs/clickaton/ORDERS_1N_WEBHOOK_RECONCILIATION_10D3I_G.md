@@ -135,6 +135,8 @@ pnpm --filter @repo/payments orders-1n:observe-staging -- --rollback-flags-off
 - receiver TEST: **sí** (orden F)
 - migración real pendiente: **sí**
 
-## Próximo paso (no iniciado)
+## Seguimiento 10D3I-H
 
-Observabilidad productiva / panel webhook URL TEST, o etapa de cutover controlado posterior — **sin** conectar Rodrigo real ni producción.
+Checkout inscripción + fulfillment desde observe Orders. Ver:
+
+`docs/clickaton/REGISTRATION_CHECKOUT_DNX_PAYMENTS_STAGING_10D3I_H.md`

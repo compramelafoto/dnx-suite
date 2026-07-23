@@ -12,9 +12,17 @@ type Props = {
   currency: string;
   expiresLabel: string;
   eligible: boolean;
+  /** Staging Orders / DNX Payments TEST banner (server-resolved). */
+  testEnvironment?: boolean;
 };
 
-function SubmitButton({ eligible }: { eligible: boolean }) {
+function SubmitButton({
+  eligible,
+  testEnvironment,
+}: {
+  eligible: boolean;
+  testEnvironment?: boolean;
+}) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -23,7 +31,11 @@ function SubmitButton({ eligible }: { eligible: boolean }) {
       className="inline-flex min-h-11 items-center justify-center rounded-md bg-ck-yellow px-6 text-sm font-semibold text-ck-bg disabled:cursor-not-allowed disabled:opacity-50"
       aria-busy={pending}
     >
-      {pending ? "Preparando pago…" : "Continuar al pago"}
+      {pending
+        ? "Preparando pago…"
+        : testEnvironment
+          ? "Pagar (TEST)"
+          : "Continuar al pago"}
     </button>
   );
 }
@@ -37,6 +49,15 @@ export function CheckoutPayButton(props: Props) {
       <input type="hidden" name="registrationId" value={props.registrationId} />
       <input type="hidden" name="editionSlug" value={props.editionSlug} />
       <input type="hidden" name="accessToken" value={props.accessToken} />
+      {props.testEnvironment ? (
+        <p
+          className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-ck-text-secondary"
+          role="status"
+        >
+          Entorno TEST — el pago no usa cuentas reales. El retorno del navegador no confirma
+          la inscripción; la confirmación llega por webhook/reconciliación.
+        </p>
+      ) : null}
       <p className="text-sm text-ck-text-secondary">
         Importe a pagar:{" "}
         <strong className="text-ck-text">{formatPublicPrice(props.amountMinor, props.currency)}</strong>
@@ -45,7 +66,7 @@ export function CheckoutPayButton(props: Props) {
         {" · "}
         Proveedor de pago gestionado por DNX Payments
       </p>
-      <SubmitButton eligible={props.eligible} />
+      <SubmitButton eligible={props.eligible} testEnvironment={props.testEnvironment} />
     </form>
   );
 }

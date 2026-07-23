@@ -59,6 +59,8 @@ export type OrdersObserveResult =
       ok: true;
       outcome: "processed" | "duplicate";
       eventId: string;
+      /** Full provider order id (needed for registration fulfillment). */
+      providerOrderId: string;
       providerOrderIdPrefix: string;
       liveMode: boolean;
       inboxId: string;

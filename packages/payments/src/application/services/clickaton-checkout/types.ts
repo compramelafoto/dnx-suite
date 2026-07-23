@@ -33,9 +33,9 @@ export type CreateClickatonCheckoutOrderInput = {
   isTestFixture?: boolean;
 };
 
-/** Bridge opcional: fake manual o Checkout Pro TEST. */
+/** Bridge opcional: fake manual, Checkout Pro TEST, o Orders 1:N TEST. */
 export type ClickatonCheckoutProviderBridge = {
-  mode: "manual" | "mercado_pago_test";
+  mode: "manual" | "mercado_pago_test" | "mercado_pago_orders_test";
   /** Provider name persisted on DNX orders. */
   providerName: ProviderName;
   createCheckout(input: {

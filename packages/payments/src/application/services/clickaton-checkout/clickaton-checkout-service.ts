@@ -98,7 +98,10 @@ function isSandboxLiveModeAttested(input: {
 }): boolean {
   if (input.isTestFixture) return true;
   const env = String(input.orderEnvironment).toUpperCase();
-  return input.bridgeMode === "mercado_pago_test" && env === "SANDBOX";
+  const testBridge =
+    input.bridgeMode === "mercado_pago_test" ||
+    input.bridgeMode === "mercado_pago_orders_test";
+  return testBridge && env === "SANDBOX";
 }
 
 async function buildDurableOrder(
@@ -188,9 +191,26 @@ async function waitForCheckoutUrl(
   return order ? buildDurableOrder(db, order, opts) : null;
 }
 
+export type ClickatonOperationalSnapshotHook = (input: {
+  totalMinor: bigint;
+  externalReference: string;
+  paymentIntentId: string;
+  paymentOrderId: string;
+}) => Promise<{
+  snapshotId: string;
+  snapshotIdPrefix: string;
+  hashPrefix: string;
+  bps: number[];
+  compatibleJson: Record<string, unknown>;
+}>;
+
 export function createClickatonCheckoutService(
   db: DnxPaymentsPersistence,
-  opts?: { providerBridge?: ClickatonCheckoutProviderBridge },
+  opts?: {
+    providerBridge?: ClickatonCheckoutProviderBridge;
+    /** Staging Orders path: append-only operational snapshot (never mutates E). */
+    buildOperationalSnapshot?: ClickatonOperationalSnapshotHook;
+  },
 ) {
   const bridge = opts?.providerBridge ?? createManualProviderBridge();
   const PROVIDER: ProviderName = bridge.providerName;
@@ -529,6 +549,45 @@ export function createClickatonCheckoutService(
         // Persist checkout URL also on payment order snapshot
         const order = await db.paymentOrders.findById(orderId);
         if (order) {
+          let economicSnap: Record<string, unknown> | undefined;
+          if (
+            opts?.buildOperationalSnapshot &&
+            bridge.mode === "mercado_pago_orders_test"
+          ) {
+            try {
+              const snap = await opts.buildOperationalSnapshot({
+                totalMinor: BigInt(input.amountMinor),
+                externalReference,
+                paymentIntentId: intent.id,
+                paymentOrderId: orderId,
+              });
+              economicSnap = {
+                operationalSnapshotIdPrefix: snap.snapshotIdPrefix,
+                operationalHashPrefix: snap.hashPrefix,
+                operationalBps: snap.bps,
+                agreementScope: "partners-10d3i-e",
+                stage: "10D3I-H",
+              };
+            } catch (err) {
+              await db.audit.append({
+                id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+                actorType: "system",
+                action: "clickaton.checkout.snapshot.failed",
+                aggregateType: "payment_order",
+                aggregateId: orderId,
+                provider: PROVIDER,
+                environment,
+                result: "FAILED",
+                errorCode: "OPERATIONAL_SNAPSHOT_FAILED",
+                metadata: {
+                  message:
+                    err instanceof Error ? err.message.slice(0, 120) : "unknown",
+                },
+                createdAt: now2,
+              });
+              throw err;
+            }
+          }
           await db.paymentOrders.save({
             ...order,
             distributionSnapshot: {
@@ -537,6 +596,7 @@ export function createClickatonCheckoutService(
               idempotencyKey: input.idempotencyKey,
               payloadHash: input.payloadHash,
               attempt,
+              ...(economicSnap ?? {}),
             },
             updatedAt: now2,
           });

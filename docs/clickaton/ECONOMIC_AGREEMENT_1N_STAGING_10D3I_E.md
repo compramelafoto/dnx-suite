@@ -167,6 +167,8 @@ Orders 1:N TEST real validado en staging (flag final OFF). Ver:
 
 `docs/clickaton/ORDERS_1N_STAGING_ACTIVATION_10D3I_F.md`
 
-## Próximo paso (no iniciado)
+## Seguimiento 10D3I-H
 
-CLICKATÓN — ETAPA 10D3I-G — OBSERVABILIDAD, WEBHOOKS Y RECONCILIACIÓN DE ORDERS 1:N TEST
+Checkout inscripción Clickatón + DNX Payments staging. Ver:
+
+`docs/clickaton/REGISTRATION_CHECKOUT_DNX_PAYMENTS_STAGING_10D3I_H.md`
