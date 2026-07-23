@@ -97,10 +97,17 @@ Configurado en `clickaton_staging` (`ep-divine-smoke-av8hmt7s*`):
 
 - Gobernanza + readiness read-only + mocks (sin OAuth real, sin cuentas reales)
 - Módulo: `@repo/payments` → `partner-onboarding` (`evaluateClickatonProductionPaymentReadiness`)
-- Decisión de cuenta MP owner/collector: **PENDIENTE DE DANIEL**
-- Doc: `docs/clickaton/MERCADO_PAGO_PARTNERS_PRODUCTION_ONBOARDING_10D3I_I0.md`
+- Decisión de cuenta MP owner/collector: **RESUELTA EN I1 — OPCIÓN B (exclusiva Clickatón)**
+- Doc I0: `docs/clickaton/MERCADO_PAGO_PARTNERS_PRODUCTION_ONBOARDING_10D3I_I0.md`
+- Doc I1: `docs/clickaton/MERCADO_PAGO_OWNER_PRODUCTION_CONNECTION_10D3I_I1.md`
 - OAuth CLF (`User.mp*`) **no** es el path de partners Clickatón
 
+## Staging 10D3I-I1 (owner OAuth path)
+
+- Dominio OAuth→FI→vault + PKCE + gates dual-control publish (sin publicar)
+- Rutas Clickatón detrás de `DNX_CLICKATON_MP_OWNER_ONBOARDING_ENABLED` (default OFF)
+- OAuth real **no** ejecutado hasta frase manual de autorización
+- Migración `DnxMercadoPagoOAuthState` en staging; producción intacta
 ## Límites de esta etapa (10D3I-C / E / F / I0)
 
 - Sin OAuth real / sin cutover Orders

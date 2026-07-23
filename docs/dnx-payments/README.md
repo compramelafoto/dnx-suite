@@ -18,6 +18,7 @@ Módulo transversal de cobros, distribución, ledger y liquidación para product
 | [16-test-accounts-and-preflight.md](./16-test-accounts-and-preflight.md) | Etapa 05A: cuentas TEST + preflight |
 | [financial-identity-domain.md](./financial-identity-domain.md) | Financial Identity + agreements |
 | [../clickaton/MERCADO_PAGO_PARTNERS_PRODUCTION_ONBOARDING_10D3I_I0.md](../clickaton/MERCADO_PAGO_PARTNERS_PRODUCTION_ONBOARDING_10D3I_I0.md) | I0: gobernanza onboarding socios MP reales |
+| [../clickaton/MERCADO_PAGO_OWNER_PRODUCTION_CONNECTION_10D3I_I1.md](../clickaton/MERCADO_PAGO_OWNER_PRODUCTION_CONNECTION_10D3I_I1.md) | I1: OAuth owner exclusivo Clickatón |
 
 Código: `packages/payments` (`@repo/payments`).
 

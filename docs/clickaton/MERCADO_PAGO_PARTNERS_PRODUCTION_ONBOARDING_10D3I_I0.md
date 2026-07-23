@@ -3,10 +3,8 @@
 **Fecha:** 2026-07-23
 **Rama:** `migration-legacy-clf-to-monorepo`
 **HEAD base:** `024f47a` (H2 validado)
-**Veredicto de etapa:** **IMPLEMENTADO — DECISIÓN DE OWNER PENDIENTE**
-**Cuentas reales conectadas:** **NINGUNA**
-**OAuth real:** **NO EJECUTADO**
-**Push / deploy / producción:** **NO**
+**Veredicto de etapa:** **IMPLEMENTADO — DECISIÓN DE OWNER PENDIENTE** → **RESUELTA EN I1 (OPCIÓN B)**
+Ver `docs/clickaton/MERCADO_PAGO_OWNER_PRODUCTION_CONNECTION_10D3I_I1.md`.
 
 ---
 
@@ -32,26 +30,24 @@ Código I0: `packages/payments/src/partner-onboarding/`.
 
 ## 2. Decisión de cuenta owner
 
-**Estado: PENDIENTE DE DANIEL**
+**Estado: RESUELTA EN I1 — OPCIÓN B (CUENTA EXCLUSIVA DE CLICKATÓN)**
 
-### Hechos
+Detalle operativo: `docs/clickaton/MERCADO_PAGO_OWNER_PRODUCTION_CONNECTION_10D3I_I1.md`.
+
+### Hechos (histórico I0)
 
 - La autoridad financiera de suite se modela con grant `DNX_FINANCE_OWNER` (staging: Dani fixture).
 - `DNXfotografia@gmail.com` aparece como admin allowlist / identidad operativa DNX, **no** como binding automático de seller MP owner en código.
 - Documentación previa (10D1 / FI) indica que Clickatón debe usar una cuenta MP **específica del producto**, distinta del OAuth fotógrafo CLF / DNX Estudio genérico.
 - El collector/owner de Orders 1:N es quien crea la orden y orquesta receivers; los socios son receivers con consentimiento.
 
-### Opciones a decidir (sin conectar nada en I0)
+### Decisión administrativa (I1)
 
-| Opción | Descripción | Implicación |
-|---|---|---|
-| A | Cuenta MP productiva de **DNX Fotografía** (misma seller que admin) como owner/collector | Simplicidad operativa; riesgo de mezclar productos si no se aísla app/credenciales |
-| B | Cuenta MP **Clickatón-específica** (recomendada por docs) como owner | Separación de producto; requiere crear/verificar seller + app redirects |
-| C | Un socio (Daniel) como owner MP y además receiver | Posible, pero confunde rol societario vs autoridad financiera; requiere confirmación reforzada |
+| Opción | Resultado |
+|---|---|
+| B | **Elegida** — cuenta MP Clickatón-específica como owner/collector |
 
-**Recomendación de diseño:** opción **B** (cuenta Clickatón-específica) + grant `DNX_FINANCE_OWNER` en el User DNX de Daniel (o identidad org Clickatón), **sin** que ser socio implique poder publicar % o cutover.
-
-**Bloqueo I1:** no abrir OAuth owner hasta que Daniel elija A/B/C por escrito y se registre en checklist I1.
+Daniel separa `DNX_FINANCE_OWNER` vs partner receiver 3400 bps.
 
 ---
 

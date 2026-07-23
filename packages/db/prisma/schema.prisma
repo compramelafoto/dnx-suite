@@ -1022,6 +1022,9 @@ model InfoSpotUserRole {
   canPublish          Boolean                   @default(true)
   /// Política editorial explícita. Director=DIRECT_PUBLISH; Colaborador=REQUIRES_APPROVAL.
   publicationPolicy   InfoSpotPublicationPolicy @default(DIRECT_PUBLISH)
+  /// Permiso independiente: crear/actualizar/cerrar convocatorias de fotógrafos en CLF.
+  /// No implica permiso de publicar contenido editorial. Director siempre efectivo=true.
+  canProvisionClfPhotographerCall Boolean       @default(false)
   status              InfoSpotMemberStatus      @default(ACTIVE)
   /// Quién asignó el rol por primera vez (auditoría mínima).
   assignedByUserId    Int?
@@ -1036,6 +1039,7 @@ model InfoSpotUserRole {
   @@unique([userId])
   @@index([role, status])
   @@index([publicationPolicy, status])
+  @@index([canProvisionClfPhotographerCall, status])
 }
 
 model InfoSpotCategory {
@@ -1141,6 +1145,20 @@ model InfoSpotArticle {
   clfSourceEnv        String?
   clfImportedAt       DateTime?
 
+  /// —— Ubicación editorial (independiente de convocatoria CLF) ——
+  /// Null = aún no definida (borrador). No usar UNSPECIFIED como default.
+  geographicScope     InfoSpotGeographicScope?
+  countryCode         String?
+  countryName         String?
+  province            String?
+  city                String?
+  placeName           String?
+  address             String?
+  formattedAddress    String?
+  latitude            Float?
+  longitude           Float?
+  geohash             String?
+
   /// —— Auditoría del flujo editorial (interna) ——
   submittedForReviewAt       DateTime?
   submittedForReviewByUserId Int?
@@ -1180,6 +1198,9 @@ model InfoSpotArticle {
   @@index([approvedAt])
   @@index([excludeFromHomepage, status])
   @@index([editorialPriority])
+  @@index([geographicScope, status])
+  @@index([countryCode, province, city])
+  @@index([geohash])
 }
 
 /// Observación editorial interna (devoluciones). Nunca pública.
@@ -1251,6 +1272,15 @@ enum InfoSpotLocationVisibility {
   APPROXIMATE
   CITY_ONLY
   HIDDEN
+}
+
+/// Alcance geográfico editorial (notas y, opcionalmente, otros contenidos).
+enum InfoSpotGeographicScope {
+  LOCAL
+  PROVINCIAL
+  NATIONAL
+  INTERNATIONAL
+  UNSPECIFIED
 }
 
 model InfoSpotEvent {
@@ -4532,6 +4562,31 @@ model MercadoPagoOAuthState {
 
   @@index([ownerType, ownerId])
   @@index([expiresAt])
+}
+
+/// Clickatón / DNX Payments partner OAuth state (10D3I-I1). Not CLF User/Lab.mp*.
+/// Stores state hash + encrypted PKCE verifier. Never stores access tokens.
+model DnxMercadoPagoOAuthState {
+  id                     String                  @id @default(cuid())
+  stateHash              String                  @unique
+  userId                 Int
+  financialIdentityId    String
+  productKey             String
+  purpose                String
+  environment            DnxFinancialEnvironment
+  redirectUri            String
+  codeChallenge          String?
+  codeVerifierCiphertext String?
+  codeVerifierNonce      String?
+  codeVerifierAuthTag    String?
+  expiresAt              DateTime
+  usedAt                 DateTime?
+  createdAt              DateTime                @default(now())
+
+  @@index([userId, productKey])
+  @@index([financialIdentityId])
+  @@index([expiresAt])
+  @@index([purpose, environment])
 }
 
 model RemovalRequest {

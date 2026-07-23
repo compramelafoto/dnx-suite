@@ -14,12 +14,21 @@ export interface EncryptedCredentialRecord {
   revokedAt: Date | null;
 }
 
+export type MercadoPagoCredentialOrigin =
+  | "compramelafoto_legacy_user"
+  | "compramelafoto_legacy_lab"
+  | "clickaton_owner_oauth"
+  | "clickaton_partner_oauth";
+
 export interface MercadoPagoCredentialPayload {
   accessToken: string;
   refreshToken: string | null;
   providerUserId: string;
   connectedAt: string | null;
-  origin: "compramelafoto_legacy_user" | "compramelafoto_legacy_lab";
+  origin: MercadoPagoCredentialOrigin;
+  /** Sanitized scopes granted at connect time (never secrets). */
+  scopes?: string[] | null;
+  expiresAt?: string | null;
 }
 
 export interface CredentialVaultKeyConfig {
