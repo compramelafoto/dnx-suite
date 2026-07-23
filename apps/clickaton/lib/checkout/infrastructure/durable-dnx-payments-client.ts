@@ -8,6 +8,10 @@ import {
   type ClickatonCheckoutProviderBridge,
   verifyMercadoPagoWebhookSignature,
   parseMercadoPagoPaymentNotification,
+  parseMercadoPagoOrdersNotification,
+  isMercadoPagoOrdersWebhookType,
+  observeOrdersWebhook,
+  isOrders1nWebhookObserveEnabled,
 } from "@repo/payments/next";
 import { hashCreateOrderPayload } from "../domain/idempotency";
 import { CheckoutError } from "../domain/errors";
@@ -94,6 +98,12 @@ export function createDurableDnxPaymentsClient(deps: {
         apply: Awaited<
           ReturnType<ClickatonCheckoutService["applyProviderPaymentNotification"]>
         >;
+      }
+    | {
+        ok: true;
+        observed: true;
+        outcome: "processed" | "duplicate";
+        mismatchCount?: number;
       }
     | { ok: false; code: string }
   >;
@@ -231,6 +241,38 @@ export function createDurableDnxPaymentsClient(deps: {
 
       if (!signatureHeader) {
         return { ok: false as const, code: "WEBHOOK_UNSIGNED" };
+      }
+
+      // Orders 1:N observe path (10D3I-G) — no registration fulfillment.
+      const ordersParsed = parseMercadoPagoOrdersNotification({
+        rawBody: input.rawBody,
+        queryDataId: input.queryDataId,
+        queryType: input.queryType,
+      });
+      if (ordersParsed.ok && isMercadoPagoOrdersWebhookType(ordersParsed.notification.type)) {
+        if (!isOrders1nWebhookObserveEnabled()) {
+          return { ok: false as const, code: "ORDERS_OBSERVE_FLAG_OFF" };
+        }
+        const observed = await observeOrdersWebhook({
+          headers: input.headers,
+          rawBody: input.rawBody,
+          queryDataId: input.queryDataId,
+          queryType: input.queryType,
+          webhookSecret: deps.webhookSecret,
+          persistence: deps.persistence,
+          allowCliBypass: false,
+          deliveryClass: "HTTP_DELIVERED_FROM_MP",
+          environment: "sandbox",
+        });
+        if (!observed.ok) {
+          return { ok: false as const, code: observed.code };
+        }
+        return {
+          ok: true as const,
+          observed: true as const,
+          outcome: observed.outcome,
+          mismatchCount: observed.mismatches.length,
+        };
       }
 
       const parsed = parseMercadoPagoPaymentNotification({

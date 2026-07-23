@@ -86,6 +86,13 @@ Configurado en `clickaton_staging` (`ep-divine-smoke-av8hmt7s*`):
 - Snapshot E intacto (referencia, sin mutación)
 - Doc: `docs/clickaton/ORDERS_1N_STAGING_ACTIVATION_10D3I_F.md`
 
+## Staging 10D3I-G (webhook + reconcile)
+
+- Observe firmado + GET reconcile de la orden F
+- Flag `DNX_MP_ORDERS_1N_WEBHOOK_OBSERVE_ENABLED` default/final **off**
+- Inbox idempotente; mismatches/alertas secret-free
+- Doc: `docs/clickaton/ORDERS_1N_WEBHOOK_RECONCILIATION_10D3I_G.md`
+
 ## Límites de esta etapa (10D3I-C / E / F)
 
 - Sin OAuth real / sin cutover Orders

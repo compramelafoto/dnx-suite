@@ -51,3 +51,11 @@ Orders 1:N TEST validado en staging Clickatón (`ep-divine-smoke-av8hmt7s*` / `c
 - Doc: `docs/clickaton/ORDERS_1N_STAGING_ACTIVATION_10D3I_F.md`
 
 Checkout Pro / Preferences de Clickatón permanece intacto.
+
+### Webhook observe (10D3I-G)
+
+- Parser `type=order` + flag observe independiente del create
+- Pipeline `observeOrdersWebhook` (firma → inbox → GET reconcile → audit)
+- Clickatón route ignora Orders si observe=OFF; no confirma inscripciones
+- CLI: `pnpm --filter @repo/payments orders-1n:observe-staging`
+- Doc: `docs/clickaton/ORDERS_1N_WEBHOOK_RECONCILIATION_10D3I_G.md`

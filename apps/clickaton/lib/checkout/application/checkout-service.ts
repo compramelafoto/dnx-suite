@@ -76,6 +76,18 @@ export function createCheckoutService(deps: {
       }
       const ingested = await deps.payments.ingestMercadoPagoSignedWebhook(input);
       if (!ingested.ok) return ingested;
+      // Orders 1:N observe-only (no registration effects).
+      if ("observed" in ingested && ingested.observed) {
+        return {
+          ok: true as const,
+          observed: true as const,
+          outcome: ingested.outcome,
+          mismatchCount: ingested.mismatchCount ?? 0,
+        };
+      }
+      if (!("event" in ingested)) {
+        return { ok: false as const, code: "WEBHOOK_INVALID_BODY" };
+      }
       // Efectos Clickatón (confirm/holds). Idempotente si S2S ya confirmó.
       const effects = await applyEvent.execute(ingested.event);
       return {

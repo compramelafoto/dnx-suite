@@ -39,6 +39,12 @@ export interface DnxPaymentsClient {
           conflictCode?: string;
         };
       }
+    | {
+        ok: true;
+        observed: true;
+        outcome: "processed" | "duplicate";
+        mismatchCount?: number;
+      }
     | { ok: false; code: string }
   >;
 }

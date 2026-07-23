@@ -42,15 +42,30 @@ export async function POST(request: Request) {
     });
     if (!mp.ok) {
       const status =
-        mp.code === "WEBHOOK_INVALID_SIGNATURE" || mp.code === "LIVE_MODE_FORBIDDEN"
+        mp.code === "WEBHOOK_INVALID_SIGNATURE" ||
+        mp.code === "LIVE_MODE_FORBIDDEN" ||
+        mp.code === "LIVE_MODE_UNDECLARED"
           ? 401
-          : mp.code === "WEBHOOK_IGNORED_TYPE"
+          : mp.code === "WEBHOOK_IGNORED_TYPE" || mp.code === "ORDERS_OBSERVE_FLAG_OFF"
             ? 200
             : 400;
-      if (mp.code === "WEBHOOK_IGNORED_TYPE") {
+      if (mp.code === "WEBHOOK_IGNORED_TYPE" || mp.code === "ORDERS_OBSERVE_FLAG_OFF") {
         return NextResponse.json({ ok: true, ignored: true, code: mp.code });
       }
       return NextResponse.json({ ok: false, code: mp.code }, { status });
+    }
+    if ("observed" in mp && mp.observed) {
+      return NextResponse.json({
+        ok: true,
+        observed: true,
+        applied: false,
+        duplicate: mp.outcome === "duplicate",
+        mismatchCount: mp.mismatchCount ?? 0,
+        origin: "HTTP_WEBHOOK_ORDERS_OBSERVE",
+      });
+    }
+    if (!("apply" in mp)) {
+      return NextResponse.json({ ok: false, code: "WEBHOOK_INVALID_BODY" }, { status: 400 });
     }
     return NextResponse.json({
       ok: true,

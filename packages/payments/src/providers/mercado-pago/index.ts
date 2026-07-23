@@ -36,6 +36,10 @@ export {
   assertOrders1nStagingCreateAllowed,
 } from "./orders/orders-1n-flag.js";
 export type { Orders1nGateDenial, Orders1nGateInput } from "./orders/orders-1n-flag.js";
+export {
+  ORDERS_1N_WEBHOOK_OBSERVE_FLAG,
+  isOrders1nWebhookObserveEnabled,
+} from "./orders/orders-1n-observe-flag.js";
 export { validateSplitOrderForMercadoPago } from "./orders/validator.js";
 export {
   buildMercadoPagoSplitOrderRequest,
@@ -46,6 +50,15 @@ export {
   stablePayloadHash,
 } from "./orders/mapper.js";
 export { parseMercadoPagoOrdersWebhook } from "./webhooks/parser.js";
+export {
+  parseMercadoPagoOrdersNotification,
+  isMercadoPagoOrdersWebhookType,
+  buildOrdersWebhookEventId,
+} from "./webhooks/orders-notification.js";
+export {
+  signMercadoPagoTestWebhook,
+  buildOrdersWebhookFixtureBody,
+} from "./webhooks/sign-test-fixture.js";
 export {
   verifyMercadoPagoWebhookSignature,
   parseMercadoPagoSignatureHeader,

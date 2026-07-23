@@ -30,6 +30,17 @@ CLI `orders-1n:activate-staging --idempotency-replay` contra sandbox:
 - same key + external_reference distinto → bloqueo/conflicto (`conflictBlocked=true`)
 - Snapshot 10D3I-E intacto (no mutado por create/replay)
 
+### Webhook observe + reconcile (10D3I-G)
+
+CLI `orders-1n:observe-staging`:
+
+- firma oficial + `live_mode=false` obligatorios en sandbox
+- inbox idempotente (`processed` → `duplicate`)
+- reconcile claim vs `GET /v1/orders/{id}`
+- snapshot E asociado read-only (`intact=true`)
+- flag observe `DNX_MP_ORDERS_1N_WEBHOOK_OBSERVE_ENABLED` default/final **off**
+- doc: `docs/clickaton/ORDERS_1N_WEBHOOK_RECONCILIATION_10D3I_G.md`
+
 ## Money
 
 Minor units → decimal strings via `moneyToMercadoPagoAmount` (no float).

@@ -27,6 +27,14 @@ export {
   ORDERS_1N_STAGING_FLAG,
   isOrders1nStagingFlagEnabled,
   assertOrders1nStagingCreateAllowed,
+  ORDERS_1N_WEBHOOK_OBSERVE_FLAG,
+  isOrders1nWebhookObserveEnabled,
+  parseMercadoPagoOrdersNotification,
+  isMercadoPagoOrdersWebhookType,
+  buildOrdersWebhookEventId,
+  signMercadoPagoTestWebhook,
+  buildOrdersWebhookFixtureBody,
+  mapMercadoPagoOrderResponse,
 } from "./providers/mercado-pago/index.js";
 export type {
   MercadoPagoProviderConfig,
@@ -36,6 +44,21 @@ export type {
   Orders1nGateDenial,
   Orders1nGateInput,
 } from "./providers/mercado-pago/index.js";
+export {
+  observeOrdersWebhook,
+  createOrdersObserveCounters,
+  summarizeOrdersObserveCounters,
+  associateSnapshot,
+  reconcileWebhookAgainstGet,
+  toCanonicalOrderView,
+} from "./application/services/orders-1n-observe/index.js";
+export type {
+  OrdersObserveResult,
+  OrdersObserveCounters,
+  ExpectedOrdersObserveContext,
+  CanonicalOrderView,
+} from "./application/services/orders-1n-observe/index.js";
+export { createInMemoryDnxPaymentsPersistence } from "./application/persistence/memory.js";
 export * from "./errors/provider-errors.js";
 export * from "./idempotency/store.js";
 export * from "./application/index.js";
