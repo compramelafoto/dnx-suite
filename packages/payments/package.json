@@ -24,6 +24,7 @@
     "./financial-identity": "./src/financial-identity/index.ts",
     "./economic-agreement": "./src/economic-agreement/index.ts",
     "./finance-permissions": "./src/finance-permissions/index.ts",
+    "./partner-onboarding": "./src/partner-onboarding/index.ts",
     "./legacy/clf": "./src/legacy/clf/index.ts",
     "./credential-vault": "./src/credential-vault/index.ts",
     "./dual-read": "./src/dual-read/index.ts"

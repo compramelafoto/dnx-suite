@@ -81,6 +81,7 @@ export type {
 export * from "./financial-identity/index.js";
 export * from "./economic-agreement/index.js";
 export * from "./finance-permissions/index.js";
+export * from "./partner-onboarding/index.js";
 export * from "./legacy/clf/index.js";
 export * from "./bridges/index.js";
 export * from "./credential-vault/index.js";

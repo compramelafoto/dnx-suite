@@ -140,3 +140,8 @@ pnpm --filter @repo/payments orders-1n:observe-staging -- --rollback-flags-off
 Checkout inscripción + fulfillment desde observe Orders. Ver:
 
 `docs/clickaton/REGISTRATION_CHECKOUT_DNX_PAYMENTS_STAGING_10D3I_H.md`
+
+## Seguimiento 10D3I-I0
+
+Gobernanza onboarding socios MP reales (sin OAuth):
+`docs/clickaton/MERCADO_PAGO_PARTNERS_PRODUCTION_ONBOARDING_10D3I_I0.md`

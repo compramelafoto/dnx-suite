@@ -93,11 +93,19 @@ Configurado en `clickaton_staging` (`ep-divine-smoke-av8hmt7s*`):
 - Inbox idempotente; mismatches/alertas secret-free
 - Doc: `docs/clickaton/ORDERS_1N_WEBHOOK_RECONCILIATION_10D3I_G.md`
 
-## Límites de esta etapa (10D3I-C / E / F)
+## Staging / diseño 10D3I-I0 (onboarding socios MP reales)
+
+- Gobernanza + readiness read-only + mocks (sin OAuth real, sin cuentas reales)
+- Módulo: `@repo/payments` → `partner-onboarding` (`evaluateClickatonProductionPaymentReadiness`)
+- Decisión de cuenta MP owner/collector: **PENDIENTE DE DANIEL**
+- Doc: `docs/clickaton/MERCADO_PAGO_PARTNERS_PRODUCTION_ONBOARDING_10D3I_I0.md`
+- OAuth CLF (`User.mp*`) **no** es el path de partners Clickatón
+
+## Límites de esta etapa (10D3I-C / E / F / I0)
 
 - Sin OAuth real / sin cutover Orders
 - Sin backfill productivo
-- Sin UI pública (E: CLI/servicio validado)
+- Sin UI pública (E: CLI/servicio validado; I0: diseño + readiness)
 - Sin settlements/refunds automáticos
 - Sin Stripe/bancos (enum extensible)
 - Migración SQL creada; **no aplicada a Production**; no asumir host del `.env` local

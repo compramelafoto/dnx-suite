@@ -172,3 +172,11 @@ Orders 1:N TEST real validado en staging (flag final OFF). Ver:
 Checkout inscripción Clickatón + DNX Payments staging. Ver:
 
 `docs/clickaton/REGISTRATION_CHECKOUT_DNX_PAYMENTS_STAGING_10D3I_H.md`
+
+## Seguimiento 10D3I-I0
+
+Gobernanza / preflight para cuentas MP reales de socios (sin OAuth real; owner pendiente). Ver:
+
+`docs/clickaton/MERCADO_PAGO_PARTNERS_PRODUCTION_ONBOARDING_10D3I_I0.md`
+
+El acuerdo TEST `partners-10d3i-e` permanece intacto; el scope productivo propuesto es `partners-production` (aún no publicado).

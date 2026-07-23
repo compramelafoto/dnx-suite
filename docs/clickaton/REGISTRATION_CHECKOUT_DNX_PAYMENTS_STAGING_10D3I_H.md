@@ -178,6 +178,10 @@ Evidencia: `.local/audit-10d3i-h2/` (gitignored).
 
 Veredicto H2: **VALIDADO — CHECKOUT CLICKATÓN + DNX PAYMENTS SANDBOX E2E OK**
 
-## Próxima etapa (no iniciar)
+## Próxima etapa
 
-**10D3I-I** — Diseño y conexión controlada de cuentas Mercado Pago reales de los socios.
+**10D3I-I0** (diseño/gobernanza, sin OAuth real) — ver:
+
+`docs/clickaton/MERCADO_PAGO_PARTNERS_PRODUCTION_ONBOARDING_10D3I_I0.md`
+
+**10D3I-I1** (conexión owner real) — no iniciar hasta decisión administrativa de cuenta owner.
