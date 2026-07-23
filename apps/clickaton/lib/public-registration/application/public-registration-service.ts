@@ -4,6 +4,8 @@ import {
   signRegistrationAccessToken,
   verifyRegistrationAccessToken,
 } from "../domain/access-token";
+import { confirmFreeRegistration } from "@/lib/registration/application/confirm-free-registration";
+import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import { createCheckoutEligibilityUseCase } from "./checkout-eligibility";
 import { createExpirePendingRegistrationsUseCase } from "./expire-pending-registrations";
 import {
@@ -459,6 +461,39 @@ export function createPublicRegistrationService(deps: {
         },
       });
 
+      // Free tickets: confirm immediately (no Mercado Pago).
+      if (ticket.priceAmount === 0) {
+        await confirmFreeRegistration({
+          registrationId: registration.id,
+          editionSlug: edition.slug,
+          editionPrefix: edition.visibleCodePrefix ?? undefined,
+        });
+        return this.toSummary(registration.id, edition.slug);
+      }
+
+      // Paid: reservation email (TEST recipients only).
+      try {
+        const accessToken = signRegistrationAccessToken({
+          registrationId: registration.id,
+          editionSlug: edition.slug,
+          expiresAtMs: holdExpiresAt.getTime(),
+        });
+        const amountLabel = `${(ticket.priceAmount / 100).toFixed(2)} ${ticket.currency}`;
+        await sendParticipantFunnelEmail({
+          kind: "reservation_created",
+          to: email,
+          participantName: input.participant.firstName.trim(),
+          editionName: edition.name,
+          editionSlug: edition.slug,
+          registrationId: registration.id,
+          accessToken,
+          amountLabel,
+          holdExpiresAt,
+        });
+      } catch {
+        // Email must not block reservation.
+      }
+
       return this.toSummary(registration.id, edition.slug);
     },
 
@@ -534,7 +569,7 @@ export function createPublicRegistrationService(deps: {
       const checkoutEligible =
         reservationActive &&
         registration.paymentStatus !== "APPROVED" &&
-        registration.money.totalAmount >= 0 &&
+        registration.money.totalAmount > 0 &&
         (registration.status === "PENDING_PAYMENT" || registration.status === "DRAFT");
 
       // Token de acceso: al menos 5 min tras apertura; no extender artificialmente reservas vencidas.

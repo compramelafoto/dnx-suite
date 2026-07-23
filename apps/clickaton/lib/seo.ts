@@ -45,8 +45,14 @@ export function buildPageMetadata({
       description,
       images: ["/og-default.png"],
     },
-    robots: noIndex
-      ? { index: false, follow: false, nocache: true }
-      : { index: false, follow: false },
+    robots: (() => {
+      const allowProdIndex =
+        process.env.VERCEL_ENV === "production" &&
+        process.env.CLICKATON_ALLOW_SEARCH_INDEXING === "true";
+      if (noIndex || !allowProdIndex) {
+        return { index: false, follow: false, nocache: true };
+      }
+      return { index: true, follow: true };
+    })(),
   };
 }

@@ -593,7 +593,7 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
           }
 
           return mapRecord(created);
-        });
+        }, { maxWait: 10_000, timeout: 20_000 });
       } catch (error) {
         if (error instanceof PublicRegistrationError) throw error;
         if (
@@ -801,10 +801,12 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
         holdExpiresAt: registration.holdExpiresAt ?? null,
         accessToken,
         nextStepMessage: checkoutEligible
-          ? "Próximamente: continuar al pago."
-          : isExpired
-            ? "La reserva venció. El cupo fue liberado."
-            : "Esta inscripción no admite continuar al pago.",
+          ? "Entorno de prueba: podés continuar al pago sandbox. No se realizará un cobro real."
+          : registration.status === "CONFIRMED"
+            ? "Inscripción confirmada. Entrá a Mi cuenta para ver QR y credencial."
+            : isExpired
+              ? "La reserva venció. El cupo fue liberado. Podés iniciar una nueva inscripción si hay cupo."
+              : "Esta inscripción no admite continuar al pago.",
         checkoutEligible,
       };
     },

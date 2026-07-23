@@ -78,14 +78,15 @@ export function createCheckoutService(deps: {
       if (!ingested.ok) return ingested;
       // Orders observe: fulfill registration only when event is present (H flag ON).
       if ("observed" in ingested && ingested.observed) {
-        if ("event" in ingested && ingested.event) {
-          const effects = await applyEvent.execute(ingested.event);
+        const observedEvent = ingested.event;
+        if (observedEvent) {
+          const effects = await applyEvent.execute(observedEvent);
           return {
             ok: true as const,
             observed: true as const,
             outcome: ingested.outcome,
             mismatchCount: ingested.mismatchCount ?? 0,
-            event: ingested.event,
+            event: observedEvent,
             apply: {
               outcome: effects.duplicate
                 ? ("duplicate" as const)
@@ -104,7 +105,7 @@ export function createCheckoutService(deps: {
           mismatchCount: ingested.mismatchCount ?? 0,
         };
       }
-      if (!("event" in ingested)) {
+      if (!("event" in ingested) || !ingested.event) {
         return { ok: false as const, code: "WEBHOOK_INVALID_BODY" };
       }
       // Efectos Clickatón (confirm/holds). Idempotente si S2S ya confirmó.

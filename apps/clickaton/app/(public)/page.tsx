@@ -7,7 +7,7 @@ import { Hero } from "@/components/home/Hero";
 import { LearningSection } from "@/components/home/LearningSection";
 import { ManifestoBlock } from "@/components/home/ManifestoBlock";
 import { PartnershipSection } from "@/components/home/PartnershipSection";
-import { UpcomingEventsPlaceholder } from "@/components/home/UpcomingEventsPlaceholder";
+import { UpcomingEventsSection } from "@/components/home/UpcomingEventsSection";
 import { VenueProgramSection } from "@/components/home/VenueProgramSection";
 import { WhatIsClickaton } from "@/components/home/WhatIsClickaton";
 
@@ -18,7 +18,7 @@ export default function HomePage() {
       <WhatIsClickaton />
       <BrandPillars />
       <ExperienceSteps />
-      <UpcomingEventsPlaceholder />
+      <UpcomingEventsSection />
       <LearningSection />
       <Community />
       <VenueProgramSection />

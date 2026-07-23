@@ -1,15 +1,11 @@
-import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@repo/db";
+import { issueRegistrationQrToken } from "@/lib/registration/security/qr-token";
 import type { CheckoutRegistrationMutations } from "../domain/checkout-registration-port";
 import { CheckoutError } from "../domain/errors";
 
 function formatVisibleCode(prefix: string, seq: number, width = 5): string {
   const safe = prefix.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 8) || "CK";
   return `${safe}-${String(seq).padStart(width, "0")}`;
-}
-
-function hashToken(plaintext: string): string {
-  return createHash("sha256").update(plaintext, "utf8").digest("hex");
 }
 
 function mapRecord(row: {
@@ -252,13 +248,15 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
           where: { credentialId: credential.id, status: "ACTIVE", revokedAt: null },
         });
         if (!activeQr) {
-          const plaintext = randomBytes(32).toString("base64url");
-          const tokenHash = hashToken(plaintext);
+          const issued = issueRegistrationQrToken({
+            registrationId: input.registrationId,
+            credentialId: credential.id,
+          });
           await tx.clickatonQrToken.create({
             data: {
               credentialId: credential.id,
-              tokenHash,
-              tokenPrefix: plaintext.slice(0, 8),
+              tokenHash: issued.tokenHash,
+              tokenPrefix: issued.tokenPrefix,
               status: "ACTIVE",
             },
           });
@@ -269,7 +267,8 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
               source: input.source,
               metadata: {
                 credentialIdPrefix: credential.id.slice(0, 10),
-                tokenPrefix: plaintext.slice(0, 8),
+                tokenPrefix: issued.tokenPrefix,
+                regenerable: true,
                 // plaintext never persisted in audit
               },
             },

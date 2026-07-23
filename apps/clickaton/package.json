@@ -31,26 +31,31 @@
     "smoke:dnx-payments-test": "tsx scripts/dnx-payments-test-smoke.ts",
     "test:smoke-db-classify": "tsx --test scripts/classify-smoke-database-url.test.ts",
     "registrations:expire-holds": "tsx scripts/expire-registration-holds.ts",
+    "seed:pilot-edition": "tsx scripts/seed-pilot-edition-test.ts",
+    "selfcheck:qr-token": "tsx lib/registration/security/qr-token.selfcheck.ts",
+    "selfcheck:registration-funnel-11b": "tsx scripts/registration-funnel-11b.selfcheck.ts",
     "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
   },
   "dependencies": {
-    "next": "16.2.1",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
     "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
-    "@repo/payments": "workspace:*"
+    "@repo/payments": "workspace:*",
+    "next": "16.2.1",
+    "qrcode": "^1.5.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^22.15.3",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "eslint": "^9.39.1",
     "tailwindcss": "^4.2.2",
-    "typescript": "5.9.2",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "typescript": "5.9.2"
   }
 }

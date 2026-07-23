@@ -1,3 +1,4 @@
+import { notifyPaidRegistrationConfirmed } from "@/lib/registration/notifications/notify-registration-lifecycle";
 import { CheckoutError } from "../domain/errors";
 import { mapDnxStatusToClickatonEffect } from "../domain/mapping";
 import type { CheckoutLogSink } from "../domain/observability";
@@ -198,6 +199,14 @@ export function createApplyPaymentEventUseCase(deps: {
           event: "registration_confirmed",
           registrationId: confirmed.id,
           orderId: order.id,
+        });
+
+        // Best-effort: email must not block accredited fulfillment.
+        // editionSlug resolved from DB inside notifier when omitted.
+        void notifyPaidRegistrationConfirmed({
+          registrationId: confirmed.id,
+          editionSlug: "",
+          source: "dnx_payments_webhook",
         });
 
         return {

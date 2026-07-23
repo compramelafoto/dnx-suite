@@ -1,3 +1,4 @@
+import { notifyHoldExpired } from "@/lib/registration/notifications/notify-registration-lifecycle";
 import type { PublicRegistrationRepository } from "../domain/repository";
 import type { ExpirePendingBatchResult } from "../domain/types";
 
@@ -9,12 +10,15 @@ export type ExpirePendingRegistrationsInput = {
 
 /**
  * Caso de uso batch: expirePendingRegistrations.
- * Ejecutable desde script, selfcheck o futuro worker — sin UI.
+ * Ejecutable desde cron /api/cron/expire-registration-holds, script o selfcheck.
  */
 export function createExpirePendingRegistrationsUseCase(deps: {
   repo: PublicRegistrationRepository;
+  /** When false, skip hold_expired emails (tests / dry paths). Default true. */
+  notifyEmails?: boolean;
 }) {
   const { repo } = deps;
+  const notifyEmails = deps.notifyEmails !== false;
 
   return {
     async execute(input: ExpirePendingRegistrationsInput = {}): Promise<ExpirePendingBatchResult> {
@@ -45,6 +49,12 @@ export function createExpirePendingRegistrationsUseCase(deps: {
             result.expired += 1;
             result.releasedCapacityHolds += outcome.releasedCapacityHolds;
             result.releasedStockHolds += outcome.releasedStockHolds;
+            if (!dryRun && notifyEmails) {
+              void notifyHoldExpired({
+                registrationId,
+                source: "expire_pending_registrations",
+              });
+            }
           } else if (outcome.outcome === "already_processed") {
             result.skipped += 1;
           } else {

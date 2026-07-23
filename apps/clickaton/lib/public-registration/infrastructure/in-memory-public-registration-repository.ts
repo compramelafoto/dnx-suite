@@ -562,7 +562,7 @@ export function createInMemoryPublicRegistrationRepository(
         holdExpiresAt: registration.holdExpiresAt ?? null,
         accessToken,
         nextStepMessage: checkoutEligible
-          ? "Próximamente: continuar al pago."
+          ? "Entorno de prueba: podés continuar al pago sandbox. No se realizará un cobro real."
           : isExpired
             ? "La reserva venció. El cupo fue liberado."
             : "Esta inscripción no admite continuar al pago.",

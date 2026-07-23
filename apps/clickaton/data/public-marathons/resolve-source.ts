@@ -13,21 +13,25 @@ import "server-only";
 import { PublicMarathonPayloadError } from "@/data/public-marathons/errors";
 import { createFotorankHttpPublicMarathonDataSource } from "@/data/public-marathons/fotorank-http-source";
 import { localPublicMarathonDataSource } from "@/data/public-marathons/local-source";
+import { createPrismaPublicMarathonDataSource } from "@/data/public-marathons/prisma-source";
 import type { PublicMarathonDataSource } from "@/data/public-marathons/types";
 
-export type ClickatonPublicDataSourceKind = "fixture" | "fotorank";
+export type ClickatonPublicDataSourceKind = "fixture" | "fotorank" | "prisma";
 
 const DEMO_SLUG = "demo";
 
 export function parseClickatonPublicDataSourceKind(
   raw: string | undefined,
 ): ClickatonPublicDataSourceKind {
-  const value = (raw ?? "fixture").trim().toLowerCase();
-  if (value === "" || value === "fixture" || value === "local") {
+  const value = (raw ?? "prisma").trim().toLowerCase();
+  if (value === "fixture" || value === "local") {
     return "fixture";
   }
   if (value === "fotorank") {
     return "fotorank";
+  }
+  if (value === "" || value === "prisma") {
+    return "prisma";
   }
   throw new PublicMarathonPayloadError(
     `Invalid CLICKATON_PUBLIC_DATA_SOURCE: ${raw ?? ""}`,
@@ -103,6 +107,13 @@ export function resolvePublicMarathonDataSource(
 
   if (kind === "fixture") {
     return localPublicMarathonDataSource;
+  }
+
+  if (kind === "prisma") {
+    return createHybridPublicMarathonDataSource(
+      createPrismaPublicMarathonDataSource(),
+      localPublicMarathonDataSource,
+    );
   }
 
   const baseUrl = env.FOTORANK_PUBLIC_API_BASE_URL?.trim();

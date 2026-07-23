@@ -44,6 +44,8 @@ export interface DnxPaymentsClient {
         observed: true;
         outcome: "processed" | "duplicate";
         mismatchCount?: number;
+        /** Present when Orders observe yields a normalized fulfillment event. */
+        event?: NormalizedPaymentEvent;
       }
     | { ok: false; code: string }
   >;

@@ -251,58 +251,41 @@ Pesos altos en: inscripción, checkout LIVE, emails, QR usable, edición publica
 
 ---
 
-## 11. Roadmap de cierre — prompts sugeridos (2–6 h c/u)
+## 11. Roadmap oficial reorganizado por valor (post-11A)
 
-### PRIORIDAD CRÍTICA
+> El score histórico **47/100** y el veredicto **NO GO** de esta auditoría **no se modifican**.
+> El roadmap se reordena: primero cerrar el journey del participante; LIVE solo después.
 
-1. **11A1 — Copy funnel inscripción/pago**
-   Eliminar mensajes “próximamente” inconsistentes; alinear CTA home→maratón→inscripción.
+| Etapa | Objetivo | Estado vs bloqueantes 11A |
+|---|---|---|
+| **11B** | Funnel completo participante (edición real TEST, copy, legales, emails, QR, credencial, Mi cuenta, free, holds, SEO seguro, runbook) | Ver `REGISTRATION_FUNNEL_COMPLETE_11B.md` |
+| **11C** | Check-in completo y operación de acreditación en sede | Pendiente |
+| **11D** | Panel organizador | Pendiente |
+| **11E** | Sponsors / CRM packs | Pendiente |
+| **11F** | Jurados | Pendiente |
+| **11G** | Ranking / resultados | Pendiente |
+| **I1→I6** | Mercado Pago LIVE / owner OAuth / DistributionVersion | **Solo después de cerrar 11B** |
 
-2. **11A2 — Legales v1 pagos + consentimiento versionado**
-   Términos/privacidad reales; timestamps con versión de bases.
+### Bloqueantes funnel → tracking 11B
 
-3. **11A3 — Emails mínimos post-reserva y post-pago**
-   Templates + trigger; link con `?t=`; sin WhatsApp aún.
+| Bloqueante 11A | Estado tras roadmap 11B |
+|---|---|
+| Edición real publicada | Cubierto por piloto TEST `piloto-test-11b` + fuente Prisma |
+| Copy coherente con checkout | Cubierto (mensajes “próximamente” del pago eliminados del funnel) |
+| Legales / consentimientos | Cubierto TEST + pendiente jurídico Daniel |
+| Emails | Cubierto (Resend / sandbox destinatarios) |
+| QR usable | Cubierto (HMAC regenerable + Mi cuenta) |
+| Credencial | Cubierto (vista/print Mi cuenta) |
+| Free tickets | Cubierto (auto-confirm) |
+| Holds durables | Cubierto (cron + use case) |
+| Mi cuenta | Cubierto (listado + detalle) |
+| Robots/SEO | Cubierto (noindex por env; index solo flag explícito) |
+| Runbook | Cubierto en doc 11B |
+| LIVE MP | **Fuera de 11B** → I1→I6 |
 
-4. **11A4 — Entrega credencial/QR al participante**
-   Mostrar/descargar en resumen + mi-cuenta; no loguear plaintext.
+### Roadmap histórico 11A (conservado como referencia)
 
-5. **11A5 — Auto-confirm entradas gratis**
-   `totalAmount=0` → CONFIRMED + credencial sin checkout.
-
-6. **11A6 — Cron expire registration holds**
-   Vercel cron o job managed; métricas cupo.
-
-7. **11A7 — Edición piloto publicada end-to-end**
-   Admin publish + ficha pública + fixture/FR sync checklist.
-
-8. **11B — Cierre pagos LIVE (continuación I1→I6 acotada)**
-   Solo tras autorización owner; fuera del alcance de “features Clickatón UI”.
-
-### PRIORIDAD ALTA (primera semana de venta)
-
-9. **11C — Mi cuenta: mis inscripciones**
-10. **11D — Check-in operador MVP (scan QR)**
-11. **11E — Cancelación / política de reembolso UI**
-12. **11F — Rate limit durable + hardening prod**
-13. **11G — SEO go-live (robots, OG, sitemap)**
-14. **11H — Runbook soporte + MANUAL_REVIEW queue**
-
-### PRIORIDAD MEDIA
-
-15. **11I — Panel organizador sede (lectura + check-in)**
-16. **11J — Sponsors CRM básico (10E)**
-17. **11K — Export CSV inscripciones**
-18. **11L — Operación kits en acreditación**
-
-### PRIORIDAD BAJA
-
-19. WhatsApp automatizaciones
-20. Ranking/resultados públicos
-21. Certificados
-22. Expo stands
-23. Comunidad perfiles
-24. Tienda merch standalone
+Los prompts 11A1–11A7 / 11C–11L originales quedan absorbidos en la tabla anterior; no borrar el diagnóstico de secciones 1–10.
 
 ---
 

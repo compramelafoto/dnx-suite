@@ -1,6 +1,7 @@
 import { createCheckoutEligibilityUseCase } from "@/lib/public-registration/application/checkout-eligibility";
 import { verifyRegistrationAccessToken } from "@/lib/public-registration/domain/access-token";
 import type { PublicRegistrationRepository } from "@/lib/public-registration/domain/repository";
+import { notifyPaidRegistrationConfirmed } from "@/lib/registration/notifications/notify-registration-lifecycle";
 import { CheckoutError } from "../domain/errors";
 import { mapDnxStatusToClickatonEffect, maskExternalReference } from "../domain/mapping";
 import type { CheckoutRegistrationPort } from "../domain/checkout-registration-port";
@@ -63,6 +64,11 @@ export function createGetRegistrationPaymentStatusUseCase(deps: {
               source: "dnx_payments_s2s_refresh",
               requestId: `s2s_refresh_${order.id}_${Date.now()}`,
               editionPrefix: prefix,
+            });
+            void notifyPaidRegistrationConfirmed({
+              registrationId: registration.id,
+              editionSlug: input.editionSlug,
+              source: "dnx_payments_s2s_refresh",
             });
           }
         } else if (
