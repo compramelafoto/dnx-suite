@@ -181,3 +181,40 @@ Ver tabla READY SCORE en entrega 11B. Score histórico 47/100 de 11A **no se mod
 ## Próximo paso (solo si VALIDADO)
 
 **11C — Check-in completo y aprobación en sede** — no iniciar automáticamente.
+
+---
+
+## Validación operativa 11B2
+
+**Doc:** [`REGISTRATION_FUNNEL_VALIDATION_11B2.md`](./REGISTRATION_FUNNEL_VALIDATION_11B2.md)  
+**Fecha:** 2026-07-23  
+**HEAD código:** `1b2de05`  
+**Decisión:** **NO GO** — journey TEST incompleto operativamente.
+
+### Entorno
+
+- Staging URL: `https://clickaton-staging.vercel.app`
+- Deploy staging observado: **pre-11B** (piloto 404; Home con “próximamente”)
+- Seed: **no ejecutado** (DB staging no clasificable / pull `DATABASE_URL` vacío; local Neon fail-closed)
+- Email: Resend + `CLICKATON_EMAIL_TEST_TO` **ausentes**
+- Evidencia smoke browser: `.local/audit-11b2/` (gitignored)
+
+### Casos E2E
+
+Pago acreditado / pendiente / rechazado / free / hold / mobile / email real: **no ejecutados** (bloqueados por ops).
+
+### Suites código
+
+Selfchecks QR / funnel-11b / hardening / checkout: **OK**. Email selfcheck: `skipped`.
+
+### Bugs / correcciones
+
+Sin correcciones de producto en 11B2 (solo documentación). Bloqueo = configuración + deploy staging + seed.
+
+### Limitaciones
+
+Sin push; sin deploy productivo; sin LIVE; score 11A 47/100 intacto.
+
+### Decisión final 11B2
+
+**BLOQUEADO — SEED STAGING NO DISPONIBLE** · no iniciar 11C.
