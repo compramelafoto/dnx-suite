@@ -158,10 +158,15 @@ Segundo `--apply`: `alreadyConfigured=true`, persist deltas 0 (sin duplicados).
 
 - Sin UI admin.
 - Sin OAuth / cuentas MP reales.
-- Sin Orders API real.
 - Porcentajes solo TEST (no acuerdo productivo definitivo).
 - Sin liquidaciones / retiros / deuda.
 
+## Seguimiento 10D3I-F
+
+Orders 1:N TEST real validado en staging (flag final OFF). Ver:
+
+`docs/clickaton/ORDERS_1N_STAGING_ACTIVATION_10D3I_F.md`
+
 ## Próximo paso (no iniciado)
 
-CLICKATÓN — ETAPA 10D3I-F — ACTIVACIÓN CONTROLADA DE MERCADO PAGO ORDERS 1:N TEST EN STAGING
+CLICKATÓN — ETAPA 10D3I-G — OBSERVABILIDAD, WEBHOOKS Y RECONCILIACIÓN DE ORDERS 1:N TEST

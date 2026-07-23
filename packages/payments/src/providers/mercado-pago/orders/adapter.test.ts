@@ -84,12 +84,21 @@ describe("MercadoPagoOrdersAdapter", () => {
       distribution: sampleDistribution(),
       idempotencyKey: "order-idem-1",
       deviceSessionId: "device-session-1",
+      paymentToken: "TEST_CARD_TOKEN_FIXTURE",
       partnerReceiverIds,
     });
 
     assert.equal(result.providerOrderId, FAKE_ORDER_ID);
     assert.equal(result.status, "OPEN");
     assert.equal(http.recordedRequests[0]?.options.path, "/v1/orders");
+    const body = http.recordedRequests[0]?.options.body as {
+      transactions?: { payments?: Array<{ payment_method?: { token?: string } }> };
+    };
+    const pm = body?.transactions?.payments?.[0]?.payment_method as
+      | { token?: string; id?: string }
+      | undefined;
+    assert.equal(pm?.token, "TEST_CARD_TOKEN_FIXTURE");
+    assert.equal(pm?.id, "visa");
   });
 
   it("getOrder fetches order status", async () => {

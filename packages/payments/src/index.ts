@@ -15,6 +15,8 @@ export {
   percentageBpsToMercadoPagoAmount,
   validateSplitOrderForMercadoPago,
   buildMercadoPagoSplitOrderRequest,
+  buildSplitEntriesFromDistribution,
+  inferAmountType,
   mapMercadoPagoOrderStatus,
   parseMercadoPagoOrdersWebhook,
   FakeMercadoPagoHttpClient,
@@ -22,12 +24,17 @@ export {
   assertSandboxWriteAllowed,
   assertSandboxToken,
   isSandboxAccessToken,
+  ORDERS_1N_STAGING_FLAG,
+  isOrders1nStagingFlagEnabled,
+  assertOrders1nStagingCreateAllowed,
 } from "./providers/mercado-pago/index.js";
 export type {
   MercadoPagoProviderConfig,
   MercadoPagoEnvironment,
   MercadoPagoOrdersAdapterOptions,
   CreateSplitOrderInput,
+  Orders1nGateDenial,
+  Orders1nGateInput,
 } from "./providers/mercado-pago/index.js";
 export * from "./errors/provider-errors.js";
 export * from "./idempotency/store.js";

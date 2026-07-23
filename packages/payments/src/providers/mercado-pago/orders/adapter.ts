@@ -20,6 +20,10 @@ import {
 import { validateSplitOrderForMercadoPago } from "./validator.js";
 import { parseMercadoPagoOrdersWebhook } from "../webhooks/parser.js";
 import { OrderAdapterError } from "./errors.js";
+import {
+  assertOrders1nStagingCreateAllowed,
+  isOrders1nStagingFlagEnabled,
+} from "./orders-1n-flag.js";
 
 export interface MercadoPagoOrdersAdapterOptions {
   config: MercadoPagoProviderConfig;
@@ -29,6 +33,14 @@ export interface MercadoPagoOrdersAdapterOptions {
   verifyAfterCreate?: boolean;
   /** Maps product recipientId -> MP receiver_id UUID for partners. */
   partnerReceiverIds?: Map<string, string>;
+  /**
+   * When true (default for staging CLI), require DNX_MP_ORDERS_1N_STAGING_ENABLED
+   * + confirm flags before live createSplitOrder HTTP.
+   * Unit tests can set false.
+   */
+  enforceOrders1nStagingGate?: boolean;
+  confirmStaging?: boolean;
+  confirmOrdersTest?: boolean;
 }
 
 export interface CreateSplitOrderInput extends CreateProviderOrderInput {
@@ -41,12 +53,20 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
   private readonly ownerUserId: string;
   private readonly verifyAfterCreate: boolean;
   private readonly defaultPartnerReceiverIds: Map<string, string>;
+  private readonly enforceOrders1nStagingGate: boolean;
+  private readonly confirmStaging: boolean;
+  private readonly confirmOrdersTest: boolean;
+  private readonly config: MercadoPagoProviderConfig;
 
   constructor(opts: MercadoPagoOrdersAdapterOptions) {
     this.http = opts.httpClient ?? new MercadoPagoHttpClient(opts.config);
+    this.config = opts.config;
     this.ownerUserId = opts.ownerUserId;
     this.verifyAfterCreate = opts.verifyAfterCreate ?? false;
     this.defaultPartnerReceiverIds = opts.partnerReceiverIds ?? new Map();
+    this.enforceOrders1nStagingGate = opts.enforceOrders1nStagingGate ?? false;
+    this.confirmStaging = opts.confirmStaging ?? false;
+    this.confirmOrdersTest = opts.confirmOrdersTest ?? false;
   }
 
   capabilities() {
@@ -62,6 +82,25 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
   async createSplitOrder(input: CreateSplitOrderInput): Promise<CreateProviderOrderResult> {
     if (!input.deviceSessionId?.trim()) {
       throw new OrderAdapterError("deviceSessionId is required for Mercado Pago split orders");
+    }
+
+    if (this.enforceOrders1nStagingGate) {
+      const gate = assertOrders1nStagingCreateAllowed({
+        flagEnabled: isOrders1nStagingFlagEnabled(),
+        environment: this.config.environment === "sandbox" ? "sandbox" : "production",
+        confirmStaging: this.confirmStaging,
+        confirmOrdersTest: this.confirmOrdersTest,
+        accessTokenPresent: Boolean(this.config.accessToken?.trim()),
+        accessTokenSandboxEligible: this.config.environment === "sandbox",
+        ownerUserIdPresent: Boolean(this.ownerUserId.trim()),
+        receiver1Present: input.partnerReceiverIds.size >= 1,
+        receiver2Present: input.partnerReceiverIds.size >= 2,
+        paymentTokenPresent: Boolean(input.paymentToken?.trim()),
+        deviceIdPresent: Boolean(input.deviceSessionId?.trim()),
+      });
+      if (!gate.ok) {
+        throw new OrderAdapterError(`ORDERS_1N_GATE:${gate.reason}`);
+      }
     }
 
     const partnerReceiverIds = input.partnerReceiverIds;
@@ -87,6 +126,12 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
       deviceSessionId: input.deviceSessionId,
       ...(input.payerEmail ? { payerEmail: input.payerEmail } : {}),
       ...(input.metadata ? { metadata: input.metadata } : {}),
+      ...(input.paymentToken ? { paymentToken: input.paymentToken } : {}),
+      ...(input.paymentMethodId
+        ? { paymentMethodId: input.paymentMethodId }
+        : input.paymentToken
+          ? { paymentMethodId: "visa" }
+          : {}),
     });
 
     const response = await this.http.request<MpOrderCreateResponse>({

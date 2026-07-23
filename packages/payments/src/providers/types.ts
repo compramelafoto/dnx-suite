@@ -20,6 +20,10 @@ export interface CreateProviderOrderInput {
   payerEmail?: string;
   idempotencyKey: string;
   deviceSessionId?: string;
+  /** Card token from MercadoPago.js (TEST) — never log. */
+  paymentToken?: string;
+  /** MP payment_method.id (e.g. visa) — required by Orders when token is sent. */
+  paymentMethodId?: string;
   metadata?: Record<string, string>;
 }
 

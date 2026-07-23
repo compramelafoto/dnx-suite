@@ -40,6 +40,14 @@ Owner `user_id` is injected **server-side** via `MercadoPagoOrdersAdapterOptions
 
 Fee allocation · Seller Primary product decision · taxes · settlements/payouts.
 
-## Sandbox real
+## Sandbox real (10D3I-F)
 
-No TEST credentials were available in this workspace → status **`COMPLETE_PENDING_SANDBOX_CREDENTIALS`**.
+Orders 1:N TEST validado en staging Clickatón (`ep-divine-smoke-av8hmt7s*` / `clickaton_staging`):
+
+- Flag temporal `DNX_MP_ORDERS_1N_STAGING_ENABLED` (default off; CLI fuerza off al finalizar)
+- `paymentToken` + `payment_method.id` (default `visa`) + `payer.email` + `x-meli-session-id`
+- Split percentage 34/33/33 (owner + 2 receivers TEST)
+- CLI: `pnpm --filter @repo/payments orders-1n:activate-staging`
+- Doc: `docs/clickaton/ORDERS_1N_STAGING_ACTIVATION_10D3I_F.md`
+
+Checkout Pro / Preferences de Clickatón permanece intacto.

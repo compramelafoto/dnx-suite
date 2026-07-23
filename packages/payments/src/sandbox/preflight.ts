@@ -22,6 +22,9 @@ export interface SandboxPreflightInput {
   publicKey?: string | undefined;
   ownerUserId?: string | undefined;
   partnerEmail?: string | undefined;
+  partnerEmail2?: string | undefined;
+  partnerReceiverId?: string | undefined;
+  partnerReceiverId2?: string | undefined;
   environment?: "sandbox" | "production" | undefined;
   baseUrl?: string | undefined;
   confirm?: boolean | undefined;
@@ -308,6 +311,9 @@ export function loadSandboxEnvFromProcess(
     publicKey: get("MERCADOPAGO_TEST_PUBLIC_KEY"),
     ownerUserId: get("MERCADOPAGO_TEST_OWNER_USER_ID"),
     partnerEmail: get("MERCADOPAGO_TEST_PARTNER_EMAIL"),
+    partnerEmail2: get("MERCADOPAGO_TEST_PARTNER_EMAIL_2"),
+    partnerReceiverId: get("MERCADOPAGO_TEST_PARTNER_RECEIVER_ID"),
+    partnerReceiverId2: get("MERCADOPAGO_TEST_PARTNER_RECEIVER_ID_2"),
     paymentToken: get("MERCADOPAGO_TEST_PAYMENT_TOKEN"),
     deviceId: get("MERCADOPAGO_TEST_DEVICE_ID"),
     environment: "sandbox",

@@ -118,6 +118,8 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
   metadata?: Record<string, string>;
   description?: string;
   paymentToken?: string;
+  /** Required by MP Orders when paymentToken is set (e.g. "visa"). */
+  paymentMethodId?: string;
   installments?: number;
   integratorId?: string;
   platformId?: string;
@@ -164,11 +166,13 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
   }
 
   if (opts.paymentToken) {
+    const paymentMethodId = opts.paymentMethodId?.trim() || "visa";
     body.transactions = {
       payments: [
         {
           amount: totalAmount,
           payment_method: {
+            id: paymentMethodId,
             token: opts.paymentToken,
             type: "credit_card",
             installments: opts.installments ?? 1,

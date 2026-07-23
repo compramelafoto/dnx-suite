@@ -30,9 +30,17 @@ export { mapMercadoPagoHttpError, isRetryableStatus } from "./errors/error-mappe
 export { MercadoPagoSplitConsentAdapter } from "./split-consent/adapter.js";
 export { MercadoPagoOrdersAdapter } from "./orders/adapter.js";
 export type { MercadoPagoOrdersAdapterOptions, CreateSplitOrderInput } from "./orders/adapter.js";
+export {
+  ORDERS_1N_STAGING_FLAG,
+  isOrders1nStagingFlagEnabled,
+  assertOrders1nStagingCreateAllowed,
+} from "./orders/orders-1n-flag.js";
+export type { Orders1nGateDenial, Orders1nGateInput } from "./orders/orders-1n-flag.js";
 export { validateSplitOrderForMercadoPago } from "./orders/validator.js";
 export {
   buildMercadoPagoSplitOrderRequest,
+  buildSplitEntriesFromDistribution,
+  inferAmountType,
   mapMercadoPagoOrderStatus,
   mapMercadoPagoOrderResponse,
   stablePayloadHash,

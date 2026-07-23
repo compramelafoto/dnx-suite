@@ -22,6 +22,14 @@ Port `IdempotencyStore` + in-memory impl for tests:
 - same key + different hash → conflict
 - retries keep the **same** idempotency key
 
+### Staging evidence (10D3I-F)
+
+CLI `orders-1n:activate-staging --idempotency-replay` contra sandbox:
+
+- same key + same payload → misma orden (`sameOrder=true`)
+- same key + external_reference distinto → bloqueo/conflicto (`conflictBlocked=true`)
+- Snapshot 10D3I-E intacto (no mutado por create/replay)
+
 ## Money
 
 Minor units → decimal strings via `moneyToMercadoPagoAmount` (no float).

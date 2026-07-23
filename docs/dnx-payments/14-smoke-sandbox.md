@@ -56,3 +56,17 @@ Si falta token: `BLOCKED_BY_TEST_PAYMENT_TOKEN`.
 5. Idempotencia same/different payload
 6. Errores controlados sin abuso
 7. Cleanup consentimiento solo si creado por el smoke
+
+## Orders 1:N staging Clickatón (10D3I-F)
+
+Además del smoke 70/30, existe CLI controlada 3-way **34/33/33**:
+
+```bash
+pnpm --filter @repo/payments orders-1n:activate-staging -- --preflight
+pnpm --filter @repo/payments orders-1n:activate-staging -- --dry-run
+pnpm --filter @repo/payments orders-1n:activate-staging -- \
+  --create-order --confirm-staging --confirm-orders-test
+pnpm --filter @repo/payments orders-1n:activate-staging -- --rollback-flag-off
+```
+
+Requiere receivers #1/#2 ACTIVE, device id, payment token fresco, y host/db staging confirmados. Flag final siempre OFF. Doc: `docs/clickaton/ORDERS_1N_STAGING_ACTIVATION_10D3I_F.md`.

@@ -61,7 +61,7 @@ Asignación staging (documental): insertar `DnxFinanceGrant` por `userId` — no
 - CLF `User.mp*` intacto; mapper dry-run en `@repo/payments/legacy/clf`
 - Dual-read / vault migration → etapa **10D3I-D**
 - DNX Payments: bridges tipados a Recipient / ProviderAccount / DistributionRule
-- Clickatón checkout Preferences intacto; Orders 1:N no activado
+- Clickatón checkout Preferences intacto; Orders 1:N runtime off (validado TEST en 10D3I-F)
 
 ## Ejemplo (fixtures)
 
@@ -74,12 +74,19 @@ Configurado en `clickaton_staging` (`ep-divine-smoke-av8hmt7s*`):
 - Fixtures User TEST (sin MP real) + identities PERSON + PaymentAccount TEST
 - Grant `DNX_FINANCE_OWNER` solo Dani; Rodrigo/Tamara = PARTICIPANT_SELF
 - Acuerdo `clickaton` / `STAGING_TEST` / `partners-10d3i-e` — 3400/3300/3300 bps PUBLISHED
-- Snapshot 100000 ARS → 34000/33000/33000; Orders 1:N solo dry-run local
+- Snapshot 100000 ARS → 34000/33000/33000; Orders 1:N solo dry-run local en E
 - CLI: `economic-agreement:configure-clickaton-staging`
 - Doc: `docs/clickaton/ECONOMIC_AGREEMENT_1N_STAGING_10D3I_E.md`
-- Runtime FI permanece `LEGACY_ONLY`; Orders real off
+- Runtime FI permanece `LEGACY_ONLY`
 
-## Límites de esta etapa (10D3I-C / E)
+## Staging 10D3I-F (Orders 1:N TEST)
+
+- Orden sandbox real 34/33/33 acreditada (`PROCESSED_ACCREDITED`)
+- Flag `DNX_MP_ORDERS_1N_STAGING_ENABLED` default/final **off**
+- Snapshot E intacto (referencia, sin mutación)
+- Doc: `docs/clickaton/ORDERS_1N_STAGING_ACTIVATION_10D3I_F.md`
+
+## Límites de esta etapa (10D3I-C / E / F)
 
 - Sin OAuth real / sin cutover Orders
 - Sin backfill productivo
