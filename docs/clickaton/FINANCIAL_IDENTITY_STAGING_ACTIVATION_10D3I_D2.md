@@ -3,7 +3,8 @@
 **Fecha:** 2026-07-22  
 **Rama:** `migration-legacy-clf-to-monorepo`  
 **HEAD base:** `d8b9c9f` (10D3I-D)  
-**Veredicto:** **BLOQUEADO — NO STAGING INEQUÍVOCO**
+**Veredicto:** **BLOQUEADO — NO STAGING INEQUÍVOCO**  
+**Superseded:** 10D3I-D3 identificó y migró `ep-divine-smoke-av8hmt7s*` — ver [`FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md`](./FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md).
 
 ## Objetivo
 

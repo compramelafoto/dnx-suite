@@ -69,29 +69,26 @@ Con `LEGACY_ONLY` el comportamiento es idéntico al histórico.
 3. Opcional: `rollbackMigratedPaymentAccount` → status `DISABLED`
 4. No revocar tokens MP, no borrar columnas legacy, no borrar audit
 
-## Staging (actualizado 10D3I-D2)
+## Staging (actualizado 10D3I-D3)
 
 | Host | Clasificación | Evidencia |
 |---|---|---|
-| `ep-round-fog*` | **CLF_PREVIEW_CONFIRMED** + candidato DNX Payments | Vercel `compramelafoto-dnxsuite` Preview; fingerprint read-only (45 migraciones; `DnxPaymentIntent` sí; tablas 10D3I-C/D **no**; 3 users testish) |
+| `ep-divine-smoke-av8hmt7s*` | **SHARED_DNX_STAGING_CONFIRMED** (Clickatón + CLF + Payments + FR/IS/FO) | Neon project/branch `clickaton-staging`; DB `clickaton_staging`; migrate C/D aplicados 10D3I-D3 |
+| `ep-round-fog*` | CLF Preview histórico / candidato previo | Vercel `compramelafoto-dnxsuite` Preview — **no** usar para FI tras D3 |
 | `ep-falling-darkness*` | **PRODUCTION_CONFIRMED** (CLF) | Vercel `compramelafoto-dnxsuite` Production |
-| `ep-dawn-dew*` | **PRODUCTION_CONFIRMED** (FotoRank) / **AMBIGUOUS_DO_NOT_USE** | Vercel `fotorank-dnxsuite` Production; InfoSpot histórico |
-| `clickaton-staging` DB | **AMBIGUOUS_DO_NOT_USE** | `DATABASE_URL` tipo `sensitive`; pull CLI vacío; host desconocido |
+| `ep-dawn-dew*` | **PRODUCTION_CONFIRMED** (FotoRank) / **NO USAR** | Vercel `fotorank-dnxsuite` Production |
 
-**Decisión 10D3I-D2:** `NO_STAGING_INEQUÍVOCO` — no migrate remoto, no PREFER, no backfill apply.
+**Decisión 10D3I-D3:** migraciones 10D3I-C/D **aplicadas** en `ep-divine-smoke*` / `clickaton_staging`. Runtime sigue `LEGACY_ONLY`. Sin backfill / sin PREFER.
 
-Detalle: [`docs/clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md`](../clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md).
+Detalle apply: [`docs/clickaton/FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md`](../clickaton/FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md).  
+Auditoría D2 (bloqueo previo): [`docs/clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md`](../clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md).
 
-### Fingerprint `ep-round-fog*` (sanitizado)
+### Fingerprint post-migrate `ep-divine-smoke*`
 
-- DB `neondb` / schema `public`
-- `_prisma_migrations`: 45; head `20260715170000_dnx_payments_core_persistence`
-- FI tables: ausentes
-- Users/Labs: 3/1; MP token presente en 1 user; emails testish 3/3
-
-### Bloqueo Clickatón
-
-Sin host inequívoco de `clickaton-staging` no se puede afirmar `SHARED_DNX_STAGING_CONFIRMED`. Financial Identity no debe duplicarse en una DB Clickatón separada sin decisión explícita.
+- DB `clickaton_staging` / schema `public`
+- `_prisma_migrations`: 64; head `20260722230000_add_encrypted_credentials_and_legacy_mp_fields`
+- FI tables: presentes; filas FI/account/credential: 0
+- Backup branch Neon: `pre-10d3i-financial-identity`
 
 ## Runbook (resumen)
 
