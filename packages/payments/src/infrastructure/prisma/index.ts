@@ -21,3 +21,14 @@ export {
   disablePaymentAccountRemote,
   type LegacyMpBackfillPrisma,
 } from "./legacy-mp-backfill-remote.js";
+export {
+  STAGING_PARTNER_FIXTURES,
+  ensureStagingPartnerUsers,
+  ensureDaniFinanceOwnerGrant,
+  loadFinanceGrants,
+  hydrateAgreementGraphFromPrisma,
+  persistEconomicAgreementGraphDelta,
+  sanitizeEmailReport,
+  type EconomicAgreementPrisma,
+  type StagingPartnerUserFixture,
+} from "./economic-agreement-remote.js";

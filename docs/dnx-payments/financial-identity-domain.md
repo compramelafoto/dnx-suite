@@ -67,11 +67,24 @@ Asignación staging (documental): insertar `DnxFinanceGrant` por `userId` — no
 
 Dani/Rodri/Tammy Test + `TEST_DANI` / `TEST_RODRI` / `TEST_TAMMY` → acuerdo Clickatón 3400/3300/3300 → snapshot simulado.
 
-## Límites de esta etapa (10D3I-C)
+## Staging 10D3I-E (acuerdo socios Clickatón)
+
+Configurado en `clickaton_staging` (`ep-divine-smoke-av8hmt7s*`):
+
+- Fixtures User TEST (sin MP real) + identities PERSON + PaymentAccount TEST
+- Grant `DNX_FINANCE_OWNER` solo Dani; Rodrigo/Tamara = PARTICIPANT_SELF
+- Acuerdo `clickaton` / `STAGING_TEST` / `partners-10d3i-e` — 3400/3300/3300 bps PUBLISHED
+- Snapshot 100000 ARS → 34000/33000/33000; Orders 1:N solo dry-run local
+- CLI: `economic-agreement:configure-clickaton-staging`
+- Doc: `docs/clickaton/ECONOMIC_AGREEMENT_1N_STAGING_10D3I_E.md`
+- Runtime FI permanece `LEGACY_ONLY`; Orders real off
+
+## Límites de esta etapa (10D3I-C / E)
 
 - Sin OAuth real / sin cutover Orders
 - Sin backfill productivo
-- Sin UI pública
+- Sin UI pública (E: CLI/servicio validado)
 - Sin settlements/refunds automáticos
 - Sin Stripe/bancos (enum extensible)
 - Migración SQL creada; **no aplicada a Production**; no asumir host del `.env` local
+- Porcentajes 34/33/33 son **solo TEST**, no acuerdo productivo definitivo

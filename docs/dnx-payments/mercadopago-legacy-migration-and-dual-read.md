@@ -101,11 +101,19 @@ Auditoría D2 (bloqueo previo): [`docs/clickaton/FINANCIAL_IDENTITY_STAGING_ACTI
 - Backup branch Neon: `pre-10d3i-financial-identity`
 - CLI remoto: `--remote` + host gate `ep-divine-smoke-av8hmt7s*`
 
+### Post-10D3I-E (acuerdo socios TEST)
+
+- +3 identities / +3 PaymentAccount TEST / 1 agreement ACTIVE / versión PUBLISHED 3400/3300/3300
+- 1 snapshot 100000 ARS; Orders 1:N solo dry-run local
+- Grant `DNX_FINANCE_OWNER` Dani; runtime FI sigue `LEGACY_ONLY`
+- Doc: [`docs/clickaton/ECONOMIC_AGREEMENT_1N_STAGING_10D3I_E.md`](../clickaton/ECONOMIC_AGREEMENT_1N_STAGING_10D3I_E.md)
+
 ## Runbook (resumen)
 
-1. Identificar staging inequívoco (CLF `ep-round-fog*` **y** Clickatón alineado) — **pendiente D2**
+1. Identificar staging inequívoco — **confirmado** `ep-divine-smoke-av8hmt7s*` / `clickaton_staging`
 2. Dry-run fixture local
 3. Aplicar migraciones 10D3I-C/D solo en staging confirmado
 4. Dry-run DB (sin apply) → revisar conflictos
 5. Apply lote pequeño TEST
 6. Smoke LEGACY_ONLY → PREFER → rollback LEGACY_ONLY
+7. (10D3I-E) Configurar acuerdo socios TEST vía CLI `economic-agreement:configure-clickaton-staging` — **sin Orders real**
