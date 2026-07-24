@@ -34,7 +34,11 @@
     "seed:pilot-edition": "tsx scripts/seed-pilot-edition-test.ts",
     "selfcheck:qr-token": "tsx lib/registration/security/qr-token.selfcheck.ts",
     "selfcheck:registration-funnel-11b": "tsx scripts/registration-funnel-11b.selfcheck.ts",
-    "audit:admin-identity": "tsx scripts/audit-admin-identity.ts"
+    "audit:admin-identity": "tsx scripts/audit-admin-identity.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test e2e/env-smoke.spec.ts",
+    "test:e2e:desktop": "playwright test --project=desktop",
+    "test:e2e:mobile": "playwright test --project=mobile"
   },
   "dependencies": {
     "@repo/auth": "workspace:*",
@@ -46,6 +50,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4.2.2",

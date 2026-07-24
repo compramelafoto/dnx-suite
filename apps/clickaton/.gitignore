@@ -18,3 +18,9 @@ npm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# playwright / QA evidence (also covered by repo .local/)
+/test-results/
+/playwright-report/
+/blob-report/
+/e2e/.auth/

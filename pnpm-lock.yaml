@@ -32,6 +32,9 @@ importers:
       next:
         specifier: 16.2.1
         version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -39,6 +42,9 @@ importers:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.51.1
+        version: 1.51.1
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
@@ -51,6 +57,9 @@ importers:
       '@types/node':
         specifier: ^22.15.3
         version: 22.20.1
+      '@types/qrcode':
+        specifier: ^1.5.6
+        version: 1.5.6
       '@types/react':
         specifier: 19.2.2
         version: 19.2.2
@@ -120,6 +129,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
@@ -654,6 +666,18 @@ importers:
       '@repo/editor':
         specifier: workspace:^
         version: link:../../packages/editor
+      '@repo/editorial-intelligence':
+        specifier: workspace:*
+        version: link:../../packages/editorial-intelligence
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
+      '@repo/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
+      '@repo/recommendations':
+        specifier: workspace:*
+        version: link:../../packages/recommendations
       '@tiptap/core':
         specifier: ^2.11.5
         version: 2.27.2(@tiptap/pm@2.27.2)
@@ -715,6 +739,9 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
     devDependencies:
+      '@playwright/test':
+        specifier: 1.51.1
+        version: 1.51.1
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
@@ -913,6 +940,27 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  packages/editorial-intelligence:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
   packages/eslint-config:
     devDependencies:
       '@eslint/js':
@@ -949,6 +997,58 @@ importers:
         specifier: ^8.50.0
         version: 8.50.0(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.2)
 
+  packages/geo:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.2
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.4
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/notifications:
+    dependencies:
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../geo
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
   packages/payments:
     dependencies:
       '@prisma/client':
@@ -963,6 +1063,31 @@ importers:
         version: 22.20.1
       tsx:
         specifier: ^4.19.2
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/recommendations:
+    dependencies:
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../geo
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      tsx:
+        specifier: ^4.21.0
         version: 4.23.0
       typescript:
         specifier: 5.9.2

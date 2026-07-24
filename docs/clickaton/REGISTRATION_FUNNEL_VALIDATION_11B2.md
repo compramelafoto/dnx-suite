@@ -139,7 +139,12 @@ Ningún bug de código 11B reproducido en E2E (no hubo E2E). Smoke confirma gap 
 
 GO/NO GO: **NO GO — JOURNEY TEST INCOMPLETO**
 
-Reanudar 11B2 cuando Daniel entregue:
+> **Nota QA1 (2026-07-24):** este veredicto histórico de 11B2 **no se altera**.  
+> La preparación del entorno pasó a **QA1** (`QA_STAGING_ENVIRONMENT_READINESS_QA1.md`).  
+> La reejecución funcional del journey queda para **QA2**, solo si QA1 queda VALIDADA.  
+> No iniciar 11C ni LIVE desde este documento.
+
+Reanudar la validación funcional (ahora como **QA2**) cuando QA1 deje verde:
 
 1. `DATABASE_URL` staging clasificable,  
 2. deploy staging con `1b2de05` (sin prod),  
