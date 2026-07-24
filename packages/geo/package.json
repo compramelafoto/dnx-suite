@@ -1,0 +1,54 @@
+{
+  "name": "@repo/geo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DNX GEO ENGINE — geolocalización compartida (Haversine, geohash, Nominatim, ranking, nearby). Sin React/Next/Prisma en el core.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./coordinates": "./src/coordinates.ts",
+    "./distance": "./src/distance.ts",
+    "./geohash": "./src/geohash.ts",
+    "./normalize": "./src/normalize.ts",
+    "./location": "./src/location.ts",
+    "./nominatim": "./src/nominatim/index.ts",
+    "./ranking": "./src/ranking/geo-ranking-engine.ts",
+    "./nearby": "./src/nearby/query.ts",
+    "./feed": "./src/feed-item.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./adapters/infospot": "./src/adapters/infospot.ts",
+    "./adapters/compramelafoto": "./src/adapters/compramelafoto.ts",
+    "./adapters/clickaton": "./src/adapters/clickaton.ts",
+    "./adapters/fotorank": "./src/adapters/fotorank.ts",
+    "./adapters/fotoffice": "./src/adapters/fotoffice.ts",
+    "./react": "./src/react/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "pnpm exec tsx --test src/geo-engine.test.ts",
+    "build": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint ."
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.0.0",
+    "eslint": "^9.39.1",
+    "react": "^19.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.2"
+  }
+}
