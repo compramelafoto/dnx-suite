@@ -1,101 +1,49 @@
 /**
- * Utilidades geográficas para álbumes colaborativos y eventos:
- * - geohash: encode lat/lng para búsqueda por proximidad
- * - haversine: distancia en metros entre dos puntos
+ * Utilidades geográficas para álbumes colaborativos y eventos.
+ * Motor: @repo/geo (DNX GEO ENGINE). Se mantiene la API histórica de CLF
+ * (default geohash precision 8; bbox {south,west,north,east}).
  */
 
-const GEOHASH_BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
+import {
+  encodeGeohash as encodeGeohashCore,
+  geohashPrefixForRadiusKm as geohashPrefixForRadiusKmCore,
+  haversineDistanceMeters as haversineDistanceMetersCore,
+  boundingBoxForRadiusKm as boundingBoxCore,
+} from "@repo/geo";
 
 /**
- * Codifica lat/lng en geohash (precision = caracteres, ~5 bits cada uno).
- * Mayor precisión = área más pequeña.
- * precision 5 ≈ ±2.4km, 6 ≈ ±0.6km, 7 ≈ ±150m
+ * Codifica lat/lng en geohash.
+ * Default CLF: precision 8 ≈ ±38 m (históricamente distinto del 7 de InfoSpot).
  */
 export function encodeGeohash(lat: number, lng: number, precision = 8): string {
-  const idx: number[] = [];
-  let latMin = -90;
-  let latMax = 90;
-  let lngMin = -180;
-  let lngMax = 180;
-
-  let isEven = true;
-
-  while (idx.length < precision * 5) {
-    if (isEven) {
-      const mid = (lngMin + lngMax) / 2;
-      idx.push(lng >= mid ? 1 : 0);
-      if (lng >= mid) lngMin = mid;
-      else lngMax = mid;
-    } else {
-      const mid = (latMin + latMax) / 2;
-      idx.push(lat >= mid ? 1 : 0);
-      if (lat >= mid) latMin = mid;
-      else latMax = mid;
-    }
-    isEven = !isEven;
-  }
-
-  let hash = "";
-  for (let c = 0; c < precision; c++) {
-    let n = 0;
-    for (let b = 0; b < 5; b++) {
-      n = (n << 1) | (idx[c * 5 + b] ?? 0);
-    }
-    hash += GEOHASH_BASE32[n];
-  }
-  return hash;
+  return encodeGeohashCore(lat, lng, precision);
 }
 
-/**
- * Obtiene el prefijo de geohash que cubre aproximadamente un radio en km.
- * Para 2km ≈ precision 5, 0.2km ≈ precision 6, 0.5km ≈ precision 5-6
- */
 export function geohashPrefixForRadiusKm(radiusKm: number): number {
-  if (radiusKm >= 20) return 4;
-  if (radiusKm >= 5) return 5;
-  if (radiusKm >= 1) return 6;
-  if (radiusKm >= 0.5) return 6;
-  return 7;
+  return geohashPrefixForRadiusKmCore(radiusKm);
 }
 
-/**
- * Distancia haversine en metros entre dos puntos WGS84.
- */
 export function haversineDistanceMeters(
   lat1: number,
   lng1: number,
   lat2: number,
-  lng2: number
+  lng2: number,
 ): number {
-  const R = 6371000; // Radio de la Tierra en metros
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return haversineDistanceMetersCore(lat1, lng1, lat2, lng2);
 }
 
-/** Caja aproximada (WGS84) que contiene un círculo de radio `radiusKm` alrededor de un punto. */
+/** Caja aproximada (WGS84) — shape histórico CLF. */
 export function boundingBoxForRadiusKm(
   lat: number,
   lng: number,
-  radiusKm: number
+  radiusKm: number,
 ): { south: number; west: number; north: number; east: number } {
-  const radiusM = radiusKm * 1000;
-  const latDelta = radiusM / 111_320;
-  const cosLat = Math.cos((lat * Math.PI) / 180);
-  const lngDelta = radiusM / (111_320 * Math.max(Math.abs(cosLat), 0.01));
+  const box = boundingBoxCore(lat, lng, radiusKm);
   return {
-    south: lat - latDelta,
-    north: lat + latDelta,
-    west: lng - lngDelta,
-    east: lng + lngDelta,
+    south: box.minLat,
+    north: box.maxLat,
+    west: box.minLng,
+    east: box.maxLng,
   };
 }
 

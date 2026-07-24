@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { enrollPhotographerInEvent } from "@/lib/events/enroll-event-photographer";
 import { resolveEventPhotographerTerms } from "@/lib/events/terms";
+import { attributeApplicationFromCookie } from "@/lib/notifications/tracking";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -126,6 +127,15 @@ export async function POST(
           },
         });
       }
+      const member = await prisma.eventMember.findUnique({
+        where: { eventId_userId: { eventId: event.id, userId: user.id } },
+        select: { id: true },
+      });
+      await attributeApplicationFromCookie({
+        userId: user.id,
+        clfEventId: event.id,
+        eventMemberId: member?.id ?? null,
+      });
       return NextResponse.json({
         success: true,
         outcome: "request_pending",
@@ -155,6 +165,18 @@ export async function POST(
 
     if (!enroll.ok) {
       return NextResponse.json({ error: enroll.message }, { status: enroll.status });
+    }
+
+    const member = await prisma.eventMember.findUnique({
+      where: { eventId_userId: { eventId: event.id, userId: user.id } },
+      select: { id: true },
+    });
+    if (enroll.outcome !== "already_active") {
+      await attributeApplicationFromCookie({
+        userId: user.id,
+        clfEventId: event.id,
+        eventMemberId: member?.id ?? null,
+      });
     }
 
     const outcome =

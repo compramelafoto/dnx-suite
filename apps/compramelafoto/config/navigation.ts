@@ -134,6 +134,11 @@ export function getPhotographerSidebarItems(icons: {
         { id: "c-datos", label: "Perfil", path: "/fotografo/configuracion", tab: "datos" },
         { id: "c-password", label: "Cuenta y seguridad", path: "/cuenta/cambiar-contrasena" },
         { id: "c-diseno", label: "Marca y diseño", path: "/fotografo/configuracion", tab: "diseno" },
+        {
+          id: "c-notificaciones",
+          label: "Notificaciones",
+          path: "/fotografo/configuracion/notificaciones",
+        },
         { id: "c-impresion", label: "Impresión", path: "/fotografo/laboratorio" },
         {
           id: "c-camera-connection",
@@ -142,6 +147,12 @@ export function getPhotographerSidebarItems(icons: {
         },
         { id: "c-referidos", label: "Referidos & Marketing", path: "/dashboard/referrals" },
       ],
+    },
+    {
+      id: "notificaciones",
+      label: "Avisos",
+      path: "/fotografo/notificaciones",
+      icon: icons.support,
     },
     {
       id: "comunidad",
