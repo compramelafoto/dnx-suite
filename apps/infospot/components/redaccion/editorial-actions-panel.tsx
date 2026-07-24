@@ -33,7 +33,7 @@ import {
   EVENT_STATUS_LABELS,
   type EventStatus,
 } from "@/lib/editorial/event-adapter";
-import type { InfoSpotPermissionSubject } from "@repo/db";
+import type { InfoSpotPermissionSubject } from "@repo/db/permissions";
 
 type Observation = {
   message: string;

@@ -7,6 +7,8 @@ import {
   closePhotographerCallAndRedirect,
 } from "@/app/actions/photographer-call";
 import { CLF_EVENT_TYPES } from "@/lib/clf-event-provisioning/category-type-map";
+import { resolvePhotographerCallDisplay } from "@/lib/clf-event-provisioning/call-display-status";
+import { NearbyNotifyPanel } from "@/components/redaccion/nearby-notify-panel";
 
 const fieldClass = "is-input mt-2";
 
@@ -35,16 +37,18 @@ type Props = {
   defaultClfEventType: string;
   missingGeoref: boolean;
   canProvision: boolean;
+  /** Permiso independiente de envío de avisos geográficos. */
+  canNotify: boolean;
+  /** Si el evento InfoSpot ya terminó (endAt/startAt pasado). */
+  eventEnded?: boolean;
 };
 
-const STATUS_COPY: Record<string, string> = {
-  NOT_REQUESTED: "Convocatoria no configurada",
-  PENDING: "Configuración lista",
-  BLOCKED: "No puede crearse todavía",
-  PROVISIONING: "Creando convocatoria…",
-  PROVISIONED: "Convocatoria activa en ComprameLaFoto",
-  FAILED: "No se pudo crear la convocatoria",
-  CLOSED: "Convocatoria cerrada",
+const TONE_CLASS: Record<string, string> = {
+  neutral: "border-[var(--is-border)] bg-[var(--is-bg-secondary)] text-[var(--is-text-secondary)]",
+  warning: "border-amber-200 bg-amber-50 text-amber-950",
+  success: "border-emerald-200 bg-emerald-50 text-emerald-950",
+  danger: "border-red-200 bg-red-50 text-red-900",
+  info: "border-sky-200 bg-sky-50 text-sky-950",
 };
 
 export function PhotographerCallPanel({
@@ -54,9 +58,20 @@ export function PhotographerCallPanel({
   defaultClfEventType,
   missingGeoref,
   canProvision,
+  canNotify,
+  eventEnded = false,
 }: Props) {
   const [enabled, setEnabled] = useState(call?.enabled ?? false);
   const status = call?.provisioningStatus ?? "NOT_REQUESTED";
+  const display = resolvePhotographerCallDisplay({
+    enabled,
+    provisioningStatus: status,
+    desiredClfStatus: call?.desiredClfStatus,
+    clfEventId: call?.clfEventId,
+    publicUrl: call?.publicUrl,
+    missingGeoref,
+    eventEnded,
+  });
 
   const saveAction = savePhotographerCallAndRedirect.bind(null, eventId);
   const provisionAction = provisionPhotographerCallAndRedirect.bind(null, eventId);
@@ -67,16 +82,32 @@ export function PhotographerCallPanel({
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Convocatoria de fotógrafos</h2>
         <p className="mt-1 text-sm text-[var(--is-muted)]">
-          Configurá la convocatoria en Info Spot. La inscripción ocurre en ComprameLaFoto.
-        </p>
-        <p className="mt-2 text-sm font-medium text-[var(--is-text-secondary)]">
-          {STATUS_COPY[status] ?? status}
+          Crear o publicar la actividad en InfoSpot no abre una convocatoria en CLF. Hace falta
+          una acción explícita. La inscripción ocurre solo en ComprameLaFoto.
         </p>
       </div>
 
-      {missingGeoref ? (
+      <div
+        className={`rounded-[var(--is-radius-sm)] border px-3 py-3 text-sm ${TONE_CLASS[display.tone]}`}
+        role="status"
+        data-call-status={display.status}
+      >
+        <p className="font-semibold">{display.label}</p>
+        <p className="mt-1 leading-relaxed">{display.description}</p>
+        {call?.clfEventId ? (
+          <p className="mt-2 text-xs opacity-90">Evento CLF #{call.clfEventId}</p>
+        ) : null}
+      </div>
+
+      {!canProvision ? (
+        <p className="rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg-secondary)] px-3 py-3 text-sm text-[var(--is-muted)]">
+          No tenés permiso para crear convocatorias en ComprameLaFoto.
+        </p>
+      ) : null}
+
+      {canProvision && missingGeoref ? (
         <p className="rounded-[var(--is-radius-sm)] border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          Falta georreferenciar el evento
+          Falta georreferenciar el evento antes de abrir la convocatoria públicamente.
         </p>
       ) : null}
 
@@ -92,22 +123,25 @@ export function PhotographerCallPanel({
         </p>
       ) : null}
 
-      {call?.publicUrl ? (
-        <p className="text-sm">
-          <a
-            href={call.publicUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium text-[var(--is-accent)] hover:underline"
-          >
-            Ver página pública
-          </a>
-          {call.clfEventId ? (
-            <span className="text-[var(--is-muted)]"> · CLF #{call.clfEventId}</span>
+      {call?.publicUrl || call?.clfEventId ? (
+        <div className="flex flex-wrap gap-3 text-sm">
+          {call.publicUrl ? (
+            <a
+              href={call.publicUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center font-medium text-[var(--is-accent)] hover:underline"
+            >
+              Abrir en CLF (página pública)
+            </a>
           ) : null}
-        </p>
+          {call.clfEventId && !call.publicUrl ? (
+            <span className="text-[var(--is-muted)]">Vinculado a CLF #{call.clfEventId}</span>
+          ) : null}
+        </div>
       ) : null}
 
+      {!canProvision ? null : (
       <form action={saveAction} className="space-y-4">
         <label className="flex items-start gap-3 text-sm">
           <input
@@ -119,9 +153,10 @@ export function PhotographerCallPanel({
             className="mt-1 size-4"
           />
           <span>
-            <span className="font-semibold">Convocar fotógrafos para este evento</span>
+            <span className="font-semibold">Convocar fotógrafos mediante ComprameLaFoto</span>
             <span className="block text-[var(--is-muted)]">
-              No elimina el Event CLF al desmarcar; si ya está provisionado usá «Cerrar convocatoria».
+              Por defecto no. Guardar la actividad en InfoSpot no crea nada en CLF. La acción
+              «Crear o actualizar convocatoria en CLF» es explícita y separada.
             </span>
           </span>
         </label>
@@ -178,15 +213,18 @@ export function PhotographerCallPanel({
               </select>
             </label>
             <label className="block">
-              <span className="text-sm font-medium">Estado inicial CLF</span>
+              <span className="text-sm font-medium">Estado deseado en CLF</span>
               <select
                 name="desiredClfStatus"
                 defaultValue={call?.desiredClfStatus ?? "ACTIVE"}
                 className={fieldClass}
               >
                 <option value="ACTIVE">Abierta (ACTIVE)</option>
-                <option value="CLOSED">Cerrada (CLOSED)</option>
+                <option value="CLOSED">Cerrada / borrador operativo (CLOSED)</option>
               </select>
+              <span className="mt-1 block text-xs text-[var(--is-muted)]">
+                No se publica automáticamente al guardar la actividad en InfoSpot.
+              </span>
             </label>
             <label className="block">
               <span className="text-sm font-medium">Email organizador (cuenta CLF)</span>
@@ -231,9 +269,10 @@ export function PhotographerCallPanel({
           type="submit"
           className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-semibold"
         >
-          Guardar configuración
+          Guardar configuración (InfoSpot)
         </button>
       </form>
+      )}
 
       {canProvision && enabled && (status === "PENDING" || status === "BLOCKED" || status === "FAILED") ? (
         <form action={provisionAction}>
@@ -241,7 +280,9 @@ export function PhotographerCallPanel({
             type="submit"
             className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
           >
-            {status === "FAILED" ? "Reintentar" : "Crear convocatoria en ComprameLaFoto"}
+            {status === "FAILED"
+              ? "Reintentar sincronización"
+              : "Crear o actualizar convocatoria en CLF"}
           </button>
         </form>
       ) : null}
@@ -253,7 +294,7 @@ export function PhotographerCallPanel({
               type="submit"
               className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border-strong)] px-4 text-sm font-semibold"
             >
-              Actualizar configuración
+              Actualizar en CLF (sin duplicar)
             </button>
           </form>
           <form
@@ -277,6 +318,13 @@ export function PhotographerCallPanel({
           </form>
         </div>
       ) : null}
+
+      <NearbyNotifyPanel
+        eventId={eventId}
+        canNotify={canNotify}
+        callOpen={display.status === "OPEN"}
+        publicUrl={call?.publicUrl ?? null}
+      />
     </section>
   );
 }

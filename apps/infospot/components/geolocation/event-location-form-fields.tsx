@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { EventLocationPanel } from "@/components/geolocation/event-location-panel";
 import type { EventLocationPanelValue } from "@/components/geolocation/event-location-panel";
-import type { LocationVisibility } from "@/lib/geolocation/types";
 import { confirmEventLocationAction } from "@/app/actions/event-location";
+export { defaultLocationValue } from "@/lib/geolocation/default-location-value";
 
 type Props = {
   eventId: string;
@@ -64,39 +64,4 @@ export function EventLocationFormFields({
       }
     />
   );
-}
-
-export function defaultLocationValue(partial: {
-  city?: string | null;
-  province?: string | null;
-  address?: string | null;
-  venueName?: string | null;
-  postalCode?: string | null;
-  countryCode?: string | null;
-  countryName?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  locationVisibility?: LocationVisibility | string | null;
-  geocodingStatus?: string | null;
-  locationConfirmedAt?: Date | string | null;
-  geocodingPlaceId?: string | null;
-  geocodingProvider?: string | null;
-}): EventLocationPanelValue {
-  return {
-    city: partial.city || "",
-    province: partial.province || "",
-    address: partial.address || "",
-    venueName: partial.venueName || "",
-    postalCode: partial.postalCode || "",
-    countryCode: partial.countryCode || "AR",
-    countryName: partial.countryName || "Argentina",
-    latitude: partial.latitude ?? null,
-    longitude: partial.longitude ?? null,
-    locationVisibility:
-      (partial.locationVisibility as LocationVisibility) || "CITY_ONLY",
-    geocodingStatus: partial.geocodingStatus || "PENDING",
-    locationConfirmedAt: partial.locationConfirmedAt ?? null,
-    geocodingPlaceId: partial.geocodingPlaceId ?? null,
-    geocodingProvider: partial.geocodingProvider ?? null,
-  };
 }

@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   canEditInfoSpotEvent,
-  canManageInfoSpotSettings,
-  canPublishInfoSpotEvent,
+  canProvisionClfPhotographerCall,
 } from "@repo/db";
 import { requireInfoSpotRedaccionAccess } from "@/lib/infospot-access";
 import {
@@ -18,10 +17,6 @@ import { prisma } from "@repo/db";
 export type ActionResult =
   | { ok: true; message: string; publicUrl?: string | null; clfEventId?: number | null }
   | { ok: false; error: string };
-
-function canProvision(subject: Parameters<typeof canPublishInfoSpotEvent>[0]) {
-  return canManageInfoSpotSettings(subject) || canPublishInfoSpotEvent(subject);
-}
 
 function parseMaxPhotographers(raw: FormDataEntryValue | null): number | null {
   if (raw == null || String(raw).trim() === "" || String(raw) === "unlimited") return null;
@@ -40,6 +35,12 @@ export async function savePhotographerCallAction(
   }
 
   const enabled = formData.get("photographerCallEnabled") === "on" || formData.get("photographerCallEnabled") === "true";
+  if (enabled && !canProvisionClfPhotographerCall(access.subject)) {
+    return {
+      ok: false,
+      error: "No tenés permiso para crear convocatorias en ComprameLaFoto.",
+    };
+  }
   const visibilityRaw = String(formData.get("visibility") || "PUBLIC");
   const joinPolicyRaw = String(formData.get("joinPolicy") || "OPEN");
   const visibility = (["PUBLIC", "UNLISTED", "PRIVATE"].includes(visibilityRaw)
@@ -97,7 +98,7 @@ export async function provisionPhotographerCallAction(
   eventId: string,
 ): Promise<ActionResult> {
   const access = await requireInfoSpotRedaccionAccess();
-  if (!canProvision(access.subject)) {
+  if (!canProvisionClfPhotographerCall(access.subject)) {
     return { ok: false, error: "No tenés permiso para crear la convocatoria en CLF." };
   }
 
@@ -117,7 +118,7 @@ export async function closePhotographerCallAction(
   eventId: string,
 ): Promise<ActionResult> {
   const access = await requireInfoSpotRedaccionAccess();
-  if (!canProvision(access.subject)) {
+  if (!canProvisionClfPhotographerCall(access.subject)) {
     return { ok: false, error: "No tenés permiso para cerrar la convocatoria." };
   }
   const result = await closeClfPhotographerCall(eventId, access.user.id);

@@ -4,6 +4,7 @@ import { prisma } from "@repo/db";
 import { PageShell } from "@/components/page-shell";
 import {
   canManageInfoSpotUsers,
+  canNotifyClfPhotographerCall,
   canReviewInfoSpotApprovals,
   requireInfoSpotAdminAccess,
 } from "@/lib/infospot-access";
@@ -19,6 +20,10 @@ export default async function AdminPage() {
   const access = await requireInfoSpotAdminAccess();
   const canUsers = canManageInfoSpotUsers(access.subject);
   const canApprovals = canReviewInfoSpotApprovals(access.subject);
+  const canNotifications =
+    canNotifyClfPhotographerCall(access.subject) ||
+    access.user.globalRole === "SUPER_ADMIN" ||
+    access.subject.role === "INFOSPOT_DIRECTOR";
 
   const pendingApprovals = canApprovals
     ? await prisma.infoSpotArticle.count({ where: { status: "IN_REVIEW" } })
@@ -35,6 +40,11 @@ export default async function AdminPage() {
     },
     { href: "/admin/usuarios", label: "Equipo y roles", show: canUsers },
     { href: "/admin/eventos", label: "Eventos", show: true },
+    {
+      href: "/admin/notificaciones",
+      label: "Campañas de notificación",
+      show: canNotifications,
+    },
     { href: "/admin/configuracion", label: "Configuración del medio", show: true },
     { href: "/admin/lanzamiento", label: "Contenido de lanzamiento", show: true },
     { href: "/admin/ayuda", label: "Cómo publicar una historia", show: true },

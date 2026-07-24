@@ -9,11 +9,11 @@
  * contentTag ya no se fuerza en operaciones editoriales.
  */
 
-import type { InfoSpotPermissionSubject } from "@repo/db";
+import type { InfoSpotPermissionSubject } from "@repo/db/permissions";
 import {
   canManageInfoSpotSettings,
   canPublishInfoSpotArticle,
-} from "@repo/db";
+} from "@repo/db/permissions";
 import {
   EDITORIAL_STATUSES,
   isEditorialStatus,

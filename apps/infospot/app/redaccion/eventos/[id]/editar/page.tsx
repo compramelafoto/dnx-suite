@@ -6,6 +6,8 @@ import { RedaccionShell } from "@/components/redaccion/redaccion-shell";
 import {
   canEditInfoSpotEvent,
   canManageInfoSpotSettings,
+  canProvisionClfPhotographerCall,
+  canNotifyClfPhotographerCall,
   canPublishInfoSpotEvent,
   requireInfoSpotRedaccionAccess,
 } from "@/lib/infospot-access";
@@ -84,10 +86,8 @@ export default async function EditarEventoPage({ params, searchParams }: Props) 
         subject={access.subject}
         canPublish={canPublishInfoSpotEvent(access.subject)}
         isDirector={canManageInfoSpotSettings(access.subject)}
-        canProvisionCall={
-          canManageInfoSpotSettings(access.subject) ||
-          canPublishInfoSpotEvent(access.subject)
-        }
+        canProvisionCall={canProvisionClfPhotographerCall(access.subject)}
+        canNotifyCall={canNotifyClfPhotographerCall(access.subject)}
         photographerCall={
           call
             ? {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ClfAlbumAvailabilityResult } from "@repo/db";
+import type { ClfAlbumAvailabilityResult } from "@repo/db/clf-album-availability";
 import { MarkdownBody } from "@/lib/markdown";
 import { authorDisplayName, type ArticleWithRelations } from "@/lib/articles";
 import { CategoryBadge } from "@/components/editorial/category-badge";

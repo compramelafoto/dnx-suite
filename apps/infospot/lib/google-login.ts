@@ -70,6 +70,8 @@ export function resolveInfoSpotPostLoginPath(params: {
           role,
           canPublish: true,
           publicationPolicy: "DIRECT_PUBLISH",
+          canProvisionClfPhotographerCall: true,
+          canNotifyClfPhotographerCall: true,
           status: "ACTIVE",
         }
       : null,

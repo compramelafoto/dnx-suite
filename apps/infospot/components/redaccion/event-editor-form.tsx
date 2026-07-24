@@ -8,10 +8,8 @@ import {
   PhotographerCallPanel,
   type PhotographerCallShape,
 } from "@/components/redaccion/photographer-call-panel";
-import {
-  EventLocationFormFields,
-  defaultLocationValue,
-} from "@/components/geolocation/event-location-form-fields";
+import { EventLocationFormFields } from "@/components/geolocation/event-location-form-fields";
+import { defaultLocationValue } from "@/lib/geolocation/default-location-value";
 import { toDatetimeLocalValue } from "@/lib/dates";
 import {
   EVENT_STATUS_LABELS,
@@ -19,7 +17,7 @@ import {
   type EventStatus,
 } from "@/lib/editorial/event-adapter";
 import { buildEventPublishChecklist, checklistWarnings } from "@/lib/launch-content";
-import type { InfoSpotPermissionSubject } from "@repo/db";
+import type { InfoSpotPermissionSubject } from "@repo/db/permissions";
 
 const fieldClass = "is-input mt-2";
 
@@ -82,6 +80,7 @@ type Props = {
   canPublish: boolean;
   isDirector: boolean;
   canProvisionCall: boolean;
+  canNotifyCall: boolean;
   photographerCall: PhotographerCallShape | null;
   suggestedClfEventType: string;
   ok?: string;
@@ -95,6 +94,7 @@ export function EventEditorForm({
   canPublish,
   isDirector,
   canProvisionCall,
+  canNotifyCall,
   photographerCall,
   suggestedClfEventType,
   ok,
@@ -300,6 +300,13 @@ export function EventEditorForm({
             defaultClfEventType={suggestedClfEventType}
             missingGeoref={missingGeoref}
             canProvision={canProvisionCall}
+            canNotify={canNotifyCall}
+            eventEnded={
+              Boolean(event.endAt && new Date(event.endAt).getTime() < Date.now()) ||
+              (Boolean(event.startAt) &&
+                !event.endAt &&
+                new Date(event.startAt).getTime() + 24 * 60 * 60 * 1000 < Date.now())
+            }
           />
 
           <fieldset className="space-y-4">

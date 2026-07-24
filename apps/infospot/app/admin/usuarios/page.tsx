@@ -113,6 +113,10 @@ export default async function AdminUsuariosPage({
       status: m.status,
       canPublish: synced.canPublish,
       publicationPolicy: synced.publicationPolicy,
+      canProvisionClfPhotographerCall:
+        m.role === "INFOSPOT_DIRECTOR" || Boolean(m.canProvisionClfPhotographerCall),
+      canNotifyClfPhotographerCall:
+        m.role === "INFOSPOT_DIRECTOR" || Boolean(m.canNotifyClfPhotographerCall),
       isSelf: m.userId === access.user.id,
       isBlockedSuite: m.user.isBlocked,
       assignedAtLabel: formatDateTimeEs(m.createdAt),

@@ -13,6 +13,8 @@ import {
   canManageInfoSpotDistribution,
   canPublishInfoSpotArticle,
   canPublishInfoSpotEvent,
+  canProvisionClfPhotographerCall,
+  canNotifyClfPhotographerCall,
   canReviewInfoSpotApprovals,
   canViewInfoSpotPublishedEvents,
   resolveInfoSpotPublicationFields,
@@ -27,6 +29,8 @@ export type InfoSpotMembership = {
   role: string;
   canPublish: boolean;
   publicationPolicy: InfoSpotPublicationPolicyName;
+  canProvisionClfPhotographerCall: boolean;
+  canNotifyClfPhotographerCall: boolean;
   status: string;
 };
 
@@ -45,6 +49,8 @@ export async function getInfoSpotMembership(userId: number): Promise<InfoSpotMem
       role: true,
       canPublish: true,
       publicationPolicy: true,
+      canProvisionClfPhotographerCall: true,
+      canNotifyClfPhotographerCall: true,
       status: true,
     },
   });
@@ -60,6 +66,8 @@ export async function getInfoSpotMembership(userId: number): Promise<InfoSpotMem
     role: row.role,
     canPublish: synced.canPublish,
     publicationPolicy: synced.publicationPolicy,
+    canProvisionClfPhotographerCall: Boolean(row.canProvisionClfPhotographerCall),
+    canNotifyClfPhotographerCall: Boolean(row.canNotifyClfPhotographerCall),
     status: row.status,
   };
 }
@@ -73,6 +81,8 @@ export function toPermissionSubject(
       role: membership?.role ?? "INFOSPOT_DIRECTOR",
       canPublish: true,
       publicationPolicy: "DIRECT_PUBLISH",
+      canProvisionClfPhotographerCall: true,
+      canNotifyClfPhotographerCall: true,
       status: "ACTIVE",
       isSuperAdmin: true,
     };
@@ -82,6 +92,8 @@ export function toPermissionSubject(
     role: membership.role,
     canPublish: membership.canPublish,
     publicationPolicy: membership.publicationPolicy,
+    canProvisionClfPhotographerCall: membership.canProvisionClfPhotographerCall,
+    canNotifyClfPhotographerCall: membership.canNotifyClfPhotographerCall,
     status: membership.status,
     isSuperAdmin: false,
   };
@@ -155,4 +167,6 @@ export {
   canManageInfoSpotDistribution,
   canViewInfoSpotPublishedEvents,
   canPublishInfoSpotEvent,
+  canProvisionClfPhotographerCall,
+  canNotifyClfPhotographerCall,
 };

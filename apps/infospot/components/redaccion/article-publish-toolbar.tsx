@@ -11,7 +11,7 @@ import {
   STATUS_LABELS,
   type ArticleStatus,
 } from "@/lib/article-status";
-import type { InfoSpotPermissionSubject } from "@repo/db";
+import type { InfoSpotPermissionSubject } from "@repo/db/permissions";
 
 type Props = {
   articleId: string;

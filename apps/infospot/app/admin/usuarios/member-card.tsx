@@ -19,6 +19,8 @@ export type MemberCardData = {
   status: string;
   canPublish: boolean;
   publicationPolicy: "DIRECT_PUBLISH" | "REQUIRES_APPROVAL";
+  canProvisionClfPhotographerCall: boolean;
+  canNotifyClfPhotographerCall: boolean;
   isSelf: boolean;
   isBlockedSuite: boolean;
   assignedAtLabel: string;
@@ -212,6 +214,69 @@ export function MemberCard({ member }: { member: MemberCardData }) {
               {member.updatedAtLabel}
             </p>
           </div>
+
+          <div className="space-y-3 sm:col-span-3 rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg-secondary)] px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--is-muted)]">
+              Permisos de ComprameLaFoto
+            </p>
+            <label className="flex items-start gap-3 text-sm">
+              {member.role === "INFOSPOT_DIRECTOR" ? (
+                <input type="hidden" name="canProvisionClfPhotographerCall" value="true" />
+              ) : (
+                <input
+                  type="checkbox"
+                  name="canProvisionClfPhotographerCall"
+                  value="true"
+                  defaultChecked={member.canProvisionClfPhotographerCall}
+                  className="mt-1 size-4"
+                />
+              )}
+              {member.role === "INFOSPOT_DIRECTOR" ? (
+                <input type="checkbox" checked disabled readOnly className="mt-1 size-4" />
+              ) : null}
+              <span>
+                <span className="font-semibold text-[var(--is-text)]">
+                  Puede crear convocatorias de fotógrafos en CLF
+                </span>
+                <span className="mt-1 block text-xs leading-relaxed text-[var(--is-muted)]">
+                  Permite crear o actualizar un evento en ComprameLaFoto desde una actividad de
+                  InfoSpot. No autoriza por sí mismo a publicar contenido editorial ni a enviar
+                  avisos masivos.
+                  {member.role === "INFOSPOT_DIRECTOR"
+                    ? " Los Directores siempre tienen este permiso."
+                    : null}
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 text-sm">
+              {member.role === "INFOSPOT_DIRECTOR" ? (
+                <input type="hidden" name="canNotifyClfPhotographerCall" value="true" />
+              ) : (
+                <input
+                  type="checkbox"
+                  name="canNotifyClfPhotographerCall"
+                  value="true"
+                  defaultChecked={member.canNotifyClfPhotographerCall}
+                  className="mt-1 size-4"
+                />
+              )}
+              {member.role === "INFOSPOT_DIRECTOR" ? (
+                <input type="checkbox" checked disabled readOnly className="mt-1 size-4" />
+              ) : null}
+              <span>
+                <span className="font-semibold text-[var(--is-text)]">
+                  Puede avisar a fotógrafos cercanos
+                </span>
+                <span className="mt-1 block text-xs leading-relaxed text-[var(--is-muted)]">
+                  Permite previsualizar audiencia y enviar notificaciones de convocatorias abiertas.
+                  Independiente de crear/abrir la convocatoria.
+                  {member.role === "INFOSPOT_DIRECTOR"
+                    ? " Los Directores siempre tienen este permiso."
+                    : null}
+                </span>
+              </span>
+            </label>
+          </div>
         </div>
 
         {updateState.message ? (
@@ -306,6 +371,9 @@ export function MemberCard({ member }: { member: MemberCardData }) {
             role: member.role,
             status: "DISABLED",
             publicationPolicy: member.publicationPolicy,
+            canProvisionClfPhotographerCall: member.canProvisionClfPhotographerCall
+              ? "true"
+              : "false",
           }}
         />
       ) : null}

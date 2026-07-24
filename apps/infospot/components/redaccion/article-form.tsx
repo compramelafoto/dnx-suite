@@ -27,7 +27,7 @@ import {
   type EditorialPhotoChecklistInput,
 } from "@/lib/editorial-photos/checklist";
 import { STATUS_LABELS, type ArticleStatus } from "@/lib/article-status";
-import type { InfoSpotPermissionSubject } from "@repo/db";
+import type { InfoSpotPermissionSubject } from "@repo/db/permissions";
 import { autosaveArticleDraftAction } from "@/app/actions/articles";
 import { removeArticleAssetLinkAction } from "@/app/actions/clf-link";
 import {

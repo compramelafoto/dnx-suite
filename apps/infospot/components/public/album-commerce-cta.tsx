@@ -1,4 +1,4 @@
-import type { ClfAlbumAvailabilityResult } from "@repo/db";
+import type { ClfAlbumAvailabilityResult } from "@repo/db/clf-album-availability";
 
 type Props = {
   availability: ClfAlbumAvailabilityResult;

@@ -62,11 +62,29 @@ function resolveMembershipFields(role: string, formData: FormData) {
         ? "DIRECT_PUBLISH"
         : "REQUIRES_APPROVAL";
 
-  return resolveInfoSpotPublicationFields({
+  const pub = resolveInfoSpotPublicationFields({
     role,
     publicationPolicy,
     canPublish: publicationPolicy === "DIRECT_PUBLISH",
   });
+
+  // Director siempre puede provisionar CLF. Resto: checkbox del formulario.
+  const canProvisionClfPhotographerCall =
+    role === "INFOSPOT_DIRECTOR" ||
+    formData.get("canProvisionClfPhotographerCall") === "on" ||
+    formData.get("canProvisionClfPhotographerCall") === "true";
+
+  // Independiente de provisioning: avisar fotógrafos cercanos.
+  const canNotifyClfPhotographerCall =
+    role === "INFOSPOT_DIRECTOR" ||
+    formData.get("canNotifyClfPhotographerCall") === "on" ||
+    formData.get("canNotifyClfPhotographerCall") === "true";
+
+  return {
+    ...pub,
+    canProvisionClfPhotographerCall,
+    canNotifyClfPhotographerCall,
+  };
 }
 
 async function countActiveDirectors(excludeUserId?: number): Promise<number> {
@@ -106,6 +124,8 @@ async function upsertInfoSpotMembership(params: {
   role: string;
   publicationPolicy: string;
   canPublish: boolean;
+  canProvisionClfPhotographerCall: boolean;
+  canNotifyClfPhotographerCall: boolean;
   actorUserId: number;
 }) {
   const existing = await prisma.infoSpotUserRole.findUnique({
@@ -130,6 +150,10 @@ async function upsertInfoSpotMembership(params: {
     publicationPolicy: params.publicationPolicy,
     canPublish: params.canPublish,
   });
+  const canProvision =
+    params.role === "INFOSPOT_DIRECTOR" || params.canProvisionClfPhotographerCall;
+  const canNotify =
+    params.role === "INFOSPOT_DIRECTOR" || params.canNotifyClfPhotographerCall;
 
   await prisma.infoSpotUserRole.upsert({
     where: { userId: params.userId },
@@ -138,6 +162,8 @@ async function upsertInfoSpotMembership(params: {
       role: params.role as "INFOSPOT_DIRECTOR" | "INFOSPOT_REDACTOR" | "INFOSPOT_COLABORADOR",
       canPublish: fields.canPublish,
       publicationPolicy: fields.publicationPolicy,
+      canProvisionClfPhotographerCall: canProvision,
+      canNotifyClfPhotographerCall: canNotify,
       status: "ACTIVE",
       assignedByUserId: params.actorUserId,
       lastChangedByUserId: params.actorUserId,
@@ -146,6 +172,8 @@ async function upsertInfoSpotMembership(params: {
       role: params.role as "INFOSPOT_DIRECTOR" | "INFOSPOT_REDACTOR" | "INFOSPOT_COLABORADOR",
       canPublish: fields.canPublish,
       publicationPolicy: fields.publicationPolicy,
+      canProvisionClfPhotographerCall: canProvision,
+      canNotifyClfPhotographerCall: canNotify,
       status: "ACTIVE",
       lastChangedByUserId: params.actorUserId,
       assignedByUserId: existing?.assignedByUserId ?? params.actorUserId,
@@ -249,6 +277,8 @@ export async function inviteOrAssignInfoSpotMemberAction(
           role,
           publicationPolicy: fields.publicationPolicy,
           canPublish: fields.canPublish,
+          canProvisionClfPhotographerCall: fields.canProvisionClfPhotographerCall,
+          canNotifyClfPhotographerCall: fields.canNotifyClfPhotographerCall,
           actorUserId: access.user.id,
         });
       },
@@ -405,6 +435,10 @@ export async function updateInfoSpotMemberAction(
       status,
       canPublish: fields.canPublish,
       publicationPolicy: fields.publicationPolicy,
+      canProvisionClfPhotographerCall:
+        role === "INFOSPOT_DIRECTOR" || fields.canProvisionClfPhotographerCall,
+      canNotifyClfPhotographerCall:
+        role === "INFOSPOT_DIRECTOR" || fields.canNotifyClfPhotographerCall,
       lastChangedByUserId: access.user.id,
     },
   });
