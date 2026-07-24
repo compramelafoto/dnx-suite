@@ -33,7 +33,7 @@ Snapshot pre-commit: `docs/notifications/notifications-etapa-24-precommit-snapsh
 | 4 | `2ebfa2e` | `feat(infospot): add photographer notification campaign workflow` | 53 | OK |
 | 5 | `fbbc587` | `feat(compramelafoto): add notification inbox preferences and attribution` | 9 | OK |
 | 6 | `81b7809` | `test(notifications): add QA tooling and cross-app browser coverage` | 12 | OK |
-| 7 | *(este commit)* | `docs(notifications): add engine runbook QA and release documentation` | `docs/notifications/**` + `docs/geo/**` | OK |
+| 7 | `3e3e611` | `docs(notifications): add engine runbook QA and release documentation` | 13 | OK |
 
 Base → HEAD final: `657562f..HEAD` (7 commits locales del Notifications Engine).
 
