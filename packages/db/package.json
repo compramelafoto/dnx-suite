@@ -7,7 +7,9 @@
   "types": "./src/client.ts",
   "exports": {
     ".": "./src/client.ts",
-    "./client": "./src/client.ts"
+    "./client": "./src/client.ts",
+    "./permissions": "./src/infospot-permissions.ts",
+    "./clf-album-availability": "./src/clf-album-availability.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",

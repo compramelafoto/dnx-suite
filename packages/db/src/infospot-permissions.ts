@@ -25,6 +25,16 @@ export type InfoSpotPermissionSubject = {
   canPublish?: boolean | null;
   /** Política explícita; si falta, se deriva de canPublish + rol. */
   publicationPolicy?: InfoSpotPublicationPolicyName | string | null;
+  /**
+   * Capacidad independiente: crear/actualizar/cerrar convocatorias CLF.
+   * No implica publicar editorial. Director / SUPER_ADMIN siempre efectivos.
+   */
+  canProvisionClfPhotographerCall?: boolean | null;
+  /**
+   * Capacidad independiente: enviar avisos a fotógrafos por convocatoria CLF.
+   * No se deriva de canProvision. Director / SUPER_ADMIN siempre efectivos.
+   */
+  canNotifyClfPhotographerCall?: boolean | null;
   status?: string | null;
   /** SUPER_ADMIN de la suite DNX — bypass editorial. */
   isSuperAdmin?: boolean;
@@ -265,6 +275,45 @@ export function canPublishInfoSpotEvent(
   subject: InfoSpotPermissionSubject | null | undefined,
 ): boolean {
   return canPublishInfoSpotArticle(subject);
+}
+
+/**
+ * Crear / actualizar / cerrar / reintentar convocatorias de fotógrafos en CLF.
+ * Independiente de canPublish: un redactor puede publicar notas y no provisionar CLF.
+ * Director y SUPER_ADMIN siempre. Resto: flag persistido canProvisionClfPhotographerCall.
+ */
+export function canProvisionClfPhotographerCall(
+  subject: InfoSpotPermissionSubject | null | undefined,
+): boolean {
+  if (!isActiveMember(subject) || !subject) return false;
+  if (isDirector(subject)) return true;
+  return subject.canProvisionClfPhotographerCall === true;
+}
+
+/** Alias semántico: actualizar / abrir / cerrar usan la misma capacidad. */
+export function canUpdateClfPhotographerCall(
+  subject: InfoSpotPermissionSubject | null | undefined,
+): boolean {
+  return canProvisionClfPhotographerCall(subject);
+}
+
+export function canCloseClfPhotographerCall(
+  subject: InfoSpotPermissionSubject | null | undefined,
+): boolean {
+  return canProvisionClfPhotographerCall(subject);
+}
+
+/**
+ * Enviar campañas de aviso a fotógrafos cercanos (preview + confirmación).
+ * Independiente de canProvisionClfPhotographerCall.
+ * Director y SUPER_ADMIN siempre. Resto: flag persistido canNotifyClfPhotographerCall.
+ */
+export function canNotifyClfPhotographerCall(
+  subject: InfoSpotPermissionSubject | null | undefined,
+): boolean {
+  if (!isActiveMember(subject) || !subject) return false;
+  if (isDirector(subject)) return true;
+  return subject.canNotifyClfPhotographerCall === true;
 }
 
 export function infoSpotRoleLabel(role: string): string {

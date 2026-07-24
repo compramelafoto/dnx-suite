@@ -217,6 +217,14 @@ model User {
   dnxDistributionVersionsPublished      DnxDistributionVersion[]               @relation("DistributionVersionPublishedBy")
   /// Preferencias de Info Spot (onboarding, ubicación, notificaciones). No permisos.
   infoSpotPreferences                   InfoSpotUserPreferences?
+  /// Preferencias transversales del DNX Notifications Engine.
+  dnxNotificationPreference             DnxNotificationPreference?
+  dnxNotificationCampaignsCreated       DnxNotificationCampaign[]              @relation("DnxNotificationCampaignCreator")
+  dnxNotificationCampaignsConfirmed     DnxNotificationCampaign[]              @relation("DnxNotificationCampaignConfirmer")
+  dnxNotificationCampaignsCancelled     DnxNotificationCampaign[]              @relation("DnxNotificationCampaignCanceller")
+  dnxNotificationCampaignsRetried       DnxNotificationCampaign[]              @relation("DnxNotificationCampaignRetrier")
+  dnxNotificationDeliveries             DnxNotificationDelivery[]
+  dnxNotificationAttributions           DnxNotificationAttribution[]
   contestOrganizationsCreated           ContestOrganization[]                  @relation("FrOrgCreator")
   frContestOrgInvitesSent               ContestOrganizationMember[]            @relation("FrCOrgMemberInviter")
   frContestOrgMemberships               ContestOrganizationMember[]            @relation("FrCOrgMemberUser")
@@ -1025,6 +1033,9 @@ model InfoSpotUserRole {
   /// Permiso independiente: crear/actualizar/cerrar convocatorias de fotógrafos en CLF.
   /// No implica permiso de publicar contenido editorial. Director siempre efectivo=true.
   canProvisionClfPhotographerCall Boolean       @default(false)
+  /// Permiso independiente: enviar avisos geográficos a fotógrafos por convocatoria CLF.
+  /// No se deriva de canProvisionClfPhotographerCall. Director / SUPER_ADMIN siempre efectivos.
+  canNotifyClfPhotographerCall Boolean          @default(false)
   status              InfoSpotMemberStatus      @default(ACTIVE)
   /// Quién asignó el rol por primera vez (auditoría mínima).
   assignedByUserId    Int?
@@ -1040,6 +1051,7 @@ model InfoSpotUserRole {
   @@index([role, status])
   @@index([publicationPolicy, status])
   @@index([canProvisionClfPhotographerCall, status])
+  @@index([canNotifyClfPhotographerCall, status])
 }
 
 model InfoSpotCategory {
@@ -9150,4 +9162,199 @@ model ClickatonContactMessage {
   @@index([isRead, createdAt])
   @@index([reason])
   @@index([source])
+}
+
+// ---------------------------------------------------------------------------
+// DNX Notifications Engine (Etapa 18) — campañas / outbox / preferencias
+// Reutiliza DashboardNotification (CLF) para bandeja in-app; no duplica inbox.
+// ---------------------------------------------------------------------------
+
+enum DnxNotificationCampaignStatus {
+  DRAFT
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum DnxNotificationDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  DEAD_LETTER
+  CANCELLED
+}
+
+enum DnxNotificationChannel {
+  IN_APP
+  EMAIL
+  WEB_PUSH
+  TELEGRAM
+  WHATSAPP
+  SMS
+}
+
+/// Hecho de dominio idempotente (apertura de convocatoria, etc.). No implica envío.
+model DnxNotificationEventLog {
+  id               String   @id @default(cuid())
+  eventType        String
+  sourceApp        String
+  sourceEntityType String
+  sourceEntityId   String
+  idempotencyKey   String   @unique
+  payloadJson      Json?
+  createdAt        DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([sourceEntityType, sourceEntityId])
+}
+
+/// Preferencias de avisos del usuario (transversal). Compat: sin fila = in-app operativo ON.
+model DnxNotificationPreference {
+  id                       String   @id @default(cuid())
+  userId                   Int      @unique
+  nearbyPhotographerCalls  Boolean  @default(true)
+  cityEvents               Boolean  @default(false)
+  callReminders            Boolean  @default(false)
+  courses                  Boolean  @default(false)
+  contests                 Boolean  @default(false)
+  channelInApp             Boolean  @default(true)
+  channelEmail             Boolean  @default(false)
+  channelWebPush           Boolean  @default(false)
+  /// RADIUS_KM | CITY | PROVINCE
+  preferredScopeMode       String?
+  preferredRadiusKm        Int?
+  useProfileLocation       Boolean  @default(true)
+  manualCity               String?
+  frequency                String   @default("IMMEDIATE")
+  externalMarketingConsentAt DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Campaña de notificación (envío explícito confirmado).
+model DnxNotificationCampaign {
+  id                    String                        @id @default(cuid())
+  eventType             String
+  sourceApp             String
+  sourceEntityType      String
+  sourceEntityId        String
+  clfEventId            Int?
+  status                DnxNotificationCampaignStatus @default(DRAFT)
+  campaignCycle         String                        @default("default")
+  campaignDedupeKey     String                        @unique
+  scopeMode             String
+  radiusKm              Int?
+  centerCity            String?
+  centerProvince        String?
+  centerLatitude        Float?
+  centerLongitude       Float?
+  channels              DnxNotificationChannel[]
+  title                 String
+  body                  String                        @db.Text
+  ctaUrl                String
+  ctaLabel              String                        @default("Ver convocatoria")
+  createdByUserId       Int
+  confirmedByUserId     Int?
+  confirmedAt           DateTime?
+  scheduledAt           DateTime?
+  cancelledAt           DateTime?
+  cancelledByUserId     Int?
+  cancelReason          String?
+  retriedAt             DateTime?
+  retriedByUserId       Int?
+  audienceCount         Int                           @default(0)
+  eligibleCount         Int                           @default(0)
+  excludedCount         Int                           @default(0)
+  sentCount             Int                           @default(0)
+  failedCount           Int                           @default(0)
+  readCount             Int                           @default(0)
+  clickCount            Int                           @default(0)
+  applicationCount      Int                           @default(0)
+  filtersJson           Json?
+  exclusionSummaryJson  Json?
+  confirmationSummary   String?                       @db.Text
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  createdBy             User                          @relation("DnxNotificationCampaignCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  confirmedBy           User?                         @relation("DnxNotificationCampaignConfirmer", fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+  cancelledBy           User?                         @relation("DnxNotificationCampaignCanceller", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  retriedBy             User?                         @relation("DnxNotificationCampaignRetrier", fields: [retriedByUserId], references: [id], onDelete: SetNull)
+  deliveries            DnxNotificationDelivery[]
+  attributions          DnxNotificationAttribution[]
+
+  @@index([sourceEntityType, sourceEntityId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([status, scheduledAt])
+  @@index([createdByUserId, createdAt])
+  @@index([clfEventId])
+}
+
+/// Entrega outbox (worker procesa PENDING). dedupeKey único evita duplicados al reintentar.
+model DnxNotificationDelivery {
+  id                       String                         @id @default(cuid())
+  campaignId               String
+  userId                   Int
+  channel                  DnxNotificationChannel
+  status                   DnxNotificationDeliveryStatus  @default(PENDING)
+  attempts                 Int                            @default(0)
+  lastError                String?
+  errorCode                String?
+  dedupeKey                String                         @unique
+  /// Token opaco para redirect /n/[token] (no enumerable).
+  publicToken              String                         @unique @default(cuid())
+  title                    String
+  body                     String                         @db.Text
+  ctaUrl                   String
+  ctaLabel                 String                         @default("Ver convocatoria")
+  scheduledAt              DateTime                       @default(now())
+  lockedAt                 DateTime?
+  lockedBy                 String?
+  lockExpiresAt            DateTime?
+  sentAt                   DateTime?
+  deliveredAt              DateTime?
+  readAt                   DateTime?
+  clickedAt                DateTime?
+  clickCount               Int                            @default(0)
+  distanceKm               Float?
+  citySnapshot             String?
+  /// Vínculo a bandeja CLF existente (DashboardNotification.id).
+  dashboardNotificationId  Int?
+  /// Vínculo a EmailQueue.id cuando channel=EMAIL.
+  emailQueueId             Int?
+  payloadJson              Json?
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+  campaign                 DnxNotificationCampaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user                     User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attribution              DnxNotificationAttribution?
+
+  @@index([campaignId, status])
+  @@index([userId, createdAt])
+  @@index([status, scheduledAt])
+  @@index([status, lockExpiresAt])
+  @@index([dashboardNotificationId])
+  @@index([emailQueueId])
+  @@index([publicToken])
+}
+
+/// Atribución confiable postulación ← entrega (máx. una por delivery).
+model DnxNotificationAttribution {
+  id             String                   @id @default(cuid())
+  campaignId     String
+  deliveryId     String                   @unique
+  userId         Int
+  clfEventId     Int?
+  eventMemberId  Int?
+  attributedAt   DateTime                 @default(now())
+  campaign       DnxNotificationCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  delivery       DnxNotificationDelivery  @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId, clfEventId])
+  @@index([userId, attributedAt])
+  @@index([clfEventId])
 }
