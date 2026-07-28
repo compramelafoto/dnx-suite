@@ -9,7 +9,10 @@ import {
   destroyClickatonSession,
 } from "@/lib/admin/auth";
 import { resolveClickatonPostLoginPath } from "@/lib/auth/post-login";
-import { sanitizeClickatonReturnPath } from "@/lib/auth/return-path";
+import {
+  CLICKATON_LOGIN_PATH,
+  sanitizeClickatonReturnPath,
+} from "@/lib/auth/return-path";
 import { routes } from "@/config/navigation";
 
 export type ClickatonLoginFormState = { error: string | null };
@@ -83,6 +86,12 @@ export async function loginClickatonAction(
 export async function logoutClickatonAction(): Promise<void> {
   await destroyClickatonSession();
   redirect(routes.home);
+}
+
+/** Cierra sesión y vuelve al login unificado (cambio de cuenta sin loop). */
+export async function logoutClickatonToLoginAction(): Promise<void> {
+  await destroyClickatonSession();
+  redirect(CLICKATON_LOGIN_PATH);
 }
 
 /** Compat panel admin — mismo cierre de sesión hacia el sitio público. */

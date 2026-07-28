@@ -10,7 +10,10 @@ import {
 import { adminRoutes } from "@/config/admin/navigation";
 import { normalizeEmail } from "@/config/admin/admins";
 import { hasClickatonAdminAccess, sanitizeAdminReturnPath } from "@/lib/admin/access";
-import { getDefaultSessionCookieOptions } from "@/lib/auth/session-cookie";
+import {
+  clearClickatonSessionCookie,
+  getDefaultSessionCookieOptions,
+} from "@/lib/auth/session-cookie";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 
 export { hasClickatonAdminAccess, sanitizeAdminReturnPath } from "@/lib/admin/access";
@@ -105,9 +108,5 @@ export async function destroyClickatonSession(): Promise<void> {
   if (raw) {
     await destroyUserSessionByRawToken(raw);
   }
-  cookieStore.set(DNX_SESSION_COOKIE, "", {
-    ...getDefaultSessionCookieOptions(),
-    maxAge: 0,
-    expires: new Date(0),
-  });
+  clearClickatonSessionCookie(cookieStore, getDefaultSessionCookieOptions());
 }

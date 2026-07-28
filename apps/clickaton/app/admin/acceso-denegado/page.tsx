@@ -1,8 +1,10 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { logoutClickatonAction } from "@/app/(public)/login/actions";
+import {
+  logoutClickatonAction,
+  logoutClickatonToLoginAction,
+} from "@/app/(public)/login/actions";
 import { getClickatonAuthUser } from "@/lib/admin/auth";
 import {
   CLICKATON_ACCOUNT_PATH,
@@ -42,11 +44,14 @@ export default async function AdminForbiddenPage() {
             </Button>
           </form>
         </div>
-        <p className="text-sm text-ck-text-muted">
-          <Link href={CLICKATON_LOGIN_PATH} className="text-ck-yellow hover:underline">
+        <form action={logoutClickatonToLoginAction}>
+          <button
+            type="submit"
+            className="text-sm text-ck-yellow hover:underline"
+          >
             Probar con otra cuenta
-          </Link>
-        </p>
+          </button>
+        </form>
       </Card>
     </div>
   );
