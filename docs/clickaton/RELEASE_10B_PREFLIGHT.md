@@ -61,3 +61,15 @@
 - `DNX_SOCIAL_PUBLISHER_LIVE=false`
 - Owner OAuth flags: OFF hasta ventana controlada
 - Sin cobros LIVE en esta etapa
+
+## Cierre preflight → ejecución
+
+Veredicto post-ejecución 10B: **DEPLOY BLOCKED** — detalle en `RELEASE_10B_DEPLOY_REPORT.md`.
+
+| Hecho | Pendiente |
+|-------|-----------|
+| Commits `3870015` + `b3b3c78` pusheados | PR (`gh auth`) |
+| Staging Vercel READY | `/maratones` 500 Prisma |
+| Migraciones OK en Neon local `ep-dawn-dew` | Confirmar misma DB en Vercel Staging/Prod |
+| Social LIVE=false en Vercel | Vars MP OAuth / Resend / crons prod |
+| Build webpack OK | Redeploy `maratonfotografica.com` |
