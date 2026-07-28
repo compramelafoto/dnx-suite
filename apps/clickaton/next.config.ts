@@ -7,7 +7,8 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(appDir, "../..");
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@repo/db", "@repo/auth", "@repo/payments"],
+  // @repo/db se externaliza (no transpile) para conservar el Query Engine de Prisma.
+  transpilePackages: ["@repo/auth", "@repo/payments"],
   // Evita que el bundler omita el Query Engine de Prisma en Vercel (rhel-openssl-3.0.x).
   serverExternalPackages: ["@prisma/client", "@repo/db"],
   outputFileTracingRoot: monorepoRoot,
