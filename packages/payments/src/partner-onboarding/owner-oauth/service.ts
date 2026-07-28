@@ -287,6 +287,34 @@ export class ClickatonOwnerOAuthService {
       throw new OwnerOAuthError("STATE_NOT_FOUND", "OAuth state not found");
     }
     if (row.usedAt) {
+      // Idempotent replay: if account already ACTIVE for this FI, return safe result.
+      // Never re-exchange a consumed authorization code.
+      const existingAfterReplay = await this.deps.store.findOwnerPaymentAccount({
+        financialIdentityId: row.financialIdentityId,
+        environment: "PROD",
+      });
+      if (
+        existingAfterReplay &&
+        (existingAfterReplay.status === "ACTIVE" ||
+          existingAfterReplay.status === "PENDING") &&
+        existingAfterReplay.credentialReference
+      ) {
+        await this.deps.store.appendAudit({
+          action: "OAUTH_CALLBACK_IDEMPOTENT_REPLAY",
+          aggregateType: "DnxPaymentAccount",
+          aggregateId: existingAfterReplay.id,
+          actorUserId: input.actor.userId,
+          result: "SUCCEEDED",
+          metadata: { reason: "state_already_used" },
+          createdAt: now,
+        });
+        return {
+          paymentAccountId: existingAfterReplay.id,
+          status: mapAccountToConnectionStatus(existingAfterReplay),
+          providerUserIdMasked:
+            maskAccountLabel(existingAfterReplay.providerUserId) ?? "••••",
+        };
+      }
       throw new OwnerOAuthError("STATE_REPLAY", "OAuth state already used");
     }
     if (row.expiresAt.getTime() < now.getTime()) {

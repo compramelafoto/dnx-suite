@@ -22,6 +22,7 @@ import {
 import { listEditionOptions } from "@/lib/admin/editions/queries";
 import { listVenues } from "@/lib/admin/venues/queries";
 import { listTicketTypesAction } from "@/lib/admin-catalog/actions/tickets";
+import { ARGENTINA_2026_SHIRT_SIZES } from "@/config/editions/argentina-2026";
 import { EDITION_STATUS_LABELS, type ClickatonEditionStatus } from "@/lib/admin/editions/types";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 
@@ -38,6 +39,8 @@ type Props = {
     to?: string;
     paymentOrder?: string;
     notes?: string;
+    shirtSize?: string;
+    fulfillmentStatus?: string;
   }>;
 };
 
@@ -83,8 +86,29 @@ export default async function AdminRegistrationsPage({ searchParams }: Props) {
       params.from ||
       params.to ||
       params.paymentOrder ||
-      params.notes,
+      params.notes ||
+      params.shirtSize ||
+      params.fulfillmentStatus,
   );
+
+  const exportQs = new URLSearchParams();
+  if (editionId) exportQs.set("editionId", editionId);
+  for (const key of [
+    "venueId",
+    "ticketTypeId",
+    "status",
+    "paymentStatus",
+    "q",
+    "from",
+    "to",
+    "paymentOrder",
+    "notes",
+    "shirtSize",
+    "fulfillmentStatus",
+  ] as const) {
+    const value = params[key];
+    if (value) exportQs.set(key, value);
+  }
 
   return (
     <div className="space-y-8">
@@ -225,7 +249,29 @@ export default async function AdminRegistrationsPage({ searchParams }: Props) {
                 <option value="without">Sin notas</option>
               </Select>
             </label>
-            <div className="flex items-end gap-3">
+            <label className="space-y-2 text-sm">
+              <span className="text-ck-text-secondary">Talle</span>
+              <Select name="shirtSize" defaultValue={params.shirtSize ?? ""}>
+                <option value="">Todos</option>
+                {ARGENTINA_2026_SHIRT_SIZES.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="space-y-2 text-sm">
+              <span className="text-ck-text-secondary">Entrega artículo</span>
+              <Select name="fulfillmentStatus" defaultValue={params.fulfillmentStatus ?? ""}>
+                <option value="">Todos</option>
+                {["PENDING", "READY", "DELIVERED", "CANCELLED"].map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <div className="flex flex-wrap items-end gap-3">
               <Button type="submit" variant="secondary">
                 Filtrar
               </Button>
@@ -236,6 +282,22 @@ export default async function AdminRegistrationsPage({ searchParams }: Props) {
                 >
                   Limpiar
                 </Button>
+              ) : null}
+              {editionId ? (
+                <>
+                  <Button
+                    href={`${adminRoutes.registrations}/export?${exportQs.toString()}`}
+                    variant="outline"
+                  >
+                    Exportar CSV
+                  </Button>
+                  <Button
+                    href={`${adminRoutes.registrations}/export?${exportQs.toString()}&kind=sizes`}
+                    variant="outline"
+                  >
+                    Resumen talles
+                  </Button>
+                </>
               ) : null}
             </div>
           </form>
@@ -303,6 +365,42 @@ export default async function AdminRegistrationsPage({ searchParams }: Props) {
                   key: "amount",
                   header: "Importe",
                   cell: (row) => displayRegistrationAmount(row.totalAmount, row.currency),
+                },
+                {
+                  key: "shirt",
+                  header: "Talle",
+                  cell: (row) => row.shirtSizeLabel ?? "—",
+                },
+                {
+                  key: "fotorank",
+                  header: "FotoRank",
+                  cell: (row) => (
+                    <div className="flex flex-col gap-0.5 text-xs">
+                      <span>{row.fotoRankSyncStatus ?? "—"}</span>
+                      {row.fotoRankParticipantId ? (
+                        <span className="font-mono text-ck-text-muted">
+                          {row.fotoRankParticipantId.slice(0, 10)}…
+                        </span>
+                      ) : null}
+                    </div>
+                  ),
+                },
+                {
+                  key: "welcome",
+                  header: "Placa",
+                  cell: (row) => (
+                    <div className="flex flex-col gap-0.5 text-xs">
+                      <span>{row.welcomeCardStatus ?? "—"}</span>
+                      <span className="text-ck-text-muted">
+                        {row.instagramHandle ? `@${row.instagramHandle}` : "sin IG"}
+                      </span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "fulfillment",
+                  header: "Entrega",
+                  cell: (row) => row.itemFulfillmentStatus ?? "—",
                 },
                 {
                   key: "items",

@@ -1,11 +1,16 @@
 import { createHash } from "node:crypto";
 import { marathonPath } from "@/config/navigation";
+import { attachPhaseProductsToTickets } from "@/lib/catalog/application/attach-phase-products";
+import {
+  ResolveIncludedItemsError,
+} from "@/lib/catalog/domain/resolve-included-items";
+import { resolveCurrentPricePhase } from "@/lib/pricing/domain/resolve-price-phase";
+import { assertInstagramHandle } from "@repo/media-composition";
+import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import {
   signRegistrationAccessToken,
   verifyRegistrationAccessToken,
 } from "../domain/access-token";
-import { confirmFreeRegistration } from "@/lib/registration/application/confirm-free-registration";
-import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import { createCheckoutEligibilityUseCase } from "./checkout-eligibility";
 import { createExpirePendingRegistrationsUseCase } from "./expire-pending-registrations";
 import {
@@ -34,6 +39,22 @@ import type {
   PublicTicketDto,
 } from "../domain/types";
 
+function mapResolveError(error: unknown): never {
+  if (error instanceof ResolveIncludedItemsError) {
+    if (error.code === "DUPLICATE_PRODUCT_TICKET_AND_PHASE") {
+      throw new PublicRegistrationError("UNEXPECTED", error.message);
+    }
+    if (error.code === "VARIANT_REQUIRED_WITHOUT_VARIANTS") {
+      throw new PublicRegistrationError("VARIANT_REQUIRED", error.message);
+    }
+    if (error.code === "PRODUCT_INACTIVE" || error.code === "PRODUCT_ARCHIVED") {
+      throw new PublicRegistrationError("PRODUCT_OUT_OF_STOCK", error.message);
+    }
+    throw new PublicRegistrationError("UNEXPECTED", error.message);
+  }
+  throw error;
+}
+
 function fingerprint(input: {
   editionId: string;
   venueId: string | null;
@@ -60,12 +81,15 @@ function fingerprint(input: {
 
 function registrationWindowOf(edition: {
   isPublished: boolean;
+  registrationEnabled: boolean;
   status: string;
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
 }): PublicRegistrationContextDto["registrationWindow"] {
-  if (!edition.isPublished) return "unavailable";
-  if (edition.status === "CANCELLED" || edition.status === "COMPLETED") return "unavailable";
+  if (!edition.isPublished || !edition.registrationEnabled) return "unavailable";
+  if (edition.status === "CANCELLED" || edition.status === "COMPLETED" || edition.status === "DRAFT") {
+    return "unavailable";
+  }
   const now = Date.now();
   if (edition.registrationOpenAt && edition.registrationOpenAt.getTime() > now) {
     return "not_open";
@@ -99,20 +123,39 @@ function validateParticipant(p: CreatePublicRegistrationInput["participant"]) {
   }
 }
 
-function buildItemsFromTicket(
+export function buildItemsFromTicket(
   ticket: PublicTicketDto,
   variantChoices: Array<{ productId: string; productVariantId: string }>,
 ) {
+  // Rechazar productos arbitrarios enviados por el cliente: solo IDs de la composición resuelta.
+  const allowed = new Set(ticket.products.map((p) => p.productId));
+  for (const choice of variantChoices) {
+    if (!allowed.has(choice.productId)) {
+      throw new PublicRegistrationError(
+        "INVALID_VARIANT",
+        "Se envió un producto que no forma parte de esta inscripción.",
+      );
+    }
+  }
+
   const items: Array<{
+    ticketTypeItemId?: string | null;
+    pricePhaseItemId?: string | null;
+    sourceType?: "TICKET_BASE" | "PRICE_PHASE";
     productId?: string | null;
     productVariantId?: string | null;
     nameSnapshot: string;
+    productNameSnapshot?: string | null;
+    productDescriptionSnapshot?: string | null;
+    variantNameSnapshot?: string | null;
     skuSnapshot?: string | null;
     quantity: number;
     unitPriceAmount: number;
     totalPriceAmount: number;
     currency: string;
     isIncluded: boolean;
+    imageAssetIdSnapshot?: string | null;
+    sizeChartAssetIdSnapshot?: string | null;
   }> = [];
 
   for (const product of ticket.products) {
@@ -125,14 +168,15 @@ function buildItemsFromTicket(
       if (!choice) {
         throw new PublicRegistrationError(
           "VARIANT_REQUIRED",
-          `Elegí la variante de ${product.productName}.`,
+          `Elegí el talle de ${product.productName}.`,
         );
       }
+      // Solo variantes del producto incluido en esta composición (ticket+fase).
       const variant = product.variants.find((v) => v.id === choice.productVariantId);
       if (!variant || !variant.isActive) {
         throw new PublicRegistrationError(
           "INVALID_VARIANT",
-          `La variante elegida para ${product.productName} no es válida.`,
+          `El talle elegido para ${product.productName} no es válido.`,
         );
       }
       if (variant.availableStock < product.quantity) {
@@ -155,28 +199,81 @@ function buildItemsFromTicket(
     }
 
     items.push({
+      ticketTypeItemId: product.ticketTypeItemId,
+      pricePhaseItemId: product.pricePhaseItemId ?? null,
+      sourceType: product.sourceType ?? "TICKET_BASE",
       productId: product.productId,
       productVariantId: variantId,
       nameSnapshot: variantName ? `${product.productName} — ${variantName}` : product.productName,
+      productNameSnapshot: product.productName,
+      productDescriptionSnapshot: product.productDescription ?? null,
+      variantNameSnapshot: variantName,
       skuSnapshot: variantSku,
       quantity: product.quantity,
       unitPriceAmount: 0,
       totalPriceAmount: 0,
       currency: ticket.currency,
       isIncluded: true,
+      imageAssetIdSnapshot: null,
+      sizeChartAssetIdSnapshot: null,
     });
   }
 
   return items;
 }
 
+export type ConfirmFreeRegistrationFn = (input: {
+  registrationId: string;
+  editionSlug: string;
+  editionPrefix?: string;
+  source?: string;
+}) => Promise<unknown>;
+
+export type PromotionsPort = {
+  reserve: (input: {
+    code: string;
+    originalAmount: number;
+    currency: string;
+    editionId: string;
+    userId: number | null;
+    registrationId?: string | null;
+    orderId: string;
+    idempotencyKey: string;
+    now?: Date;
+  }) => Promise<
+    | {
+        ok: true;
+        applied: {
+          quote: {
+            promotionId: string;
+            code: string;
+            discountAmount: number;
+            finalAmount: number;
+            originalAmount: number;
+          };
+        };
+      }
+    | { ok: false; code: string; message: string }
+  >;
+  attachRegistration: (input: {
+    idempotencyKey: string;
+    registrationId: string;
+  }) => Promise<void>;
+  releaseByRegistration: (registrationId: string) => Promise<number>;
+};
+
 export function createPublicRegistrationService(deps: {
   repo: PublicRegistrationRepository;
   rateLimit?: RateLimitStore | null;
   rateLimitSubject?: string | null;
+  /** Prisma-backed in production; omit in in-memory selfchecks. */
+  confirmFree?: ConfirmFreeRegistrationFn | null;
+  promotions?: PromotionsPort | null;
 }) {
   const { repo } = deps;
   const rateLimit = deps.rateLimit ?? null;
+  const confirmFree = deps.confirmFree ?? null;
+  const promotions = deps.promotions ?? null;
   const expireUseCase = createExpirePendingRegistrationsUseCase({ repo });
   const eligibilityUseCase = createCheckoutEligibilityUseCase({ repo });
 
@@ -246,7 +343,7 @@ export function createPublicRegistrationService(deps: {
 
     async getContext(slug: string): Promise<PublicRegistrationContextDto> {
       const edition = await repo.getEditionBySlug(slug);
-      if (!edition || !edition.isPublished) {
+      if (!edition || !edition.isPublished || !edition.registrationEnabled) {
         throw new PublicRegistrationError(
           "EDITION_NOT_AVAILABLE",
           "Esta edición no está disponible para inscripción.",
@@ -260,9 +357,37 @@ export function createPublicRegistrationService(deps: {
         );
       }
       const venues = await repo.listActiveVenues(edition.id);
-      const tickets = (await repo.listSellableTickets(edition.id)).filter(
+      let tickets = (await repo.listSellableTickets(edition.id)).filter(
         (t) => t.salesStatus !== "inactive",
       );
+
+      const phases = await repo.listPricePhases(edition.id);
+      const resolvedPhase = resolveCurrentPricePhase(phases, new Date());
+      const phaseItems =
+        resolvedPhase != null
+          ? await repo.listPricePhaseItems(resolvedPhase.phase.id)
+          : [];
+      try {
+        tickets = attachPhaseProductsToTickets(tickets, phaseItems);
+      } catch (error) {
+        mapResolveError(error);
+      }
+
+      const currentPricePhase = resolvedPhase
+        ? {
+            id: resolvedPhase.phase.id,
+            name: resolvedPhase.phase.name,
+            amount: resolvedPhase.phase.amount,
+            currency: resolvedPhase.phase.currency,
+            startsAt: resolvedPhase.phase.startsAt,
+            endsAt: resolvedPhase.phase.endsAt,
+            includedProductCount: phaseItems.filter((i) => i.isIncluded).length,
+            includesPhysicalMerch: phaseItems.some(
+              (i) => i.isIncluded && i.fulfillmentRequired,
+            ),
+          }
+        : null;
+
       return {
         edition: {
           id: edition.id,
@@ -271,14 +396,17 @@ export function createPublicRegistrationService(deps: {
           shortDescription: edition.shortDescription,
           status: edition.status,
           isPublished: edition.isPublished,
+          registrationEnabled: edition.registrationEnabled,
           registrationOpenAt: edition.registrationOpenAt,
           registrationCloseAt: edition.registrationCloseAt,
           startAt: edition.startAt,
           endAt: edition.endAt,
           timezone: edition.timezone,
+          currency: edition.currency,
         },
         venues,
         tickets,
+        currentPricePhase,
         registrationWindow: window,
         legal: {
           termsPath: "/legal/terminos",
@@ -316,6 +444,21 @@ export function createPublicRegistrationService(deps: {
           "Debés aceptar las bases/condiciones y la política de privacidad.",
         );
       }
+      if (!input.imageUsageConsent || !input.socialPublicationConsent) {
+        throw new PublicRegistrationError(
+          "CONSENT_REQUIRED",
+          "Debés aceptar el uso de imagen y la autorización de publicación social.",
+        );
+      }
+      if (!input.profilePhotoAssetId?.trim()) {
+        throw new PublicRegistrationValidationError({ profilePhotoAssetId: "Subí una foto de perfil." });
+      }
+      let instagram;
+      try {
+        instagram = assertInstagramHandle(input.instagramHandle ?? "");
+      } catch {
+        throw new PublicRegistrationValidationError({ instagramHandle: "Ingresá un usuario de Instagram válido." });
+      }
       validateParticipant(input.participant);
 
       const edition = await repo.getEditionBySlug(input.editionSlug);
@@ -326,7 +469,7 @@ export function createPublicRegistrationService(deps: {
         );
       }
 
-      const ticket = await repo.getTicketDetail(input.ticketTypeId);
+      let ticket = await repo.getTicketDetail(input.ticketTypeId);
       if (!ticket || ticket.editionId !== edition.id) {
         throw new PublicRegistrationError(
           "TICKET_NOT_AVAILABLE",
@@ -367,7 +510,87 @@ export function createPublicRegistrationService(deps: {
         }
       }
 
+      const now = new Date();
+
+      // Precio + productos: fases del backend (nunca monto ni lista del frontend).
+      let chargeAmount = ticket.priceAmount;
+      let pricePhaseId: string | null = null;
+      let pricePhaseNameSnapshot: string | null = null;
+      let pricePhaseAmountSnapshot: number | null = null;
+      const phases = await repo.listPricePhases(edition.id);
+      const hasActivePhases = phases.some((p) => p.isActive);
+      const resolvedPhase =
+        hasActivePhases ? resolveCurrentPricePhase(phases, now) : null;
+      if (ticket.priceAmount > 0 && hasActivePhases && !resolvedPhase) {
+        throw new PublicRegistrationError(
+          "EDITION_NOT_AVAILABLE",
+          "No hay una fase de precio vigente para esta edición.",
+        );
+      }
+      if (resolvedPhase) {
+        if (ticket.priceAmount > 0) {
+          chargeAmount = resolvedPhase.phase.amount;
+        }
+        pricePhaseId = resolvedPhase.phase.id;
+        pricePhaseNameSnapshot = resolvedPhase.phase.name;
+        pricePhaseAmountSnapshot = resolvedPhase.phase.amount;
+      }
+      const phaseItems = resolvedPhase
+        ? await repo.listPricePhaseItems(resolvedPhase.phase.id)
+        : [];
+      try {
+        ticket = attachPhaseProductsToTickets([ticket], phaseItems)[0]!;
+      } catch (error) {
+        mapResolveError(error);
+      }
+
       const email = normalizeEmail(input.participant.email);
+      const userId = await repo.resolveUserId(
+        email,
+        `${input.participant.firstName} ${input.participant.lastName}`,
+      );
+
+      let discountAmount = 0;
+      let promotionId: string | null = null;
+      let promotionCodeSnapshot: string | null = null;
+      let promoIdempotencyKey: string | null = null;
+      const rawPromo = input.promoCode?.trim() ?? "";
+      if (rawPromo) {
+        if (!promotions) {
+          throw new PublicRegistrationError(
+            "UNEXPECTED",
+            "Los códigos promocionales no están disponibles en este entorno.",
+          );
+        }
+        if (chargeAmount <= 0) {
+          throw new PublicRegistrationError(
+            "INVALID_VARIANT",
+            "No se puede aplicar un código a una entrada gratuita.",
+          );
+        }
+        promoIdempotencyKey = `clickaton:promo:${input.idempotencyKey}`;
+        const reserved = await promotions.reserve({
+          code: rawPromo,
+          originalAmount: chargeAmount,
+          currency: ticket.currency,
+          editionId: edition.id,
+          userId,
+          orderId: promoIdempotencyKey,
+          idempotencyKey: promoIdempotencyKey,
+          now,
+        });
+        if (!reserved.ok) {
+          throw new PublicRegistrationError(
+            "EDITION_NOT_AVAILABLE",
+            reserved.message,
+          );
+        }
+        discountAmount = reserved.applied.quote.discountAmount;
+        chargeAmount = reserved.applied.quote.finalAmount;
+        promotionId = reserved.applied.quote.promotionId;
+        promotionCodeSnapshot = reserved.applied.quote.code;
+      }
+
       const existingIdem = await repo.findByIdempotencyKey(input.idempotencyKey);
       const fp = fingerprint({
         editionId: edition.id,
@@ -375,7 +598,7 @@ export function createPublicRegistrationService(deps: {
         ticketTypeId: ticket.id,
         email,
         variantChoices: input.variantChoices,
-        totalAmount: ticket.priceAmount,
+        totalAmount: chargeAmount,
       });
 
       if (existingIdem) {
@@ -395,7 +618,7 @@ export function createPublicRegistrationService(deps: {
         return this.toSummary(existing.id, edition.slug);
       }
 
-      const nowCheck = new Date();
+      const nowCheck = now;
       const duplicate = await repo.findActiveByEditionEmail(edition.id, email, nowCheck);
       if (duplicate) {
         throw new PublicRegistrationError(
@@ -415,13 +638,8 @@ export function createPublicRegistrationService(deps: {
       }
 
       const items = buildItemsFromTicket(ticket, input.variantChoices);
-      const now = new Date();
       const holdMinutes = ticket.holdMinutes > 0 ? ticket.holdMinutes : 20;
       const holdExpiresAt = new Date(now.getTime() + holdMinutes * 60_000);
-      const userId = await repo.resolveUserId(
-        email,
-        `${input.participant.firstName} ${input.participant.lastName}`,
-      );
 
       const registration = await repo.createReservedRegistration({
         idempotencyKey: input.idempotencyKey,
@@ -453,17 +671,37 @@ export function createPublicRegistrationService(deps: {
             acceptedImageAt: input.acceptImage ? now : null,
           },
           currency: ticket.currency,
-          subtotalAmount: ticket.priceAmount,
-          discountAmount: 0,
-          totalAmount: ticket.priceAmount,
+          subtotalAmount: chargeAmount + discountAmount,
+          discountAmount,
+          totalAmount: chargeAmount,
+          pricePhaseId,
+          pricePhaseNameSnapshot,
+          pricePhaseAmountSnapshot,
+          promotionId,
+          promotionCodeSnapshot,
+          instagramHandle: instagram.handle,
+          instagramHandleNormalized: instagram.normalized,
+          instagramUrl: instagram.url,
+          profilePhotoAssetId: input.profilePhotoAssetId,
+          imageUsageConsent: input.imageUsageConsent,
+          socialPublicationConsent: input.socialPublicationConsent,
+          consentAcceptedAt: now,
+          consentVersion: input.consentVersion ?? "2026-08-social-v1",
           holdMinutes,
           items,
         },
       });
 
-      // Free tickets: confirm immediately (no Mercado Pago).
-      if (ticket.priceAmount === 0) {
-        await confirmFreeRegistration({
+      if (promotions && promoIdempotencyKey && promotionId) {
+        await promotions.attachRegistration({
+          idempotencyKey: promoIdempotencyKey,
+          registrationId: registration.id,
+        });
+      }
+
+      // Free tickets: confirm immediately (no Mercado Pago) when wired (Prisma runtime).
+      if (chargeAmount === 0 && confirmFree) {
+        await confirmFree({
           registrationId: registration.id,
           editionSlug: edition.slug,
           editionPrefix: edition.visibleCodePrefix ?? undefined,
@@ -489,6 +727,9 @@ export function createPublicRegistrationService(deps: {
           accessToken,
           amountLabel,
           holdExpiresAt,
+          includedItemLabels: registration.items
+            .filter((i) => i.isIncluded)
+            .map((i) => i.nameSnapshot),
         });
       } catch {
         // Email must not block reservation.

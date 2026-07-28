@@ -172,6 +172,16 @@ export function createDurableDnxPaymentsClient(deps: {
         checkoutBaseUrl: deps.checkoutBaseUrl,
         notificationUrl: deps.notificationUrl,
         isTestFixture: deps.isTestFixture,
+        ...(input.editionFinance
+          ? {
+              editionFinance: {
+                snapshot: input.editionFinance.snapshot,
+                ...(input.editionFinance.collectorAccessToken
+                  ? { collectorAccessToken: input.editionFinance.collectorAccessToken }
+                  : {}),
+              },
+            }
+          : {}),
       });
       if (result.outcome === "conflict") {
         return {
@@ -180,6 +190,31 @@ export function createDurableDnxPaymentsClient(deps: {
           message: result.message,
         };
       }
+
+      // Persist allocations durables (idempotente) desde snapshot.
+      if (input.editionFinance && result.order) {
+        try {
+          const { persistOrderAllocationsFromSnapshot } = await import(
+            "@/lib/admin/edition-finance/infrastructure/persist-order-allocations"
+          );
+          await persistOrderAllocationsFromSnapshot({
+            paymentOrderId: result.order.id,
+            snapshot: input.editionFinance.snapshot,
+            providerReference: result.order.externalReference,
+            status: "CREATED",
+          });
+        } catch (err) {
+          // No tumbar checkout si la tabla aún no migró en el entorno; audit via log.
+          console.error(
+            JSON.stringify({
+              event: "edition_allocations_persist_failed",
+              orderId: result.order.id,
+              reason: err instanceof Error ? err.message.slice(0, 120) : "unknown",
+            }),
+          );
+        }
+      }
+
       return {
         outcome: result.outcome,
         order: mapDurableToPaymentOrder(result.order),

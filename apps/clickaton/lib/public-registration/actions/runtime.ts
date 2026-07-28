@@ -1,3 +1,9 @@
+import { confirmFreeRegistration } from "@/lib/registration/application/confirm-free-registration";
+import {
+  attachPromotionRedemptionRegistration,
+  releaseClickatonPromotionRedemption,
+  reserveClickatonPromotion,
+} from "@/lib/promotions/prisma-promotions-adapter";
 import { createPublicRegistrationService, type PublicRegistrationService } from "../application/public-registration-service";
 import { createPrismaPublicRegistrationRepository } from "../infrastructure/prisma-public-registration-repository";
 
@@ -22,5 +28,11 @@ export function getPublicRegistrationService(): PublicRegistrationService {
   if (override) return override;
   return createPublicRegistrationService({
     repo: createPrismaPublicRegistrationRepository(),
+    confirmFree: confirmFreeRegistration,
+    promotions: {
+      reserve: reserveClickatonPromotion,
+      attachRegistration: attachPromotionRedemptionRegistration,
+      releaseByRegistration: releaseClickatonPromotionRedemption,
+    },
   });
 }

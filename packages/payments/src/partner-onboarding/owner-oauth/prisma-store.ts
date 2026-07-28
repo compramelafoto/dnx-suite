@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import type { FinancialEnvironment } from "../../../financial-identity/types.js";
+import type { FinancialEnvironment } from "../../financial-identity/types.js";
 import type {
   OwnerFinancialIdentityRecord,
   OwnerOAuthAuditEvent,

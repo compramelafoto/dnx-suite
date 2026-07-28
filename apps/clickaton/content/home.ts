@@ -32,6 +32,11 @@ export const homeContent = {
       "La jornada invita a mirar, crear y entregar fotografías. También es un espacio de encuentro, intercambio y aprendizaje entre personas de distintos niveles.",
       "Cada edición define su duración, recorrido, consignas y modalidad. Las reglas específicas se publican en las bases de esa Clickatón.",
     ],
+    image: {
+      src: "/images/home/what-is-community.jpg",
+      alt: "Comunidad de fotógrafos con remeras Clickatón fotografiando en la ciudad",
+      caption: "Competencia, aprendizaje y comunidad en movimiento.",
+    },
   },
 
   pillars: {
@@ -127,6 +132,10 @@ export const homeContent = {
     ],
     disclaimer:
       "No prometemos todavía cursos, mentorías, certificados ni talleres incluidos. La dimensión pedagógica crecerá con el proyecto.",
+    image: {
+      src: "/images/home/what-is-community.jpg",
+      alt: "Participantes con remeras Clickatón compartiendo la experiencia fotográfica",
+    },
   },
 
   community: {
@@ -149,6 +158,20 @@ export const homeContent = {
       href: routes.community,
       note: "Próximamente — sin formulario activo todavía.",
     },
+    images: {
+      portrait: {
+        src: "/images/formar-parte/imagen-01.png",
+        alt: "Fotógrafa en recorrido urbano",
+      },
+      detail: {
+        src: "/images/founding-allies/kit.jpg",
+        alt: "Kit y materiales de la experiencia Clickatón",
+      },
+      group: {
+        src: "/images/hero-city-photographer.jpg",
+        alt: "Grupo saliendo a fotografiar la ciudad",
+      },
+    },
   },
 
   venues: {
@@ -170,6 +193,11 @@ export const homeContent = {
       label: "Quiero ser Organizador",
       href: routes.organize,
       note: "Postulate como Organizador Oficial de Sede.",
+    },
+    image: {
+      src: "/images/organizar-sede/hero.jpg",
+      alt: "Encuentro de sede local de maratón fotográfica",
+      caption: "Sedes, kits y comunidad local.",
     },
   },
 
@@ -256,6 +284,10 @@ export const homeContent = {
     primaryCta: { label: "Conocé las próximas novedades", href: routes.marathons } satisfies HomeLink,
     secondaryCta: { label: "Explorá cómo funciona", href: routes.howItWorks } satisfies HomeLink,
     note: "Sin newsletter ficticia ni captura de correos en esta etapa.",
+    backgroundImage: {
+      src: "/images/hero-city-photographer.jpg",
+      alt: "",
+    },
   },
 } as const;
 

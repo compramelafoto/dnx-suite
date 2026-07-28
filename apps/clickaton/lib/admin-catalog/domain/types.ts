@@ -58,10 +58,18 @@ export type ProductVariantRecord = {
   reservedStock: number;
   priceAmount: MinorUnits | null;
   currency: CatalogCurrency | null;
+  sortOrder: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
+
+export type ProductStoreStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "OUT_OF_STOCK"
+  | "HIDDEN"
+  | "ARCHIVED";
 
 export type ProductRecord = {
   id: ProductId;
@@ -70,6 +78,20 @@ export type ProductRecord = {
   description: string | null;
   code: string;
   isActive: boolean;
+  primaryImageAssetId: string | null;
+  sizeChartAssetId: string | null;
+  sizeChartDescription: string | null;
+  sizeChartInstructions: string | null;
+  isStoreEnabled: boolean;
+  storeStatus: ProductStoreStatus;
+  storeSlug: string | null;
+  storeTitle: string | null;
+  storeDescription: string | null;
+  storePrice: MinorUnits | null;
+  compareAtPrice: MinorUnits | null;
+  storeCurrency: CatalogCurrency;
+  requiresShipping: boolean;
+  allowPickup: boolean;
   createdAt: Date;
   updatedAt: Date;
   variants: ProductVariantRecord[];

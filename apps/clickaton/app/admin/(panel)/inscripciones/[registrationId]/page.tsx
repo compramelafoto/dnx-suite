@@ -3,6 +3,7 @@ import { AdminFlashMessage } from "@/components/admin/AdminFlashMessage";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AssignmentForm } from "@/components/admin/registrations/AssignmentForm";
 import { InternalNoteForm } from "@/components/admin/registrations/InternalNoteForm";
+import { ItemFulfillmentForm } from "@/components/admin/registrations/ItemFulfillmentForm";
 import { RegistrationTransitionButtons } from "@/components/admin/registrations/RegistrationTransitionButtons";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -22,6 +23,16 @@ import { getEditionById } from "@/lib/admin/editions/queries";
 import { listVenues } from "@/lib/admin/venues/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { getCheckoutService } from "@/lib/checkout/actions/runtime";
+import { syncRegistrationFotoRankFormAction } from "@/lib/fotorank-sync/actions/fotorank-sync-admin";
+import { getAdminIntegrations } from "@/config/admin/integrations";
+import { prisma } from "@/lib/admin/db";
+import {
+  approveWelcomeCardAction,
+  enqueueWelcomeCardForRegistrationAction,
+  regenerateWelcomeCardAction,
+  rejectWelcomeCardAction,
+  retryWelcomeCardAction,
+} from "@/lib/welcome-card/admin-actions";
 
 type Props = {
   params: Promise<{ registrationId: string }>;
@@ -50,6 +61,15 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
   }
 
   const reg = result.data;
+  const socialPublish = await prisma.dnxSocialPublishRequest.findFirst({
+    where: {
+      application: "CLICKATON",
+      entityType: "WELCOME_CARD",
+      entityId: { in: [reg.id, reg.welcomeCard?.id ?? ""] },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, status: true, scheduleAt: true, publishedAt: true, lastErrorCode: true, permalink: true },
+  });
   const [editionResult, venuesResult, ticketsResult, availResult] = await Promise.all([
     getEditionById(reg.editionId),
     listVenues({ editionId: reg.editionId, active: "all" }),
@@ -109,6 +129,183 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
       />
 
       <AdminFlashMessage flash={flash} />
+
+      <section
+        className="space-y-3 rounded-[var(--ck-radius-card)] border border-ck-border p-5"
+        aria-labelledby="welcome-card-heading"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="welcome-card-heading" className="text-lg font-semibold">
+            Placa de bienvenida
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {reg.welcomeCard?.id ? (
+              <>
+                <form action={regenerateWelcomeCardAction.bind(null, reg.welcomeCard.id)}>
+                  <Button type="submit" variant="secondary" size="sm">
+                    Regenerar
+                  </Button>
+                </form>
+                <form action={retryWelcomeCardAction.bind(null, reg.welcomeCard.id)}>
+                  <Button type="submit" variant="outline" size="sm">
+                    Reintentar
+                  </Button>
+                </form>
+                <form action={approveWelcomeCardAction.bind(null, reg.welcomeCard.id)}>
+                  <Button type="submit" variant="secondary" size="sm">
+                    Aprobar
+                  </Button>
+                </form>
+                <form action={rejectWelcomeCardAction.bind(null, reg.welcomeCard.id)}>
+                  <Button type="submit" variant="outline" size="sm">
+                    Rechazar
+                  </Button>
+                </form>
+              </>
+            ) : reg.status === "CONFIRMED" && reg.paymentStatus === "APPROVED" ? (
+              <form action={enqueueWelcomeCardForRegistrationAction.bind(null, reg.id)}>
+                <Button type="submit" variant="secondary" size="sm">
+                  Encolar placa
+                </Button>
+              </form>
+            ) : null}
+          </div>
+        </div>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <dt className="text-ck-text-secondary">Estado</dt>
+            <dd>{reg.welcomeCardStatus ?? reg.welcomeCard?.status ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Instagram</dt>
+            <dd>{reg.instagramHandle ? `@${reg.instagramHandle}` : "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Foto</dt>
+            <dd className="font-mono text-xs">{reg.profilePhotoAssetId ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Publicación</dt>
+            <dd>{reg.welcomePublicationStatus ?? reg.welcomeCard?.publicationStatus ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Solicitud social</dt>
+            <dd>{socialPublish?.status ?? "Sin solicitud"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Intentos</dt>
+            <dd>{reg.welcomeCard?.attemptCount ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Error</dt>
+            <dd>
+              {reg.welcomeCard?.lastErrorCode
+                ? `${reg.welcomeCard.lastErrorCode}${
+                    reg.welcomeCard.lastErrorMessage
+                      ? `: ${reg.welcomeCard.lastErrorMessage}`
+                      : ""
+                  }`
+                : "—"}
+            </dd>
+          </div>
+        </dl>
+        {reg.welcomeCard?.pngUrl ? (
+          <div className="flex flex-wrap items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={reg.welcomeCard.pngUrl}
+              alt="Vista previa placa"
+              className="h-48 w-auto rounded border border-ck-border object-cover"
+            />
+            <div className="flex flex-col gap-2">
+              <Button href={reg.welcomeCard.pngUrl} variant="text" size="sm">
+                Descargar PNG
+              </Button>
+              {reg.welcomeCard.webpUrl ? (
+                <Button href={reg.welcomeCard.webpUrl} variant="text" size="sm">
+                  Descargar WEBP
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-ck-text-muted">
+            Sin placa generada. La publicación en Instagram es Etapa 9.
+          </p>
+        )}
+        {socialPublish ? (
+          <p className="text-sm text-ck-text-secondary">
+            Solicitud {socialPublish.id.slice(0, 8)} · {socialPublish.publishedAt ? `publicada ${formatArDateTime(socialPublish.publishedAt)}` : socialPublish.scheduleAt ? `programada ${formatArDateTime(socialPublish.scheduleAt)}` : "pendiente de gestión"}{socialPublish.lastErrorCode ? ` · ${socialPublish.lastErrorCode}` : ""}.
+            {socialPublish.permalink ? <a className="ml-2 underline" href={socialPublish.permalink} target="_blank" rel="noreferrer">Ver en Instagram</a> : null}
+          </p>
+        ) : null}
+      </section>
+
+      <section
+        className="space-y-3 rounded-[var(--ck-radius-card)] border border-ck-border p-5"
+        aria-labelledby="fotorank-sync-heading"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="fotorank-sync-heading" className="text-lg font-semibold">
+            Sync FotoRank
+          </h2>
+          {reg.status === "CONFIRMED" && reg.paymentStatus === "APPROVED" ? (
+            <form action={syncRegistrationFotoRankFormAction.bind(null, reg.id)}>
+              <Button type="submit" variant="secondary" size="sm">
+                Sincronizar / reintentar
+              </Button>
+            </form>
+          ) : null}
+        </div>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <dt className="text-ck-text-secondary">Estado</dt>
+            <dd>{reg.fotoRankSyncStatus ?? reg.fotoRankSync?.status ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Participante FR</dt>
+            <dd className="font-mono text-xs">{reg.fotoRankParticipantId ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Nº participante</dt>
+            <dd className="font-mono">{reg.visibleCode ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Intentos</dt>
+            <dd>{reg.fotoRankSync?.attemptCount ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Último error</dt>
+            <dd>
+              {reg.fotoRankSync?.lastErrorCode
+                ? `${reg.fotoRankSync.lastErrorCode}${
+                    reg.fotoRankSync.lastErrorMessage
+                      ? `: ${reg.fotoRankSync.lastErrorMessage}`
+                      : ""
+                  }`
+                : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Sincronizado</dt>
+            <dd>
+              {reg.fotoRankSyncedAt
+                ? formatArDateTime(reg.fotoRankSyncedAt)
+                : reg.fotoRankSync?.completedAt
+                  ? formatArDateTime(reg.fotoRankSync.completedAt)
+                  : "—"}
+            </dd>
+          </div>
+        </dl>
+        {(() => {
+          const frBase = getAdminIntegrations().fotorank.href;
+          return frBase ? (
+            <Button href={frBase} variant="text" size="sm">
+              Abrir FotoRank (admin)
+            </Button>
+          ) : null;
+        })()}
+      </section>
 
       <section className="grid gap-6 lg:grid-cols-2" aria-labelledby="identity-heading">
         <div className="space-y-3 rounded-[var(--ck-radius-card)] border border-ck-border p-5">
@@ -318,21 +515,49 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
               <thead className="border-b border-ck-border bg-ck-bg/50 text-ck-text-secondary">
                 <tr>
                   <th className="px-4 py-3">Producto</th>
+                  <th className="px-4 py-3">Talle</th>
                   <th className="px-4 py-3">SKU</th>
                   <th className="px-4 py-3">Cant.</th>
                   <th className="px-4 py-3">Incluido</th>
+                  <th className="px-4 py-3">Entrega</th>
                   <th className="px-4 py-3">Importe</th>
+                  <th className="px-4 py-3">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {reg.items.map((item) => (
                   <tr key={item.id} className="border-b border-ck-border/70">
                     <td className="px-4 py-3">{item.nameSnapshot}</td>
+                    <td className="px-4 py-3">{item.variantNameSnapshot ?? "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs">{item.skuSnapshot ?? "—"}</td>
                     <td className="px-4 py-3">{item.quantity}</td>
                     <td className="px-4 py-3">{item.isIncluded ? "Sí" : "No"}</td>
                     <td className="px-4 py-3">
+                      <div className="space-y-1">
+                        <span>{item.fulfillmentStatus ?? "PENDING"}</span>
+                        {item.fulfilledAt ? (
+                          <p className="text-xs text-ck-text-muted">
+                            {formatArDateTime(item.fulfilledAt)}
+                            {item.fulfilledByUserId
+                              ? ` · user #${item.fulfilledByUserId}`
+                              : ""}
+                          </p>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
                       {displayRegistrationAmount(item.totalPriceAmount, item.currency)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {item.isIncluded ? (
+                        <ItemFulfillmentForm
+                          registrationId={reg.id}
+                          itemId={item.id}
+                          currentStatus={item.fulfillmentStatus ?? "PENDING"}
+                        />
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   </tr>
                 ))}

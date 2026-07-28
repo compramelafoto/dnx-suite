@@ -6,6 +6,7 @@ import type {
   ProductId,
   ProductListItem,
   ProductRecord,
+  ProductStoreStatus,
   ProductVariantRecord,
   RegistrationUsage,
   TicketTypeFilters,
@@ -48,6 +49,22 @@ export type CreateProductData = {
   isActive: boolean;
 };
 
+export type UpdateProductData = Partial<Omit<CreateProductData, "editionId">> & {
+  primaryImageAssetId?: string | null;
+  sizeChartAssetId?: string | null;
+  sizeChartDescription?: string | null;
+  sizeChartInstructions?: string | null;
+  isStoreEnabled?: boolean;
+  storeStatus?: ProductStoreStatus;
+  storeSlug?: string | null;
+  storeTitle?: string | null;
+  storeDescription?: string | null;
+  storePrice?: number | null;
+  compareAtPrice?: number | null;
+  requiresShipping?: boolean;
+  allowPickup?: boolean;
+};
+
 export type CreateVariantData = {
   productId: ProductId;
   code: string;
@@ -56,6 +73,7 @@ export type CreateVariantData = {
   stock: number;
   priceAmount: number | null;
   currency: "ARS" | null;
+  sortOrder?: number;
   isActive: boolean;
 };
 
@@ -97,7 +115,7 @@ export interface ClickatonAdminCatalogRepository {
   createProduct(data: CreateProductData): Promise<ProductRecord>;
   updateProduct(
     id: ProductId,
-    data: Partial<Omit<CreateProductData, "editionId">>,
+    data: UpdateProductData,
   ): Promise<ProductRecord>;
   setProductActive(id: ProductId, isActive: boolean): Promise<ProductRecord>;
 

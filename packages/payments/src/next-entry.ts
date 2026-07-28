@@ -85,4 +85,18 @@ export {
   signMercadoPagoTestWebhook,
 } from "./providers/mercado-pago/webhooks/sign-test-fixture";
 export { mapMercadoPagoOrderResponse } from "./providers/mercado-pago/orders/mapper";
+export {
+  EDITION_CHECKOUT_BPS_TOTAL,
+  allocateByBasisPoints,
+  planEditionCheckoutFromSnapshot,
+  validateEditionCheckoutSnapshot,
+  reconcileAllocationsWithConfirmedFee,
+  extractProviderFeeMinorFromMpPayment,
+  EditionCheckoutAllocationError,
+} from "./edition-checkout/index.js";
+export type {
+  EditionCheckoutFinanceSnapshot,
+  EditionCheckoutSnapshotAllocation,
+  PlannedEditionCheckout,
+} from "./edition-checkout/index.js";
 

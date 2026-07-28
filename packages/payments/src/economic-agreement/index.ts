@@ -2,7 +2,6 @@ export type {
   AgreementParticipant,
   AgreementParticipantRoleLabel,
   AgreementParticipantStatus,
-  DistributionRuleKind,
   DistributionRuleRecord,
   DistributionVersion,
   DistributionVersionStatus,

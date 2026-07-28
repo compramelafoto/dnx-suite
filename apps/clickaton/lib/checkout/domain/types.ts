@@ -32,6 +32,11 @@ export type CreatePaymentOrderInput = {
   pendingUrl: string;
   failureUrl: string;
   webhookContext?: Record<string, string>;
+  /** Snapshot financiero v2 + token collector (N=1). Token nunca se persiste. */
+  editionFinance?: {
+    snapshot: import("@repo/payments/edition-checkout").EditionCheckoutFinanceSnapshot;
+    collectorAccessToken?: string;
+  };
 };
 
 export type PaymentOrder = {
@@ -133,4 +138,5 @@ export type CheckoutObservabilityEvent =
   | "holds_released"
   | "conflict"
   | "invalid_amount"
-  | "invalid_currency";
+  | "invalid_currency"
+  | "finance_snapshot_skipped";

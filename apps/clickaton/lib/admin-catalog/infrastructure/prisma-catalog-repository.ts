@@ -11,6 +11,7 @@ import {
 import type {
   ClickatonAdminCatalogRepository,
   CreateProductData,
+  UpdateProductData,
   CreateTicketTypeData,
   CreateVariantData,
   UpdateTicketTypeData,
@@ -36,6 +37,7 @@ function mapVariant(v: {
   reservedStock: number;
   priceAmount: number | null;
   currency: string | null;
+  sortOrder?: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +52,7 @@ function mapVariant(v: {
     reservedStock: v.reservedStock,
     priceAmount: v.priceAmount,
     currency: (v.currency as "ARS" | null) ?? null,
+    sortOrder: v.sortOrder ?? 100,
     isActive: v.isActive,
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
@@ -115,6 +118,20 @@ function mapProduct(p: {
   description: string | null;
   code: string;
   isActive: boolean;
+  primaryImageAssetId?: string | null;
+  sizeChartAssetId?: string | null;
+  sizeChartDescription?: string | null;
+  sizeChartInstructions?: string | null;
+  isStoreEnabled?: boolean;
+  storeStatus?: string;
+  storeSlug?: string | null;
+  storeTitle?: string | null;
+  storeDescription?: string | null;
+  storePrice?: number | null;
+  compareAtPrice?: number | null;
+  storeCurrency?: string;
+  requiresShipping?: boolean;
+  allowPickup?: boolean;
   createdAt: Date;
   updatedAt: Date;
   variants: Array<Parameters<typeof mapVariant>[0]>;
@@ -126,6 +143,20 @@ function mapProduct(p: {
     description: p.description,
     code: p.code,
     isActive: p.isActive,
+    primaryImageAssetId: p.primaryImageAssetId ?? null,
+    sizeChartAssetId: p.sizeChartAssetId ?? null,
+    sizeChartDescription: p.sizeChartDescription ?? null,
+    sizeChartInstructions: p.sizeChartInstructions ?? null,
+    isStoreEnabled: p.isStoreEnabled ?? false,
+    storeStatus: (p.storeStatus ?? "DRAFT") as ProductRecord["storeStatus"],
+    storeSlug: p.storeSlug ?? null,
+    storeTitle: p.storeTitle ?? null,
+    storeDescription: p.storeDescription ?? null,
+    storePrice: p.storePrice ?? null,
+    compareAtPrice: p.compareAtPrice ?? null,
+    storeCurrency: (p.storeCurrency ?? "ARS") as ProductRecord["storeCurrency"],
+    requiresShipping: p.requiresShipping ?? false,
+    allowPickup: p.allowPickup ?? true,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
     variants: p.variants.map(mapVariant),
@@ -521,7 +552,7 @@ export function createPrismaCatalogRepository(): ClickatonAdminCatalogRepository
       }
     },
 
-    async updateProduct(productId, data) {
+    async updateProduct(productId, data: UpdateProductData) {
       try {
         const row = await prisma.clickatonProduct.update({
           where: { id: productId },
@@ -530,6 +561,33 @@ export function createPrismaCatalogRepository(): ClickatonAdminCatalogRepository
             ...(data.description !== undefined ? { description: data.description } : {}),
             ...(data.code !== undefined ? { code: data.code } : {}),
             ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+            ...(data.primaryImageAssetId !== undefined
+              ? { primaryImageAssetId: data.primaryImageAssetId }
+              : {}),
+            ...(data.sizeChartAssetId !== undefined
+              ? { sizeChartAssetId: data.sizeChartAssetId }
+              : {}),
+            ...(data.sizeChartDescription !== undefined
+              ? { sizeChartDescription: data.sizeChartDescription }
+              : {}),
+            ...(data.sizeChartInstructions !== undefined
+              ? { sizeChartInstructions: data.sizeChartInstructions }
+              : {}),
+            ...(data.isStoreEnabled !== undefined ? { isStoreEnabled: data.isStoreEnabled } : {}),
+            ...(data.storeStatus !== undefined
+              ? { storeStatus: data.storeStatus as ProductRecord["storeStatus"] }
+              : {}),
+            ...(data.storeSlug !== undefined ? { storeSlug: data.storeSlug } : {}),
+            ...(data.storeTitle !== undefined ? { storeTitle: data.storeTitle } : {}),
+            ...(data.storeDescription !== undefined
+              ? { storeDescription: data.storeDescription }
+              : {}),
+            ...(data.storePrice !== undefined ? { storePrice: data.storePrice } : {}),
+            ...(data.compareAtPrice !== undefined ? { compareAtPrice: data.compareAtPrice } : {}),
+            ...(data.requiresShipping !== undefined
+              ? { requiresShipping: data.requiresShipping }
+              : {}),
+            ...(data.allowPickup !== undefined ? { allowPickup: data.allowPickup } : {}),
           },
           include: { variants: true },
         });
@@ -567,6 +625,7 @@ export function createPrismaCatalogRepository(): ClickatonAdminCatalogRepository
             stock: data.stock,
             priceAmount: data.priceAmount,
             currency: data.currency,
+            sortOrder: data.sortOrder ?? 100,
             isActive: data.isActive,
           },
         });

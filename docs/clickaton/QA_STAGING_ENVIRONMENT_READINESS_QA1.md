@@ -8,6 +8,12 @@
 
 ---
 
+## Apéndice Etapa 11 (2026-07-28)
+
+Carga de fotos + EXIF/GPS implementada en código (`uploadsEnabled=false` en seed). Migración `20260728110000_clickaton_photo_upload` pendiente de aplicar en staging/Neon. Ver `CLICKATON_PHOTO_UPLOAD_EXIF_GPS.md`. No activa cargas productivas.
+
+---
+
 ## Resultado ejecutivo
 
 **NO GO — ENTORNO STAGING TODAVÍA INCOMPLETO**  

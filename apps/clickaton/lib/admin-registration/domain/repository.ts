@@ -39,6 +39,14 @@ export type InternalNotePersistInput = {
   note: string;
 };
 
+export type ItemFulfillmentPersistInput = {
+  registrationId: string;
+  registrationItemId: string;
+  actorUserId: number;
+  nextStatus: "PENDING" | "READY" | "DELIVERED" | "CANCELLED";
+  reason?: string | null;
+};
+
 export type TicketTypeRef = {
   id: string;
   editionId: string;
@@ -65,4 +73,5 @@ export type ClickatonAdminRegistrationRepository = {
   applyTransition(input: TransitionPersistInput): Promise<AdminRegistrationDetail>;
   updateAssignment(input: AssignmentPersistInput): Promise<AdminRegistrationDetail>;
   addInternalNote(input: InternalNotePersistInput): Promise<AdminRegistrationDetail>;
+  updateItemFulfillment(input: ItemFulfillmentPersistInput): Promise<AdminRegistrationDetail>;
 };

@@ -19,10 +19,13 @@ export function FinalCta() {
       <div className="pointer-events-none absolute inset-0 opacity-40" aria-hidden>
         <PhotoFrame
           variant="background"
-          alt=""
+          src={finalCta.backgroundImage.src}
+          alt={finalCta.backgroundImage.alt}
           decorative
           overlay="strong"
+          objectPosition="center 40%"
           className="h-full min-h-full rounded-none border-0"
+          sizes="100vw"
         />
       </div>
       <Container className="relative z-[2] max-w-3xl text-center">

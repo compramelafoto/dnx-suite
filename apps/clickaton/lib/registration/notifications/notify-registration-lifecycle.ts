@@ -1,10 +1,16 @@
 import { prisma } from "@repo/db";
 import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
+import {
+  enqueueAndSendIdempotentEmail,
+  paymentConfirmationIdempotencyKey,
+  PAYMENT_CONFIRMATION_TEMPLATE_KEY,
+} from "@/lib/registration/notifications/email-delivery";
 import { signRegistrationAccessToken } from "@/lib/public-registration/domain/access-token";
 
 /**
  * Best-effort payment-confirmed email after accredited confirm.
- * Never throws to the payment path; audits outcome when possible.
+ * Never throws to the payment path; durable via EmailQueue idempotency key.
+ * Payment remains PAID/CONFIRMED even if Resend fails (retry via queue).
  */
 export async function notifyPaidRegistrationConfirmed(input: {
   registrationId: string;
@@ -20,7 +26,17 @@ export async function notifyPaidRegistrationConfirmed(input: {
         firstName: true,
         city: true,
         status: true,
+        paymentStatus: true,
+        visibleCode: true,
+        instagramHandle: true,
         edition: { select: { name: true, slug: true, startAt: true } },
+        items: {
+          where: { isIncluded: true },
+          select: {
+            nameSnapshot: true,
+            variantNameSnapshot: true,
+          },
+        },
       },
     });
     if (!row || row.status !== "CONFIRMED") return;
@@ -31,7 +47,13 @@ export async function notifyPaidRegistrationConfirmed(input: {
       expiresAtMs: Date.now() + 7 * 24 * 60 * 60 * 1000,
     });
 
-    const emailResult = await sendParticipantFunnelEmail({
+    const includedItemLabels = row.items.map((i) =>
+      i.variantNameSnapshot
+        ? `${i.nameSnapshot} — ${i.variantNameSnapshot}`
+        : i.nameSnapshot,
+    );
+
+    const built = await sendParticipantFunnelEmail({
       kind: "payment_confirmed",
       to: row.email,
       participantName: row.firstName,
@@ -41,17 +63,41 @@ export async function notifyPaidRegistrationConfirmed(input: {
       accessToken,
       city: row.city,
       startAt: row.edition.startAt,
+      includedItemLabels,
+      visibleCode: row.visibleCode,
+      instagramHandle: row.instagramHandle,
+      paymentStatus: row.paymentStatus,
+      dryRunBuildOnly: true,
+    });
+
+    const delivery = await enqueueAndSendIdempotentEmail({
+      idempotencyKey: paymentConfirmationIdempotencyKey(row.id),
+      to: built.deliveredTo,
+      subject: built.subject,
+      text: built.text,
+      html: built.html,
+      templateKey: PAYMENT_CONFIRMATION_TEMPLATE_KEY,
+      templateData: {
+        registrationId: row.id,
+        source: input.source,
+        visibleCode: row.visibleCode,
+      },
     });
 
     await prisma.clickatonRegistrationAudit.create({
       data: {
         registrationId: row.id,
-        action: emailResult.sent ? "EMAIL_SENT" : "EMAIL_QUEUED",
+        action:
+          delivery.status === "SENT" || delivery.status === "ALREADY_SENT"
+            ? "EMAIL_SENT"
+            : "EMAIL_QUEUED",
         source: input.source,
         metadata: {
           kind: "payment_confirmed",
-          skipped: emailResult.skipped,
-          reason: emailResult.reason?.slice(0, 120),
+          deliveryStatus: delivery.status,
+          emailQueueId: delivery.emailQueueId,
+          reason: delivery.reason?.slice(0, 120),
+          idempotent: delivery.status === "ALREADY_SENT",
         },
       },
     });
@@ -75,7 +121,6 @@ export async function notifyHoldExpired(input: {
         edition: { select: { name: true, slug: true } },
       },
     });
-    // Hold expiry maps registration → CANCELLED + payment EXPIRED (canonical).
     if (!row || row.status !== "CANCELLED") return;
 
     const emailResult = await sendParticipantFunnelEmail({

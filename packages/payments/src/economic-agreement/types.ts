@@ -1,5 +1,9 @@
+import type { DistributionRuleKind as ContractsDistributionRuleKind } from "../contracts/entities.js";
 import type { RoundingPolicy } from "../distribution/types.js";
 import type { FinancialEnvironment, FinancialProvider } from "../financial-identity/types.js";
+
+/** Alias unificado — evita TS2308 con contracts.entities.DistributionRuleKind. */
+export type DistributionRuleKind = ContractsDistributionRuleKind;
 
 export type EconomicAgreementStatus =
   | "DRAFT"
@@ -27,8 +31,6 @@ export type AgreementParticipantRoleLabel =
   | "OTHER";
 
 export type DistributionVersionStatus = "DRAFT" | "PUBLISHED" | "SUPERSEDED";
-
-export type DistributionRuleKind = "PERCENTAGE" | "FIXED";
 
 export interface EconomicAgreement {
   id: string;

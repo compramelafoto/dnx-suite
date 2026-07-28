@@ -57,4 +57,3 @@ export function friendlyGoogleLoginError(raw: string | null | undefined): string
 }
 
 export { CLICKATON_ACCOUNT_PATH };
-export { attachClickatonSessionCookieToResponse } from "@/lib/auth/session-cookie";

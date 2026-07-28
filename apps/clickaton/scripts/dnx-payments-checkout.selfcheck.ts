@@ -54,6 +54,7 @@ async function seedEligibleRegistration() {
     shortDescription: null,
     status: "REGISTRATION_OPEN",
     isPublished: true,
+    registrationEnabled: true,
     registrationOpenAt: new Date(now - 86_400_000),
     registrationCloseAt: new Date(now + 86_400_000),
     startAt: null,
@@ -95,6 +96,7 @@ async function seedEligibleRegistration() {
     salesEndAt: new Date(now + 86_400_000),
     products: [
       {
+        ticketTypeItemId: "tti_p1",
         productId: "p1",
         productName: "Remera",
         quantity: 1,

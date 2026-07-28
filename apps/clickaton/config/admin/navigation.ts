@@ -8,6 +8,8 @@ export const adminRoutes = {
   venues: "/admin/sedes",
   catalog: "/admin/catalogo",
   registrations: "/admin/inscripciones",
+  promotions: "/admin/promociones",
+  social: "/admin/social",
   sponsors: "/admin/sponsors",
   messages: "/admin/mensajes",
   settings: "/admin/configuracion",
@@ -24,6 +26,8 @@ export type AdminNavIcon =
   | "venues"
   | "catalog"
   | "registrations"
+  | "promotions"
+  | "social"
   | "sponsors"
   | "messages"
   | "settings"
@@ -47,6 +51,13 @@ export const adminNavigation: readonly AdminNavItem[] = [
     icon: "registrations",
     section: "main",
   },
+  {
+    label: "Promociones",
+    href: adminRoutes.promotions,
+    icon: "promotions",
+    section: "main",
+  },
+  { label: "Publicaciones sociales", href: adminRoutes.social, icon: "social", section: "main" },
   { label: "Sponsors", href: adminRoutes.sponsors, icon: "sponsors", section: "main" },
   { label: "Mensajes", href: adminRoutes.messages, icon: "messages", section: "main" },
   { label: "Configuración", href: adminRoutes.settings, icon: "settings", section: "system" },

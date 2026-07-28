@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { IncludedProductsSection } from "@/components/public-registration/IncludedProductsSection";
 import { createPublicRegistrationAction } from "@/lib/public-registration/actions/public-registration";
 import type { PublicRegistrationContextDto } from "@/lib/public-registration/domain/types";
 import {
@@ -66,6 +67,11 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [acceptImage, setAcceptImage] = useState(false);
+  const [instagramHandle, setInstagramHandle] = useState("");
+  const [profilePhotoAssetId, setProfilePhotoAssetId] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [imageUsageConsent, setImageUsageConsent] = useState(false);
+  const [socialPublicationConsent, setSocialPublicationConsent] = useState(false);
 
   const ticketsForVenue = useMemo(() => {
     return context.tickets.filter((t) => {
@@ -106,7 +112,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       }
       for (const p of selectedTicket.products) {
         if (p.requiresVariantChoice && !variantChoices[p.productId]) {
-          setError(`Elegí la variante de ${p.productName}.`);
+          setError(`Elegí el talle de ${p.productName}.`);
           return;
         }
       }
@@ -122,12 +128,35 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       }
       if (!acceptTerms) errs.acceptTerms = "Obligatorio.";
       if (!acceptPrivacy) errs.acceptPrivacy = "Obligatorio.";
+      if (!instagramHandle.trim()) errs.instagramHandle = "Instagram requerido.";
+      if (!profilePhotoAssetId) errs.profilePhotoAssetId = "Subí una foto de perfil.";
+      if (!imageUsageConsent) errs.imageUsageConsent = "Obligatorio.";
+      if (!socialPublicationConsent) errs.socialPublicationConsent = "Obligatorio.";
       setFieldErrors(errs);
       if (Object.keys(errs).length) {
         setError("Completá los datos obligatorios y los consentimientos.");
         return;
       }
       setStep("review");
+    }
+  }
+
+  async function uploadPhoto(file: File | null) {
+    if (!file) return;
+    setUploadingPhoto(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const response = await fetch("/api/public/registration/profile-photo", { method: "POST", body: form });
+      const result = (await response.json()) as { ok: boolean; assetId?: string; error?: string };
+      if (!result.ok || !result.assetId) throw new Error(result.error ?? "No se pudo subir la foto.");
+      setProfilePhotoAssetId(result.assetId);
+    } catch (err) {
+      setProfilePhotoAssetId("");
+      setError(err instanceof Error ? err.message : "No se pudo subir la foto.");
+    } finally {
+      setUploadingPhoto(false);
     }
   }
 
@@ -158,6 +187,11 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     if (acceptTerms) fd.set("acceptTerms", "true");
     if (acceptPrivacy) fd.set("acceptPrivacy", "true");
     if (acceptImage) fd.set("acceptImage", "true");
+    fd.set("instagramHandle", instagramHandle);
+    fd.set("profilePhotoAssetId", profilePhotoAssetId);
+    if (imageUsageConsent) fd.set("imageUsageConsent", "true");
+    if (socialPublicationConsent) fd.set("socialPublicationConsent", "true");
+    fd.set("consentVersion", "2026-08-social-v1");
     fd.set("idempotencyKey", idemRef.current || idemKey);
 
     startTransition(async () => {
@@ -283,8 +317,16 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold">
-                            {formatPublicPrice(t.priceAmount, t.currency)}
+                            {formatPublicPrice(
+                              context.currentPricePhase?.amount ?? t.priceAmount,
+                              context.currentPricePhase?.currency ?? t.currency,
+                            )}
                           </p>
+                          {context.currentPricePhase ? (
+                            <p className="text-xs text-ck-text-muted">
+                              {context.currentPricePhase.name}
+                            </p>
+                          ) : null}
                           <p className="text-xs text-ck-text-muted">
                             {t.isUnlimited
                               ? "Cupo ilimitado"
@@ -294,40 +336,23 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                           </p>
                         </div>
                       </div>
-                      {t.products.length > 0 ? (
-                        <ul className="mt-4 space-y-2 text-sm">
-                          {t.products.map((p) => (
-                            <li key={p.productId}>
-                              {p.quantity}× {p.productName}
-                              {p.fixedVariant
-                                ? ` (${p.fixedVariant.name})`
-                                : null}
-                              {ticketTypeId === t.id && p.requiresVariantChoice ? (
-                                <select
-                                  className="mt-2 block w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
-                                  value={variantChoices[p.productId] ?? ""}
-                                  onChange={(e) =>
-                                    setVariantChoices((prev) => ({
-                                      ...prev,
-                                      [p.productId]: e.target.value,
-                                    }))
-                                  }
-                                  aria-label={`Variante de ${p.productName}`}
-                                >
-                                  <option value="">Elegí variante</option>
-                                  {p.variants
-                                    .filter((v) => v.isActive && v.availableStock > 0)
-                                    .map((v) => (
-                                      <option key={v.id} value={v.id}>
-                                        {v.name} ({v.sku})
-                                      </option>
-                                    ))}
-                                </select>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
+                      <IncludedProductsSection
+                        products={t.products}
+                        selected={ticketTypeId === t.id}
+                        variantChoices={variantChoices}
+                        onVariantChange={(productId, variantId) =>
+                          setVariantChoices((prev) => ({
+                            ...prev,
+                            [productId]: variantId,
+                          }))
+                        }
+                        emptyPhaseMessage={
+                          context.currentPricePhase &&
+                          !context.currentPricePhase.includesPhysicalMerch
+                            ? "Esta fase incluye la participación en Clickatón. La remera puede adquirirse por separado en la tienda."
+                            : null
+                        }
+                      />
                     </label>
                   );
                 })}
@@ -346,6 +371,13 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 value={firstName}
                 onChange={setFirstName}
                 error={fieldErrors.firstName}
+              />
+              <Field
+                id="instagramHandle"
+                label="Usuario de Instagram *"
+                value={instagramHandle}
+                onChange={setInstagramHandle}
+                error={fieldErrors.instagramHandle}
               />
               <Field
                 id="lastName"
@@ -383,6 +415,19 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 onChange={setProvince}
               />
             </div>
+            <label className="block text-sm">
+              <span className="font-medium">Foto de perfil *</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="mt-2 block w-full"
+                disabled={uploadingPhoto}
+                onChange={(e) => void uploadPhoto(e.target.files?.[0] ?? null)}
+              />
+              <span className="mt-1 block text-ck-text-secondary">
+                {uploadingPhoto ? "Subiendo foto…" : profilePhotoAssetId ? "Foto cargada." : "JPG, PNG o WEBP. Mínimo 400×400 px."}
+              </span>
+            </label>
             <div className="space-y-3 text-sm">
               <label className="flex gap-3">
                 <input
@@ -401,6 +446,14 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                   </a>
                   .
                 </span>
+              </label>
+              <label className="flex gap-3">
+                <input type="checkbox" checked={imageUsageConsent} onChange={(e) => setImageUsageConsent(e.target.checked)} />
+                <span>Autorizo el uso de mi foto para mi placa de bienvenida.</span>
+              </label>
+              <label className="flex gap-3">
+                <input type="checkbox" checked={socialPublicationConsent} onChange={(e) => setSocialPublicationConsent(e.target.checked)} />
+                <span>Autorizo la publicación social de mi placa. No se publicará automáticamente.</span>
               </label>
               <label className="flex gap-3">
                 <input
@@ -470,6 +523,34 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 </dd>
               </div>
             </dl>
+            {selectedTicket.products.length > 0 ? (
+              <div className="rounded border border-ck-border p-4">
+                <h3 className="font-semibold">Incluido en la inscripción</h3>
+                <ul className="mt-3 space-y-3 text-sm">
+                  {selectedTicket.products.map((p) => {
+                    const choiceId = variantChoices[p.productId];
+                    const chosen = p.variants.find((v) => v.id === choiceId);
+                    return (
+                      <li key={p.productId}>
+                        <p className="font-medium">{p.productName}</p>
+                        <p className="text-ck-text-secondary">
+                          Cantidad: {p.quantity} · Incluida · Precio adicional:{" "}
+                          {formatPublicPrice(0, selectedTicket.currency)}
+                        </p>
+                        {p.requiresVariantChoice ? (
+                          <p>
+                            Talle seleccionado:{" "}
+                            <strong>{chosen?.name ?? "—"}</strong>
+                          </p>
+                        ) : p.fixedVariant ? (
+                          <p>Talle: {p.fixedVariant.name}</p>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
           </section>
         ) : null}
 

@@ -7,6 +7,12 @@ import {
 import type { PersistedPaymentOrder, PersistedProviderOrder } from "../../persistence/types";
 import { ensureClickatonPlatformRecipients } from "./ensure-platform-recipients";
 import {
+  buildSplitsFromEditionPlan,
+  ensureRecipientsForEditionPlan,
+  planRequiredEditionFinance,
+  sanitizeEditionFinanceForOrderSnapshot,
+} from "./edition-finance-checkout.js";
+import {
   isReusableNormalized,
   mapNormalizedToPaymentOrderStatus,
   mapNormalizedToProviderMappedStatus,
@@ -23,6 +29,7 @@ import type {
   ReconcileClickatonCheckoutResult,
 } from "./types";
 import type { ProviderName } from "../../../contracts/primitives";
+import type { PlannedEditionCheckout } from "../../../edition-checkout/types.js";
 
 const SOURCE_PRODUCT = "clickaton";
 const DEFAULT_CHECKOUT_BASE = "https://payments.test/checkout";
@@ -249,8 +256,30 @@ export function createClickatonCheckoutService(
       }
       const now = new Date().toISOString();
       const externalReference = externalRefForRegistration(input.sourceId, bridge.mode);
-      const { ownerRecipientId, partnerRecipientId } =
-        await ensureClickatonPlatformRecipients(db);
+
+      // Etapa 6: snapshot financiero obligatorio para Mercado Pago (no stub owner).
+      let editionPlan: PlannedEditionCheckout | null = null;
+      let ownerRecipientId: string;
+      let partnerRecipientId: string | null = null;
+      let editionRecipientIds: string[] = [];
+      if (input.editionFinance) {
+        editionPlan = planRequiredEditionFinance({
+          snapshot: input.editionFinance.snapshot,
+          bridgeMode: bridge.mode,
+          collectorAccessToken: input.editionFinance.collectorAccessToken,
+        });
+        const recipients = await ensureRecipientsForEditionPlan(db, editionPlan);
+        ownerRecipientId = recipients.ownerRecipientId;
+        editionRecipientIds = recipients.recipientIds;
+      } else if (bridge.mode !== "manual") {
+        throw new Error(
+          "edition_finance_snapshot_required: checkout MP debe usar financialDistributionSnapshot",
+        );
+      } else {
+        const stub = await ensureClickatonPlatformRecipients(db);
+        ownerRecipientId = stub.ownerRecipientId;
+        partnerRecipientId = stub.partnerRecipientId;
+      }
 
       // Idempotency durable
       const existingIdempo = await db.idempotency.find(
@@ -435,6 +464,9 @@ export function createClickatonCheckoutService(
           successPath: input.successUrl.split("?")[0],
           pendingPath: input.pendingUrl.split("?")[0],
           failurePath: input.failureUrl.split("?")[0],
+          ...(editionPlan
+            ? { editionFinance: sanitizeEditionFinanceForOrderSnapshot(editionPlan) }
+            : { legacyStubRecipients: true }),
         },
         createdAt: now,
         updatedAt: now,
@@ -474,6 +506,13 @@ export function createClickatonCheckoutService(
           notificationUrl: input.notificationUrl,
           checkoutBaseUrl: input.checkoutBaseUrl,
           sourceId: input.sourceId,
+          ...(editionPlan && input.editionFinance?.collectorAccessToken
+            ? {
+                collectorAccessToken: input.editionFinance.collectorAccessToken,
+                collectorPaymentAccountId: editionPlan.collectorPaymentAccountId,
+                editionFinanceModality: editionPlan.modality,
+              }
+            : {}),
         });
         checkoutUrl = created.checkoutUrl;
         providerOrderId = created.providerOrderId;
@@ -523,33 +562,41 @@ export function createClickatonCheckoutService(
             createdAt: now2,
             updatedAt: now2,
           },
-          splits: [
-            {
-              id: `split_own_${randomUUID().replace(/-/g, "").slice(0, 10)}`,
-              providerOrderId: providerRowId,
-              recipientId: ownerRecipientId,
-              providerReceiverReference: "clickaton-owner",
-              receiverType: "OWNER",
-              amountMinor: BigInt(input.amountMinor),
-              currency: input.currency,
-              status: "PLANNED",
-              createdAt: now2,
-              updatedAt: now2,
-            },
-            {
-              id: `split_par_${randomUUID().replace(/-/g, "").slice(0, 10)}`,
-              providerOrderId: providerRowId,
-              recipientId: partnerRecipientId,
-              providerReceiverReference: "clickaton-partner-stub",
-              receiverType: "PARTNER",
-              amountMinor: 0n,
-              currency: input.currency,
-              description: "stub-no-split",
-              status: "PLANNED",
-              createdAt: now2,
-              updatedAt: now2,
-            },
-          ],
+          splits: editionPlan
+            ? buildSplitsFromEditionPlan({
+                providerOrderId: providerRowId,
+                planned: editionPlan,
+                currency: input.currency,
+                now: now2,
+                recipientIds: editionRecipientIds,
+              })
+            : [
+                {
+                  id: `split_own_${randomUUID().replace(/-/g, "").slice(0, 10)}`,
+                  providerOrderId: providerRowId,
+                  recipientId: ownerRecipientId,
+                  providerReceiverReference: "clickaton-owner",
+                  receiverType: "OWNER" as const,
+                  amountMinor: BigInt(input.amountMinor),
+                  currency: input.currency,
+                  status: "PLANNED" as const,
+                  createdAt: now2,
+                  updatedAt: now2,
+                },
+                {
+                  id: `split_par_${randomUUID().replace(/-/g, "").slice(0, 10)}`,
+                  providerOrderId: providerRowId,
+                  recipientId: partnerRecipientId!,
+                  providerReceiverReference: "clickaton-partner-stub",
+                  receiverType: "PARTNER" as const,
+                  amountMinor: 0n,
+                  currency: input.currency,
+                  description: "stub-no-split",
+                  status: "PLANNED" as const,
+                  createdAt: now2,
+                  updatedAt: now2,
+                },
+              ],
           idempotencyId: reserve.id,
           now: now2,
           responseHash: createHash("sha256").update(checkoutUrl).digest("hex"),

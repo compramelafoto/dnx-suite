@@ -5,6 +5,7 @@ export {
   buildGoogleOAuthStartHref,
   friendlyGoogleLoginError,
   resolveClickatonPostGoogleLoginPath,
-  attachClickatonSessionCookieToResponse,
   safeClickatonNextPath as safeClickatonAdminNextPath,
 } from "@/lib/auth/google-oauth";
+
+export { attachClickatonSessionCookieToResponse } from "@/lib/auth/session-cookie";

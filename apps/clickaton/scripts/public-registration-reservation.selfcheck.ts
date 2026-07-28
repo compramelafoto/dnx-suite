@@ -58,6 +58,15 @@ function baseParticipant(over: Record<string, string> = {}) {
 }
 
 async function main() {
+
+const socialFields = {
+  instagramHandle: "@ana.clickaton",
+  profilePhotoAssetId: "asset_profile_test",
+  imageUsageConsent: true,
+  socialPublicationConsent: true,
+} as const;
+
+
   // Static audits
   file("app/(public)/maratones/[slug]/inscripcion/page.tsx");
   file("app/(public)/maratones/[slug]/inscripcion/resumen/[registrationId]/page.tsx");
@@ -86,6 +95,7 @@ async function main() {
     shortDescription: "Demo",
     status: "REGISTRATION_OPEN",
     isPublished: true,
+    registrationEnabled: true,
     registrationOpenAt: new Date(now - 86_400_000),
     registrationCloseAt: new Date(now + 86_400_000 * 30),
     startAt: new Date(now + 86_400_000 * 60),
@@ -143,6 +153,7 @@ async function main() {
     salesEndAt: new Date(now + 86_400_000),
     products: [
       {
+        ticketTypeItemId: "tti_tee",
         productId: "prod_tee",
         productName: "Remera",
         quantity: 1,
@@ -253,6 +264,7 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: false,
+        ...socialFields,
     idempotencyKey: "idem_venue_bad",
   }).then(
     () => null,
@@ -274,6 +286,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_venue_bad2",
     })
     .then(
@@ -299,6 +312,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_ina",
     })
     .then(
@@ -322,6 +336,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_fut",
     })
     .then(
@@ -344,6 +359,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_end",
     })
     .then(
@@ -383,6 +399,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: true,
+        ...socialFields,
       idempotencyKey: "idem_var",
     })
     .then(
@@ -406,6 +423,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_badvar",
     })
     .then(
@@ -429,6 +447,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_oos",
     })
     .then(
@@ -455,6 +474,7 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: true,
+        ...socialFields,
     idempotencyKey: "idem_ok_1",
   });
   assert(created.status === "PENDING_PAYMENT", "19 status");
@@ -481,6 +501,7 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: false,
+        ...socialFields,
     idempotencyKey: "idem_free",
   });
   assert(free.totalAmount === 0, "11 free");
@@ -502,6 +523,7 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: true,
+        ...socialFields,
     idempotencyKey: "idem_ok_1",
   });
   assert(again.registrationId === created.registrationId, "22 idempotent");
@@ -522,6 +544,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_ok_1",
     })
     .then(
@@ -545,6 +568,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_dup",
     })
     .then(
@@ -599,6 +623,7 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: false,
+        ...socialFields,
     idempotencyKey: "idem_cara",
   });
   assert(r2.status === "PENDING_PAYMENT", "25 second seat");
@@ -618,6 +643,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_race_a",
     }),
     svc.createRegistration({
@@ -634,6 +660,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_race_b",
     }),
   ]);

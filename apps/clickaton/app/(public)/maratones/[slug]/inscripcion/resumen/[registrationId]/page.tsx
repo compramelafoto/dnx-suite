@@ -129,11 +129,23 @@ export default async function PublicRegistrationSummaryPage({
         {s.items.length > 0 ? (
           <section>
             <h2 className="text-lg font-semibold">Productos incluidos</h2>
-            <ul className="mt-4 space-y-2 text-sm">
+            <ul className="mt-4 space-y-3 text-sm">
               {s.items.map((item, idx) => (
                 <li key={`${item.nameSnapshot}-${idx}`}>
-                  {item.quantity}× {item.nameSnapshot}
-                  {item.skuSnapshot ? ` (${item.skuSnapshot})` : ""}
+                  <p className="font-medium">
+                    {item.quantity}× {item.nameSnapshot}
+                  </p>
+                  {item.variantNameSnapshot ? (
+                    <p className="text-ck-text-secondary">
+                      Talle: {item.variantNameSnapshot} · Incluida · Precio adicional:{" "}
+                      {formatPublicPrice(0, s.currency)}
+                    </p>
+                  ) : null}
+                  {item.skuSnapshot ? (
+                    <p className="font-mono text-xs text-ck-text-muted">
+                      {item.skuSnapshot}
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ul>

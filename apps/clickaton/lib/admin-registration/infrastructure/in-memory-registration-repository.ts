@@ -11,6 +11,7 @@ import type {
   AssignmentPersistInput,
   ClickatonAdminRegistrationRepository,
   InternalNotePersistInput,
+  ItemFulfillmentPersistInput,
   TransitionPersistInput,
 } from "../domain/repository";
 import type {
@@ -86,6 +87,7 @@ export function createInMemoryAdminRegistrationStore(): InMemoryAdminRegistratio
 }
 
 function toListItem(row: InMemoryAdminRegistrationRow): AdminRegistrationListItem {
+  const primary = row.items.find((i) => i.isIncluded) ?? row.items[0] ?? null;
   return {
     id: row.id,
     editionId: row.editionId,
@@ -101,6 +103,9 @@ function toListItem(row: InMemoryAdminRegistrationRow): AdminRegistrationListIte
     currency: row.currency,
     totalAmount: row.totalAmount,
     itemCount: row.items.length,
+    includedProductLabel: primary?.nameSnapshot ?? null,
+    shirtSizeLabel: primary?.variantNameSnapshot ?? null,
+    itemFulfillmentStatus: primary?.fulfillmentStatus ?? null,
     paymentOrderId: row.paymentOrderId,
     holdExpiresAt: row.holdExpiresAt,
     confirmedAt: row.confirmedAt,
@@ -108,6 +113,15 @@ function toListItem(row: InMemoryAdminRegistrationRow): AdminRegistrationListIte
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     hasInternalNotes: row.audits.some((a) => a.action === "INTERNAL_NOTE"),
+    fotoRankParticipantId: null,
+    fotoRankSyncStatus: null,
+    fotoRankSyncedAt: null,
+    instagramHandle: null,
+    profilePhotoAssetId: null,
+    welcomeCardId: null,
+    welcomeCardStatus: null,
+    welcomeCardAssetId: null,
+    welcomePublicationStatus: null,
   };
 }
 
@@ -115,6 +129,8 @@ function toDetail(row: InMemoryAdminRegistrationRow): AdminRegistrationDetail {
   const list = toListItem(row);
   return {
     ...list,
+    fotoRankSync: null,
+    welcomeCard: null,
     userId: row.userId,
     phone: row.phone,
     city: row.city,
@@ -191,6 +207,24 @@ export function createInMemoryAdminRegistrationRepository(
             r.lastName.toLowerCase().includes(q) ||
             r.email.toLowerCase().includes(q) ||
             (r.visibleCode?.toLowerCase().includes(q) ?? false),
+        );
+      }
+      if (filters.shirtSize) {
+        const size = filters.shirtSize.trim().toLowerCase();
+        rows = rows.filter((r) =>
+          r.items.some(
+            (i) =>
+              i.isIncluded &&
+              (i.variantNameSnapshot?.toLowerCase() === size ||
+                i.skuSnapshot?.toLowerCase().endsWith(`-${size}`)),
+          ),
+        );
+      }
+      if (filters.fulfillmentStatus) {
+        rows = rows.filter((r) =>
+          r.items.some(
+            (i) => i.isIncluded && i.fulfillmentStatus === filters.fulfillmentStatus,
+          ),
         );
       }
       rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -315,6 +349,34 @@ export function createInMemoryAdminRegistrationRepository(
         createdAt: new Date(),
       });
       row.updatedAt = new Date();
+      return toDetail(row);
+    },
+
+    async updateItemFulfillment(input: ItemFulfillmentPersistInput) {
+      const row = store.rows.get(input.registrationId);
+      if (!row) throw new AdminRegistrationNotFoundError(input.registrationId);
+      const item = row.items.find((i) => i.id === input.registrationItemId);
+      if (!item) throw new AdminRegistrationNotFoundError(input.registrationItemId);
+      const previous = item.fulfillmentStatus ?? "PENDING";
+      const now = new Date();
+      item.fulfillmentStatus = input.nextStatus;
+      item.fulfilledAt = input.nextStatus === "DELIVERED" ? now : null;
+      item.fulfilledByUserId =
+        input.nextStatus === "DELIVERED" ? input.actorUserId : null;
+      row.audits.unshift({
+        id: id("aud"),
+        action: "ITEM_FULFILLMENT_UPDATED",
+        source: "admin",
+        actorUserId: input.actorUserId,
+        metadata: {
+          registrationItemId: item.id,
+          previousStatus: previous,
+          nextStatus: input.nextStatus,
+          reason: input.reason ?? null,
+        },
+        createdAt: now,
+      });
+      row.updatedAt = now;
       return toDetail(row);
     },
   };

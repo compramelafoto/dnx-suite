@@ -29,7 +29,8 @@
     "cuantocobro:test:characterization": "pnpm --filter compramelafoto run test:cuantocobro:characterization",
     "cuanto-cobro:test:characterization": "pnpm --filter compramelafoto run test:cuantocobro:characterization",
     "e2e:prepare": "pnpm --filter compramelafoto run e2e:prepare",
-    "e2e:school": "pnpm --filter compramelafoto run e2e:school"
+    "e2e:school": "pnpm --filter compramelafoto run e2e:school",
+    "clickaton:release:check-env": "pnpm --filter clickaton release:check-env"
   },
   "devDependencies": {
     "prettier": "^3.7.4",

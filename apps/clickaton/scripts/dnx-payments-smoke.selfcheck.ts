@@ -131,6 +131,7 @@ function seedCatalog(opts: SeedOpts) {
     shortDescription: null,
     status: "REGISTRATION_OPEN",
     isPublished: true,
+    registrationEnabled: true,
     registrationOpenAt: new Date(now - 86_400_000),
     registrationCloseAt: new Date(now + 86_400_000),
     startAt: null,
@@ -172,6 +173,7 @@ function seedCatalog(opts: SeedOpts) {
     salesEndAt: new Date(now + 86_400_000),
     products: [
       {
+        ticketTypeItemId: `tti_${opts.slug}`,
         productId: `p_${opts.slug}`,
         productName: "Remera TEST",
         quantity: 1,

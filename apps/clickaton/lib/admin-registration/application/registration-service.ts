@@ -192,6 +192,39 @@ export function createAdminRegistrationService(deps: {
         note,
       });
     },
+
+    async updateItemFulfillment(
+      actor: AdminRegistrationActor,
+      input: {
+        registrationId: string;
+        registrationItemId: string;
+        nextStatus: "PENDING" | "READY" | "DELIVERED" | "CANCELLED";
+        reason?: string | null;
+      },
+    ): Promise<AdminRegistrationDetail> {
+      auth.assertCapability(actor, "registration.mutate_exceptional");
+      const existing = await repo.getById(input.registrationId);
+      if (!existing) throw new AdminRegistrationNotFoundError(input.registrationId);
+      const item = existing.items.find((i) => i.id === input.registrationItemId);
+      if (!item) {
+        throw new AdminRegistrationNotFoundError(input.registrationItemId);
+      }
+      if (input.nextStatus === "PENDING" && item.fulfillmentStatus === "DELIVERED") {
+        const reason = (input.reason ?? "").trim();
+        if (reason.length < 3) {
+          throw new AdminRegistrationValidationError({
+            reason: "Para revertir una entrega indicá un motivo (mín. 3 caracteres).",
+          });
+        }
+      }
+      return repo.updateItemFulfillment({
+        registrationId: existing.id,
+        registrationItemId: item.id,
+        actorUserId: actor.userId,
+        nextStatus: input.nextStatus,
+        reason: input.reason ?? null,
+      });
+    },
   };
 }
 

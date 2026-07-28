@@ -212,11 +212,19 @@ describe("10D3I-I1 Clickatón owner OAuth", () => {
     });
     const started3 = await s3.startConnect({ actor: owner });
     const st3 = new URL(started3.authorizeUrl).searchParams.get("state")!;
-    await s3.completeCallback({ actor: owner, stateToken: st3, code: "c1" });
-    await assert.rejects(
-      () => s3.completeCallback({ actor: owner, stateToken: st3, code: "c2" }),
-      (err: unknown) => err instanceof OwnerOAuthError && err.code === "STATE_REPLAY",
-    );
+    const first = await s3.completeCallback({
+      actor: owner,
+      stateToken: st3,
+      code: "c1",
+    });
+    // Replay with used state returns existing account (no second exchange / no throw).
+    const replay = await s3.completeCallback({
+      actor: owner,
+      stateToken: st3,
+      code: "c2",
+    });
+    assert.equal(replay.paymentAccountId, first.paymentAccountId);
+    assert.equal(replay.status, "ACTIVE");
   });
 
   it("blocks callback for wrong user and duplicate account", async () => {
@@ -363,6 +371,100 @@ describe("10D3I-I1 Clickatón owner OAuth", () => {
     assert.equal(result.productionFlagsOff, true);
     assert.ok(result.blockers.includes("partnerRodrigoConnected"));
     assert.ok(result.blockers.includes("partnerTamaraConnected"));
+  });
+
+  it("10A.1 idempotent callback replay does not re-exchange code", async () => {
+    const store = createMemoryOwnerOAuthStore();
+    let exchanges = 0;
+    const mpClient: ClickatonMpOAuthHttpClient = {
+      async exchangeAuthorizationCode() {
+        exchanges += 1;
+        return {
+          accessToken: "APP_USR-test-access-token-owner",
+          refreshToken: "TG-test-refresh",
+          expiresIn: 3600,
+          providerUserId: "555",
+          scope: "offline_access read",
+        };
+      },
+      async fetchAuthorizedUser() {
+        return {
+          providerUserId: "555",
+          nicknameMasked: "c***n",
+          emailMasked: "o***@c***",
+        };
+      },
+    };
+    const s = createTestOwnerOAuthService({
+      store,
+      vaultStore: createMemoryCredentialStore(),
+      mpClient,
+      env: authorizedEnv(),
+    });
+    const owner = actor(1, [grant(1, "DNX_FINANCE_OWNER")]);
+    const started = await s.startConnect({ actor: owner });
+    const st = new URL(started.authorizeUrl).searchParams.get("state")!;
+    const first = await s.completeCallback({
+      actor: owner,
+      stateToken: st,
+      code: "code-once",
+    });
+    const second = await s.completeCallback({
+      actor: owner,
+      stateToken: st,
+      code: "code-once",
+    });
+    assert.equal(exchanges, 1);
+    assert.equal(first.paymentAccountId, second.paymentAccountId);
+    assert.equal(second.status, "ACTIVE");
+  });
+
+  it("10A.1 connected account is global DnxPaymentAccount (FI-linked, not edition)", async () => {
+    const store = createMemoryOwnerOAuthStore();
+    const s = createTestOwnerOAuthService({
+      store,
+      vaultStore: createMemoryCredentialStore(),
+      mpClient: mockMp("777"),
+      env: authorizedEnv(),
+    });
+    const owner = actor(42, [grant(42, "DNX_FINANCE_OWNER")]);
+    const started = await s.startConnect({ actor: owner });
+    const st = new URL(started.authorizeUrl).searchParams.get("state")!;
+    const result = await s.completeCallback({
+      actor: owner,
+      stateToken: st,
+      code: "c",
+    });
+    const account = [...store.accounts.values()].find(
+      (a) => a.id === result.paymentAccountId,
+    );
+    assert.ok(account);
+    assert.equal(account.originApp, "clickaton");
+    assert.ok(account.financialIdentityId);
+    assert.equal(account.environment, "PROD");
+    assert.equal(account.provider, "MERCADOPAGO");
+    assert.ok(account.credentialReference);
+    assert.ok(!("editionId" in account));
+    // Tokens never exposed on result
+    assert.ok(!("accessToken" in result));
+    assert.ok(!("refreshToken" in result));
+  });
+
+  it("10A.1 MercadoPagoOAuthService.exchangeAuthorizationCode sanitizes tokens", async () => {
+    const { MercadoPagoOAuthService, createFakeClickatonMpOAuthHttpClient } =
+      await import("./mp-client.js");
+    const client = createFakeClickatonMpOAuthHttpClient({ providerUserId: "1" });
+    const sanitized = await MercadoPagoOAuthService.exchangeAuthorizationCode(client, {
+      authorizationCode: "x",
+      redirectUri: CLICKATON_MP_REDIRECTS.staging,
+      clientId: "id",
+      clientSecret: "secret",
+      expectedEnvironment: "PROD",
+    });
+    assert.equal(sanitized.providerAccountId, "1");
+    assert.equal(sanitized.connectionStatus, "EXCHANGED");
+    assert.ok(!("accessToken" in sanitized));
+    assert.ok(!("refreshToken" in sanitized));
   });
 
   it("dual-control challenge verifies code + confirmation text", () => {

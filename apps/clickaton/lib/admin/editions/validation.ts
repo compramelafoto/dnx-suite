@@ -11,6 +11,7 @@ export type EditionValidationErrors = Partial<Record<keyof ClickatonEditionFormI
 };
 
 const FOTORANK_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const ALLOWED_CURRENCIES = new Set(["ARS"]);
 
 function hasUrlCredentials(url: URL): boolean {
   return Boolean(url.username || url.password);
@@ -120,6 +121,25 @@ export function validateEditionFormInput(
     errors.fotorankContestId = "Referencia FotoRank inválida (use letras, números, guiones o guion bajo).";
   }
 
+  const currency = (input.currency.trim() || "ARS").toUpperCase();
+  if (!ALLOWED_CURRENCIES.has(currency)) {
+    errors.currency = "Moneda no admitida (MVP: ARS).";
+  }
+
+  const country = (input.country.trim() || "AR").toUpperCase();
+  if (country.length < 2 || country.length > 2) {
+    errors.country = "Usá código de país ISO de 2 letras (ej. AR).";
+  }
+
+  if (input.registrationEnabled && status === "DRAFT") {
+    errors.registrationEnabled =
+      "No se pueden habilitar inscripciones mientras la edición está en borrador.";
+  }
+  if (input.registrationEnabled && !input.isPublished) {
+    errors.registrationEnabled =
+      "Publicá la edición antes de habilitar inscripciones (o desmarcá el gate).";
+  }
+
   if (Object.keys(errors).length > 0) {
     return { ok: false, errors };
   }
@@ -133,12 +153,18 @@ export function validateEditionFormInput(
       description: input.description.trim() || null,
       status,
       isPublished: Boolean(input.isPublished),
+      registrationEnabled: Boolean(input.registrationEnabled),
       timezone: input.timezone.trim() || null,
       startAt,
       endAt,
       registrationOpenAt,
       registrationCloseAt,
       defaultCapacity: capacity === "invalid" ? null : capacity,
+      location: input.location.trim() || null,
+      city: input.city.trim() || null,
+      provinceOrState: input.provinceOrState.trim() || null,
+      country,
+      currency,
       fotorankContestId: fotorankContestId || null,
       coverImageUrl: coverImageUrl || null,
     },
@@ -152,12 +178,18 @@ export type EditionValidatedData = {
   description: string | null;
   status: ClickatonEditionStatus;
   isPublished: boolean;
+  registrationEnabled: boolean;
   timezone: string | null;
   startAt: Date | null;
   endAt: Date | null;
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   defaultCapacity: number | null;
+  location: string | null;
+  city: string | null;
+  provinceOrState: string | null;
+  country: string;
+  currency: string;
   fotorankContestId: string | null;
   coverImageUrl: string | null;
 };
@@ -170,12 +202,20 @@ export function editionFormInputFromFormData(formData: FormData): ClickatonEditi
     description: formData.get("description")?.toString() ?? "",
     status: (formData.get("status")?.toString() ?? "DRAFT") as ClickatonEditionStatus,
     isPublished: formData.get("isPublished") === "on" || formData.get("isPublished") === "true",
+    registrationEnabled:
+      formData.get("registrationEnabled") === "on" ||
+      formData.get("registrationEnabled") === "true",
     timezone: formData.get("timezone")?.toString() ?? "",
     startAt: formData.get("startAt")?.toString() ?? "",
     endAt: formData.get("endAt")?.toString() ?? "",
     registrationOpenAt: formData.get("registrationOpenAt")?.toString() ?? "",
     registrationCloseAt: formData.get("registrationCloseAt")?.toString() ?? "",
     defaultCapacity: formData.get("defaultCapacity")?.toString() ?? "",
+    location: formData.get("location")?.toString() ?? "",
+    city: formData.get("city")?.toString() ?? "",
+    provinceOrState: formData.get("provinceOrState")?.toString() ?? "",
+    country: formData.get("country")?.toString() ?? "AR",
+    currency: formData.get("currency")?.toString() ?? "ARS",
     fotorankContestId: formData.get("fotorankContestId")?.toString() ?? "",
     coverImageUrl: formData.get("coverImageUrl")?.toString() ?? "",
   };

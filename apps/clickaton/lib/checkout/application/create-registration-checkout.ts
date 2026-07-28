@@ -22,17 +22,17 @@ function mapEligibilityReason(reason: string | null): CheckoutError {
     case "payment_already_approved":
       return new CheckoutError("PAYMENT_ALREADY_APPROVED", "El pago ya fue aprobado.");
     case "already_confirmed":
-      return new CheckoutError("PAYMENT_ALREADY_APPROVED", "La inscripción ya está confirmada.");
+      return new CheckoutError("PAYMENT_ALREADY_APPROVED", "La inscripci?n ya est? confirmada.");
     case "registration_expired":
-      return new CheckoutError("REGISTRATION_EXPIRED", "La reserva venció.");
+      return new CheckoutError("REGISTRATION_EXPIRED", "La reserva venci?.");
     case "cancelled":
-      return new CheckoutError("REGISTRATION_NOT_PAYABLE", "La inscripción está cancelada.");
+      return new CheckoutError("REGISTRATION_NOT_PAYABLE", "La inscripci?n est? cancelada.");
     case "not_payable_status":
-      return new CheckoutError("REGISTRATION_NOT_PAYABLE", "La inscripción no admite pago.");
+      return new CheckoutError("REGISTRATION_NOT_PAYABLE", "La inscripci?n no admite pago.");
     case "holds_missing":
       return new CheckoutError("HOLD_CONFLICT", "No hay holds activos para esta reserva.");
     case "invalid_amount":
-      return new CheckoutError("CHECKOUT_NOT_AVAILABLE", "Importe inválido.");
+      return new CheckoutError("CHECKOUT_NOT_AVAILABLE", "Importe inv?lido.");
     default:
       return new CheckoutError("CHECKOUT_NOT_AVAILABLE", "Checkout no disponible.");
   }
@@ -82,12 +82,12 @@ export function createRegistrationCheckoutUseCase(deps: {
       }
       if (!Number.isInteger(eligible.amountMinor) || eligible.amountMinor <= 0) {
         log?.({ event: "invalid_amount", registrationId: input.registrationId });
-        throw new CheckoutError("CHECKOUT_NOT_AVAILABLE", "Importe inválido para cobro.");
+        throw new CheckoutError("CHECKOUT_NOT_AVAILABLE", "Importe inv?lido para cobro.");
       }
 
       const registration = await deps.publicRepo.getRegistration(input.registrationId);
       if (!registration) {
-        throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");
+        throw new CheckoutError("NOT_FOUND", "Inscripci?n no encontrada.");
       }
 
       const reservationKey = registration.paymentIdempotencyKey;
@@ -98,7 +98,7 @@ export function createRegistrationCheckoutUseCase(deps: {
         );
       }
 
-      // Si ya hay orden pendiente reutilizable, el cliente la devolverá.
+      // Si ya hay orden pendiente reutilizable, el cliente la devolver?.
       const attempt =
         registration.paymentOrderId &&
         (registration.paymentStatus === "FAILED" ||
@@ -113,6 +113,81 @@ export function createRegistrationCheckoutUseCase(deps: {
         attempt,
       });
 
+      // Etapa 6: snapshot financiero inmutable = fuente de verdad del checkout.
+      const providerMode = (
+        process.env.CLICKATON_DNX_PAYMENTS_PROVIDER ?? "manual"
+      ).toLowerCase();
+      const requiresEditionFinance =
+        providerMode.includes("mercado_pago") || providerMode.includes("mp_");
+
+      let editionFinance: CreatePaymentOrderInput["editionFinance"];
+      try {
+        const { attachFinanceSnapshotToRegistration } = await import(
+          "@/lib/admin/edition-finance/infrastructure/prisma-edition-finance"
+        );
+        const { toEditionCheckoutFinanceSnapshot } = await import(
+          "@/lib/admin/edition-finance/domain/snapshot"
+        );
+        const { resolveCollectorAccessTokenFromPaymentAccount } = await import(
+          "@/lib/admin/edition-finance/infrastructure/resolve-collector-token"
+        );
+
+        const gross =
+          registration.money.subtotalAmount + registration.money.discountAmount;
+        const snap = await attachFinanceSnapshotToRegistration({
+          editionId: registration.editionId,
+          registrationId: registration.id,
+          currency: registration.money.currency,
+          grossAmount: gross > 0 ? gross : registration.money.totalAmount,
+          discountAmount: registration.money.discountAmount,
+          providerFee: 0,
+          platformFee: 0,
+        });
+        const checkoutSnap = toEditionCheckoutFinanceSnapshot(snap);
+        const collectorAccountId = checkoutSnap.allocations[0]?.paymentAccountId;
+        if (!collectorAccountId) {
+          throw new CheckoutError(
+            "CHECKOUT_NOT_AVAILABLE",
+            "Snapshot financiero sin payment account del beneficiario.",
+          );
+        }
+
+        let collectorAccessToken: string | undefined;
+        if (requiresEditionFinance) {
+          const tokenRes =
+            await resolveCollectorAccessTokenFromPaymentAccount(collectorAccountId);
+          if (!tokenRes.ok) {
+            throw new CheckoutError(
+              "CHECKOUT_NOT_AVAILABLE",
+              `Cuenta Mercado Pago del beneficiario no usable (${tokenRes.code}).`,
+            );
+          }
+          collectorAccessToken = tokenRes.accessToken;
+        }
+
+        editionFinance = {
+          snapshot: checkoutSnap,
+          ...(collectorAccessToken ? { collectorAccessToken } : {}),
+        };
+      } catch (error) {
+        if (error instanceof CheckoutError) throw error;
+        if (requiresEditionFinance) {
+          throw new CheckoutError(
+            "CHECKOUT_NOT_AVAILABLE",
+            error instanceof Error
+              ? error.message.slice(0, 160)
+              : "No se pudo resolver la distribuci?n financiera.",
+          );
+        }
+        log?.({
+          event: "finance_snapshot_skipped",
+          registrationId: registration.id,
+          meta: {
+            reason: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+          },
+        });
+      }
+
       const base = input.publicBaseUrl.replace(/\/$/, "");
       const tokenQ = encodeURIComponent(input.accessToken);
       const orderInput: CreatePaymentOrderInput = {
@@ -122,7 +197,7 @@ export function createRegistrationCheckoutUseCase(deps: {
         idempotencyKey,
         amountMinor: eligible.amountMinor,
         currency: "ARS",
-        description: `Inscripción Clickatón TEST · ${eligible.publicCode ?? registration.id.slice(0, 8)}`,
+        description: `Inscripci?n Clickat?n TEST ? ${eligible.publicCode ?? registration.id.slice(0, 8)}`,
         payer: {
           email: registration.participant.email,
           firstName: registration.participant.firstName,
@@ -136,6 +211,7 @@ export function createRegistrationCheckoutUseCase(deps: {
           ticketTypeId: registration.ticketTypeId,
           sourceApp: "CLICKATON",
         },
+        ...(editionFinance ? { editionFinance } : {}),
       };
 
       const result = await deps.payments.createOrder(orderInput);

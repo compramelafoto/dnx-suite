@@ -21,9 +21,11 @@ export function LearningSection() {
           />
           <PhotoFrame
             variant="editorial"
-            alt="Momento de revisión y aprendizaje fotográfico"
+            src={learning.image.src}
+            alt={learning.image.alt}
             overlay="soft"
             className="max-w-xl lg:justify-self-end"
+            sizes="(max-width: 1024px) 100vw, 45vw"
           />
         </div>
         <BrushStroke className="mt-6" />

@@ -31,6 +31,15 @@ export default async function AdminIntegrationsPage() {
         <AdminIntegrationCard integration={integrations.fotorank} />
         <AdminIntegrationCard integration={integrations.payments} />
       </div>
+
+      <Card variant="outlined" className="text-sm">
+        <a
+          href="/admin/integraciones/diagnostico"
+          className="font-medium text-ck-text-primary underline-offset-4 hover:underline"
+        >
+          Diagnóstico OAuth / emails / reconciliación →
+        </a>
+      </Card>
     </div>
   );
 }

@@ -9,14 +9,26 @@ const editionSelect = {
   description: true,
   status: true,
   isPublished: true,
+  registrationEnabled: true,
   timezone: true,
   startAt: true,
   endAt: true,
   registrationOpenAt: true,
   registrationCloseAt: true,
   defaultCapacity: true,
+  location: true,
+  city: true,
+  provinceOrState: true,
+  country: true,
+  currency: true,
   fotorankContestId: true,
+  fotoRankSyncEnabled: true,
+  fotoRankSyncMode: true,
+  fotoRankValidationStatus: true,
+  fotoRankLastValidatedAt: true,
+  fotoRankValidationError: true,
   coverImageUrl: true,
+  paymentBeneficiaryConfig: true,
   createdAt: true,
   updatedAt: true,
   _count: { select: { venues: true } },
@@ -30,14 +42,26 @@ function mapEdition(row: {
   description: string | null;
   status: ClickatonEditionRecord["status"];
   isPublished: boolean;
+  registrationEnabled: boolean;
   timezone: string | null;
   startAt: Date | null;
   endAt: Date | null;
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   defaultCapacity: number | null;
+  location: string | null;
+  city: string | null;
+  provinceOrState: string | null;
+  country: string;
+  currency: string;
   fotorankContestId: string | null;
+  fotoRankSyncEnabled: boolean;
+  fotoRankSyncMode: ClickatonEditionRecord["fotoRankSyncMode"];
+  fotoRankValidationStatus: ClickatonEditionRecord["fotoRankValidationStatus"];
+  fotoRankLastValidatedAt: Date | null;
+  fotoRankValidationError: string | null;
   coverImageUrl: string | null;
+  paymentBeneficiaryConfig: unknown;
   createdAt: Date;
   updatedAt: Date;
   _count?: { venues: number };
@@ -134,8 +158,8 @@ export async function getEditionDashboardMetrics(): Promise<
 
     const mapped = editions.map(mapEdition);
     const now = Date.now();
-    const operativeEditions = mapped.filter((e) =>
-      e.status === "REGISTRATION_OPEN" || e.status === "IN_PROGRESS",
+    const operativeEditions = mapped.filter(
+      (e) => e.status === "REGISTRATION_OPEN" || e.status === "IN_PROGRESS",
     ).length;
 
     const nextEdition =

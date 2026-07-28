@@ -13,6 +13,15 @@ import { formatAdminDateTime } from "@/lib/admin/datetime-input";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { listVenuesByEditionId } from "@/lib/admin/venues/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import {
+  getEditionFotoRankAdminData,
+  markFotoRankSyncManualReviewFormAction,
+  retryAllPendingFotoRankSyncFormAction,
+  retryFotoRankSyncFormAction,
+  saveEditionFotoRankLinkFormAction,
+  validateEditionFotoRankContestFormAction,
+} from "@/lib/fotorank-sync/actions/fotorank-sync-admin";
+import { Badge } from "@/components/ui/Badge";
 
 type Props = {
   params: Promise<{ editionId: string }>;
@@ -37,6 +46,7 @@ export default async function EditionDetailPage({ params, searchParams }: Props)
   const edition = editionResult.data;
   const venuesResult = await listVenuesByEditionId(editionId);
   const venues = venuesResult.ok ? venuesResult.data : [];
+  const fr = await getEditionFotoRankAdminData(editionId);
 
   return (
     <div className="space-y-8">
@@ -52,6 +62,27 @@ export default async function EditionDetailPage({ params, searchParams }: Props)
             <EditionUnpublishButton editionId={edition.id} isPublished={edition.isPublished} />
             <Button href={`${adminRoutes.editions}/${edition.id}/editar`} variant="secondary">
               Editar
+            </Button>
+            <Button href={`${adminRoutes.editions}/${edition.id}/precios`} variant="secondary">
+              Precios
+            </Button>
+            <Button href={`${adminRoutes.editions}/${edition.id}/finanzas`} variant="secondary">
+              Finanzas
+            </Button>
+            <Button href={`${adminRoutes.editions}/${edition.id}/cronograma`} variant="secondary">
+              Cronograma
+            </Button>
+            <Button href={`${adminRoutes.editions}/${edition.id}/consignas`} variant="secondary">
+              Consignas
+            </Button>
+            <Button href={`${adminRoutes.editions}/${edition.id}/envios`} variant="secondary">
+              Envíos
+            </Button>
+            <Button href={`${adminRoutes.editions}/${edition.id}/admision`} variant="secondary">
+              Admisión
+            </Button>
+            <Button href={`${adminRoutes.editions}/${edition.id}/acreditacion`} variant="secondary">
+              Acreditación
             </Button>
             <Button href={`${adminRoutes.editions}/${edition.id}/sedes/nueva`} variant="primary">
               Nueva sede
@@ -72,6 +103,13 @@ export default async function EditionDetailPage({ params, searchParams }: Props)
           <div>
             <dt className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">Zona horaria</dt>
             <dd className="text-sm text-ck-text">{edition.timezone ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">Inscripciones</dt>
+            <dd className="text-sm text-ck-text">
+              {edition.registrationEnabled ? "Habilitadas" : "Deshabilitadas"} ·{" "}
+              {edition.isPublished ? "Publicada" : "No publicada"} · {edition.currency}
+            </dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">Inicio</dt>
@@ -97,6 +135,115 @@ export default async function EditionDetailPage({ params, searchParams }: Props)
         {edition.description ? (
           <p className="text-sm leading-relaxed text-ck-text-secondary">{edition.description}</p>
         ) : null}
+      </Card>
+
+      <Card variant="outlined" className="space-y-4 p-5">
+        <h2 className="text-lg font-semibold">Integración FotoRank</h2>
+        <p className="text-sm text-ck-text-secondary">
+          Sync postpago durable. Si FotoRank falla, la inscripción permanece PAID. Placa /
+          Instagram → Etapa 8.
+        </p>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            Validación:{" "}
+            <Badge
+              variant={
+                edition.fotoRankValidationStatus === "VALID" ? "success" : "warning"
+              }
+            >
+              {edition.fotoRankValidationStatus}
+            </Badge>
+          </div>
+          <div>Sync: {edition.fotoRankSyncEnabled ? "habilitado" : "deshabilitado"}</div>
+          <div>Modo: {edition.fotoRankSyncMode}</div>
+          <div>
+            Última validación:{" "}
+            {edition.fotoRankLastValidatedAt
+              ? formatAdminDateTime(edition.fotoRankLastValidatedAt)
+              : "—"}
+          </div>
+          <div>Pendientes: {fr.stats.PENDING ?? 0}</div>
+          <div>Syncados: {fr.stats.SYNCED ?? 0}</div>
+          <div>Fallidos/retry: {(fr.stats.RETRY_PENDING ?? 0) + (fr.stats.FAILED ?? 0)}</div>
+          <div>Revisión manual: {fr.stats.MANUAL_REVIEW ?? 0}</div>
+        </dl>
+        {edition.fotoRankValidationError ? (
+          <p className="text-sm text-amber-700">{edition.fotoRankValidationError}</p>
+        ) : null}
+        <form
+          action={saveEditionFotoRankLinkFormAction.bind(null, editionId)}
+          className="space-y-3 rounded border border-ck-border p-4"
+        >
+          <label className="block space-y-2 text-sm">
+            <span className="text-ck-text-secondary">ID concurso FotoRank</span>
+            <input
+              name="fotorankContestId"
+              defaultValue={edition.fotorankContestId ?? ""}
+              className="block w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
+              placeholder="cuid del FotorankContest"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="fotoRankSyncEnabled"
+              defaultChecked={edition.fotoRankSyncEnabled}
+            />
+            Habilitar sync postpago
+          </label>
+          <div className="flex flex-wrap gap-3">
+            <Button type="submit" variant="primary">
+              Guardar vínculo
+            </Button>
+          </div>
+        </form>
+        <div className="flex flex-wrap gap-3">
+          <form action={validateEditionFotoRankContestFormAction.bind(null, editionId)}>
+            <Button type="submit" variant="secondary">
+              Validar concurso
+            </Button>
+          </form>
+          <form action={retryAllPendingFotoRankSyncFormAction.bind(null, editionId)}>
+            <Button type="submit" variant="secondary">
+              Reintentar pendientes
+            </Button>
+          </form>
+        </div>
+        {fr.recent.length > 0 ? (
+          <ul className="space-y-2 text-sm">
+            {fr.recent.map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 border-b border-ck-border/50 py-2"
+              >
+                <span>
+                  <code className="text-xs">{row.registrationId.slice(0, 8)}…</code> ·{" "}
+                  {row.status}
+                  {row.fotoRankParticipantId
+                    ? ` · FR ${row.fotoRankParticipantId.slice(0, 8)}…`
+                    : ""}
+                  {row.lastErrorCode ? ` · ${row.lastErrorCode}` : ""}
+                </span>
+                <span className="flex gap-2">
+                  <form action={retryFotoRankSyncFormAction.bind(null, editionId)}>
+                    <input type="hidden" name="syncId" value={row.id} />
+                    <Button type="submit" variant="text" size="sm">
+                      Reintentar
+                    </Button>
+                  </form>
+                  <form action={markFotoRankSyncManualReviewFormAction.bind(null, editionId)}>
+                    <input type="hidden" name="syncId" value={row.id} />
+                    <Button type="submit" variant="text" size="sm">
+                      Manual
+                    </Button>
+                  </form>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-ck-text-muted">Sin sincronizaciones todavía.</p>
+        )}
       </Card>
 
       <section className="space-y-4">

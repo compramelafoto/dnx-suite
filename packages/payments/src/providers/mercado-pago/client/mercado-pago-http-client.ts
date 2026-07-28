@@ -119,6 +119,16 @@ export class MercadoPagoHttpClient {
           await sleep(BASE_BACKOFF_MS * 2 ** attempt);
           continue;
         }
+        if (!(err instanceof Error) && attempt < maxAttempts - 1) {
+          lastError = new PaymentProviderTemporaryError(
+            sanitizeErrorMessage(`Mercado Pago request failed: ${String(err)}`),
+          );
+          await sleep(BASE_BACKOFF_MS * 2 ** attempt);
+          continue;
+        }
+        if (err instanceof Error) {
+          lastError = err;
+        }
         if (err instanceof DOMException && err.name === "AbortError") {
           const timeoutErr = new PaymentProviderTemporaryError(
             `Mercado Pago request timed out after ${this.config.requestTimeoutMs}ms`,
@@ -140,15 +150,20 @@ export class MercadoPagoHttpClient {
 
   private async executeOnce<T>(opts: MercadoPagoRequestOptions): Promise<ParsedMpResponse<T>> {
     const correlationId = opts.correlationId ?? crypto.randomUUID();
+    const bearer = opts.accessTokenOverride?.trim() || this.config.accessToken;
+    if (opts.accessTokenOverride?.trim() && WRITE_METHODS.has(opts.method)) {
+      // Collector OAuth también debe ser sandbox en path TEST.
+      assertSandboxToken({ ...this.config, accessToken: bearer });
+    }
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.config.accessToken}`,
+      Authorization: `Bearer ${bearer}`,
       "Content-Type": "application/json",
       "User-Agent": `dnx-payments-mp/0.1${this.config.platformId ? ` (${this.config.platformId})` : ""}`,
       "X-Correlation-Id": correlationId,
       ...opts.headers,
     };
 
-    if (this.config.environment === "sandbox") {
+    if (this.config.environment === "sandbox" && !opts.skipTestToken) {
       headers["x-test-token"] = "true";
     }
 

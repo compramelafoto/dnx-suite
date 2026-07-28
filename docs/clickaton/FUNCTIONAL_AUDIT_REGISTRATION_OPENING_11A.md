@@ -259,7 +259,7 @@ Pesos altos en: inscripción, checkout LIVE, emails, QR usable, edición publica
 | Etapa | Objetivo | Estado vs bloqueantes 11A |
 |---|---|---|
 | **11B** | Funnel completo participante (edición real TEST, copy, legales, emails, QR, credencial, Mi cuenta, free, holds, SEO seguro, runbook) | Ver `REGISTRATION_FUNNEL_COMPLETE_11B.md` |
-| **11C** | Check-in completo y operación de acreditación en sede | Pendiente |
+| **11C** | Check-in completo y operación de acreditación en sede | **Hecho en Etapa 12** — ver `CLICKATON_ACCREDITATION_AND_CHECKIN.md` (LIVE off por defecto) |
 | **11D** | Panel organizador | Pendiente |
 | **11E** | Sponsors / CRM packs | Pendiente |
 | **11F** | Jurados | Pendiente |

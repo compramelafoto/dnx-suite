@@ -100,7 +100,11 @@ Métricas reales cuando la DB responde:
 
 ## Frontera FotoRank
 
-Clickatón administra el **producto de marca** (ediciones/sedes). FotoRank ejecuta consignas, fotos, jurados y rankings. El campo `fotorankContestId` es enlace operativo futuro, no integración en esta etapa.
+Clickatón administra el **producto de marca** (ediciones/sedes). FotoRank ejecuta consignas, fotos, jurados y rankings.
+
+- `fotorankContestId` + flags `fotoRankSync*` vinculan la edición a un `FotorankContest`.
+- Sync postpago de participantes: **Etapa 7** — ver `docs/clickaton/CLICKATON_FOTORANK_SYNC.md`.
+- Seed Argentina 2026 deja sync **OFF** / `NOT_CONFIGURED` hasta validación admin.
 
 ## Autochecks
 

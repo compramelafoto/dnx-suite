@@ -1,9 +1,12 @@
 import type {
   ClickatonHoldStatus,
+  ClickatonItemFulfillmentStatus,
   ClickatonPaymentStatus,
   ClickatonRegistrationStatus,
   RegistrationItemSnapshot,
 } from "@/lib/registration/domain/types";
+
+export type { ClickatonItemFulfillmentStatus };
 
 export type AdminRegistrationActor = {
   userId: number;
@@ -22,6 +25,9 @@ export type AdminRegistrationFilters = {
   createdTo?: Date;
   hasPaymentOrder?: boolean;
   hasInternalNotes?: boolean;
+  /** Código de talle (XS…XXXL) o nombre de variante snapshot. */
+  shirtSize?: string;
+  fulfillmentStatus?: ClickatonItemFulfillmentStatus;
 };
 
 export type AdminRegistrationListItem = {
@@ -40,6 +46,10 @@ export type AdminRegistrationListItem = {
   currency: string;
   totalAmount: number;
   itemCount: number;
+  /** Primer artículo incluido (remera) — snapshot. */
+  includedProductLabel: string | null;
+  shirtSizeLabel: string | null;
+  itemFulfillmentStatus: ClickatonItemFulfillmentStatus | null;
   paymentOrderId: string | null;
   holdExpiresAt: Date | null;
   confirmedAt: Date | null;
@@ -47,6 +57,17 @@ export type AdminRegistrationListItem = {
   createdAt: Date;
   updatedAt: Date;
   hasInternalNotes: boolean;
+  /** Soft refs Etapa 7 — sync FotoRank (listado). */
+  fotoRankParticipantId: string | null;
+  fotoRankSyncStatus: string | null;
+  fotoRankSyncedAt: Date | null;
+  /** Soft refs Etapa 8 — perfil / placa. */
+  instagramHandle: string | null;
+  profilePhotoAssetId: string | null;
+  welcomeCardId: string | null;
+  welcomeCardStatus: string | null;
+  welcomeCardAssetId: string | null;
+  welcomePublicationStatus: string | null;
 };
 
 export type AdminStatusHistoryEntry = {
@@ -117,6 +138,30 @@ export type AdminRegistrationDetail = AdminRegistrationListItem & {
     totalAmount: number;
     currency: string;
   };
+  /** Detalle sync FotoRank (último registro durable). */
+  fotoRankSync: {
+    id: string;
+    status: string;
+    attemptCount: number;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+    fotoRankContestId: string;
+    completedAt: Date | null;
+    updatedAt: Date;
+  } | null;
+  welcomeCard: {
+    id: string;
+    status: string;
+    templateId: string;
+    templateVersion: number;
+    pngUrl: string | null;
+    webpUrl: string | null;
+    publicationStatus: string;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+    attemptCount: number;
+    generatedAt: Date | null;
+  } | null;
 };
 
 export type AdminRegistrationAction =

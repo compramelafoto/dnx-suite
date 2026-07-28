@@ -195,11 +195,99 @@ export function createApplyPaymentEventUseCase(deps: {
           editionPrefix: prefix,
         });
 
+        // Settlement projection: marcar PAID; reconciliar fee si el evento la trae.
+        try {
+          const {
+            markOrderAllocationsPaid,
+            reconcileOrderAllocationsAfterPayment,
+          } = await import(
+            "@/lib/admin/edition-finance/infrastructure/persist-order-allocations"
+          );
+          await markOrderAllocationsPaid(order.id);
+          const feeMinor = (event as { providerFeeMinor?: number | null }).providerFeeMinor;
+          if (typeof feeMinor === "number" && Number.isInteger(feeMinor) && feeMinor >= 0) {
+            await reconcileOrderAllocationsAfterPayment({
+              paymentOrderId: order.id,
+              providerFeeConfirmed: feeMinor,
+            });
+          }
+        } catch (err) {
+          log?.({
+            event: "conflict",
+            registrationId: confirmed.id,
+            orderId: order.id,
+            meta: {
+              code: "ALLOCATION_RECONCILE_SOFT_FAIL",
+              reason: err instanceof Error ? err.message.slice(0, 80) : "unknown",
+            },
+          });
+        }
+
         log?.({
           event: "registration_confirmed",
           registrationId: confirmed.id,
           orderId: order.id,
         });
+
+        // Etapa 7: enqueue FotoRank sync (durable). Nunca revierte PAID.
+        try {
+          const { enqueueFotoRankSyncAfterPaid } = await import(
+            "@/lib/fotorank-sync/infrastructure/prisma-fotorank-sync"
+          );
+          void enqueueFotoRankSyncAfterPaid({
+            registrationId: confirmed.id,
+            editionId: confirmed.editionId,
+            userId: confirmed.userId,
+            paymentOrderId: order.id,
+            paidAt: confirmed.confirmedAt ?? new Date(),
+          }).then((r) => {
+            if (!r.ok) {
+              log?.({
+                event: "conflict",
+                registrationId: confirmed.id,
+                orderId: order.id,
+                meta: {
+                  code: "FOTORANK_SYNC_ENQUEUE_SOFT",
+                  reason: r.reason ?? null,
+                },
+              });
+            }
+          });
+        } catch (err) {
+          log?.({
+            event: "conflict",
+            registrationId: confirmed.id,
+            orderId: order.id,
+            meta: {
+              code: "FOTORANK_SYNC_ENQUEUE_SOFT",
+              reason: err instanceof Error ? err.message.slice(0, 80) : "unknown",
+            },
+          });
+        }
+
+        // Etapa 8: placa de bienvenida durable. Nunca revierte PAID.
+        try {
+          const { enqueueWelcomeCardAfterPaid } = await import("@/lib/welcome-card/enqueue");
+          void enqueueWelcomeCardAfterPaid({
+            registrationId: confirmed.id,
+            editionId: confirmed.editionId,
+          });
+        } catch {
+          // soft-fail: el cron reintenta desde el outbox y PAID permanece confirmado
+        }
+
+        // Etapa 9: solicitud editorial de publicación. Nunca publica automáticamente.
+        try {
+          const { enqueueWelcomePublishAfterPaid } = await import(
+            "@/lib/social-publisher/enqueue-welcome-publish"
+          );
+          void enqueueWelcomePublishAfterPaid({
+            registrationId: confirmed.id,
+            editionId: confirmed.editionId,
+          });
+        } catch {
+          // soft-fail: PAID permanece confirmado
+        }
 
         // Best-effort: email must not block accredited fulfillment.
         // editionSlug resolved from DB inside notifier when omitted.

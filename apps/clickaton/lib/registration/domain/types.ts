@@ -32,6 +32,13 @@ export type ClickatonQrTokenStatus = "ACTIVE" | "REVOKED";
 
 export type ClickatonKitDeliveryStatus = "PENDING" | "PARTIAL" | "DELIVERED" | "REVERSED";
 
+export type ClickatonItemFulfillmentStatus =
+  | "PENDING"
+  | "READY"
+  | "DELIVERED"
+  | "CANCELLED"
+  | "RETURNED";
+
 export type ClickatonCheckInSource = "QR_SCAN" | "MANUAL_SEARCH" | "ADMIN";
 
 /** Snapshot del participante congelado en la inscripción. */
@@ -60,15 +67,28 @@ export type TicketSelection = {
 
 export type RegistrationItemSnapshot = {
   id: string;
+  ticketTypeItemId?: string | null;
+  pricePhaseItemId?: string | null;
+  sourceType?: "TICKET_BASE" | "PRICE_PHASE" | "STORE_PURCHASE";
   productId?: string | null;
   productVariantId?: string | null;
   nameSnapshot: string;
+  productNameSnapshot?: string | null;
+  productDescriptionSnapshot?: string | null;
+  variantNameSnapshot?: string | null;
   skuSnapshot?: string | null;
   quantity: number;
   unitPriceAmount: number;
   totalPriceAmount: number;
   currency: string;
   isIncluded: boolean;
+  imageAssetIdSnapshot?: string | null;
+  sizeChartAssetIdSnapshot?: string | null;
+  fulfillmentStatus?: ClickatonItemFulfillmentStatus;
+  fulfilledAt?: Date | null;
+  fulfilledByUserId?: number | null;
+  fulfillmentNotes?: string | null;
+  fulfillmentLocation?: string | null;
 };
 
 export type MoneySnapshot = {

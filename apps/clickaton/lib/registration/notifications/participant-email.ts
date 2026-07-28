@@ -10,7 +10,6 @@ export type ParticipantEmailKind =
 function testRecipientOverride(to: string): string {
   const override = process.env.CLICKATON_EMAIL_TEST_TO?.trim();
   if (override) return override;
-  // Only send to *.test / staging domains unless override set
   const lower = to.toLowerCase();
   if (
     lower.endsWith(".test") ||
@@ -34,6 +33,13 @@ function baseUrl(): string {
   );
 }
 
+export type ParticipantFunnelEmailBuilt = IdentityEmailResult & {
+  deliveredTo: string;
+  subject: string;
+  text: string;
+  html: string;
+};
+
 export async function sendParticipantFunnelEmail(input: {
   kind: ParticipantEmailKind;
   to: string;
@@ -46,13 +52,28 @@ export async function sendParticipantFunnelEmail(input: {
   holdExpiresAt?: Date | null;
   city?: string | null;
   startAt?: Date | null;
-}): Promise<IdentityEmailResult & { deliveredTo: string }> {
+  includedItemLabels?: string[] | null;
+  visibleCode?: string | null;
+  instagramHandle?: string | null;
+  paymentStatus?: string | null;
+  /** Build subject/body only — caller owns durable send. */
+  dryRunBuildOnly?: boolean;
+}): Promise<ParticipantFunnelEmailBuilt> {
   const deliveredTo = testRecipientOverride(input.to);
   const accountUrl = `${baseUrl()}/mi-cuenta`;
   const summaryUrl = input.accessToken
     ? `${baseUrl()}/maratones/${input.editionSlug}/inscripcion/resumen/${input.registrationId}?t=${encodeURIComponent(input.accessToken)}`
-    : accountUrl;
-  const support = "Soporte Clickatón (TEST): usá Mi cuenta o contactá al equipo DNX.";
+    : `${baseUrl()}/mi-cuenta/inscripciones/${input.registrationId}`;
+  const support =
+    "Soporte Clickatón: respondé este email o escribinos desde Mi cuenta / Contacto.";
+  const included =
+    input.includedItemLabels?.filter((l) => l.trim().length > 0) ?? [];
+  const includedText =
+    included.length > 0 ? `Incluido: ${included.join("; ")}` : "";
+  const includedHtml =
+    included.length > 0
+      ? `<p>Incluido: ${included.map(escapeHtml).join("; ")}</p>`
+      : "";
 
   let subject = "";
   let text = "";
@@ -66,6 +87,7 @@ export async function sendParticipantFunnelEmail(input: {
         ``,
         `Tu reserva para ${input.editionName} está pendiente de pago.`,
         input.amountLabel ? `Importe: ${input.amountLabel}` : "",
+        includedText,
         input.holdExpiresAt
           ? `Vence: ${input.holdExpiresAt.toISOString()}`
           : "",
@@ -74,7 +96,7 @@ export async function sendParticipantFunnelEmail(input: {
       ]
         .filter(Boolean)
         .join("\n");
-      html = `<p>Hola ${escapeHtml(input.participantName)},</p><p>Tu reserva para <strong>${escapeHtml(input.editionName)}</strong> está pendiente de pago.</p><p><a href="${summaryUrl}">Continuar al pago</a></p><p>${escapeHtml(support)}</p>`;
+      html = `<p>Hola ${escapeHtml(input.participantName)},</p><p>Tu reserva para <strong>${escapeHtml(input.editionName)}</strong> está pendiente de pago.</p>${includedHtml}<p><a href="${summaryUrl}">Continuar al pago</a></p><p>${escapeHtml(support)}</p>`;
       break;
     case "payment_confirmed":
     case "free_confirmed":
@@ -83,16 +105,38 @@ export async function sendParticipantFunnelEmail(input: {
         `Hola ${input.participantName},`,
         ``,
         `Tu inscripción a ${input.editionName} está CONFIRMADA.`,
+        input.paymentStatus ? `Estado de pago: ${input.paymentStatus}` : "Estado de pago: APPROVED",
+        input.visibleCode ? `Número de participante: ${input.visibleCode}` : "",
+        input.instagramHandle ? `Instagram: ${input.instagramHandle}` : "",
         input.city ? `Ciudad: ${input.city}` : "",
         input.startAt ? `Fecha: ${input.startAt.toISOString()}` : "",
+        includedText,
+        `Ver inscripción: ${summaryUrl}`,
         `Mi cuenta: ${accountUrl}`,
-        `Resumen: ${summaryUrl}`,
         `Ahí podés ver tu QR y credencial.`,
         support,
       ]
         .filter(Boolean)
         .join("\n");
-      html = `<p>Hola ${escapeHtml(input.participantName)},</p><p>Tu inscripción a <strong>${escapeHtml(input.editionName)}</strong> está <strong>CONFIRMADA</strong>.</p><p><a href="${accountUrl}">Ir a Mi cuenta</a> · <a href="${summaryUrl}">Ver resumen</a></p><p>Desde ahí descargás QR y credencial.</p><p>${escapeHtml(support)}</p>`;
+      html = [
+        `<p>Hola ${escapeHtml(input.participantName)},</p>`,
+        `<p>Tu inscripción a <strong>${escapeHtml(input.editionName)}</strong> está <strong>CONFIRMADA</strong>.</p>`,
+        input.visibleCode
+          ? `<p>Número de participante: <strong>${escapeHtml(input.visibleCode)}</strong></p>`
+          : "",
+        input.instagramHandle
+          ? `<p>Instagram: ${escapeHtml(input.instagramHandle)}</p>`
+          : "",
+        input.startAt
+          ? `<p>Fecha: ${escapeHtml(input.startAt.toISOString())}</p>`
+          : "",
+        includedHtml,
+        `<p><a href="${summaryUrl}">Ver inscripción</a> · <a href="${accountUrl}">Mi cuenta</a></p>`,
+        `<p>Desde ahí descargás QR y credencial.</p>`,
+        `<p>${escapeHtml(support)}</p>`,
+      ]
+        .filter(Boolean)
+        .join("");
       break;
     case "hold_expired":
       subject = `[TEST] Reserva vencida — ${input.editionName}`;
@@ -107,6 +151,18 @@ export async function sendParticipantFunnelEmail(input: {
       break;
   }
 
+  if (input.dryRunBuildOnly) {
+    return {
+      sent: false,
+      skipped: true,
+      reason: "dry_run_build_only",
+      deliveredTo,
+      subject,
+      text,
+      html,
+    };
+  }
+
   const result = await sendIdentityEmail({
     to: deliveredTo,
     subject,
@@ -115,7 +171,7 @@ export async function sendParticipantFunnelEmail(input: {
     templateKey: `clickaton_${input.kind}`,
   });
 
-  return { ...result, deliveredTo };
+  return { ...result, deliveredTo, subject, text, html };
 }
 
 function escapeHtml(value: string): string {

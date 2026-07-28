@@ -27,7 +27,8 @@
     "./partner-onboarding": "./src/partner-onboarding/index.ts",
     "./legacy/clf": "./src/legacy/clf/index.ts",
     "./credential-vault": "./src/credential-vault/index.ts",
-    "./dual-read": "./src/dual-read/index.ts"
+    "./dual-read": "./src/dual-read/index.ts",
+    "./edition-checkout": "./src/edition-checkout/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",

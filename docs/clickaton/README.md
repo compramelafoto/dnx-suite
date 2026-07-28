@@ -243,6 +243,20 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Preview en `dd14f37`; smoke externo bloqueado por variables y SSO de webhook
 - Doc: [MERCADO_PAGO_TEST_FINAL_EXECUTION_10D3H_C.md](./MERCADO_PAGO_TEST_FINAL_EXECUTION_10D3H_C.md)
 
+### Apertura comercial 2026 — Etapa 7 (sync FotoRank postpago)
+
+- Sync durable Clickatón → roster `FotorankContestParticipant` tras PAID
+- Doc: [CLICKATON_FOTORANK_SYNC.md](./CLICKATON_FOTORANK_SYNC.md)
+- Seed: sync OFF / `NOT_CONFIGURED` (sin inventar concurso)
+- Placa / Instagram obligatorio → Etapa 8
+
+### Etapa 8B — Productos por fase de precio y prep tienda
+
+- Merch incluido por `ClickatonPricePhaseItem` (no por ticket GENERAL)
+- Snapshots, media/`DnxMediaAsset`, ledger de inventario, prep storefields
+- Doc: [PRICE_PHASE_PRODUCTS_AND_STORE.md](./PRICE_PHASE_PRODUCTS_AND_STORE.md)
+- Storefront público / carrito / checkout tienda → fuera de alcance
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).

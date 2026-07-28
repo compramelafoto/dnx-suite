@@ -19,14 +19,31 @@ export type ClickatonEditionRecord = {
   description: string | null;
   status: ClickatonEditionStatus;
   isPublished: boolean;
+  registrationEnabled: boolean;
   timezone: string | null;
   startAt: Date | null;
   endAt: Date | null;
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   defaultCapacity: number | null;
+  location: string | null;
+  city: string | null;
+  provinceOrState: string | null;
+  country: string;
+  currency: string;
   fotorankContestId: string | null;
+  fotoRankSyncEnabled: boolean;
+  fotoRankSyncMode: "POST_PAID" | "DISABLED";
+  fotoRankValidationStatus:
+    | "NOT_CONFIGURED"
+    | "PENDING_VALIDATION"
+    | "VALID"
+    | "INVALID"
+    | "DISABLED";
+  fotoRankLastValidatedAt: Date | null;
+  fotoRankValidationError: string | null;
   coverImageUrl: string | null;
+  paymentBeneficiaryConfig: unknown | null;
   createdAt: Date;
   updatedAt: Date;
   venueCount?: number;
@@ -39,12 +56,18 @@ export type ClickatonEditionFormInput = {
   description: string;
   status: ClickatonEditionStatus;
   isPublished: boolean;
+  registrationEnabled: boolean;
   timezone: string;
   startAt: string;
   endAt: string;
   registrationOpenAt: string;
   registrationCloseAt: string;
   defaultCapacity: string;
+  location: string;
+  city: string;
+  provinceOrState: string;
+  country: string;
+  currency: string;
   fotorankContestId: string;
   coverImageUrl: string;
 };
@@ -71,12 +94,18 @@ export function emptyEditionFormInput(): ClickatonEditionFormInput {
     description: "",
     status: "DRAFT",
     isPublished: false,
-    timezone: "America/Argentina/Cordoba",
+    registrationEnabled: false,
+    timezone: "America/Argentina/Buenos_Aires",
     startAt: "",
     endAt: "",
     registrationOpenAt: "",
     registrationCloseAt: "",
     defaultCapacity: "",
+    location: "",
+    city: "",
+    provinceOrState: "",
+    country: "AR",
+    currency: "ARS",
     fotorankContestId: "",
     coverImageUrl: "",
   };
@@ -90,7 +119,8 @@ export function editionToFormInput(edition: ClickatonEditionRecord): ClickatonEd
     description: edition.description ?? "",
     status: edition.status,
     isPublished: edition.isPublished,
-    timezone: edition.timezone ?? "America/Argentina/Cordoba",
+    registrationEnabled: edition.registrationEnabled,
+    timezone: edition.timezone ?? "America/Argentina/Buenos_Aires",
     startAt: toDateTimeLocalValue(edition.startAt),
     endAt: toDateTimeLocalValue(edition.endAt),
     registrationOpenAt: toDateTimeLocalValue(edition.registrationOpenAt),
@@ -99,6 +129,11 @@ export function editionToFormInput(edition: ClickatonEditionRecord): ClickatonEd
       edition.defaultCapacity === null || edition.defaultCapacity === undefined
         ? ""
         : String(edition.defaultCapacity),
+    location: edition.location ?? "",
+    city: edition.city ?? "",
+    provinceOrState: edition.provinceOrState ?? "",
+    country: edition.country || "AR",
+    currency: edition.currency || "ARS",
     fotorankContestId: edition.fotorankContestId ?? "",
     coverImageUrl: edition.coverImageUrl ?? "",
   };

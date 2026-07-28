@@ -98,7 +98,13 @@ export async function createPublicRegistrationAction(
     acceptTerms: formBool(formData, "acceptTerms"),
     acceptPrivacy: formBool(formData, "acceptPrivacy"),
     acceptImage: formBool(formData, "acceptImage"),
+    instagramHandle: formString(formData, "instagramHandle"),
+    profilePhotoAssetId: formString(formData, "profilePhotoAssetId"),
+    imageUsageConsent: formBool(formData, "imageUsageConsent"),
+    socialPublicationConsent: formBool(formData, "socialPublicationConsent"),
+    consentVersion: formString(formData, "consentVersion") || "2026-08-social-v1",
     idempotencyKey: formString(formData, "idempotencyKey"),
+    promoCode: formString(formData, "promoCode") || null,
   };
 
   const values: Record<string, string> = {
@@ -108,6 +114,7 @@ export async function createPublicRegistrationAction(
     phone: input.participant.phone ?? "",
     venueId: input.venueId ?? "",
     ticketTypeId: input.ticketTypeId,
+    instagramHandle: input.instagramHandle ?? "",
   };
 
   try {

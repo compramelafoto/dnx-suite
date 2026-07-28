@@ -11,7 +11,9 @@ import { MarathonResultsPlaceholder } from "@/components/marathon/MarathonResult
 import { MarathonRules } from "@/components/marathon/MarathonRules";
 import { MarathonSchedule } from "@/components/marathon/MarathonSchedule";
 import { MarathonSponsors } from "@/components/marathon/MarathonSponsors";
+import { MarathonTimelineMilestones } from "@/components/marathon/MarathonTimelineMilestones";
 import { MarathonValidations } from "@/components/marathon/MarathonValidations";
+import type { PublicTimelineMilestoneDto } from "@/lib/timeline/types";
 import type { PublicMarathon } from "@/types/marathon";
 import type { PublicMarathonCapabilities } from "@/types/public";
 
@@ -20,6 +22,8 @@ type MarathonDetailViewProps = {
   capabilities?: PublicMarathonCapabilities | null;
   nativeRegistrationHref?: string | null;
   nativeRegistrationLabel?: string | null;
+  timelineMilestones?: PublicTimelineMilestoneDto[] | null;
+  timelineServerNow?: string | null;
 };
 
 export function MarathonDetailView({
@@ -27,6 +31,8 @@ export function MarathonDetailView({
   capabilities = null,
   nativeRegistrationHref = null,
   nativeRegistrationLabel = null,
+  timelineMilestones = null,
+  timelineServerNow = null,
 }: MarathonDetailViewProps) {
   return (
     <article>
@@ -38,7 +44,15 @@ export function MarathonDetailView({
         nativeRegistrationLabel={nativeRegistrationLabel}
       />
       <MarathonKeyFacts marathon={marathon} />
-      <MarathonSchedule marathon={marathon} />
+      {timelineMilestones && timelineMilestones.length > 0 ? (
+        <MarathonTimelineMilestones
+          timezone={marathon.timezone}
+          milestones={timelineMilestones}
+          serverNow={timelineServerNow}
+        />
+      ) : (
+        <MarathonSchedule marathon={marathon} />
+      )}
       <MarathonCategories marathon={marathon} />
       <MarathonRules marathon={marathon} />
       <MarathonValidations marathon={marathon} />

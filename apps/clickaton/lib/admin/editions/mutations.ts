@@ -73,6 +73,33 @@ export async function updateEditionAction(
     }
   }
 
+  // Etapa 5: no habilitar inscripciones comerciales sin distribución financiera válida.
+  if (validated.data.registrationEnabled && !existing.data.registrationEnabled) {
+    const { evaluateEditionFinanceGate } = await import(
+      "@/lib/admin/edition-finance/infrastructure/prisma-edition-finance"
+    );
+    const gate = await evaluateEditionFinanceGate({
+      editionId,
+      mode: process.env.NODE_ENV === "production" ? "LIVE" : "TEST",
+      dnxPaymentsReady:
+        process.env.DNX_CLICKATON_DNX_PAYMENTS_CHECKOUT_ENABLED === "true",
+      webhookConfigured: Boolean(
+        process.env.CLICKATON_DNX_PAYMENTS_WEBHOOK_SECRET ||
+          process.env.DNX_PAYMENTS_WEBHOOK_SECRET,
+      ),
+      hasActivePricePhase: true,
+    });
+    if (!gate.ok) {
+      return {
+        ok: false,
+        errors: {
+          registrationEnabled: gate.blockers.join(" "),
+        },
+        message: "Gate financiero: no se pueden habilitar inscripciones.",
+      };
+    }
+  }
+
   const result = await withClickatonDb(async () => {
     return prisma.clickatonEdition.update({
       where: { id: editionId },
@@ -118,11 +145,11 @@ export async function unpublishEditionAction(editionId: string): Promise<Edition
   const result = await withClickatonDb(async () => {
     return prisma.clickatonEdition.update({
       where: { id: editionId },
-      data: { isPublished: false },
+      data: { isPublished: false, registrationEnabled: false },
     });
   });
   if (!result.ok) return { ok: false, message: result.message };
 
   revalidateEditionPaths(editionId);
-  return { ok: true, message: "Edición despublicada." };
+  return { ok: true, message: "Edición despublicada (inscripciones deshabilitadas)." };
 }

@@ -41,10 +41,12 @@ export function VenueProgramSection() {
 
         <PhotoFrame
           variant="sponsor-feature"
-          alt="Encuentro de sede local de maratón fotográfica"
+          src={venues.image.src}
+          alt={venues.image.alt}
           overlay="medium"
-          caption="Sedes, kits y comunidad local."
+          caption={venues.image.caption}
           className="lg:sticky lg:top-28"
+          sizes="(max-width: 1024px) 100vw, 40vw"
         />
       </Container>
     </Section>

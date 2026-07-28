@@ -1,4 +1,5 @@
 import type { CurrencyCode, PaymentEnvironment, ProviderName } from "../../../contracts/primitives";
+import type { EditionCheckoutFinanceSnapshot } from "../../../edition-checkout/types.js";
 
 /** Estados normalizados hacia apps consumidoras (Clickatón). */
 export type NormalizedCheckoutStatus =
@@ -31,6 +32,15 @@ export type CreateClickatonCheckoutOrderInput = {
   /** HTTPS notification URL for Mercado Pago TEST (Preferences). */
   notificationUrl?: string;
   isTestFixture?: boolean;
+  /**
+   * Snapshot financiero inmutable (Etapa 6). Obligatorio para mercado_pago_*.
+   * No recalcular desde config activa.
+   */
+  editionFinance?: {
+    snapshot: EditionCheckoutFinanceSnapshot;
+    /** Token OAuth del collector (N=1). Nunca persistir ni loguear. */
+    collectorAccessToken?: string;
+  };
 };
 
 /** Bridge opcional: fake manual, Checkout Pro TEST, o Orders 1:N TEST. */
@@ -53,6 +63,10 @@ export type ClickatonCheckoutProviderBridge = {
     notificationUrl?: string;
     checkoutBaseUrl?: string;
     sourceId: string;
+    /** OAuth del beneficiario collector (Checkout Pro N=1). */
+    collectorAccessToken?: string;
+    collectorPaymentAccountId?: string;
+    editionFinanceModality?: string;
   }): Promise<{
     checkoutUrl: string;
     providerOrderId: string;
@@ -69,6 +83,7 @@ export type ClickatonCheckoutProviderBridge = {
     currency: CurrencyCode;
     externalReference: string | null;
     liveMode: boolean;
+    providerFeeMinor?: number | null;
     rawSanitized: Record<string, unknown>;
   } | null>;
   /** S2S por payment id (webhooks firmados Checkout Pro). */
@@ -79,6 +94,7 @@ export type ClickatonCheckoutProviderBridge = {
     externalReference: string | null;
     liveMode: boolean;
     providerPaymentId: string;
+    providerFeeMinor?: number | null;
     rawSanitized: Record<string, unknown>;
   } | null>;
 };

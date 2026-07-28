@@ -265,7 +265,12 @@ export function createInMemoryDnxPaymentsPersistence(): DnxPaymentsPersistence {
         if (owners.length !== 1) {
           throw new PersistenceConflictError("exactly one OWNER split required");
         }
-        if (!nextSplits.some((s) => s.receiverType === "PARTNER")) {
+        // Etapa 6: N=1 collector OAuth (edition-finance) puede ser solo OWNER 100%.
+        const editionFinanceN1 =
+          nextSplits.length === 1 &&
+          owners[0]!.percentageBps === 10_000 &&
+          String(owners[0]!.description ?? "").startsWith("edition-finance:");
+        if (!editionFinanceN1 && !nextSplits.some((s) => s.receiverType === "PARTNER")) {
           throw new PersistenceConflictError("at least one PARTNER split required");
         }
         for (const split of nextSplits) {

@@ -329,9 +329,27 @@ async function main() {
   }
 
   console.error(
-    "ABORT: execute path reserved for 10D3H-C after manual staging deploy + verified TEST seller via /users/me.",
+    "EXECUTE: starting Mercado Pago TEST smoke (seller TEST / buyer TEST / staging only).",
   );
-  process.exit(2);
+  const { runMercadoPagoTestExecute } = await import("./lib/run-mp-test-execute");
+  try {
+    /* eslint-disable turbo/no-undeclared-env-vars -- optional local smoke poll overrides */
+    const result = await runMercadoPagoTestExecute({
+      pollMs: Number(process.env.SMOKE_MP_POLL_MS ?? "240000"),
+      pollIntervalMs: Number(process.env.SMOKE_MP_POLL_INTERVAL_MS ?? "5000"),
+    });
+    /* eslint-enable turbo/no-undeclared-env-vars */
+    if (!result.ok) {
+      console.error("EXECUTE: payment flow did not reach APPROVED/CONFIRMED within poll window.");
+      process.exit(2);
+    }
+    console.log("EXECUTE: APPROVED path OK");
+    process.exit(0);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`EXECUTE_FAILED: ${msg.slice(0, 200)}`);
+    process.exit(2);
+  }
 }
 
 void main();

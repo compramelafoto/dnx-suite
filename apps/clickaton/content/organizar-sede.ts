@@ -26,6 +26,12 @@ export const organizarSedeContent = {
     },
   },
 
+  about: {
+    eyebrow: "El evento",
+    title: "¿Qué es Clickatón?",
+    body: "Clickatón es la Maratón Fotográfica Internacional: una experiencia colectiva donde fotógrafos de todos los niveles salen a recorrer la ciudad, capturar historias y compartir miradas. No es solo una competencia: es encuentro, cultura y comunidad en las calles.",
+  },
+
   whatIs: {
     eyebrow: "El rol",
     title: "¿Qué es un Organizador Oficial?",

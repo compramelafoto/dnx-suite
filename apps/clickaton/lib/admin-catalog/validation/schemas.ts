@@ -232,6 +232,48 @@ export function parseProductUpdate(input: Record<string, unknown>) {
   if ("description" in input) out.description = optionalString(input.description, "description", 2000);
   if ("code" in input) out.code = normalizeCatalogCode(requireString(input.code, "code", 64));
   if ("isActive" in input) out.isActive = Boolean(input.isActive);
+
+  if ("primaryImageAssetId" in input) {
+    out.primaryImageAssetId = optionalString(input.primaryImageAssetId, "primaryImageAssetId", 64);
+  }
+  if ("sizeChartAssetId" in input) {
+    out.sizeChartAssetId = optionalString(input.sizeChartAssetId, "sizeChartAssetId", 64);
+  }
+  if ("sizeChartDescription" in input) {
+    out.sizeChartDescription = optionalString(input.sizeChartDescription, "sizeChartDescription", 2000);
+  }
+  if ("sizeChartInstructions" in input) {
+    out.sizeChartInstructions = optionalString(input.sizeChartInstructions, "sizeChartInstructions", 4000);
+  }
+
+  if ("isStoreEnabled" in input) out.isStoreEnabled = Boolean(input.isStoreEnabled);
+
+  if ("storeStatus" in input) {
+    const raw = requireString(input.storeStatus, "storeStatus", 32).toUpperCase();
+    const allowed = new Set(["DRAFT", "ACTIVE", "OUT_OF_STOCK", "HIDDEN", "ARCHIVED"]);
+    if (!allowed.has(raw)) {
+      throw new CatalogValidationError({ storeStatus: "Estado de tienda inválido." });
+    }
+    out.storeStatus = raw;
+  }
+  if ("storeSlug" in input) {
+    out.storeSlug = optionalString(input.storeSlug, "storeSlug", 120);
+  }
+  if ("storeTitle" in input) {
+    out.storeTitle = optionalString(input.storeTitle, "storeTitle", 160);
+  }
+  if ("storeDescription" in input) {
+    out.storeDescription = optionalString(input.storeDescription, "storeDescription", 4000);
+  }
+  if ("storePricePesos" in input) {
+    out.storePrice = parseOptionalMinorUnits(input.storePricePesos, "storePricePesos");
+  }
+  if ("compareAtPricePesos" in input) {
+    out.compareAtPrice = parseOptionalMinorUnits(input.compareAtPricePesos, "compareAtPricePesos");
+  }
+  if ("requiresShipping" in input) out.requiresShipping = Boolean(input.requiresShipping);
+  if ("allowPickup" in input) out.allowPickup = Boolean(input.allowPickup);
+
   return out;
 }
 

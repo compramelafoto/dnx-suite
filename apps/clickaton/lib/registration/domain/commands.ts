@@ -17,17 +17,40 @@ export type CreateDraftRegistrationCommand = {
   subtotalAmount: number;
   discountAmount: number;
   totalAmount: number;
+  /** Snapshot fase de precio (opcional; null si ticket gratis o sin fases). */
+  pricePhaseId?: string | null;
+  pricePhaseNameSnapshot?: string | null;
+  pricePhaseAmountSnapshot?: number | null;
+  /** Snapshot promoción (@repo/promotions). */
+  promotionId?: string | null;
+  promotionCodeSnapshot?: string | null;
+  instagramHandle?: string | null;
+  instagramHandleNormalized?: string | null;
+  instagramUrl?: string | null;
+  profilePhotoAssetId?: string | null;
+  imageUsageConsent?: boolean;
+  socialPublicationConsent?: boolean;
+  consentAcceptedAt?: Date | null;
+  consentVersion?: string | null;
   holdMinutes?: number;
   items: Array<{
+    ticketTypeItemId?: string | null;
+    pricePhaseItemId?: string | null;
+    sourceType?: "TICKET_BASE" | "PRICE_PHASE" | "STORE_PURCHASE";
     productId?: string | null;
     productVariantId?: string | null;
     nameSnapshot: string;
+    productNameSnapshot?: string | null;
+    productDescriptionSnapshot?: string | null;
+    variantNameSnapshot?: string | null;
     skuSnapshot?: string | null;
     quantity: number;
     unitPriceAmount: number;
     totalPriceAmount: number;
     currency: string;
     isIncluded: boolean;
+    imageAssetIdSnapshot?: string | null;
+    sizeChartAssetIdSnapshot?: string | null;
   }>;
 };
 

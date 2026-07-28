@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
+import type { PricePhaseRecord } from "@/lib/pricing/domain/types";
 import type { CreateDraftRegistrationCommand } from "@/lib/registration/domain/commands";
 import {
   createInMemoryClickatonStore,
@@ -42,11 +43,34 @@ export type InMemoryPublicTicketRow = {
   products: PublicTicketProductDto[];
 };
 
+export type InMemoryPricePhaseItemRow = {
+  id: string;
+  pricePhaseId: string;
+  productId: string;
+  quantity: number;
+  requiresVariantChoice: boolean;
+  isIncluded: boolean;
+  fulfillmentRequired: boolean;
+  displayTitle: string | null;
+  displayDescription: string | null;
+  sortOrder: number;
+  productName: string;
+  productDescription: string | null;
+  isActive: boolean;
+  primaryImageUrl?: string | null;
+  sizeChartUrl?: string | null;
+  sizeChartDescription?: string | null;
+  sizeChartInstructions?: string | null;
+  variantIds: string[];
+};
+
 export type InMemoryPublicStore = {
   domain: InMemoryClickatonStore;
   editions: Map<string, InMemoryPublicEdition>;
   venues: Map<string, InMemoryPublicVenue>;
   tickets: Map<string, InMemoryPublicTicketRow>;
+  pricePhases: Map<string, PricePhaseRecord>;
+  pricePhaseItems: Map<string, InMemoryPricePhaseItemRow>;
   variants: Map<
     string,
     {
@@ -57,6 +81,8 @@ export type InMemoryPublicStore = {
       stock: number;
       reservedStock: number;
       isActive: boolean;
+      code?: string;
+      sortOrder?: number;
     }
   >;
   idempotency: Map<string, IdempotencyRecord>;
@@ -74,6 +100,8 @@ export function createInMemoryPublicStore(): InMemoryPublicStore {
     editions: new Map(),
     venues: new Map(),
     tickets: new Map(),
+    pricePhases: new Map(),
+    pricePhaseItems: new Map(),
     variants: new Map(),
     idempotency: new Map(),
     usersByEmail: new Map(),
@@ -187,6 +215,57 @@ export function createInMemoryPublicRegistrationRepository(
       return [...store.tickets.values()]
         .filter((t) => t.editionId === editionId && t.isActive)
         .map((t) => toTicketDto(store, t));
+    },
+
+    async listPricePhases(editionId) {
+      return [...store.pricePhases.values()].filter((p) => p.editionId === editionId);
+    },
+
+    async listPricePhaseItems(pricePhaseId) {
+      return [...store.pricePhaseItems.values()]
+        .filter((i) => i.pricePhaseId === pricePhaseId && i.isIncluded)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((row) => {
+          const variants = row.variantIds
+            .map((id) => store.variants.get(id) ?? store.domain.variants.get(id))
+            .filter((v): v is NonNullable<typeof v> => Boolean(v))
+            .map((v) => ({
+              id: v.id,
+              code: "code" in v ? (v as { code?: string }).code : undefined,
+              name: v.name,
+              sku: v.sku,
+              stock: v.stock,
+              reservedStock: v.reservedStock,
+              isActive: v.isActive,
+              sortOrder: "sortOrder" in v ? (v as { sortOrder?: number }).sortOrder : 100,
+            }));
+          return {
+            id: row.id,
+            productId: row.productId,
+            quantity: row.quantity,
+            requiresVariantChoice: row.requiresVariantChoice,
+            isIncluded: row.isIncluded,
+            fulfillmentRequired: row.fulfillmentRequired,
+            displayTitle: row.displayTitle,
+            displayDescription: row.displayDescription,
+            sortOrder: row.sortOrder,
+            product: {
+              id: row.productId,
+              name: row.productName,
+              description: row.productDescription,
+              isActive: row.isActive,
+              archivedAt: null,
+              primaryImageAssetId: null,
+              primaryImageUrl: row.primaryImageUrl ?? null,
+              sizeChartAssetId: null,
+              sizeChartUrl: row.sizeChartUrl ?? null,
+              sizeChartDescription: row.sizeChartDescription ?? null,
+              sizeChartInstructions: row.sizeChartInstructions ?? null,
+              gallery: [],
+              variants,
+            },
+          };
+        });
     },
 
     async getTicketDetail(ticketTypeId) {
@@ -556,8 +635,10 @@ export function createInMemoryPublicRegistrationRepository(
         currency: registration.money.currency,
         items: registration.items.map((i) => ({
           nameSnapshot: i.nameSnapshot,
+          variantNameSnapshot: i.variantNameSnapshot ?? null,
           skuSnapshot: i.skuSnapshot ?? null,
           quantity: i.quantity,
+          isIncluded: i.isIncluded,
         })),
         holdExpiresAt: registration.holdExpiresAt ?? null,
         accessToken,

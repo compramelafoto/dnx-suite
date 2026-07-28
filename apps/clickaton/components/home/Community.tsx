@@ -37,20 +37,27 @@ export function Community() {
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <PhotoFrame
             variant="portrait"
-            alt="Fotógrafa en recorrido urbano"
+            src={community.images.portrait.src}
+            alt={community.images.portrait.alt}
             overlay="soft"
             className="col-span-1"
+            sizes="(max-width: 1024px) 50vw, 25vw"
           />
           <div className="grid gap-3 sm:gap-4">
             <PhotoFrame
               variant="thumbnail"
-              alt="Detalle de cámara en la calle"
+              src={community.images.detail.src}
+              alt={community.images.detail.alt}
               overlay="none"
+              sizes="(max-width: 1024px) 50vw, 20vw"
             />
             <PhotoFrame
               variant="thumbnail"
-              alt="Grupo revisando capturas"
+              src={community.images.group.src}
+              alt={community.images.group.alt}
               overlay="none"
+              objectPosition="center 35%"
+              sizes="(max-width: 1024px) 50vw, 20vw"
             />
           </div>
         </div>

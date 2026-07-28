@@ -21,6 +21,7 @@ import {
   type ValidateMercadoPagoTestCredentialsResult,
 } from "./validate-credentials";
 import type { NormalizedCheckoutStatus } from "../../../application/services/clickaton-checkout/types";
+import { extractProviderFeeMinorFromMpPayment } from "../../../edition-checkout/mp-fee.js";
 
 export type ClickatonMpCheckoutProviderMode = "manual" | "mercado_pago_test";
 
@@ -36,6 +37,8 @@ export type CreateCheckoutProPreferenceInput = {
   failureUrl: string;
   notificationUrl: string;
   metadata?: Record<string, string>;
+  /** Token OAuth del collector beneficiario (N=1). No se persiste. */
+  accessTokenOverride?: string;
 };
 
 export type CreateCheckoutProPreferenceResult = {
@@ -48,6 +51,8 @@ export type CreateCheckoutProPreferenceResult = {
 export type GetCheckoutProPaymentResult = {
   providerPaymentId: string;
   status: NormalizedCheckoutStatus;
+  /** Comisión PSP en minor units si MP la informa; null si desconocida. */
+  providerFeeMinor?: number | null;
   amountMinor: number;
   currency: CurrencyCode;
   externalReference: string | null;
@@ -183,11 +188,17 @@ export class MercadoPagoCheckoutProTestAdapter {
       path: "/checkout/preferences",
       body,
       idempotencyKey: input.idempotencyKey,
+      ...(input.accessTokenOverride
+        ? { accessTokenOverride: input.accessTokenOverride }
+        : {}),
     });
 
     const raw = (response.body ?? {}) as Record<string, unknown>;
     const sanitized = sanitizeMercadoPagoPreferenceResponse(raw);
-    assertNoSecretLeak(sanitized, this.config.accessToken);
+    assertNoSecretLeak(
+      sanitized,
+      input.accessTokenOverride ?? this.config.accessToken,
+    );
 
     const id = String(raw.id ?? "");
     if (!id) throw new Error("preference_missing_id");
@@ -235,8 +246,58 @@ export class MercadoPagoCheckoutProTestAdapter {
     const response = await this.http.request<Record<string, unknown>>({
       method: "GET",
       path: `/v1/payments/${encodeURIComponent(paymentId)}`,
+      skipTestToken: true,
     });
     const raw = (response.body ?? {}) as Record<string, unknown>;
+    return this.mapPaymentBody(raw, paymentId);
+  }
+
+  /**
+   * Busca pagos por external_reference (S2S). Preferencias no son payment id;
+   * tras Checkout Pro el refresh debe resolver el pago asociado.
+   */
+  async searchPaymentsByExternalReference(
+    externalReference: string,
+  ): Promise<GetCheckoutProPaymentResult | null> {
+    assertSandboxWriteAllowed(this.config);
+    const response = await this.http.request<Record<string, unknown>>({
+      method: "GET",
+      path: "/v1/payments/search",
+      skipTestToken: true,
+      query: {
+        external_reference: externalReference,
+        sort: "date_created",
+        criteria: "desc",
+      },
+    });
+    const raw = (response.body ?? {}) as Record<string, unknown>;
+    const results = Array.isArray(raw.results) ? raw.results : [];
+    if (results.length === 0) return null;
+
+    const ranked = results
+      .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null)
+      .map((row) => ({
+        row,
+        status: mapMercadoPagoPaymentStatusToNormalized(String(row.status ?? "")),
+        created: String(row.date_created ?? ""),
+      }))
+      .sort((a, b) => {
+        const rank = (s: NormalizedCheckoutStatus) =>
+          s === "APPROVED" ? 0 : s === "REJECTED" || s === "CANCELLED" ? 1 : 2;
+        const byStatus = rank(a.status) - rank(b.status);
+        if (byStatus !== 0) return byStatus;
+        return b.created.localeCompare(a.created);
+      });
+
+    const best = ranked[0]?.row;
+    if (!best) return null;
+    return this.mapPaymentBody(best, String(best.id ?? ""));
+  }
+
+  private mapPaymentBody(
+    raw: Record<string, unknown>,
+    fallbackId: string,
+  ): GetCheckoutProPaymentResult {
     const sanitized = sanitizeMercadoPagoPaymentResponse(raw);
     assertNoSecretLeak(sanitized, this.config.accessToken);
 
@@ -246,11 +307,14 @@ export class MercadoPagoCheckoutProTestAdapter {
         ? unitToMinor(raw.transaction_amount, currency)
         : 0;
 
+    const fee = extractProviderFeeMinorFromMpPayment(raw, currency);
+
     return {
-      providerPaymentId: String(raw.id ?? paymentId),
+      providerPaymentId: String(raw.id ?? fallbackId),
       status: mapMercadoPagoPaymentStatusToNormalized(String(raw.status ?? "")),
       amountMinor: amount,
       currency,
+      providerFeeMinor: fee.providerFeeConfirmedMinor,
       externalReference:
         typeof raw.external_reference === "string" ? raw.external_reference : null,
       liveMode: raw.live_mode === true,

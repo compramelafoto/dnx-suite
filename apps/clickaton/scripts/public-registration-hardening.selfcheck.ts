@@ -36,6 +36,15 @@ function file(rel: string) {
 }
 
 async function main() {
+
+const socialFields = {
+  instagramHandle: "@ana.clickaton",
+  profilePhotoAssetId: "asset_profile_test",
+  imageUsageConsent: true,
+  socialPublicationConsent: true,
+} as const;
+
+
   file("scripts/expire-registration-holds.ts");
   file("lib/public-registration/application/expire-pending-registrations.ts");
   file("lib/public-registration/application/checkout-eligibility.ts");
@@ -58,6 +67,7 @@ async function main() {
     shortDescription: null,
     status: "REGISTRATION_OPEN",
     isPublished: true,
+    registrationEnabled: true,
     registrationOpenAt: new Date(now - 86_400_000),
     registrationCloseAt: new Date(now + 86_400_000),
     startAt: null,
@@ -99,6 +109,7 @@ async function main() {
     salesEndAt: new Date(now + 86_400_000),
     products: [
       {
+        ticketTypeItemId: "tti_p1",
         productId: "p1",
         productName: "Remera",
         quantity: 1,
@@ -137,6 +148,7 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: false,
+        ...socialFields,
     idempotencyKey: "idem_live_1",
   });
   assert(live.status === "PENDING_PAYMENT", "1 pending");
@@ -171,6 +183,7 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: false,
+        ...socialFields,
     idempotencyKey: "idem_live_2",
   });
   const row2 = store.domain.registrations.get(live2.registrationId)!;
@@ -266,6 +279,7 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: false,
+        ...socialFields,
     idempotencyKey: "idem_tok",
   });
 
@@ -326,6 +340,7 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: false,
+        ...socialFields,
     idempotencyKey: "idem_re_bob",
   });
   assert(re.status === "PENDING_PAYMENT", "21 re-register after expire");
@@ -347,6 +362,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: "idem_dup_cara",
     })
     .then(
@@ -413,6 +429,7 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: false,
+        ...socialFields,
       idempotencyKey: `idem_rl_burst`,
     })
     .then(

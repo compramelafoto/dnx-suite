@@ -367,7 +367,7 @@
 .ck-marquee__track {
   display: flex;
   width: max-content;
-  animation: ck-marquee 70s linear infinite;
+  animation: ck-marquee 55s linear infinite;
 }
 
 .ck-marquee:hover .ck-marquee__track {

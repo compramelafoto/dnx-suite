@@ -1,5 +1,6 @@
 import { Prisma, prisma } from "@/lib/admin/db";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
+import { releaseClickatonPromotionRedemption } from "@/lib/promotions/prisma-promotions-adapter";
 import type { ClickatonRegistrationRecord } from "@/lib/registration/domain/types";
 import { countsAsActiveRegistration, EXPIRATION_TARGET, isExpireCandidate } from "../domain/expiration-rules";
 import { PublicRegistrationError } from "../domain/errors";
@@ -24,11 +25,13 @@ function mapEdition(row: {
   shortDescription: string | null;
   status: string;
   isPublished: boolean;
+  registrationEnabled: boolean;
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   startAt: Date | null;
   endAt: Date | null;
   timezone: string | null;
+  currency: string;
   visibleCodePrefix: string | null;
 }): PublicCatalogEdition {
   return {
@@ -38,11 +41,13 @@ function mapEdition(row: {
     shortDescription: row.shortDescription,
     status: row.status,
     isPublished: row.isPublished,
+    registrationEnabled: row.registrationEnabled,
     registrationOpenAt: row.registrationOpenAt,
     registrationCloseAt: row.registrationCloseAt,
     startAt: row.startAt,
     endAt: row.endAt,
     timezone: row.timezone,
+    currency: row.currency,
     visibleCodePrefix: row.visibleCodePrefix,
   };
 }
@@ -84,6 +89,7 @@ async function mapTicket(row: {
   salesStartAt: Date | null;
   salesEndAt: Date | null;
   includedItems: Array<{
+    id: string;
     productId: string;
     productVariantId: string | null;
     quantity: number;
@@ -91,14 +97,30 @@ async function mapTicket(row: {
     product: {
       id: string;
       name: string;
+      description: string | null;
       isActive: boolean;
+      archivedAt?: Date | null;
+      primaryImageAssetId?: string | null;
+      sizeChartAssetId?: string | null;
+      sizeChartDescription?: string | null;
+      sizeChartInstructions?: string | null;
+      media?: Array<{
+        assetId: string;
+        mediaType: string;
+        sortOrder: number;
+        altText: string | null;
+        caption: string | null;
+        status: string;
+      }>;
       variants: Array<{
         id: string;
+        code?: string;
         name: string;
         sku: string;
         stock: number;
         reservedStock: number;
         isActive: boolean;
+        sortOrder?: number;
       }>;
     };
     productVariant: {
@@ -123,14 +145,39 @@ async function mapTicket(row: {
     isActive: row.isActive,
   });
 
+  const assetIds = new Set<string>();
+  for (const item of row.includedItems) {
+    if (item.product.primaryImageAssetId) assetIds.add(item.product.primaryImageAssetId);
+    if (item.product.sizeChartAssetId) assetIds.add(item.product.sizeChartAssetId);
+    for (const m of item.product.media ?? []) {
+      if (m.status === "ACTIVE") assetIds.add(m.assetId);
+    }
+  }
+  const assets =
+    assetIds.size > 0
+      ? await prisma.dnxMediaAsset.findMany({
+          where: { id: { in: [...assetIds] } },
+          select: { id: true, publicUrl: true },
+        })
+      : [];
+  const assetUrl = new Map(assets.map((a) => [a.id, a.publicUrl]));
+
   const products: PublicTicketProductDto[] = row.includedItems.map((item) => {
-    const variants = item.product.variants.map((v) => ({
-      id: v.id,
-      name: v.name,
-      sku: v.sku,
-      availableStock: Math.max(0, v.stock - v.reservedStock),
-      isActive: v.isActive,
-    }));
+    const variants = [...item.product.variants]
+      .sort((a, b) => {
+        const ao = "sortOrder" in a && typeof a.sortOrder === "number" ? a.sortOrder : 100;
+        const bo = "sortOrder" in b && typeof b.sortOrder === "number" ? b.sortOrder : 100;
+        return ao - bo;
+      })
+      .map((v) => ({
+        id: v.id,
+        code: "code" in v && typeof v.code === "string" ? v.code : undefined,
+        name: v.name,
+        sku: v.sku,
+        availableStock: Math.max(0, v.stock - v.reservedStock),
+        isActive: v.isActive,
+        sortOrder: "sortOrder" in v && typeof v.sortOrder === "number" ? v.sortOrder : 100,
+      }));
     const fixed = item.productVariant
       ? {
           id: item.productVariant.id,
@@ -138,11 +185,34 @@ async function mapTicket(row: {
           sku: item.productVariant.sku,
         }
       : null;
+    const gallery = (item.product.media ?? [])
+      .filter((m) => m.status === "ACTIVE" && m.mediaType === "GALLERY")
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((m) => ({
+        url: assetUrl.get(m.assetId) ?? null,
+        altText: m.altText,
+        caption: m.caption,
+        sortOrder: m.sortOrder,
+      }));
     return {
+      ticketTypeItemId: item.id,
+      pricePhaseItemId: null,
+      sourceType: "TICKET_BASE" as const,
       productId: item.productId,
       productName: item.product.name,
+      productDescription: item.product.description,
       quantity: item.quantity,
       requiresVariantChoice: item.requiresVariantChoice,
+      fulfillmentRequired: true,
+      primaryImageUrl: item.product.primaryImageAssetId
+        ? (assetUrl.get(item.product.primaryImageAssetId) ?? null)
+        : null,
+      sizeChartUrl: item.product.sizeChartAssetId
+        ? (assetUrl.get(item.product.sizeChartAssetId) ?? null)
+        : null,
+      sizeChartDescription: item.product.sizeChartDescription ?? null,
+      sizeChartInstructions: item.product.sizeChartInstructions ?? null,
+      gallery,
       fixedVariant: fixed,
       variants,
     };
@@ -173,7 +243,12 @@ async function mapTicket(row: {
 const ticketInclude = {
   includedItems: {
     include: {
-      product: { include: { variants: true } },
+      product: {
+        include: {
+          variants: { orderBy: { sortOrder: "asc" as const } },
+          media: { orderBy: { sortOrder: "asc" as const } },
+        },
+      },
       productVariant: true,
     },
   },
@@ -216,15 +291,20 @@ function mapRecord(row: {
   paymentIdempotencyKey: string | null;
   items: Array<{
     id: string;
+    ticketTypeItemId?: string | null;
     productId: string | null;
     productVariantId: string | null;
     nameSnapshot: string;
+    variantNameSnapshot?: string | null;
     skuSnapshot: string | null;
     quantity: number;
     unitPriceAmount: number;
     totalPriceAmount: number;
     currency: string;
     isIncluded: boolean;
+    fulfillmentStatus?: import("@/lib/registration/domain/types").ClickatonItemFulfillmentStatus;
+    fulfilledAt?: Date | null;
+    fulfilledByUserId?: number | null;
   }>;
 }): ClickatonRegistrationRecord {
   return {
@@ -275,6 +355,93 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
     async getEditionBySlug(slug) {
       const row = await prisma.clickatonEdition.findUnique({ where: { slug } });
       return row ? mapEdition(row) : null;
+    },
+
+    async listPricePhases(editionId) {
+      return prisma.clickatonRegistrationPricePhase.findMany({
+        where: { editionId },
+        orderBy: [{ startsAt: "asc" }, { priority: "asc" }],
+      });
+    },
+
+    async listPricePhaseItems(pricePhaseId) {
+      const rows = await prisma.clickatonPricePhaseItem.findMany({
+        where: { pricePhaseId, isIncluded: true },
+        orderBy: { sortOrder: "asc" },
+        include: {
+          product: {
+            include: {
+              variants: { orderBy: { sortOrder: "asc" } },
+              media: { orderBy: { sortOrder: "asc" } },
+            },
+          },
+        },
+      });
+
+      const assetIds = new Set<string>();
+      for (const row of rows) {
+        if (row.product.primaryImageAssetId) assetIds.add(row.product.primaryImageAssetId);
+        if (row.product.sizeChartAssetId) assetIds.add(row.product.sizeChartAssetId);
+        for (const m of row.product.media) {
+          if (m.status === "ACTIVE") assetIds.add(m.assetId);
+        }
+      }
+      const assets =
+        assetIds.size > 0
+          ? await prisma.dnxMediaAsset.findMany({
+              where: { id: { in: [...assetIds] } },
+              select: { id: true, publicUrl: true },
+            })
+          : [];
+      const assetUrl = new Map(assets.map((a) => [a.id, a.publicUrl]));
+
+      return rows.map((row) => ({
+        id: row.id,
+        productId: row.productId,
+        quantity: row.quantity,
+        requiresVariantChoice: row.requiresVariantChoice,
+        isIncluded: row.isIncluded,
+        fulfillmentRequired: row.fulfillmentRequired,
+        displayTitle: row.displayTitle,
+        displayDescription: row.displayDescription,
+        sortOrder: row.sortOrder,
+        product: {
+          id: row.product.id,
+          name: row.product.name,
+          description: row.product.description,
+          isActive: row.product.isActive,
+          archivedAt: row.product.archivedAt,
+          primaryImageAssetId: row.product.primaryImageAssetId,
+          primaryImageUrl: row.product.primaryImageAssetId
+            ? (assetUrl.get(row.product.primaryImageAssetId) ?? null)
+            : null,
+          sizeChartAssetId: row.product.sizeChartAssetId,
+          sizeChartUrl: row.product.sizeChartAssetId
+            ? (assetUrl.get(row.product.sizeChartAssetId) ?? null)
+            : null,
+          sizeChartDescription: row.product.sizeChartDescription,
+          sizeChartInstructions: row.product.sizeChartInstructions,
+          gallery: row.product.media
+            .filter((m) => m.status === "ACTIVE" && m.mediaType === "GALLERY")
+            .map((m) => ({
+              assetId: m.assetId,
+              url: assetUrl.get(m.assetId) ?? null,
+              altText: m.altText,
+              caption: m.caption,
+              sortOrder: m.sortOrder,
+            })),
+          variants: row.product.variants.map((v) => ({
+            id: v.id,
+            code: v.code,
+            name: v.name,
+            sku: v.sku,
+            stock: v.stock,
+            reservedStock: v.reservedStock,
+            isActive: v.isActive,
+            sortOrder: v.sortOrder,
+          })),
+        },
+      }));
     },
 
     async listActiveVenues(editionId) {
@@ -521,19 +688,43 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
               subtotalAmount: input.cmd.subtotalAmount,
               discountAmount: input.cmd.discountAmount,
               totalAmount: input.cmd.totalAmount,
+              pricePhaseId: input.cmd.pricePhaseId ?? null,
+              pricePhaseNameSnapshot: input.cmd.pricePhaseNameSnapshot ?? null,
+              pricePhaseAmountSnapshot: input.cmd.pricePhaseAmountSnapshot ?? null,
+              promotionId: input.cmd.promotionId ?? null,
+              promotionCodeSnapshot: input.cmd.promotionCodeSnapshot ?? null,
+              instagramHandle: input.cmd.instagramHandle ?? null,
+              instagramHandleNormalized: input.cmd.instagramHandleNormalized ?? null,
+              instagramUrl: input.cmd.instagramUrl ?? null,
+              profilePhotoAssetId: input.cmd.profilePhotoAssetId ?? null,
+              profilePhotoSource: input.cmd.profilePhotoAssetId ? "USER_UPLOAD" : null,
+              profilePhotoStatus: input.cmd.profilePhotoAssetId ? "READY" : null,
+              imageUsageConsent: input.cmd.imageUsageConsent ?? false,
+              socialPublicationConsent: input.cmd.socialPublicationConsent ?? false,
+              consentAcceptedAt: input.cmd.consentAcceptedAt ?? null,
+              consentVersion: input.cmd.consentVersion ?? null,
               holdExpiresAt: input.holdExpiresAt,
               paymentIdempotencyKey: input.idempotencyKey,
               items: {
                 create: input.cmd.items.map((item) => ({
+                  ticketTypeItemId: item.ticketTypeItemId ?? null,
+                  pricePhaseItemId: item.pricePhaseItemId ?? null,
+                  sourceType: item.sourceType ?? "TICKET_BASE",
                   productId: item.productId ?? null,
                   productVariantId: item.productVariantId ?? null,
                   nameSnapshot: item.nameSnapshot,
+                  productNameSnapshot: item.productNameSnapshot ?? null,
+                  productDescriptionSnapshot: item.productDescriptionSnapshot ?? null,
+                  variantNameSnapshot: item.variantNameSnapshot ?? null,
                   skuSnapshot: item.skuSnapshot ?? null,
                   quantity: item.quantity,
                   unitPriceAmount: item.unitPriceAmount,
                   totalPriceAmount: item.totalPriceAmount,
                   currency: item.currency,
                   isIncluded: item.isIncluded,
+                  imageAssetIdSnapshot: item.imageAssetIdSnapshot ?? null,
+                  sizeChartAssetIdSnapshot: item.sizeChartAssetIdSnapshot ?? null,
+                  fulfillmentStatus: "PENDING",
                 })),
               },
               capacityHold: {
@@ -576,7 +767,7 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
           });
 
           for (const item of input.cmd.items) {
-            if (!item.productVariantId) continue;
+            if (!item.productVariantId || !item.productId) continue;
             await tx.clickatonStockHold.create({
               data: {
                 registrationId: created.id,
@@ -589,6 +780,45 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
             await tx.clickatonProductVariant.update({
               where: { id: item.productVariantId },
               data: { reservedStock: { increment: item.quantity } },
+            });
+            const holdKey = `reg:${created.id}:var:${item.productVariantId}:hold`;
+            const existingMove = await tx.clickatonInventoryMovement.findUnique({
+              where: { idempotencyKey: holdKey },
+            });
+            if (!existingMove) {
+              await tx.clickatonInventoryMovement.create({
+                data: {
+                  productId: item.productId,
+                  variantId: item.productVariantId,
+                  movementType: "REGISTRATION_HOLD",
+                  quantity: item.quantity,
+                  sourceType: "REGISTRATION",
+                  sourceId: created.id,
+                  reason: "Hold de stock por reserva de inscripción",
+                  idempotencyKey: holdKey,
+                  metadata: {
+                    sourceType: item.sourceType ?? "TICKET_BASE",
+                    pricePhaseItemId: item.pricePhaseItemId ?? null,
+                  },
+                },
+              });
+            }
+          }
+
+          if (input.cmd.profilePhotoAssetId) {
+            const asset = await tx.dnxMediaAsset.findUnique({
+              where: { id: input.cmd.profilePhotoAssetId },
+              select: { ownerId: true, platform: true },
+            });
+            if (!asset || asset.platform !== "CLICKATON") {
+              throw new PublicRegistrationError("INVALID_VARIANT", "La foto de perfil no es válida.");
+            }
+            await tx.dnxMediaAsset.updateMany({
+              where: { ownerId: asset.ownerId, platform: "CLICKATON" },
+              data: {
+                ownerType: "REGISTRATION", ownerId: created.id,
+                registrationId: created.id, editionId: created.editionId,
+              },
             });
           }
 
@@ -717,10 +947,28 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
             where: { id: hold.id },
             data: { status: "EXPIRED", releasedAt: now },
           });
-          await tx.clickatonProductVariant.update({
+          const variant = await tx.clickatonProductVariant.update({
             where: { id: hold.productVariantId },
             data: { reservedStock: { decrement: hold.quantity } },
           });
+          const releaseKey = `reg:${registrationId}:var:${hold.productVariantId}:release`;
+          const existingRelease = await tx.clickatonInventoryMovement.findUnique({
+            where: { idempotencyKey: releaseKey },
+          });
+          if (!existingRelease) {
+            await tx.clickatonInventoryMovement.create({
+              data: {
+                productId: variant.productId,
+                variantId: hold.productVariantId,
+                movementType: "REGISTRATION_RELEASED",
+                quantity: hold.quantity,
+                sourceType: "REGISTRATION",
+                sourceId: registrationId,
+                reason: "Hold expirado / liberado",
+                idempotencyKey: releaseKey,
+              },
+            });
+          }
         }
 
         await tx.clickatonRegistration.update({
@@ -759,6 +1007,15 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
           releasedCapacityHolds,
           releasedStockHolds,
         };
+      }).then(async (result) => {
+        if (result.outcome === "expired" && !dryRun) {
+          try {
+            await releaseClickatonPromotionRedemption(registrationId);
+          } catch {
+            // best-effort: no bloquear expiración de hold
+          }
+        }
+        return result;
       });
     },
 
@@ -795,8 +1052,10 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
         currency: registration.money.currency,
         items: registration.items.map((i) => ({
           nameSnapshot: i.nameSnapshot,
+          variantNameSnapshot: i.variantNameSnapshot ?? null,
           skuSnapshot: i.skuSnapshot ?? null,
           quantity: i.quantity,
+          isIncluded: i.isIncluded,
         })),
         holdExpiresAt: registration.holdExpiresAt ?? null,
         accessToken,

@@ -2,11 +2,12 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AdminForm, AdminFormFullWidth } from "@/components/admin/AdminForm";
+import { AdminForm, AdminFormFullWidth, AdminFormSection } from "@/components/admin/AdminForm";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import type { CatalogActionState } from "@/lib/admin-catalog/actions/action-result";
+import type { ProductStoreStatus } from "@/lib/admin-catalog/domain/types";
 import { EDITION_STATUS_LABELS, type ClickatonEditionStatus } from "@/lib/admin/editions/types";
 
 export type EditionOption = {
@@ -15,19 +16,34 @@ export type EditionOption = {
   status: string;
 };
 
+type ProductFormValues = {
+  editionId: string;
+  name: string;
+  description: string;
+  code: string;
+  isActive: boolean;
+  primaryImageAssetId: string;
+  sizeChartAssetId: string;
+  sizeChartDescription: string;
+  sizeChartInstructions: string;
+  isStoreEnabled: boolean;
+  storeStatus: ProductStoreStatus;
+  storeSlug: string;
+  storeTitle: string;
+  storeDescription: string;
+  storePricePesos: string;
+  compareAtPricePesos: string;
+  requiresShipping: boolean;
+  allowPickup: boolean;
+};
+
 type Props = {
   action: (
     prev: CatalogActionState | undefined,
     formData: FormData,
   ) => Promise<CatalogActionState>;
   editions: EditionOption[];
-  initialValues?: {
-    editionId?: string;
-    name?: string;
-    description?: string;
-    code?: string;
-    isActive?: boolean;
-  };
+  initialValues?: Partial<ProductFormValues>;
   submitLabel?: string;
   cancelHref?: string;
   lockEdition?: boolean;
@@ -35,6 +51,37 @@ type Props = {
 };
 
 const BLOCKED = new Set(["CANCELLED", "COMPLETED"]);
+
+const STORE_STATUS_LABELS: Record<ProductStoreStatus, string> = {
+  DRAFT: "Borrador",
+  ACTIVE: "Activo",
+  OUT_OF_STOCK: "Sin stock",
+  HIDDEN: "Oculto",
+  ARCHIVED: "Archivado",
+};
+
+function defaultFormValues(initial: Partial<ProductFormValues> = {}): ProductFormValues {
+  return {
+    editionId: initial.editionId ?? "",
+    name: initial.name ?? "",
+    description: initial.description ?? "",
+    code: initial.code ?? "",
+    isActive: initial.isActive ?? true,
+    primaryImageAssetId: initial.primaryImageAssetId ?? "",
+    sizeChartAssetId: initial.sizeChartAssetId ?? "",
+    sizeChartDescription: initial.sizeChartDescription ?? "",
+    sizeChartInstructions: initial.sizeChartInstructions ?? "",
+    isStoreEnabled: initial.isStoreEnabled ?? false,
+    storeStatus: initial.storeStatus ?? "DRAFT",
+    storeSlug: initial.storeSlug ?? "",
+    storeTitle: initial.storeTitle ?? "",
+    storeDescription: initial.storeDescription ?? "",
+    storePricePesos: initial.storePricePesos ?? "",
+    compareAtPricePesos: initial.compareAtPricePesos ?? "",
+    requiresShipping: initial.requiresShipping ?? false,
+    allowPickup: initial.allowPickup ?? true,
+  };
+}
 
 export function ProductForm({
   action,
@@ -47,13 +94,7 @@ export function ProductForm({
 }: Props) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, undefined);
-  const [values, setValues] = useState({
-    editionId: initialValues.editionId ?? "",
-    name: initialValues.name ?? "",
-    description: initialValues.description ?? "",
-    code: initialValues.code ?? "",
-    isActive: initialValues.isActive ?? true,
-  });
+  const [values, setValues] = useState(defaultFormValues(initialValues));
 
   useEffect(() => {
     if (state?.values) {
@@ -191,7 +232,178 @@ export function ProductForm({
               Producto activo (seleccionable en futuros flujos)
             </label>
           </AdminFormFullWidth>
-        ) : null}
+        ) : (
+          <>
+            <AdminFormSection title="Medios e inscripción">
+              <Field
+                id="primaryImageAssetId"
+                label="Imagen principal (asset id)"
+                error={state?.errors?.primaryImageAssetId}
+                hint="ID de DnxMediaAsset ya subido. Reutiliza el pipeline de medios existente."
+              >
+                <Input
+                  name="primaryImageAssetId"
+                  value={values.primaryImageAssetId}
+                  onChange={(e) =>
+                    setValues((p) => ({ ...p, primaryImageAssetId: e.target.value }))
+                  }
+                  placeholder="clxx…"
+                />
+              </Field>
+              <Field
+                id="sizeChartAssetId"
+                label="Cuadro de talles (asset id)"
+                error={state?.errors?.sizeChartAssetId}
+              >
+                <Input
+                  name="sizeChartAssetId"
+                  value={values.sizeChartAssetId}
+                  onChange={(e) => setValues((p) => ({ ...p, sizeChartAssetId: e.target.value }))}
+                  placeholder="clxx…"
+                />
+              </Field>
+              <Field id="sizeChartDescription" label="Descripción del cuadro de talles">
+                <textarea
+                  id="sizeChartDescription"
+                  name="sizeChartDescription"
+                  value={values.sizeChartDescription}
+                  onChange={(e) =>
+                    setValues((p) => ({ ...p, sizeChartDescription: e.target.value }))
+                  }
+                  rows={3}
+                  className="min-h-24 w-full rounded-[var(--ck-radius-control)] border border-ck-border bg-ck-surface px-4 py-3 text-base text-ck-text"
+                />
+              </Field>
+              <Field id="sizeChartInstructions" label="Instrucciones de talle">
+                <textarea
+                  id="sizeChartInstructions"
+                  name="sizeChartInstructions"
+                  value={values.sizeChartInstructions}
+                  onChange={(e) =>
+                    setValues((p) => ({ ...p, sizeChartInstructions: e.target.value }))
+                  }
+                  rows={3}
+                  className="min-h-24 w-full rounded-[var(--ck-radius-control)] border border-ck-border bg-ck-surface px-4 py-3 text-base text-ck-text"
+                />
+              </Field>
+            </AdminFormSection>
+
+            <AdminFormSection title="Tienda pública (preparación)">
+              <p className="text-sm text-ck-text-secondary">
+                El storefront público sigue deshabilitado. Podés dejar datos listos; no se
+                publicará hasta habilitar la tienda en una etapa posterior.
+              </p>
+              <label className="flex items-center gap-3 text-sm text-ck-text">
+                <input
+                  type="checkbox"
+                  name="isStoreEnabled"
+                  checked={values.isStoreEnabled}
+                  onChange={(e) => setValues((p) => ({ ...p, isStoreEnabled: e.target.checked }))}
+                  className="size-4"
+                />
+                Habilitar tienda (prep; storefront OFF)
+              </label>
+              <Field id="storeStatus" label="Estado comercial tienda" error={state?.errors?.storeStatus}>
+                <select
+                  id="storeStatus"
+                  name="storeStatus"
+                  value={values.storeStatus}
+                  onChange={(e) =>
+                    setValues((p) => ({
+                      ...p,
+                      storeStatus: e.target.value as ProductStoreStatus,
+                    }))
+                  }
+                  className="min-h-11 w-full rounded-[var(--ck-radius-control)] border border-ck-border bg-ck-surface px-4 py-3 text-base text-ck-text"
+                >
+                  {(Object.keys(STORE_STATUS_LABELS) as ProductStoreStatus[]).map((status) => (
+                    <option key={status} value={status}>
+                      {STORE_STATUS_LABELS[status]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                id="storeSlug"
+                label="Slug tienda"
+                error={state?.errors?.storeSlug}
+                hint="Único por edición. Opcional hasta publicar."
+              >
+                <Input
+                  name="storeSlug"
+                  value={values.storeSlug}
+                  onChange={(e) => setValues((p) => ({ ...p, storeSlug: e.target.value }))}
+                />
+              </Field>
+              <Field id="storeTitle" label="Título tienda">
+                <Input
+                  name="storeTitle"
+                  value={values.storeTitle}
+                  onChange={(e) => setValues((p) => ({ ...p, storeTitle: e.target.value }))}
+                />
+              </Field>
+              <Field id="storeDescription" label="Descripción tienda">
+                <textarea
+                  id="storeDescription"
+                  name="storeDescription"
+                  value={values.storeDescription}
+                  onChange={(e) => setValues((p) => ({ ...p, storeDescription: e.target.value }))}
+                  rows={3}
+                  className="min-h-24 w-full rounded-[var(--ck-radius-control)] border border-ck-border bg-ck-surface px-4 py-3 text-base text-ck-text"
+                />
+              </Field>
+              <Field
+                id="storePricePesos"
+                label="Precio tienda (pesos)"
+                error={state?.errors?.storePricePesos}
+                hint="Independiente del precio de inscripción. Ej. 15000."
+              >
+                <Input
+                  name="storePricePesos"
+                  inputMode="numeric"
+                  value={values.storePricePesos}
+                  onChange={(e) => setValues((p) => ({ ...p, storePricePesos: e.target.value }))}
+                />
+              </Field>
+              <Field
+                id="compareAtPricePesos"
+                label="Precio tachado (pesos)"
+                error={state?.errors?.compareAtPricePesos}
+              >
+                <Input
+                  name="compareAtPricePesos"
+                  inputMode="numeric"
+                  value={values.compareAtPricePesos}
+                  onChange={(e) =>
+                    setValues((p) => ({ ...p, compareAtPricePesos: e.target.value }))
+                  }
+                />
+              </Field>
+              <label className="flex items-center gap-3 text-sm text-ck-text">
+                <input
+                  type="checkbox"
+                  name="requiresShipping"
+                  checked={values.requiresShipping}
+                  onChange={(e) =>
+                    setValues((p) => ({ ...p, requiresShipping: e.target.checked }))
+                  }
+                  className="size-4"
+                />
+                Requiere envío
+              </label>
+              <label className="flex items-center gap-3 text-sm text-ck-text">
+                <input
+                  type="checkbox"
+                  name="allowPickup"
+                  checked={values.allowPickup}
+                  onChange={(e) => setValues((p) => ({ ...p, allowPickup: e.target.checked }))}
+                  className="size-4"
+                />
+                Permite retiro en sede
+              </label>
+            </AdminFormSection>
+          </>
+        )}
       </AdminForm>
     </form>
   );

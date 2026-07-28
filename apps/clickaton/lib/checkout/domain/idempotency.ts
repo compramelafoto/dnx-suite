@@ -14,6 +14,9 @@ export function hashCreateOrderPayload(input: CreatePaymentOrderInput): string {
     successPath: stripQuery(input.successUrl),
     pendingPath: stripQuery(input.pendingUrl),
     failurePath: stripQuery(input.failureUrl),
+    distributionVersionId:
+      input.editionFinance?.snapshot.distributionVersionId ?? null,
+    agreementId: input.editionFinance?.snapshot.agreementId ?? null,
   };
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }

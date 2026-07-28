@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { confirmClickatonPromotionRedemption } from "@/lib/promotions/prisma-promotions-adapter";
 import { issueRegistrationQrToken } from "@/lib/registration/security/qr-token";
 import type { CheckoutRegistrationMutations } from "../domain/checkout-registration-port";
 import { CheckoutError } from "../domain/errors";
@@ -276,6 +277,13 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
         }
 
         return mapRecord(updated);
+      }).then(async (record) => {
+        try {
+          await confirmClickatonPromotionRedemption(input.registrationId);
+        } catch {
+          // best-effort: el pago ya quedó CONFIRMADO
+        }
+        return record;
       });
     },
 

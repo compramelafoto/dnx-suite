@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { catalogAdminRoutes } from "@/lib/admin-catalog/design/routes";
 import { getProductAction } from "@/lib/admin-catalog/actions/products";
 import { updateProductFormAction } from "@/lib/admin-catalog/actions/product-forms";
+import { minorUnitsToPesosInput } from "@/lib/admin-catalog/ui/money-ui";
 import { getEditionById, listEditionOptions } from "@/lib/admin/editions/queries";
 import { EDITION_STATUS_LABELS, type ClickatonEditionStatus } from "@/lib/admin/editions/types";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
@@ -98,6 +99,19 @@ export default async function AdminProductDetailPage({ params, searchParams }: P
           description: product.description ?? "",
           code: product.code,
           isActive: product.isActive,
+          primaryImageAssetId: product.primaryImageAssetId ?? "",
+          sizeChartAssetId: product.sizeChartAssetId ?? "",
+          sizeChartDescription: product.sizeChartDescription ?? "",
+          sizeChartInstructions: product.sizeChartInstructions ?? "",
+          isStoreEnabled: product.isStoreEnabled,
+          storeStatus: product.storeStatus,
+          storeSlug: product.storeSlug ?? "",
+          storeTitle: product.storeTitle ?? "",
+          storeDescription: product.storeDescription ?? "",
+          storePricePesos: minorUnitsToPesosInput(product.storePrice),
+          compareAtPricePesos: minorUnitsToPesosInput(product.compareAtPrice),
+          requiresShipping: product.requiresShipping,
+          allowPickup: product.allowPickup,
         }}
         cancelHref={listHref}
         submitLabel="Guardar cambios"

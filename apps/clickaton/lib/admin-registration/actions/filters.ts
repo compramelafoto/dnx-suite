@@ -1,4 +1,5 @@
 import type {
+  ClickatonItemFulfillmentStatus,
   ClickatonPaymentStatus,
   ClickatonRegistrationStatus,
 } from "@/lib/registration/domain/types";
@@ -16,6 +17,8 @@ export function filtersFromSearchParams(params: {
   to?: string;
   paymentOrder?: string;
   notes?: string;
+  shirtSize?: string;
+  fulfillmentStatus?: string;
 }): AdminRegistrationFilters {
   const statuses: ClickatonRegistrationStatus[] = [
     "DRAFT",
@@ -37,6 +40,13 @@ export function filtersFromSearchParams(params: {
     "REFUNDED",
     "PARTIALLY_REFUNDED",
     "MANUAL_REVIEW",
+  ];
+  const fulfillments: ClickatonItemFulfillmentStatus[] = [
+    "PENDING",
+    "READY",
+    "DELIVERED",
+    "CANCELLED",
+    "RETURNED",
   ];
   return {
     editionId: params.editionId || undefined,
@@ -60,5 +70,11 @@ export function filtersFromSearchParams(params: {
       params.paymentOrder === "with" ? true : params.paymentOrder === "without" ? false : undefined,
     hasInternalNotes:
       params.notes === "with" ? true : params.notes === "without" ? false : undefined,
+    shirtSize: params.shirtSize?.trim() || undefined,
+    fulfillmentStatus: fulfillments.includes(
+      params.fulfillmentStatus as ClickatonItemFulfillmentStatus,
+    )
+      ? (params.fulfillmentStatus as ClickatonItemFulfillmentStatus)
+      : undefined,
   };
 }

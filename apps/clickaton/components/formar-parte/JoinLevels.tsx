@@ -17,28 +17,34 @@ const cellLabel: Record<CellValue, string> = {
 
 const metalStyles: Record<
   Metal,
-  { ring: string; fill: string; text: string; label: string }
+  {
+    label: string;
+    glow: string;
+    gradId: string;
+    stops: [string, string, string];
+  }
 > = {
   bronze: {
-    ring: "from-[#8a4f22] via-[#B87333] to-[#e0a06a]",
-    fill: "from-[#3a2414] via-[#6b3e1c] to-[#B87333]",
-    text: "text-[#E8C4A0]",
     label: "text-[#C9894A]",
+    glow: "shadow-[0_0_28px_rgb(184_115_51_/0.35)]",
+    gradId: "ck-metal-bronze",
+    stops: ["#E0A06A", "#B87333", "#6B3E1C"],
   },
   silver: {
-    ring: "from-[#8a8e96] via-[#BFC3C9] to-[#e8eaed]",
-    fill: "from-[#2a2d33] via-[#5c6169] to-[#BFC3C9]",
-    text: "text-[#E8EAED]",
     label: "text-[#BFC3C9]",
+    glow: "shadow-[0_0_28px_rgb(191_195_201_/0.28)]",
+    gradId: "ck-metal-silver",
+    stops: ["#F2F4F6", "#BFC3C9", "#7A8088"],
   },
   gold: {
-    ring: "from-[#8a7020] via-[#D4AF37] to-[#f0d78c]",
-    fill: "from-[#3a3010] via-[#8a7020] to-[#D4AF37]",
-    text: "text-[#F5E6B8]",
     label: "text-[#D4AF37]",
+    glow: "shadow-[0_0_28px_rgb(212_175_55_/0.4)]",
+    gradId: "ck-metal-gold",
+    stops: ["#F0D78C", "#D4AF37", "#8A7020"],
   },
 };
 
+/** Estrella metálica tipo insignia / medalla (sin emoji). */
 function MetalBadge({ metal, label }: { metal: Metal; label: string }) {
   const styles = metalStyles[metal];
 
@@ -46,26 +52,71 @@ function MetalBadge({ metal, label }: { metal: Metal; label: string }) {
     <div className="flex flex-col items-center gap-3">
       <span
         className={cn(
-          "relative inline-flex size-12 items-center justify-center rounded-full bg-gradient-to-br p-[2px] shadow-[0_0_24px_rgb(0_0_0_/0.35)] sm:size-14",
-          styles.ring,
+          "relative inline-flex size-14 items-center justify-center sm:size-16",
+          styles.glow,
         )}
         aria-hidden
       >
-        <span
-          className={cn(
-            "flex size-full items-center justify-center rounded-full bg-gradient-to-br",
-            styles.fill,
-          )}
+        <svg
+          viewBox="0 0 64 64"
+          className="size-full drop-shadow-[0_2px_6px_rgb(0_0_0_/0.45)]"
+          role="presentation"
         >
-          <span
-            className={cn(
-              "text-[0.65rem] font-semibold uppercase tracking-[0.18em] sm:text-xs",
-              styles.text,
-            )}
-          >
-            {label.slice(0, 1)}
-          </span>
-        </span>
+          <defs>
+            <linearGradient
+              id={styles.gradId}
+              x1="12"
+              y1="8"
+              x2="52"
+              y2="56"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor={styles.stops[0]} />
+              <stop offset="48%" stopColor={styles.stops[1]} />
+              <stop offset="100%" stopColor={styles.stops[2]} />
+            </linearGradient>
+            <linearGradient
+              id={`${styles.gradId}-shine`}
+              x1="20"
+              y1="10"
+              x2="44"
+              y2="40"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
+              <stop offset="55%" stopColor="#ffffff" stopOpacity="0.08" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {/* Aro de medalla — sin relleno opaco */}
+          <circle
+            cx="32"
+            cy="32"
+            r="30"
+            fill="none"
+            stroke={`url(#${styles.gradId})`}
+            strokeWidth="2.25"
+            opacity="0.9"
+          />
+          <circle
+            cx="32"
+            cy="32"
+            r="26.5"
+            fill="none"
+            stroke={`url(#${styles.gradId})`}
+            strokeWidth="1"
+            opacity="0.75"
+          />
+          {/* Estrella */}
+          <path
+            d="M32 12.5 L36.9 25.1 L50.5 26.2 L40.2 35.4 L43.4 48.8 L32 41.6 L20.6 48.8 L23.8 35.4 L13.5 26.2 L27.1 25.1 Z"
+            fill={`url(#${styles.gradId})`}
+          />
+          <path
+            d="M32 12.5 L36.9 25.1 L50.5 26.2 L40.2 35.4 L43.4 48.8 L32 41.6 L20.6 48.8 L23.8 35.4 L13.5 26.2 L27.1 25.1 Z"
+            fill={`url(#${styles.gradId}-shine)`}
+          />
+        </svg>
       </span>
       <span
         className={cn(
@@ -168,7 +219,7 @@ export function JoinLevels() {
           <div className="overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch]">
             <table className="w-full min-w-[52rem] border-collapse text-left">
               <caption className="sr-only">
-                Comparativa de beneficios por tipo de alianza Clickatón
+                Comparativa de beneficios por nivel de acompañamiento Clickatón
               </caption>
 
               <thead>

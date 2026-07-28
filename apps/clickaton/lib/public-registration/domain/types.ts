@@ -10,11 +10,13 @@ export type PublicEditionDto = {
   shortDescription: string | null;
   status: string;
   isPublished: boolean;
+  registrationEnabled: boolean;
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   startAt: Date | null;
   endAt: Date | null;
   timezone: string | null;
+  currency?: string;
 };
 
 export type PublicVenueDto = {
@@ -28,10 +30,27 @@ export type PublicVenueDto = {
 };
 
 export type PublicTicketProductDto = {
+  /** Presente si el ítem proviene del ticket base. */
+  ticketTypeItemId: string | null;
+  /** Presente si el ítem proviene de la fase de precio. */
+  pricePhaseItemId?: string | null;
+  sourceType?: "TICKET_BASE" | "PRICE_PHASE";
   productId: string;
   productName: string;
+  productDescription?: string | null;
   quantity: number;
   requiresVariantChoice: boolean;
+  fulfillmentRequired?: boolean;
+  primaryImageUrl?: string | null;
+  sizeChartUrl?: string | null;
+  sizeChartDescription?: string | null;
+  sizeChartInstructions?: string | null;
+  gallery?: Array<{
+    url: string | null;
+    altText: string | null;
+    caption: string | null;
+    sortOrder: number;
+  }>;
   fixedVariant: {
     id: string;
     name: string;
@@ -39,10 +58,12 @@ export type PublicTicketProductDto = {
   } | null;
   variants: Array<{
     id: string;
+    code?: string;
     name: string;
     sku: string;
     availableStock: number;
     isActive: boolean;
+    sortOrder?: number;
   }>;
 };
 
@@ -66,10 +87,23 @@ export type PublicTicketDto = {
   products: PublicTicketProductDto[];
 };
 
+export type PublicPricePhaseSummaryDto = {
+  id: string;
+  name: string;
+  amount: number;
+  currency: string;
+  startsAt: Date;
+  endsAt: Date;
+  includedProductCount: number;
+  includesPhysicalMerch: boolean;
+};
+
 export type PublicRegistrationContextDto = {
   edition: PublicEditionDto;
   venues: PublicVenueDto[];
   tickets: PublicTicketDto[];
+  /** Fase vigente resuelta en backend (null si no hay fases activas). */
+  currentPricePhase: PublicPricePhaseSummaryDto | null;
   registrationWindow: "open" | "not_open" | "closed" | "unavailable";
   legal: {
     termsPath: string;
@@ -101,7 +135,14 @@ export type CreatePublicRegistrationInput = {
   acceptTerms: boolean;
   acceptPrivacy: boolean;
   acceptImage: boolean;
+  instagramHandle?: string;
+  profilePhotoAssetId?: string;
+  imageUsageConsent?: boolean;
+  socialPublicationConsent?: boolean;
+  consentVersion?: string;
   idempotencyKey: string;
+  /** Código promocional opcional (normalizado en backend). */
+  promoCode?: string | null;
 };
 
 export type PublicRegistrationSummaryDto = {
@@ -129,8 +170,10 @@ export type PublicRegistrationSummaryDto = {
   currency: string;
   items: Array<{
     nameSnapshot: string;
+    variantNameSnapshot?: string | null;
     skuSnapshot: string | null;
     quantity: number;
+    isIncluded?: boolean;
   }>;
   holdExpiresAt: Date | null;
   accessToken: string;

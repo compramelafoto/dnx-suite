@@ -1,3 +1,4 @@
+export { OrganizerAbout } from "@/components/organizar-sede/OrganizerAbout";
 export { OrganizerBenefits } from "@/components/organizar-sede/OrganizerBenefits";
 export { OrganizerEconomics } from "@/components/organizar-sede/OrganizerEconomics";
 export { OrganizerFaq } from "@/components/organizar-sede/OrganizerFaq";

@@ -11,6 +11,16 @@ const nextConfig: NextConfig = {
     // Silencia detección errónea de root por lockfiles fuera del monorepo.
     root: path.join(appDir, "../.."),
   },
+  // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
+  webpack: (config) => {
+    config.resolve = config.resolve ?? {};
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias ?? {}),
+      ".js": [".ts", ".tsx", ".js"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return config;
+  },
   async redirects() {
     return [
       {

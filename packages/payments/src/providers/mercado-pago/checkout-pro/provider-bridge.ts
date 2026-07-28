@@ -35,6 +35,11 @@ export function createMercadoPagoTestClickatonProviderBridge(input: {
       if (!params.notificationUrl) {
         throw new Error("notification_url_required_for_mercado_pago_test");
       }
+      if (!params.collectorAccessToken) {
+        throw new Error(
+          "edition_finance_collector_token_required: Checkout Pro debe usar OAuth del beneficiario (no token owner stub)",
+        );
+      }
       const created = await adapter.createPreference({
         amountMinor: params.amountMinor,
         currency: params.currency,
@@ -46,12 +51,22 @@ export function createMercadoPagoTestClickatonProviderBridge(input: {
         pendingUrl: params.pendingUrl,
         failureUrl: params.failureUrl,
         notificationUrl: params.notificationUrl,
-        metadata: { source_id: params.sourceId },
+        accessTokenOverride: params.collectorAccessToken,
+        metadata: {
+          source_id: params.sourceId,
+          payment_account_id: params.collectorPaymentAccountId ?? "",
+          modality: params.editionFinanceModality ?? "CHECKOUT_PRO_COLLECTOR_OAUTH",
+        },
       });
       return {
         checkoutUrl: created.checkoutUrl,
         providerOrderId: created.providerPreferenceId,
-        rawSanitized: created.rawSanitized,
+        rawSanitized: {
+          ...created.rawSanitized,
+          collectorPaymentAccountId: params.collectorPaymentAccountId ?? null,
+          editionFinanceModality: params.editionFinanceModality ?? null,
+          // Sin tokens.
+        },
       };
     },
     async refreshCheckout(params) {
@@ -85,6 +100,7 @@ export function createMercadoPagoTestClickatonProviderBridge(input: {
         externalReference: payment.externalReference,
         liveMode: payment.liveMode,
         providerPaymentId: payment.providerPaymentId,
+        providerFeeMinor: payment.providerFeeMinor ?? null,
         rawSanitized: payment.rawSanitized,
       };
     },

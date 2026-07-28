@@ -8,6 +8,7 @@ import type {
   AssignmentPersistInput,
   ClickatonAdminRegistrationRepository,
   InternalNotePersistInput,
+  ItemFulfillmentPersistInput,
   TransitionPersistInput,
 } from "../domain/repository";
 import type {
@@ -17,16 +18,32 @@ import type {
 
 const itemSelect = {
   id: true,
+  ticketTypeItemId: true,
   productId: true,
   productVariantId: true,
   nameSnapshot: true,
+  variantNameSnapshot: true,
   skuSnapshot: true,
   quantity: true,
   unitPriceAmount: true,
   totalPriceAmount: true,
   currency: true,
   isIncluded: true,
+  fulfillmentStatus: true,
+  fulfilledAt: true,
+  fulfilledByUserId: true,
 } as const;
+
+function primaryIncludedItem(
+  items: Array<{
+    nameSnapshot: string;
+    variantNameSnapshot: string | null;
+    fulfillmentStatus: import("@/lib/registration/domain/types").ClickatonItemFulfillmentStatus;
+    isIncluded: boolean;
+  }>,
+) {
+  return items.find((i) => i.isIncluded) ?? items[0] ?? null;
+}
 
 function mapList(row: {
   id: string;
@@ -48,8 +65,24 @@ function mapList(row: {
   cancelledAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  fotoRankParticipantId: string | null;
+  fotoRankSyncStatus: string | null;
+  fotoRankSyncedAt: Date | null;
+  instagramHandle: string | null;
+  profilePhotoAssetId: string | null;
+  welcomeCardId: string | null;
+  welcomeCardStatus: string | null;
+  welcomeCardAssetId: string | null;
+  welcomePublicationStatus: string | null;
   _count: { items: number; audits: number };
+  items?: Array<{
+    nameSnapshot: string;
+    variantNameSnapshot: string | null;
+    fulfillmentStatus: import("@/lib/registration/domain/types").ClickatonItemFulfillmentStatus;
+    isIncluded: boolean;
+  }>;
 }): AdminRegistrationListItem {
+  const primary = primaryIncludedItem(row.items ?? []);
   return {
     id: row.id,
     editionId: row.editionId,
@@ -65,6 +98,9 @@ function mapList(row: {
     currency: row.currency,
     totalAmount: row.totalAmount,
     itemCount: row._count.items,
+    includedProductLabel: primary?.nameSnapshot ?? null,
+    shirtSizeLabel: primary?.variantNameSnapshot ?? null,
+    itemFulfillmentStatus: primary?.fulfillmentStatus ?? null,
     paymentOrderId: row.paymentOrderId,
     holdExpiresAt: row.holdExpiresAt,
     confirmedAt: row.confirmedAt,
@@ -72,6 +108,15 @@ function mapList(row: {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     hasInternalNotes: row._count.audits > 0,
+    fotoRankParticipantId: row.fotoRankParticipantId,
+    fotoRankSyncStatus: row.fotoRankSyncStatus,
+    fotoRankSyncedAt: row.fotoRankSyncedAt,
+    instagramHandle: row.instagramHandle,
+    profilePhotoAssetId: row.profilePhotoAssetId,
+    welcomeCardId: row.welcomeCardId,
+    welcomeCardStatus: row.welcomeCardStatus,
+    welcomeCardAssetId: row.welcomeCardAssetId,
+    welcomePublicationStatus: row.welcomePublicationStatus,
   };
 }
 
@@ -84,11 +129,54 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
       stockHolds: true,
       statusHistory: { orderBy: { createdAt: "desc" }, take: 50 },
       audits: { orderBy: { createdAt: "desc" }, take: 50 },
+      fotoRankSyncs: {
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          status: true,
+          attemptCount: true,
+          lastErrorCode: true,
+          lastErrorMessage: true,
+          fotoRankContestId: true,
+          completedAt: true,
+          updatedAt: true,
+        },
+      },
+      welcomeCards: {
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          status: true,
+          templateId: true,
+          templateVersion: true,
+          pngAssetId: true,
+          webpAssetId: true,
+          publicationStatus: true,
+          lastErrorCode: true,
+          lastErrorMessage: true,
+          attemptCount: true,
+          generatedAt: true,
+        },
+      },
     },
   });
   if (!row) return null;
 
   const hasInternalNotes = row.audits.some((a) => a.action === "INTERNAL_NOTE");
+  const latestSync = row.fotoRankSyncs[0] ?? null;
+  const latestCard = row.welcomeCards[0] ?? null;
+  const assetIds = [latestCard?.pngAssetId, latestCard?.webpAssetId].filter(
+    (v): v is string => Boolean(v),
+  );
+  const assets = assetIds.length
+    ? await prisma.dnxMediaAsset.findMany({
+        where: { id: { in: assetIds } },
+        select: { id: true, publicUrl: true },
+      })
+    : [];
+  const assetUrl = new Map(assets.map((a) => [a.id, a.publicUrl]));
 
   return {
     id: row.id,
@@ -105,6 +193,9 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
     currency: row.currency,
     totalAmount: row.totalAmount,
     itemCount: row.items.length,
+    includedProductLabel: primaryIncludedItem(row.items)?.nameSnapshot ?? null,
+    shirtSizeLabel: primaryIncludedItem(row.items)?.variantNameSnapshot ?? null,
+    itemFulfillmentStatus: primaryIncludedItem(row.items)?.fulfillmentStatus ?? null,
     paymentOrderId: row.paymentOrderId,
     holdExpiresAt: row.holdExpiresAt,
     confirmedAt: row.confirmedAt,
@@ -112,6 +203,15 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     hasInternalNotes,
+    fotoRankParticipantId: row.fotoRankParticipantId,
+    fotoRankSyncStatus: row.fotoRankSyncStatus,
+    fotoRankSyncedAt: row.fotoRankSyncedAt,
+    instagramHandle: row.instagramHandle,
+    profilePhotoAssetId: row.profilePhotoAssetId,
+    welcomeCardId: row.welcomeCardId,
+    welcomeCardStatus: row.welcomeCardStatus,
+    welcomeCardAssetId: row.welcomeCardAssetId,
+    welcomePublicationStatus: row.welcomePublicationStatus,
     userId: row.userId,
     phone: row.phone,
     city: row.city,
@@ -128,15 +228,20 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
     paymentIdempotencyKey: row.paymentIdempotencyKey,
     items: row.items.map((i) => ({
       id: i.id,
+      ticketTypeItemId: i.ticketTypeItemId,
       productId: i.productId,
       productVariantId: i.productVariantId,
       nameSnapshot: i.nameSnapshot,
+      variantNameSnapshot: i.variantNameSnapshot,
       skuSnapshot: i.skuSnapshot,
       quantity: i.quantity,
       unitPriceAmount: i.unitPriceAmount,
       totalPriceAmount: i.totalPriceAmount,
       currency: i.currency,
       isIncluded: i.isIncluded,
+      fulfillmentStatus: i.fulfillmentStatus,
+      fulfilledAt: i.fulfilledAt,
+      fulfilledByUserId: i.fulfilledByUserId,
     })),
     capacityHold: row.capacityHold
       ? {
@@ -177,6 +282,37 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
           : null,
       createdAt: a.createdAt,
     })),
+    fotoRankSync: latestSync
+      ? {
+          id: latestSync.id,
+          status: latestSync.status,
+          attemptCount: latestSync.attemptCount,
+          lastErrorCode: latestSync.lastErrorCode,
+          lastErrorMessage: latestSync.lastErrorMessage,
+          fotoRankContestId: latestSync.fotoRankContestId,
+          completedAt: latestSync.completedAt,
+          updatedAt: latestSync.updatedAt,
+        }
+      : null,
+    welcomeCard: latestCard
+      ? {
+          id: latestCard.id,
+          status: latestCard.status,
+          templateId: latestCard.templateId,
+          templateVersion: latestCard.templateVersion,
+          pngUrl: latestCard.pngAssetId
+            ? assetUrl.get(latestCard.pngAssetId) ?? null
+            : null,
+          webpUrl: latestCard.webpAssetId
+            ? assetUrl.get(latestCard.webpAssetId) ?? null
+            : null,
+          publicationStatus: latestCard.publicationStatus,
+          lastErrorCode: latestCard.lastErrorCode,
+          lastErrorMessage: latestCard.lastErrorMessage,
+          attemptCount: latestCard.attemptCount,
+          generatedAt: latestCard.generatedAt,
+        }
+      : null,
     commercial: {
       kind: "registration_with_soft_payment_refs",
       paymentOrderId: row.paymentOrderId,
@@ -222,6 +358,28 @@ export function createPrismaAdminRegistrationRepository(): ClickatonAdminRegistr
       if (filters.hasInternalNotes === false) {
         where.audits = { none: { action: "INTERNAL_NOTE" } };
       }
+      if (filters.shirtSize) {
+        const size = filters.shirtSize.trim();
+        where.items = {
+          some: {
+            isIncluded: true,
+            OR: [
+              { variantNameSnapshot: { equals: size, mode: "insensitive" } },
+              { productVariant: { code: { equals: size, mode: "insensitive" } } },
+            ],
+          },
+        };
+      }
+      if (filters.fulfillmentStatus) {
+        where.items = {
+          ...(where.items && typeof where.items === "object" ? where.items : {}),
+          some: {
+            ...((where.items as { some?: object } | undefined)?.some ?? {}),
+            isIncluded: true,
+            fulfillmentStatus: filters.fulfillmentStatus,
+          },
+        };
+      }
 
       const rows = await prisma.clickatonRegistration.findMany({
         where,
@@ -247,6 +405,26 @@ export function createPrismaAdminRegistrationRepository(): ClickatonAdminRegistr
           cancelledAt: true,
           createdAt: true,
           updatedAt: true,
+          fotoRankParticipantId: true,
+          fotoRankSyncStatus: true,
+          fotoRankSyncedAt: true,
+          instagramHandle: true,
+          profilePhotoAssetId: true,
+          welcomeCardId: true,
+          welcomeCardStatus: true,
+          welcomeCardAssetId: true,
+          welcomePublicationStatus: true,
+          items: {
+            where: { isIncluded: true },
+            orderBy: { createdAt: "asc" },
+            take: 1,
+            select: {
+              nameSnapshot: true,
+              variantNameSnapshot: true,
+              fulfillmentStatus: true,
+              isIncluded: true,
+            },
+          },
           _count: {
             select: {
               items: true,
@@ -422,6 +600,48 @@ export function createPrismaAdminRegistrationRepository(): ClickatonAdminRegistr
           metadata: { note: input.note.trim() },
         },
       });
+      const detail = await loadDetail(input.registrationId);
+      if (!detail) throw new AdminRegistrationNotFoundError(input.registrationId);
+      return detail;
+    },
+
+    async updateItemFulfillment(input: ItemFulfillmentPersistInput) {
+      const item = await prisma.clickatonRegistrationItem.findFirst({
+        where: { id: input.registrationItemId, registrationId: input.registrationId },
+      });
+      if (!item) throw new AdminRegistrationNotFoundError(input.registrationItemId);
+
+      const previous = item.fulfillmentStatus;
+      const now = new Date();
+      const delivered = input.nextStatus === "DELIVERED";
+
+      await prisma.$transaction(async (tx) => {
+        await tx.clickatonRegistrationItem.update({
+          where: { id: item.id },
+          data: {
+            fulfillmentStatus: input.nextStatus,
+            fulfilledAt: delivered ? now : null,
+            fulfilledByUserId: delivered ? input.actorUserId : null,
+          },
+        });
+        await tx.clickatonRegistrationAudit.create({
+          data: {
+            registrationId: input.registrationId,
+            actorUserId: input.actorUserId,
+            action: "ITEM_FULFILLMENT_UPDATED",
+            source: "admin",
+            metadata: {
+              registrationItemId: item.id,
+              previousStatus: previous,
+              nextStatus: input.nextStatus,
+              reason: input.reason ?? null,
+              variantNameSnapshot: item.variantNameSnapshot,
+              nameSnapshot: item.nameSnapshot,
+            },
+          },
+        });
+      });
+
       const detail = await loadDetail(input.registrationId);
       if (!detail) throw new AdminRegistrationNotFoundError(input.registrationId);
       return detail;

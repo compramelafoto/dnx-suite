@@ -15,6 +15,79 @@ export type ClickatonMpOAuthHttpClient = {
   fetchAuthorizedUser(accessToken: string): Promise<MpUserLookupResult>;
 };
 
+/**
+ * Thin façade for exchange — tokens never leave the HTTP client toward UI.
+ * Prefer wiring via ClickatonOwnerOAuthService.completeCallback (vault + account).
+ */
+export type MercadoPagoOAuthExchangeInput = {
+  authorizationCode: string;
+  redirectUri: string;
+  clientId: string;
+  clientSecret: string;
+  codeVerifier?: string | null;
+  expectedEnvironment: "TEST" | "PROD";
+};
+
+export type MercadoPagoOAuthExchangeSanitizedResult = {
+  providerAccountId: string;
+  scopes: string[];
+  mode: "TEST" | "PROD";
+  expiresInSeconds: number | null;
+  connectionStatus: "EXCHANGED";
+};
+
+export const MercadoPagoOAuthService = {
+  async exchangeAuthorizationCode(
+    client: ClickatonMpOAuthHttpClient,
+    input: MercadoPagoOAuthExchangeInput,
+  ): Promise<MercadoPagoOAuthExchangeSanitizedResult> {
+    const tokens = await client.exchangeAuthorizationCode({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret,
+      code: input.authorizationCode,
+      redirectUri: input.redirectUri,
+      codeVerifier: input.codeVerifier,
+    });
+    // Intentionally drop access/refresh tokens from the returned object.
+    return {
+      providerAccountId: tokens.providerUserId,
+      scopes: tokens.scope ? tokens.scope.split(/[,\s]+/).filter(Boolean) : [],
+      mode: input.expectedEnvironment,
+      expiresInSeconds: tokens.expiresIn,
+      connectionStatus: "EXCHANGED",
+    };
+  },
+};
+
+/** In-memory fake for tests — never hits Mercado Pago. */
+export function createFakeClickatonMpOAuthHttpClient(opts?: {
+  providerUserId?: string;
+  failExchange?: boolean;
+}): ClickatonMpOAuthHttpClient {
+  const providerUserId = opts?.providerUserId ?? "99887766";
+  return {
+    async exchangeAuthorizationCode() {
+      if (opts?.failExchange) {
+        throw new Error("mp_token_exchange_failed");
+      }
+      return {
+        accessToken: "APP_USR-fake-access-token",
+        refreshToken: "TG-fake-refresh",
+        expiresIn: 3600,
+        providerUserId,
+        scope: "offline_access read",
+      };
+    },
+    async fetchAuthorizedUser() {
+      return {
+        providerUserId,
+        nicknameMasked: "f***e",
+        emailMasked: "t***@t***",
+      };
+    },
+  };
+}
+
 export function buildClickatonMpAuthorizeUrl(input: {
   clientId: string;
   redirectUri: string;
@@ -44,7 +117,8 @@ function maskNick(nickname: unknown): string | null {
 function maskEmail(email: unknown): string | null {
   if (typeof email !== "string" || !email.includes("@")) return null;
   const [u, d] = email.split("@");
-  return `${u.slice(0, 1)}***@${d[0]}***`;
+  if (!u || !d) return null;
+  return `${u.slice(0, 1)}***@${d[0] ?? "*"}***`;
 }
 
 export function createLiveClickatonMpOAuthHttpClient(

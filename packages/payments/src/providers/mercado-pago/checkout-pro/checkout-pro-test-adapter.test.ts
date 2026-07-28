@@ -6,7 +6,10 @@ import { validateMercadoPagoTestCredentials } from "./validate-credentials";
 import { MercadoPagoCheckoutProTestAdapter } from "./preference-adapter";
 import { mapMercadoPagoPaymentStatusToNormalized } from "./map-status";
 import { sanitizeMercadoPagoPreferenceResponse, assertNoSecretLeak } from "./sanitize";
-import { resolveClickatonPaymentsProviderMode } from "./provider-bridge";
+import {
+  createMercadoPagoTestClickatonProviderBridge,
+  resolveClickatonPaymentsProviderMode,
+} from "./provider-bridge";
 
 describe("validateMercadoPagoTestCredentials", () => {
   it("rejects missing token", async () => {
@@ -226,6 +229,82 @@ describe("MercadoPagoCheckoutProTestAdapter", () => {
     assert.equal(payment.amountMinor, 1500);
     assert.equal(payment.liveMode, false);
     assert.equal((payment.rawSanitized as { payer?: unknown }).payer, undefined);
+  });
+
+  it("searchPaymentsByExternalReference prefers approved result", async () => {
+    const fetchImpl = mockFetch(async (url) => {
+      assert.match(url, /\/v1\/payments\/search/);
+      assert.match(url, /external_reference=/);
+      return new Response(
+        JSON.stringify({
+          results: [
+            {
+              id: 10,
+              status: "pending",
+              transaction_amount: 15,
+              currency_id: "ARS",
+              external_reference: "clickaton:registration:reg1",
+              live_mode: false,
+              date_created: "2026-01-01T10:00:00.000Z",
+            },
+            {
+              id: 11,
+              status: "approved",
+              transaction_amount: 15,
+              currency_id: "ARS",
+              external_reference: "clickaton:registration:reg1",
+              live_mode: false,
+              date_created: "2026-01-01T11:00:00.000Z",
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    const config = createMercadoPagoProviderConfig({ accessToken: token, environment: "sandbox" });
+    const adapter = new MercadoPagoCheckoutProTestAdapter({
+      config,
+      httpClient: new MercadoPagoHttpClient(config, fetchImpl),
+      skipCredentialGate: true,
+    });
+    const payment = await adapter.searchPaymentsByExternalReference("clickaton:registration:reg1");
+    assert.ok(payment);
+    assert.equal(payment!.providerPaymentId, "11");
+    assert.equal(payment!.status, "APPROVED");
+  });
+
+  it("refreshCheckout returns pending when providerOrderId is preference id", async () => {
+    const fetchImpl = mockFetch(async (url) => {
+      if (url.includes("/checkout/preferences/pref-non-numeric")) {
+        return new Response(
+          JSON.stringify({
+            id: "pref-non-numeric",
+            external_reference: "ext-1",
+            init_point: "https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=pref-non-numeric",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      throw new Error(`unexpected_url:${url}`);
+    });
+    const config = createMercadoPagoProviderConfig({ accessToken: token, environment: "sandbox" });
+    const adapter = new MercadoPagoCheckoutProTestAdapter({
+      config,
+      httpClient: new MercadoPagoHttpClient(config, fetchImpl),
+      skipCredentialGate: true,
+    });
+    const bridge = createMercadoPagoTestClickatonProviderBridge({ adapter });
+    assert.ok(bridge.refreshCheckout);
+    const refreshed = await bridge.refreshCheckout!({
+      providerOrderId: "pref-non-numeric",
+      externalReference: "ext-1",
+      expectedAmountMinor: 1000,
+      expectedCurrency: "ARS",
+    });
+    assert.ok(refreshed);
+    assert.equal(refreshed!.status, "PENDING");
+    assert.equal(refreshed!.amountMinor, 1000);
+    assert.equal(refreshed!.liveMode, false);
   });
 
   it("sanitize strips secrets", () => {

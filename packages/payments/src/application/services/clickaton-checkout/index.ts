@@ -5,6 +5,12 @@ export type {
 } from "./clickaton-checkout-service";
 export { ensureClickatonPlatformRecipients } from "./ensure-platform-recipients";
 export {
+  planRequiredEditionFinance,
+  ensureRecipientsForEditionPlan,
+  buildSplitsFromEditionPlan,
+  sanitizeEditionFinanceForOrderSnapshot,
+} from "./edition-finance-checkout.js";
+export {
   mapNormalizedToPaymentOrderStatus,
   mapNormalizedToProviderMappedStatus,
   mapPaymentOrderStatusToNormalized,

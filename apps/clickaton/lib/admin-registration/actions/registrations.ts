@@ -77,6 +77,34 @@ export async function setRegistrationStatusAction(
   }
 }
 
+export async function updateItemFulfillmentAction(
+  registrationId: string,
+  _prev: AdminRegistrationActionState | undefined,
+  formData: FormData,
+): Promise<AdminRegistrationActionState<AdminRegistrationDetail>> {
+  const registrationItemId = formString(formData, "registrationItemId");
+  const nextStatus = formString(formData, "nextStatus") as
+    | "PENDING"
+    | "READY"
+    | "DELIVERED"
+    | "CANCELLED";
+  const reason = formString(formData, "reason");
+  const values = { registrationItemId, nextStatus, reason };
+  try {
+    const actor = await resolveAdminRegistrationActor();
+    const data = await getAdminRegistrationService().updateItemFulfillment(actor, {
+      registrationId,
+      registrationItemId,
+      nextStatus,
+      reason,
+    });
+    revalidateRegistrationPaths(registrationId);
+    return regSuccess(data, "Entrega de artículo actualizada.");
+  } catch (error) {
+    return regFailure<AdminRegistrationDetail>(error, values);
+  }
+}
+
 export async function updateRegistrationAssignmentAction(
   registrationId: string,
   _prev: AdminRegistrationActionState | undefined,

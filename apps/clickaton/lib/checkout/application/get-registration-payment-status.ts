@@ -65,6 +65,40 @@ export function createGetRegistrationPaymentStatusUseCase(deps: {
               requestId: `s2s_refresh_${order.id}_${Date.now()}`,
               editionPrefix: prefix,
             });
+            try {
+              const { enqueueFotoRankSyncAfterPaid } = await import(
+                "@/lib/fotorank-sync/infrastructure/prisma-fotorank-sync"
+              );
+              void enqueueFotoRankSyncAfterPaid({
+                registrationId: registration.id,
+                editionId: registration.editionId,
+                userId: registration.userId,
+                paymentOrderId: order.id,
+                paidAt: registration.confirmedAt ?? new Date(),
+              });
+            } catch {
+              // soft-fail: PAID no se revierte
+            }
+            try {
+              const { enqueueWelcomeCardAfterPaid } = await import("@/lib/welcome-card/enqueue");
+              void enqueueWelcomeCardAfterPaid({
+                registrationId: registration.id,
+                editionId: registration.editionId,
+              });
+            } catch {
+              // soft-fail: PAID no se revierte
+            }
+            try {
+              const { enqueueWelcomePublishAfterPaid } = await import(
+                "@/lib/social-publisher/enqueue-welcome-publish"
+              );
+              void enqueueWelcomePublishAfterPaid({
+                registrationId: registration.id,
+                editionId: registration.editionId,
+              });
+            } catch {
+              // soft-fail: PAID no se revierte
+            }
             void notifyPaidRegistrationConfirmed({
               registrationId: registration.id,
               editionSlug: input.editionSlug,

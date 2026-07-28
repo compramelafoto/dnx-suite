@@ -15,17 +15,30 @@ assert.equal(
 
 const valid = validateEditionFormInput({
   ...base,
-  name: "Clickatón Córdoba 2026",
-  slug: "clickaton-cordoba-2026",
-  startAt: "2026-05-01T09:00",
-  endAt: "2026-05-01T18:00",
-  registrationOpenAt: "2026-04-01T09:00",
-  registrationCloseAt: "2026-04-30T23:59",
+  name: "Clickatón Argentina 2026",
+  slug: "clickaton-argentina-2026",
+  startAt: "2026-09-19T09:00",
+  endAt: "2026-09-19T20:00",
+  registrationOpenAt: "2026-08-01T09:00",
+  registrationCloseAt: "2026-09-18T23:59",
   defaultCapacity: "120",
+  country: "AR",
+  currency: "ARS",
+  location: "Argentina",
   coverImageUrl: "https://cdn.example.com/cover.jpg",
   fotorankContestId: "clxyz123",
 });
 assert.equal(valid.ok, true, "valid edition");
+
+const blockedGate = validateEditionFormInput({
+  ...base,
+  name: "Clickatón Argentina 2026",
+  slug: "clickaton-argentina-2026",
+  status: "DRAFT",
+  isPublished: false,
+  registrationEnabled: true,
+});
+assert.equal(blockedGate.ok, false, "registrationEnabled blocked in DRAFT");
 
 const badSlug = validateEditionFormInput({
   ...base,

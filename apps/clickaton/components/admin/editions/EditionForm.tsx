@@ -132,6 +132,14 @@ export function EditionForm({
           />
         </Field>
 
+        <Field id="currency" label="Moneda" hint="MVP: ARS" error={state?.errors?.currency}>
+          <Input
+            name="currency"
+            value={values.currency}
+            onChange={(e) => updateField("currency", e.target.value)}
+          />
+        </Field>
+
         <AdminFormFullWidth>
           <label className="flex items-center gap-2 text-sm text-ck-text">
             <input
@@ -141,9 +149,60 @@ export function EditionForm({
               onChange={(e) => updateField("isPublished", e.target.checked)}
               className="size-4 rounded border-ck-border"
             />
-            Publicada (visible cuando exista canal público)
+            Publicada (visible en canal público)
           </label>
         </AdminFormFullWidth>
+
+        <AdminFormFullWidth>
+          <label className="flex items-center gap-2 text-sm text-ck-text">
+            <input
+              type="checkbox"
+              name="registrationEnabled"
+              checked={values.registrationEnabled}
+              onChange={(e) => updateField("registrationEnabled", e.target.checked)}
+              className="size-4 rounded border-ck-border"
+            />
+            Inscripciones habilitadas (gate de venta; requiere publicada y no borrador)
+          </label>
+          {state?.errors?.registrationEnabled ? (
+            <p className="mt-2 text-sm text-[var(--ck-danger)]" role="alert">
+              {state.errors.registrationEnabled}
+            </p>
+          ) : null}
+        </AdminFormFullWidth>
+
+        <AdminFormSection title="Ubicación">
+          <Field id="location" label="Ubicación">
+            <Input
+              name="location"
+              value={values.location}
+              onChange={(e) => updateField("location", e.target.value)}
+              placeholder="Argentina"
+            />
+          </Field>
+          <Field id="city" label="Ciudad">
+            <Input
+              name="city"
+              value={values.city}
+              onChange={(e) => updateField("city", e.target.value)}
+            />
+          </Field>
+          <Field id="provinceOrState" label="Provincia / estado">
+            <Input
+              name="provinceOrState"
+              value={values.provinceOrState}
+              onChange={(e) => updateField("provinceOrState", e.target.value)}
+            />
+          </Field>
+          <Field id="country" label="País (ISO)" error={state?.errors?.country}>
+            <Input
+              name="country"
+              value={values.country}
+              onChange={(e) => updateField("country", e.target.value)}
+              placeholder="AR"
+            />
+          </Field>
+        </AdminFormSection>
 
         <AdminFormSection title="Fechas">
           <Field id="startAt" label="Inicio" error={state?.errors?.startAt}>

@@ -86,13 +86,40 @@ export async function updateProductAction(
   const name = formString(formData, "name");
   const description = formString(formData, "description");
   const code = formString(formData, "code");
-  const values = { name, description, code };
+  const values = {
+    name,
+    description,
+    code,
+    primaryImageAssetId: formString(formData, "primaryImageAssetId"),
+    sizeChartAssetId: formString(formData, "sizeChartAssetId"),
+    sizeChartDescription: formString(formData, "sizeChartDescription"),
+    sizeChartInstructions: formString(formData, "sizeChartInstructions"),
+    storeSlug: formString(formData, "storeSlug"),
+    storeTitle: formString(formData, "storeTitle"),
+    storeDescription: formString(formData, "storeDescription"),
+    storePricePesos: formString(formData, "storePricePesos"),
+    compareAtPricePesos: formString(formData, "compareAtPricePesos"),
+    storeStatus: formString(formData, "storeStatus"),
+  };
   try {
     const actor = await resolveCatalogActor();
     const updated = await getCatalogService().updateProduct(actor, productId, {
       name,
       description: description || null,
       code,
+      primaryImageAssetId: formString(formData, "primaryImageAssetId") || null,
+      sizeChartAssetId: formString(formData, "sizeChartAssetId") || null,
+      sizeChartDescription: formString(formData, "sizeChartDescription") || null,
+      sizeChartInstructions: formString(formData, "sizeChartInstructions") || null,
+      isStoreEnabled: formData.has("isStoreEnabled"),
+      storeStatus: formString(formData, "storeStatus") || "DRAFT",
+      storeSlug: formString(formData, "storeSlug") || null,
+      storeTitle: formString(formData, "storeTitle") || null,
+      storeDescription: formString(formData, "storeDescription") || null,
+      storePricePesos: formString(formData, "storePricePesos"),
+      compareAtPricePesos: formString(formData, "compareAtPricePesos"),
+      requiresShipping: formData.has("requiresShipping"),
+      allowPickup: formData.has("allowPickup"),
     });
     revalidateCatalogPaths(productId);
     return catalogSuccess(updated, "Producto actualizado.");

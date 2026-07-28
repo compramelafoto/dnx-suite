@@ -11,6 +11,7 @@ import {
 } from "@/data/public-marathons";
 import { getPublicRegistrationOfferAction } from "@/lib/public-registration/actions/public-registration";
 import { buildPageMetadata } from "@/lib/seo";
+import { getPublicTimelineBySlug } from "@/lib/timeline/public-api";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -55,9 +56,10 @@ export default async function MarathonDetailPage({ params }: PageProps) {
   if (!marathon) notFound();
 
   const visibility = getPublicMarathonVisibility(marathon);
-  const [capabilities, offerResult] = await Promise.all([
+  const [capabilities, offerResult, timeline] = await Promise.all([
     getPublicMarathonCapabilities(marathon.id),
     getPublicRegistrationOfferAction(slug),
+    getPublicTimelineBySlug(slug),
   ]);
   const offer = offerResult.ok ? offerResult.data : null;
 
@@ -75,6 +77,8 @@ export default async function MarathonDetailPage({ params }: PageProps) {
         capabilities={capabilities}
         nativeRegistrationHref={offer?.available ? offer.href : null}
         nativeRegistrationLabel={offer?.available ? offer.label : null}
+        timelineMilestones={timeline?.milestones ?? null}
+        timelineServerNow={timeline?.serverNow ?? null}
       />
     </>
   );

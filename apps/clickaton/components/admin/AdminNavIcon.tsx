@@ -64,6 +64,23 @@ export function AdminNavIcon({ name, className }: Props) {
           />
         </svg>
       );
+    case "promotions":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>
+          <path
+            d="M4 10h16l-2 10H6L4 10Zm4-5h8l1 5H7l1-5Z"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="square"
+          />
+        </svg>
+      );
+    case "social":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>
+          <path d="M5 5h14v10H9l-4 4V5Zm4 4h6M9 12h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="square" />
+        </svg>
+      );
     case "sponsors":
       return (
         <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>

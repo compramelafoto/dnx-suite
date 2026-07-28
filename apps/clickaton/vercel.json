@@ -6,6 +6,22 @@
     {
       "path": "/api/cron/expire-registration-holds",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/fotorank-sync",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/welcome-cards",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/social-publish",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/payments-reconciliation",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

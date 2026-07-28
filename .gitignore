@@ -98,3 +98,7 @@ apps/dnx-sales-assistant/.local/
 
 # Auditorías / fingerprints / reportes locales (pueden contener metadatos operativos)
 .local/
+
+# FotoRank private local storage
+apps/fotorank/.data/
+.data/fotorank-private/

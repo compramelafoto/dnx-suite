@@ -1,3 +1,5 @@
+import type { PricePhaseItemResolvedInput } from "@/lib/catalog/domain/resolve-included-items";
+import type { PricePhaseRecord } from "@/lib/pricing/domain/types";
 import type { ClickatonRegistrationRecord } from "@/lib/registration/domain/types";
 import type {
   CheckoutEligibilityDto,
@@ -39,6 +41,9 @@ export interface PublicRegistrationRepository {
   getEditionBySlug(slug: string): Promise<PublicCatalogEdition | null>;
   listActiveVenues(editionId: string): Promise<PublicVenueDto[]>;
   listSellableTickets(editionId: string): Promise<PublicCatalogTicket[]>;
+  listPricePhases(editionId: string): Promise<PricePhaseRecord[]>;
+  /** Items incluidos de una fase (con producto/variantes/media). */
+  listPricePhaseItems(pricePhaseId: string): Promise<PricePhaseItemResolvedInput[]>;
   getTicketDetail(ticketTypeId: string): Promise<PublicCatalogTicket | null>;
   countConfirmedAndActiveHolds(ticketTypeId: string): Promise<{
     confirmed: number;

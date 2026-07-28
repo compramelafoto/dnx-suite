@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import {
+  OrganizerAbout,
   OrganizerBenefits,
   OrganizerEconomics,
   OrganizerFaq,
@@ -53,6 +54,7 @@ export default function OrganizePage() {
   return (
     <article>
       <OrganizerHero />
+      <OrganizerAbout />
       <OrganizerWhatIs />
       <OrganizerBenefits />
       <OrganizerReceive />
