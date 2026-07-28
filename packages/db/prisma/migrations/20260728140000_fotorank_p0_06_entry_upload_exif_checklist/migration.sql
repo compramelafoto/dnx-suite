@@ -1,5 +1,10 @@
--- CreateEnum
-CREATE TYPE "FotorankContestEntryStatus" AS ENUM ('DRAFT', 'UPLOADED', 'PROCESSING', 'REQUIRES_REVIEW', 'READY_TO_CONFIRM', 'CONFIRMED', 'REJECTED', 'WITHDRAWN');
+-- CreateEnum (idempotent: Clickatón photo_upload puede haberlo creado antes)
+DO $$ BEGIN
+  CREATE TYPE "FotorankContestEntryStatus" AS ENUM ('DRAFT', 'UPLOADED', 'PROCESSING', 'REQUIRES_REVIEW', 'READY_TO_CONFIRM', 'CONFIRMED', 'REJECTED', 'WITHDRAWN');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+ALTER TYPE "FotorankContestEntryStatus" ADD VALUE IF NOT EXISTS 'REPLACED';
 
 -- CreateEnum
 CREATE TYPE "FotorankTechnicalSummaryStatus" AS ENUM ('NOT_EVALUATED', 'APPROVED', 'APPROVED_WITH_WARNINGS', 'REQUIRES_REVIEW', 'TECHNICALLY_REJECTED');

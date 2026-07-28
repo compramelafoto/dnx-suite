@@ -1,6 +1,22 @@
 -- Etapa 11: carga de fotografías, EXIF/GPS, vínculo Entry ↔ consigna Clickatón
+-- Orden seguro: el enum FR puede no existir aún (P0-06 es posterior en la cola).
 
--- AlterEnum
+DO $$ BEGIN
+  CREATE TYPE "FotorankContestEntryStatus" AS ENUM (
+    'DRAFT',
+    'UPLOADED',
+    'PROCESSING',
+    'REQUIRES_REVIEW',
+    'READY_TO_CONFIRM',
+    'CONFIRMED',
+    'REJECTED',
+    'WITHDRAWN',
+    'REPLACED'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 ALTER TYPE "FotorankContestEntryStatus" ADD VALUE IF NOT EXISTS 'REPLACED';
 
 -- AlterTable FotorankContestEntry
