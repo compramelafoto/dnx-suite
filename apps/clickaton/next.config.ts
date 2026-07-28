@@ -4,12 +4,24 @@ import { fileURLToPath } from "node:url";
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 
+const monorepoRoot = path.join(appDir, "../..");
+
 const nextConfig: NextConfig = {
   transpilePackages: ["@repo/db", "@repo/auth", "@repo/payments"],
+  // Evita que el bundler omita el Query Engine de Prisma en Vercel (rhel-openssl-3.0.x).
+  serverExternalPackages: ["@prisma/client", "@repo/db"],
+  outputFileTracingRoot: monorepoRoot,
+  outputFileTracingIncludes: {
+    "/**": [
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
+      "../../packages/db/prisma/**",
+    ],
+  },
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   turbopack: {
     // Silencia detección errónea de root por lockfiles fuera del monorepo.
-    root: path.join(appDir, "../.."),
+    root: monorepoRoot,
   },
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
   webpack: (config) => {
