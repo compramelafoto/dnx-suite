@@ -24,7 +24,7 @@ Fuente: `apps/clickaton/config/admin/admins.ts`
 
 - `dnxfotografia@gmail.com`
 - `rodrigorincon40@gmail.com`
-- `tammytamerph@gmail.com`
+- `tammyytamer@gmail.com`
 
 Comparación: trim + lowercase. No se muestran en la UI de login.
 

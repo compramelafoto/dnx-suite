@@ -232,7 +232,7 @@ flowchart TB
 - Cron expire holds (`vercel.json` `*/15`).
 - Emails funnel TEST (reserva, pago, free, hold expired).
 - Mi cuenta con credencial/QR regenerable.
-- Allowlist admin: `dnxfotografia@gmail.com`, `rodrigorincon40@gmail.com`, `tammytamerph@gmail.com`.
+- Allowlist admin: `dnxfotografia@gmail.com`, `rodrigorincon40@gmail.com`, `tammyytamer@gmail.com`.
 - Selfchecks y smoke scripts amplios (`package.json`).
 - Acuerdos económicos 1:N modelados en DNX (`DnxEconomicAgreement`…).
 
@@ -324,12 +324,12 @@ flowchart TB
 ## 12. Autenticación y roles administrativos
 
 - Allowlist en `apps/clickaton/config/admin/admins.ts` (SUPER_ADMIN implícito / acceso completo).
-- Emails: `dnxfotografia@gmail.com`, `rodrigorincon40@gmail.com`, `tammytamerph@gmail.com`.
+- Emails: `dnxfotografia@gmail.com`, `rodrigorincon40@gmail.com`, `tammyytamer@gmail.com`.
 - Comparación case-insensitive.
 - Deuda documentada: migrar a `WorkspaceAppAccess` / app `CLICKATON`.
 - **No** hay roles por sede.
 - Autorización financiera DNX: por `userId` + grants + ownership de Financial Identity — **no** por email solo.
-- **Tammy productiva:** verificar en DB real si `tammytamerph@gmail.com` existe como `User` y si tiene `DnxFinancialIdentity` + `DnxPaymentAccount` ACTIVE. Staging usó fixtures `clickaton.staging.test`, **no** el email real.
+- **Tammy productiva:** verificar en DB real si `tammyytamer@gmail.com` existe como `User` y si tiene `DnxFinancialIdentity` + `DnxPaymentAccount` ACTIVE. Staging usó fixtures `clickaton.staging.test`, **no** el email real.
 
 ---
 
@@ -505,7 +505,7 @@ Alineado al pedido del usuario, **reutilizando** lo existente y evitando reinven
 ## 20. Bloqueos externos
 
 1. Decisión producto: **cuenta MP Tammy vs cuenta exclusiva Clickatón (I1)**.
-2. Existencia en DB de User `tammytamerph@gmail.com` + PaymentAccount ACTIVE (prod/staging).
+2. Existencia en DB de User `tammyytamer@gmail.com` + PaymentAccount ACTIVE (prod/staging).
 3. App Mercado Pago dedicada (Client ID/Secret, redirects, webhook secret) — checklist I1.
 4. Concurso FotoRank real (`fotorankContestId`) para la edición 2026.
 5. Validación jurídica de términos/privacidad.

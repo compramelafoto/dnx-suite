@@ -89,7 +89,7 @@
 ## 5. Tammy como beneficiaria (edition finance)
 
 - Fee policy AR 2026: Tammy 100% distribuible post fee PSP (`ARGENTINA_2026_FEE_POLICY`).
-- UI finanzas busca user `tammytamerph@gmail.com` y su FI.
+- UI finanzas busca user `tammyytamer@gmail.com` y su FI.
 - Checkout exige snapshot finance + collector token resuelto (`edition_finance_collector_token_required`).
 - **Sin** `DnxPaymentAccount` ACTIVE de Tammy → checkout MP real **bloqueado** (correcto para 10A).
 

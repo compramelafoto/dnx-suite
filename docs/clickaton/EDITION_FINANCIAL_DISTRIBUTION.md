@@ -5,7 +5,7 @@
 Para **Clickatón Argentina 2026 (19/09/2026)**:
 
 - DNX Payments obligatorio (sin checkout MP directo).
-- Beneficiaria: Tammy (`tammytamerph@gmail.com` solo en seed).
+- Beneficiaria: Tammy (`tammyytamer@gmail.com` solo en seed).
 - **Tammy 100% del importe distribuible** después de comisiones inevitables del proveedor (Mercado Pago).
 - `platformFee` DNX/Clickatón = **0** en esta edición.
 - Sin collector ID / tokens / emails hardcodeados en runtime.

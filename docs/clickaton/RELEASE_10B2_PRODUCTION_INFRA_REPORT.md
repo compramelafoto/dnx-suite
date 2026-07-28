@@ -112,7 +112,7 @@ CLI agent no puede leer sensibles vía `env pull`/`env run` (redactados a `""`);
 
 **N/A.** Identidad = DNX + Google OAuth.  
 Callback esperado: `https://maratonfotografica.com/api/auth/google/callback`.  
-Usuario Tammy: `tammytamerph@gmail.com` (sin password). Login humano Tammy **no automatizado** en esta etapa.
+Usuario Tammy: `tammyytamer@gmail.com` (sin password). Login humano Tammy **no automatizado** en esta etapa.
 
 ### 9–12. Mercado Pago OAuth LIVE / callback / reconnect / revoke
 
@@ -198,7 +198,7 @@ gh pr create --base main --head migration-legacy-clf-to-monorepo \
    - `DNX_CLICKATON_MP_OWNER_OAUTH_AUTHORIZATION_PHRASE=AUTORIZO CONECTAR LA CUENTA OWNER REAL EXCLUSIVA DE CLICKATÓN`  
    - `DNX_CLICKATON_MP_OWNER_OAUTH_MANUAL_AUTHORIZED=true`  
 3. Redeploy Production (o esperar que env tome efecto según plataforma).  
-4. Tammy inicia sesión con Google (`tammytamerph@gmail.com`) → panel finanzas → **Conectar Mercado Pago** (ella acepta permisos).  
+4. Tammy inicia sesión con Google (`tammyytamer@gmail.com`) → panel finanzas → **Conectar Mercado Pago** (ella acepta permisos).  
 5. `gh auth login` + abrir PR.  
 6. (Opcional) seed production-safe de ediciones si el catálogo público debe listar maratones.
 

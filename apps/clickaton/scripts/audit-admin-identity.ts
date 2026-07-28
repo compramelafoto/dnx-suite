@@ -16,7 +16,7 @@ async function main() {
   const emails = [
     "dnxfotografia@gmail.com",
     "rodrigorincon40@gmail.com",
-    "tammytamerph@gmail.com",
+    "tammyytamer@gmail.com",
   ];
 
   console.log("===ADMIN_IDENTITY_AUDIT===");

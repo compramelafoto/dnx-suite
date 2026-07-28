@@ -115,7 +115,7 @@ Nota CLI: `vercel env pull` / `env run` en modo agente **redacta** sensibles a `
 |------|--------|
 | Auth0 | N/A |
 | Google callback prod | `https://maratonfotografica.com/api/auth/google/callback` |
-| Tammy email esperado | `tammytamerph@gmail.com` (sin password) |
+| Tammy email esperado | `tammyytamer@gmail.com` (sin password) |
 | MP redirect prod | `https://maratonfotografica.com/api/clickaton/payments/mercadopago/callback` |
 | App MP LIVE credentials | **ausentes** en Vercel |
 | Resend | key cargada en Production env |

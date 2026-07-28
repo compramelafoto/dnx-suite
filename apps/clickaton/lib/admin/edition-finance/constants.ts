@@ -21,5 +21,5 @@ export const ARGENTINA_2026_FEE_POLICY =
 export const FINANCE_SEED_EMAILS = {
   daniel: "dnxfotografia@gmail.com",
   rodri: "rodrigorincon40@gmail.com",
-  tammy: "tammytamerph@gmail.com",
+  tammy: "tammyytamer@gmail.com",
 } as const;

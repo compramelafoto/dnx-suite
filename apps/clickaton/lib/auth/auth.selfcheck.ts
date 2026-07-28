@@ -90,7 +90,7 @@ assert.equal(safeClickatonNextPath("https://evil"), undefined);
   assert.equal(admin.adminAuthorized, true);
 
   const adminDefault = resolveClickatonPostGoogleLoginPath({
-    email: "tammytamerph@gmail.com",
+    email: "tammyytamer@gmail.com",
     globalRole: "USER",
   });
   assert.equal(adminDefault.path, CLICKATON_ACCOUNT_PATH);

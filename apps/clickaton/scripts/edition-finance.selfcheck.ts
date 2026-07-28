@@ -1,5 +1,5 @@
 /**
- * Etapa 5 â€” distribuciÃ³n financiera por ediciÃ³n (in-memory).
+ * Etapa 5 âÿÿ distribuciÃ³n financiera por ediciÃ³n (in-memory).
  */
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
@@ -44,7 +44,7 @@ async function main() {
     id: "fi_tammy",
     ownerUserId: 30,
     displayName: "Tammy",
-    email: "tammytamerph@gmail.com",
+    email: "tammyytamer@gmail.com",
   });
   store.identities.set("fi_other", {
     id: "fi_other",
@@ -333,7 +333,7 @@ async function main() {
     100,
   );
 
-  // 16â€“17) webhook/ledger: documentados como responsabilidad DNX Payments (idempotency inbox);
+  // 16âÿÿ17) webhook/ledger: documentados como responsabilidad DNX Payments (idempotency inbox);
   // aquÃ­ verificamos que no se duplica snapshot (arriba).
   assert.equal(store.orderSnapshots.size, 2);
 

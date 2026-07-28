@@ -83,7 +83,7 @@ Validación limpia **no ejecutada**. Migraciones FR P0 intercaladas = riesgo de 
 
 ## 5–6. Auth / Tammy
 
-Auth0 N/A. Google OAuth + allowlist incluye `tammytamerph@gmail.com`.  
+Auth0 N/A. Google OAuth + allowlist incluye `tammyytamer@gmail.com`.  
 Staging **sin** `GOOGLE_CLIENT_*` → login panel bloqueado ahí.  
 `audit:admin-identity` pendiente de DB.
 

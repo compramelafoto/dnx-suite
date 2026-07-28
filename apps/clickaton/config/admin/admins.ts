@@ -12,7 +12,7 @@
 export const CLICKATON_ADMIN_EMAILS = [
   "dnxfotografia@gmail.com",
   "rodrigorincon40@gmail.com",
-  "tammytamerph@gmail.com",
+  "tammyytamer@gmail.com",
 ] as const;
 
 export type ClickatonAdminEmail = (typeof CLICKATON_ADMIN_EMAILS)[number];

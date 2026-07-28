@@ -13,7 +13,7 @@ import { hasClickatonAdminAccess, sanitizeAdminReturnPath } from "./access";
 assert.equal(normalizeEmail("  Foo@Bar.COM "), "foo@bar.com");
 assert.equal(isClickatonAdminEmail("DNXfotografia@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("rodrigorincon40@gmail.com"), true);
-assert.equal(isClickatonAdminEmail("tammytamerph@gmail.com"), true);
+assert.equal(isClickatonAdminEmail("tammyytamer@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("otro@example.com"), false);
 assert.equal(listClickatonAdminEmails().length, 3);
 

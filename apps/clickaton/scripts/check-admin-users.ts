@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 const emails = [
   "dnxfotografia@gmail.com",
   "rodrigorincon40@gmail.com",
-  "tammytamerph@gmail.com",
+  "tammyytamer@gmail.com",
 ];
 
 for (const email of emails) {

@@ -51,7 +51,7 @@ Fuentes: `docs/clickaton/UNIFIED_LOGIN.md`, `GOOGLE_OAUTH_ADMIN.md`, `apps/fotof
 
 ---
 
-## 2. Tammy (`tammytamerph@gmail.com`)
+## 2. Tammy (`tammyytamer@gmail.com`)
 
 | Check | Estado 10A |
 |-------|------------|
@@ -81,7 +81,7 @@ Salidas esperadas por email (sin secrets):
 
 1. Confirmar email en allowlist (ya está).
 2. En Google Cloud (app DNX Suite): Tammy como test user si OAuth en Testing.
-3. Tammy abre `https://…/login?next=/admin` y **Continuar con Google** con `tammytamerph@gmail.com`.
+3. Tammy abre `https://…/login?next=/admin` y **Continuar con Google** con `tammyytamer@gmail.com`.
 4. Callback crea o enlaza `User` — **no** generar contraseña manual.
 5. Verificar con `audit:admin-identity` que hay **un** `id`.
 6. Seed/grants: `seed:argentina-2026` asegura `PRODUCT_FINANCE_VIEWER` si el user existe.

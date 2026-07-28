@@ -100,7 +100,7 @@ CLICKATON_RELEASE_ENV=production pnpm clickaton:release:check-env
 ## 11. Auth0
 
 **N/A.** Login previsto: Google → `@repo/auth` → cookie `dnx_session`.  
-Email Tammy: `tammytamerph@gmail.com` (allowlist admin; sin contraseña nueva).
+Email Tammy: `tammyytamer@gmail.com` (allowlist admin; sin contraseña nueva).
 
 ## 12. URLs
 
@@ -183,7 +183,7 @@ No ejecutado en producción. Distribución Tammy 100%: no activada.
 4. Cargar vars faltantes (Google staging, MP OAuth LIVE, vault, Resend, crons prod, webhook prod).
 5. Configurar redirect URI / webhook MP oficiales HTTPS.
 6. Redeploy `clickaton-dnxsuite` solo tras check-env 0 blocks.
-7. Tammy: login Google `tammytamerph@gmail.com` → Conectar Mercado Pago (personal).
+7. Tammy: login Google `tammyytamer@gmail.com` → Conectar Mercado Pago (personal).
 8. Daniel: validar distribución 10.000 bps sin abrir inscripciones.
 
 ## 29. Bloqueos

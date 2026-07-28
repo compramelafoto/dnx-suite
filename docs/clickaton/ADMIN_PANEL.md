@@ -39,7 +39,7 @@ Fuera de alcance MVP: comunicaciones, comunidad interna, academia, reportes avan
 
 - `dnxfotografia@gmail.com`
 - `rodrigorincon40@gmail.com`
-- `tammytamerph@gmail.com`
+- `tammyytamer@gmail.com`
 
 Fuente única: `apps/clickaton/config/admin/admins.ts` (comparación case-insensitive + trim).  
 También se permite `SUPER_ADMIN` (rol DNX).
@@ -97,7 +97,7 @@ Ver `apps/clickaton/.env.example`:
 |-------|-------------|--------|
 | `dnxfotografia@gmail.com` | Sí | Allowlist; acceso oficial vía Google OAuth |
 | `rodrigorincon40@gmail.com` | Puede crearse en el primer login Google | Allowlist; sin contraseña compartida |
-| `tammytamerph@gmail.com` | Puede crearse en el primer login Google | Allowlist; sin contraseña compartida |
+| `tammyytamer@gmail.com` | Puede crearse en el primer login Google | Allowlist; sin contraseña compartida |
 
 No se inventan contraseñas ni se envían invitaciones automáticas.  
 Google Cloud debe incluir el callback local/prod (ver [GOOGLE_OAUTH_ADMIN.md](./GOOGLE_OAUTH_ADMIN.md)).  
