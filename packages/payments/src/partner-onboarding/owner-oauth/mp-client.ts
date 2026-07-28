@@ -94,12 +94,14 @@ export function buildClickatonMpAuthorizeUrl(input: {
   state: string;
   codeChallenge?: string | null;
 }): string {
+  // Orden alineado a la doc MP Connect + CLF productivo.
+  // redirect_uri debe coincidir byte-a-byte con "URLs de redireccionamiento" en Developers.
   const url = new URL(MP_AUTH_URL);
-  url.searchParams.set("client_id", input.clientId);
+  url.searchParams.set("client_id", input.clientId.trim());
   url.searchParams.set("response_type", "code");
   url.searchParams.set("platform_id", "mp");
-  url.searchParams.set("redirect_uri", input.redirectUri);
   url.searchParams.set("state", input.state);
+  url.searchParams.set("redirect_uri", input.redirectUri.trim());
   if (input.codeChallenge) {
     url.searchParams.set("code_challenge", input.codeChallenge);
     url.searchParams.set("code_challenge_method", "S256");

@@ -114,6 +114,20 @@ describe("10D3I-I1 Clickatón owner OAuth", () => {
     );
   });
 
+  it("omits PKCE from authorize URL when CLICKATON_MP_OAUTH_USE_PKCE=false", async () => {
+    const service = createTestOwnerOAuthService({
+      store: createMemoryOwnerOAuthStore(),
+      vaultStore: createMemoryCredentialStore(),
+      mpClient: mockMp(),
+      env: authorizedEnv({ CLICKATON_MP_OAUTH_USE_PKCE: "false" }),
+    });
+    const started = await service.startConnect({
+      actor: actor(7, [grant(7, "DNX_FINANCE_OWNER")]),
+    });
+    assert.equal(started.authorizeUrl.includes("code_challenge"), false);
+    assert.ok(started.authorizeUrl.includes("state="));
+  });
+
   it("blocks live OAuth without manual authorization phrase", async () => {
     const store = createMemoryOwnerOAuthStore();
     const service = createTestOwnerOAuthService({

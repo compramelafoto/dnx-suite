@@ -1,15 +1,22 @@
 "use client";
 
 import { logoutAdminAction } from "@/app/admin/login/actions";
+import { MercadoPagoConnectedIcon } from "@/components/admin/MercadoPagoConnectedIcon";
 import { Button } from "@/components/ui/Button";
 
 type Props = {
   userName: string | null;
   userEmail: string;
+  mpConnected?: boolean;
   onOpenMobileNav: () => void;
 };
 
-export function AdminTopbar({ userName, userEmail, onOpenMobileNav }: Props) {
+export function AdminTopbar({
+  userName,
+  userEmail,
+  mpConnected = false,
+  onOpenMobileNav,
+}: Props) {
   const display = userName?.trim() || userEmail;
 
   return (
@@ -31,7 +38,10 @@ export function AdminTopbar({ userName, userEmail, onOpenMobileNav }: Props) {
       </button>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ck-text">{display}</p>
+        <p className="flex min-w-0 items-center gap-2 text-sm font-medium text-ck-text">
+          <span className="truncate">{display}</span>
+          {mpConnected ? <MercadoPagoConnectedIcon /> : null}
+        </p>
         <p className="truncate text-xs text-ck-text-muted">{userEmail}</p>
       </div>
 

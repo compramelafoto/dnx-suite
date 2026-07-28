@@ -24,6 +24,8 @@ export const CLICKATON_MP_OAUTH_ENV = {
   redirectUri: "CLICKATON_MP_REDIRECT_URI",
   webhookSecret: "CLICKATON_MP_WEBHOOK_SECRET",
   publicKey: "CLICKATON_MP_PUBLIC_KEY",
+  /** "true" = enviar PKCE S256 (requiere el toggle en la app MP Developers). */
+  usePkce: "CLICKATON_MP_OAUTH_USE_PKCE",
 } as const;
 
 /** Known hosts from repo docs — do not invent others. */
@@ -105,6 +107,19 @@ export function isOwnerOAuthManuallyAuthorized(
 
 export function canStartLiveOwnerOAuth(env: NodeJS.ProcessEnv = process.env): boolean {
   return isOwnerOnboardingEnabled(env) && isOwnerOAuthManuallyAuthorized(env);
+}
+
+/**
+ * PKCE en authorize URL. Default ON (compat tests / apps con toggle PKCE).
+ * Setear `CLICKATON_MP_OAUTH_USE_PKCE=false` si la app MP no tiene PKCE habilitado
+ * (error MP: "La aplicación no está preparada para conectarse").
+ */
+export function isClickatonMpOAuthPkceEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const raw = env[CLICKATON_MP_OAUTH_ENV.usePkce];
+  if (raw === undefined || raw.trim() === "") return true;
+  return isTruthyFlag(raw);
 }
 
 export function readClickatonMpOAuthAppConfig(env: NodeJS.ProcessEnv = process.env): {

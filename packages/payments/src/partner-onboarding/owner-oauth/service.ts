@@ -14,6 +14,7 @@ import {
   CLICKATON_MP_OWNER_PURPOSE,
   OAUTH_STATE_TTL_MS,
   canStartLiveOwnerOAuth,
+  isClickatonMpOAuthPkceEnabled,
   isOwnerOnboardingEnabled,
   isOwnerOAuthManuallyAuthorized,
   readClickatonMpOAuthAppConfig,
@@ -198,9 +199,14 @@ export class ClickatonOwnerOAuthService {
 
     const stateToken = generateOAuthStateToken();
     const stateHash = hashOAuthStateToken(stateToken);
-    const verifier = generateCodeVerifier();
-    const challenge = codeChallengeS256(verifier);
-    const enc = encryptPkceVerifier(verifier, this.deps.pkceMasterKeyBase64);
+    const usePkce = isClickatonMpOAuthPkceEnabled(this.env);
+    let challenge: string | null = null;
+    let enc: { ciphertext: string; nonce: string; authTag: string } | null = null;
+    if (usePkce) {
+      const verifier = generateCodeVerifier();
+      challenge = codeChallengeS256(verifier);
+      enc = encryptPkceVerifier(verifier, this.deps.pkceMasterKeyBase64);
+    }
     const now = this.now();
     const expiresAt = new Date(now.getTime() + OAUTH_STATE_TTL_MS);
     const purpose = input.purpose ?? "OWNER_CONNECTION";
@@ -215,9 +221,9 @@ export class ClickatonOwnerOAuthService {
       environment: "PROD",
       redirectUri,
       codeChallenge: challenge,
-      codeVerifierCiphertext: enc.ciphertext,
-      codeVerifierNonce: enc.nonce,
-      codeVerifierAuthTag: enc.authTag,
+      codeVerifierCiphertext: enc?.ciphertext ?? null,
+      codeVerifierNonce: enc?.nonce ?? null,
+      codeVerifierAuthTag: enc?.authTag ?? null,
       expiresAt,
       usedAt: null,
       createdAt: now,

@@ -5,6 +5,7 @@
 import { prisma } from "@repo/db";
 import {
   isClickatonAdminEmail,
+  listClickatonAdminEmails,
   normalizeEmail,
 } from "../config/admin/admins";
 import {
@@ -13,11 +14,7 @@ import {
 } from "../lib/admin/access";
 
 async function main() {
-  const emails = [
-    "dnxfotografia@gmail.com",
-    "rodrigorincon40@gmail.com",
-    "tammyytamer@gmail.com",
-  ];
+  const emails = [...listClickatonAdminEmails()];
 
   console.log("===ADMIN_IDENTITY_AUDIT===");
   for (const email of emails) {

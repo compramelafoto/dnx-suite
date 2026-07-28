@@ -1,10 +1,7 @@
 import { prisma } from "@repo/db";
+import { listClickatonAdminEmails } from "../config/admin/admins";
 
-const emails = [
-  "dnxfotografia@gmail.com",
-  "rodrigorincon40@gmail.com",
-  "tammyytamer@gmail.com",
-];
+const emails = [...listClickatonAdminEmails()];
 
 for (const email of emails) {
   const u = await prisma.user.findFirst({

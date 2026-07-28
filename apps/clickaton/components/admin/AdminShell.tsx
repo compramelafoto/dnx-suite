@@ -8,10 +8,16 @@ import { AdminTopbar } from "@/components/admin/AdminTopbar";
 type Props = {
   userName: string | null;
   userEmail: string;
+  mpConnected?: boolean;
   children: React.ReactNode;
 };
 
-export function AdminShell({ userName, userEmail, children }: Props) {
+export function AdminShell({
+  userName,
+  userEmail,
+  mpConnected = false,
+  children,
+}: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -26,6 +32,7 @@ export function AdminShell({ userName, userEmail, children }: Props) {
         <AdminTopbar
           userName={userName}
           userEmail={userEmail}
+          mpConnected={mpConnected}
           onOpenMobileNav={() => setMobileOpen(true)}
         />
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>

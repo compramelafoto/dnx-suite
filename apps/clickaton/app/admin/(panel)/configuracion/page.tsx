@@ -1,12 +1,15 @@
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { MercadoPagoConnectedIcon } from "@/components/admin/MercadoPagoConnectedIcon";
 import { Card } from "@/components/ui/Card";
 import { listClickatonAdminEmails } from "@/config/admin/admins";
 import { siteConfig } from "@/config/site";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { getAdminEmailsMercadoPagoStatus } from "@/lib/admin/mp-connection-status";
 
 export default async function AdminSettingsPage() {
   await requireClickatonAdmin();
   const admins = listClickatonAdminEmails();
+  const mpByEmail = await getAdminEmailsMercadoPagoStatus(admins);
 
   return (
     <div className="space-y-8">
@@ -43,15 +46,16 @@ export default async function AdminSettingsPage() {
           </h2>
           <p className="text-sm text-ck-text-secondary">
             Acceso completo al panel MVP. No se pueden eliminar desde aquí todavía. Sin roles
-            diferenciados ni permisos por sede.
+            diferenciados ni permisos por sede. El ícono celeste indica Mercado Pago conectado.
           </p>
           <ul className="space-y-2">
             {admins.map((email) => (
               <li
                 key={email}
-                className="rounded-[var(--ck-radius-control)] border border-ck-border bg-ck-surface-muted px-3 py-2 text-sm text-ck-text"
+                className="flex items-center gap-2 rounded-[var(--ck-radius-control)] border border-ck-border bg-ck-surface-muted px-3 py-2 text-sm text-ck-text"
               >
-                {email}
+                <span className="min-w-0 flex-1 truncate">{email}</span>
+                {mpByEmail[email] ? <MercadoPagoConnectedIcon /> : null}
               </li>
             ))}
           </ul>

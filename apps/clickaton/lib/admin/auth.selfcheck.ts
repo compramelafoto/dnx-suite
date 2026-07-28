@@ -14,8 +14,9 @@ assert.equal(normalizeEmail("  Foo@Bar.COM "), "foo@bar.com");
 assert.equal(isClickatonAdminEmail("DNXfotografia@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("rodrigorincon40@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("tammyytamer@gmail.com"), true);
+assert.equal(isClickatonAdminEmail("compramelafoto@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("otro@example.com"), false);
-assert.equal(listClickatonAdminEmails().length, 3);
+assert.equal(listClickatonAdminEmails().length, 4);
 
 assert.equal(hasClickatonAdminAccess(null), false);
 assert.equal(
