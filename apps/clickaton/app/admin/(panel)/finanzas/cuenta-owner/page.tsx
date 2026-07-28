@@ -88,6 +88,30 @@ export default async function OwnerMpAccountPage() {
         </dl>
       </Card>
 
+      <Card variant="outlined" className="space-y-4 text-sm">
+        <h2 className="text-base font-semibold text-ck-text-primary">
+          Conectar Mercado Pago
+        </h2>
+        <p className="text-ck-text-secondary">
+          Inicia el consentimiento OAuth LIVE en el dominio oficial de Mercado Pago.
+          No se muestran tokens ni secretos en esta pantalla.
+        </p>
+        {app.configured && manual ? (
+          <a
+            href="/api/clickaton/payments/mercadopago/connect"
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-ck-brand px-5 text-sm font-semibold text-ck-on-brand"
+          >
+            Conectar Mercado Pago
+          </a>
+        ) : (
+          <p className="rounded-md border border-ck-border bg-ck-surface px-4 py-3 text-ck-text-secondary">
+            Botón bloqueado hasta completar credenciales de app MP
+            {!app.configured ? ` (${app.missing.join(", ")})` : ""}
+            {!manual ? " y la autorización manual de Daniel" : ""}.
+          </p>
+        )}
+      </Card>
+
       <Card variant="outlined" className="space-y-2 text-sm text-ck-text-muted">
         <p>Redirects documentados (configurar en panel MP):</p>
         <p className="font-mono text-xs break-all">{CLICKATON_MP_REDIRECTS.staging}</p>
