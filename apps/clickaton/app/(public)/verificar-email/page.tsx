@@ -6,6 +6,7 @@ type Props = { searchParams: Promise<{ token?: string }> };
 export default async function VerificarEmailPage({ searchParams }: Props) {
   const sp = await searchParams;
   const token = sp.token?.trim() ?? "";
+
   let message: string = DNX_AUTH_MESSAGES.verifyInvalidToken;
   let ok = false;
 

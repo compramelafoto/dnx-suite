@@ -12,6 +12,7 @@ import {
   parseAndVerifyGoogleOAuthTransit,
 } from "@repo/auth";
 import {
+  CLICKATON_ADMIN_EMAILS,
   isClickatonAdminEmail,
   listClickatonAdminEmails,
   normalizeEmail,
@@ -33,6 +34,10 @@ import { cookieOptionsForRequest } from "./session-cookie";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const loginPageSrc = readFileSync(join(here, "../../app/(public)/login/page.tsx"), "utf8");
+const loginFormSrc = readFileSync(
+  join(here, "../../components/auth/LoginForm.tsx"),
+  "utf8",
+);
 const adminLoginSrc = readFileSync(join(here, "../../app/admin/login/page.tsx"), "utf8");
 const headerSrc = readFileSync(join(here, "../../components/layout/SiteHeader.tsx"), "utf8");
 const googleRouteSrc = readFileSync(
@@ -46,7 +51,7 @@ const callbackSrc = readFileSync(
 
 assert.equal(normalizeEmail("  Foo@Bar.COM "), "foo@bar.com");
 assert.equal(isClickatonAdminEmail("DNXfotografia@gmail.com"), true);
-assert.equal(listClickatonAdminEmails().length, 3);
+assert.equal(listClickatonAdminEmails().length, CLICKATON_ADMIN_EMAILS.length);
 assert.equal(
   hasClickatonAdminAccess({ email: "user@example.com", globalRole: "USER" }),
   false,
@@ -144,9 +149,9 @@ assert.equal(buildGoogleOAuthStartHref({ next: "https://evil" }), "/api/auth/goo
   assert.match(authUrl, /openid/);
 }
 
-assert.match(loginPageSrc, /Ingresá a Clickatón/);
-assert.match(loginPageSrc, /GoogleLoginButton/);
 assert.match(loginPageSrc, /LoginForm/);
+assert.match(loginFormSrc, /@repo\/auth-ui|DnxLoginPanel/);
+assert.match(loginFormSrc, /clickatonAuthBrand|DnxGoogleButton|Continuar con Google/);
 assert.match(adminLoginSrc, /CLICKATON_LOGIN_PATH/);
 assert.match(adminLoginSrc, /redirect/);
 assert.doesNotMatch(adminLoginSrc, /Continuar con Google/);

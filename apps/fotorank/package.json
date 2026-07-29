@@ -66,6 +66,7 @@
     "@fontsource/spectral": "^5.2.8",
     "@pdf-lib/fontkit": "^1.1.1",
     "@repo/auth": "workspace:*",
+    "@repo/auth-ui": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/design-system": "workspace:*",
     "bcryptjs": "^3.0.3",

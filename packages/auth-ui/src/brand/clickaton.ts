@@ -4,9 +4,9 @@ export const clickatonAuthBrand: DnxAuthBrandConfig = {
   applicationId: "clickaton",
   productName: "Clickatón",
   logo: {
-    src: "/clickaton-logo.png",
+    src: "/brand/downloads/logos/clickaton-principal-v3-color.png",
     alt: "Clickatón",
-    height: "3.5rem",
+    height: "5rem",
     href: "/",
   },
   tokens: { brandKey: "clickaton" },
@@ -19,9 +19,13 @@ export const clickatonAuthBrand: DnxAuthBrandConfig = {
   contextualCopy: {
     loginTitle: "Iniciar sesión",
     loginDescription:
-      "Accedé a tu Cuenta DNX para gestionar tu participación en Clickatón.",
+      "Accedé a tu Cuenta DNX para gestionar tu participación en Clickatón. Crear cuenta no inscribe a una maratón.",
     registerTitle: "Crear cuenta",
-    registerDescription: "Una Cuenta DNX te sirve en Clickatón y en el resto de plataformas DNX.",
+    registerDescription:
+      "Creá tu Cuenta DNX. No es una inscripción a Clickatón: las inscripciones se hacen por separado con INSCRIBIRME.",
     createAccountCta: "Crear cuenta",
+    forgotTitle: "¿Olvidaste tu contraseña?",
+    forgotDescription:
+      "Te enviaremos un enlace si existe una Cuenta DNX asociada. La nueva contraseña vale en todas las plataformas DNX habilitadas.",
   },
 };

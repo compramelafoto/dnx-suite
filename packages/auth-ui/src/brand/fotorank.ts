@@ -23,5 +23,8 @@ export const fotorankAuthBrand: DnxAuthBrandConfig = {
     registerDescription:
       "Registrá tu Cuenta DNX. Los roles de organizador o jurado se asignan por invitación o configuración.",
     createAccountCta: "Crear cuenta",
+    forgotTitle: "¿Olvidaste tu contraseña?",
+    forgotDescription:
+      "Te enviaremos un enlace si existe una Cuenta DNX asociada. La nueva contraseña vale en todas las plataformas DNX habilitadas.",
   },
 };

@@ -43,11 +43,23 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@repo/db",
     "@repo/auth",
+    "@repo/auth-ui",
     "@repo/auth-guards",
+    "@repo/payments",
     "@repo/design-system",
     "@repo/cuanto-cobro-core",
   ],
   serverExternalPackages: ["sharp", "sanitize-html"],
+  // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
+  webpack: (config) => {
+    config.resolve = config.resolve ?? {};
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias ?? {}),
+      ".js": [".ts", ".tsx", ".js"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return config;
+  },
   images: {
     localPatterns: [
       {

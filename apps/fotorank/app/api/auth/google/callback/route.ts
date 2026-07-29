@@ -6,7 +6,7 @@ import {
 } from "@repo/auth";
 import { attachAdminSessionCookieToResponse } from "../../../../lib/auth";
 import {
-  FOTORANK_GOOGLE_OAUTH_STATE,
+  parseFotorankGoogleOAuthState,
   resolveBaseUrl,
   resolveGoogleRedirectUri,
 } from "../../../../lib/google-oauth";
@@ -32,7 +32,8 @@ export async function GET(req: Request) {
     const oauthError = searchParams.get("error");
     const state = searchParams.get("state");
 
-    if (state !== FOTORANK_GOOGLE_OAUTH_STATE) {
+    const parsedState = parseFotorankGoogleOAuthState(state);
+    if (!parsedState.ok) {
       return redirectToLogin(baseUrl, "Sesión de autenticación inválida. Intentá de nuevo.");
     }
 
@@ -158,7 +159,9 @@ export async function GET(req: Request) {
       resolved.suiteRole === "ORGANIZER" ||
       resolved.suiteRole === "SUPER_ADMIN" ||
       resolved.suiteRole === "ADMIN";
-    const dest = new URL(isOrganizer ? "/dashboard" : "/participaciones", baseUrl).toString();
+    const fallback = isOrganizer ? "/dashboard" : "/participaciones";
+    const destPath = parsedState.next ?? fallback;
+    const dest = new URL(destPath, baseUrl).toString();
     const response = NextResponse.redirect(dest);
     await attachAdminSessionCookieToResponse(response, resolved.userId);
     return response;

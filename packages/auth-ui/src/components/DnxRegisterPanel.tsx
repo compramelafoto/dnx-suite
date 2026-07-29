@@ -154,7 +154,14 @@ export function DnxRegisterPanel({
       {brand.allowGoogle ? (
         <>
           <DnxAuthDivider />
-          <DnxGoogleButton href={googleHref} emphasis={brand.googleVisualEmphasis ?? "secondary"} />
+          <DnxGoogleButton
+            href={
+              nextPath
+                ? `${googleHref}${googleHref.includes("?") ? "&" : "?"}next=${encodeURIComponent(nextPath)}`
+                : googleHref
+            }
+            emphasis={brand.googleVisualEmphasis ?? "secondary"}
+          />
         </>
       ) : null}
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { verifyUserPassword } from "@repo/auth";
+import { DNX_AUTH_MESSAGES, verifyUserPassword } from "@repo/auth";
 import { normalizeEmail } from "@/config/admin/admins";
 import {
   createClickatonSession,
@@ -36,12 +36,9 @@ export async function loginClickatonAction(
 
   if (!verified.ok) {
     if (verified.reason === "NO_PASSWORD") {
-      return {
-        error:
-          "Esta cuenta no tiene contraseña configurada. Usá Continuar con Google.",
-      };
+      return { error: DNX_AUTH_MESSAGES.noPasswordUseGoogle };
     }
-    return { error: "Email o contraseña incorrectos." };
+    return { error: DNX_AUTH_MESSAGES.loginInvalid };
   }
 
   const user = verified.user;

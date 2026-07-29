@@ -1,9 +1,8 @@
 "use client";
 
+import "@repo/auth-ui/tokens.css";
 import { useActionState } from "react";
-import { Button } from "@/components/ui/Button";
-import { Field } from "@/components/ui/Field";
-import { Input } from "@/components/ui/Input";
+import { DnxLoginPanel, clickatonAuthBrand } from "@repo/auth-ui";
 import {
   loginClickatonAction,
   type ClickatonLoginFormState,
@@ -13,40 +12,24 @@ const initialState: ClickatonLoginFormState = { error: null };
 
 type Props = {
   nextPath: string;
+  oauthError?: string | null;
 };
 
-export function LoginForm({ nextPath }: Props) {
+export function LoginForm({ nextPath, oauthError }: Props) {
   const [state, formAction, pending] = useActionState(loginClickatonAction, initialState);
+  const error = state.error ?? oauthError ?? null;
 
   return (
-    <form action={formAction} className="space-y-5">
-      <input type="hidden" name="next" value={nextPath} />
-      <Field id="email" label="Email" required>
-        <Input
-          name="email"
-          type="email"
-          autoComplete="username"
-          required
-          disabled={pending}
-        />
-      </Field>
-      <Field id="password" label="Contraseña" required>
-        <Input
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          disabled={pending}
-        />
-      </Field>
-      {state.error ? (
-        <p className="text-sm text-[var(--ck-danger)]" role="alert">
-          {state.error}
-        </p>
-      ) : null}
-      <Button type="submit" variant="primary" className="w-full" loading={pending}>
-        Ingresar
-      </Button>
-    </form>
+    <DnxLoginPanel
+      brand={clickatonAuthBrand}
+      formAction={formAction}
+      nextPath={nextPath}
+      error={error}
+      loading={pending ? "submitting" : "idle"}
+      googleHref="/api/auth/google"
+      registerHref="/crear-cuenta"
+      forgotHref="/recuperar"
+      loginHref="/login"
+    />
   );
 }

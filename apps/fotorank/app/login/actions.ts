@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { verifyUserPassword } from "@repo/auth";
+import { DNX_AUTH_MESSAGES, verifyUserPassword } from "@repo/auth";
 import { createAdminSessionForUser } from "../lib/auth";
 import { safeNextPath } from "../lib/safe-next-path";
 
@@ -27,16 +27,10 @@ export async function loginAction(
     };
   }
   if (!verified.ok) {
-    if (verified.reason === "NOT_FOUND") {
-      return { error: "No existe un usuario con ese email." };
-    }
     if (verified.reason === "NO_PASSWORD") {
-      return {
-        error:
-          "Esta cuenta no tiene contraseña configurada. Ejecutá el seed o contactá al administrador.",
-      };
+      return { error: DNX_AUTH_MESSAGES.noPasswordUseGoogle };
     }
-    return { error: "Email o contraseña incorrectos." };
+    return { error: DNX_AUTH_MESSAGES.loginInvalid };
   }
 
   try {

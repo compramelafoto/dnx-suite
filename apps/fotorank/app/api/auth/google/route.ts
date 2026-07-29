@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import {
-  FOTORANK_GOOGLE_OAUTH_STATE,
+  buildFotorankGoogleOAuthState,
   resolveBaseUrl,
   resolveGoogleRedirectUri,
 } from "../../../lib/google-oauth";
+import { safeNextPath } from "../../../lib/safe-next-path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export async function GET(req: Request) {
     const origin = new URL(req.url).origin;
     const baseUrl = resolveBaseUrl(origin);
     const redirectUri = resolveGoogleRedirectUri(baseUrl);
+    const next = safeNextPath(new URL(req.url).searchParams.get("next"));
 
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
     if (!clientId) {
@@ -26,7 +28,7 @@ export async function GET(req: Request) {
       scope: "openid email profile",
       access_type: "offline",
       prompt: "consent",
-      state: FOTORANK_GOOGLE_OAUTH_STATE,
+      state: buildFotorankGoogleOAuthState(next),
     });
 
     return NextResponse.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);

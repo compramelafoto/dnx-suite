@@ -1,46 +1,47 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import {
   registerDnxAccount,
   createUserSession,
   DNX_SESSION_COOKIE,
   DNX_SESSION_MAX_AGE_SECONDS,
 } from "@repo/auth";
-import { safeNextPath } from "../lib/safe-next-path";
+import { cookies } from "next/headers";
+import { sanitizeClickatonReturnPath } from "@/lib/auth/return-path";
+import { siteConfig } from "@/config/site";
 
-export type FotorankRegisterFormState = { error: string | null };
+export type ClickatonRegisterFormState = { error: string | null; info: string | null };
+
+function isAcceptedFlag(value: FormDataEntryValue | null): boolean {
+  if (value == null) return false;
+  const v = String(value).toLowerCase();
+  return v === "on" || v === "1" || v === "true" || v === "yes";
+}
 
 function resolveAppBaseUrl(): string {
   const raw =
-    process.env.NEXT_PUBLIC_FOTORANK_URL?.trim() ||
+    process.env.NEXT_PUBLIC_CLICKATON_URL?.trim() ||
     process.env.APP_URL?.trim() ||
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     "";
-  if (!raw) return "http://localhost:3000";
+  if (!raw) return "http://localhost:3005";
   return raw.replace(/\/$/, "");
 }
 
-export async function registerFotorankAccountAction(
-  _prev: FotorankRegisterFormState | undefined,
+export async function registerClickatonAccountAction(
+  _prev: ClickatonRegisterFormState | undefined,
   formData: FormData,
-): Promise<FotorankRegisterFormState> {
+): Promise<ClickatonRegisterFormState> {
   const firstName = formData.get("firstName")?.toString() ?? "";
   const lastName = formData.get("lastName")?.toString() ?? "";
   const email = formData.get("email")?.toString() ?? "";
   const password = formData.get("password")?.toString() ?? "";
   const passwordConfirm = formData.get("passwordConfirm")?.toString() ?? "";
-  const termsRaw = formData.get("acceptedTerms") ?? formData.get("acceptTerms");
-  const acceptedTerms =
-    termsRaw === "on" || termsRaw === "1" || termsRaw === "true";
-  const privacyRaw = formData.get("acceptedPrivacy");
+  const acceptedTerms = isAcceptedFlag(formData.get("acceptedTerms") ?? formData.get("acceptTerms"));
   const acceptedPrivacy =
-    privacyRaw === "on" ||
-    privacyRaw === "1" ||
-    privacyRaw === "true" ||
-    acceptedTerms;
-  const next = safeNextPath(formData.get("next")?.toString());
+    isAcceptedFlag(formData.get("acceptedPrivacy")) || acceptedTerms;
+  const nextRaw = formData.get("next")?.toString();
 
   const result = await registerDnxAccount({
     email,
@@ -48,9 +49,9 @@ export async function registerFotorankAccountAction(
     passwordConfirm,
     firstName,
     lastName,
-    sourceApplication: "fotorank",
+    sourceApplication: "clickaton",
     appBaseUrl: resolveAppBaseUrl(),
-    appLabel: "FotoRank",
+    appLabel: siteConfig.name,
     verifyPath: "/verificar-email",
     createRole: "CUSTOMER",
     acceptedTerms,
@@ -58,9 +59,10 @@ export async function registerFotorankAccountAction(
   });
 
   if (!result.ok) {
-    return { error: result.message };
+    return { error: result.message, info: null };
   }
 
+  // Sesión local post-registro (misma identidad DNX). Inscripciones siguen gated por feature flag.
   const session = await createUserSession(result.user.id);
   const cookieStore = await cookies();
   cookieStore.set(DNX_SESSION_COOKIE, session.rawToken, {
@@ -71,5 +73,6 @@ export async function registerFotorankAccountAction(
     maxAge: DNX_SESSION_MAX_AGE_SECONDS,
   });
 
-  redirect(next ?? "/participaciones");
+  const next = sanitizeClickatonReturnPath(nextRaw, "/mi-cuenta");
+  redirect(next);
 }

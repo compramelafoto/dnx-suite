@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FotorankDialogShell } from "../components/ui/FotorankDialogShell";
 import { getAuthUser } from "../lib/auth";
 import { safeNextPath } from "../lib/safe-next-path";
 import { LoginForm } from "./LoginForm";
@@ -17,28 +15,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const isParticipantReturn = Boolean(next?.includes("/inscripcion"));
 
   return (
-    <FotorankDialogShell
-      title="Iniciar sesión"
-      subtitle={
+    <LoginForm
+      oauthError={oauthError}
+      nextPath={next}
+      contextualNotice={
         isParticipantReturn
-          ? "Iniciá sesión para continuar tu inscripción al concurso."
-          : "Accedé a FotoRank para organizar concursos o participar."
+          ? "Vas a continuar tu inscripción al concurso después de iniciar sesión."
+          : undefined
       }
-      footerLinks={
-        <>
-          <Link href="/" className="transition-colors hover:text-gold">
-            Volver al inicio
-          </Link>
-          <span className="hidden text-fr-border sm:inline" aria-hidden>
-            ·
-          </span>
-          <Link href="/jurado/login" className="transition-colors hover:text-gold">
-            Acceso jurados
-          </Link>
-        </>
-      }
-    >
-      <LoginForm oauthError={oauthError} nextPath={next} />
-    </FotorankDialogShell>
+    />
   );
 }

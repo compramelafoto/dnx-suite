@@ -1,16 +1,15 @@
-import { Suspense } from "react";
-import LoginClient from "./LoginClient";
+import { redirect } from "next/navigation";
 
-export default function PhotographerLoginPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-[#6b7280]">Cargando...</p>
-        </div>
-      }
-    >
-      <LoginClient />
-    </Suspense>
-  );
+type Props = {
+  searchParams: Promise<{ redirect?: string }>;
+};
+
+/** Alias legacy → login unificado Cuenta DNX (rol se resuelve post-login). */
+export default async function PhotographerLoginPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const redirectTo =
+    sp.redirect?.startsWith("/") && !sp.redirect.startsWith("//")
+      ? sp.redirect
+      : "/fotografo/dashboard";
+  redirect(`/login?redirect=${encodeURIComponent(redirectTo)}`);
 }

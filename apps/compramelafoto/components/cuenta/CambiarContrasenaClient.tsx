@@ -1,9 +1,11 @@
 "use client";
 
+import "@repo/auth-ui/tokens.css";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Input from "@/components/ui/Input";
+import { DnxPasswordField } from "@repo/auth-ui";
+import { DNX_AUTH_MESSAGES } from "@repo/auth/messages";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import AccountPageShell from "@/components/layout/AccountPageShell";
@@ -87,8 +89,8 @@ export default function CambiarContrasenaClient({
     e.preventDefault();
     setError(null);
 
-    if (!newPassword || newPassword.length < 6) {
-      setError("La nueva contraseña debe tener al menos 6 caracteres.");
+    if (!newPassword || newPassword.length < 8) {
+      setError("La nueva contraseña debe tener al menos 8 caracteres.");
       return;
     }
 
@@ -121,7 +123,7 @@ export default function CambiarContrasenaClient({
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar la contraseña.");
+      setError(err instanceof Error ? err.message : DNX_AUTH_MESSAGES.genericError);
     } finally {
       setLoading(false);
     }
@@ -198,55 +200,37 @@ export default function CambiarContrasenaClient({
                 Tu cuenta también está vinculada con Google; la contraseña de ComprameLaFoto es independiente.
               </p>
             )}
-            <div className="w-full">
-              <label htmlFor="current-password" className="mb-2 block text-sm font-medium text-gray-700">
-                Contraseña actual
-              </label>
-              <Input
-                id="current-password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="Tu contraseña actual"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <div className="w-full">
-              <label htmlFor="new-password" className="mb-2 block text-sm font-medium text-gray-700">
-                Nueva contraseña
-              </label>
-              <Input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                placeholder="Mínimo 6 caracteres"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                disabled={loading}
-                minLength={6}
-              />
-            </div>
-
-            <div className="w-full">
-              <label htmlFor="confirm-password" className="mb-2 block text-sm font-medium text-gray-700">
-                Confirmar nueva contraseña
-              </label>
-              <Input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                placeholder="Repetí la nueva contraseña"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                disabled={loading}
-                minLength={6}
-              />
-            </div>
+            <DnxPasswordField
+              id="current-password"
+              name="currentPassword"
+              label="Contraseña actual"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+              disabled={loading}
+            />
+            <DnxPasswordField
+              id="new-password"
+              name="newPassword"
+              label="Nueva contraseña"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              disabled={loading}
+              helperText="Mínimo 8 caracteres"
+            />
+            <DnxPasswordField
+              id="confirm-password"
+              name="confirmPassword"
+              label="Confirmar nueva contraseña"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              disabled={loading}
+            />
 
             <Button type="submit" variant="primary" className="w-full sm:w-auto" disabled={loading}>
               {loading ? "Guardando…" : "Cambiar contraseña"}

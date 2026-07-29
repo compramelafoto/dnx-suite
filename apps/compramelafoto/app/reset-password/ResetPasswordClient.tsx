@@ -1,183 +1,93 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import "@repo/auth-ui/tokens.css";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import Input from "@/components/ui/Input";
-import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import { DnxResetPanel, compramelafotoAuthBrand } from "@repo/auth-ui";
+import { DNX_AUTH_MESSAGES } from "@repo/auth/messages";
 
 export default function ResetPasswordClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [token, setToken] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"idle" | "resetting">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const tokenParam = searchParams?.get("token");
     if (tokenParam) {
       setToken(tokenParam);
     } else {
-      setError("Token de recuperación no válido o faltante");
+      setError(DNX_AUTH_MESSAGES.resetInvalidToken);
     }
   }, [searchParams]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
 
-    // Validaciones
-    if (!token) {
-      setError("Token de recuperación no válido");
+    const fd = new FormData(e.currentTarget);
+    const password = String(fd.get("password") ?? "");
+    const passwordConfirm = String(fd.get("passwordConfirm") ?? "");
+    const formToken = String(fd.get("token") ?? token);
+
+    if (!formToken) {
+      setError(DNX_AUTH_MESSAGES.resetInvalidToken);
+      return;
+    }
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+    if (password !== passwordConfirm) {
+      setError("Las contraseñas no coinciden.");
       return;
     }
 
-    if (!password || password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden");
-      return;
-    }
-
-    setLoading(true);
-
+    setLoading("resetting");
     try {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token: formToken, password }),
       });
-
-      const data = await res.json();
-
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || "Error al restablecer la contraseña");
+        throw new Error(data?.error || DNX_AUTH_MESSAGES.resetInvalidToken);
       }
-
-      setSuccess(true);
-      // Redirigir al login después de 3 segundos
+      setNotice(DNX_AUTH_MESSAGES.passwordChanged);
       setTimeout(() => {
         router.push("/login?passwordReset=true");
-      }, 3000);
-    } catch (err: any) {
-      setError(err?.message || "Error al restablecer la contraseña");
+      }, 2000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : DNX_AUTH_MESSAGES.genericError);
     } finally {
-      setLoading(false);
+      setLoading("idle");
     }
   }
 
   if (!token && !error) {
     return (
-      <section className="py-12 md:py-16 bg-white min-h-screen">
-        <div className="container-custom">
-          <div className="max-w-6xl mx-auto">
-            <Card className="p-6">
-              <p className="text-gray-600 text-center">Cargando...</p>
-            </Card>
-          </div>
-        </div>
-      </section>
+      <DnxResetPanel
+        brand={compramelafotoAuthBrand}
+        token=""
+        loading="submitting"
+        loginHref="/login"
+      />
     );
   }
 
   return (
-    <section className="py-12 md:py-16 bg-white min-h-screen">
-      <div className="container-custom">
-        <div className="max-w-6xl mx-auto space-y-8">
-          {/* Header */}
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Restablecer Contraseña
-            </h1>
-            <p className="text-gray-600">
-              Ingresá tu nueva contraseña
-            </p>
-          </div>
-
-          <Card className="space-y-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
-            )}
-
-            {success && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-green-600 text-sm">
-                  ¡Contraseña restablecida correctamente! Redirigiendo al login...
-                </p>
-              </div>
-            )}
-
-            {!success && (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nueva Contraseña
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="Mínimo 6 caracteres"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                    minLength={6}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    La contraseña debe tener al menos 6 caracteres
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirmar Contraseña
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="Repetí la contraseña"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                    minLength={6}
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="w-full"
-                  disabled={loading}
-                >
-                  {loading ? "Restableciendo..." : "Restablecer Contraseña"}
-                </Button>
-              </form>
-            )}
-
-            <div className="text-center pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                <Link href="/login" className="text-[#c27b3d] hover:underline">
-                  Volver al login
-                </Link>
-              </p>
-            </div>
-          </Card>
-
-          <div className="text-center">
-            <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">
-              ← Volver al inicio
-            </Link>
-          </div>
-        </div>
-      </div>
-    </section>
+    <DnxResetPanel
+      brand={compramelafotoAuthBrand}
+      token={token}
+      onSubmit={handleSubmit}
+      error={error}
+      notice={notice}
+      loading={loading}
+      loginHref="/login"
+    />
   );
 }

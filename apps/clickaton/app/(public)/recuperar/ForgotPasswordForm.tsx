@@ -2,28 +2,29 @@
 
 import "@repo/auth-ui/tokens.css";
 import { useActionState } from "react";
-import { DnxForgotPanel, fotorankAuthBrand } from "@repo/auth-ui";
+import { DnxForgotPanel, clickatonAuthBrand } from "@repo/auth-ui";
 import {
-  requestFotorankPasswordResetAction,
-  type FotorankResetFormState,
+  requestClickatonPasswordResetAction,
+  type ClickatonResetFormState,
 } from "./actions";
+import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 
-const initialState: FotorankResetFormState = { error: null, info: null };
+const initialState: ClickatonResetFormState = { error: null, info: null };
 
 export function ForgotPasswordForm() {
   const [state, formAction, pending] = useActionState(
-    requestFotorankPasswordResetAction,
+    requestClickatonPasswordResetAction,
     initialState,
   );
 
   return (
     <DnxForgotPanel
-      brand={fotorankAuthBrand}
+      brand={clickatonAuthBrand}
       formAction={formAction}
       error={state.error}
       notice={state.info}
       loading={pending ? "sending-email" : "idle"}
-      loginHref="/login"
+      loginHref={CLICKATON_LOGIN_PATH}
     />
   );
 }
