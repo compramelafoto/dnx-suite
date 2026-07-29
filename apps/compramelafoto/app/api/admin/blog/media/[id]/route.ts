@@ -12,7 +12,7 @@ import { formatBlogValidationError } from "@/lib/blog/validate-blog-category";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RouteParams = { params: { id: string } | Promise<{ id: string }> };
+type RouteParams = { params: Promise<{ id: string }> };
 
 const mediaUpdateSchema = z.object({
   title: z.string().max(200).optional().nullable(),

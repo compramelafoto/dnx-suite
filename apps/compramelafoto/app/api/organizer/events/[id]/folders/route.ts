@@ -89,7 +89,7 @@ function validateCreateOrganizer(opts: {
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ORGANIZER]);
@@ -129,7 +129,7 @@ export async function GET(
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ORGANIZER]);

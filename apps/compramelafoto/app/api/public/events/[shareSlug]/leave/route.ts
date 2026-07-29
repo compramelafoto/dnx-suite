@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  */
 export async function DELETE(
   _req: Request,
-  { params }: { params: Promise<{ shareSlug: string }> | { shareSlug: string } },
+  { params }: { params: Promise<{ shareSlug: string }> },
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);

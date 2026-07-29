@@ -43,7 +43,7 @@ async function streamDigitalPhotoDownload(photo: {
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: { token: string } } | { params: Promise<{ token: string }> }
+  ctx: { params: Promise<{ token: string }> }
 ) {
   const params = await Promise.resolve(ctx.params);
   const tokenParam = (params?.token ?? "").toString().trim();

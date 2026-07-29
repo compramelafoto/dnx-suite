@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import DnxFotoBasicaFunesClient from "@/components/land/dnx-foto-basica-funes/DnxFotoBasicaFunesClient";
 import {
   DNX_FOTO_BASICA_FUNES_PRICE_ARS,
-} from "@/lib/dnx-foto-basica-funes";
+} from "@/lib/dnx-foto-basica-funes-public";
 import { formatARS } from "@/lib/lab/helpers";
 
 const title = "Curso presencial de Fotografía Básica en Funes | DNX Estudio · ComprameLaFoto";

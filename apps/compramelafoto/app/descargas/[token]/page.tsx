@@ -5,7 +5,7 @@ import { loadDownloadCenterByToken } from "@/lib/digital-download/load-download-
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: { token: string } | Promise<{ token: string }>;
+  params: Promise<{ token: string }>;
 };
 
 export default async function DownloadCenterPage({ params }: PageProps) {

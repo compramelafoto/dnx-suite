@@ -13,7 +13,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function resolveReferredUserId(params: { id: string } | Promise<{ id: string }>) {
+async function resolveReferredUserId(params: Promise<{ id: string }>) {
   const { id } = await Promise.resolve(params);
   const referredUserId = parseInt(id, 10);
   if (!Number.isFinite(referredUserId)) {
@@ -24,7 +24,7 @@ async function resolveReferredUserId(params: { id: string } | Promise<{ id: stri
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error } = await requireAuth([Role.ADMIN]);
@@ -56,7 +56,7 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user: admin } = await requireAuth([Role.ADMIN]);
@@ -119,7 +119,7 @@ export async function POST(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error } = await requireAuth([Role.ADMIN]);

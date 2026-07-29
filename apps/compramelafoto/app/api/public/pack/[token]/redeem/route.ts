@@ -22,7 +22,7 @@ const BodySchema = z.object({
 });
 
 type RouteParams = {
-  params: { token: string } | Promise<{ token: string }>;
+  params: Promise<{ token: string }>;
 };
 
 export async function POST(req: Request, { params }: RouteParams) {

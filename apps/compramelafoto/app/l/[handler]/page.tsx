@@ -30,7 +30,7 @@ function normalizeLabLogoUrl(logoUrl: string | null | undefined): string | null 
 export async function generateMetadata({
   params,
 }: {
-  params: { handler: string } | Promise<{ handler: string }>;
+  params: Promise<{ handler: string }>;
 }): Promise<Metadata> {
   const { handler } = await Promise.resolve(params);
   if (!handler || typeof handler !== "string") return {};
@@ -67,7 +67,7 @@ export async function generateMetadata({
 export default async function LabPublicPage({
   params,
 }: {
-  params: { handler: string } | Promise<{ handler: string }>;
+  params: Promise<{ handler: string }>;
 }) {
   const { handler } = await Promise.resolve(params);
 

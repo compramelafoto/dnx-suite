@@ -33,7 +33,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type AlbumParams = { id: string } | Promise<{ id: string }>;
+type AlbumParams = Promise<{ id: string }>;
 
 async function resolveAlbumId(params: AlbumParams): Promise<number | null> {
   const parsed = await params;

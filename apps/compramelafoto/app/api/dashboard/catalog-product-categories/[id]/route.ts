@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const guard = await requireCatalogProductsPhase1Api();
   if (guard.error) return guard.error;
@@ -67,7 +67,7 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const guard = await requireCatalogProductsPhase1Api();
   if (guard.error) return guard.error;

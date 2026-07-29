@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   _req: NextRequest,
-  ctx: { params: Promise<{ token: string }> | { token: string } },
+  ctx: { params: Promise<{ token: string }> },
 ) {
   const { token } = await Promise.resolve(ctx.params);
   if (!token?.trim()) {

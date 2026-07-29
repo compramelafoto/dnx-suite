@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@repo/auth";
 import { Role, SchoolOrganizerStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSchoolOrganizerManagementAccess } from "@/lib/school-organizer-management-access";
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = hashPassword(password);
     const { user, membership } = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {

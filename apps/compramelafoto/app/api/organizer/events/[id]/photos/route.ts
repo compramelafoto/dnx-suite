@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } } | { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ORGANIZER]);

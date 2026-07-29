@@ -34,7 +34,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RouteParams =
-  | { id: string; packId: string }
   | Promise<{ id: string; packId: string }>;
 
 async function parseIds(params: RouteParams): Promise<{ albumId: number | null; packId: string | null }> {

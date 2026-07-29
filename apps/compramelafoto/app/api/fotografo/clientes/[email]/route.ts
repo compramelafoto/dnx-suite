@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { email: string } | Promise<{ email: string }> }
+  { params }: { params: Promise<{ email: string }> }
 ) {
   try {
     const { email } = await Promise.resolve(params);
@@ -76,7 +76,7 @@ export async function PATCH(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { email: string } | Promise<{ email: string }> }
+  { params }: { params: Promise<{ email: string }> }
 ) {
   try {
     const { email } = await Promise.resolve(params);

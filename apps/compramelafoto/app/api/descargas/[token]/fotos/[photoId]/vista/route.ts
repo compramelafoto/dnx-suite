@@ -12,7 +12,6 @@ const PREVIEW_MAX_WIDTH = 640;
 export async function GET(
   _req: NextRequest,
   ctx:
-    | { params: { token: string; photoId: string } }
     | { params: Promise<{ token: string; photoId: string }> }
 ) {
   try {

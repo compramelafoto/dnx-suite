@@ -9,7 +9,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RouteParams = { sessionId: string } | Promise<{ sessionId: string }>;
+type RouteParams = Promise<{ sessionId: string }>;
 
 function normalizeEmail(email: string | null | undefined): string {
   return String(email ?? "").trim().toLowerCase();

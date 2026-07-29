@@ -16,7 +16,7 @@ function buildFilename(originalKey: string | null, photoId: number): string {
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: { id: string } } | { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await Promise.resolve(ctx.params);

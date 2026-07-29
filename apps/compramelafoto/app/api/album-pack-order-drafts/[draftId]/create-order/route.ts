@@ -8,7 +8,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RouteParams = { draftId: string } | Promise<{ draftId: string }>;
+type RouteParams = Promise<{ draftId: string }>;
 
 function getAccessGuestToken(req: NextRequest): string | null {
   const fromHeader = req.headers.get("x-guest-token");

@@ -13,7 +13,7 @@
 import { randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
 import { PrismaClient } from "@prisma/client";
-import { createClfEvent, closeClfEventCall } from "../src/client";
+import { createClfEvent, closeClfEventCall } from "../src/clf-event-write";
 
 const require = createRequire(
   new URL("../../../apps/compramelafoto/package.json", import.meta.url),

@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export default async function PhotographerAlbumsHandlerPage({
   params,
 }: {
-  params: { handler: string } | Promise<{ handler: string }>;
+  params: Promise<{ handler: string }>;
 }) {
   const { handler } = await Promise.resolve(params);
 

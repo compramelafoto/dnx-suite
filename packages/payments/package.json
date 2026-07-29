@@ -18,6 +18,8 @@
     "./core": "./src/core/index.ts",
     "./persistence": "./src/application/persistence/index.ts",
     "./infrastructure/prisma": "./src/infrastructure/prisma/index.ts",
+    "./infrastructure/prisma/credential-store": "./src/infrastructure/prisma/credential-store.ts",
+    "./infrastructure/prisma/financial-identity-ports": "./src/infrastructure/prisma/financial-identity-ports.ts",
     "./clickaton-checkout": "./src/application/services/clickaton-checkout/index.ts",
     "./next": "./src/next-entry.ts",
     "./sandbox": "./src/sandbox/preflight.ts",

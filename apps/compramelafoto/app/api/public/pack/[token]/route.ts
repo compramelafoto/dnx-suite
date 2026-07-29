@@ -16,7 +16,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RouteParams = {
-  params: { token: string } | Promise<{ token: string }>;
+  params: Promise<{ token: string }>;
 };
 
 export async function GET(_req: Request, { params }: RouteParams) {

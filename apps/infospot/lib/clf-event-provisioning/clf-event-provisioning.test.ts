@@ -21,7 +21,7 @@ import {
   provisionClfEventFromInfoSpot,
   closeClfPhotographerCall,
 } from "./provision";
-import { normalizeVisibilityJoinPolicy } from "@repo/db";
+import { normalizeVisibilityJoinPolicy } from "@repo/db/clf-event-write";
 
 // --- Puros ---
 {

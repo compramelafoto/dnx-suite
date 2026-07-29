@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   req: NextRequest,
-  ctx: { params: { id: string } } | { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.CUSTOMER]);

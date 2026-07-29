@@ -19,7 +19,6 @@ export const dynamic = "force-dynamic";
 
 type RouteParams = {
   params:
-    | { id: string; packId: string; benefitId: string }
     | Promise<{ id: string; packId: string; benefitId: string }>;
 };
 

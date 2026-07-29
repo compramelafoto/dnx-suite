@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ shareSlug: string }> | { shareSlug: string } }
+  { params }: { params: Promise<{ shareSlug: string }> }
 ) {
   try {
     const { shareSlug } = await Promise.resolve(params);

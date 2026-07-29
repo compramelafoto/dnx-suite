@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // GET: Obtener detalle de un pedido
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ADMIN]);
@@ -128,7 +128,7 @@ export async function GET(
 // DELETE: Eliminar pedido
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ADMIN]);
@@ -182,7 +182,7 @@ export async function DELETE(
 // PATCH: Actualizar estado del pedido
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ADMIN]);

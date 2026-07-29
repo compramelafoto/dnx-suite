@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function generateMetadata({ params }: { params: { slug: string } | Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await Promise.resolve(params);
   const talk = await prisma.talk.findUnique({
     where: { slug },
@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: { params: { slug: string } | 
   };
 }
 
-export default async function TalkLandingPage({ params }: { params: { slug: string } | Promise<{ slug: string }> }) {
+export default async function TalkLandingPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await Promise.resolve(params);
   const talk = await prisma.talk.findUnique({
     where: { slug },

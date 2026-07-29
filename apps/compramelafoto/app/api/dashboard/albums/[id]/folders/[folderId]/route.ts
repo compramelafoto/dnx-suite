@@ -94,7 +94,7 @@ export async function PATCH(
   req: NextRequest,
   {
     params,
-  }: { params: { id: string; folderId: string } | Promise<{ id: string; folderId: string }> }
+  }: { params: Promise<{ id: string; folderId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
@@ -231,7 +231,7 @@ export async function DELETE(
   req: NextRequest,
   {
     params,
-  }: { params: { id: string; folderId: string } | Promise<{ id: string; folderId: string }> }
+  }: { params: Promise<{ id: string; folderId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);

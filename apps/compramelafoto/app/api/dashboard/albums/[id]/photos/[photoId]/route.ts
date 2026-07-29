@@ -20,7 +20,7 @@ import { deletePhotoR2Assets } from "@/lib/photo-r2-cleanup";
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string; photoId: string } | Promise<{ id: string; photoId: string }> }
+  { params }: { params: Promise<{ id: string; photoId: string }> }
 ) {
   try {
     const user = await getAuthUser();
@@ -111,7 +111,7 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; photoId: string } | Promise<{ id: string; photoId: string }> }
+  { params }: { params: Promise<{ id: string; photoId: string }> }
 ) {
   try {
     const user = await getAuthUser();

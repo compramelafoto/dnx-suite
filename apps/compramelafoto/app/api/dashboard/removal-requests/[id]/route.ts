@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // PATCH: Aprobar o rechazar una solicitud de remoción
 export async function PATCH(
   req: Request,
-  ctx: { params: { id: string } } | { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const params = await Promise.resolve(ctx.params);

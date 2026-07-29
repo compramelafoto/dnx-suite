@@ -16,7 +16,7 @@ export async function POST(
   _req: NextRequest,
   {
     params,
-  }: { params: { id: string; memberId: string } | Promise<{ id: string; memberId: string }> }
+  }: { params: Promise<{ id: string; memberId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ORGANIZER]);

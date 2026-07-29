@@ -20,7 +20,7 @@ type PatchBody = {
 export async function PATCH(
   req: NextRequest,
   context: {
-    params: { id: string; orderId: string } | Promise<{ id: string; orderId: string }>;
+    params: Promise<{ id: string; orderId: string }>;
   }
 ) {
   try {

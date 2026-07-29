@@ -6,7 +6,7 @@ import { getAuthUser } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RouteParams = { draftId: string } | Promise<{ draftId: string }>;
+type RouteParams = Promise<{ draftId: string }>;
 
 function normalizeEmail(email: string | null | undefined): string {
   return String(email ?? "").trim().toLowerCase();

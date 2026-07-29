@@ -12,7 +12,7 @@ function parseId(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } | Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { error } = await requireAuth([Role.ADMIN]);
   if (error) return NextResponse.json({ error }, { status: 401 });
 
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ leads });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } | Promise<{ id: string }> }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { error } = await requireAuth([Role.ADMIN]);
   if (error) return NextResponse.json({ error }, { status: 401 });
 

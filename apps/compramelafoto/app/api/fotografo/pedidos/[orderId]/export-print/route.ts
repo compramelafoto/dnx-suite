@@ -116,7 +116,7 @@ async function buildPdf(
 
 export async function GET(
   _req: Request,
-  ctx: { params: { orderId: string } | Promise<{ orderId: string }> }
+  ctx: { params: Promise<{ orderId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER, Role.ADMIN]);

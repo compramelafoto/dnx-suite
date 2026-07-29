@@ -131,7 +131,7 @@ async function buildPdf(
 
 export async function GET(
   _req: Request,
-  ctx: { params: { id: string } } | { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const params: any = await Promise.resolve((ctx as any).params);

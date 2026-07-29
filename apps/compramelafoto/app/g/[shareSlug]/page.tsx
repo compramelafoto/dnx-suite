@@ -35,7 +35,7 @@ export default async function EventGalleryPublicPage({
   params,
   searchParams,
 }: {
-  params: { shareSlug: string } | Promise<{ shareSlug: string }>;
+  params: Promise<{ shareSlug: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   noStore();

@@ -20,7 +20,7 @@ import {
   DNX_FOTO_BASICA_FUNES_PRICE_ARS,
   DNX_FOTO_BASICA_FUNES_MAX_SEATS,
   getDnxFotoBasicaFunesWhatsAppUrl,
-} from "@/lib/dnx-foto-basica-funes";
+} from "@/lib/dnx-foto-basica-funes-public";
 
 const CURSO_TITULO = "Curso Presencial de Fotografía Básica en Funes";
 const CURSO_SUBTITULO =

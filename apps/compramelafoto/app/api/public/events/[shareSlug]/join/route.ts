@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ shareSlug: string }> | { shareSlug: string } },
+  { params }: { params: Promise<{ shareSlug: string }> },
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);

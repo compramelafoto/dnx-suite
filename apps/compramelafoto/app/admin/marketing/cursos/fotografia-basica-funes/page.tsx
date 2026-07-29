@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
-import { DNX_FOTO_BASICA_FUNES_SLUG } from "@/lib/dnx-foto-basica-funes";
+import { DNX_FOTO_BASICA_FUNES_SLUG } from "@/lib/dnx-foto-basica-funes-public";
 
 type LeadRow = {
   id: number;

@@ -10,7 +10,7 @@ import { mapPostResponse, postInclude } from "@/lib/blog/post-queries";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RouteParams = { params: { id: string } | Promise<{ id: string }> };
+type RouteParams = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   const auth = await requireBlogAdmin();

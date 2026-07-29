@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@repo/auth";
 import { Role, SchoolOrganizerInvitationStatus, SchoolOrganizerStatus } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/token-hash";
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "La invitación está expirada." }, { status: 400 });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = hashPassword(password);
 
     const result = await prisma.$transaction(async (tx) => {
       const existingUser = await tx.user.findUnique({

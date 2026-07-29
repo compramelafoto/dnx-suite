@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RouteParams = {
-  params: { id: string; packId: string } | Promise<{ id: string; packId: string }>;
+  params: Promise<{ id: string; packId: string }>;
 };
 
 async function parseIds(params: RouteParams["params"]) {

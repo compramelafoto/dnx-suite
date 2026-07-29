@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 // GET: Obtener información de un álbum y una foto específica para la página de remoción
 export async function GET(
   req: Request,
-  ctx: { params: { id: string; photoId: string } } | { params: Promise<{ id: string; photoId: string }> }
+  ctx: { params: Promise<{ id: string; photoId: string }> }
 ) {
   try {
     const params = await Promise.resolve(ctx.params);

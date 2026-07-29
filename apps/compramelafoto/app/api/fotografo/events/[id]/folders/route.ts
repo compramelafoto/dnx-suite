@@ -44,7 +44,7 @@ async function assertPhotographerMember(eventId: number, userId: number) {
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
@@ -88,7 +88,7 @@ export async function GET(
  */
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   void params;
   return NextResponse.json(

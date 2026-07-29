@@ -19,7 +19,7 @@ function verifySecret(req: NextRequest) {
 
 export async function POST(
   req: NextRequest,
-  ctx: { params: { id: string } | Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   let jobId: string | undefined;
   try {

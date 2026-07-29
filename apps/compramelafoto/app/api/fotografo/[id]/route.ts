@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: Request,
-  ctx: { params: { id: string } } | { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const params = await Promise.resolve(ctx.params);

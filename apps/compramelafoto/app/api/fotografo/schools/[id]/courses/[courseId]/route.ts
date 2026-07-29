@@ -17,7 +17,7 @@ async function ensureCourseOwnership(courseId: number, userId: number) {
 /** PATCH: Actualizar curso */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; courseId: string } | Promise<{ id: string; courseId: string }> }
+  { params }: { params: Promise<{ id: string; courseId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
@@ -57,7 +57,7 @@ export async function PATCH(
 /** DELETE: Eliminar curso */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; courseId: string } | Promise<{ id: string; courseId: string }> }
+  { params }: { params: Promise<{ id: string; courseId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);

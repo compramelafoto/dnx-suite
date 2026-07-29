@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; productId: string } | Promise<{ id: string; productId: string }> }
+  { params }: { params: Promise<{ id: string; productId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
@@ -83,7 +83,7 @@ export async function PATCH(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; productId: string } | Promise<{ id: string; productId: string }> }
+  { params }: { params: Promise<{ id: string; productId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);

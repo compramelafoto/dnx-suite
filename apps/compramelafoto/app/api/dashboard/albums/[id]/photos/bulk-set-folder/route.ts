@@ -37,7 +37,7 @@ function parseOptionalPositiveIntOrNull(raw: unknown): number | null | "invalid"
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthUser();

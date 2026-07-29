@@ -7,7 +7,7 @@ import { findAlbumOwnedByUser } from "@/lib/preventa-canjeable/dashboard-pack-he
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function resolveAlbumId(params: { id: string } | Promise<{ id: string }>) {
+async function resolveAlbumId(params: Promise<{ id: string }>) {
   const albumId = parseInt((await params).id, 10);
   if (!Number.isInteger(albumId)) return { albumId: null as number | null };
   return { albumId };
@@ -26,7 +26,7 @@ function parseOptionalPrice(value: unknown): number | null {
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
@@ -90,7 +90,7 @@ export async function GET(
  */
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);

@@ -625,7 +625,7 @@ async function buildOrderPhotosResponse(albumId: number, photoIds: number[], deb
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await Promise.resolve(params);
@@ -649,7 +649,7 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await Promise.resolve(params);

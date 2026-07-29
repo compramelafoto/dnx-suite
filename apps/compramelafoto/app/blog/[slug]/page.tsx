@@ -20,7 +20,7 @@ import { getPublishedPostBySlug, mapPublicPostTags } from "@/lib/blog/public-que
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: { slug: string } | Promise<{ slug: string }>;
+  params: Promise<{ slug: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps) {

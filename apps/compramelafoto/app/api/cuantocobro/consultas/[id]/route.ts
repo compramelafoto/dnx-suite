@@ -18,7 +18,7 @@ function isConsultaBody(value: unknown): value is Partial<CuantoCobroConsultaInp
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-type RouteContext = { params: { id: string } | Promise<{ id: string }> };
+type RouteContext = { params: Promise<{ id: string }> };
 
 async function resolveConsultaId(ctx: RouteContext): Promise<number | null> {
   const params = await ctx.params;

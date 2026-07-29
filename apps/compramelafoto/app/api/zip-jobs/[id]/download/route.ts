@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: { id: string } | Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   const params = await Promise.resolve(ctx.params);
   const jobId = params.id;

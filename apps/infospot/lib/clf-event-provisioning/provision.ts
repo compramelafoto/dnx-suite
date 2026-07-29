@@ -3,15 +3,17 @@
  */
 
 import {
-  createClfEvent,
-  updateClfEvent,
-  closeClfEventCall,
   getClfWriteClient,
   getClfWriteConnectionInfo,
-  hashOperationalSnapshot,
   prisma,
   type Prisma,
 } from "@repo/db";
+import {
+  createClfEvent,
+  updateClfEvent,
+  closeClfEventCall,
+  hashOperationalSnapshot,
+} from "@repo/db/clf-event-write";
 import { linkEventToOrigin, markOriginSynced, markOriginFailed } from "../content-origin";
 import { buildClfPublicEventUrl } from "../clf-event-sync/urls";
 import {

@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RouteCtx = {
-  params: { templateId: string } | Promise<{ templateId: string }>;
+  params: Promise<{ templateId: string }>;
 };
 
 export async function POST(req: Request, context: RouteCtx) {

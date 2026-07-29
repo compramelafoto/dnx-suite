@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import PreventaPackHubJourney from "@/components/preventa/PreventaPackHubJourney";
 import PreventaSelfieStep from "@/components/preventa/PreventaSelfieStep";
@@ -77,9 +77,10 @@ type OrderResponse = {
 export default function ClientePackPage({
   params,
 }: {
-  params: { orderId: string };
+  params: Promise<{ orderId: string }>;
 }) {
-  const rawId = String(params.orderId || "").trim();
+  const { orderId } = use(params);
+  const rawId = String(orderId || "").trim();
   const isNumericId = /^\d+$/.test(rawId);
   const searchParams = useSearchParams();
   const justRedeemed = searchParams.get("redeemed") === "true";
@@ -142,7 +143,7 @@ export default function ClientePackPage({
     return () => {
       cancelled = true;
     };
-  }, [params.orderId, isNumericId, rawId]);
+  }, [orderId, isNumericId, rawId]);
 
   const redeemEntryHref = useMemo(() => {
     if (!data?.order.album) return null;

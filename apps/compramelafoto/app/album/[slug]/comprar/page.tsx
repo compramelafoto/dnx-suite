@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: Promise<{ slug: string }> | { slug: string };
-  searchParams: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 /**

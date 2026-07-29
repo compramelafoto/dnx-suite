@@ -26,7 +26,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RouteParams = { orderId: string } | Promise<{ orderId: string }>;
+type RouteParams = Promise<{ orderId: string }>;
 
 function normalizeEmail(email: string | null | undefined): string {
   return String(email ?? "").trim().toLowerCase();

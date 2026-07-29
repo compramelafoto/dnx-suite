@@ -42,7 +42,7 @@ const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://compramelafoto.com";
 export async function generateMetadata({
   params,
 }: {
-  params: { shareSlug: string } | Promise<{ shareSlug: string }>;
+  params: Promise<{ shareSlug: string }>;
 }): Promise<Metadata> {
   const { shareSlug } = await Promise.resolve(params);
   if (!shareSlug) return { title: "Evento no encontrado" };
@@ -85,7 +85,7 @@ export async function generateMetadata({
 export default async function PublicEventPage({
   params,
 }: {
-  params: { shareSlug: string } | Promise<{ shareSlug: string }>;
+  params: Promise<{ shareSlug: string }>;
 }) {
   const { shareSlug } = await Promise.resolve(params);
   if (!shareSlug) return notFound();

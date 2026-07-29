@@ -27,7 +27,7 @@ export async function PATCH(
   req: NextRequest,
   {
     params,
-  }: { params: { id: string; videoId: string } | Promise<{ id: string; videoId: string }> }
+  }: { params: Promise<{ id: string; videoId: string }> }
 ) {
   try {
     const auth = await requireVideoMvpPhotographer();
@@ -129,7 +129,7 @@ export async function DELETE(
   _req: NextRequest,
   {
     params,
-  }: { params: { id: string; videoId: string } | Promise<{ id: string; videoId: string }> }
+  }: { params: Promise<{ id: string; videoId: string }> }
 ) {
   try {
     const auth = await requireVideoMvpPhotographer();

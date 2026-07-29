@@ -14,7 +14,7 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const guard = await requireCatalogProductsPhase1Api();
   if (guard.error) return guard.error;

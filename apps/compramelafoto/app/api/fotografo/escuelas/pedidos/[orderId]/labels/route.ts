@@ -164,7 +164,7 @@ function drawLabelInCell(
   });
 }
 
-type RouteCtx = { params: { orderId: string } | Promise<{ orderId: string }> };
+type RouteCtx = { params: Promise<{ orderId: string }> };
 
 export async function GET(_req: Request, context: RouteCtx) {
   const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);

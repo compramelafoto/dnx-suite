@@ -36,7 +36,7 @@ function normalizeLogoUrl(logoUrl: string | null | undefined): string | null {
 export async function generateMetadata({
   params,
 }: {
-  params: { id?: string } | Promise<{ id?: string }>;
+  params: Promise<{ id?: string }>;
 }): Promise<Metadata> {
   const resolved = await Promise.resolve(params);
   const slugOrId = String(resolved?.id || "").trim();
@@ -88,11 +88,13 @@ export default async function Page({
   params,
   searchParams,
 }: {
-  params: { id?: string } | Promise<{ id?: string }>;
-  searchParams?: { vista?: string } | Promise<{ vista?: string }>;
+  params: Promise<{ id?: string }>;
+  searchParams?: Promise<{ vista?: string }>;
 }) {
   const resolved = await Promise.resolve(params);
-  const resolvedSearchParams = await Promise.resolve(searchParams ?? {});
+  const resolvedSearchParams: { vista?: string } = searchParams
+    ? await searchParams
+    : {};
   const simulateClientView = resolvedSearchParams.vista === "cliente";
   const slugOrId = String(resolved?.id || "");
   

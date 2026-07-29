@@ -30,7 +30,7 @@ async function loadOwnedProduct(id: number, userId: number) {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const guard = await requireCatalogProductsPhase1Api();
   if (guard.error) return guard.error;
@@ -51,7 +51,7 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const guard = await requireCatalogProductsPhase1Api();
   if (guard.error) return guard.error;

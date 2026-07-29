@@ -8,16 +8,17 @@ export default async function PreventaRedirect({
   params,
   searchParams,
 }: {
-  params: { slug: string } | Promise<{ slug: string }>;
-  searchParams?: Record<string, string | string[] | undefined>;
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await Promise.resolve(params);
   if (!slug) {
     redirect("/");
   }
-  const qs = searchParams
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const qs = resolvedSearchParams
     ? new URLSearchParams(
-        Object.entries(searchParams).flatMap(([key, value]) =>
+        Object.entries(resolvedSearchParams).flatMap(([key, value]) =>
           Array.isArray(value) ? value.map((v) => [key, v]) : value != null ? [[key, value]] : []
         )
       ).toString()

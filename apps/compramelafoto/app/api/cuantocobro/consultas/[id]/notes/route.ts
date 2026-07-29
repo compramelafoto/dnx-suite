@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const ALLOWED_ROLES: Role[] = [Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER, Role.ADMIN];
 
-type RouteContext = { params: { id: string } | Promise<{ id: string }> };
+type RouteContext = { params: Promise<{ id: string }> };
 
 async function resolveConsultaId(ctx: RouteContext): Promise<number | null> {
   const params = await ctx.params;

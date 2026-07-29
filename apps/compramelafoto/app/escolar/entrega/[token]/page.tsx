@@ -35,7 +35,7 @@ function VistaInvalida() {
 export default async function EscolarEntregaFichaPage({
   params,
 }: {
-  params: { token: string } | Promise<{ token: string }>;
+  params: Promise<{ token: string }>;
 }) {
   const { token } = await Promise.resolve(params);
   const rawToken = decodeURIComponent(String(token || "").trim());

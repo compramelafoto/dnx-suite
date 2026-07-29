@@ -84,7 +84,7 @@ async function photographerHasActiveProducts(userId: number): Promise<boolean> {
 // GET: Obtener álbum específico con sus fotos
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
@@ -469,7 +469,7 @@ export async function GET(
 // PATCH: Actualizar álbum
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
@@ -903,7 +903,7 @@ export async function PATCH(
 // PUT: Actualizar álbum completo (incluye todos los campos nuevos)
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER]);
@@ -1333,7 +1333,7 @@ export async function PUT(
 // DELETE: Eliminar álbum (o solo mis fotos si es colaborativo)
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER]);

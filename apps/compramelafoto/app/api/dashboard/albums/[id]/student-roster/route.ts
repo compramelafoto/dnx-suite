@@ -16,7 +16,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function resolveAlbumId(params: { id: string } | Promise<{ id: string }>) {
+async function resolveAlbumId(params: Promise<{ id: string }>) {
   const albumId = parseInt((await params).id, 10);
   if (!Number.isInteger(albumId) || albumId <= 0) return { albumId: null as number | null };
   return { albumId };
@@ -92,7 +92,7 @@ function buildRosterGlobalSearchAnd(q: string): Prisma.AlbumStudentRosterEntryWh
  */
 export async function GET(
   req: NextRequest,
-  context: { params: { id: string } | Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
@@ -256,7 +256,7 @@ function parseManualBody(body: ManualBody) {
  * POST /api/dashboard/albums/[id]/student-roster
  * Alta manual de alumno en el padrón del álbum.
  */
-export async function POST(req: NextRequest, context: { params: { id: string } | Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
     if (error || !user) {

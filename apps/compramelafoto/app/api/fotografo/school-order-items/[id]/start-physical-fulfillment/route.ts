@@ -6,7 +6,7 @@ import { Role } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RouteCtx = { params: { id: string } | Promise<{ id: string }> };
+type RouteCtx = { params: Promise<{ id: string }> };
 
 function friendlyMessage(reason: string): string {
   if (reason === "not_school_album") {

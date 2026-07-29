@@ -8,7 +8,7 @@ import { resolveOrderDigitalDownloadLinks } from "@/lib/digital-download/resolve
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest, { params }: { params: { orderId: string } | Promise<{ orderId: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
   const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER, Role.ADMIN]);
   if (error || !user) {
     return NextResponse.json({ error: error || "No autorizado" }, { status: 401 });

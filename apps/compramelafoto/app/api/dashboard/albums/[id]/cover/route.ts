@@ -11,7 +11,7 @@ import { readFromR2, uploadToR2, generateR2Key, urlToR2Key } from "@/lib/r2-clie
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthUser();

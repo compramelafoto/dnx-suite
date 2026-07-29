@@ -30,7 +30,7 @@ async function ensureAlbumReadAccess(albumId: number, userId: number) {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     if (!isVideoMvpEnabled()) {

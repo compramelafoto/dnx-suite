@@ -198,7 +198,7 @@ function buildCacheKey(params: {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await Promise.resolve(params);

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminLoginRedirect({
   searchParams,
 }: {
-  searchParams: Promise<{ redirect?: string }> | { redirect?: string };
+  searchParams: Promise<{ redirect?: string }>;
 }) {
   const params = await Promise.resolve(searchParams);
   const redirectParam = params?.redirect || "";

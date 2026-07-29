@@ -41,7 +41,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthUser();
@@ -238,7 +238,7 @@ export async function GET(
 // POST: Subir fotos a un álbum (con marca de agua en preview)
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER]);

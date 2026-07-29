@@ -49,7 +49,7 @@ import { EventFolderScope } from "@/lib/prisma";
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string } | Promise<{ slug: string }>;
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await Promise.resolve(params);
   if (!slug?.trim()) return {};
@@ -214,12 +214,13 @@ export default async function AlbumPublicPage({
   params,
   searchParams,
 }: {
-  params: { slug: string } | Promise<{ slug: string }>;
-  searchParams?: Record<string, string | string[] | undefined> | Promise<Record<string, string | string[] | undefined>>;
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await Promise.resolve(params);
-  const rawSearch = await Promise.resolve(searchParams ?? {});
-  const resolvedSearchParams = rawSearch;
+  const resolvedSearchParams: Record<string, string | string[] | undefined> = searchParams
+    ? await searchParams
+    : {};
   const simulateClientView = resolvedSearchParams.vista === "cliente";
   if (!slug?.trim()) return notFound();
 
@@ -398,11 +399,11 @@ export default async function AlbumPublicPage({
     }).then((rows) => rows.map((r) => ({ ...r, slug: null })));
   }
 
-  const folderIdRaw = Array.isArray(rawSearch.folderId)
-    ? rawSearch.folderId[0]
-    : rawSearch.folderId;
-  const folderSlugRaw = Array.isArray(rawSearch.folder) ? rawSearch.folder[0] : rawSearch.folder;
-  const preservedQs = buildPreservedGalleryQueryString(rawSearch);
+  const folderIdRaw = Array.isArray(resolvedSearchParams.folderId)
+    ? resolvedSearchParams.folderId[0]
+    : resolvedSearchParams.folderId;
+  const folderSlugRaw = Array.isArray(resolvedSearchParams.folder) ? resolvedSearchParams.folder[0] : resolvedSearchParams.folder;
+  const preservedQs = buildPreservedGalleryQueryString(resolvedSearchParams);
   const folderFilter: PublicGalleryFolderFilter =
     activeFolders.length > 0
       ? resolvePublicGalleryFolderFilter({

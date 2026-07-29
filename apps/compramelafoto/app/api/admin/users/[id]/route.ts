@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // GET: Configuración completa del usuario (solo lectura, para soporte)
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error } = await requireAuth([Role.ADMIN]);
@@ -148,7 +148,7 @@ export async function GET(
 // PATCH: Actualizar estado de usuario (bloquear/desbloquear)
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ADMIN]);
@@ -341,7 +341,7 @@ export async function PATCH(
 // DELETE: Eliminar usuario (fotógrafo)
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ADMIN]);

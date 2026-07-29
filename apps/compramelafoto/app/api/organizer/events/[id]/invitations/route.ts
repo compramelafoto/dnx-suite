@@ -24,7 +24,7 @@ async function getEventAndCheck(req: NextRequest, eventId: number) {
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await Promise.resolve(params);
@@ -82,7 +82,7 @@ export async function GET(
  */
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await Promise.resolve(params);

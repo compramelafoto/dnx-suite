@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { slug: string } | Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     if (!isVideoMvpEnabled()) {

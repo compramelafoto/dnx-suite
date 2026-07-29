@@ -29,7 +29,7 @@ function getSharedPackCloseAt(packs: Array<{ validUntil: Date | null }>): Date |
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { slug: string } | Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     const { slug } = await params;

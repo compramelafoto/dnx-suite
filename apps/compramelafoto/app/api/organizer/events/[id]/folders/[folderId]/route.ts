@@ -60,7 +60,7 @@ export async function PATCH(
   req: NextRequest,
   {
     params,
-  }: { params: { id: string; folderId: string } | Promise<{ id: string; folderId: string }> }
+  }: { params: Promise<{ id: string; folderId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ORGANIZER]);
@@ -269,7 +269,7 @@ export async function DELETE(
   _req: NextRequest,
   {
     params,
-  }: { params: { id: string; folderId: string } | Promise<{ id: string; folderId: string }> }
+  }: { params: Promise<{ id: string; folderId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ORGANIZER]);

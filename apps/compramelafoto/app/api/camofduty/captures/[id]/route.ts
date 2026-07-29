@@ -15,7 +15,7 @@ function parseStars(value: unknown): PhotoStarRating | null {
 /** PATCH /api/camofduty/captures/[id] — actualiza estrellas. */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { error, user } = await requireAuth();
   if (error || !user) {

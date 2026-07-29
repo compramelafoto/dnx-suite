@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // PUT: Actualizar precios base del laboratorio
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ADMIN]);

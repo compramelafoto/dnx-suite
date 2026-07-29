@@ -26,7 +26,7 @@ function clientIp(req: NextRequest): string {
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ shareSlug: string }> | { shareSlug: string } }
+  { params }: { params: Promise<{ shareSlug: string }> }
 ) {
   try {
     const { shareSlug } = await Promise.resolve(params);

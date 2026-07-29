@@ -10,7 +10,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RouteParams =
-  | { id: string; packId: string }
   | Promise<{ id: string; packId: string }>;
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);

@@ -13,7 +13,7 @@ export async function PATCH(
   _req: NextRequest,
   {
     params,
-  }: { params: { id: string; folderId: string } | Promise<{ id: string; folderId: string }> }
+  }: { params: Promise<{ id: string; folderId: string }> }
 ) {
   void params;
   return NextResponse.json({ error: BLOCKED_MESSAGE }, { status: 403 });
@@ -26,7 +26,7 @@ export async function DELETE(
   _req: NextRequest,
   {
     params,
-  }: { params: { id: string; folderId: string } | Promise<{ id: string; folderId: string }> }
+  }: { params: Promise<{ id: string; folderId: string }> }
 ) {
   void params;
   return NextResponse.json({ error: BLOCKED_MESSAGE }, { status: 403 });

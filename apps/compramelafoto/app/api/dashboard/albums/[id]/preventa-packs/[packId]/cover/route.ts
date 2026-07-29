@@ -23,7 +23,7 @@ export async function POST(
   req: NextRequest,
   {
     params,
-  }: { params: { id: string; packId: string } | Promise<{ id: string; packId: string }> }
+  }: { params: Promise<{ id: string; packId: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);

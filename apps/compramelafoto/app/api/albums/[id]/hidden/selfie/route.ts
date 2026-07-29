@@ -44,7 +44,7 @@ function signGrantToken(grantId: string, albumId: number, expiresAt: number): st
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const startTotal = Date.now();
   const { id } = await Promise.resolve(params);

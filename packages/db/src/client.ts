@@ -158,16 +158,11 @@ export {
   disconnectClfWriteClient,
 } from "./clf-write-client";
 
-export {
-  createClfEvent,
-  updateClfEvent,
-  closeClfEventCall,
-  validateClfEventWriteInput,
-  normalizeVisibilityJoinPolicy,
-  hashOperationalSnapshot,
-  type ClfEventWriteInput,
-  type ClfEventWriteResult,
-} from "./clf-event-write";
+/**
+ * Escritura CLF con `node:crypto` vive en subpath server-only:
+ * `@repo/db/clf-event-write`
+ * No reexportar desde el barrel principal: rompe Client Components que importan `prisma`.
+ */
 
 export {
   InfoSpotPhotographerCallProvisioningStatus,

@@ -22,7 +22,7 @@ async function getFreshZipUrlIfPossible(
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: { id: string } | Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const params = await Promise.resolve(ctx.params);

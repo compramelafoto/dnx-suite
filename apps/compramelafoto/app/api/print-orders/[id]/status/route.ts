@@ -24,7 +24,7 @@ function parseId(raw: unknown): number | null {
 
 export async function PATCH(
   req: Request,
-  ctx: { params: { id: string } } | { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([

@@ -4,15 +4,15 @@
  * Never logs tokens.
  */
 import { prisma } from "@/lib/prisma";
+import { CredentialVault } from "@repo/payments/credential-vault";
+import { createPrismaCredentialStore } from "@repo/payments/infrastructure/prisma/credential-store";
+import { createPrismaDualReadPorts } from "@repo/payments/infrastructure/prisma/financial-identity-ports";
 import {
-  CredentialVault,
-  createPrismaCredentialStore,
-  createPrismaDualReadPorts,
   loadFinancialIdentityFlags,
   resolveMercadoPagoAccountForLab,
   resolveMercadoPagoAccountForUser,
-  type FinancialEnvironment,
-} from "@repo/payments";
+} from "@repo/payments/dual-read";
+import type { FinancialEnvironment } from "@repo/payments/financial-identity";
 
 function resolveEnvironment(): FinancialEnvironment {
   const raw = process.env.DNX_FINANCIAL_IDENTITY_ENV?.trim().toUpperCase();

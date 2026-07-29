@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function POST(
   _req: Request,
   ctx: {
-    params: { id: string; jobId: string } | Promise<{ id: string; jobId: string }>;
+    params: Promise<{ id: string; jobId: string }>;
   }
 ) {
   try {

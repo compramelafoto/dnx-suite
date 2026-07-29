@@ -6,7 +6,7 @@ import InviteClient from "./InviteClient";
 export default async function InvitePage({
   params,
 }: {
-  params: { token: string } | Promise<{ token: string }>;
+  params: Promise<{ token: string }>;
 }) {
   const { token } = await Promise.resolve(params);
   const rawToken = String(token || "").trim();

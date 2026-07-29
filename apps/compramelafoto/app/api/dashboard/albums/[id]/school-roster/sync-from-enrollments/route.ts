@@ -9,7 +9,7 @@ import { ensureAlbumRosterFromEnrollments } from "@/lib/school-roster/ensure-alb
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function resolveAlbumId(params: { id: string } | Promise<{ id: string }>) {
+async function resolveAlbumId(params: Promise<{ id: string }>) {
   const albumId = parseInt((await params).id, 10);
   if (!Number.isInteger(albumId) || albumId <= 0) return { albumId: null as number | null };
   return { albumId };
@@ -21,7 +21,7 @@ async function resolveAlbumId(params: { id: string } | Promise<{ id: string }>) 
  */
 export async function POST(
   _: Request,
-  context: { params: { id: string } | Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);

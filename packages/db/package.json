@@ -9,7 +9,8 @@
     ".": "./src/client.ts",
     "./client": "./src/client.ts",
     "./permissions": "./src/infospot-permissions.ts",
-    "./clf-album-availability": "./src/clf-album-availability.ts"
+    "./clf-album-availability": "./src/clf-album-availability.ts",
+    "./clf-event-write": "./src/clf-event-write.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",

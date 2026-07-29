@@ -78,7 +78,7 @@ function toPublicConfirmationResponse(order: {
 
 export async function GET(
   req: Request,
-  ctx: { params: { id: string } } | { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const params = await Promise.resolve((ctx as { params: Promise<{ id: string }> }).params);

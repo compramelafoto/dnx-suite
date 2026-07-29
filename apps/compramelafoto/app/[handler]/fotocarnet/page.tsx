@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export default async function CarnetPhotographerPage({
   params,
 }: {
-  params: { handler: string } | Promise<{ handler: string }>;
+  params: Promise<{ handler: string }>;
 }) {
   const { handler } = await Promise.resolve(params);
   if (!handler || typeof handler !== "string") {

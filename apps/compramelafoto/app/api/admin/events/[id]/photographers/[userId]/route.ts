@@ -27,7 +27,7 @@ function parseIds(rawEventId: string, rawUserId: string) {
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; userId: string } | Promise<{ id: string; userId: string }> }
+  { params }: { params: Promise<{ id: string; userId: string }> }
 ) {
   const auth = await assertAdmin(req);
   if ("error" in auth) {
@@ -61,7 +61,7 @@ export async function PATCH(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; userId: string } | Promise<{ id: string; userId: string }> }
+  { params }: { params: Promise<{ id: string; userId: string }> }
 ) {
   const auth = await assertAdmin(req);
   if ("error" in auth) {

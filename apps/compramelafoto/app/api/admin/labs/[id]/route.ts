@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // GET: Obtener detalle de un laboratorio
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ADMIN]);
@@ -81,7 +81,7 @@ export async function GET(
 // PATCH: Actualizar estado de aprobación o suspensión
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ADMIN]);
@@ -249,7 +249,7 @@ export async function PATCH(
 // DELETE: Eliminar laboratorio
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { error, user } = await requireAuth([Role.ADMIN]);
