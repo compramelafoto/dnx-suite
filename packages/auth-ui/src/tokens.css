@@ -1,0 +1,75 @@
+/**
+ * Tokens semánticos de autenticación DNX.
+ * Cada app mapea estos nombres a su design system.
+ */
+
+.dnx-auth-root {
+  --auth-background: #050505;
+  --auth-surface: #141414;
+  --auth-text-primary: #fafafa;
+  --auth-text-secondary: #a1a1a1;
+  --auth-border: #262626;
+  --auth-focus: #d4af37;
+  --auth-primary: #d4af37;
+  --auth-primary-text: #050505;
+  --auth-secondary-border: #333333;
+  --auth-error: #f87171;
+  --auth-error-bg: rgba(248, 113, 113, 0.1);
+  --auth-success: #4ade80;
+  --auth-success-bg: rgba(74, 222, 128, 0.1);
+  --auth-radius: 0.75rem;
+  --auth-control-height: 2.75rem;
+  --auth-content-width: 28rem;
+  --auth-font: system-ui, sans-serif;
+  --auth-space-field: 2rem;
+  --auth-space-block: 2rem;
+}
+
+.dnx-auth-root[data-brand="clickaton"] {
+  --auth-background: #0a0a0a;
+  --auth-surface: #121212;
+  --auth-primary: #f5c518;
+  --auth-primary-text: #0a0a0a;
+  --auth-focus: #f5c518;
+}
+
+.dnx-auth-root[data-brand="fotorank"] {
+  --auth-background: #050505;
+  --auth-surface: #141414;
+  --auth-primary: #d4af37;
+  --auth-primary-text: #050505;
+  --auth-focus: #d4af37;
+}
+
+.dnx-auth-root[data-brand="compramelafoto"] {
+  --auth-background: #f7f5f2;
+  --auth-surface: #ffffff;
+  --auth-text-primary: #1a1a1a;
+  --auth-text-secondary: #6b7280;
+  --auth-border: #e5e7eb;
+  --auth-primary: #c27b3d;
+  --auth-primary-text: #ffffff;
+  --auth-focus: #c27b3d;
+}
+
+.dnx-auth-root[data-brand="infospot"] {
+  --auth-background: #faf9f7;
+  --auth-surface: #ffffff;
+  --auth-text-primary: #1a1a1a;
+  --auth-text-secondary: #5c5c5c;
+  --auth-border: #e8e4dc;
+  --auth-primary: #1a1a1a;
+  --auth-primary-text: #faf9f7;
+  --auth-focus: #1a1a1a;
+}
+
+.dnx-auth-root[data-brand="fotoffice"] {
+  --auth-background: #0f1115;
+  --auth-surface: #1a1d24;
+  --auth-text-primary: #f3f4f6;
+  --auth-text-secondary: #9ca3af;
+  --auth-border: #2a2f3a;
+  --auth-primary: #3b82f6;
+  --auth-primary-text: #ffffff;
+  --auth-focus: #3b82f6;
+}
