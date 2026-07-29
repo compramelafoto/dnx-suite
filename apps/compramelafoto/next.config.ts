@@ -40,6 +40,10 @@ const photoViewTraceExcludes = [
 ];
 
 const nextConfig: NextConfig = {
+  // Reduce parallel workers during typecheck/static generation (Vercel 8–16 GB builders).
+  experimental: {
+    cpus: 1,
+  },
   transpilePackages: [
     "@repo/db",
     "@repo/auth",
