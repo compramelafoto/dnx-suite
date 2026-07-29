@@ -13,6 +13,8 @@
  */
 
 import { createHash, randomBytes } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 
 type Mode = "dry-run" | "execute";
@@ -103,7 +105,37 @@ async function countSafe(prisma: PrismaClient, sql: string): Promise<number | nu
   }
 }
 
+function loadCutoverEnvFile() {
+  // Opcional: packages/db/.env.cutover.local (gitignored). No loguea valores.
+  const path = join(import.meta.dirname, "../.env.cutover.local");
+  if (!existsSync(path)) return;
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const i = t.indexOf("=");
+    if (i <= 0) continue;
+    const key = t.slice(0, i).trim();
+    let val = t.slice(i + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (
+      (key === "CLICKATON_SOURCE_DATABASE_URL" ||
+        key === "DNX_IDENTITY_DATABASE_URL" ||
+        key === "CLICKATON_CUTOVER_CONFIRM" ||
+        key === "NEON_API_KEY") &&
+      !process.env[key]
+    ) {
+      process.env[key] = val;
+    }
+  }
+}
+
 async function main() {
+  loadCutoverEnvFile();
   const { mode } = parseArgs(process.argv.slice(2));
   const sourceUrl = process.env.CLICKATON_SOURCE_DATABASE_URL?.trim();
   // No caer a DATABASE_URL local (suele ser Production dawn-dew).

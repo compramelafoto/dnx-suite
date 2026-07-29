@@ -10,7 +10,10 @@
   },
   "scripts": {
     "create-director": "tsx scripts/create-director.ts",
-    "check-types": "tsc --noEmit -p tsconfig.json"
+    "check-types": "tsc --noEmit -p tsconfig.json",
+    "identity:selfcheck": "tsx src/identity.selfcheck.ts",
+    "architecture:check": "tsx scripts/architecture-check.ts",
+    "cross-app:fixtures": "tsx scripts/cross-app-identity-fixtures.ts"
   },
   "dependencies": {
     "@repo/db": "workspace:*",

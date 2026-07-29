@@ -1,18 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { prisma } from "@repo/db";
-import { verifyPassword } from "@repo/auth";
+import { verifyUserPassword } from "@repo/auth";
 import { normalizeEmail } from "@/config/admin/admins";
 import {
   createClickatonSession,
   destroyClickatonSession,
 } from "@/lib/admin/auth";
 import { resolveClickatonPostLoginPath } from "@/lib/auth/post-login";
-import {
-  CLICKATON_LOGIN_PATH,
-  sanitizeClickatonReturnPath,
-} from "@/lib/auth/return-path";
+import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { routes } from "@/config/navigation";
 
 export type ClickatonLoginFormState = { error: string | null };
@@ -28,25 +24,9 @@ export async function loginClickatonAction(
   if (!email) return { error: "El email es obligatorio." };
   if (!password) return { error: "La contraseña es obligatoria." };
 
-  let user: {
-    id: number;
-    email: string;
-    password: string | null;
-    role: string;
-    isBlocked: boolean;
-  } | null;
-
+  let verified: Awaited<ReturnType<typeof verifyUserPassword>>;
   try {
-    user = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        email: true,
-        password: true,
-        role: true,
-        isBlocked: true,
-      },
-    });
+    verified = await verifyUserPassword({ email, password });
   } catch {
     return {
       error:
@@ -54,18 +34,17 @@ export async function loginClickatonAction(
     };
   }
 
-  if (!user || user.isBlocked) {
+  if (!verified.ok) {
+    if (verified.reason === "NO_PASSWORD") {
+      return {
+        error:
+          "Esta cuenta no tiene contraseña configurada. Usá Continuar con Google.",
+      };
+    }
     return { error: "Email o contraseña incorrectos." };
   }
-  if (!user.password) {
-    return {
-      error:
-        "Esta cuenta no tiene contraseña configurada. Usá Continuar con Google.",
-    };
-  }
-  if (!verifyPassword(password, user.password)) {
-    return { error: "Email o contraseña incorrectos." };
-  }
+
+  const user = verified.user;
 
   try {
     await createClickatonSession(user.id);
@@ -73,7 +52,10 @@ export async function loginClickatonAction(
     return { error: "No se pudo guardar la sesión." };
   }
 
-  const globalRole = user.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "USER";
+  const globalRole =
+    user.role === "SUPER_ADMIN" || user.globalRole === "SUPER_ADMIN"
+      ? "SUPER_ADMIN"
+      : "USER";
   const destination = resolveClickatonPostLoginPath({
     email: user.email,
     globalRole,
@@ -99,5 +81,3 @@ export async function logoutAdminAction(): Promise<void> {
   await destroyClickatonSession();
   redirect(routes.home);
 }
-
-export { sanitizeClickatonReturnPath };

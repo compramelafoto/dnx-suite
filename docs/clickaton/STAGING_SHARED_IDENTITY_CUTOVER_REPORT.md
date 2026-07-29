@@ -1,135 +1,215 @@
-# Informe — Cutover Clickatón a identidad DNX compartida (10B.6)
+# Informe — Cutover Clickatón a identidad DNX compartida
 
-**Fecha:** 2026-07-29  
+**Fecha actualización:** 2026-07-29 (etapa **10B.6.2**)  
 **Estado final:**
 
 ```text
-CLICKATON DATA MIGRATION BLOCKED
+FOTORANK DOMAIN MIGRATION BLOCKED
 ```
+
+Nomenclatura: **ComprameLaFoto monorepo** (suite) vs **ComprameLaFoto legacy** (histórico). Destino de identidad = DNX Suite Staging (`ep-round-fog…`).
+
+Clickatón Staging ya corre contra la DB de identidad compartida (6 ediciones). El éxito estricto `DNX UNIVERSAL ACCOUNT READY IN STAGING` **no** se declara porque FotoRank Preview no tiene dominio migrado ni deploy verde sobre esa identidad.
 
 ---
 
-## 1–2. DB origen / destino
+## 1. Credencial Neon
 
-| Rol | Host | DB | Evidencia |
-| --- | ---- | -- | --------- |
-| Origen Clickatón Staging | `ep-divine-smoke-av8hmt7s-pooler` | `clickaton_staging` (doc) | health `publishedEditions: 6` |
-| Destino identidad propuesto | `ep-round-fog-a4xgibtv…` | `neondb` | CLF Preview + dnx-mcp |
-| FotoRank Preview actual | `ep-empty-moon-ad4teeyd…` | `neondb` | vercel env pull — **≠ destino** |
+| Chequeo | Resultado |
+| ------- | --------- |
+| `NEON_API_KEY` en shell del proceso | Ausente |
+| Auth Neon válida | **Sí** vía sesión OAuth `neonctl` (`dnxfotografia@gmail.com`, org `org-bold-morning-27184918`) |
+| Proyecto Clickatón Staging `plain-sky-50672248` | Acceso OK |
+| Proyecto DNX Staging Identity `fragrant-union-80829821` (`ep-round-fog…`) | Acceso OK |
+| Endpoint `ep-empty-moon…` (FotoRank histórico) | **No** existe en la org Neon Dnx |
 
-Detalle: `STAGING_SHARED_IDENTITY_DB_IDENTITY.md`
+No se imprimió ni persistió ningún secret. Connection strings solo en proceso + `packages/db/.env.cutover.local` (gitignored, mode `0600`).
 
-## 3. Backups
+---
 
-| Backup | Estado |
-| ------ | ------ |
-| `backup-before-identity-cutover` (origen) | **NO CREADO** — sin URL origen / sin Neon API key |
-| `backup-before-clickaton-import` (destino) | **NO CREADO** — bloqueado por política (no avanzar sin origen) |
+## 2. Recursos Neon (sanitizados)
 
-## 4. Clasificación tablas
+| Rol | Project ID | Name | Branch | Endpoint | Database |
+| --- | ---------- | ---- | ------ | -------- | -------- |
+| Origen Clickatón | `plain-sky-50672248` | clickaton-staging | `br-lucky-dust-avvqom7b` (primary) | `ep-divine-smoke-av8hmt7s…` | `clickaton_staging` |
+| Destino identidad | `fragrant-union-80829821` | dnx-suite-staging | `br-noisy-flower-a4ovb3yc` (primary, nombre histórico `production` en Neon) | `ep-round-fog-a4xgibtv…` | `neondb` |
+| Backup origen | mismo proyecto | — | `br-polished-night-avzrcfq6` / `backup-before-identity-cutover` | `ep-winter-unit-avgjepw8…` | `clickaton_staging` |
+| Backup destino | mismo proyecto | — | `br-patient-breeze-a4zmb4pl` / `backup-before-clickaton-import` | `ep-purple-dawn-a4hlfobu…` | `neondb` |
 
-Ver `STAGING_CUTOVER_TABLE_CLASSIFICATION.md`.
+`source != destination` confirmado (hosts distintos). Production (`dawn-dew` / clickaton-production) **no** tocada.
 
-## 5–8. Usuarios / conflictos / mapa
+---
 
-Inventario origen **no ejecutado** (URL Encrypted vacía).  
-Schema preparado:
+## 3. Backups verificables
 
-- `ClickatonLegacyUserMap`
-- `UserIdentityAlias`
-- migración `20260729120000_clickaton_legacy_user_map`
+| Backup lógico | Branch | Created (UTC) | Verificación |
+| ------------- | ------ | ------------- | ------------ |
+| `backup-before-identity-cutover` | `br-polished-night-avzrcfq6` | 2026-07-29T07:10:05Z | Editions=6, Users=7, Registrations=11, migrations=85 |
+| `backup-before-clickaton-import` | `br-patient-breeze-a4zmb4pl` | 2026-07-29T07:10:06Z | Users=3, UserSession=40, migrations≈44, **sin** tablas Clickatón |
 
-CLI:
+Origen intacto post-cutover (no se borró divine-smoke).
 
-```bash
-pnpm clickaton:staging:identity-cutover
-```
+---
 
-Fail-closed sin URLs (exit 2).
+## 4. Connection strings
 
-## 9–12. Migraciones / import / integridad / variables
+Cargadas en proceso desde `packages/db/.env.cutover.local`:
 
-| Paso | Estado |
-| ---- | ------ |
-| migrate SQL mapa | **creada** (no deployada a Staging destino aún) |
-| Import dominio 6 ediciones | **no ejecutado** |
-| Integridad origen↔destino | **no ejecutado** |
-| Update Vercel Clickatón → round-fog | **no ejecutado** (faltan backups + import) |
-| Alinear FotoRank Preview → round-fog | **pendiente obligatorio** |
+- `CLICKATON_SOURCE_DATABASE_URL` / `CLICKATON_SOURCE_DIRECT_URL` → divine-smoke / `clickaton_staging`
+- `DNX_IDENTITY_DATABASE_URL` / `DNX_IDENTITY_DIRECT_URL` → round-fog / `neondb`
 
-## 13. Sesiones
+SQL connectivity OK antes y después del cutover.
 
-Política documentada: revocar sesiones Staging antiguas; mensaje  
-“Actualizamos el sistema de cuentas. Iniciá sesión nuevamente.”
+---
 
-## 14–15. Commit / deploy / smoke
+## 5–7. Auditoría destino + `prisma migrate deploy`
+
+- Pre-cutover destino: Users=3, Sessions=40, ~45 migraciones, sin dominio Clickatón.
+- Ejecutado **solo** `prisma migrate deploy` (nunca `db push`).
+- Post-deploy destino: **89** migraciones aplicadas; tablas Clickatón creadas e importadas.
+- Nota: migraciones WIP FotoRank (`FotorankJury*`, rules-config, results) dejaron tablas en DB **sin** modelos equivalentes completos en `schema.prisma` actual → deriva schema/cliente (bloquea build FotoRank).
+
+---
+
+## 8–10. Dry-run / reconciliación / cutover
+
+| Paso | Resultado |
+| ---- | --------- |
+| Dry-run CLI `pnpm clickaton:staging:identity-cutover` | Limpio (sin `MANUAL_REVIEW`) |
+| Phase 1 execute | 7 users → `CREATE_CANONICAL_USER`; mapa `ClickatonLegacyUserMap` |
+| Batch ID | `cutover-2026-07-29T07:13:48.698Z` (7 filas) |
+| Phase 2 dominio | `packages/db/scripts/staging-identity-cutover-phase2.py` (remap FKs User) |
+| Admins Daniel/Tammy/Rodrigo en origen Staging | **No** estaban (solo users de test) |
+| Roles CLF / FotoRank | No alterados |
+
+Origen **no** borrado.
+
+---
+
+## 11. Integridad origen ↔ destino
+
+| Entidad | Origen | Destino | Diferencia |
+| ------- | -----: | ------: | ---------: |
+| ClickatonEdition | 6 | 6 | 0 |
+| ClickatonVenue | 6 | 6 | 0 |
+| ClickatonTicketType | 6 | 6 | 0 |
+| ClickatonRegistration | 11 | 11 | 0 |
+| ClickatonRegistrationPricePhase | 0 | 0 | 0 |
+| ClickatonProduct / Variant | 0 / 0 | 0 / 0 | 0 |
+| DnxPromotion | 0 | 0 | 0 |
+| Timeline / Prompt / FotoRankSync / Outbox / Finance / Accreditation | 0… | 0… | 0 |
+| ClickatonParticipantCredential | 1 | 1 | 0 |
+| User | 7 | 14+ | + (seeds CLF + canónicos + fixtures) |
+
+Validaciones:
+
+- FK huérfanas Registration→User: **0**
+- `ClickatonLegacyUserMap`: **7**, unresolved: **0**
+- Duplicados email: **0**
+- Diferencias críticas de dominio Clickatón: **0**
+
+Health vivo Clickatón Staging:
+
+- `ok: true`
+- `databaseHostHint: ep-round-fog-a4xgibtv-pooler`
+- `publishedEditions: 6`
+
+---
+
+## 12. FotoRank
 
 | Ítem | Estado |
 | ---- | ------ |
-| Commit selectivo tooling/docs | `43f8e30` + `7434b3f` (pushed a `migration-legacy-clf-to-monorepo`) |
-| Deploy Staging cutover | **NO** — datos no migrados |
-| Smoke 6 ediciones en DB compartida | **NO** |
+| Host histórico `ep-empty-moon…` | **Inaccesible** en org Neon Dnx (no hay project/endpoint) |
+| Backup Neon FotoRank Preview | **No** — sin proyecto API |
+| `DATABASE_URL` Preview branch `migration-legacy-clf-to-monorepo` | Encrypted (actualizado en sesión cutover; pull vacío por tipo sensitive) |
+| Contests en round-fog | **0** (sin import de dominio empty-moon) |
+| Tablas Fotorank* en round-fog | 46 (incl. WIP jury/results/rules no alineadas al client) |
+| Deploy Preview | **ERROR** (`dpl_NP1rBWQ5DJ34Y2YfGUFkFPNaDENq`) — TS/Prisma drift jury/rules |
+| Production FotoRank / `fotorank.com` | **No** modificada |
 
-## 16. Fixtures 1–6
-
-**NO EJECUTADOS** — prerrequisito DB compartida real CLF+Clickatón+FotoRank.
-
-## 17–18. FotoRank / CLF
-
-- FotoRank Preview ≠ CLF Preview → cross-app **imposible** hoy.  
-- CLF round-fog intacto (3 users seed).  
-- No se modificó Production.
-
-## 19. Warnings architecture
-
-Pendiente clasificación detallada en iteración post-desbloqueo (7 warnings legacy 10B.5).
-
-## 20. Mercado Pago identity
-
-No ejecutado OAuth. Tammy no está en destino round-fog todavía.
-
-## 21. Rollback
-
-| Capa | Plan |
-| ---- | ---- |
-| App | redeploy anterior Clickatón Staging |
-| Env | restaurar DATABASE_URL divine-smoke |
-| DB destino | no DELETE users; revertir batch `ClickatonLegacyUserMap` |
-| DB origen | mantener intacta / read-only durante validación |
-
-## 22–27. Riesgos
-
-1. **URL Clickatón Encrypted** — bloquea inventario/backup/import.  
-2. **FotoRank Preview en otra Neon** — rompe ley de identidad.  
-3. **Staging domain FotoRank** sirve deploy Production.  
-4. Destino round-fog casi vacío — cutover = import grande.  
-5. dawn-dew local tiene 1 ClickatonEdition — **no usar** como destino.
-
-## 28. Estado final
-
-`CLICKATON DATA MIGRATION BLOCKED`
-
-### Acciones exactas para desbloquear (owner: ops)
-
-1. Neon Console → branch `clickaton-staging` → crear backup `backup-before-identity-cutover`.  
-2. Neon Console → `ep-round-fog` → backup `backup-before-clickaton-import`.  
-3. Re-cargar `DATABASE_URL`/`DIRECT_URL` de `clickaton-staging` en Vercel de forma **pullable** (o exportar URL a secret manager accesible).  
-4. Apuntar **FotoRank Preview** `DATABASE_URL`/`DIRECT_URL` a `ep-round-fog` (misma identidad que CLF Preview).  
-5. `DNX_IDENTITY_DATABASE_URL=<round-fog> pnpm --filter @repo/db db:migrate:deploy`  
-6. `CLICKATON_SOURCE_…` + `DNX_IDENTITY_…` → `pnpm clickaton:staging:identity-cutover` (dry-run → execute fase 1).  
-7. Completar PHASE 2 import dominio (6 ediciones) + integrity.  
-8. Update Clickatón Staging env → round-fog + redeploy.  
-9. Fixtures 1–6.  
-10. Recién entonces estado `DNX UNIVERSAL ACCOUNT READY IN STAGING`.
+Bloqueo: no se puede alinear runtime FotoRank a identidad compartida sin (a) recuperar empty-moon o (b) aceptar dominio vacío + arreglar build/schema.
 
 ---
 
-## Artefactos entregados en esta iteración
+## 13. Variables Vercel
 
-- `docs/clickaton/STAGING_SHARED_IDENTITY_DB_IDENTITY.md`
-- `docs/clickaton/STAGING_CUTOVER_TABLE_CLASSIFICATION.md`
-- `docs/clickaton/STAGING_IDENTITY_RECONCILIATION_REPORT.md`
-- `docs/clickaton/STAGING_SHARED_IDENTITY_CUTOVER_REPORT.md`
-- `packages/db/prisma/migrations/20260729120000_clickaton_legacy_user_map/`
-- `apps/clickaton/scripts/staging-identity-cutover.ts`
-- script root `pnpm clickaton:staging:identity-cutover`
+| App | Cambio | Production |
+| --- | ------ | ---------- |
+| Clickatón Staging (`clickaton-staging`) | `DATABASE_URL` / `DIRECT_URL` → round-fog | N/A (este proyecto **es** Staging; prod Clickatón es otro proyecto) |
+| FotoRank Preview (branch) | `DATABASE_URL` / `DIRECT_URL` Encrypted branch override | **Sin cambios** |
+| `maratonfotografica.com` Production | — | **No tocado** |
+
+Controles Staging Clickatón (env):
+
+- Mercado Pago: `MERCADOPAGO_CREDENTIALS_SOURCE=credenciales_de_prueba` (LIVE off)
+- Inscripciones / social publisher LIVE: se mantienen cerrados / off (sin apertura en esta etapa)
+
+---
+
+## 14. Deploys / checks
+
+| Ítem | Evidencia |
+| ---- | --------- |
+| Clickatón Staging READY | `dpl_4XU5Xd9aCGgZGHBfEVnoS8LnKfLg` → `https://clickaton-staging.vercel.app` |
+| Health DB | round-fog + 6 ediciones |
+| FotoRank Preview | ERROR (ver §12) |
+| Fixtures | `pnpm auth:cross-app:fixtures` → **ALL FIXTURES PASS** |
+| Auth UI rollout | **No** (pendiente READY) |
+
+---
+
+## 15. Fixtures cross-app 1–6
+
+Ejecutados contra `DNX_STAGING_IDENTITY_DATABASE` (`ep-round-fog…`):
+
+| # | Caso | Resultado |
+| - | ---- | --------- |
+| 1 | Histórico ComprameLaFoto monorepo (seed) | PASS (`userId` 1) |
+| 2 | Registro Clickatón | PASS |
+| 3 | Registro FotoRank | PASS |
+| 4 | Forgot/reset cross-app | PASS (mismo `User.id`) |
+| 5 | Google + email existente | PASS (un solo id) |
+| 6 | Google-only + password | PASS (un solo id) |
+
+---
+
+## 16. Guest registration
+
+Sin cambios de decisión: `docs/clickaton/CLICKATON_GUEST_REGISTRATION_IDENTITY_FLOW.md`.
+
+---
+
+## 17. Auth UI (`@repo/auth-ui`)
+
+Sin rollout hasta `DNX UNIVERSAL ACCOUNT READY IN STAGING`.
+
+---
+
+## 18. Mercado Pago
+
+- Sin OAuth LIVE.
+- Tammy **no** estaba en origen Staging cutover; no hay duplicado forzado.
+- `DnxPaymentAccount` puede vincular User canónico cuando exista en esta DB.
+
+---
+
+## 19. Rollback
+
+| Capa | Plan |
+| ---- | ---- |
+| App Clickatón | Apuntar de nuevo a divine-smoke + redeploy |
+| DB destino | Restaurar desde branch `backup-before-clickaton-import` / no borrar Users con actividad multi-app |
+| DB origen | Sigue intacta en divine-smoke + branch `backup-before-identity-cutover` |
+| FotoRank | No hay cutover de dominio aplicado; Production intacta |
+
+---
+
+## 20. Veredicto
+
+```text
+FOTORANK DOMAIN MIGRATION BLOCKED
+```
+
+**Listo en Staging para Clickatón + ComprameLaFoto monorepo (identidad compartida + 6 ediciones + fixtures).**  
+**Bloqueado para READY universal:** FotoRank sin backup/import de `ep-empty-moon…`, Preview deploy rojo, schema/client drift en módulos jury/rules.
