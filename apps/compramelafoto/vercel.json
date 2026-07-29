@@ -1,9 +1,6 @@
 {
   "installCommand": "cd ../.. && pnpm install",
   "buildCommand": "cd ../.. && NODE_OPTIONS='--max-old-space-size=7168' pnpm --filter compramelafoto build",
-  "build": {
-    "memory": 16384
-  },
   "crons": [
     { "path": "/api/cron/abandoned-orders", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/hourly", "schedule": "0 * * * *" },
