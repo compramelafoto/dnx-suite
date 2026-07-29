@@ -1,0 +1,262 @@
+/**
+ * Textos y umbrales configurables — no hardcodear en reglas.
+ */
+
+export const EDITORIAL_MESSAGES = {
+  quality: {
+    excellent: "Excelente",
+    good: "Buena",
+    fair: "Regular",
+    incomplete: "Incompleta",
+  },
+  category: {
+    suggested: "Categoría sugerida",
+    alternative: "Sugerencia de categoría",
+  },
+  tags: {
+    heading: "Etiquetas sugeridas",
+  },
+  geo: {
+    heading: "Alcance detectado",
+    missingLat: "Falta latitud",
+    missingLng: "Falta longitud",
+    missingProvince: "Falta provincia",
+    missingCity: "Falta ciudad",
+    missingScope: "Definí el alcance geográfico",
+    missingCountry: "Falta país",
+  },
+  seo: {
+    titleShort: "Título demasiado corto",
+    titleLong: "Título demasiado largo",
+    metaEmpty: "Meta description vacía",
+    metaShort: "Meta description corta",
+    metaLong: "Meta description larga",
+    slugWeak: "Slug mejorable",
+    seoTitleEmpty: "SEO title vacío (usará el título)",
+  },
+  related: {
+    heading: "Contenido relacionado",
+  },
+  duplicates: {
+    heading: "Encontramos artículos similares",
+  },
+  call: {
+    heading: "Esta actividad podría requerir fotógrafos",
+    cta: "¿Querés crear una convocatoria?",
+  },
+  banner: {
+    heading: "Podría destacarse en portada",
+  },
+  links: {
+    heading: "Enlaces internos sugeridos",
+  },
+  summary: {
+    heading: "Resumen Editorial",
+  },
+  checklist: {
+    title: "Título",
+    cover: "Portada",
+    category: "Categoría",
+    location: "Ubicación",
+    body: "Cuerpo",
+    tags: "Etiquetas / palabras clave",
+    seo: "SEO",
+    author: "Autor",
+    date: "Fecha",
+    call: "Convocatoria (si corresponde)",
+    source: "Fuente",
+  },
+} as const;
+
+export const EDITORIAL_THRESHOLDS = {
+  titleMin: 12,
+  titleIdealMin: 28,
+  titleMax: 90,
+  excerptMin: 40,
+  excerptIdeal: 120,
+  bodyMin: 120,
+  bodyGood: 400,
+  bodyExcellent: 900,
+  seoTitleMax: 60,
+  seoDescriptionMin: 70,
+  seoDescriptionMax: 160,
+  slugMin: 8,
+  completeness: {
+    excellent: 90,
+    good: 70,
+    fair: 45,
+  },
+  banner: {
+    minPriority: 50,
+    nationalBoost: true,
+  },
+  duplicate: {
+    titleSimilarity: 0.72,
+  },
+} as const;
+
+/** Palabras clave → slug de categoría (heurística, sin LLM). */
+export const CATEGORY_KEYWORD_RULES: Array<{
+  slug: string;
+  keywords: string[];
+}> = [
+  {
+    slug: "deportes",
+    keywords: [
+      "fútbol",
+      "futbol",
+      "gol",
+      "partido",
+      "torneo",
+      "liga",
+      "basquet",
+      "básquet",
+      "tenis",
+      "running",
+      "maratón",
+      "maraton",
+      "deport",
+    ],
+  },
+  {
+    slug: "cultura",
+    keywords: [
+      "teatro",
+      "música",
+      "musica",
+      "concierto",
+      "festival",
+      "cine",
+      "libro",
+      "literatura",
+      "arte",
+      "exposición",
+      "exposicion",
+      "museo",
+      "danza",
+    ],
+  },
+  {
+    slug: "fotografia",
+    keywords: [
+      "fotografía",
+      "fotografia",
+      "fotógrafo",
+      "fotografo",
+      "cámara",
+      "camara",
+      "ensayo visual",
+      "cobertura fotográfica",
+      "cobertura fotografica",
+    ],
+  },
+  {
+    slug: "eventos",
+    keywords: [
+      "evento",
+      "agenda",
+      "convocatoria",
+      "inscripción",
+      "inscripcion",
+      "actividad",
+      "encuentro",
+      "feria",
+    ],
+  },
+  {
+    slug: "policiales",
+    keywords: [
+      "accidente",
+      "robo",
+      "detenido",
+      "policía",
+      "policia",
+      "homicidio",
+      "incendio",
+      "emergencia",
+    ],
+  },
+  {
+    slug: "politica",
+    keywords: [
+      "elección",
+      "eleccion",
+      "gobierno",
+      "intendente",
+      "concejo",
+      "legislatura",
+      "partido político",
+      "partido politico",
+    ],
+  },
+  {
+    slug: "economia",
+    keywords: [
+      "economía",
+      "economia",
+      "inflación",
+      "inflacion",
+      "comercio",
+      "empleo",
+      "industria",
+      "pyme",
+    ],
+  },
+  {
+    slug: "tecnologia",
+    keywords: [
+      "tecnología",
+      "tecnologia",
+      "app",
+      "software",
+      "inteligencia artificial",
+      "startup",
+      "digital",
+    ],
+  },
+];
+
+/** Tokens genéricos que no aportan como etiqueta. */
+export const TAG_STOPWORDS = new Set([
+  "el",
+  "la",
+  "los",
+  "las",
+  "un",
+  "una",
+  "unos",
+  "unas",
+  "de",
+  "del",
+  "al",
+  "y",
+  "o",
+  "en",
+  "con",
+  "por",
+  "para",
+  "que",
+  "se",
+  "su",
+  "sus",
+  "es",
+  "son",
+  "como",
+  "más",
+  "mas",
+  "muy",
+  "ya",
+  "hoy",
+  "esta",
+  "este",
+  "estos",
+  "estas",
+  "sobre",
+  "entre",
+  "desde",
+  "hasta",
+  "sin",
+  "the",
+  "and",
+  "for",
+]);

@@ -11,6 +11,11 @@ import { slugifyTitle } from "@/lib/slug";
 import { toDatetimeLocalValue } from "@/lib/dates";
 import { CoverImageField, type CoverAssetOption } from "@/components/redaccion/cover-image-field";
 import { CoverFocalEditor } from "@/components/redaccion/cover-focal-editor";
+import {
+  ArticleLocationFields,
+  defaultArticleLocationValue,
+  type ArticleLocationValue,
+} from "@/components/redaccion/article-location-fields";
 import { PublishChecklist } from "@/components/redaccion/publish-checklist";
 import { EditorialActionsPanel } from "@/components/redaccion/editorial-actions-panel";
 import {
@@ -18,6 +23,7 @@ import {
   type EditorialVisualEditorHandle,
 } from "@/components/redaccion/visual-editor/editorial-visual-editor";
 import { MaterialLibraryPanel } from "@/components/redaccion/material-library-panel";
+import { EditorialIntelligencePanel } from "@/components/redaccion/editorial-intelligence-panel";
 import { ArticlePublishToolbar } from "@/components/redaccion/article-publish-toolbar";
 import { EditorConfigAccordion } from "@/components/redaccion/editor-config-accordion";
 import { AiImportButton, AiImportDialog } from "@/components/ai-import";
@@ -35,6 +41,10 @@ import {
   removeEditorialPhotoUsageAction,
 } from "@/app/actions/editorial-photos";
 import type { AiImportMergeMode, ArticleFormImportValues } from "@/lib/ai-import";
+import {
+  focusEditorialTarget,
+  type EditorialFocusTarget,
+} from "@/lib/editorial-intelligence/focus-targets";
 
 type CategoryOption = { id: string; name: string; slug: string };
 
@@ -103,6 +113,19 @@ type ArticleFormProps = {
     categoryId: string | null;
     coverImageId: string | null;
     coverCredit?: string | null;
+    coverCaption?: string | null;
+    coverSourceType?: "UPLOAD" | "CLF_PHOTO" | null;
+    coverUrl?: string | null;
+    geographicScope?: string | null;
+    countryCode?: string | null;
+    countryName?: string | null;
+    province?: string | null;
+    city?: string | null;
+    placeName?: string | null;
+    address?: string | null;
+    formattedAddress?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
     seoTitle: string | null;
     seoDescription: string | null;
     publishedAt: Date | string | null;
@@ -164,8 +187,27 @@ export function ArticleForm({
   const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl ?? "");
   const [coverImageId, setCoverImageId] = useState(initial?.coverImageId ?? "");
   const [coverCredit, setCoverCredit] = useState(initial?.coverCredit ?? "");
-  /** Drawer móvil / tablet: biblioteca o configuración. */
-  const [sideDrawer, setSideDrawer] = useState<null | "library" | "config">(null);
+  const [coverCaption, setCoverCaption] = useState(initial?.coverCaption ?? "");
+  const [location, setLocation] = useState<ArticleLocationValue>(() =>
+    defaultArticleLocationValue({
+      geographicScope: (initial?.geographicScope as ArticleLocationValue["geographicScope"]) || "",
+      countryCode: initial?.countryCode || "AR",
+      countryName: initial?.countryName || "Argentina",
+      province: initial?.province || "",
+      city: initial?.city || "",
+      placeName: initial?.placeName || "",
+      address: initial?.address || "",
+      formattedAddress: initial?.formattedAddress || "",
+      latitude: initial?.latitude != null ? String(initial.latitude) : "",
+      longitude: initial?.longitude != null ? String(initial.longitude) : "",
+    }),
+  );
+  /** Drawer móvil / tablet: biblioteca, asistente o configuración. */
+  const [sideDrawer, setSideDrawer] = useState<null | "library" | "assistant" | "config">(null);
+  /** Desktop: pestaña del rail derecho. */
+  const [railTab, setRailTab] = useState<"library" | "assistant">("assistant");
+  /** Palabras clave de sesión (sin persistencia Prisma todavía). */
+  const [sessionTags, setSessionTags] = useState<string[]>([]);
   /** Desktop: panel de configuración (SEO, publicación). */
   const [configOpen, setConfigOpen] = useState(false);
   const [highlightedAssetId, setHighlightedAssetId] = useState<string | null>(null);
@@ -187,8 +229,47 @@ export function ArticleForm({
   const [savingAltLinkId, setSavingAltLinkId] = useState<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingLock = useRef(false);
+  const pendingDirtyRef = useRef(false);
   const saveStateRef = useRef<SaveState>("idle");
   saveStateRef.current = saveState;
+
+  const autoSlug = useMemo(() => slugifyTitle(title), [title]);
+
+  /** Siempre el borrador más reciente al disparar autosave (evita pisar alcance con un save viejo). */
+  const draftRef = useRef({
+    title,
+    slug,
+    autoSlug,
+    excerpt,
+    content,
+    categoryId,
+    coverImageId,
+    coverCredit,
+    coverCaption,
+    seoTitle,
+    seoDescription,
+    sourceName,
+    sourceUrl,
+    expectedUpdatedAt,
+    location,
+  });
+  draftRef.current = {
+    title,
+    slug,
+    autoSlug,
+    excerpt,
+    content,
+    categoryId,
+    coverImageId,
+    coverCredit,
+    coverCaption,
+    seoTitle,
+    seoDescription,
+    sourceName,
+    sourceUrl,
+    expectedUpdatedAt,
+    location,
+  };
 
   useEffect(() => {
     setLocalLinkedAssets(clf?.linkedAssets ?? []);
@@ -198,7 +279,6 @@ export function ArticleForm({
     setLocalChecklistPhotos(clf?.checklistPhotos ?? []);
   }, [clf?.checklistPhotos]);
 
-  const autoSlug = useMemo(() => slugifyTitle(title), [title]);
   const figuresMissingCredit = useMemo(() => findFiguresMissingCredit(content), [content]);
   const figuresMissingAlt = useMemo(() => findFiguresMissingAlt(content), [content]);
   const creditOk =
@@ -240,7 +320,13 @@ export function ArticleForm({
   ]);
 
   const markDirty = useCallback(() => {
-    setSaveState((prev) => (prev === "saving" ? prev : "dirty"));
+    setSaveState((prev) => {
+      if (prev === "saving") {
+        pendingDirtyRef.current = true;
+        return prev;
+      }
+      return "dirty";
+    });
   }, []);
 
   const hasExistingArticleValues = Boolean(
@@ -316,60 +402,67 @@ export function ArticleForm({
 
   const runAutosave = useCallback(async () => {
     if (mode !== "edit" || !initial?.id) return;
-    if (savingLock.current) return;
+    if (savingLock.current) {
+      pendingDirtyRef.current = true;
+      return;
+    }
 
     savingLock.current = true;
     setSaveState("saving");
     setSaveError(null);
+    // Snapshot al momento de enviar: draftRef se actualiza en cada render, así un
+    // autosave que arrancó tarde no pisa el alcance elegido durante un save previo.
+    const snap = draftRef.current;
+    let nextState: SaveState | null = null;
     try {
-      // Guardar desde el estado React (no FormData del DOM): el cuerpo TipTap
-      // y los campos controlados quedan sincronizados aunque se cierre la pestaña.
       const result = await autosaveArticleDraftAction(initial.id, {
-        title: title.trim() || "Sin título",
-        slug: (slug || autoSlug || "sin-titulo").trim(),
-        excerpt,
-        content,
-        categoryId: categoryId || null,
-        coverImageId: coverImageId || null,
-        coverCredit: coverCredit || undefined,
-        seoTitle: seoTitle || undefined,
-        seoDescription: seoDescription || undefined,
-        sourceName: sourceName || undefined,
-        sourceUrl: sourceUrl || undefined,
-        expectedUpdatedAt: expectedUpdatedAt || undefined,
+        title: snap.title.trim() || "Sin título",
+        slug: (snap.slug || snap.autoSlug || "sin-titulo").trim(),
+        excerpt: snap.excerpt,
+        content: snap.content,
+        categoryId: snap.categoryId || null,
+        coverImageId: snap.coverImageId || null,
+        coverCredit: snap.coverImageId ? snap.coverCredit : undefined,
+        // Enviar siempre el pie si hay portada (también vacío → opcional en schema).
+        coverCaption: snap.coverImageId ? snap.coverCaption : undefined,
+        seoTitle: snap.seoTitle || undefined,
+        seoDescription: snap.seoDescription || undefined,
+        sourceName: snap.sourceName || undefined,
+        sourceUrl: snap.sourceUrl || undefined,
+        expectedUpdatedAt: snap.expectedUpdatedAt || undefined,
+        geographicScope: snap.location.geographicScope || null,
+        countryCode: snap.location.countryCode || null,
+        countryName: snap.location.countryName || null,
+        province: snap.location.province || null,
+        city: snap.location.city || null,
+        placeName: snap.location.placeName || null,
+        address: snap.location.address || null,
+        formattedAddress: snap.location.formattedAddress || null,
+        latitude: snap.location.latitude || null,
+        longitude: snap.location.longitude || null,
       });
       if (!result.ok) {
-        setSaveState("error");
+        nextState = "error";
         setSaveError(result.error);
         return;
       }
       if (result.updatedAt) setExpectedUpdatedAt(result.updatedAt);
-      setSaveState("saved");
+      nextState = "saved";
     } catch {
-      setSaveState("error");
+      nextState = "error";
       setSaveError("No se pudo guardar automáticamente.");
     } finally {
       savingLock.current = false;
+      if (pendingDirtyRef.current) {
+        pendingDirtyRef.current = false;
+        setSaveState("dirty");
+      } else if (nextState) {
+        setSaveState(nextState);
+      }
     }
-  }, [
-    autoSlug,
-    categoryId,
-    content,
-    coverCredit,
-    coverImageId,
-    excerpt,
-    expectedUpdatedAt,
-    initial?.id,
-    mode,
-    seoDescription,
-    seoTitle,
-    slug,
-    sourceName,
-    sourceUrl,
-    title,
-  ]);
+  }, [initial?.id, mode]);
 
-  // Debounce corto: guardar mientras se escribe.
+  // Debounce corto: guardar mientras se escribe (incl. ubicación/alcance).
   useEffect(() => {
     if (mode !== "edit") return;
     if (saveState !== "dirty") return;
@@ -391,8 +484,10 @@ export function ArticleForm({
     sourceName,
     sourceUrl,
     coverCredit,
+    coverCaption,
     coverImageId,
     slug,
+    location,
     runAutosave,
     mode,
   ]);
@@ -402,7 +497,10 @@ export function ArticleForm({
     if (mode !== "edit") return;
 
     const flushIfDirty = () => {
-      if (savingLock.current) return;
+      if (savingLock.current) {
+        pendingDirtyRef.current = true;
+        return;
+      }
       if (saveStateRef.current !== "dirty" && saveStateRef.current !== "error") return;
       if (autosaveTimer.current) {
         clearTimeout(autosaveTimer.current);
@@ -594,6 +692,89 @@ export function ArticleForm({
     return ids;
   }, [content]);
 
+  const assistantFormState = useMemo(() => {
+    const lat = location.latitude.trim() ? Number(location.latitude) : null;
+    const lng = location.longitude.trim() ? Number(location.longitude) : null;
+    return {
+      title,
+      excerpt,
+      content,
+      slug,
+      seoTitle,
+      seoDescription,
+      categoryId,
+      categories,
+      geographicScope: location.geographicScope || null,
+      countryName: location.countryName || null,
+      countryCode: location.countryCode || null,
+      province: location.province || null,
+      city: location.city || null,
+      placeName: location.placeName || null,
+      latitude: lat != null && Number.isFinite(lat) ? lat : null,
+      longitude: lng != null && Number.isFinite(lng) ? lng : null,
+      hasCover: Boolean(coverImageId),
+      hasAuthor: Boolean(initial?.authorId ?? authorLabel),
+      hasSource: Boolean(sourceName.trim()),
+      publishedAt: initial?.publishedAt
+        ? new Date(initial.publishedAt).toISOString()
+        : null,
+      editorialPriority: null,
+      selectedTags: sessionTags,
+      linkedEventStartsAt: null,
+      linkedEventTitle: clf?.eventTitle ?? null,
+      hasPhotographerCall: false,
+    };
+  }, [
+    title,
+    excerpt,
+    content,
+    slug,
+    seoTitle,
+    seoDescription,
+    categoryId,
+    categories,
+    location,
+    coverImageId,
+    initial?.authorId,
+    initial?.publishedAt,
+    authorLabel,
+    sourceName,
+    sessionTags,
+    clf?.eventTitle,
+  ]);
+
+  const navigateToEditorialField = useCallback((target: EditorialFocusTarget) => {
+    if (target.openConfig) {
+      const desktop =
+        typeof window !== "undefined" &&
+        window.matchMedia("(min-width: 1024px)").matches;
+      if (desktop) {
+        setSideDrawer(null);
+        setConfigOpen(true);
+      } else {
+        setConfigOpen(false);
+        setSideDrawer("config");
+      }
+    } else {
+      setConfigOpen(false);
+      setSideDrawer(null);
+    }
+    focusEditorialTarget(target);
+  }, []);
+
+  const assistantPanel = (
+    <EditorialIntelligencePanel
+      form={assistantFormState}
+      articleId={initial?.id}
+      onApplyCategory={(id) => {
+        setCategoryId(id);
+        markDirty();
+      }}
+      onApplyTags={(tags) => setSessionTags(tags)}
+      onNavigateToField={navigateToEditorialField}
+    />
+  );
+
   const library = (
     <MaterialLibraryPanel
       articleId={initial?.id}
@@ -688,31 +869,15 @@ export function ArticleForm({
           {
             id: "meta",
             title: "Metadatos",
-            hint: "Categoría, URL, fuente",
+            hint: "URL, fuente, autor",
             children: (
               <div className="space-y-4">
-                <div>
-                  <label className={labelClass} htmlFor="categoryId">
-                    Categoría {status === "PUBLISHED" ? "*" : ""}
-                  </label>
-                  <select
-                    id="categoryId"
-                    name="categoryId"
-                    value={categoryId}
-                    onChange={(e) => {
-                      setCategoryId(e.target.value);
-                      markDirty();
-                    }}
-                    className={fieldClass}
-                  >
-                    <option value="">Sin categoría</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <p className="text-sm leading-relaxed text-[var(--is-muted)]">
+                  La categoría se edita en el formulario principal (arriba del cuerpo).
+                  {categoryId
+                    ? ` Actual: ${categories.find((c) => c.id === categoryId)?.name ?? "seleccionada"}.`
+                    : " Todavía sin categoría."}
+                </p>
                 <div>
                   <label className={labelClass} htmlFor="slug">
                     URL pública *
@@ -828,34 +993,6 @@ export function ArticleForm({
               </div>
             ),
           },
-          {
-            id: "cover",
-            title: "Portada avanzada",
-            hint: "Subir, elegir o encuadrar",
-            children: (
-              <div className="space-y-6">
-                <CoverImageField
-                  articleId={initial?.id}
-                  initialCoverImageId={coverImageId || null}
-                  initialCredit={coverCredit}
-                  assets={assets}
-                  onChange={(next) => {
-                    setCoverImageId(next.id);
-                    setCoverCredit(next.credit);
-                    markDirty();
-                  }}
-                />
-                {coverFocal ? (
-                  <CoverFocalEditor
-                    usageId={coverFocal.usageId}
-                    imageSrc={coverFocal.imageSrc}
-                    initialFocalX={coverFocal.focalX}
-                    initialFocalY={coverFocal.focalY}
-                  />
-                ) : null}
-              </div>
-            ),
-          },
           ...(mode === "edit" && initial
             ? [
                 {
@@ -865,8 +1002,8 @@ export function ArticleForm({
                   children: (
                     <div className="space-y-3 text-sm leading-relaxed text-[var(--is-muted)]">
                       <p>
-                        Las fotografías se preparan en el Asistente Editorial. Desde acá solo
-                        consumís la biblioteca.
+                        Portada y cuerpo admiten imágenes propias (subida) y fotos de cobertura
+                        CLF. Podés combinar ambas. El material CLF se prepara en el Asistente.
                       </p>
                       {clf?.eventTitle ? (
                         <p className="text-[var(--is-text)]">
@@ -884,7 +1021,7 @@ export function ArticleForm({
                         href={`/redaccion/asistente?mode=photos&articleId=${initial.id}`}
                         className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
                       >
-                        Agregar material
+                        Agregar material CLF
                       </Link>
                     </div>
                   ),
@@ -944,6 +1081,13 @@ export function ArticleForm({
           {canUseAiImport ? (
             <AiImportButton onClick={() => setAiImportOpen(true)} />
           ) : null}
+          <button
+            type="button"
+            className="is-btn is-btn-secondary lg:hidden"
+            onClick={() => setSideDrawer("assistant")}
+          >
+            Asistente
+          </button>
           <button
             type="button"
             className="is-btn is-btn-secondary lg:hidden"
@@ -1055,44 +1199,184 @@ export function ArticleForm({
             />
           </div>
 
-          <EditorialVisualEditor
-            key={editorKey}
-            ref={editorRef}
-            initialMarkdown={content}
-            articleId={initial?.id}
-            onMarkdownChange={(md) => {
-              setContent(md);
-            }}
-            onDirtyChange={() => markDirty()}
-            onSelectedAssetChange={(id) => {
-              setHighlightedAssetId(id);
-              if (id) {
-                const el = document.getElementById(`material-asset-${id}`);
-                el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-              }
-            }}
-            onCoverImported={() => {
+          <div>
+            <label className={labelClass} htmlFor="categoryId">
+              Categoría {status === "PUBLISHED" || status === "READY_TO_PUBLISH" ? "*" : ""}
+            </label>
+            <select
+              id="categoryId"
+              name="categoryId"
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                markDirty();
+              }}
+              className={fieldClass}
+            >
+              <option value="">Sin categoría</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--is-muted)]">
+              Obligatoria para publicar. Podés cambiarla en cualquier momento, incluso si la nota
+              vino sugerida desde CLF.
+            </p>
+          </div>
+
+          <section
+            className="rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5"
+            aria-labelledby="cover-section-title"
+          >
+            <h2 id="cover-section-title" className="text-base font-semibold tracking-tight">
+              Imagen de portada
+            </h2>
+            <div className="mt-4">
+              <CoverImageField
+                articleId={initial?.id}
+                initialCoverImageId={coverImageId || null}
+                initialCredit={coverCredit}
+                initialCaption={coverCaption}
+                assets={assets}
+                clfOptions={(() => {
+                  const fromLinks = localLinkedAssets
+                    .filter((a) => Boolean(a.assetId) && Boolean(a.url))
+                    .map((a) => ({
+                      assetId: a.assetId as string,
+                      url: a.url,
+                      thumbnailUrl: a.thumbnailUrl,
+                      credit: a.credit,
+                      photographerName: a.photographerName,
+                      albumTitle: a.albumTitle,
+                      coverageTitle: a.coverageTitle,
+                      caption: a.captionOverride,
+                    }));
+                  if (
+                    initial?.coverImageId &&
+                    initial.coverSourceType === "CLF_PHOTO" &&
+                    initial.coverUrl &&
+                    !fromLinks.some((a) => a.assetId === initial.coverImageId)
+                  ) {
+                    fromLinks.unshift({
+                      assetId: initial.coverImageId,
+                      url: initial.coverUrl,
+                      thumbnailUrl: initial.coverUrl,
+                      credit: initial.coverCredit ?? null,
+                      photographerName: null,
+                      albumTitle: clf?.albumTitle ?? null,
+                      coverageTitle: clf?.albumTitle ?? null,
+                      caption: initial.coverCaption ?? null,
+                    });
+                  }
+                  return fromLinks;
+                })()}
+                onChange={(next) => {
+                  setCoverImageId(next.id);
+                  setCoverCredit(next.credit);
+                  setCoverCaption(next.caption);
+                  draftRef.current = {
+                    ...draftRef.current,
+                    coverImageId: next.id,
+                    coverCredit: next.credit,
+                    coverCaption: next.caption,
+                  };
+                  markDirty();
+                }}
+              />
+            </div>
+            {coverFocal ? (
+              <div className="mt-6 border-t border-[var(--is-border)] pt-6">
+                <CoverFocalEditor
+                  usageId={coverFocal.usageId}
+                  imageSrc={coverFocal.imageSrc}
+                  initialFocalX={coverFocal.focalX}
+                  initialFocalY={coverFocal.focalY}
+                />
+              </div>
+            ) : null}
+          </section>
+
+          <ArticleLocationFields
+            value={location}
+            onChange={(next) => {
+              // Actualizar el snapshot ya: un autosave en curso/encolado no debe
+              // leer el alcance anterior y volver a guardar null.
+              draftRef.current = { ...draftRef.current, location: next };
+              setLocation(next);
               markDirty();
-              // No hacer router.refresh() acá: remonta el formulario y borra
-              // el texto local que todavía no se guardó.
             }}
           />
 
+          <div id="article-body-editor">
+            <p className="mb-3 text-sm leading-relaxed text-[var(--is-muted)]">
+              Cuerpo — podés insertar imágenes propias desde la barra del editor o desde la
+              biblioteca CLF a la derecha. Se pueden combinar ambas fuentes.
+            </p>
+            <EditorialVisualEditor
+              key={editorKey}
+              ref={editorRef}
+              initialMarkdown={content}
+              articleId={initial?.id}
+              onMarkdownChange={(md) => {
+                setContent(md);
+              }}
+              onDirtyChange={() => markDirty()}
+              onSelectedAssetChange={(id) => {
+                setHighlightedAssetId(id);
+                if (id) {
+                  const el = document.getElementById(`material-asset-${id}`);
+                  el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                }
+              }}
+              onCoverImported={() => {
+                markDirty();
+                // No hacer router.refresh() acá: remonta el formulario y borra
+                // el texto local que todavía no se guardó.
+              }}
+            />
+          </div>
+
           {mode === "create" ? (
             <p className="text-sm leading-relaxed text-[var(--is-muted)]">
-              Guardá el borrador para vincular material editorial y usar la biblioteca.
+              Guardá el borrador para vincular material editorial y usar la biblioteca CLF.
             </p>
           ) : null}
         </div>
 
         <aside className="hidden lg:block">
-          <div className="is-editorial-rail is-editorial-panel is-editorial-panel--bordered">
-            {library}
+          <div className="is-editorial-rail is-editorial-panel is-editorial-panel--bordered space-y-4">
+            <div className="flex gap-2 px-1 pt-1">
+              <button
+                type="button"
+                className={`min-h-10 flex-1 rounded-full px-3 text-sm font-medium ${
+                  railTab === "assistant"
+                    ? "bg-[var(--is-accent)] text-white"
+                    : "border border-[var(--is-border)]"
+                }`}
+                onClick={() => setRailTab("assistant")}
+              >
+                Asistente
+              </button>
+              <button
+                type="button"
+                className={`min-h-10 flex-1 rounded-full px-3 text-sm font-medium ${
+                  railTab === "library"
+                    ? "bg-[var(--is-accent)] text-white"
+                    : "border border-[var(--is-border)]"
+                }`}
+                onClick={() => setRailTab("library")}
+              >
+                Material
+              </button>
+            </div>
+            {railTab === "assistant" ? assistantPanel : library}
           </div>
         </aside>
       </div>
 
-      {/* Drawer móvil: biblioteca o configuración */}
+      {/* Drawer móvil: asistente, biblioteca o configuración */}
       {sideDrawer ? (
         <div className="is-editorial-drawer-overlay lg:hidden">
           <button
@@ -1105,10 +1389,27 @@ export function ArticleForm({
             className="is-editorial-drawer"
             role="dialog"
             aria-modal="true"
-            aria-label={sideDrawer === "library" ? "Material editorial" : "Configuración"}
+            aria-label={
+              sideDrawer === "library"
+                ? "Material editorial"
+                : sideDrawer === "assistant"
+                  ? "Asistente Editorial"
+                  : "Configuración"
+            }
           >
             <div className="is-editorial-drawer__header">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={`min-h-10 rounded-full px-3 text-sm font-medium ${
+                    sideDrawer === "assistant"
+                      ? "bg-[var(--is-accent)] text-white"
+                      : "border border-[var(--is-border)]"
+                  }`}
+                  onClick={() => setSideDrawer("assistant")}
+                >
+                  Asistente
+                </button>
                 <button
                   type="button"
                   className={`min-h-10 rounded-full px-3 text-sm font-medium ${
@@ -1142,7 +1443,11 @@ export function ArticleForm({
               </button>
             </div>
             <div className="is-editorial-drawer__body">
-              {sideDrawer === "library" ? library : configPanel}
+              {sideDrawer === "assistant"
+                ? assistantPanel
+                : sideDrawer === "library"
+                  ? library
+                  : configPanel}
             </div>
           </div>
         </div>

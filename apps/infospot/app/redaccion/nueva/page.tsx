@@ -47,6 +47,7 @@ export default async function NuevaNoticiaPage({ searchParams }: PageProps) {
           url: a.url,
           caption: a.caption,
           credit: a.credit,
+          sourceType: "UPLOAD" as const,
         }))}
         canPublish={canPublishInfoSpotArticle(access.subject)}
         isDirector={canManageInfoSpotSettings(access.subject)}

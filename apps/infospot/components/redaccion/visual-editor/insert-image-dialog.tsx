@@ -109,7 +109,9 @@ export function InsertImageDialog({ open, onClose, onInsert, articleId }: Props)
           Insertar imagen en la nota
         </h2>
         <p className="mt-2 text-sm text-[var(--is-muted)]">
-          Se sube a la biblioteca editorial (R2). Quitar el bloque no borra el archivo.
+          Se sube a la biblioteca editorial (R2). Podés combinar imágenes propias con fotos de
+          cobertura CLF insertadas desde la biblioteca lateral. Quitar el bloque no borra el
+          archivo.
         </p>
 
         <div className="mt-6 space-y-5">

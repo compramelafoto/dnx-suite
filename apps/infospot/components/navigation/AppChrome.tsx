@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { SiteFooter } from "@/components/navigation/SiteFooter";
 import { SiteHeader } from "@/components/navigation/SiteHeader";
 import type { SiteHeaderAuth } from "@/components/navigation/HeaderAuthActions";
 import type { HomeHeaderLink } from "@/lib/home-experience";
@@ -12,6 +11,8 @@ type Props = {
   auth: SiteHeaderAuth | null;
   primaryCta?: HomeHeaderLink | null;
   secondaryLinks?: HomeHeaderLink[];
+  /** Server Component (p. ej. SiteFooter); no importar Prisma en este módulo. */
+  footer?: ReactNode;
   children: ReactNode;
 };
 
@@ -23,6 +24,7 @@ export function AppChrome({
   auth,
   primaryCta = null,
   secondaryLinks = [],
+  footer = null,
   children,
 }: Props) {
   const pathname = usePathname() ?? "";
@@ -38,7 +40,7 @@ export function AppChrome({
         />
       )}
       {children}
-      {hideChrome ? null : <SiteFooter />}
+      {hideChrome ? null : footer}
     </>
   );
 }

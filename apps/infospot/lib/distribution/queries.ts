@@ -4,8 +4,9 @@
 
 import { unstable_cache } from "next/cache";
 import { prisma } from "@repo/db";
+import { boundingBoxWhere, filterNearbyInMemory, planNearbyQuery } from "@repo/geo/nearby";
+import { formatDistanceLabel } from "@repo/geo/distance";
 import { buildPublicEventLocation } from "../geolocation";
-import { distanceBetweenCoordinates } from "../geolocation/distance";
 import { publicPublishedArticleWhere, publicPublishedEventWhere } from "./public-rules";
 import { calculateEventRelevanceScore } from "./score";
 import { resolvePhotographerCallFromSources } from "./photographer-call";
@@ -114,7 +115,10 @@ function toCard(
     distanceKm,
     distanceLabel:
       distanceKm != null
-        ? `A ${distanceKm < 10 ? distanceKm.toFixed(1) : Math.round(distanceKm)} km de tu ubicación`
+        ? (() => {
+            const base = formatDistanceLabel(distanceKm);
+            return base ? `${base} de tu ubicación` : null;
+          })()
         : null,
     locationLabel: publicLoc.label,
     locationVisibility: row.locationVisibility,
@@ -242,35 +246,42 @@ export async function getNearbyEvents(options: {
   const radiusKm = options.radiusKm ?? 100;
   const limit = options.limit ?? 8;
   const now = new Date();
+  const plan = planNearbyQuery(
+    { latitude: options.latitude, longitude: options.longitude },
+    radiusKm,
+  );
+  const box = boundingBoxWhere(plan.boundingBox);
+
   const rows = await prisma.infoSpotEvent.findMany({
     where: publicPublishedEventWhere({
       startAt: { gte: now },
       locationConfirmedAt: { not: null },
-      latitude: { not: null },
-      longitude: { not: null },
+      ...box,
     }),
     orderBy: { startAt: "asc" },
     take: 120,
     select: eventCardSelect,
   });
 
-  const origin = { latitude: options.latitude, longitude: options.longitude };
-  const withDist = rows
-    .map((row) => {
-      if (row.latitude == null || row.longitude == null) return null;
-      // Distancia en servidor aunque visibility sea HIDDEN (no se exponen coords).
-      const distanceKm = distanceBetweenCoordinates(origin, {
-        latitude: row.latitude,
-        longitude: row.longitude,
-      });
-      if (distanceKm > radiusKm) return null;
-      return { row, distanceKm };
-    })
-    .filter((x): x is { row: EventRow; distanceKm: number } => x != null)
-    .sort((a, b) => a.distanceKm - b.distanceKm || a.row.startAt.getTime() - b.row.startAt.getTime())
-    .slice(0, limit);
+  const matches = filterNearbyInMemory(
+    rows.map((row) => ({
+      id: row.id,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      row,
+    })),
+    plan.origin,
+    radiusKm,
+  );
 
-  return withDist.map(({ row, distanceKm }) => toCard(row, { distanceKm }));
+  return matches
+    .sort(
+      (a, b) =>
+        a.distanceKm - b.distanceKm ||
+        a.item.row.startAt.getTime() - b.item.row.startAt.getTime(),
+    )
+    .slice(0, limit)
+    .map(({ item, distanceKm }) => toCard(item.row, { distanceKm }));
 }
 
 export async function getRecentEventCoverage(options?: {

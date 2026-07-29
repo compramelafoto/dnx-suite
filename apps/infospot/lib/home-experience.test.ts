@@ -18,6 +18,10 @@ import {
   assert.equal(exp.canSwitchMode, false);
   assert.equal(exp.blocks[0], "hero");
   assert.ok(exp.blocks.includes("organizer_pitch"));
+  assert.ok(exp.blocks.includes("unified_feed"));
+  assert.ok(
+    exp.blocks.indexOf("unified_feed") > exp.blocks.indexOf("featured_events"),
+  );
   assert.ok(exp.headerPrimaryCta?.href.includes("publicar-evento"));
 }
 
@@ -27,9 +31,9 @@ import {
   assert.equal(exp.mode, "CUSTOMER");
   assert.deepEqual(exp.blocks.slice(0, 4), [
     "hero",
+    "unified_feed",
     "upcoming_events",
     "near_you",
-    "category_favorites",
   ]);
   assert.equal(exp.canSwitchMode, false);
 }
@@ -41,7 +45,7 @@ import {
   assert.deepEqual(exp.blocks.slice(0, 3), [
     "hero",
     "photographer_calls",
-    "coverages",
+    "unified_feed",
   ]);
 }
 

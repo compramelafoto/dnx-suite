@@ -18,5 +18,10 @@
     "next.config.ts",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "lib/smoke/qa-visual.ts", "lib/smoke/e13-staging-gate.ts"]
+  "exclude": [
+    "node_modules",
+    "lib/smoke/qa-visual.ts",
+    "lib/smoke/e13-staging-gate.ts",
+    "lib/feed/feed.e2e.ts"
+  ]
 }

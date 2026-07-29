@@ -14,10 +14,55 @@ import { articleDraftSchema, formatFieldErrors, validateForPublish } from "@/lib
 import { canTransitionStatus, type ArticleStatus } from "@/lib/article-status";
 import { ensureUniqueSlug } from "@/lib/articles";
 import { slugifyTitle } from "@/lib/slug";
+import { encodeGeohash } from "@/lib/geolocation/geohash";
 
 export type ActionResult =
   | { ok: true; id?: string; message: string; updatedAt?: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
+
+function articleLocationWriteData(data: {
+  geographicScope?: string | null;
+  countryCode?: string | null;
+  countryName?: string | null;
+  province?: string | null;
+  city?: string | null;
+  placeName?: string | null;
+  address?: string | null;
+  formattedAddress?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}) {
+  const lat = data.latitude ?? null;
+  const lng = data.longitude ?? null;
+  const usable =
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180;
+
+  return {
+    geographicScope: (data.geographicScope as
+      | "LOCAL"
+      | "PROVINCIAL"
+      | "NATIONAL"
+      | "INTERNATIONAL"
+      | "UNSPECIFIED"
+      | null) ?? null,
+    countryCode: data.countryCode ?? null,
+    countryName: data.countryName ?? null,
+    province: data.province ?? null,
+    city: data.city ?? null,
+    placeName: data.placeName ?? null,
+    address: data.address ?? null,
+    formattedAddress: data.formattedAddress ?? null,
+    latitude: usable ? lat : null,
+    longitude: usable ? lng : null,
+    geohash: usable && lat != null && lng != null ? encodeGeohash(lat, lng) : null,
+  };
+}
 
 function revalidatePublic(slug?: string) {
   revalidatePath("/");
@@ -44,6 +89,34 @@ function parsePublishedAt(raw?: string): Date | null {
   if (!raw) return null;
   const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Persiste crédito y pie de foto de la portada en el asset (+ override COVER si existe). */
+async function persistCoverAssetMeta(
+  coverImageId: string,
+  articleId: string,
+  meta: { credit?: string | null; caption?: string | null },
+) {
+  const credit =
+    typeof meta.credit === "string" ? meta.credit.trim() || null : undefined;
+  const caption =
+    typeof meta.caption === "string" ? meta.caption.trim() || null : undefined;
+
+  await prisma.infoSpotEditorialAsset.update({
+    where: { id: coverImageId },
+    data: {
+      isPermanentEditorialAsset: true,
+      ...(credit !== undefined ? { credit } : {}),
+      ...(caption !== undefined ? { caption } : {}),
+    },
+  });
+
+  if (caption !== undefined) {
+    await prisma.infoSpotArticleAsset.updateMany({
+      where: { articleId, assetId: coverImageId, usageType: "COVER" },
+      data: { captionOverride: caption },
+    });
+  }
 }
 
 export async function createArticleAction(formData: FormData): Promise<ActionResult> {
@@ -85,6 +158,8 @@ export async function createArticleAction(formData: FormData): Promise<ActionRes
       content: data.content || "",
       categoryId: data.categoryId,
       coverImageId: data.coverImageId,
+      coverOverridden: Boolean(data.coverImageId),
+      ...articleLocationWriteData(data),
       seoTitle: data.seoTitle ?? null,
       seoDescription: data.seoDescription ?? null,
       contentTag: "REAL",
@@ -97,15 +172,15 @@ export async function createArticleAction(formData: FormData): Promise<ActionRes
   });
 
   if (data.coverImageId) {
-    await prisma.infoSpotEditorialAsset.update({
-      where: { id: data.coverImageId },
-      data: {
-        isPermanentEditorialAsset: true,
-        ...(typeof formData.get("coverCredit") === "string" &&
-        String(formData.get("coverCredit")).trim()
-          ? { credit: String(formData.get("coverCredit")).trim() }
-          : {}),
-      },
+    await persistCoverAssetMeta(data.coverImageId, article.id, {
+      credit:
+        typeof formData.get("coverCredit") === "string"
+          ? String(formData.get("coverCredit"))
+          : data.coverCredit,
+      caption:
+        typeof formData.get("coverCaption") === "string"
+          ? String(formData.get("coverCaption"))
+          : data.coverCaption,
     });
   }
 
@@ -131,6 +206,7 @@ export async function updateArticleAction(
       slug: true,
       publishedAt: true,
       coverImageId: true,
+      coverOverridden: true,
     },
   });
   if (!existing) return { ok: false, error: "Noticia no encontrada." };
@@ -215,6 +291,7 @@ export async function updateArticleAction(
     publishedAt = new Date();
   }
   // Al despublicar se conserva publishedAt histórico.
+  const coverChanged = data.coverImageId !== existing.coverImageId;
 
   const article = await prisma.infoSpotArticle.update({
     where: { id: articleId },
@@ -225,6 +302,10 @@ export async function updateArticleAction(
       content: data.content || "",
       categoryId: data.categoryId,
       coverImageId: data.coverImageId,
+      ...(coverChanged
+        ? { coverOverridden: Boolean(data.coverImageId) || existing.coverOverridden }
+        : {}),
+      ...articleLocationWriteData(data),
       seoTitle: data.seoTitle ?? null,
       seoDescription: data.seoDescription ?? null,
       contentTag: "REAL",
@@ -236,12 +317,9 @@ export async function updateArticleAction(
   });
 
   if (data.coverImageId) {
-    await prisma.infoSpotEditorialAsset.update({
-      where: { id: data.coverImageId },
-      data: {
-        isPermanentEditorialAsset: true,
-        ...(data.coverCredit?.trim() ? { credit: data.coverCredit.trim() } : {}),
-      },
+    await persistCoverAssetMeta(data.coverImageId, articleId, {
+      credit: data.coverCredit,
+      caption: data.coverCaption,
     });
   }
 
@@ -274,11 +352,22 @@ export type AutosaveDraftPayload = {
   categoryId?: string | null;
   coverImageId?: string | null;
   coverCredit?: string;
+  coverCaption?: string;
   seoTitle?: string;
   seoDescription?: string;
   sourceName?: string;
   sourceUrl?: string;
   expectedUpdatedAt?: string;
+  geographicScope?: string | null;
+  countryCode?: string | null;
+  countryName?: string | null;
+  province?: string | null;
+  city?: string | null;
+  placeName?: string | null;
+  address?: string | null;
+  formattedAddress?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
 };
 
 function normalizeAutosaveRaw(
@@ -314,6 +403,7 @@ export async function autosaveArticleDraftAction(
       slug: true,
       publishedAt: true,
       coverImageId: true,
+      coverOverridden: true,
       updatedAt: true,
       title: true,
     },
@@ -371,6 +461,7 @@ export async function autosaveArticleDraftAction(
       : "DRAFT";
 
   const slug = await ensureUniqueSlug(data.slug || slugifyTitle(data.title), articleId);
+  const coverChanged = data.coverImageId !== existing.coverImageId;
 
   const article = await prisma.infoSpotArticle.update({
     where: { id: articleId },
@@ -381,6 +472,10 @@ export async function autosaveArticleDraftAction(
       content: data.content || "",
       categoryId: data.categoryId,
       coverImageId: data.coverImageId,
+      ...(coverChanged
+        ? { coverOverridden: Boolean(data.coverImageId) || existing.coverOverridden }
+        : {}),
+      ...articleLocationWriteData(data),
       seoTitle: data.seoTitle ?? null,
       seoDescription: data.seoDescription ?? null,
       contentTag: "REAL",
@@ -390,18 +485,16 @@ export async function autosaveArticleDraftAction(
     },
   });
 
-  if (data.coverImageId && data.coverCredit?.trim()) {
-    await prisma.infoSpotEditorialAsset.update({
-      where: { id: data.coverImageId },
-      data: {
-        credit: data.coverCredit.trim(),
-        isPermanentEditorialAsset: true,
-      },
+  if (data.coverImageId && ("coverCredit" in raw || "coverCaption" in raw)) {
+    await persistCoverAssetMeta(data.coverImageId, articleId, {
+      credit: "coverCredit" in raw ? (raw.coverCredit ?? "") : data.coverCredit,
+      caption: "coverCaption" in raw ? (raw.coverCaption ?? "") : data.coverCaption,
     });
   }
 
+  // Solo listado: revalidar la página de edición remonta el formulario cliente y
+  // puede pisar campos recién elegidos (p. ej. alcance) con props de servidor viejas.
   revalidatePath("/redaccion");
-  revalidatePath(`/redaccion/noticias/${articleId}/editar`);
 
   return {
     ok: true,

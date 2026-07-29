@@ -9,6 +9,7 @@ import {
   HomeLatestNews,
   HomeMostRead,
   HomeNearYouBlock,
+  HomeNovedadesFeed,
   HomeOrganizerPitch,
   HomePhotographersCall,
   HomePlatformHero,
@@ -16,11 +17,13 @@ import {
   HomeWhyPublish,
 } from "@/components/home";
 import { HomeExperienceSwitcher } from "@/components/home/HomeExperienceSwitcher";
+import { HomeNearbyFeedStrip } from "@/components/home/HomeNearbyFeedStrip";
 import { NewsletterOrFollowBlock } from "@/components/editorial/newsletter-follow-block";
 import { EditorialContainer, Section } from "@/components/foundations";
 import type { HomeComposition } from "@/lib/home-composition";
 import type { HomeBlockId, HomeExperience } from "@/lib/home-experience";
 import type { PublicProfileType } from "@/lib/dnx-user-profiles";
+import type { InfoSpotFeedItem, InfoSpotFeedItemDto } from "@/lib/feed/client";
 
 type BannerItem = Parameters<typeof HomeEditorialBanner>[0]["item"];
 type EventList = Parameters<typeof HomeFeaturedEvents>[0]["events"];
@@ -38,6 +41,13 @@ type Props = {
   coverages: CoverageList;
   nearEvents: NearList;
   hasUserLocation: boolean;
+  feedItems: InfoSpotFeedItemDto[];
+  feedNextCursor: string | null;
+  feedHasMore: boolean;
+  feedExcludeContentKeys: string[];
+  /** Bloques Etapa 15 (solo con GPS/manual en URL). */
+  nearbyUpcoming?: InfoSpotFeedItem[];
+  nearbyCalls?: InfoSpotFeedItem[];
 };
 
 function mutedSection(children: ReactNode, key: string) {
@@ -69,6 +79,12 @@ export function HomeAdaptiveSections({
   coverages,
   nearEvents,
   hasUserLocation,
+  feedItems,
+  feedNextCursor,
+  feedHasMore,
+  feedExcludeContentKeys,
+  nearbyUpcoming = [],
+  nearbyCalls = [],
 }: Props) {
   const showNewsBlocks =
     home.density !== "empty" &&
@@ -111,6 +127,12 @@ export function HomeAdaptiveSections({
       showNewsBlocks,
       editorialPicks,
       muted: mutedToggle,
+      feedItems,
+      feedNextCursor,
+      feedHasMore,
+      feedExcludeContentKeys,
+      nearbyUpcoming,
+      nearbyCalls,
     });
     if (!section) continue;
     nodes.push(section);
@@ -134,6 +156,12 @@ function renderBlock(
     showNewsBlocks: boolean;
     editorialPicks: NonNullable<HomeComposition["featured"]>[];
     muted: boolean;
+    feedItems: InfoSpotFeedItemDto[];
+    feedNextCursor: string | null;
+    feedHasMore: boolean;
+    feedExcludeContentKeys: string[];
+    nearbyUpcoming: InfoSpotFeedItem[];
+    nearbyCalls: InfoSpotFeedItem[];
   },
 ): ReactNode {
   switch (block) {
@@ -164,6 +192,20 @@ function renderBlock(
         ? mutedSection(<HomeFeaturedEvents events={ctx.featured} />, "featured_events")
         : plainSection(<HomeFeaturedEvents events={ctx.featured} />, "featured_events");
 
+    case "unified_feed": {
+      const body = (
+        <HomeNovedadesFeed
+          initialItems={ctx.feedItems}
+          initialNextCursor={ctx.feedNextCursor}
+          initialHasMore={ctx.feedHasMore}
+          excludeContentKeys={ctx.feedExcludeContentKeys}
+        />
+      );
+      return ctx.muted
+        ? mutedSection(body, "unified_feed")
+        : plainSection(body, "unified_feed");
+    }
+
     case "upcoming_events":
       return ctx.muted
         ? mutedSection(<HomeUpcomingEvents events={ctx.upcoming} />, "upcoming_events")
@@ -180,26 +222,39 @@ function renderBlock(
             "photographer_calls",
           );
 
-    case "near_you":
+    case "near_you": {
+      const body = (
+        <div className="space-y-16 md:space-y-20">
+          <Suspense fallback={null}>
+            <HomeNearYouBlock
+              events={ctx.nearEvents}
+              hasUserLocation={ctx.hasUserLocation}
+            />
+          </Suspense>
+          {ctx.hasUserLocation ? (
+            <>
+              <HomeNearbyFeedStrip
+                id="proximas-cercanas"
+                eyebrow="Agenda"
+                title="Próximas actividades cercanas"
+                description="Ordenadas por fecha y distancia."
+                items={ctx.nearbyUpcoming}
+              />
+              <HomeNearbyFeedStrip
+                id="convocatorias-cercanas"
+                eyebrow="Fotógrafos"
+                title="Convocatorias cercanas"
+                description="Solo convocatorias abiertas cerca tuyo."
+                items={ctx.nearbyCalls}
+              />
+            </>
+          ) : null}
+        </div>
+      );
       return ctx.muted
-        ? mutedSection(
-            <Suspense fallback={null}>
-              <HomeNearYouBlock
-                events={ctx.nearEvents}
-                hasUserLocation={ctx.hasUserLocation}
-              />
-            </Suspense>,
-            "near_you",
-          )
-        : plainSection(
-            <Suspense fallback={null}>
-              <HomeNearYouBlock
-                events={ctx.nearEvents}
-                hasUserLocation={ctx.hasUserLocation}
-              />
-            </Suspense>,
-            "near_you",
-          );
+        ? mutedSection(body, "near_you")
+        : plainSection(body, "near_you");
+    }
 
     case "coverages": {
       const coverageList = ctx.coverages ?? [];

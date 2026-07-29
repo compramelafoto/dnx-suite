@@ -12,7 +12,12 @@ export { HomeCategoryBlocks } from "./HomeCategoryBlocks";
 export { HomeCoverageBlock } from "./HomeCoverageBlock";
 export { HomeInstitutionalBlock } from "./HomeInstitutionalBlock";
 export { HomeNearYouBlock } from "./HomeNearYouBlock";
+export { HomeNovedadesFeed } from "./HomeNovedadesFeed";
+export { FeedItemCard } from "./FeedItemCard";
+export { AlsoNearThisPlaceBlock } from "./AlsoNearThisPlaceBlock";
+export { HomeNearbyFeedStrip } from "./HomeNearbyFeedStrip";
 export { HomePhotographersCall } from "./HomePhotographersCall";
+
 export { HomeWeekendAgenda } from "./HomeWeekendAgenda";
 export { HomeLatestCoverages } from "./HomeLatestCoverages";
 export { HomeMostRead } from "./HomeMostRead";

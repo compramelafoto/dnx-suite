@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
-import { verifyPassword } from "@repo/auth";
+import { verifyUserPassword } from "@repo/auth";
 import {
   EDITORIAL_ACCESS_DENIED_NOTICE,
   attachInfoSpotSessionCookieToResponse,
@@ -34,41 +34,32 @@ export async function POST(req: Request) {
     if (!email) return redirectIngresar(baseUrl, "El email es obligatorio.");
     if (!password) return redirectIngresar(baseUrl, "La contraseña es obligatoria.");
 
-    let user: {
-      id: number;
-      password: string | null;
-      isBlocked: boolean;
-      role: string;
-    } | null;
-
+    let verified: Awaited<ReturnType<typeof verifyUserPassword>>;
     try {
-      user = await prisma.user.findUnique({
-        where: { email },
-        select: { id: true, password: true, isBlocked: true, role: true },
-      });
+      verified = await verifyUserPassword({ email, password });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("[infospot/login] findUnique failed:", message);
+      console.error("[infospot/login] verifyUserPassword failed:", message);
       if (/P1001|P1017|Can't reach|ECONNREFUSED|ENOTFOUND|connection/i.test(message)) {
         return redirectIngresar(baseUrl, "No se pudo conectar a la base de datos. Revisá DATABASE_URL.");
       }
       return redirectIngresar(baseUrl, "No se pudo verificar el usuario. Revisá logs del servidor.");
     }
 
-    if (!user) return redirectIngresar(baseUrl, "Email o contraseña incorrectos.");
-    if (user.isBlocked) {
-      return redirectIngresar(baseUrl, "Esta cuenta está bloqueada. Contactá al Director.");
-    }
-    if (!user.password) {
-      return redirectIngresar(
-        baseUrl,
-        "Esta cuenta no tiene contraseña. Usá «Continuar con Google», el enlace de invitación o recuperá el acceso.",
-      );
-    }
-    if (!verifyPassword(password, user.password)) {
+    if (!verified.ok) {
+      if (verified.reason === "BLOCKED") {
+        return redirectIngresar(baseUrl, "Esta cuenta está bloqueada. Contactá al Director.");
+      }
+      if (verified.reason === "NO_PASSWORD") {
+        return redirectIngresar(
+          baseUrl,
+          "Esta cuenta no tiene contraseña. Usá «Continuar con Google», el enlace de invitación o recuperá el acceso.",
+        );
+      }
       return redirectIngresar(baseUrl, "Email o contraseña incorrectos.");
     }
 
+    const user = verified.user;
     const destination = await loadPostLoginDestination(user.id, user.role, next);
 
     try {

@@ -1,12 +1,26 @@
 import { z } from "zod";
 import { findFiguresMissingAlt, findFiguresMissingCredit } from "@repo/editor";
 import { ARTICLE_STATUSES } from "@/lib/article-status";
+import {
+  isGeographicScope,
+  validateArticleLocationForPublish,
+} from "@/lib/editorial/article-location";
 
 const optionalString = z
   .string()
   .trim()
   .optional()
   .transform((v) => (v && v.length > 0 ? v : undefined));
+
+const optionalFloat = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => {
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  });
 
 export const articleDraftSchema = z.object({
   title: z.string().trim().min(1, "El título es obligatorio").max(200),
@@ -29,6 +43,7 @@ export const articleDraftSchema = z.object({
     .optional()
     .transform((v) => (v && v.length > 0 ? v : null)),
   coverCredit: optionalString,
+  coverCaption: optionalString,
   seoTitle: optionalString,
   seoDescription: optionalString,
   /** Interno: siempre REAL en el flujo simplificado. */
@@ -42,6 +57,20 @@ export const articleDraftSchema = z.object({
     .transform((v) => (v && v.length > 0 ? v : undefined)),
   status: z.enum(ARTICLE_STATUSES).default("DRAFT"),
   expectedUpdatedAt: optionalString,
+  geographicScope: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v && isGeographicScope(v) ? v : null)),
+  countryCode: optionalString,
+  countryName: optionalString,
+  province: optionalString,
+  city: optionalString,
+  placeName: optionalString,
+  address: optionalString,
+  formattedAddress: optionalString,
+  latitude: optionalFloat,
+  longitude: optionalFloat,
 });
 
 export type ArticleDraftInput = z.infer<typeof articleDraftSchema>;
@@ -69,6 +98,18 @@ export function validateForPublish(data: ArticleDraftInput): string[] {
   if (missingAlt.length > 0) {
     errors.push(`Hay ${missingAlt.length} imagen(es) en el cuerpo sin texto alternativo.`);
   }
+
+  errors.push(
+    ...validateArticleLocationForPublish({
+      geographicScope: data.geographicScope,
+      countryCode: data.countryCode ?? null,
+      countryName: data.countryName ?? null,
+      province: data.province ?? null,
+      city: data.city ?? null,
+      latitude: data.latitude,
+      longitude: data.longitude,
+    }),
+  );
 
   return errors;
 }

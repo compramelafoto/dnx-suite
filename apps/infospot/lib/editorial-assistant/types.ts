@@ -70,6 +70,9 @@ export type SelectedEvent = {
   photoCount: number;
   coverThumbnailUrl: string | null;
   categoryHint: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  hasGeoref?: boolean;
 };
 
 export type AssistantDraftFields = {
@@ -144,11 +147,17 @@ export type AssistantEventCard = {
   photoCount: number;
   coverThumbnailUrl: string | null;
   categoryHint: string | null;
+  /** Coords CLF (obligatorias en Event); null solo si aún no se hidrató. */
+  latitude?: number | null;
+  longitude?: number | null;
+  hasGeoref?: boolean;
 };
 
 export type AssistantBootstrap = {
   coverages: AssistantCoverageCard[];
   events: AssistantEventCard[];
+  /** Ciudades distintas desde CLF (no solo del subset cargado). */
+  cities: string[];
   authorDefault: string;
   categories: { id: string; name: string }[];
 };

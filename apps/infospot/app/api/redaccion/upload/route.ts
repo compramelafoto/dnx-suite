@@ -129,7 +129,7 @@ export async function POST(request: Request) {
         }),
         prisma.infoSpotArticle.update({
           where: { id: articleId },
-          data: { coverImageId: asset.id },
+          data: { coverImageId: asset.id, coverOverridden: true },
         }),
       ]);
     }

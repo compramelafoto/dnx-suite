@@ -23,6 +23,7 @@ export const articleListInclude = {
       credit: true,
       photographerName: true,
       copyrightText: true,
+      sourceType: true,
     },
   },
   observations: {

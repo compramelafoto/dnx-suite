@@ -335,6 +335,7 @@ export function EditorialAssistant({ bootstrap, deepLink }: Props) {
           {state.step === "event" ? (
             <StepEvent
               events={bootstrap.events}
+              cities={bootstrap.cities ?? []}
               selectedId={state.event?.id ?? null}
               onSelect={(event: AssistantEventCard) => {
                 const related = bootstrap.coverages

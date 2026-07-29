@@ -52,6 +52,7 @@ export const ARTICLE_FIELD_OWNERSHIP = {
   status: "INFOSPOT",
   contentTag: "INFOSPOT",
   coverImageId: "INFOSPOT_AFTER_OVERRIDE",
+  categoryId: "INFOSPOT",
 } as const satisfies Record<string, FieldOwner>;
 
 export function isSourceOwned(field: string, map: Record<string, FieldOwner>): boolean {

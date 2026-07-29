@@ -9,6 +9,9 @@ import {
 } from "@/lib/infospot-access";
 import { getPublicEditorialCoverageByArticleSlug } from "@/lib/public-coverage";
 import { authorDisplayName } from "@/lib/articles";
+import { getAlsoNearThisPlace } from "@/lib/feed/nearby-blocks";
+import { getArticleRecommendationBlocks } from "@/lib/recommendations/get-article-recommendations";
+import { hasUsableCoordinates } from "@repo/geo/coordinates";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -69,13 +72,47 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
   const article = await getPublishedArticleBySlug(slug);
   if (!article) notFound();
 
-  const [relatedPool, publicCoverage] = await Promise.all([
-    getPublishedArticles({
-      take: 8,
-      categorySlug: article.category?.slug,
-    }),
-    getPublicEditorialCoverageByArticleSlug(slug),
-  ]);
+  const articleHasGeo = hasUsableCoordinates(article.latitude, article.longitude);
+
+  const [relatedPool, publicCoverage, alsoNearItems, recommendationBlocks] =
+    await Promise.all([
+      getPublishedArticles({
+        take: 8,
+        categorySlug: article.category?.slug,
+      }),
+      getPublicEditorialCoverageByArticleSlug(slug),
+      articleHasGeo && article.latitude != null && article.longitude != null
+        ? getAlsoNearThisPlace({
+            latitude: article.latitude,
+            longitude: article.longitude,
+            excludeContentKey: `article:${article.id}`,
+            province: article.province,
+            limit: 6,
+          })
+        : Promise.resolve([]),
+      getArticleRecommendationBlocks({
+        id: article.id,
+        title: article.title,
+        slug: article.slug,
+        excerpt: article.excerpt,
+        publishedAt: article.publishedAt,
+        categoryId: article.categoryId,
+        category: article.category,
+        geographicScope: article.geographicScope,
+        countryCode: article.countryCode,
+        countryName: article.countryName,
+        province: article.province,
+        city: article.city,
+        placeName: article.placeName,
+        latitude: article.latitude,
+        longitude: article.longitude,
+        geohash: article.geohash,
+        editorialPriority: article.editorialPriority,
+        clfAlbumId: article.clfAlbumId,
+        coverImage: article.coverImage,
+        coverageLinks: [],
+      }),
+    ]);
   const related = relatedPool.filter((a) => a.id !== article.id).slice(0, 4);
 
   let albumAvailability = null;
@@ -180,6 +217,8 @@ export default async function NoticiaDetallePage({ params }: PageProps) {
         albumAvailability={albumAvailability}
         showDirectorCommerceActions={showDirectorCommerceActions}
         publicCoverage={publicCoverage}
+        alsoNearItems={alsoNearItems}
+        recommendationBlocks={recommendationBlocks}
       />
     </>
   );

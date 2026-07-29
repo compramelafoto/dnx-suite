@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Source_Serif_4 } from "next/font/google";
 import { AppChrome } from "@/components/navigation/AppChrome";
+import { SiteFooter } from "@/components/navigation/SiteFooter";
 import { resolveSiteHeaderChrome } from "@/components/navigation/resolve-site-header-auth";
 import { getInfoSpotSettings, getSiteUrl } from "@/lib/settings";
 import "./globals.css";
@@ -110,6 +111,7 @@ export default async function RootLayout({
           auth={headerChrome.auth}
           primaryCta={headerChrome.primaryCta}
           secondaryLinks={headerChrome.secondaryLinks}
+          footer={<SiteFooter />}
         >
           <main id="contenido" className="flex-1">
             {children}

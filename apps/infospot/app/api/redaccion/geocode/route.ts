@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 import {
   getInfoSpotMembership,
   toPermissionSubject,
+  canEditInfoSpotArticle,
   canEditInfoSpotEvent,
   canModerateInfoSpotEvents,
 } from "@/lib/infospot-access";
@@ -35,7 +36,9 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   const subject = toPermissionSubject(user, await getInfoSpotMembership(user.id));
   const canEdit =
-    canEditInfoSpotEvent(subject) || canModerateInfoSpotEvents(subject);
+    canEditInfoSpotArticle(subject) ||
+    canEditInfoSpotEvent(subject) ||
+    canModerateInfoSpotEvents(subject);
   if (!canEdit) {
     return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
   }

@@ -115,14 +115,23 @@ export function filterEventCards(
   },
 ): AssistantEventCard[] {
   const q = filters.q?.trim().toLowerCase() ?? "";
+  const tokens = q
+    ? q
+        .split(/\s+/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : [];
   const city = filters.city?.trim().toLowerCase() ?? "";
   return events.filter((e) => {
-    if (q) {
+    if (tokens.length > 0) {
       const hay = `${e.title} ${e.city ?? ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
+      // Todos los tokens deben matchear (más flexible que el string completo).
+      if (!tokens.every((t) => hay.includes(t))) return false;
     }
     if (city && !(e.city ?? "").toLowerCase().includes(city)) return false;
-    if (filters.status && filters.status !== "all") {
+    // Con búsqueda activa no filtramos por momento: una previa puede estar
+    // tipificada como "Sin fecha" o "Finalizado" según dates incompletas.
+    if (!q && filters.status && filters.status !== "all") {
       const map = {
         upcoming: "Próximo",
         ongoing: "En curso",
@@ -132,6 +141,50 @@ export function filterEventCards(
     }
     return true;
   });
+}
+
+/** Convierte fila CLF al card del asistente. */
+export function clfEventToAssistantCard(e: {
+  id: number;
+  title: string;
+  startsAt: Date | string | null;
+  endsAt: Date | string | null;
+  city: string | null;
+  albumCount?: number;
+  latitude?: number | null;
+  longitude?: number | null;
+}): AssistantEventCard {
+  const startsAt =
+    e.startsAt instanceof Date
+      ? e.startsAt.toISOString()
+      : e.startsAt
+        ? String(e.startsAt)
+        : null;
+  const endsAt =
+    e.endsAt instanceof Date
+      ? e.endsAt.toISOString()
+      : e.endsAt
+        ? String(e.endsAt)
+        : null;
+  const lat = typeof e.latitude === "number" && Number.isFinite(e.latitude) ? e.latitude : null;
+  const lng =
+    typeof e.longitude === "number" && Number.isFinite(e.longitude) ? e.longitude : null;
+  return {
+    id: e.id,
+    title: e.title,
+    startsAt,
+    endsAt,
+    city: e.city,
+    statusLabel: eventStatusLabel({ startsAt, endsAt }),
+    coverageCount: e.albumCount ?? 0,
+    photographerCount: 0,
+    photoCount: 0,
+    coverThumbnailUrl: null,
+    categoryHint: null,
+    latitude: lat,
+    longitude: lng,
+    hasGeoref: lat != null && lng != null,
+  };
 }
 
 export function materialSummary(coverages: AssistantCoverageCard[]) {

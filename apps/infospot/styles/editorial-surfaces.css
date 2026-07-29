@@ -427,6 +427,26 @@
   }
 }
 
+/* Resalte breve al saltar desde el Asistente Editorial a un campo. */
+@keyframes is-field-focus-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--is-accent) 55%, transparent);
+  }
+  40% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--is-accent) 35%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.is-field-focus-pulse {
+  animation: is-field-focus-pulse 1.8s ease-out;
+  outline: 2px solid var(--is-accent);
+  outline-offset: 2px;
+  border-radius: var(--is-radius-sm);
+}
+
 @keyframes is-slide-in-right {
   from {
     transform: translateX(0.75rem);

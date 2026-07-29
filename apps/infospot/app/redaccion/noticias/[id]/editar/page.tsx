@@ -182,12 +182,30 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
         mode="edit"
         action={action}
         categories={categories}
-        assets={assets.map((a) => ({
-          id: a.id,
-          url: a.url,
-          caption: a.caption,
-          credit: a.credit,
-        }))}
+        assets={(() => {
+          const mapped = assets.map((a) => ({
+            id: a.id,
+            url: a.url,
+            caption: a.caption,
+            credit: a.credit,
+            sourceType: "UPLOAD" as const,
+          }));
+          const cover = article.coverImage;
+          if (
+            cover &&
+            cover.sourceType === "UPLOAD" &&
+            !mapped.some((a) => a.id === cover.id)
+          ) {
+            mapped.unshift({
+              id: cover.id,
+              url: cover.url,
+              caption: cover.caption,
+              credit: cover.credit,
+              sourceType: "UPLOAD",
+            });
+          }
+          return mapped;
+        })()}
         canPublish={canPublishInfoSpotArticle(access.subject)}
         isDirector={canManageInfoSpotSettings(access.subject)}
         subject={access.subject}
@@ -320,6 +338,23 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
           categoryId: article.categoryId,
           coverImageId: article.coverImageId,
           coverCredit: article.coverImage?.credit ?? null,
+          coverCaption: article.coverImage?.caption ?? null,
+          coverSourceType:
+            article.coverImage?.sourceType === "UPLOAD" ||
+            article.coverImage?.sourceType === "CLF_PHOTO"
+              ? article.coverImage.sourceType
+              : null,
+          coverUrl: article.coverImage?.url ?? null,
+          geographicScope: article.geographicScope,
+          countryCode: article.countryCode,
+          countryName: article.countryName,
+          province: article.province,
+          city: article.city,
+          placeName: article.placeName,
+          address: article.address,
+          formattedAddress: article.formattedAddress,
+          latitude: article.latitude,
+          longitude: article.longitude,
           seoTitle: article.seoTitle,
           seoDescription: article.seoDescription,
           publishedAt: article.publishedAt,

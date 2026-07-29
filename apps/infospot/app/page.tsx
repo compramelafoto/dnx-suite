@@ -7,6 +7,11 @@ import {
   getNearbyEvents,
   getUpcomingEvents,
 } from "@/lib/distribution";
+import { getCachedPublicFeedGeneral } from "@/lib/feed/server";
+import {
+  getNearbyOpenPhotographerCalls,
+  getNearbyUpcomingActivities,
+} from "@/lib/feed/nearby-blocks";
 import { parseGeoParams } from "@/lib/geo";
 import { getAuthUser } from "@/lib/auth";
 import { listActivePublicProfiles } from "@/lib/dnx-user-profiles";
@@ -47,22 +52,57 @@ export default async function HomePage({ searchParams }: Props) {
   const params = await searchParams;
   const near = parseGeoParams(params);
 
-  const [core, editorialData, nearby, upcomingFallback, user, preferredMode] =
-    await Promise.all([
-      getCachedHomepageCore(),
-      getHomeEditorialData(),
-      near
-        ? getNearbyEvents({
-            latitude: near.lat,
-            longitude: near.lng,
-            radiusKm: near.radiusKm,
-            limit: 6,
-          })
-        : Promise.resolve([]),
-      near ? Promise.resolve([]) : getUpcomingEvents({ limit: 6 }),
-      getAuthUser(),
-      readPreferredHomeModeFromCookie(),
-    ]);
+  const emptyFeed = {
+    items: [] as Awaited<ReturnType<typeof getCachedPublicFeedGeneral>>["items"],
+    nextCursor: null as string | null,
+    hasMore: false,
+  };
+
+  const [
+    core,
+    editorialData,
+    nearby,
+    upcomingFallback,
+    user,
+    preferredMode,
+    feed,
+    nearbyUpcoming,
+    nearbyCalls,
+  ] = await Promise.all([
+    getCachedHomepageCore(),
+    getHomeEditorialData(),
+    near
+      ? getNearbyEvents({
+          latitude: near.lat,
+          longitude: near.lng,
+          radiusKm: near.radiusKm,
+          limit: 6,
+        })
+      : Promise.resolve([]),
+    near ? Promise.resolve([]) : getUpcomingEvents({ limit: 6 }),
+    getAuthUser(),
+    readPreferredHomeModeFromCookie(),
+    getCachedPublicFeedGeneral(12).catch((err) => {
+      console.error("[infospot/home] feed unavailable:", err);
+      return emptyFeed;
+    }),
+    near
+      ? getNearbyUpcomingActivities({
+          latitude: near.lat,
+          longitude: near.lng,
+          radiusKm: near.radiusKm,
+          limit: 6,
+        }).catch(() => [])
+      : Promise.resolve([]),
+    near
+      ? getNearbyOpenPhotographerCalls({
+          latitude: near.lat,
+          longitude: near.lng,
+          radiusKm: near.radiusKm,
+          limit: 6,
+        }).catch(() => [])
+      : Promise.resolve([]),
+  ]);
 
   const activeProfiles = user
     ? (await listActivePublicProfiles(user.id)).map((p) => p.profileType)
@@ -77,6 +117,15 @@ export default async function HomePage({ searchParams }: Props) {
   const banner = core.banner[0] ?? null;
   const nearEvents = nearby.length > 0 ? nearby : upcomingFallback;
 
+  /** Evitar duplicar hero / destacados en el feed unificado. */
+  const feedExcludeContentKeys = [
+    banner
+      ? `${banner.kind === "event" ? "event" : "article"}:${banner.id}`
+      : null,
+    ...core.featured.slice(0, 3).map((e) => `event:${e.id}`),
+    home.featured ? `article:${home.featured.id}` : null,
+  ].filter((k): k is string => Boolean(k));
+
   return (
     <HomeAdaptiveSections
       experience={experience}
@@ -88,6 +137,12 @@ export default async function HomePage({ searchParams }: Props) {
       coverages={core.coverages}
       nearEvents={nearEvents}
       hasUserLocation={Boolean(near)}
+      feedItems={feed.items}
+      feedNextCursor={feed.nextCursor}
+      feedHasMore={feed.hasMore}
+      feedExcludeContentKeys={feedExcludeContentKeys}
+      nearbyUpcoming={nearbyUpcoming}
+      nearbyCalls={nearbyCalls}
     />
   );
 }

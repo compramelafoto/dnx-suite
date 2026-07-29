@@ -28,6 +28,8 @@ function revalidateHome() {
   revalidateTag("infospot-home", "max");
   revalidateTag("infospot-home-core", "max");
   revalidateTag("infospot-home-calls", "max");
+  revalidateTag("infospot-home-feed", "max");
+  revalidateTag("infospot-public-content", "max");
 }
 
 export async function upsertHomepagePlacementAction(

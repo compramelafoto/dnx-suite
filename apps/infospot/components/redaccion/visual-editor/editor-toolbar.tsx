@@ -130,9 +130,10 @@ export function EditorToolbar({ editor, onInsertImage }: Props) {
         type="button"
         className={`${btn} px-3`}
         onClick={onInsertImage}
-        title="Subir una imagen propia al texto"
+        title="Insertar imagen propia en el cuerpo"
+        aria-label="Insertar imagen propia"
       >
-        Subir archivo
+        Insertar imagen
       </button>
       <span className="mx-1 h-6 w-px bg-[var(--is-border)]" aria-hidden />
       <button

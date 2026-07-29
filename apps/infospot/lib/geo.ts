@@ -1,18 +1,13 @@
-/** Distancia Haversine en km. */
+import { calculateDistanceKm } from "@repo/geo/distance";
+
+/** Distancia Haversine en km (firma posicional histórica de InfoSpot). */
 export function distanceKm(
   lat1: number,
   lng1: number,
   lat2: number,
   lng2: number,
 ): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return calculateDistanceKm(lat1, lng1, lat2, lng2);
 }
 
 /**
@@ -28,6 +23,8 @@ const CITY_CENTROIDS: Record<string, { lat: number; lng: number }> = {
   "cordoba|cordoba": { lat: -31.4201, lng: -64.1888 },
   "villa carlos paz|cordoba": { lat: -31.4241, lng: -64.4978 },
   "rosario|santa fe": { lat: -32.9442, lng: -60.6505 },
+  "rafaela|santa fe": { lat: -31.2503, lng: -61.4867 },
+  "armstrong|santa fe": { lat: -32.9139, lng: -61.9203 },
   "santa fe|santa fe": { lat: -31.6333, lng: -60.7 },
   "mendoza|mendoza": { lat: -32.8895, lng: -68.8458 },
   "san miguel de tucuman|tucuman": { lat: -26.8083, lng: -65.2176 },

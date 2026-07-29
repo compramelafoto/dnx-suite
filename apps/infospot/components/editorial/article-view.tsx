@@ -24,6 +24,10 @@ import {
   RelatedEventCoverage,
   ContentViewTracker,
 } from "@/components/public-coverage";
+import { AlsoNearThisPlaceBlock } from "@/components/home/AlsoNearThisPlaceBlock";
+import { RecommendationBlocks } from "@/components/editorial/recommendation-blocks";
+import type { InfoSpotFeedItem } from "@/lib/feed/types";
+import type { ArticleRecommendationBlocks } from "@/lib/recommendations/get-article-recommendations";
 
 type Props = {
   article: ArticleWithRelations;
@@ -34,6 +38,10 @@ type Props = {
   showDirectorCommerceActions?: boolean;
   /** View model de cobertura editorial (opcional; no rompe artículos sin cobertura). */
   publicCoverage?: PublicEditorialCoverage | null;
+  /** Etapa 15 — contenido cercano a la nota georreferenciada. */
+  alsoNearItems?: InfoSpotFeedItem[];
+  /** Etapa 17 — bloques del Recommendation Engine. */
+  recommendationBlocks?: ArticleRecommendationBlocks | null;
 };
 
 export function ArticleView({
@@ -44,6 +52,8 @@ export function ArticleView({
   shareUrl,
   showDirectorCommerceActions = false,
   publicCoverage = null,
+  alsoNearItems = [],
+  recommendationBlocks = null,
 }: Props) {
   const inline = article.articleAssets.filter((a) => a.usageType === "INLINE");
   const gallery = article.articleAssets.filter((a) => a.usageType === "GALLERY");
@@ -153,7 +163,7 @@ export function ArticleView({
         <WideMediaContainer className="mt-8 md:mt-10">
           <EditorialImage
             src={traditionalCoverUrl}
-            alt={article.title}
+            alt={coverCaption || article.title}
             caption={coverCaption}
             credit={coverCredit}
             copyrightText={coverCopyright}
@@ -240,6 +250,18 @@ export function ArticleView({
         ) : null}
 
         {showLegacyRelated ? <RelatedArticles articles={related} /> : null}
+
+        {recommendationBlocks ? (
+          <RecommendationBlocks {...recommendationBlocks} />
+        ) : alsoNearItems.length > 0 ? (
+          <AlsoNearThisPlaceBlock
+            items={alsoNearItems}
+            placeLabel={
+              [article.city, article.province].filter(Boolean).join(", ") ||
+              locationLabel
+            }
+          />
+        ) : null}
       </ArticleBodyContainer>
 
       <Section tone="muted" spacing="md">

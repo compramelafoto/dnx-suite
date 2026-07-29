@@ -6,6 +6,7 @@ import {
   toPermissionSubject,
 } from "@/lib/infospot-access";
 import { searchClfEvents } from "@/lib/clf-queries";
+import { clfEventToAssistantCard } from "@/lib/editorial-assistant";
 
 export async function GET(request: Request) {
   const user = await getAuthUser();
@@ -17,6 +18,13 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";
-  const events = await searchClfEvents(q);
-  return NextResponse.json({ events });
+  const city = searchParams.get("city")?.trim() ?? "";
+  let events = await searchClfEvents(q || city, 60);
+  if (city) {
+    const cityLower = city.toLowerCase();
+    events = events.filter((e) => (e.city ?? "").toLowerCase().includes(cityLower));
+  }
+  return NextResponse.json({
+    events: events.map((e) => clfEventToAssistantCard(e)),
+  });
 }

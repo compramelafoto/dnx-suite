@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@repo/db";
 import {
   canEditInfoSpotArticle,
@@ -26,6 +26,12 @@ function revalidateArticle(slug?: string, articleId?: string) {
   revalidatePath("/admin/aprobaciones");
   revalidatePath("/");
   revalidatePath("/noticias");
+  revalidateTag("infospot-home", "max");
+  revalidateTag("infospot-home-feed", "max");
+  revalidateTag("infospot-public-content", "max");
+  if (articleId) {
+    revalidateTag(`infospot-feed-item:article:${articleId}`, "max");
+  }
   if (slug) revalidatePath(`/noticias/${slug}`);
   if (articleId) {
     revalidatePath(`/redaccion/noticias/${articleId}/editar`);
@@ -51,6 +57,13 @@ async function loadArticle(articleId: string) {
       sourceUrl: true,
       seoTitle: true,
       seoDescription: true,
+      geographicScope: true,
+      countryCode: true,
+      countryName: true,
+      province: true,
+      city: true,
+      latitude: true,
+      longitude: true,
       factCheckedAt: true,
       publishedAt: true,
       returnedAt: true,
@@ -76,6 +89,13 @@ async function assertPublishChecklist(
     seoTitle: article.seoTitle ?? undefined,
     seoDescription: article.seoDescription ?? undefined,
     status: "PUBLISHED",
+    geographicScope: article.geographicScope,
+    countryCode: article.countryCode ?? undefined,
+    countryName: article.countryName ?? undefined,
+    province: article.province ?? undefined,
+    city: article.city ?? undefined,
+    latitude: article.latitude,
+    longitude: article.longitude,
   });
   if (article.coverImageId) {
     const credit = article.coverImage?.credit?.trim();

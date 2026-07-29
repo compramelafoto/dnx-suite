@@ -9,11 +9,28 @@ const clfEventListSelect = {
   endsAt: true,
   city: true,
   locationName: true,
+  latitude: true,
+  longitude: true,
   status: true,
   visibility: true,
   creator: { select: { id: true, name: true, email: true } },
   _count: { select: { albums: { where: { deletedAt: null } } } },
 } as const;
+
+export type ClfEventListRow = {
+  id: number;
+  title: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  city: string | null;
+  locationName: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  status: string;
+  visibility: string;
+  organizerName: string;
+  albumCount: number;
+};
 
 function mapClfEventRow(e: {
   id: number;
@@ -22,11 +39,13 @@ function mapClfEventRow(e: {
   endsAt: Date | null;
   city: string | null;
   locationName: string | null;
+  latitude: number;
+  longitude: number;
   status: string;
   visibility: string;
   creator: { id: number; name: string | null; email: string };
   _count: { albums: number };
-}) {
+}): ClfEventListRow {
   return {
     id: e.id,
     title: e.title,
@@ -34,6 +53,8 @@ function mapClfEventRow(e: {
     endsAt: e.endsAt,
     city: e.city,
     locationName: e.locationName,
+    latitude: e.latitude,
+    longitude: e.longitude,
     status: e.status,
     visibility: e.visibility,
     organizerName: e.creator.name?.trim() || e.creator.email,
@@ -41,22 +62,37 @@ function mapClfEventRow(e: {
   };
 }
 
-export async function searchClfEvents(query: string, take = 20) {
+function clfSearchWhere(q: string) {
+  const tokens = q
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2)
+    .slice(0, 6);
+  const terms = tokens.length > 0 ? tokens : [q.trim()];
+
+  // Cada token debe aparecer en al menos un campo (AND de ORs).
+  return {
+    archivedAt: null as null,
+    AND: terms.map((term) => ({
+      OR: [
+        { title: { contains: term, mode: "insensitive" as const } },
+        { city: { contains: term, mode: "insensitive" as const } },
+        { locationName: { contains: term, mode: "insensitive" as const } },
+        { creator: { name: { contains: term, mode: "insensitive" as const } } },
+        { creator: { email: { contains: term, mode: "insensitive" as const } } },
+      ],
+    })),
+  };
+}
+
+export async function searchClfEvents(query: string, take = 40) {
   const q = query.trim();
   if (q.length < 2) return [];
 
   const clf = getClfReadonlyClient();
   const events = await clf.event.findMany({
-    where: {
-      archivedAt: null,
-      OR: [
-        { title: { contains: q, mode: "insensitive" } },
-        { city: { contains: q, mode: "insensitive" } },
-        { locationName: { contains: q, mode: "insensitive" } },
-        { creator: { name: { contains: q, mode: "insensitive" } } },
-        { creator: { email: { contains: q, mode: "insensitive" } } },
-      ],
-    },
+    where: clfSearchWhere(q),
     select: clfEventListSelect,
     orderBy: { startsAt: "desc" },
     take,
@@ -66,27 +102,52 @@ export async function searchClfEvents(query: string, take = 20) {
 }
 
 /**
+ * Ciudades distintas de eventos CLF activos (para filtros del asistente).
+ * No depende del subset en memoria.
+ */
+export async function listClfCitiesForAssistant(take = 200): Promise<string[]> {
+  const clf = getClfReadonlyClient();
+  const rows = await clf.event.findMany({
+    where: { archivedAt: null, city: { not: "" } },
+    select: { city: true },
+    distinct: ["city"],
+    orderBy: { city: "asc" },
+    take,
+  });
+  return rows
+    .map((r) => r.city?.trim())
+    .filter((c): c is string => Boolean(c))
+    .sort((a, b) => a.localeCompare(b, "es"));
+}
+
+/**
  * Listado para el Asistente Editorial (sin exigir búsqueda).
  * Solo lectura CLF; no modifica sync ni provisioning.
  */
 export async function listClfEventsForAssistant(options?: {
   take?: number;
   window?: "upcoming" | "recent" | "all";
+  city?: string;
 }) {
-  const take = options?.take ?? 40;
+  const take = options?.take ?? 80;
   const window = options?.window ?? "all";
   const now = new Date();
   const clf = getClfReadonlyClient();
+  const city = options?.city?.trim();
 
   const where: {
     archivedAt: null;
     startsAt?: { gte?: Date; lte?: Date };
+    city?: { equals: string; mode: "insensitive" };
   } = { archivedAt: null };
 
   if (window === "upcoming") {
     where.startsAt = { gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) };
   } else if (window === "recent") {
     where.startsAt = { lte: now };
+  }
+  if (city) {
+    where.city = { equals: city, mode: "insensitive" };
   }
 
   const events = await clf.event.findMany({
@@ -111,6 +172,8 @@ export async function hydrateAssistantEventsWithClfDates(
       city: string | null;
       title: string;
       albumCount: number;
+      latitude: number | null;
+      longitude: number | null;
     }
   >
 > {
@@ -123,6 +186,8 @@ export async function hydrateAssistantEventsWithClfDates(
       city: string | null;
       title: string;
       albumCount: number;
+      latitude: number | null;
+      longitude: number | null;
     }
   >();
   if (ids.length === 0) return map;
@@ -137,6 +202,8 @@ export async function hydrateAssistantEventsWithClfDates(
         startsAt: true,
         endsAt: true,
         city: true,
+        latitude: true,
+        longitude: true,
         _count: { select: { albums: { where: { deletedAt: null } } } },
       },
     });
@@ -147,6 +214,8 @@ export async function hydrateAssistantEventsWithClfDates(
         city: row.city,
         title: row.title,
         albumCount: row._count.albums,
+        latitude: row.latitude,
+        longitude: row.longitude,
       });
     }
   } catch {

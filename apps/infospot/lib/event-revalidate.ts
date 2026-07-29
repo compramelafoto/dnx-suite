@@ -11,6 +11,11 @@ export function revalidateEventPaths(slug?: string, eventId?: string) {
   revalidateTag("infospot-home", "max");
   revalidateTag("infospot-home-core", "max");
   revalidateTag("infospot-home-calls", "max");
+  revalidateTag("infospot-home-feed", "max");
+  revalidateTag("infospot-public-content", "max");
+  if (eventId) {
+    revalidateTag(`infospot-feed-item:event:${eventId}`, "max");
+  }
   if (slug) revalidatePath(`/eventos/${slug}`);
   if (eventId) {
     revalidatePath(`/redaccion/eventos/${eventId}/editar`);

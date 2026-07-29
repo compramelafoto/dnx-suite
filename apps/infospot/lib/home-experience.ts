@@ -15,6 +15,7 @@ export type HomeBlockId =
   | "how_it_works"
   | "why_publish"
   | "featured_events"
+  | "unified_feed"
   | "upcoming_events"
   | "photographer_calls"
   | "near_you"
@@ -70,6 +71,7 @@ const BLOCKS_BY_MODE: Record<HomeExperienceMode, HomeBlockId[]> = {
     "how_it_works",
     "why_publish",
     "featured_events",
+    "unified_feed",
     "upcoming_events",
     "photographer_calls",
     "near_you",
@@ -79,6 +81,7 @@ const BLOCKS_BY_MODE: Record<HomeExperienceMode, HomeBlockId[]> = {
   ],
   CUSTOMER: [
     "hero",
+    "unified_feed",
     "upcoming_events",
     "near_you",
     "category_favorites",
@@ -92,6 +95,7 @@ const BLOCKS_BY_MODE: Record<HomeExperienceMode, HomeBlockId[]> = {
   PHOTOGRAPHER: [
     "hero",
     "photographer_calls",
+    "unified_feed",
     "coverages",
     "upcoming_events",
     "featured_events",
@@ -105,6 +109,7 @@ const BLOCKS_BY_MODE: Record<HomeExperienceMode, HomeBlockId[]> = {
     "organizer_pitch",
     "how_it_works",
     "featured_events",
+    "unified_feed",
     "upcoming_events",
     "photographer_calls",
     "news",

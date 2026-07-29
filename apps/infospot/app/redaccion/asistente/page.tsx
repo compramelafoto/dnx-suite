@@ -7,6 +7,7 @@ import { RedaccionShell } from "@/components/redaccion/redaccion-shell";
 import { getCategories } from "@/lib/articles";
 import {
   buildEventCardsFromCoverages,
+  clfEventToAssistantCard,
   eventStatusLabel,
   toCoverageCards,
   type AssistantEventCard,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/editorial-assistant";
 import {
   hydrateAssistantEventsWithClfDates,
+  listClfCitiesForAssistant,
   listClfEventsForAssistant,
 } from "@/lib/clf-queries";
 import { listCoveragesForCenter } from "@/lib/coverage";
@@ -65,6 +67,7 @@ export default async function AsistenteEditorialPage({ searchParams }: PageProps
 
   const coverageCards = toCoverageCards(coveragesRaw);
   let eventCards = buildEventCardsFromCoverages(coveragesRaw);
+  let citiesFromClf: string[] = [];
 
   const clfDates = await hydrateAssistantEventsWithClfDates(eventCards.map((e) => e.id));
   eventCards = eventCards.map((e) => {
@@ -72,6 +75,8 @@ export default async function AsistenteEditorialPage({ searchParams }: PageProps
     if (!hydrated) return e;
     const startsAt = hydrated.startsAt?.toISOString() ?? null;
     const endsAt = hydrated.endsAt?.toISOString() ?? null;
+    const lat = hydrated.latitude;
+    const lng = hydrated.longitude;
     return {
       ...e,
       title: hydrated.title || e.title,
@@ -80,36 +85,53 @@ export default async function AsistenteEditorialPage({ searchParams }: PageProps
       endsAt,
       statusLabel: eventStatusLabel({ startsAt, endsAt }),
       coverageCount: Math.max(e.coverageCount, hydrated.albumCount || 0),
+      latitude: lat,
+      longitude: lng,
+      hasGeoref: lat != null && lng != null,
     };
   });
 
-  // Completar con eventos CLF recientes/próximos que aún no tienen cobertura local
+  // Próximos + recientes: más cobertura que un único take pequeño.
   try {
-    const clfEvents = await listClfEventsForAssistant({ take: 30, window: "all" });
+    const [upcoming, recent, cities] = await Promise.all([
+      listClfEventsForAssistant({ take: 80, window: "upcoming" }),
+      listClfEventsForAssistant({ take: 80, window: "recent" }),
+      listClfCitiesForAssistant(250),
+    ]);
+    citiesFromClf = cities;
     const known = new Set(eventCards.map((e) => e.id));
     const extras: AssistantEventCard[] = [];
-    for (const e of clfEvents) {
-      if (known.has(e.id)) continue;
-      const startsAt = e.startsAt?.toISOString() ?? null;
-      const endsAt = e.endsAt?.toISOString() ?? null;
-      extras.push({
-        id: e.id,
-        title: e.title,
-        startsAt,
-        endsAt,
-        city: e.city,
-        statusLabel: eventStatusLabel({ startsAt, endsAt }),
-        coverageCount: e.albumCount,
-        photographerCount: 0,
-        photoCount: 0,
-        coverThumbnailUrl: null,
-        categoryHint: null,
-      });
+    for (const e of [...upcoming, ...recent]) {
+      if (known.has(e.id)) {
+        // Completar georref / ciudad si el card vino solo de cobertura.
+        const idx = eventCards.findIndex((c) => c.id === e.id);
+        if (idx >= 0) {
+          const prev = eventCards[idx]!;
+          eventCards[idx] = {
+            ...prev,
+            city: e.city ?? prev.city,
+            latitude: e.latitude ?? prev.latitude,
+            longitude: e.longitude ?? prev.longitude,
+            hasGeoref:
+              (e.latitude != null && e.longitude != null) || Boolean(prev.hasGeoref),
+          };
+        }
+        continue;
+      }
+      known.add(e.id);
+      extras.push(clfEventToAssistantCard(e));
     }
     eventCards = [...eventCards, ...extras];
   } catch {
     // CLF opcional
   }
+
+  // Ciudades del subset + CLF (union).
+  const citySet = new Set<string>(citiesFromClf);
+  for (const e of eventCards) {
+    if (e.city?.trim()) citySet.add(e.city.trim());
+  }
+  const cities = Array.from(citySet).sort((a, b) => a.localeCompare(b, "es"));
 
   const coverageIds = [
     ...(params.coverageId ? [params.coverageId] : []),
@@ -155,6 +177,7 @@ export default async function AsistenteEditorialPage({ searchParams }: PageProps
         bootstrap={{
           coverages: coverageCards,
           events: eventCards,
+          cities,
           authorDefault: access.user.name?.trim() || access.user.email,
           categories: categories.map((c) => ({ id: c.id, name: c.name })),
         }}

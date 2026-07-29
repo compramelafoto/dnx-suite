@@ -18,6 +18,7 @@ import {
   resolveOrganizerIdentity,
   validateEventForClfProvisioning,
 } from "./validate";
+import { recordPhotographerCallOpenedEvent } from "../notifications/nearby-call-campaign";
 
 export type ProvisionResult =
   | {
@@ -313,6 +314,19 @@ export async function provisionClfEventFromInfoSpot(
         },
       });
 
+      await recordPhotographerCallOpenedEvent({
+        callId: call.id,
+        previousProvisioningStatus: call.provisioningStatus,
+        nextProvisioningStatus: "PROVISIONED",
+        enabled: call.enabled,
+        visibility: call.visibility,
+        joinPolicy: call.joinPolicy,
+        desiredClfStatus: call.desiredClfStatus,
+        clfEventId: updated.id,
+        maxPhotographers: call.maxPhotographers,
+        payload: { publicUrl, infoSpotEventId },
+      }).catch(() => undefined);
+
       return {
         ok: true,
         action: "updated",
@@ -391,6 +405,19 @@ export async function provisionClfEventFromInfoSpot(
         provisioningError: null,
       },
     });
+
+    await recordPhotographerCallOpenedEvent({
+      callId: call.id,
+      previousProvisioningStatus: call.provisioningStatus,
+      nextProvisioningStatus: "PROVISIONED",
+      enabled: call.enabled,
+      visibility: call.visibility,
+      joinPolicy: call.joinPolicy,
+      desiredClfStatus: call.desiredClfStatus,
+      clfEventId: created.id,
+      maxPhotographers: call.maxPhotographers,
+      payload: { publicUrl, infoSpotEventId },
+    }).catch(() => undefined);
 
     return {
       ok: true,
