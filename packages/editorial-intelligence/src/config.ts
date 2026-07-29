@@ -57,7 +57,7 @@ export const EDITORIAL_MESSAGES = {
     title: "Título",
     cover: "Portada",
     category: "Categoría",
-    location: "Ubicación",
+    location: "Ubicación y alcance",
     body: "Cuerpo",
     tags: "Etiquetas / palabras clave",
     seo: "SEO",

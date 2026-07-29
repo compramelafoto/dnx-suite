@@ -180,7 +180,17 @@ export function ArticleForm({
   const [status] = useState<ArticleStatus>(initial?.status ?? "DRAFT");
   const [excerpt, setExcerpt] = useState(initial?.excerpt ?? "");
   const [content, setContent] = useState(initial?.content ?? "");
-  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
+  const [categoryId, setCategoryId] = useState(() => {
+    const fromServer = initial?.categoryId ?? "";
+    if (typeof window !== "undefined" && initial?.id && !fromServer) {
+      try {
+        return sessionStorage.getItem(`infospot.article.category.${initial.id}`) || "";
+      } catch {
+        return "";
+      }
+    }
+    return fromServer;
+  });
   const [seoTitle, setSeoTitle] = useState(initial?.seoTitle ?? "");
   const [seoDescription, setSeoDescription] = useState(initial?.seoDescription ?? "");
   const [sourceName, setSourceName] = useState(initial?.sourceName ?? "");
@@ -188,8 +198,8 @@ export function ArticleForm({
   const [coverImageId, setCoverImageId] = useState(initial?.coverImageId ?? "");
   const [coverCredit, setCoverCredit] = useState(initial?.coverCredit ?? "");
   const [coverCaption, setCoverCaption] = useState(initial?.coverCaption ?? "");
-  const [location, setLocation] = useState<ArticleLocationValue>(() =>
-    defaultArticleLocationValue({
+  const [location, setLocation] = useState<ArticleLocationValue>(() => {
+    const fromServer = defaultArticleLocationValue({
       geographicScope: (initial?.geographicScope as ArticleLocationValue["geographicScope"]) || "",
       countryCode: initial?.countryCode || "AR",
       countryName: initial?.countryName || "Argentina",
@@ -200,8 +210,21 @@ export function ArticleForm({
       formattedAddress: initial?.formattedAddress || "",
       latitude: initial?.latitude != null ? String(initial.latitude) : "",
       longitude: initial?.longitude != null ? String(initial.longitude) : "",
-    }),
-  );
+    });
+    // Tras un Server Action Next puede remontar el form con props aún sin alcance.
+    // Recuperar la última elección local de esta nota.
+    if (typeof window !== "undefined" && initial?.id && !fromServer.geographicScope) {
+      try {
+        const cached = sessionStorage.getItem(`infospot.article.scope.${initial.id}`);
+        if (cached) {
+          return { ...fromServer, geographicScope: cached as ArticleLocationValue["geographicScope"] };
+        }
+      } catch {
+        /* private mode */
+      }
+    }
+    return fromServer;
+  });
   /** Drawer móvil / tablet: biblioteca, asistente o configuración. */
   const [sideDrawer, setSideDrawer] = useState<null | "library" | "assistant" | "config">(null);
   /** Desktop: pestaña del rail derecho. */
@@ -230,6 +253,8 @@ export function ArticleForm({
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingLock = useRef(false);
   const pendingDirtyRef = useRef(false);
+  /** true solo tras «Limpiar ubicación» — permite persistir geographicScope null. */
+  const locationClearedRef = useRef(false);
   const saveStateRef = useRef<SaveState>("idle");
   saveStateRef.current = saveState;
 
@@ -270,6 +295,14 @@ export function ArticleForm({
     expectedUpdatedAt,
     location,
   };
+
+  /** Actualiza el snapshot ANTES del re-render (crítico para <select> + autosave). */
+  const touchDraft = useCallback(
+    (partial: Partial<(typeof draftRef)["current"]>) => {
+      draftRef.current = { ...draftRef.current, ...partial };
+    },
+    [],
+  );
 
   useEffect(() => {
     setLocalLinkedAssets(clf?.linkedAssets ?? []);
@@ -420,7 +453,7 @@ export function ArticleForm({
         slug: (snap.slug || snap.autoSlug || "sin-titulo").trim(),
         excerpt: snap.excerpt,
         content: snap.content,
-        categoryId: snap.categoryId || null,
+        categoryId: snap.categoryId || "",
         coverImageId: snap.coverImageId || null,
         coverCredit: snap.coverImageId ? snap.coverCredit : undefined,
         // Enviar siempre el pie si hay portada (también vacío → opcional en schema).
@@ -430,17 +463,23 @@ export function ArticleForm({
         sourceName: snap.sourceName || undefined,
         sourceUrl: snap.sourceUrl || undefined,
         expectedUpdatedAt: snap.expectedUpdatedAt || undefined,
-        geographicScope: snap.location.geographicScope || null,
-        countryCode: snap.location.countryCode || null,
-        countryName: snap.location.countryName || null,
-        province: snap.location.province || null,
-        city: snap.location.city || null,
-        placeName: snap.location.placeName || null,
-        address: snap.location.address || null,
-        formattedAddress: snap.location.formattedAddress || null,
-        latitude: snap.location.latitude || null,
-        longitude: snap.location.longitude || null,
+        // Siempre string (también ""): si mandamos null se omite en el server y
+        // un autosave viejo puede pisar el alcance con null vía Zod.
+        geographicScope: snap.location.geographicScope,
+        countryCode: snap.location.countryCode,
+        countryName: snap.location.countryName,
+        province: snap.location.province,
+        city: snap.location.city,
+        placeName: snap.location.placeName,
+        address: snap.location.address,
+        formattedAddress: snap.location.formattedAddress,
+        latitude: snap.location.latitude,
+        longitude: snap.location.longitude,
+        locationCleared: locationClearedRef.current ? "1" : undefined,
       });
+      if (result.ok && snap.location.geographicScope) {
+        locationClearedRef.current = false;
+      }
       if (!result.ok) {
         nextState = "error";
         setSaveError(result.error);
@@ -767,7 +806,15 @@ export function ArticleForm({
       form={assistantFormState}
       articleId={initial?.id}
       onApplyCategory={(id) => {
+        touchDraft({ categoryId: id });
         setCategoryId(id);
+        if (initial?.id && typeof window !== "undefined") {
+          try {
+            sessionStorage.setItem(`infospot.article.category.${initial.id}`, id);
+          } catch {
+            /* private mode */
+          }
+        }
         markDirty();
       }}
       onApplyTags={(tags) => setSessionTags(tags)}
@@ -886,8 +933,10 @@ export function ArticleForm({
                     id="slug"
                     value={slug || autoSlug}
                     onChange={(e) => {
+                      const next = e.target.value;
                       setSlugTouched(true);
-                      setSlug(e.target.value);
+                      touchDraft({ slug: next });
+                      setSlug(next);
                       markDirty();
                     }}
                     className={fieldClass}
@@ -911,7 +960,9 @@ export function ArticleForm({
                     name="sourceName"
                     value={sourceName}
                     onChange={(e) => {
-                      setSourceName(e.target.value);
+                      const next = e.target.value;
+                      touchDraft({ sourceName: next });
+                      setSourceName(next);
                       markDirty();
                     }}
                     className={fieldClass}
@@ -928,7 +979,9 @@ export function ArticleForm({
                     type="url"
                     value={sourceUrl}
                     onChange={(e) => {
-                      setSourceUrl(e.target.value);
+                      const next = e.target.value;
+                      touchDraft({ sourceUrl: next });
+                      setSourceUrl(next);
                       markDirty();
                     }}
                     className={fieldClass}
@@ -966,7 +1019,9 @@ export function ArticleForm({
                     name="seoTitle"
                     value={seoTitle}
                     onChange={(e) => {
-                      setSeoTitle(e.target.value);
+                      const next = e.target.value;
+                      touchDraft({ seoTitle: next });
+                      setSeoTitle(next);
                       markDirty();
                     }}
                     className={fieldClass}
@@ -983,7 +1038,9 @@ export function ArticleForm({
                     rows={3}
                     value={seoDescription}
                     onChange={(e) => {
-                      setSeoDescription(e.target.value);
+                      const next = e.target.value;
+                      touchDraft({ seoDescription: next });
+                      setSeoDescription(next);
                       markDirty();
                     }}
                     className={fieldClass}
@@ -1043,7 +1100,8 @@ export function ArticleForm({
       ref={formRef}
       action={action}
       className="space-y-6"
-      onInput={markDirty}
+      // No usar onInput en el form: en <select> el evento `input` corre ANTES de
+      // `change` y puede encolar un autosave con categoryId/alcance todavía viejos.
       onSubmit={(e) => {
         if (mode === "edit") {
           e.preventDefault();
@@ -1172,8 +1230,14 @@ export function ArticleForm({
               required
               value={title}
               onChange={(e) => {
-                setTitle(e.target.value);
-                if (!slugTouched) setSlug(slugifyTitle(e.target.value));
+                const next = e.target.value;
+                const nextSlug = !slugTouched ? slugifyTitle(next) : slug;
+                touchDraft({
+                  title: next,
+                  ...( !slugTouched ? { slug: nextSlug, autoSlug: nextSlug } : {}),
+                });
+                setTitle(next);
+                if (!slugTouched) setSlug(nextSlug);
                 markDirty();
               }}
               className="is-input-title"
@@ -1191,7 +1255,9 @@ export function ArticleForm({
               rows={2}
               value={excerpt}
               onChange={(e) => {
-                setExcerpt(e.target.value);
+                const next = e.target.value;
+                touchDraft({ excerpt: next });
+                setExcerpt(next);
                 markDirty();
               }}
               className="is-input-dek"
@@ -1208,7 +1274,18 @@ export function ArticleForm({
               name="categoryId"
               value={categoryId}
               onChange={(e) => {
-                setCategoryId(e.target.value);
+                const next = e.target.value;
+                touchDraft({ categoryId: next });
+                setCategoryId(next);
+                if (initial?.id && typeof window !== "undefined") {
+                  try {
+                    const key = `infospot.article.category.${initial.id}`;
+                    if (next) sessionStorage.setItem(key, next);
+                    else sessionStorage.removeItem(key);
+                  } catch {
+                    /* private mode */
+                  }
+                }
                 markDirty();
               }}
               className={fieldClass}
@@ -1300,11 +1377,20 @@ export function ArticleForm({
 
           <ArticleLocationFields
             value={location}
-            onChange={(next) => {
-              // Actualizar el snapshot ya: un autosave en curso/encolado no debe
-              // leer el alcance anterior y volver a guardar null.
-              draftRef.current = { ...draftRef.current, location: next };
+            onChange={(next, meta) => {
+              if (meta?.cleared) locationClearedRef.current = true;
+              else if (next.geographicScope) locationClearedRef.current = false;
+              touchDraft({ location: next });
               setLocation(next);
+              if (initial?.id && typeof window !== "undefined") {
+                try {
+                  const scopeKey = `infospot.article.scope.${initial.id}`;
+                  if (meta?.cleared || !next.geographicScope) sessionStorage.removeItem(scopeKey);
+                  else sessionStorage.setItem(scopeKey, next.geographicScope);
+                } catch {
+                  /* private mode */
+                }
+              }
               markDirty();
             }}
           />
@@ -1320,6 +1406,7 @@ export function ArticleForm({
               initialMarkdown={content}
               articleId={initial?.id}
               onMarkdownChange={(md) => {
+                touchDraft({ content: md });
                 setContent(md);
               }}
               onDirtyChange={() => markDirty()}

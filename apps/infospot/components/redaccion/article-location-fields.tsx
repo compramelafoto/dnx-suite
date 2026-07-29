@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   GEOGRAPHIC_SCOPES,
   geographicScopeLabel,
@@ -22,7 +22,7 @@ export type ArticleLocationValue = {
 
 type Props = {
   value: ArticleLocationValue;
-  onChange: (next: ArticleLocationValue) => void;
+  onChange: (next: ArticleLocationValue, meta?: { cleared?: boolean }) => void;
 };
 
 const fieldClass = "is-input mt-2";
@@ -55,9 +55,18 @@ export function ArticleLocationFields({ value, onChange }: Props) {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // Valor optimista del select: un remount RSC con props vacías no debe
+  // borrar lo que el redactor acaba de elegir hasta que el padre confirme.
+  const [scopeUi, setScopeUi] = useState(value.geographicScope);
 
-  function patch(next: Partial<ArticleLocationValue>) {
-    onChange({ ...value, ...next });
+  useEffect(() => {
+    if (value.geographicScope) setScopeUi(value.geographicScope);
+  }, [value.geographicScope]);
+
+  function patch(next: Partial<ArticleLocationValue>, meta?: { cleared?: boolean }) {
+    if (meta?.cleared) setScopeUi("");
+    else if (next.geographicScope !== undefined) setScopeUi(next.geographicScope);
+    onChange({ ...value, ...next }, meta);
   }
 
   async function searchPlace() {
@@ -88,6 +97,8 @@ export function ArticleLocationFields({ value, onChange }: Props) {
         throw new Error(data.error || "No se encontró el lugar");
       }
       const hit = data.results[0]!;
+      const nextScope =
+        (scopeUi || value.geographicScope || "LOCAL") as GeographicScope;
       patch({
         latitude: String(hit.latitude),
         longitude: String(hit.longitude),
@@ -98,7 +109,7 @@ export function ArticleLocationFields({ value, onChange }: Props) {
         placeName: hit.locationName || value.placeName,
         address: hit.address || value.address,
         formattedAddress: hit.displayName || q,
-        geographicScope: value.geographicScope || "LOCAL",
+        geographicScope: nextScope,
       });
     } catch (e) {
       setSearchError(e instanceof Error ? e.message : "Error de geocodificación");
@@ -108,26 +119,31 @@ export function ArticleLocationFields({ value, onChange }: Props) {
   }
 
   function clearLocation() {
-    patch({
-      geographicScope: "",
-      province: "",
-      city: "",
-      placeName: "",
-      address: "",
-      formattedAddress: "",
-      latitude: "",
-      longitude: "",
-      countryCode: "AR",
-      countryName: "Argentina",
-    });
+    patch(
+      {
+        geographicScope: "",
+        province: "",
+        city: "",
+        placeName: "",
+        address: "",
+        formattedAddress: "",
+        latitude: "",
+        longitude: "",
+        countryCode: "AR",
+        countryName: "Argentina",
+      },
+      { cleared: true },
+    );
     setQuery("");
   }
 
-  const scope = value.geographicScope;
-  const needsCoords = scope === "LOCAL";
-  const needsCity = scope === "LOCAL";
-  const needsProvince = scope === "LOCAL" || scope === "PROVINCIAL";
-  const needsCountry = scope === "LOCAL" || scope === "PROVINCIAL" || scope === "NATIONAL";
+  const scope = scopeUi || value.geographicScope;
+  const needsCoords = !scope || scope === "LOCAL";
+  const needsCity = !scope || scope === "LOCAL";
+  const needsProvince = !scope || scope === "LOCAL" || scope === "PROVINCIAL";
+  const needsCountry =
+    !scope || scope === "LOCAL" || scope === "PROVINCIAL" || scope === "NATIONAL";
+  const showPlaceDetails = scope !== "UNSPECIFIED";
 
   return (
     <section
@@ -144,7 +160,7 @@ export function ArticleLocationFields({ value, onChange }: Props) {
         </p>
       </div>
 
-      <input type="hidden" name="geographicScope" value={value.geographicScope} />
+      {/* geographicScope va en el <select name="…"> visible (evita duplicar name). */}
       <input type="hidden" name="countryCode" value={value.countryCode} />
       <input type="hidden" name="countryName" value={value.countryName} />
       <input type="hidden" name="province" value={value.province} />
@@ -161,10 +177,13 @@ export function ArticleLocationFields({ value, onChange }: Props) {
         </label>
         <select
           id="geographicScopeSelect"
-          value={value.geographicScope}
-          onChange={(e) =>
-            patch({ geographicScope: e.target.value as GeographicScope | "" })
-          }
+          name="geographicScope"
+          value={scopeUi}
+          onChange={(e) => {
+            const next = e.target.value as GeographicScope | "";
+            setScopeUi(next);
+            patch({ geographicScope: next });
+          }}
           className={fieldClass}
         >
           <option value="">Elegí un alcance…</option>
@@ -176,36 +195,100 @@ export function ArticleLocationFields({ value, onChange }: Props) {
         </select>
       </div>
 
-      {scope && scope !== "UNSPECIFIED" ? (
+      {scope === "UNSPECIFIED" ? (
+        <p className="text-sm leading-relaxed text-[var(--is-muted)]">
+          Esta nota no se priorizará por cercanía en el Home. Solo usá esta opción si
+          genuinamente no corresponde a un lugar.
+        </p>
+      ) : null}
+
+      {/* Georreferencia siempre visible (no depende de haber elegido alcance). */}
+      {showPlaceDetails ? (
+        <div className="rounded-[var(--is-radius-sm)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-bg-secondary)] p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold">Ubicación georreferenciada</p>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--is-muted)]">
+              Buscá un lugar o cargá latitud/longitud. Si todavía no elegiste alcance, al
+              encontrar un punto se sugiere «Local».
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void searchPlace();
+                }
+              }}
+              className="is-input min-w-[12rem] flex-1"
+              placeholder="Ej: Parque Independencia, Rosario"
+              aria-label="Buscar lugar georreferenciado"
+            />
+            <button
+              type="button"
+              disabled={searching}
+              onClick={() => void searchPlace()}
+              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {searching ? "Buscando…" : "Buscar"}
+            </button>
+          </div>
+          {searchError ? <p className="text-sm text-red-700">{searchError}</p> : null}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelClass} htmlFor="articleLat">
+                Latitud {needsCoords ? "*" : ""}
+              </label>
+              <input
+                id="articleLat"
+                value={value.latitude}
+                onChange={(e) => patch({ latitude: e.target.value })}
+                className={fieldClass}
+                inputMode="decimal"
+                placeholder="-32.94"
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="articleLng">
+                Longitud {needsCoords ? "*" : ""}
+              </label>
+              <input
+                id="articleLng"
+                value={value.longitude}
+                onChange={(e) => patch({ longitude: e.target.value })}
+                className={fieldClass}
+                inputMode="decimal"
+                placeholder="-60.65"
+              />
+            </div>
+          </div>
+          {value.latitude && value.longitude ? (
+            <p className="text-xs text-[var(--is-muted)]">
+              Punto: {value.latitude}, {value.longitude}
+              {value.formattedAddress ? ` · ${value.formattedAddress}` : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showPlaceDetails ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
-            {needsCountry ? (
-              <div>
-                <label className={labelClass} htmlFor="articleCountry">
-                  País {needsCountry ? "*" : ""}
-                </label>
-                <input
-                  id="articleCountry"
-                  value={value.countryName}
-                  onChange={(e) => patch({ countryName: e.target.value })}
-                  className={fieldClass}
-                  placeholder="Argentina"
-                />
-              </div>
-            ) : (
-              <div>
-                <label className={labelClass} htmlFor="articleCountryOpt">
-                  País (opcional)
-                </label>
-                <input
-                  id="articleCountryOpt"
-                  value={value.countryName}
-                  onChange={(e) => patch({ countryName: e.target.value })}
-                  className={fieldClass}
-                />
-              </div>
-            )}
-            {needsProvince || scope === "INTERNATIONAL" ? (
+            <div>
+              <label className={labelClass} htmlFor="articleCountry">
+                País {needsCountry ? "*" : "(opcional)"}
+              </label>
+              <input
+                id="articleCountry"
+                value={value.countryName}
+                onChange={(e) => patch({ countryName: e.target.value })}
+                className={fieldClass}
+                placeholder="Argentina"
+              />
+            </div>
+            {needsProvince || scope === "INTERNATIONAL" || !scope ? (
               <div>
                 <label className={labelClass} htmlFor="articleProvince">
                   Provincia / región {needsProvince ? "*" : ""}
@@ -220,7 +303,7 @@ export function ArticleLocationFields({ value, onChange }: Props) {
             ) : null}
           </div>
 
-          {needsCity || scope === "INTERNATIONAL" || scope === "PROVINCIAL" ? (
+          {needsCity || scope === "INTERNATIONAL" || scope === "PROVINCIAL" || !scope ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass} htmlFor="articleCity">
@@ -259,69 +342,7 @@ export function ArticleLocationFields({ value, onChange }: Props) {
               className={fieldClass}
             />
           </div>
-
-          <div className="rounded-[var(--is-radius-sm)] border border-dashed border-[var(--is-border-strong)] bg-[var(--is-bg-secondary)] p-4 space-y-3">
-            <p className="text-sm font-semibold">Buscar lugar (Nominatim)</p>
-            <div className="flex flex-wrap gap-2">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="is-input min-w-[12rem] flex-1"
-                placeholder="Ej: Parque Independencia, Rosario"
-              />
-              <button
-                type="button"
-                disabled={searching}
-                onClick={() => void searchPlace()}
-                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {searching ? "Buscando…" : "Buscar"}
-              </button>
-            </div>
-            {searchError ? <p className="text-sm text-red-700">{searchError}</p> : null}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className={labelClass} htmlFor="articleLat">
-                  Latitud {needsCoords ? "*" : ""}
-                </label>
-                <input
-                  id="articleLat"
-                  value={value.latitude}
-                  onChange={(e) => patch({ latitude: e.target.value })}
-                  className={fieldClass}
-                  inputMode="decimal"
-                  placeholder="-32.94"
-                />
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="articleLng">
-                  Longitud {needsCoords ? "*" : ""}
-                </label>
-                <input
-                  id="articleLng"
-                  value={value.longitude}
-                  onChange={(e) => patch({ longitude: e.target.value })}
-                  className={fieldClass}
-                  inputMode="decimal"
-                  placeholder="-60.65"
-                />
-              </div>
-            </div>
-            {value.latitude && value.longitude ? (
-              <p className="text-xs text-[var(--is-muted)]">
-                Punto: {value.latitude}, {value.longitude}
-                {value.formattedAddress ? ` · ${value.formattedAddress}` : ""}
-              </p>
-            ) : null}
-          </div>
         </>
-      ) : null}
-
-      {scope === "UNSPECIFIED" ? (
-        <p className="text-sm leading-relaxed text-[var(--is-muted)]">
-          Esta nota no se priorizará por cercanía en el Home. Solo usá esta opción si
-          genuinamente no corresponde a un lugar.
-        </p>
       ) : null}
 
       <button

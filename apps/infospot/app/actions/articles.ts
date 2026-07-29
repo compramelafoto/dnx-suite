@@ -15,12 +15,13 @@ import { canTransitionStatus, type ArticleStatus } from "@/lib/article-status";
 import { ensureUniqueSlug } from "@/lib/articles";
 import { slugifyTitle } from "@/lib/slug";
 import { encodeGeohash } from "@/lib/geolocation/geohash";
+import { isGeographicScope } from "@/lib/editorial/article-location";
 
 export type ActionResult =
   | { ok: true; id?: string; message: string; updatedAt?: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
-function articleLocationWriteData(data: {
+type LocationWriteInput = {
   geographicScope?: string | null;
   countryCode?: string | null;
   countryName?: string | null;
@@ -31,7 +32,26 @@ function articleLocationWriteData(data: {
   formattedAddress?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-}) {
+};
+
+const LOCATION_RAW_KEYS = [
+  "geographicScope",
+  "countryCode",
+  "countryName",
+  "province",
+  "city",
+  "placeName",
+  "address",
+  "formattedAddress",
+  "latitude",
+  "longitude",
+] as const;
+
+function articleLocationWriteData(
+  data: LocationWriteInput,
+  /** Si se pasa, solo escribe claves presentes (autosave no pisa alcance con null por omisión). */
+  presentKeys?: ReadonlySet<string>,
+) {
   const lat = data.latitude ?? null;
   const lng = data.longitude ?? null;
   const usable =
@@ -43,24 +63,32 @@ function articleLocationWriteData(data: {
     Math.abs(lat) <= 90 &&
     Math.abs(lng) <= 180;
 
+  const include = (key: string) => !presentKeys || presentKeys.has(key);
+
+  const scopeRaw = data.geographicScope;
+  const scope =
+    typeof scopeRaw === "string" && isGeographicScope(scopeRaw.trim())
+      ? scopeRaw.trim()
+      : null;
+
   return {
-    geographicScope: (data.geographicScope as
-      | "LOCAL"
-      | "PROVINCIAL"
-      | "NATIONAL"
-      | "INTERNATIONAL"
-      | "UNSPECIFIED"
-      | null) ?? null,
-    countryCode: data.countryCode ?? null,
-    countryName: data.countryName ?? null,
-    province: data.province ?? null,
-    city: data.city ?? null,
-    placeName: data.placeName ?? null,
-    address: data.address ?? null,
-    formattedAddress: data.formattedAddress ?? null,
-    latitude: usable ? lat : null,
-    longitude: usable ? lng : null,
-    geohash: usable && lat != null && lng != null ? encodeGeohash(lat, lng) : null,
+    ...(include("geographicScope") ? { geographicScope: scope } : {}),
+    ...(include("countryCode") ? { countryCode: data.countryCode ?? null } : {}),
+    ...(include("countryName") ? { countryName: data.countryName ?? null } : {}),
+    ...(include("province") ? { province: data.province ?? null } : {}),
+    ...(include("city") ? { city: data.city ?? null } : {}),
+    ...(include("placeName") ? { placeName: data.placeName ?? null } : {}),
+    ...(include("address") ? { address: data.address ?? null } : {}),
+    ...(include("formattedAddress")
+      ? { formattedAddress: data.formattedAddress ?? null }
+      : {}),
+    ...(include("latitude") || include("longitude")
+      ? {
+          latitude: usable ? lat : null,
+          longitude: usable ? lng : null,
+          geohash: usable && lat != null && lng != null ? encodeGeohash(lat, lng) : null,
+        }
+      : {}),
   };
 }
 
@@ -368,6 +396,8 @@ export type AutosaveDraftPayload = {
   formattedAddress?: string | null;
   latitude?: number | string | null;
   longitude?: number | string | null;
+  /** "1" = el redactor limpió ubicación a propósito (permite geographicScope null). */
+  locationCleared?: string | null;
 };
 
 function normalizeAutosaveRaw(
@@ -383,10 +413,19 @@ function normalizeAutosaveRaw(
   }
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(input)) {
+    // Conservar "" (p. ej. limpiar alcance). Solo omitir null/undefined.
     if (v == null) continue;
     out[k] = String(v);
   }
   return out;
+}
+
+function locationKeysPresentInRaw(raw: Record<string, string>): Set<string> {
+  const present = new Set<string>();
+  for (const key of LOCATION_RAW_KEYS) {
+    if (key in raw) present.add(key);
+  }
+  return present;
 }
 
 export async function autosaveArticleDraftAction(
@@ -406,6 +445,8 @@ export async function autosaveArticleDraftAction(
       coverOverridden: true,
       updatedAt: true,
       title: true,
+      geographicScope: true,
+      categoryId: true,
     },
   });
   if (!existing) return { ok: false, error: "Noticia no encontrada." };
@@ -462,6 +503,22 @@ export async function autosaveArticleDraftAction(
 
   const slug = await ensureUniqueSlug(data.slug || slugifyTitle(data.title), articleId);
   const coverChanged = data.coverImageId !== existing.coverImageId;
+  const locationPresent = locationKeysPresentInRaw(raw);
+  const locationCleared = raw.locationCleared === "1";
+
+  // No borrar un alcance ya guardado con un autosave stale que manda "".
+  if (
+    locationPresent.has("geographicScope") &&
+    !isGeographicScope(raw.geographicScope) &&
+    !locationCleared &&
+    existing.geographicScope
+  ) {
+    locationPresent.delete("geographicScope");
+  }
+
+  // Un autosave stale con categoryId vacío no debe borrar la categoría ya elegida.
+  const nextCategoryId =
+    data.categoryId || existing.categoryId || null;
 
   const article = await prisma.infoSpotArticle.update({
     where: { id: articleId },
@@ -470,12 +527,12 @@ export async function autosaveArticleDraftAction(
       slug,
       excerpt: data.excerpt || null,
       content: data.content || "",
-      categoryId: data.categoryId,
+      categoryId: nextCategoryId,
       coverImageId: data.coverImageId,
       ...(coverChanged
         ? { coverOverridden: Boolean(data.coverImageId) || existing.coverOverridden }
         : {}),
-      ...articleLocationWriteData(data),
+      ...articleLocationWriteData(data, locationPresent),
       seoTitle: data.seoTitle ?? null,
       seoDescription: data.seoDescription ?? null,
       contentTag: "REAL",
@@ -492,9 +549,8 @@ export async function autosaveArticleDraftAction(
     });
   }
 
-  // Solo listado: revalidar la página de edición remonta el formulario cliente y
-  // puede pisar campos recién elegidos (p. ej. alcance) con props de servidor viejas.
-  revalidatePath("/redaccion");
+  // No revalidatePath acá: el refresh RSC remonta el editor y puede mostrar
+  // alcance vacío si un save concurrente aún no persistió el valor nuevo.
 
   return {
     ok: true,
