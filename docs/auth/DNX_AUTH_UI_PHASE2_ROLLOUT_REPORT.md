@@ -106,7 +106,7 @@ No se agregaron warnings nuevos en pantallas migradas.
 | --- | ----------------- |
 | FotoRank | `tsc` OK · `next build` **PASS** |
 | Clickatón | `selfcheck:auth` OK · `next build` **PASS** |
-| ComprameLaFoto monorepo | Archivos auth OK · `next build` **FAIL** por `@repo/payments` (imports `*.js` inexistentes) — **preexistente**, no introducido por auth-ui |
+| ComprameLaFoto monorepo | Archivos auth OK · `next build` **FAIL** (payments / `node:crypto` en rutas admin) — **preexistente**; mitigaciones parciales en `next.config` + `@repo/auth/messages` |
 
 ---
 
@@ -114,9 +114,10 @@ No se agregaron warnings nuevos en pantallas migradas.
 
 | App | Commit | Deploy ID | Alias / nota |
 | --- | ------ | --------- | ------------ |
-| FotoRank | _(ver git)_ | _(registrar tras deploy)_ | `fotorank.staging.dnxsuite.com` |
-| Clickatón | _(ver git)_ | _(registrar tras deploy)_ | Staging Clickatón |
-| ComprameLaFoto monorepo | _(ver git)_ | Depende de que Vercel resuelva payments o build heredado | Preview monorepo |
+| FotoRank | `07bff77` (UI `356650d` + lockfile) | `dpl_5bAmzho2C9yoMB8xVMxxTJTmr1hm` | `fotorank.staging.dnxsuite.com` — login/register/forgot **200** con `dnx-auth-root` + Google |
+| Clickatón Staging | `07bff77` | `dpl_9EbctZjN7KheeA9artrKsmf83BVn` | `clickaton-staging.vercel.app` — auth-ui confirmado |
+| Clickatón dnxsuite | `07bff77` | `dpl_EoyssfxyRNqwuG4Axy6tGmHfM4kY` | Preview READY |
+| ComprameLaFoto monorepo | `07bff77` | `dpl_DBwdZrHh5ESV85xfARfypf7jiRH9` | **ERROR** build (bundling preexistente) |
 
 ---
 
