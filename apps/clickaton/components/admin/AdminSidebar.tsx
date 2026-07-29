@@ -32,8 +32,8 @@ export function AdminSidebar({ className, onNavigate }: Props) {
         <Wordmark
           href={adminRoutes.dashboard}
           tone="inverse"
-          height={40}
-          className="h-9 w-auto max-w-[11rem]"
+          height={56}
+          className="h-12 w-auto max-w-[10rem]"
         />
         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-ck-text-muted">
           Panel operativo

@@ -24,6 +24,8 @@ type SectionProps = HTMLAttributes<HTMLElement> & {
   as?: ElementType;
   tone?: keyof typeof toneClass;
   grain?: boolean;
+  /** Si es true, no aplica el padding vertical de sección (útil en heroes a viewport). */
+  flush?: boolean;
   children: ReactNode;
 };
 
@@ -31,6 +33,7 @@ export function Section({
   as: Tag = "section",
   tone = "default",
   grain = false,
+  flush = false,
   className,
   children,
   ...props
@@ -38,7 +41,7 @@ export function Section({
   return (
     <Tag
       className={cn(
-        "py-[var(--ck-section-spacing)]",
+        !flush && "py-[var(--ck-section-spacing)]",
         toneClass[tone],
         grain && "ck-grain",
         className,

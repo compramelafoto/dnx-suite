@@ -18,7 +18,7 @@ export const siteConfig = {
   editorialLine: "Salí a buscar el instante.",
   contactEmail: "" as string,
   social: {
-    instagram: "" as string,
+    instagram: "https://www.instagram.com/clickaton.ok/",
     facebook: "" as string,
     youtube: "" as string,
     tiktok: "" as string,

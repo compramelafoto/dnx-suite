@@ -1,32 +1,30 @@
-import { Logo, type LogoVariant } from "@/components/brand/Logo";
+import { Logo } from "@/components/brand/Logo";
 import { cn } from "@/lib/cn";
 
 type WordmarkProps = {
   className?: string;
   /** `null` = marca estática, sin enlace. */
   href?: string | null;
-  /** `inverse` = horizontal color para fondos oscuros (Manual). */
+  /**
+   * Conservado por compatibilidad de API.
+   * En producto se usa siempre el logo principal del Manual de Marca.
+   */
   tone?: "default" | "inverse";
   height?: number;
 };
 
 /**
- * Marca Clickatón en chrome (header/footer).
- * Usa assets oficiales — no reconstrucción tipográfica.
- * En fondos oscuros (`inverse`) se usa el isologotipo color corregido.
+ * Marca Clickatón en chrome (header / footer / admin).
+ * Siempre el logo principal oficial (`/brand/logo-principal.png`).
  */
 export function Wordmark({
   className = "",
   href = null,
-  tone = "default",
-  height = 56,
+  height = 64,
 }: WordmarkProps) {
-  const variant: LogoVariant =
-    tone === "inverse" ? "horizontalWeb" : "horizontal";
-
   return (
     <Logo
-      variant={variant}
+      variant="principal"
       href={href}
       height={height}
       priority

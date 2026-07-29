@@ -12,7 +12,7 @@ export function SiteFooter() {
     <footer className="border-t border-ck-border bg-ck-bg-alt text-ck-text">
       <Container className="grid gap-12 py-16 md:grid-cols-[1.2fr_1fr]">
         <div className="space-y-5">
-          <Wordmark tone="inverse" href="/" height={48} className="h-12 w-auto max-w-[14rem]" />
+          <Wordmark tone="inverse" href="/" height={72} className="h-16 w-auto max-w-[12rem]" />
           <p className="ck-body-sm max-w-md text-ck-text-secondary">{siteConfig.descriptor}</p>
           <p className="ck-body-sm max-w-md text-ck-text-muted">
             Proyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones,

@@ -13,6 +13,7 @@ export function Hero() {
       id={hero.id}
       tone="base"
       grain
+      flush
       className="ck-vignette relative overflow-hidden border-b border-ck-border"
       aria-labelledby="hero-title"
     >
@@ -26,28 +27,28 @@ export function Hero() {
           fill
           priority
           sizes="100vw"
-          className="scale-110 object-cover object-[center_40%] grayscale opacity-[0.14] blur-[6px]"
+          className="scale-105 object-cover object-[center_40%] grayscale opacity-[0.24] blur-[2px]"
         />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.55)_0%,rgb(17_17_17_/_0.72)_45%,rgb(17_17_17_/_0.88)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.4)_0%,rgb(17_17_17_/_0.58)_48%,rgb(17_17_17_/_0.82)_100%)]" />
       </div>
 
-      <Container className="relative z-[2] py-6 sm:py-10 md:py-14 lg:py-20">
+      <Container className="relative z-[2] flex min-h-[calc(100dvh-7rem)] flex-col justify-center py-10 sm:py-12 md:py-14">
         <div className="max-w-3xl">
           <p className="ck-overline text-ck-yellow">{hero.eyebrow}</p>
           <h1
             id="hero-title"
-            className="ck-display-xl mt-[var(--ck-stack-title-to-subtitle)] max-w-[16ch] break-words text-ck-text [overflow-wrap:anywhere]"
+            className="ck-display-xl mt-4 max-w-[16ch] break-words text-ck-text sm:mt-5 [overflow-wrap:anywhere]"
           >
             {hero.title}
           </h1>
-          <p className="ck-accent-script mt-5 text-xl text-ck-text-secondary sm:mt-6 md:text-2xl">
+          <p className="ck-accent-script mt-4 text-xl text-ck-text-secondary sm:mt-5 md:text-2xl">
             {hero.tagline}
           </p>
-          <BrushStroke className="mt-4 sm:mt-5" />
-          <p className="ck-body-lg mt-6 max-w-prose text-ck-text-secondary sm:mt-[var(--ck-stack-subtitle-to-content)]">
+          <BrushStroke className="mt-3 sm:mt-4" />
+          <p className="ck-body-lg mt-6 max-w-prose text-ck-text-secondary sm:mt-7">
             {hero.description}
           </p>
-          <div className="mt-8 flex w-full flex-col gap-3 sm:mt-[var(--ck-stack-content-to-actions)] sm:w-auto sm:flex-row sm:flex-wrap">
+          <div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">
             <Button href={hero.primaryCta.href} className="w-full sm:w-auto">
               {hero.primaryCta.label}
             </Button>
@@ -59,7 +60,7 @@ export function Hero() {
               {hero.secondaryCta.label}
             </Button>
           </div>
-          <p className="ck-caption mt-6 text-ck-text-muted sm:mt-8">
+          <p className="ck-caption mt-6 text-ck-text-muted">
             Mirar · crear · aprender · compartir
           </p>
         </div>

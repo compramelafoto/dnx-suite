@@ -4,9 +4,13 @@
  */
 
 export const brandAssetPaths = {
-  principal: "/brand/logo-principal.png",
+  /**
+   * Logo principal oficial — PNG original del Manual (V3 color, transparencia).
+   * Servido sin optimizer en `Logo` para evitar pixelado.
+   */
+  principal: "/brand/downloads/logos/clickaton-principal-v3-color.png",
   vertical: "/brand/logo-vertical.png",
-  /** Horizontal color oficial con transparencia — header / UI oscura. */
+  /** Horizontal color oficial con transparencia — variante secundaria. */
   horizontal: "/brand/logo-horizontal-color.png",
   /** Alias UI del horizontal color. */
   horizontalWeb: "/brand/logo-horizontal-color.png",
@@ -30,10 +34,10 @@ export type BrandAssetKey = keyof typeof brandAssetPaths;
 /** Variante recomendada por superficie de producto. */
 export const brandAssetUsage = {
   hero: "principal",
-  header: "horizontalWeb",
-  /** Superficies oscuras / catálogo: horizontal color. */
-  horizontalUi: "horizontalWeb",
-  footerDark: "horizontalWeb",
+  header: "principal",
+  /** Chrome / UI / footer: logo principal del Manual. */
+  horizontalUi: "principal",
+  footerDark: "principal",
   favicon: "favicon32",
   openGraph: "ogDefault",
 } as const;

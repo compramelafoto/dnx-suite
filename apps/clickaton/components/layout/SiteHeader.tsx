@@ -7,12 +7,24 @@ import { Wordmark } from "@/components/brand/Wordmark";
 import { AccountMenu, type HeaderAuthUser } from "@/components/layout/AccountMenu";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/Button";
-import { headerCta, mainNavigation } from "@/config/navigation";
+import {
+  aboutSectionNavigation,
+  headerCta,
+  mainNavigation,
+  routes,
+} from "@/config/navigation";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { cn } from "@/lib/cn";
 
 function isActivePath(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const pathOnly = href.split("#")[0] || href;
+  return pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
+}
+
+function isAboutSectionLink(href: string, hash: string) {
+  if (!href.includes("#")) return false;
+  const targetHash = href.split("#")[1] || "";
+  return hash === `#${targetHash}`;
 }
 
 type Props = {
@@ -22,9 +34,12 @@ type Props = {
 export function SiteHeader({ authUser = null }: Props) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [hash, setHash] = useState("");
   const panelId = useId();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
+  const onAboutPage = pathname === routes.about;
+  const navigation = onAboutPage ? aboutSectionNavigation : mainNavigation;
 
   useEffect(() => {
     if (!open) return;
@@ -47,6 +62,13 @@ export function SiteHeader({ authUser = null }: Props) {
 
   useEffect(() => {
     setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const syncHash = () => setHash(window.location.hash);
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
   }, [pathname]);
 
   useEffect(() => {
@@ -77,15 +99,20 @@ export function SiteHeader({ authUser = null }: Props) {
           <Wordmark
             href="/"
             tone="inverse"
-            height={72}
-            className="h-12 w-auto max-w-[15.5rem] sm:h-[3.25rem] sm:max-w-[17rem] md:h-14 md:max-w-[19.5rem]"
+            height={80}
+            className="h-14 w-auto max-w-[10.5rem] sm:h-16 sm:max-w-[12rem] md:h-[4.5rem] md:max-w-[13.5rem]"
           />
         </div>
 
         <div className="ml-auto hidden items-center gap-6 lg:gap-8 xl:flex 2xl:gap-10">
-          <nav className="flex items-center gap-1" aria-label="Principal">
-            {mainNavigation.map((item) => {
-              const active = isActivePath(pathname, item.href);
+          <nav
+            className="flex items-center gap-1"
+            aria-label={onAboutPage ? "Secciones Sobre Clickatón" : "Principal"}
+          >
+            {navigation.map((item) => {
+              const active = onAboutPage
+                ? isAboutSectionLink(item.href, hash)
+                : isActivePath(pathname, item.href);
 
               return (
                 <Link
@@ -98,6 +125,11 @@ export function SiteHeader({ authUser = null }: Props) {
                       : "text-ck-text-secondary hover:text-ck-text",
                   )}
                   aria-current={active ? "page" : undefined}
+                  onClick={() => {
+                    if (item.href.includes("#")) {
+                      setHash(`#${item.href.split("#")[1] || ""}`);
+                    }
+                  }}
                 >
                   {active ? (
                     <span className="relative">
@@ -211,9 +243,14 @@ export function SiteHeader({ authUser = null }: Props) {
                 Cerrar
               </Button>
             </div>
-            <nav className="flex flex-col gap-1 py-4" aria-label="Móvil">
-              {mainNavigation.map((item) => {
-                const active = isActivePath(pathname, item.href);
+            <nav
+              className="flex flex-col gap-1 py-4"
+              aria-label={onAboutPage ? "Secciones Sobre Clickatón" : "Móvil"}
+            >
+              {navigation.map((item) => {
+                const active = onAboutPage
+                  ? isAboutSectionLink(item.href, hash)
+                  : isActivePath(pathname, item.href);
 
                 return (
                   <Link
@@ -226,7 +263,12 @@ export function SiteHeader({ authUser = null }: Props) {
                         : "text-ck-text hover:bg-ck-surface-strong",
                     )}
                     aria-current={active ? "page" : undefined}
-                    onClick={() => setOpen(false)}
+                    onClick={() => {
+                      if (item.href.includes("#")) {
+                        setHash(`#${item.href.split("#")[1] || ""}`);
+                      }
+                      setOpen(false);
+                    }}
                   >
                     {item.label}
                   </Link>

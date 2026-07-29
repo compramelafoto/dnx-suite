@@ -15,9 +15,10 @@ Extraídos de la lámina oficial (no reinterpretados):
 
 | Archivo | Uso |
 |---------|-----|
-| `logo-principal.png` | Logo stacked / sticker (fondos oscuros, hero) |
+| `downloads/logos/clickaton-principal-v3-color.png` | Logo principal oficial V3 (chrome, hero, auth, footer) |
+| `logo-principal.png` | Copia del principal V3 (compat) |
 | `logo-vertical.png` | Vertical color (fondos claros) |
-| `logo-horizontal-color.png` | Horizontal color oficial (transparencia) — header |
+| `logo-horizontal-color.png` | Horizontal color (variante secundaria / legado) |
 | `logo-horizontal.png` / `-web.png` | Copias del color (compat) |
 | `logo-horizontal-prev.png` | Backup del horizontal anterior |
 | `logo-horizontal-mono.png` | Horizontal monocromático (legado) |
@@ -48,9 +49,9 @@ API en código:
 
 | Contexto | Variante |
 |----------|----------|
-| Hero Home | `principal` |
-| Header | `horizontalWeb` (Wordmark color) |
-| Footer oscuro | `horizontalWeb` |
+| Hero / chrome / auth | `principal` (`logo-principal.png`) |
+| Header | `principal` (Wordmark) |
+| Footer oscuro | `principal` |
 | Favicon | `/favicon.png` + `/brand/favicon-32.png` (lectura pequeña) |
 | Open Graph | `/og-default.png` |
 

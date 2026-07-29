@@ -15,7 +15,8 @@ export const routes = {
   foundingAllies: "/formar-parte",
   /** Landing institucional para empresas e instituciones que quieran acompañar Clickatón. */
   joinUs: "/formar-parte",
-  about: "/nosotros",
+  /** Página institucional Sobre Clickatón (`/nosotros` redirige aquí). */
+  about: "/sobre",
   contact: "/contacto",
   /** Manual de marca público para sedes y diseñadores. */
   brandManual: "/manualdemarca",
@@ -52,6 +53,19 @@ export const mainNavigation: readonly NavItem[] = [
   { label: "Formá parte", href: routes.joinUs },
 ] as const;
 
+/**
+ * Navegación in-page del header cuando estás en `/sobre`.
+ * Los href apuntan a anclas de sección de la página institucional.
+ */
+export const aboutSectionNavigation: readonly NavItem[] = [
+  { label: "Qué es", href: `${routes.about}#que-es` },
+  { label: "Visión", href: `${routes.about}#vision` },
+  { label: "Equipo", href: `${routes.about}#equipo` },
+  { label: "Expansión", href: `${routes.about}#expansion` },
+  { label: "Experiencia", href: `${routes.about}#experiencia` },
+  { label: "Comunidad", href: `${routes.about}#comunidad` },
+] as const;
+
 /** Footer: nav principal + páginas institucionales. */
 export const footerNavigation: readonly NavItem[] = [
   { label: "Maratones", href: routes.marathons },
@@ -59,7 +73,7 @@ export const footerNavigation: readonly NavItem[] = [
   { label: "Comunidad", href: routes.community },
   { label: "Llevá Clickatón a tu ciudad", href: routes.organize },
   { label: "Formá parte", href: routes.joinUs },
-  { label: "Nosotros", href: routes.about },
+  { label: "Sobre Clickatón", href: routes.about },
   { label: "Manual de marca", href: routes.brandManual },
   { label: "Contacto", href: routes.contact },
 ] as const;

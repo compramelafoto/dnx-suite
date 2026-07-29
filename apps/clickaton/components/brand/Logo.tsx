@@ -29,13 +29,14 @@ export type LogoVariant =
 
 type LogoProps = {
   variant?: LogoVariant;
-  /** Altura aproximada en px (ancho se adapta). */
+  /** Altura de visualización aproximada en px (ancho se adapta). */
   height?: number;
   className?: string;
   href?: string | null;
   priority?: boolean;
 };
 
+/** Dimensiones intrínsecas del archivo fuente (no el tamaño en pantalla). */
 const variantMeta: Record<
   LogoVariant,
   { src: string; width: number; height: number }
@@ -62,8 +63,8 @@ const variantMeta: Record<
   },
   principal: {
     src: brandAssetPaths.principal,
-    width: 395,
-    height: 310,
+    width: 1024,
+    height: 485,
   },
   mono: {
     src: brandAssetPaths.mono,
@@ -89,40 +90,41 @@ const variantMeta: Record<
 
 /**
  * Variantes oficiales del logo Clickatón (Manual de Marca).
- * No reinterpretar ni reconstruir tipográficamente el wordmark.
+ * Se sirve el PNG original sin optimizador Next (`unoptimized`) para evitar
+ * pixelado en tipografía e isotipo — especialmente en pantallas retina.
  */
 export function Logo({
-  variant = "horizontalWeb",
+  variant = "principal",
   height = 40,
   className,
   href = "/",
   priority = false,
 }: LogoProps) {
   const meta = variantMeta[variant];
-  const scale = height / meta.height;
-  const width = Math.round(meta.width * scale);
+  const displayWidth = Math.round((meta.width / meta.height) * height);
   const sizedByClass = Boolean(className && /\bh-/.test(className));
 
-  const imageClassName = cn(
-    "w-auto max-w-none object-contain bg-transparent",
-    sizedByClass ? null : "h-auto",
-    href === null ? className : undefined,
+  const image = (
+    <Image
+      src={meta.src}
+      alt={href === null ? siteConfig.nameFull : ""}
+      width={meta.width}
+      height={meta.height}
+      priority={priority}
+      unoptimized
+      sizes={`${displayWidth}px`}
+      className={cn(
+        "w-auto max-w-none object-contain bg-transparent",
+        sizedByClass ? (href === null ? className : "h-full") : "h-auto",
+        href === null && !sizedByClass ? className : undefined,
+      )}
+      style={sizedByClass ? undefined : { height, width: "auto" }}
+      aria-hidden={href === null ? undefined : true}
+    />
   );
 
-  const imageStyle = sizedByClass ? undefined : { height, width: "auto" as const };
-
   if (href === null) {
-    return (
-      <Image
-        src={meta.src}
-        alt={siteConfig.nameFull}
-        width={width}
-        height={height}
-        priority={priority}
-        className={imageClassName}
-        style={imageStyle}
-      />
-    );
+    return image;
   }
 
   return (
@@ -131,19 +133,7 @@ export function Logo({
       className={cn("inline-flex items-center bg-transparent", className)}
       aria-label={`${siteConfig.name} — inicio`}
     >
-      <Image
-        src={meta.src}
-        alt=""
-        width={width}
-        height={height}
-        priority={priority}
-        className={cn(
-          "w-auto max-w-none object-contain bg-transparent",
-          sizedByClass ? "h-full" : "h-auto",
-        )}
-        style={imageStyle}
-        aria-hidden
-      />
+      {image}
     </a>
   );
 }

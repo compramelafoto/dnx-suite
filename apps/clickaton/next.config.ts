@@ -51,6 +51,11 @@ const nextConfig: NextConfig = {
         destination: "/formar-parte",
         permanent: true,
       },
+      {
+        source: "/nosotros",
+        destination: "/sobre",
+        permanent: true,
+      },
     ];
   },
 };

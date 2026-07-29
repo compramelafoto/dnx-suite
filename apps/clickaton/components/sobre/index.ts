@@ -1,0 +1,12 @@
+export { AboutClosing } from "@/components/sobre/AboutClosing";
+export { AboutCommunityCta } from "@/components/sobre/AboutCommunityCta";
+export { AboutExperience } from "@/components/sobre/AboutExperience";
+export { AboutExpansion } from "@/components/sobre/AboutExpansion";
+export { AboutFinalPhrase } from "@/components/sobre/AboutFinalPhrase";
+export { AboutHero } from "@/components/sobre/AboutHero";
+export { AboutMoreThan } from "@/components/sobre/AboutMoreThan";
+export { AboutOrigin } from "@/components/sobre/AboutOrigin";
+export { AboutTeam } from "@/components/sobre/AboutTeam";
+export { AboutTechAndJury } from "@/components/sobre/AboutTechAndJury";
+export { AboutVision } from "@/components/sobre/AboutVision";
+export { AboutWhatIs } from "@/components/sobre/AboutWhatIs";
