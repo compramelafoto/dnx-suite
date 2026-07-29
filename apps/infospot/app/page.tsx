@@ -114,14 +114,12 @@ export default async function HomePage({ searchParams }: Props) {
   });
 
   const home = composeHomeEditorial(editorialData);
-  const banner = core.banner[0] ?? null;
+  const banners = core.banner;
   const nearEvents = nearby.length > 0 ? nearby : upcomingFallback;
 
   /** Evitar duplicar hero / destacados en el feed unificado. */
   const feedExcludeContentKeys = [
-    banner
-      ? `${banner.kind === "event" ? "event" : "article"}:${banner.id}`
-      : null,
+    ...banners.map((b) => `${b.kind === "event" ? "event" : "article"}:${b.id}`),
     ...core.featured.slice(0, 3).map((e) => `event:${e.id}`),
     home.featured ? `article:${home.featured.id}` : null,
   ].filter((k): k is string => Boolean(k));
@@ -129,7 +127,7 @@ export default async function HomePage({ searchParams }: Props) {
   return (
     <HomeAdaptiveSections
       experience={experience}
-      banner={banner}
+      banners={banners}
       home={home}
       featured={core.featured}
       upcoming={core.upcoming}

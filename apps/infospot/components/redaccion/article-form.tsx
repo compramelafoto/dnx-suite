@@ -1224,13 +1224,15 @@ export function ArticleForm({
             <label className="sr-only" htmlFor="title">
               Título
             </label>
-            <input
+            <textarea
               id="title"
               name="title"
               required
+              rows={2}
               value={title}
               onChange={(e) => {
-                const next = e.target.value;
+                // Una sola línea lógica: Enter no inserta saltos; el wrap es visual.
+                const next = e.target.value.replace(/\n+/g, " ");
                 const nextSlug = !slugTouched ? slugifyTitle(next) : slug;
                 touchDraft({
                   title: next,
@@ -1239,6 +1241,9 @@ export function ArticleForm({
                 setTitle(next);
                 if (!slugTouched) setSlug(nextSlug);
                 markDirty();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.preventDefault();
               }}
               className="is-input-title"
               placeholder="Título de la historia"

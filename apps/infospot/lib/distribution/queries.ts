@@ -455,7 +455,8 @@ export async function getHomepageBannerItems(options?: {
       placementType: "HERO",
       isActive: true,
     },
-    orderBy: [{ priority: "desc" }, { sortOrder: "asc" }, { createdAt: "desc" }],
+    // sortOrder define el orden del slider; priority queda como peso secundario.
+    orderBy: [{ sortOrder: "asc" }, { priority: "desc" }, { createdAt: "desc" }],
     take: 20,
     include: {
       article: {
@@ -606,7 +607,7 @@ export async function getHomepageDistribution(opts?: {
 }): Promise<HomepageDistributionPayload> {
   const [banner, upcoming, featured, photographerCalls, coverages, nearby] =
     await Promise.all([
-      getHomepageBannerItems({ limit: 1 }),
+      getHomepageBannerItems({ limit: 6 }),
       getUpcomingEvents({ limit: 8 }),
       getFeaturedEvents({ limit: 4 }),
       getPhotographerCallEvents({ limit: 6 }),
@@ -636,7 +637,7 @@ export const getCachedHomepageCore = unstable_cache(
   async () => {
     const [banner, upcoming, featured, photographerCalls, coverages] =
       await Promise.all([
-        getHomepageBannerItems({ limit: 1 }),
+        getHomepageBannerItems({ limit: 6 }),
         getUpcomingEvents({ limit: 8 }),
         getFeaturedEvents({ limit: 4 }),
         getPhotographerCallEvents({ limit: 6 }),
@@ -644,7 +645,7 @@ export const getCachedHomepageCore = unstable_cache(
       ]);
     return { banner, upcoming, featured, photographerCalls, coverages };
   },
-  ["infospot-homepage-core-v1"],
+  ["infospot-homepage-core-v2"],
   { revalidate: 120, tags: ["infospot-home", "infospot-home-core"] },
 );
 

@@ -21,24 +21,42 @@ export default async function DistribucionPage() {
 
   const [placements, articles, events, eventFlags] = await Promise.all([
     prisma.infoSpotHomepagePlacement.findMany({
-      orderBy: [{ priority: "desc" }, { sortOrder: "asc" }],
+      orderBy: [{ sortOrder: "asc" }, { priority: "desc" }],
       take: 40,
       include: {
-        article: { select: { id: true, title: true, slug: true } },
-        event: { select: { id: true, title: true, slug: true } },
+        article: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            coverImage: { select: { url: true } },
+          },
+        },
+        event: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            coverImageUrl: true,
+          },
+        },
       },
     }),
     prisma.infoSpotArticle.findMany({
       where: { status: "PUBLISHED" },
       orderBy: { publishedAt: "desc" },
       take: 40,
-      select: { id: true, title: true },
+      select: {
+        id: true,
+        title: true,
+        coverImage: { select: { url: true } },
+      },
     }),
     prisma.infoSpotEvent.findMany({
       where: { status: "PUBLISHED" },
       orderBy: { startAt: "asc" },
       take: 40,
-      select: { id: true, title: true },
+      select: { id: true, title: true, coverImageUrl: true },
     }),
     prisma.infoSpotEvent.findMany({
       where: { status: "PUBLISHED" },
@@ -54,8 +72,18 @@ export default async function DistribucionPage() {
   ]);
 
   const publishedOptions = [
-    ...events.map((e) => ({ id: e.id, title: e.title, kind: "event" as const })),
-    ...articles.map((a) => ({ id: a.id, title: a.title, kind: "article" as const })),
+    ...events.map((e) => ({
+      id: e.id,
+      title: e.title,
+      kind: "event" as const,
+      coverUrl: e.coverImageUrl,
+    })),
+    ...articles.map((a) => ({
+      id: a.id,
+      title: a.title,
+      kind: "article" as const,
+      coverUrl: a.coverImage?.url ?? null,
+    })),
   ];
 
   return (
@@ -71,7 +99,8 @@ export default async function DistribucionPage() {
           Portada
         </h1>
         <p className="mt-3 text-base leading-relaxed text-[var(--is-muted)]">
-          Qué se destaca en la home. Una acción primaria: elegir o ajustar lo publicado.
+          Armá el slider del HERO con varias notas y reordenalas arrastrando las
+          tarjetas.
         </p>
       </header>
       <DistributionAdminPanel
@@ -84,8 +113,22 @@ export default async function DistribucionPage() {
           startsAt: p.startsAt?.toISOString() ?? null,
           endsAt: p.endsAt?.toISOString() ?? null,
           customTitle: p.customTitle,
-          article: p.article,
-          event: p.event,
+          article: p.article
+            ? {
+                id: p.article.id,
+                title: p.article.title,
+                slug: p.article.slug,
+                coverUrl: p.article.coverImage?.url ?? null,
+              }
+            : null,
+          event: p.event
+            ? {
+                id: p.event.id,
+                title: p.event.title,
+                slug: p.event.slug,
+                coverUrl: p.event.coverImageUrl,
+              }
+            : null,
         }))}
         publishedOptions={publishedOptions}
         events={eventFlags}

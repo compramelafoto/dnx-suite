@@ -42,14 +42,8 @@ export function HomeEditorialBanner({ item }: { item: DistributionBannerItem | n
             </p>
           ) : null}
           <div className="flex flex-wrap gap-3 pt-2">
-            <Link href={item.href} className="is-btn is-btn-on-dark h-11 px-6 text-sm">
-              {item.kind === "event" ? "Ver evento" : "Leer cobertura"}
-            </Link>
-            <Link
-              href="/publicar-evento"
-              className="is-btn is-btn-outline-on-dark h-11 px-5 text-sm font-medium"
-            >
-              Publicar mi evento
+            <Link href={item.href} className="is-btn is-btn-on-dark h-11 min-w-[8.5rem] px-6 text-sm">
+              Ver más
             </Link>
           </div>
         </div>

@@ -2,6 +2,7 @@ export { HomeActualidadStrip } from "./HomeActualidadStrip";
 export { HomeHero } from "./HomeHero";
 export { HomePlatformHero } from "./HomePlatformHero";
 export { HomeEditorialBanner } from "./HomeEditorialBanner";
+export { HomeHeroSlider } from "./HomeHeroSlider";
 export { HomeOrganizerPitch } from "./HomeOrganizerPitch";
 export { HomeHowItWorks } from "./HomeHowItWorks";
 export { HomeWhyPublish } from "./HomeWhyPublish";

@@ -1,8 +1,8 @@
 import { Suspense, type ReactNode } from "react";
 import {
   HomeCategoryBlocks,
-  HomeEditorialBanner,
   HomeFeaturedEvents,
+  HomeHeroSlider,
   HomeHowItWorks,
   HomeInstitutionalBlock,
   HomeLatestCoverages,
@@ -16,6 +16,7 @@ import {
   HomeUpcomingEvents,
   HomeWhyPublish,
 } from "@/components/home";
+import type { DistributionBannerItem } from "@/lib/distribution";
 import { HomeExperienceSwitcher } from "@/components/home/HomeExperienceSwitcher";
 import { HomeNearbyFeedStrip } from "@/components/home/HomeNearbyFeedStrip";
 import { NewsletterOrFollowBlock } from "@/components/editorial/newsletter-follow-block";
@@ -25,7 +26,6 @@ import type { HomeBlockId, HomeExperience } from "@/lib/home-experience";
 import type { PublicProfileType } from "@/lib/dnx-user-profiles";
 import type { InfoSpotFeedItem, InfoSpotFeedItemDto } from "@/lib/feed/client";
 
-type BannerItem = Parameters<typeof HomeEditorialBanner>[0]["item"];
 type EventList = Parameters<typeof HomeFeaturedEvents>[0]["events"];
 type CallList = Parameters<typeof HomePhotographersCall>[0]["events"];
 type CoverageList = Parameters<typeof HomeLatestCoverages>[0]["coverages"];
@@ -33,7 +33,8 @@ type NearList = Parameters<typeof HomeNearYouBlock>[0]["events"];
 
 type Props = {
   experience: HomeExperience;
-  banner: BannerItem | null;
+  /** Slides del HERO (0 = platform hero; 1+ = slider). */
+  banners: DistributionBannerItem[];
   home: HomeComposition;
   featured: EventList;
   upcoming: EventList;
@@ -71,7 +72,7 @@ function plainSection(children: ReactNode, key: string) {
  */
 export function HomeAdaptiveSections({
   experience,
-  banner,
+  banners,
   home,
   featured,
   upcoming,
@@ -116,7 +117,7 @@ export function HomeAdaptiveSections({
 
   for (const block of experience.blocks) {
     const section = renderBlock(block, {
-      banner,
+      banners,
       home,
       featured,
       upcoming,
@@ -145,7 +146,7 @@ export function HomeAdaptiveSections({
 function renderBlock(
   block: HomeBlockId,
   ctx: {
-    banner: BannerItem | null;
+    banners: DistributionBannerItem[];
     home: HomeComposition;
     featured: EventList;
     upcoming: EventList;
@@ -166,8 +167,8 @@ function renderBlock(
 ): ReactNode {
   switch (block) {
     case "hero":
-      return ctx.banner ? (
-        <HomeEditorialBanner key="hero" item={ctx.banner} />
+      return ctx.banners.length > 0 ? (
+        <HomeHeroSlider key="hero" items={ctx.banners} />
       ) : (
         <HomePlatformHero key="hero" />
       );

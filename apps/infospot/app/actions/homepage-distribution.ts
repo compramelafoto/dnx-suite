@@ -117,6 +117,56 @@ export async function deactivateHomepagePlacementAction(
   return { ok: true };
 }
 
+const MAX_HERO_SLIDES = 6;
+
+/** Reordena slides activos del HERO (sortOrder = índice; priority = peso inverso). */
+export async function reorderHomepageHeroPlacementsAction(
+  orderedIds: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const access = await requireInfoSpotRedaccionAccess();
+  if (!canManageInfoSpotDistribution(access.subject)) {
+    return { ok: false, error: "Sin permiso." };
+  }
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+    return { ok: false, error: "Lista vacía." };
+  }
+  if (orderedIds.length > MAX_HERO_SLIDES) {
+    return { ok: false, error: `Máximo ${MAX_HERO_SLIDES} notas en el banner.` };
+  }
+  if (new Set(orderedIds).size !== orderedIds.length) {
+    return { ok: false, error: "IDs duplicados." };
+  }
+
+  const rows = await prisma.infoSpotHomepagePlacement.findMany({
+    where: {
+      id: { in: orderedIds },
+      placementType: "HERO",
+      isActive: true,
+    },
+    select: { id: true },
+  });
+  if (rows.length !== orderedIds.length) {
+    return { ok: false, error: "Hay slides inválidos o inactivos." };
+  }
+
+  const n = orderedIds.length;
+  await prisma.$transaction(
+    orderedIds.map((id, index) =>
+      prisma.infoSpotHomepagePlacement.update({
+        where: { id },
+        data: {
+          sortOrder: index,
+          priority: Math.max(0, n - index),
+          updatedByUserId: access.user.id,
+        },
+      }),
+    ),
+  );
+
+  revalidateHome();
+  return { ok: true };
+}
+
 export async function updateEventDistributionFlagsAction(input: {
   eventId: string;
   editorialPriority?: number;
