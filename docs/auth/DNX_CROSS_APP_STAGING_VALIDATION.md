@@ -1,12 +1,12 @@
 # Validación cross-app Staging — identidad DNX
 
 **Fecha:** 2026-07-29  
-**Etapa:** 10B.6.2  
+**Etapa:** 10B.6.3  
 
 **Estado:**
 
 ```text
-FOTORANK DOMAIN MIGRATION BLOCKED
+DNX UNIVERSAL ACCOUNT READY IN STAGING
 ```
 
 ---
@@ -17,54 +17,61 @@ FOTORANK DOMAIN MIGRATION BLOCKED
 | ------- | --------- |
 | `NEON_API_KEY` en env del proceso | Ausente |
 | Auth efectiva | OAuth `neonctl` — válida |
-| Clickatón Staging `plain-sky-50672248` / `ep-divine-smoke…` | OK |
+| Org visible | Dnx (`org-bold-morning-27184918`) |
 | DNX Staging Identity `fragrant-union-80829821` / `ep-round-fog…` / `neondb` | OK |
-| FotoRank `ep-empty-moon…` | **No** en org — permission/visibility insuficiente para ese host |
+| FotoRank histórico `ep-empty-moon…` | **No** en org — clasificado `IDENTITY_ONLY_OR_DISPOSABLE` (ver discovery FR) |
 
 No se usó Production.
 
 ---
 
-## 2. Topología post-cutover (sanitizada)
+## 2. Topología Staging (sanitizada)
 
 | App / rol | Host | DB | Estado |
 | --------- | ---- | -- | ------ |
-| Clickatón Staging (runtime) | `ep-round-fog-a4xgibtv-pooler…` | `neondb` | **Identidad compartida** — health 6 ediciones |
-| Origen Clickatón (conservado) | `ep-divine-smoke-av8hmt7s…` | `clickaton_staging` | Intacta (no delete) |
-| ComprameLaFoto monorepo Preview | `ep-round-fog…` | `neondb` | Misma DB identidad |
-| FotoRank Preview (objetivo) | override Encrypted branch → identidad | `neondb` | Env alineada; **deploy ERROR**; dominio vacío (0 contests) |
-| FotoRank histórico | `ep-empty-moon…` | ? | Inaccesible vía Neon API org Dnx |
-
-`source != destination` en el cutover: divine-smoke ≠ round-fog.
+| Clickatón Staging | `ep-round-fog-a4xgibtv-pooler…` | `neondb` | Identidad + dominio OK |
+| Origen Clickatón (conservado) | `ep-divine-smoke…` | `clickaton_staging` | Intacta |
+| ComprameLaFoto monorepo Preview | `ep-round-fog…` | `neondb` | Misma identidad |
+| FotoRank Preview / Staging alias | `ep-round-fog…` | `neondb` | Identidad DNX; dominio FR tablas OK, contests=0 |
+| FotoRank Production | `ep-dawn-dew…` | (prod) | **No tocada** |
 
 ---
 
 ## 3. Backups
 
-| Nombre lógico | Branch Neon | Endpoint | Verificado |
-| ------------- | ----------- | -------- | ---------- |
-| `backup-before-identity-cutover` | `br-polished-night-avzrcfq6` | `ep-winter-unit…` | Editions 6 / Users 7 / Regs 11 / migs 85 |
-| `backup-before-clickaton-import` | `br-patient-breeze-a4zmb4pl` | `ep-purple-dawn…` | Users 3 / Sessions 40 / sin Clickatón |
+| Nombre lógico | Branch Neon | Notas |
+| ------------- | ----------- | ----- |
+| `backup-before-identity-cutover` | `br-polished-night-…` | Pre-cutover identidad |
+| `backup-before-clickaton-import` | `br-patient-breeze-…` | Pre-import Clickatón |
+| `backup-before-fotorank-import` | `br-rough-base-a482gvuw` | Pre-trabajo FotoRank 10B.6.3 |
 
 ---
 
-## 4. Cutover Clickatón
+## 4. Cutover Clickatón (no re-ejecutado en 10B.6.3)
 
-| Paso | Estado |
-| ---- | ------ |
-| migrate deploy destino | OK (~89 migrations) |
-| Dry-run | Limpio |
-| Execute phase 1 (users + map) | OK — batch `cutover-2026-07-29T07:13:48.698Z` |
-| Phase 2 (dominio + remap FK) | OK |
-| Integridad crítica | **0** diffs (Editions/Venues/Tickets/Regs) |
-| Orphan FKs | 0 |
-| Email duplicates | 0 |
-
-Deploy Clickatón Staging: `dpl_4XU5Xd9aCGgZGHBfEVnoS8LnKfLg`.
+Batch: `cutover-2026-07-29T07:13:48.698Z`  
+Integridad: Editions 6/6, Registrations 11/11, diffs críticos 0, orphans 0.  
+Deploy Clickatón: `dpl_4XU5Xd9aCGgZGHBfEVnoS8LnKfLg` (etapa 10B.6.2).
 
 ---
 
-## 5. Fixtures 1–6
+## 5. FotoRank 10B.6.3
+
+| Tema | Resultado |
+| ---- | --------- |
+| empty-moon | Sin import — `FOTORANK SOURCE DOMAIN EMPTY — NO IMPORT REQUIRED` |
+| Schema/client drift jury/rules | Corregido (`packages/db` fuente única) |
+| Runtime Preview | Fix `ERR_REQUIRE_ESM` (quitar `"type": "module"`) |
+| Commit | `f308683` |
+| Deploy | `dpl_DLpvW5PN5vjihaMvBYGGoXyyJbbQ` |
+| Alias | `https://fotorank.staging.dnxsuite.com` |
+| Health | `ok:true`, host `ep-round-fog-a4xgibtv-pooler`, contests=0, editions=6 |
+
+Detalle: `docs/fotorank/FOTORANK_STAGING_DOMAIN_CUTOVER_REPORT.md`.
+
+---
+
+## 6. Fixtures 1–6 (DB identidad compartida)
 
 Comando: `pnpm auth:cross-app:fixtures` (DB = round-fog).
 
@@ -72,42 +79,53 @@ Comando: `pnpm auth:cross-app:fixtures` (DB = round-fog).
 ALL FIXTURES PASS
 ```
 
-Mismo `User.id` en registro/login/reset/Google para los casos 2–6; fixture 1 confirma seed histórico CLF monorepo.
+| # | Caso | Resultado |
+| - | ---- | --------- |
+| 1 | Usuario histórico CLF monorepo | OK — mismo `User.id` |
+| 2 | Registro Clickatón → password shared | OK |
+| 3 | Registro FotoRank → login shared | OK |
+| 4 | Reset password → mismo `User.id` cross-app | OK |
+| 5 | Email+password + Google → un solo `User.id` | OK |
+| 6 | Google-only → set password → login email | OK |
+
+Mapeo solicitado etapa (A–F) cubierto por fixtures 1–6 anteriores.
 
 ---
 
-## 6. FotoRank — por qué no READY
+## 7. Smoke dominio FotoRank Staging
 
-1. No hay proyecto Neon con `ep-empty-moon…` en la org → no backup API ni export dominio.  
-2. Round-fog tiene tablas Fotorank* WIP (jury/results/rules) **sin** modelos Prisma alineados → Preview build ERROR.  
-3. `FotorankContest` count en destino = **0** → no hay migración de dominio de concursos.  
-4. Production FotoRank no se tocó (correcto).
-
-Desbloqueo mínimo para pasar a READY:
-
-- Recuperar acceso al proyecto/host empty-moon **o** confirmar que Preview nunca tuvo datos críticos.  
-- Alinear `schema.prisma` + client con migraciones ya aplicadas (o revertir tablas WIP).  
-- Deploy Preview verde apuntando a round-fog.  
-- Re-ejecutar fixtures + smoke login FotoRank.
+Rutas principales (home, login, register, forgot, contests, jury, health, events, Google start): **HTTP 200** / redirect Google.  
+Sin acciones destructivas; sin contests LIVE en Staging.
 
 ---
 
-## 7. Controles de seguridad Staging
+## 8. Auth-UI
+
+Rollout `@repo/auth-ui` **aplazado** a:
+
+`ETAPA 10B.7.1 — ROLLOUT AUTH-UI COMPRAMELAFOTO MONOREPO + CLICKATÓN + FOTORANK`
+
+---
+
+## 9. Controles de seguridad Staging
 
 | Control | Estado |
 | ------- | ------ |
 | Production DBs | No modificadas |
 | MP LIVE OAuth | No ejecutado |
-| Credenciales MP Staging | `credenciales_de_prueba` |
-| Rollout `@repo/auth-ui` | Pendiente READY |
-| Guest registration decision | Intacta (doc Clickatón) |
+| Re-cutover Clickatón | No |
+| Credenciales en docs | Solo hosts sanitizados |
 
 ---
 
-## 8. Veredicto
+## 10. Criterios READY
 
-```text
-FOTORANK DOMAIN MIGRATION BLOCKED
-```
-
-No declarar `DNX UNIVERSAL ACCOUNT READY IN STAGING` hasta que FotoRank Preview use la identidad compartida con dominio preservado (o explícitamente vacío y aceptado) y deploy saludable.
+| Criterio | Cumple |
+| -------- | ------ |
+| FotoRank Preview/Staging verde | Sí |
+| FotoRank usa identidad DNX (`ep-round-fog`) | Sí |
+| Contests existentes no perdidos | Sí (origen vacío / disposable; destino 0 esperado) |
+| Users no duplicados (fixtures) | Sí |
+| Forgot/reset cross-app | Sí |
+| Google sin duplicar identidad | Sí |
+| Jury/rules compilando + rutas jury 200 | Sí |

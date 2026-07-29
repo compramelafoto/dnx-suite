@@ -54,3 +54,19 @@ Después: **0** errores (`pnpm --filter fotorank exec tsc --noEmit`).
 - Fuente única: `packages/db` + `@repo/db`.  
 - Migraciones existentes = verdad de tablas en Staging.  
 - Nuevos cambios de schema → migración versionada + `prisma migrate deploy` (nunca `db push`).
+
+---
+
+## Runtime post-build (no era drift Prisma)
+
+Tras build Vercel READY, rutas dinámicas devolvían 500:
+
+```text
+ERR_REQUIRE_ESM
+___next_launcher.cjs require() of .next/server/app/.../page.js|route.js
+```
+
+Causa: `"type": "module"` en `apps/fotorank/package.json` (mismo patrón documentado en `docs/operations/compramelafoto-preview-runtime-500-diagnostic.md`).
+
+Fix: eliminar `type: module`; `next.config.ts` + `eslint.config.mjs`. Commit `f308683`.  
+Smoke Staging posterior: health `ok:true` + páginas auth/jury/home **200**.

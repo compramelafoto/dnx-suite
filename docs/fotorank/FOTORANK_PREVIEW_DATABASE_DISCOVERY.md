@@ -83,3 +83,11 @@ DNX_STAGING_IDENTITY_DATABASE = ep-round-fog-a4xgibtv… / neondb
 ```
 
 Backup adicional 10B.6.3: branch Neon `backup-before-fotorank-import` (`br-rough-base-a482gvuw`, endpoint `ep-misty-lake-a4hzpxra…`).
+
+---
+
+## Cierre 10B.6.3
+
+FotoRank Staging apunta a round-fog; health confirma host compartido.  
+No se solicitó credencial manual al usuario (descubrimiento agotado en org Dnx).  
+Informe de cutover/dominio: `FOTORANK_STAGING_DOMAIN_CUTOVER_REPORT.md`.
