@@ -66,7 +66,7 @@ Política documentada: revocar sesiones Staging antiguas; mensaje
 
 | Ítem | Estado |
 | ---- | ------ |
-| Commit selectivo tooling/docs | autorizado — ejecutar al cerrar esta entrega |
+| Commit selectivo tooling/docs | `43f8e30` (+ fix schema selectivo pendiente push) |
 | Deploy Staging cutover | **NO** — datos no migrados |
 | Smoke 6 ediciones en DB compartida | **NO** |
 
