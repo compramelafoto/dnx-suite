@@ -94,3 +94,9 @@ Build local `next build --webpack` de ComprameLaFoto monorepo en **PASS**, sin `
 3. Import `@repo/payments/infrastructure/prisma` (barrel) → `persistence.ts` con literales `0n` bajo `target: ES2017` del app → resuelto con subpaths estrechos.
 
 Ninguno de esos era la causa del deploy `dpl_DBwdZrHh5ESV85xfARfypf7jiRH9` (ese fallaba en bundling `node:crypto`).
+
+### Post-fix en Vercel (secundario)
+
+Tras corregir el boundary, Preview en builder **standard (8GB)** llegó a `✓ Compiled successfully` y luego **OOM/SIGKILL** en `Running TypeScript`. Mitigación: `NODE_OPTIONS=--max-old-space-size=7168`, `experimental.cpus: 1`, y `resourceConfig.buildMachineType=enhanced` en el proyecto `compramelafoto-dnxsuite`.
+
+Deploy verde: `dpl_HsfnFoq4ydhbrCJi9W7TeWaBsYoM` → alias `compramelafoto.staging.dnxsuite.com`.

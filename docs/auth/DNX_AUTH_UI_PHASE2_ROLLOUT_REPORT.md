@@ -112,23 +112,29 @@ Payments smoke (no destructivo): imports dual-read por subpath; compile checkout
 
 ### 8.1 ComprameLaFoto monorepo post-10B.7.1.1
 
-Rellenar tras push/deploy:
-
 | Campo | Valor |
 | ----- | ----- |
-| Commit | _(pending push)_ |
-| Deploy ID | _(pending)_ |
-| Alias | `compramelafoto.staging.dnxsuite.com` / preview Vercel |
-| Health | _(pending validate)_ |
+| Commits | `748d169` (boundary fix) · `9f3803b`/`0a71de9` (heap) · `caf02e7` (redeploy) |
+| Deploy ID | `dpl_HsfnFoq4ydhbrCJi9W7TeWaBsYoM` |
+| Preview URL | `https://compramelafoto-dnxsuite-f03ssa4vh-compramelafotos-projects.vercel.app` |
+| Alias Staging | `compramelafoto.staging.dnxsuite.com` (asignado a este deploy; `data-dpl-id` confirma) |
+| Builder | Vercel **enhanced** (`buildMachineType=enhanced`) — necesario tras OOM del typecheck en builder standard 8GB |
+| Health | Preview **READY**; webpack compile OK; typecheck OK en enhanced |
+
+Nota: el deploy previo `dpl_DBwdZrHh5ESV85xfARfypf7jiRH9` fallaba en bundling `node:crypto`. Tras el fix de boundary, el builder standard compilaba webpack pero moría por OOM en TypeScript; enhanced cierra el Preview.
 
 ---
 
 ## 9. Smoke remoto / cross-app
 
-Tras Preview READY:
-
-- HTTP: home, login, register, forgot, reset, Google CTA, redirect protegido, admin curso Funes, ruta payments admin relevante (sin mutaciones financieras).
-- Cross-app reducido: User A CLF → Clickatón → FotoRank mismo `User.id`; forgot desde CLF; Google una sola ExternalIdentity (fixtures 10B.6.3 como baseline).
+| Check | Resultado |
+| ----- | --------- |
+| Staging `/` `/login` `/registro` `/forgot-password` `/reset-password` `/verify-email` | HTTP **200**; `data-dpl-id=dpl_HsfnFoq4ydhbrCJi9W7TeWaBsYoM` |
+| `/forgot-password` SSR | `dnx-auth-root` + slots auth-ui (`primary-cta`, email) |
+| `/login` | CSR (`BAILOUT_TO_CLIENT_SIDE_RENDERING`) + chunk `app/login/page-*` (auth-ui no revertido) |
+| Admin curso Funes | HTTP **200** (ya no rompe build por `node:crypto`) |
+| `pnpm auth:cross-app:fixtures` | **ALL FIXTURES PASS** (1–6) |
+| Production | **No tocada** (solo Preview/Staging alias) |
 
 ---
 
