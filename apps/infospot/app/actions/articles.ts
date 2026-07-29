@@ -66,10 +66,8 @@ function articleLocationWriteData(
   const include = (key: string) => !presentKeys || presentKeys.has(key);
 
   const scopeRaw = data.geographicScope;
-  const scope =
-    typeof scopeRaw === "string" && isGeographicScope(scopeRaw.trim())
-      ? scopeRaw.trim()
-      : null;
+  const scopeTrimmed = typeof scopeRaw === "string" ? scopeRaw.trim() : "";
+  const scope = isGeographicScope(scopeTrimmed) ? scopeTrimmed : null;
 
   return {
     ...(include("geographicScope") ? { geographicScope: scope } : {}),
