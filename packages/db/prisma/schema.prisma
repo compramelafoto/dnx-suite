@@ -259,6 +259,13 @@ model User {
   fotorankJudgeInvitationsSent          FotorankJudgeInvitation[]              @relation("FrJudgeInvSentBy")
   fotorankProfile                       FotorankProfile?                       @relation("FrProfile")
   fotorankRulesVersionsCreated          FotorankContestRulesVersion[]          @relation("FrRulesVersionAuthor")
+  fotorankRulesVersionsReviewed         FotorankContestRulesVersion[]          @relation("FrRulesVersionReviewer")
+  fotorankRulesVersionsApproved         FotorankContestRulesVersion[]          @relation("FrRulesVersionApprover")
+  fotorankRulesVersionsPublished        FotorankContestRulesVersion[]          @relation("FrRulesVersionPublisher")
+  fotorankRulesAuditEvents              FotorankContestRulesAuditEvent[]       @relation("FrRulesAuditActor")
+  fotorankConfigVersionsCreated         FotorankContestConfigurationVersion[]  @relation("FrConfigVersionAuthor")
+  fotorankRulesTemplatesCreated         FotorankContestRulesTemplate[]         @relation("FrRulesTemplateAuthor")
+  fotorankMinorAuthorizations           FotorankMinorAuthorization[]           @relation("FrMinorAuthParticipant")
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
 }
@@ -5084,6 +5091,48 @@ model UserSession {
   @@index([expiresAt])
 }
 
+/// Resolución de cutover Clickatón → User canónico (ETAPA 10B.6).
+enum ClickatonLegacyUserResolution {
+  MATCH_EMAIL_VERIFIED
+  MATCH_EXTERNAL_IDENTITY
+  CREATE_CANONICAL_USER
+  MANUAL_REVIEW
+  TECHNICAL_USER
+  INVALID
+}
+
+/// Mapa sourceUserId (DB Clickatón) → canonicalUserId (DB identidad compartida).
+/// No borra usuarios origen; permite reescritura de FKs y auditoría.
+model ClickatonLegacyUserMap {
+  id              String                        @id @default(cuid())
+  sourceUserId    Int                           @unique
+  canonicalUserId Int?
+  normalizedEmail String
+  resolution      ClickatonLegacyUserResolution
+  confidence      String
+  notes           String?
+  batchId         String?
+  migratedAt      DateTime?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+
+  @@index([normalizedEmail])
+  @@index([resolution])
+  @@index([canonicalUserId])
+  @@index([batchId])
+}
+
+/// Alias permanente tras fusión de identidades (no DELETE del oldUserId).
+model UserIdentityAlias {
+  id              String   @id @default(cuid())
+  oldUserId       Int      @unique
+  canonicalUserId Int
+  reason          String
+  migratedAt      DateTime @default(now())
+
+  @@index([canonicalUserId])
+}
+
 model SentEmailLog {
   id          Int      @id @default(autoincrement())
   to          String
@@ -7250,10 +7299,18 @@ model FotorankContest {
   participants                  FotorankContestParticipant[]
   registrations                 FotorankContestRegistration[]
   rulesVersions                 FotorankContestRulesVersion[]
+  configurationVersions         FotorankContestConfigurationVersion[]
   entryAssets                   FotorankContestEntryAsset[]
   judgeEntryConflicts           FotorankJudgeEntryConflict[]
   admissionBatches              FotorankAdmissionBatch[]
   juryEntrySnapshots            FotorankJuryEntrySnapshot[]
+  juryRubrics                   FotorankJuryRubric[]
+  juryScoringSessions           FotorankJuryScoringSession[]
+  juryEvaluations               FotorankJuryEvaluation[]
+  juryPreliminaryAggregates     FotorankJuryPreliminaryAggregate[]
+  resultRuleSets                FotorankResultRuleSet[]
+  resultBatches                 FotorankResultBatch[]
+  tieBreakSessions              FotorankTieBreakSession[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -7306,27 +7363,155 @@ model FotorankContestParticipant {
   @@index([welcomeCardStatus])
 }
 
-/// Versión inmutable de bases del concurso. `rulesText` en FotorankContest queda como borrador/compat.
+/// Versión de bases del concurso (ciclo P0-09B). Fuente de verdad = ConfigurationVersion.
 model FotorankContestRulesVersion {
-  id              String                        @id @default(cuid())
-  contestId       String
-  versionNumber   Int
-  title           String
-  content         String
+  id                        String                                @id @default(cuid())
+  contestId                 String
+  versionNumber             Int
+  title                     String
+  /// Texto normalizado canónico (markdown/plain).
+  content                   String
   /// SHA-256 hex del contenido normalizado (UTF-8).
-  contentHash     String
-  status          FotorankRulesVersionStatus    @default(DRAFT)
-  publishedAt     DateTime?
-  createdByUserId Int
-  createdAt       DateTime                      @default(now())
-  updatedAt       DateTime                      @updatedAt
-  contest         FotorankContest               @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  createdByUser   User                          @relation("FrRulesVersionAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  registrations   FotorankContestRegistration[]
+  contentHash               String
+  status                    FotorankRulesVersionStatus            @default(DRAFT)
+  publishedAt               DateTime?
+  /// Versión de configuración estructurada asociada (obligatoria para publicar).
+  configurationVersionId    String?
+  /// Hash de configuración al asociar/importar/publicar.
+  configurationHashSnapshot String?
+  generatedBy               FotorankRulesGeneratedBy              @default(MANUAL)
+  generatedAt               DateTime?
+  reviewedByUserId          Int?
+  reviewedAt                DateTime?
+  approvedByUserId          Int?
+  approvedAt                DateTime?
+  publishedByUserId         Int?
+  reviewNotes               String?
+  legalReviewStatus         FotorankLegalReviewStatus             @default(NOT_REQUIRED)
+  legalReviewNotes          String?
+  /// Texto original importado (sin sanitizar de más).
+  originalImportedContent   String?
+  contentFormat             String                                @default("markdown")
+  structuredImportJson      Json?
+  compareSnapshotJson       Json?
+  sectionsChecklistJson     Json?
+  createdByUserId           Int
+  createdAt                 DateTime                              @default(now())
+  updatedAt                 DateTime                              @updatedAt
+  contest                   FotorankContest                       @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  createdByUser             User                                  @relation("FrRulesVersionAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  reviewedByUser            User?                                 @relation("FrRulesVersionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  approvedByUser            User?                                 @relation("FrRulesVersionApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  publishedByUser           User?                                 @relation("FrRulesVersionPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  configurationVersion      FotorankContestConfigurationVersion?  @relation(fields: [configurationVersionId], references: [id], onDelete: SetNull)
+  registrations             FotorankContestRegistration[]
+  auditEvents               FotorankContestRulesAuditEvent[]
 
   @@unique([contestId, versionNumber])
   @@index([contestId, status])
   @@index([contentHash])
+  @@index([createdByUserId])
+  @@index([configurationVersionId])
+  @@index([legalReviewStatus])
+  @@index([reviewedByUserId])
+  @@index([approvedByUserId])
+  @@index([publishedByUserId])
+}
+
+/// Auditoría de acciones sobre versiones de bases (P0-09B).
+model FotorankContestRulesAuditEvent {
+  id             String                     @id @default(cuid())
+  contestId      String
+  rulesVersionId String
+  actorUserId    Int
+  action         String
+  notes          String?
+  metadataJson   Json?
+  createdAt      DateTime                   @default(now())
+  rulesVersion   FotorankContestRulesVersion @relation(fields: [rulesVersionId], references: [id], onDelete: Cascade)
+  actor          User                       @relation("FrRulesAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([contestId, createdAt])
+  @@index([rulesVersionId, createdAt])
+  @@index([actorUserId])
+}
+
+/// Autorización de adulto responsable para participantes de 16–17 años.
+model FotorankMinorAuthorization {
+  id                     String                      @id @default(cuid())
+  registrationId         String                      @unique
+  contestId              String
+  participantUserId      Int
+  guardianName           String
+  relationship           String
+  declarationTextVersion String
+  declarationAccepted    Boolean
+  acceptedAt             DateTime
+  acceptanceIp           String?
+  acceptanceUserAgent    String?
+  createdAt              DateTime                    @default(now())
+  registration           FotorankContestRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  participant            User                        @relation("FrMinorAuthParticipant", fields: [participantUserId], references: [id], onDelete: Restrict)
+
+  @@index([contestId])
+  @@index([participantUserId])
+}
+
+/// Versión de configuración estructurada del concurso (fuente de verdad P0-09A).
+model FotorankContestConfigurationVersion {
+  id                           String                         @id @default(cuid())
+  contestId                    String
+  versionNumber                Int
+  status                       FotorankConfigVersionStatus    @default(DRAFT)
+  /// Snapshot JSON tipado en app (ContestRulesConfiguration).
+  configurationJson            Json
+  configurationHash            String
+  /// Columnas críticas tipadas (denormalizadas del JSON).
+  officialName                 String
+  timezone                     String
+  pricingMode                  FotorankRegistrationPricingMode
+  priceAmountMinor             Int                            @default(0)
+  currency                     String                         @default("ARS")
+  platformFeeBps               Int                            @default(0)
+  registrationOpensAt          DateTime?
+  registrationClosesAtExclusive DateTime?
+  submissionOpensAt            DateTime?
+  submissionClosesAtExclusive  DateTime?
+  maxEntriesPerRegistration    Int                            @default(1)
+  maxCategoriesPerRegistration Int                            @default(1)
+  allowReplace                 Boolean                        @default(true)
+  createdByUserId              Int
+  createdAt                    DateTime                       @default(now())
+  updatedAt                    DateTime                       @updatedAt
+  publishedAt                  DateTime?
+  archivedAt                   DateTime?
+  contest                      FotorankContest                @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  createdByUser                User                           @relation("FrConfigVersionAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  rulesVersions                FotorankContestRulesVersion[]
+  registrations                FotorankContestRegistration[]
+
+  @@unique([contestId, versionNumber])
+  @@index([contestId, status])
+  @@index([configurationHash])
+  @@index([createdByUserId])
+}
+
+/// Plantilla reutilizable de configuración estructurada.
+model FotorankContestRulesTemplate {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  description       String?
+  category          String   @default("provincial")
+  configurationJson Json
+  isSystem          Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  createdByUserId   Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdByUser     User?    @relation("FrRulesTemplateAuthor", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([isActive, category])
   @@index([createdByUserId])
 }
 
@@ -7347,6 +7532,17 @@ model FotorankContestRegistration {
   rulesAcceptedAt           DateTime
   rulesAcceptanceIp         String?
   rulesAcceptanceUserAgent  String?
+  /// Snapshot de configuración estructurada vigente al inscribirse (P0-09A).
+  configurationVersionId    String?
+  /// Hashes aceptados (P0-09B) — no mutan si se publica otra versión después.
+  rulesContentHashSnapshot  String?
+  configurationHashSnapshot String?
+  licenseAccepted           Boolean                                  @default(false)
+  licenseAcceptedAt         DateTime?
+  /// Comunicaciones promocionales opcionales (nunca mezclar con aceptación de bases).
+  promotionalOptIn          Boolean                                  @default(false)
+  /// Edad declarada en años al inscribirse (para gate de menores).
+  declaredAgeYears          Int?
   paymentModeSnapshot       FotorankRegistrationPricingMode
   /// Precio en unidades mínimas (centavos). 0 para FREE.
   registrationPriceSnapshot Int                                      @default(0)
@@ -7367,9 +7563,11 @@ model FotorankContestRegistration {
   participant               User                                     @relation("FrContestRegistrationParticipant", fields: [participantUserId], references: [id], onDelete: Restrict)
   category                  FotorankContestCategory                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   rulesVersion              FotorankContestRulesVersion              @relation(fields: [rulesVersionId], references: [id], onDelete: Restrict)
+  configurationVersion      FotorankContestConfigurationVersion?     @relation(fields: [configurationVersionId], references: [id], onDelete: SetNull)
   entryAssets               FotorankContestEntryAsset[]
   /// Obra del participante (máx. 1 activa por inscripción nativa).
   entry                     FotorankContestEntry?
+  minorAuthorization        FotorankMinorAuthorization?
 
   @@unique([contestId, participantUserId])
   @@unique([contestId, registrationNumber])
@@ -7377,6 +7575,7 @@ model FotorankContestRegistration {
   @@index([participantUserId])
   @@index([categoryId])
   @@index([rulesVersionId])
+  @@index([configurationVersionId])
   @@index([paymentOrderId])
   @@index([paymentStatus])
 }
@@ -7563,6 +7762,7 @@ model FotorankJudgeAccount {
   judgeSessions                FotorankJudgeSession[]
   voteHistoryChanges           FotorankJudgeVoteHistory[]            @relation("FrVoteHistoryActorJudge")
   entryConflicts               FotorankJudgeEntryConflict[]
+  juryEvaluations              FotorankJuryEvaluation[]
 
   @@index([workspaceId])
   @@index([accountStatus])
@@ -7722,10 +7922,15 @@ model FotorankJudgeAssignment {
   judgeAccount                  FotorankJudgeAccount          @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
   organization                  ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   votes                         FotorankJudgeVote[]
+  /// Etapa 14 — evaluaciones con rúbrica versionada (snapshot FROZEN).
+  juryEvaluations               FotorankJuryEvaluation[]
+  admissionBatchId              String?
+  promptExternalId              String?
 
   @@unique([judgeAccountId, contestId, categoryId])
   @@index([contestId, categoryId])
   @@index([judgeAccountId, assignmentStatus])
+  @@index([admissionBatchId])
 }
 
 model FotorankContestEntry {
@@ -8078,6 +8283,31 @@ enum FotorankFeeSource {
 
 enum FotorankRulesVersionStatus {
   DRAFT
+  GENERATED
+  UNDER_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum FotorankRulesGeneratedBy {
+  MANUAL
+  EXTERNAL_AI
+  OPENAI_API
+  TEMPLATE
+}
+
+enum FotorankLegalReviewStatus {
+  NOT_REQUIRED
+  PENDING
+  REVIEWED
+  CHANGES_REQUESTED
+}
+
+enum FotorankConfigVersionStatus {
+  DRAFT
+  READY_FOR_REVIEW
   PUBLISHED
   ARCHIVED
 }
@@ -8164,6 +8394,12 @@ model FotorankAdmissionBatch {
   contest   FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
   entries   FotorankContestEntry[]
   snapshots FotorankJuryEntrySnapshot[]
+  scoringSessions FotorankJuryScoringSession[]
+  rubrics   FotorankJuryRubric[]
+  evaluations FotorankJuryEvaluation[]
+  preliminaryAggregates FotorankJuryPreliminaryAggregate[]
+  resultRuleSets FotorankResultRuleSet[]
+  resultBatches  FotorankResultBatch[]
 
   @@index([contestId, status])
   @@index([editionId])
@@ -8194,11 +8430,477 @@ model FotorankJuryEntrySnapshot {
   contest FotorankContest        @relation(fields: [contestId], references: [id], onDelete: Cascade)
   entry   FotorankContestEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
   batch   FotorankAdmissionBatch @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
+  evaluations FotorankJuryEvaluation[]
+  preliminaryAggregates FotorankJuryPreliminaryAggregate[]
+  resultEntries FotorankResultEntry[]
 
   @@unique([admissionBatchId, entryId])
   @@unique([admissionBatchId, anonymousCode])
   @@index([contestId, admissionBatchId])
   @@index([entryId])
+}
+
+/// Etapa 14 — rúbrica versionada (inmutable cuando ACTIVE).
+enum FotorankJuryRubricStatus {
+  DRAFT
+  ACTIVE
+  SUPERSEDED
+  CANCELLED
+}
+
+enum FotorankJuryScoringMode {
+  WEIGHTED_SCORE
+  SIMPLE_SUM
+  AVERAGE
+  STARS
+  ORDINAL
+  APPROVAL
+}
+
+enum FotorankJuryScoringSessionStatus {
+  DRAFT
+  READY
+  OPEN
+  PAUSED
+  REVIEW_REQUIRED
+  CLOSED
+  LOCKED
+  CANCELLED
+}
+
+enum FotorankJuryEvaluationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  LOCKED
+  VOIDED
+}
+
+model FotorankJuryRubric {
+  id                 String                   @id @default(cuid())
+  contestId          String
+  admissionBatchId   String?
+  version            Int                      @default(1)
+  name               String
+  description        String?
+  status             FotorankJuryRubricStatus @default(DRAFT)
+  scoringMode        FotorankJuryScoringMode  @default(WEIGHTED_SCORE)
+  minTotal           Float?
+  maxTotal           Float?
+  createdByUserId    Int?
+  activatedByUserId  Int?
+  activatedAt        DateTime?
+  criteriaSnapshot   Json?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  contest          FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch   FotorankAdmissionBatch?    @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
+  criteria         FotorankJuryCriterion[]
+  sessions         FotorankJuryScoringSession[]
+  evaluations      FotorankJuryEvaluation[]
+
+  @@unique([contestId, name, version])
+  @@index([contestId, status])
+  @@index([admissionBatchId])
+}
+
+model FotorankJuryCriterion {
+  id          String   @id @default(cuid())
+  rubricId    String
+  key         String
+  name        String
+  description String?
+  weight      Float    @default(1)
+  minScore    Float    @default(1)
+  maxScore    Float    @default(10)
+  step        Float    @default(1)
+  required    Boolean  @default(true)
+  sortOrder   Int      @default(100)
+  helpText    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rubric FotorankJuryRubric @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  scores FotorankJuryCriterionScore[]
+
+  @@unique([rubricId, key])
+  @@index([rubricId, sortOrder])
+}
+
+/// Sesión de evaluación del jurado (no es cookie auth).
+model FotorankJuryScoringSession {
+  id                         String                          @id @default(cuid())
+  contestId                  String
+  admissionBatchId           String
+  rubricId                   String
+  status                     FotorankJuryScoringSessionStatus @default(DRAFT)
+  scoringEnabled             Boolean                         @default(false)
+  opensAt                    DateTime?
+  closesAt                   DateTime?
+  timelineVersionSnapshot    Int?
+  minimumEvaluationsPerEntry Int                             @default(1)
+  assignmentsCount           Int                             @default(0)
+  submittedEvaluationsCount  Int                             @default(0)
+  incompleteEntriesCount     Int                             @default(0)
+  assignmentSeed             String?
+  openedByUserId             Int?
+  closedByUserId             Int?
+  openedAt                   DateTime?
+  closedAt                   DateTime?
+  metadata                   Json?
+  createdAt                  DateTime                        @default(now())
+  updatedAt                  DateTime                        @updatedAt
+
+  contest        FotorankContest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch FotorankAdmissionBatch  @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
+  rubric         FotorankJuryRubric      @relation(fields: [rubricId], references: [id], onDelete: Restrict)
+  evaluations    FotorankJuryEvaluation[]
+  aggregates     FotorankJuryPreliminaryAggregate[]
+  resultRuleSets FotorankResultRuleSet[]
+  resultBatches  FotorankResultBatch[]
+
+  @@index([contestId, status])
+  @@index([admissionBatchId, status])
+  @@index([rubricId])
+}
+
+model FotorankJuryEvaluation {
+  id                   String                      @id @default(cuid())
+  contestId            String
+  admissionBatchId     String
+  scoringSessionId     String?
+  juryEntrySnapshotId  String
+  assignmentId         String
+  jurorId              String
+  rubricId             String
+  rubricVersion        Int
+  status               FotorankJuryEvaluationStatus @default(NOT_STARTED)
+  totalScore           Float?
+  normalizedScore      Float?
+  privateComment       String?
+  participantFeedback  String?
+  startedAt            DateTime?
+  lastSavedAt          DateTime?
+  submittedAt          DateTime?
+  voidedAt             DateTime?
+  voidedByUserId       Int?
+  voidReason           String?
+  idempotencyKey       String?
+  expectedVersion      Int                         @default(0)
+  engineVersion        String                      @default("clickaton-jury-scoring-v1")
+  criteriaSnapshot     Json?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  contest        FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch FotorankAdmissionBatch     @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
+  scoringSession FotorankJuryScoringSession? @relation(fields: [scoringSessionId], references: [id], onDelete: SetNull)
+  snapshot       FotorankJuryEntrySnapshot  @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+  assignment     FotorankJudgeAssignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  juror          FotorankJudgeAccount       @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  rubric         FotorankJuryRubric         @relation(fields: [rubricId], references: [id], onDelete: Restrict)
+  criterionScores FotorankJuryCriterionScore[]
+
+  @@unique([assignmentId, juryEntrySnapshotId])
+  @@unique([idempotencyKey])
+  @@index([contestId, status])
+  @@index([scoringSessionId, status])
+  @@index([jurorId, status])
+  @@index([juryEntrySnapshotId])
+}
+
+model FotorankJuryCriterionScore {
+  id                    String   @id @default(cuid())
+  evaluationId          String
+  criterionId           String
+  criterionKeySnapshot  String
+  criterionNameSnapshot String
+  score                 Float
+  weightSnapshot        Float
+  weightedScore         Float
+  comment               String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  evaluation FotorankJuryEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  criterion  FotorankJuryCriterion  @relation(fields: [criterionId], references: [id], onDelete: Restrict)
+
+  @@unique([evaluationId, criterionId])
+  @@index([evaluationId])
+}
+
+/// Agregados preliminares privados (Etapa 14). No ranking público.
+model FotorankJuryPreliminaryAggregate {
+  id                  String   @id @default(cuid())
+  contestId           String
+  admissionBatchId    String
+  scoringSessionId    String
+  juryEntrySnapshotId String
+  anonymousCode       String
+  evaluationCount     Int      @default(0)
+  averageScore        Float?
+  medianScore         Float?
+  normalizedAverage   Float?
+  minScore            Float?
+  maxScore            Float?
+  stdDev              Float?
+  coverageComplete    Boolean  @default(false)
+  engineVersion       String   @default("clickaton-jury-scoring-v1")
+  computedAt          DateTime @default(now())
+  metadata            Json?
+
+  contest        FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch FotorankAdmissionBatch     @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
+  scoringSession FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+  snapshot       FotorankJuryEntrySnapshot  @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([scoringSessionId, juryEntrySnapshotId])
+  @@index([contestId, scoringSessionId])
+  @@index([anonymousCode])
+}
+
+/// Etapa 15 — ranking privado, desempates y resultados (sin publicación LIVE).
+enum FotorankResultRuleSetStatus {
+  DRAFT
+  ACTIVE
+  SUPERSEDED
+  CANCELLED
+}
+
+enum FotorankResultAggregationMethod {
+  WEIGHTED_AVERAGE
+  AVERAGE
+  MEDIAN
+  SUM
+  TRIMMED_MEAN
+  ORDINAL
+}
+
+enum FotorankResultTieBreakStrategy {
+  PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION
+  MEDIAN_THEN_DISPERSION
+  MANUAL_ONLY
+  SHARED_TIE
+}
+
+enum FotorankResultCoverageStatus {
+  COMPLETE
+  INCOMPLETE
+  INVALID
+  REVIEW_REQUIRED
+}
+
+enum FotorankResultBatchStatus {
+  DRAFT
+  GENERATED
+  REVIEW_REQUIRED
+  READY_TO_FINALIZE
+  FINALIZED
+  PUBLISHED
+  CANCELLED
+}
+
+enum FotorankResultEntryStatus {
+  RANKED
+  TIED
+  REVIEW_REQUIRED
+  DISQUALIFIED
+  WINNER
+  FINALIST
+  MENTION
+  NOT_SELECTED
+}
+
+enum FotorankAwardType {
+  FIRST_PLACE
+  SECOND_PLACE
+  THIRD_PLACE
+  FINALIST
+  HONORABLE_MENTION
+  SPECIAL_MENTION
+  PEOPLE_CHOICE
+  SPONSOR_AWARD
+  CUSTOM
+}
+
+enum FotorankTieBreakSessionStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum FotorankResultScope {
+  GENERAL
+  CATEGORY
+  PROMPT
+  CATEGORY_AND_PROMPT
+  SPECIAL
+}
+
+model FotorankResultRuleSet {
+  id                        String                         @id @default(cuid())
+  contestId                 String
+  admissionBatchId          String?
+  scoringSessionId          String?
+  version                   Int                            @default(1)
+  name                      String                         @default("Reglas de resultados")
+  status                    FotorankResultRuleSetStatus    @default(DRAFT)
+  aggregationMethod         FotorankResultAggregationMethod @default(WEIGHTED_AVERAGE)
+  tieBreakStrategy          FotorankResultTieBreakStrategy @default(PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION)
+  minimumValidEvaluations   Int                            @default(1)
+  discardHighestScore       Boolean                        @default(false)
+  discardLowestScore        Boolean                        @default(false)
+  normalizationMode         String                         @default("NORMALIZED_TOTAL")
+  priorityCriterionKey      String?
+  rankingEnabled            Boolean                        @default(false)
+  winnersPerScope           Int                            @default(1)
+  allowMultipleAwards       Boolean                        @default(true)
+  oneAwardPerParticipant    Boolean                        @default(false)
+  incompleteCoveragePolicy  String                         @default("BLOCK_FINALIZE")
+  createdByUserId           Int?
+  activatedByUserId         Int?
+  activatedAt               DateTime?
+  configJson                Json?
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+
+  contest        FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch FotorankAdmissionBatch?      @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
+  scoringSession FotorankJuryScoringSession?  @relation(fields: [scoringSessionId], references: [id], onDelete: SetNull)
+  batches        FotorankResultBatch[]
+
+  @@unique([contestId, name, version])
+  @@index([contestId, status])
+  @@index([scoringSessionId])
+}
+
+model FotorankResultBatch {
+  id                 String                   @id @default(cuid())
+  contestId          String
+  admissionBatchId   String
+  scoringSessionId   String
+  ruleSetId          String
+  status             FotorankResultBatchStatus @default(DRAFT)
+  scope              FotorankResultScope       @default(CATEGORY_AND_PROMPT)
+  generatedAt        DateTime?
+  generatedByUserId  Int?
+  reviewedAt         DateTime?
+  reviewedByUserId   Int?
+  finalizedAt        DateTime?
+  finalizedByUserId  Int?
+  publishedAt        DateTime?
+  publishedByUserId  Int?
+  publicationApproved Boolean                 @default(false)
+  engineVersion      String                   @default("clickaton-ranking-v1")
+  ruleSetVersion     Int                      @default(1)
+  idempotencyKey     String?
+  metadata           Json?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  contest        FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch FotorankAdmissionBatch     @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
+  scoringSession FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+  ruleSet        FotorankResultRuleSet      @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+  entries        FotorankResultEntry[]
+  tieBreakSessions FotorankTieBreakSession[]
+  revisions      FotorankResultRevision[]
+
+  @@unique([idempotencyKey])
+  @@index([contestId, status])
+  @@index([scoringSessionId, status])
+  @@index([ruleSetId])
+}
+
+model FotorankResultEntry {
+  id                   String                     @id @default(cuid())
+  resultBatchId        String
+  juryEntrySnapshotId  String
+  anonymousCode        String
+  categoryId           String
+  promptExternalId     String?
+  scopeKey             String
+  aggregateScore       Float?
+  normalizedScore      Float?
+  medianScore          Float?
+  dispersion           Float?
+  evaluationCount      Int                        @default(0)
+  coverageStatus       FotorankResultCoverageStatus @default(INCOMPLETE)
+  preliminaryPosition  Int?
+  finalPosition        Int?
+  tieGroup             String?
+  resultStatus         FotorankResultEntryStatus  @default(RANKED)
+  awardType            FotorankAwardType?
+  juryDecisionNote     String?
+  flagsJson            Json?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  resultBatch FotorankResultBatch      @relation(fields: [resultBatchId], references: [id], onDelete: Cascade)
+  snapshot    FotorankJuryEntrySnapshot @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+  exclusions  FotorankResultExclusion[]
+
+  @@unique([resultBatchId, juryEntrySnapshotId, scopeKey])
+  @@index([resultBatchId, preliminaryPosition])
+  @@index([anonymousCode])
+  @@index([categoryId, promptExternalId])
+}
+
+model FotorankTieBreakSession {
+  id               String                       @id @default(cuid())
+  contestId        String
+  resultBatchId    String
+  tieGroup         String
+  status           FotorankTieBreakSessionStatus @default(DRAFT)
+  strategy         String                       @default("ORDINAL_VOTE")
+  jurorIdsJson     Json?
+  opensAt          DateTime?
+  closesAt         DateTime?
+  decisionNote     String?
+  createdByUserId  Int?
+  closedByUserId   Int?
+  createdAt        DateTime                     @default(now())
+  closedAt         DateTime?
+  updatedAt        DateTime                     @updatedAt
+
+  contest     FotorankContest     @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  resultBatch FotorankResultBatch @relation(fields: [resultBatchId], references: [id], onDelete: Cascade)
+
+  @@index([contestId, status])
+  @@index([resultBatchId, tieGroup])
+}
+
+model FotorankResultExclusion {
+  id                String   @id @default(cuid())
+  resultEntryId     String
+  reasonInternal    String
+  reasonPublic      String?
+  actorUserId       Int
+  evidenceJson      Json?
+  impactNote        String?
+  createdAt         DateTime @default(now())
+
+  resultEntry FotorankResultEntry @relation(fields: [resultEntryId], references: [id], onDelete: Cascade)
+
+  @@index([resultEntryId])
+}
+
+model FotorankResultRevision {
+  id              String   @id @default(cuid())
+  resultBatchId   String
+  revisionNumber  Int
+  reason          String
+  actorUserId     Int
+  beforeJson      Json?
+  afterJson       Json?
+  createdAt       DateTime @default(now())
+
+  resultBatch FotorankResultBatch @relation(fields: [resultBatchId], references: [id], onDelete: Cascade)
+
+  @@unique([resultBatchId, revisionNumber])
+  @@index([resultBatchId])
 }
 
 enum FotorankTechnicalSummaryStatus {

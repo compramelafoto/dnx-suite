@@ -30,7 +30,10 @@
     "cuanto-cobro:test:characterization": "pnpm --filter compramelafoto run test:cuantocobro:characterization",
     "e2e:prepare": "pnpm --filter compramelafoto run e2e:prepare",
     "e2e:school": "pnpm --filter compramelafoto run e2e:school",
-    "clickaton:release:check-env": "pnpm --filter clickaton release:check-env"
+    "clickaton:release:check-env": "pnpm --filter clickaton release:check-env",
+    "auth:architecture:check": "pnpm --filter @repo/auth architecture:check",
+    "auth:identity:selfcheck": "pnpm --filter @repo/auth identity:selfcheck",
+    "clickaton:staging:identity-cutover": "pnpm --filter @repo/db staging:identity-cutover"
   },
   "devDependencies": {
     "prettier": "^3.7.4",
