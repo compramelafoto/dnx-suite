@@ -120,20 +120,46 @@ export function roleAssignedEmailContent(params: {
 export function passwordResetEmailContent(params: {
   resetUrl: string;
   appLabel?: string;
+  /** Cuenta Google-only sin password local. */
+  isSetPassword?: boolean;
 }): { subject: string; html: string; text: string } {
   const app = params.appLabel?.trim() || "DNX Suite";
-  const subject = `Restablecer contraseña — ${app}`;
+  const subject = params.isSetPassword
+    ? `Crear contraseña — Cuenta DNX`
+    : `Restablecer contraseña — Cuenta DNX`;
+  const action = params.isSetPassword ? "crear una contraseña" : "restablecer tu contraseña";
+  const cta = params.isSetPassword ? "Crear contraseña" : "Elegir nueva contraseña";
   const text = [
-    `Pediste restablecer tu contraseña de ${app}.`,
+    `Pediste ${action} para tu Cuenta DNX (origen: ${app}).`,
+    `Esta misma cuenta puede utilizarse en otras plataformas DNX habilitadas.`,
     `Usá este enlace (un solo uso, con vencimiento):`,
     params.resetUrl,
     ``,
     `Si no pediste esto, ignorá el mensaje.`,
   ].join("\n");
   const html = `
-    <p>Pediste restablecer tu contraseña de <strong>${escapeHtml(app)}</strong>.</p>
-    <p><a href="${escapeHtml(params.resetUrl)}">Elegir nueva contraseña</a></p>
+    <p>Pediste <strong>${escapeHtml(action)}</strong> para tu <strong>Cuenta DNX</strong> (desde ${escapeHtml(app)}).</p>
+    <p>Esta misma cuenta puede utilizarse en otras plataformas DNX habilitadas.</p>
+    <p><a href="${escapeHtml(params.resetUrl)}">${escapeHtml(cta)}</a></p>
     <p style="color:#666;font-size:14px">Enlace de un solo uso. Si no pediste esto, ignorá el mensaje.</p>
+  `.trim();
+  return { subject, html, text };
+}
+
+export function passwordChangedEmailContent(params: {
+  appLabel?: string;
+  firstName?: string | null;
+}): { subject: string; html: string; text: string } {
+  const app = params.appLabel?.trim() || "DNX Suite";
+  const hi = params.firstName?.trim() ? `${params.firstName.trim()}, ` : "";
+  const subject = `Contraseña actualizada — Cuenta DNX`;
+  const text = [
+    `${hi}tu contraseña de Cuenta DNX fue modificada (aviso desde ${app}).`,
+    `Si no fuiste vos, recuperá el acceso de inmediato.`,
+  ].join("\n");
+  const html = `
+    <p>${escapeHtml(hi)}tu contraseña de <strong>Cuenta DNX</strong> fue modificada (aviso desde ${escapeHtml(app)}).</p>
+    <p style="color:#666;font-size:14px">Si no fuiste vos, recuperá el acceso de inmediato.</p>
   `.trim();
   return { subject, html, text };
 }

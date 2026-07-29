@@ -22,4 +22,9 @@ export const prisma = basePrisma as typeof basePrisma & {
   passwordResetToken: SuiteDelegate & {
     update(args: unknown): Promise<unknown>;
   };
+  emailVerificationToken: SuiteDelegate & {
+    findFirst(args: unknown): Promise<unknown>;
+    update(args: unknown): Promise<unknown>;
+    updateMany(args: unknown): Promise<{ count: number }>;
+  };
 };

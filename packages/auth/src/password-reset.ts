@@ -1,6 +1,9 @@
 import { prisma } from "./prisma";
 import { createOpaqueToken, hashOpaqueToken, hashPassword } from "./password";
 import { revokeAllUserSessions } from "./sessions";
+import { requireNormalizedIdentityEmail } from "./identity-email";
+import { requirePasswordPolicy } from "./password-policy";
+import { DNX_AUTH_MESSAGES } from "./messages";
 import {
   passwordResetEmailContent,
   sendIdentityEmail,
@@ -11,7 +14,8 @@ export const DNX_PASSWORD_RESET_TTL_MS = 1000 * 60 * 60; // 1 hora
 
 /**
  * Crea token de reset de un solo uso.
- * Siempre responde de forma genérica a nivel de UI (no revelar si el email existe).
+ * Permite Google-only (sin password) para “crear contraseña”.
+ * Siempre responde de forma genérica a nivel de UI (anti-enumeración).
  */
 export async function requestPasswordReset(params: {
   email: string;
@@ -19,15 +23,19 @@ export async function requestPasswordReset(params: {
   appLabel?: string;
   resetPath?: string;
 }): Promise<{ ok: true; emailResult?: IdentityEmailResult; created: boolean }> {
-  const email = params.email.trim().toLowerCase();
-  if (!email) return { ok: true, created: false };
+  let email: string;
+  try {
+    email = requireNormalizedIdentityEmail(params.email);
+  } catch {
+    return { ok: true, created: false };
+  }
 
   const user = await prisma.user.findUnique({
     where: { email },
     select: { id: true, isBlocked: true, password: true },
   });
 
-  if (!user || user.isBlocked || !user.password) {
+  if (!user || user.isBlocked) {
     return { ok: true, created: false };
   }
 
@@ -50,13 +58,22 @@ export async function requestPasswordReset(params: {
   const content = passwordResetEmailContent({
     resetUrl,
     appLabel: params.appLabel,
+    isSetPassword: !user.password,
   });
   const emailResult = await sendIdentityEmail({
     to: email,
     subject: content.subject,
     html: content.html,
     text: content.text,
-    templateKey: "dnx.identity.password_reset",
+    templateKey: user.password
+      ? "dnx.identity.password_reset"
+      : "dnx.identity.password_set",
+  });
+
+  console.info("[dnx.identity] passwordReset.requested", {
+    userId: user.id,
+    setPassword: !user.password,
+    emailSent: emailResult.sent,
   });
 
   return { ok: true, created: true, emailResult };
@@ -65,10 +82,13 @@ export async function requestPasswordReset(params: {
 export async function resetPasswordWithToken(params: {
   rawToken: string;
   newPassword: string;
+  passwordConfirm?: string;
+  /** Default true — revoca todas las sesiones. */
+  revokeSessions?: boolean;
 }): Promise<{ userId: number }> {
-  if (params.newPassword.length < 8) {
-    throw new Error("La contraseña debe tener al menos 8 caracteres.");
-  }
+  requirePasswordPolicy(params.newPassword, {
+    confirm: params.passwordConfirm,
+  });
 
   const tokenHash = hashOpaqueToken(params.rawToken);
   const row = (await (prisma as typeof prisma & {
@@ -91,13 +111,18 @@ export async function resetPasswordWithToken(params: {
   } | null;
 
   if (!row || row.usedAt || row.expiresAt.getTime() <= Date.now()) {
-    throw new Error("El enlace de recuperación es inválido o venció.");
+    throw new Error(DNX_AUTH_MESSAGES.resetInvalidToken);
   }
 
   const passwordHash = hashPassword(params.newPassword);
   await prisma.user.update({
     where: { id: row.userId },
-    data: { password: passwordHash },
+    data: {
+      password: passwordHash,
+      // Limpiar tokens legacy en User si existen
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    },
   });
 
   await (prisma as typeof prisma & {
@@ -107,6 +132,15 @@ export async function resetPasswordWithToken(params: {
     data: { usedAt: new Date() },
   });
 
-  await revokeAllUserSessions(row.userId);
+  if (params.revokeSessions !== false) {
+    await revokeAllUserSessions(row.userId);
+  }
+
+  console.info("[dnx.identity] passwordReset.consumed", { userId: row.userId });
   return { userId: row.userId };
+}
+
+/** Mensaje neutro para UI. */
+export function passwordResetNeutralMessage(): string {
+  return DNX_AUTH_MESSAGES.resetNeutral;
 }
