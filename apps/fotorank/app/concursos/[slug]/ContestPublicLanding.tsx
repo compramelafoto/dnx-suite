@@ -71,8 +71,8 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
   const phase = getLandingPhase(data);
   const cta = phaseCta(phase);
   const heroImage = contest.coverImageUrl ?? org.coverImageUrl ?? null;
-  const loginNext = `/concursos/${contest.slug}`;
-  const inscripcionHref = `/login?next=${encodeURIComponent(loginNext)}`;
+  /** Flujo de participante (no login de organizador / dashboard). */
+  const inscripcionHref = `/concursos/${contest.slug}/inscripcion`;
 
   const categoriasCount = contest.categories.length;
   const maxObrasHint =

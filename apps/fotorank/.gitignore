@@ -20,3 +20,4 @@ yarn-error.log*
 .env.production.local
 .vercel
 .env*.local
+.data/

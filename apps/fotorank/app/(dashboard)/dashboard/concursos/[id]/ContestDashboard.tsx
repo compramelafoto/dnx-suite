@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Modal } from "../../../../components/ui/Modal";
 import { RulesAssistantFromContest } from "../../../concursos/nuevo/rules/RulesAssistantFromContest";
@@ -139,6 +140,37 @@ export function ContestDashboard({ contest }: ContestDashboardProps) {
   return (
     <div className="flex flex-col gap-10 lg:gap-12">
       <ContestHeader contest={contest} />
+
+      <div className="flex flex-wrap gap-3">
+        <Link
+          href={`/dashboard/concursos/${contest.id}/inscripciones`}
+          className="fr-btn fr-btn-secondary min-h-11 px-5 py-3 text-sm"
+          data-testid="contest-inscripciones-link"
+        >
+          Inscripciones y obras
+        </Link>
+        <Link
+          href={`/dashboard/concursos/${contest.id}/configuracion`}
+          className="fr-btn fr-btn-secondary min-h-11 px-5 py-3 text-sm"
+          data-testid="contest-config-link"
+        >
+          Configuración estructurada
+        </Link>
+        <Link
+          href={`/dashboard/concursos/${contest.id}/bases`}
+          className="fr-btn fr-btn-secondary min-h-11 px-5 py-3 text-sm"
+          data-testid="contest-bases-link"
+        >
+          Bases versionadas
+        </Link>
+        <Link
+          href={`/dashboard/concursos/${contest.id}/jurado`}
+          className="fr-btn fr-btn-secondary min-h-11 px-5 py-3 text-sm"
+          data-testid="contest-jury-ops-link"
+        >
+          Jurado operativo
+        </Link>
+      </div>
 
       <div className="grid gap-16 lg:grid-cols-[1fr_320px]">
         <div className="min-w-0 space-y-16">

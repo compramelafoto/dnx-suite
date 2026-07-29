@@ -1,21 +1,8 @@
 /**
- * J-P1-08 — Dominio de `FotorankContestEntry` (obras evaluables en FotoRank).
+ * Dominio de `FotorankContestEntry` evaluable por jurados (P0-07).
  *
- * ## Qué representa
- * Una **obra** (foto + metadatos opcionales) anclada a un **FotorankContest** y una **FotorankContestCategory**.
- * Es el destino de `FotorankJudgeVote.entryId`: el módulo Jurados solo consume esta tabla para el listado y el voto.
- *
- * ## Frontera con legacy
- * El modelo `Entry` bajo `Contest` / `Workspace` (suite ComprameLaFoto) es **otro producto**. No hay sincronización automática.
- * Para que un jurado FotoRank evalúe, la obra debe existir como `FotorankContestEntry`. Punto.
- *
- * ## Invariantes (integridad referencial ya las refuerza Prisma)
- * - `contestId` + `categoryId` deben corresponder a una categoría de ese concurso (FK).
- * - `imageUrl` no vacío para considerarse **evaluable** en UI/panel jurado.
- *
- * ## Cuándo se crea (pipeline actual)
- * - Acción server `createFotorankContestEntry` (dashboard, org activa): carga operativa / pruebas hasta existir inscripción pública.
- * - Futuro: flujo de inscripción del participante debe crear la misma entidad (o delegar en esta acción).
+ * Obras nativas P0-06: status CONFIRMED + entryNumber + no retirada.
+ * Legacy admin: imageUrl no vacío (compat).
  */
 
 import { prisma } from "@repo/db";
@@ -25,12 +12,16 @@ export type FotorankContestEntryRow = {
   contestId: string;
   categoryId: string;
   imageUrl: string;
+  status?: string | null;
+  entryNumber?: string | null;
+  withdrawnAt?: Date | null;
   title?: string | null;
   description?: string | null;
   authorUserId?: number | null;
+  sourcePlatform?: string | null;
+  admissionStatus?: string | null;
 };
 
-/** Códigos de diagnóstico para preparación de categoría a juicio. */
 export type CategoryJudgingReadinessIssueCode =
   | "NO_ENTRIES"
   | "NO_EVALUABLE_ENTRIES";
@@ -40,36 +31,62 @@ export type CategoryJudgingReadiness = {
   categoryId: string;
   totalEntries: number;
   evaluableEntryCount: number;
-  /** Al menos una entry evaluable: la categoría tiene material para el panel jurado. */
   readyForJudgingPanel: boolean;
   issues: Array<{ code: CategoryJudgingReadinessIssueCode; message: string }>;
 };
 
 /**
- * Reglas mínimas para que una fila se considere evaluable por jurados (listado + voto).
- * No incluye estado de concurso ni ventana de asignación (eso es `getJudgeEvaluationEligibility`).
+ * Evaluable para panel jurado:
+ * - Clickatón / con admisión: solo FROZEN_FOR_JURY (+ código anónimo)
+ * - nativo FR sin admissionStatus: CONFIRMED + código anónimo + no retirada
+ * - legacy: imageUrl no vacío
  */
-export function isEvaluableFotorankContestEntry(row: Pick<FotorankContestEntryRow, "imageUrl" | "contestId" | "categoryId">): boolean {
-  const url = row.imageUrl?.trim() ?? "";
-  if (!url) return false;
+export function isEvaluableFotorankContestEntry(
+  row: Pick<
+    FotorankContestEntryRow,
+    | "imageUrl"
+    | "contestId"
+    | "categoryId"
+    | "status"
+    | "entryNumber"
+    | "withdrawnAt"
+    | "sourcePlatform"
+    | "admissionStatus"
+  >,
+): boolean {
   if (!row.contestId?.trim() || !row.categoryId?.trim()) return false;
-  return true;
+  if (row.withdrawnAt) return false;
+
+  const fromClickaton = row.sourcePlatform === "CLICKATON";
+  const admissionApplied = row.admissionStatus != null && row.admissionStatus !== "";
+  if (fromClickaton || admissionApplied) {
+    return row.admissionStatus === "FROZEN_FOR_JURY";
+  }
+
+  if (row.status === "CONFIRMED" && Boolean(row.entryNumber?.trim())) return true;
+  const url = row.imageUrl?.trim() ?? "";
+  return Boolean(url);
 }
 
 export function filterFotorankEntriesEvaluableForJudging<T extends FotorankContestEntryRow>(rows: T[]): T[] {
   return rows.filter((r) => isEvaluableFotorankContestEntry(r));
 }
 
-/**
- * Indica si una categoría tiene al menos una obra lista para mostrar/votar en el módulo jurado.
- */
 export async function getCategoryJudgingReadiness(
   contestId: string,
-  categoryId: string
+  categoryId: string,
 ): Promise<CategoryJudgingReadiness> {
   const rows = await prisma.fotorankContestEntry.findMany({
     where: { contestId, categoryId },
-    select: { id: true, contestId: true, categoryId: true, imageUrl: true },
+    select: {
+      id: true,
+      contestId: true,
+      categoryId: true,
+      imageUrl: true,
+      status: true,
+      entryNumber: true,
+      withdrawnAt: true,
+    },
   });
   const totalEntries = rows.length;
   const evaluable = filterFotorankEntriesEvaluableForJudging(rows);
@@ -83,7 +100,7 @@ export async function getCategoryJudgingReadiness(
   } else if (evaluableEntryCount === 0) {
     issues.push({
       code: "NO_EVALUABLE_ENTRIES",
-      message: "Hay registros de obra pero ninguno tiene imagen válida para evaluar.",
+      message: "Hay registros de obra pero ninguno está confirmado con preview de jurado.",
     });
   }
   return {
@@ -96,9 +113,6 @@ export async function getCategoryJudgingReadiness(
   };
 }
 
-/**
- * Readiness agregado por concurso (todas las categorías del concurso).
- */
 export async function getContestJudgingReadinessSummary(contestId: string): Promise<{
   contestId: string;
   categories: CategoryJudgingReadiness[];
@@ -113,6 +127,5 @@ export async function getContestJudgingReadinessSummary(contestId: string): Prom
   for (const c of categories) {
     list.push(await getCategoryJudgingReadiness(contestId, c.id));
   }
-  const anyCategoryReady = list.some((x) => x.readyForJudgingPanel);
-  return { contestId, categories: list, anyCategoryReady };
+  return { contestId, categories: list, anyCategoryReady: list.some((x) => x.readyForJudgingPanel) };
 }

@@ -40,7 +40,7 @@ export type CreateFotorankContestInput = {
   /** Canal de publicación. null = Solo FotoRank (no Clickatón). */
   distributionChannel?: "FOTORANK" | "CLICKATON" | null;
   registrationEnabled?: boolean;
-  registrationPricingMode?: "FREE" | "PAID" | null;
+  registrationPricingMode?: "FREE" | "PAID" | "INVITATION_ONLY" | null;
   /** Precio en unidades mínimas (centavos). */
   registrationPriceAmountMinor?: number | null;
   registrationCurrency?: string | null;
@@ -70,7 +70,7 @@ export type UpdateFotorankContestInput = Partial<{
   experienceType: "CONTEST" | "MARATHON";
   distributionChannel: "FOTORANK" | "CLICKATON" | null;
   registrationEnabled: boolean;
-  registrationPricingMode: "FREE" | "PAID" | null;
+  registrationPricingMode: "FREE" | "PAID" | "INVITATION_ONLY" | null;
   registrationPriceAmountMinor: number | null;
   registrationCurrency: string | null;
   registrationOpensAt: string | null;
@@ -144,7 +144,7 @@ function validateCategories(categories: ContestCategoryInput[]): string | null {
 
 function validateRegistrationConfig(input: {
   registrationEnabled?: boolean;
-  registrationPricingMode?: "FREE" | "PAID" | null;
+  registrationPricingMode?: "FREE" | "PAID" | "INVITATION_ONLY" | null;
   registrationPriceAmountMinor?: number | null;
   registrationCurrency?: string | null;
   registrationOpensAt?: Date | null;
@@ -155,6 +155,9 @@ function validateRegistrationConfig(input: {
   const mode = input.registrationPricingMode ?? null;
   if (enabled && !mode) {
     return "Si habilitás la inscripción, elegí modalidad Gratuita o Paga.";
+  }
+  if (enabled && mode === "INVITATION_ONLY") {
+    return "INVITATION_ONLY aún no está disponible para inscripción pública.";
   }
   if (mode === "PAID") {
     const amount = input.registrationPriceAmountMinor;

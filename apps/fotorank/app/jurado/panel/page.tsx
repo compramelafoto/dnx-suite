@@ -52,13 +52,18 @@ export default async function JudgePanelPage() {
                   </div>
                   <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
                     <Badge variant="neutral">{a.assignmentStatus}</Badge>
+                    <Link href={`/jurado/concursos/${a.contestId}`}>
+                      <Button size="sm" variant="outline" className="w-full sm:w-auto">
+                        Ver obras anónimas
+                      </Button>
+                    </Link>
                     {a.evaluationAllowed ? (
                       <Link href={`/jurado/asignaciones/${a.id}/evaluar`}>
                         <Button size="sm" className="w-full sm:w-auto">Evaluar</Button>
                       </Link>
                     ) : (
                       <Button size="sm" variant="outline" disabled className="w-full sm:w-auto cursor-not-allowed opacity-60">
-                        Evaluar
+                        Evaluación no habilitada
                       </Button>
                     )}
                   </div>

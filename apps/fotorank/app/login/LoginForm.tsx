@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { loginAction, type LoginFormState } from "./actions";
@@ -16,13 +17,20 @@ function SubmitButton() {
   );
 }
 
-export function LoginForm({ oauthError }: { oauthError?: string | null }) {
+export function LoginForm({
+  oauthError,
+  nextPath,
+}: {
+  oauthError?: string | null;
+  nextPath?: string | null;
+}) {
   const [state, formAction] = useActionState(loginAction, initialState);
   const bannerError = state.error ?? oauthError ?? null;
 
   return (
     <>
       <form data-testid="fotorank-login-form" action={formAction} className="w-full space-y-0">
+        {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
         <FormField id="email" label="Email" required layout="auth">
           <input
             id="email"
@@ -35,7 +43,7 @@ export function LoginForm({ oauthError }: { oauthError?: string | null }) {
           />
         </FormField>
 
-        <FormField id="password" label="Contraseña" required layout="auth" className="!pb-8 md:!pb-10">
+        <FormField id="password" label="Contraseña" required layout="auth" className="!pb-4 md:!pb-6">
           <input
             id="password"
             name="password"
@@ -45,6 +53,12 @@ export function LoginForm({ oauthError }: { oauthError?: string | null }) {
             className={inputAuth}
           />
         </FormField>
+
+        <p className="mb-8 text-center text-sm">
+          <Link href="/recuperar" className="text-gold hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </p>
 
         {bannerError ? (
           <div
@@ -59,6 +73,16 @@ export function LoginForm({ oauthError }: { oauthError?: string | null }) {
           <SubmitButton />
         </div>
       </form>
+
+      <p className="mt-8 text-center text-sm text-fr-muted">
+        ¿No tenés cuenta?{" "}
+        <Link
+          href={nextPath ? `/crear-cuenta?next=${encodeURIComponent(nextPath)}` : "/crear-cuenta"}
+          className="text-gold hover:underline"
+        >
+          Crear cuenta con email
+        </Link>
+      </p>
 
       <div className="mt-8 w-full border-t border-fr-border pt-8">
         <a

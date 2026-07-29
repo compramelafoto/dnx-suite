@@ -17,7 +17,7 @@ import type {
 } from "./contracts";
 import { toIsoOrNull } from "./status";
 
-export type InternalRegistrationPricingMode = "FREE" | "PAID" | null;
+export type InternalRegistrationPricingMode = "FREE" | "PAID" | "INVITATION_ONLY" | null;
 
 export type PublicRegistrationConfigSource = {
   slug: string;

@@ -7,7 +7,11 @@ export const routes = {
   concursos: {
     index: () => "/concursos",
     publico: (slug: string) => `/concursos/${slug}`,
+    inscripcion: (slug: string) => `/concursos/${slug}/inscripcion`,
     juradosPublico: (slug: string) => `/concursos/${slug}/jurados`,
+  },
+  participaciones: {
+    index: () => "/participaciones",
   },
   dashboard: {
     index: () => "/dashboard",

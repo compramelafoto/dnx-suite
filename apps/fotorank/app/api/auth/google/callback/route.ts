@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
+import {
+  resolveOrLinkGoogleUser,
+  resolveOrCreateUser,
+} from "@repo/auth";
 import { attachAdminSessionCookieToResponse } from "../../../../lib/auth";
 import {
   FOTORANK_GOOGLE_OAUTH_STATE,
@@ -103,60 +107,60 @@ export async function GET(req: Request) {
       id?: string;
     };
 
-    const emailNorm = email.toLowerCase();
+    if (!googleId) {
+      return redirectToLogin(baseUrl, "Google no devolvió un identificador de cuenta.");
+    }
 
-    let user = await prisma.user.findUnique({
-      where: { email: emailNorm },
-    });
-
-    if (!user) {
-      try {
-        user = await prisma.user.create({
-          data: {
-            email: emailNorm,
-            name: name?.trim() || null,
-            googleId: googleId || null,
-            role: "ORGANIZER",
-          },
-        });
-      } catch (e) {
-        console.error("FOTORANK Google create user", e);
-        return redirectToLogin(baseUrl, "No se pudo crear la cuenta. Probá de nuevo o contactá soporte.");
+    let resolved;
+    try {
+      resolved = await resolveOrLinkGoogleUser({
+        google: {
+          id: googleId,
+          email,
+          name: name?.trim() || null,
+          verifiedEmail: true,
+          picture: null,
+        },
+        onCreate: async ({ email: e, name: n, googleId: gid }) => {
+          // Cuenta DNX base — NO otorga organizador/jurado automáticamente.
+          const { user: created } = await resolveOrCreateUser({
+            email: e,
+            name: n,
+            googleId: gid,
+            createRole: "CUSTOMER",
+            sourceApplication: "fotorank",
+            markEmailVerified: true,
+          });
+          return { id: created.id, role: created.role };
+        },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("FOTORANK Google resolve", msg);
+      if (msg.includes("vinculada")) {
+        return redirectToLogin(baseUrl, msg);
       }
-    } else {
-      if (user.isBlocked) {
+      if (msg.includes("bloqueada")) {
         return redirectToLogin(baseUrl, "Tu cuenta está bloqueada.");
       }
-      if (user.googleId && googleId && user.googleId !== googleId) {
-        return redirectToLogin(
-          baseUrl,
-          "Esta cuenta ya está vinculada a otra identidad de Google.",
-        );
-      }
-      if (!user.googleId && googleId) {
-        try {
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: { googleId },
-          });
-        } catch (e) {
-          console.error("FOTORANK Google link googleId", e);
-          return redirectToLogin(
-            baseUrl,
-            "No se pudo vincular la cuenta de Google (identificador en uso).",
-          );
-        }
-      }
+      return redirectToLogin(
+        baseUrl,
+        "No se pudo iniciar sesión con Google. Probá de nuevo o contactá soporte.",
+      );
     }
 
     await prisma.user.update({
-      where: { id: user.id },
+      where: { id: resolved.userId },
       data: { lastLoginAt: new Date() },
     });
 
-    const dashboardUrl = new URL("/dashboard", baseUrl).toString();
-    const response = NextResponse.redirect(dashboardUrl);
-    await attachAdminSessionCookieToResponse(response, user.id);
+    const isOrganizer =
+      resolved.suiteRole === "ORGANIZER" ||
+      resolved.suiteRole === "SUPER_ADMIN" ||
+      resolved.suiteRole === "ADMIN";
+    const dest = new URL(isOrganizer ? "/dashboard" : "/participaciones", baseUrl).toString();
+    const response = NextResponse.redirect(dest);
+    await attachAdminSessionCookieToResponse(response, resolved.userId);
     return response;
   } catch (err: unknown) {
     console.error("FOTORANK GOOGLE CALLBACK ERROR", err);

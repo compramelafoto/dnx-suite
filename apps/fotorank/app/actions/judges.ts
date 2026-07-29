@@ -1310,13 +1310,21 @@ export async function listEntriesForAssignment(assignmentId: string): Promise<Ju
     where: {
       contestId: assignment.contestId,
       categoryId: assignment.categoryId,
+      status: "CONFIRMED",
+      withdrawnAt: null,
+      entryNumber: { not: null },
     },
     include: {
       votes: {
         where: { assignmentId: assignment.id },
       },
+      assets: {
+        where: { isActive: true, kind: "JURY_PREVIEW" },
+        take: 1,
+      },
+      checks: { select: { status: true } },
     },
-    orderBy: { id: "asc" },
+    orderBy: { entryNumber: "asc" },
   });
 
   const entries = filterFotorankEntriesEvaluableForJudging(entriesRaw);
@@ -1325,11 +1333,22 @@ export async function listEntriesForAssignment(assignmentId: string): Promise<Ju
     ok: true,
     data: entries.map((entry) => ({
       id: entry.id,
-      imageUrl: entry.imageUrl,
-      title: entry.title,
-      description: entry.description,
-      // anonimato: no exponer authorUserId en panel jurado
-      currentVote: entry.votes[0] ?? null,
+      anonymousCode: entry.entryNumber,
+      // P0-07: no imageUrl pública ni title/description identificatorios
+      hasJuryPreview: entry.assets.length > 0,
+      technicalSummaryStatus: entry.technicalSummaryStatus,
+      warningCount: entry.checks.filter((c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW").length,
+      evaluationMessage: "Evaluación aún no habilitada (rúbricas pendientes).",
+      currentVote: entry.votes[0]
+        ? {
+            id: entry.votes[0].id,
+            valueNumeric: entry.votes[0].valueNumeric,
+            valueBoolean: entry.votes[0].valueBoolean,
+            isFavorite: entry.votes[0].isFavorite,
+            selectedRank: entry.votes[0].selectedRank,
+            version: entry.votes[0].version,
+          }
+        : null,
     })),
   };
 }
@@ -1354,7 +1373,15 @@ export async function saveJudgeVote(input: {
 
   const entry = await prisma.fotorankContestEntry.findUnique({
     where: { id: input.entryId },
-    select: { id: true, contestId: true, categoryId: true, imageUrl: true },
+    select: {
+      id: true,
+      contestId: true,
+      categoryId: true,
+      imageUrl: true,
+      status: true,
+      entryNumber: true,
+      withdrawnAt: true,
+    },
   });
   if (!entry) {
     return { ok: false, error: "Obra no encontrada." };
@@ -1367,7 +1394,7 @@ export async function saveJudgeVote(input: {
   }
 
   if (!isEvaluableFotorankContestEntry(entry)) {
-    return { ok: false, error: "Esta obra no cumple los requisitos mínimos para ser evaluada (p. ej. imagen faltante)." };
+    return { ok: false, error: "Esta obra no está confirmada o no está disponible para evaluación." };
   }
 
   let existing = await prisma.fotorankJudgeVote.findUnique({

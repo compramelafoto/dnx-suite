@@ -217,6 +217,13 @@ export type FotorankPublicEventListItemV1 = {
    * Cards Clickatón: Gratis / Desde $X / merch opcional.
    */
   registration?: FotorankPublicRegistrationV1;
+  /**
+   * Métricas públicas autorizadas.
+   * `confirmedRegistrationCount` = inscripciones CONFIRMED.
+   * `confirmedEntryCount` = obras CONFIRMED (no retiradas).
+   */
+  confirmedRegistrationCount?: number | null;
+  confirmedEntryCount?: number | null;
   updatedAt: string;
 };
 
@@ -252,6 +259,13 @@ export type FotorankPublicEventV1 = {
    * No mezclar con `rulesData`/economía interna simulada.
    */
   registration?: FotorankPublicRegistrationV1;
+  /**
+   * Métricas públicas autorizadas.
+   * `confirmedRegistrationCount` = inscripciones CONFIRMED (mismo valor que usa cupo/`confirmedCount`).
+   * `confirmedEntryCount` = obras fotográficas CONFIRMED (no retiradas).
+   */
+  confirmedRegistrationCount?: number | null;
+  confirmedEntryCount?: number | null;
   createdAt: string;
   updatedAt: string;
 };

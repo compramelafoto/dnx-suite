@@ -67,6 +67,8 @@ export type PublicEventSerializeSource = {
   hasOptionalMerchandise?: boolean;
   /** Conteos confirmados públicos; null = no exponer remaining. */
   registrationConfirmedCount?: number | null;
+  /** Obras confirmadas (distinto de inscripciones). */
+  entriesConfirmedCount?: number | null;
   createdAt: Date;
   updatedAt: Date;
   organization: {
@@ -302,6 +304,8 @@ export function serializePublicEventV1(
       canRegister: registration.canRegister,
     }),
     registration,
+    confirmedRegistrationCount: source.registrationConfirmedCount ?? null,
+    confirmedEntryCount: source.entriesConfirmedCount ?? null,
     createdAt: source.createdAt.toISOString(),
     updatedAt: source.updatedAt.toISOString(),
   };
@@ -367,6 +371,8 @@ export function serializePublicEventListItemV1(
     resultsStatus: detail.resultsStatus,
     capabilities: detail.capabilities,
     registration: detail.registration,
+    confirmedRegistrationCount: detail.confirmedRegistrationCount ?? null,
+    confirmedEntryCount: detail.confirmedEntryCount ?? null,
     updatedAt: detail.updatedAt,
   };
 }

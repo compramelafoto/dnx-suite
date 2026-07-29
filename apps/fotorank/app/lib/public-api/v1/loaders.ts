@@ -91,7 +91,11 @@ type ContestLike = {
   judgeAssignments: JudgeAssignmentLike[];
 };
 
-function toSerializeSource(contest: ContestLike): PublicEventSerializeSource {
+function toSerializeSource(
+  contest: ContestLike,
+  confirmedCount: number | null = null,
+  entriesConfirmedCount: number | null = null,
+): PublicEventSerializeSource {
   const byJudge = new Map<
     string,
     {
@@ -153,7 +157,8 @@ function toSerializeSource(contest: ContestLike): PublicEventSerializeSource {
     registrationClosesAt: contest.registrationClosesAt ?? null,
     registrationCapacity: contest.registrationCapacity ?? null,
     hasOptionalMerchandise: Boolean(contest.hasOptionalMerchandise),
-    registrationConfirmedCount: null,
+    registrationConfirmedCount: confirmedCount,
+    entriesConfirmedCount,
     createdAt: contest.createdAt,
     updatedAt: contest.updatedAt,
     organization: {
@@ -237,7 +242,25 @@ export async function getPublicEventV1BySlug(
     return null;
   }
 
-  const event = serializePublicEventV1(toSerializeSource(contest as ContestLike));
+  let confirmedCount: number | null = null;
+  let entriesConfirmedCount: number | null = null;
+  try {
+    const { getPublicCountsByContestIds } = await import(
+      "../../fotorank/metrics/contest-metrics"
+    );
+    const counts = await getPublicCountsByContestIds([contest.id]);
+    const c = counts.get(contest.id);
+    confirmedCount = c?.confirmedRegistrationCount ?? 0;
+    entriesConfirmedCount = c?.confirmedEntryCount ?? 0;
+  } catch {
+    // Cliente/DB sin migración P0-01/P0-06 aún → no romper Public API.
+    confirmedCount = null;
+    entriesConfirmedCount = null;
+  }
+
+  const event = serializePublicEventV1(
+    toSerializeSource(contest as ContestLike, confirmedCount, entriesConfirmedCount),
+  );
 
   if (
     options?.channel &&
@@ -309,6 +332,16 @@ export async function listPublicEventsV1(
     take: Math.min(Math.max(limit, 1), 100),
   });
 
+  let counts = new Map<string, { confirmedRegistrationCount: number; confirmedEntryCount: number }>();
+  try {
+    const { getPublicCountsByContestIds } = await import(
+      "../../fotorank/metrics/contest-metrics"
+    );
+    counts = await getPublicCountsByContestIds(contests.map((c) => c.id));
+  } catch {
+    counts = new Map();
+  }
+
   const items: FotorankPublicEventListItemV1[] = [];
   for (const contest of contests) {
     if (
@@ -319,8 +352,13 @@ export async function listPublicEventsV1(
     ) {
       continue;
     }
+    const c = counts.get(contest.id);
     const item = serializePublicEventListItemV1(
-      toSerializeSource(contest as ContestLike),
+      toSerializeSource(
+        contest as ContestLike,
+        c?.confirmedRegistrationCount ?? null,
+        c?.confirmedEntryCount ?? null,
+      ),
     );
     if (
       options?.channel &&
