@@ -66,7 +66,7 @@ Política documentada: revocar sesiones Staging antiguas; mensaje
 
 | Ítem | Estado |
 | ---- | ------ |
-| Commit selectivo tooling/docs | `43f8e30` (+ fix schema selectivo pendiente push) |
+| Commit selectivo tooling/docs | `43f8e30` + `7434b3f` (pushed a `migration-legacy-clf-to-monorepo`) |
 | Deploy Staging cutover | **NO** — datos no migrados |
 | Smoke 6 ediciones en DB compartida | **NO** |
 
