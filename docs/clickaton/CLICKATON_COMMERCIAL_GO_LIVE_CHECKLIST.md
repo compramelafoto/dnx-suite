@@ -2,35 +2,44 @@
 
 **Fecha:** 2026-07-30  
 **Scope:** apertura real de inscripciones (Production)  
-**Estado Staging técnico:** en progreso 10C.1  
+**Estado Staging técnico:** 10C.3.1 — `CLICKATON REGISTRATION + CHECKOUT READY IN STAGING`  
+**Veredicto 10D:** **`NO-GO`** — ver `CLICKATON_FINAL_GO_NO_GO.md` + runbook `CLICKATON_PRODUCTION_LAUNCH_RUNBOOK.md`
 
-`LEGAL REVIEW REQUIRED` — bloquea GO Production, **no** bloquea Staging.
+`LEGAL REVIEW REQUIRED` — bloquea GO Production (requiere `LEGAL APPROVED FOR REGISTRATION`).
 
 ---
 
 ## Bloqueantes Production (NO-GO hasta verde)
 
-- [ ] Staging: `CLICKATON REGISTRATION + CHECKOUT READY IN STAGING`
-- [ ] E2E pago Mercado Pago **TEST** completo (guest + existing + new + Google-only)
-- [ ] First-N benefit validado (N / N+1 / race último slot)
-- [ ] Activación DNX post-pago (password + Google)
-- [ ] Migraciones aplicadas en DB Staging compartida
-- [ ] Edición comercial publicada con flags correctos (no DRAFT accidental)
-- [ ] `LEGAL REVIEW` cerrada (guest, Cuenta DNX cross-platform, imagen, Instagram, merch, reembolsos, EXIF/IA)
-- [ ] Mercado Pago **LIVE** credentials + collector + webhooks prod
-- [ ] `DNX_SOCIAL_PUBLISHER_LIVE=false` confirmado (o decisión explícita)
-- [ ] Runbook rollback / expire holds / soporte
+- [x] Staging: `CLICKATON REGISTRATION + CHECKOUT READY IN STAGING`
+- [x] E2E pago Mercado Pago **TEST** Staging (guest) hasta CONFIRMED / return OK
+- [ ] E2E activación DNX completa (password + Google) en Staging/Prod
+- [ ] First-N benefit race último slot (evidencia formal N/N+1)
+- [x] Migraciones aplicadas en DB Staging (`userId` nullable)
+- [x] Edición comercial seed + flags Staging (AR2026 / Remera `stockLimit=100`)
+- [ ] Edición AR2026 materializada/publicable en Production (hoy 404 / `publishedEditions: 0`)
+- [ ] `LEGAL REVIEW` → `LEGAL APPROVED FOR REGISTRATION`
+- [ ] Mercado Pago **LIVE** + OAuth Tammy + collector ACTIVE + webhooks prod
+- [ ] `CLICKATON_DNX_PAYMENTS_PROVIDER` Production configurado
+- [ ] Storage R2 (o durable) Production
+- [ ] Backup Neon `backup-before-clickaton-production-launch`
+- [ ] `DNX_SOCIAL_PUBLISHER_LIVE=false` confirmado en runtime
+- [x] Runbook rollback / kill switch documentado (10D)
 
-## Staging técnico (10C.1)
+## Staging técnico (10C.2 → 10C.3.1)
 
-- [x] Guest sin User prematuro
-- [x] First-N runtime (`filterPhaseItemsByFirstNQuota` + strip en TX)
-- [x] Flags activación en `pago/exito` + landing `/activar`
-- [x] Selfchecks first-N / guest / payments
-- [ ] `prisma migrate deploy` Staging (`userId` nullable si falta)
-- [ ] Seed/update AR 2026 `stockLimit=100` en Staging
-- [ ] Deploy `clickaton-staging` con commit 10C.1
-- [ ] Smoke E2E real MP TEST (guest / existing / new / N+1)
+- [x] Guest sin User prematuro (evidencia AR2026 Staging)
+- [x] First-N runtime + selfcheck
+- [x] Flags activación en `pago/exito` + landing `/activar` (código)
+- [x] Selfchecks first-N / guest / reservation / payments(manual) / typecheck
+- [x] `prisma migrate deploy` Staging (`ep-round-fog`)
+- [x] Seed/update AR 2026 `stockLimit=100` en Staging
+- [x] Deploy `clickaton-staging` + ruta maratón **200**
+- [x] Preferencia Checkout Pro TEST creada
+- [x] Smoke E2E real MP TEST hasta **APPROVED** / refresh **CONFIRMED** (CKA26-00002)
+- [ ] Activación post-pago E2E completa (password set + login)
+- [x] QR / credential ACTIVE post-CONFIRMED
+- [ ] Email activación (Staging sin Resend; Production tiene vars)
 
 ## No hacer en GO
 
@@ -38,3 +47,4 @@
 - Usar `phase.capacity=100` como “remera primeros 100”
 - Password temporal
 - Publicar social LIVE sin checklist aparte
+- Usar tarjeta MP de prueba `5031755734560604` (Luhn inválido en token API actual)
