@@ -234,25 +234,27 @@ export function createApplyPaymentEventUseCase(deps: {
           const { enqueueFotoRankSyncAfterPaid } = await import(
             "@/lib/fotorank-sync/infrastructure/prisma-fotorank-sync"
           );
-          void enqueueFotoRankSyncAfterPaid({
-            registrationId: confirmed.id,
-            editionId: confirmed.editionId,
-            userId: confirmed.userId,
-            paymentOrderId: order.id,
-            paidAt: confirmed.confirmedAt ?? new Date(),
-          }).then((r) => {
-            if (!r.ok) {
-              log?.({
-                event: "conflict",
-                registrationId: confirmed.id,
-                orderId: order.id,
-                meta: {
-                  code: "FOTORANK_SYNC_ENQUEUE_SOFT",
-                  reason: r.reason ?? null,
-                },
-              });
-            }
-          });
+          if (confirmed.userId != null) {
+            void enqueueFotoRankSyncAfterPaid({
+              registrationId: confirmed.id,
+              editionId: confirmed.editionId,
+              userId: confirmed.userId,
+              paymentOrderId: order.id,
+              paidAt: confirmed.confirmedAt ?? new Date(),
+            }).then((r) => {
+              if (!r.ok) {
+                log?.({
+                  event: "conflict",
+                  registrationId: confirmed.id,
+                  orderId: order.id,
+                  meta: {
+                    code: "FOTORANK_SYNC_ENQUEUE_SOFT",
+                    reason: r.reason ?? null,
+                  },
+                });
+              }
+            });
+          }
         } catch (err) {
           log?.({
             event: "conflict",

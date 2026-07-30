@@ -69,13 +69,15 @@ export function createGetRegistrationPaymentStatusUseCase(deps: {
               const { enqueueFotoRankSyncAfterPaid } = await import(
                 "@/lib/fotorank-sync/infrastructure/prisma-fotorank-sync"
               );
-              void enqueueFotoRankSyncAfterPaid({
-                registrationId: registration.id,
-                editionId: registration.editionId,
-                userId: registration.userId,
-                paymentOrderId: order.id,
-                paidAt: registration.confirmedAt ?? new Date(),
-              });
+              if (registration.userId != null) {
+                void enqueueFotoRankSyncAfterPaid({
+                  registrationId: registration.id,
+                  editionId: registration.editionId,
+                  userId: registration.userId,
+                  paymentOrderId: order.id,
+                  paidAt: registration.confirmedAt ?? new Date(),
+                });
+              }
             } catch {
               // soft-fail: PAID no se revierte
             }

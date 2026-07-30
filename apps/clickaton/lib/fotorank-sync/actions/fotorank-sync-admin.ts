@@ -173,6 +173,9 @@ export async function syncRegistrationFotoRankFormAction(
     const { enqueueFotoRankSyncAfterPaid } = await import(
       "../infrastructure/prisma-fotorank-sync"
     );
+    if (reg.userId == null) {
+      throw new Error("La inscripción aún no tiene User DNX vinculado.");
+    }
     const enq = await enqueueFotoRankSyncAfterPaid({
       registrationId: reg.id,
       editionId: reg.editionId,

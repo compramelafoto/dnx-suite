@@ -9,7 +9,7 @@ import type {
 export type { ClickatonItemFulfillmentStatus };
 
 export type AdminRegistrationActor = {
-  userId: number | null;
+  userId: number;
   email: string;
   globalRole: string;
 };
