@@ -159,7 +159,17 @@ Architecture check: excluye `/api/` y `**/actions.ts` de `legacy-auth-ui` (falso
 
 ### Incidente operativo (mitigado)
 
-Push a `migration-legacy-clf-to-monorepo` disparó un deploy **Production** en FotoOffice (`dpl_6y86WTgUgbjXDyMeYMgy3GYBMJPb`) por configuración Git del proyecto. Fue **cancelado** antes de `aliasAssigned` (`canceledAt` set). Preview correcto se creó después con `vercel deploy --project fotoffice-dnxsuite` (sin `--prod`).
+La rama `migration-legacy-clf-to-monorepo` está configurada como **Production Branch** en `fotoffice-dnxsuite`. Cada push dispara Production.
+
+| Evento | Deploy | Acción |
+| ------ | ------ | ------ |
+| Push `d83c78e` | `dpl_6y86WTgUgbjXDyMeYMgy3GYBMJPb` | Cancelado a tiempo (`aliasAssigned=false`) |
+| Push docs `36a6801` | `dpl_4nbJKRyy7r7XY3vXQ6YENMVZr7rm` | Llegó a Ready + aliases Production |
+| Rollback | Promote `dpl_BSZ8AtBg5HXzUZ3XSaoEB1NcVt3V` (`mn6l2c32c`) | Production restaurada al deployment anterior |
+
+Preview correcto Phase 3: `dpl_4yWw6TqGAsr9ouAdbEWuNxNwSxLp` (creado con `vercel deploy --project fotoffice-dnxsuite`, sin `--prod`).
+
+**Ops aplicado:** Production Branch de `fotoffice-dnxsuite` cambiado de `migration-legacy-clf-to-monorepo` → `main` (API `PATCH /v1/projects/.../branch`). Los pushes de esta rama de migración ya no promocionan Production.
 
 ### Smoke remoto
 
