@@ -56,6 +56,31 @@ export class LocalStorage implements StoragePort {
   }
 }
 
+/**
+ * Key-only storage for serverless (Vercel) sin R2.
+ * El body durable via `metadata.inlineBase64` lo persiste `persistAsset` / lectores DB.
+ */
+export class KeyOnlyStorage implements StoragePort {
+  async put(input: Parameters<StoragePort["put"]>[0]) {
+    const key = objectKey(input.namespace, input.extension);
+    return stored(key, input.body, null);
+  }
+  async get(_key: string): Promise<Buffer> {
+    throw new Error("KEY_ONLY_STORAGE_GET_UNSUPPORTED");
+  }
+}
+
+export function shouldInlineMediaInDb(): boolean {
+  const hasR2 = Boolean(
+    (process.env.R2_BUCKET_NAME || process.env.R2_BUCKET) &&
+      process.env.R2_ENDPOINT &&
+      process.env.R2_ACCESS_KEY_ID &&
+      process.env.R2_SECRET_ACCESS_KEY,
+  );
+  if (hasR2) return false;
+  return process.env.VERCEL === "1" || process.env.CLICKATON_MEDIA_INLINE_DB === "1";
+}
+
 export class R2Storage implements StoragePort {
   private readonly client: S3Client;
   constructor(
@@ -90,6 +115,9 @@ export function getWelcomeCardStorage(): StoragePort {
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
   if (bucket && endpoint && accessKeyId && secretAccessKey) {
     return new R2Storage({ bucket, endpoint, accessKeyId, secretAccessKey, publicBaseUrl: process.env.R2_PUBLIC_URL });
+  }
+  if (shouldInlineMediaInDb()) {
+    return new KeyOnlyStorage();
   }
   return new LocalStorage();
 }

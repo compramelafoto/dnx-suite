@@ -4,7 +4,11 @@ import {
   type CropParams,
 } from "@repo/media-composition";
 import { prisma } from "@/lib/admin/db";
-import { getWelcomeCardStorage, type StoragePort } from "./storage";
+import {
+  getWelcomeCardStorage,
+  shouldInlineMediaInDb,
+  type StoragePort,
+} from "./storage";
 
 type UploadInput = {
   buffer: Buffer;
@@ -21,13 +25,26 @@ async function persistAsset(input: {
   const stored = await input.storage.put({
     namespace: input.namespace, extension: input.extension, body: input.body, contentType: input.mimeType,
   });
+  const inline = shouldInlineMediaInDb();
+  const metadata = {
+    ...(input.metadata ?? {}),
+    ...(inline
+      ? {
+          inlineBase64: input.body.toString("base64"),
+          inlineStorage: "db_metadata",
+        }
+      : {}),
+  };
   return prisma.dnxMediaAsset.create({
     data: {
       platform: "CLICKATON", ownerType: "REGISTRATION_DRAFT", ownerId: input.ownerId,
-      kind: input.kind, storageBackend: input.storage.constructor.name.replace("Storage", "").toUpperCase(),
+      kind: input.kind,
+      storageBackend: inline
+        ? "INLINE_DB"
+        : input.storage.constructor.name.replace("Storage", "").toUpperCase(),
       storageKey: stored.key, publicUrl: stored.publicUrl, mimeType: input.mimeType,
       width: input.width ?? null, height: input.height ?? null, bytes: stored.bytes,
-      contentHash: stored.contentHash, metadata: input.metadata,
+      contentHash: stored.contentHash, metadata,
     },
   });
 }

@@ -1,6 +1,7 @@
 import { CLICKATON_WELCOME_STORY_V1, hashRenderInputs, renderComposition } from "@repo/media-composition";
 import { prisma } from "@/lib/admin/db";
-import { getWelcomeCardStorage } from "./storage";
+import { getWelcomeCardStorage, shouldInlineMediaInDb } from "./storage";
+import { resolveMediaBody } from "./resolve-media-body";
 import { updateWelcomePublishAssets } from "@/lib/social-publisher/enqueue-welcome-publish";
 
 const retryAt = (attempt: number) => new Date(Date.now() + Math.min(60 * 60_000, 30_000 * 2 ** Math.min(attempt, 7)));
@@ -34,7 +35,7 @@ export async function processWelcomeCardById(cardId: string, storage = getWelcom
         editionName: registration.edition.name,
         editionDate: registration.edition.startAt?.toLocaleDateString("es-AR") ?? "",
       },
-      assets: { photo: await storage.get(photo.storageKey) },
+      assets: { photo: await resolveMediaBody(photo.storageKey) },
       crop: {
         cropX: registration.profilePhotoCropX ?? 0, cropY: registration.profilePhotoCropY ?? 0,
         zoom: registration.profilePhotoZoom ?? 1, rotation: registration.profilePhotoRotation ?? 0,
@@ -45,9 +46,54 @@ export async function processWelcomeCardById(cardId: string, storage = getWelcom
       storage.put({ namespace: "welcome", extension: "png", body: output.png, contentType: "image/png" }),
       storage.put({ namespace: "welcome", extension: "webp", body: output.webp, contentType: "image/webp" }),
     ]);
+    const inline = shouldInlineMediaInDb();
     const [png, webp] = await prisma.$transaction([
-      prisma.dnxMediaAsset.create({ data: { platform: "CLICKATON", ownerType: "WELCOME_CARD", ownerId: cardId, editionId: registration.editionId, registrationId: registration.id, kind: "WELCOME_CARD_PNG", storageBackend: storage.constructor.name.replace("Storage", "").toUpperCase(), storageKey: pngStored.key, publicUrl: pngStored.publicUrl, mimeType: "image/png", width: output.width, height: output.height, bytes: pngStored.bytes, contentHash: pngStored.contentHash } }),
-      prisma.dnxMediaAsset.create({ data: { platform: "CLICKATON", ownerType: "WELCOME_CARD", ownerId: cardId, editionId: registration.editionId, registrationId: registration.id, kind: "WELCOME_CARD_WEBP", storageBackend: storage.constructor.name.replace("Storage", "").toUpperCase(), storageKey: webpStored.key, publicUrl: webpStored.publicUrl, mimeType: "image/webp", width: output.width, height: output.height, bytes: webpStored.bytes, contentHash: webpStored.contentHash } }),
+      prisma.dnxMediaAsset.create({
+        data: {
+          platform: "CLICKATON",
+          ownerType: "WELCOME_CARD",
+          ownerId: cardId,
+          editionId: registration.editionId,
+          registrationId: registration.id,
+          kind: "WELCOME_CARD_PNG",
+          storageBackend: inline
+            ? "INLINE_DB"
+            : storage.constructor.name.replace("Storage", "").toUpperCase(),
+          storageKey: pngStored.key,
+          publicUrl: pngStored.publicUrl,
+          mimeType: "image/png",
+          width: output.width,
+          height: output.height,
+          bytes: pngStored.bytes,
+          contentHash: pngStored.contentHash,
+          ...(inline
+            ? { metadata: { inlineBase64: output.png.toString("base64"), inlineStorage: "db_metadata" } }
+            : {}),
+        },
+      }),
+      prisma.dnxMediaAsset.create({
+        data: {
+          platform: "CLICKATON",
+          ownerType: "WELCOME_CARD",
+          ownerId: cardId,
+          editionId: registration.editionId,
+          registrationId: registration.id,
+          kind: "WELCOME_CARD_WEBP",
+          storageBackend: inline
+            ? "INLINE_DB"
+            : storage.constructor.name.replace("Storage", "").toUpperCase(),
+          storageKey: webpStored.key,
+          publicUrl: webpStored.publicUrl,
+          mimeType: "image/webp",
+          width: output.width,
+          height: output.height,
+          bytes: webpStored.bytes,
+          contentHash: webpStored.contentHash,
+          ...(inline
+            ? { metadata: { inlineBase64: output.webp.toString("base64"), inlineStorage: "db_metadata" } }
+            : {}),
+        },
+      }),
     ]);
     await prisma.$transaction([
       prisma.dnxWelcomeCard.update({ where: { id: cardId }, data: { status: "GENERATED", pngAssetId: png.id, webpAssetId: webp.id, variablesSnapshot: { participantName: `${registration.firstName} ${registration.lastName}`, instagram: registration.instagramHandleNormalized ?? registration.instagramHandle }, cropSnapshot: registration.profilePhotoBoundingBox ?? undefined, contentHash: output.contentHash, inputHash, generatedAt: new Date(), nextRetryAt: null, lastErrorCode: null, lastErrorMessage: null } }),
