@@ -13,12 +13,19 @@
 CLICKATON REGISTRATION + CHECKOUT PARTIAL IN STAGING
 ```
 
-Código first-N + activación post-pago **listos**. Falta para `READY IN STAGING`:
+Código first-N + activación post-pago **listos**. Deploy Preview verde:
 
-1. `prisma migrate deploy` en Staging (`ep-round-fog` / userId nullable si no aplicado);
-2. seed/update AR2026 (`stockLimit=100` en Remera fase 1) en Staging;
-3. deploy `clickaton-staging` verde con este commit;
-4. E2E real guest → MP TEST → CONFIRMED → activación → panel.
+| Ítem | Valor |
+| ---- | ----- |
+| Commit | `40e21b6` (sobre `526b1a8`) |
+| Deploy | `dpl_DJCqY9xT281b1wNBFM258ECe3jCT` |
+| URL | https://clickaton-staging-2fzj9vnuw-compramelafotos-projects.vercel.app |
+
+Falta para `READY IN STAGING`:
+
+1. `prisma migrate deploy` en Staging (`ep-round-fog` / `userId` nullable);
+2. seed/update AR2026 (`stockLimit=100` Remera fase 1) en Staging;
+3. E2E real guest → MP TEST → CONFIRMED → activación → panel (alias staging puede requerir SSO/bypass).
 
 `LEGAL REVIEW REQUIRED` sigue pendiente (no bloquea Staging técnico; sí GO Production).
 
