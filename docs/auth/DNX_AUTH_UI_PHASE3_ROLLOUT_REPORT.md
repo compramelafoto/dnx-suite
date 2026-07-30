@@ -150,12 +150,29 @@ Architecture check: excluye `/api/` y `**/actions.ts` de `legacy-auth-ui` (falso
 
 ## 6. Deploys Staging / Preview
 
-| Proyecto Vercel | Target | Notas |
-| --------------- | ------ | ----- |
-| `infospot-dnxsuite` | preview / staging alias | Sin Production |
-| `fotoffice-dnxsuite` | preview / staging alias | Sin Production |
+| Proyecto | Deploy ID | URL Preview | Target | Commit | Health |
+| -------- | --------- | ----------- | ------ | ------ | ------ |
+| `infospot-dnxsuite` | `dpl_HHevSQPQP4qkKhqsw2VMvod397kF` | https://infospot-dnxsuite-a2t7wl4tq-compramelafotos-projects.vercel.app | Preview | `d83c78e` | `/api/health` → `db:ok` · `version:d83c78e` |
+| `fotoffice-dnxsuite` | `dpl_4yWw6TqGAsr9ouAdbEWuNxNwSxLp` | https://fotoffice-dnxsuite-mlxdq2bzp-compramelafotos-projects.vercel.app | Preview | `d83c78e` | Build READY · MCP `health: healthy` |
 
-*(IDs/aliases/health se completan tras deploy en esta etapa.)*
+**Production no promovida.**
+
+### Incidente operativo (mitigado)
+
+Push a `migration-legacy-clf-to-monorepo` disparó un deploy **Production** en FotoOffice (`dpl_6y86WTgUgbjXDyMeYMgy3GYBMJPb`) por configuración Git del proyecto. Fue **cancelado** antes de `aliasAssigned` (`canceledAt` set). Preview correcto se creó después con `vercel deploy --project fotoffice-dnxsuite` (sin `--prod`).
+
+### Smoke remoto
+
+| App | Resultado |
+| --- | --------- |
+| InfoSpot | PASS — `/` `/ingresar` `/recuperar` `/invitar` 200; `/redaccion` 307 (protegida); login con copy canónico + “¿Recibiste una invitación?” + Google + forgot |
+| FotoOffice | Deploy READY; HTTP anónimo redirige a **Vercel SSO Deployment Protection** (bypass automation no alcanza). Smoke UI requiere sesión Vercel del team o desactivar protection en Preview |
+
+```text
+FOTOFFICE PREVIEW HTTP SMOKE BLOCKED BY VERCEL SSO PROTECTION
+```
+
+No indica regresión de auth-ui (build local + Preview READY en `d83c78e`).
 
 ---
 
