@@ -127,5 +127,6 @@ export const DNX_AUTH_CTA = {
   forgotLink: "¿Olvidaste tu contraseña?",
   haveAccount: "Ya tengo cuenta",
   createAccount: "Crear cuenta",
+  invitationHelp: "¿Recibiste una invitación?",
   sessionExpired: "Actualizamos el sistema de cuentas. Iniciá sesión nuevamente.",
 } as const;

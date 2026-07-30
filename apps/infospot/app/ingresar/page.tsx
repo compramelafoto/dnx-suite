@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { PageShell } from "@/components/page-shell";
 import { friendlyGoogleLoginError } from "@/lib/google-oauth-start";
 import { LoginForm } from "./login-form";
 import { redirectIfAlreadySignedIn } from "./actions";
@@ -12,12 +11,12 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 const DENIED: Record<string, string> = {
-  login: "Para continuar, ingresá con tu cuenta.",
+  login: "Para continuar, ingresá con tu Cuenta DNX.",
   "infospot-redaccion":
-    "Acceso denegado a Redacción. Tu usuario no tiene rol Info Spot activo (Director, Redactor o Colaborador).",
+    "Estás autenticado, pero no tenés rol editorial activo (Director, Redactor o Colaborador).",
   "infospot-admin":
-    "Acceso denegado al Admin. Solo el Director (o SUPER_ADMIN) puede entrar.",
-  "infospot-events": "Acceso denegado al panel de eventos.",
+    "Estás autenticado, pero solo el Director (o SUPER_ADMIN) puede entrar al Admin.",
+  "infospot-events": "Estás autenticado, pero no tenés acceso al panel de eventos.",
 };
 
 type SearchParams = Promise<{
@@ -46,11 +45,8 @@ export default async function IngresarPage({
   const oauthError = friendlyGoogleLoginError(params.error);
 
   return (
-    <PageShell
-      title="Bienvenido a Info Spot"
-      description="Acceso con identidad DNX Suite (Google o email y contraseña)."
-    >
+    <main className="flex min-h-[70vh] w-full items-center justify-center px-6 py-16 md:px-10">
       <LoginForm next={next} deniedMessage={deniedMessage} oauthError={oauthError} />
-    </PageShell>
+    </main>
   );
 }

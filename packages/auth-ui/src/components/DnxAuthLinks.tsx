@@ -6,6 +6,7 @@ export function DnxAuthLinks({
   registerHref = "/crear-cuenta",
   forgotHref = "/recuperar",
   invitationHref,
+  invitationLabel,
   showRegister,
   showForgotInAux,
   privacyUrl,
@@ -16,6 +17,7 @@ export function DnxAuthLinks({
   registerHref?: string;
   forgotHref?: string;
   invitationHref?: string;
+  invitationLabel?: string;
   showRegister?: boolean;
   showForgotInAux?: boolean;
   privacyUrl?: string;
@@ -101,7 +103,7 @@ export function DnxAuthLinks({
         {invitationHref ? (
           <>
             <a href={invitationHref} style={{ color: "var(--auth-primary)" }}>
-              Acceder con una invitación
+              {invitationLabel ?? DNX_AUTH_CTA.invitationHelp}
             </a>
             {" · "}
           </>

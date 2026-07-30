@@ -56,6 +56,10 @@ function rel(file: string) {
 
 function isAuthScreenPath(file: string): boolean {
   const r = rel(file).toLowerCase();
+  // Solo superficies UI — no Route Handlers ni server actions (falsos positivos).
+  if (/\/api\//.test(r) || /\/actions\.tsx?$/.test(r) || /\/actions\//.test(r)) {
+    return false;
+  }
   return (
     /\/(login|crear-cuenta|recuperar|forgot-password|reset-password|verificar-email|verify-email|ingresar|registro)\//.test(
       r,

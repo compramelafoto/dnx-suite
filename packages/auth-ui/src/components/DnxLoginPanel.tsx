@@ -122,6 +122,7 @@ export function DnxLoginPanel({
       <DnxAuthLinks
         variant="help"
         invitationHref={brand.invitationOnly ? invitationHref : undefined}
+        invitationLabel={copy?.invitationHint}
         loginHref={loginHref}
       />
     </DnxAuthShell>

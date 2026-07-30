@@ -85,17 +85,15 @@ const googleRouteSrc = readFileSync(join(here, "../app/api/auth/google/route.ts"
   );
 }
 
-// 6. Login form: enlace real (no button-only), fuera del form password, loading copy
+// 6. Login form: panel canónico @repo/auth-ui + Google vía buildGoogleOAuthStartHref
 {
-  assert.match(loginFormSrc, /href=\{googleHref\}/);
+  assert.match(loginFormSrc, /@repo\/auth-ui/);
+  assert.match(loginFormSrc, /DnxLoginPanel/);
+  assert.match(loginFormSrc, /infospotAuthBrand/);
   assert.match(loginFormSrc, /buildGoogleOAuthStartHref/);
-  assert.match(loginFormSrc, /Redirigiendo a Google/);
-  assert.match(loginFormSrc, /Continuar con Google/);
-  assert.match(loginFormSrc, /aria-disabled=\{googlePending/);
+  assert.match(loginFormSrc, /formAction="\/api\/auth\/login"/);
+  assert.match(loginFormSrc, /invitationHref="\/invitar"/);
   assert.doesNotMatch(loginFormSrc, /window\.location\.assign/);
-  const googleIdx = loginFormSrc.indexOf("<a");
-  const formIdx = loginFormSrc.indexOf('<form action="/api/auth/login"');
-  assert.ok(googleIdx > 0 && formIdx > googleIdx, "Google link must be outside password form");
 }
 
 // 7. Página sanitiza error OAuth

@@ -53,23 +53,25 @@
 }
 
 .dnx-auth-root[data-brand="infospot"] {
-  --auth-background: #faf9f7;
+  /* Alineado a tokens editoriales InfoSpot (--is-accent naranja). */
+  --auth-background: #ffffff;
   --auth-surface: #ffffff;
-  --auth-text-primary: #1a1a1a;
-  --auth-text-secondary: #5c5c5c;
-  --auth-border: #e8e4dc;
-  --auth-primary: #1a1a1a;
-  --auth-primary-text: #faf9f7;
-  --auth-focus: #1a1a1a;
+  --auth-text-primary: #203038;
+  --auth-text-secondary: #5a6a72;
+  --auth-border: #e5e7eb;
+  --auth-primary: #f86000;
+  --auth-primary-text: #ffffff;
+  --auth-focus: #f86000;
 }
 
 .dnx-auth-root[data-brand="fotoffice"] {
-  --auth-background: #0f1115;
-  --auth-surface: #1a1d24;
-  --auth-text-primary: #f3f4f6;
-  --auth-text-secondary: #9ca3af;
-  --auth-border: #2a2f3a;
-  --auth-primary: #3b82f6;
+  /* Tema light alineado a la app FotoOffice (no dark-mode forzado). */
+  --auth-background: #f4f6f9;
+  --auth-surface: #ffffff;
+  --auth-text-primary: #0f172a;
+  --auth-text-secondary: #64748b;
+  --auth-border: #e2e8f0;
+  --auth-primary: #0ea5e9;
   --auth-primary-text: #ffffff;
-  --auth-focus: #3b82f6;
+  --auth-focus: #0ea5e9;
 }

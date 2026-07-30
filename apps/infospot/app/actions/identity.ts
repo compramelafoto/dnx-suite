@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import {
   acceptAppInvitation,
   getInvitationByRawToken,
+  passwordResetNeutralMessage,
   requestPasswordReset,
   resetPasswordWithToken,
 } from "@repo/auth";
@@ -111,24 +112,16 @@ export async function requestPasswordResetAction(
   const email = formData.get("email")?.toString()?.trim().toLowerCase() ?? "";
   if (!email) return { ok: false, message: "Email obligatorio." };
 
-  const result = await requestPasswordReset({
+  await requestPasswordReset({
     email,
     appBaseUrl: getSiteUrl(),
     appLabel: "Info Spot",
     resetPath: "/recuperar",
   });
 
-  const emailNote = result.emailResult
-    ? result.emailResult.sent
-      ? " Si el email existe, vas a recibir un enlace."
-      : result.emailResult.skipped
-        ? " El envío de email no está configurado en este entorno; pedile al Director que te reenvíe acceso."
-        : ` No se pudo enviar el email (${result.emailResult.reason ?? "error"}).`
-    : " Si el email existe, vas a recibir un enlace.";
-
   return {
     ok: true,
-    message: `Si hay una cuenta con ese email, te enviamos instrucciones.${emailNote}`,
+    message: passwordResetNeutralMessage(),
   };
 }
 

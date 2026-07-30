@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@repo/auth": "workspace:*",
+    "@repo/auth-ui": "workspace:*",
     "@repo/db": "workspace:*",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^0.544.0",

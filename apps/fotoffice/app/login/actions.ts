@@ -2,19 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { prisma, type Prisma } from "@repo/db";
+import { prisma } from "@repo/db";
 import { createFotofficeSessionForUser } from "@/lib/auth";
 import { resolveFotofficePostLoginDestination } from "@/lib/post-login";
-import { verifyPassword } from "@/lib/security/password";
+import { verifyUserPassword } from "@repo/auth";
 import { FOTOFFICE_WORKSPACE_COOKIE } from "@/lib/courses-sales/constants";
-
-const loginSelect = {
-  id: true,
-  password: true,
-  role: true,
-  globalRole: true,
-  isBlocked: true,
-} satisfies Prisma.UserSelect;
 
 export type LoginFormState = { error: string | null };
 
@@ -27,27 +19,29 @@ export async function fotofficeLoginAction(
   if (!email) return { error: "El email es obligatorio." };
   if (!password) return { error: "La contraseña es obligatoria." };
 
-  let user: Prisma.UserGetPayload<{ select: typeof loginSelect }> | null;
+  let verified: Awaited<ReturnType<typeof verifyUserPassword>>;
   try {
-    user = await prisma.user.findUnique({
-      where: { email },
-      select: loginSelect,
-    });
+    verified = await verifyUserPassword({ email, password });
   } catch {
     return {
       error: "No se pudo conectar a la base de datos. Revisá DATABASE_URL y migraciones.",
     };
   }
-  if (!user) return { error: "No existe un usuario con ese email." };
-  if (user.isBlocked) {
-    return { error: "Tu cuenta está suspendida. Contactá al administrador." };
-  }
-  if (!user.password) {
-    return { error: "Esta cuenta no tiene contraseña configurada. Usá Continuar con Google." };
-  }
-  if (!verifyPassword(password, user.password)) {
+  if (!verified.ok) {
+    if (verified.reason === "BLOCKED") {
+      return { error: "Tu cuenta está suspendida. Contactá al administrador." };
+    }
+    if (verified.reason === "NO_PASSWORD") {
+      return {
+        error:
+          "Esta cuenta no tiene contraseña configurada. Usá Continuar con Google o restablecé tu acceso.",
+      };
+    }
+    // Anti-enumeración: mismo mensaje para NOT_FOUND e invalid password.
     return { error: "Email o contraseña incorrectos." };
   }
+
+  const user = verified.user;
 
   try {
     await createFotofficeSessionForUser(user.id);

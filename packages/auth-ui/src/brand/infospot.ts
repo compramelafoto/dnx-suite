@@ -19,7 +19,10 @@ export const infospotAuthBrand: DnxAuthBrandConfig = {
   invitationOnly: true,
   contextualCopy: {
     loginTitle: "Iniciar sesión",
-    loginDescription: "Accedé a InfoSpot con tu Cuenta DNX.",
-    invitationHint: "Acceder con una invitación",
+    loginDescription:
+      "Accedé a InfoSpot con tu Cuenta DNX. El acceso editorial (Director, Redactor o Colaborador) es por invitación.",
+    invitationHint: "¿Recibiste una invitación?",
+    contextualNotice:
+      "Crear una Cuenta DNX no otorga rol editorial. Si te invitaron, abrí el enlace del email.",
   },
 };
