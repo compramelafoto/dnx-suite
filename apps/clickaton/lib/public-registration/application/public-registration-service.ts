@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { marathonPath } from "@/config/navigation";
 import { attachPhaseProductsToTickets } from "@/lib/catalog/application/attach-phase-products";
+import { filterPhaseItemsByFirstNQuota } from "@/lib/catalog/domain/first-n-benefit";
 import {
   ResolveIncludedItemsError,
 } from "@/lib/catalog/domain/resolve-included-items";
@@ -535,9 +536,16 @@ export function createPublicRegistrationService(deps: {
         pricePhaseNameSnapshot = resolvedPhase.phase.name;
         pricePhaseAmountSnapshot = resolvedPhase.phase.amount;
       }
-      const phaseItems = resolvedPhase
+      let phaseItems = resolvedPhase
         ? await repo.listPricePhaseItems(resolvedPhase.phase.id)
         : [];
+      if (phaseItems.length > 0) {
+        const claims = await repo.countPhaseBenefitClaims(phaseItems.map((i) => i.id));
+        const { available } = filterPhaseItemsByFirstNQuota(phaseItems, {
+          byItemId: claims,
+        });
+        phaseItems = available;
+      }
       try {
         ticket = attachPhaseProductsToTickets([ticket], phaseItems)[0]!;
       } catch (error) {
@@ -545,10 +553,9 @@ export function createPublicRegistrationService(deps: {
       }
 
       const email = normalizeEmail(input.participant.email);
-      const userId = await repo.resolveUserId(
-        email,
-        `${input.participant.firstName} ${input.participant.lastName}`,
-      );
+      // Guest: no crear User DNX. Si ya existe, vincular candidate sin forzar login.
+      const identity = await repo.resolveIdentityCandidate(email);
+      const userId = identity.userId;
 
       let discountAmount = 0;
       let promotionId: string | null = null;
@@ -634,6 +641,19 @@ export function createPublicRegistrationService(deps: {
             "DUPLICATE_REGISTRATION",
             "Ya existe una inscripción activa con este documento para esta edición.",
           );
+        }
+      }
+
+      if (pricePhaseId) {
+        const phaseMeta = phases.find((p) => p.id === pricePhaseId);
+        if (phaseMeta?.capacity != null) {
+          const phaseSeats = await repo.countPhaseConfirmedAndActiveHolds(pricePhaseId);
+          if (phaseSeats.confirmed + phaseSeats.activeHolds >= phaseMeta.capacity) {
+            throw new PublicRegistrationError(
+              "PHASE_CAPACITY_EXCEEDED",
+              `Se agotó el cupo de la fase «${phaseMeta.name}».`,
+            );
+          }
         }
       }
 

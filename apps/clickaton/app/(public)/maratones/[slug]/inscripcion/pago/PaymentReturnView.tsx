@@ -65,6 +65,10 @@ export async function PaymentReturnView({
 
   const summaryHref = `/maratones/${slug}/inscripcion/resumen/${registrationId}?t=${encodeURIComponent(accessToken)}`;
   const dashboardHref = `/mi-cuenta/inscripciones/${registrationId}`;
+  const activateHref = `/maratones/${slug}/inscripcion/activar/${registrationId}?t=${encodeURIComponent(accessToken)}`;
+  const loginHref = `/login?next=${encodeURIComponent(dashboardHref)}`;
+  const activationRequired = Boolean(s.activationRequired);
+  const existingCreds = Boolean(s.existingUserWithCredentials);
 
   const registration = confirmed
     ? await prisma.clickatonRegistration.findUnique({
@@ -221,12 +225,41 @@ export async function PaymentReturnView({
           </dl>
         )}
 
+        {confirmed && activationRequired ? (
+          <div className="space-y-3 rounded-[var(--ck-radius-card)] border border-ck-yellow/50 p-6">
+            <p className="font-semibold">Activá tu Cuenta DNX</p>
+            <p className="text-sm text-ck-text-secondary leading-relaxed">
+              Tu inscripción está confirmada. Creá tu contraseña o continuá con Google para gestionar
+              tu participación. No enviamos contraseñas temporales.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button href={activateHref} variant="primary">
+                Activar mi cuenta
+              </Button>
+              <Button href={summaryHref} variant="secondary">
+                Ver resumen
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap gap-3">
           {confirmed ? (
             <>
-              <Button href={dashboardHref} variant="primary">
-                Entrar al dashboard
-              </Button>
+              {existingCreds && !activationRequired ? (
+                <>
+                  <Button href={loginHref} variant="primary">
+                    Iniciar sesión
+                  </Button>
+                  <Button href={dashboardHref} variant="secondary">
+                    Ver mi inscripción
+                  </Button>
+                </>
+              ) : !activationRequired ? (
+                <Button href={dashboardHref} variant="primary">
+                  Ver mi inscripción
+                </Button>
+              ) : null}
               <Button href={`/mi-cuenta/inscripciones/${registrationId}`} variant="secondary">
                 Ver QR
               </Button>

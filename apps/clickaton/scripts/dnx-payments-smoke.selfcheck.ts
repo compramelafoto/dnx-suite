@@ -213,6 +213,10 @@ async function createRegistration(store: InMemoryPublicStore, slug: string, suff
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: true,
+    instagramHandle: `@smoke.${suffix}`,
+    profilePhotoAssetId: `asset_smoke_${suffix}`,
+    imageUsageConsent: true,
+    socialPublicationConsent: true,
     idempotencyKey: `smoke_idem_${suffix}_${randomBytes(4).toString("hex")}`,
   });
   return { publicRepo, summary };
@@ -511,6 +515,9 @@ async function main() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: true,
+    imageUsageConsent: true,
+    socialPublicationConsent: true,
+    profilePhotoAssetId: "asset_cap",
   };
   const [r1, r2] = await Promise.allSettled([
     pubC.createRegistration({
@@ -520,6 +527,7 @@ async function main() {
         email: "cap1@example.test",
         documentNumber: "30111101",
       },
+      instagramHandle: "@cap1",
       idempotencyKey: `cap1_${randomBytes(3).toString("hex")}`,
     }),
     pubC.createRegistration({
@@ -530,6 +538,7 @@ async function main() {
         email: "cap2@example.test",
         documentNumber: "30111102",
       },
+      instagramHandle: "@cap2",
       idempotencyKey: `cap2_${randomBytes(3).toString("hex")}`,
     }),
   ]);
@@ -569,6 +578,10 @@ async function main() {
       acceptTerms: true,
       acceptPrivacy: true,
       acceptImage: true,
+      instagramHandle: "@capseq1",
+      profilePhotoAssetId: "asset_capseq1",
+      imageUsageConsent: true,
+      socialPublicationConsent: true,
       idempotencyKey: `capseq1_${randomBytes(3).toString("hex")}`,
     });
     let secondCode: string | null = null;
@@ -591,6 +604,10 @@ async function main() {
         acceptTerms: true,
         acceptPrivacy: true,
         acceptImage: true,
+        instagramHandle: "@capseq2",
+        profilePhotoAssetId: "asset_capseq2",
+        imageUsageConsent: true,
+        socialPublicationConsent: true,
         idempotencyKey: `capseq2_${randomBytes(3).toString("hex")}`,
       });
     } catch (err) {

@@ -9766,7 +9766,7 @@ model ClickatonRegistrationPricePhase {
   currency    String                   @default("ARS")
   startsAt    DateTime
   endsAt      DateTime
-  /// Cupo opcional por fase (null = sin límite propio). Etapa futura.
+  /// Cupo opcional por fase (null = sin límite propio). Contado sobre CONFIRMED + holds ACTIVE.
   capacity    Int?
   /// Menor número = mayor prioridad al resolver empates (no debería haber solapes activos).
   priority    Int                      @default(100)
@@ -10020,7 +10020,8 @@ model ClickatonRegistration {
   id                                 String                               @id @default(cuid())
   editionId                          String
   venueId                            String?
-  userId                             Int
+  /// Nullable hasta pago aprobado / confirmación free: guest no crea User DNX en reserva.
+  userId                             Int?
   ticketTypeId                       String
   status                             ClickatonRegistrationStatus          @default(DRAFT)
   paymentStatus                      ClickatonPaymentStatus               @default(NOT_REQUIRED)
@@ -10098,7 +10099,7 @@ model ClickatonRegistration {
   updatedAt                          DateTime                             @updatedAt
   edition                            ClickatonEdition                     @relation(fields: [editionId], references: [id], onDelete: Restrict)
   venue                              ClickatonVenue?                      @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  user                               User                                 @relation("ClickatonRegistrationParticipant", fields: [userId], references: [id], onDelete: Restrict)
+  user                               User?                                @relation("ClickatonRegistrationParticipant", fields: [userId], references: [id], onDelete: Restrict)
   ticketType                         ClickatonTicketType                  @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
   items                              ClickatonRegistrationItem[]
   capacityHold                       ClickatonCapacityHold?

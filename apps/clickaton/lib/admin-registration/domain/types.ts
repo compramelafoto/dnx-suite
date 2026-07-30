@@ -9,7 +9,7 @@ import type {
 export type { ClickatonItemFulfillmentStatus };
 
 export type AdminRegistrationActor = {
-  userId: number;
+  userId: number | null;
   email: string;
   globalRole: string;
 };
@@ -109,7 +109,7 @@ export type AdminStockHoldView = {
 };
 
 export type AdminRegistrationDetail = AdminRegistrationListItem & {
-  userId: number;
+  userId: number | null;
   phone: string | null;
   city: string | null;
   province: string | null;

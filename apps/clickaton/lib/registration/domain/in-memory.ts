@@ -149,6 +149,7 @@ export function createInMemoryRegistrationRepository(
           discountAmount: cmd.discountAmount,
           totalAmount: cmd.totalAmount,
         },
+        pricePhaseId: cmd.pricePhaseId ?? null,
         holdExpiresAt: new Date(now.getTime() + holdMinutes * 60_000),
         items: cmd.items.map((item) => ({
           id: id("ri"),

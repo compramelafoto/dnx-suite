@@ -102,7 +102,8 @@ export type ClickatonRegistrationRecord = {
   id: string;
   editionId: string;
   venueId?: string | null;
-  userId: number;
+  /** Null hasta vincular identidad DNX post-pago / confirm free. */
+  userId: number | null;
   ticketTypeId: string;
   status: ClickatonRegistrationStatus;
   paymentStatus: ClickatonPaymentStatus;
@@ -110,6 +111,7 @@ export type ClickatonRegistrationRecord = {
   sequenceNumber?: number | null;
   participant: ParticipantSnapshot;
   money: MoneySnapshot;
+  pricePhaseId?: string | null;
   holdExpiresAt?: Date | null;
   confirmedAt?: Date | null;
   cancelledAt?: Date | null;

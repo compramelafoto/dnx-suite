@@ -60,7 +60,25 @@ export interface PublicRegistrationRepository {
     now?: Date,
   ): Promise<ClickatonRegistrationRecord | null>;
   findByIdempotencyKey(key: string): Promise<IdempotencyRecord | null>;
-  resolveUserId(email: string, name: string): Promise<number>;
+  /**
+   * Solo lookup — no crea User. Guest reserva sin identidad DNX.
+   * `existingUserCandidate` permite UI “ya tenés cuenta” sin forzar login.
+   */
+  resolveIdentityCandidate(email: string): Promise<{
+    userId: number | null;
+    existingUserCandidate: boolean;
+  }>;
+  /** Cupo de fase (asientos): CONFIRMED + holds ACTIVE con ese pricePhaseId. */
+  countPhaseConfirmedAndActiveHolds(pricePhaseId: string): Promise<{
+    confirmed: number;
+    activeHolds: number;
+  }>;
+  /**
+   * Claims first-N por PricePhaseItem: registrations CONFIRMED o PENDING_PAYMENT
+   * con hold ACTIVE que incluyen ese pricePhaseItemId.
+   * Does NOT throw PHASE_CAPACITY — solo cuenta para omitir beneficio.
+   */
+  countPhaseBenefitClaims(pricePhaseItemIds: string[]): Promise<Map<string, number>>;
   createReservedRegistration(input: {
     cmd: import("@/lib/registration/domain/commands").CreateDraftRegistrationCommand;
     idempotencyKey: string;

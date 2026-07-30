@@ -214,6 +214,28 @@ export function createGetRegistrationPaymentStatusUseCase(deps: {
     }): Promise<CheckoutReturnDto> {
       const status = await buildDto({ ...input, refresh: true });
       const registration = await deps.registrationPort.getRegistration(input.registrationId);
+      let activationRequired = false;
+      let existingUserWithCredentials = false;
+      if (status.confirmed) {
+        try {
+          const { ensurePostConfirmActivation, resolveActivationFlags } = await import(
+            "@/lib/registration/application/post-confirm-activation"
+          );
+          const base =
+            process.env.CLICKATON_PUBLIC_URL?.replace(/\/$/, "") ||
+            process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+            "https://clickaton-staging.vercel.app";
+          await ensurePostConfirmActivation({
+            registrationId: input.registrationId,
+            appBaseUrl: base,
+          });
+          const flags = await resolveActivationFlags(input.registrationId);
+          activationRequired = flags.activationRequired;
+          existingUserWithCredentials = flags.existingUserWithCredentials;
+        } catch {
+          // best-effort: la confirmación de pago no depende de activación
+        }
+      }
       return {
         ...status,
         editionSlug: input.editionSlug,
@@ -221,6 +243,8 @@ export function createGetRegistrationPaymentStatusUseCase(deps: {
         holdExpiresAt: registration?.holdExpiresAt ?? null,
         // Redirect nunca confirma solo: displayAsApproved solo si backend ya confirmó.
         displayAsApproved: status.confirmed,
+        activationRequired,
+        existingUserWithCredentials,
       };
     },
   };

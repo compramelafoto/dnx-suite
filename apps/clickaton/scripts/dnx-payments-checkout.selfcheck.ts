@@ -127,6 +127,10 @@ async function seedEligibleRegistration() {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: true,
+    instagramHandle: "@ana.pago",
+    profilePhotoAssetId: "asset_ana_pago",
+    imageUsageConsent: true,
+    socialPublicationConsent: true,
     idempotencyKey: `idem_${Math.random().toString(36).slice(2)}`,
   });
 

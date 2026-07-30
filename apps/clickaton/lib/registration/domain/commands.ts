@@ -9,7 +9,8 @@ import type {
 
 export type CreateDraftRegistrationCommand = {
   editionId: string;
-  userId: number;
+  /** Null en reserva guest; se vincula post-pago / confirm free vía resolveOrCreateUser. */
+  userId: number | null;
   ticket: TicketSelection;
   participant: ParticipantSnapshot;
   /** Minor units congelados al crear el draft. */

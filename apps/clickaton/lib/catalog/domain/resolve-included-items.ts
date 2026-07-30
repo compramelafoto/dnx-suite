@@ -70,6 +70,8 @@ export type PricePhaseItemResolvedInput = {
   displayTitle: string | null;
   displayDescription: string | null;
   sortOrder: number;
+  /** Cupo first-N de beneficio (null = sin límite). ≠ capacity de fase. */
+  stockLimit?: number | null;
   product: TicketBaseItemInput["product"];
 };
 

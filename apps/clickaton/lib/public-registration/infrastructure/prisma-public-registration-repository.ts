@@ -258,7 +258,7 @@ function mapRecord(row: {
   id: string;
   editionId: string;
   venueId: string | null;
-  userId: number;
+  userId: number | null;
   ticketTypeId: string;
   status: ClickatonRegistrationRecord["status"];
   paymentStatus: ClickatonRegistrationRecord["paymentStatus"];
@@ -405,6 +405,7 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
         displayTitle: row.displayTitle,
         displayDescription: row.displayDescription,
         sortOrder: row.sortOrder,
+        stockLimit: row.stockLimit,
         product: {
           id: row.product.id,
           name: row.product.name,
@@ -568,19 +569,66 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
       };
     },
 
-    async resolveUserId(email, name) {
+    async resolveIdentityCandidate(email) {
       const normalized = email.trim().toLowerCase();
-      const user = await prisma.user.upsert({
+      const user = await prisma.user.findUnique({
         where: { email: normalized },
-        create: {
-          email: normalized,
-          name: name.slice(0, 120),
-          globalRole: "USER",
-        },
-        update: {},
-        select: { id: true },
+        select: { id: true, isBlocked: true },
       });
-      return user.id;
+      if (!user || user.isBlocked) {
+        return { userId: null, existingUserCandidate: false };
+      }
+      return { userId: user.id, existingUserCandidate: true };
+    },
+
+    async countPhaseConfirmedAndActiveHolds(pricePhaseId) {
+      const now = new Date();
+      const [confirmed, activeHolds] = await Promise.all([
+        prisma.clickatonRegistration.count({
+          where: { pricePhaseId, status: "CONFIRMED" },
+        }),
+        prisma.clickatonCapacityHold.count({
+          where: {
+            status: "ACTIVE",
+            expiresAt: { gt: now },
+            registration: { pricePhaseId },
+          },
+        }),
+      ]);
+      return { confirmed, activeHolds };
+    },
+
+    async countPhaseBenefitClaims(pricePhaseItemIds) {
+      const map = new Map<string, number>();
+      for (const id of pricePhaseItemIds) map.set(id, 0);
+      if (pricePhaseItemIds.length === 0) return map;
+
+      const now = new Date();
+      const rows = await prisma.clickatonRegistrationItem.groupBy({
+        by: ["pricePhaseItemId"],
+        where: {
+          pricePhaseItemId: { in: pricePhaseItemIds },
+          registration: {
+            OR: [
+              { status: "CONFIRMED" },
+              {
+                status: "PENDING_PAYMENT",
+                capacityHold: {
+                  status: "ACTIVE",
+                  expiresAt: { gt: now },
+                },
+              },
+            ],
+          },
+        },
+        _count: { _all: true },
+      });
+      for (const row of rows) {
+        if (row.pricePhaseItemId) {
+          map.set(row.pricePhaseItemId, row._count._all);
+        }
+      }
+      return map;
     },
 
     async createReservedRegistration(input) {
@@ -616,7 +664,87 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
             }
           }
 
-          for (const item of input.cmd.items) {
+          const phaseId = input.cmd.pricePhaseId ?? null;
+          if (phaseId) {
+            const phase = await tx.clickatonRegistrationPricePhase.findUnique({
+              where: { id: phaseId },
+              select: { capacity: true, name: true },
+            });
+            if (phase?.capacity != null) {
+              const nowTx = new Date();
+              const [phaseConfirmed, phaseActiveHolds] = await Promise.all([
+                tx.clickatonRegistration.count({
+                  where: { pricePhaseId: phaseId, status: "CONFIRMED" },
+                }),
+                tx.clickatonCapacityHold.count({
+                  where: {
+                    status: "ACTIVE",
+                    expiresAt: { gt: nowTx },
+                    registration: { pricePhaseId: phaseId },
+                  },
+                }),
+              ]);
+              if (phaseConfirmed + phaseActiveHolds >= phase.capacity) {
+                throw new PublicRegistrationError(
+                  "PHASE_CAPACITY_EXCEEDED",
+                  `Se agotó el cupo de la fase «${phase.name}».`,
+                );
+              }
+            }
+          }
+
+          // First-N benefit: strip exhausted PRICE_PHASE items.
+          // Does NOT throw PHASE_CAPACITY — N+1 still registers without the benefit.
+          // First-N path documented as non-capacity (≠ phase.capacity seats).
+          let reservedItems = [...input.cmd.items];
+          const phaseItemIds = [
+            ...new Set(
+              reservedItems
+                .map((i) => i.pricePhaseItemId)
+                .filter((id): id is string => Boolean(id)),
+            ),
+          ];
+          if (phaseItemIds.length > 0) {
+            const limits = await tx.clickatonPricePhaseItem.findMany({
+              where: { id: { in: phaseItemIds } },
+              select: { id: true, stockLimit: true },
+            });
+            const limitById = new Map(limits.map((l) => [l.id, l.stockLimit]));
+            const nowClaims = new Date();
+            const claimRows = await tx.clickatonRegistrationItem.groupBy({
+              by: ["pricePhaseItemId"],
+              where: {
+                pricePhaseItemId: { in: phaseItemIds },
+                registration: {
+                  OR: [
+                    { status: "CONFIRMED" },
+                    {
+                      status: "PENDING_PAYMENT",
+                      capacityHold: {
+                        status: "ACTIVE",
+                        expiresAt: { gt: nowClaims },
+                      },
+                    },
+                  ],
+                },
+              },
+              _count: { _all: true },
+            });
+            const claimedById = new Map(
+              claimRows
+                .filter((r) => r.pricePhaseItemId)
+                .map((r) => [r.pricePhaseItemId!, r._count._all]),
+            );
+            reservedItems = reservedItems.filter((item) => {
+              if (!item.pricePhaseItemId) return true;
+              const limit = limitById.get(item.pricePhaseItemId);
+              if (limit == null) return true;
+              const claimed = claimedById.get(item.pricePhaseItemId) ?? 0;
+              return claimed < limit;
+            });
+          }
+
+          for (const item of reservedItems) {
             if (!item.productVariantId) continue;
             const variant = await tx.clickatonProductVariant.findUnique({
               where: { id: item.productVariantId },
@@ -706,7 +834,7 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
               holdExpiresAt: input.holdExpiresAt,
               paymentIdempotencyKey: input.idempotencyKey,
               items: {
-                create: input.cmd.items.map((item) => ({
+                create: reservedItems.map((item) => ({
                   ticketTypeItemId: item.ticketTypeItemId ?? null,
                   pricePhaseItemId: item.pricePhaseItemId ?? null,
                   sourceType: item.sourceType ?? "TICKET_BASE",
@@ -766,7 +894,7 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
             include: { items: true },
           });
 
-          for (const item of input.cmd.items) {
+          for (const item of reservedItems) {
             if (!item.productVariantId || !item.productId) continue;
             await tx.clickatonStockHold.create({
               data: {

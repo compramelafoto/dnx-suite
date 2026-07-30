@@ -100,6 +100,9 @@ export type CheckoutReturnDto = RegistrationPaymentStatusDto & {
   holdExpiresAt: Date | null;
   /** Nunca true solo por redirect; requiere backend verificado. */
   displayAsApproved: boolean;
+  /** Post-pago: User sin password/Google → activar Cuenta DNX. */
+  activationRequired?: boolean;
+  existingUserWithCredentials?: boolean;
 };
 
 export type NormalizedPaymentEvent = {

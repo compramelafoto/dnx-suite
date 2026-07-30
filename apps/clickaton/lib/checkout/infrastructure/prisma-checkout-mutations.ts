@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import { confirmClickatonPromotionRedemption } from "@/lib/promotions/prisma-promotions-adapter";
+import { linkRegistrationIdentity } from "@/lib/registration/application/link-registration-identity";
 import { issueRegistrationQrToken } from "@/lib/registration/security/qr-token";
 import type { CheckoutRegistrationMutations } from "../domain/checkout-registration-port";
 import { CheckoutError } from "../domain/errors";
@@ -13,7 +14,7 @@ function mapRecord(row: {
   id: string;
   editionId: string;
   venueId: string | null;
-  userId: number;
+  userId: number | null;
   ticketTypeId: string;
   status: string;
   paymentStatus: string;
@@ -283,7 +284,18 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
         } catch {
           // best-effort: el pago ya quedó CONFIRMADO
         }
-        return record;
+        try {
+          const linked = await linkRegistrationIdentity({
+            registrationId: input.registrationId,
+            email: record.participant.email,
+            name: `${record.participant.firstName} ${record.participant.lastName}`.trim(),
+            sourceApplication: "clickaton",
+          });
+          return { ...record, userId: linked.userId };
+        } catch {
+          // best-effort: confirmación de pago no debe revertirse por identidad
+          return record;
+        }
       });
     },
 

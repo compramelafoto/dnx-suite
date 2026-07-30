@@ -316,6 +316,16 @@ export async function seedArgentina2026Edition(): Promise<{
     accreditationRequiredForAdmission: string;
     rulesVersion: string;
   };
+  juryScoring: {
+    scoringEnabled: boolean;
+    live: boolean;
+    note: string;
+  };
+  rankingResults: {
+    rankingEnabled: boolean;
+    published: boolean;
+    note: string;
+  };
 }> {
   const cfg = CLICKATON_ARGENTINA_2026;
   const merch = ARGENTINA_2026_MERCH;
@@ -510,8 +520,10 @@ export async function seedArgentina2026Edition(): Promise<{
               isIncluded: true,
               fulfillmentRequired: true,
               sortOrder: 10,
+              stockLimit: merch.firstNBenefitLimit,
               displayTitle: merch.productName,
-              displayDescription: "Incluida en esta fase. Selección de talle obligatoria.",
+              displayDescription:
+                "Incluida para los primeros participantes de esta fase (cupo de beneficio). Selección de talle obligatoria.",
             },
           })
         : await prisma.clickatonPricePhaseItem.create({
@@ -523,8 +535,10 @@ export async function seedArgentina2026Edition(): Promise<{
               isIncluded: true,
               fulfillmentRequired: true,
               sortOrder: 10,
+              stockLimit: merch.firstNBenefitLimit,
               displayTitle: merch.productName,
-              displayDescription: "Incluida en esta fase. Selección de talle obligatoria.",
+              displayDescription:
+                "Incluida para los primeros participantes de esta fase (cupo de beneficio). Selección de talle obligatoria.",
             },
           });
       phaseItemIds.push(item.id);
@@ -770,6 +784,17 @@ export async function seedArgentina2026Edition(): Promise<{
       admissionEnabled: admissionConfig.admissionEnabled,
       accreditationRequiredForAdmission: admissionConfig.accreditationRequiredForAdmission,
       rulesVersion: admissionConfig.rulesVersion,
+    },
+    /** Etapa 14: scoring/jurado LIVE deshabilitado; vive en FotoRank sobre batch FROZEN. */
+    juryScoring: {
+      scoringEnabled: false,
+      live: false,
+      note: "Sin invitaciones reales ni scores en seed Clickatón.",
+    },
+    rankingResults: {
+      rankingEnabled: false,
+      published: false,
+      note: "Etapa 15: sin ganadores ni publicación LIVE en seed.",
     },
   };
 }

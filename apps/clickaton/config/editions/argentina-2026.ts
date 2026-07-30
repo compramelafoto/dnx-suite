@@ -39,6 +39,11 @@ export const ARGENTINA_2026_MERCH = {
    * Fase 3 no incluye remera inicialmente.
    */
   includeShirtInPhaseAmountPesos: [25_000] as readonly number[],
+  /**
+   * First-N benefit: primeros N CONFIRMED (o PENDING con hold) reciben remera.
+   * No es capacidad total de la edición/fase — N+1 puede inscribirse sin el beneficio.
+   */
+  firstNBenefitLimit: 100,
   storeSlug: "remera-clickaton",
   storeTitle: "Remera Clickatón",
   storeDescription: "Remera oficial — disponible próximamente en la tienda Clickatón.",

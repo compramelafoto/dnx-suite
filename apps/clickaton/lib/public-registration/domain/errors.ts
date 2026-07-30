@@ -5,6 +5,7 @@ export type PublicRegistrationErrorCode =
   | "SALE_NOT_STARTED"
   | "SALE_ENDED"
   | "CAPACITY_EXCEEDED"
+  | "PHASE_CAPACITY_EXCEEDED"
   | "PRODUCT_OUT_OF_STOCK"
   | "VARIANT_REQUIRED"
   | "INVALID_VARIANT"

@@ -335,13 +335,54 @@ export function createInMemoryPublicRegistrationRepository(
       return store.idempotency.get(key) ?? null;
     },
 
-    async resolveUserId(email) {
+    async resolveIdentityCandidate(email) {
       const key = email.trim().toLowerCase();
       const existing = store.usersByEmail.get(key);
-      if (existing) return existing;
-      const id = store.nextUserId++;
-      store.usersByEmail.set(key, id);
-      return id;
+      if (existing == null) {
+        return { userId: null, existingUserCandidate: false };
+      }
+      return { userId: existing, existingUserCandidate: true };
+    },
+
+    async countPhaseConfirmedAndActiveHolds(pricePhaseId) {
+      let confirmed = 0;
+      let activeHolds = 0;
+      for (const r of store.domain.registrations.values()) {
+        if (r.pricePhaseId === pricePhaseId && r.status === "CONFIRMED") {
+          confirmed += 1;
+        }
+      }
+      for (const h of store.domain.capacityHolds.values()) {
+        if (h.status !== "ACTIVE" || h.expiresAt.getTime() <= Date.now()) continue;
+        const reg = store.domain.registrations.get(h.registrationId);
+        if (reg?.pricePhaseId === pricePhaseId) {
+          activeHolds += 1;
+        }
+      }
+      return { confirmed, activeHolds };
+    },
+
+    async countPhaseBenefitClaims(pricePhaseItemIds) {
+      const map = new Map<string, number>();
+      for (const id of pricePhaseItemIds) map.set(id, 0);
+      const now = Date.now();
+      for (const r of store.domain.registrations.values()) {
+        const hold = [...store.domain.capacityHolds.values()].find(
+          (h) => h.registrationId === r.id,
+        );
+        const counts =
+          r.status === "CONFIRMED" ||
+          (r.status === "PENDING_PAYMENT" &&
+            hold?.status === "ACTIVE" &&
+            hold.expiresAt.getTime() > now);
+        if (!counts) continue;
+        for (const item of r.items) {
+          const pid = item.pricePhaseItemId;
+          if (!pid || !map.has(pid)) continue;
+          map.set(pid, (map.get(pid) ?? 0) + 1);
+        }
+      }
+      return map;
     },
 
     async createReservedRegistration(input) {
@@ -369,6 +410,8 @@ export function createInMemoryPublicRegistrationRepository(
             "No quedan cupos disponibles para esta entrada.",
           );
         }
+
+        // Cupo de fase: enforced en PublicRegistrationService vía countPhaseConfirmedAndActiveHolds.
 
         // Sync domain ticket/variant maps for stock holds
         if (ticket) {

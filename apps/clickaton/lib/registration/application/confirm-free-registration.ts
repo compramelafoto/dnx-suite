@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { linkRegistrationIdentity } from "@/lib/registration/application/link-registration-identity";
 import { issueRegistrationQrToken } from "@/lib/registration/security/qr-token";
 import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import { signRegistrationAccessToken } from "@/lib/public-registration/domain/access-token";
@@ -48,6 +49,7 @@ export async function confirmFreeRegistration(input: {
         editionName: existing.edition.name,
         email: existing.email,
         firstName: existing.firstName,
+        lastName: existing.lastName,
         city: existing.city,
         startAt: existing.edition.startAt,
       };
@@ -157,10 +159,22 @@ export async function confirmFreeRegistration(input: {
       editionName: existing.edition.name,
       email: existing.email,
       firstName: existing.firstName,
+      lastName: existing.lastName,
       city: existing.city,
       startAt: existing.edition.startAt,
     };
   });
+
+  try {
+    await linkRegistrationIdentity({
+      registrationId: input.registrationId,
+      email: result.email,
+      name: `${result.firstName} ${result.lastName}`.trim(),
+      sourceApplication: "clickaton",
+    });
+  } catch {
+    // best-effort: free confirm no revierte por identidad
+  }
 
   if (!result.alreadyConfirmed) {
     const accessToken = signRegistrationAccessToken({
