@@ -109,10 +109,10 @@ async function main() {
     if (alertBefore.some((t) => t.trim())) {
       throw new Error(`participant_validation:${alertBefore.join(" | ")}`);
     }
-    const confirm = page.getByRole("button", {
-      name: /confirmar inscripción|crear inscripción|reservar|continuar/i,
+    await page.getByRole("heading", { name: /revisá tu inscripción/i }).waitFor({
+      timeout: 30_000,
     });
-    await confirm.first().click();
+    await page.getByRole("button", { name: /confirmar reserva/i }).click();
     await page.waitForURL(/\/inscripcion\/resumen\//, { timeout: 90_000 });
     (out.steps as string[]).push("resumen");
     out.resumenUrl = page.url().replace(/([?&]t=)[^&]+/, "$1***");
