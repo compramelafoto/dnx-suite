@@ -14,6 +14,7 @@ import {
 } from "./edition-finance-checkout.js";
 import {
   isReusableNormalized,
+  isTerminalNormalized,
   mapNormalizedToPaymentOrderStatus,
   mapNormalizedToProviderMappedStatus,
   mapPaymentOrderStatusToNormalized,
@@ -805,6 +806,35 @@ export function createClickatonCheckoutService(
               createdAt: now,
             });
           }
+
+          // Releer: un APPROVED previo no debe pisarse con PENDING stale de preferencia.
+          const latestBeforeApply = await db.paymentOrders.findById(orderId);
+          if (latestBeforeApply) {
+            const latestNorm = mapPaymentOrderStatusToNormalized(latestBeforeApply.status);
+            if (
+              isTerminalNormalized(latestNorm) &&
+              !isTerminalNormalized(refreshed.status)
+            ) {
+              await db.audit.append({
+                id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+                actorType: "system",
+                action: "clickaton.checkout.refresh.ignored_non_terminal_after_terminal",
+                aggregateType: "payment_order",
+                aggregateId: orderId,
+                provider: order.provider,
+                environment: order.environment,
+                result: "SUCCEEDED",
+                metadata: {
+                  currentStatus: latestNorm,
+                  ignoredStatus: refreshed.status,
+                  bridgeMode: bridge.mode,
+                },
+                createdAt: now,
+              });
+              return buildDurableOrder(db, latestBeforeApply);
+            }
+          }
+
           await db.providerOrders.save({
             ...providerOrder,
             providerStatus: refreshed.status.toLowerCase(),
@@ -940,6 +970,37 @@ export function createClickatonCheckoutService(
       await db.webhooks.markProcessing(activeInboxId, now);
 
       try {
+        const currentNormalized = mapPaymentOrderStatusToNormalized(order.status);
+        // No regresar un terminal (p.ej. APPROVED→PENDING por refresh stale de preferencia).
+        if (
+          isTerminalNormalized(currentNormalized) &&
+          !isTerminalNormalized(event.status)
+        ) {
+          const updatedAt = new Date().toISOString();
+          await db.audit.append({
+            id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+            actorType: "system",
+            action: "clickaton.checkout.event.ignored_non_terminal_after_terminal",
+            aggregateType: "payment_order",
+            aggregateId: order.id,
+            provider: PROVIDER,
+            environment: order.environment,
+            result: "SUCCEEDED",
+            metadata: {
+              eventId: event.eventId,
+              currentStatus: currentNormalized,
+              ignoredStatus: event.status,
+            },
+            createdAt: updatedAt,
+          });
+          await db.webhooks.markProcessed(activeInboxId, updatedAt);
+          return {
+            outcome: "duplicate",
+            order: await buildDurableOrder(db, order),
+            inboxId: activeInboxId,
+          };
+        }
+
         const paymentStatus = mapNormalizedToPaymentOrderStatus(event.status);
         const mappedStatus = mapNormalizedToProviderMappedStatus(event.status);
         const updatedAt = new Date().toISOString();

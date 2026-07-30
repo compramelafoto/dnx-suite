@@ -79,7 +79,8 @@ function unitToMinor(amount: number, currency: CurrencyCode): number {
 }
 
 function pickCheckoutUrl(body: Record<string, unknown>): string {
-  // Official docs: with TEST credentials use init_point (not sandbox_init_point).
+  // Official MP docs (Checkout Pro + credenciales de prueba): use init_point.
+  // sandbox_init_point often causes ERR_TOO_MANY_REDIRECTS with modern TEST apps.
   const init = typeof body.init_point === "string" ? body.init_point : "";
   if (init.startsWith("https://")) return init;
   const sandbox =

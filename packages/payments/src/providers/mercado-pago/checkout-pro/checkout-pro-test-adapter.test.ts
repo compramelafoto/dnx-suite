@@ -273,8 +273,60 @@ describe("MercadoPagoCheckoutProTestAdapter", () => {
     assert.equal(payment!.status, "APPROVED");
   });
 
-  it("refreshCheckout returns pending when providerOrderId is preference id", async () => {
+  it("refreshCheckout resolves approved payment by external_reference when preference id", async () => {
     const fetchImpl = mockFetch(async (url) => {
+      if (url.includes("/v1/payments/search")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: 99,
+                status: "approved",
+                transaction_amount: 10,
+                currency_id: "ARS",
+                external_reference: "ext-1",
+                live_mode: true,
+                date_created: "2026-01-01T11:00:00.000Z",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      throw new Error(`unexpected_url:${url}`);
+    });
+    const config = createMercadoPagoProviderConfig({ accessToken: token, environment: "sandbox" });
+    const adapter = new MercadoPagoCheckoutProTestAdapter({
+      config,
+      httpClient: new MercadoPagoHttpClient(config, fetchImpl),
+      skipCredentialGate: true,
+    });
+    const bridge = createMercadoPagoTestClickatonProviderBridge({ adapter });
+    assert.ok(bridge.refreshCheckout);
+    const refreshed = await bridge.refreshCheckout!({
+      providerOrderId: "pref-non-numeric",
+      externalReference: "ext-1",
+      expectedAmountMinor: 1000,
+      expectedCurrency: "ARS",
+    });
+    assert.ok(refreshed);
+    assert.equal(refreshed!.status, "APPROVED");
+    assert.equal(refreshed!.amountMinor, 1000);
+    assert.equal(refreshed!.liveMode, true);
+    assert.equal(
+      (refreshed!.rawSanitized as { refresh_note?: string }).refresh_note,
+      "payment_resolved_by_external_reference",
+    );
+  });
+
+  it("refreshCheckout returns pending when preference has no payments yet", async () => {
+    const fetchImpl = mockFetch(async (url) => {
+      if (url.includes("/v1/payments/search")) {
+        return new Response(JSON.stringify({ results: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
       if (url.includes("/checkout/preferences/pref-non-numeric")) {
         return new Response(
           JSON.stringify({

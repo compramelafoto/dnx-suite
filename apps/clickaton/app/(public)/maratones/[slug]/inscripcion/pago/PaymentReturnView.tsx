@@ -7,6 +7,7 @@ import { routes, marathonPath } from "@/config/navigation";
 import { getRegistrationCheckoutResultAction } from "@/lib/checkout/actions/checkout";
 import { formatHoldExpiry, formatPublicPrice } from "@/lib/public-registration/ui/format";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
+import { PaymentReturnPoller } from "./PaymentReturnPoller";
 
 type Props = {
   slug: string;
@@ -57,8 +58,8 @@ export async function PaymentReturnView({
   const title =
     variant === "exito"
       ? confirmed
-        ? "¡Ya sos participante oficial de Clickatón!"
-        : "Confirmando pago"
+        ? "¡Tu inscripción está confirmada!"
+        : "Verificando tu pago…"
       : variant === "pendiente"
         ? "Pago pendiente"
         : "No se completó el pago";
@@ -124,11 +125,16 @@ export async function PaymentReturnView({
             {confirmed
               ? "Tu inscripción está confirmada por el sistema (no solo por el retorno del navegador)."
               : s.message}
-            {variant === "exito" && !confirmed
-              ? " Estamos esperando la verificación del pago. Esta página se actualiza cuando el backend confirma."
-              : ""}
             {errCode ? ` Código: ${errCode}.` : ""}
           </p>
+          {variant === "exito" && !confirmed ? (
+            <PaymentReturnPoller
+              registrationId={registrationId}
+              accessToken={accessToken}
+              editionSlug={slug}
+              initiallyConfirmed={false}
+            />
+          ) : null}
         </header>
 
         {confirmed && registration ? (
