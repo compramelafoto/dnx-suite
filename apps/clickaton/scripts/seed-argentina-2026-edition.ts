@@ -1,11 +1,15 @@
 /**
  * Upsert de la edición comercial Clickatón Argentina 2026.
- * Estado seguro: DRAFT, no publicada, registrationEnabled=false.
+ * Estado seguro por defecto: DRAFT, no publicada, registrationEnabled=false.
  * Etapa 8B: Remera en ClickatonPricePhaseItem (Fase 1), no en ticket GENERAL.
  * Ticket base = acceso/inscripción; merch comercial depende de la fase.
  *
  * Usage:
  *   CLICKATON_SEED_ARGENTINA_2026=1 pnpm --filter clickaton seed:argentina-2026
+ *
+ * Pre-launch landing (publicado, inscripciones cerradas):
+ *   CLICKATON_SEED_ARGENTINA_2026=1 CLICKATON_SEED_PUBLISH_LANDING=1 \
+ *     pnpm --filter clickaton seed:argentina-2026
  */
 
 import { pathToFileURL } from "node:url";
@@ -331,6 +335,8 @@ export async function seedArgentina2026Edition(): Promise<{
   const merch = ARGENTINA_2026_MERCH;
   const startAt = argentina2026EventStartAt();
   const endAt = argentina2026EventEndAt();
+  /** Landing pública sin abrir cobro: isPublished=true, registrationEnabled=false. */
+  const publishLanding = process.env.CLICKATON_SEED_PUBLISH_LANDING === "1";
 
   const edition = await prisma.clickatonEdition.upsert({
     where: { slug: cfg.slug },
@@ -340,8 +346,8 @@ export async function seedArgentina2026Edition(): Promise<{
       shortDescription: cfg.shortDescription,
       description: cfg.description,
       status: cfg.status,
-      isPublished: cfg.isPublished,
-      registrationEnabled: cfg.registrationEnabled,
+      isPublished: publishLanding ? true : cfg.isPublished,
+      registrationEnabled: false,
       timezone: cfg.timezone,
       startAt,
       endAt,
@@ -372,7 +378,10 @@ export async function seedArgentina2026Edition(): Promise<{
       country: cfg.country,
       currency: cfg.currency,
       visibleCodePrefix: cfg.visibleCodePrefix,
-      // No forzar OPEN/publicado ni vínculo FR en update.
+      // No forzar OPEN/cobro. Landing pre-launch opcional.
+      ...(publishLanding
+        ? { isPublished: true, registrationEnabled: false }
+        : {}),
     },
   });
 
@@ -511,6 +520,9 @@ export async function seedArgentina2026Edition(): Promise<{
     });
 
     if (shouldInclude) {
+      const benefitDeadlineAt = new Date(merch.benefitDeadlineIso);
+      const benefitCopy =
+        "Remera Clickatón incluida para los primeros 100 inscriptos con pago confirmado o hasta el 30 de agosto, lo que ocurra primero.";
       const item = existingPhaseItem
         ? await prisma.clickatonPricePhaseItem.update({
             where: { id: existingPhaseItem.id },
@@ -521,9 +533,9 @@ export async function seedArgentina2026Edition(): Promise<{
               fulfillmentRequired: true,
               sortOrder: 10,
               stockLimit: merch.firstNBenefitLimit,
+              benefitDeadlineAt,
               displayTitle: merch.productName,
-              displayDescription:
-                "Incluida para los primeros participantes de esta fase (cupo de beneficio). Selección de talle obligatoria.",
+              displayDescription: benefitCopy,
             },
           })
         : await prisma.clickatonPricePhaseItem.create({
@@ -536,9 +548,9 @@ export async function seedArgentina2026Edition(): Promise<{
               fulfillmentRequired: true,
               sortOrder: 10,
               stockLimit: merch.firstNBenefitLimit,
+              benefitDeadlineAt,
               displayTitle: merch.productName,
-              displayDescription:
-                "Incluida para los primeros participantes de esta fase (cupo de beneficio). Selección de talle obligatoria.",
+              displayDescription: benefitCopy,
             },
           });
       phaseItemIds.push(item.id);
@@ -805,12 +817,16 @@ async function main() {
     process.exit(1);
   }
   const result = await seedArgentina2026Edition();
+  const publishLanding = process.env.CLICKATON_SEED_PUBLISH_LANDING === "1";
   console.log(
     JSON.stringify(
       {
         ok: true,
         ...result,
-        note: "Commercial edition upserted in safe DRAFT. Remera en Fase 1 vía PricePhaseItem (no ticket GENERAL). No habilitar inscripción hasta confirmación visual.",
+        publishLanding,
+        note: publishLanding
+          ? "Landing publicada con registrationEnabled=false (kill switch cerrado)."
+          : "Commercial edition upserted in safe DRAFT. Remera en Fase 1 via PricePhaseItem. No abrir inscripción.",
       },
       null,
       2,

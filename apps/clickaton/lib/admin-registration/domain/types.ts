@@ -25,7 +25,7 @@ export type AdminRegistrationFilters = {
   createdTo?: Date;
   hasPaymentOrder?: boolean;
   hasInternalNotes?: boolean;
-  /** Código de talle (XS…XXXL) o nombre de variante snapshot. */
+  /** Código de talle (XS…5XL / XXXL=3XL) o nombre de variante snapshot. */
   shirtSize?: string;
   fulfillmentStatus?: ClickatonItemFulfillmentStatus;
 };

@@ -406,6 +406,7 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
         displayDescription: row.displayDescription,
         sortOrder: row.sortOrder,
         stockLimit: row.stockLimit,
+        benefitDeadlineAt: row.benefitDeadlineAt,
         product: {
           id: row.product.id,
           name: row.product.name,
@@ -599,36 +600,86 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
     },
 
     async countPhaseBenefitClaims(pricePhaseItemIds) {
-      const map = new Map<string, number>();
-      for (const id of pricePhaseItemIds) map.set(id, 0);
-      if (pricePhaseItemIds.length === 0) return map;
+      const confirmedByItemId = new Map<string, number>();
+      const heldByItemId = new Map<string, number>();
+      const confirmedByProductId = new Map<string, number>();
+      const heldByProductId = new Map<string, number>();
+      for (const id of pricePhaseItemIds) {
+        confirmedByItemId.set(id, 0);
+        heldByItemId.set(id, 0);
+      }
+      if (pricePhaseItemIds.length === 0) {
+        return {
+          confirmedByItemId,
+          heldByItemId,
+          confirmedByProductId,
+          heldByProductId,
+        };
+      }
+
+      const items = await prisma.clickatonPricePhaseItem.findMany({
+        where: { id: { in: pricePhaseItemIds } },
+        select: { id: true, productId: true },
+      });
+      const productIds = [...new Set(items.map((i) => i.productId))];
+      const itemToProduct = new Map(items.map((i) => [i.id, i.productId]));
+      for (const pid of productIds) {
+        confirmedByProductId.set(pid, 0);
+        heldByProductId.set(pid, 0);
+      }
 
       const now = new Date();
-      const rows = await prisma.clickatonRegistrationItem.groupBy({
-        by: ["pricePhaseItemId"],
-        where: {
-          pricePhaseItemId: { in: pricePhaseItemIds },
-          registration: {
-            OR: [
-              { status: "CONFIRMED" },
-              {
-                status: "PENDING_PAYMENT",
-                capacityHold: {
-                  status: "ACTIVE",
-                  expiresAt: { gt: now },
-                },
-              },
-            ],
+      const [confirmedRows, heldRows] = await Promise.all([
+        prisma.clickatonRegistrationItem.groupBy({
+          by: ["pricePhaseItemId"],
+          where: {
+            pricePhaseItemId: { in: pricePhaseItemIds },
+            registration: { status: "CONFIRMED" },
           },
-        },
-        _count: { _all: true },
-      });
-      for (const row of rows) {
-        if (row.pricePhaseItemId) {
-          map.set(row.pricePhaseItemId, row._count._all);
+          _count: { _all: true },
+        }),
+        prisma.clickatonRegistrationItem.groupBy({
+          by: ["pricePhaseItemId"],
+          where: {
+            pricePhaseItemId: { in: pricePhaseItemIds },
+            registration: {
+              status: "PENDING_PAYMENT",
+              capacityHold: {
+                status: "ACTIVE",
+                expiresAt: { gt: now },
+              },
+            },
+          },
+          _count: { _all: true },
+        }),
+      ]);
+
+      for (const row of confirmedRows) {
+        if (!row.pricePhaseItemId) continue;
+        confirmedByItemId.set(row.pricePhaseItemId, row._count._all);
+        const pid = itemToProduct.get(row.pricePhaseItemId);
+        if (pid) {
+          confirmedByProductId.set(
+            pid,
+            (confirmedByProductId.get(pid) ?? 0) + row._count._all,
+          );
         }
       }
-      return map;
+      for (const row of heldRows) {
+        if (!row.pricePhaseItemId) continue;
+        heldByItemId.set(row.pricePhaseItemId, row._count._all);
+        const pid = itemToProduct.get(row.pricePhaseItemId);
+        if (pid) {
+          heldByProductId.set(pid, (heldByProductId.get(pid) ?? 0) + row._count._all);
+        }
+      }
+
+      return {
+        confirmedByItemId,
+        heldByItemId,
+        confirmedByProductId,
+        heldByProductId,
+      };
     },
 
     async createReservedRegistration(input) {
@@ -705,42 +756,84 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
             ),
           ];
           if (phaseItemIds.length > 0) {
+            const {
+              isFirstNBenefitAvailable,
+            } = await import("@/lib/catalog/domain/first-n-benefit");
             const limits = await tx.clickatonPricePhaseItem.findMany({
               where: { id: { in: phaseItemIds } },
-              select: { id: true, stockLimit: true },
-            });
-            const limitById = new Map(limits.map((l) => [l.id, l.stockLimit]));
-            const nowClaims = new Date();
-            const claimRows = await tx.clickatonRegistrationItem.groupBy({
-              by: ["pricePhaseItemId"],
-              where: {
-                pricePhaseItemId: { in: phaseItemIds },
-                registration: {
-                  OR: [
-                    { status: "CONFIRMED" },
-                    {
-                      status: "PENDING_PAYMENT",
-                      capacityHold: {
-                        status: "ACTIVE",
-                        expiresAt: { gt: nowClaims },
-                      },
-                    },
-                  ],
-                },
+              select: {
+                id: true,
+                productId: true,
+                stockLimit: true,
+                benefitDeadlineAt: true,
               },
-              _count: { _all: true },
             });
-            const claimedById = new Map(
-              claimRows
-                .filter((r) => r.pricePhaseItemId)
-                .map((r) => [r.pricePhaseItemId!, r._count._all]),
-            );
+            const limitById = new Map(limits.map((l) => [l.id, l]));
+            const nowClaims = new Date();
+            const productIds = [...new Set(limits.map((l) => l.productId))];
+            const [confirmedRows, heldRows] = await Promise.all([
+              tx.clickatonRegistrationItem.groupBy({
+                by: ["pricePhaseItemId"],
+                where: {
+                  pricePhaseItemId: { in: phaseItemIds },
+                  registration: { status: "CONFIRMED" },
+                },
+                _count: { _all: true },
+              }),
+              tx.clickatonRegistrationItem.groupBy({
+                by: ["pricePhaseItemId"],
+                where: {
+                  pricePhaseItemId: { in: phaseItemIds },
+                  registration: {
+                    status: "PENDING_PAYMENT",
+                    capacityHold: {
+                      status: "ACTIVE",
+                      expiresAt: { gt: nowClaims },
+                    },
+                  },
+                },
+                _count: { _all: true },
+              }),
+            ]);
+            const confirmedByProduct = new Map<string, number>();
+            const heldByProduct = new Map<string, number>();
+            for (const pid of productIds) {
+              confirmedByProduct.set(pid, 0);
+              heldByProduct.set(pid, 0);
+            }
+            const itemToProduct = new Map(limits.map((l) => [l.id, l.productId]));
+            for (const row of confirmedRows) {
+              if (!row.pricePhaseItemId) continue;
+              const pid = itemToProduct.get(row.pricePhaseItemId);
+              if (pid) {
+                confirmedByProduct.set(
+                  pid,
+                  (confirmedByProduct.get(pid) ?? 0) + row._count._all,
+                );
+              }
+            }
+            for (const row of heldRows) {
+              if (!row.pricePhaseItemId) continue;
+              const pid = itemToProduct.get(row.pricePhaseItemId);
+              if (pid) {
+                heldByProduct.set(
+                  pid,
+                  (heldByProduct.get(pid) ?? 0) + row._count._all,
+                );
+              }
+            }
+            // Does NOT throw PHASE_CAPACITY — N+1 still registers without the benefit.
             reservedItems = reservedItems.filter((item) => {
               if (!item.pricePhaseItemId) return true;
-              const limit = limitById.get(item.pricePhaseItemId);
-              if (limit == null) return true;
-              const claimed = claimedById.get(item.pricePhaseItemId) ?? 0;
-              return claimed < limit;
+              const meta = limitById.get(item.pricePhaseItemId);
+              if (!meta) return true;
+              return isFirstNBenefitAvailable({
+                stockLimit: meta.stockLimit,
+                confirmedClaims: confirmedByProduct.get(meta.productId) ?? 0,
+                heldClaims: heldByProduct.get(meta.productId) ?? 0,
+                now: nowClaims,
+                benefitDeadlineAt: meta.benefitDeadlineAt,
+              });
             });
           }
 

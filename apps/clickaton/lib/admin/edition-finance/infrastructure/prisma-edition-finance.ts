@@ -19,6 +19,7 @@ import type {
 import { validateAllocationDrafts, type AllocationDraftInput } from "../domain/validate-allocations";
 import {
   assertCanManageEditionFinancialDistribution,
+  assertCanMutateEditionFinancialDistribution,
   type FinanceActor,
 } from "../permissions";
 
@@ -215,6 +216,7 @@ export async function createEditionDraftDistribution(
     allocations: AllocationDraftInput[];
   },
 ): Promise<EditionFinancialDistributionView> {
+  assertCanMutateEditionFinancialDistribution(actor);
   assertCanManageEditionFinancialDistribution(actor, input.editionId);
   const { rows } = validateAllocationDrafts(input.allocations);
 
@@ -272,19 +274,32 @@ export async function createEditionDraftDistribution(
     const identity = await prisma.dnxFinancialIdentity.findUnique({
       where: { id: row.financialIdentityId },
     });
-    if (!identity) {
-      throw new EditionFinanceError("NOT_FOUND", "Identidad financiera no encontrada.");
+    if (!identity || identity.status !== "ACTIVE") {
+      throw new EditionFinanceError(
+        "NOT_FOUND",
+        "Identidad financiera inexistente o inactiva.",
+      );
     }
-    if (row.paymentConnectionId) {
-      const account = await prisma.dnxPaymentAccount.findUnique({
-        where: { id: row.paymentConnectionId },
-      });
-      if (!account || account.financialIdentityId !== row.financialIdentityId) {
-        throw new EditionFinanceError(
-          "INVALID_CONNECTION",
-          "La conexión no pertenece al beneficiario.",
-        );
-      }
+    if (!row.paymentConnectionId) {
+      throw new EditionFinanceError(
+        "INVALID_CONNECTION",
+        "Cada recipient necesita una cuenta de cobro ACTIVE.",
+      );
+    }
+    const account = await prisma.dnxPaymentAccount.findUnique({
+      where: { id: row.paymentConnectionId },
+    });
+    if (!account || account.financialIdentityId !== row.financialIdentityId) {
+      throw new EditionFinanceError(
+        "INVALID_CONNECTION",
+        "La conexión no pertenece al beneficiario.",
+      );
+    }
+    if (account.status !== "ACTIVE") {
+      throw new EditionFinanceError(
+        "INVALID_CONNECTION",
+        "La cuenta de cobro debe estar ACTIVE para guardar la allocation.",
+      );
     }
 
     const participant = await prisma.dnxAgreementParticipant.upsert({
@@ -297,14 +312,14 @@ export async function createEditionDraftDistribution(
       create: {
         agreementId: agreement.id,
         financialIdentityId: row.financialIdentityId,
-        paymentAccountId: row.paymentConnectionId ?? null,
+        paymentAccountId: row.paymentConnectionId,
         roleLabel: "ORGANIZER",
         status: "ACCEPTED",
         invitedByUserId: actor.userId,
         acceptedAt: new Date(),
       },
       update: {
-        paymentAccountId: row.paymentConnectionId ?? null,
+        paymentAccountId: row.paymentConnectionId,
         status: "ACCEPTED",
       },
     });
@@ -344,10 +359,135 @@ export async function createEditionDraftDistribution(
   return mapVersionView(input.editionId, agreement, version);
 }
 
+export async function updateDraftAllocations(
+  actor: FinanceActor,
+  input: {
+    editionId: string;
+    versionId: string;
+    allocations: AllocationDraftInput[];
+  },
+): Promise<EditionFinancialDistributionView> {
+  assertCanMutateEditionFinancialDistribution(actor);
+  assertCanManageEditionFinancialDistribution(actor, input.editionId);
+  const { rows } = validateAllocationDrafts(input.allocations);
+  const version = await prisma.dnxDistributionVersion.findUnique({
+    where: { id: input.versionId },
+  });
+  if (!version) throw new EditionFinanceError("NOT_FOUND", "Versión no encontrada.");
+  if (version.status !== "DRAFT") {
+    throw new EditionFinanceError(
+      "IMMUTABLE",
+      "Solo se puede editar una versión DRAFT. Creá una nueva versión.",
+    );
+  }
+  const agreement = await prisma.dnxEconomicAgreement.findUnique({
+    where: { id: version.agreementId },
+  });
+  if (!agreement || agreement.scopeId !== input.editionId) {
+    throw new EditionFinanceError("NOT_FOUND", "Acuerdo no encontrado.");
+  }
+
+  const previous = await mapVersionView(input.editionId, agreement, version);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.dnxDistributionRule.deleteMany({
+      where: { distributionVersionId: version.id },
+    });
+    for (const row of rows) {
+      const identity = await tx.dnxFinancialIdentity.findUnique({
+        where: { id: row.financialIdentityId },
+      });
+      if (!identity || identity.status !== "ACTIVE") {
+        throw new EditionFinanceError(
+          "NOT_FOUND",
+          "Identidad financiera inexistente o inactiva.",
+        );
+      }
+      if (!row.paymentConnectionId) {
+        throw new EditionFinanceError(
+          "INVALID_CONNECTION",
+          "Cada recipient necesita una cuenta de cobro ACTIVE.",
+        );
+      }
+      const account = await tx.dnxPaymentAccount.findUnique({
+        where: { id: row.paymentConnectionId },
+      });
+      if (!account || account.financialIdentityId !== row.financialIdentityId) {
+        throw new EditionFinanceError(
+          "INVALID_CONNECTION",
+          "La conexión no pertenece al beneficiario.",
+        );
+      }
+      if (account.status !== "ACTIVE") {
+        throw new EditionFinanceError(
+          "INVALID_CONNECTION",
+          "La cuenta de cobro debe estar ACTIVE para guardar la allocation.",
+        );
+      }
+      const participant = await tx.dnxAgreementParticipant.upsert({
+        where: {
+          agreementId_financialIdentityId: {
+            agreementId: agreement.id,
+            financialIdentityId: row.financialIdentityId,
+          },
+        },
+        create: {
+          agreementId: agreement.id,
+          financialIdentityId: row.financialIdentityId,
+          paymentAccountId: row.paymentConnectionId,
+          roleLabel: "ORGANIZER",
+          status: "ACCEPTED",
+          invitedByUserId: actor.userId,
+          acceptedAt: new Date(),
+        },
+        update: {
+          paymentAccountId: row.paymentConnectionId,
+          status: "ACCEPTED",
+        },
+      });
+      await tx.dnxDistributionRule.create({
+        data: {
+          distributionVersionId: version.id,
+          agreementParticipantId: participant.id,
+          kind: "PERCENTAGE",
+          value: BigInt(row.shareBps),
+          priority: row.sortOrder ?? 100,
+        },
+      });
+    }
+  });
+
+  await writeAudit({
+    editionId: input.editionId,
+    actorUserId: actor.userId,
+    action: "PERCENTAGES_MODIFIED",
+    agreementId: agreement.id,
+    versionId: version.id,
+    previousValue: {
+      allocations: previous.allocations.map((a) => ({
+        id: a.financialIdentityId,
+        shareBps: a.shareBps,
+      })),
+    },
+    nextValue: {
+      allocations: rows.map((r) => ({
+        id: r.financialIdentityId,
+        shareBps: r.shareBps,
+      })),
+    },
+  });
+
+  const refreshed = await prisma.dnxDistributionVersion.findUniqueOrThrow({
+    where: { id: version.id },
+  });
+  return mapVersionView(input.editionId, agreement, refreshed);
+}
+
 export async function activateEditionDistribution(
   actor: FinanceActor,
   input: { editionId: string; versionId: string },
 ): Promise<EditionFinancialDistributionView> {
+  assertCanMutateEditionFinancialDistribution(actor);
   assertCanManageEditionFinancialDistribution(actor, input.editionId);
   const version = await prisma.dnxDistributionVersion.findUnique({
     where: { id: input.versionId },

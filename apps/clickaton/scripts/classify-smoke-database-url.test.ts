@@ -48,6 +48,15 @@ describe("classifySmokeDatabaseUrl", () => {
     assert.equal(isProductionLikeDatabaseUrl(url), false);
   });
 
+  it("accepts DNX staging identity host ep-round-fog", () => {
+    const url =
+      "postgresql://u:p@ep-round-fog-a4xgibtv-pooler.us-east-1.aws.neon.tech/neondb";
+    const r = classifySmokeDatabaseUrl(url);
+    assert.equal(r.classification, "staging");
+    assert.equal(r.safeForTestSmoke, true);
+    assert.equal(r.reason, "dnx_staging_identity_host");
+  });
+
   it("blocks absent url", () => {
     const r = classifySmokeDatabaseUrl(undefined);
     assert.equal(r.classification, "unknown");

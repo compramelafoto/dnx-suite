@@ -96,6 +96,10 @@ export type PublicPricePhaseSummaryDto = {
   endsAt: Date;
   includedProductCount: number;
   includesPhysicalMerch: boolean;
+  /** Oferta first-N+deadline vigente para mostrar/seleccionar remera. */
+  shirtBenefitAvailable?: boolean;
+  /** Había merch en fase pero cupo/deadline agotaron la oferta. */
+  shirtBenefitEnded?: boolean;
 };
 
 export type PublicRegistrationContextDto = {

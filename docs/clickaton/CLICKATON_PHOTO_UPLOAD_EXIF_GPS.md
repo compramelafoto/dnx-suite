@@ -85,6 +85,7 @@ Seed Argentina 2026: `uploadsEnabled=false`, GPS OPTIONAL, tolerancia 5 min, pro
 
 ## 8. Pendientes
 
-- **Etapa 12 (hecha):** acreditación / QR / check-in / kit — `CLICKATON_ACCREDITATION_AND_CHECKIN.md` (independiente del upload; no abre entries fuera de timeline)
+- **Etapa 12 (hecha):** acreditación / QR / check-in / kit — `CLICKATON_ACCREDITATION_AND_CHECKIN.md`
+- **Etapa 13 (hecha):** admisión técnica / batch / freeze — `CLICKATON_TECHNICAL_ADMISSION.md` (no scores; jurado solo consume FROZEN)
 - Jurado, ranking, resultados, RAW, detección IA avanzada
 - Firmas R2 pre-signed PUT, asset FR versionado completo desde Clickatón

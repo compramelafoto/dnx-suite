@@ -18,8 +18,17 @@ export const DEFAULT_ROUNDING_POLICY = "LARGEST_REMAINDER" as const;
 export const ARGENTINA_2026_FEE_POLICY =
   "DISTRIBUTABLE_AFTER_PROVIDER_FEE;PLATFORM_FEE=0;TAMMY_SHARE=100%" as const;
 
+/**
+ * Emails canónicos de seed / UX (no otorgan permisos por sí solos).
+ * Permisos finance = `DnxFinanceGrant` explícitos.
+ *
+ * 10D.2.2F: finance owner administrativo = cuart.daniel@gmail.com
+ * (dnxfotografia queda VIEWER + PARTNER_CONNECT, no OWNER).
+ */
 export const FINANCE_SEED_EMAILS = {
-  daniel: "dnxfotografia@gmail.com",
+  daniel: "cuart.daniel@gmail.com",
   rodri: "rodrigorincon40@gmail.com",
   tammy: "tammyytamer@gmail.com",
+  /** Operativo Clickatón — partner/viewer, no finance owner. */
+  dnxStudio: "dnxfotografia@gmail.com",
 } as const;

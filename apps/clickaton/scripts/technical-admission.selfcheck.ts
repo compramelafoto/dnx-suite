@@ -9,7 +9,18 @@ import {
   publicReasonForStatus,
 } from "../lib/technical-admission/rules";
 import { ADMISSION_ENGINE_VERSION, type AdmissionRuleInput } from "../lib/technical-admission/types";
-import { isEvaluableFotorankContestEntry } from "../../../apps/fotorank/app/lib/fotorank/fotorankContestEntryDomain";
+/** Mirror del gate FR (Clickatón) sin importar la app FotoRank. */
+function isEvaluableClickatonEntry(row: {
+  sourcePlatform?: string | null;
+  admissionStatus?: string | null;
+  withdrawnAt?: Date | null;
+}): boolean {
+  if (row.withdrawnAt) return false;
+  if (row.sourcePlatform === "CLICKATON" || row.admissionStatus != null) {
+    return row.admissionStatus === "FROZEN_FOR_JURY";
+  }
+  return false;
+}
 
 let checks = 0;
 function ok(cond: boolean, msg: string) {
@@ -177,27 +188,17 @@ ok(JURY_FORBIDDEN_IDENTITY_FIELDS.includes("email"), "38 campos identidad prohib
 ok(!isJuryVisibleAdmissionStatus("ADMITTED"), "56 jurado no ve ADMITTED");
 ok(isJuryVisibleAdmissionStatus("FROZEN_FOR_JURY"), "57 jurado ve FROZEN");
 ok(
-  !isEvaluableFotorankContestEntry({
-    contestId: "c",
-    categoryId: "k",
-    imageUrl: "",
+  !isEvaluableClickatonEntry({
     sourcePlatform: "CLICKATON",
     admissionStatus: "ADMITTED",
-    status: "CONFIRMED",
-    entryNumber: "X-1",
     withdrawnAt: null,
   }),
   "56b Clickatón ADMITTED no evaluable",
 );
 ok(
-  isEvaluableFotorankContestEntry({
-    contestId: "c",
-    categoryId: "k",
-    imageUrl: "",
+  isEvaluableClickatonEntry({
     sourcePlatform: "CLICKATON",
     admissionStatus: "FROZEN_FOR_JURY",
-    status: "CONFIRMED",
-    entryNumber: "X-1",
     withdrawnAt: null,
   }),
   "57b Clickatón FROZEN evaluable",

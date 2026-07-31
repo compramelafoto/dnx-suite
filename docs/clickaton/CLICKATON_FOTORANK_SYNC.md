@@ -216,3 +216,5 @@ Backoff: 1m → 5m → 15m → 1h → `MANUAL_REVIEW`.
 **Etapa 10:** Clickatón es fuente de verdad del cronograma de la maratón (`lib/timeline`). FotoRank no duplica ventanas; en etapas posteriores podrá consumir snapshots seguros (timeline ACTIVE, consignas RELEASED, número de participante). Ver `CLICKATON_TIMELINE_AND_PARTICIPANT_EXPERIENCE.md`.
 
 **Etapa 11:** Tras consigna RELEASED + ventana de subida, Clickatón crea/actualiza `FotorankContestEntry` con `sourcePlatform=CLICKATON` y soft refs (`externalPromptId`, `externalRegistrationId`, snapshots de ventana). No asigna `entryNumber` ni `CONFIRMED` automáticamente (jurado no ve la obra). Ver `CLICKATON_PHOTO_UPLOAD_EXIF_GPS.md`.
+
+**Etapa 13:** La admisión técnica (`CLICKATON_TECHNICAL_ADMISSION.md`) evalúa elegibilidad, admite/rechaza, genera `JURY_PREVIEW` soft y congela (`FROZEN_FOR_JURY` + snapshot). El listado de jurado solo consume entries congeladas. Sin scores LIVE.

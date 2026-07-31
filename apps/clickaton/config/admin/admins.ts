@@ -10,6 +10,7 @@
 
 /** Administradores iniciales con acceso completo al panel MVP. */
 export const CLICKATON_ADMIN_EMAILS = [
+  "cuart.daniel@gmail.com",
   "dnxfotografia@gmail.com",
   "rodrigorincon40@gmail.com",
   "tammyytamer@gmail.com",

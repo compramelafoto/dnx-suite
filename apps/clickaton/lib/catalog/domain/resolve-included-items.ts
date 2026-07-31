@@ -72,6 +72,8 @@ export type PricePhaseItemResolvedInput = {
   sortOrder: number;
   /** Cupo first-N de beneficio (null = sin límite). ≠ capacity de fase. */
   stockLimit?: number | null;
+  /** Cierre temporal del beneficio (independiente de la ventana de precio). */
+  benefitDeadlineAt?: Date | null;
   product: TicketBaseItemInput["product"];
 };
 

@@ -4,10 +4,13 @@
  * Never logs tokens. Live exchange only when flags + phrase + secrets are set.
  */
 import {
+  CLICKATON_MP_REDIRECTS,
   ClickatonOwnerOAuthService,
   CredentialVault,
+  canStartLiveOwnerOAuth,
   createLiveClickatonMpOAuthHttpClient,
   createPrismaOwnerOAuthStore,
+  isOwnerOAuthManuallyAuthorized,
   loadCredentialVaultKeyConfig,
   type ClickatonMpOAuthHttpClient,
 } from "@repo/payments";
@@ -122,23 +125,30 @@ export function getOwnerOAuthDiagnostics(): {
   exchangeServiceAvailable: boolean;
   vaultAvailable: boolean;
   redirectUri: string;
+  redirectExactMatchProduction: boolean;
   mode: "PROD";
   onboardingEnabled: boolean;
+  manualAuthorized: boolean;
+  canStartLiveOwnerOAuth: boolean;
   appConfigured: boolean;
   lastErrorSanitized: null;
 } {
   const appId = Boolean(process.env.CLICKATON_MP_CLIENT_ID?.trim());
   const appSecret = Boolean(process.env.CLICKATON_MP_CLIENT_SECRET?.trim());
+  const redirectUri = resolveRedirectUri();
   return {
     callbackRoute: "/api/clickaton/payments/mercadopago/callback",
     exchangeServiceAvailable: true,
     vaultAvailable: isVaultMasterKeyPresent(),
-    redirectUri: resolveRedirectUri(),
+    redirectUri,
+    redirectExactMatchProduction: redirectUri === CLICKATON_MP_REDIRECTS.production,
     mode: "PROD",
     onboardingEnabled:
       process.env.DNX_CLICKATON_MP_OWNER_ONBOARDING_ENABLED === "true" ||
       process.env.DNX_CLICKATON_MP_OWNER_ONBOARDING_ENABLED === "1" ||
       process.env.DNX_CLICKATON_MP_OWNER_ONBOARDING_ENABLED === "on",
+    manualAuthorized: isOwnerOAuthManuallyAuthorized(),
+    canStartLiveOwnerOAuth: canStartLiveOwnerOAuth(),
     appConfigured: appId && appSecret,
     lastErrorSanitized: null,
   };

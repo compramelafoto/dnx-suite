@@ -116,6 +116,17 @@ export function AdminNavIcon({ name, className }: Props) {
           />
         </svg>
       );
+    case "finance":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>
+          <path
+            d="M4 7h16v12H4V7Zm3 0V5h10v2M8 12h8M8 15h5"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="square"
+          />
+        </svg>
+      );
     case "integrations":
       return (
         <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>

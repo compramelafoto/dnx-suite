@@ -3,13 +3,16 @@ import type { PartnerPaymentConnectionStatus } from "../connection-states.js";
 
 export type OwnerOAuthPurpose = "OWNER_CONNECTION" | "OWNER_RECONNECT";
 
+/** OAuth state purpose — owner + partner flows share DnxMercadoPagoOAuthState. */
+export type MercadoPagoOAuthPurpose = OwnerOAuthPurpose | string;
+
 export type OwnerOAuthStateRecord = {
   id: string;
   stateHash: string;
   userId: number;
   financialIdentityId: string;
   productKey: string;
-  purpose: OwnerOAuthPurpose;
+  purpose: MercadoPagoOAuthPurpose;
   environment: FinancialEnvironment;
   redirectUri: string;
   codeChallenge: string | null;

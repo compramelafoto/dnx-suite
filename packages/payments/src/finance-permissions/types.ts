@@ -2,7 +2,8 @@ export type FinanceCapability =
   | "DNX_FINANCE_OWNER"
   | "DNX_FINANCE_ADMIN"
   | "PRODUCT_FINANCE_MANAGER"
-  | "PRODUCT_FINANCE_VIEWER";
+  | "PRODUCT_FINANCE_VIEWER"
+  | "DNX_FINANCE_PARTNER_CONNECT";
 
 export type FinanceGrantStatus = "ACTIVE" | "REVOKED";
 
@@ -27,7 +28,10 @@ export type FinanceAction =
   | "publish_distribution"
   | "view_agreement"
   | "accept_participation"
-  | "assign_own_payment_account";
+  | "assign_own_payment_account"
+  | "connect_own_mp_account"
+  | "view_own_mp_account"
+  | "revoke_own_mp_account";
 
 export interface FinanceActor {
   userId: number;

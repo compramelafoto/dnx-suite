@@ -67,7 +67,7 @@ export default async function OwnerMpAccountPage() {
         title="Cuenta owner Mercado Pago"
         description="Conexión de la cuenta exclusiva de Clickatón. No activa cobros ni Orders productivo."
         breadcrumbs={[
-          { label: "Integraciones", href: adminRoutes.integrations },
+          { label: "Finanzas", href: adminRoutes.financeOwner },
           { label: "Cuenta owner" },
         ]}
       />

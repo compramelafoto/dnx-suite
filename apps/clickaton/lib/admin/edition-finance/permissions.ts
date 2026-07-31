@@ -22,6 +22,25 @@ export function canManageEditionFinancialDistribution(
   });
 }
 
+/**
+ * 10E.1: mutar recipients/% solo DNX_FINANCE_OWNER (matriz comercial).
+ * Más estricto que publish_distribution (que también admite MANAGER).
+ */
+export function canMutateEditionFinancialDistribution(actor: FinanceActor): boolean {
+  return actor.grants.some(
+    (g) => g.status === "ACTIVE" && g.capability === "DNX_FINANCE_OWNER",
+  );
+}
+
+export function assertCanMutateEditionFinancialDistribution(actor: FinanceActor): void {
+  if (!canMutateEditionFinancialDistribution(actor)) {
+    throw new EditionFinanceError(
+      "FORBIDDEN",
+      "Solo DNX_FINANCE_OWNER puede modificar recipients y porcentajes.",
+    );
+  }
+}
+
 export function canViewEditionFinancialDistribution(
   actor: FinanceActor,
   editionId?: string,

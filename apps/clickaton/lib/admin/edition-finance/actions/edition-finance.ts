@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { EditionFinanceError } from "../domain/errors";
@@ -11,12 +12,29 @@ import {
   listEditionDistributions,
   listEditionFinanceAudits,
   resolveActiveEditionDistribution,
+  updateDraftAllocations,
 } from "../infrastructure/prisma-edition-finance";
+import { listActiveFinanceRecipientsForPicker } from "../infrastructure/list-active-recipients";
 import { loadFinanceActor } from "../infrastructure/load-finance-actor";
-import { canManageEditionFinancialDistribution } from "../permissions";
+import {
+  canManageEditionFinancialDistribution,
+  canMutateEditionFinancialDistribution,
+} from "../permissions";
+import type { AllocationDraftInput } from "../domain/validate-allocations";
 
 function financePath(editionId: string) {
   return `${adminRoutes.editions}/${editionId}/finanzas`;
+}
+
+function financePathWithMsg(
+  editionId: string,
+  kind: "error" | "ok",
+  message: string,
+) {
+  const q = new URLSearchParams({
+    [kind === "error" ? "financeError" : "financeOk"]: message.slice(0, 280),
+  });
+  return `${financePath(editionId)}?${q.toString()}`;
 }
 
 export async function getEditionFinancePageData(editionId: string) {
@@ -24,7 +42,7 @@ export async function getEditionFinancePageData(editionId: string) {
   const actor = await loadFinanceActor(user.id);
   const canManage = canManageEditionFinancialDistribution(actor, editionId);
 
-  const [distributions, active, audits, gate] = await Promise.all([
+  const [distributions, active, audits, gate, recipients] = await Promise.all([
     listEditionDistributions(actor, editionId),
     resolveActiveEditionDistribution(editionId),
     listEditionFinanceAudits(editionId),
@@ -39,31 +57,34 @@ export async function getEditionFinancePageData(editionId: string) {
       ),
       hasActivePricePhase: true,
     }),
+    listActiveFinanceRecipientsForPicker(),
   ]);
 
   const checkoutProvider = (
     process.env.CLICKATON_DNX_PAYMENTS_PROVIDER ?? "manual"
   ).toLowerCase();
-  const activeAlloc = active?.allocations[0] ?? null;
+  const allocs = active?.allocations ?? [];
   const readiness = {
     distributionStatus: active ? ("ACTIVE" as const) : ("DRAFT_OR_NONE" as const),
     sumOk: active
-      ? active.allocations.reduce((s, a) => s + a.shareBps, 0) === 10_000
+      ? allocs.reduce((s, a) => s + a.shareBps, 0) === 10_000
       : false,
-    beneficiaryLabel: activeAlloc?.beneficiaryDisplayName ?? "—",
-    paymentAccountConnected: Boolean(
-      activeAlloc?.paymentConnectionId &&
-        activeAlloc.paymentConnection?.status === "ACTIVE",
+    beneficiaryLabel:
+      allocs.length === 0
+        ? "—"
+        : allocs.map((a) => `${a.beneficiaryDisplayName} ${a.shareValue}%`).join(" · "),
+    paymentAccountConnected: allocs.every(
+      (a) => a.paymentConnectionId && a.paymentConnection?.status === "ACTIVE",
     ),
-    oauthLikelyValid: Boolean(
-      activeAlloc?.paymentConnection?.canReceivePayments &&
-        activeAlloc.paymentConnection.status === "ACTIVE",
-    ),
-    accountMode: activeAlloc?.paymentConnection?.environment ?? "—",
+    oauthLikelyValid: allocs.every((a) => a.paymentConnection?.canReceivePayments),
+    accountMode:
+      [...new Set(allocs.map((a) => a.paymentConnection?.environment).filter(Boolean))].join(
+        ",",
+      ) || "—",
     checkoutAllocationsReady: Boolean(
       active &&
-        active.allocations.every((a) => a.paymentConnectionId) &&
-        active.allocations.reduce((s, a) => s + a.shareBps, 0) === 10_000,
+        allocs.every((a) => a.paymentConnectionId) &&
+        allocs.reduce((s, a) => s + a.shareBps, 0) === 10_000,
     ),
     webhookReady: Boolean(
       process.env.CLICKATON_DNX_PAYMENTS_WEBHOOK_SECRET ||
@@ -72,19 +93,38 @@ export async function getEditionFinancePageData(editionId: string) {
     refundsBlocked: true,
     ledgerCompletePending: true,
     checkoutProvider,
-    lastError: activeAlloc?.paymentConnection?.lastError ?? null,
+    lastError:
+      allocs.map((a) => a.paymentConnection?.lastError).find(Boolean) ?? null,
   };
 
   return {
     canManage,
+    canMutate: canMutateEditionFinancialDistribution(actor),
     canView: true,
     distributions,
     active,
     audits,
     gate,
     readiness,
+    recipients,
     actorUserId: actor.userId,
   };
+}
+
+function parseAllocationsJson(raw: string): AllocationDraftInput[] {
+  const parsed = JSON.parse(raw) as AllocationDraftInput[];
+  if (!Array.isArray(parsed)) {
+    throw new EditionFinanceError("VALIDATION", "Allocations inválidas.");
+  }
+  return parsed.map((row) => ({
+    financialIdentityId: String(row.financialIdentityId ?? ""),
+    paymentConnectionId: row.paymentConnectionId
+      ? String(row.paymentConnectionId)
+      : null,
+    sharePercent: Number(row.sharePercent),
+    role: row.role ?? "ORGANIZER",
+    sortOrder: row.sortOrder,
+  }));
 }
 
 /** Validación segura (sin cobro): reutiliza gate + readiness. */
@@ -163,34 +203,105 @@ export async function activateEditionDistributionFormAction(
   formData: FormData,
 ): Promise<void> {
   const versionId = String(formData.get("versionId") ?? "");
-  const user = await requireClickatonAdmin();
-  const actor = await loadFinanceActor(user.id);
-  await activateEditionDistribution(actor, { editionId, versionId });
-  revalidatePath(financePath(editionId));
+  try {
+    const user = await requireClickatonAdmin();
+    const actor = await loadFinanceActor(user.id);
+    await activateEditionDistribution(actor, { editionId, versionId });
+    revalidatePath(financePath(editionId));
+    redirect(
+      financePathWithMsg(
+        editionId,
+        "ok",
+        "Distribución activada (ACTIVE). El gate comercial puede seguir bloqueado si falta checkout/webhook o MP del beneficiario.",
+      ),
+    );
+  } catch (err) {
+    // next/navigation redirect() throws; must rethrow
+    if (
+      err &&
+      typeof err === "object" &&
+      "digest" in err &&
+      String((err as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT")
+    ) {
+      throw err;
+    }
+    const message =
+      err instanceof EditionFinanceError
+        ? err.message
+        : "No se pudo activar la distribución.";
+    redirect(financePathWithMsg(editionId, "error", message));
+  }
 }
 
-export async function createTammyDraftFormAction(
+export async function createEditionDraftFormAction(
   editionId: string,
   formData: FormData,
 ): Promise<void> {
-  const user = await requireClickatonAdmin();
-  const actor = await loadFinanceActor(user.id);
-  const financialIdentityId = String(formData.get("financialIdentityId") ?? "");
-  const paymentConnectionId = String(formData.get("paymentConnectionId") ?? "") || null;
-  if (!financialIdentityId) {
-    throw new EditionFinanceError("VALIDATION", "Falta identidad financiera.");
+  try {
+    const user = await requireClickatonAdmin();
+    const actor = await loadFinanceActor(user.id);
+    const allocations = parseAllocationsJson(String(formData.get("allocationsJson") ?? "[]"));
+    await createEditionDraftDistribution(actor, {
+      editionId,
+      name: String(formData.get("name") ?? "Distribución edición"),
+      allocations,
+    });
+    revalidatePath(financePath(editionId));
+    redirect(
+      financePathWithMsg(
+        editionId,
+        "ok",
+        "Versión DRAFT creada. Revisá conexiones ACTIVE antes de Activar.",
+      ),
+    );
+  } catch (err) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "digest" in err &&
+      String((err as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT")
+    ) {
+      throw err;
+    }
+    const message =
+      err instanceof EditionFinanceError
+        ? err.message
+        : "No se pudo crear el DRAFT.";
+    redirect(financePathWithMsg(editionId, "error", message));
   }
-  await createEditionDraftDistribution(actor, {
-    editionId,
-    name: "Distribución edición",
-    allocations: [
-      {
-        financialIdentityId,
-        paymentConnectionId,
-        sharePercent: 100,
-        role: "ORGANIZER",
-      },
-    ],
-  });
-  revalidatePath(financePath(editionId));
+}
+
+/** @deprecated alias — usar createEditionDraftFormAction */
+export const createTammyDraftFormAction = createEditionDraftFormAction;
+
+export async function updateDraftAllocationsFormAction(
+  editionId: string,
+  formData: FormData,
+): Promise<void> {
+  try {
+    const user = await requireClickatonAdmin();
+    const actor = await loadFinanceActor(user.id);
+    const versionId = String(formData.get("versionId") ?? "");
+    const allocations = parseAllocationsJson(String(formData.get("allocationsJson") ?? "[]"));
+    if (!versionId) {
+      redirect(financePathWithMsg(editionId, "error", "Falta versionId del DRAFT."));
+    }
+    await updateDraftAllocations(actor, { editionId, versionId, allocations });
+    revalidatePath(financePath(editionId));
+    redirect(financePathWithMsg(editionId, "ok", "DRAFT actualizado."));
+  } catch (err) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "digest" in err &&
+      String((err as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT")
+    ) {
+      throw err;
+    }
+    const message =
+      err instanceof EditionFinanceError
+        ? err.message
+        : "No se pudo actualizar el DRAFT.";
+    redirect(financePathWithMsg(editionId, "error", message));
+  }
 }

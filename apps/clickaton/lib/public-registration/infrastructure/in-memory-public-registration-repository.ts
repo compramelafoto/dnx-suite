@@ -54,6 +54,8 @@ export type InMemoryPricePhaseItemRow = {
   displayTitle: string | null;
   displayDescription: string | null;
   sortOrder: number;
+  stockLimit?: number | null;
+  benefitDeadlineAt?: Date | null;
   productName: string;
   productDescription: string | null;
   isActive: boolean;
@@ -249,6 +251,8 @@ export function createInMemoryPublicRegistrationRepository(
             displayTitle: row.displayTitle,
             displayDescription: row.displayDescription,
             sortOrder: row.sortOrder,
+            stockLimit: row.stockLimit ?? null,
+            benefitDeadlineAt: row.benefitDeadlineAt ?? null,
             product: {
               id: row.productId,
               name: row.productName,
@@ -363,26 +367,52 @@ export function createInMemoryPublicRegistrationRepository(
     },
 
     async countPhaseBenefitClaims(pricePhaseItemIds) {
-      const map = new Map<string, number>();
-      for (const id of pricePhaseItemIds) map.set(id, 0);
+      const confirmedByItemId = new Map<string, number>();
+      const heldByItemId = new Map<string, number>();
+      const confirmedByProductId = new Map<string, number>();
+      const heldByProductId = new Map<string, number>();
+      for (const id of pricePhaseItemIds) {
+        confirmedByItemId.set(id, 0);
+        heldByItemId.set(id, 0);
+      }
       const now = Date.now();
       for (const r of store.domain.registrations.values()) {
         const hold = [...store.domain.capacityHolds.values()].find(
           (h) => h.registrationId === r.id,
         );
-        const counts =
-          r.status === "CONFIRMED" ||
-          (r.status === "PENDING_PAYMENT" &&
-            hold?.status === "ACTIVE" &&
-            hold.expiresAt.getTime() > now);
-        if (!counts) continue;
+        const isConfirmed = r.status === "CONFIRMED";
+        const isHeld =
+          r.status === "PENDING_PAYMENT" &&
+          hold?.status === "ACTIVE" &&
+          hold.expiresAt.getTime() > now;
+        if (!isConfirmed && !isHeld) continue;
         for (const item of r.items) {
-          const pid = item.pricePhaseItemId;
-          if (!pid || !map.has(pid)) continue;
-          map.set(pid, (map.get(pid) ?? 0) + 1);
+          const phaseItemId = item.pricePhaseItemId;
+          if (!phaseItemId || !confirmedByItemId.has(phaseItemId)) continue;
+          const phaseItem = store.pricePhaseItems.get(phaseItemId);
+          const productId = phaseItem?.productId ?? item.productId;
+          if (isConfirmed) {
+            confirmedByItemId.set(phaseItemId, (confirmedByItemId.get(phaseItemId) ?? 0) + 1);
+            if (productId) {
+              confirmedByProductId.set(
+                productId,
+                (confirmedByProductId.get(productId) ?? 0) + 1,
+              );
+            }
+          } else {
+            heldByItemId.set(phaseItemId, (heldByItemId.get(phaseItemId) ?? 0) + 1);
+            if (productId) {
+              heldByProductId.set(productId, (heldByProductId.get(productId) ?? 0) + 1);
+            }
+          }
         }
       }
-      return map;
+      return {
+        confirmedByItemId,
+        heldByItemId,
+        confirmedByProductId,
+        heldByProductId,
+      };
     },
 
     async createReservedRegistration(input) {

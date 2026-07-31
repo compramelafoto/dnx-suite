@@ -7,16 +7,21 @@
 
 /**
  * Talles canónicos Remera Clickatón (catálogo / seed).
+ * Alineados a la Tabla de talles oficial (columnas 2–10):
+ * XS, S, M, L, XL, XXL, 3XL, 4XL, 5XL.
  * No hardcodear solo en UI: el seed materializa variantes en Prisma.
  */
 export const ARGENTINA_2026_SHIRT_SIZES = [
-  { code: "XS", name: "XS", sortOrder: 10 },
-  { code: "S", name: "S", sortOrder: 20 },
-  { code: "M", name: "M", sortOrder: 30 },
-  { code: "L", name: "L", sortOrder: 40 },
-  { code: "XL", name: "XL", sortOrder: 50 },
-  { code: "XXL", name: "XXL", sortOrder: 60 },
-  { code: "XXXL", name: "XXXL", sortOrder: 70 },
+  { code: "XS", name: "XS", sortOrder: 10, tableColumn: 2 },
+  { code: "S", name: "S", sortOrder: 20, tableColumn: 3 },
+  { code: "M", name: "M", sortOrder: 30, tableColumn: 4 },
+  { code: "L", name: "L", sortOrder: 40, tableColumn: 5 },
+  { code: "XL", name: "XL", sortOrder: 50, tableColumn: 6 },
+  { code: "XXL", name: "XXL", sortOrder: 60, tableColumn: 7 },
+  /** Columna 8 de la tabla (= 3XL). Code legado XXXL se mantiene por SKU/compat. */
+  { code: "XXXL", name: "3XL", sortOrder: 70, tableColumn: 8 },
+  { code: "4XL", name: "4XL", sortOrder: 80, tableColumn: 9 },
+  { code: "5XL", name: "5XL", sortOrder: 90, tableColumn: 10 },
 ] as const;
 
 export const ARGENTINA_2026_MERCH = {
@@ -35,15 +40,23 @@ export const ARGENTINA_2026_MERCH = {
    */
   placeholderStockPerSize: 10_000,
   /**
-   * Fase 1 ($25.000) incluye remera. Fase 2 queda configurable en admin (seed no asume).
-   * Fase 3 no incluye remera inicialmente.
+   * Fases cuyo precio seed incluye remera (beneficio first-N + deadline).
+   * Fase 3 ($35k) empieza 06/09 > 30/08 → sin remera en seed.
+   * El cutoff real del beneficio es `benefitDeadlineIso`, no el fin de fase.
    */
-  includeShirtInPhaseAmountPesos: [25_000] as readonly number[],
+  includeShirtInPhaseAmountPesos: [25_000, 30_000] as readonly number[],
   /**
-   * First-N benefit: primeros N CONFIRMED (o PENDING con hold) reciben remera.
+   * First-N benefit: primeros N CONFIRMED con confirmedAt ≤ deadline reciben remera.
+   * PENDING+hold solo reserva soft el cupo (anti-oversell); no es consumidor definitivo.
    * No es capacidad total de la edición/fase — N+1 puede inscribirse sin el beneficio.
    */
   firstNBenefitLimit: 100,
+  /**
+   * Cierre temporal del beneficio (fin de día AR).
+   * Independiente de las ventanas de precio/fase.
+   */
+  benefitDeadlineIso: "2026-08-30T23:59:59.999-03:00",
+  benefitTimezone: "America/Argentina/Buenos_Aires",
   storeSlug: "remera-clickaton",
   storeTitle: "Remera Clickatón",
   storeDescription: "Remera oficial — disponible próximamente en la tienda Clickatón.",

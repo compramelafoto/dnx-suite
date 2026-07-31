@@ -364,10 +364,27 @@ export function createPublicRegistrationService(deps: {
 
       const phases = await repo.listPricePhases(edition.id);
       const resolvedPhase = resolveCurrentPricePhase(phases, new Date());
-      const phaseItems =
+      let phaseItems =
         resolvedPhase != null
           ? await repo.listPricePhaseItems(resolvedPhase.phase.id)
           : [];
+      let shirtBenefitAvailable = false;
+      let shirtBenefitEnded = false;
+      if (phaseItems.length > 0) {
+        const claims = await repo.countPhaseBenefitClaims(phaseItems.map((i) => i.id));
+        const now = new Date();
+        const hadMerch = phaseItems.some((i) => i.isIncluded && i.fulfillmentRequired);
+        const { available, omitted } = filterPhaseItemsByFirstNQuota(phaseItems, {
+          confirmedByItemId: claims.confirmedByItemId,
+          heldByItemId: claims.heldByItemId,
+          confirmedByProductId: claims.confirmedByProductId,
+          heldByProductId: claims.heldByProductId,
+          now,
+        });
+        shirtBenefitAvailable = available.some((i) => i.fulfillmentRequired);
+        shirtBenefitEnded = hadMerch && !shirtBenefitAvailable && omitted.length > 0;
+        phaseItems = available;
+      }
       try {
         tickets = attachPhaseProductsToTickets(tickets, phaseItems);
       } catch (error) {
@@ -386,6 +403,8 @@ export function createPublicRegistrationService(deps: {
             includesPhysicalMerch: phaseItems.some(
               (i) => i.isIncluded && i.fulfillmentRequired,
             ),
+            shirtBenefitAvailable,
+            shirtBenefitEnded,
           }
         : null;
 
@@ -542,7 +561,11 @@ export function createPublicRegistrationService(deps: {
       if (phaseItems.length > 0) {
         const claims = await repo.countPhaseBenefitClaims(phaseItems.map((i) => i.id));
         const { available } = filterPhaseItemsByFirstNQuota(phaseItems, {
-          byItemId: claims,
+          confirmedByItemId: claims.confirmedByItemId,
+          heldByItemId: claims.heldByItemId,
+          confirmedByProductId: claims.confirmedByProductId,
+          heldByProductId: claims.heldByProductId,
+          now,
         });
         phaseItems = available;
       }

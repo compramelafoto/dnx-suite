@@ -38,3 +38,14 @@ export function buildSafeTimelineSocialCaption(kind: "MARATHON_START" | "PROMPT_
       return "Actualización Clickatón.";
   }
 }
+
+/**
+ * Etapa 15: no encolar Social PublishRequest de ganadores/resultados.
+ * Etapa 16 podrá relajar tras FINALIZED + RESULTS_RELEASE + approval.
+ */
+export function assertResultsSocialPublishBlocked(_input?: {
+  batchStatus?: string;
+  publicationApproved?: boolean;
+}): { blocked: true; reason: string } {
+  return { blocked: true, reason: "ETAPA_15_RESULTS_SOCIAL_BLOCKED" };
+}

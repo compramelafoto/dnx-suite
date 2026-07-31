@@ -108,7 +108,25 @@ async function seedSmokeCatalog(suffix: string) {
     },
   });
 
-  return { editionId, venueId, ticketId, slug };
+  const profilePhotoAssetId = `asset_smoke_${suffix}`;
+  await prisma.dnxMediaAsset.create({
+    data: {
+      id: profilePhotoAssetId,
+      platform: "CLICKATON",
+      ownerType: "GUEST_UPLOAD",
+      ownerId: `guest_smoke_${suffix}`,
+      kind: "PROFILE_SQUARE",
+      storageBackend: "LOCAL_TEST",
+      storageKey: `clickaton/smoke/${suffix}/profile.jpg`,
+      mimeType: "image/jpeg",
+      bytes: 1024,
+      contentHash: `smoke_hash_${suffix}`,
+      width: 400,
+      height: 400,
+    },
+  });
+
+  return { editionId, venueId, ticketId, slug, profilePhotoAssetId };
 }
 
 function buildCheckoutService(publicBaseUrl: string) {
@@ -170,6 +188,8 @@ export async function runMercadoPagoTestExecute(opts?: {
 
   const suffix = randomBytes(3).toString("hex");
   const catalog = await seedSmokeCatalog(suffix);
+  const { ensureStagingTestEditionFinance } = await import("./seed-staging-test-finance");
+  await ensureStagingTestEditionFinance(catalog.editionId);
   /* eslint-disable turbo/no-undeclared-env-vars -- TEST buyer from operator shell */
   const buyerEmail =
     process.env.MERCADOPAGO_TEST_BUYER_EMAIL?.trim().toLowerCase() ||
@@ -196,6 +216,10 @@ export async function runMercadoPagoTestExecute(opts?: {
     acceptTerms: true,
     acceptPrivacy: true,
     acceptImage: true,
+    imageUsageConsent: true,
+    socialPublicationConsent: true,
+    profilePhotoAssetId: catalog.profilePhotoAssetId,
+    instagramHandle: `smoke_ck_${suffix}`,
     idempotencyKey: `smoke-mp-${suffix}-${randomUUID().slice(0, 8)}`,
   });
 

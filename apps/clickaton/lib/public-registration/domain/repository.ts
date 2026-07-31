@@ -74,11 +74,16 @@ export interface PublicRegistrationRepository {
     activeHolds: number;
   }>;
   /**
-   * Claims first-N por PricePhaseItem: registrations CONFIRMED o PENDING_PAYMENT
-   * con hold ACTIVE que incluyen ese pricePhaseItemId.
+   * Claims first-N: CONFIRMED (definitivo) vs PENDING+hold (soft).
+   * Agregado por productId (cupo compartido entre fases) e itemId.
    * Does NOT throw PHASE_CAPACITY — solo cuenta para omitir beneficio.
    */
-  countPhaseBenefitClaims(pricePhaseItemIds: string[]): Promise<Map<string, number>>;
+  countPhaseBenefitClaims(pricePhaseItemIds: string[]): Promise<{
+    confirmedByItemId: Map<string, number>;
+    heldByItemId: Map<string, number>;
+    confirmedByProductId: Map<string, number>;
+    heldByProductId: Map<string, number>;
+  }>;
   createReservedRegistration(input: {
     cmd: import("@/lib/registration/domain/commands").CreateDraftRegistrationCommand;
     idempotencyKey: string;

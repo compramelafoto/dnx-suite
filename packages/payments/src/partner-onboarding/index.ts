@@ -41,3 +41,4 @@ export {
 } from "./ui-messages.js";
 
 export * from "./owner-oauth/index.js";
+export * from "./partner-oauth/index.js";

@@ -245,4 +245,6 @@ pnpm --filter clickaton check-types
 - Impresoras / credencial productiva aprobada
 - Kiosco de autoacreditación
 - Cache roster offline cifrada
-- Jurado / puntuaciones / ranking / resultados / premiación → Etapa 13+
+- **Etapa 13 (hecha):** admisión técnica — `CLICKATON_TECHNICAL_ADMISSION.md`
+- **Etapa 14 (hecha):** jurado / rúbricas / scoring anónimo — `CLICKATON_JURY_SCORING.md` (sin ranking LIVE)
+- Ranking / resultados / premiación → Etapa 15+

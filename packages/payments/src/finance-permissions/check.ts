@@ -13,6 +13,21 @@ function hasSuiteAdmin(actor: FinanceActor): boolean {
   return activeGrants(actor).some((g) => g.capability === "DNX_FINANCE_ADMIN");
 }
 
+function hasPartnerConnect(actor: FinanceActor): boolean {
+  return activeGrants(actor).some(
+    (g) => g.capability === "DNX_FINANCE_PARTNER_CONNECT",
+  );
+}
+
+/** Explicit partner-connect grant (excludes suite owner — callers use hasSuiteOwner separately). */
+export function hasPartnerConnectGrant(actor: FinanceActor): boolean {
+  return hasPartnerConnect(actor);
+}
+
+export function canConnectOwnMpAccount(actor: FinanceActor): boolean {
+  return hasSuiteOwner(actor) || hasPartnerConnect(actor);
+}
+
 function productGrant(
   actor: FinanceActor,
   capability: FinanceGrant["capability"],
@@ -87,6 +102,21 @@ export function canPerformFinanceAction(
       if (!id) return false;
       return (actor.ownedFinancialIdentityIds ?? []).includes(id);
     }
+    case "connect_own_mp_account":
+    case "revoke_own_mp_account":
+      return hasPartnerConnect(actor);
+    case "view_own_mp_account":
+      return (
+        hasPartnerConnect(actor) ||
+        (Boolean(context.productKey) &&
+          productGrant(
+            actor,
+            "PRODUCT_FINANCE_VIEWER",
+            context.productKey!,
+            context.scopeType,
+            context.scopeId,
+          ))
+      );
     default:
       return false;
   }

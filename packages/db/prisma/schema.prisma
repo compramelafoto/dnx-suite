@@ -9123,6 +9123,8 @@ enum DnxFinanceCapability {
   DNX_FINANCE_ADMIN
   PRODUCT_FINANCE_MANAGER
   PRODUCT_FINANCE_VIEWER
+  /// Connect/reconnect/revoke own Mercado Pago account (PERSON). Not suite owner.
+  DNX_FINANCE_PARTNER_CONNECT
 }
 
 enum DnxFinanceGrantStatus {
@@ -9794,6 +9796,9 @@ model ClickatonPricePhaseItem {
   isIncluded            Boolean                        @default(true)
   /// Cupo opcional de unidades de este beneficio en la fase (null = sin límite propio).
   stockLimit            Int?
+  /// Cierre temporal del beneficio (independiente de startsAt/endsAt de la fase de precio).
+  /// Inclusive; timezone de negocio = America/Argentina/Buenos_Aires.
+  benefitDeadlineAt     DateTime?
   fulfillmentRequired   Boolean                        @default(true)
   displayTitle          String?
   displayDescription    String?

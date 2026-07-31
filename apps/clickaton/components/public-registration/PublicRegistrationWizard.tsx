@@ -346,11 +346,17 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                             [productId]: variantId,
                           }))
                         }
+                        benefitAvailable={
+                          context.currentPricePhase?.shirtBenefitAvailable
+                        }
+                        benefitEnded={context.currentPricePhase?.shirtBenefitEnded}
                         emptyPhaseMessage={
-                          context.currentPricePhase &&
-                          !context.currentPricePhase.includesPhysicalMerch
-                            ? "Esta fase incluye la participación en Clickatón. La remera puede adquirirse por separado en la tienda."
-                            : null
+                          context.currentPricePhase?.shirtBenefitEnded
+                            ? null
+                            : context.currentPricePhase &&
+                                !context.currentPricePhase.includesPhysicalMerch
+                              ? "Esta fase incluye la participación en Clickatón. La promoción de remera incluida no aplica en esta etapa."
+                              : null
                         }
                       />
                     </label>

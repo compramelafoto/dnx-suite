@@ -1,8 +1,14 @@
-# Clickatón — Guest Checkout Implementation Report (10C / 10C.1)
+# Clickatón — Guest Checkout Implementation Report (10C / 10C.2)
 
 **Fecha:** 2026-07-30  
 **Veredicto técnico local:** funnel guest→pago→CONFIRMED implementado  
-**Veredicto Staging:** ver `CLICKATON_REGISTRATION_CHECKOUT_CURRENT_STATE.md`
+**Veredicto Staging 10C.2:** `CLICKATON E2E PAYMENT TEST BLOCKED` — ver `CLICKATON_10C2_STAGING_E2E_REPORT.md`
+
+### Evidencia Staging 10C.2 (guest)
+
+- Migración `userId` nullable aplicada en `ep-round-fog`.
+- Reserva AR2026 real: `PENDING_PAYMENT` · `userId=null` · Remera fase 1 (`stockLimit=100`) · `$25.000`.
+- Smoke execute MP: preferencia Checkout Pro creada; **APPROVED** no alcanzado (API 401 / UI secure-fields).
 
 ---
 

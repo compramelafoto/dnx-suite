@@ -8,6 +8,8 @@ export type {
 export { FinancePermissionDeniedError } from "./errors.js";
 export {
   assertFinanceAction,
+  canConnectOwnMpAccount,
   canPerformFinanceAction,
+  hasPartnerConnectGrant,
   isClickatonAdminWithoutFinanceGrant,
 } from "./check.js";

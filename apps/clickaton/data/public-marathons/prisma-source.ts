@@ -1,6 +1,6 @@
 /**
- * Public marathon data source backed by published ClickatonEdition rows (11B).
- * Prisma is the source of truth for the pilot TEST edition.
+ * Public marathon data source backed by published ClickatonEdition rows.
+ * Prisma is the source of truth. No copy "TEST" en superficies públicas.
  */
 
 import "server-only";
@@ -15,7 +15,13 @@ function mapEditionToPublicMarathon(row: {
   name: string;
   shortDescription: string | null;
   description: string | null;
+  location: string | null;
+  city: string | null;
+  provinceOrState: string | null;
+  country: string | null;
   isPublished: boolean;
+  /** Kill switch comercial: false ⇒ CTA cerrado aunque las ventanas estén abiertas. */
+  registrationEnabled: boolean;
   timezone: string | null;
   startAt: Date | null;
   endAt: Date | null;
@@ -51,13 +57,27 @@ function mapEditionToPublicMarathon(row: {
   const now = Date.now();
   const openAt = row.registrationOpenAt?.getTime() ?? 0;
   const closeAt = row.registrationCloseAt?.getTime() ?? Number.POSITIVE_INFINITY;
-  const registrationOpen = now >= openAt && now <= closeAt;
+  const windowOpen = now >= openAt && now <= closeAt;
+  const registrationOpen = Boolean(row.registrationEnabled) && windowOpen;
   const isFree = tickets.length > 0 && tickets.every((t) => t.priceAmount === 0);
   const hasPaid = tickets.some((t) => t.priceAmount > 0);
-  const city = venue?.city ?? "Ciudad TEST";
-  const province = venue?.provinceOrState ?? "Provincia TEST";
-  const countryLabel =
-    !venue?.country || venue.country === "AR" ? "Argentina" : venue.country;
+  const countryCode = venue?.country ?? row.country ?? "AR";
+  const countryLabel = !countryCode || countryCode === "AR" ? "Argentina" : countryCode;
+  const rawCity =
+    venue?.city?.trim() ||
+    row.city?.trim() ||
+    row.location?.trim() ||
+    "";
+  // Evitar "Argentina, Argentina" cuando solo hay país/location genérico.
+  const city =
+    rawCity && rawCity.toLowerCase() !== countryLabel.toLowerCase()
+      ? rawCity
+      : "Sede a confirmar";
+  const province =
+    venue?.provinceOrState?.trim() || row.provinceOrState?.trim() || "";
+  const priceFormatted = isFree
+    ? "Gratis"
+    : `Desde $${(minPrice / 100).toLocaleString("es-AR")} ${currency}`;
 
   return {
     id: row.id,
@@ -66,23 +86,23 @@ function mapEditionToPublicMarathon(row: {
     editionName: row.name,
     shortDescription:
       row.shortDescription ??
-      "Edición piloto TEST de Clickatón para validar el funnel de inscripción.",
+      "Maratón fotográfica Clickatón. Inscripciones configurables desde administración.",
     fullDescription:
       row.description ??
       row.shortDescription ??
-      "Edición de prueba. No es un evento comercial. Permite recorrer inscripción, pago sandbox, QR y Mi cuenta.",
+      "Edición Clickatón. Revisá fechas, precio vigente e inclusión de kit antes de inscribirte.",
     status: registrationOpen ? "registration_open" : "announced",
     registrationStatus: registrationOpen ? "open" : "coming_soon",
     format: "individual",
-    modality: "Presencial (TEST)",
+    modality: "Presencial",
     featured: true,
     isDemo: false,
     city,
     provinceOrRegion: province,
     country: countryLabel,
-    venueName: venue?.name ?? "Sede TEST",
-    meetingPoint: venue?.meetingPoint ?? venue?.address ?? "Punto de encuentro TEST",
-    timezone: row.timezone ?? "America/Argentina/Buenos_Aires",
+    venueName: venue?.name,
+    meetingPoint: venue?.meetingPoint ?? venue?.address ?? undefined,
+    timezone: row.timezone ?? "America/Argentina/Cordoba",
     startAt: (row.startAt ?? new Date()).toISOString(),
     endAt: (row.endAt ?? new Date()).toISOString(),
     registrationOpenAt: row.registrationOpenAt?.toISOString(),
@@ -97,9 +117,7 @@ function mapEditionToPublicMarathon(row: {
           : {
               amountMinor: minPrice,
               currency,
-              formatted: isFree
-                ? "Gratis (TEST)"
-                : `Desde $${(minPrice / 100).toLocaleString("es-AR")} ${currency} (TEST)`,
+              formatted: priceFormatted,
             },
       hasOptionalMerchandise: false,
       registrationUrl: null,
@@ -115,9 +133,9 @@ function mapEditionToPublicMarathon(row: {
     coverImage: row.coverImageUrl ?? undefined,
     galleryPreview: row.coverImageUrl ? [row.coverImageUrl] : [],
     organizer: {
-      name: "Clickatón TEST",
+      name: "Clickatón",
       type: "producer",
-      description: "Organización de prueba — no comercial.",
+      description: "Organización oficial Clickatón.",
       city,
       country: countryLabel,
     },
@@ -127,15 +145,13 @@ function mapEditionToPublicMarathon(row: {
           city: venue.city,
           provinceOrRegion: province,
           country: countryLabel,
-          coordinatorName: "Coordinación TEST",
-          description: "Sede piloto para el funnel 11B.",
         }
       : undefined,
     categories: [
       {
-        id: "cat-test",
-        name: "Participación TEST",
-        description: "Categoría de prueba del funnel de inscripción.",
+        id: "cat-general",
+        name: "Participación general",
+        description: "Categoría general de inscripción.",
         allowedDevices: ["smartphone", "camera"],
         ageRange: "16+",
       },
@@ -146,21 +162,21 @@ function mapEditionToPublicMarathon(row: {
     sponsors: [],
     faq: [
       {
-        question: "¿Es un cobro real?",
-        answer: "No. Esta edición piloto opera en entorno de prueba / sandbox.",
+        question: "¿Cuándo puedo inscribirme?",
+        answer:
+          "Cuando la edición habilite inscripciones. El precio vigente depende de la fase activa.",
       },
       {
         question: "¿Dónde veo mi QR?",
-        answer: "En Mi cuenta, una vez confirmada la inscripción.",
+        answer: "En Mi cuenta, una vez confirmada la inscripción y el pago.",
       },
     ],
     rules: {
-      title: "Bases TEST",
-      summary:
-        "Bases de prueba del funnel. Revisá términos y privacidad antes de inscribirte.",
-      version: "test-11b",
+      title: "Bases y condiciones",
+      summary: "Revisá términos, privacidad y política de kit antes de inscribirte.",
+      version: "pending-legal-review",
       content:
-        "Entorno TEST: no hay cobro real. El QR y la credencial se entregan tras la confirmación.",
+        "Las bases definitivas requieren aprobación legal antes de la apertura comercial.",
     },
     resultsStatus: "not_available",
     galleryStatus: "not_available",

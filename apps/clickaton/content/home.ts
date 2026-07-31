@@ -168,8 +168,8 @@ export const homeContent = {
         alt: "Kit y materiales de la experiencia Clickatón",
       },
       group: {
-        src: "/images/hero-city-photographer.jpg",
-        alt: "Grupo saliendo a fotografiar la ciudad",
+        src: "/images/founding-allies/stand.jpg",
+        alt: "Stand y expo de marcas Clickatón",
       },
     },
   },

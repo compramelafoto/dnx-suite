@@ -1,13 +1,14 @@
 # Clickatón — Runbook de lanzamiento Production
 
-**Fecha:** 2026-07-30  
+**Fecha:** 2026-07-30 (actualizado 10D.1)  
 **Proyecto:** `clickaton-dnxsuite`  
 **Dominio canónico:** `https://maratonfotografica.com`  
 **DB Production (sanitizado):** Neon `ep-silent-haze-awfh50a5*` / `clickaton_production`  
-**No usar:** Staging `ep-round-fog…` / `clickaton-staging`
+**No usar:** Staging `ep-round-fog…` / `clickaton-staging`  
+**Production Branch Vercel:** `main` (rama `migration-legacy-clf-to-monorepo` ≠ auto-Production)
 
-**Prerrequisito:** veredicto 10D = no `NO-GO` (hoy: **NO-GO** — ver `CLICKATON_FINAL_GO_NO_GO.md`).  
-No ejecutar pasos de mutación hasta que los BLOCKERS estén cerrados y haya aprobación humana explícita.
+**Estado 10D.1:** `PRODUCTION STORAGE BLOCKED` — ver `CLICKATON_FINAL_GO_NO_GO.md` + `CLICKATON_10D1_PRELAUNCH_REMEDIATION.md`.  
+No abrir inscripciones ni cobro LIVE hasta cerrar R2, legal, OAuth Tammy y pago controlado.
 
 ---
 
@@ -21,9 +22,9 @@ No ejecutar pasos de mutación hasta que los BLOCKERS estén cerrados y haya apr
 
 ### 1. Backup Production
 
-- [ ] Neon: crear branch/snapshot `backup-before-clickaton-production-launch`.
-- [ ] Verificar que el backup es restaurable (nombre, timestamp, proyecto correcto).
-- [ ] **STOP** si no hay backup verificable.
+- [x] Neon: branch `backup-before-clickaton-production-launch` (`br-proud-butterfly-awggsxia`).
+- [x] Verificar nombre/proyecto/parent `production`.
+- [ ] **STOP** si no hay backup verificable. *(cumplido en 10D.1)*
 
 ### 2. Migraciones
 
@@ -34,34 +35,35 @@ pnpm --filter @repo/db exec prisma migrate status
 pnpm --filter @repo/db exec prisma migrate deploy
 ```
 
-- [ ] Sin drift destructivo.
-- [ ] Nunca `prisma db push`.
+- [x] `migrate deploy` 10D.1 — schema up to date (90).
+- [x] Nunca `prisma db push`.
 
 ### 3. Validación de env Production
 
-- [ ] Matriz 10D en verde (provider payments, webhook, Resend, vault, MP LIVE, QR secret, cron).
-- [ ] `CLICKATON_DNX_PAYMENTS_PROVIDER` = modo LIVE aprobado (no sandbox).
-- [ ] `DNX_SOCIAL_PUBLISHER_LIVE=false`.
-- [ ] R2 Production configurado (o storage durable aprobado).
+- [x] `CLICKATON_DNX_PAYMENTS_PROVIDER=manual` (valores LIVE `mercado_pago_production` **forbidden** en código).
+- [ ] Confirmar runtime `DNX_SOCIAL_PUBLISHER_LIVE=false`.
+- [ ] **R2 Production** configurado + smoke (BLOCKER 10D.1).
 - [ ] `CLICKATON_PUBLIC_URL` / `APP_URL` / `AUTH_URL` = `https://maratonfotografica.com`.
-- [ ] `CLICKATON_MP_REDIRECT_URI` =  
+- [ ] `CLICKATON_MP_REDIRECT_URI` exact =  
   `https://maratonfotografica.com/api/clickaton/payments/mercadopago/callback`.
 
 ### 4. Deploy aplicación
 
-- [ ] Deploy Production `clickaton-dnxsuite` del commit GO.
-- [ ] Alias `maratonfotografica.com` apuntando al deploy.
-- [ ] Health: `/api/public/health/db` → `ok:true`, host `ep-silent-haze…`.
+- [x] Deploy Production 10D.1 `dpl_3SfbV8tbjwLNseaRwDWJWKwMjBgs` (kill switch UI).
+- [x] Alias `maratonfotografica.com`.
+- [x] Health: `ok:true`, host `ep-silent-haze…`, `publishedEditions: 1`.
 
 ### 5. Health + smoke cerrado
 
-- [ ] Landing `/` 200.
-- [ ] Webhook GET → 405.
-- [ ] Admin login Google.
-- [ ] Inscripciones **cerradas** (`registrationEnabled=false` o equivalente).
+- [x] Landing `/` 200.
+- [x] Ficha AR2026 200 + “Inscripciones próximamente”.
+- [x] Webhook GET → 405.
+- [ ] Admin login Google (humano).
+- [x] Inscripciones **cerradas** (`registrationEnabled=false`).
 
 ### 6. Confirmación legal
 
+- [ ] Pack: `CLICKATON_LEGAL_APPROVAL_PACK.md`.
 - [ ] Obtener: **`LEGAL APPROVED FOR REGISTRATION`**.
 - [ ] Publicar textos finales (no `*-test-v1`).
 - [ ] Política reembolsos/cancelaciones publicada.
@@ -99,18 +101,18 @@ pnpm --filter @repo/db exec prisma migrate deploy
 
 ### 11. Seed / edición AR2026 (aún cerrada)
 
-- [ ] Materializar `clickaton-argentina-2026` en Production.
-- [ ] Fecha única: **19/09/2026**.
-- [ ] Fases 25k / 30k / 35k.
-- [ ] Remera + talles + `stockLimit=100` (first-N).
-- [ ] `isPublished` según plan; **`registrationEnabled=false`** hasta paso 13.
-- [ ] Ruta `/maratones/clickaton-argentina-2026` 200.
+- [x] Materializar `clickaton-argentina-2026` en Production.
+- [x] Fecha única: **19/09/2026**.
+- [x] Fases 25k / 30k / 35k.
+- [x] Remera + talles + `stockLimit=100` (first-N).
+- [x] `isPublished=true`; **`registrationEnabled=false`** hasta paso 13.
+- [x] Ruta `/maratones/clickaton-argentina-2026` 200.
 
 ### 12. Smoke con inscripciones cerradas
 
-- [ ] Público no puede reservar/pagar.
-- [ ] Admin ve edición.
-- [ ] Kill switch documentado: `registrationEnabled=false` / status no `REGISTRATION_OPEN`.
+- [x] Público no puede reservar/pagar (inscripción “no disponible”).
+- [ ] Admin ve edición (humano).
+- [x] Kill switch: `registrationEnabled=false` (UI “Inscripciones próximamente”).
 
 ### 13. Enable registrations (GO comercial)
 
@@ -145,11 +147,36 @@ pnpm --filter @repo/db exec prisma migrate deploy
 Cerrar inmediatamente nuevas reservas/checkouts:
 
 1. Admin → edición → `registrationEnabled=false` (y/o status ≠ `REGISTRATION_OPEN`).  
-2. Verificar landing: CTA inscripción bloqueado.  
+2. Verificar landing: CTA “Inscripciones próximamente” / inscripción no disponible.  
 3. **No** apagar webhooks ni panel admin.  
 4. Pagos ya iniciados: dejar que webhook/reconcile terminen.
 
 No existe hoy env `REGISTRATIONS_OPEN`; el switch operativo son **flags de edición**.
+
+---
+
+## Observabilidad (lookup rápido)
+
+Buscar por (sanitizar PII en tickets):
+
+| Clave | Dónde |
+|-------|--------|
+| Registration number / `visibleCode` (`CKA26-…`) | `ClickatonRegistration` |
+| Email (hash/sanitizado) | `ClickatonRegistration.email` + `User.email` |
+| DNX Payment Order id | `DnxPaymentOrder` + allocations |
+| Mercado Pago payment / preference id | provider refs en order / webhook inbox |
+| Correlation / request id | logs Vercel + `DnxPaymentAuditEvent` / webhook inbox |
+
+Estados a correlacionar en un incidente:
+
+1. Registration (+ paymentStatus)  
+2. DNX Order (+ allocations)  
+3. MP Payment / preference  
+4. Webhook inbox (idempotencia)  
+5. Email outbox / Resend  
+6. Activation token / session  
+7. QR / credential  
+8. FotoRank sync (si aplica)
 
 ---
 
@@ -197,6 +224,8 @@ No existe hoy env `REGISTRATIONS_OPEN`; el switch operativo son **flags de edici
 ## Referencias
 
 - `docs/clickaton/CLICKATON_FINAL_GO_NO_GO.md`  
+- `docs/clickaton/CLICKATON_10D1_PRELAUNCH_REMEDIATION.md`  
+- `docs/clickaton/CLICKATON_LEGAL_APPROVAL_PACK.md`  
 - `docs/clickaton/CLICKATON_COMMERCIAL_GO_LIVE_CHECKLIST.md`  
 - `docs/clickaton/CLICKATON_10C3_MP_TEST_E2E_REPORT.md`  
 - `docs/clickaton/RELEASE_10B2_PRODUCTION_INFRA_REPORT.md`

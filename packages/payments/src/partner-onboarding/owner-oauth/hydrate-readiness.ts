@@ -55,6 +55,7 @@ export function hydrateClickatonProductionPaymentReadiness(input: {
     ...createEmptyProductionReadinessInput(),
     ownerStatus,
     ownerDecisionDefined: input.ownerDecisionDefined ?? true,
+    // Partner OAuth→FI path implemented (10D.2.1). Runtime still gated by feature flag.
     oauthPartnerPathReady: input.oauthPartnerPathReady ?? true,
     vaultReady: input.vaultReady ?? true,
     webhookConfigured: input.webhookConfigured ?? false,

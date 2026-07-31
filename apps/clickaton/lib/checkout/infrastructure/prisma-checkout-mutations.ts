@@ -1,4 +1,4 @@
-import { prisma } from "@repo/db";
+import { Prisma, prisma } from "@repo/db";
 import { confirmClickatonPromotionRedemption } from "@/lib/promotions/prisma-promotions-adapter";
 import { linkRegistrationIdentity } from "@/lib/registration/application/link-registration-identity";
 import { issueRegistrationQrToken } from "@/lib/registration/security/qr-token";
@@ -176,12 +176,94 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
           visibleCode = formatVisibleCode(input.editionPrefix, sequenceNumber);
         }
 
+        const confirmedAt = new Date();
+        // First-N + deadline: serializa cupo CONFIRMED (locks phase items).
+        const phaseItemIds = [
+          ...new Set(
+            existing.items
+              .map((i) => i.pricePhaseItemId)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        ];
+        if (phaseItemIds.length > 0) {
+          const { selectBenefitItemsToRevoke } = await import(
+            "@/lib/catalog/domain/reconcile-first-n-on-confirm"
+          );
+          await tx.$queryRaw`
+            SELECT id FROM "ClickatonPricePhaseItem"
+            WHERE id IN (${Prisma.join(phaseItemIds)})
+            FOR UPDATE
+          `;
+          const metas = await tx.clickatonPricePhaseItem.findMany({
+            where: { id: { in: phaseItemIds } },
+            select: {
+              id: true,
+              productId: true,
+              stockLimit: true,
+              benefitDeadlineAt: true,
+            },
+          });
+          const phaseMetaById = new Map(metas.map((m) => [m.id, m]));
+          const productIds = [...new Set(metas.map((m) => m.productId))];
+          const confirmedByProductId = new Map<string, number>();
+          for (const pid of productIds) confirmedByProductId.set(pid, 0);
+          if (productIds.length > 0) {
+            const confirmedCounts = await tx.clickatonRegistrationItem.groupBy({
+              by: ["productId"],
+              where: {
+                productId: { in: productIds },
+                registration: {
+                  status: "CONFIRMED",
+                  id: { not: input.registrationId },
+                },
+              },
+              _count: { _all: true },
+            });
+            for (const row of confirmedCounts) {
+              if (row.productId) {
+                confirmedByProductId.set(row.productId, row._count._all);
+              }
+            }
+          }
+          const { revokeItemIds, reasonByItemId } = selectBenefitItemsToRevoke({
+            items: existing.items.map((i) => ({
+              id: i.id,
+              pricePhaseItemId: i.pricePhaseItemId,
+              productId: i.productId,
+            })),
+            phaseMetaById,
+            confirmedByProductId,
+            confirmedAt,
+          });
+          if (revokeItemIds.length > 0) {
+            await tx.clickatonRegistrationItem.updateMany({
+              where: { id: { in: revokeItemIds } },
+              data: {
+                isIncluded: false,
+                fulfillmentStatus: "CANCELLED",
+                fulfillmentNotes: "first_n_or_deadline_not_eligible_at_confirm",
+              },
+            });
+            await tx.clickatonRegistrationAudit.create({
+              data: {
+                registrationId: input.registrationId,
+                action: "FIRST_N_BENEFIT_REVOKED_ON_CONFIRM",
+                source: input.source,
+                metadata: {
+                  revokeItemIds,
+                  reasons: Object.fromEntries(reasonByItemId),
+                },
+              },
+            });
+          }
+        }
+
         const updated = await tx.clickatonRegistration.update({
           where: { id: input.registrationId },
           data: {
             status: "CONFIRMED",
             paymentStatus: "APPROVED",
-            confirmedAt: new Date(),
+            confirmedAt,
             visibleCode,
             sequenceNumber,
             paymentOrderId: input.paymentOrderId,

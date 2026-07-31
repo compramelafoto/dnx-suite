@@ -131,7 +131,10 @@ pnpm --filter clickaton selfcheck:timeline
 
 - **Etapa 11 (hecha):** upload por consigna + EXIF/GPS + entry FR — ver `CLICKATON_PHOTO_UPLOAD_EXIF_GPS.md`
 - **Etapa 12 (hecha):** acreditación presencial / QR / check-in / kit — ver `CLICKATON_ACCREDITATION_AND_CHECKIN.md` (`ACCREDITATION_OPEN` + `ACCREDITATION_CLOSE`; ops LIVE off por defecto)
-- Juzgamiento / ranking / resultados / cierre técnico de admisión de obras (Etapa 13)
+- **Etapa 13 (hecha):** admisión técnica / batch / freeze — ver `CLICKATON_TECHNICAL_ADMISSION.md` (`JUDGING_OPEN`/`CLOSE`; sin scores LIVE)
+- **Etapa 14 (hecha):** jurado / rúbricas / scoring anónimo — ver `CLICKATON_JURY_SCORING.md` (sesión DRAFT/OFF por defecto)
+- **Etapa 15 (hecha):** ranking privado / desempates / batch — ver `CLICKATON_RANKING_AND_RESULTS.md` (`RESULTS_RELEASE` no publica automáticamente)
+- Ranking / desempates / resultados (Etapa 15)
 - Notificaciones push/WhatsApp gated por timeline
 - Extracción a `@repo/event-timeline` si un segundo producto lo necesita
 - UI avanzada de contingencia (extender ventanas con preview rich)

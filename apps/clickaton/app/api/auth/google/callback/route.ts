@@ -8,6 +8,7 @@ import {
   hashEmailForLog,
   parseAndVerifyGoogleOAuthTransit,
   resolveOrLinkGoogleUser,
+  resolveOrCreateUser,
 } from "@repo/auth";
 import { prisma } from "@repo/db";
 import {
@@ -95,19 +96,16 @@ export async function GET(req: Request) {
     try {
       resolved = await resolveOrLinkGoogleUser({
         google,
-        onCreate: async ({ email, name, googleId, picture }) => {
-          const created = await prisma.user.create({
-            data: {
-              email,
-              name,
-              googleId,
-              role: "CUSTOMER",
-              emailVerifiedAt: new Date(),
-              ...(picture ? { logoUrl: picture } : {}),
-            },
-            select: { id: true, role: true },
+        onCreate: async ({ email, name, googleId }) => {
+          const { user } = await resolveOrCreateUser({
+            email,
+            name,
+            googleId,
+            createRole: "CUSTOMER",
+            sourceApplication: "clickaton",
+            markEmailVerified: true,
           });
-          return { id: created.id, role: String(created.role) };
+          return { id: user.id, role: user.role };
         },
       });
     } catch (err) {

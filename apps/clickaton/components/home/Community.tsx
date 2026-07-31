@@ -56,7 +56,6 @@ export function Community() {
               src={community.images.group.src}
               alt={community.images.group.alt}
               overlay="none"
-              objectPosition="center 35%"
               sizes="(max-width: 1024px) 50vw, 20vw"
             />
           </div>

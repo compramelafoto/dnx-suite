@@ -13,6 +13,7 @@ import { minorUnitsToPesosInput } from "@/lib/admin-catalog/ui/money-ui";
 import { getEditionById, listEditionOptions } from "@/lib/admin/editions/queries";
 import { EDITION_STATUS_LABELS, type ClickatonEditionStatus } from "@/lib/admin/editions/types";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { prisma } from "@/lib/admin/db";
 
 type Props = {
   params: Promise<{ productId: string }>;
@@ -47,10 +48,30 @@ export default async function AdminProductDetailPage({ params, searchParams }: P
   }
 
   const product = productResult.data;
-  const [editionResult, editionsResult] = await Promise.all([
+  const [editionResult, editionsResult, mediaRowsRaw] = await Promise.all([
     getEditionById(product.editionId),
     listEditionOptions(),
+    prisma.clickatonProductMedia.findMany({
+      where: { productId: product.id },
+      orderBy: [{ mediaType: "asc" }, { sortOrder: "asc" }],
+    }),
   ]);
+  const assetIds = mediaRowsRaw.map((m) => m.assetId);
+  const assets = assetIds.length
+    ? await prisma.dnxMediaAsset.findMany({
+        where: { id: { in: assetIds } },
+        select: { id: true, publicUrl: true },
+      })
+    : [];
+  const urlByAsset = new Map(assets.map((a) => [a.id, a.publicUrl]));
+  const mediaRows = mediaRowsRaw.map((m) => ({
+    id: m.id,
+    mediaType: m.mediaType,
+    sortOrder: m.sortOrder,
+    altText: m.altText,
+    assetId: m.assetId,
+    publicUrl: urlByAsset.get(m.assetId) ?? null,
+  }));
   const edition = editionResult.ok ? editionResult.data : null;
   const editions = editionsResult.ok ? editionsResult.data : [];
   const editionLabel = edition
@@ -87,6 +108,8 @@ export default async function AdminProductDetailPage({ params, searchParams }: P
       <ProductForm
         mode="edit"
         lockEdition
+        productId={product.id}
+        mediaRows={mediaRows}
         action={updateProductFormAction.bind(null, product.id)}
         editions={
           editions.length

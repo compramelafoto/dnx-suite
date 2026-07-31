@@ -73,6 +73,15 @@ export function classifySmokeDatabaseUrl(
     };
   }
 
+  // DNX Suite Staging Identity (ADR-002 / cutover): host fingerprint, not URL markers.
+  if (host.includes("ep-round-fog")) {
+    return {
+      classification: "staging",
+      safeForTestSmoke: true,
+      reason: "dnx_staging_identity_host",
+    };
+  }
+
   if (TEST_MARKER.test(haystack) || TEST_MARKER.test(v)) {
     return {
       classification: "test",

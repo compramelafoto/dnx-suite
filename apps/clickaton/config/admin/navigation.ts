@@ -13,6 +13,9 @@ export const adminRoutes = {
   sponsors: "/admin/sponsors",
   messages: "/admin/mensajes",
   settings: "/admin/configuracion",
+  financeOwner: "/admin/finanzas/cuenta-owner",
+  /** Partner / recipient self-connect (Mi cuenta de cobro). */
+  financePartner: "/admin/finanzas/mi-cuenta",
   integrations: "/admin/integraciones",
   /** Compat: redirige al login unificado `/login`. */
   login: "/admin/login",
@@ -31,6 +34,7 @@ export type AdminNavIcon =
   | "sponsors"
   | "messages"
   | "settings"
+  | "finance"
   | "integrations";
 
 export type AdminNavItem = {
@@ -61,6 +65,13 @@ export const adminNavigation: readonly AdminNavItem[] = [
   { label: "Sponsors", href: adminRoutes.sponsors, icon: "sponsors", section: "main" },
   { label: "Mensajes", href: adminRoutes.messages, icon: "messages", section: "main" },
   { label: "Configuración", href: adminRoutes.settings, icon: "settings", section: "system" },
+  {
+    /** Partner self-connect — no confundir con admin de % en la edición. */
+    label: "Mi cuenta de cobro",
+    href: adminRoutes.financePartner,
+    icon: "finance",
+    section: "system",
+  },
   {
     label: "Integraciones",
     href: adminRoutes.integrations,

@@ -1,7 +1,8 @@
-# Clickatón — Activación Cuenta DNX post-pago (10C.1)
+# Clickatón — Activación Cuenta DNX post-pago (10C.1 / 10C.2)
 
 **Fecha:** 2026-07-30  
-**Estado:** Implementado en código · Staging E2E pendiente de smoke con MP TEST
+**Estado:** Implementado en código · Staging E2E **bloqueado** hasta `CONFIRMED` post-pago TEST  
+**10C.2:** preferencia MP creada; sin APPROVED → no se pudo ejercer `/activar` ni casos User nuevo/existente/Google en Staging.
 
 ---
 

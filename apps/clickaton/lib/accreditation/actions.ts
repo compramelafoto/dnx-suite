@@ -116,7 +116,8 @@ export async function registerDeviceAction(editionId: string, formData: FormData
   revalidatePath(`${adminRoutes.editions}/${editionId}/acreditacion`);
 }
 
-export async function syncOfflineAction(editionId: string, _formData?: FormData): Promise<void> {
+export async function syncOfflineAction(editionId: string, formData?: FormData): Promise<void> {
+  void formData;
   const user = await requireClickatonAdmin();
   await syncOfflineEvents({ editionId, actor: actorFrom(user) });
   revalidatePath(`${adminRoutes.editions}/${editionId}/acreditacion`);

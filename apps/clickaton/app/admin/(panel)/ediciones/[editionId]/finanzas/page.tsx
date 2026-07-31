@@ -4,59 +4,59 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
+import { EditionDistributionEditor } from "@/components/admin/EditionDistributionEditor";
 import {
   activateEditionDistributionFormAction,
-  createTammyDraftFormAction,
   dryRunEditionCheckoutPlanFormAction,
   getEditionFinancePageData,
   validateEditionFinanceConfigFormAction,
 } from "@/lib/admin/edition-finance/actions/edition-finance";
-import { FINANCE_SEED_EMAILS } from "@/lib/admin/edition-finance/constants";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
-import { prisma } from "@/lib/admin/db";
 
 type Props = {
   params: Promise<{ editionId: string }>;
+  searchParams: Promise<{ financeError?: string; financeOk?: string }>;
 };
 
-export default async function EditionFinancePage({ params }: Props) {
+export default async function EditionFinancePage({ params, searchParams }: Props) {
   await requireClickatonAdmin();
   const { editionId } = await params;
+  const flash = await searchParams;
   const editionResult = await getEditionById(editionId);
   if (!editionResult.ok || !editionResult.data) notFound();
   const edition = editionResult.data;
 
   const data = await getEditionFinancePageData(editionId);
-
-  const tammyUser = await prisma.user.findFirst({
-    where: { email: { equals: FINANCE_SEED_EMAILS.tammy, mode: "insensitive" } },
-    select: { id: true, email: true },
-  });
-  const tammyIdentity = tammyUser
-    ? await prisma.dnxFinancialIdentity.findFirst({
-        where: { ownerUserId: tammyUser.id, subjectType: "PERSON" },
-        include: {
-          paymentAccounts: {
-            where: { status: { in: ["ACTIVE", "PENDING", "NEEDS_REAUTH"] } },
-            orderBy: { updatedAt: "desc" },
-            take: 5,
-          },
-        },
-      })
-    : null;
+  const openDraft = data.distributions.find((d) => d.versionStatus === "DRAFT");
+  const draftCanActivate = Boolean(
+    openDraft &&
+      openDraft.allocations.length > 0 &&
+      openDraft.allocations.every((a) => a.paymentConnection?.canReceivePayments),
+  );
 
   return (
     <div className="space-y-10">
       <AdminPageHeader
         title="Finanzas de la edición"
-        description={`${edition.name} — distribución por DNX Payments (acuerdo versionado). Tammy 100% del importe distribuible tras fees del PSP; sin platform fee DNX en esta edición.`}
+        description={`${edition.name} — distribución por DNX Payments (acuerdo versionado). El % activo lo define la versión publicada del acuerdo (configurable; hoy Plan B temporal DNX 100%). Sin platform fee DNX en esta edición.`}
         breadcrumbs={[
           { label: "Ediciones", href: adminRoutes.editions },
           { label: edition.name, href: `${adminRoutes.editions}/${editionId}` },
           { label: "Finanzas" },
         ]}
       />
+
+      {flash.financeError ? (
+        <Card variant="outlined" className="border-red-500/40 text-sm text-red-300">
+          {flash.financeError}
+        </Card>
+      ) : null}
+      {flash.financeOk ? (
+        <Card variant="outlined" className="border-emerald-500/40 text-sm text-emerald-300">
+          {flash.financeOk}
+        </Card>
+      ) : null}
 
       <Card variant="outlined" className="space-y-4 border-ck-yellow/40">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ck-yellow">
@@ -227,13 +227,21 @@ export default async function EditionFinancePage({ params }: Props) {
                     .map((a) => `${a.beneficiaryDisplayName} ${a.shareValue}%`)
                     .join(", ")}
                 </div>
-                {data.canManage && d.versionStatus === "DRAFT" && d.versionId ? (
-                  <form action={activateEditionDistributionFormAction.bind(null, editionId)}>
-                    <input type="hidden" name="versionId" value={d.versionId} />
-                    <Button type="submit" variant="primary">
-                      Activar
-                    </Button>
-                  </form>
+                {data.canMutate && d.versionStatus === "DRAFT" && d.versionId ? (
+                  <div className="space-y-2 text-right">
+                    {!draftCanActivate ? (
+                      <p className="max-w-xs text-xs text-amber-700">
+                        Para Activar, cada recipient del DRAFT necesita cuenta Mercado Pago
+                        ACTIVE.
+                      </p>
+                    ) : null}
+                    <form action={activateEditionDistributionFormAction.bind(null, editionId)}>
+                      <input type="hidden" name="versionId" value={d.versionId} />
+                      <Button type="submit" variant="primary" disabled={!draftCanActivate}>
+                        Activar
+                      </Button>
+                    </form>
+                  </div>
                 ) : null}
               </li>
             ))}
@@ -241,45 +249,43 @@ export default async function EditionFinancePage({ params }: Props) {
         )}
       </section>
 
-      {data.canManage ? (
+      {data.canMutate ? (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold">Crear DRAFT Tammy 100%</h2>
-          {!tammyIdentity ? (
-            <p className="text-sm text-amber-700">
-              No se encontró identidad financiera para {FINANCE_SEED_EMAILS.tammy}. Creá la
-              identidad / conexión Mercado Pago antes de activar.
-            </p>
-          ) : (
-            <form
-              action={createTammyDraftFormAction.bind(null, editionId)}
-              className="space-y-4 rounded border border-ck-border p-4"
-            >
-              <input type="hidden" name="financialIdentityId" value={tammyIdentity.id} />
-              <label className="block space-y-2 text-sm">
-                <span className="text-ck-text-secondary">Conexión Mercado Pago</span>
-                <select
-                  name="paymentConnectionId"
-                  className="block w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
-                  defaultValue={tammyIdentity.paymentAccounts[0]?.id ?? ""}
-                >
-                  <option value="">Sin conexión (DRAFT sin activar)</option>
-                  {tammyIdentity.paymentAccounts.map((acc) => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.environment} · {acc.status} ·{" "}
-                      {acc.providerUserId ?? acc.id.slice(0, 8)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="text-xs text-ck-text-muted">
-                No se muestran tokens. No se activa automáticamente sin conexión válida.
-              </p>
-              <Button type="submit" variant="secondary">
-                Crear versión DRAFT
-              </Button>
-            </form>
-          )}
+          <h2 className="text-lg font-semibold">
+            {openDraft ? "Editar DRAFT de distribución" : "Crear DRAFT de distribución"}
+          </h2>
+          <EditionDistributionEditor
+            editionId={editionId}
+            recipients={data.recipients}
+            draftVersionId={openDraft?.versionId ?? null}
+            initialRows={
+              openDraft
+                ? openDraft.allocations.map((a) => ({
+                    financialIdentityId: a.financialIdentityId,
+                    paymentConnectionId: a.paymentConnectionId,
+                    sharePercent: a.shareValue,
+                  }))
+                : data.active
+                  ? data.active.allocations.map((a) => ({
+                      financialIdentityId: a.financialIdentityId,
+                      paymentConnectionId: a.paymentConnectionId,
+                      sharePercent: a.shareValue,
+                    }))
+                  : [
+                      {
+                        financialIdentityId: "",
+                        paymentConnectionId: null,
+                        sharePercent: 100,
+                      },
+                    ]
+            }
+          />
         </section>
+      ) : data.canManage ? (
+        <p className="text-sm text-ck-text-muted">
+          Tenés acceso de lectura/gestión parcial, pero solo DNX_FINANCE_OWNER puede editar
+          recipients y porcentajes.
+        </p>
       ) : null}
 
       <section className="space-y-3">

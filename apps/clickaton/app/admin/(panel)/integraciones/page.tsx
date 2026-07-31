@@ -32,10 +32,16 @@ export default async function AdminIntegrationsPage() {
         <AdminIntegrationCard integration={integrations.payments} />
       </div>
 
-      <Card variant="outlined" className="text-sm">
+      <Card variant="outlined" className="space-y-3 text-sm">
+        <a
+          href="/admin/finanzas/cuenta-owner"
+          className="block font-medium text-ck-text-primary underline-offset-4 hover:underline"
+        >
+          Cuenta owner Mercado Pago →
+        </a>
         <a
           href="/admin/integraciones/diagnostico"
-          className="font-medium text-ck-text-primary underline-offset-4 hover:underline"
+          className="block font-medium text-ck-text-primary underline-offset-4 hover:underline"
         >
           Diagnóstico OAuth / emails / reconciliación →
         </a>

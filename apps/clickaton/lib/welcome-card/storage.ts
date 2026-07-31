@@ -5,8 +5,15 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3
 
 export type StoredObject = { key: string; publicUrl: string | null; bytes: number; contentHash: string };
 
+export type ClickatonMediaNamespace = "welcome" | "profile" | "products";
+
 export interface StoragePort {
-  put(input: { namespace: "welcome" | "profile"; extension: string; body: Buffer; contentType: string }): Promise<StoredObject>;
+  put(input: {
+    namespace: ClickatonMediaNamespace;
+    extension: string;
+    body: Buffer;
+    contentType: string;
+  }): Promise<StoredObject>;
   get(key: string): Promise<Buffer>;
 }
 
@@ -14,7 +21,7 @@ function safeExtension(extension: string) {
   return extension.replace(/[^a-z0-9]/gi, "").toLowerCase() || "bin";
 }
 
-function objectKey(namespace: "welcome" | "profile", extension: string) {
+function objectKey(namespace: ClickatonMediaNamespace, extension: string) {
   return `clickaton/${namespace}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${safeExtension(extension)}`;
 }
 
@@ -82,6 +89,8 @@ export function shouldInlineMediaInDb(): boolean {
 }
 
 export class R2Storage implements StoragePort {
+  /** Stable marker — do not rely on constructor.name (minified in Production). */
+  readonly backend = "R2" as const;
   private readonly client: S3Client;
   constructor(
     private readonly config: { bucket: string; endpoint: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string },

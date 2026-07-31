@@ -2,14 +2,22 @@
 
 import { useState } from "react";
 import type { PublicTicketProductDto } from "@/lib/public-registration/domain/types";
+import {
+  ARGENTINA_2026_SHIRT_BENEFIT_COPY,
+  ARGENTINA_2026_SHIRT_ENDED_COPY,
+  ARGENTINA_2026_SHIRT_INCLUDED_COPY,
+} from "@/lib/catalog/domain/first-n-benefit";
 
 type Props = {
   products: PublicTicketProductDto[];
   selected: boolean;
   variantChoices: Record<string, string>;
   onVariantChange: (productId: string, variantId: string) => void;
-  /** Mensaje cuando la fase no incluye merch físico. */
+  /** Mensaje cuando la fase no incluye merch / promoción finalizó. */
   emptyPhaseMessage?: string | null;
+  /** Oferta first-N vigente. */
+  benefitAvailable?: boolean;
+  benefitEnded?: boolean;
 };
 
 export function IncludedProductsSection({
@@ -18,11 +26,21 @@ export function IncludedProductsSection({
   variantChoices,
   onVariantChange,
   emptyPhaseMessage,
+  benefitAvailable,
+  benefitEnded,
 }: Props) {
   const [sizeChartProductId, setSizeChartProductId] = useState<string | null>(null);
   const sizeChartProduct = products.find((p) => p.productId === sizeChartProductId);
 
   if (products.length === 0) {
+    if (benefitEnded) {
+      return (
+        <div className="mt-4 space-y-2 rounded border border-ck-border bg-ck-surface/40 p-4">
+          <p className="text-sm font-semibold text-ck-text">{ARGENTINA_2026_SHIRT_ENDED_COPY}</p>
+          <p className="text-xs text-ck-text-secondary">{ARGENTINA_2026_SHIRT_BENEFIT_COPY}</p>
+        </div>
+      );
+    }
     return emptyPhaseMessage ? (
       <p className="mt-4 text-sm text-ck-text-secondary">{emptyPhaseMessage}</p>
     ) : null;
@@ -30,7 +48,14 @@ export function IncludedProductsSection({
 
   return (
     <div className="mt-4 space-y-4">
-      <p className="text-sm font-semibold text-ck-text">Tu inscripción incluye</p>
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-ck-text">
+          {benefitAvailable !== false
+            ? ARGENTINA_2026_SHIRT_INCLUDED_COPY
+            : "Tu inscripción incluye"}
+        </p>
+        <p className="text-xs text-ck-text-secondary">{ARGENTINA_2026_SHIRT_BENEFIT_COPY}</p>
+      </div>
       <ul className="space-y-4">
         {products.map((p) => {
           const activeVariants = [...p.variants]
@@ -42,17 +67,17 @@ export function IncludedProductsSection({
               key={`${p.sourceType ?? "TICKET_BASE"}-${p.productId}`}
               className="rounded border border-ck-border bg-ck-surface/60 p-4"
             >
-              <div className="flex gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row">
                 {p.primaryImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={p.primaryImageUrl}
                     alt={p.productName}
-                    className="h-20 w-20 shrink-0 rounded object-cover"
+                    className="h-40 w-full shrink-0 rounded object-cover sm:h-28 sm:w-28"
                   />
                 ) : (
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded border border-ck-border bg-ck-bg text-xs text-ck-text-muted">
-                    Sin foto
+                  <div className="flex h-40 w-full shrink-0 items-center justify-center rounded border border-dashed border-ck-border bg-ck-bg text-xs text-ck-text-muted sm:h-28 sm:w-28">
+                    Foto pendiente
                   </div>
                 )}
                 <div className="min-w-0 flex-1 space-y-2">
@@ -69,16 +94,20 @@ export function IncludedProductsSection({
                       className="text-sm underline text-ck-text"
                       onClick={() => setSizeChartProductId(p.productId)}
                     >
-                      Ver cuadro de talles
+                      Ver guía de talles
                     </button>
-                  ) : null}
+                  ) : (
+                    <p className="text-xs text-ck-text-muted">
+                      Guía de talles: pendiente de carga
+                    </p>
+                  )}
                 </div>
               </div>
               {showVariant ? (
                 <label className="mt-4 block space-y-2">
                   <span className="text-sm font-medium">Talle *</span>
                   <select
-                    className="block w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
+                    className="block min-h-11 w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
                     value={variantChoices[p.productId] ?? ""}
                     onChange={(e) => onVariantChange(p.productId, e.target.value)}
                     required
@@ -99,25 +128,26 @@ export function IncludedProductsSection({
         })}
       </ul>
 
-      {sizeChartProduct && (sizeChartProduct.sizeChartUrl || sizeChartProduct.sizeChartDescription) ? (
+      {sizeChartProduct &&
+      (sizeChartProduct.sizeChartUrl || sizeChartProduct.sizeChartDescription) ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
-          aria-label="Cuadro de talles"
+          aria-label="Guía de talles"
           onClick={() => setSizeChartProductId(null)}
         >
           <div
-            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-ck-border bg-ck-bg p-6"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-ck-border bg-ck-bg p-6 sm:rounded-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <h3 className="text-lg font-semibold">
-                Cuadro de talles — {sizeChartProduct.productName}
+                Guía de talles — {sizeChartProduct.productName}
               </h3>
               <button
                 type="button"
-                className="text-sm underline"
+                className="min-h-11 text-sm underline"
                 onClick={() => setSizeChartProductId(null)}
               >
                 Cerrar
@@ -137,7 +167,7 @@ export function IncludedProductsSection({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={sizeChartProduct.sizeChartUrl}
-                alt={`Cuadro de talles ${sizeChartProduct.productName}`}
+                alt={`Guía de talles ${sizeChartProduct.productName}`}
                 className="mt-4 w-full rounded border border-ck-border"
               />
             ) : null}

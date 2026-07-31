@@ -9,6 +9,10 @@ import { Button } from "@/components/ui/Button";
 import type { CatalogActionState } from "@/lib/admin-catalog/actions/action-result";
 import type { ProductStoreStatus } from "@/lib/admin-catalog/domain/types";
 import { EDITION_STATUS_LABELS, type ClickatonEditionStatus } from "@/lib/admin/editions/types";
+import {
+  ProductMediaUploadFields,
+  type ProductMediaRow,
+} from "@/components/admin/catalog/ProductMediaUploadFields";
 
 export type EditionOption = {
   id: string;
@@ -48,6 +52,8 @@ type Props = {
   cancelHref?: string;
   lockEdition?: boolean;
   mode?: "create" | "edit";
+  productId?: string;
+  mediaRows?: ProductMediaRow[];
 };
 
 const BLOCKED = new Set(["CANCELLED", "COMPLETED"]);
@@ -91,6 +97,8 @@ export function ProductForm({
   cancelHref,
   lockEdition = false,
   mode = "create",
+  productId,
+  mediaRows,
 }: Props) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -235,11 +243,21 @@ export function ProductForm({
         ) : (
           <>
             <AdminFormSection title="Medios e inscripción">
+              {productId ? (
+                <AdminFormFullWidth>
+                  <ProductMediaUploadFields
+                    productId={productId}
+                    primaryImageAssetId={values.primaryImageAssetId || null}
+                    sizeChartAssetId={values.sizeChartAssetId || null}
+                    mediaRows={mediaRows}
+                  />
+                </AdminFormFullWidth>
+              ) : null}
               <Field
                 id="primaryImageAssetId"
                 label="Imagen principal (asset id)"
                 error={state?.errors?.primaryImageAssetId}
-                hint="ID de DnxMediaAsset ya subido. Reutiliza el pipeline de medios existente."
+                hint="ID de DnxMediaAsset ya subido, o usá el uploader de arriba."
               >
                 <Input
                   name="primaryImageAssetId"
