@@ -34,7 +34,7 @@ export function PhotoBackdrop({
         fill
         sizes="100vw"
         className={cn(
-          "scale-105 object-cover",
+          "object-cover",
           grayscale && "grayscale",
           blur && "blur-[5px]",
         )}

@@ -27,7 +27,7 @@ export function Hero() {
           fill
           priority
           sizes="100vw"
-          className="scale-105 object-cover object-[center_40%] grayscale opacity-[0.24] blur-[2px]"
+          className="object-cover object-[center_40%] grayscale opacity-[0.24] blur-[2px]"
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.4)_0%,rgb(17_17_17_/_0.58)_48%,rgb(17_17_17_/_0.82)_100%)]" />
       </div>

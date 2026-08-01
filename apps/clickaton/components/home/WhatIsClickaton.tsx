@@ -23,7 +23,7 @@ export function WhatIsClickaton() {
           alt=""
           fill
           sizes="100vw"
-          className="scale-105 object-cover object-[center_45%] grayscale opacity-[0.07] blur-[2px]"
+          className="object-cover object-[center_45%] grayscale opacity-[0.07] blur-[2px]"
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.72)_0%,rgb(17_17_17_/_0.82)_50%,rgb(17_17_17_/_0.9)_100%)]" />
       </div>

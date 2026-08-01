@@ -88,13 +88,13 @@ export function SiteHeader({ authUser = null }: Props) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter,box-shadow] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
+        "sticky top-0 z-50 max-w-[100vw] overflow-x-clip border-b transition-[background-color,border-color,backdrop-filter,box-shadow] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
         scrolled || open
           ? "border-ck-border bg-[rgb(17_17_17_/_0.78)] shadow-[var(--ck-shadow-subtle)] backdrop-blur-[var(--ck-blur-header)]"
           : "border-transparent bg-transparent backdrop-blur-0",
       )}
     >
-      <Container className="flex min-h-24 items-center gap-4 py-5 md:min-h-28 md:gap-8 md:py-6">
+      <Container className="flex min-h-24 min-w-0 items-center gap-4 py-5 md:min-h-28 md:gap-6 md:py-6">
         <div className="flex shrink-0 items-center">
           <Wordmark
             href="/"
@@ -104,9 +104,10 @@ export function SiteHeader({ authUser = null }: Props) {
           />
         </div>
 
-        <div className="ml-auto hidden items-center gap-6 lg:gap-8 xl:flex 2xl:gap-10">
+        {/* Nav completa solo en 2xl+: en xl los labels largos + CTA + cuenta desbordan el viewport */}
+        <div className="ml-auto hidden min-w-0 items-center gap-4 2xl:flex 2xl:gap-6">
           <nav
-            className="flex items-center gap-1"
+            className="flex min-w-0 items-center gap-0.5"
             aria-label={onAboutPage ? "Secciones Sobre Clickatón" : "Principal"}
           >
             {navigation.map((item) => {
@@ -119,7 +120,7 @@ export function SiteHeader({ authUser = null }: Props) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "ck-label whitespace-nowrap rounded-[var(--ck-radius-sm)] px-3 py-2 transition-colors duration-[var(--ck-duration-base)]",
+                    "ck-label whitespace-nowrap rounded-[var(--ck-radius-sm)] px-2.5 py-2 text-sm transition-colors duration-[var(--ck-duration-base)]",
                     active
                       ? "text-ck-yellow"
                       : "text-ck-text-secondary hover:text-ck-text",
@@ -170,7 +171,7 @@ export function SiteHeader({ authUser = null }: Props) {
           </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3 xl:hidden">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3 2xl:hidden">
           {authUser ? (
             <AccountMenu user={authUser} />
           ) : (
@@ -222,7 +223,7 @@ export function SiteHeader({ authUser = null }: Props) {
       {open ? (
         <div
           id={panelId}
-          className="max-h-[min(80dvh,36rem)] overflow-y-auto border-t border-ck-border bg-[rgb(17_17_17_/_0.98)] backdrop-blur-[var(--ck-blur-header)] xl:hidden"
+          className="max-h-[min(80dvh,36rem)] overflow-y-auto border-t border-ck-border bg-[rgb(17_17_17_/_0.98)] backdrop-blur-[var(--ck-blur-header)] 2xl:hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Menú de navegación"

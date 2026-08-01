@@ -52,6 +52,8 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
+  max-width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -81,6 +83,8 @@ body {
   font-size: var(--ck-text-body-md);
   line-height: var(--ck-leading-body);
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 
