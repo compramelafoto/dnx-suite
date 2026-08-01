@@ -11,6 +11,7 @@
 > Identidad staging vigente reconciliada: host `ep-round-fog*` / DB `neondb` (fuente: health Vercel `clickaton-staging`).
 > `ep-divine-smoke*` / `clickaton_staging` queda como **histórica**. `ep-dawn-dew*` = **DO NOT USE FOR STAGING**.
 > Conexión migrate: solo `COMMUNICATIONS_STAGING_DATABASE_URL` (sin fallback a `DATABASE_URL`).
+> Deploy staging tip: commit `22bf4ee` / deployment `dpl_D7fYFmTao2TixSZVLuuBKQqqnnLj` — webhook disabled; migrate aún pendiente (ver Imp09).
 
 ---
 
