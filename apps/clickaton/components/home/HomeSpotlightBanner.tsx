@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/Button";
+import {
+  EDITION_COVER_HORIZONTAL,
+  EDITION_COVER_VERTICAL,
+} from "@/lib/admin/editions/cover-specs";
 
 export type HomeSpotlightSlide = {
   id: string;
@@ -12,7 +16,6 @@ export type HomeSpotlightSlide = {
   description: string;
   href: string;
   ctaLabel: string;
-  /** CTA secundaria contextual (sponsor, ciudad, agenda…). */
   secondaryHref?: string;
   secondaryCtaLabel?: string;
   imageUrl?: string;
@@ -55,6 +58,8 @@ export function HomeSpotlightBanner({ slides }: Props) {
 
   const hasCover = Boolean(current.imageUrl || current.imageUrlVertical);
   const revealActions = paused;
+  /** Portada de edición ya trae diseño tipográfico: no duplicar título encima. */
+  const artDirectedEdition = current.kind === "edition" && hasCover;
 
   return (
     <section
@@ -70,7 +75,12 @@ export function HomeSpotlightBanner({ slides }: Props) {
         }
       }}
     >
-      <div className="relative min-h-[30rem] md:min-h-[34rem] lg:min-h-[38rem]">
+      {/*
+        Proporciones oficiales (cover-specs):
+        - Móvil: 1080×1920 (9:16)
+        - Desktop: 1920×1080 (16:9)
+      */}
+      <div className="relative w-full aspect-[9/16] max-h-[min(85vh,42rem)] md:aspect-video md:max-h-none">
         {items.map((slide, i) => {
           const desktopSrc = slide.imageUrl || slide.imageUrlVertical;
           const mobileSrc = slide.imageUrlVertical || slide.imageUrl;
@@ -89,7 +99,9 @@ export function HomeSpotlightBanner({ slides }: Props) {
                   <img
                     src={desktopSrc}
                     alt=""
-                    className="absolute inset-0 hidden h-full w-full scale-105 object-cover transition-transform duration-[7000ms] ease-out md:block group-hover:scale-100"
+                    width={EDITION_COVER_HORIZONTAL.width}
+                    height={EDITION_COVER_HORIZONTAL.height}
+                    className="absolute inset-0 hidden h-full w-full object-cover object-center md:block"
                     loading={i === 0 ? "eager" : "lazy"}
                     draggable={false}
                   />
@@ -97,7 +109,9 @@ export function HomeSpotlightBanner({ slides }: Props) {
                   <img
                     src={mobileSrc || desktopSrc}
                     alt=""
-                    className="absolute inset-0 h-full w-full object-cover md:hidden"
+                    width={EDITION_COVER_VERTICAL.width}
+                    height={EDITION_COVER_VERTICAL.height}
+                    className="absolute inset-0 h-full w-full object-cover object-center md:hidden"
                     loading={i === 0 ? "eager" : "lazy"}
                     draggable={false}
                   />
@@ -112,67 +126,70 @@ export function HomeSpotlightBanner({ slides }: Props) {
           );
         })}
 
-        {/* Overlay más liviano cuando hay portada admin, para que se vea la imagen */}
         <div
           className={
-            hasCover
-              ? "absolute inset-0 bg-[linear-gradient(90deg,rgb(10_10_10_/_0.72)_0%,rgb(10_10_10_/_0.45)_42%,rgb(10_10_10_/_0.25)_100%)] md:bg-[linear-gradient(90deg,rgb(10_10_10_/_0.78)_0%,rgb(10_10_10_/_0.4)_50%,rgb(10_10_10_/_0.15)_100%)]"
-              : "absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.35)_0%,rgb(17_17_17_/_0.55)_45%,rgb(17_17_17_/_0.88)_100%)]"
+            artDirectedEdition
+              ? "absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,rgb(10_10_10_/_0.5)_100%)]"
+              : hasCover
+                ? "absolute inset-0 bg-[linear-gradient(90deg,rgb(10_10_10_/_0.55)_0%,rgb(10_10_10_/_0.25)_50%,rgb(10_10_10_/_0.15)_100%)]"
+                : "absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.35)_0%,rgb(17_17_17_/_0.55)_45%,rgb(17_17_17_/_0.88)_100%)]"
           }
           aria-hidden
         />
 
-        <Container className="relative z-[2] flex min-h-[inherit] flex-col justify-end pb-20 pt-12 md:pb-24 md:pt-16">
-          <div className="max-w-2xl space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="ck-overline text-ck-yellow">{current.eyebrow}</p>
-              {count > 1 ? (
-                <span className="ck-caption rounded-full border border-ck-border/80 bg-ck-bg/50 px-2.5 py-1 text-ck-text-muted backdrop-blur-sm">
-                  {index + 1} / {count}
-                </span>
-              ) : null}
+        <Container className="relative z-[2] flex h-full flex-col justify-end pb-20 pt-10 md:pb-24 md:pt-14">
+          {!artDirectedEdition ? (
+            <div className="max-w-2xl space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="ck-overline text-ck-yellow">{current.eyebrow}</p>
+                {count > 1 ? (
+                  <span className="ck-caption rounded-full border border-ck-border/80 bg-ck-bg/50 px-2.5 py-1 text-ck-text-muted backdrop-blur-sm">
+                    {index + 1} / {count}
+                  </span>
+                ) : null}
+              </div>
+              <h2
+                key={`${current.id}-title`}
+                className="ck-display-md max-w-[18ch] text-balance text-ck-text drop-shadow-[0_2px_16px_rgb(0_0_0_/_0.45)]"
+              >
+                {current.title}
+              </h2>
+              <p className="ck-body max-w-prose text-ck-text-secondary drop-shadow-[0_1px_8px_rgb(0_0_0_/_0.4)]">
+                {current.description}
+              </p>
             </div>
-            <h2
-              key={`${current.id}-title`}
-              className="ck-display-md max-w-[18ch] text-balance text-ck-text drop-shadow-[0_2px_16px_rgb(0_0_0_/_0.45)]"
-            >
-              {current.title}
-            </h2>
-            <p className="ck-body max-w-prose text-ck-text-secondary drop-shadow-[0_1px_8px_rgb(0_0_0_/_0.4)]">
-              {current.description}
-            </p>
+          ) : (
+            <h2 className="sr-only">{current.title}</h2>
+          )}
 
-            {/* Desktop: CTAs al hover/focus. Móvil: siempre visibles (no hay hover). */}
-            <div
-              className={[
-                "flex flex-wrap gap-3 pt-2 transition-all duration-300 ease-out",
-                "max-md:translate-y-0 max-md:opacity-100",
-                revealActions
-                  ? "md:translate-y-0 md:opacity-100"
-                  : "md:pointer-events-none md:translate-y-2 md:opacity-0",
-              ].join(" ")}
-            >
-              <Button href={current.href} variant="primary">
-                {current.ctaLabel}
+          <div
+            className={[
+              "mt-6 flex flex-wrap gap-3 transition-all duration-300 ease-out",
+              "max-md:translate-y-0 max-md:opacity-100",
+              revealActions
+                ? "md:translate-y-0 md:opacity-100"
+                : "md:pointer-events-none md:translate-y-2 md:opacity-0",
+            ].join(" ")}
+          >
+            <Button href={current.href} variant="primary">
+              {current.ctaLabel}
+            </Button>
+            {current.secondaryHref && current.secondaryCtaLabel ? (
+              <Button href={current.secondaryHref} variant="secondary">
+                {current.secondaryCtaLabel}
               </Button>
-              {current.secondaryHref && current.secondaryCtaLabel ? (
-                <Button href={current.secondaryHref} variant="secondary">
-                  {current.secondaryCtaLabel}
-                </Button>
-              ) : null}
-            </div>
-            <p
-              className={[
-                "ck-caption text-ck-text-muted transition-opacity duration-300 max-md:hidden",
-                revealActions ? "opacity-0" : "opacity-100",
-              ].join(" ")}
-            >
-              Pasá el mouse para ver acciones
-            </p>
+            ) : null}
           </div>
+          <p
+            className={[
+              "ck-caption mt-3 text-ck-text-muted transition-opacity duration-300 max-md:hidden",
+              revealActions ? "opacity-0" : "opacity-100",
+            ].join(" ")}
+          >
+            Pasá el mouse para ver acciones
+          </p>
         </Container>
 
-        {/* Selector centrado abajo del banner */}
         {count > 1 ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-5 z-[3] flex justify-center px-4 md:bottom-7">
             <div className="pointer-events-auto flex flex-col items-center gap-3">

@@ -5,6 +5,12 @@ import {
   uploadEditionCoverAction,
   type EditionCoverUploadState,
 } from "@/lib/admin/editions/edition-cover-actions";
+import {
+  EDITION_COVER_HORIZONTAL,
+  EDITION_COVER_VERTICAL,
+  editionCoverHorizontalHint,
+  editionCoverVerticalHint,
+} from "@/lib/admin/editions/cover-specs";
 
 type Props = {
   editionId?: string | null;
@@ -19,6 +25,8 @@ type Props = {
 function CoverSlot({
   label,
   hint,
+  specsLine,
+  safeZoneNote,
   aspectClass,
   url,
   error,
@@ -28,6 +36,8 @@ function CoverSlot({
 }: {
   label: string;
   hint: string;
+  specsLine: string;
+  safeZoneNote: string;
   aspectClass: string;
   url: string;
   error?: string;
@@ -70,22 +80,25 @@ function CoverSlot({
 
   return (
     <div className="space-y-3 rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface p-4">
-      <div>
+      <div className="space-y-2">
         <p className="text-sm font-semibold text-ck-text">{label}</p>
-        <p className="mt-1 text-xs text-ck-text-muted">{hint}</p>
+        <p className="text-sm font-medium text-ck-yellow">{specsLine}</p>
+        <p className="text-xs text-ck-text-muted">{hint}</p>
+        <p className="text-xs text-ck-text-muted">{safeZoneNote}</p>
       </div>
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={url}
           alt=""
-          className={`w-full max-w-sm rounded border border-ck-border object-cover ${aspectClass}`}
+          className={`w-full max-w-md rounded border border-ck-border object-contain bg-ck-bg ${aspectClass}`}
         />
       ) : (
         <div
-          className={`flex w-full max-w-sm items-center justify-center rounded border border-dashed border-ck-border bg-ck-bg text-xs text-ck-text-muted ${aspectClass}`}
+          className={`flex w-full max-w-md flex-col items-center justify-center gap-1 rounded border border-dashed border-ck-border bg-ck-bg px-3 text-center text-xs text-ck-text-muted ${aspectClass}`}
         >
-          Sin imagen
+          <span>Sin imagen</span>
+          <span className="font-medium text-ck-text-secondary">{specsLine}</span>
         </div>
       )}
       <div className="space-y-3">
@@ -122,17 +135,41 @@ export function EditionCoverUploadFields({
   horizontalError,
   verticalError,
 }: Props) {
+  const h = EDITION_COVER_HORIZONTAL;
+  const v = EDITION_COVER_VERTICAL;
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-ck-text-secondary">
-        Subí archivos (no URL). Horizontal para el banner del home y fichas; vertical para
-        mobile / stories.
-      </p>
+      <div className="space-y-2 rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-bg/60 p-4">
+        <p className="text-sm font-semibold text-ck-text">Medidas obligatorias</p>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-ck-text-secondary">
+          <li>
+            Horizontal:{" "}
+            <strong className="text-ck-text">
+              {h.width}×{h.height} px
+            </strong>{" "}
+            ({h.aspectLabel}) — banner Home desktop + miniaturas
+          </li>
+          <li>
+            Vertical:{" "}
+            <strong className="text-ck-text">
+              {v.width}×{v.height} px
+            </strong>{" "}
+            ({v.aspectLabel}) — banner Home móvil + stories
+          </li>
+        </ul>
+        <p className="text-xs text-ck-text-muted">
+          Exportá en esos píxeles exactos (sin recortes raros). Si subís otra proporción, se verá
+          mal con recortes.
+        </p>
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <CoverSlot
           label="Portada horizontal"
-          hint="Recomendado 1920×1080 o similar (16:9)."
-          aspectClass="aspect-video"
+          specsLine={`${h.width}×${h.height} px · ${h.aspectLabel}`}
+          hint={editionCoverHorizontalHint()}
+          safeZoneNote={h.safeZoneNote}
+          aspectClass={h.aspectClass}
           url={horizontalUrl}
           error={horizontalError}
           variant="horizontal"
@@ -141,8 +178,10 @@ export function EditionCoverUploadFields({
         />
         <CoverSlot
           label="Portada vertical"
-          hint="Recomendado 1080×1920 o similar (9:16)."
-          aspectClass="aspect-[9/16] max-h-80"
+          specsLine={`${v.width}×${v.height} px · ${v.aspectLabel}`}
+          hint={editionCoverVerticalHint()}
+          safeZoneNote={v.safeZoneNote}
+          aspectClass={`${v.aspectClass} max-h-96`}
           url={verticalUrl}
           error={verticalError}
           variant="vertical"

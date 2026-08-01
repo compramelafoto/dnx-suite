@@ -14,7 +14,8 @@ import { cn } from "@/lib/cn";
 const variantAspectClass: Record<PhotoVariant, string> = {
   hero: "aspect-[4/5] sm:aspect-[3/4] lg:aspect-[4/5]",
   editorial: "aspect-[3/2]",
-  card: "aspect-[16/10]",
+  /** Alineado a portada horizontal de edición 1920×1080 (16:9). */
+  card: "aspect-video",
   gallery: "aspect-[4/3]",
   portrait: "aspect-[3/4]",
   jury: "aspect-square",

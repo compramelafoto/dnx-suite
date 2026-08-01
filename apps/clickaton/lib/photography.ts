@@ -67,9 +67,9 @@ export const photoVariantPresets: Record<PhotoVariant, PhotoVariantPreset> = {
     hoverScale: false,
   },
   card: {
-    aspectClass: "aspect-[16/10]",
-    aspectRatio: "16:10",
-    recommendedSize: "1200×750",
+    aspectClass: "aspect-video",
+    aspectRatio: "16:9",
+    recommendedSize: "1920×1080 (portada horizontal de edición)",
     objectFit: "cover",
     defaultOverlay: "soft",
     defaultSizes: "(max-width: 768px) 100vw, 400px",
