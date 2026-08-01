@@ -6,6 +6,7 @@ export const CLICKATON_EDITION_STATUSES = [
   "REGISTRATION_CLOSED",
   "IN_PROGRESS",
   "COMPLETED",
+  "REPROGRAMMED",
   "CANCELLED",
 ] as const;
 
@@ -43,6 +44,7 @@ export type ClickatonEditionRecord = {
   fotoRankLastValidatedAt: Date | null;
   fotoRankValidationError: string | null;
   coverImageUrl: string | null;
+  coverImageVerticalUrl: string | null;
   paymentBeneficiaryConfig: unknown | null;
   createdAt: Date;
   updatedAt: Date;
@@ -70,6 +72,7 @@ export type ClickatonEditionFormInput = {
   currency: string;
   fotorankContestId: string;
   coverImageUrl: string;
+  coverImageVerticalUrl: string;
 };
 
 export const EDITION_STATUS_LABELS: Record<ClickatonEditionStatus, string> = {
@@ -78,6 +81,7 @@ export const EDITION_STATUS_LABELS: Record<ClickatonEditionStatus, string> = {
   REGISTRATION_CLOSED: "Inscripción cerrada",
   IN_PROGRESS: "En curso",
   COMPLETED: "Finalizada",
+  REPROGRAMMED: "Reprogramada",
   CANCELLED: "Cancelada",
 };
 
@@ -108,6 +112,7 @@ export function emptyEditionFormInput(): ClickatonEditionFormInput {
     currency: "ARS",
     fotorankContestId: "",
     coverImageUrl: "",
+    coverImageVerticalUrl: "",
   };
 }
 
@@ -136,5 +141,6 @@ export function editionToFormInput(edition: ClickatonEditionRecord): ClickatonEd
     currency: edition.currency || "ARS",
     fotorankContestId: edition.fotorankContestId ?? "",
     coverImageUrl: edition.coverImageUrl ?? "",
+    coverImageVerticalUrl: edition.coverImageVerticalUrl ?? "",
   };
 }

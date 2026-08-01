@@ -26,6 +26,7 @@ const valid = validateEditionFormInput({
   currency: "ARS",
   location: "Argentina",
   coverImageUrl: "https://cdn.example.com/cover.jpg",
+  coverImageVerticalUrl: "https://cdn.example.com/cover-v.jpg",
   fotorankContestId: "clxyz123",
 });
 assert.equal(valid.ok, true, "valid edition");

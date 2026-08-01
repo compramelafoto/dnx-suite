@@ -6,8 +6,21 @@
 import "server-only";
 
 import { prisma } from "@repo/db";
+import {
+  ARGENTINA_2026_PUBLIC_META,
+  argentina2026PublicFaq,
+  argentina2026PublicSchedule,
+} from "@/config/editions/argentina-2026-public-facts";
+import {
+  ARGENTINA_2026_SCHEDULE,
+  CLICKATON_ARGENTINA_2026,
+} from "@/config/editions/argentina-2026";
 import type { PublicMarathonDataSource } from "@/data/public-marathons/types";
 import type { PublicMarathon } from "@/types/marathon";
+
+function isArgentina2026(slug: string): boolean {
+  return slug === CLICKATON_ARGENTINA_2026.slug;
+}
 
 function mapEditionToPublicMarathon(row: {
   id: string;
@@ -29,6 +42,7 @@ function mapEditionToPublicMarathon(row: {
   registrationCloseAt: Date | null;
   defaultCapacity: number | null;
   coverImageUrl: string | null;
+  coverImageVerticalUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
   venues: Array<{
@@ -63,21 +77,41 @@ function mapEditionToPublicMarathon(row: {
   const hasPaid = tickets.some((t) => t.priceAmount > 0);
   const countryCode = venue?.country ?? row.country ?? "AR";
   const countryLabel = !countryCode || countryCode === "AR" ? "Argentina" : countryCode;
+  const ar2026 = isArgentina2026(row.slug);
   const rawCity =
     venue?.city?.trim() ||
     row.city?.trim() ||
+    (ar2026 ? ARGENTINA_2026_PUBLIC_META.city : "") ||
     row.location?.trim() ||
     "";
   // Evitar "Argentina, Argentina" cuando solo hay país/location genérico.
   const city =
     rawCity && rawCity.toLowerCase() !== countryLabel.toLowerCase()
       ? rawCity
-      : "Sede a confirmar";
+      : ar2026
+        ? ARGENTINA_2026_PUBLIC_META.city
+        : "Sede a confirmar";
   const province =
-    venue?.provinceOrState?.trim() || row.provinceOrState?.trim() || "";
+    venue?.provinceOrState?.trim() ||
+    row.provinceOrState?.trim() ||
+    (ar2026 ? ARGENTINA_2026_PUBLIC_META.province : "");
   const priceFormatted = isFree
     ? "Gratis"
     : `Desde $${(minPrice / 100).toLocaleString("es-AR")} ${currency}`;
+  const schedule = ar2026 ? argentina2026PublicSchedule() : [];
+  const faq = ar2026
+    ? argentina2026PublicFaq()
+    : [
+        {
+          question: "¿Cuándo puedo inscribirme?",
+          answer:
+            "Cuando la edición habilite inscripciones. El precio vigente depende de la fase activa.",
+        },
+        {
+          question: "¿Dónde veo mi QR?",
+          answer: "En Mi cuenta, una vez confirmada la inscripción y el pago.",
+        },
+      ];
 
   return {
     id: row.id,
@@ -86,7 +120,9 @@ function mapEditionToPublicMarathon(row: {
     editionName: row.name,
     shortDescription:
       row.shortDescription ??
-      "Maratón fotográfica Clickatón. Inscripciones configurables desde administración.",
+      (ar2026
+        ? "Maratón fotográfica en Rosario. 10 consignas, 19/09/2026. Inscripción con precio por fases e inclusión de remera según beneficio first-100."
+        : "Maratón fotográfica Clickatón. Inscripciones configurables desde administración."),
     fullDescription:
       row.description ??
       row.shortDescription ??
@@ -102,9 +138,15 @@ function mapEditionToPublicMarathon(row: {
     country: countryLabel,
     venueName: venue?.name,
     meetingPoint: venue?.meetingPoint ?? venue?.address ?? undefined,
-    timezone: row.timezone ?? "America/Argentina/Cordoba",
-    startAt: (row.startAt ?? new Date()).toISOString(),
-    endAt: (row.endAt ?? new Date()).toISOString(),
+    timezone: ar2026
+      ? ARGENTINA_2026_PUBLIC_META.timezone
+      : (row.timezone ?? "America/Argentina/Buenos_Aires"),
+    startAt: ar2026
+      ? new Date(ARGENTINA_2026_SCHEDULE.marathonStartIso).toISOString()
+      : (row.startAt ?? new Date()).toISOString(),
+    endAt: ar2026
+      ? new Date(ARGENTINA_2026_SCHEDULE.marathonEndIso).toISOString()
+      : (row.endAt ?? new Date()).toISOString(),
     registrationOpenAt: row.registrationOpenAt?.toISOString(),
     registrationCloseAt: row.registrationCloseAt?.toISOString(),
     registration: {
@@ -128,10 +170,16 @@ function mapEditionToPublicMarathon(row: {
       remainingSpots: null,
     },
     participantLimit: row.defaultCapacity ?? undefined,
-    minimumAge: 16,
+    /** Flujo menores completo: LEGAL/UX BLOCKED — ficha indica +18 hasta decisión humana. */
+    minimumAge: ar2026 ? 18 : 16,
     allowedDevices: ["smartphone", "camera"],
     coverImage: row.coverImageUrl ?? undefined,
-    galleryPreview: row.coverImageUrl ? [row.coverImageUrl] : [],
+    coverImageVertical: row.coverImageVerticalUrl ?? undefined,
+    galleryPreview: row.coverImageUrl
+      ? [row.coverImageUrl, ...(row.coverImageVerticalUrl ? [row.coverImageVerticalUrl] : [])]
+      : row.coverImageVerticalUrl
+        ? [row.coverImageVerticalUrl]
+        : [],
     organizer: {
       name: "Clickatón",
       type: "producer",
@@ -146,37 +194,39 @@ function mapEditionToPublicMarathon(row: {
           provinceOrRegion: province,
           country: countryLabel,
         }
-      : undefined,
+      : ar2026
+        ? {
+            name: "Rosario",
+            city: ARGENTINA_2026_PUBLIC_META.city,
+            provinceOrRegion: ARGENTINA_2026_PUBLIC_META.province,
+            country: countryLabel,
+          }
+        : undefined,
     categories: [
       {
         id: "cat-general",
         name: "Participación general",
-        description: "Categoría general de inscripción.",
+        description: ar2026
+          ? "Inscripción individual. 10 consignas el día del evento."
+          : "Categoría general de inscripción.",
         allowedDevices: ["smartphone", "camera"],
-        ageRange: "16+",
+        ageRange: ar2026 ? "18+" : "16+",
       },
     ],
-    schedule: [],
+    schedule,
     prizes: [],
     jury: [],
     sponsors: [],
-    faq: [
-      {
-        question: "¿Cuándo puedo inscribirme?",
-        answer:
-          "Cuando la edición habilite inscripciones. El precio vigente depende de la fase activa.",
-      },
-      {
-        question: "¿Dónde veo mi QR?",
-        answer: "En Mi cuenta, una vez confirmada la inscripción y el pago.",
-      },
-    ],
+    faq,
     rules: {
       title: "Bases y condiciones",
       summary: "Revisá términos, privacidad y política de kit antes de inscribirte.",
-      version: "pending-legal-review",
-      content:
-        "Las bases definitivas requieren aprobación legal antes de la apertura comercial.",
+      version: ar2026
+        ? ARGENTINA_2026_PUBLIC_META.termsVersion
+        : "pending-legal-review",
+      content: ar2026
+        ? `Al inscribirte aceptás explícitamente las Bases y Condiciones versión ${ARGENTINA_2026_PUBLIC_META.termsVersion} (publicadas y aprobadas para inscripción). Ver texto completo en /legal/terminos.`
+        : "Las bases definitivas requieren aprobación legal antes de la apertura comercial.",
     },
     resultsStatus: "not_available",
     galleryStatus: "not_available",

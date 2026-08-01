@@ -5,7 +5,7 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3
 
 export type StoredObject = { key: string; publicUrl: string | null; bytes: number; contentHash: string };
 
-export type ClickatonMediaNamespace = "welcome" | "profile" | "products";
+export type ClickatonMediaNamespace = "welcome" | "profile" | "products" | "editions";
 
 export interface StoragePort {
   put(input: {

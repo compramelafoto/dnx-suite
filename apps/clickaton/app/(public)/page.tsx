@@ -4,16 +4,28 @@ import { ExperienceSteps } from "@/components/home/ExperienceSteps";
 import { FAQList } from "@/components/home/FAQList";
 import { FinalCta } from "@/components/home/FinalCta";
 import { Hero } from "@/components/home/Hero";
+import { HomeSpotlightBanner } from "@/components/home/HomeSpotlightBanner";
 import { LearningSection } from "@/components/home/LearningSection";
 import { ManifestoBlock } from "@/components/home/ManifestoBlock";
 import { PartnershipSection } from "@/components/home/PartnershipSection";
 import { UpcomingEventsSection } from "@/components/home/UpcomingEventsSection";
 import { VenueProgramSection } from "@/components/home/VenueProgramSection";
 import { WhatIsClickaton } from "@/components/home/WhatIsClickaton";
+import { listPublicMarathons } from "@/data/public-marathons/service";
+import { buildHomeSpotlightSlides } from "@/lib/home/build-spotlight-slides";
 
-export default function HomePage() {
+export default async function HomePage() {
+  let editions: Awaited<ReturnType<typeof listPublicMarathons>> = [];
+  try {
+    editions = await listPublicMarathons();
+  } catch {
+    editions = [];
+  }
+  const spotlightSlides = buildHomeSpotlightSlides(editions);
+
   return (
     <>
+      {spotlightSlides.length > 0 ? <HomeSpotlightBanner slides={spotlightSlides} /> : null}
       <Hero />
       <WhatIsClickaton />
       <BrandPillars />

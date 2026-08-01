@@ -28,6 +28,7 @@ const editionSelect = {
   fotoRankLastValidatedAt: true,
   fotoRankValidationError: true,
   coverImageUrl: true,
+  coverImageVerticalUrl: true,
   paymentBeneficiaryConfig: true,
   createdAt: true,
   updatedAt: true,
@@ -61,6 +62,7 @@ function mapEdition(row: {
   fotoRankLastValidatedAt: Date | null;
   fotoRankValidationError: string | null;
   coverImageUrl: string | null;
+  coverImageVerticalUrl: string | null;
   paymentBeneficiaryConfig: unknown;
   createdAt: Date;
   updatedAt: Date;

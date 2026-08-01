@@ -16,6 +16,7 @@ import {
   type ClickatonEditionFormInput,
 } from "@/lib/admin/editions/types";
 import type { EditionActionState } from "@/lib/admin/editions/mutations";
+import { EditionCoverUploadFields } from "@/components/admin/editions/EditionCoverUploadFields";
 
 type Props = {
   action: (
@@ -25,6 +26,7 @@ type Props = {
   initialValues?: ClickatonEditionFormInput;
   submitLabel?: string;
   cancelHref?: string;
+  editionId?: string | null;
 };
 
 export function EditionForm({
@@ -32,6 +34,7 @@ export function EditionForm({
   initialValues = emptyEditionFormInput(),
   submitLabel = "Guardar edición",
   cancelHref,
+  editionId = null,
 }: Props) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -261,14 +264,15 @@ export function EditionForm({
             />
           </Field>
           <AdminFormFullWidth>
-            <Field id="coverImageUrl" label="Portada (URL)" error={state?.errors?.coverImageUrl}>
-              <Input
-                name="coverImageUrl"
-                value={values.coverImageUrl}
-                onChange={(e) => updateField("coverImageUrl", e.target.value)}
-                placeholder="https://..."
-              />
-            </Field>
+            <EditionCoverUploadFields
+              editionId={editionId}
+              horizontalUrl={values.coverImageUrl}
+              verticalUrl={values.coverImageVerticalUrl}
+              onHorizontalUrl={(url) => updateField("coverImageUrl", url)}
+              onVerticalUrl={(url) => updateField("coverImageVerticalUrl", url)}
+              horizontalError={state?.errors?.coverImageUrl}
+              verticalError={state?.errors?.coverImageVerticalUrl}
+            />
           </AdminFormFullWidth>
         </AdminFormSection>
 

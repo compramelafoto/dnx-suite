@@ -9715,7 +9715,10 @@ model ClickatonEdition {
   fotoRankValidationStatus ClickatonFotoRankValidationStatus @default(NOT_CONFIGURED)
   fotoRankLastValidatedAt  DateTime?
   fotoRankValidationError  String?
+  /// Portada horizontal (hero / banner desktop).
   coverImageUrl            String?
+  /// Portada vertical (stories / mobile banner).
+  coverImageVerticalUrl    String?
   /// Prefijo para códigos visibles (ej. COR26).
   visibleCodePrefix        String?
   /// Config desacoplada de beneficiarios (Etapa 5). Json tipado en app; no tokens.

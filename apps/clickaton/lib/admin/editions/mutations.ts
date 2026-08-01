@@ -21,6 +21,8 @@ function revalidateEditionPaths(editionId?: string) {
   revalidatePath(adminRoutes.dashboard);
   revalidatePath(adminRoutes.editions);
   revalidatePath(adminRoutes.venues);
+  revalidatePath("/");
+  revalidatePath("/maratones");
   if (editionId) {
     revalidatePath(`${adminRoutes.editions}/${editionId}`);
     revalidatePath(`${adminRoutes.editions}/${editionId}/editar`);

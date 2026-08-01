@@ -41,6 +41,7 @@ export default async function EditEditionPage({ params }: Props) {
       />
       <EditionForm
         action={boundAction}
+        editionId={edition.id}
         initialValues={editionToFormInput(edition)}
         cancelHref={`${adminRoutes.editions}/${edition.id}`}
         submitLabel="Guardar cambios"

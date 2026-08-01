@@ -27,6 +27,16 @@ export function isValidHttpUrl(value: string): boolean {
   }
 }
 
+/** URL pública http(s) o path local de upload (`/uploads/...`). */
+export function isValidCoverImageRef(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith("/uploads/") || trimmed.startsWith("/api/media/")) {
+    return !trimmed.includes("..");
+  }
+  return isValidHttpUrl(trimmed);
+}
+
 function parseOptionalCapacity(value: string): number | null | "invalid" {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -112,8 +122,13 @@ export function validateEditionFormInput(
   }
 
   const coverImageUrl = input.coverImageUrl.trim();
-  if (coverImageUrl && !isValidHttpUrl(coverImageUrl)) {
-    errors.coverImageUrl = "La URL de portada debe ser http(s) sin credenciales embebidas.";
+  if (coverImageUrl && !isValidCoverImageRef(coverImageUrl)) {
+    errors.coverImageUrl = "Portada horizontal inválida. Subí una imagen o usá una URL http(s).";
+  }
+  const coverImageVerticalUrl = input.coverImageVerticalUrl.trim();
+  if (coverImageVerticalUrl && !isValidCoverImageRef(coverImageVerticalUrl)) {
+    errors.coverImageVerticalUrl =
+      "Portada vertical inválida. Subí una imagen o usá una URL http(s).";
   }
 
   const fotorankContestId = input.fotorankContestId.trim();
@@ -167,6 +182,7 @@ export function validateEditionFormInput(
       currency,
       fotorankContestId: fotorankContestId || null,
       coverImageUrl: coverImageUrl || null,
+      coverImageVerticalUrl: coverImageVerticalUrl || null,
     },
   };
 }
@@ -192,6 +208,7 @@ export type EditionValidatedData = {
   currency: string;
   fotorankContestId: string | null;
   coverImageUrl: string | null;
+  coverImageVerticalUrl: string | null;
 };
 
 export function editionFormInputFromFormData(formData: FormData): ClickatonEditionFormInput {
@@ -218,5 +235,6 @@ export function editionFormInputFromFormData(formData: FormData): ClickatonEditi
     currency: formData.get("currency")?.toString() ?? "ARS",
     fotorankContestId: formData.get("fotorankContestId")?.toString() ?? "",
     coverImageUrl: formData.get("coverImageUrl")?.toString() ?? "",
+    coverImageVerticalUrl: formData.get("coverImageVerticalUrl")?.toString() ?? "",
   };
 }

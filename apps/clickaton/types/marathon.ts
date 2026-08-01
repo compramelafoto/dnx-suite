@@ -229,8 +229,10 @@ export type PublicMarathon = {
   participantLimit?: number;
   minimumAge?: number;
   allowedDevices: AllowedDevice[];
-  /** Portada local o futura URL firmada. Opcional — la UI usa fallback editorial. */
+  /** Portada horizontal (banner / desktop). Opcional — la UI usa fallback editorial. */
   coverImage?: string;
+  /** Portada vertical (mobile / stories). */
+  coverImageVertical?: string;
   /** Crédito de la portada si existe (nunca inventar). */
   coverImageCredit?: string;
   /** Transicional: preferir `PublicMarathonGallery` cuando exista payload. */

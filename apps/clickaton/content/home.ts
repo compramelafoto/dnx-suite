@@ -107,6 +107,28 @@ export const homeContent = {
     cta: { label: "Ver próximas maratones", href: routes.marathons } satisfies HomeLink,
   },
 
+  /** Novedades del banner superior (además de ediciones publicadas). */
+  spotlightNews: [
+    {
+      id: "news-how",
+      eyebrow: "Novedad",
+      title: "Así funciona una Clickatón",
+      description:
+        "Consignas, tiempos y recorrido: un mapa claro para vivir la maratón fotográfica.",
+      href: routes.howItWorks,
+      ctaLabel: "Cómo funciona",
+    },
+    {
+      id: "news-community",
+      eyebrow: "Comunidad",
+      title: "Formá parte desde el comienzo",
+      description:
+        "Participantes, jurados, clubes y ciudades: la red de miradas que hace posible cada edición.",
+      href: routes.community,
+      ctaLabel: "Sumate",
+    },
+  ] as const,
+
   learning: {
     id: "aprender",
     eyebrow: "Pedagogía",
