@@ -107,25 +107,58 @@ export const homeContent = {
     cta: { label: "Ver próximas maratones", href: routes.marathons } satisfies HomeLink,
   },
 
-  /** Novedades del banner superior (además de ediciones publicadas). */
+  /**
+   * Slides de acción del banner superior (después de las ediciones publicadas).
+   * Cada uno apunta a una funcionalidad clave del sitio.
+   */
   spotlightNews: [
     {
+      id: "news-sponsor",
+      eyebrow: "Aliados",
+      title: "Sumate como sponsor",
+      description:
+        "Marcas e instituciones que quieren acompañar Clickatón con pertenencia, no solo con publicidad.",
+      href: routes.joinUs,
+      ctaLabel: "Quiero ser sponsor",
+      secondaryHref: routes.about,
+      secondaryCtaLabel: "Conocer el proyecto",
+      imageUrl: "/images/founding-allies/hero.jpg",
+    },
+    {
+      id: "news-organize",
+      eyebrow: "Sedes",
+      title: "¿Querés que Clickatón vaya a tu ciudad?",
+      description:
+        "Convertite en Organizador Oficial de Sede y hacé posible la maratón fotográfica en tu territorio.",
+      href: routes.organize,
+      ctaLabel: "Llevarla a mi ciudad",
+      secondaryHref: routes.contact,
+      secondaryCtaLabel: "Hablar con el equipo",
+      imageUrl: "/images/organizar-sede/hero.jpg",
+    },
+    {
       id: "news-how",
-      eyebrow: "Novedad",
+      eyebrow: "Experiencia",
       title: "Así funciona una Clickatón",
       description:
         "Consignas, tiempos y recorrido: un mapa claro para vivir la maratón fotográfica.",
       href: routes.howItWorks,
       ctaLabel: "Cómo funciona",
+      secondaryHref: routes.marathons,
+      secondaryCtaLabel: "Ver maratones",
+      imageUrl: "/images/home/what-is-community.jpg",
     },
     {
       id: "news-community",
       eyebrow: "Comunidad",
-      title: "Formá parte desde el comienzo",
+      title: "Formá parte de la comunidad",
       description:
         "Participantes, jurados, clubes y ciudades: la red de miradas que hace posible cada edición.",
       href: routes.community,
-      ctaLabel: "Sumate",
+      ctaLabel: "Sumate a la comunidad",
+      secondaryHref: routes.joinUs,
+      secondaryCtaLabel: "Formar parte",
+      imageUrl: "/images/hero-city-photographer.jpg",
     },
   ] as const,
 

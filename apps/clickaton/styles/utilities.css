@@ -344,6 +344,20 @@
 }
 
 /** Marquee horizontal infinito (aliados / logos). */
+@keyframes ck-spotlight-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.ck-spotlight-progress {
+  animation: ck-spotlight-progress 7s linear forwards;
+  transform-origin: left center;
+}
+
 @keyframes ck-marquee {
   from {
     transform: translateX(0);

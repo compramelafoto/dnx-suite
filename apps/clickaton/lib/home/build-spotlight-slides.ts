@@ -1,5 +1,5 @@
 import { homeContent } from "@/content/home";
-import { marathonPath, marathonRegistrationPath } from "@/config/navigation";
+import { marathonPath, marathonRegistrationPath, routes } from "@/config/navigation";
 import type { HomeSpotlightSlide } from "@/components/home/HomeSpotlightBanner";
 import type { PublicMarathon } from "@/types/marathon";
 
@@ -29,6 +29,8 @@ export function buildHomeSpotlightSlides(
           ? marathonRegistrationPath(edition.slug)
           : marathonPath(edition.slug),
         ctaLabel: canRegister ? "Inscribirme" : "Ver edición",
+        secondaryHref: routes.marathons,
+        secondaryCtaLabel: "Ver todas",
         imageUrl: edition.coverImage,
         imageUrlVertical: edition.coverImageVertical,
       };
@@ -42,8 +44,11 @@ export function buildHomeSpotlightSlides(
     description: item.description,
     href: item.href,
     ctaLabel: item.ctaLabel,
+    secondaryHref: item.secondaryHref,
+    secondaryCtaLabel: item.secondaryCtaLabel,
+    imageUrl: item.imageUrl,
   }));
 
-  // Ediciones primero; novedades intercaladas al final para no tapar la agenda.
+  // Ediciones primero (van pasando una tras otra); novedades/acciones al final.
   return [...upcoming, ...news];
 }
