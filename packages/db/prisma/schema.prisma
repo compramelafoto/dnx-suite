@@ -10150,6 +10150,12 @@ model ClickatonRegistration {
   socialPublicationConsent           Boolean                              @default(false)
   consentAcceptedAt                  DateTime?
   consentVersion                     String?
+  /// Bases versionadas (10F.0) — separado de consent social.
+  termsVersion                       String?
+  termsAcceptedAt                    DateTime?
+  promotionalLicenseAcceptedAt       DateTime?
+  identifiablePersonsDeclaredAt      DateTime?
+  identifiablePersonsPolicyVersion   String?
   /// Soft refs sync FotoRank (duplican ClickatonFotoRankSync para listados).
   fotoRankParticipantId              String?
   fotoRankSyncStatus                 ClickatonFotoRankSyncStatus?
