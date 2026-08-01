@@ -24,8 +24,8 @@ export type HomeSpotlightSlide = {
 };
 
 const SWIPE_THRESHOLD_PX = 48;
-/** Frase grande visible al pasar el mouse (~1s). */
-const HOVER_HINT_MS = 1000;
+/** Overlay informativo al pasar el mouse. */
+const HOVER_HINT_MS = 1600;
 
 type Props = {
   slides: HomeSpotlightSlide[];
@@ -278,11 +278,11 @@ export function HomeSpotlightBanner({
         <button
           type="button"
           className="absolute inset-0 z-[1] cursor-pointer bg-transparent"
-          aria-label={current.ctaLabel}
+          aria-label={`${current.title}${current.ctaLabel ? ` — ${current.ctaLabel}` : ""}`}
           onClick={navigateToCurrent}
         />
 
-        {/* Frase grande centrada (~1s al hover); no es un botón */}
+        {/* Info del destino al hover: título + contexto (blanco/gris, sin acento amarillo) */}
         <div
           className={[
             "pointer-events-none absolute inset-0 z-[2] flex items-center justify-center px-6 transition-opacity duration-500",
@@ -290,9 +290,28 @@ export function HomeSpotlightBanner({
           ].join(" ")}
           aria-hidden={!hintVisible}
         >
-          <p className="max-w-4xl text-center font-sans text-3xl font-semibold leading-[1.15] tracking-tight text-ck-yellow drop-shadow-[0_2px_24px_rgba(0,0,0,0.75)] sm:text-4xl md:text-5xl lg:text-6xl">
-            {current.ctaLabel}
-          </p>
+          <div className="max-w-3xl space-y-4 text-center drop-shadow-[0_2px_20px_rgba(0,0,0,0.85)] md:space-y-5">
+            {current.eyebrow ? (
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-300 md:text-sm">
+                {current.eyebrow}
+              </p>
+            ) : null}
+            <p className="font-sans text-3xl font-semibold leading-[1.15] tracking-tight text-white sm:text-4xl md:text-5xl lg:text-6xl">
+              {current.title}
+            </p>
+            {current.description ? (
+              <p className="mx-auto max-w-2xl text-base leading-relaxed text-neutral-200 md:text-lg">
+                {current.description.length > 160
+                  ? `${current.description.slice(0, 157).trimEnd()}…`
+                  : current.description}
+              </p>
+            ) : null}
+            {current.ctaLabel ? (
+              <p className="text-sm font-medium tracking-wide text-neutral-400 md:text-base">
+                {current.ctaLabel}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <h2 className="sr-only">{current.title}</h2>
