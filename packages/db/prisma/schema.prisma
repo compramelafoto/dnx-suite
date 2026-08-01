@@ -9578,6 +9578,8 @@ enum ClickatonEditionStatus {
   REGISTRATION_CLOSED
   IN_PROGRESS
   COMPLETED
+  /// Reprogramación extraordinaria (solo admin; sin cancelación automática por clima).
+  REPROGRAMMED
   CANCELLED
 }
 
