@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  presentShirtBenefitMessage,
+  type ShirtBenefitUiStatus,
+} from "@/lib/catalog/domain/first-n-benefit";
 import type { ParticipantPersona } from "./participant-persona";
 import { RegistrationCtaHint } from "./RegistrationCtaHint";
 import { RegistrationPromoPrice } from "./RegistrationPromoPrice";
@@ -24,6 +28,8 @@ type Props = {
   remainingCredits?: number | null;
   persona: ParticipantPersona;
   advancing?: boolean;
+  /** Estado real del beneficio remera (first-N + deadline). */
+  shirtBenefitStatus?: ShirtBenefitUiStatus;
   onSelectTicket: (ticketId: string) => void;
   onSelectPassCredit: () => void;
   onConfirmTicket: (ticketId: string) => void;
@@ -77,6 +83,7 @@ export function RegistrationOptionCards({
   remainingCredits,
   persona,
   advancing,
+  shirtBenefitStatus = "not_applicable",
   onSelectTicket,
   onSelectPassCredit,
   onConfirmTicket,
@@ -88,6 +95,7 @@ export function RegistrationOptionCards({
   const packSelected = Boolean(pack && selectedTicketId === pack.id && !usePassCredit);
   const creditFeatured = persona === "pack_holder";
   const entryRecommended = persona !== "pack_holder";
+  const shirtMessage = presentShirtBenefitMessage(shirtBenefitStatus);
 
   const creditCard = canUsePassCredit ? (
     <article
@@ -172,9 +180,18 @@ export function RegistrationOptionCards({
           <li key={b}>✔ {b}</li>
         ))}
       </ul>
-      <p className="mt-4 text-xs leading-relaxed text-ck-text-muted">
-        Además, según la etapa vigente, puede incluir una remera oficial.
-      </p>
+      {shirtMessage ? (
+        <p
+          className={
+            shirtBenefitStatus === "available"
+              ? "mt-4 text-sm leading-relaxed text-emerald-300/90"
+              : "mt-4 text-sm leading-relaxed text-ck-text-muted"
+          }
+          role="status"
+        >
+          {shirtMessage}
+        </p>
+      ) : null}
       <button
         type="button"
         className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-[var(--ck-radius-button)] bg-ck-yellow px-4 py-3 text-sm font-semibold text-black transition duration-200 hover:brightness-105 disabled:opacity-70"

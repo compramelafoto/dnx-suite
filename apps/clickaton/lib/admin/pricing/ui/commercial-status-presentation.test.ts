@@ -168,6 +168,7 @@ describe("commercial UI source contracts", () => {
       "utf8",
     );
     assert.match(wizard, /nextPricePhase/);
+    assert.match(wizard, /highestPricePhase/);
     assert.match(wizard, /line-through/);
     assert.match(wizard, /Precio promocional de esta fase/);
   });

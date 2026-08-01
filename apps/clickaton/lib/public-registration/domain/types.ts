@@ -129,6 +129,11 @@ export type PublicRegistrationContextDto = {
    * permite mostrar el precio siguiente tachado cuando es mayor.
    */
   nextPricePhase: PublicNextPricePhaseDto | null;
+  /**
+   * Fase activa con el monto más alto de todas (pasadas/vigente/futuras).
+   * Usada como precio de referencia “Antes” en la UX de inscripción.
+   */
+  highestPricePhase: PublicNextPricePhaseDto | null;
   registrationWindow: "open" | "not_open" | "closed" | "unavailable";
   /** Créditos de Pack 4 disponibles (si el email/sesión tiene pass activo). */
   passCredits: PublicPassCreditsDto | null;

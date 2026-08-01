@@ -3,13 +3,13 @@
  * Solo marketing + cronograma operativo visible. No abre ventas.
  */
 import {
-  ARGENTINA_2026_MERCH,
   ARGENTINA_2026_RULES,
   ARGENTINA_2026_SCHEDULE,
   ARGENTINA_2026_TIMEZONE,
   CAMERA_CLOCK_WARNING_ES,
   CLICKATON_TERMS_VERSION,
 } from "./argentina-2026";
+import { ARGENTINA_2026_SHIRT_BENEFIT_COPY } from "@/lib/catalog/domain/first-n-benefit";
 import type { PublicScheduleItem } from "@/types/marathon";
 
 export const ARGENTINA_2026_PUBLIC_CITY = "Rosario";
@@ -100,7 +100,7 @@ export function argentina2026PublicFaq() {
     },
     {
       question: "¿Incluye remera?",
-      answer: `Los primeros ${ARGENTINA_2026_MERCH.firstNBenefitLimit} participantes CONFIRMED, o hasta el 30/08/2026 23:59:59.999 AR (lo que ocurra primero), reciben remera oficial. Debés elegir talle al inscribirte cuando el beneficio aplique.`,
+      answer: ARGENTINA_2026_SHIRT_BENEFIT_COPY,
     },
     {
       question: "¿Cuántas consignas hay?",

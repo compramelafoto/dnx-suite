@@ -5,7 +5,10 @@ import { filterPhaseItemsByFirstNQuota } from "@/lib/catalog/domain/first-n-bene
 import {
   ResolveIncludedItemsError,
 } from "@/lib/catalog/domain/resolve-included-items";
-import { resolveCurrentPricePhase } from "@/lib/pricing/domain/resolve-price-phase";
+import {
+  resolveCurrentPricePhase,
+  resolveHighestActivePricePhase,
+} from "@/lib/pricing/domain/resolve-price-phase";
 import { assertInstagramHandle } from "@repo/media-composition";
 import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import {
@@ -380,6 +383,7 @@ export function createPublicRegistrationService(deps: {
 
       const phases = await repo.listPricePhases(edition.id);
       const resolvedPhase = resolveCurrentPricePhase(phases, new Date());
+      const highestPhase = resolveHighestActivePricePhase(phases);
       let phaseItems =
         resolvedPhase != null
           ? await repo.listPricePhaseItems(resolvedPhase.phase.id)
@@ -434,6 +438,16 @@ export function createPublicRegistrationService(deps: {
           }
         : null;
 
+      const highestPricePhase = highestPhase
+        ? {
+            id: highestPhase.id,
+            name: highestPhase.name,
+            amount: highestPhase.amount,
+            currency: highestPhase.currency,
+            startsAt: highestPhase.startsAt,
+          }
+        : null;
+
       let passCredits: PublicRegistrationContextDto["passCredits"] = null;
       const emailHint = opts?.participantEmail?.trim();
       if (emailHint) {
@@ -474,6 +488,7 @@ export function createPublicRegistrationService(deps: {
         tickets,
         currentPricePhase,
         nextPricePhase,
+        highestPricePhase,
         registrationWindow: window,
         passCredits,
         legal: {

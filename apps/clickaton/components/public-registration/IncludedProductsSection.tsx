@@ -6,6 +6,7 @@ import {
   ARGENTINA_2026_SHIRT_BENEFIT_COPY,
   ARGENTINA_2026_SHIRT_ENDED_COPY,
   ARGENTINA_2026_SHIRT_INCLUDED_COPY,
+  presentShirtBenefitMessage,
 } from "@/lib/catalog/domain/first-n-benefit";
 
 type Props = {
@@ -36,8 +37,9 @@ export function IncludedProductsSection({
     if (benefitEnded) {
       return (
         <div className="mt-4 space-y-2 rounded border border-ck-border bg-ck-surface/40 p-4">
-          <p className="text-sm font-semibold text-ck-text">{ARGENTINA_2026_SHIRT_ENDED_COPY}</p>
-          <p className="text-xs text-ck-text-secondary">{ARGENTINA_2026_SHIRT_BENEFIT_COPY}</p>
+          <p className="text-sm font-semibold text-ck-text" role="status">
+            {presentShirtBenefitMessage("ended") ?? ARGENTINA_2026_SHIRT_ENDED_COPY}
+          </p>
         </div>
       );
     }
@@ -49,12 +51,14 @@ export function IncludedProductsSection({
   return (
     <div className="mt-4 space-y-4">
       <div className="space-y-2">
-        <p className="text-sm font-semibold text-ck-text">
+        <p className="text-sm font-semibold text-ck-text" role="status">
           {benefitAvailable !== false
-            ? ARGENTINA_2026_SHIRT_INCLUDED_COPY
+            ? (presentShirtBenefitMessage("available") ?? ARGENTINA_2026_SHIRT_INCLUDED_COPY)
             : "Tu inscripción incluye"}
         </p>
-        <p className="text-xs text-ck-text-secondary">{ARGENTINA_2026_SHIRT_BENEFIT_COPY}</p>
+        {benefitAvailable === false ? (
+          <p className="text-xs text-ck-text-secondary">{ARGENTINA_2026_SHIRT_BENEFIT_COPY}</p>
+        ) : null}
       </div>
       <ul className="space-y-4">
         {products.map((p) => {

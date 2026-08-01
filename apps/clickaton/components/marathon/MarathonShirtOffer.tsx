@@ -23,7 +23,7 @@ export function MarathonShirtOffer({ media }: Props) {
         <SectionHeader
           eyebrow="Beneficio"
           title="Remera oficial Clickatón"
-          description={`Incluida para los primeros ${ARGENTINA_2026_MERCH.firstNBenefitLimit} participantes confirmados, o hasta el 30/08/2026 23:59:59.999 (hora Argentina), lo que ocurra primero. Elegí tu talle al inscribirte.`}
+          description={`Remera oficial de regalo para los primeros ${ARGENTINA_2026_MERCH.firstNBenefitLimit} inscriptos con pago confirmado, o hasta el 30 de agosto, lo que ocurra primero. Elegí tu talle al completar tus datos.`}
           titleId="marathon-shirt-title"
         />
         <p className="ck-body-sm mt-6 text-ck-text-muted">Talles: {sizes}</p>

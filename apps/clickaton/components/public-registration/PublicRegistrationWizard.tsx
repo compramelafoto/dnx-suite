@@ -32,8 +32,10 @@ import { createPublicRegistrationAction } from "@/lib/public-registration/action
 import type { PublicRegistrationContextDto } from "@/lib/public-registration/domain/types";
 import { formatPublicPrice } from "@/lib/public-registration/ui/format";
 import { formatExperiencePrice } from "@/components/public-registration/experience/format-experience-price";
+import { resolveRegistrationCompareAt } from "@/components/public-registration/experience/registration-compare-at";
 import { marathonPath } from "@/config/navigation";
 import { CLICKATON_TERMS_VERSION } from "@/config/editions/argentina-2026";
+import { resolveShirtBenefitUiStatus } from "@/lib/catalog/domain/first-n-benefit";
 import { formatMarathonDateRange } from "@/lib/datetime";
 
 type Props = {
@@ -73,6 +75,8 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     }),
   );
   const [advancing, setAdvancing] = useState(false);
+  const stepFocusRef = useRef<HTMLDivElement>(null);
+  const skipInitialStepScrollRef = useRef(true);
 
   useEffect(() => {
     const key = stableIdempotencyKey(context.edition.slug, idempotencyKey);
@@ -91,6 +95,25 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
   const [step, setStep] = useState<Step>(
     context.venues.length > 1 ? "venue" : "ticket",
   );
+
+  useEffect(() => {
+    if (skipInitialStepScrollRef.current) {
+      skipInitialStepScrollRef.current = false;
+      return;
+    }
+    const el = stepFocusRef.current;
+    if (!el) return;
+    // Evita quedar abajo del CTA “Reservar mi lugar” al pasar a Datos/Confirmar.
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (step === "participant") {
+        const firstField = el.querySelector<HTMLElement>(
+          "input:not([type='hidden']):not([type='file']), select, textarea",
+        );
+        firstField?.focus({ preventScroll: true });
+      }
+    });
+  }, [step]);
   const [venueId, setVenueId] = useState<string>(
     context.venues.length === 1 ? context.venues[0]!.id : "",
   );
@@ -198,13 +221,12 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       const priceMinor = isPack
         ? t.priceAmount
         : (context.currentPricePhase?.amount ?? t.priceAmount);
-      const compareAt =
-        !isPack &&
-        context.currentPricePhase &&
-        context.nextPricePhase &&
-        context.nextPricePhase.amount > context.currentPricePhase.amount
-          ? context.nextPricePhase.amount
-          : null;
+      const { compareAt, savings } = isPack
+        ? { compareAt: null, savings: null }
+        : resolveRegistrationCompareAt({
+            currentAmount: priceMinor,
+            highestAmount: context.highestPricePhase?.amount,
+          });
       return {
         id: t.id,
         name: t.name,
@@ -212,12 +234,11 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
         isOpen: t.salesStatus === "open" && !t.isSoldOut,
         priceMinor,
         compareAtMinor: compareAt,
-        savingsMinor:
-          compareAt != null && priceMinor != null ? compareAt - priceMinor : null,
+        savingsMinor: savings,
         phaseLabel: isPack ? null : (context.currentPricePhase?.name ?? null),
       };
     });
-  }, [ticketsForOptions, context.currentPricePhase, context.nextPricePhase]);
+  }, [ticketsForOptions, context.currentPricePhase, context.highestPricePhase]);
 
   const shirtProducts = useMemo(() => {
     if (!selectedTicket) return [];
@@ -417,6 +438,12 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     });
   }
 
+  const shirtBenefitStatus = resolveShirtBenefitUiStatus({
+    includesPhysicalMerch: context.currentPricePhase?.includesPhysicalMerch,
+    shirtBenefitAvailable: context.currentPricePhase?.shirtBenefitAvailable,
+    shirtBenefitEnded: context.currentPricePhase?.shirtBenefitEnded,
+  });
+
   const stickyIncludes = selectedTicket?.isMarathonPack
     ? [
         "Esta Clickatón incluida",
@@ -429,6 +456,9 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
         "Tu número de participante",
         "Acceso a las consignas",
         "Certificado digital",
+        ...(shirtBenefitStatus === "available"
+          ? ["Remera oficial de regalo (si confirmás a tiempo)"]
+          : []),
       ];
 
   const stickyCtaLabel =
@@ -461,21 +491,10 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
 
   const entryPromo =
     !usePassCredit && selectedTicket && !selectedTicket.isMarathonPack
-      ? {
-          compareAt:
-            context.currentPricePhase &&
-            context.nextPricePhase &&
-            context.nextPricePhase.amount > context.currentPricePhase.amount
-              ? context.nextPricePhase.amount
-              : null,
-          savings:
-            context.currentPricePhase &&
-            context.nextPricePhase &&
-            context.nextPricePhase.amount > context.currentPricePhase.amount
-              ? context.nextPricePhase.amount -
-                (context.currentPricePhase.amount ?? 0)
-              : null,
-        }
+      ? resolveRegistrationCompareAt({
+          currentAmount: context.currentPricePhase?.amount,
+          highestAmount: context.highestPricePhase?.amount,
+        })
       : { compareAt: null, savings: null };
 
   function onPrimaryCta() {
@@ -506,7 +525,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
           : "space-y-8"
       }
     >
-      <div className="space-y-10 md:space-y-12">
+      <div ref={stepFocusRef} className="scroll-mt-28 space-y-10 md:space-y-12">
         <ol className="flex flex-wrap gap-2 text-sm" aria-label="Progreso de inscripción">
           {steps.map((s, i) => (
             <li
@@ -596,6 +615,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 remainingCredits={context.passCredits?.remaining ?? null}
                 persona={persona}
                 advancing={advancing}
+                shirtBenefitStatus={shirtBenefitStatus}
                 onSelectTicket={(id) => {
                   setTicketTypeId(id);
                   setUsePassCredit(false);
@@ -618,12 +638,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
             )}
             {persona === "pack_holder" ? <RegistrationHowItWorks /> : null}
             {persona !== "pack_holder" ? <RegistrationCompare /> : null}
-            <RegistrationIncludes
-              shirtMention={
-                context.currentPricePhase?.includesPhysicalMerch !== false &&
-                !context.currentPricePhase?.shirtBenefitEnded
-              }
-            />
+            <RegistrationIncludes shirtBenefitStatus={shirtBenefitStatus} />
             <RegistrationWhatYouCanWin />
             <RegistrationWhatHappensNext />
             <RegistrationSocialProof />
@@ -632,7 +647,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
         ) : null}
 
         {step === "participant" ? (
-          <fieldset className="space-y-8">
+          <fieldset id="inscripcion-datos" className="scroll-mt-28 space-y-8">
             <legend className="text-xl font-semibold md:text-2xl">Tus datos</legend>
 
             {shirtProducts.map((p) => {

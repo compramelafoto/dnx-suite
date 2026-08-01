@@ -42,8 +42,9 @@ export function RegistrationShirtSizeStep({
         Remera oficial
       </h2>
       <p className="mt-3 text-sm leading-relaxed text-ck-text-secondary md:text-base">
-        Un beneficio de tu inscripción: remera oficial Clickatón
-        {productName ? ` (${productName})` : ""}. Elegí tu talle.
+        Te corresponde remera oficial de regalo
+        {productName ? ` (${productName})` : ""}. Elegí tu talle para confirmar el
+        beneficio al completar el pago.
       </p>
 
       <fieldset className="mt-8">

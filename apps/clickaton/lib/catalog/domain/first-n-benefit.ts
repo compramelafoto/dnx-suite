@@ -27,14 +27,46 @@ export const ARGENTINA_2026_SHIRT_BENEFIT_DEADLINE = new Date(
   "2026-08-30T23:59:59.999-03:00",
 );
 
+/** Condiciones generales del beneficio (FAQ / contexto). */
 export const ARGENTINA_2026_SHIRT_BENEFIT_COPY =
-  "Remera Clickatón incluida para los primeros 100 inscriptos con pago confirmado o hasta el 30 de agosto, lo que ocurra primero.";
+  "Remera oficial de regalo para los primeros 100 inscriptos con pago confirmado, o hasta el 30 de agosto, lo que ocurra primero. Elegí tu talle al completar tus datos.";
 
+/** Mensaje cuando el beneficio está vigente para esta inscripción. */
 export const ARGENTINA_2026_SHIRT_INCLUDED_COPY =
-  "Tu inscripción incluye remera Clickatón.";
+  "Te corresponde remera oficial de regalo: tu inscripción la incluye si el pago se confirma dentro del cupo (primeros 100 confirmados o hasta el 30 de agosto, lo que ocurra primero). Elegí tu talle al completar tus datos.";
 
+/** Mensaje cuando cupo/plazo ya no aplican. */
 export const ARGENTINA_2026_SHIRT_ENDED_COPY =
-  "La promoción de remera incluida ya finalizó.";
+  "No te corresponde remera de regalo: el cupo de los primeros 100 ya se completó o venció el plazo del 30 de agosto. Podés inscribirte igual; la remera no está incluida.";
+
+export type ShirtBenefitUiStatus = "available" | "ended" | "not_applicable";
+
+/**
+ * Estado de presentación del beneficio remera para el funnel público.
+ * Usa flags resueltos en backend (first-N + deadline).
+ */
+export function resolveShirtBenefitUiStatus(input: {
+  includesPhysicalMerch?: boolean | null;
+  shirtBenefitAvailable?: boolean | null;
+  shirtBenefitEnded?: boolean | null;
+}): ShirtBenefitUiStatus {
+  if (input.shirtBenefitEnded) return "ended";
+  if (input.shirtBenefitAvailable) return "available";
+  if (input.includesPhysicalMerch === false) return "not_applicable";
+  if (input.includesPhysicalMerch && input.shirtBenefitAvailable === false) {
+    return "ended";
+  }
+  return "not_applicable";
+}
+
+/** Copy corto para tarjeta / includes según si corresponde o no. */
+export function presentShirtBenefitMessage(
+  status: ShirtBenefitUiStatus,
+): string | null {
+  if (status === "available") return ARGENTINA_2026_SHIRT_INCLUDED_COPY;
+  if (status === "ended") return ARGENTINA_2026_SHIRT_ENDED_COPY;
+  return null;
+}
 
 export function isBenefitDeadlineOpen(input: {
   now: Date;

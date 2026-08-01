@@ -68,6 +68,18 @@ export function resolveCurrentPricePhase(
   return { phase, nextPhase };
 }
 
+/**
+ * Fase activa con el monto más alto (referencia promocional “Antes”).
+ * Incluye fases pasadas, vigente y futuras mientras `isActive`.
+ */
+export function resolveHighestActivePricePhase(
+  phases: readonly PricePhaseRecord[],
+): PricePhaseRecord | null {
+  const active = phases.filter((p) => p.isActive);
+  if (active.length === 0) return null;
+  return active.reduce((best, p) => (p.amount > best.amount ? p : best));
+}
+
 export function validatePricePhaseInput(input: {
   name: string;
   amount: number;

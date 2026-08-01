@@ -9,6 +9,7 @@ import {
   pesosToMinorUnits,
   rangesOverlap,
   resolveCurrentPricePhase,
+  resolveHighestActivePricePhase,
   validatePricePhaseInput,
 } from "./resolve-price-phase";
 import type { PricePhaseRecord } from "./types";
@@ -61,11 +62,26 @@ assert.ok(resolvedEarly, "has current");
 assert.equal(resolvedEarly!.phase.id, "p1", "current is early");
 assert.equal(resolvedEarly!.phase.amount, 2_500_000, "25000 ARS minor");
 assert.equal(resolvedEarly!.nextPhase?.id, "p2", "next is mid");
+assert.equal(
+  resolveHighestActivePricePhase([early, mid, late])?.id,
+  "p3",
+  "highest is late (35000)",
+);
+assert.equal(
+  resolveHighestActivePricePhase([early, mid, late])?.amount,
+  pesosToMinorUnits(35_000),
+  "highest amount 35000 ARS",
+);
 
 const midNow = new Date("2026-08-15T10:00:00-03:00");
 const resolvedMid = resolveCurrentPricePhase([early, mid, late], midNow);
 assert.equal(resolvedMid!.phase.id, "p2", "mid current");
 assert.equal(resolvedMid!.nextPhase?.id, "p3", "next late");
+assert.equal(
+  resolveHighestActivePricePhase([early, mid, late])?.id,
+  "p3",
+  "highest still late while mid is current",
+);
 
 const after = new Date("2026-09-20T10:00:00-03:00");
 assert.equal(resolveCurrentPricePhase([early, mid, late], after), null, "no phase after");
