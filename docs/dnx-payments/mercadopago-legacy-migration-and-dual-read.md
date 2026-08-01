@@ -81,16 +81,16 @@ Con `LEGACY_ONLY` el comportamiento es idéntico al histórico.
 
 | Host | Clasificación | Evidencia |
 |---|---|---|
-| `ep-divine-smoke-av8hmt7s*` | **SHARED_DNX_STAGING_CONFIRMED** (Clickatón + CLF + Payments + FR/IS/FO) | Neon project/branch `clickaton-staging`; DB `clickaton_staging`; migrate C/D aplicados 10D3I-D3 |
-| `ep-round-fog*` | CLF Preview histórico / candidato previo | Vercel `compramelafoto-dnxsuite` Preview — **no** usar para FI tras D3 |
+| `ep-divine-smoke-av8hmt7s*` | **Histórica (10D3I-D3)** — Clickatón staging documentado entonces | Neon project/branch `clickaton-staging`; DB `clickaton_staging`; migrate C/D aplicados 10D3I-D3 |
+| `ep-round-fog*` | **Vigente Imp09** para runtime Vercel `clickaton-staging` (health `ep-round-fog*-pooler` / `neondb`); también CLF preview compartido | Ver `docs/infrastructure/DATABASE_IDENTITIES.md` — no asumir `ep-divine-smoke` sin revalidar |
 | `ep-falling-darkness*` | **PRODUCTION_CONFIRMED** (CLF) | Vercel `compramelafoto-dnxsuite` Production |
 | `ep-dawn-dew*` | **PRODUCTION_CONFIRMED** (FotoRank) / **NO USAR** | Vercel `fotorank-dnxsuite` Production |
 
-**Decisión 10D3I-D3:** migraciones 10D3I-C/D **aplicadas** en `ep-divine-smoke*` / `clickaton_staging`.  
+**Decisión 10D3I-D3:** migraciones 10D3I-C/D **aplicadas** en `ep-divine-smoke*` / `clickaton_staging`.
 **Decisión 10D3I-D4:** dry-run + backfill TEST `limit=1` + PREFER temporal validado; runtime final `LEGACY_ONLY`.
 
-Detalle apply: [`docs/clickaton/FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md`](../clickaton/FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md).  
-Detalle D4: [`docs/clickaton/FINANCIAL_IDENTITY_BACKFILL_AND_DUAL_READ_10D3I_D4.md`](../clickaton/FINANCIAL_IDENTITY_BACKFILL_AND_DUAL_READ_10D3I_D4.md).  
+Detalle apply: [`docs/clickaton/FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md`](../clickaton/FINANCIAL_IDENTITY_MIGRATION_APPLY_10D3I_D3.md).
+Detalle D4: [`docs/clickaton/FINANCIAL_IDENTITY_BACKFILL_AND_DUAL_READ_10D3I_D4.md`](../clickaton/FINANCIAL_IDENTITY_BACKFILL_AND_DUAL_READ_10D3I_D4.md).
 Auditoría D2 (bloqueo previo): [`docs/clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md`](../clickaton/FINANCIAL_IDENTITY_STAGING_ACTIVATION_10D3I_D2.md).
 
 ### Fingerprint post-D4 `ep-divine-smoke*`

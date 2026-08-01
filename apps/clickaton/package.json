@@ -51,13 +51,17 @@
     "release:check-env": "tsx scripts/release-check-env.ts",
     "selfcheck:email-idempotency": "tsx scripts/email-idempotency.selfcheck.ts",
     "preflight:welcome-cards-migration": "tsx scripts/welcome-cards-migration-preflight.ts",
-    "selfcheck:qr-token": "tsx lib/registration/security/qr-token.selfcheck.ts",
     "selfcheck:registration-funnel-11b": "tsx scripts/registration-funnel-11b.selfcheck.ts",
     "audit:admin-identity": "tsx scripts/audit-admin-identity.ts",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test e2e/env-smoke.spec.ts",
     "test:e2e:desktop": "playwright test --project=desktop",
-    "test:e2e:mobile": "playwright test --project=mobile"
+    "test:e2e:mobile": "playwright test --project=mobile",
+    "test:resend-webhook": "tsx --test lib/communications/resend-webhook/resend-webhook.test.ts lib/communications/resend-webhook/readiness.test.ts",
+    "smoke:resend-webhook-ingress": "tsx scripts/resend-webhook-ingress-smoke.ts",
+    "communications:webhook:readiness": "tsx scripts/communications-webhook-readiness.ts",
+    "communications:webhook:recent": "tsx scripts/communications-webhook-recent.ts",
+    "communications:webhook:e2e-smoke": "tsx scripts/communications-webhook-e2e-smoke.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",
@@ -73,7 +77,8 @@
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "@repo/communications": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.51.1",

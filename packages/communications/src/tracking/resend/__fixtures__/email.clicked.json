@@ -1,0 +1,13 @@
+{
+  "type": "email.clicked",
+  "created_at": "2026-01-15T12:05:00.000Z",
+  "data": {
+    "email_id": "msg_fixture_clicked_001",
+    "to": ["clicker@example.com"],
+    "created_at": "2026-01-15T12:05:00.000Z",
+    "click": {
+      "link": "https://example.com/welcome?utm_source=email&token=SHOULD_STRIP",
+      "timestamp": "2026-01-15T12:05:00.000Z"
+    }
+  }
+}

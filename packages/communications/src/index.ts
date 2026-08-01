@@ -1,0 +1,267 @@
+/**
+ * @repo/communications — DNX Communications Foundation
+ *
+ * Fachada pública única. Las aplicaciones NO deben importar SDKs de proveedores
+ * (Resend, SES, etc.) directamente.
+ *
+ * @example
+ * import {
+ *   communications,
+ *   registerCommunicationProvider,
+ * } from "@repo/communications";
+ */
+
+export {
+  communications,
+  configureCommunications,
+  createCommunicationsFacade,
+  assertEmailProviderRegistered,
+  registerCommunicationProvider,
+  registerProvider,
+  getCommunicationProvider,
+  getProvider,
+  hasCommunicationProvider,
+  hasProvider,
+  removeCommunicationProvider,
+  removeProvider,
+  clearCommunicationProviders,
+  clearProviders,
+  type CommunicationsFacade,
+  type CommunicationsFacadeOptions,
+  type CommunicationsSendInput,
+  type CommunicationsScheduleInput,
+  type CommunicationsTriggerInput,
+  type CommunicationsTriggerResult,
+  type CommunicationsPreviewInput,
+  type CommunicationsRenderInput,
+} from "./communications";
+
+export {
+  COMMUNICATION_CHANNELS,
+  isCommunicationChannel,
+  CommunicationError,
+  createCommunicationLogger,
+  sanitizeLogMetadata,
+  buildCommunicationResult,
+  successResult,
+  failedResult,
+  skippedResult,
+  scheduledResult,
+  assertValidSendRequest,
+  type CommunicationChannel,
+  type CommunicationErrorCode,
+  type CommunicationAttachment,
+  type CommunicationEvent,
+  type CommunicationLog,
+  type CommunicationLogger,
+  type CommunicationLogLevel,
+  type CommunicationMessage,
+  type CommunicationMetadata,
+  type CommunicationRecipient,
+  type CommunicationRequest,
+  type CommunicationResult,
+  type CommunicationStatus,
+  type CommunicationTemplate,
+  type CommunicationTemplateVariable,
+  type CreateLoggerOptions,
+  type BuildResultInput,
+} from "./shared/index";
+
+export {
+  CommunicationProviderRegistry,
+  createProviderRegistry,
+  type CommunicationProvider,
+  type CommunicationProviderCapabilities,
+  type CommunicationProviderSendInput,
+  type ProviderChannelKey,
+  type RegisterProviderOptions,
+} from "./providers/index";
+
+export {
+  EmailProvider,
+  createResendProvider,
+  ResendProvider,
+  createResendClientAdapter,
+  maskEmail,
+  emailDomain,
+  parseAllowedRecipients,
+  assertRecipientsAllowed,
+  isRecipientAllowed,
+  normalizeEmailAddress,
+  isBasicEmailFormat,
+  parseControlledFromAddress,
+  loadResendEmailConfig,
+  evaluateLiveSendGates,
+  createSmokeIdempotencyKey,
+  maskIdempotencyKey,
+  type EmailAddress,
+  type EmailMessage,
+  type EmailSendResult,
+  type ResendClientLike,
+  type ResendProviderOptions,
+  type ResendSendPayload,
+  type ResendSendResponse,
+  type ControlledFromAddress,
+  type ResendEmailConfig,
+  type ResendEnvSource,
+  type LoadResendEmailConfigResult,
+  type RecipientAllowlistCheck,
+} from "./email/index";
+
+export {
+  createEmailTemplateEngine,
+  createStubTemplateEngine,
+  EmailTemplateEngine,
+  StubTemplateEngine,
+  createTemplateRegistry,
+  CommunicationTemplateRegistry,
+  createBrandRegistry,
+  CommunicationBrandRegistry,
+  DEFAULT_BRANDS,
+  DNX_BRAND,
+  CLICKATON_BRAND,
+  COMPRAMELAFOTO_BRAND,
+  COMMUNICATION_BRAND_IDS,
+  COMMUNICATION_TEMPLATE_IDS,
+  DEFAULT_TEMPLATES,
+  systemTestTemplate,
+  userWelcomeTemplate,
+  escapeHtml,
+  escapeHtmlAttribute,
+  toPlainText,
+  assertSafeUrl,
+  trySafeUrl,
+  SUPPORTED_LOCALES,
+  isSupportedLocale,
+  resolveLocaleBundle,
+  EmailButton,
+  EmailLayout,
+  EmailHeader,
+  EmailFooter,
+  EmailHeading,
+  EmailParagraph,
+  EmailDivider,
+  EmailInfoBox,
+  EmailPreheader,
+  type TemplateEngine,
+  type EmailTemplateEngineOptions,
+  type EmailTemplateRenderInput,
+  type TemplateRenderResult,
+  type TemplateRenderContext,
+  type CommunicationBrand,
+  type CommunicationBrandId,
+  type CommunicationTemplateId,
+  type CommunicationTemplateDefinition,
+  type CommunicationTemplatePayloadMap,
+  type AnyCommunicationTemplateDefinition,
+  type SafeUrlOptions,
+  type SupportedLocale,
+  type LocaleBundle,
+} from "./templates/index";
+
+export {
+  COMMUNICATION_EVENT_TYPES,
+  isCommunicationEventType,
+  createCommunicationEvent,
+  type CommunicationEventType,
+  type CommunicationEventPayloadMap,
+  type CreateCommunicationEventInput,
+  type TypedCommunicationEvent,
+} from "./events/index";
+
+export {
+  TRACKING_EVENT_TYPES,
+  createInMemoryTrackingStore,
+  InMemoryTrackingStore,
+  COMMUNICATION_TRACKING_EVENT_TYPES,
+  isCommunicationTrackingEventType,
+  createInMemoryTrackingEventHandler,
+  createInMemoryTrackingEventDeduplicator,
+  createFakeWebhookSignatureVerifier,
+  createInMemoryWebhookReceiptRepository,
+  createHmacRecipientHasher,
+  createNoopDeliveryPolicyHandler,
+  createNoopWebhookRateLimiter,
+  createInMemoryWebhookRateLimiter,
+  createNoopWebhookAlertSink,
+  createTestWebhookAlertSink,
+  createThresholdAlertTracker,
+  createStagingWebhookEnvironmentPolicy,
+  admitTrackingEvent,
+  parseAllowedTrackingEvents,
+  STAGING_TECHNICAL_TRACKING_EVENTS,
+  BEHAVIORAL_TRACKING_EVENTS,
+  maskProviderId,
+  toMaskedRecipient,
+  sanitizeTrackingMetadata,
+  type TrackingEventType,
+  type TrackingEvent,
+  type RecordTrackingInput,
+  type CommunicationTrackingStore,
+  type CommunicationTrackingEventType,
+  type CommunicationTrackingEvent,
+  type CommunicationTrackingEventHandler,
+  type CommunicationsWebhookMode,
+  type WebhookProcessingResult,
+  type WebhookSignatureVerifier,
+  type TrackingEventDeduplicator,
+  type TrackingLinkData,
+  type TrackingFailureReason,
+  type MaskedOrHashedRecipient,
+  type CommunicationWebhookReceiptRepository,
+  type StoredCommunicationTrackingEvent,
+  type CommunicationWebhookEnvironmentPolicy,
+  type CommunicationWebhookRateLimiter,
+  type CommunicationWebhookAlertSink,
+  type WebhookAlertConfig,
+} from "./tracking/index";
+
+export type {
+  AnalyticsDatapoint,
+  AnalyticsDimension,
+  AnalyticsMetricName,
+  AnalyticsQuery,
+  AnalyticsQueryResult,
+  CommunicationAnalytics,
+} from "./analytics/index";
+
+export type {
+  CommunicationQueue,
+  CommunicationQueueJob,
+  CommunicationQueuePayload,
+  EnqueueCommunicationInput,
+  QueueJobStatus,
+} from "./queue/index";
+
+export type {
+  ChannelPreference,
+  CommunicationPreferences,
+  CommunicationPreferencesStore,
+  PreferenceTopic,
+} from "./preferences/index";
+
+export type {
+  UnsubscribeReason,
+  UnsubscribeRecord,
+  UnsubscribeService,
+} from "./unsubscribe/index";
+
+export type {
+  AutomationAction,
+  AutomationRule,
+  AutomationRuleStatus,
+  CommunicationAutomationEngine,
+} from "./automation/index";
+
+export type {
+  Campaign,
+  CampaignService,
+  CampaignStatus,
+} from "./campaigns/index";
+
+export type {
+  Segment,
+  SegmentOperator,
+  SegmentRule,
+  SegmentService,
+} from "./segments/index";

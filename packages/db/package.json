@@ -17,6 +17,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
+    "communications:migrate:webhook-staging": "tsx scripts/communications-migrate-webhook-staging.mts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:infospot": "tsx prisma/scripts/seed-infospot.ts",
@@ -33,7 +34,9 @@
     "audit:schema-baseline": "tsx scripts/verify-schema-baseline.mts",
     "audit:gap-objects": "tsx scripts/verify-gap-objects.mts",
     "audit:clickaton-registration-schema": "tsx scripts/audit-clickaton-registration-schema.mts",
-    "staging:identity-cutover": "tsx scripts/staging-identity-cutover.mts"
+    "staging:identity-cutover": "tsx scripts/staging-identity-cutover.mts",
+    "communications:db:identity": "tsx scripts/communications-db-identity.mts",
+    "test:communications-identity": "tsx --test scripts/communications-db-identity.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

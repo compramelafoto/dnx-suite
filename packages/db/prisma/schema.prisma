@@ -12084,3 +12084,44 @@ model FotorankTieBreakSession {
   @@index([resultBatchId, tieGroup])
 }
 
+/// Recibo durable de webhooks Resend / DNX Communications (Imp06).
+/// Minimizado: sin body crudo, firma, email completo, IP ni UA.
+enum DnxCommunicationWebhookStatus {
+  RECEIVED
+  VERIFIED
+  PROCESSED
+  IGNORED
+  DUPLICATE
+  FAILED
+}
+
+model DnxCommunicationWebhookEvent {
+  id                    String                        @id @default(cuid())
+  provider              String
+  providerEventId       String
+  providerMessageId     String?
+  rawEventType          String
+  normalizedEventType   String?
+  status                DnxCommunicationWebhookStatus @default(RECEIVED)
+  occurredAt            DateTime?
+  receivedAt            DateTime                      @default(now())
+  processedAt           DateTime?
+  recipientMasked       String?
+  recipientHash         String?
+  safeLinkHost          String?
+  safeLinkPath          String?
+  failureCategory       String?
+  failureReasonCode     String?
+  processingAttempts    Int                           @default(0)
+  lastErrorCode         String?
+  /// Siempre false hasta revisión legal / modo process productivo.
+  productEffectsEnabled Boolean                       @default(false)
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+
+  @@unique([provider, providerEventId])
+  @@index([status, receivedAt])
+  @@index([provider, normalizedEventType])
+  @@index([providerMessageId])
+}
+

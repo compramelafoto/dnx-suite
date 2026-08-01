@@ -57,6 +57,16 @@ describe("classifySmokeDatabaseUrl", () => {
     assert.equal(r.reason, "dnx_staging_identity_host");
   });
 
+  it("blocks production denylist host ep-dawn-dew", () => {
+    const url =
+      "postgresql://u:p@ep-dawn-dew-xxxx.us-east-1.aws.neon.tech/neondb";
+    const r = classifySmokeDatabaseUrl(url);
+    assert.equal(r.classification, "production");
+    assert.equal(r.safeForTestSmoke, false);
+    assert.equal(r.reason, "production_denylist_host_ep_dawn_dew");
+    assert.equal(isProductionLikeDatabaseUrl(url), true);
+  });
+
   it("blocks absent url", () => {
     const r = classifySmokeDatabaseUrl(undefined);
     assert.equal(r.classification, "unknown");

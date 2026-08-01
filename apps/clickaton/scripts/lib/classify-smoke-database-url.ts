@@ -57,6 +57,15 @@ export function classifySmokeDatabaseUrl(
     };
   }
 
+  // Denylist documentada (STAGING_SHARED_IDENTITY / cutover): host de producción.
+  if (host.includes("ep-dawn-dew")) {
+    return {
+      classification: "production",
+      safeForTestSmoke: false,
+      reason: "production_denylist_host_ep_dawn_dew",
+    };
+  }
+
   if (host === "localhost" || host === "127.0.0.1") {
     return {
       classification: "local",

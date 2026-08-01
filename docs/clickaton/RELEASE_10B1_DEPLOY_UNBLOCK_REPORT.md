@@ -1,13 +1,13 @@
 # RELEASE 10B.1 — Informe de desbloqueo
 
-**Fecha:** 2026-07-28  
+**Fecha:** 2026-07-28
 **Rama:** `migration-legacy-clf-to-monorepo`
 
 ## Estado final
 
 **PRODUCTION DATABASE IDENTITY BLOCKED**
 
-Staging quedó operativo (`/maratones` 200, health DB OK, migraciones aplicadas, engine Prisma corregido).  
+Staging quedó operativo (`/maratones` 200, health DB OK, migraciones aplicadas, engine Prisma corregido).
 **No** se redeployó Production (`maratonfotografica.com`) porque no hay Neon Clickatón Production inequívoco en la org y faltan variables OAuth/LIVE.
 
 **Tammy aún NO puede configurar Mercado Pago en producción.**
@@ -47,6 +47,10 @@ gh pr create --base main --head migration-legacy-clf-to-monorepo \
 |---------|-----------------|------|---------|--------|
 | Staging | `clickaton-staging` | `plain-sky-50672248` / branch `clickaton-staging` / DB `clickaton_staging` / `ep-divine-smoke-av8hmt7s*` | **Sí** (backup `backup-10b1-pre-migrate`) | OK |
 | Local (engañoso) | — | `ep-dawn-dew-adyr8f1v*` / `neondb` | Sí (10B, wrong target) | no usar para Staging |
+
+> **Imp09 (2026-08-01) — nota de identidad:** la fila Staging arriba es **histórica (10B1)**.
+> Identidad Clickatón staging **vigente** (health Vercel): host `ep-round-fog*` / DB `neondb`.
+> Ver [`docs/infrastructure/DATABASE_IDENTITIES.md`](../infrastructure/DATABASE_IDENTITIES.md).
 | Production | `clickaton-dnxsuite` | **no identificada** | desconocido | **BLOCKED** |
 
 ### 9–10. `/maratones` 500
@@ -110,19 +114,19 @@ Production actual (deploy viejo): `/` `/maratones` `/login` 200; health DB 404 (
 
 ### 25. Acciones manuales exactas para desbloquear Tammy en producción
 
-1. **Crear/identificar Neon Production** para Clickatón (proyecto/branch/DB) y documentar host parcial.  
-2. Backup + `prisma migrate deploy` en esa DB (mismo SQL order-safe).  
-3. Cargar en `clickaton-dnxsuite` Production: `DATABASE_URL`, `DIRECT_URL`, Google, Resend, cron, webhook, vault,  
-   `CLICKATON_MP_CLIENT_ID/SECRET`, `CLICKATON_MP_REDIRECT_URI=https://maratonfotografica.com/api/clickaton/payments/mercadopago/callback`,  
-   `DNX_SOCIAL_PUBLISHER_LIVE=false`, URLs públicas apex.  
-4. Registrar redirect URI / webhook en app Mercado Pago LIVE.  
-5. Redeploy `clickaton-dnxsuite` con commit ≥ `6a896cb`.  
-6. Smoke: `/api/public/health/db`, `/maratones`, login Google Tammy, pantalla “Conectar Mercado Pago” **sin** completar OAuth por terceros.  
+1. **Crear/identificar Neon Production** para Clickatón (proyecto/branch/DB) y documentar host parcial.
+2. Backup + `prisma migrate deploy` en esa DB (mismo SQL order-safe).
+3. Cargar en `clickaton-dnxsuite` Production: `DATABASE_URL`, `DIRECT_URL`, Google, Resend, cron, webhook, vault,
+   `CLICKATON_MP_CLIENT_ID/SECRET`, `CLICKATON_MP_REDIRECT_URI=https://maratonfotografica.com/api/clickaton/payments/mercadopago/callback`,
+   `DNX_SOCIAL_PUBLISHER_LIVE=false`, URLs públicas apex.
+4. Registrar redirect URI / webhook en app Mercado Pago LIVE.
+5. Redeploy `clickaton-dnxsuite` con commit ≥ `6a896cb`.
+6. Smoke: `/api/public/health/db`, `/maratones`, login Google Tammy, pantalla “Conectar Mercado Pago” **sin** completar OAuth por terceros.
 7. `gh auth login` + PR.
 
 ---
 
 ## Resumen para Daniel
 
-Staging desbloqueado. Production **bloqueada por identidad de base de datos** (y variables OAuth LIVE).  
+Staging desbloqueado. Production **bloqueada por identidad de base de datos** (y variables OAuth LIVE).
 Cuando completes los pasos 1–6, el estado objetivo pasa a `READY FOR TAMMY OAUTH` / `PENDING TAMMY OAUTH AUTHORIZATION`.
