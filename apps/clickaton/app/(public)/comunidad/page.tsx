@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { AudienceGrid } from "@/components/content/AudienceGrid";
 import { PageHero } from "@/components/content/PageHero";
-import { PhotoFrame } from "@/components/content/PhotoFrame";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
@@ -31,30 +30,49 @@ export default function CommunityPage() {
         actions={<Button href={routes.marathons}>Ver maratones</Button>}
       />
 
-      <Section tone="raised" aria-labelledby="community-audience-title">
-        <Container className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start lg:gap-12">
-          <div>
-            <SectionHeader
-              eyebrow="Quiénes forman parte"
-              title="Una comunidad amplia y diversa"
-              titleId="community-audience-title"
-            />
-            <div className="mt-[var(--ck-stack-subtitle-to-content)]">
-              <AudienceGrid items={content.audiences} variant="brand" />
-            </div>
-            <p className="ck-body-md mt-[var(--ck-stack-block)] max-w-prose text-ck-text-secondary">
-              {content.future}
-            </p>
+      <Section
+        tone="raised"
+        aria-labelledby="community-audience-title"
+        className="relative overflow-hidden"
+      >
+        {/* Fondo fotográfico a baja opacidad (sin recuadros) */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={content.audienceBackground.src}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover opacity-[0.22]"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/hero-city-photographer.jpg"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-[70%_40%] opacity-[0.12] mix-blend-lighten"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(10_10_10_/_0.72)_0%,rgb(10_10_10_/_0.82)_55%,rgb(10_10_10_/_0.9)_100%)]" />
+        </div>
+
+        <Container className="relative z-[1] max-w-3xl">
+          <SectionHeader
+            eyebrow="Quiénes forman parte"
+            title="Una comunidad amplia y diversa"
+            titleId="community-audience-title"
+          />
+          <div className="mt-[var(--ck-stack-subtitle-to-content)]">
+            <AudienceGrid items={content.audiences} variant="brand" />
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <PhotoFrame
-              variant="editorial"
-              alt="Recorrido urbano de la comunidad Clickatón"
-              overlay="soft"
-              className="col-span-2"
-            />
-            <PhotoFrame variant="portrait" alt="Participante fotografiando en la calle" overlay="soft" />
-            <PhotoFrame variant="portrait" alt="Intercambio y revisión entre participantes" overlay="soft" />
+          <p className="ck-body-md mt-[var(--ck-stack-block)] max-w-prose text-ck-text-secondary">
+            {content.future}
+          </p>
+          <div className="mt-[var(--ck-stack-content-to-actions)]">
+            <Button
+              href={content.whatsapp.href}
+              variant="primary"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {content.whatsapp.label}
+            </Button>
           </div>
         </Container>
       </Section>

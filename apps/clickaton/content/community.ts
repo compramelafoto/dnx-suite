@@ -48,4 +48,13 @@ export const communityPageContent = {
   ],
   future:
     "Más adelante habrá formas nuevas de participar: historias, contenidos, espacios de intercambio y roles comunitarios. Todavía no publicamos perfiles ni cifras inventadas.",
+  whatsapp: {
+    label: "Unite a nuestra comunidad de WhatsApp",
+    href: "https://chat.whatsapp.com/GwgFsOhKKUr9Etqcemuu9N?s=cl&p=i&ilr=0",
+  },
+  /** Fondo fotográfico de la sección “Quiénes forman parte” (baja opacidad). */
+  audienceBackground: {
+    src: "/images/home/what-is-community.jpg",
+    alt: "Personas fotografiando y compartiendo la experiencia Clickatón",
+  },
 } as const;
