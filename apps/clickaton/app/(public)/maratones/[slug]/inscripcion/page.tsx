@@ -19,10 +19,15 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const marathon = await getPublicMarathonBySlug(slug);
   return buildPageMetadata({
-    title: "Inscripción",
-    description: "Reservá tu lugar en Clickatón.",
+    title: marathon ? `Inscripción — ${marathon.name}` : "Inscripción",
+    description: marathon?.shortDescription?.trim()
+      ? marathon.shortDescription
+      : "Reservá tu lugar en Clickatón.",
     path: `/maratones/${slug}/inscripcion`,
+    image: marathon?.coverImage,
+    imageAlt: marathon?.name,
     noIndex: true,
   });
 }

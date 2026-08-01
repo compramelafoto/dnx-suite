@@ -334,7 +334,7 @@ export const homeContent = {
 
   finalCta: {
     id: "cta-final",
-    title: "La primera Clickatón empieza mucho antes del disparo.",
+    title: "La primera Clickatón empieza mucho antes del click.",
     body: "Empieza cuando una comunidad decide salir a mirar su ciudad de otra manera.",
     primaryCta: { label: "Conocé las próximas novedades", href: routes.marathons } satisfies HomeLink,
     secondaryCta: { label: "Explorá cómo funciona", href: routes.howItWorks } satisfies HomeLink,

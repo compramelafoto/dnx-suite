@@ -45,6 +45,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       : `${marathon.name} — ${marathon.city || "Clickaton"}`,
     description: marathon.shortDescription,
     path: `/maratones/${marathon.slug}`,
+    // Portada horizontal de la edición (preview WhatsApp / redes).
+    image: marathon.coverImage,
+    imageAlt: marathon.name,
     // Prelanzamiento: forzar noindex. Cuando se active indexación, usar !visibility.indexable.
     noIndex: true,
   });
