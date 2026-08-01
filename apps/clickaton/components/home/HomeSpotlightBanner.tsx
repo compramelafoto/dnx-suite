@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Container } from "@/components/layout/Container";
-import { Button } from "@/components/ui/Button";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   EDITION_COVER_HORIZONTAL,
   EDITION_COVER_VERTICAL,
@@ -16,23 +15,25 @@ export type HomeSpotlightSlide = {
   description: string;
   href: string;
   ctaLabel: string;
-  secondaryHref?: string;
-  secondaryCtaLabel?: string;
   imageUrl?: string;
   imageUrlVertical?: string;
 };
 
 const AUTOPLAY_MS = 3000;
+const SWIPE_THRESHOLD_PX = 48;
 
 type Props = {
   slides: HomeSpotlightSlide[];
 };
 
 export function HomeSpotlightBanner({ slides }: Props) {
+  const router = useRouter();
   const items = slides.filter(Boolean);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [progressKey, setProgressKey] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+  const swipedRef = useRef(false);
   const count = items.length;
   const current = items[Math.min(index, Math.max(0, count - 1))] ?? null;
 
@@ -54,16 +55,37 @@ export function HomeSpotlightBanner({ slides }: Props) {
     return () => window.clearInterval(id);
   }, [count, paused]);
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        goTo(index + 1);
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        goTo(index - 1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [goTo, index]);
+
   if (!current) return null;
 
-  const hasCover = Boolean(current.imageUrl || current.imageUrlVertical);
-  const revealActions = paused;
-  /** Portada de edición ya trae diseño tipográfico: no duplicar título encima. */
-  const artDirectedEdition = current.kind === "edition" && hasCover;
+  function navigateToCurrent() {
+    if (!current || swipedRef.current) return;
+    const href = current.href;
+    if (href.startsWith("http://") || href.startsWith("https://")) {
+      window.open(href, "_blank", "noopener,noreferrer");
+      return;
+    }
+    router.push(href);
+  }
 
   return (
     <section
-      className="group relative overflow-hidden border-b border-ck-border bg-ck-bg"
+      className="group relative max-w-[100vw] overflow-x-clip border-b border-ck-border bg-ck-bg"
       aria-roledescription="carousel"
       aria-label="Destacados Clickatón"
       onMouseEnter={() => setPaused(true)}
@@ -74,12 +96,27 @@ export function HomeSpotlightBanner({ slides }: Props) {
           setPaused(false);
         }
       }}
+      onTouchStart={(e) => {
+        touchStartX.current = e.changedTouches[0]?.clientX ?? null;
+        swipedRef.current = false;
+        setPaused(true);
+      }}
+      onTouchEnd={(e) => {
+        const start = touchStartX.current;
+        const end = e.changedTouches[0]?.clientX;
+        touchStartX.current = null;
+        setPaused(false);
+        if (start == null || end == null || count <= 1) return;
+        const delta = end - start;
+        if (Math.abs(delta) < SWIPE_THRESHOLD_PX) return;
+        swipedRef.current = true;
+        if (delta < 0) goTo(index + 1);
+        else goTo(index - 1);
+        window.setTimeout(() => {
+          swipedRef.current = false;
+        }, 350);
+      }}
     >
-      {/*
-        Proporciones oficiales (cover-specs):
-        - Móvil: 1080×1920 (9:16)
-        - Desktop: 1920×1080 (16:9)
-      */}
       <div className="relative w-full aspect-[9/16] max-h-[min(85vh,42rem)] md:aspect-video md:max-h-none">
         {items.map((slide, i) => {
           const desktopSrc = slide.imageUrl || slide.imageUrlVertical;
@@ -101,7 +138,7 @@ export function HomeSpotlightBanner({ slides }: Props) {
                     alt=""
                     width={EDITION_COVER_HORIZONTAL.width}
                     height={EDITION_COVER_HORIZONTAL.height}
-                    className="absolute inset-0 hidden h-full w-full object-cover object-center md:block"
+                    className="absolute inset-0 hidden h-full w-full object-cover object-center opacity-100 transition-opacity duration-300 group-hover:opacity-40 md:block"
                     loading={i === 0 ? "eager" : "lazy"}
                     draggable={false}
                   />
@@ -111,14 +148,14 @@ export function HomeSpotlightBanner({ slides }: Props) {
                     alt=""
                     width={EDITION_COVER_VERTICAL.width}
                     height={EDITION_COVER_VERTICAL.height}
-                    className="absolute inset-0 h-full w-full object-cover object-center md:hidden"
+                    className="absolute inset-0 h-full w-full object-cover object-center opacity-100 transition-opacity duration-300 group-hover:opacity-40 md:hidden"
                     loading={i === 0 ? "eager" : "lazy"}
                     draggable={false}
                   />
                 </>
               ) : (
                 <div
-                  className="absolute inset-0 bg-[linear-gradient(145deg,#2a2418_0%,#121212_45%,#0a0a0a_100%)]"
+                  className="absolute inset-0 bg-[linear-gradient(145deg,#2a2418_0%,#121212_45%,#0a0a0a_100%)] opacity-100 transition-opacity duration-300 group-hover:opacity-40"
                   aria-hidden
                 />
               )}
@@ -126,69 +163,22 @@ export function HomeSpotlightBanner({ slides }: Props) {
           );
         })}
 
-        <div
-          className={
-            artDirectedEdition
-              ? "absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,rgb(10_10_10_/_0.5)_100%)]"
-              : hasCover
-                ? "absolute inset-0 bg-[linear-gradient(90deg,rgb(10_10_10_/_0.55)_0%,rgb(10_10_10_/_0.25)_50%,rgb(10_10_10_/_0.15)_100%)]"
-                : "absolute inset-0 bg-[linear-gradient(180deg,rgb(17_17_17_/_0.35)_0%,rgb(17_17_17_/_0.55)_45%,rgb(17_17_17_/_0.88)_100%)]"
-          }
-          aria-hidden
+        {/* Capa clicable a pantalla completa → mismo destino del CTA */}
+        <button
+          type="button"
+          className="absolute inset-0 z-[1] cursor-pointer bg-transparent"
+          aria-label={current.ctaLabel}
+          onClick={navigateToCurrent}
         />
 
-        <Container className="relative z-[2] flex h-full flex-col justify-end pb-20 pt-10 md:pb-24 md:pt-14">
-          {!artDirectedEdition ? (
-            <div className="max-w-2xl space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="ck-overline text-ck-yellow">{current.eyebrow}</p>
-                {count > 1 ? (
-                  <span className="ck-caption rounded-full border border-ck-border/80 bg-ck-bg/50 px-2.5 py-1 text-ck-text-muted backdrop-blur-sm">
-                    {index + 1} / {count}
-                  </span>
-                ) : null}
-              </div>
-              <h2
-                key={`${current.id}-title`}
-                className="ck-display-md max-w-[18ch] text-balance text-ck-text drop-shadow-[0_2px_16px_rgb(0_0_0_/_0.45)]"
-              >
-                {current.title}
-              </h2>
-              <p className="ck-body max-w-prose text-ck-text-secondary drop-shadow-[0_1px_8px_rgb(0_0_0_/_0.4)]">
-                {current.description}
-              </p>
-            </div>
-          ) : (
-            <h2 className="sr-only">{current.title}</h2>
-          )}
+        {/* Un solo botón centrado; visible al hover (desktop) / siempre en móvil */}
+        <div className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center px-6 opacity-100 transition-opacity duration-300 md:opacity-0 md:group-hover:opacity-100">
+          <span className="pointer-events-none rounded-[var(--ck-radius-control)] border-2 border-[var(--ck-core-ink-on-brand)] bg-ck-yellow px-8 py-3 text-base font-semibold text-[var(--ck-text-on-brand)] shadow-[var(--ck-shadow-glow)]">
+            {current.ctaLabel}
+          </span>
+        </div>
 
-          <div
-            className={[
-              "mt-6 flex flex-wrap gap-3 transition-all duration-300 ease-out",
-              "max-md:translate-y-0 max-md:opacity-100",
-              revealActions
-                ? "md:translate-y-0 md:opacity-100"
-                : "md:pointer-events-none md:translate-y-2 md:opacity-0",
-            ].join(" ")}
-          >
-            <Button href={current.href} variant="primary">
-              {current.ctaLabel}
-            </Button>
-            {current.secondaryHref && current.secondaryCtaLabel ? (
-              <Button href={current.secondaryHref} variant="secondary">
-                {current.secondaryCtaLabel}
-              </Button>
-            ) : null}
-          </div>
-          <p
-            className={[
-              "ck-caption mt-3 text-ck-text-muted transition-opacity duration-300 max-md:hidden",
-              revealActions ? "opacity-0" : "opacity-100",
-            ].join(" ")}
-          >
-            Pasá el mouse para ver acciones
-          </p>
-        </Container>
+        <h2 className="sr-only">{current.title}</h2>
 
         {count > 1 ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-5 z-[3] flex justify-center px-4 md:bottom-7">
@@ -197,19 +187,22 @@ export function HomeSpotlightBanner({ slides }: Props) {
                 <button
                   type="button"
                   className="ck-caption rounded border border-ck-border px-3 py-1.5 text-ck-text-secondary hover:border-ck-yellow hover:text-ck-yellow"
-                  onClick={() => goTo(index - 1)}
-                  aria-label="Slide anterior"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goTo(index - 1);
+                  }}
+                  aria-label="Banner anterior"
                 >
                   ←
                 </button>
-                <div className="flex gap-2" role="tablist" aria-label="Slides">
+                <div className="flex gap-2" role="tablist" aria-label="Banners">
                   {items.map((slide, i) => (
                     <button
                       key={slide.id}
                       type="button"
                       role="tab"
                       aria-selected={i === index}
-                      aria-label={`${slide.eyebrow}: ${slide.title}`}
+                      aria-label={slide.title}
                       title={slide.title}
                       className={[
                         "h-2.5 rounded-full transition-all",
@@ -217,15 +210,21 @@ export function HomeSpotlightBanner({ slides }: Props) {
                           ? "w-7 bg-ck-yellow"
                           : "w-2.5 bg-ck-border hover:bg-ck-text-muted",
                       ].join(" ")}
-                      onClick={() => goTo(i)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goTo(i);
+                      }}
                     />
                   ))}
                 </div>
                 <button
                   type="button"
                   className="ck-caption rounded border border-ck-border px-3 py-1.5 text-ck-text-secondary hover:border-ck-yellow hover:text-ck-yellow"
-                  onClick={() => goTo(index + 1)}
-                  aria-label="Slide siguiente"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goTo(index + 1);
+                  }}
+                  aria-label="Banner siguiente"
                 >
                   →
                 </button>

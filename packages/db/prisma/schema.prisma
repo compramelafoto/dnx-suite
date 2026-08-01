@@ -9752,6 +9752,7 @@ model ClickatonEdition {
   admissionDecisions       ClickatonTechnicalAdmissionDecision[]
   admissionAudits          ClickatonAdmissionAudit[]
   admissionJobs            ClickatonAdmissionJob[]
+  homeBanners              ClickatonHomeBanner[]
 
   @@index([status])
   @@index([isPublished])
@@ -9759,6 +9760,42 @@ model ClickatonEdition {
   @@index([startAt])
   @@index([fotorankContestId])
   @@index([fotoRankSyncEnabled])
+}
+
+/// Destino del CTA de un banner del home.
+enum ClickatonHomeBannerLinkType {
+  /// Inscripción o ficha de una edición Clickatón.
+  EDITION
+  /// Ruta interna del sitio (/comunidad, /organizar, #ancla…).
+  INTERNAL
+  /// URL absoluta externa (WhatsApp, artículo, etc.).
+  EXTERNAL
+}
+
+/// Banners del carousel superior del Home (admin organizable).
+model ClickatonHomeBanner {
+  id               String                      @id @default(cuid())
+  title            String
+  eyebrow          String?
+  description      String?
+  ctaLabel         String                      @default("Ver más")
+  linkType         ClickatonHomeBannerLinkType @default(INTERNAL)
+  /// Path interno o URL externa (según linkType). Ignorado si EDITION.
+  href             String?
+  editionId        String?
+  imageUrl         String?
+  imageUrlVertical String?
+  sortOrder        Int                         @default(100)
+  isActive         Boolean                     @default(true)
+  publishedAt      DateTime?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+
+  edition ClickatonEdition? @relation(fields: [editionId], references: [id], onDelete: SetNull)
+
+  @@index([isActive, sortOrder])
+  @@index([publishedAt])
+  @@index([editionId])
 }
 
 /// Fase de precio configurable por edición (early bird / regular / late).

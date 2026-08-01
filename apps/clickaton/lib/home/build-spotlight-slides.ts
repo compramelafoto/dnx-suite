@@ -1,54 +1,80 @@
 import { homeContent } from "@/content/home";
-import { marathonPath, marathonRegistrationPath, routes } from "@/config/navigation";
+import { marathonPath, marathonRegistrationPath } from "@/config/navigation";
 import type { HomeSpotlightSlide } from "@/components/home/HomeSpotlightBanner";
 import type { PublicMarathon } from "@/types/marathon";
+import { listActiveHomeBannersForPublic } from "@/lib/admin/home-banners/queries";
+import { resolveHomeBannerHref } from "@/lib/home/resolve-banner-href";
 
-/** Combina próximas ediciones publicadas + novedades editoriales del home. */
-export function buildHomeSpotlightSlides(
-  editions: PublicMarathon[],
-): HomeSpotlightSlide[] {
-  const upcoming = editions
+function slidesFromEditions(editions: PublicMarathon[]): HomeSpotlightSlide[] {
+  return editions
     .filter((m) => !m.isDemo)
     .slice(0, 6)
-    .map((edition): HomeSpotlightSlide => {
+    .map((edition) => {
       const canRegister = Boolean(edition.registration?.canRegister);
-      const dateLabel = new Date(edition.startAt).toLocaleDateString("es-AR", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      });
       return {
         id: `edition-${edition.id}`,
-        kind: "edition",
+        kind: "edition" as const,
         eyebrow: edition.city ? `Próxima · ${edition.city}` : "Próxima edición",
         title: edition.name,
-        description:
-          edition.shortDescription ||
-          `${dateLabel}${edition.registration?.displayPrice?.formatted ? ` · ${edition.registration.displayPrice.formatted}` : ""}`,
+        description: edition.shortDescription || "",
         href: canRegister
           ? marathonRegistrationPath(edition.slug)
           : marathonPath(edition.slug),
         ctaLabel: canRegister ? "Inscribirme" : "Ver edición",
-        secondaryHref: routes.marathons,
-        secondaryCtaLabel: "Ver todas",
         imageUrl: edition.coverImage,
         imageUrlVertical: edition.coverImageVertical,
       };
     });
+}
 
-  const news: HomeSpotlightSlide[] = homeContent.spotlightNews.map((item) => ({
+function slidesFromStaticNews(): HomeSpotlightSlide[] {
+  return homeContent.spotlightNews.map((item) => ({
     id: item.id,
-    kind: "news",
+    kind: "news" as const,
     eyebrow: item.eyebrow,
     title: item.title,
     description: item.description,
     href: item.href,
     ctaLabel: item.ctaLabel,
-    secondaryHref: item.secondaryHref,
-    secondaryCtaLabel: item.secondaryCtaLabel,
     imageUrl: item.imageUrl,
   }));
+}
 
-  // Ediciones primero (van pasando una tras otra); novedades/acciones al final.
-  return [...upcoming, ...news];
+/**
+ * Prioridad: banners admin activos.
+ * Fallback: ediciones publicadas + novedades estáticas (si aún no hay banners en DB).
+ */
+export async function buildHomeSpotlightSlides(
+  editions: PublicMarathon[],
+): Promise<HomeSpotlightSlide[]> {
+  const bannersResult = await listActiveHomeBannersForPublic();
+  if (bannersResult.ok && bannersResult.data.length > 0) {
+    return bannersResult.data.map((banner) => {
+      const canRegister = Boolean(
+        banner.linkType === "EDITION" &&
+          banner.edition?.registrationEnabled &&
+          banner.edition?.isPublished,
+      );
+      const href = resolveHomeBannerHref({
+        linkType: banner.linkType,
+        href: banner.href,
+        edition: banner.edition,
+        canRegister,
+      });
+      return {
+        id: `banner-${banner.id}`,
+        kind: banner.linkType === "EDITION" ? ("edition" as const) : ("news" as const),
+        eyebrow: banner.eyebrow || (banner.edition?.city ? `Próxima · ${banner.edition.city}` : ""),
+        title: banner.title,
+        description: banner.description || banner.edition?.shortDescription || "",
+        href,
+        ctaLabel: banner.ctaLabel,
+        imageUrl: banner.imageUrl || banner.edition?.coverImageUrl || undefined,
+        imageUrlVertical:
+          banner.imageUrlVertical || banner.edition?.coverImageVerticalUrl || undefined,
+      };
+    });
+  }
+
+  return [...slidesFromEditions(editions), ...slidesFromStaticNews()];
 }

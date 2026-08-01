@@ -21,7 +21,7 @@ export default async function HomePage() {
   } catch {
     editions = [];
   }
-  const spotlightSlides = buildHomeSpotlightSlides(editions);
+  const spotlightSlides = await buildHomeSpotlightSlides(editions);
 
   return (
     <>

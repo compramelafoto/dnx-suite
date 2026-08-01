@@ -31,6 +31,17 @@ export function AdminNavIcon({ name, className }: Props) {
           />
         </svg>
       );
+    case "banners":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>
+          <path
+            d="M4 6h16v8H4V6Zm0 11h10M6 9h6M6 12h4"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="square"
+          />
+        </svg>
+      );
     case "venues":
       return (
         <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>
