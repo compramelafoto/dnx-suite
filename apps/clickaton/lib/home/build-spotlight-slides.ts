@@ -4,38 +4,52 @@ import type { HomeSpotlightSlide } from "@/components/home/HomeSpotlightBanner";
 import type { PublicMarathon } from "@/types/marathon";
 import {
   getHomeBannerCarouselSettings,
+  getSystemSlidesConfig,
   listActiveHomeBannersForPublic,
 } from "@/lib/admin/home-banners/queries";
 import {
   DEFAULT_HOME_BANNER_CAROUSEL,
   type HomeBannerCarouselConfig,
 } from "@/lib/admin/home-banners/types";
+import {
+  DEFAULT_SYSTEM_SLIDES_CONFIG,
+  orderByIds,
+  type SystemSlidesConfig,
+} from "@/lib/admin/home-banners/system-slides";
 import { resolveHomeBannerHref } from "@/lib/home/resolve-banner-href";
 
-function slidesFromEditions(editions: PublicMarathon[]): HomeSpotlightSlide[] {
-  return editions
-    .filter((m) => !m.isDemo)
-    .slice(0, 6)
-    .map((edition) => {
-      const canRegister = Boolean(edition.registration?.canRegister);
-      return {
-        id: `edition-${edition.id}`,
-        kind: "edition" as const,
-        eyebrow: edition.city ? `Próxima · ${edition.city}` : "Próxima edición",
-        title: edition.name,
-        description: edition.shortDescription || "",
-        href: canRegister
-          ? marathonRegistrationPath(edition.slug)
-          : marathonPath(edition.slug),
-        ctaLabel: canRegister ? "Inscribirme" : "Ver edición",
-        imageUrl: edition.coverImage,
-        imageUrlVertical: edition.coverImageVertical,
-      };
-    });
+function slidesFromEditions(
+  editions: PublicMarathon[],
+  config: SystemSlidesConfig,
+): HomeSpotlightSlide[] {
+  if (!config.editionsEnabled) return [];
+  const disabled = new Set(config.disabledEditionIds);
+  const eligible = editions.filter((m) => !m.isDemo && !disabled.has(m.id));
+  const ordered = orderByIds(eligible, config.editionOrder, (m) => m.id).slice(0, 6);
+  return ordered.map((edition) => {
+    const canRegister = Boolean(edition.registration?.canRegister);
+    return {
+      id: `edition-${edition.id}`,
+      kind: "edition" as const,
+      eyebrow: edition.city ? `Próxima · ${edition.city}` : "Próxima edición",
+      title: edition.name,
+      description: edition.shortDescription || "",
+      href: canRegister
+        ? marathonRegistrationPath(edition.slug)
+        : marathonPath(edition.slug),
+      ctaLabel: canRegister ? "Inscribirme" : "Ver edición",
+      imageUrl: edition.coverImage,
+      imageUrlVertical: edition.coverImageVertical,
+    };
+  });
 }
 
-function slidesFromStaticNews(): HomeSpotlightSlide[] {
-  return homeContent.spotlightNews.map((item) => ({
+function slidesFromStaticNews(config: SystemSlidesConfig): HomeSpotlightSlide[] {
+  if (!config.newsEnabled) return [];
+  const disabled = new Set(config.disabledNewsIds);
+  const eligible = homeContent.spotlightNews.filter((item) => !disabled.has(item.id));
+  const ordered = orderByIds(eligible, config.newsOrder, (item) => item.id);
+  return ordered.map((item) => ({
     id: item.id,
     kind: "news" as const,
     eyebrow: item.eyebrow,
@@ -54,18 +68,21 @@ export type HomeSpotlightPayload = {
 
 /**
  * Prioridad: banners admin activos.
- * Fallback: ediciones publicadas + novedades estáticas (si aún no hay banners en DB).
+ * Fallback: ediciones publicadas + novedades (respetando disable/orden del admin).
  */
 export async function buildHomeSpotlightSlides(
   editions: PublicMarathon[],
 ): Promise<HomeSpotlightPayload> {
-  const [bannersResult, carouselResult] = await Promise.all([
+  const [bannersResult, carouselResult, systemResult] = await Promise.all([
     listActiveHomeBannersForPublic(),
     getHomeBannerCarouselSettings(),
+    getSystemSlidesConfig(),
   ]);
 
   const carousel =
     carouselResult.ok ? carouselResult.data : DEFAULT_HOME_BANNER_CAROUSEL;
+  const systemConfig =
+    systemResult.ok ? systemResult.data : { ...DEFAULT_SYSTEM_SLIDES_CONFIG };
 
   if (bannersResult.ok && bannersResult.data.length > 0) {
     return {
@@ -101,6 +118,6 @@ export async function buildHomeSpotlightSlides(
 
   return {
     carousel,
-    slides: [...slidesFromEditions(editions), ...slidesFromStaticNews()],
+    slides: [...slidesFromEditions(editions, systemConfig), ...slidesFromStaticNews(systemConfig)],
   };
 }

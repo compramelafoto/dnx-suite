@@ -102,9 +102,15 @@ export async function createPublicRegistrationAction(
     profilePhotoAssetId: formString(formData, "profilePhotoAssetId"),
     imageUsageConsent: formBool(formData, "imageUsageConsent"),
     socialPublicationConsent: formBool(formData, "socialPublicationConsent"),
+    identifiablePersonsConsent: formBool(formData, "identifiablePersonsConsent"),
+    promotionalLicenseConsent: formBool(formData, "promotionalLicenseConsent"),
     consentVersion: formString(formData, "consentVersion") || "2026-08-social-v1",
+    termsVersion:
+      formString(formData, "termsVersion") || "CLICKATON_TERMS_2026_09_19_v2",
     idempotencyKey: formString(formData, "idempotencyKey"),
     promoCode: formString(formData, "promoCode") || null,
+    usePassCredit: formBool(formData, "usePassCredit"),
+    passEntitlementId: formString(formData, "passEntitlementId") || null,
   };
 
   const values: Record<string, string> = {

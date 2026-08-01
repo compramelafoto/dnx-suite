@@ -18,7 +18,7 @@ export default async function NewHomeBannerPage() {
       <AdminPageHeader
         title="Nuevo banner"
         breadcrumbs={[
-          { label: "Banners Home", href: adminRoutes.homeBanners },
+          { label: "Banners del inicio", href: adminRoutes.homeBanners },
           { label: "Nuevo" },
         ]}
       />

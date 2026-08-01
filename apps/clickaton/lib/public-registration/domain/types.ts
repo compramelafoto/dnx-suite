@@ -85,6 +85,8 @@ export type PublicTicketDto = {
   venueId: string | null;
   kitKind: "entry" | "entry_product" | "kit";
   products: PublicTicketProductDto[];
+  /** Pack 4 maratones ($100.000 / 4 créditos / 2 años). */
+  isMarathonPack?: boolean;
 };
 
 export type PublicPricePhaseSummaryDto = {
@@ -102,13 +104,34 @@ export type PublicPricePhaseSummaryDto = {
   shirtBenefitEnded?: boolean;
 };
 
+export type PublicNextPricePhaseDto = {
+  id: string;
+  name: string;
+  amount: number;
+  currency: string;
+  startsAt: Date;
+};
+
+export type PublicPassCreditsDto = {
+  entitlementId: string;
+  remaining: number;
+  expiresAt: string | null;
+};
+
 export type PublicRegistrationContextDto = {
   edition: PublicEditionDto;
   venues: PublicVenueDto[];
   tickets: PublicTicketDto[];
   /** Fase vigente resuelta en backend (null si no hay fases activas). */
   currentPricePhase: PublicPricePhaseSummaryDto | null;
+  /**
+   * Próxima fase activa futura (si existe). Solo presentación:
+   * permite mostrar el precio siguiente tachado cuando es mayor.
+   */
+  nextPricePhase: PublicNextPricePhaseDto | null;
   registrationWindow: "open" | "not_open" | "closed" | "unavailable";
+  /** Créditos de Pack 4 disponibles (si el email/sesión tiene pass activo). */
+  passCredits: PublicPassCreditsDto | null;
   legal: {
     termsPath: string;
     privacyPath: string;
@@ -143,10 +166,16 @@ export type CreatePublicRegistrationInput = {
   profilePhotoAssetId?: string;
   imageUsageConsent?: boolean;
   socialPublicationConsent?: boolean;
+  identifiablePersonsConsent?: boolean;
+  promotionalLicenseConsent?: boolean;
   consentVersion?: string;
+  termsVersion?: string;
   idempotencyKey: string;
   /** Código promocional opcional (normalizado en backend). */
   promoCode?: string | null;
+  /** Canjear 1 crédito del Pack 4 (inscripción sin cargo). */
+  usePassCredit?: boolean;
+  passEntitlementId?: string | null;
 };
 
 export type PublicRegistrationSummaryDto = {
@@ -170,6 +199,10 @@ export type PublicRegistrationSummaryDto = {
     phoneMasked: string;
     documentMasked: string;
   };
+  /** Precio antes de descuento (minor units). */
+  subtotalAmount: number;
+  /** Descuento aplicado (minor units). */
+  discountAmount: number;
   totalAmount: number;
   currency: string;
   items: Array<{

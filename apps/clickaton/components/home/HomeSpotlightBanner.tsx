@@ -24,8 +24,8 @@ export type HomeSpotlightSlide = {
 };
 
 const SWIPE_THRESHOLD_PX = 48;
-/** Overlay informativo al pasar el mouse. */
-const HOVER_HINT_MS = 1600;
+/** En touch, el overlay se mantiene un rato tras el gesto (no hay hover). */
+const TOUCH_HINT_MS = 2800;
 
 type Props = {
   slides: HomeSpotlightSlide[];
@@ -51,28 +51,49 @@ export function HomeSpotlightBanner({
   const [hintVisible, setHintVisible] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const swipedRef = useRef(false);
-  const hintTimerRef = useRef<number | null>(null);
+  const touchHintTimerRef = useRef<number | null>(null);
+  const pointerInsideRef = useRef(false);
   const jumpingRef = useRef(false);
 
   const logicalIndex = count > 0 ? ((position % count) + count) % count : 0;
   const current = items[logicalIndex] ?? null;
   const trackSlides = count > 1 ? [...items, items[0]!] : items;
 
-  const clearHintTimer = useCallback(() => {
-    if (hintTimerRef.current != null) {
-      window.clearTimeout(hintTimerRef.current);
-      hintTimerRef.current = null;
+  const clearTouchHintTimer = useCallback(() => {
+    if (touchHintTimerRef.current != null) {
+      window.clearTimeout(touchHintTimerRef.current);
+      touchHintTimerRef.current = null;
     }
   }, []);
 
-  const showHintBriefly = useCallback(() => {
-    clearHintTimer();
+  /** Desktop: overlay mientras el cursor está dentro (sin auto-ocultar). */
+  const showHintWhilePointerInside = useCallback(() => {
+    const alreadyInside = pointerInsideRef.current;
+    pointerInsideRef.current = true;
+    clearTouchHintTimer();
+    if (alreadyInside) return;
     setHintVisible(true);
-    hintTimerRef.current = window.setTimeout(() => {
+    setPaused(true);
+  }, [clearTouchHintTimer]);
+
+  const hideHintOnPointerLeave = useCallback(() => {
+    pointerInsideRef.current = false;
+    clearTouchHintTimer();
+    setHintVisible(false);
+    setPaused(false);
+  }, [clearTouchHintTimer]);
+
+  /** Touch: mostrar overlay un rato (no hay hover persistente). */
+  const showHintOnTouch = useCallback(() => {
+    clearTouchHintTimer();
+    setHintVisible(true);
+    setPaused(true);
+    touchHintTimerRef.current = window.setTimeout(() => {
       setHintVisible(false);
-      hintTimerRef.current = null;
-    }, HOVER_HINT_MS);
-  }, [clearHintTimer]);
+      setPaused(false);
+      touchHintTimerRef.current = null;
+    }, TOUCH_HINT_MS);
+  }, [clearTouchHintTimer]);
 
   const bumpProgress = useCallback(() => {
     setProgressKey((k) => k + 1);
@@ -154,7 +175,7 @@ export function HomeSpotlightBanner({
     return () => window.removeEventListener("keydown", onKey);
   }, [goNext, goPrev]);
 
-  useEffect(() => () => clearHintTimer(), [clearHintTimer]);
+  useEffect(() => () => clearTouchHintTimer(), [clearTouchHintTimer]);
 
   if (!current) return null;
 
@@ -173,32 +194,30 @@ export function HomeSpotlightBanner({
       className="relative max-w-[100vw] overflow-x-clip border-b border-ck-border bg-ck-bg"
       aria-roledescription="carousel"
       aria-label="Destacados Clickatón"
-      onMouseEnter={() => {
+      onMouseEnter={showHintWhilePointerInside}
+      onMouseMove={showHintWhilePointerInside}
+      onMouseLeave={hideHintOnPointerLeave}
+      onFocusCapture={() => {
         setPaused(true);
-        showHintBriefly();
+        setHintVisible(true);
       }}
-      onMouseLeave={() => {
-        setPaused(false);
-        clearHintTimer();
-        setHintVisible(false);
-      }}
-      onFocusCapture={() => setPaused(true)}
       onBlurCapture={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-          setPaused(false);
+          if (!pointerInsideRef.current) {
+            setPaused(false);
+            setHintVisible(false);
+          }
         }
       }}
       onTouchStart={(e) => {
         touchStartX.current = e.changedTouches[0]?.clientX ?? null;
         swipedRef.current = false;
-        setPaused(true);
-        showHintBriefly();
+        showHintOnTouch();
       }}
       onTouchEnd={(e) => {
         const start = touchStartX.current;
         const end = e.changedTouches[0]?.clientX;
         touchStartX.current = null;
-        setPaused(false);
         if (start == null || end == null || count <= 1) return;
         const delta = end - start;
         if (Math.abs(delta) < SWIPE_THRESHOLD_PX) return;

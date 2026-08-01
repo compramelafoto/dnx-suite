@@ -174,6 +174,7 @@ function toTicketDto(
     venueId: row.venueId,
     kitKind: kitKindOf(products),
     products,
+    isMarathonPack: row.code.trim().toUpperCase() === "PACK_4",
   };
 }
 
@@ -704,19 +705,23 @@ export function createInMemoryPublicRegistrationRepository(
           phoneMasked: maskPhone(registration.participant.phone),
           documentMasked: maskDocument(registration.participant.documentNumber),
         },
+        subtotalAmount: registration.money.subtotalAmount,
+        discountAmount: registration.money.discountAmount,
         totalAmount: registration.money.totalAmount,
         currency: registration.money.currency,
         items: registration.items.map((i) => ({
           nameSnapshot: i.nameSnapshot,
           variantNameSnapshot: i.variantNameSnapshot ?? null,
-          skuSnapshot: i.skuSnapshot ?? null,
+          skuSnapshot: null,
           quantity: i.quantity,
           isIncluded: i.isIncluded,
         })),
         holdExpiresAt: registration.holdExpiresAt ?? null,
         accessToken,
         nextStepMessage: checkoutEligible
-          ? "Entorno de prueba: podés continuar al pago sandbox. No se realizará un cobro real."
+          ? registration.money.totalAmount === 0
+            ? "Podés confirmar tu inscripción gratuita. No se realizará ningún cobro."
+            : "Completá el pago seguro con Mercado Pago. Cuando se acredite, confirmaremos tu inscripción."
           : isExpired
             ? "La reserva venció. El cupo fue liberado."
             : "Esta inscripción no admite continuar al pago.",

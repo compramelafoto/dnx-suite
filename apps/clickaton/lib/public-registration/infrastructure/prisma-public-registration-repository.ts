@@ -17,6 +17,7 @@ import type {
   PublicRegistrationRepository,
 } from "../domain/repository";
 import type { PublicTicketProductDto, PublicVenueDto } from "../domain/types";
+import { isMarathonPackTicketCode } from "@/lib/packs/marathon-pack";
 
 function mapEdition(row: {
   id: string;
@@ -237,6 +238,7 @@ async function mapTicket(row: {
     venueId: row.venueId,
     kitKind: kitKindOf(products),
     products,
+    isMarathonPack: isMarathonPackTicketCode(row.code),
   };
 }
 
@@ -924,6 +926,12 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
               socialPublicationConsent: input.cmd.socialPublicationConsent ?? false,
               consentAcceptedAt: input.cmd.consentAcceptedAt ?? null,
               consentVersion: input.cmd.consentVersion ?? null,
+              termsVersion: input.cmd.termsVersion ?? null,
+              termsAcceptedAt: input.cmd.termsAcceptedAt ?? null,
+              promotionalLicenseAcceptedAt: input.cmd.promotionalLicenseAcceptedAt ?? null,
+              identifiablePersonsDeclaredAt: input.cmd.identifiablePersonsDeclaredAt ?? null,
+              identifiablePersonsPolicyVersion:
+                input.cmd.identifiablePersonsPolicyVersion ?? null,
               holdExpiresAt: input.holdExpiresAt,
               paymentIdempotencyKey: input.idempotencyKey,
               items: {
@@ -1044,7 +1052,7 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
           }
 
           return mapRecord(created);
-        }, { maxWait: 10_000, timeout: 20_000 });
+        }, { maxWait: 15_000, timeout: 45_000 });
       } catch (error) {
         if (error instanceof PublicRegistrationError) throw error;
         if (
@@ -1269,21 +1277,25 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
           phoneMasked: maskPhone(registration.participant.phone),
           documentMasked: maskDocument(registration.participant.documentNumber),
         },
+        subtotalAmount: registration.money.subtotalAmount,
+        discountAmount: registration.money.discountAmount,
         totalAmount: registration.money.totalAmount,
         currency: registration.money.currency,
         items: registration.items.map((i) => ({
           nameSnapshot: i.nameSnapshot,
           variantNameSnapshot: i.variantNameSnapshot ?? null,
-          skuSnapshot: i.skuSnapshot ?? null,
+          skuSnapshot: null,
           quantity: i.quantity,
           isIncluded: i.isIncluded,
         })),
         holdExpiresAt: registration.holdExpiresAt ?? null,
         accessToken,
         nextStepMessage: checkoutEligible
-          ? "Entorno de prueba: podés continuar al pago sandbox. No se realizará un cobro real."
+          ? registration.money.totalAmount === 0
+            ? "Podés confirmar tu inscripción gratuita. No se realizará ningún cobro."
+            : "Completá el pago seguro con Mercado Pago. Cuando se acredite, confirmaremos tu inscripción."
           : registration.status === "CONFIRMED"
-            ? "Inscripción confirmada. Entrá a Mi cuenta para ver QR y credencial."
+            ? "Inscripción confirmada. Entrá a Mi cuenta para ver el QR y la credencial."
             : isExpired
               ? "La reserva venció. El cupo fue liberado. Podés iniciar una nueva inscripción si hay cupo."
               : "Esta inscripción no admite continuar al pago.",

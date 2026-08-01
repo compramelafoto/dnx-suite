@@ -103,11 +103,16 @@ export function IncludedProductsSection({
                   )}
                 </div>
               </div>
+              {p.requiresVariantChoice && !selected ? (
+                <p className="mt-4 rounded border border-ck-border bg-ck-bg/50 px-3 py-2 text-sm text-ck-text-secondary">
+                  Seleccioná esta entrada para elegir el <strong className="text-ck-text">talle de la remera</strong>.
+                </p>
+              ) : null}
               {showVariant ? (
                 <label className="mt-4 block space-y-2">
-                  <span className="text-sm font-medium">Talle *</span>
+                  <span className="text-sm font-semibold text-ck-text">Talle de la remera *</span>
                   <select
-                    className="block min-h-11 w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
+                    className="block min-h-12 w-full rounded border-2 border-ck-yellow/60 bg-ck-surface px-3 py-2 text-base text-ck-text"
                     value={variantChoices[p.productId] ?? ""}
                     onChange={(e) => onVariantChange(p.productId, e.target.value)}
                     required

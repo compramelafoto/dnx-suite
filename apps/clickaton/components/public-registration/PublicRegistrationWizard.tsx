@@ -12,6 +12,7 @@ import {
   kitKindLabel,
 } from "@/lib/public-registration/ui/format";
 import { marathonPath } from "@/config/navigation";
+import { CLICKATON_TERMS_VERSION } from "@/config/editions/argentina-2026";
 
 type Props = {
   context: PublicRegistrationContextDto;
@@ -51,6 +52,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     context.venues.length === 1 ? context.venues[0]!.id : "",
   );
   const [ticketTypeId, setTicketTypeId] = useState("");
+  const [usePassCredit, setUsePassCredit] = useState(false);
   const [variantChoices, setVariantChoices] = useState<
     Record<string, string>
   >({});
@@ -65,25 +67,52 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
-  const [acceptImage, setAcceptImage] = useState(false);
   const [instagramHandle, setInstagramHandle] = useState("");
   const [profilePhotoAssetId, setProfilePhotoAssetId] = useState("");
+  const [profilePhotoFileName, setProfilePhotoFileName] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [imageUsageConsent, setImageUsageConsent] = useState(false);
-  const [socialPublicationConsent, setSocialPublicationConsent] = useState(false);
+  const profilePhotoInputRef = useRef<HTMLInputElement>(null);
 
   const ticketsForVenue = useMemo(() => {
     return context.tickets.filter((t) => {
       if (t.venueId && venueId && t.venueId !== venueId) return false;
+      // Canje de crédito: solo entradas normales (no el Pack).
+      if (usePassCredit && t.isMarathonPack) return false;
       return true;
     });
-  }, [context.tickets, venueId]);
+  }, [context.tickets, venueId, usePassCredit]);
+
+  // Si hay una sola entrada general abierta, auto-seleccionar (así aparece el talle).
+  useEffect(() => {
+    const open = ticketsForVenue.filter((t) => t.salesStatus === "open" && !t.isSoldOut);
+    if (!ticketTypeId && open.length === 1) {
+      setTicketTypeId(open[0]!.id);
+    }
+  }, [ticketsForVenue, ticketTypeId]);
 
   const selectedTicket = ticketsForVenue.find((t) => t.id === ticketTypeId) ?? null;
   const selectedVenue =
     context.venues.find((v) => v.id === venueId) ??
     (context.venues.length === 1 ? context.venues[0]! : null);
+
+  const displayCharge = useMemo(() => {
+    if (!selectedTicket) return null;
+    if (usePassCredit) {
+      return { amount: 0, currency: selectedTicket.currency, label: "1 crédito Pack" };
+    }
+    if (selectedTicket.isMarathonPack) {
+      return {
+        amount: selectedTicket.priceAmount,
+        currency: selectedTicket.currency,
+        label: "Pack · 4 usos · 2 años",
+      };
+    }
+    return {
+      amount: context.currentPricePhase?.amount ?? selectedTicket.priceAmount,
+      currency: context.currentPricePhase?.currency ?? selectedTicket.currency,
+      label: context.currentPricePhase?.name ?? null,
+    };
+  }, [selectedTicket, usePassCredit, context.currentPricePhase]);
 
   const steps: Step[] =
     context.venues.length > 1
@@ -127,14 +156,11 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
         errs.email = "Email inválido.";
       }
       if (!acceptTerms) errs.acceptTerms = "Obligatorio.";
-      if (!acceptPrivacy) errs.acceptPrivacy = "Obligatorio.";
       if (!instagramHandle.trim()) errs.instagramHandle = "Instagram requerido.";
       if (!profilePhotoAssetId) errs.profilePhotoAssetId = "Subí una foto de perfil.";
-      if (!imageUsageConsent) errs.imageUsageConsent = "Obligatorio.";
-      if (!socialPublicationConsent) errs.socialPublicationConsent = "Obligatorio.";
       setFieldErrors(errs);
       if (Object.keys(errs).length) {
-        setError("Completá los datos obligatorios y los consentimientos.");
+        setError("Completá los datos obligatorios y aceptá las bases y condiciones.");
         return;
       }
       setStep("review");
@@ -145,6 +171,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     if (!file) return;
     setUploadingPhoto(true);
     setError(null);
+    setProfilePhotoFileName(file.name);
     try {
       const form = new FormData();
       form.set("file", file);
@@ -154,7 +181,9 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       setProfilePhotoAssetId(result.assetId);
     } catch (err) {
       setProfilePhotoAssetId("");
+      setProfilePhotoFileName("");
       setError(err instanceof Error ? err.message : "No se pudo subir la foto.");
+      if (profilePhotoInputRef.current) profilePhotoInputRef.current.value = "";
     } finally {
       setUploadingPhoto(false);
     }
@@ -167,6 +196,12 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     fd.set("editionSlug", context.edition.slug);
     fd.set("venueId", venueId || selectedTicket.venueId || "");
     fd.set("ticketTypeId", selectedTicket.id);
+    if (usePassCredit) {
+      fd.set("usePassCredit", "true");
+      if (context.passCredits?.entitlementId) {
+        fd.set("passEntitlementId", context.passCredits.entitlementId);
+      }
+    }
     fd.set(
       "variantChoices",
       JSON.stringify(
@@ -184,14 +219,20 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     fd.set("city", city);
     fd.set("province", province);
     fd.set("country", "AR");
-    if (acceptTerms) fd.set("acceptTerms", "true");
-    if (acceptPrivacy) fd.set("acceptPrivacy", "true");
-    if (acceptImage) fd.set("acceptImage", "true");
+    // Un solo checkbox: aceptar Bases implica privacidad + consentimientos del funnel.
+    if (acceptTerms) {
+      fd.set("acceptTerms", "true");
+      fd.set("acceptPrivacy", "true");
+      fd.set("acceptImage", "true");
+      fd.set("imageUsageConsent", "true");
+      fd.set("socialPublicationConsent", "true");
+      fd.set("identifiablePersonsConsent", "true");
+      fd.set("promotionalLicenseConsent", "true");
+    }
     fd.set("instagramHandle", instagramHandle);
     fd.set("profilePhotoAssetId", profilePhotoAssetId);
-    if (imageUsageConsent) fd.set("imageUsageConsent", "true");
-    if (socialPublicationConsent) fd.set("socialPublicationConsent", "true");
     fd.set("consentVersion", "2026-08-social-v1");
+    fd.set("termsVersion", CLICKATON_TERMS_VERSION);
     fd.set("idempotencyKey", idemRef.current || idemKey);
 
     startTransition(async () => {
@@ -278,6 +319,29 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
         {step === "ticket" ? (
           <fieldset className="space-y-4">
             <legend className="text-xl font-semibold">Elegí tu entrada</legend>
+            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/40 p-4">
+              <input
+                type="checkbox"
+                className="mt-1 size-4 accent-[var(--ck-yellow)]"
+                checked={usePassCredit}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setUsePassCredit(on);
+                  if (on && selectedTicket?.isMarathonPack) {
+                    setTicketTypeId("");
+                  }
+                }}
+              />
+              <span className="text-sm text-ck-text">
+                <span className="font-semibold">Canjear 1 crédito de mi Pack de 4 maratones</span>
+                <span className="mt-1 block text-ck-text-secondary">
+                  Inscripción sin cargo. Usá el mismo email con el que compraste el Pack.
+                  {context.passCredits
+                    ? ` Te quedan ${context.passCredits.remaining} uso${context.passCredits.remaining === 1 ? "" : "s"}.`
+                    : " El descuento se valida al confirmar con tu email."}
+                </span>
+              </span>
+            </label>
             {ticketsForVenue.length === 0 ? (
               <p role="status" className="text-sm text-ck-text-muted">
                 No hay entradas vendibles para esta selección.
@@ -286,6 +350,15 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
               <div className="grid gap-4">
                 {ticketsForVenue.map((t) => {
                   const disabled = t.isSoldOut || t.salesStatus !== "open";
+                  const displayAmount =
+                    usePassCredit
+                      ? 0
+                      : t.isMarathonPack
+                        ? t.priceAmount
+                        : (context.currentPricePhase?.amount ?? t.priceAmount);
+                  const displayCurrency = t.isMarathonPack
+                    ? t.currency
+                    : (context.currentPricePhase?.currency ?? t.currency);
                   return (
                     <label
                       key={t.id}
@@ -301,30 +374,74 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                         className="sr-only"
                         disabled={disabled}
                         checked={ticketTypeId === t.id}
-                        onChange={() => setTicketTypeId(t.id)}
+                        onChange={() => {
+                          setTicketTypeId(t.id);
+                          if (t.isMarathonPack) setUsePassCredit(false);
+                        }}
                       />
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <span className="font-semibold">{t.name}</span>
                           <span className="ml-2 text-xs text-ck-text-muted">
-                            {kitKindLabel(t.kitKind)}
+                            {t.isMarathonPack
+                              ? "Pack · 4 usos · 2 años"
+                              : kitKindLabel(t.kitKind)}
                           </span>
                           {t.description ? (
                             <p className="mt-2 text-sm text-ck-text-secondary">
                               {t.description}
                             </p>
                           ) : null}
+                          {t.isMarathonPack ? (
+                            <p className="mt-2 text-sm text-ck-text-secondary">
+                              Incluye esta maratón + 3 créditos más para cualquier Clickatón durante 2 años.
+                            </p>
+                          ) : null}
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold">
-                            {formatPublicPrice(
-                              context.currentPricePhase?.amount ?? t.priceAmount,
-                              context.currentPricePhase?.currency ?? t.currency,
-                            )}
-                          </p>
-                          {context.currentPricePhase ? (
+                          <div className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1">
+                            <p className="font-semibold">
+                              {usePassCredit
+                                ? "Con crédito Pack"
+                                : formatPublicPrice(displayAmount, displayCurrency)}
+                            </p>
+                            {!t.isMarathonPack &&
+                            !usePassCredit &&
+                            context.currentPricePhase &&
+                            context.nextPricePhase &&
+                            context.nextPricePhase.amount >
+                              context.currentPricePhase.amount ? (
+                              <p
+                                className="text-sm text-ck-text-muted line-through decoration-2"
+                                aria-label={`Próximo precio ${formatPublicPrice(
+                                  context.nextPricePhase.amount,
+                                  context.nextPricePhase.currency,
+                                )}`}
+                              >
+                                {formatPublicPrice(
+                                  context.nextPricePhase.amount,
+                                  context.nextPricePhase.currency,
+                                )}
+                              </p>
+                            ) : null}
+                          </div>
+                          {t.isMarathonPack ? (
+                            <p className="text-xs text-ck-text-muted">Precio fijo del Pack</p>
+                          ) : usePassCredit ? (
+                            <p className="text-xs text-ck-text-muted">1 crédito · Pack 4</p>
+                          ) : context.currentPricePhase ? (
                             <p className="text-xs text-ck-text-muted">
                               {context.currentPricePhase.name}
+                            </p>
+                          ) : null}
+                          {!t.isMarathonPack &&
+                          !usePassCredit &&
+                          context.currentPricePhase &&
+                          context.nextPricePhase &&
+                          context.nextPricePhase.amount >
+                            context.currentPricePhase.amount ? (
+                            <p className="mt-1 text-xs text-ck-text-muted">
+                              Precio promocional de esta fase. Luego sube.
                             </p>
                           ) : null}
                           <p className="text-xs text-ck-text-muted">
@@ -421,30 +538,89 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 onChange={setProvince}
               />
             </div>
-            <label className="block text-sm">
-              <span className="font-medium">Foto de perfil *</span>
+            <div className="block text-sm">
+              <span className="font-medium text-ck-text">Foto de perfil *</span>
               <input
+                ref={profilePhotoInputRef}
+                id="profilePhoto"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
-                className="mt-2 block w-full"
+                className="sr-only"
                 disabled={uploadingPhoto}
                 onChange={(e) => void uploadPhoto(e.target.files?.[0] ?? null)}
               />
-              <span className="mt-1 block text-ck-text-secondary">
-                {uploadingPhoto ? "Subiendo foto…" : profilePhotoAssetId ? "Foto cargada." : "JPG, PNG o WEBP. Mínimo 400×400 px."}
-              </span>
-            </label>
-            <div className="space-y-3 text-sm">
+              <button
+                type="button"
+                disabled={uploadingPhoto}
+                onClick={() => profilePhotoInputRef.current?.click()}
+                className={[
+                  "mt-3 flex w-full min-h-[7.5rem] flex-col items-center justify-center gap-3 rounded-[var(--ck-radius-card)] border-2 border-dashed px-6 py-8 text-center transition-colors",
+                  profilePhotoAssetId
+                    ? "border-ck-yellow/70 bg-ck-yellow/5"
+                    : "border-ck-border-strong bg-ck-surface hover:border-ck-yellow hover:bg-ck-surface-strong",
+                  uploadingPhoto ? "opacity-70" : "",
+                ].join(" ")}
+              >
+                <span className="inline-flex min-h-11 items-center justify-center rounded-full border border-ck-yellow bg-ck-yellow px-5 text-sm font-semibold text-[var(--ck-text-on-brand)]">
+                  {uploadingPhoto
+                    ? "Subiendo…"
+                    : profilePhotoAssetId
+                      ? "Cambiar foto"
+                      : "Elegir foto"}
+                </span>
+                <span className="max-w-sm text-sm text-ck-text-secondary">
+                  {uploadingPhoto
+                    ? "Subiendo foto…"
+                    : profilePhotoAssetId
+                      ? `Foto cargada${profilePhotoFileName ? `: ${profilePhotoFileName}` : "."}`
+                      : "JPG, PNG o WEBP. Mínimo 400×400 px."}
+                </span>
+              </button>
+              {fieldErrors.profilePhotoAssetId ? (
+                <p className="mt-2 text-sm text-red-400">{fieldErrors.profilePhotoAssetId}</p>
+              ) : null}
+            </div>
+            {/*
+              LEGAL_REVIEW — Un solo checkbox concentra aceptación de Bases, privacidad,
+              uso de imagen, placa de bienvenida, publicación social, personas identificables
+              y licencia promocional. No se cambia el alcance ni la persistencia en Etapa 02.
+              Ver docs/clickaton/ux-improvements/legal-review-consents.md
+            */}
+            <div
+              className="space-y-4 rounded border border-ck-border bg-ck-surface/40 p-4 text-sm"
+              data-legal-review="consent-funnel-single-checkbox"
+            >
+              <div className="space-y-2">
+                <p className="font-semibold text-ck-text">Consentimientos y autorizaciones</p>
+                <p className="leading-relaxed text-ck-text-secondary">
+                  Antes de continuar, leé las Bases y Condiciones. Al marcar la casilla
+                  aceptás también la Política de Privacidad y las autorizaciones incluidas
+                  en esas Bases (uso de imagen para la placa de bienvenida, posible
+                  publicación en redes del evento y licencia promocional de las obras
+                  presentadas).
+                </p>
+                <ul className="list-disc space-y-1 pl-5 text-ck-text-muted">
+                  <li>Uso de tu foto de perfil para generar la placa de bienvenida</li>
+                  <li>Posible publicación de esa placa en redes del evento</li>
+                  <li>Tratamiento de datos personales según la política de privacidad</li>
+                </ul>
+              </div>
               <label className="flex gap-3">
                 <input
                   type="checkbox"
                   checked={acceptTerms}
                   onChange={(e) => setAcceptTerms(e.target.checked)}
+                  className="mt-1 size-5 shrink-0"
+                  aria-describedby="consent-funnel-help"
                 />
-                <span>
-                  Acepto las{" "}
+                <span id="consent-funnel-help">
+                  Leí y acepto las{" "}
                   <a className="underline" href={context.legal.termsPath} target="_blank" rel="noreferrer">
-                    bases y condiciones
+                    Bases y Condiciones
+                  </a>
+                  , la{" "}
+                  <a className="underline" href="/legal/privacidad" target="_blank" rel="noreferrer">
+                    Política de Privacidad
                   </a>{" "}
                   y las{" "}
                   <a className="underline" href={context.legal.rulesAnchor}>
@@ -453,36 +629,11 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                   .
                 </span>
               </label>
-              <label className="flex gap-3">
-                <input type="checkbox" checked={imageUsageConsent} onChange={(e) => setImageUsageConsent(e.target.checked)} />
-                <span>Autorizo el uso de mi foto para mi placa de bienvenida.</span>
-              </label>
-              <label className="flex gap-3">
-                <input type="checkbox" checked={socialPublicationConsent} onChange={(e) => setSocialPublicationConsent(e.target.checked)} />
-                <span>Autorizo la publicación social de mi placa. No se publicará automáticamente.</span>
-              </label>
-              <label className="flex gap-3">
-                <input
-                  type="checkbox"
-                  checked={acceptPrivacy}
-                  onChange={(e) => setAcceptPrivacy(e.target.checked)}
-                />
-                <span>
-                  Acepto la{" "}
-                  <a className="underline" href={context.legal.privacyPath} target="_blank" rel="noreferrer">
-                    política de privacidad
-                  </a>{" "}
-                  y el tratamiento de mis datos.
-                </span>
-              </label>
-              <label className="flex gap-3">
-                <input
-                  type="checkbox"
-                  checked={acceptImage}
-                  onChange={(e) => setAcceptImage(e.target.checked)}
-                />
-                <span>Autorizo el uso de imagen (opcional).</span>
-              </label>
+              {fieldErrors.acceptTerms ? (
+                <p className="text-sm text-red-400" role="alert">
+                  {fieldErrors.acceptTerms}
+                </p>
+              ) : null}
             </div>
           </fieldset>
         ) : null}
@@ -493,12 +644,32 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
               Revisá tu inscripción
             </h2>
             <p className="rounded border border-ck-yellow/40 bg-ck-yellow/10 p-4 text-sm" role="status">
-              La inscripción todavía no está confirmada. La confirmación dependerá del
-              pago o validación correspondiente. La reserva de cupo es temporal
-              {selectedTicket.holdMinutes
-                ? ` (aprox. ${selectedTicket.holdMinutes} minutos)`
-                : ""}
-              .
+              {usePassCredit ? (
+                <>
+                  Vas a canjear 1 crédito de tu Pack. La inscripción se confirma sin
+                  cargo al reservar (mismo email con el que compraste el Pack).
+                </>
+              ) : selectedTicket.isMarathonPack ? (
+                <>
+                  Al pagar el Pack quedás inscripto/a en esta maratón y obtenés 3
+                  créditos más (validez 2 años) para otras Clickatón. La reserva de
+                  cupo es temporal
+                  {selectedTicket.holdMinutes
+                    ? ` (aprox. ${selectedTicket.holdMinutes} minutos)`
+                    : ""}
+                  .
+                </>
+              ) : (
+                <>
+                  La inscripción todavía no está confirmada. La confirmación
+                  dependerá del pago o validación correspondiente. La reserva de
+                  cupo es temporal
+                  {selectedTicket.holdMinutes
+                    ? ` (aprox. ${selectedTicket.holdMinutes} minutos)`
+                    : ""}
+                  .
+                </>
+              )}
             </p>
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
@@ -511,15 +682,22 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
               </div>
               <div>
                 <dt className="text-ck-text-secondary">Entrada</dt>
-                <dd>{selectedTicket.name}</dd>
+                <dd>
+                  {selectedTicket.name}
+                  {usePassCredit ? " · canje Pack" : null}
+                </dd>
               </div>
               <div>
                 <dt className="text-ck-text-secondary">Importe</dt>
                 <dd>
-                  {formatPublicPrice(
-                    selectedTicket.priceAmount,
-                    selectedTicket.currency,
-                  )}
+                  {displayCharge
+                    ? formatPublicPrice(displayCharge.amount, displayCharge.currency)
+                    : "—"}
+                  {displayCharge?.label ? (
+                    <span className="mt-1 block text-xs text-ck-text-muted">
+                      {displayCharge.label}
+                    </span>
+                  ) : null}
                 </dd>
               </div>
               <div>
@@ -579,9 +757,13 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
               type="button"
               disabled={pending}
               onClick={goNext}
-              className="w-full sm:w-auto"
+              className="min-h-11 w-full sm:w-auto"
             >
-              Continuar
+              {step === "venue"
+                ? "Continuar a elegir entrada"
+                : step === "ticket"
+                  ? "Continuar a datos personales"
+                  : "Continuar a revisar la inscripción"}
             </Button>
           ) : (
             <Button
@@ -605,19 +787,29 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
           {selectedVenue?.name ?? "Sede a elegir"}
         </p>
         <p className="mt-2 text-sm text-ck-text-secondary">
-          {selectedTicket?.name ?? "Entrada a elegir"}
+          {selectedTicket
+            ? `${selectedTicket.name}${usePassCredit ? " · canje Pack" : ""}`
+            : "Entrada a elegir"}
         </p>
         <p className="mt-4 text-lg font-semibold">
-          {selectedTicket
-            ? formatPublicPrice(selectedTicket.priceAmount, selectedTicket.currency)
+          {displayCharge
+            ? formatPublicPrice(displayCharge.amount, displayCharge.currency)
             : "—"}
         </p>
-        {selectedTicket ? (
+        {displayCharge?.label ? (
+          <p className="mt-1 text-xs text-ck-text-muted">{displayCharge.label}</p>
+        ) : null}
+        {selectedTicket && !usePassCredit ? (
           <p className="mt-2 text-xs text-ck-text-muted">
             Reserva temporal ~{selectedTicket.holdMinutes} min · vence aprox.{" "}
             {formatHoldExpiry(
               new Date(Date.now() + selectedTicket.holdMinutes * 60_000),
             )}
+          </p>
+        ) : null}
+        {selectedTicket?.isMarathonPack && !usePassCredit ? (
+          <p className="mt-2 text-xs text-ck-text-secondary">
+            Incluye esta edición + 3 créditos (2 años) para futuras maratones.
           </p>
         ) : null}
       </aside>

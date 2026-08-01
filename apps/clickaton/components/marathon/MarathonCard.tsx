@@ -31,6 +31,7 @@ type MarathonCardProps = {
     | "endAt"
     | "timezone"
     | "coverImage"
+    | "coverImageVertical"
     | "featured"
     | "registration"
   >;
@@ -54,6 +55,7 @@ export function MarathonCard({ marathon }: MarathonCardProps) {
         <PhotoFrame
           variant="card"
           src={marathon.coverImage}
+          srcVertical={marathon.coverImageVertical}
           alt=""
           decorative
           className="rounded-none border-0 border-b border-ck-border"

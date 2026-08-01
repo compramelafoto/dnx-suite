@@ -63,6 +63,7 @@ function fingerprint(input: {
   email: string;
   variantChoices: Array<{ productId: string; productVariantId: string }>;
   totalAmount: number;
+  usePassCredit?: boolean;
 }): string {
   return createHash("sha256")
     .update(
@@ -75,6 +76,7 @@ function fingerprint(input: {
           a.productId.localeCompare(b.productId),
         ),
         total: input.totalAmount,
+        usePassCredit: Boolean(input.usePassCredit),
       }),
     )
     .digest("hex");
@@ -342,7 +344,10 @@ export function createPublicRegistrationService(deps: {
       };
     },
 
-    async getContext(slug: string): Promise<PublicRegistrationContextDto> {
+    async getContext(
+      slug: string,
+      opts?: { participantEmail?: string | null },
+    ): Promise<PublicRegistrationContextDto> {
       const edition = await repo.getEditionBySlug(slug);
       if (!edition || !edition.isPublished || !edition.registrationEnabled) {
         throw new PublicRegistrationError(
@@ -358,9 +363,20 @@ export function createPublicRegistrationService(deps: {
         );
       }
       const venues = await repo.listActiveVenues(edition.id);
+      try {
+        const { ensureMarathonPackTicket } = await import("@/lib/packs/ensure-pack-ticket");
+        await ensureMarathonPackTicket(edition.id);
+      } catch (error) {
+        console.error("[clickaton] ensureMarathonPackTicket failed:", error);
+      }
       let tickets = (await repo.listSellableTickets(edition.id)).filter(
         (t) => t.salesStatus !== "inactive",
       );
+      // Pack al final de la lista, siempre visible si está activo.
+      tickets = [
+        ...tickets.filter((t) => !t.isMarathonPack),
+        ...tickets.filter((t) => t.isMarathonPack),
+      ];
 
       const phases = await repo.listPricePhases(edition.id);
       const resolvedPhase = resolveCurrentPricePhase(phases, new Date());
@@ -408,6 +424,36 @@ export function createPublicRegistrationService(deps: {
           }
         : null;
 
+      const nextPricePhase = resolvedPhase?.nextPhase
+        ? {
+            id: resolvedPhase.nextPhase.id,
+            name: resolvedPhase.nextPhase.name,
+            amount: resolvedPhase.nextPhase.amount,
+            currency: resolvedPhase.nextPhase.currency,
+            startsAt: resolvedPhase.nextPhase.startsAt,
+          }
+        : null;
+
+      let passCredits: PublicRegistrationContextDto["passCredits"] = null;
+      const emailHint = opts?.participantEmail?.trim();
+      if (emailHint) {
+        try {
+          const { findActivePassCreditsForEmail } = await import(
+            "@/lib/packs/annual-pass-service"
+          );
+          const pass = await findActivePassCreditsForEmail(emailHint);
+          if (pass) {
+            passCredits = {
+              entitlementId: pass.entitlementId,
+              remaining: pass.remaining,
+              expiresAt: pass.expiresAt?.toISOString() ?? null,
+            };
+          }
+        } catch (error) {
+          console.error("[clickaton] passCredits lookup failed:", error);
+        }
+      }
+
       return {
         edition: {
           id: edition.id,
@@ -427,7 +473,9 @@ export function createPublicRegistrationService(deps: {
         venues,
         tickets,
         currentPricePhase,
+        nextPricePhase,
         registrationWindow: window,
+        passCredits,
         legal: {
           termsPath: "/legal/terminos",
           privacyPath: "/legal/privacidad",
@@ -458,16 +506,25 @@ export function createPublicRegistrationService(deps: {
           idempotencyKey: "Falta el token de idempotencia.",
         });
       }
-      if (!input.acceptTerms || !input.acceptPrivacy) {
+      // Un solo consentimiento UI: aceptar Bases implica privacidad + cláusulas del funnel.
+      if (!input.acceptTerms) {
         throw new PublicRegistrationError(
           "CONSENT_REQUIRED",
-          "Debés aceptar las bases/condiciones y la política de privacidad.",
+          "Debés aceptar las bases y condiciones.",
         );
       }
-      if (!input.imageUsageConsent || !input.socialPublicationConsent) {
+      const acceptPrivacy = input.acceptPrivacy || input.acceptTerms;
+      const acceptImage = input.acceptImage || input.acceptTerms;
+      const imageUsageConsent = input.imageUsageConsent || input.acceptTerms;
+      const socialPublicationConsent = input.socialPublicationConsent || input.acceptTerms;
+      const identifiablePersonsConsent =
+        input.identifiablePersonsConsent || input.acceptTerms;
+      const promotionalLicenseConsent =
+        input.promotionalLicenseConsent || input.acceptTerms;
+      if (!acceptPrivacy) {
         throw new PublicRegistrationError(
           "CONSENT_REQUIRED",
-          "Debés aceptar el uso de imagen y la autorización de publicación social.",
+          "Debés aceptar las bases y condiciones.",
         );
       }
       if (!input.profilePhotoAssetId?.trim()) {
@@ -531,8 +588,12 @@ export function createPublicRegistrationService(deps: {
       }
 
       const now = new Date();
+      const { isMarathonPackTicketCode } = await import("@/lib/packs/marathon-pack");
+      const isPack = isMarathonPackTicketCode(ticket.code) || Boolean(ticket.isMarathonPack);
+      const usePassCredit = Boolean(input.usePassCredit);
 
       // Precio + productos: fases del backend (nunca monto ni lista del frontend).
+      // Pack 4: precio fijo del ticket (no fase). Canje de crédito: $0.
       let chargeAmount = ticket.priceAmount;
       let pricePhaseId: string | null = null;
       let pricePhaseNameSnapshot: string | null = null;
@@ -541,19 +602,29 @@ export function createPublicRegistrationService(deps: {
       const hasActivePhases = phases.some((p) => p.isActive);
       const resolvedPhase =
         hasActivePhases ? resolveCurrentPricePhase(phases, now) : null;
-      if (ticket.priceAmount > 0 && hasActivePhases && !resolvedPhase) {
+      if (!isPack && !usePassCredit && ticket.priceAmount > 0 && hasActivePhases && !resolvedPhase) {
         throw new PublicRegistrationError(
           "EDITION_NOT_AVAILABLE",
           "No hay una fase de precio vigente para esta edición.",
         );
       }
-      if (resolvedPhase) {
+      if (usePassCredit) {
+        chargeAmount = 0;
+      } else if (isPack) {
+        chargeAmount = ticket.priceAmount;
+      } else if (resolvedPhase) {
         if (ticket.priceAmount > 0) {
           chargeAmount = resolvedPhase.phase.amount;
         }
         pricePhaseId = resolvedPhase.phase.id;
         pricePhaseNameSnapshot = resolvedPhase.phase.name;
         pricePhaseAmountSnapshot = resolvedPhase.phase.amount;
+      }
+      // Remera de fase también aplica al pack (beneficio de la edición actual).
+      if (isPack && resolvedPhase) {
+        pricePhaseId = resolvedPhase.phase.id;
+        pricePhaseNameSnapshot = resolvedPhase.phase.name;
+        pricePhaseAmountSnapshot = ticket.priceAmount;
       }
       let phaseItems = resolvedPhase
         ? await repo.listPricePhaseItems(resolvedPhase.phase.id)
@@ -629,6 +700,7 @@ export function createPublicRegistrationService(deps: {
         email,
         variantChoices: input.variantChoices,
         totalAmount: chargeAmount,
+        usePassCredit,
       });
 
       if (existingIdem) {
@@ -680,6 +752,44 @@ export function createPublicRegistrationService(deps: {
         }
       }
 
+      let passForRedeem: {
+        entitlementId: string;
+        userId: number;
+        remaining: number;
+      } | null = null;
+      if (usePassCredit) {
+        if (isPack) {
+          throw new PublicRegistrationError(
+            "INVALID_VARIANT",
+            "El Pack no se puede combinar con un canje de crédito. Elegí la inscripción general.",
+          );
+        }
+        const { findActivePassCreditsForEmail } = await import(
+          "@/lib/packs/annual-pass-service"
+        );
+        const pass = await findActivePassCreditsForEmail(email);
+        if (!pass || pass.remaining < 1) {
+          throw new PublicRegistrationError(
+            "EDITION_NOT_AVAILABLE",
+            "No hay créditos de Pack disponibles para este email. Comprá el Pack de 4 maratones o usá el email de la compra.",
+          );
+        }
+        if (
+          input.passEntitlementId &&
+          input.passEntitlementId !== pass.entitlementId
+        ) {
+          throw new PublicRegistrationError(
+            "EDITION_NOT_AVAILABLE",
+            "El crédito del Pack indicado no es válido.",
+          );
+        }
+        passForRedeem = {
+          entitlementId: pass.entitlementId,
+          userId: pass.userId,
+          remaining: pass.remaining,
+        };
+      }
+
       const items = buildItemsFromTicket(ticket, input.variantChoices);
       const holdMinutes = ticket.holdMinutes > 0 ? ticket.holdMinutes : 20;
       const holdExpiresAt = new Date(now.getTime() + holdMinutes * 60_000);
@@ -711,7 +821,7 @@ export function createPublicRegistrationService(deps: {
             emergencyContactName: input.participant.emergencyContactName?.trim() || null,
             emergencyContactPhone: input.participant.emergencyContactPhone?.trim() || null,
             acceptedTermsAt: now,
-            acceptedImageAt: input.acceptImage ? now : null,
+            acceptedImageAt: acceptImage ? now : null,
           },
           currency: ticket.currency,
           subtotalAmount: chargeAmount + discountAmount,
@@ -726,10 +836,15 @@ export function createPublicRegistrationService(deps: {
           instagramHandleNormalized: instagram.normalized,
           instagramUrl: instagram.url,
           profilePhotoAssetId: input.profilePhotoAssetId,
-          imageUsageConsent: input.imageUsageConsent,
-          socialPublicationConsent: input.socialPublicationConsent,
+          imageUsageConsent,
+          socialPublicationConsent,
           consentAcceptedAt: now,
           consentVersion: input.consentVersion ?? "2026-08-social-v1",
+          termsVersion: input.termsVersion ?? "CLICKATON_TERMS_2026_09_19_v2",
+          termsAcceptedAt: now,
+          promotionalLicenseAcceptedAt: promotionalLicenseConsent ? now : null,
+          identifiablePersonsDeclaredAt: identifiablePersonsConsent ? now : null,
+          identifiablePersonsPolicyVersion: input.termsVersion ?? "CLICKATON_TERMS_2026_09_19_v2",
           holdMinutes,
           items,
         },
@@ -742,8 +857,51 @@ export function createPublicRegistrationService(deps: {
         });
       }
 
-      // Free tickets: confirm immediately (no Mercado Pago) when wired (Prisma runtime).
+      // Free tickets / canje Pack: confirm immediately (no Mercado Pago) when wired.
       if (chargeAmount === 0 && confirmFree) {
+        if (passForRedeem) {
+          const {
+            consumePassCreditForRegistration,
+            reversePassCreditConsumption,
+          } = await import("@/lib/packs/annual-pass-service");
+          const consumed = await consumePassCreditForRegistration({
+            entitlementId: passForRedeem.entitlementId,
+            userId: passForRedeem.userId,
+            editionId: edition.id,
+            registrationId: registration.id,
+          });
+          if (!consumed.ok) {
+            throw new PublicRegistrationError(
+              "EDITION_NOT_AVAILABLE",
+              consumed.reason === "EXPIRED"
+                ? "Tu Pack venció. No se pudo canjear el crédito."
+                : consumed.reason === "NO_CREDITS"
+                  ? "No te quedan créditos de Pack."
+                  : "No se pudo canjear el crédito del Pack. Intentá de nuevo.",
+            );
+          }
+          try {
+            await confirmFree({
+              registrationId: registration.id,
+              editionSlug: edition.slug,
+              editionPrefix: edition.visibleCodePrefix ?? undefined,
+            });
+          } catch (error) {
+            try {
+              await reversePassCreditConsumption({
+                entitlementId: passForRedeem.entitlementId,
+                registrationId: registration.id,
+              });
+            } catch (reverseErr) {
+              console.error(
+                "[clickaton] reversePassCreditConsumption failed:",
+                reverseErr,
+              );
+            }
+            throw error;
+          }
+          return this.toSummary(registration.id, edition.slug);
+        }
         await confirmFree({
           registrationId: registration.id,
           editionSlug: edition.slug,

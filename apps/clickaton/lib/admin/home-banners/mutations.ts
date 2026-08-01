@@ -1,11 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { homeContent } from "@/content/home";
 import { prisma, withClickatonDb } from "@/lib/admin/db";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { adminRoutes } from "@/config/admin/navigation";
 import { HOME_BANNER_LINK_TYPES, type HomeBannerFormInput, type HomeBannerLinkType } from "./types";
 import { isValidCoverImageRef } from "@/lib/admin/editions/validation";
+import {
+  DEFAULT_SYSTEM_SLIDES_CONFIG,
+  moveIdInOrder,
+  parseSystemSlidesConfig,
+  toggleIdInList,
+  type SystemSlidesConfig,
+} from "./system-slides";
 
 export type HomeBannerActionState = {
   ok: boolean;
@@ -221,6 +229,111 @@ export async function moveHomeBannerAction(formData: FormData) {
         }),
       ),
     );
+  });
+  revalidateBannerPaths();
+}
+
+export async function toggleHomeBannerActiveAction(formData: FormData) {
+  await requireClickatonAdmin();
+  const bannerId = String(formData.get("bannerId") ?? "").trim();
+  if (!bannerId) return;
+  await withClickatonDb(async () => {
+    const row = await prisma.clickatonHomeBanner.findUnique({
+      where: { id: bannerId },
+      select: { isActive: true },
+    });
+    if (!row) return;
+    const next = !row.isActive;
+    await prisma.clickatonHomeBanner.update({
+      where: { id: bannerId },
+      data: { isActive: next, publishedAt: next ? new Date() : null },
+    });
+  });
+  revalidateBannerPaths();
+}
+
+async function readSystemConfig(): Promise<SystemSlidesConfig> {
+  const row = await prisma.clickatonHomeBannerSettings.findUnique({
+    where: { id: "default" },
+    select: { systemSlidesConfig: true },
+  });
+  return row
+    ? parseSystemSlidesConfig(row.systemSlidesConfig)
+    : { ...DEFAULT_SYSTEM_SLIDES_CONFIG };
+}
+
+async function writeSystemConfig(config: SystemSlidesConfig) {
+  await prisma.clickatonHomeBannerSettings.upsert({
+    where: { id: "default" },
+    create: {
+      id: "default",
+      systemSlidesConfig: config,
+    },
+    update: { systemSlidesConfig: config },
+  });
+}
+
+export async function setSystemSlidesGroupEnabledAction(formData: FormData) {
+  await requireClickatonAdmin();
+  const group = String(formData.get("group") ?? "") === "news" ? "news" : "editions";
+  const enabled =
+    formData.get("enabled") === "on" ||
+    formData.get("enabled") === "true" ||
+    formData.get("enabled") === "1";
+  await withClickatonDb(async () => {
+    const config = await readSystemConfig();
+    if (group === "news") config.newsEnabled = enabled;
+    else config.editionsEnabled = enabled;
+    await writeSystemConfig(config);
+  });
+  revalidateBannerPaths();
+}
+
+export async function toggleSystemSlideAction(formData: FormData) {
+  await requireClickatonAdmin();
+  const kind = String(formData.get("kind") ?? "") === "news" ? "news" : "edition";
+  const id = String(formData.get("slideId") ?? "").trim();
+  if (!id) return;
+  await withClickatonDb(async () => {
+    const config = await readSystemConfig();
+    if (kind === "news") {
+      const currentlyDisabled = config.disabledNewsIds.includes(id);
+      config.disabledNewsIds = toggleIdInList(config.disabledNewsIds, id, currentlyDisabled);
+    } else {
+      const currentlyDisabled = config.disabledEditionIds.includes(id);
+      config.disabledEditionIds = toggleIdInList(
+        config.disabledEditionIds,
+        id,
+        currentlyDisabled,
+      );
+    }
+    await writeSystemConfig(config);
+  });
+  revalidateBannerPaths();
+}
+
+export async function moveSystemSlideAction(formData: FormData) {
+  await requireClickatonAdmin();
+  const kind = String(formData.get("kind") ?? "") === "news" ? "news" : "edition";
+  const id = String(formData.get("slideId") ?? "").trim();
+  const direction = String(formData.get("direction") ?? "") === "up" ? "up" : "down";
+  if (!id) return;
+
+  await withClickatonDb(async () => {
+    const config = await readSystemConfig();
+    if (kind === "news") {
+      const allIds = homeContent.spotlightNews.map((n) => n.id);
+      config.newsOrder = moveIdInOrder(config.newsOrder, allIds, id, direction);
+    } else {
+      const editions = await prisma.clickatonEdition.findMany({
+        where: { isPublished: true },
+        select: { id: true },
+        orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
+      });
+      const allIds = editions.map((e) => e.id);
+      config.editionOrder = moveIdInOrder(config.editionOrder, allIds, id, direction);
+    }
+    await writeSystemConfig(config);
   });
   revalidateBannerPaths();
 }

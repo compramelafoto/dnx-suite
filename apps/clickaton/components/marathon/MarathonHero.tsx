@@ -144,6 +144,7 @@ export function MarathonHero({
         <PhotoFrame
           variant="hero"
           src={marathon.coverImage}
+          srcVertical={marathon.coverImageVertical}
           alt={`Portada de ${marathon.name}`}
           credit={marathon.coverImageCredit}
           overlay="medium"

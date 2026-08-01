@@ -72,7 +72,7 @@ export function HomeBannerForm({
       ) : null}
 
       <AdminForm
-        title="Banner del Home"
+        title="Banner del inicio"
         description="Definí imagen, texto y a dónde lleva el clic (maratón, página o link externo)."
         footer={
           <>
@@ -92,7 +92,7 @@ export function HomeBannerForm({
             onChange={(e) => updateField("title", e.target.value)}
           />
         </Field>
-        <Field id="eyebrow" label="Eyebrow / etiqueta" error={state?.errors?.eyebrow}>
+        <Field id="eyebrow" label="Etiqueta corta" error={state?.errors?.eyebrow}>
           <Input
             name="eyebrow"
             value={values.eyebrow}

@@ -9807,6 +9807,9 @@ model ClickatonHomeBannerSettings {
   autoplayMs      Int      @default(2000)
   /// Duración de la animación de desplazamiento horizontal (ms).
   transitionMs    Int      @default(700)
+  /// Banners automáticos (ediciones + novedades): enable/disable + orden.
+  /// Shape: { editionsEnabled, newsEnabled, disabledEditionIds, disabledNewsIds, editionOrder, newsOrder }
+  systemSlidesConfig Json?
   updatedAt       DateTime @updatedAt
 }
 

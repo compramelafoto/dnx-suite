@@ -1,9 +1,17 @@
+import { homeContent } from "@/content/home";
 import { prisma, withClickatonDb } from "@/lib/admin/db";
 import {
   DEFAULT_HOME_BANNER_CAROUSEL,
   type HomeBannerCarouselConfig,
   type HomeBannerRecord,
 } from "./types";
+import {
+  DEFAULT_SYSTEM_SLIDES_CONFIG,
+  orderByIds,
+  parseSystemSlidesConfig,
+  type SystemSlideAdminRow,
+  type SystemSlidesConfig,
+} from "./system-slides";
 
 const select = {
   id: true,
@@ -95,5 +103,62 @@ export async function getHomeBannerCarouselSettings() {
     });
     if (!row) return DEFAULT_HOME_BANNER_CAROUSEL;
     return clampCarouselConfig(row);
+  });
+}
+
+export async function getSystemSlidesConfig() {
+  return withClickatonDb(async () => {
+    const row = await prisma.clickatonHomeBannerSettings.findUnique({
+      where: { id: "default" },
+      select: { systemSlidesConfig: true },
+    });
+    if (!row) return { ...DEFAULT_SYSTEM_SLIDES_CONFIG };
+    return parseSystemSlidesConfig(row.systemSlidesConfig);
+  });
+}
+
+/** Filas admin: ediciones publicadas + novedades estáticas, con estado/orden. */
+export async function listSystemSlidesForAdmin() {
+  return withClickatonDb(async () => {
+    const [settings, editions] = await Promise.all([
+      prisma.clickatonHomeBannerSettings.findUnique({
+        where: { id: "default" },
+        select: { systemSlidesConfig: true },
+      }),
+      prisma.clickatonEdition.findMany({
+        where: { isPublished: true },
+        select: { id: true, name: true, slug: true, city: true },
+        orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
+      }),
+    ]);
+    const config = parseSystemSlidesConfig(settings?.systemSlidesConfig);
+    const editionRows: SystemSlideAdminRow[] = orderByIds(
+      editions,
+      config.editionOrder,
+      (e) => e.id,
+    ).map((e) => ({
+      id: e.id,
+      kind: "edition" as const,
+      title: e.name,
+      subtitle: e.city ? `Edición · ${e.city}` : `Edición · /${e.slug}`,
+      isEnabled: config.editionsEnabled && !config.disabledEditionIds.includes(e.id),
+    }));
+    const newsSource = homeContent.spotlightNews.map((n) => ({
+      id: n.id,
+      title: n.title,
+      eyebrow: n.eyebrow,
+    }));
+    const newsRows: SystemSlideAdminRow[] = orderByIds(
+      newsSource,
+      config.newsOrder,
+      (n) => n.id,
+    ).map((n) => ({
+      id: n.id,
+      kind: "news" as const,
+      title: n.title,
+      subtitle: n.eyebrow ? `Novedad · ${n.eyebrow}` : "Novedad del sistema",
+      isEnabled: config.newsEnabled && !config.disabledNewsIds.includes(n.id),
+    }));
+    return { config, editions: editionRows, news: newsRows };
   });
 }

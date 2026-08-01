@@ -29,7 +29,7 @@ export default async function EditHomeBannerPage({ params }: Props) {
       <AdminPageHeader
         title={`Editar: ${banner.title}`}
         breadcrumbs={[
-          { label: "Banners Home", href: adminRoutes.homeBanners },
+          { label: "Banners del inicio", href: adminRoutes.homeBanners },
           { label: "Editar" },
         ]}
       />

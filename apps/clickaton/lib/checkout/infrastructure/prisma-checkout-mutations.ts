@@ -148,7 +148,9 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
     },
 
     async confirmPaid(input) {
-      return prisma.$transaction(async (tx) => {
+      // Neon + first-N locks + credential/QR: default 5s interactive timeout is too tight.
+      return prisma.$transaction(
+        async (tx) => {
         const existing = await tx.clickatonRegistration.findUnique({
           where: { id: input.registrationId },
           include: { items: true },
@@ -360,7 +362,9 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
         }
 
         return mapRecord(updated);
-      }).then(async (record) => {
+      },
+        { timeout: 30_000, maxWait: 10_000 },
+      ).then(async (record) => {
         try {
           await confirmClickatonPromotionRedemption(input.registrationId);
         } catch {
@@ -373,6 +377,33 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
             name: `${record.participant.firstName} ${record.participant.lastName}`.trim(),
             sourceApplication: "clickaton",
           });
+          try {
+            const { isMarathonPackTicketCode } = await import("@/lib/packs/marathon-pack");
+            const reg = await prisma.clickatonRegistration.findUnique({
+              where: { id: input.registrationId },
+              select: {
+                editionId: true,
+                totalAmount: true,
+                ticketType: { select: { code: true } },
+              },
+            });
+            if (reg && isMarathonPackTicketCode(reg.ticketType.code)) {
+              const { grantAnnualPassAfterPackPurchase } = await import(
+                "@/lib/packs/annual-pass-service"
+              );
+              await grantAnnualPassAfterPackPurchase({
+                registrationId: input.registrationId,
+                userId: linked.userId,
+                editionId: reg.editionId,
+                purchasePriceMinor: reg.totalAmount,
+              });
+            }
+          } catch (passErr) {
+            console.error(
+              "[clickaton] grantAnnualPassAfterPackPurchase failed:",
+              passErr,
+            );
+          }
           return { ...record, userId: linked.userId };
         } catch {
           // best-effort: confirmación de pago no debe revertirse por identidad

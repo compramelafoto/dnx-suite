@@ -1,8 +1,8 @@
 /**
- * Upsert de la edición comercial Clickatón Argentina 2026.
+ * Upsert de la edici?n comercial Clickat?n Argentina 2026.
  * Estado seguro por defecto: DRAFT, no publicada, registrationEnabled=false.
  * Etapa 8B: Remera en ClickatonPricePhaseItem (Fase 1), no en ticket GENERAL.
- * Ticket base = acceso/inscripción; merch comercial depende de la fase.
+ * Ticket base = acceso/inscripci?n; merch comercial depende de la fase.
  *
  * Usage:
  *   CLICKATON_SEED_ARGENTINA_2026=1 pnpm --filter clickaton seed:argentina-2026
@@ -16,10 +16,13 @@ import { pathToFileURL } from "node:url";
 import { prisma } from "@repo/db";
 import {
   ARGENTINA_2026_MERCH,
+  ARGENTINA_2026_RULES,
+  ARGENTINA_2026_SCHEDULE,
   ARGENTINA_2026_SHIRT_SIZES,
   argentina2026EventEndAt,
   argentina2026EventStartAt,
   CLICKATON_ARGENTINA_2026,
+  CLICKATON_TERMS_VERSION,
 } from "../config/editions/argentina-2026";
 import {
   ARGENTINA_2026_FEE_POLICY,
@@ -33,20 +36,24 @@ import { pesosToMinorUnits } from "../lib/pricing/domain/resolve-price-phase";
 const CAPABILITY_MANAGE_TIMELINE = "canManageEditionTimeline";
 const CAPABILITY_RELEASE_PROMPTS = "canReleaseEditionPrompts";
 
+const S = ARGENTINA_2026_SCHEDULE;
+
+/** Horarios Schedule V2 (10G.3) ? ISO con offset ?03:00. Captura ? upload. */
 const TIMELINE_BASE_EVENTS = [
-  { eventType: "REGISTRATION_OPEN" as const, name: "Apertura de inscripciones", sequence: 10, isCritical: true },
-  { eventType: "REGISTRATION_CLOSE" as const, name: "Cierre de inscripciones", sequence: 20, isCritical: true },
-  { eventType: "ACCREDITATION_OPEN" as const, name: "Apertura de acreditación", sequence: 30, isCritical: true },
-  { eventType: "ACCREDITATION_CLOSE" as const, name: "Cierre de acreditación", sequence: 35, isCritical: true },
-  { eventType: "MARATHON_START" as const, name: "Inicio oficial", sequence: 40, isCritical: true },
-  { eventType: "PROMPT_RELEASE" as const, name: "Liberación de consignas", sequence: 50, isCritical: true },
-  { eventType: "CAPTURE_WINDOW_CLOSE" as const, name: "Cierre de captura", sequence: 60, isCritical: false },
-  { eventType: "UPLOAD_WINDOW_OPEN" as const, name: "Apertura de subida", sequence: 70, isCritical: false },
-  { eventType: "UPLOAD_WINDOW_CLOSE" as const, name: "Cierre de subida", sequence: 80, isCritical: true },
-  { eventType: "MARATHON_END" as const, name: "Fin de la maratón", sequence: 90, isCritical: true },
-  { eventType: "JUDGING_OPEN" as const, name: "Apertura de jurado", sequence: 95, isCritical: true },
-  { eventType: "JUDGING_CLOSE" as const, name: "Cierre de jurado", sequence: 98, isCritical: true },
-  { eventType: "RESULTS_RELEASE" as const, name: "Resultados", sequence: 100, isCritical: false },
+  { eventType: "REGISTRATION_OPEN" as const, name: "Apertura de inscripciones", sequence: 10, isCritical: true, startsAt: null as string | null, endsAt: null as string | null },
+  { eventType: "REGISTRATION_CLOSE" as const, name: "Cierre de inscripciones", sequence: 20, isCritical: true, startsAt: null, endsAt: null },
+  { eventType: "ACCREDITATION_OPEN" as const, name: "Apertura de acreditaci�n", sequence: 30, isCritical: true, startsAt: S.accreditationOpenIso, endsAt: S.accreditationCloseIso },
+  { eventType: "ACCREDITATION_CLOSE" as const, name: "Cierre de acreditaci�n", sequence: 35, isCritical: true, startsAt: S.accreditationCloseIso, endsAt: S.accreditationCloseIso },
+  { eventType: "CUSTOM" as const, name: "Charla introductoria", sequence: 37, isCritical: false, startsAt: S.talkOpenIso, endsAt: S.talkCloseIso },
+  { eventType: "MARATHON_START" as const, name: "Inicio oficial � captura y carga", sequence: 40, isCritical: true, startsAt: S.marathonStartIso, endsAt: S.marathonEndIso },
+  { eventType: "PROMPT_RELEASE" as const, name: "Reveal de las 10 consignas", sequence: 50, isCritical: true, startsAt: S.promptsRevealIso, endsAt: S.uploadCloseIso },
+  { eventType: "UPLOAD_WINDOW_OPEN" as const, name: "Apertura de subida (16:00)", sequence: 70, isCritical: true, startsAt: S.uploadOpenIso, endsAt: S.uploadCloseIso },
+  { eventType: "CAPTURE_WINDOW_CLOSE" as const, name: "Cierre de captura (20:00 exclusive)", sequence: 75, isCritical: false, startsAt: S.captureCloseIso, endsAt: S.captureCloseIso },
+  { eventType: "UPLOAD_WINDOW_CLOSE" as const, name: "Cierre de entrega (22:00 exclusive)", sequence: 80, isCritical: true, startsAt: S.uploadCloseIso, endsAt: S.uploadCloseIso },
+  { eventType: "MARATHON_END" as const, name: "Fin del per�odo de entrega", sequence: 90, isCritical: true, startsAt: S.marathonEndIso, endsAt: S.marathonEndIso },
+  { eventType: "JUDGING_OPEN" as const, name: "Apertura de jurado", sequence: 95, isCritical: true, startsAt: null, endsAt: null },
+  { eventType: "JUDGING_CLOSE" as const, name: "Cierre de jurado", sequence: 98, isCritical: true, startsAt: null, endsAt: null },
+  { eventType: "RESULTS_RELEASE" as const, name: "Resultados", sequence: 100, isCritical: false, startsAt: null, endsAt: null },
 ];
 
 async function seedFinanceGrantsAndDraft(editionId: string): Promise<{
@@ -150,7 +157,7 @@ async function seedFinanceGrantsAndDraft(editionId: string): Promise<{
         productKey: CLICKATON_PRODUCT_KEY,
         scopeType: EDITION_SCOPE_TYPE,
         scopeId: editionId,
-        name: "Clickatón Argentina 2026 — Tammy 100%",
+        name: "Clickat?n Argentina 2026 ??? Tammy 100%",
         countryCode: "AR",
         currency: "ARS",
         status: "DRAFT",
@@ -231,7 +238,7 @@ async function seedFinanceGrantsAndDraft(editionId: string): Promise<{
     },
   });
 
-  // Nunca activar automáticamente sin conexión MP válida.
+  // Nunca activar autom?ticamente sin conexi?n MP v?lida.
   const distributionActivated = false;
 
   return {
@@ -250,7 +257,7 @@ const DEFAULT_PHASES = [
   {
     name: "Primera etapa",
     amountPesos: 25_000,
-    startsAt: "2026-08-01T00:00:00-03:00",
+    startsAt: "2026-07-31T00:00:00-03:00",
     endsAt: "2026-08-20T23:59:59-03:00",
     priority: 10,
   },
@@ -283,7 +290,7 @@ export async function seedArgentina2026Edition(): Promise<{
   variantCount: number;
   ticketTypeId: string;
   ticketCode: string;
-  /** null tras migración 8B (remera ya no vive en ticket base). */
+  /** null tras migraci?n 8B (remera ya no vive en ticket base). */
   ticketItemId: string | null;
   phaseItemIds: string[];
   phasesWithShirt: string[];
@@ -335,7 +342,7 @@ export async function seedArgentina2026Edition(): Promise<{
   const merch = ARGENTINA_2026_MERCH;
   const startAt = argentina2026EventStartAt();
   const endAt = argentina2026EventEndAt();
-  /** Landing pública sin abrir cobro: isPublished=true, registrationEnabled=false. */
+  /** Landing p?blica sin abrir cobro: isPublished=true, registrationEnabled=false. */
   const publishLanding = process.env.CLICKATON_SEED_PUBLISH_LANDING === "1";
 
   const edition = await prisma.clickatonEdition.upsert({
@@ -393,7 +400,7 @@ export async function seedArgentina2026Edition(): Promise<{
       data: DEFAULT_PHASES.map((p) => ({
         editionId: edition.id,
         name: p.name,
-        description: "Fase inicial — fechas editables desde administración.",
+        description: "Fase inicial ??? fechas editables desde administraci?n.",
         amount: pesosToMinorUnits(p.amountPesos),
         currency: "ARS",
         startsAt: new Date(p.startsAt),
@@ -477,7 +484,7 @@ export async function seedArgentina2026Edition(): Promise<{
       venueId: null,
       name: merch.ticketName,
       description:
-        "Inscripción general. Los artículos promocionales (remera, etc.) dependen de la fase de precio vigente.",
+        "Inscripci?n general. Los art?culos promocionales (remera, etc.) dependen de la fase de precio vigente.",
       code: merch.ticketCode,
       priceAmount: pesosToMinorUnits(merch.ticketPricePesos),
       currency: "ARS",
@@ -490,12 +497,16 @@ export async function seedArgentina2026Edition(): Promise<{
     update: {
       name: merch.ticketName,
       description:
-        "Inscripción general. Los artículos promocionales (remera, etc.) dependen de la fase de precio vigente.",
-      // Conservar priceAmount/capacity/active si ya se ajustó en admin.
+        "Inscripci?n general. Los art?culos promocionales (remera, etc.) dependen de la fase de precio vigente.",
+      // Conservar priceAmount/capacity/active si ya se ajust? en admin.
     },
   });
 
-  // Migración 8B: quitar Remera del ticket base (no tocar RegistrationItem históricos).
+  // Pack 4 maratones ($100.000 / 4 cr�ditos / 2 a�os) � oferta global por edici�n.
+  const { ensureMarathonPackTicket } = await import("@/lib/packs/ensure-pack-ticket");
+  await ensureMarathonPackTicket(edition.id);
+
+  // Migraci?n 8B: quitar Remera del ticket base (no tocar RegistrationItem hist?ricos).
   await prisma.clickatonTicketTypeItem.deleteMany({
     where: { ticketTypeId: ticket.id, productId: product.id },
   });
@@ -522,7 +533,7 @@ export async function seedArgentina2026Edition(): Promise<{
     if (shouldInclude) {
       const benefitDeadlineAt = new Date(merch.benefitDeadlineIso);
       const benefitCopy =
-        "Remera Clickatón incluida para los primeros 100 inscriptos con pago confirmado o hasta el 30 de agosto, lo que ocurra primero.";
+        "Remera Clickat?n incluida para los primeros 100 inscriptos con pago confirmado o hasta el 30 de agosto, lo que ocurra primero.";
       const item = existingPhaseItem
         ? await prisma.clickatonPricePhaseItem.update({
             where: { id: existingPhaseItem.id },
@@ -556,8 +567,8 @@ export async function seedArgentina2026Edition(): Promise<{
       phaseItemIds.push(item.id);
       phasesWithShirt.push(phase.name);
     } else if (existingPhaseItem && existingPhaseItem.isIncluded) {
-      // No forzar baja si admin ya configuró Fase 2/3 con remera.
-      // Solo omitir creación; no desactivar configuraciones manuales.
+      // No forzar baja si admin ya configur? Fase 2/3 con remera.
+      // Solo omitir creaci?n; no desactivar configuraciones manuales.
     }
   }
 
@@ -565,7 +576,7 @@ export async function seedArgentina2026Edition(): Promise<{
 
   const finance = await seedFinanceGrantsAndDraft(edition.id);
 
-  // Etapa 10 — timeline DRAFT (sin horarios inventados) + prompts vacíos + grants.
+  // Etapa 10 ??? timeline DRAFT (sin horarios inventados) + prompts vac?os + grants.
   const timelineActor =
     (await prisma.user.findFirst({
       where: { email: { equals: FINANCE_SEED_EMAILS.daniel, mode: "insensitive" } },
@@ -574,7 +585,17 @@ export async function seedArgentina2026Edition(): Promise<{
 
   await prisma.clickatonEdition.update({
     where: { id: edition.id },
-    data: { timezone: CLICKATON_ARGENTINA_2026.timezone },
+    data: {
+      timezone: CLICKATON_ARGENTINA_2026.timezone,
+      startAt: argentina2026EventStartAt(),
+      endAt: argentina2026EventEndAt(),
+      rulesConfig: {
+        termsVersion: CLICKATON_TERMS_VERSION,
+        schedule: ARGENTINA_2026_SCHEDULE,
+        rules: ARGENTINA_2026_RULES,
+        cameraClockWarningEs: ARGENTINA_2026_RULES.cameraClockWarningEs,
+      },
+    },
   });
 
   let timeline = await prisma.clickatonEditionTimeline.findFirst({
@@ -598,8 +619,8 @@ export async function seedArgentina2026Edition(): Promise<{
             name: e.name,
             sequence: e.sequence,
             isCritical: e.isCritical,
-            startsAt: null,
-            endsAt: null,
+            startsAt: e.startsAt ? new Date(e.startsAt) : null,
+            endsAt: e.endsAt ? new Date(e.endsAt) : null,
             visibilityPolicy: "PUBLIC_SAFE",
             triggerMode: "SCHEDULED",
           })),
@@ -611,9 +632,44 @@ export async function seedArgentina2026Edition(): Promise<{
       where: { id: timeline.id },
       data: { timezone: CLICKATON_ARGENTINA_2026.timezone },
     });
+    for (const e of TIMELINE_BASE_EVENTS) {
+      const existing = await prisma.clickatonTimelineEvent.findFirst({
+        where: { timelineId: timeline.id, sequence: e.sequence },
+      });
+      if (existing) {
+        await prisma.clickatonTimelineEvent.update({
+          where: { id: existing.id },
+          data: {
+            eventType: e.eventType,
+            name: e.name,
+            isCritical: e.isCritical,
+            startsAt: e.startsAt ? new Date(e.startsAt) : null,
+            endsAt: e.endsAt ? new Date(e.endsAt) : null,
+          },
+        });
+      } else {
+        await prisma.clickatonTimelineEvent.create({
+          data: {
+            timelineId: timeline.id,
+            eventType: e.eventType,
+            name: e.name,
+            sequence: e.sequence,
+            isCritical: e.isCritical,
+            startsAt: e.startsAt ? new Date(e.startsAt) : null,
+            endsAt: e.endsAt ? new Date(e.endsAt) : null,
+            visibilityPolicy: "PUBLIC_SAFE",
+            triggerMode: "SCHEDULED",
+          },
+        });
+      }
+    }
   }
 
-  const PLACEHOLDER_PROMPTS = 3;
+  const PLACEHOLDER_PROMPTS = ARGENTINA_2026_RULES.totalPrompts;
+  const captureOpen = new Date(S.captureOpenIso);
+  const captureClose = new Date(S.captureCloseIso);
+  const uploadOpen = new Date(S.uploadOpenIso);
+  const uploadClose = new Date(S.uploadCloseIso);
   for (let i = 1; i <= PLACEHOLDER_PROMPTS; i += 1) {
     await prisma.clickatonPrompt.upsert({
       where: { editionId_sequence: { editionId: edition.id, sequence: i } },
@@ -628,15 +684,39 @@ export async function seedArgentina2026Edition(): Promise<{
         minEntries: 0,
         maxEntries: 1,
         allowReplacement: true,
-        required: false,
+        required: i <= ARGENTINA_2026_RULES.competitiveMinValidPrompts,
         gpsMode: "OPTIONAL",
+        captureStartsAt: captureOpen,
+        captureEndsAt: captureClose,
+        uploadStartsAt: uploadOpen,
+        uploadEndsAt: uploadClose,
         createdByUserId: timelineActor?.id ?? null,
       },
       update: {
-        // No inventar textos reales ni horarios en re-runs.
         internalName: `argentina-2026-prompt-${i}`,
         maxEntries: 1,
         gpsMode: "OPTIONAL",
+        required: i <= ARGENTINA_2026_RULES.competitiveMinValidPrompts,
+        captureStartsAt: captureOpen,
+        captureEndsAt: captureClose,
+        uploadStartsAt: uploadOpen,
+        uploadEndsAt: uploadClose,
+      },
+    });
+  }
+
+  for (let slot = 1; slot <= ARGENTINA_2026_RULES.prizeBundleCount; slot += 1) {
+    await prisma.clickatonPrizeBundle.upsert({
+      where: { editionId_slot: { editionId: edition.id, slot } },
+      create: {
+        editionId: edition.id,
+        slot,
+        name: `Premio bundle ${slot}`,
+        description: "Contenido definitivo pendiente de sponsors (no bloquea inscripci?n).",
+        status: "DRAFT",
+      },
+      update: {
+        name: `Premio bundle ${slot}`,
       },
     });
   }
@@ -650,11 +730,12 @@ export async function seedArgentina2026Edition(): Promise<{
       defaultGpsMode: "OPTIONAL",
       allowCrossPromptDuplicate: false,
       reviewCrossParticipantDuplicate: true,
-      rulesDeclarationVersion: "clickaton-rules-draft-v1",
+      rulesDeclarationVersion: CLICKATON_TERMS_VERSION,
     },
     update: {
-      // No habilitar uploads en re-runs.
       uploadsEnabled: false,
+      allowCrossPromptDuplicate: false,
+      rulesDeclarationVersion: CLICKATON_TERMS_VERSION,
     },
   });
 
@@ -801,12 +882,12 @@ export async function seedArgentina2026Edition(): Promise<{
     juryScoring: {
       scoringEnabled: false,
       live: false,
-      note: "Sin invitaciones reales ni scores en seed Clickatón.",
+      note: "Sin invitaciones reales ni scores en seed Clickat?n.",
     },
     rankingResults: {
       rankingEnabled: false,
       published: false,
-      note: "Etapa 15: sin ganadores ni publicación LIVE en seed.",
+      note: "Etapa 15: sin ganadores ni publicaci?n LIVE en seed.",
     },
   };
 }
@@ -826,7 +907,7 @@ async function main() {
         publishLanding,
         note: publishLanding
           ? "Landing publicada con registrationEnabled=false (kill switch cerrado)."
-          : "Commercial edition upserted in safe DRAFT. Remera en Fase 1 via PricePhaseItem. No abrir inscripción.",
+          : "Commercial edition upserted in safe DRAFT. Remera en Fase 1 via PricePhaseItem. No abrir inscripci?n.",
       },
       null,
       2,

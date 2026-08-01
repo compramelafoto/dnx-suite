@@ -27,6 +27,11 @@ const variantAspectClass: Record<PhotoVariant, string> = {
 export type PhotoFrameProps = {
   variant?: PhotoVariant;
   src?: string | null;
+  /**
+   * Portada vertical (9:16). En smartphone se muestra en lugar de `src`.
+   * Desktop sigue usando `src` (horizontal).
+   */
+  srcVertical?: string | null;
   alt: string;
   width?: number;
   height?: number;
@@ -79,6 +84,7 @@ function resolveOverlay(
 export function PhotoFrame({
   variant = "editorial",
   src,
+  srcVertical = null,
   alt,
   width,
   height,
@@ -100,39 +106,70 @@ export function PhotoFrame({
   const resolvedAlt = decorative ? "" : alt;
   const creditLabel = credit ? formatPhotoCredit(credit) : null;
   const hasMeta = Boolean(eyebrow || caption || creditLabel || children);
+  const desktopSrc = src || srcVertical || null;
+  const mobileSrc = srcVertical || src || null;
+  const hasArtDirection = Boolean(src && srcVertical && src !== srcVertical);
+  const aspectClass = hasArtDirection
+    ? variant === "card"
+      ? "aspect-[3/4] md:aspect-video"
+      : variant === "hero"
+        ? "aspect-[9/16] max-h-[min(78vh,40rem)] md:max-h-none md:aspect-[4/5]"
+        : variantAspectClass[variant]
+    : variantAspectClass[variant];
+
+  const imageClass = cn(
+    "h-full w-full transition-[transform,filter] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
+    preset.objectFit === "cover" ? "object-cover" : "object-contain",
+    preset.hoverScale && "group-hover:scale-[1.02]",
+    fill ? "absolute inset-0" : null,
+  );
 
   return (
     <figure
       className={cn(
         "group relative isolate w-full overflow-hidden bg-ck-surface shadow-[var(--ck-photo-shadow)]",
-        variantAspectClass[variant],
+        aspectClass,
         radiusClass[preset.radius],
         preset.bordered && "border border-[var(--ck-photo-border)]",
         overlayStrength !== "none" && overlayClass[overlayStrength],
         className,
       )}
     >
-      {src ? (
-        <Image
-          src={src}
-          alt={resolvedAlt}
-          fill={fill}
-          {...(!fill
-            ? {
-                width: width ?? 1200,
-                height: height ?? 800,
-              }
-            : {})}
-          sizes={sizes ?? preset.defaultSizes}
-          priority={priority}
-          className={cn(
-            "h-full w-full transition-[transform,filter] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
-            preset.objectFit === "cover" ? "object-cover" : "object-contain",
-            preset.hoverScale && "group-hover:scale-[1.02]",
-            fill ? "absolute inset-0" : null,
-          )}
-          style={{ objectPosition }}
-        />
+      {desktopSrc ? (
+        <>
+          <Image
+            src={desktopSrc}
+            alt={resolvedAlt}
+            fill={fill}
+            {...(!fill
+              ? {
+                  width: width ?? 1200,
+                  height: height ?? 800,
+                }
+              : {})}
+            sizes={sizes ?? preset.defaultSizes}
+            priority={priority}
+            className={cn(imageClass, hasArtDirection ? "hidden md:block" : null)}
+            style={{ objectPosition }}
+          />
+          {hasArtDirection && mobileSrc ? (
+            <Image
+              src={mobileSrc}
+              alt={resolvedAlt}
+              fill={fill}
+              {...(!fill
+                ? {
+                    width: width ?? 1080,
+                    height: height ?? 1920,
+                  }
+                : {})}
+              sizes={sizes ?? "(max-width: 767px) 100vw, 0px"}
+              priority={priority}
+              className={cn(imageClass, "md:hidden")}
+              style={{ objectPosition }}
+            />
+          ) : null}
+        </>
       ) : (
         <div
           className="ck-photo-fallback absolute inset-0"

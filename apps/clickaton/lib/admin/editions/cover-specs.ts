@@ -10,7 +10,7 @@ export const EDITION_COVER_HORIZONTAL = {
   /** Tailwind aspect utility */
   aspectClass: "aspect-video",
   /** Usos: banner home desktop, fichas/thumbnails, hero listados */
-  uses: "Banner del Home (desktop), miniaturas y fichas de maratón",
+  uses: "Banner del Home (desktop) y portada de maratón en tablet/desktop",
   /** Zona segura: mantener textos/logos importantes dentro del 80% central */
   safeZoneNote:
     "Dejá márgenes: no pegues textos ni logos a los bordes (se puede recortar levemente en fichas).",
@@ -21,8 +21,8 @@ export const EDITION_COVER_VERTICAL = {
   height: 1920,
   aspectLabel: "9:16",
   aspectClass: "aspect-[9/16]",
-  /** Usos: banner home mobile, stories */
-  uses: "Banner del Home (móvil) y stories",
+  /** Usos: banner home mobile, hero/card maratón en smartphone, stories */
+  uses: "Banner del Home (móvil), portada de maratón en smartphone y stories",
   safeZoneNote:
     "Dejá márgenes arriba/abajo: el selector del banner puede tapar la franja inferior.",
 } as const;
