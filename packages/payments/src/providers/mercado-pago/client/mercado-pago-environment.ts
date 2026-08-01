@@ -13,6 +13,11 @@ export interface MercadoPagoProviderConfig {
   platformId?: string;
   requestTimeoutMs: number;
   maxRetries: number;
+  /**
+   * When true, HTTP writes are allowed with environment=production.
+   * Only Live Checkout Pro adapter should set this; default remains fail-closed.
+   */
+  allowProductionWrites?: boolean;
 }
 
 export const MP_API_BASE_URL = "https://api.mercadopago.com";
@@ -45,12 +50,16 @@ export function createMercadoPagoProviderConfig(
   if (maxRetries < 0 || maxRetries > 8) {
     throw new Error("maxRetries must be between 0 and 8");
   }
+  if (partial.allowProductionWrites && environment !== "production") {
+    throw new Error("allowProductionWrites requires environment=production");
+  }
   return {
     environment,
     accessToken: partial.accessToken.trim(),
     baseUrl: (partial.baseUrl ?? MP_API_BASE_URL).replace(/\/$/, ""),
     requestTimeoutMs,
     maxRetries,
+    ...(partial.allowProductionWrites ? { allowProductionWrites: true } : {}),
     ...(partial.publicKey ? { publicKey: partial.publicKey } : {}),
     ...(partial.applicationId ? { applicationId: partial.applicationId } : {}),
     ...(partial.integratorId ? { integratorId: partial.integratorId } : {}),

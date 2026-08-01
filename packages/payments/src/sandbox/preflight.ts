@@ -293,6 +293,9 @@ export function loadSandboxEnvFromProcess(
     resolve(cwd, "../../services/dnx-mcp/.env.local"),
     resolve(cwd, ".env.local"),
     resolve(cwd, "packages/payments/.env.local"),
+    // Ephemeral token minted by imp05-mint-test-card-token (gitignored .local/)
+    resolve(cwd, ".local/audit-imp05/ephemeral-payment-token.env"),
+    resolve(cwd, "../../.local/audit-imp05/ephemeral-payment-token.env"),
   ];
   const fileEnv: Record<string, string> = {};
   for (const path of candidates) {
@@ -306,6 +309,15 @@ export function loadSandboxEnvFromProcess(
     return fromFile || undefined;
   };
 
+  // Prefer freshly minted ephemeral token over a stale .env.local token.
+  const ephemeralToken =
+    fileEnv.MERCADOPAGO_TEST_PAYMENT_TOKEN?.trim() ||
+    undefined;
+  const ephemeralFromLocalAudit =
+    Boolean(ephemeralToken) &&
+    (existsSync(resolve(cwd, ".local/audit-imp05/ephemeral-payment-token.env")) ||
+      existsSync(resolve(cwd, "../../.local/audit-imp05/ephemeral-payment-token.env")));
+
   return {
     accessToken: get("MERCADOPAGO_TEST_ACCESS_TOKEN") || get("MERCADOPAGO_ACCESS_TOKEN"),
     publicKey: get("MERCADOPAGO_TEST_PUBLIC_KEY"),
@@ -314,7 +326,9 @@ export function loadSandboxEnvFromProcess(
     partnerEmail2: get("MERCADOPAGO_TEST_PARTNER_EMAIL_2"),
     partnerReceiverId: get("MERCADOPAGO_TEST_PARTNER_RECEIVER_ID"),
     partnerReceiverId2: get("MERCADOPAGO_TEST_PARTNER_RECEIVER_ID_2"),
-    paymentToken: get("MERCADOPAGO_TEST_PAYMENT_TOKEN"),
+    paymentToken: ephemeralFromLocalAudit
+      ? ephemeralToken
+      : get("MERCADOPAGO_TEST_PAYMENT_TOKEN"),
     deviceId: get("MERCADOPAGO_TEST_DEVICE_ID"),
     environment: "sandbox",
     baseUrl: MP_API_BASE_URL,

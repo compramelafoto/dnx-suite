@@ -1,8 +1,24 @@
 import type { NextConfig } from "next";
 
 // vercel.live siempre permitido (Vercel lo inyecta en previews; en prod no se carga)
+// Card Payment Brick (homologation) — official MP origins only (no wildcards).
+// Observed Brick frames: sdk / http2.mlstatic / secure-fields / mercadolibre.com (device).
 const scriptSrcValue =
-  "'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://vercel.live";
+  "'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live";
+
+const frameSrcValue = [
+  "https://www.mercadopago.com",
+  "https://www.mercadopago.com.ar",
+  "https://sdk.mercadopago.com",
+  "https://http2.mlstatic.com",
+  "https://secure-fields.mercadopago.com",
+  "https://www.mercadolibre.com",
+  "https://www.youtube.com",
+  "https://www.youtube-nocookie.com",
+  "https://vercel.live",
+  "https://www.google.com",
+  "https://maps.google.com",
+].join(" ");
 
 const csp = [
   "default-src 'self'",
@@ -12,8 +28,9 @@ const csp = [
   `worker-src 'self' 'unsafe-inline' 'unsafe-eval' blob:`,
   "style-src 'self' 'unsafe-inline' https:",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https: https://api.mercadopago.com https://auth.mercadopago.com https://vercel.live wss://vercel.live",
-  "frame-src https://www.mercadopago.com https://www.mercadopago.com.ar https://www.youtube.com https://www.youtube-nocookie.com https://vercel.live https://www.google.com https://maps.google.com",
+  "connect-src 'self' https: https://api.mercadopago.com https://api.mercadolibre.com https://events.mercadopago.com https://auth.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live wss://vercel.live",
+  `frame-src ${frameSrcValue}`,
+  "child-src 'self' blob: https://secure-fields.mercadopago.com https://www.mercadolibre.com https://sdk.mercadopago.com https://http2.mlstatic.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self' https://www.mercadopago.com https://www.mercadopago.com.ar",
@@ -52,6 +69,7 @@ const nextConfig: NextConfig = {
     "@repo/payments",
     "@repo/design-system",
     "@repo/cuanto-cobro-core",
+    "@mercadopago/sdk-react",
   ],
   serverExternalPackages: ["sharp", "sanitize-html"],
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.

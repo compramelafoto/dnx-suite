@@ -39,11 +39,12 @@ function mapDurableToPaymentOrder(order: DurableCheckoutOrder): PaymentOrder {
     externalReference: order.externalReference,
     checkoutUrl: order.checkoutUrl,
     sourceApp: "CLICKATON",
-    sourceType: "REGISTRATION",
+    sourceType: order.sourceType === "STORE_ORDER" ? "STORE_ORDER" : "REGISTRATION",
     sourceId: order.sourceId,
     idempotencyKey: order.idempotencyKey,
     payloadHash: order.payloadHash,
     attempt: order.attempt,
+    statusDetail: order.statusDetail ?? null,
     createdAt: new Date(order.createdAt),
     updatedAt: new Date(order.updatedAt),
     approvedAt: order.approvedAt ? new Date(order.approvedAt) : null,
@@ -156,9 +157,10 @@ export function createDurableDnxPaymentsClient(deps: {
     },
 
     async createOrder(input: CreatePaymentOrderInput): Promise<CreatePaymentOrderResult> {
+      const liveBridge = service.providerMode === "mercado_pago_production";
       const result = await service.createOrder({
         sourceApp: "CLICKATON",
-        sourceType: "REGISTRATION",
+        sourceType: input.sourceType,
         sourceId: input.sourceId,
         idempotencyKey: input.idempotencyKey,
         payloadHash: hashCreateOrderPayload(input),
@@ -171,7 +173,9 @@ export function createDurableDnxPaymentsClient(deps: {
         payerEmail: input.payer?.email,
         checkoutBaseUrl: deps.checkoutBaseUrl,
         notificationUrl: deps.notificationUrl,
-        isTestFixture: deps.isTestFixture,
+        environment: liveBridge ? "production" : "sandbox",
+        isTestFixture: liveBridge ? false : deps.isTestFixture,
+        ...(input.cardPayment ? { cardPayment: input.cardPayment } : {}),
         ...(input.editionFinance
           ? {
               editionFinance: {

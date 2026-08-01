@@ -24,15 +24,24 @@ export class CreateSplitPaymentOrderHandler {
       return cached.result;
     }
 
+    if (!cmd.payerEmail?.trim()) {
+      throw new Error("PAYER_EMAIL_REQUIRED");
+    }
+
     const result = await this.deps.ordersAdapter.createSplitOrder({
       environment: cmd.environment,
       externalReference: cmd.externalReference,
       total: cmd.total,
       distribution: cmd.distribution,
-      payerEmail: cmd.payerEmail,
+      payerEmail: cmd.payerEmail.trim(),
       idempotencyKey: cmd.idempotencyKey,
       deviceSessionId: cmd.deviceSessionId,
       partnerReceiverIds: cmd.partnerReceiverIds,
+      partnerConsentsByRecipientId: cmd.partnerConsentsByRecipientId,
+      items: cmd.items,
+      ...(cmd.statementDescriptor
+        ? { statementDescriptor: cmd.statementDescriptor }
+        : {}),
       metadata: cmd.metadata,
     });
 

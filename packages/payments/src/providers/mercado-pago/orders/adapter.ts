@@ -5,25 +5,32 @@ import type {
   GetProviderOrderResult,
   PaymentProvider,
   ProviderRefundInput,
+  ProviderRefundResult,
 } from "../../types.js";
-import { NotImplementedForSafetyError } from "../../../errors/provider-errors.js";
 import { MercadoPagoHttpClient } from "../client/mercado-pago-http-client.js";
+import { createMercadoPagoOrderRefund } from "../refunds/client.js";
 import type { MercadoPagoProviderConfig } from "../client/mercado-pago-environment.js";
 import { MERCADOPAGO_ORDERS_CAPABILITIES } from "../capabilities.js";
 import type { MpOrderCreateResponse, MpOrderResponse } from "./contracts.js";
 import {
   buildMercadoPagoSplitOrderRequest,
   buildSplitEntriesFromDistribution,
-  inferAmountType,
+  resolveMpAmountType,
   mapMercadoPagoOrderResponse,
 } from "./mapper.js";
-import { validateSplitOrderForMercadoPago } from "./validator.js";
+import { validateMercadoPagoSplitOrder } from "./validator.js";
 import { parseMercadoPagoOrdersWebhook } from "../webhooks/parser.js";
 import { OrderAdapterError } from "./errors.js";
 import {
   assertOrders1nStagingCreateAllowed,
   isOrders1nStagingFlagEnabled,
 } from "./orders-1n-flag.js";
+import type { PartnerConsentEvidence } from "./consent-evidence.js";
+import type { OrderItemInput, ItemsTotalRelation } from "./order-items.js";
+import {
+  DEFAULT_MP_SPLIT_AMOUNT_TYPE_STRATEGY,
+  type MpSplitAmountTypeStrategy,
+} from "./constants.js";
 
 export interface MercadoPagoOrdersAdapterOptions {
   config: MercadoPagoProviderConfig;
@@ -33,6 +40,17 @@ export interface MercadoPagoOrdersAdapterOptions {
   verifyAfterCreate?: boolean;
   /** Maps product recipientId -> MP receiver_id UUID for partners. */
   partnerReceiverIds?: Map<string, string>;
+  /**
+   * Consumer/product statement descriptor fallback (e.g. "DNX", "CLICKATON").
+   * Not hardcoded to a single app inside the package default.
+   */
+  defaultStatementDescriptor?: string;
+  /**
+   * When true, allow testFixture consents and known device placeholders.
+   * Unit tests / controlled sandbox CLI only — never production.
+   */
+  allowTestFixtures?: boolean;
+  mpSplitAmountTypeStrategy?: MpSplitAmountTypeStrategy;
   /**
    * When true (default for staging CLI), require DNX_MP_ORDERS_1N_STAGING_ENABLED
    * + confirm flags before live createSplitOrder HTTP.
@@ -45,6 +63,17 @@ export interface MercadoPagoOrdersAdapterOptions {
 
 export interface CreateSplitOrderInput extends CreateProviderOrderInput {
   partnerReceiverIds: Map<string, string>;
+  /** Required evidence keyed by product recipientId — never invent ACTIVE. */
+  partnerConsentsByRecipientId: Map<string, PartnerConsentEvidence>;
+  /** Required payer email (real buyer). */
+  payerEmail: string;
+  /** Card extract descriptor; falls back to adapter defaultStatementDescriptor. */
+  statementDescriptor?: string;
+  items: OrderItemInput[];
+  itemsTotalRelation?: ItemsTotalRelation;
+  mpSplitAmountTypeStrategy?: MpSplitAmountTypeStrategy;
+  /** Explicit device/session from payer frontend context (Brick later). */
+  deviceSessionId: string;
 }
 
 export class MercadoPagoOrdersAdapter implements PaymentProvider {
@@ -57,6 +86,9 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
   private readonly confirmStaging: boolean;
   private readonly confirmOrdersTest: boolean;
   private readonly config: MercadoPagoProviderConfig;
+  private readonly defaultStatementDescriptor?: string;
+  private readonly allowTestFixtures: boolean;
+  private readonly mpSplitAmountTypeStrategy: MpSplitAmountTypeStrategy;
 
   constructor(opts: MercadoPagoOrdersAdapterOptions) {
     this.http = opts.httpClient ?? new MercadoPagoHttpClient(opts.config);
@@ -67,6 +99,10 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
     this.enforceOrders1nStagingGate = opts.enforceOrders1nStagingGate ?? false;
     this.confirmStaging = opts.confirmStaging ?? false;
     this.confirmOrdersTest = opts.confirmOrdersTest ?? false;
+    this.defaultStatementDescriptor = opts.defaultStatementDescriptor;
+    this.allowTestFixtures = opts.allowTestFixtures ?? false;
+    this.mpSplitAmountTypeStrategy =
+      opts.mpSplitAmountTypeStrategy ?? DEFAULT_MP_SPLIT_AMOUNT_TYPE_STRATEGY;
   }
 
   capabilities() {
@@ -74,16 +110,13 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
   }
 
   async createOrder(input: CreateProviderOrderInput): Promise<CreateProviderOrderResult> {
+    void input;
     throw new OrderAdapterError(
       "Use createSplitOrder with partnerReceiverIds — ownerUserId is server-side only",
     );
   }
 
   async createSplitOrder(input: CreateSplitOrderInput): Promise<CreateProviderOrderResult> {
-    if (!input.deviceSessionId?.trim()) {
-      throw new OrderAdapterError("deviceSessionId is required for Mercado Pago split orders");
-    }
-
     if (this.enforceOrders1nStagingGate) {
       const gate = assertOrders1nStagingCreateAllowed({
         flagEnabled: isOrders1nStagingFlagEnabled(),
@@ -104,27 +137,45 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
     }
 
     const partnerReceiverIds = input.partnerReceiverIds;
-    const amountType = inferAmountType(input.distribution);
+    const strategy =
+      input.mpSplitAmountTypeStrategy ?? this.mpSplitAmountTypeStrategy;
+    const amountType = resolveMpAmountType(input.distribution, strategy);
     const entries = buildSplitEntriesFromDistribution(
       input.distribution,
       this.ownerUserId,
       partnerReceiverIds,
+      {
+        partnerConsentsByRecipientId: input.partnerConsentsByRecipientId,
+        amountType,
+      },
     );
 
-    validateSplitOrderForMercadoPago({
-      total: input.total,
-      amountType,
-      entries,
-      deviceSessionId: input.deviceSessionId,
-    });
-
-    const built = buildMercadoPagoSplitOrderRequest({
+    const validated = validateMercadoPagoSplitOrder({
       externalReference: input.externalReference,
       total: input.total,
       amountType,
       entries,
       deviceSessionId: input.deviceSessionId,
-      ...(input.payerEmail ? { payerEmail: input.payerEmail } : {}),
+      payerEmail: input.payerEmail,
+      statementDescriptor: input.statementDescriptor,
+      defaultStatementDescriptor: this.defaultStatementDescriptor,
+      items: input.items,
+      itemsTotalRelation: input.itemsTotalRelation ?? "informative",
+      partnerReceiverIds,
+      partnerConsentsByRecipientId: input.partnerConsentsByRecipientId,
+      ownerUserId: this.ownerUserId,
+      allowTestFixtures: this.allowTestFixtures,
+    });
+
+    const built = buildMercadoPagoSplitOrderRequest({
+      externalReference: validated.externalReference,
+      total: input.total,
+      amountType,
+      entries,
+      deviceSessionId: validated.deviceSessionId,
+      payerEmail: validated.payerEmail,
+      statementDescriptor: validated.statementDescriptor,
+      items: input.items,
       ...(input.metadata ? { metadata: input.metadata } : {}),
       ...(input.paymentToken ? { paymentToken: input.paymentToken } : {}),
       ...(input.paymentMethodId
@@ -132,6 +183,7 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
         : input.paymentToken
           ? { paymentMethodId: "visa" }
           : {}),
+      ...(input.installments != null ? { installments: input.installments } : {}),
     });
 
     const response = await this.http.request<MpOrderCreateResponse>({
@@ -185,10 +237,27 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
     };
   }
 
-  async refund(_input: ProviderRefundInput): Promise<{ providerRefundId: string }> {
-    throw new NotImplementedForSafetyError(
-      "Mercado Pago split order refunds are not implemented for safety in sandbox adapter",
-    );
+  /**
+   * Orders API: POST /v1/orders/{order_id}/refund
+   * Total = empty body; partial = transactions[{id,amount}].
+   * Sandbox write guards enforced by HTTP client.
+   */
+  async refund(input: ProviderRefundInput): Promise<ProviderRefundResult> {
+    const result = await createMercadoPagoOrderRefund(this.http, {
+      providerOrderId: input.providerOrderId,
+      idempotencyKey: input.idempotencyKey,
+      ...(input.amount ? { amount: input.amount } : {}),
+      ...(input.providerTransactionId
+        ? { providerTransactionId: input.providerTransactionId }
+        : {}),
+    });
+    return {
+      providerRefundId: result.providerRefundIds[0] ?? result.providerOrderId,
+      providerRefundIds: result.providerRefundIds,
+      orderStatus: result.orderStatus,
+      ...(result.statusDetail ? { statusDetail: result.statusDetail } : {}),
+      rawSanitized: result.rawSanitized,
+    };
   }
 
   async parseWebhook(

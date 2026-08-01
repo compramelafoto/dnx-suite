@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import type { PhotoAsset } from "@/lib/photography";
 import {
-  galleryStatusLabels,
-  resultsStatusLabels,
-  type PublicMarathon,
-} from "@/types/marathon";
+  juryToneToBadgeVariant,
+  presentGalleryStatus,
+  presentPublicResultsStatus,
+} from "@/lib/jury-results/ui/jury-results-status-presentation";
+import type { PublicMarathon } from "@/types/marathon";
 
 type MarathonResultsPlaceholderProps = {
   marathon: PublicMarathon;
@@ -26,6 +27,8 @@ function galleryAssetsFromMarathon(marathon: PublicMarathon): PhotoAsset[] {
 
 export function MarathonResultsPlaceholder({ marathon }: MarathonResultsPlaceholderProps) {
   const galleryImages = galleryAssetsFromMarathon(marathon);
+  const results = presentPublicResultsStatus(marathon.resultsStatus);
+  const gallery = presentGalleryStatus(marathon.galleryStatus);
 
   return (
     <>
@@ -34,28 +37,36 @@ export function MarathonResultsPlaceholder({ marathon }: MarathonResultsPlacehol
           <SectionHeader
             eyebrow="Después de la maratón"
             title="Resultados y galería"
-            description="Estos bloques se activan cuando FotoRank publique resultados o galería. Hoy solo se muestra el estado."
+            description="Los resultados públicos aparecen cuando la organización los publica. Mientras tanto solo se muestra el estado, sin ranking provisional como definitivo."
             titleId="marathon-results-title"
           />
           <div className="mt-10 grid gap-6 md:grid-cols-2">
-            <Card>
+            <Card className="space-y-3">
               <p className="ck-label text-ck-text-muted">Resultados</p>
-              <div className="mt-3">
-                <Badge variant="neutral">{resultsStatusLabels[marathon.resultsStatus]}</Badge>
-              </div>
-              <p className="ck-body-sm mt-4 text-ck-text-secondary">
-                Cuando el estado sea “Publicados”, Clickatón mostrará el ranking y reconocimientos
-                públicos de la edición.
+              <Badge variant={juryToneToBadgeVariant(results.tone)}>{results.label}</Badge>
+              <p className="ck-body-sm leading-relaxed text-ck-text-secondary">
+                {results.description}
               </p>
+              {results.publiclyVisible ? (
+                <p className="ck-body-sm text-ck-text-muted">
+                  Cuando Clickatón muestre el ranking, se presentará como resultado publicado — no
+                  como un cálculo preliminar.
+                </p>
+              ) : (
+                <p className="ck-body-sm text-ck-text-muted">
+                  Todavía no se muestra ranking ni ganadores. No confundas un estado parcial con un
+                  resultado oficial.
+                </p>
+              )}
             </Card>
-            <Card>
+            <Card className="space-y-3">
               <p className="ck-label text-ck-text-muted">Galería</p>
-              <div className="mt-3">
-                <Badge variant="warning">{galleryStatusLabels[marathon.galleryStatus]}</Badge>
-              </div>
-              <p className="ck-body-sm mt-4 text-ck-text-secondary">
-                La galería pública solo incluirá fotografías autorizadas. No se usan imágenes
-                externas en esta etapa.
+              <Badge variant={juryToneToBadgeVariant(gallery.tone)}>{gallery.label}</Badge>
+              <p className="ck-body-sm leading-relaxed text-ck-text-secondary">
+                {gallery.description}
+              </p>
+              <p className="ck-body-sm text-ck-text-muted">
+                La galería pública solo incluirá fotografías autorizadas.
               </p>
             </Card>
           </div>

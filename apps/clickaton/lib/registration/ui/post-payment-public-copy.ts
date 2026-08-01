@@ -4,13 +4,13 @@
  */
 export const POST_PAYMENT_BRAND = "#F9B114";
 
-export const POST_PAYMENT_TITLE = "¡TU INSCRIPCIÓN ESTÁ CONFIRMADA!";
+export const POST_PAYMENT_TITLE = "Tu inscripción está confirmada";
 export const POST_PAYMENT_SUBTITLE =
-  "Ya sos parte de la primera edición de Clickatón.";
-export const POST_PAYMENT_PAYMENT_SEAL = "PAGO APROBADO";
+  "Ya sos parte de la primera edición de Clickatón. Tu lugar ya está reservado.";
+export const POST_PAYMENT_PAYMENT_SEAL = "Pago aprobado";
 
 export const POST_PAYMENT_ACCREDITATION = {
-  heading: "ACREDITACIÓN",
+  heading: "Acreditación",
   venueName: "Complejo Cultural Fontanarrosa",
   city: "Rosario",
   dateLabel: "19 de septiembre de 2026",
@@ -18,7 +18,7 @@ export const POST_PAYMENT_ACCREDITATION = {
   talkWindow: "16:00 a 16:30",
   presentWithQr:
     "Presentate con tu código QR desde el celular o impreso.",
-  /** Dirección postal exacta no confirmada en configuración. */
+  /** Dirección postal exacta no confirmada en configuración (no mostrar flag técnico en UI). */
   venueAddressConfigRequired: true as const,
   venueAddressConfigFlag: "VENUE ADDRESS HUMAN CONFIG REQUIRED",
 } as const;

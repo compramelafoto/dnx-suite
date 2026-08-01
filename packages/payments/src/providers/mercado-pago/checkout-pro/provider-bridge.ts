@@ -24,16 +24,18 @@ export function createManualClickatonProviderBridge(): ClickatonCheckoutProvider
   };
 }
 
-export function createMercadoPagoTestClickatonProviderBridge(input: {
+function buildCheckoutProCollectorBridge(input: {
   adapter: MercadoPagoCheckoutProTestAdapter;
+  mode: "mercado_pago_test" | "mercado_pago_production";
 }): ClickatonCheckoutProviderBridge {
   const adapter = input.adapter;
+  const mode = input.mode;
   return {
-    mode: "mercado_pago_test",
+    mode,
     providerName: "mercadopago_preferences_legacy",
     async createCheckout(params) {
       if (!params.notificationUrl) {
-        throw new Error("notification_url_required_for_mercado_pago_test");
+        throw new Error(`notification_url_required_for_${mode}`);
       }
       if (!params.collectorAccessToken) {
         throw new Error(
@@ -122,26 +124,29 @@ export function createMercadoPagoTestClickatonProviderBridge(input: {
   };
 }
 
-export function resolveClickatonPaymentsProviderMode(
-  raw: string | undefined,
-): "manual" | "mercado_pago_test" | "mercado_pago_orders_test" {
-  const v = (raw ?? "manual").trim().toLowerCase();
-  if (v === "mercado_pago_test" || v === "mercadopago_test" || v === "mp_test") {
-    return "mercado_pago_test";
-  }
-  if (
-    v === "mercado_pago_orders_test" ||
-    v === "mercadopago_orders_test" ||
-    v === "mp_orders_test" ||
-    v === "orders_1n_test"
-  ) {
-    return "mercado_pago_orders_test";
-  }
-  if (v === "manual" || v === "" || v === "fake") return "manual";
-  if (v === "mercado_pago_production" || v === "production") {
-    throw new Error("mercado_pago_production_forbidden");
-  }
-  throw new Error(`unknown_clickaton_payments_provider:${v}`);
+export function createMercadoPagoTestClickatonProviderBridge(input: {
+  adapter: MercadoPagoCheckoutProTestAdapter;
+}): ClickatonCheckoutProviderBridge {
+  return buildCheckoutProCollectorBridge({
+    adapter: input.adapter,
+    mode: "mercado_pago_test",
+  });
 }
+
+/** Checkout Pro LIVE (N=1 collector OAuth). Only wire when LIVE flag + Production runtime. */
+export function createMercadoPagoProductionClickatonProviderBridge(input: {
+  adapter: MercadoPagoCheckoutProTestAdapter;
+}): ClickatonCheckoutProviderBridge {
+  return buildCheckoutProCollectorBridge({
+    adapter: input.adapter,
+    mode: "mercado_pago_production",
+  });
+}
+
+export {
+  resolveClickatonPaymentsProviderModeControlled as resolveClickatonPaymentsProviderMode,
+  type ClickatonPaymentsProviderMode,
+  type ResolveProviderModeOptions,
+} from "../../../application/services/clickaton-checkout/live-payments-flag";
 
 export { createMercadoPagoCheckoutProTestAdapter };

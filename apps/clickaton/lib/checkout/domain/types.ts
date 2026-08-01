@@ -17,7 +17,7 @@ export type DnxNormalizedPaymentStatus =
 
 export type CreatePaymentOrderInput = {
   sourceApp: "CLICKATON";
-  sourceType: "REGISTRATION";
+  sourceType: "REGISTRATION" | "STORE_ORDER";
   sourceId: string;
   idempotencyKey: string;
   amountMinor: number;
@@ -37,6 +37,25 @@ export type CreatePaymentOrderInput = {
     snapshot: import("@repo/payments/edition-checkout").EditionCheckoutFinanceSnapshot;
     collectorAccessToken?: string;
   };
+  /**
+   * Card Payment Brick submission (Orders 1:N).
+   * Browser amounts are ignored for charging — server reconstructs price.
+   */
+  cardPayment?: import("@repo/payments/frontend").CardPaymentSubmission;
+};
+
+export type CardPaymentCheckoutResultDto = {
+  registrationId: string;
+  paymentOrderId: string;
+  providerOrderId: string | null;
+  amountMinor: number;
+  currency: "ARS";
+  status: DnxNormalizedPaymentStatus;
+  uiState: "APPROVED" | "PROCESSING" | "REJECTED" | "ERROR";
+  statusDetail: string | null;
+  userMessage: string;
+  redirectPath: string;
+  reused: boolean;
 };
 
 export type PaymentOrder = {
@@ -48,11 +67,13 @@ export type PaymentOrder = {
   externalReference: string;
   checkoutUrl: string | null;
   sourceApp: "CLICKATON";
-  sourceType: "REGISTRATION";
+  sourceType: "REGISTRATION" | "STORE_ORDER";
   sourceId: string;
   idempotencyKey: string;
   payloadHash: string;
   attempt: number;
+  /** Mercado Pago status_detail when available (Orders Brick path). */
+  statusDetail?: string | null;
   createdAt: Date;
   updatedAt: Date;
   approvedAt: Date | null;
@@ -75,6 +96,8 @@ export type CheckoutRedirectDto = {
   status: DnxNormalizedPaymentStatus;
   reused: boolean;
   expiresAt: Date | null;
+  /** Provider status_detail for Brick UX mapping (never shown raw as primary copy). */
+  statusDetail?: string | null;
 };
 
 export type RegistrationPaymentStatusDto = {
@@ -142,4 +165,5 @@ export type CheckoutObservabilityEvent =
   | "conflict"
   | "invalid_amount"
   | "invalid_currency"
-  | "finance_snapshot_skipped";
+  | "finance_snapshot_skipped"
+  | "price_tamper_ignored";

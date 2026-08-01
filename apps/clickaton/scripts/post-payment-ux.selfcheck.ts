@@ -1,5 +1,6 @@
 /**
  * 10G.9 — Offline selfcheck: post-payment UX copy, email HTML, Resend classification.
+ * Actualizado Etapa 02: copy humano (sin enums/jerga técnica en UI).
  */
 import assert from "node:assert/strict";
 import {
@@ -20,11 +21,12 @@ import {
 async function main() {
   let checks = 0;
 
-  // 1 — confirmed success copy
-  assert.equal(POST_PAYMENT_TITLE, "¡TU INSCRIPCIÓN ESTÁ CONFIRMADA!");
+  // 1 — confirmed success copy (humano)
+  assert.equal(POST_PAYMENT_TITLE, "Tu inscripción está confirmada");
   assert.match(POST_PAYMENT_SUBTITLE, /primera edición/i);
-  assert.equal(POST_PAYMENT_PAYMENT_SEAL, "PAGO APROBADO");
-  checks += 3;
+  assert.equal(POST_PAYMENT_PAYMENT_SEAL, "Pago aprobado");
+  assert.doesNotMatch(POST_PAYMENT_TITLE, /CONFIRMED|PENDING|FAILED/i);
+  checks += 4;
 
   // 3 — Fontanarrosa
   assert.equal(POST_PAYMENT_ACCREDITATION.venueName, "Complejo Cultural Fontanarrosa");
@@ -57,11 +59,13 @@ async function main() {
   });
   assert.match(built.text, /CKA26-00099/);
   assert.match(built.text, /Fontanarrosa/);
-  assert.match(built.text, /PAGO APROBADO/);
-  assert.match(built.html, /VER MI QR DE ACREDITACIÓN/);
-  assert.match(built.html, /CREAR \/ ACTIVAR MI CUENTA DNX/);
+  assert.match(built.text, /Pago aprobado/);
+  assert.match(built.html, /Ver mi QR de acreditación/);
+  assert.match(built.html, /Creá tu cuenta para ver el QR/);
   assert.match(built.html, /Bases y Condiciones/);
-  checks += 6;
+  assert.doesNotMatch(built.html, /VENUE ADDRESS HUMAN CONFIG REQUIRED/);
+  assert.doesNotMatch(built.html, /webhook|DNX Payments|Split 1:N/i);
+  checks += 8;
 
   // 7 / 8 / 9 — Resend classifications
   assert.equal(classifyResendStatus({ last_event: "delivered" }), "DELIVERED");

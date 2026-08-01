@@ -1,3 +1,5 @@
+import { createClickatonTemplateExampleData } from "@repo/template-engine/clickaton";
+
 /**
  * Valores simulados para variables dinámicas en el lienzo del editor (diseño).
  * En pedido/preview real los datos vienen del contexto (p. ej. logo subido al dar de alta la escuela).
@@ -17,9 +19,11 @@ const SCHOOL_LOGO_PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" wid
 export const TEMPLATE_V2_EDITOR_SCHOOL_LOGO_PLACEHOLDER =
   "data:image/svg+xml;charset=utf-8," + encodeURIComponent(SCHOOL_LOGO_PLACEHOLDER_SVG);
 
+const clickatonFlat = createClickatonTemplateExampleData();
+
 /**
  * Valores de ejemplo en el lienzo del editor para que `{variables}` se vean resueltas
- * (no solo el marcador o "—") cuando el bloque no está en edición.
+ * (school + clickaton; el catálogo UI se filtra por metadata.product).
  */
 export const TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES: Record<string, unknown> = {
   "branding.schoolLogoUrl": TEMPLATE_V2_EDITOR_SCHOOL_LOGO_PLACEHOLDER,
@@ -31,4 +35,7 @@ export const TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES: Record<string, unknown> = {
   "order.fulfillmentQrUrl": "https://ejemplo.com/escolar/entrega/preview",
   "photographer.displayName": "Estudio Fotográfico",
   "event.dateFormatted": "17/04/2026",
+  ...Object.fromEntries(
+    Object.entries(clickatonFlat).filter(([k]) => k.includes("."))
+  ),
 };

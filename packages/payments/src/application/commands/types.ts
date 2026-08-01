@@ -1,6 +1,8 @@
 import type { PaymentEnvironment } from "../../contracts/primitives.js";
 import type { Money } from "../../money/types.js";
 import type { CalculatedDistribution } from "../../distribution/types.js";
+import type { PartnerConsentEvidence } from "../../providers/mercado-pago/orders/consent-evidence.js";
+import type { OrderItemInput } from "../../providers/mercado-pago/orders/order-items.js";
 
 export interface InviteSplitRecipientsCommand {
   environment: PaymentEnvironment;
@@ -23,10 +25,13 @@ export interface CreateSplitPaymentOrderCommand {
   externalReference: string;
   total: Money;
   distribution: CalculatedDistribution;
-  payerEmail?: string;
+  payerEmail: string;
   idempotencyKey: string;
   deviceSessionId: string;
   partnerReceiverIds: Map<string, string>;
+  partnerConsentsByRecipientId: Map<string, PartnerConsentEvidence>;
+  statementDescriptor?: string;
+  items: OrderItemInput[];
   metadata?: Record<string, string>;
 }
 

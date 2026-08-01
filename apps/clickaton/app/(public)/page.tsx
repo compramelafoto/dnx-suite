@@ -15,12 +15,8 @@ import { listPublicMarathons } from "@/data/public-marathons/service";
 import { buildHomeSpotlightSlides } from "@/lib/home/build-spotlight-slides";
 
 export default async function HomePage() {
-  let editions: Awaited<ReturnType<typeof listPublicMarathons>> = [];
-  try {
-    editions = await listPublicMarathons();
-  } catch {
-    editions = [];
-  }
+  // Fallos de DB/fuente no se disfrazan como agenda vacía: van al error boundary.
+  const editions = await listPublicMarathons();
   const spotlight = await buildHomeSpotlightSlides(editions);
 
   return (

@@ -1,0 +1,44 @@
+{
+  "name": "@dnx/dev-orchestrator",
+  "version": "0.1.0",
+  "description": "DNX Dev Orchestrator — autonomous single-task loop (local worktree only; no commit/push/deploy)",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "dnx-orch": "./bin/dnx-orch.mjs"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx src/cli/index.ts",
+    "dnx-orch": "tsx src/cli/index.ts",
+    "start": "tsx src/cli/index.ts",
+    "typecheck": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@openai/agents": "^0.14.1",
+    "dotenv": "^17.4.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.19.1",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "tsx": "^4.22.4",
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.62.1",
+    "vitest": "^3.2.4"
+  }
+}

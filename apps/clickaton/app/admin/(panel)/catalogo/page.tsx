@@ -51,17 +51,14 @@ export default async function AdminCatalogHubPage() {
   return (
     <div className="space-y-8">
       <AdminPageHeader
-        title="Catálogo"
-        description="Productos, variantes, entradas y composición de kits."
-        breadcrumbs={[
-          { label: "Admin", href: adminRoutes.dashboard },
-          { label: "Catálogo" },
-        ]}
+        title="Productos y kits"
+        description="Configurá los artículos incluidos con la inscripción y las opciones que deberá elegir cada participante."
+        breadcrumbs={[{ label: "Productos y kits" }]}
       />
 
       <nav aria-label="Secciones del catálogo" className="flex flex-wrap gap-3">
         <Button href={catalogAdminRoutes.hub} variant="secondary">
-          Hub
+          Resumen
         </Button>
         <Button href={catalogAdminRoutes.products} variant="secondary">
           Productos
@@ -74,11 +71,12 @@ export default async function AdminCatalogHubPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card variant="outlined" className="flex flex-col gap-4 p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <h2 className="text-lg font-semibold text-ck-text">Productos y variantes</h2>
+            <h2 className="text-lg font-semibold text-ck-text">Productos y talles</h2>
             <Badge variant="success">Disponible</Badge>
           </div>
           <p className="flex-1 text-sm text-ck-text-secondary">
-            Merchandising, variantes (talles, colores, formatos), stock y precios opcionales.
+            Remeras y artículos con talles u opciones, stock e imágenes. La venta separada todavía
+            no está disponible como tienda pública.
           </p>
           <Button href={catalogAdminRoutes.products} variant="primary" className="w-fit">
             Administrar productos

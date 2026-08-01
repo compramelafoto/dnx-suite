@@ -40,6 +40,10 @@ yarn-error.log*
 .DS_Store
 *.pem
 
+# Local generated previews / temp artifacts
+.tmp/
+**/.tmp/
+
 
 # Judge avatar uploads (local dev)
 apps/fotorank/public/uploads/judges/*

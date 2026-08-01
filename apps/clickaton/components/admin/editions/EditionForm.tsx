@@ -99,7 +99,7 @@ export function EditionForm({
 
         <Field
           id="slug"
-          label="Slug"
+          label="Identificador de URL"
           required
           hint="URL interna: minúsculas, números y guiones."
           error={state?.errors?.slug}
@@ -139,7 +139,12 @@ export function EditionForm({
           />
         </Field>
 
-        <Field id="currency" label="Moneda" hint="MVP: ARS" error={state?.errors?.currency}>
+        <Field
+          id="currency"
+          label="Moneda"
+          hint="Por ahora se utiliza ARS (pesos argentinos)."
+          error={state?.errors?.currency}
+        >
           <Input
             name="currency"
             value={values.currency}
@@ -201,7 +206,12 @@ export function EditionForm({
               onChange={(e) => updateField("provinceOrState", e.target.value)}
             />
           </Field>
-          <Field id="country" label="País (ISO)" error={state?.errors?.country}>
+          <Field
+            id="country"
+            label="País"
+            hint="Código de país, por ejemplo AR."
+            error={state?.errors?.country}
+          >
             <Input
               name="country"
               value={values.country}

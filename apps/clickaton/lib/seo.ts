@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
 import type { AppRoute } from "@/config/navigation";
 import { EDITION_COVER_HORIZONTAL } from "@/lib/admin/editions/cover-specs";
+import { resolveClickatonPublicOrigin } from "@/lib/site/public-origin";
 
 type PageMetaInput = {
   title: string;
@@ -33,7 +34,10 @@ export function toAbsolutePublicUrl(image?: string | null): string | null {
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
   if (trimmed.startsWith("//")) return `https:${trimmed}`;
   try {
-    return new URL(trimmed.startsWith("/") ? trimmed : `/${trimmed}`, siteConfig.url).toString();
+    return new URL(
+      trimmed.startsWith("/") ? trimmed : `/${trimmed}`,
+      resolveClickatonPublicOrigin(),
+    ).toString();
   } catch {
     return null;
   }
@@ -49,7 +53,7 @@ export function buildPageMetadata({
   imageWidth,
   imageHeight,
 }: PageMetaInput): Metadata {
-  const url = new URL(path, siteConfig.url).toString();
+  const url = new URL(path, resolveClickatonPublicOrigin()).toString();
   const absoluteImage = toAbsolutePublicUrl(image) ?? DEFAULT_OG.url;
   const hasCustomImage = Boolean(toAbsolutePublicUrl(image));
   const ogImage = {

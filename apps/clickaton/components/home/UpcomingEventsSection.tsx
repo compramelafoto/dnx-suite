@@ -15,12 +15,8 @@ import { marathonPath, marathonRegistrationPath } from "@/config/navigation";
  */
 export async function UpcomingEventsSection() {
   const { upcoming } = homeContent;
-  let editions: Awaited<ReturnType<typeof listPublicMarathons>> = [];
-  try {
-    editions = (await listPublicMarathons()).filter((m) => !m.isDemo);
-  } catch {
-    editions = [];
-  }
+  // Empty state solo cuando la consulta responde sin ediciones (no ante error de DB).
+  const editions = (await listPublicMarathons()).filter((m) => !m.isDemo);
 
   return (
     <Section id={upcoming.id} tone="raised" aria-labelledby="upcoming-title">
@@ -81,7 +77,7 @@ export async function UpcomingEventsSection() {
                   ) : null}
                 </div>
                 <p className="text-xs text-ck-text-muted">
-                  Entorno de prueba — no se realiza un cobro real.{" "}
+                  Inscripción sujeta a cupo y pago según la fase vigente.{" "}
                   <Link href={marathonPath(edition.slug)} className="text-ck-yellow hover:underline">
                     Detalles
                   </Link>

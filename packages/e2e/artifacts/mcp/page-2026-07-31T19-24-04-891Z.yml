@@ -1,0 +1,38 @@
+- main [ref=e2]:
+  - generic [ref=e17]:
+    - generic [ref=e18]:
+      - heading "¿Cómo querés pagar?" [level=1] [ref=e19]
+      - generic [ref=e20]:
+        - heading "Con tu cuenta de Mercado Pago" [level=2] [ref=e22]
+        - list "login" [ref=e24]:
+          - listitem [ref=e25] [cursor=pointer]:
+            - button "Ingresar con mi cuenta" [ref=e26]
+            - generic [ref=e27]: Ingresar con mi cuenta
+        - heading "Sin cuenta de Mercado Pago" [level=2] [ref=e49]
+        - list "other-options" [ref=e51]:
+          - listitem [ref=e52] [cursor=pointer]:
+            - button "Tarjeta Crédito, débito o prepaga" [ref=e53]:
+              - generic [ref=e63]:
+                - generic [ref=e64]: Tarjeta
+                - paragraph [ref=e66]: Crédito, débito o prepaga
+          - listitem [ref=e71] [cursor=pointer]:
+            - button "2 tarjetas de crédito" [ref=e72]
+          - listitem [ref=e91] [cursor=pointer]:
+            - button "Efectivo Pago Fácil y Rapipago" [ref=e92]:
+              - generic [ref=e104]:
+                - generic [ref=e105]: Efectivo
+                - paragraph [ref=e107]: Pago Fácil y Rapipago
+        - link [ref=e112] [cursor=pointer]:
+          - /url: https://maratonfotografica.com/maratones/clickaton-argentina-2026/inscripcion/pago/error?registrationId=cms9byf9d0001xpj73om342k6&t=v2.1785526986605.nh-EOn-kzJQmIEMObBxQgC6a6XcUlYSuCUQS75eTWco&collection_id=null&collection_status=null&payment_id=null&status=null&external_reference=clickaton:registration:cms9byf9d0001xpj73om342k6&payment_type=null&merchant_order_id=null&preference_id=97484805-2c533cf9-2ff5-4ab9-88da-a4eb4e8ce223&site_id=MLA&processing_mode=aggregator&merchant_account_id=null
+    - generic [ref=e116]:
+      - generic [ref=e117]: DNX Fotografia & Video
+      - generic [ref=e123]:
+        - heading "Detalles del pago" [level=2] [ref=e124]
+        - generic [ref=e126]:
+          - generic [ref=e127]: Inscripción Clickatón — cms9byf9
+          - img [ref=e131]:
+            - generic [ref=e132]: $ 25.000
+    - generic [ref=e134]:
+      - separator [ref=e135]
+      - generic [ref=e136]: Procesado por Mercado Pago.
+      - text: Procesado por Mercado Pago.

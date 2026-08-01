@@ -99,7 +99,7 @@ export function TicketCompositionPanel({ ticketTypeId, items, products }: Props)
             <thead className="border-b border-ck-border bg-ck-bg/50 text-ck-text-secondary">
               <tr>
                 <th className="px-4 py-3 font-medium">Producto</th>
-                <th className="px-4 py-3 font-medium">Variante / SKU</th>
+                <th className="px-4 py-3 font-medium">Talle u opción</th>
                 <th className="px-4 py-3 font-medium">Cantidad</th>
                 <th className="px-4 py-3 font-medium">Stock</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
@@ -158,7 +158,6 @@ export function TicketCompositionPanel({ ticketTypeId, items, products }: Props)
                       ) : variant ? (
                         <div>
                           <div>{variant.name}</div>
-                          <div className="font-mono text-xs">{variant.sku}</div>
                           <div className="text-xs text-ck-text-muted">
                             {displayPrice(variant.priceAmount, variant.currency)}
                           </div>

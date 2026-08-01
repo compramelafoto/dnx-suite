@@ -62,8 +62,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     isLabRoute ||
     isFotografoPanelRoute ||
     isDashboardPanelRoute ||
-    isOrganizadorPanelRoute
+    isOrganizadorPanelRoute ||
+    isAdminRoute
   ) {
+    // Admin tiene su propio shell (AdminLayout): sin Header/Footer marketing.
     return <>{children}</>;
   }
 

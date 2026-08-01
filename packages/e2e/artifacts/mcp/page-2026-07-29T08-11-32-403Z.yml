@@ -1,0 +1,130 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - paragraph [ref=e4]:
+      - generic [ref=e5]: miércoles, 29 de julio de 2026
+    - paragraph [ref=e6]:
+      - generic [ref=e7]: Rosario · Santa Fe
+      - generic [ref=e8]: Última actualización 05:11
+  - banner [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - link "Info Spot — inicio" [ref=e12] [cursor=pointer]:
+          - /url: /
+          - img "Info Spot" [ref=e13]
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - generic [ref=e16]: Buscar (próximamente)
+            - searchbox "Buscar (próximamente)" [disabled] [ref=e21]
+          - link "Publicar evento" [ref=e22] [cursor=pointer]:
+            - /url: /publicar-evento
+          - link "Ingresar" [ref=e24] [cursor=pointer]:
+            - /url: /ingresar
+      - navigation "Principal" [ref=e25]:
+        - link "Noticias" [ref=e26] [cursor=pointer]:
+          - /url: /noticias
+        - link "Eventos" [ref=e27] [cursor=pointer]:
+          - /url: /eventos
+        - link "Colaboradores" [ref=e28] [cursor=pointer]:
+          - /url: /colaboradores
+        - link "Deportes" [ref=e29] [cursor=pointer]:
+          - /url: /categorias/deportes
+        - link "Cultura" [ref=e30] [cursor=pointer]:
+          - /url: /categorias/cultura
+        - link "Contacto" [ref=e31] [cursor=pointer]:
+          - /url: /contacto
+  - main [ref=e32]:
+    - generic [ref=e34]:
+      - generic [ref=e35]:
+        - heading "Bienvenido a Info Spot" [level=1] [ref=e36]
+        - paragraph [ref=e37]: Acceso con identidad DNX Suite (Google o email y contraseña).
+      - generic [ref=e39]:
+        - status [ref=e40]: Para continuar, ingresá con tu cuenta.
+        - link "Continuar con Google" [ref=e41] [cursor=pointer]:
+          - /url: /api/auth/google?next=%2F
+        - separator "o" [ref=e47]
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - generic [ref=e53]: Email
+            - textbox "Email" [ref=e54]:
+              - /placeholder: tu@email.com
+          - generic [ref=e55]:
+            - generic [ref=e56]: Contraseña
+            - textbox "Contraseña" [ref=e57]
+          - generic [ref=e58]:
+            - checkbox "Recordarme en este dispositivo" [ref=e59]
+            - text: Recordarme en este dispositivo
+          - button "Ingresar" [ref=e60]
+          - paragraph [ref=e61]:
+            - link "¿Olvidaste tu contraseña?" [ref=e62] [cursor=pointer]:
+              - /url: /recuperar
+  - contentinfo [ref=e63]:
+    - generic [ref=e64]:
+      - generic [ref=e65]:
+        - link "Info Spot — inicio" [ref=e66] [cursor=pointer]:
+          - /url: /
+          - img "Info Spot" [ref=e67]
+        - paragraph [ref=e68]: Medio digital argentino. Cobertura deportiva, cultural y social con mirada fotográfica.
+      - generic [ref=e69]:
+        - paragraph [ref=e70]: Navegación
+        - list [ref=e71]:
+          - listitem [ref=e72]:
+            - link "Noticias" [ref=e73] [cursor=pointer]:
+              - /url: /noticias
+          - listitem [ref=e74]:
+            - link "Eventos" [ref=e75] [cursor=pointer]:
+              - /url: /eventos
+          - listitem [ref=e76]:
+            - link "Colaboradores" [ref=e77] [cursor=pointer]:
+              - /url: /colaboradores
+          - listitem [ref=e78]:
+            - link "Deportes" [ref=e79] [cursor=pointer]:
+              - /url: /categorias/deportes
+          - listitem [ref=e80]:
+            - link "Cultura" [ref=e81] [cursor=pointer]:
+              - /url: /categorias/cultura
+          - listitem [ref=e82]:
+            - link "Contacto" [ref=e83] [cursor=pointer]:
+              - /url: /contacto
+          - listitem [ref=e84]:
+            - link "Colaboradores" [ref=e85] [cursor=pointer]:
+              - /url: /colaboradores
+      - generic [ref=e86]:
+        - paragraph [ref=e87]: Categorías
+        - list [ref=e88]:
+          - listitem [ref=e89]:
+            - link "Deportes" [ref=e90] [cursor=pointer]:
+              - /url: /categorias/deportes
+          - listitem [ref=e91]:
+            - link "Cultura" [ref=e92] [cursor=pointer]:
+              - /url: /categorias/cultura
+          - listitem [ref=e93]:
+            - link "Fotografía" [ref=e94] [cursor=pointer]:
+              - /url: /categorias/fotografia
+          - listitem [ref=e95]:
+            - link "Todas las noticias" [ref=e96] [cursor=pointer]:
+              - /url: /noticias
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - paragraph [ref=e99]: Prensa
+          - paragraph [ref=e100]: Consultas editoriales · prensa.infospot@gmail.com
+          - link "Contacto de prensa" [ref=e101] [cursor=pointer]:
+            - /url: /contacto
+        - generic [ref=e102]:
+          - paragraph [ref=e103]: Redes
+          - list [ref=e104]:
+            - listitem [ref=e105]:
+              - link "Instagram" [ref=e106] [cursor=pointer]:
+                - /url: https://www.instagram.com/info.spot.ok/
+    - generic [ref=e108]:
+      - paragraph [ref=e109]: © 2026 Info Spot. Parte del ecosistema DNX Suite.
+      - list [ref=e110]:
+        - listitem [ref=e111]:
+          - link "Privacidad" [ref=e112] [cursor=pointer]:
+            - /url: /privacidad
+        - listitem [ref=e113]:
+          - link "Términos" [ref=e114] [cursor=pointer]:
+            - /url: /terminos
+        - listitem [ref=e115]:
+          - link "Política editorial" [ref=e116] [cursor=pointer]:
+            - /url: /politica-editorial
+  - alert [ref=e117]

@@ -34,7 +34,7 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
     <div className="space-y-8">
       <AdminPageHeader
         title="Sedes"
-        description="Las sedes pertenecen a una edición organizada por Clickatón. No hay modelo de franquicias en el MVP."
+        description="Las sedes pertenecen a una edición organizada por Clickatón. No hay un modelo de franquicias en esta etapa."
         breadcrumbs={[{ label: "Sedes" }]}
         actions={
           <Button href={`${adminRoutes.venues}/nueva`} variant="primary">

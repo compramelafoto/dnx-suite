@@ -125,23 +125,33 @@ export function passwordResetEmailContent(params: {
 }): { subject: string; html: string; text: string } {
   const app = params.appLabel?.trim() || "DNX Suite";
   const subject = params.isSetPassword
-    ? `Crear contraseña — Cuenta DNX`
+    ? `Activá tu Cuenta DNX`
     : `Restablecer contraseña — Cuenta DNX`;
-  const action = params.isSetPassword ? "crear una contraseña" : "restablecer tu contraseña";
-  const cta = params.isSetPassword ? "Crear contraseña" : "Elegir nueva contraseña";
+  const action = params.isSetPassword
+    ? "activar tu Cuenta DNX creando una contraseña"
+    : "restablecer tu contraseña";
+  const cta = params.isSetPassword ? "Activá tu Cuenta DNX" : "Elegir nueva contraseña";
   const text = [
-    `Pediste ${action} para tu Cuenta DNX (origen: ${app}).`,
+    params.isSetPassword
+      ? `Activá tu Cuenta DNX (origen: ${app}).`
+      : `Pediste ${action} para tu Cuenta DNX (origen: ${app}).`,
     `Esta misma cuenta puede utilizarse en otras plataformas DNX habilitadas.`,
-    `Usá este enlace (un solo uso, con vencimiento):`,
+    `No enviamos contraseñas temporales. Usá este enlace (un solo uso, con vencimiento):`,
     params.resetUrl,
     ``,
+    `Luego podés iniciar sesión y acceder a tu panel.`,
     `Si no pediste esto, ignorá el mensaje.`,
   ].join("\n");
   const html = `
-    <p>Pediste <strong>${escapeHtml(action)}</strong> para tu <strong>Cuenta DNX</strong> (desde ${escapeHtml(app)}).</p>
+    <p>${
+      params.isSetPassword
+        ? `<strong>Activá tu Cuenta DNX</strong> (desde ${escapeHtml(app)}).`
+        : `Pediste <strong>${escapeHtml(action)}</strong> para tu <strong>Cuenta DNX</strong> (desde ${escapeHtml(app)}).`
+    }</p>
     <p>Esta misma cuenta puede utilizarse en otras plataformas DNX habilitadas.</p>
+    <p>No enviamos contraseñas temporales.</p>
     <p><a href="${escapeHtml(params.resetUrl)}">${escapeHtml(cta)}</a></p>
-    <p style="color:#666;font-size:14px">Enlace de un solo uso. Si no pediste esto, ignorá el mensaje.</p>
+    <p style="color:#666;font-size:14px">Enlace de un solo uso. Después podés iniciar sesión y acceder a tu panel. Si no pediste esto, ignorá el mensaje.</p>
   `.trim();
   return { subject, html, text };
 }

@@ -84,7 +84,7 @@ export default async function AdminTicketTypeDetailPage({ params, searchParams }
         title={ticket.name}
         description={`Código ${ticket.code} · ${editionLabel} · ${kitKindLabel(kitKindOf(ticket.items))}`}
         breadcrumbs={[
-          { label: "Catálogo", href: catalogAdminRoutes.hub },
+          { label: "Productos y kits", href: catalogAdminRoutes.hub },
           { label: "Entradas", href: listHref },
           { label: ticket.name },
         ]}

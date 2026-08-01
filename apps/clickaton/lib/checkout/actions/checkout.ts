@@ -7,7 +7,7 @@ import type {
   RegistrationPaymentStatusDto,
 } from "../domain/types";
 import { checkoutFailure, checkoutSuccess, type CheckoutActionState } from "./action-result";
-import { getCheckoutService } from "./runtime";
+import { getCheckoutServiceReady } from "./runtime";
 
 function formString(formData: FormData, key: string): string {
   const v = formData.get(key);
@@ -22,7 +22,7 @@ export async function createRegistrationCheckoutAction(
     const registrationId = formString(formData, "registrationId");
     const editionSlug = formString(formData, "editionSlug");
     const accessToken = formString(formData, "accessToken");
-    const data = await getCheckoutService().createCheckout({
+    const data = await (await getCheckoutServiceReady()).createCheckout({
       registrationId,
       editionSlug,
       accessToken,
@@ -49,7 +49,7 @@ export async function startRegistrationCheckoutAction(formData: FormData): Promi
   const editionSlug = formString(formData, "editionSlug");
   const accessToken = formString(formData, "accessToken");
   try {
-    const data = await getCheckoutService().createCheckout({
+    const data = await (await getCheckoutServiceReady()).createCheckout({
       registrationId,
       editionSlug,
       accessToken,
@@ -73,7 +73,7 @@ export async function getRegistrationPaymentStatusAction(
   editionSlug: string,
 ): Promise<CheckoutActionState<RegistrationPaymentStatusDto>> {
   try {
-    const data = await getCheckoutService().getPaymentStatus({
+    const data = await (await getCheckoutServiceReady()).getPaymentStatus({
       registrationId,
       editionSlug,
       accessToken,
@@ -90,7 +90,7 @@ export async function refreshRegistrationPaymentStatusAction(
   editionSlug: string,
 ): Promise<CheckoutActionState<RegistrationPaymentStatusDto>> {
   try {
-    const data = await getCheckoutService().refreshPaymentStatus({
+    const data = await (await getCheckoutServiceReady()).refreshPaymentStatus({
       registrationId,
       editionSlug,
       accessToken,
@@ -107,7 +107,7 @@ export async function getRegistrationCheckoutResultAction(
   editionSlug: string,
 ): Promise<CheckoutActionState<CheckoutReturnDto>> {
   try {
-    const data = await getCheckoutService().getCheckoutReturn({
+    const data = await (await getCheckoutServiceReady()).getCheckoutReturn({
       registrationId,
       editionSlug,
       accessToken,

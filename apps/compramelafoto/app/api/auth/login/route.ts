@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { setAuthCookieOnResponse } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { normalizeIdentityEmail, verifyUserPassword } from "@repo/auth";
 import { createHash, randomUUID } from "crypto";
 import { sendEmail } from "@/emails/send";
 import { buildLoginAlertEmail } from "@/emails/templates/auth";
@@ -17,8 +17,10 @@ export async function POST(req: Request) {
   try {
     const bodyValidationStart = Date.now();
     const body = await req.json().catch(() => ({}));
-    const email = (body.email ?? "").toString().trim().toLowerCase();
+    const emailRaw = (body.email ?? "").toString();
     const password = (body.password ?? "").toString();
+    const normalized = normalizeIdentityEmail(emailRaw);
+    const email = normalized.ok ? normalized.email : "";
     console.log("[auth_timing] login_stage", {
       requestId,
       stage: "body_validation_done",
@@ -40,33 +42,71 @@ export async function POST(req: Request) {
       );
     }
 
-    // Buscar usuario
+    // Identidad central DNX: scrypt canónico + bcrypt legacy + rehash progresivo
+    const passwordCompareStart = Date.now();
+    const verified = await verifyUserPassword({ email, password });
+    console.log("[auth_timing] login_stage", {
+      requestId,
+      stage: "password_compare_done",
+      durationMs: Date.now() - passwordCompareStart,
+      isValid: verified.ok,
+      rehashed: verified.ok ? verified.rehashed : false,
+      userId: verified.ok ? verified.user.id : undefined,
+    });
+
+    if (!verified.ok) {
+      const status = 401;
+      const reason =
+        verified.reason === "NO_PASSWORD"
+          ? "missing_password_hash"
+          : verified.reason === "NOT_FOUND"
+            ? "user_not_found"
+            : "invalid_password";
+      console.log("[auth_timing] login_done", {
+        requestId,
+        durationMs: Date.now() - startedAt,
+        status,
+        reason,
+      });
+      if (verified.reason === "NO_PASSWORD") {
+        return NextResponse.json(
+          { error: "Usuario sin contraseña configurada" },
+          { status: 401 },
+        );
+      }
+      return NextResponse.json(
+        { error: "Email o contraseña incorrectos" },
+        { status: 401 },
+      );
+    }
+
     const userLookupStart = Date.now();
-    let user: any = null;
+    let user: {
+      id: number;
+      email: string;
+      name: string | null;
+      role: string;
+      tags?: string[];
+    } | null = null;
     try {
       user = await prisma.user.findUnique({
-        where: { email },
+        where: { id: verified.user.id },
         select: {
           id: true,
           email: true,
           name: true,
           role: true,
-          password: true,
           tags: true,
         },
       });
     } catch (userErr) {
       console.warn("LOGIN: error leyendo usuario, usando fallback", userErr);
-      user = await prisma.user.findUnique({
-        where: { email },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          password: true,
-        },
-      });
+      user = {
+        id: verified.user.id,
+        email: verified.user.email,
+        name: verified.user.name,
+        role: verified.user.role,
+      };
     }
     console.log("[auth_timing] login_stage", {
       requestId,
@@ -76,54 +116,9 @@ export async function POST(req: Request) {
     });
 
     if (!user) {
-      console.log("[auth_timing] login_done", {
-        requestId,
-        durationMs: Date.now() - startedAt,
-        status: 401,
-        reason: "user_not_found",
-      });
       return NextResponse.json(
         { error: "Email o contraseña incorrectos" },
-        { status: 401 }
-      );
-    }
-
-    // Verificar contraseña
-    if (!user.password) {
-      console.log("[auth_timing] login_done", {
-        requestId,
-        durationMs: Date.now() - startedAt,
-        status: 401,
-        reason: "missing_password_hash",
-        userId: user.id,
-      });
-      return NextResponse.json(
-        { error: "Usuario sin contraseña configurada" },
-        { status: 401 }
-      );
-    }
-
-    const passwordCompareStart = Date.now();
-    const isValid = await bcrypt.compare(password, user.password);
-    console.log("[auth_timing] login_stage", {
-      requestId,
-      stage: "password_compare_done",
-      durationMs: Date.now() - passwordCompareStart,
-      isValid,
-      userId: user.id,
-    });
-
-    if (!isValid) {
-      console.log("[auth_timing] login_done", {
-        requestId,
-        durationMs: Date.now() - startedAt,
-        status: 401,
-        reason: "invalid_password",
-        userId: user.id,
-      });
-      return NextResponse.json(
-        { error: "Email o contraseña incorrectos" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -249,15 +244,27 @@ export async function POST(req: Request) {
       userId: user.id,
     });
 
-    // Cookie en la misma respuesta para que el navegador la reciba
+    // Cookie canónica dnx_session (sin fallback auth-token — ETAPA 03 / P0-06)
     const cookieStart = Date.now();
-    await setAuthCookieOnResponse(response, {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      labId,
-    });
+    try {
+      await setAuthCookieOnResponse(response, {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        labId,
+      });
+    } catch (sessionErr) {
+      console.error("[auth_timing] login_session_failed", {
+        requestId,
+        userId: user.id,
+        error: String(sessionErr),
+      });
+      return NextResponse.json(
+        { error: "No se pudo crear la sesión. Intentá de nuevo." },
+        { status: 503 },
+      );
+    }
     console.log("[auth_timing] login_stage", {
       requestId,
       stage: "cookie_set_done",

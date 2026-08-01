@@ -147,13 +147,25 @@ DEPLOYMENT FREEZE: RESTORED
 READY WITH MANUAL PREREQUISITES
 ```
 
-Pendiente Imp10:
+Pendiente Imp10 (histórico Imp10ter):
 
 1. backup Neon `backup-communications-webhook-imp10`
 2. `COMMUNICATIONS_STAGING_DATABASE_URL`
 3. `COMMUNICATIONS_HEALTH_TOKEN`
 
 No migration / Resend en Imp10ter.
+
+### Actualización Imp10quater (2026-08-01)
+
+Prerrequisitos de DB/health cerrados en [`STAGING_DATABASE_ACTIVATION_IMP10QUATER.md`](./STAGING_DATABASE_ACTIVATION_IMP10QUATER.md):
+
+| Ítem | Estado Imp10quater |
+| ---- | ------------------ |
+| Backup Neon `backup-communications-webhook-imp10quater` | PASS (`ready`) |
+| URL staging explícita (sesión) | YES — sin `.env` |
+| Migración `20260801120000_dnx_communication_webhook_events` | ALREADY_APPLIED / validada |
+| `COMMUNICATIONS_HEALTH_TOKEN` | configurado en staging (Production + Preview branch) |
+| Webhook / Resend | sigue disabled / no configurado |
 
 ---
 

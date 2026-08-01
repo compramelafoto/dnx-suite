@@ -1,0 +1,32 @@
+{
+  "name": "@repo/template-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DNX Template Engine — schema canónico, bindings, registro de variables y resolución pura (sin UI, Prisma, Next, Sharp ni R2).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./school": "./src/plugins/school/index.ts",
+    "./clickaton": "./src/plugins/clickaton/index.ts",
+    "./clickaton-presets": "./src/presets/clickaton/index.ts",
+    "./bridge": "./src/bridge/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test src/schema/schema.test.ts src/bindings/bindings.test.ts src/variables/registry.test.ts src/bridge/bridge.test.ts src/core/resolve-document.test.ts src/plugins/clickaton/clickaton-plugin.test.ts src/presets/clickaton/clickaton-presets.test.ts",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.39.1",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.2"
+  }
+}

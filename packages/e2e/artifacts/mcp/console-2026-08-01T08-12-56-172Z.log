@@ -1,0 +1,3 @@
+[     302ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://clickaton-staging.vercel.app/maratones:0
+[     560ms] [ERROR] Error: An error occurred in the Server Components render. The specific message is omitted in production builds to avoid leaking sensitive details. A digest property is included on this error instance which may provide additional details about the nature of the error. @ https://clickaton-staging.vercel.app/_next/static/chunks/8194-7efb7031b3df7348.js?dpl=dpl_D7fYFmTao2TixSZVLuuBKQqqnnLj:30
+[     564ms] [ERROR] [clickaton] 4176959646 @ https://clickaton-staging.vercel.app/_next/static/chunks/app/(public)/error-97c5b3f926c7bb62.js?dpl=dpl_D7fYFmTao2TixSZVLuuBKQqqnnLj:0

@@ -18,9 +18,13 @@ export function MarathonJury({ marathon }: MarathonJuryProps) {
         <SectionHeader
           eyebrow="Jurado"
           title="Quiénes acompañan la evaluación"
-          description="Solo se publican perfiles aprobados. Los criterios internos no publicados no aparecen en esta ficha."
+          description="Solo se publican perfiles aprobados. La evaluación artística se realiza con criterios del concurso; la identidad de cada fotógrafo se mantiene oculta durante la revisión."
           titleId="marathon-jury-title"
         />
+        <p className="mt-6 max-w-2xl text-sm leading-relaxed text-ck-text-muted">
+          La admisión técnica verifica requisitos de archivo y participación. El jurado evalúa la
+          obra según los criterios definidos para el concurso.
+        </p>
         <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {marathon.jury.map((member) => (
             <Card key={member.id} className="h-full">

@@ -30,7 +30,9 @@
     "./legacy/clf": "./src/legacy/clf/index.ts",
     "./credential-vault": "./src/credential-vault/index.ts",
     "./dual-read": "./src/dual-read/index.ts",
-    "./edition-checkout": "./src/edition-checkout/index.ts"
+    "./edition-checkout": "./src/edition-checkout/index.ts",
+    "./frontend": "./src/frontend/index.ts",
+    "./orders-1n-refunds": "./src/application/services/orders-1n-refunds/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
@@ -44,7 +46,13 @@
     "economic-agreement:configure-clickaton-staging": "tsx src/cli/configure-clickaton-agreement-staging.ts",
     "orders-1n:activate-staging": "tsx src/cli/activate-orders-1n-staging.ts",
     "orders-1n:observe-staging": "tsx src/cli/observe-orders-1n-staging.ts",
-    "checkout:registration-dnx-staging": "tsx src/cli/registration-checkout-dnx-staging.ts"
+    "checkout:registration-dnx-staging": "tsx src/cli/registration-checkout-dnx-staging.ts",
+    "smoke:card-brick-preflight": "tsx src/cli/card-brick-sandbox-smoke.ts",
+    "smoke:orders-1n-refunds": "tsx src/cli/smoke-orders-1n-refunds.ts",
+    "smoke:imp05-sandbox-evidence": "tsx src/cli/imp05-sandbox-evidence.ts",
+    "smoke:imp06-controlled-refunds": "tsx src/cli/imp06-controlled-refunds.ts",
+    "smoke:imp06-brick-verify": "tsx src/cli/imp06-brick-verify.ts",
+    "smoke:clf-brick-verify": "tsx src/cli/clf-brick-verify.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0"

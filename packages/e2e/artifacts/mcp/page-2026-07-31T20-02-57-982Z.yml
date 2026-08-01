@@ -1,0 +1,61 @@
+- main [ref=f21e2]:
+  - generic [ref=f21e113]:
+    - generic [ref=f21e114]:
+      - heading "Completá los datos de tu tarjeta" [level=1] [ref=f21e116]
+      - generic [ref=f21e122]:
+        - generic [ref=f21e123]:
+          - generic [ref=f21e126]:
+            - generic [ref=f21e127]: Número de tarjeta
+            - generic [ref=f21e129]:
+              - iframe [ref=f21e131]:
+                - textbox "Número de tarjeta" [ref=f27e2]:
+                  - /placeholder: 0000 0000 0000 0000
+                  - text: 5031 7557 3453 0604
+              - generic [ref=f21e211]:
+                - img "Tarjeta Mastercard" [ref=f21e212]
+                - generic [ref=f21e213]: Tarjeta Mastercard
+              - generic [ref=f21e136]: Tarjeta Mastercard
+          - generic [ref=f21e137]:
+            - generic [ref=f21e138]: Nombre del titular
+            - textbox "Nombre del titular" [ref=f21e141]:
+              - /placeholder: "Ej.: María López"
+              - text: APRO
+            - generic [ref=f21e142]: Como aparece en la tarjeta.
+          - generic [ref=f21e145]:
+            - generic [ref=f21e148]:
+              - generic [ref=f21e149]: Vencimiento
+              - iframe [ref=f21e153]:
+                - textbox "Vencimiento" [ref=f28e2]:
+                  - /placeholder: MM/AA
+                  - text: 11/30
+            - generic [ref=f21e157]:
+              - generic [ref=f21e158]: Código de seguridad
+              - generic [ref=f21e160]:
+                - iframe [ref=f21e162]:
+                  - textbox "Código de seguridad" [invalid] [ref=f29e2]:
+                    - /placeholder: "000"
+                    - text: "123"
+                - generic [ref=f21e164]:
+                  - button [ref=f21e214] [cursor=pointer]:
+                    - img "Ayuda" [ref=f21e215]
+                  - generic [ref=f21e171]: Es un número de 3 dígitos que encontrás en el dorso de tu tarjeta o en la app de tu banco o billetera.
+              - generic [ref=f21e219]: Completá este campo.
+          - generic [ref=f21e173]:
+            - generic [ref=f21e174]: Documento del titular
+            - generic [ref=f21e176]:
+              - combobox "Documento del titular DNI" [ref=f21e179]:
+                - generic [ref=f21e180]: Documento del titular
+                - generic [ref=f21e181]: DNI
+              - textbox "Documento del titular" [ref=f21e187]:
+                - /placeholder: 00.000.000
+                - text: 12.345.678
+        - alert [ref=f21e188]
+      - generic [ref=f21e189]:
+        - button "Continuar" [active] [ref=f21e190] [cursor=pointer]
+        - link "Volver" [ref=f21e192] [cursor=pointer]
+    - generic [ref=f21e196]:
+      - generic [ref=f21e197]: Detalles del pago
+      - generic [ref=f21e199]:
+        - generic [ref=f21e200]: Inscripción Clickatón — cms9dbk1 TEST
+        - img [ref=f21e204]:
+          - generic [ref=f21e205]: $ 25.000

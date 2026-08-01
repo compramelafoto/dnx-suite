@@ -10,12 +10,34 @@ import {
 import { createMercadoPagoProviderConfig } from "./mercado-pago-environment.js";
 
 describe("MercadoPagoHttpClient", () => {
-  it("blocks POST in production", async () => {
+  it("blocks POST in production by default (fail-closed)", async () => {
     const client = new MercadoPagoHttpClient(fakeProductionConfig());
     await assert.rejects(
       () => client.request({ method: "POST", path: "/v1/orders", body: {} }),
       MercadoPagoProductionWriteBlockedError,
     );
+  });
+
+  it("allows POST in production when allowProductionWrites is set", async () => {
+    let called = false;
+    const fetchImpl = async () => {
+      called = true;
+      return new Response(JSON.stringify({ id: "ok" }), { status: 201 });
+    };
+    const config = createMercadoPagoProviderConfig({
+      environment: "production",
+      accessToken: "APP_USR-live-collector-oauth",
+      allowProductionWrites: true,
+    });
+    const client = new MercadoPagoHttpClient(config, fetchImpl);
+    await client.request({
+      method: "POST",
+      path: "/checkout/preferences",
+      body: {},
+      idempotencyKey: crypto.randomUUID(),
+      accessTokenOverride: "APP_USR-live-collector-oauth",
+    });
+    assert.equal(called, true);
   });
 
   it("blocks POST without sandbox-eligible token", async () => {
@@ -116,5 +138,23 @@ describe("MercadoPagoHttpClient", () => {
     const client = new MercadoPagoHttpClient(fakeMercadoPagoConfig(), fetchImpl);
     await client.request({ method: "GET", path: "/v1/split-consent" });
     assert.equal(capturedHeaders?.get("x-test-token"), "true");
+  });
+
+  it("sends empty string body when emptyBody is set (Orders total refund)", async () => {
+    let capturedBody: BodyInit | null | undefined;
+    const fetchImpl = async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedBody = init?.body;
+      return new Response(JSON.stringify({ id: "ORD1", status: "processed" }), {
+        status: 201,
+      });
+    };
+    const client = new MercadoPagoHttpClient(fakeMercadoPagoConfig(), fetchImpl);
+    await client.request({
+      method: "POST",
+      path: "/v1/orders/ORD1/refund",
+      emptyBody: true,
+      idempotencyKey: "idem-1",
+    });
+    assert.equal(capturedBody, "");
   });
 });

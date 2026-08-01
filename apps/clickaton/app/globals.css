@@ -117,3 +117,29 @@ body {
     color: var(--ck-core-white);
   }
 }
+
+/* Microinteracciones inscripción pública */
+@keyframes ck-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ck-soft-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(250 204 21 / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(250 204 21 / 0);
+  }
+}
+
+.safe-area-pb {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}

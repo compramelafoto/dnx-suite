@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "@repo/auth";
 import { buildPasswordChangedEmail } from "@/emails/templates/auth";
 import { sendEmail } from "@/emails/send";
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isValid = await bcrypt.compare(currentPassword, dbUser.password);
+    const isValid = verifyPassword(currentPassword, dbUser.password);
     if (!isValid) {
       return NextResponse.json(
         { error: "La contraseña actual es incorrecta" },
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = hashPassword(newPassword);
 
     await prisma.user.update({
       where: { id: user.id },

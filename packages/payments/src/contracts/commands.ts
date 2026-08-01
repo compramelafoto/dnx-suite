@@ -43,9 +43,17 @@ export interface ProcessProviderWebhookCommand {
 
 export interface RequestRefundCommand {
   paymentOrderId: string;
-  amount: Money;
+  /** Omit for total remaining refund. */
+  amount?: Money;
+  /** Not sent to MP Orders refund API — internal accounting only. */
   recipientId?: string;
   idempotencyKey: string;
+  reason?:
+    | "customer_request"
+    | "duplicate"
+    | "event_cancelled"
+    | "partial_adjustment"
+    | "admin_correction";
 }
 
 export interface OpenSettlementCommand {

@@ -24,7 +24,7 @@ export default async function AdminNewProductPage({ searchParams }: Props) {
         <AdminPageHeader
           title="Nuevo producto"
           breadcrumbs={[
-            { label: "Catálogo", href: catalogAdminRoutes.hub },
+            { label: "Productos y kits", href: catalogAdminRoutes.hub },
             { label: "Productos", href: catalogAdminRoutes.products },
             { label: "Nuevo" },
           ]}
@@ -41,7 +41,7 @@ export default async function AdminNewProductPage({ searchParams }: Props) {
         <AdminPageHeader
           title="Nuevo producto"
           breadcrumbs={[
-            { label: "Catálogo", href: catalogAdminRoutes.hub },
+            { label: "Productos y kits", href: catalogAdminRoutes.hub },
             { label: "Productos", href: catalogAdminRoutes.products },
             { label: "Nuevo" },
           ]}
@@ -69,7 +69,7 @@ export default async function AdminNewProductPage({ searchParams }: Props) {
         title="Nuevo producto"
         description="Creá el producto y después agregá variantes desde el detalle."
         breadcrumbs={[
-          { label: "Catálogo", href: catalogAdminRoutes.hub },
+          { label: "Productos y kits", href: catalogAdminRoutes.hub },
           { label: "Productos", href: catalogAdminRoutes.products },
           { label: "Nuevo" },
         ]}

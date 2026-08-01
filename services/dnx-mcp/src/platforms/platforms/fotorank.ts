@@ -6,10 +6,11 @@ export const fotorankPlatform: PlatformDefinition = {
   description: "Ranking y competencias de fotografía",
   repository: "dnx-studio/fotorank",
   defaultBranch: "main",
-  vercelProject: "fotorank",
+  /** Proyecto Vercel real en el team: fotorank-dnxsuite (alias operativo: fotorank). */
+  vercelProject: "fotorank-dnxsuite",
   domains: {
-    production: ["fotorank.com", "www.fotorank.com"],
-    preview: ["preview.fotorank.com"],
+    production: ["fotorank.com", "www.fotorank.com", "fotorank.dnxsuite.com"],
+    preview: ["fotorank.staging.dnxsuite.com", "preview.fotorank.com"],
   },
   workers: ["fr-vote-counter", "fr-leaderboard"],
   database: {
@@ -22,7 +23,9 @@ export const fotorankPlatform: PlatformDefinition = {
   },
   r2: {
     bucket: "fotorank-uploads",
-    prefix: "entries/",
+    /** Bucket privado de staging (P0-08). Nunca usar el de producción. */
+    stagingBucket: "fotorank-private-staging",
+    prefix: "fotorank/",
     productionProtected: true,
     stagingOperationsAllowed: true,
   },

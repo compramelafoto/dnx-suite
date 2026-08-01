@@ -3,14 +3,13 @@
  *
  *   pnpm --filter clickaton deploy:staging:safe -- --confirm-staging-deploy
  *
- * No permite --prod genérico. No despliega a clickaton-dnxsuite.
- * Si los deploys son vía Git, usar como readiness pre-push.
+ * Aborta si el target no es clickaton-staging (incluye clickaton-dnxsuite).
+ * No hace commit ni push. No modifica producción.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { evaluateDeploymentIdentity } from "./lib/deployment-identity";
-import { DEPLOYMENT_IDENTITY_DEFAULTS } from "./lib/deployment-identity";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { assertStagingVercelTarget } from "./lib/assert-staging-vercel-target";
 
 function hasFlag(argv: string[], name: string): boolean {
   return argv.includes(name);
@@ -23,71 +22,53 @@ function main() {
       JSON.stringify({
         status: "SKIPPED",
         reason: "missing_--confirm-staging-deploy",
+        usage:
+          "pnpm --filter clickaton deploy:staging:safe -- --confirm-staging-deploy",
       }),
     );
     process.exit(0);
   }
-  if (argv.includes("--prod") || argv.includes("--target=production")) {
-    // En proyecto staging el target Production de Vercel es válido,
-    // pero prohibimos el flag genérico sin identity PASS.
-  }
 
-  const linkPath = join(process.cwd(), ".vercel", "project.json");
-  if (!existsSync(linkPath)) {
-    console.log(
-      JSON.stringify({
-        status: "FAIL",
-        reason: "missing_apps_clickaton_.vercel_project_json",
-      }),
-    );
+  const guard = assertStagingVercelTarget({ cwd: process.cwd() });
+  if (!guard.ok) {
+    console.error(guard.abortMessage);
+    console.error(JSON.stringify({ status: "FAIL", details: guard.details }, null, 2));
     process.exit(1);
   }
-  const link = JSON.parse(readFileSync(linkPath, "utf8")) as {
-    projectName?: string;
-    projectId?: string;
+
+  // Forzar project id staging aunque exista ambigüedad en el entorno.
+  const env = {
+    ...process.env,
+    VERCEL_PROJECT_ID: guard.projectId,
+    VERCEL_ORG_ID:
+      process.env.VERCEL_ORG_ID?.trim() || "team_fygF3LmWq2H8oEGuDtoCMgxb",
   };
 
-  const identity = evaluateDeploymentIdentity({
-    projectName: link.projectName,
-    projectId: link.projectId,
-    domains: ["clickaton-staging.vercel.app"],
-    expectedProject: DEPLOYMENT_IDENTITY_DEFAULTS.stagingProject,
-    expectedProductEnvironment: "staging",
-    forbiddenDomain: DEPLOYMENT_IDENTITY_DEFAULTS.forbiddenDomain,
-  });
-  if (identity.status !== "PASS") {
-    console.log(
-      JSON.stringify({
-        status: "FAIL",
-        reason: "deployment_identity_failed",
-        identity,
-      }),
-    );
-    process.exit(1);
-  }
-
-  if (link.projectName === "clickaton-dnxsuite") {
-    console.log(
-      JSON.stringify({
-        status: "FAIL",
-        reason: "refusing_production_project",
-      }),
-    );
-    process.exit(1);
-  }
+  // Project Root Directory in Vercel is `apps/clickaton`, so the CLI must run
+  // from the monorepo root. VERCEL_PROJECT_ID/ORG_ID override any root `.vercel`
+  // link (which may point at clickaton-dnxsuite).
+  const appCwd = process.cwd();
+  const repoRoot = resolve(appCwd, "../..");
+  const deployCwd = existsSync(join(repoRoot, "apps/clickaton/package.json"))
+    ? repoRoot
+    : appCwd;
 
   console.log(
     JSON.stringify({
       status: "PASS",
-      message: "identity_ok_invoking_vercel_deploy_preview",
-      note: "Uses linked clickaton-staging project; no --prod to product domain",
+      message: "staging_target_confirmed",
+      projectName: guard.projectName,
+      projectIdPrefix: `${guard.projectId.slice(0, 12)}***`,
+      linkPath: guard.linkPath,
+      deployCwd,
+      note: "Invoking vercel deploy --prod on clickaton-staging only (product staging alias).",
     }),
   );
 
   const result = spawnSync(
     "vercel",
-    ["deploy", "--yes"],
-    { stdio: "inherit", cwd: process.cwd(), env: process.env },
+    ["deploy", "--prod", "--yes"],
+    { stdio: "inherit", cwd: deployCwd, env },
   );
   process.exit(result.status ?? 1);
 }

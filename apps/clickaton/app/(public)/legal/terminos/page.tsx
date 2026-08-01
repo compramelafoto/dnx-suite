@@ -12,18 +12,23 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 export default function TermsPage() {
-  const { termsSections, termsVersion, legalReviewRequired } = clickatonLegalFunnelContent;
+  const {
+    termsSections,
+    termsVersion,
+    legalReviewRequired,
+    publicationStatus,
+  } = clickatonLegalFunnelContent;
 
   return (
     <Section>
       <Container className="prose prose-invert max-w-3xl space-y-8 py-12">
         <header className="space-y-3">
-          <h1>Términos y condiciones</h1>
+          <h1>Bases y condiciones</h1>
           <p className="text-sm text-ck-text-muted">
             Versión {termsVersion}
             {legalReviewRequired
               ? " · Pendiente de validación jurídica antes del go-live comercial."
-              : null}
+              : ` · ${publicationStatus} · Aprobadas para inscripción`}
           </p>
         </header>
         {termsSections.map((section) => (

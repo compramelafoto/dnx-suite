@@ -1,0 +1,321 @@
+- generic [active] [ref=f33e1]:
+  - generic [ref=f33e2]:
+    - banner [ref=f33e13]:
+      - generic [ref=f33e15]:
+        - generic [ref=f33e16]:
+          - button "Ocultar menú" [expanded] [ref=f33e17]
+          - link "ComprameLaFoto Admin" [ref=f33e20] [cursor=pointer]:
+            - /url: /admin
+            - img "ComprameLaFoto" [ref=f33e21]
+            - generic [ref=f33e22]: Admin
+        - generic [ref=f33e23]:
+          - button "Notificaciones, 1 sin leer" [ref=f33e25]:
+            - generic [ref=f33e28]: "1"
+          - link "Emails" [ref=f33e29] [cursor=pointer]:
+            - /url: /admin/emails
+          - button "Salir" [ref=f33e33]
+    - generic [ref=f33e34]:
+      - complementary [ref=f33e35]:
+        - generic [ref=f33e36]: Panel Admin
+        - navigation [ref=f33e38]:
+          - generic [ref=f33e39]:
+            - button "Inicio" [ref=f33e40]
+            - list [ref=f33e47]:
+              - listitem [ref=f33e48]:
+                - link "Dashboard" [ref=f33e49] [cursor=pointer]:
+                  - /url: /admin
+              - listitem [ref=f33e50]:
+                - link "Funnel de compra" [ref=f33e51] [cursor=pointer]:
+                  - /url: /admin#funnel-compra
+          - generic [ref=f33e52]:
+            - button "Ventas y pedidos" [ref=f33e53]
+            - list [ref=f33e62]:
+              - listitem [ref=f33e63]:
+                - link "Conversión checkout" [ref=f33e64] [cursor=pointer]:
+                  - /url: /admin/conversion
+              - listitem [ref=f33e65]:
+                - link "Pedidos" [ref=f33e66] [cursor=pointer]:
+                  - /url: /admin/pedidos
+              - listitem [ref=f33e67]:
+                - link "Clientes" [ref=f33e68] [cursor=pointer]:
+                  - /url: /admin/clientes
+              - listitem [ref=f33e69]:
+                - link "Interesados" [ref=f33e70] [cursor=pointer]:
+                  - /url: /admin/interesados
+              - listitem [ref=f33e71]:
+                - link "FotoOffice interesados" [ref=f33e72] [cursor=pointer]:
+                  - /url: /admin/fotooffice-interesados
+              - listitem [ref=f33e73]:
+                - link "Pagos MP / anomalías" [ref=f33e74] [cursor=pointer]:
+                  - /url: /admin/pagos-mp-anomalias
+              - listitem [ref=f33e75]:
+                - link "Homologación MP Split 1:N" [ref=f33e76] [cursor=pointer]:
+                  - /url: /admin/homologacion-mp-split-1n
+          - generic [ref=f33e77]:
+            - button "Álbumes y eventos" [ref=f33e78]
+            - list [ref=f33e85]:
+              - listitem [ref=f33e86]:
+                - link "Álbumes públicos" [ref=f33e87] [cursor=pointer]:
+                  - /url: /admin/albums?visibility=public
+              - listitem [ref=f33e88]:
+                - link "Álbumes privados" [ref=f33e89] [cursor=pointer]:
+                  - /url: /admin/albums?visibility=private
+              - listitem [ref=f33e90]:
+                - link "Eventos" [ref=f33e91] [cursor=pointer]:
+                  - /url: /admin/eventos
+          - generic [ref=f33e92]:
+            - button "Escolar" [ref=f33e93]
+            - list [ref=f33e101]:
+              - listitem [ref=f33e102]:
+                - link "Escuelas" [ref=f33e103] [cursor=pointer]:
+                  - /url: /admin/escuelas
+              - listitem [ref=f33e104]:
+                - link "Admins escolares" [ref=f33e105] [cursor=pointer]:
+                  - /url: /admin/usuarios?tab=administradores-escuela
+          - generic [ref=f33e106]:
+            - button "Catálogo" [ref=f33e107]
+            - list [ref=f33e114]:
+              - listitem [ref=f33e115]:
+                - link "Plantillas de productos" [ref=f33e116] [cursor=pointer]:
+                  - /url: /admin/catalog-templates
+              - listitem [ref=f33e117]:
+                - link "Upselling" [ref=f33e118] [cursor=pointer]:
+                  - /url: /admin/upselling
+          - generic [ref=f33e119]:
+            - button "Diseños" [ref=f33e120]
+            - list [ref=f33e127]:
+              - listitem [ref=f33e128]:
+                - link "Plantillas y editor V2" [ref=f33e129] [cursor=pointer]:
+                  - /url: /dashboard/designs
+              - listitem [ref=f33e130]:
+                - link "Revisión plantillas V2" [ref=f33e131] [cursor=pointer]:
+                  - /url: /admin/template-v2/revision
+              - listitem [ref=f33e132]:
+                - link "Plantillas clásicas (V1)" [ref=f33e133] [cursor=pointer]:
+                  - /url: /admin/plantillas
+              - listitem [ref=f33e134]:
+                - link "Diseñador clásico (V1)" [ref=f33e135] [cursor=pointer]:
+                  - /url: /admin/plantillas/disenador
+              - listitem [ref=f33e136]:
+                - link "Proyectos de diseño" [ref=f33e137] [cursor=pointer]:
+                  - /url: /admin/proyectos
+          - generic [ref=f33e138]:
+            - button "Usuarios y partners" [ref=f33e139]
+            - list [ref=f33e146]:
+              - listitem [ref=f33e147]:
+                - link "Usuarios" [ref=f33e148] [cursor=pointer]:
+                  - /url: /admin/usuarios
+              - listitem [ref=f33e149]:
+                - link "Fotógrafos" [ref=f33e150] [cursor=pointer]:
+                  - /url: /admin/fotografos
+              - listitem [ref=f33e151]:
+                - link "Mapa fotógrafos" [ref=f33e152] [cursor=pointer]:
+                  - /url: /admin/fotografos/mapa
+              - listitem [ref=f33e153]:
+                - link "Laboratorios" [ref=f33e154] [cursor=pointer]:
+                  - /url: /admin/laboratorios
+              - listitem [ref=f33e155]:
+                - link "Organizadores" [ref=f33e156] [cursor=pointer]:
+                  - /url: /admin/usuarios?tab=organizadores
+              - listitem [ref=f33e157]:
+                - link "Laboratorios recomendados" [ref=f33e158] [cursor=pointer]:
+                  - /url: /admin/recomendados
+          - generic [ref=f33e159]:
+            - button "Finanzas" [ref=f33e160]
+            - list [ref=f33e167]:
+              - listitem [ref=f33e168]:
+                - link "Resumen financiero" [ref=f33e169] [cursor=pointer]:
+                  - /url: /admin/finanzas
+              - listitem [ref=f33e170]:
+                - link "Cobros referidos" [ref=f33e171] [cursor=pointer]:
+                  - /url: /admin/referral-payouts
+              - listitem [ref=f33e172]:
+                - link "Estadísticas referidos" [ref=f33e173] [cursor=pointer]:
+                  - /url: /admin/referral-stats
+              - listitem [ref=f33e174]:
+                - link "Retiros organizadores" [ref=f33e175] [cursor=pointer]:
+                  - /url: /admin/organizer-commission-withdrawals
+          - generic [ref=f33e176]:
+            - button "Marketing" [ref=f33e177]
+            - list [ref=f33e184]:
+              - listitem [ref=f33e185]:
+                - link "Mensajes" [ref=f33e186] [cursor=pointer]:
+                  - /url: /admin/mensajes
+              - listitem [ref=f33e187]:
+                - link "Emails" [ref=f33e188] [cursor=pointer]:
+                  - /url: /admin/emails
+              - listitem [ref=f33e189]:
+                - link "Email marketing" [ref=f33e190] [cursor=pointer]:
+                  - /url: /admin/email-marketing
+              - listitem [ref=f33e191]:
+                - link "Charlas" [ref=f33e192] [cursor=pointer]:
+                  - /url: /admin/marketing/charlas
+              - listitem [ref=f33e193]:
+                - generic [ref=f33e194]: Cursos
+                - list [ref=f33e195]:
+                  - listitem [ref=f33e196]:
+                    - link "Fotografía Básica — Funes" [ref=f33e197] [cursor=pointer]:
+                      - /url: /admin/marketing/cursos/fotografia-basica-funes
+              - listitem [ref=f33e198]:
+                - link "Banner del home" [ref=f33e199] [cursor=pointer]:
+                  - /url: /admin/banner
+              - listitem [ref=f33e200]:
+                - link "Blog" [ref=f33e201] [cursor=pointer]:
+                  - /url: /admin/blog
+              - listitem [ref=f33e202]:
+                - link "Testimonios" [ref=f33e203] [cursor=pointer]:
+                  - /url: /admin/testimonios
+              - listitem [ref=f33e204]:
+                - link "Tutoriales" [ref=f33e205] [cursor=pointer]:
+                  - /url: /admin/tutoriales
+          - generic [ref=f33e206]:
+            - button "Comunidad" [ref=f33e207]
+            - list [ref=f33e214]:
+              - listitem [ref=f33e215]:
+                - link "Para fotógrafos" [ref=f33e216] [cursor=pointer]:
+                  - /url: /admin/comunidad/para-fotografos
+              - listitem [ref=f33e217]:
+                - link "Proveedores" [ref=f33e218] [cursor=pointer]:
+                  - /url: /admin/comunidad/proveedores
+          - generic [ref=f33e219]:
+            - button "Soporte" [ref=f33e220]
+            - list [ref=f33e227]:
+              - listitem [ref=f33e228]:
+                - link "Incidencias" [ref=f33e229] [cursor=pointer]:
+                  - /url: /admin/soporte
+          - generic [ref=f33e230]:
+            - button "Seguridad y auditoría" [ref=f33e231]
+            - list [ref=f33e238]:
+              - listitem [ref=f33e239]:
+                - link "Auditoría" [ref=f33e240] [cursor=pointer]:
+                  - /url: /admin/auditoria
+              - listitem [ref=f33e241]:
+                - link "Antifraude" [ref=f33e242] [cursor=pointer]:
+                  - /url: /admin/antifraude
+              - listitem [ref=f33e243]:
+                - link "Auditoría selfies" [ref=f33e244] [cursor=pointer]:
+                  - /url: /admin/auditoria-selfies
+              - listitem [ref=f33e245]:
+                - link "Procesamiento fotos" [ref=f33e246] [cursor=pointer]:
+                  - /url: /admin/procesamiento-fotos
+              - listitem [ref=f33e247]:
+                - link "Equipos fotográficos" [ref=f33e248] [cursor=pointer]:
+                  - /url: /admin/equipos-fotograficos
+              - listitem [ref=f33e249]:
+                - link "IA / Reconocimiento" [ref=f33e250] [cursor=pointer]:
+                  - /url: /admin/ia
+              - listitem [ref=f33e251]:
+                - link "Solicitudes ARCO" [ref=f33e252] [cursor=pointer]:
+                  - /url: /admin/privacidad/solicitudes
+          - generic [ref=f33e253]:
+            - button "Plataforma" [ref=f33e254]
+            - list [ref=f33e262]:
+              - listitem [ref=f33e263]:
+                - link "Salud de la Plataforma" [ref=f33e264] [cursor=pointer]:
+                  - /url: /admin/salud-plataforma
+              - listitem [ref=f33e265]:
+                - link "Configuración general" [ref=f33e266] [cursor=pointer]:
+                  - /url: /admin/configuracion
+              - listitem [ref=f33e267]:
+                - link "Almacenamiento R2" [ref=f33e268] [cursor=pointer]:
+                  - /url: /admin/r2
+              - listitem [ref=f33e269]:
+                - link "Cambiar contraseña" [ref=f33e270] [cursor=pointer]:
+                  - /url: /cuenta/cambiar-contrasena
+      - main [ref=f33e271]:
+        - generic [ref=f33e272]:
+          - generic [ref=f33e273]:
+            - paragraph [ref=f33e274]: Mercado Pago Split 1:N — Homologation Test
+            - heading "Card Payment Brick · DNX Payments · Sandbox" [level=1] [ref=f33e275]
+            - paragraph [ref=f33e276]: Superficie aislada. No modifica Checkout Pro / marketplace_fee. No crea ventas, descargas ni emails comerciales.
+            - generic [ref=f33e277]:
+              - generic [ref=f33e278]:
+                - term [ref=f33e279]: Environment
+                - definition [ref=f33e280]: SANDBOX
+              - generic [ref=f33e281]:
+                - term [ref=f33e282]: Production
+                - definition [ref=f33e283]: BLOCKED
+              - generic [ref=f33e284]:
+                - term [ref=f33e285]: Source
+                - definition [ref=f33e286]: CLF_CARD_BRICK_HOMOLOGATION
+              - generic [ref=f33e287]:
+                - term [ref=f33e288]: App
+                - definition [ref=f33e289]: CLF monorepo (test only)
+          - generic [ref=f33e290]:
+            - generic [ref=f33e291]:
+              - heading "Scenario" [level=2] [ref=f33e292]
+              - generic [ref=f33e293]:
+                - button "Owner + 1 partner" [ref=f33e294]
+                - button "Owner + 2 partners" [ref=f33e295]
+              - paragraph [ref=f33e296]: "Amount (server-side): $150.00 ARS · partners=2"
+            - generic [ref=f33e297]:
+              - heading "Card Payment Brick" [level=2] [ref=f33e298]
+              - generic [ref=f33e299]:
+                - paragraph [ref=f33e300]: SANDBOX · Homologation only · Production BLOCKED · No crea ventas CLF
+                - paragraph [ref=f33e301]:
+                  - text: "Importe (solo lectura UI):"
+                  - strong [ref=f33e302]: $150.00 ARS
+                - generic [ref=f33e304]:
+                  - generic:
+                    - generic [ref=f33e305]:
+                      - heading "Tarjeta de crédito o débito" [level=1] [ref=f33e306]
+                      - iframe [ref=f33e334]:
+                        
+                    - generic [ref=f33e335]:
+                      - generic [ref=f33e336]:
+                        - generic [ref=f33e337]: Número de tarjeta
+                        - generic [ref=f33e338]:
+                          - textbox:
+                            - iframe
+                        - iframe [ref=f33e340]:
+                          
+                      - generic [ref=f33e341]:
+                        - generic [ref=f33e342]:
+                          - generic [ref=f33e343]: Vencimiento
+                          - generic [ref=f33e344]:
+                            - textbox:
+                              - iframe
+                          - iframe [ref=f33e346]:
+                            
+                        - generic [ref=f33e347]:
+                          - generic [ref=f33e348]: Código de seguridad
+                          - generic [ref=f33e349]:
+                            - textbox:
+                              - iframe
+                          - iframe [ref=f33e351]:
+                            
+                        - iframe [ref=f33e352]:
+                          
+                      - generic [ref=f33e353]:
+                        - generic [ref=f33e354]: Nombre del titular como aparece en la tarjeta
+                        - textbox "María López" [ref=f33e355]
+                        - iframe [ref=f33e356]:
+                          
+                      - generic [ref=f33e357]:
+                        - generic [ref=f33e358]: Documento del titular
+                        - generic [ref=f33e359]:
+                          - combobox [ref=f33e361]:
+                            - option "DNI" [selected]
+                            - option "Cédula"
+                            - option "L.C."
+                            - option "L.E."
+                            - option "Otro"
+                          - textbox "99999999" [ref=f33e364]
+                        - iframe [ref=f33e365]:
+                          
+                    - generic [ref=f33e367]:
+                      - button "Pagar" [ref=f33e369] [cursor=pointer]
+                      - iframe [ref=f33e375]:
+                        
+            - generic [ref=f33e404]:
+              - paragraph [ref=f33e405]: Después del pago
+              - list [ref=f33e406]:
+                - listitem [ref=f33e407]: No copies tarjeta / token / device ID.
+                - listitem [ref=f33e408]:
+                  - text: "En Cursor escribí:"
+                  - code [ref=f33e409]: PAGO BRICK CLF EJECUTADO
+                - listitem [ref=f33e410]:
+                  - text: "Verificación:"
+                  - code [ref=f33e411]: pnpm --filter @repo/payments smoke:clf-brick-verify
+  - button "Open Next.js Dev Tools" [ref=f33e9] [cursor=pointer]
+  - alert [ref=f33e412]

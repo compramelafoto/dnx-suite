@@ -11,12 +11,13 @@ import {
 import { hasClickatonAdminAccess, sanitizeAdminReturnPath } from "./access";
 
 assert.equal(normalizeEmail("  Foo@Bar.COM "), "foo@bar.com");
+assert.equal(isClickatonAdminEmail("cuart.daniel@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("DNXfotografia@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("rodrigorincon40@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("tammyytamer@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("compramelafoto@gmail.com"), true);
 assert.equal(isClickatonAdminEmail("otro@example.com"), false);
-assert.equal(listClickatonAdminEmails().length, 4);
+assert.equal(listClickatonAdminEmails().length, 5);
 
 assert.equal(hasClickatonAdminAccess(null), false);
 assert.equal(

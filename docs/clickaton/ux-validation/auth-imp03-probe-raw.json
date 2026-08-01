@@ -1,0 +1,340 @@
+{
+  "base": "https://clickaton-staging.vercel.app",
+  "at": "2026-08-01T08:53:12.718Z",
+  "routes": [
+    {
+      "label": "admin-home",
+      "path": "/admin",
+      "status": 200,
+      "url": "/admin",
+      "h1": "Inicio del panel",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-registrations",
+      "path": "/admin/inscripciones",
+      "status": 200,
+      "url": "/admin/inscripciones",
+      "h1": "Inscripciones",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-editions",
+      "path": "/admin/ediciones",
+      "status": 200,
+      "url": "/admin/ediciones",
+      "h1": "Ediciones",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-edition-detail",
+      "path": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43",
+      "status": 200,
+      "url": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43",
+      "h1": "Clickatón Piloto TEST 11B",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-finance",
+      "path": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/finanzas",
+      "status": 200,
+      "url": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/finanzas",
+      "h1": "Finanzas de la edición",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-pricing",
+      "path": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/precios",
+      "status": 200,
+      "url": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/precios",
+      "h1": "Fases de precio · Clickatón Piloto TEST 11B",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-schedule",
+      "path": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/cronograma",
+      "status": 200,
+      "url": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/cronograma",
+      "h1": "Cronograma de la edición",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-prompts",
+      "path": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/consignas",
+      "status": 200,
+      "url": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/consignas",
+      "h1": "Consignas de la edición",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-deliveries",
+      "path": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/envios",
+      "status": 200,
+      "url": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/envios",
+      "h1": "Entregas fotográficas · Clickatón Piloto TEST 11B",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-admission",
+      "path": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/admision",
+      "status": 200,
+      "url": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/admision",
+      "h1": "Admisión técnica · Clickatón Piloto TEST 11B",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-accreditation",
+      "path": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/acreditacion",
+      "status": 200,
+      "url": "/admin/ediciones/cmsa4srhh0000itp1vvxlsc43/acreditacion",
+      "h1": "Acreditación · Clickatón Piloto TEST 11B",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-promos",
+      "path": "/admin/promociones",
+      "status": 200,
+      "url": "/admin/promociones",
+      "h1": "Códigos promocionales",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-catalog",
+      "path": "/admin/catalogo",
+      "status": 200,
+      "url": "/admin/catalogo",
+      "h1": "Productos y kits",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-social",
+      "path": "/admin/social",
+      "status": 200,
+      "url": "/admin/social",
+      "h1": "Publicaciones en redes sociales",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-integrations",
+      "path": "/admin/integraciones",
+      "status": 200,
+      "url": "/admin/integraciones",
+      "h1": "Integraciones",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-finance-partner",
+      "path": "/admin/finanzas/mi-cuenta",
+      "status": 200,
+      "url": "/admin/finanzas/mi-cuenta",
+      "h1": "Mi cuenta de cobro",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-settings",
+      "path": "/admin/configuracion",
+      "status": 200,
+      "url": "/admin/configuracion",
+      "h1": "Configuración",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-messages",
+      "path": "/admin/mensajes",
+      "status": 200,
+      "url": "/admin/mensajes",
+      "h1": "Mensajes",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-sponsors",
+      "path": "/admin/sponsors",
+      "status": 200,
+      "url": "/admin/sponsors",
+      "h1": "Patrocinadores",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "admin-banners",
+      "path": "/admin/banners-home",
+      "status": 200,
+      "url": "/admin/banners-home",
+      "h1": "Banners del inicio",
+      "overflowX": false,
+      "bodyHint": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Patrocinadores Mensajes SISTEMA Config"
+    },
+    {
+      "label": "noperm-admin",
+      "path": "/admin",
+      "status": 200,
+      "url": "/admin/acceso-denegado",
+      "h1": "No tenés permiso para acceder a esta sección",
+      "overflowX": false,
+      "bodyHint": "SIN PERMISO NO TENÉS PERMISO PARA ACCEDER A ESTA SECCIÓN La sesión activa (ux.noperm@clickaton.staging.test) no está autorizada para administrar Clickatón. Podés volver al sitio o "
+    },
+    {
+      "label": "participant-account",
+      "path": "/mi-cuenta",
+      "status": 200,
+      "url": "/mi-cuenta",
+      "h1": "Hola, TEST UX Participante Confirmado",
+      "overflowX": false,
+      "bodyHint": "0 T TEST UX Participante Confirmado T MI PARTICIPACIÓN EN CLICKATÓN HOLA, TEST UX PARTICIPANTE CONFIRMADO Consultá el estado de tu inscripción, el pago y la información necesaria p"
+    },
+    {
+      "label": "participant-reg-detail",
+      "path": "/mi-cuenta/inscripciones/cmsa4su8p0008itp1f5jnj0kv",
+      "status": 200,
+      "url": "/mi-cuenta/inscripciones/cmsa4su8p0008itp1f5jnj0kv",
+      "h1": "",
+      "overflowX": false,
+      "bodyHint": "0 T TEST UX Participante Confirmado TU INSCRIPCIÓN INSCRIPCIÓN CONFIRMADA Tu lugar en Clickatón ya está reservado y el pago está acreditado. Próximo paso: Presentá tu QR en la acre"
+    },
+    {
+      "label": "participant-funnel",
+      "path": "/maratones/piloto-test-11b/inscripcion",
+      "status": 200,
+      "url": "/maratones/piloto-test-11b/inscripcion",
+      "h1": "Clickatón Piloto TEST 11B",
+      "overflowX": false,
+      "bodyHint": "0 T TEST UX Participante Confirmado Inicio / Maratones / Clickatón Piloto TEST 11B / Inscripción INSCRIPCIÓN PÚBLICA CLICKATÓN PILOTO TEST 11B Completá los pasos para reservar tu l"
+    },
+    {
+      "label": "participant-empty",
+      "path": "/mi-cuenta",
+      "status": 200,
+      "url": "/mi-cuenta",
+      "h1": "Hola, TEST UX Participante Sin Inscripcion",
+      "overflowX": false,
+      "bodyHint": "0 T TEST UX Participante Sin Inscripcion T MI PARTICIPACIÓN EN CLICKATÓN HOLA, TEST UX PARTICIPANTE SIN INSCRIPCION Consultá el estado de tu inscripción, el pago y la información n"
+    }
+  ],
+  "viewports": [
+    {
+      "route": "/admin/inscripciones",
+      "w": 320,
+      "h": 568,
+      "name": "320",
+      "overflowX": false,
+      "h1": "Inscripciones"
+    },
+    {
+      "route": "/admin/inscripciones",
+      "w": 360,
+      "h": 800,
+      "name": "360",
+      "overflowX": false,
+      "h1": "Inscripciones"
+    },
+    {
+      "route": "/admin/inscripciones",
+      "w": 375,
+      "h": 667,
+      "name": "375",
+      "overflowX": false,
+      "h1": "Inscripciones"
+    },
+    {
+      "route": "/admin/inscripciones",
+      "w": 390,
+      "h": 844,
+      "name": "390",
+      "overflowX": false,
+      "h1": "Inscripciones"
+    },
+    {
+      "route": "/admin/inscripciones",
+      "w": 414,
+      "h": 896,
+      "name": "414",
+      "overflowX": false,
+      "h1": "Inscripciones"
+    },
+    {
+      "route": "/admin/inscripciones",
+      "w": 430,
+      "h": 932,
+      "name": "430",
+      "overflowX": false,
+      "h1": "Inscripciones"
+    },
+    {
+      "route": "/admin/inscripciones",
+      "w": 768,
+      "h": 1024,
+      "name": "tablet",
+      "overflowX": false,
+      "h1": "Inscripciones"
+    },
+    {
+      "route": "/admin/inscripciones",
+      "w": 1280,
+      "h": 800,
+      "name": "desktop",
+      "overflowX": false,
+      "h1": "Inscripciones"
+    },
+    {
+      "route": "/mi-cuenta",
+      "w": 320,
+      "h": 568,
+      "name": "320",
+      "overflowX": false
+    },
+    {
+      "route": "/mi-cuenta",
+      "w": 390,
+      "h": 844,
+      "name": "390",
+      "overflowX": false
+    },
+    {
+      "route": "/mi-cuenta",
+      "w": 430,
+      "h": 932,
+      "name": "430",
+      "overflowX": false
+    }
+  ],
+  "checkout": {
+    "funnelUrl": "/maratones/piloto-test-11b/inscripcion",
+    "inscriptionUnavailable": false,
+    "brickNodes": 0,
+    "bodyHint": "0 T TEST UX Participante Sin Inscripcion Inicio / Maratones / Clickatón Piloto TEST 11B / Inscripción INSCRIPCIÓN PÚBLICA CLICKATÓN PILOTO TEST 11B Completá los pasos para reservar tu lugar. En entradas pagas, el cupo se reserva por un tiempo limitado hasta acreditar el pago. Entorno de prueba: no s",
+    "payButtons": 1,
+    "mpHints": {
+      "mentionsMp": false,
+      "mentionsKeyPattern": true
+    }
+  },
+  "notes": [
+    {
+      "adminLoginRedirect": "/mi-cuenta"
+    },
+    {
+      "adminLogoutUrl": "/"
+    },
+    {
+      "participantLoginRedirect": "/mi-cuenta"
+    }
+  ]
+}

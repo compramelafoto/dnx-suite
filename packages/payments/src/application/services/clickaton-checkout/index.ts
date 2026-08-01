@@ -23,6 +23,16 @@ export {
   assertClickatonDnxCheckoutAllowed,
 } from "./checkout-dnx-flag";
 export {
+  CLICKATON_MP_LIVE_PAYMENTS_FLAG,
+  isClickatonLivePaymentsEnabled,
+  isClickatonProductionRuntime,
+  resolveClickatonPaymentsProviderModeControlled,
+  assertLivePaymentsExecutionAllowed,
+} from "./live-payments-flag";
+export type { ClickatonPaymentsProviderMode } from "./live-payments-flag";
+export { preflightClickatonLivePayments } from "./live-payments-preflight";
+export type { LivePaymentsPreflightResult } from "./live-payments-preflight";
+export {
   buildClickatonOperationalSnapshot,
   CLICKATON_STAGING_AGREEMENT_SCOPE,
 } from "./build-operational-snapshot";

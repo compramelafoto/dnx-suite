@@ -6,7 +6,11 @@ import type { ProviderCapabilities } from "../types.js";
 export const MERCADOPAGO_ORDERS_CAPABILITIES: ProviderCapabilities = {
   supportsSplit1N: true,
   supportsMarketplaceFee: false,
-  supportsRefundPerRecipient: true,
+  /**
+   * Orders refund API refunds at order/transaction level — not per partner receiver.
+   * Internal DNX allocations reverse proportionally; do not claim MP per-recipient refund.
+   */
+  supportsRefundPerRecipient: false,
   supportsDeviceId: true,
   supportsSplitConsent: true,
   supportedCurrencies: ["ARS", "BRL", "USD", "MXN", "CLP", "UYU"],

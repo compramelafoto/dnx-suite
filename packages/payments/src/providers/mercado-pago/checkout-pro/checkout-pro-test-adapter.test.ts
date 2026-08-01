@@ -372,9 +372,15 @@ describe("MercadoPagoCheckoutProTestAdapter", () => {
 });
 
 describe("resolveClickatonPaymentsProviderMode", () => {
-  it("defaults and forbids production", () => {
+  it("defaults and forbids production outside Production runtime", () => {
     assert.equal(resolveClickatonPaymentsProviderMode(undefined), "manual");
     assert.equal(resolveClickatonPaymentsProviderMode("mercado_pago_test"), "mercado_pago_test");
-    assert.throws(() => resolveClickatonPaymentsProviderMode("mercado_pago_production"));
+    assert.throws(
+      () =>
+        resolveClickatonPaymentsProviderMode("mercado_pago_production", {
+          env: { VERCEL_ENV: "preview" },
+        }),
+      /mercado_pago_production_forbidden/,
+    );
   });
 });

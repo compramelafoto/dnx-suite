@@ -1,0 +1,165 @@
+{
+  "editionIdPrefix": "nueva…",
+  "rows": [
+    {
+      "path": "/admin",
+      "status": 200,
+      "url": "/admin",
+      "h1": "Inicio del panel",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nInicio\nINICIO DEL PANEL\n\nRevisá el estado operativo de Clickatón, l"
+    },
+    {
+      "path": "/admin/inscripciones",
+      "status": 200,
+      "url": "/admin/inscripciones",
+      "h1": "Inscripciones",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\n\nCargando el panel…\n\nEstamos preparando la información administrativa."
+    },
+    {
+      "path": "/admin/ediciones",
+      "status": 200,
+      "url": "/admin/ediciones",
+      "h1": "Ediciones",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nEdiciones\nEDICIONES\n\nCada edición de Clickatón puede tener una o va"
+    },
+    {
+      "path": "/admin/ediciones/nueva",
+      "status": 200,
+      "url": "/admin/ediciones/nueva",
+      "h1": "Nueva edición",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nEdiciones\n/\nNueva\nNUEVA EDICIÓN\n\nDefiní el producto de marca antes "
+    },
+    {
+      "path": "/admin/ediciones/nueva/finanzas",
+      "status": 200,
+      "url": "/admin/ediciones/nueva/finanzas",
+      "h1": "",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\n\nCargando el panel…\n\nEstamos preparando la información administrativa."
+    },
+    {
+      "path": "/admin/ediciones/nueva/precios",
+      "status": 200,
+      "url": "/admin/ediciones/nueva/precios",
+      "h1": "",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\n\nCargando el panel…\n\nEstamos preparando la información administrativa."
+    },
+    {
+      "path": "/admin/ediciones/nueva/cronograma",
+      "status": 200,
+      "url": "/admin/ediciones/nueva/cronograma",
+      "h1": "",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\n\nCargando el panel…\n\nEstamos preparando la información administrativa."
+    },
+    {
+      "path": "/admin/ediciones/nueva/consignas",
+      "status": 200,
+      "url": "/admin/ediciones/nueva/consignas",
+      "h1": "",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\n\nCargando el panel…\n\nEstamos preparando la información administrativa."
+    },
+    {
+      "path": "/admin/envios",
+      "status": 404,
+      "url": "/admin/envios",
+      "h1": "No encontramos esta página",
+      "overflowX": false,
+      "sample": "PÁGINA NO DISPONIBLE\n\nNO ENCONTRAMOS ESTA PÁGINA\n\nEs posible que el enlace haya cambiado o que la sección ya no esté disponible.\n\nVolver al inicio\nIr a Mi cuenta"
+    },
+    {
+      "path": "/admin/admision",
+      "status": 404,
+      "url": "/admin/admision",
+      "h1": "No encontramos esta página",
+      "overflowX": false,
+      "sample": "PÁGINA NO DISPONIBLE\n\nNO ENCONTRAMOS ESTA PÁGINA\n\nEs posible que el enlace haya cambiado o que la sección ya no esté disponible.\n\nVolver al inicio\nIr a Mi cuenta"
+    },
+    {
+      "path": "/admin/acreditacion",
+      "status": 404,
+      "url": "/admin/acreditacion",
+      "h1": "No encontramos esta página",
+      "overflowX": false,
+      "sample": "PÁGINA NO DISPONIBLE\n\nNO ENCONTRAMOS ESTA PÁGINA\n\nEs posible que el enlace haya cambiado o que la sección ya no esté disponible.\n\nVolver al inicio\nIr a Mi cuenta"
+    },
+    {
+      "path": "/admin/scanner",
+      "status": 404,
+      "url": "/admin/scanner",
+      "h1": "No encontramos esta página",
+      "overflowX": false,
+      "sample": "PÁGINA NO DISPONIBLE\n\nNO ENCONTRAMOS ESTA PÁGINA\n\nEs posible que el enlace haya cambiado o que la sección ya no esté disponible.\n\nVolver al inicio\nIr a Mi cuenta"
+    },
+    {
+      "path": "/admin/diagnostico",
+      "status": 404,
+      "url": "/admin/diagnostico",
+      "h1": "No encontramos esta página",
+      "overflowX": false,
+      "sample": "PÁGINA NO DISPONIBLE\n\nNO ENCONTRAMOS ESTA PÁGINA\n\nEs posible que el enlace haya cambiado o que la sección ya no esté disponible.\n\nVolver al inicio\nIr a Mi cuenta"
+    },
+    {
+      "path": "/admin/diagnostico/correos",
+      "status": 404,
+      "url": "/admin/diagnostico/correos",
+      "h1": "No encontramos esta página",
+      "overflowX": false,
+      "sample": "PÁGINA NO DISPONIBLE\n\nNO ENCONTRAMOS ESTA PÁGINA\n\nEs posible que el enlace haya cambiado o que la sección ya no esté disponible.\n\nVolver al inicio\nIr a Mi cuenta"
+    },
+    {
+      "path": "/admin/social",
+      "status": 200,
+      "url": "/admin/social",
+      "h1": "Publicaciones en redes sociales",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nPublicaciones en redes sociales\nPUBLICACIONES EN REDES SOCIALES\n\nPr"
+    },
+    {
+      "path": "/admin/integraciones",
+      "status": 200,
+      "url": "/admin/integraciones",
+      "h1": "Integraciones",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nIntegraciones\nINTEGRACIONES\n\nRevisá con qué sistemas trabaja Clicka"
+    },
+    {
+      "path": "/admin/promociones",
+      "status": 200,
+      "url": "/admin/promociones",
+      "h1": "Códigos promocionales",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nCódigos promocionales\nCÓDIGOS PROMOCIONALES\n\nCreá descuentos para c"
+    },
+    {
+      "path": "/admin/catalogo",
+      "status": 200,
+      "url": "/admin/catalogo",
+      "h1": "Productos y kits",
+      "overflowX": false,
+      "sample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nProductos y kits\nPRODUCTOS Y KITS\n\nConfigurá los artículos incluido"
+    },
+    {
+      "path": "/admin/patrocinadores",
+      "status": 404,
+      "url": "/admin/patrocinadores",
+      "h1": "No encontramos esta página",
+      "overflowX": false,
+      "sample": "PÁGINA NO DISPONIBLE\n\nNO ENCONTRAMOS ESTA PÁGINA\n\nEs posible que el enlace haya cambiado o que la sección ya no esté disponible.\n\nVolver al inicio\nIr a Mi cuenta"
+    },
+    {
+      "path": "/admin/banners",
+      "status": 404,
+      "url": "/admin/banners",
+      "h1": "No encontramos esta página",
+      "overflowX": false,
+      "sample": "PÁGINA NO DISPONIBLE\n\nNO ENCONTRAMOS ESTA PÁGINA\n\nEs posible que el enlace haya cambiado o que la sección ya no esté disponible.\n\nVolver al inicio\nIr a Mi cuenta"
+    }
+  ]
+}

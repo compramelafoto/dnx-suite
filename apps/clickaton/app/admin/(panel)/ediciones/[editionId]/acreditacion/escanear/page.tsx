@@ -21,17 +21,21 @@ export default async function AccreditationScanPage({ params }: Props) {
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <AdminPageHeader
-        title="Scanner de acreditación"
-        description={`${edition.name} — optimizado para celular. Validación en backend.`}
+        title="Escanear credencial"
+        description={`${edition.name}. El código QR identifica al participante durante la acreditación. Optimizado para celular.`}
         breadcrumbs={[
           { label: "Ediciones", href: adminRoutes.editions },
           { label: edition.name, href: `${adminRoutes.editions}/${editionId}` },
           { label: "Acreditación", href: `${adminRoutes.editions}/${editionId}/acreditacion` },
-          { label: "Escanear" },
+          { label: "Escanear credencial" },
         ]}
         actions={
-          <Button href={`${adminRoutes.editions}/${editionId}/acreditacion`} variant="secondary">
-            Panel
+          <Button
+            href={`${adminRoutes.editions}/${editionId}/acreditacion`}
+            variant="secondary"
+            className="min-h-11"
+          >
+            Volver al panel
           </Button>
         }
       />

@@ -215,19 +215,19 @@ export const sobrePageContent = {
       },
       {
         title: "Liberación de consignas",
-        body: "A la hora establecida, la plataforma habilita simultáneamente las consignas. Hasta ese momento permanecen ocultas.",
+        body: "A la hora establecida (en Argentina 2026: desde las 16:00), la plataforma habilita las consignas. Hasta ese momento permanecen ocultas.",
       },
       {
-        title: "Maratón",
-        body: "Cada participante interpreta las consignas y transforma la ciudad en un escenario creativo dentro del período establecido.",
+        title: "Maratón · captura",
+        body: "Cada participante interpreta las consignas dentro de la ventana válida de captura (en Argentina 2026: 16:00–20:00). La hora de subida no valida la captura.",
       },
       {
         title: "Carga",
-        body: "Las fotografías se cargan en la plataforma para continuar el proceso de la competencia.",
+        body: "La plataforma puede permanecer abierta más allá del cierre de captura para seleccionar, revelar y subir (en Argentina 2026: hasta las 22:00).",
       },
       {
         title: "Validación",
-        body: "Herramientas tecnológicas —como el análisis de metadatos— ayudan a ordenar y verificar que las imágenes se hayan realizado en el período correspondiente.",
+        body: "Herramientas tecnológicas —como el análisis de metadatos EXIF— ayudan a verificar que las imágenes se hayan capturado dentro de la ventana válida.",
       },
       {
         title: "Jurado",
@@ -269,17 +269,17 @@ export const sobrePageContent = {
     ],
     highlight: "interpretar cada consigna y transformarla en una fotografía.",
     closing:
-      "Durante las horas siguientes puede recorrer libremente la ciudad y producir sus imágenes dentro del período establecido por la organización.",
+      "En Argentina 2026: captura válida 16:00–20:00; carga habilitada 16:00–22:00. Verificá la fecha y hora de tu cámara antes de empezar.",
   },
 
   technology: {
     title: "Tecnología al servicio de la transparencia",
     paragraphs: [
       "Cuando cada participante carga sus fotografías, nuestra plataforma puede analizar la información técnica almacenada dentro de los archivos de imagen.",
-      "Estos metadatos permiten, entre otras validaciones, comprobar que una fotografía haya sido realizada dentro del período correspondiente a la maratón.",
+      "Estos metadatos permiten, entre otras validaciones, comprobar que una fotografía haya sido capturada dentro de la ventana válida (no según la hora de subida).",
       "Esto permite sumar herramientas tecnológicas que ayuden a garantizar una competencia más ordenada, verificable y transparente.",
     ],
-    note: "Son herramientas de validación y transparencia: no afirman una garantía absoluta contra todo tipo de fraude.",
+    note: "Son herramientas de validación y transparencia: no afirman una garantía absoluta contra todo tipo de fraude ni corrección automática de reloj de cámara.",
   },
 
   jury: {

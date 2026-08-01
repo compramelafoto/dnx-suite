@@ -1,4 +1,5 @@
 import { Prisma, prisma } from "@repo/db";
+import { PartnersDomainError } from "@repo/partners";
 
 export type ClickatonDbUnavailableReason = "migration_pending" | "db_error";
 
@@ -43,6 +44,10 @@ export async function withClickatonDb<T>(
     const data = await operation();
     return { ok: true, data };
   } catch (error) {
+    // Errores de dominio de partners: propagar para flash/redirect en server actions.
+    if (error instanceof PartnersDomainError) {
+      throw error;
+    }
     if (isMissingTableError(error)) {
       const table = missingTableHint(error);
       return {

@@ -10,6 +10,10 @@ import { MarathonPrizes } from "@/components/marathon/MarathonPrizes";
 import { MarathonResultsPlaceholder } from "@/components/marathon/MarathonResultsPlaceholder";
 import { MarathonRules } from "@/components/marathon/MarathonRules";
 import { MarathonSchedule } from "@/components/marathon/MarathonSchedule";
+import {
+  MarathonShirtOffer,
+  type ShirtOfferMedia,
+} from "@/components/marathon/MarathonShirtOffer";
 import { MarathonSponsors } from "@/components/marathon/MarathonSponsors";
 import { MarathonTimelineMilestones } from "@/components/marathon/MarathonTimelineMilestones";
 import { MarathonValidations } from "@/components/marathon/MarathonValidations";
@@ -24,6 +28,7 @@ type MarathonDetailViewProps = {
   nativeRegistrationLabel?: string | null;
   timelineMilestones?: PublicTimelineMilestoneDto[] | null;
   timelineServerNow?: string | null;
+  shirtMedia?: ShirtOfferMedia[] | null;
 };
 
 export function MarathonDetailView({
@@ -33,7 +38,10 @@ export function MarathonDetailView({
   nativeRegistrationLabel = null,
   timelineMilestones = null,
   timelineServerNow = null,
+  shirtMedia = null,
 }: MarathonDetailViewProps) {
+  const datedMilestones =
+    timelineMilestones?.filter((m) => Boolean(m.startsAt)) ?? [];
   return (
     <article>
       {marathon.isDemo ? <MarathonDemoBanner /> : null}
@@ -44,15 +52,18 @@ export function MarathonDetailView({
         nativeRegistrationLabel={nativeRegistrationLabel}
       />
       <MarathonKeyFacts marathon={marathon} />
-      {timelineMilestones && timelineMilestones.length > 0 ? (
+      {datedMilestones.length > 0 ? (
         <MarathonTimelineMilestones
           timezone={marathon.timezone}
-          milestones={timelineMilestones}
+          milestones={datedMilestones}
           serverNow={timelineServerNow}
         />
       ) : (
         <MarathonSchedule marathon={marathon} />
       )}
+      {shirtMedia && shirtMedia.length > 0 ? (
+        <MarathonShirtOffer media={shirtMedia} />
+      ) : null}
       <MarathonCategories marathon={marathon} />
       <MarathonRules marathon={marathon} />
       <MarathonValidations marathon={marathon} />

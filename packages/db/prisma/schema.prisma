@@ -8623,8 +8623,9 @@ enum FotorankDiplomaIssuedStatus {
 }
 
 // =============================================================================
-// DNX Payments — core persistence (Etapa 04)
-// Sandbox-ready domain tables. No CLF cutover. No payouts/settlements/refunds.
+// DNX Payments — core persistence (Etapa 04 + Imp 04 refunds)
+// Sandbox-ready domain tables. No CLF cutover. No payouts/settlements LIVE.
+// Refunds Orders 1:N: DnxPaymentRefund (+ allocations) — not applied to prod here.
 // =============================================================================
 
 enum DnxPaymentRecipientType {
@@ -9040,6 +9041,57 @@ model DnxPaymentAuditEvent {
   @@index([correlationId])
   @@index([provider, environment, createdAt])
   @@index([action, createdAt])
+}
+
+enum DnxPaymentRefundStatus {
+  REQUESTED
+  SUBMITTED
+  PROCESSED
+  FAILED
+  CANCELED
+}
+
+/// Refund durable Orders 1:N (Imp 04). Additive — no legacy rename/delete.
+model DnxPaymentRefund {
+  id                 String                 @id @default(cuid())
+  paymentOrderId     String
+  providerOrderId    String
+  providerRefundId   String?
+  amountMinor        BigInt
+  currency           String
+  status             DnxPaymentRefundStatus @default(REQUESTED)
+  statusDetail       String?
+  idempotencyKey     String
+  payloadHash        String
+  reason             String?
+  environment        DnxPaymentEnvironment
+  provider           DnxPaymentProvider     @default(MERCADOPAGO)
+  rawResponseSanitized Json?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  allocations DnxPaymentRefundAllocation[]
+
+  @@unique([provider, environment, idempotencyKey])
+  @@index([paymentOrderId, status])
+  @@index([providerOrderId])
+  @@index([providerRefundId])
+}
+
+/// Internal proportional reversal of a refund across original split shares.
+model DnxPaymentRefundAllocation {
+  id              String   @id @default(cuid())
+  refundId        String
+  recipientId     String
+  role            String
+  amountMinor     BigInt
+  currency        String
+  createdAt       DateTime @default(now())
+
+  refund DnxPaymentRefund @relation(fields: [refundId], references: [id], onDelete: Restrict)
+
+  @@index([refundId])
+  @@index([recipientId])
 }
 
 // =============================================================================
@@ -9507,6 +9559,8 @@ enum DnxMediaAssetKind {
   PROFILE_STORY_CROP
   WELCOME_CARD_PNG
   WELCOME_CARD_WEBP
+  /// Placa Template Engine V2 (Welcome/Member) — participant-cards.
+  PARTICIPANT_CARD_PNG
   LOGO
   /// Imagen de catálogo (producto / cuadro de talles / galería).
   PRODUCT_IMAGE
@@ -9563,6 +9617,21 @@ enum DnxWelcomeCardStatus {
   FAILED
 }
 
+/// Tipo de placa Template Engine (participant-cards V2).
+enum ClickatonParticipantCardType {
+  WELCOME
+  MEMBER
+}
+
+/// Estado de generación/caché de placa Template Engine.
+enum ClickatonParticipantCardStatus {
+  GENERATING
+  READY
+  FAILED
+  STALE
+  DELETED
+}
+
 /// Publicación Instagram — Etapa 9 (solo preparación).
 enum DnxWelcomePublicationStatus {
   NOT_SCHEDULED
@@ -9592,6 +9661,11 @@ enum ClickatonRegistrationStatus {
   CANCELLED
   REFUNDED
   DISQUALIFIED
+  /// Traslado único a la siguiente edición (inscripción individual no usada).
+  TRANSFERRED_TO_NEXT_EDITION
+  /// Segunda oportunidad no usada → expirada (sin tercera edición).
+  EXPIRED
+  REFUND_REQUESTED
 }
 
 /// Estado de cobro desacoplado (mirror / puente hacia DNX Payments).
@@ -9725,6 +9799,8 @@ model ClickatonEdition {
   visibleCodePrefix        String?
   /// Config desacoplada de beneficiarios (Etapa 5). Json tipado en app; no tokens.
   paymentBeneficiaryConfig Json?
+  /// Contrato de Bases por edición (10F.0). Tipado en `lib/rules-2026` / config argentina-2026.
+  rulesConfig              Json?
   createdAt                DateTime                          @default(now())
   updatedAt                DateTime                          @updatedAt
   venues                   ClickatonVenue[]
@@ -9738,6 +9814,7 @@ model ClickatonEdition {
   fotoRankSyncs            ClickatonFotoRankSync[]
   integrationOutbox        ClickatonIntegrationOutboxEvent[]
   welcomeCards             DnxWelcomeCard[]
+  participantCards         ClickatonParticipantCard[]
   mediaAssets              DnxMediaAsset[]
   timelines                ClickatonEditionTimeline[]
   prompts                  ClickatonPrompt[]
@@ -9754,6 +9831,9 @@ model ClickatonEdition {
   admissionJobs            ClickatonAdmissionJob[]
   entitlementsSource       ClickatonUserEntitlement[]        @relation("EntitlementSourceEdition")
   entitlementsTarget       ClickatonUserEntitlement[]        @relation("EntitlementTargetEdition")
+  prizeBundles             ClickatonPrizeBundle[]
+  socialVotingRounds       ClickatonSocialVotingRound[]
+  photographerRoyalties    ClickatonPhotographerRoyaltyLedger[]
   homeBanners              ClickatonHomeBanner[]
 
   @@index([status])
@@ -9776,22 +9856,22 @@ enum ClickatonHomeBannerLinkType {
 
 /// Banners del carousel superior del Home (admin organizable).
 model ClickatonHomeBanner {
-  id               String                      @id @default(cuid())
-  title            String
-  eyebrow          String?
-  description      String?
-  ctaLabel         String                      @default("Ver más")
-  linkType         ClickatonHomeBannerLinkType @default(INTERNAL)
+  id              String                     @id @default(cuid())
+  title           String
+  eyebrow         String?
+  description     String?
+  ctaLabel        String                     @default("Ver más")
+  linkType        ClickatonHomeBannerLinkType @default(INTERNAL)
   /// Path interno o URL externa (según linkType). Ignorado si EDITION.
-  href             String?
-  editionId        String?
-  imageUrl         String?
+  href            String?
+  editionId       String?
+  imageUrl        String?
   imageUrlVertical String?
-  sortOrder        Int                         @default(100)
-  isActive         Boolean                     @default(true)
-  publishedAt      DateTime?
-  createdAt        DateTime                    @default(now())
-  updatedAt        DateTime                    @updatedAt
+  sortOrder       Int                        @default(100)
+  isActive        Boolean                    @default(true)
+  publishedAt     DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
 
   edition ClickatonEdition? @relation(fields: [editionId], references: [id], onDelete: SetNull)
 
@@ -10154,8 +10234,21 @@ model ClickatonRegistration {
   termsVersion                       String?
   termsAcceptedAt                    DateTime?
   promotionalLicenseAcceptedAt       DateTime?
+  /// Declaración derechos de imagen de terceros identificables.
   identifiablePersonsDeclaredAt      DateTime?
   identifiablePersonsPolicyVersion   String?
+  registrationAuditIp                String?
+  registrationAuditUserAgent         String?
+  /// Adulto responsable (menores) — campos jurídicos finales PENDING legal.
+  adultResponsibleName               String?
+  adultResponsibleContact            String?
+  adultAuthorizationAcceptedAt       DateTime?
+  accompanimentConfirmed             Boolean                              @default(false)
+  minorLegalFieldsStatus             String?
+  /// Traslado inscripción individual (máx. 1).
+  transferredFromRegistrationId      String?
+  transferredToRegistrationId        String?
+  transferCount                      Int                                  @default(0)
   /// Soft refs sync FotoRank (duplican ClickatonFotoRankSync para listados).
   fotoRankParticipantId              String?
   fotoRankSyncStatus                 ClickatonFotoRankSyncStatus?
@@ -10165,6 +10258,9 @@ model ClickatonRegistration {
   welcomeCardStatus                  DnxWelcomeCardStatus?
   welcomeCardAssetId                 String?
   welcomePublicationStatus           DnxWelcomePublicationStatus?
+  /// Elegibilidad competitiva snapshot (8/10).
+  competitiveStatus                  String?
+  competitiveValidPromptCount        Int?
   createdAt                          DateTime                             @default(now())
   updatedAt                          DateTime                             @updatedAt
   edition                            ClickatonEdition                     @relation(fields: [editionId], references: [id], onDelete: Restrict)
@@ -10181,6 +10277,7 @@ model ClickatonRegistration {
   audits                             ClickatonRegistrationAudit[]
   fotoRankSyncs                      ClickatonFotoRankSync[]
   welcomeCards                       DnxWelcomeCard[]
+  participantCards                   ClickatonParticipantCard[]
   mediaAssets                        DnxMediaAsset[]
   photoSubmissions                   ClickatonPhotoSubmission[]
 
@@ -10790,6 +10887,49 @@ model DnxWelcomeCard {
   @@index([inputHash])
 }
 
+/// Placa Template Engine V2 (Welcome/Member) — versionada por renderHash.
+/// Coexiste con DnxWelcomeCard (pipeline Sharp legacy). Fuente de verdad futura: este modelo.
+model ClickatonParticipantCard {
+  id                String                         @id @default(cuid())
+  registrationId    String
+  editionId         String
+  cardType          ClickatonParticipantCardType
+  templateKey       String
+  templateVersion   Int
+  rendererVersion   String
+  renderHash        String
+  status            ClickatonParticipantCardStatus @default(GENERATING)
+  /// Soft ref a DnxMediaAsset (kind PARTICIPANT_CARD_PNG).
+  assetId           String?
+  storageKey        String?
+  width             Int?
+  height            Int?
+  mimeType          String                         @default("image/png")
+  byteSize          Int?
+  contentHash       String?
+  startedAt         DateTime                       @default(now())
+  generatedAt       DateTime?
+  failedAt          DateTime?
+  generatedByUserId Int?
+  sourceUpdatedAt   DateTime?
+  attemptCount      Int                            @default(0)
+  errorCode         String?
+  /// Lock de generación concurrente (TTL en app).
+  lockExpiresAt     DateTime?
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+
+  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@unique([registrationId, cardType, renderHash])
+  @@index([registrationId, cardType, status])
+  @@index([editionId, status])
+  @@index([status, lockExpiresAt])
+  @@index([renderHash])
+  @@index([assetId])
+}
+
 // ---------------------------------------------------------------------------
 // DNX Social Publisher — cuentas + solicitudes de publicación (Etapa 9)
 // ---------------------------------------------------------------------------
@@ -11043,6 +11183,135 @@ model ClickatonStockHold {
   productVariant   ClickatonProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
 
   @@index([registrationId, status])
+  @@index([productVariantId, status])
+  @@index([status, expiresAt])
+}
+
+/// Pedido de TIENDA Clickatón (checkout distinto de inscripción).
+enum ClickatonStoreOrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PAID
+  PAYMENT_FAILED
+  CANCELLED
+  EXPIRED
+  REFUNDED
+  READY_FOR_PICKUP
+  SHIPPED
+  DELIVERED
+}
+
+enum ClickatonStorePaymentStatus {
+  CREATED
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  REFUNDED
+  CHARGED_BACK
+  UNKNOWN
+}
+
+enum ClickatonStoreDeliveryMethod {
+  PICKUP
+  /// Reservado; deshabilitado hasta integración logística.
+  SHIPPING
+}
+
+enum ClickatonStoreHoldStatus {
+  ACTIVE
+  CAPTURED
+  RELEASED
+  EXPIRED
+}
+
+model ClickatonStoreOrder {
+  id                        String                       @id @default(cuid())
+  /// Identificador público de alta entropía (no secuencial).
+  publicId                  String                       @unique
+  /// Hash SHA-256 del token de acceso (cookie / enlace).
+  accessTokenHash           String
+  status                    ClickatonStoreOrderStatus    @default(DRAFT)
+  paymentStatus             ClickatonStorePaymentStatus  @default(CREATED)
+  currency                  String                       @default("ARS")
+  subtotalAmount            Int
+  deliveryAmount            Int                          @default(0)
+  totalAmount               Int
+  customerFirstName         String
+  customerLastName          String
+  customerEmail             String
+  customerPhone             String
+  deliveryMethod            ClickatonStoreDeliveryMethod @default(PICKUP)
+  /// JSON tipado en app (punto de retiro / dirección).
+  deliveryData              Json?
+  legalVersion              String
+  legalAcceptedAt           DateTime
+  paymentProvider           String?
+  /// Soft ref a DnxPaymentOrder.id
+  paymentOrderId            String?
+  paymentExternalReference  String?
+  paymentIdempotencyKey     String?                      @unique
+  /// Idempotencia de creación desde cliente.
+  clientIdempotencyKey      String                       @unique
+  /// Fingerprint comercial del payload (idempotencia + limpieza de carrito).
+  commercialFingerprint     String
+  holdExpiresAt             DateTime?
+  /// Edición del primer producto (contexto collector / admin).
+  editionId                 String?
+  /// Snapshot financiero inmutable al crear preferencia (collector / sin split complejo).
+  financialDistributionSnapshot Json?
+  createdAt                 DateTime                     @default(now())
+  updatedAt                 DateTime                     @updatedAt
+  items                     ClickatonStoreOrderItem[]
+  stockHolds                ClickatonStoreStockHold[]
+
+  @@index([status, createdAt])
+  @@index([paymentStatus, status])
+  @@index([customerEmail, createdAt])
+  @@index([editionId])
+  @@index([holdExpiresAt, status])
+  @@index([paymentOrderId])
+  @@index([commercialFingerprint])
+}
+
+model ClickatonStoreOrderItem {
+  id                  String              @id @default(cuid())
+  orderId             String
+  productId           String
+  productVariantId    String
+  productNameSnapshot String
+  variantNameSnapshot String
+  skuSnapshot         String?
+  unitPriceAmount     Int
+  quantity            Int
+  lineSubtotalAmount  Int
+  currency            String              @default("ARS")
+  imageUrlSnapshot    String?
+  storeSlugSnapshot   String?
+  createdAt           DateTime            @default(now())
+  order               ClickatonStoreOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([productVariantId])
+}
+
+/// Hold de stock de TIENDA (independiente de ClickatonStockHold de inscripción).
+model ClickatonStoreStockHold {
+  id               String                   @id @default(cuid())
+  orderId          String
+  productId        String
+  productVariantId String
+  quantity         Int
+  status           ClickatonStoreHoldStatus @default(ACTIVE)
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  releasedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  order            ClickatonStoreOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, status])
   @@index([productVariantId, status])
   @@index([status, expiresAt])
 }
@@ -12095,49 +12364,8 @@ model FotorankTieBreakSession {
   @@index([resultBatchId, tieGroup])
 }
 
-/// Recibo durable de webhooks Resend / DNX Communications (Imp06).
-/// Minimizado: sin body crudo, firma, email completo, IP ni UA.
-enum DnxCommunicationWebhookStatus {
-  RECEIVED
-  VERIFIED
-  PROCESSED
-  IGNORED
-  DUPLICATE
-  FAILED
-}
-
-model DnxCommunicationWebhookEvent {
-  id                    String                        @id @default(cuid())
-  provider              String
-  providerEventId       String
-  providerMessageId     String?
-  rawEventType          String
-  normalizedEventType   String?
-  status                DnxCommunicationWebhookStatus @default(RECEIVED)
-  occurredAt            DateTime?
-  receivedAt            DateTime                      @default(now())
-  processedAt           DateTime?
-  recipientMasked       String?
-  recipientHash         String?
-  safeLinkHost          String?
-  safeLinkPath          String?
-  failureCategory       String?
-  failureReasonCode     String?
-  processingAttempts    Int                           @default(0)
-  lastErrorCode         String?
-  /// Siempre false hasta revisión legal / modo process productivo.
-  productEffectsEnabled Boolean                       @default(false)
-  createdAt             DateTime                      @default(now())
-  updatedAt             DateTime                      @updatedAt
-
-  @@unique([provider, providerEventId])
-  @@index([status, receivedAt])
-  @@index([provider, normalizedEventType])
-  @@index([providerMessageId])
-}
-
 // ---------------------------------------------------------------------------
-// Clickatón — pack / annual pass entitlements
+// Clickatón 10F.0 — entitlements, prizes, social voting, photographer royalties
 // ---------------------------------------------------------------------------
 
 enum ClickatonEntitlementType {
@@ -12197,3 +12425,596 @@ model ClickatonEntitlementConsumption {
   @@index([editionId, eventType])
 }
 
+enum ClickatonPrizeBundleStatus {
+  DRAFT
+  AVAILABLE
+  ASSIGNED
+  DELIVERED
+  REPLACED
+}
+
+model ClickatonPrizeBundle {
+  id                     String                     @id @default(cuid())
+  editionId              String
+  slot                   Int
+  name                   String
+  description            String?
+  sponsor                String?
+  itemsJson              Json?
+  referentialValueMinor  Int?
+  status                 ClickatonPrizeBundleStatus @default(DRAFT)
+  replacementNotes       String?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  edition      ClickatonEdition            @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  assignments  ClickatonPrizeAssignment[]
+
+  @@unique([editionId, slot])
+  @@index([editionId, status])
+}
+
+model ClickatonPrizeAssignment {
+  id                   String   @id @default(cuid())
+  editionId            String
+  bundleId             String
+  winnerRegistrationId String?
+  winnerEntryId        String?
+  promptId             String?
+  assignedAt           DateTime @default(now())
+  deliveryDueAt        DateTime?
+  deliveredAt          DateTime?
+  replacedAt           DateTime?
+  auditJson            Json?
+
+  bundle ClickatonPrizeBundle @relation(fields: [bundleId], references: [id], onDelete: Restrict)
+
+  @@unique([bundleId])
+  @@index([editionId])
+  @@index([winnerRegistrationId])
+}
+
+enum ClickatonSocialVotingStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  CLOSED
+  INVALIDATED
+  RESOLVED
+  MANUAL_REVIEW_REQUIRED
+}
+
+model ClickatonSocialVotingRound {
+  id              String                      @id @default(cuid())
+  editionId       String
+  promptId        String
+  status          ClickatonSocialVotingStatus @default(DRAFT)
+  publishedAt     DateTime?
+  votingClosesAt  DateTime?
+  carouselMediaIds Json?
+  likeCountsJson  Json?
+  winnerEntryId   String?
+  fraudFlagsJson  Json?
+  resolvedAt      DateTime?
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  fraudFlags ClickatonSocialVoteFraudFlag[]
+
+  @@unique([editionId, promptId])
+  @@index([editionId, status])
+  @@index([votingClosesAt])
+}
+
+model ClickatonSocialVoteFraudFlag {
+  id           String   @id @default(cuid())
+  roundId      String
+  entryId      String?
+  reason       String
+  invalidated  Boolean  @default(false)
+  overrideNote String?
+  actorUserId  Int?
+  createdAt    DateTime @default(now())
+
+  round ClickatonSocialVotingRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([roundId, invalidated])
+}
+
+enum ClickatonRoyaltyLedgerStatus {
+  PENDING
+  AVAILABLE
+  WITHDRAWAL_REQUESTED
+  PAID
+  REVERSED
+}
+
+model ClickatonPhotographerRoyaltyLedger {
+  id                    String                      @id @default(cuid())
+  editionId             String
+  photographerUserId    Int
+  productKind           String
+  orderId               String?
+  productId             String?
+  entryId               String?
+  workTitle             String?
+  productPaidMinor      Int
+  shippingPaidMinor     Int                         @default(0)
+  royaltyBaseMinor      Int
+  royaltyMinor          Int
+  currency              String                      @default("ARS")
+  status                ClickatonRoyaltyLedgerStatus @default(PENDING)
+  soldAt                DateTime
+  availableAt           DateTime
+  withdrawalRequestedAt DateTime?
+  paidAt                DateTime?
+  reversedAt            DateTime?
+  auditJson             Json?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([photographerUserId, status])
+  @@index([editionId, soldAt])
+  @@index([availableAt, status])
+}
+
+/// Recibo durable de webhooks Resend / DNX Communications (Imp06).
+/// Minimizado: sin body crudo, firma, email completo, IP ni UA.
+enum DnxCommunicationWebhookStatus {
+  RECEIVED
+  VERIFIED
+  PROCESSED
+  IGNORED
+  DUPLICATE
+  FAILED
+}
+
+model DnxCommunicationWebhookEvent {
+  id                    String                        @id @default(cuid())
+  provider              String
+  providerEventId       String
+  providerMessageId     String?
+  rawEventType          String
+  normalizedEventType   String?
+  status                DnxCommunicationWebhookStatus @default(RECEIVED)
+  occurredAt            DateTime?
+  receivedAt            DateTime                      @default(now())
+  processedAt           DateTime?
+  recipientMasked       String?
+  recipientHash         String?
+  safeLinkHost          String?
+  safeLinkPath          String?
+  failureCategory       String?
+  failureReasonCode     String?
+  processingAttempts    Int                           @default(0)
+  lastErrorCode         String?
+  /// Siempre false hasta revisión legal / modo process productivo.
+  productEffectsEnabled Boolean                       @default(false)
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+
+  @@unique([provider, providerEventId])
+  @@index([status, receivedAt])
+  @@index([provider, normalizedEventType])
+  @@index([providerMessageId])
+}
+
+
+// ---------------------------------------------------------------------------
+// DNX Partners — sponsors, aportes y beneficios transversales (Etapa 01)
+// Dominio comercial. NO confundir con partner-onboarding de Mercado Pago.
+// ---------------------------------------------------------------------------
+
+enum DnxPartnerType {
+  COMPANY
+  BUSINESS
+  BRAND
+  INSTITUTION
+  ORGANIZATION
+  PERSON
+  GOVERNMENT
+  OTHER
+}
+
+enum DnxPartnerStatus {
+  PROSPECT
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum DnxPartnerApplication {
+  DNX_SUITE
+  CLICKATON
+  FOTO_OFFICE
+  FOTO_RANK
+  COMPRAME_LA_FOTO
+  INFO_SPOT
+  OTHER
+}
+
+enum DnxPartnerContextType {
+  GLOBAL
+  ORGANIZATION
+  EVENT
+  EDITION
+  VENUE
+  CONTEST
+  CATEGORY
+  ALBUM
+  MEMBERSHIP
+  CAMPAIGN
+  PLATFORM
+  OTHER
+}
+
+enum DnxPartnerParticipationType {
+  SPONSOR
+  BENEFIT_PROVIDER
+  PRIZE_PROVIDER
+  SERVICE_PROVIDER
+  INSTITUTIONAL_PARTNER
+  MEDIA_PARTNER
+  COMMERCIAL_PARTNER
+  COLLABORATOR
+  OTHER
+}
+
+enum DnxPartnerParticipationStatus {
+  DRAFT
+  PROPOSED
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
+enum DnxPartnerPaymentMode {
+  NONE
+  ONE_TIME
+  INSTALLMENTS
+  RECURRING
+  MANUAL
+  EXTERNAL
+}
+
+enum DnxPartnerContributionType {
+  MONEY
+  PRODUCT
+  PRIZE
+  VOUCHER
+  DISCOUNT
+  SERVICE
+  EQUIPMENT
+  PROMOTION
+  CONTENT
+  INSTITUTIONAL_SUPPORT
+  VENUE
+  LOGISTICS
+  OTHER
+}
+
+enum DnxPartnerContributionStatus {
+  PENDING
+  CONFIRMED
+  PARTIALLY_DELIVERED
+  DELIVERED
+  CANCELLED
+}
+
+enum DnxPartnerBenefitType {
+  PERCENTAGE_DISCOUNT
+  FIXED_DISCOUNT
+  PROMO_CODE
+  FREE_SERVICE
+  FREE_PRODUCT
+  VOUCHER
+  PRIORITY_SERVICE
+  SPECIAL_PRICE
+  UPGRADE
+  OTHER
+}
+
+enum DnxPartnerRedemptionMethod {
+  PROMO_CODE
+  DIGITAL_CREDENTIAL
+  PHYSICAL_CREDENTIAL
+  IDENTITY_VERIFICATION
+  MANUAL_APPROVAL
+  EXTERNAL_LINK
+  CONTACT_PARTNER
+  OTHER
+}
+
+enum DnxPartnerBenefitStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  EXPIRED
+  ARCHIVED
+}
+
+enum DnxPartnerAudienceType {
+  ALL_USERS
+  ORGANIZATION_MEMBERS
+  EVENT_PARTICIPANTS
+  EDITION_PARTICIPANTS
+  PRODUCT_PURCHASERS
+  MEMBERSHIP_HOLDERS
+  MANUAL_USERS
+  CUSTOM_GROUP
+  OTHER
+}
+
+enum DnxPartnerCapability {
+  PARTNER_VIEW
+  PARTNER_CREATE
+  PARTNER_UPDATE
+  PARTNER_ARCHIVE
+  PARTNER_PARTICIPATIONS_MANAGE
+  PARTNER_CONTRIBUTIONS_MANAGE
+  PARTNER_BENEFITS_VIEW
+  PARTNER_BENEFITS_MANAGE
+  PARTNER_BENEFITS_PUBLISH
+  PARTNER_BENEFITS_GRANT
+  PARTNER_PAYMENTS_VIEW
+  PARTNER_PAYMENTS_MANAGE
+  PARTNER_CONTACT_SENSITIVE
+}
+
+enum DnxPartnerGrantStatus {
+  ACTIVE
+  REVOKED
+}
+
+/// Ficha canónica de partner comercial (empresa, marca, institución, persona).
+model DnxPartner {
+  id              String          @id @default(cuid())
+  name            String
+  legalName       String?
+  slug            String          @unique
+  description     String?
+  type            DnxPartnerType  @default(COMPANY)
+  status          DnxPartnerStatus @default(PROSPECT)
+  logoUrl         String?
+  websiteUrl      String?
+  instagram       String?
+  email           String?
+  phone           String?
+  taxId           String?
+  notes           String?
+  /// Soft-link opcional a identidad financiera (nunca obligatorio).
+  financialIdentityId String?
+  createdByUserId Int?
+  updatedByUserId Int?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  archivedAt      DateTime?
+
+  contacts        DnxPartnerContact[]
+  participations  DnxPartnerParticipation[]
+  benefits        DnxPartnerBenefit[]
+  auditEvents     DnxPartnerAuditEvent[]
+
+  @@index([status, updatedAt])
+  @@index([type, status])
+  @@index([name])
+}
+
+model DnxPartnerContact {
+  id          String   @id @default(cuid())
+  partnerId   String
+  firstName   String
+  lastName    String?
+  roleTitle   String?
+  email       String?
+  phone       String?
+  whatsapp    String?
+  isPrimary   Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  archivedAt  DateTime?
+
+  partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, isPrimary])
+}
+
+model DnxPartnerParticipation {
+  id                 String                         @id @default(cuid())
+  partnerId          String
+  /// Ref opaca de organización de producto (ContestOrganization, Workspace, etc.).
+  organizationId     String?
+  application        DnxPartnerApplication
+  contextType        DnxPartnerContextType          @default(GLOBAL)
+  contextId          String?
+  participationType  DnxPartnerParticipationType    @default(SPONSOR)
+  title              String?
+  description        String?
+  status             DnxPartnerParticipationStatus  @default(DRAFT)
+  startsAt           DateTime?
+  endsAt             DateTime?
+  /// Default false: la participación no implica cobro.
+  requiresPayment    Boolean                        @default(false)
+  paymentMode        DnxPartnerPaymentMode          @default(NONE)
+  paymentAmountMinor Int?
+  paymentCurrency    String?                        @default("ARS")
+  paymentNotes       String?
+  estimatedValueMinor Int?
+  currency           String?                        @default("ARS")
+  notes              String?
+  createdByUserId    Int?
+  updatedByUserId    Int?
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  archivedAt         DateTime?
+
+  partner       DnxPartner                 @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  contributions DnxPartnerContribution[]
+  benefits      DnxPartnerBenefit[]
+
+  @@index([partnerId, status])
+  @@index([application, status])
+  @@index([contextType, contextId])
+  @@index([organizationId])
+}
+
+model DnxPartnerContribution {
+  id                   String                       @id @default(cuid())
+  participationId      String
+  type                 DnxPartnerContributionType
+  title                String
+  description          String?
+  quantity             Int?
+  estimatedUnitValueMinor Int?
+  estimatedTotalValueMinor Int?
+  currency             String?                      @default("ARS")
+  status               DnxPartnerContributionStatus @default(PENDING)
+  deliveryDate         DateTime?
+  deliveredAt          DateTime?
+  /// Soft-link opcional a DnxPromotion.id
+  promotionId          String?
+  /// Soft-link opcional a ClickatonPrizeBundle.id
+  prizeBundleId        String?
+  externalCode         String?
+  notes                String?
+  createdByUserId      Int?
+  updatedByUserId      Int?
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+
+  participation DnxPartnerParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@index([participationId, status])
+  @@index([type, status])
+  @@index([prizeBundleId])
+}
+
+model DnxPartnerBenefit {
+  id                      String                     @id @default(cuid())
+  partnerId               String
+  participationId         String?
+  title                   String
+  description             String?
+  benefitType             DnxPartnerBenefitType
+  status                  DnxPartnerBenefitStatus    @default(DRAFT)
+  discountPercentage      Int?
+  discountAmountMinor     Int?
+  currency                String?                    @default("ARS")
+  promoCode               String?
+  /// Soft-link opcional a DnxPromotion.id
+  promotionId             String?
+  redemptionMethod        DnxPartnerRedemptionMethod @default(CONTACT_PARTNER)
+  redemptionInstructions  String?
+  terms                   String?
+  startsAt                DateTime?
+  endsAt                  DateTime?
+  totalRedemptionLimit    Int?
+  perUserRedemptionLimit  Int?
+  isPublic                Boolean                    @default(false)
+  createdByUserId         Int?
+  updatedByUserId         Int?
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  archivedAt              DateTime?
+
+  partner       DnxPartner                   @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  participation DnxPartnerParticipation?     @relation(fields: [participationId], references: [id], onDelete: SetNull)
+  audiences     DnxPartnerBenefitAudience[]
+  manualAccess  DnxPartnerBenefitAccess[]
+
+  @@index([partnerId, status])
+  @@index([participationId])
+  @@index([status, startsAt, endsAt])
+  @@index([promoCode])
+}
+
+model DnxPartnerBenefitAudience {
+  id             String                 @id @default(cuid())
+  benefitId      String
+  audienceType   DnxPartnerAudienceType
+  organizationId String?
+  contextType    DnxPartnerContextType?
+  contextId      String?
+  manualUserId   Int?
+  label          String?
+  /// Metadatos no críticos (copy, tags). No reglas de elegibilidad.
+  metadata       Json?
+  createdAt      DateTime               @default(now())
+
+  benefit DnxPartnerBenefit @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+
+  @@index([benefitId, audienceType])
+  @@index([organizationId])
+  @@index([contextType, contextId])
+}
+
+/// Grants de capabilities del dominio partners (capa aparte de DnxFinanceGrant).
+model DnxPartnerGrant {
+  id              String                 @id @default(cuid())
+  userId          Int
+  capability      DnxPartnerCapability
+  /// Scope opcional (productKey / partnerId / application).
+  scopeType       String?
+  scopeId         String?
+  status          DnxPartnerGrantStatus  @default(ACTIVE)
+  grantedByUserId Int?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  revokedAt       DateTime?
+
+  @@index([userId, status])
+  @@index([capability, status])
+  @@index([scopeType, scopeId])
+}
+
+model DnxPartnerAuditEvent {
+  id          String   @id @default(cuid())
+  partnerId   String?
+  entityType  String
+  entityId    String
+  action      String
+  actorUserId Int?
+  summary     String?
+  beforeJson  Json?
+  afterJson   Json?
+  createdAt   DateTime @default(now())
+
+  partner DnxPartner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+}
+
+
+enum DnxPartnerBenefitAccessStatus {
+  ACTIVE
+  REVOKED
+}
+
+/// Acceso manual a un beneficio (cortesía / excepción).
+/// Distinto de DnxPartnerGrant (= capabilities RBAC del módulo partners).
+model DnxPartnerBenefitAccess {
+  id              String                        @id @default(cuid())
+  benefitId       String
+  userId          Int
+  status          DnxPartnerBenefitAccessStatus @default(ACTIVE)
+  reason          String?                       @default("MANUAL")
+  notes           String?
+  grantedByUserId Int?
+  revokedAt       DateTime?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+
+  benefit DnxPartnerBenefit @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+
+  @@unique([benefitId, userId])
+  @@index([userId, status])
+  @@index([benefitId, status])
+}

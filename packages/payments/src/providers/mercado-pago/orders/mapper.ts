@@ -11,11 +11,19 @@ import type {
   MpOrderAmountType,
 } from "./contracts.js";
 import type { SplitOrderEntry } from "./validator.js";
+import type { PartnerConsentEvidence } from "./consent-evidence.js";
+import type { OrderItemInput } from "./order-items.js";
+import { mapOrderItemsToMercadoPago } from "./order-items.js";
+import {
+  DEFAULT_MP_SPLIT_AMOUNT_TYPE_STRATEGY,
+  type MpSplitAmountTypeStrategy,
+} from "./constants.js";
 
 export type MappedOrderStatus =
   | "OPEN"
   | "PROCESSED_ACCREDITED"
   | "PROCESSED"
+  | "PARTIALLY_REFUNDED"
   | "REFUNDED"
   | "CHARGED_BACK"
   | "FAILED"
@@ -42,11 +50,24 @@ export function stablePayloadHash(payload: unknown): string {
   return createHash("sha256").update(normalized).digest("hex");
 }
 
+/** Infer amount_type from rule kinds (backwards-compatible). */
 export function inferAmountType(distribution: CalculatedDistribution): MpOrderAmountType {
   const hasPercentage = distribution.entries.some(
     (e: CalculatedDistributionEntry) => e.ruleKind === "PERCENTAGE",
   );
   return hasPercentage ? "percentage" : "fixed";
+}
+
+/**
+ * Resolve MP amount_type.
+ * Default `fixed_preferred`: always send fixed after DNX calculated amounts.
+ */
+export function resolveMpAmountType(
+  distribution: CalculatedDistribution,
+  strategy: MpSplitAmountTypeStrategy = DEFAULT_MP_SPLIT_AMOUNT_TYPE_STRATEGY,
+): MpOrderAmountType {
+  if (strategy === "fixed_preferred") return "fixed";
+  return inferAmountType(distribution);
 }
 
 function amountToBps(amount: Money, total: Money): number {
@@ -58,8 +79,12 @@ export function buildSplitEntriesFromDistribution(
   distribution: CalculatedDistribution,
   ownerUserId: string,
   partnerReceiverIds: Map<string, string>,
+  options: {
+    partnerConsentsByRecipientId: Map<string, PartnerConsentEvidence>;
+    amountType: MpOrderAmountType;
+  },
 ): SplitOrderEntry[] {
-  const amountType = inferAmountType(distribution);
+  const amountType = options.amountType;
   const partners: SplitOrderEntry[] = [];
   let ownerAmountMinor = 0n;
   let ownerBps = 10_000;
@@ -67,11 +92,13 @@ export function buildSplitEntriesFromDistribution(
   for (const entry of distribution.entries) {
     const receiverId = partnerReceiverIds.get(entry.recipientId);
     if (receiverId) {
+      const consent = options.partnerConsentsByRecipientId.get(entry.recipientId);
+      const consentStatus = consent?.status;
       if (amountType === "fixed") {
         partners.push({
           receiverType: "partner",
           receiverId,
-          consentStatus: "ACTIVE",
+          ...(consentStatus ? { consentStatus } : {}),
           amount: entry.amount,
         });
       } else {
@@ -80,7 +107,7 @@ export function buildSplitEntriesFromDistribution(
         partners.push({
           receiverType: "partner",
           receiverId,
-          consentStatus: "ACTIVE",
+          ...(consentStatus ? { consentStatus } : {}),
           amountBps: bps,
         });
       }
@@ -114,7 +141,9 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
   amountType: MpOrderAmountType;
   entries: SplitOrderEntry[];
   deviceSessionId: string;
-  payerEmail?: string;
+  payerEmail: string;
+  statementDescriptor: string;
+  items: OrderItemInput[];
   metadata?: Record<string, string>;
   description?: string;
   paymentToken?: string;
@@ -143,31 +172,30 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
   });
 
   const totalAmount = moneyToMercadoPagoAmount(opts.total);
+  const mpItems = mapOrderItemsToMercadoPago(opts.items);
+
+  /**
+   * Sandbox MP (Imp 05 evidence):
+   * - rejects `additional_info.items` (additionalProperties not allowed)
+   * - requires `transactions` on create for type=online
+   * Keep catalog `items` at top-level for intangibles antifraud.
+   */
+  const paymentMethodId = opts.paymentMethodId?.trim() || "visa";
+  if (!opts.paymentToken?.trim()) {
+    throw new Error(
+      "PAYMENT_TOKEN_REQUIRED: Mercado Pago Orders online create requires transactions.payments (card token)",
+    );
+  }
+
   const body: MpOrderCreateRequest = {
     type: "online",
     external_reference: opts.externalReference,
     total_amount: totalAmount,
     processing_mode: "automatic",
+    payer: { email: opts.payerEmail },
     splits,
-    config: {
-      split_rules: {
-        amount_type: opts.amountType,
-      },
-    },
-  };
-  if (opts.payerEmail) {
-    body.payer = { email: opts.payerEmail };
-  }
-  if (opts.integratorId || opts.platformId) {
-    body.integration_data = {
-      ...(opts.integratorId ? { integrator_id: opts.integratorId } : {}),
-      ...(opts.platformId ? { platform_id: opts.platformId } : {}),
-    };
-  }
-
-  if (opts.paymentToken) {
-    const paymentMethodId = opts.paymentMethodId?.trim() || "visa";
-    body.transactions = {
+    items: mpItems,
+    transactions: {
       payments: [
         {
           amount: totalAmount,
@@ -176,9 +204,21 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
             token: opts.paymentToken,
             type: "credit_card",
             installments: opts.installments ?? 1,
+            statement_descriptor: opts.statementDescriptor,
           },
         },
       ],
+    },
+    config: {
+      split_rules: {
+        amount_type: opts.amountType,
+      },
+    },
+  };
+  if (opts.integratorId || opts.platformId) {
+    body.integration_data = {
+      ...(opts.integratorId ? { integrator_id: opts.integratorId } : {}),
+      ...(opts.platformId ? { platform_id: opts.platformId } : {}),
     };
   }
 
@@ -214,6 +254,9 @@ export function mapMercadoPagoOrderStatus(
     return "PROCESSED";
   }
   if (normalizedOrder === "refunded") return "REFUNDED";
+  if (detail === "partially_refunded" || detail === "partial_refunded") {
+    return "PARTIALLY_REFUNDED";
+  }
   if (normalizedOrder === "charged_back") return "CHARGED_BACK";
   if (normalizedOrder === "failed") return "FAILED";
   if (normalizedOrder === "canceled" || normalizedOrder === "cancelled") return "CANCELED";

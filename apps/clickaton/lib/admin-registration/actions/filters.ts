@@ -28,6 +28,9 @@ export function filtersFromSearchParams(params: {
     "CANCELLED",
     "REFUNDED",
     "DISQUALIFIED",
+    "TRANSFERRED_TO_NEXT_EDITION",
+    "EXPIRED",
+    "REFUND_REQUESTED",
   ];
   const payments: ClickatonPaymentStatus[] = [
     "NOT_REQUIRED",

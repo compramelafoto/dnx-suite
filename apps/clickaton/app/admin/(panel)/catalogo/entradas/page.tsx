@@ -51,7 +51,7 @@ export default async function AdminTicketTypesPage({ searchParams }: Props) {
         <AdminPageHeader
           title="Entradas y kits"
           breadcrumbs={[
-            { label: "Catálogo", href: catalogAdminRoutes.hub },
+            { label: "Productos y kits", href: catalogAdminRoutes.hub },
             { label: "Entradas" },
           ]}
         />
@@ -66,7 +66,7 @@ export default async function AdminTicketTypesPage({ searchParams }: Props) {
         <AdminPageHeader
           title="Entradas y kits"
           breadcrumbs={[
-            { label: "Catálogo", href: catalogAdminRoutes.hub },
+            { label: "Productos y kits", href: catalogAdminRoutes.hub },
             { label: "Entradas" },
           ]}
         />
@@ -148,7 +148,7 @@ export default async function AdminTicketTypesPage({ searchParams }: Props) {
         title="Entradas y kits"
         description={`Tipos de entrada de ${edition?.name ?? "la edición"}. Cupo de entradas ≠ stock de productos.`}
         breadcrumbs={[
-          { label: "Catálogo", href: catalogAdminRoutes.hub },
+          { label: "Productos y kits", href: catalogAdminRoutes.hub },
           { label: "Entradas" },
         ]}
         actions={

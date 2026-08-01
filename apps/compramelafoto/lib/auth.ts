@@ -1,3 +1,17 @@
+/**
+ * Auth CLF — fuente de verdad única: cookie opaca `dnx_session` (@repo/auth + UserSession).
+ *
+ * ETAPA 03 / P0-06:
+ * - NO se escribe ni se lee `auth-token` (Legacy) en el runtime normal.
+ * - Logout sí expira `auth-token` residual para cutover limpio.
+ * - LEGACY_SESSION_AFTER_CUTOVER = RELOGIN_REQUIRED
+ *
+ * API canónica CLF:
+ * - getAuthUser() / getCurrentUser() / getCurrentIdentity()
+ * - requireAuth() / requireRole()
+ * - setAuthCookie* / clearAuthCookie
+ */
+
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
@@ -9,7 +23,8 @@ import {
 } from "@repo/auth";
 import { prisma, Role } from "./prisma";
 
-const COOKIE_NAME = "auth-token";
+/** Cookie Legacy — solo se limpia en logout / al emitir sesión nueva. No es SoT. */
+const LEGACY_AUTH_COOKIE_NAME = "auth-token";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 export const COMPRAMELAFOTO_WORKSPACE_COOKIE = "compramelafoto_workspace_id";
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN?.trim() || undefined;
@@ -30,11 +45,6 @@ const DNX_COOKIE_BASE = {
   sameSite: "lax" as const,
   path: "/",
   ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
-};
-
-const LEGACY_AUTH_COOKIE_OPTIONS = {
-  ...DNX_COOKIE_BASE,
-  maxAge: COOKIE_MAX_AGE,
 };
 
 function logAuthResolution(detail: string): void {
@@ -65,28 +75,40 @@ type UserRowForAuth = {
   allowUnpaidOrderClientData?: boolean;
 };
 
-function generateLegacyToken(userId: number, role: Role): string {
-  const payload = { userId, role, timestamp: Date.now() };
-  return Buffer.from(JSON.stringify(payload)).toString("base64");
+function expireLegacyAuthCookieOnStore(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+): void {
+  cookieStore.set(LEGACY_AUTH_COOKIE_NAME, "", {
+    ...DNX_COOKIE_BASE,
+    maxAge: 0,
+    expires: new Date(0),
+  });
 }
 
-function verifyLegacyToken(token: string): { userId: number; role: Role } | null {
-  try {
-    const payload = JSON.parse(Buffer.from(token, "base64").toString());
-    if (typeof payload.userId !== "number" || !payload.role) return null;
-    return { userId: payload.userId, role: payload.role as Role };
-  } catch {
-    return null;
-  }
-}
-
-function buildLegacyAuthCookieHeader(userId: number, role: Role): string {
-  const token = generateLegacyToken(userId, role);
+function expireLegacyAuthCookieOnResponse(response: NextResponse): void {
+  response.cookies.set(LEGACY_AUTH_COOKIE_NAME, "", {
+    ...DNX_COOKIE_BASE,
+    maxAge: 0,
+    expires: new Date(0),
+  });
   const parts = [
-    `${COOKIE_NAME}=${encodeURIComponent(token)}`,
+    `${LEGACY_AUTH_COOKIE_NAME}=`,
     "Path=/",
     "HttpOnly",
-    `Max-Age=${COOKIE_MAX_AGE}`,
+    "Max-Age=0",
+    "SameSite=Lax",
+  ];
+  if (isSecureContext) parts.push("Secure");
+  if (COOKIE_DOMAIN) parts.push(`Domain=${COOKIE_DOMAIN}`);
+  response.headers.append("Set-Cookie", parts.join("; "));
+}
+
+function buildDnxSessionSetCookieHeader(rawToken: string, maxAge: number): string {
+  const parts = [
+    `${DNX_SESSION_COOKIE}=${encodeURIComponent(rawToken)}`,
+    "Path=/",
+    "HttpOnly",
+    `Max-Age=${maxAge}`,
     "SameSite=Lax",
   ];
   if (isSecureContext) parts.push("Secure");
@@ -134,12 +156,121 @@ async function mapPrismaUserToAuthUser(
   };
 }
 
-function buildDnxSessionSetCookieHeader(rawToken: string, maxAge: number): string {
+/** Input para emitir sesión. `role`/`labId` se aceptan por compat de callers; la sesión DNX solo requiere `id`. */
+export type AuthCookieInput = Pick<AuthUser, "id"> &
+  Partial<Pick<AuthUser, "email" | "name" | "labId">> & {
+    role?: Role | string;
+  };
+
+/**
+ * Emite sesión DNX canónica. Expira cookie Legacy residual.
+ * Falla si no puede crear UserSession (sin fallback auth-token).
+ */
+export async function setAuthCookie(user: AuthCookieInput): Promise<string> {
+  const cookieStore = await cookies();
+  const session = await createUserSession(user.id);
+  cookieStore.set(DNX_SESSION_COOKIE, session.rawToken, {
+    ...DNX_COOKIE_BASE,
+    maxAge: session.maxAge,
+  });
+  expireLegacyAuthCookieOnStore(cookieStore);
+  return session.rawToken;
+}
+
+/**
+ * Emite sesión DNX en una NextResponse (login / OAuth).
+ * Expira cookie Legacy residual. Sin fallback auth-token.
+ */
+export async function setAuthCookieOnResponse(
+  response: NextResponse,
+  user: AuthCookieInput,
+): Promise<void> {
+  const session = await createUserSession(user.id);
+  response.cookies.set(DNX_SESSION_COOKIE, session.rawToken, {
+    ...DNX_COOKIE_BASE,
+    maxAge: session.maxAge,
+  });
+  response.headers.append(
+    "Set-Cookie",
+    buildDnxSessionSetCookieHeader(session.rawToken, session.maxAge),
+  );
+  expireLegacyAuthCookieOnResponse(response);
+}
+
+/**
+ * Resuelve el usuario autenticado SOLO desde `dnx_session`.
+ * Cookies `auth-token` Legacy se ignoran (RELOGIN_REQUIRED post-cutover).
+ */
+export async function getAuthUser(): Promise<AuthUser | null> {
+  try {
+    const cookieStore = await cookies();
+    const dnxRaw = cookieStore.get(DNX_SESSION_COOKIE)?.value;
+    if (!dnxRaw) {
+      logAuthResolution("no_dnx_session");
+      return null;
+    }
+
+    const sessionUser = await getSessionUserByRawToken(dnxRaw);
+    if (!sessionUser) {
+      logAuthResolution("dnx_session_invalid");
+      return null;
+    }
+
+    logAuthResolution(`dnx_session userId=${sessionUser.id}`);
+    const requestedWorkspaceId =
+      cookieStore.get(COMPRAMELAFOTO_WORKSPACE_COOKIE)?.value ?? null;
+    const identity = await getSessionIdentityByRawToken(dnxRaw, {
+      currentWorkspaceId: requestedWorkspaceId,
+    });
+    return mapPrismaUserToAuthUser(
+      {
+        id: sessionUser.id,
+        email: sessionUser.email,
+        name: sessionUser.name,
+        role: sessionUser.role as Role,
+        isBlocked: sessionUser.isBlocked ?? false,
+        emailVerifiedAt: sessionUser.emailVerifiedAt ?? null,
+      },
+      identity
+        ? {
+            globalRole: identity.globalRole,
+            currentWorkspaceId: identity.currentWorkspaceId,
+            workspaceRole: identity.workspaceRole,
+            appAccess: identity.appAccess,
+          }
+        : undefined,
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Identidad canónica CLF (alias). */
+export async function getCurrentUser(): Promise<AuthUser | null> {
+  return getAuthUser();
+}
+
+/** Alias de getAuthUser para contratos de documentación. */
+export async function getCurrentIdentity(): Promise<AuthUser | null> {
+  return getAuthUser();
+}
+
+/** Alias de getAuthUser — sesión = usuario autenticado vía dnx_session. */
+export async function getCurrentSession(): Promise<AuthUser | null> {
+  return getAuthUser();
+}
+
+/**
+ * @deprecated Usar setAuthCookieOnResponse. Conservado por compat OAuth:
+ * ya no emite auth-token; retorna header Set-Cookie de expiración Legacy.
+ */
+export function getAuthCookieHeaderValue(user: Pick<AuthUser, "id" | "role">): string {
+  void user;
   const parts = [
-    `${DNX_SESSION_COOKIE}=${encodeURIComponent(rawToken)}`,
+    `${LEGACY_AUTH_COOKIE_NAME}=`,
     "Path=/",
     "HttpOnly",
-    `Max-Age=${maxAge}`,
+    "Max-Age=0",
     "SameSite=Lax",
   ];
   if (isSecureContext) parts.push("Secure");
@@ -147,138 +278,7 @@ function buildDnxSessionSetCookieHeader(rawToken: string, maxAge: number): strin
   return parts.join("; ");
 }
 
-function setLegacyAuthCookieOnResponse(
-  response: NextResponse,
-  userId: number,
-  role: Role,
-): void {
-  const token = generateLegacyToken(userId, role);
-  response.cookies.set(COOKIE_NAME, token, LEGACY_AUTH_COOKIE_OPTIONS);
-  response.headers.append("Set-Cookie", buildLegacyAuthCookieHeader(userId, role));
-}
-
-export type AuthCookieInput = Pick<AuthUser, "id"> &
-  Partial<Pick<AuthUser, "email" | "name" | "role" | "labId">>;
-
-export async function setAuthCookie(user: AuthCookieInput) {
-  const cookieStore = await cookies();
-
-  try {
-    const session = await createUserSession(user.id);
-    cookieStore.set(DNX_SESSION_COOKIE, session.rawToken, {
-      ...DNX_COOKIE_BASE,
-      maxAge: session.maxAge,
-    });
-    if (user.role) {
-      cookieStore.set(COOKIE_NAME, generateLegacyToken(user.id, user.role), LEGACY_AUTH_COOKIE_OPTIONS);
-    }
-    return session.rawToken;
-  } catch (e) {
-    console.warn("DNX session create failed (setAuthCookie)", e);
-    if (user.role) {
-      cookieStore.set(COOKIE_NAME, generateLegacyToken(user.id, user.role), LEGACY_AUTH_COOKIE_OPTIONS);
-    }
-    return null;
-  }
-}
-
-export async function setAuthCookieOnResponse(
-  response: NextResponse,
-  user: AuthCookieInput,
-): Promise<void> {
-  try {
-    const session = await createUserSession(user.id);
-    response.cookies.set(DNX_SESSION_COOKIE, session.rawToken, {
-      ...DNX_COOKIE_BASE,
-      maxAge: session.maxAge,
-    });
-    response.headers.append(
-      "Set-Cookie",
-      buildDnxSessionSetCookieHeader(session.rawToken, session.maxAge),
-    );
-  } catch (e) {
-    console.warn("DNX session create failed (setAuthCookieOnResponse)", e);
-  }
-
-  if (user.role) {
-    setLegacyAuthCookieOnResponse(response, user.id, user.role);
-  }
-}
-
-/** Header Set-Cookie legacy `auth-token` (redirects OAuth). */
-export function getAuthCookieHeaderValue(user: Pick<AuthUser, "id" | "role">): string {
-  return buildLegacyAuthCookieHeader(user.id, user.role);
-}
-
-async function loadUserForAuth(userId: number): Promise<AuthUser | null> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      isBlocked: true,
-      emailVerifiedAt: true,
-      allowUnpaidOrderClientData: true,
-    },
-  });
-  if (!user) return null;
-  return mapPrismaUserToAuthUser(user);
-}
-
-export async function getAuthUser(): Promise<AuthUser | null> {
-  try {
-    const cookieStore = await cookies();
-
-    const dnxRaw = cookieStore.get(DNX_SESSION_COOKIE)?.value;
-    if (dnxRaw) {
-      const sessionUser = await getSessionUserByRawToken(dnxRaw);
-      if (sessionUser) {
-        logAuthResolution(`dnx_session userId=${sessionUser.id}`);
-        const requestedWorkspaceId =
-          cookieStore.get(COMPRAMELAFOTO_WORKSPACE_COOKIE)?.value ?? null;
-        const identity = await getSessionIdentityByRawToken(dnxRaw, {
-          currentWorkspaceId: requestedWorkspaceId,
-        });
-        const mapped = await mapPrismaUserToAuthUser(
-          {
-            id: sessionUser.id,
-            email: sessionUser.email,
-            name: sessionUser.name,
-            role: sessionUser.role as Role,
-            isBlocked: sessionUser.isBlocked ?? false,
-            emailVerifiedAt: sessionUser.emailVerifiedAt ?? null,
-          },
-          identity
-            ? {
-                globalRole: identity.globalRole,
-                currentWorkspaceId: identity.currentWorkspaceId,
-                workspaceRole: identity.workspaceRole,
-                appAccess: identity.appAccess,
-              }
-            : undefined,
-        );
-        if (mapped) return mapped;
-      }
-    }
-
-    const legacyToken = cookieStore.get(COOKIE_NAME)?.value;
-    if (legacyToken) {
-      const payload = verifyLegacyToken(legacyToken);
-      if (payload) {
-        logAuthResolution(`auth-token fallback userId=${payload.userId}`);
-        const mapped = await loadUserForAuth(payload.userId);
-        if (mapped) return mapped;
-      }
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
+/** Destruye UserSession DNX y expira cookies dnx_session + auth-token residual. */
 export async function clearAuthCookie() {
   try {
     const cookieStore = await cookies();
@@ -291,11 +291,7 @@ export async function clearAuthCookie() {
       maxAge: 0,
       expires: new Date(0),
     });
-    cookieStore.set(COOKIE_NAME, "", {
-      ...DNX_COOKIE_BASE,
-      maxAge: 0,
-      expires: new Date(0),
-    });
+    expireLegacyAuthCookieOnStore(cookieStore);
   } catch (err) {
     console.warn("Error clearing auth cookies:", err);
   }
@@ -314,6 +310,7 @@ export async function requireAuth(allowedRoles?: Role[]) {
 
   if (allowedRoles) {
     const effectiveRoles = [...allowedRoles];
+    // LAB_PHOTOGRAPHER tiene permisos de LAB y PHOTOGRAPHER (paridad Legacy).
     if (allowedRoles.includes(Role.LAB_PHOTOGRAPHER)) {
       effectiveRoles.push(Role.LAB, Role.PHOTOGRAPHER);
     }
@@ -341,3 +338,12 @@ export function hasAppAccess(
   if (app === "COMPRAMELAFOTO") return true;
   return user.appAccess.some((a) => a.app === app && a.enabled);
 }
+
+/** Constantes exportadas para selfchecks / docs. */
+export const CLF_AUTH_SOT = {
+  cookie: DNX_SESSION_COOKIE,
+  legacyCookie: LEGACY_AUTH_COOKIE_NAME,
+  legacySessionAfterCutover: "RELOGIN_REQUIRED" as const,
+  dualSessionEnabled: false,
+  sessionMaxAgeSeconds: COOKIE_MAX_AGE,
+};

@@ -3,7 +3,9 @@ import {
   createInMemoryDnxPaymentsPersistence,
   createPrismaDnxPaymentsPersistence,
   createMercadoPagoCheckoutProTestAdapter,
+  createMercadoPagoCheckoutProLiveAdapter,
   createMercadoPagoTestClickatonProviderBridge,
+  createMercadoPagoProductionClickatonProviderBridge,
   createMercadoPagoOrders1nClickatonBridge,
   resolveClickatonPaymentsProviderMode,
   createMercadoPagoProviderConfig,
@@ -84,6 +86,8 @@ function buildOrdersHttp(): {
     confirmStaging: process.env.DNX_CONFIRM_STAGING === "true",
     confirmOrdersTest: process.env.DNX_CONFIRM_ORDERS_TEST === "true",
     verifyAfterCreate: true,
+    allowTestFixtures: true,
+    defaultStatementDescriptor: "CLICKATON",
   });
   const fetchOrdersCanonical: FetchCanonicalOrder = async (providerOrderId) => {
     const raw = await http.request<{
@@ -128,6 +132,22 @@ function resolveProviderBridge(): {
     return { bridge: undefined };
   }
 
+  if (mode === "mercado_pago_production") {
+    // LIVE path: Preferences use collector OAuth (edition finance).
+    // Base token (env or vault-warmed) used for S2S refresh/webhook reads.
+    const liveToken =
+      readOptionalEnv("MERCADOPAGO_LIVE_ACCESS_TOKEN") ||
+      readOptionalEnv("MERCADOPAGO_ACCESS_TOKEN") ||
+      "live-collector-oauth-required";
+    const adapter = createMercadoPagoCheckoutProLiveAdapter({
+      accessToken: liveToken,
+      publicKey: readOptionalEnv("MERCADOPAGO_LIVE_PUBLIC_KEY"),
+    });
+    return {
+      bridge: createMercadoPagoProductionClickatonProviderBridge({ adapter }),
+    };
+  }
+
   if (mode === "mercado_pago_orders_test") {
     if (!isClickatonDnxCheckoutEnabled() || !isOrders1nStagingFlagEnabled()) {
       throw new Error(
@@ -140,20 +160,22 @@ function resolveProviderBridge(): {
     }
     const receiver1 = readOptionalEnv("MERCADOPAGO_TEST_PARTNER_RECEIVER_ID");
     const receiver2 = readOptionalEnv("MERCADOPAGO_TEST_PARTNER_RECEIVER_ID_2");
+    // Brick supplies token/device per request; env fallbacks remain for CLI smokes only.
     const paymentToken = readOptionalEnv("MERCADOPAGO_TEST_PAYMENT_TOKEN");
     const deviceId = readOptionalEnv("MERCADOPAGO_TEST_DEVICE_ID");
-    if (!receiver1 || !receiver2 || !paymentToken || !deviceId) {
-      throw new Error("mercado_pago_orders_test_missing_receivers_token_or_device");
+    if (!receiver1 || !receiver2) {
+      throw new Error("mercado_pago_orders_test_missing_partner_receivers");
     }
     const bridge = createMercadoPagoOrders1nClickatonBridge({
       adapter: orders.adapter,
       ownerUserId: readOptionalEnv("MERCADOPAGO_TEST_OWNER_USER_ID")!,
       partnerReceiverId: receiver1,
       partnerReceiverId2: receiver2,
-      paymentToken,
-      deviceSessionId: deviceId,
+      ...(paymentToken ? { paymentToken } : {}),
+      ...(deviceId ? { deviceSessionId: deviceId } : {}),
       confirmStaging: process.env.DNX_CONFIRM_STAGING === "true",
       confirmOrdersTest: process.env.DNX_CONFIRM_ORDERS_TEST === "true",
+      statementDescriptor: "CLICKATON",
     });
     return {
       bridge,
@@ -193,6 +215,14 @@ function resolveProviderBridge(): {
   };
 }
 
+type PaymentsG = {
+  __clickatonDnxPaymentsClient?: DnxPaymentsClient;
+};
+
+function paymentsG(): PaymentsG {
+  return globalThis as unknown as PaymentsG;
+}
+
 function buildPaymentsClient(): DnxPaymentsClient {
   const webhookSecret = process.env.DNX_PAYMENTS_WEBHOOK_SECRET ?? "dev-only-webhook-secret";
   const checkoutBaseUrl =
@@ -210,9 +240,10 @@ function buildPaymentsClient(): DnxPaymentsClient {
   if (mode === "memory") {
     if (
       providerBridge?.mode === "mercado_pago_test" ||
-      providerBridge?.mode === "mercado_pago_orders_test"
+      providerBridge?.mode === "mercado_pago_orders_test" ||
+      providerBridge?.mode === "mercado_pago_production"
     ) {
-      throw new Error("mercado_pago_test_incompatible_with_memory_mode");
+      throw new Error("mercado_pago_incompatible_with_memory_mode");
     }
     const store = createInMemoryDnxPaymentsStore({ webhookSecret, checkoutBaseUrl });
     return createInMemoryDnxPaymentsClient(store);
@@ -245,19 +276,62 @@ function buildPaymentsClient(): DnxPaymentsClient {
   });
 }
 
+/** Cliente DNX Payments compartido (inscripción + TIENDA). */
+export function getDnxPaymentsClient(): DnxPaymentsClient {
+  const globals = paymentsG();
+  if (!globals.__clickatonDnxPaymentsClient) {
+    globals.__clickatonDnxPaymentsClient = buildPaymentsClient();
+  }
+  return globals.__clickatonDnxPaymentsClient;
+}
+
+const CANONICAL_LIVE_COLLECTOR_PA = "pa_ba733fa7a35f4326";
+
 /**
  * Runtime: DNX Payments durable (Prisma) por defecto.
- * Provider: CLICKATON_DNX_PAYMENTS_PROVIDER=manual|mercado_pago_test|mercado_pago_orders_test
- * Orders path requires staging flags ON (default OFF). Legacy Preferences path unchanged.
+ * Provider: manual|mercado_pago_test|mercado_pago_orders_test|mercado_pago_production
+ * LIVE requires Production runtime + DNX_CLICKATON_MP_LIVE_PAYMENTS_ENABLED (default OFF).
+ * Orders TEST path requires staging flags ON (default OFF).
  */
 export function getCheckoutService(): CheckoutService {
   const override = g().__clickatonCheckoutService;
   if (override) return override;
 
-  return createCheckoutService({
+  const service = createCheckoutService({
     publicRepo: createPrismaPublicRegistrationRepository(),
-    payments: buildPaymentsClient(),
+    payments: getDnxPaymentsClient(),
     mutations: createPrismaCheckoutMutations(),
     log: createCheckoutLogSink(),
   });
+  g().__clickatonCheckoutService = service;
+  return service;
+}
+
+/**
+ * LIVE: warm collector OAuth from vault into process env, then return service.
+ * Use from webhooks / checkout routes so S2S refresh has a real token.
+ */
+export async function getCheckoutServiceReady(): Promise<CheckoutService> {
+  const mode = resolveClickatonPaymentsProviderMode(
+    readOptionalEnv("CLICKATON_DNX_PAYMENTS_PROVIDER") ?? "manual",
+  );
+  if (mode === "mercado_pago_production") {
+    const existing =
+      readOptionalEnv("MERCADOPAGO_LIVE_ACCESS_TOKEN") ||
+      readOptionalEnv("MERCADOPAGO_ACCESS_TOKEN");
+    if (!existing || existing === "live-collector-oauth-required") {
+      const { resolveCollectorAccessTokenFromPaymentAccount } = await import(
+        "@/lib/admin/edition-finance/infrastructure/resolve-collector-token"
+      );
+      const resolved = await resolveCollectorAccessTokenFromPaymentAccount(
+        CANONICAL_LIVE_COLLECTOR_PA,
+      );
+      if (resolved.ok) {
+        process.env.MERCADOPAGO_LIVE_ACCESS_TOKEN = resolved.accessToken;
+        delete g().__clickatonCheckoutService;
+        delete paymentsG().__clickatonDnxPaymentsClient;
+      }
+    }
+  }
+  return getCheckoutService();
 }

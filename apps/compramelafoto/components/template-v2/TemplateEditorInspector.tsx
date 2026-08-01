@@ -18,9 +18,10 @@ import { getSafeAreaRectPx } from "@/lib/template-v2/get-safe-area-rect";
 import { getLayoutSafeAreaStatus } from "@/lib/template-v2/layout-vs-safe-area";
 import type { TemplateV2Block, TemplateV2Canvas } from "@/lib/template-v2/render-core";
 import {
-  getTemplateV2VariableByKey,
-  getTemplateV2VariableGroupsForTextBlocks,
-} from "@/lib/template-v2/variable-catalog";
+  getTextVariableGroupsForProduct,
+  getVariableByKeyForProduct,
+} from "@/lib/template-v2/variable-catalog-product";
+import type { TemplateProductId } from "@/lib/template-v2/resolve-template-product";
 import {
   setBlocks,
   setCanvas,
@@ -44,6 +45,8 @@ type Props = {
   versionId: string;
   variableBindings: TemplateV2VariableBinding[];
   dispatch: TemplateV2EditorDispatch;
+  /** Producto de la plantilla (catálogo de variables). */
+  product?: TemplateProductId | "unknown";
   className?: string;
 };
 
@@ -62,11 +65,6 @@ const inputBase =
 const selectBase =
   "w-full rounded-lg border border-[#e5e7eb] bg-white px-2 py-2 text-xs shadow-sm focus:border-[#c27b3d] focus:outline-none focus:ring-1 focus:ring-[#c27b3d]/40";
 
-const TEXT_VARIABLE_GROUPS = getTemplateV2VariableGroupsForTextBlocks();
-const TEXT_VARIABLE_CATALOG_KEYS = new Set(
-  TEXT_VARIABLE_GROUPS.flatMap((g) => g.variables.map((v) => v.key))
-);
-
 const alignBtnClass =
   "rounded-lg border border-[#e5e7eb] bg-white px-2 py-1.5 text-[11px] font-medium text-[#374151] shadow-sm transition-colors hover:border-[#d1d5db] hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white";
 
@@ -84,8 +82,14 @@ export function TemplateEditorInspector({
   versionId,
   variableBindings,
   dispatch,
+  product = "school",
   className,
 }: Props) {
+  const TEXT_VARIABLE_GROUPS = getTextVariableGroupsForProduct(product);
+  const TEXT_VARIABLE_CATALOG_KEYS = new Set(
+    TEXT_VARIABLE_GROUPS.flatMap((g) => g.variables.map((v) => v.key))
+  );
+
   if (!selectedBlock) {
     const bg = typeof canvas.background === "string" ? canvas.background : "#ffffff";
     return (
@@ -135,7 +139,7 @@ export function TemplateEditorInspector({
     selectedBlock.type === "VARIABLE_TEXT" ? String(cfg.variableKey ?? "") : "";
   const variableCatalogHint =
     selectedBlock.type === "VARIABLE_TEXT" && variableKeyStr
-      ? getTemplateV2VariableByKey(variableKeyStr)
+      ? getVariableByKeyForProduct(product, variableKeyStr)
       : undefined;
 
   const multiLocked =
@@ -173,6 +177,7 @@ export function TemplateEditorInspector({
         selectedKind={
           selectedBlock.type === "TEXT" || selectedBlock.type === "VARIABLE_TEXT" ? selectedBlock.type : null
         }
+        product={product}
       />
 
       {selectedBlockCount > 1 ? (

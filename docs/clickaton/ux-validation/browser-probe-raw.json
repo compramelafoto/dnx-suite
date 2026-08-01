@@ -1,0 +1,640 @@
+[
+  {
+    "route": "/",
+    "vp": "desktop",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Salí a buscar el instante.",
+    "english": [],
+    "screenshot": "home__desktop.jpeg"
+  },
+  {
+    "route": "/login",
+    "vp": "desktop",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Iniciar sesión",
+    "english": [],
+    "screenshot": "login__desktop.jpeg"
+  },
+  {
+    "route": "/como-funciona",
+    "vp": "desktop",
+    "status": 200,
+    "overflowX": false,
+    "title": "Cómo funciona Clickatón — Clickatón",
+    "h1": "De la primera foto a la comunidad fotográfica más grande de tu ciudad.",
+    "english": [],
+    "screenshot": "como-funciona__desktop.jpeg"
+  },
+  {
+    "route": "/comunidad",
+    "vp": "desktop",
+    "status": 200,
+    "overflowX": false,
+    "title": "Comunidad Clickatón — Clickatón",
+    "h1": "Una red de miradas en movimiento.",
+    "english": [],
+    "screenshot": "comunidad__desktop.jpeg"
+  },
+  {
+    "route": "/sobre",
+    "vp": "desktop",
+    "status": 200,
+    "overflowX": false,
+    "title": "Sobre Clickatón | Maratón Fotográfica — Clickatón",
+    "h1": "Una ciudad. Diez consignas. Miles de miradas.",
+    "english": [],
+    "screenshot": "sobre__desktop.jpeg"
+  },
+  {
+    "route": "/contacto",
+    "vp": "desktop",
+    "status": 200,
+    "overflowX": false,
+    "title": "Contacto — Clickatón",
+    "h1": "Contanos cómo querés sumarte.",
+    "english": [],
+    "screenshot": "contacto__desktop.jpeg"
+  },
+  {
+    "route": "/legal/terminos",
+    "vp": "desktop",
+    "status": 200,
+    "overflowX": false,
+    "title": "Términos y condiciones — Clickatón",
+    "h1": "Términos y condiciones",
+    "english": [],
+    "screenshot": "legal-terminos__desktop.jpeg"
+  },
+  {
+    "route": "/maratones",
+    "vp": "desktop",
+    "status": 500,
+    "overflowX": false,
+    "title": "Próximas maratones fotográficas — Clickatón",
+    "h1": "No pudimos cargar esta página",
+    "english": [],
+    "screenshot": "maratones-error__desktop.jpeg"
+  },
+  {
+    "route": "/crear-cuenta",
+    "vp": "desktop",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Crear cuenta",
+    "english": [],
+    "screenshot": "crear-cuenta__desktop.jpeg"
+  },
+  {
+    "route": "/ruta-inexistente-ux-03",
+    "vp": "desktop",
+    "status": 404,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Página no encontrada",
+    "english": [],
+    "screenshot": "404__desktop.jpeg"
+  },
+  {
+    "route": "/",
+    "vp": "390",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Salí a buscar el instante.",
+    "english": [],
+    "screenshot": "home__390.jpeg"
+  },
+  {
+    "route": "/login",
+    "vp": "390",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Iniciar sesión",
+    "english": [],
+    "screenshot": "login__390.jpeg"
+  },
+  {
+    "route": "/como-funciona",
+    "vp": "390",
+    "status": 200,
+    "overflowX": false,
+    "title": "Cómo funciona Clickatón — Clickatón",
+    "h1": "De la primera foto a la comunidad fotográfica más grande de tu ciudad.",
+    "english": [],
+    "screenshot": "como-funciona__390.jpeg"
+  },
+  {
+    "route": "/comunidad",
+    "vp": "390",
+    "status": 200,
+    "overflowX": false,
+    "title": "Comunidad Clickatón — Clickatón",
+    "h1": "Una red de miradas en movimiento.",
+    "english": [],
+    "screenshot": "comunidad__390.jpeg"
+  },
+  {
+    "route": "/sobre",
+    "vp": "390",
+    "status": 200,
+    "overflowX": false,
+    "title": "Sobre Clickatón | Maratón Fotográfica — Clickatón",
+    "h1": "Una ciudad. Diez consignas. Miles de miradas.",
+    "english": [],
+    "screenshot": "sobre__390.jpeg"
+  },
+  {
+    "route": "/contacto",
+    "vp": "390",
+    "status": 200,
+    "overflowX": false,
+    "title": "Contacto — Clickatón",
+    "h1": "Contanos cómo querés sumarte.",
+    "english": [],
+    "screenshot": "contacto__390.jpeg"
+  },
+  {
+    "route": "/legal/terminos",
+    "vp": "390",
+    "status": 200,
+    "overflowX": false,
+    "title": "Términos y condiciones — Clickatón",
+    "h1": "Términos y condiciones",
+    "english": [],
+    "screenshot": "legal-terminos__390.jpeg"
+  },
+  {
+    "route": "/maratones",
+    "vp": "390",
+    "status": 500,
+    "overflowX": false,
+    "title": "Próximas maratones fotográficas — Clickatón",
+    "h1": "No pudimos cargar esta página",
+    "english": [],
+    "screenshot": "maratones-error__390.jpeg"
+  },
+  {
+    "route": "/crear-cuenta",
+    "vp": "390",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Crear cuenta",
+    "english": [],
+    "screenshot": "crear-cuenta__390.jpeg"
+  },
+  {
+    "route": "/ruta-inexistente-ux-03",
+    "vp": "390",
+    "status": 404,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Página no encontrada",
+    "english": [],
+    "screenshot": "404__390.jpeg"
+  },
+  {
+    "route": "/ (menu)",
+    "vp": "390",
+    "sampleLinks": [
+      "Maratones",
+      "Cómo funciona",
+      "Comunidad",
+      "Llevá Clickatón a tu ciudad",
+      "Formá parte",
+      "Iniciar sesión",
+      "Ver maratones",
+      "Iniciar sesión",
+      "Maratones",
+      "Cómo funciona",
+      "Comunidad",
+      "Llevá Clickatón a tu ciudad",
+      "Formá parte",
+      "Iniciar sesión"
+    ]
+  },
+  {
+    "route": "/",
+    "vp": "320",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Salí a buscar el instante.",
+    "english": [],
+    "screenshot": "home__320.jpeg"
+  },
+  {
+    "route": "/login",
+    "vp": "320",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Iniciar sesión",
+    "english": [],
+    "screenshot": "login__320.jpeg"
+  },
+  {
+    "route": "/como-funciona",
+    "vp": "320",
+    "status": 200,
+    "overflowX": false,
+    "title": "Cómo funciona Clickatón — Clickatón",
+    "h1": "De la primera foto a la comunidad fotográfica más grande de tu ciudad.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/comunidad",
+    "vp": "320",
+    "status": 200,
+    "overflowX": false,
+    "title": "Comunidad Clickatón — Clickatón",
+    "h1": "Una red de miradas en movimiento.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/sobre",
+    "vp": "320",
+    "status": 200,
+    "overflowX": false,
+    "title": "Sobre Clickatón | Maratón Fotográfica — Clickatón",
+    "h1": "Una ciudad. Diez consignas. Miles de miradas.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/contacto",
+    "vp": "320",
+    "status": 200,
+    "overflowX": false,
+    "title": "Contacto — Clickatón",
+    "h1": "Contanos cómo querés sumarte.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/legal/terminos",
+    "vp": "320",
+    "status": 200,
+    "overflowX": false,
+    "title": "Términos y condiciones — Clickatón",
+    "h1": "Términos y condiciones",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/maratones",
+    "vp": "320",
+    "status": 500,
+    "overflowX": false,
+    "title": "Próximas maratones fotográficas — Clickatón",
+    "h1": "No pudimos cargar esta página",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/crear-cuenta",
+    "vp": "320",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Crear cuenta",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/ruta-inexistente-ux-03",
+    "vp": "320",
+    "status": 404,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Página no encontrada",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/",
+    "vp": "360",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Salí a buscar el instante.",
+    "english": [],
+    "screenshot": "home__360.jpeg"
+  },
+  {
+    "route": "/login",
+    "vp": "360",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Iniciar sesión",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/como-funciona",
+    "vp": "360",
+    "status": 200,
+    "overflowX": false,
+    "title": "Cómo funciona Clickatón — Clickatón",
+    "h1": "De la primera foto a la comunidad fotográfica más grande de tu ciudad.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/comunidad",
+    "vp": "360",
+    "status": 200,
+    "overflowX": false,
+    "title": "Comunidad Clickatón — Clickatón",
+    "h1": "Una red de miradas en movimiento.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/sobre",
+    "vp": "360",
+    "status": 200,
+    "overflowX": false,
+    "title": "Sobre Clickatón | Maratón Fotográfica — Clickatón",
+    "h1": "Una ciudad. Diez consignas. Miles de miradas.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/contacto",
+    "vp": "360",
+    "status": 200,
+    "overflowX": false,
+    "title": "Contacto — Clickatón",
+    "h1": "Contanos cómo querés sumarte.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/legal/terminos",
+    "vp": "360",
+    "status": 200,
+    "overflowX": false,
+    "title": "Términos y condiciones — Clickatón",
+    "h1": "Términos y condiciones",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/maratones",
+    "vp": "360",
+    "status": 500,
+    "overflowX": false,
+    "title": "Próximas maratones fotográficas — Clickatón",
+    "h1": "No pudimos cargar esta página",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/crear-cuenta",
+    "vp": "360",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Crear cuenta",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/ruta-inexistente-ux-03",
+    "vp": "360",
+    "status": 404,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Página no encontrada",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/",
+    "vp": "430",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Salí a buscar el instante.",
+    "english": [],
+    "screenshot": "home__430.jpeg"
+  },
+  {
+    "route": "/login",
+    "vp": "430",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Iniciar sesión",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/como-funciona",
+    "vp": "430",
+    "status": 200,
+    "overflowX": false,
+    "title": "Cómo funciona Clickatón — Clickatón",
+    "h1": "De la primera foto a la comunidad fotográfica más grande de tu ciudad.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/comunidad",
+    "vp": "430",
+    "status": 200,
+    "overflowX": false,
+    "title": "Comunidad Clickatón — Clickatón",
+    "h1": "Una red de miradas en movimiento.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/sobre",
+    "vp": "430",
+    "status": 200,
+    "overflowX": false,
+    "title": "Sobre Clickatón | Maratón Fotográfica — Clickatón",
+    "h1": "Una ciudad. Diez consignas. Miles de miradas.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/contacto",
+    "vp": "430",
+    "status": 200,
+    "overflowX": false,
+    "title": "Contacto — Clickatón",
+    "h1": "Contanos cómo querés sumarte.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/legal/terminos",
+    "vp": "430",
+    "status": 200,
+    "overflowX": false,
+    "title": "Términos y condiciones — Clickatón",
+    "h1": "Términos y condiciones",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/maratones",
+    "vp": "430",
+    "status": 500,
+    "overflowX": false,
+    "title": "Próximas maratones fotográficas — Clickatón",
+    "h1": "No pudimos cargar esta página",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/crear-cuenta",
+    "vp": "430",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Crear cuenta",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/ruta-inexistente-ux-03",
+    "vp": "430",
+    "status": 404,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Página no encontrada",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/",
+    "vp": "tablet",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Salí a buscar el instante.",
+    "english": [],
+    "screenshot": "home__tablet.jpeg"
+  },
+  {
+    "route": "/login",
+    "vp": "tablet",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Iniciar sesión",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/como-funciona",
+    "vp": "tablet",
+    "status": 200,
+    "overflowX": false,
+    "title": "Cómo funciona Clickatón — Clickatón",
+    "h1": "De la primera foto a la comunidad fotográfica más grande de tu ciudad.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/comunidad",
+    "vp": "tablet",
+    "status": 200,
+    "overflowX": false,
+    "title": "Comunidad Clickatón — Clickatón",
+    "h1": "Una red de miradas en movimiento.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/sobre",
+    "vp": "tablet",
+    "status": 200,
+    "overflowX": false,
+    "title": "Sobre Clickatón | Maratón Fotográfica — Clickatón",
+    "h1": "Una ciudad. Diez consignas. Miles de miradas.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/contacto",
+    "vp": "tablet",
+    "status": 200,
+    "overflowX": false,
+    "title": "Contacto — Clickatón",
+    "h1": "Contanos cómo querés sumarte.",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/legal/terminos",
+    "vp": "tablet",
+    "status": 200,
+    "overflowX": false,
+    "title": "Términos y condiciones — Clickatón",
+    "h1": "Términos y condiciones",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/maratones",
+    "vp": "tablet",
+    "status": 500,
+    "overflowX": false,
+    "title": "Próximas maratones fotográficas — Clickatón",
+    "h1": "No pudimos cargar esta página",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/crear-cuenta",
+    "vp": "tablet",
+    "status": 200,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Crear cuenta",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "route": "/ruta-inexistente-ux-03",
+    "vp": "tablet",
+    "status": 404,
+    "overflowX": false,
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Página no encontrada",
+    "english": [],
+    "screenshot": null
+  },
+  {
+    "a11yLoginFocus": {
+      "tag": "BUTTON",
+      "text": "Abrir menú de navegación",
+      "outline": "solid 2px",
+      "boxShadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+    },
+    "legalHrefs": [
+      {
+        "href": "/terminos",
+        "text": "Términos"
+      },
+      {
+        "href": "/privacidad",
+        "text": "Privacidad"
+      }
+    ]
+  }
+]

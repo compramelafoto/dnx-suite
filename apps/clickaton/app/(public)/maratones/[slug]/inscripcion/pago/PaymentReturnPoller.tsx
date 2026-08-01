@@ -48,7 +48,7 @@ export function PaymentReturnPoller(props: {
       }
       if (n >= MAX_ATTEMPTS) {
         setMessage(
-          "Seguimos verificando el pago con el proveedor. Podés recargar en unos segundos o revisar el resumen de inscripción.",
+          "Todavía estamos verificando el pago. No realices un segundo pago. Recargá en unos segundos o consultá Mi cuenta.",
         );
         return;
       }

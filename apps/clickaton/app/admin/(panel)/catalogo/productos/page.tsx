@@ -45,10 +45,10 @@ export default async function AdminProductsPage({ searchParams }: Props) {
     return (
       <div className="space-y-8">
         <AdminPageHeader
-          title="Productos"
-          description="Merchandising y variantes por edición."
+          title="Productos y kits"
+          description="Configurá los artículos incluidos con la inscripción y las opciones que deberá elegir cada participante."
           breadcrumbs={[
-            { label: "Catálogo", href: catalogAdminRoutes.hub },
+            { label: "Productos y kits", href: catalogAdminRoutes.hub },
             { label: "Productos" },
           ]}
         />
@@ -61,15 +61,15 @@ export default async function AdminProductsPage({ searchParams }: Props) {
     return (
       <div className="space-y-8">
         <AdminPageHeader
-          title="Productos"
-          description="Merchandising y variantes por edición."
+          title="Productos y kits"
+          description="Configurá los artículos incluidos con la inscripción y las opciones que deberá elegir cada participante."
           breadcrumbs={[
-            { label: "Catálogo", href: catalogAdminRoutes.hub },
+            { label: "Productos y kits", href: catalogAdminRoutes.hub },
             { label: "Productos" },
           ]}
         />
         <AdminEmptyState
-          title="Sin ediciones"
+          title="Todavía no hay ediciones"
           description="Necesitás al menos una edición para crear productos del catálogo."
           action={
             <Button href={adminRoutes.editions} variant="primary">
@@ -112,14 +112,14 @@ export default async function AdminProductsPage({ searchParams }: Props) {
   return (
     <div className="space-y-8">
       <AdminPageHeader
-        title="Productos"
-        description="Un producto agrupa variantes (talle, color, formato…). Luego podrá incluirse en entradas y kits."
+        title="Productos y kits"
+        description="Configurá los artículos incluidos con la inscripción y las opciones que deberá elegir cada participante."
         breadcrumbs={[
-          { label: "Catálogo", href: catalogAdminRoutes.hub },
+          { label: "Productos y kits", href: catalogAdminRoutes.hub },
           { label: "Productos" },
         ]}
         actions={
-          <Button href={newHref} variant="primary">
+          <Button href={newHref} variant="primary" className="min-h-11">
             Crear producto
           </Button>
         }
@@ -159,7 +159,7 @@ export default async function AdminProductsPage({ searchParams }: Props) {
           <Input
             name="q"
             defaultValue={params.q ?? ""}
-            placeholder="Nombre, código o SKU"
+            placeholder="Nombre o código"
           />
         </label>
         <label className="space-y-2 text-sm">
@@ -171,11 +171,11 @@ export default async function AdminProductsPage({ searchParams }: Props) {
           </Select>
         </label>
         <label className="space-y-2 text-sm">
-          <span className="text-ck-text-secondary">Variantes</span>
+          <span className="text-ck-text-secondary">Talles u opciones</span>
           <Select name="variants" defaultValue={params.variants ?? "all"}>
             <option value="all">Todos</option>
-            <option value="with">Con variantes</option>
-            <option value="without">Sin variantes</option>
+            <option value="with">Con talles u opciones</option>
+            <option value="without">Sin talles u opciones</option>
           </Select>
         </label>
         <div className="flex items-end gap-3">
@@ -196,9 +196,9 @@ export default async function AdminProductsPage({ searchParams }: Props) {
         </p>
       ) : products.length === 0 && !hasFilters ? (
         <AdminEmptyState
-          title="Sin productos en esta edición"
-          description="Un producto es un ítem de catálogo (remera, botella, diploma…). Cada producto puede tener variantes (talle, color, formato) con stock propio. Más adelante podrá incluirse dentro de entradas y kits."
-          note="Empezá creando el producto y después agregá variantes desde el detalle."
+          title="No hay productos configurados"
+          description="Agregá los artículos que se incluirán con la inscripción (por ejemplo remera u otros ítems). Después podés definir talles u opciones."
+          note="Empezá creando el producto y después agregá talles desde el detalle."
           action={
             <Button href={newHref} variant="primary">
               Crear primer producto
@@ -207,11 +207,11 @@ export default async function AdminProductsPage({ searchParams }: Props) {
         />
       ) : products.length === 0 ? (
         <AdminEmptyState
-          title="Filtros sin resultados"
-          description="No hay productos que coincidan con los filtros actuales."
+          title="No encontramos resultados"
+          description="Probá cambiar los filtros."
           action={
             <Button href={buildProductsHref({ editionId })} variant="secondary">
-              Quitar filtros
+              Limpiar filtros
             </Button>
           }
         />
@@ -219,6 +219,36 @@ export default async function AdminProductsPage({ searchParams }: Props) {
         <AdminDataTable
           rows={products}
           rowKey={(row) => row.id}
+          mobileCard={(row) => (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <AdminTableLink href={catalogAdminRoutes.productDetail(row.id)}>
+                  {row.name}
+                </AdminTableLink>
+                <Badge variant={row.isActive ? "success" : "neutral"}>
+                  {row.isActive ? "Activo" : "Inactivo"}
+                </Badge>
+              </div>
+              <p className="text-sm text-ck-text-secondary">
+                {row.variants.length} talle{row.variants.length === 1 ? "" : "s"} u opción
+                {row.variants.length === 1 ? "" : "es"} · Disponible {row.availableStock}
+              </p>
+              <p className="text-xs text-ck-text-muted">
+                Incluido en {row.includedInTicketCount} entrada
+                {row.includedInTicketCount === 1 ? "" : "s"}
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  href={catalogAdminRoutes.productDetail(row.id)}
+                  variant="secondary"
+                  className="min-h-11"
+                >
+                  Abrir
+                </Button>
+                <ProductListActiveButton productId={row.id} isActive={row.isActive} />
+              </div>
+            </div>
+          )}
           columns={[
             {
               key: "name",
@@ -228,11 +258,6 @@ export default async function AdminProductsPage({ searchParams }: Props) {
                   {row.name}
                 </AdminTableLink>
               ),
-            },
-            {
-              key: "code",
-              header: "Código",
-              cell: (row) => <span className="font-mono text-xs">{row.code}</span>,
             },
             {
               key: "status",
@@ -245,17 +270,13 @@ export default async function AdminProductsPage({ searchParams }: Props) {
             },
             {
               key: "variants",
-              header: "Variantes",
+              header: "Talles / opciones",
               cell: (row) => String(row.variants.length),
             },
             {
               key: "stock",
-              header: "Stock",
-              cell: (row) => (
-                <span title="total / reservado / disponible">
-                  {row.stockTotal} / {row.reservedTotal} / {row.availableStock}
-                </span>
-              ),
+              header: "Disponible",
+              cell: (row) => String(row.availableStock),
             },
             {
               key: "tickets",
@@ -263,17 +284,8 @@ export default async function AdminProductsPage({ searchParams }: Props) {
               cell: (row) => String(row.includedInTicketCount),
             },
             {
-              key: "updated",
-              header: "Actualizado",
-              cell: (row) =>
-                new Intl.DateTimeFormat("es-AR", {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                }).format(row.updatedAt),
-            },
-            {
               key: "actions",
-              header: "Acciones",
+              header: "Acción",
               cell: (row) => (
                 <div className="flex flex-wrap gap-2">
                   <Button href={catalogAdminRoutes.productDetail(row.id)} variant="secondary">

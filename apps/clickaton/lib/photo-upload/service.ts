@@ -13,8 +13,8 @@ import { getPrivateEntryStorage } from "./storage";
 import {
   evaluateCaptureDate,
   evaluateGps,
+  getUploadWindowState,
   isPromptReleasedForUpload,
-  isWithinUploadWindow,
   resolveEffectiveWindows,
 } from "./windows";
 
@@ -124,8 +124,20 @@ async function loadEligibleContext(input: {
   }
 
   const windows = resolveEffectiveWindows(prompt);
-  if (!isWithinUploadWindow(windows, clock)) {
-    throw new PhotoUploadError("UPLOAD_WINDOW_CLOSED", "Fuera de la ventana de subida.", 403);
+  const uploadState = getUploadWindowState(windows, clock);
+  if (uploadState === "NOT_OPEN" || uploadState === "NOT_CONFIGURED") {
+    throw new PhotoUploadError(
+      "UPLOAD_WINDOW_NOT_OPEN",
+      "La ventana de subida aún no está abierta.",
+      403,
+    );
+  }
+  if (uploadState === "CLOSED") {
+    throw new PhotoUploadError(
+      "UPLOAD_WINDOW_CLOSED",
+      "Finalizó el período de entrega de fotografías.",
+      403,
+    );
   }
 
   if (!registration.edition.fotorankContestId) {

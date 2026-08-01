@@ -61,8 +61,8 @@ export function PricePhaseForm({
       ) : null}
 
       <AdminForm
-        title="Fase de precio"
-        description="El backend resuelve la fase vigente. No se confía en montos del frontend."
+        title="Nueva fase de precio"
+        description="Definí el importe y el período. El sistema aplica la fase vigente según las fechas."
         footer={
           <>
             {cancelHref ? (
@@ -76,7 +76,13 @@ export function PricePhaseForm({
           </>
         }
       >
-        <Field id="name" label="Nombre" required error={state?.errors?.name}>
+        <Field
+          id="name"
+          label="Nombre de la fase"
+          required
+          hint="Será visible para el equipo administrador y, si corresponde, para los participantes."
+          error={state?.errors?.name}
+        >
           <Input
             name="name"
             value={values.name}
@@ -85,9 +91,9 @@ export function PricePhaseForm({
         </Field>
         <Field
           id="amountPesos"
-          label="Precio (pesos enteros)"
+          label="Precio de inscripción"
           required
-          hint="Ej. 25000 → $ 25.000 ARS"
+          hint="Este importe se aplicará durante el período configurado. Ej. 25000 → $ 25.000"
           error={state?.errors?.amountPesos}
         >
           <Input
@@ -100,7 +106,13 @@ export function PricePhaseForm({
         <input type="hidden" name="currency" value={values.currency || "ARS"} />
 
         <AdminFormSection title="Vigencia">
-          <Field id="startsAt" label="Desde" required error={state?.errors?.startsAt}>
+          <Field
+            id="startsAt"
+            label="Fecha de inicio"
+            required
+            hint="Se aplicará desde este momento (hora de la edición)."
+            error={state?.errors?.startsAt}
+          >
             <Input
               type="datetime-local"
               name="startsAt"
@@ -108,7 +120,13 @@ export function PricePhaseForm({
               onChange={(e) => updateField("startsAt", e.target.value)}
             />
           </Field>
-          <Field id="endsAt" label="Hasta" required error={state?.errors?.endsAt}>
+          <Field
+            id="endsAt"
+            label="Fecha de finalización"
+            required
+            hint="Se dejará de aplicar después de este momento."
+            error={state?.errors?.endsAt}
+          >
             <Input
               type="datetime-local"
               name="endsAt"
@@ -116,7 +134,12 @@ export function PricePhaseForm({
               onChange={(e) => updateField("endsAt", e.target.value)}
             />
           </Field>
-          <Field id="priority" label="Prioridad" hint="Menor = gana si hay empate" error={state?.errors?.priority}>
+          <Field
+            id="priority"
+            label="Prioridad"
+            hint="Si hubiera un empate técnico, gana la prioridad menor."
+            error={state?.errors?.priority}
+          >
             <Input
               name="priority"
               inputMode="numeric"
@@ -124,7 +147,7 @@ export function PricePhaseForm({
               onChange={(e) => updateField("priority", e.target.value)}
             />
           </Field>
-          <Field id="capacity" label="Cupo de fase (opcional)" error={state?.errors?.capacity}>
+          <Field id="capacity" label="Cupo de la fase (opcional)" error={state?.errors?.capacity}>
             <Input
               name="capacity"
               inputMode="numeric"
@@ -135,7 +158,7 @@ export function PricePhaseForm({
         </AdminFormSection>
 
         <AdminFormFullWidth>
-          <label className="flex items-center gap-2 text-sm text-ck-text">
+          <label className="flex min-h-11 items-center gap-2 text-sm text-ck-text">
             <input
               type="checkbox"
               name="isActive"
@@ -143,7 +166,7 @@ export function PricePhaseForm({
               onChange={(e) => updateField("isActive", e.target.checked)}
               className="size-4 rounded border-ck-border"
             />
-            Fase activa
+            Habilitar fase al crear
           </label>
         </AdminFormFullWidth>
 

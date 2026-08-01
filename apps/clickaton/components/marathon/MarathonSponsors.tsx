@@ -16,7 +16,7 @@ export function MarathonSponsors({ marathon }: MarathonSponsorsProps) {
     <Section aria-labelledby="marathon-sponsors-title">
       <Container>
         <SectionHeader
-          eyebrow="Sponsors"
+          eyebrow="Patrocinadores"
           title="Alianzas de la edición"
           description="Solo se listan sponsors confirmados. Esta demo usa nombres ficticios marcados como ejemplo."
           titleId="marathon-sponsors-title"

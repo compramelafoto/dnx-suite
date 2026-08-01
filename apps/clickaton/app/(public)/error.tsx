@@ -16,17 +16,18 @@ export default function Error({
 
   return (
     <div className="ck-container flex min-h-[50vh] flex-col items-center justify-center py-20 text-center">
-      <p className="ck-eyebrow">Error</p>
+      <p className="ck-eyebrow">Algo salió mal</p>
       <h1 className="mt-3 text-[clamp(2rem,6vw,3.25rem)]">No pudimos cargar esta página</h1>
       <p className="mt-4 max-w-md text-ck-text-secondary">
-        Probá de nuevo. Si el problema continúa, volvé más tarde.
+        Tus datos ya guardados no se modifican desde aquí. Probá de nuevo. Si el problema
+        continúa, volvé más tarde o escribinos desde Contacto.
       </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
-        <button type="button" onClick={reset} className="ck-btn ck-btn-primary">
-          Reintentar
+        <button type="button" onClick={reset} className="ck-btn ck-btn-primary min-h-11">
+          Volver a intentar
         </button>
-        <Link href="/" className="ck-btn ck-btn-secondary">
-          Ir al inicio
+        <Link href="/" className="ck-btn ck-btn-secondary min-h-11">
+          Volver al inicio
         </Link>
       </div>
     </div>

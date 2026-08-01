@@ -1,5 +1,6 @@
 import type { CurrencyCode, PaymentEnvironment, ProviderName } from "../../../contracts/primitives";
 import type { EditionCheckoutFinanceSnapshot } from "../../../edition-checkout/types.js";
+import type { CardPaymentSubmission } from "../../../frontend/card-payment-types.js";
 
 /** Estados normalizados hacia apps consumidoras (Clickatón). */
 export type NormalizedCheckoutStatus =
@@ -15,7 +16,7 @@ export type NormalizedCheckoutStatus =
 
 export type CreateClickatonCheckoutOrderInput = {
   sourceApp: "CLICKATON";
-  sourceType: "REGISTRATION";
+  sourceType: "REGISTRATION" | "STORE_ORDER";
   sourceId: string;
   idempotencyKey: string;
   payloadHash: string;
@@ -41,11 +42,20 @@ export type CreateClickatonCheckoutOrderInput = {
     /** Token OAuth del collector (N=1). Nunca persistir ni loguear. */
     collectorAccessToken?: string;
   };
+  /**
+   * Card Payment Brick submission (Orders 1:N).
+   * Token + deviceSessionId only — never trust browser amounts for charging.
+   */
+  cardPayment?: CardPaymentSubmission;
 };
 
-/** Bridge opcional: fake manual, Checkout Pro TEST, o Orders 1:N TEST. */
+/** Bridge opcional: fake manual, Checkout Pro TEST/LIVE, o Orders 1:N TEST. */
 export type ClickatonCheckoutProviderBridge = {
-  mode: "manual" | "mercado_pago_test" | "mercado_pago_orders_test";
+  mode:
+    | "manual"
+    | "mercado_pago_test"
+    | "mercado_pago_orders_test"
+    | "mercado_pago_production";
   /** Provider name persisted on DNX orders. */
   providerName: ProviderName;
   createCheckout(input: {
@@ -67,10 +77,15 @@ export type ClickatonCheckoutProviderBridge = {
     collectorAccessToken?: string;
     collectorPaymentAccountId?: string;
     editionFinanceModality?: string;
+    /** Brick → Orders 1:N card token path. */
+    cardPayment?: CardPaymentSubmission;
   }): Promise<{
     checkoutUrl: string;
     providerOrderId: string;
     rawSanitized: Record<string, unknown>;
+    /** Immediate Orders status when card token was charged on create. */
+    immediateStatus?: NormalizedCheckoutStatus;
+    statusDetail?: string;
   }>;
   refreshCheckout?(input: {
     providerOrderId: string;
@@ -117,12 +132,14 @@ export type DurableCheckoutOrder = {
   externalReference: string;
   checkoutUrl: string | null;
   sourceApp: "CLICKATON";
-  sourceType: "REGISTRATION";
+  sourceType: "REGISTRATION" | "STORE_ORDER";
   sourceId: string;
   idempotencyKey: string;
   payloadHash: string;
   attempt: number;
   providerOrderId: string | null;
+  /** Provider status_detail when available (Brick / Orders immediate response). */
+  statusDetail?: string | null;
   createdAt: string;
   updatedAt: string;
   approvedAt: string | null;

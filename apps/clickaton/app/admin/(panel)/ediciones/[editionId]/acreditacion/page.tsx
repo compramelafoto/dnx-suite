@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
@@ -36,7 +37,7 @@ export default async function EditionAccreditationPage({ params }: Props) {
     <div className="space-y-8">
       <AdminPageHeader
         title={`Acreditación · ${edition.name}`}
-        description="Operación de sede. Deshabilitada por defecto. Check-in no altera el pago."
+        description="Operación de sede con credenciales y código QR. Deshabilitada por defecto. El check-in no altera el pago."
         breadcrumbs={[
           { label: "Ediciones", href: adminRoutes.editions },
           { label: edition.name, href: `${adminRoutes.editions}/${editionId}` },
@@ -44,8 +45,8 @@ export default async function EditionAccreditationPage({ params }: Props) {
         ]}
         actions={
           <>
-            <Button href={`${adminRoutes.editions}/${editionId}/acreditacion/escanear`} variant="primary">
-              Abrir scanner
+            <Button href={`${adminRoutes.editions}/${editionId}/acreditacion/escanear`} variant="primary" className="min-h-11">
+              Escanear credencial
             </Button>
             <Button
               href={`/api/admin/editions/${editionId}/accreditation/export`}
@@ -60,7 +61,7 @@ export default async function EditionAccreditationPage({ params }: Props) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Inscriptos", dash.totals.registered],
-          ["PAID / confirmados", dash.totals.paid],
+          ["Pagos confirmados", dash.totals.paid],
           ["Acreditados", dash.totals.checkedIn],
           ["Sin acreditar", dash.totals.notCheckedIn],
           ["Kits entregados", dash.totals.kitDelivered],
@@ -73,22 +74,31 @@ export default async function EditionAccreditationPage({ params }: Props) {
         ))}
       </div>
 
-      <Card variant="outlined" className="space-y-2 p-5 text-sm">
+      <Card variant="outlined" className="space-y-3 p-5 text-sm">
         <p>
-          Ventana timeline:{" "}
+          Ventana de acreditación:{" "}
           <strong>
             {dash.window.canCheckIn == null
-              ? "horario a confirmar"
+              ? "Horario a confirmar"
               : dash.window.canCheckIn
-                ? "ABIERTA"
-                : "CERRADA"}
+                ? "Abierta"
+                : "Cerrada"}
           </strong>
-          {" · "}habilitada: <strong>{dash.window.enabled ? "SÍ" : "NO"}</strong>
+          {" · "}Módulo:{" "}
+          <strong>{dash.window.enabled ? "Habilitado" : "Deshabilitado"}</strong>
         </p>
-        <p className="font-mono text-xs text-ck-text-muted">serverNow {dash.window.serverNow}</p>
+        <p className="text-ck-text-secondary">
+          El código QR se utiliza durante la acreditación para identificar al participante.
+        </p>
         <p className="text-ck-text-muted">
-          Identidad: {dash.config?.identityMode ?? "VISUAL"} · Geofence:{" "}
-          {dash.config?.geofenceMode ?? "OFF"} (sin coordenadas inventadas)
+          Identidad:{" "}
+          {dash.config?.identityMode === "VISUAL" || !dash.config?.identityMode
+            ? "Verificación visual"
+            : dash.config.identityMode}{" "}
+          · Geofence:{" "}
+          {dash.config?.geofenceMode === "OFF" || !dash.config?.geofenceMode
+            ? "Sin geofence"
+            : dash.config.geofenceMode}
         </p>
       </Card>
 
@@ -148,6 +158,26 @@ export default async function EditionAccreditationPage({ params }: Props) {
           {dash.stockOperational.configuredPhysicalStock ?? "no cargado (no inventar)"}
         </p>
       </Card>
+
+      <AdminTechnicalInfo
+        rows={[
+          {
+            label: "Hora del servidor",
+            value: String(dash.window.serverNow ?? "—"),
+            mono: true,
+          },
+          {
+            label: "Modo identidad (interno)",
+            value: dash.config?.identityMode ?? "VISUAL",
+            mono: true,
+          },
+          {
+            label: "Geofence (interno)",
+            value: dash.config?.geofenceMode ?? "OFF",
+            mono: true,
+          },
+        ]}
+      />
     </div>
   );
 }

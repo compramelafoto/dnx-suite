@@ -1,0 +1,95 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Clickatón — inicio" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e7]:
+        - button "Abrir carrito, 0 unidades" [ref=e8]:
+          - generic [ref=e13]: "0"
+        - link "Iniciar sesión" [ref=e14] [cursor=pointer]:
+          - /url: /login
+        - button "Abrir menú de navegación" [ref=e15]
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - link [ref=e25] [cursor=pointer]:
+            - /url: /
+            - img "Clickatón" [ref=e26]
+          - generic [ref=e27]:
+            - heading "Iniciar sesión" [level=1] [ref=e28]
+            - paragraph [ref=e29]: Accedé a tu Cuenta DNX para gestionar tu participación en Clickatón. Crear cuenta no inscribe a una maratón.
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - generic [ref=e32]: Email*
+            - textbox "Email" [ref=e33]
+          - generic [ref=e34]:
+            - generic [ref=e35]: Contraseña*
+            - generic [ref=e36]:
+              - textbox "Contraseña" [ref=e37]
+              - button "Mostrar contraseña" [ref=e38] [cursor=pointer]
+          - link "¿Olvidaste tu contraseña?" [ref=e43] [cursor=pointer]:
+            - /url: /recuperar
+          - button "Iniciar sesión" [ref=e44] [cursor=pointer]
+        - separator "o" [ref=e46]
+        - link "Continuar con Google" [ref=e50] [cursor=pointer]:
+          - /url: /api/auth/google?next=%2Fmi-cuenta
+        - paragraph [ref=e57]:
+          - text: ¿No tenés cuenta?
+          - link "Crear cuenta" [ref=e58] [cursor=pointer]:
+            - /url: /crear-cuenta?next=%2Fmi-cuenta
+        - paragraph [ref=e59]:
+          - link "Volver al inicio" [ref=e60] [cursor=pointer]:
+            - /url: /
+      - paragraph [ref=e61]:
+        - link "Términos" [ref=e62] [cursor=pointer]:
+          - /url: /legal/terminos
+        - text: ·
+        - link "Privacidad" [ref=e63] [cursor=pointer]:
+          - /url: /legal/privacidad
+  - contentinfo [ref=e64]:
+    - generic [ref=e65]:
+      - generic [ref=e66]:
+        - link "Clickatón — inicio" [ref=e67] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=e69]: Maratón Fotográfica Internacional
+        - paragraph [ref=e70]: Proyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones, catálogo ni formularios activos todavía.
+        - paragraph [ref=e71]: Cada Clickatón te ayuda a mirar mejor.
+      - navigation "Pie de página" [ref=e72]:
+        - paragraph [ref=e73]: Navegación
+        - list [ref=e74]:
+          - listitem [ref=e75]:
+            - link "Maratones" [ref=e76] [cursor=pointer]:
+              - /url: /maratones
+          - listitem [ref=e77]:
+            - link "Cómo funciona" [ref=e78] [cursor=pointer]:
+              - /url: /como-funciona
+          - listitem [ref=e79]:
+            - link "Comunidad" [ref=e80] [cursor=pointer]:
+              - /url: /comunidad
+          - listitem [ref=e81]:
+            - link "Tienda" [ref=e82] [cursor=pointer]:
+              - /url: /tienda
+          - listitem [ref=e83]:
+            - link "Llevá Clickatón a tu ciudad" [ref=e84] [cursor=pointer]:
+              - /url: /organizar
+          - listitem [ref=e85]:
+            - link "Formá parte" [ref=e86] [cursor=pointer]:
+              - /url: /formar-parte
+          - listitem [ref=e87]:
+            - link "Sobre Clickatón" [ref=e88] [cursor=pointer]:
+              - /url: /sobre
+          - listitem [ref=e89]:
+            - link "Manual de marca" [ref=e90] [cursor=pointer]:
+              - /url: /manualdemarca
+          - listitem [ref=e91]:
+            - link "Contacto" [ref=e92] [cursor=pointer]:
+              - /url: /contacto
+    - separator [ref=e93]
+    - generic [ref=e94]:
+      - paragraph [ref=e95]: © 2026 Clickatón. Todos los derechos reservados.
+      - paragraph [ref=e96]:
+        - link "Manual de marca" [ref=e97] [cursor=pointer]:
+          - /url: /manualdemarca
+        - text: · Identidad visual
+  - alert [ref=e99]

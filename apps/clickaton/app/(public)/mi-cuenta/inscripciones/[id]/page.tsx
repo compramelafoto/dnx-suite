@@ -2,18 +2,47 @@ import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { prisma } from "@repo/db";
 import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { CredentialPrintActions } from "@/components/account/CredentialPrintActions";
+import { WelcomeCardShareCard } from "@/components/account/WelcomeCardShareCard";
+import {
+  ParticipantCardsSection,
+  type ParticipantCardUiState,
+} from "@/components/account/ParticipantCardsSection";
+import { PublicStatusCard } from "@/components/account/PublicStatusCard";
 import { getClickatonAuthUser } from "@/lib/admin/auth";
+import { hasClickatonCardConsent } from "@/lib/participant-cards";
+import { evaluateClickatonCardEligibility } from "@/lib/participant-cards";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { resolveActiveQrPlaintext } from "@/lib/registration/application/confirm-free-registration";
 import { Button } from "@/components/ui/Button";
 import { PromptPhotoUpload } from "@/components/account/PromptPhotoUpload";
 import { getEditionTemporalState, listPromptPublicDtos } from "@/lib/timeline/prisma-timeline";
 import {
+  CAPTURE_CLOSED_UPLOAD_OPEN_MESSAGE_ES,
+  CAMERA_CLOCK_WARNING_ES,
+  UPLOAD_CLOSED_MESSAGE_ES,
+} from "@/config/editions/argentina-2026";
+import {
+  getUploadWindowState,
+  isCaptureClosedUploadOpen,
   isWithinUploadWindow,
   resolveEffectiveWindows,
 } from "@/lib/photo-upload/windows";
 import { systemClock } from "@/lib/timeline/clock";
+import { marathonRegistrationPath } from "@/config/navigation";
+import { buildRegistrationDetailHeading } from "@/lib/public-ux/registration-detail-heading";
+import {
+  presentCheckInSource,
+  presentCredentialStatus,
+  presentFulfillmentStatus,
+  presentIdentityStatus,
+  presentParticipantRegistration,
+  presentPaymentStatus,
+  presentProfilePhotoStatus,
+  presentPromptStatus,
+  publicToneToBadgeVariant,
+} from "@/lib/public-ux/status-presentation";
 
 export const dynamic = "force-dynamic";
 
@@ -123,27 +152,50 @@ export default async function RegistrationCredentialPage({ params }: Props) {
   const requiredCount = promptRows.filter((p) => p.status === "RELEASED" || p.status === "CLOSED").length;
   const completedCount = registration.photoSubmissions.filter((s) => s.status === "CONFIRMED").length;
 
+  const statusPresentation = presentParticipantRegistration(
+    registration.status,
+    registration.paymentStatus,
+  );
+  const paymentPresentation = presentPaymentStatus(registration.paymentStatus);
+  const summaryHref = `${marathonRegistrationPath(registration.edition.slug)}/resumen/${registration.id}`;
+  const detailHeading = buildRegistrationDetailHeading({
+    firstName: registration.firstName,
+    lastName: registration.lastName,
+    editionName: registration.edition.name,
+  });
+
   if (registration.status !== "CONFIRMED" || !registration.credential) {
     return (
       <div className="mx-auto max-w-lg space-y-6 px-4 py-16">
-        <Card variant="outlined" className="space-y-4 p-8">
-          <h1 className="ck-heading-md">
-            {registration.paymentStatus === "PENDING" ||
-            registration.paymentStatus === "PROCESSING"
-              ? "Confirmando pago"
-              : "Credencial aún no disponible"}
+        <header className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ck-yellow">
+            Mi participación en Clickatón
+          </p>
+          <h1 className="font-[family-name:var(--font-ck-display)] text-3xl text-ck-text">
+            {detailHeading}
           </h1>
-          <p className="text-sm text-ck-text-secondary">
-            La inscripción debe estar confirmada por el backend. El retorno del navegador no
-            marca el pago como aprobado.
-          </p>
+        </header>
+        <PublicStatusCard
+          presentation={statusPresentation}
+          title="Tu inscripción"
+          actions={
+            <>
+              {registration.status === "PENDING_PAYMENT" ? (
+                <Button href={summaryHref} variant="primary" className="min-h-11 w-full">
+                  Ir al resumen y pago
+                </Button>
+              ) : null}
+              <Button href="/mi-cuenta" variant="secondary" className="min-h-11 w-full">
+                Volver a Mi cuenta
+              </Button>
+            </>
+          }
+        >
           <p className="text-sm text-ck-text-muted">
-            Estado: {registration.status} · Pago: {registration.paymentStatus}
+            Pago: {paymentPresentation.label}. La confirmación no depende solo de volver del
+            navegador: cuando el pago se acredite, vas a poder ver tu QR acá.
           </p>
-          <Button href="/mi-cuenta" variant="primary">
-            Volver a Mi cuenta
-          </Button>
-        </Card>
+        </PublicStatusCard>
       </div>
     );
   }
@@ -158,54 +210,79 @@ export default async function RegistrationCredentialPage({ params }: Props) {
     : null;
 
   const shirt = registration.items.find((i) => i.isIncluded);
+  const eventDate = registration.edition.startAt
+    ? new Date(registration.edition.startAt).toLocaleString("es-AR", {
+        dateStyle: "long",
+        timeStyle: "short",
+        timeZone: registration.edition.timezone ?? "America/Argentina/Cordoba",
+      })
+    : "A confirmar";
+  const placeLabel = registration.venue
+    ? `${registration.venue.name} · ${registration.venue.city}`
+    : registration.edition.location ?? "A confirmar";
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-12 print:py-4">
       <CredentialPrintActions />
 
-      <header className="space-y-2">
+      <header className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ck-yellow">
-          Dashboard del participante
+          Mi participación en Clickatón
         </p>
         <h1 className="font-[family-name:var(--font-ck-display)] text-3xl text-ck-text">
-          {registration.firstName} {registration.lastName}
+          {detailHeading}
         </h1>
-        <p className="text-sm text-ck-text-secondary">{registration.edition.name}</p>
+        <p className="text-sm leading-relaxed text-ck-text-secondary">
+          {registration.edition.name}
+        </p>
       </header>
 
-      <Card variant="outlined" className="space-y-4 border-ck-yellow/40 p-6 print:border-black">
-        <h2 className="font-semibold">Inscripción</h2>
+      <PublicStatusCard
+        presentation={statusPresentation}
+        title="Estado de tu inscripción"
+        actions={
+          qrDataUrl ? (
+            <Button href="#credencial-qr" variant="primary" className="min-h-11 w-full sm:w-auto">
+              Ver mi código QR
+            </Button>
+          ) : null
+        }
+      >
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-ck-text-muted">Estado</dt>
-            <dd className="font-semibold text-ck-yellow">{registration.status}</dd>
+            <dt className="text-ck-text-muted">Edición</dt>
+            <dd className="font-medium">{registration.edition.name}</dd>
           </div>
           <div>
-            <dt className="text-ck-text-muted">Número</dt>
-            <dd className="font-mono">{registration.visibleCode ?? registration.credential.publicCode}</dd>
+            <dt className="text-ck-text-muted">Fecha y horario</dt>
+            <dd>{eventDate}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-muted">Lugar</dt>
+            <dd>{placeLabel}</dd>
           </div>
           <div>
             <dt className="text-ck-text-muted">Pago</dt>
-            <dd>{registration.paymentStatus}</dd>
-          </div>
-          <div>
-            <dt className="text-ck-text-muted">Fase de precio</dt>
-            <dd>{registration.pricePhaseNameSnapshot ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-ck-text-muted">Promoción</dt>
-            <dd>{registration.promotionCodeSnapshot ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-ck-text-muted">Inscripción</dt>
             <dd>
-              {registration.confirmedAt
-                ? new Date(registration.confirmedAt).toLocaleString("es-AR")
-                : "—"}
+              <Badge variant={publicToneToBadgeVariant(paymentPresentation.tone)}>
+                {paymentPresentation.label}
+              </Badge>
             </dd>
           </div>
+          <div>
+            <dt className="text-ck-text-muted">Número de participante</dt>
+            <dd className="font-mono">
+              {registration.visibleCode ?? registration.credential.publicCode}
+            </dd>
+          </div>
+          {registration.promotionCodeSnapshot ? (
+            <div>
+              <dt className="text-ck-text-muted">Código aplicado</dt>
+              <dd>{registration.promotionCodeSnapshot}</dd>
+            </div>
+          ) : null}
         </dl>
-      </Card>
+      </PublicStatusCard>
 
       <Card variant="outlined" className="space-y-4 p-6">
         <h2 className="font-semibold">Perfil</h2>
@@ -215,38 +292,121 @@ export default async function RegistrationCredentialPage({ params }: Props) {
             <dd>{registration.instagramHandle ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-ck-text-muted">Foto</dt>
-            <dd>{registration.profilePhotoStatus ?? "—"}</dd>
+            <dt className="text-ck-text-muted">Foto de perfil</dt>
+            <dd>{presentProfilePhotoStatus(registration.profilePhotoStatus)}</dd>
           </div>
-          <div>
-            <dt className="text-ck-text-muted">Consentimientos</dt>
-            <dd>
-              Imagen {registration.imageUsageConsent ? "OK" : "—"} · Social{" "}
-              {registration.socialPublicationConsent ? "OK" : "—"}
+          <div className="sm:col-span-2">
+            <dt className="text-ck-text-muted">Autorizaciones</dt>
+            <dd className="leading-relaxed">
+              {registration.imageUsageConsent
+                ? "Autorizaste el uso de tu imagen para la placa de bienvenida"
+                : "Uso de imagen pendiente"}
+              {" · "}
+              {registration.socialPublicationConsent
+                ? "Autorizaste la posible publicación en redes del evento"
+                : "Publicación en redes pendiente"}
             </dd>
-          </div>
-          <div>
-            <dt className="text-ck-text-muted">Placa</dt>
-            <dd>{registration.welcomeCardStatus ?? "PENDIENTE"}</dd>
           </div>
         </dl>
       </Card>
+
+      {(() => {
+        const consent = hasClickatonCardConsent(registration);
+        const hasPhoto = Boolean(registration.profilePhotoAssetId);
+        const snapshot = {
+          id: registration.id,
+          userId: registration.userId,
+          email: registration.email,
+          firstName: registration.firstName,
+          lastName: registration.lastName,
+          city: registration.city,
+          province: registration.province,
+          country: registration.country,
+          instagramHandle: registration.instagramHandle,
+          instagramHandleNormalized: registration.instagramHandleNormalized,
+          profilePhotoAssetId: registration.profilePhotoAssetId,
+          profilePhotoStatus: registration.profilePhotoStatus,
+          visibleCode: registration.visibleCode,
+          sequenceNumber: registration.sequenceNumber,
+          status: registration.status,
+          paymentStatus: registration.paymentStatus,
+          imageUsageConsent: registration.imageUsageConsent,
+          socialPublicationConsent: registration.socialPublicationConsent,
+          consentAcceptedAt: registration.consentAcceptedAt,
+          acceptedImageAt: registration.acceptedImageAt,
+          acceptedTermsAt: registration.acceptedTermsAt,
+          termsAcceptedAt: registration.termsAcceptedAt,
+          termsVersion: registration.termsVersion,
+          ticketType: { name: registration.ticketType?.name ?? "Participante" },
+          edition: {
+            name: registration.edition.name,
+            slug: registration.edition.slug,
+            city: registration.edition.city,
+            startAt: registration.edition.startAt,
+            location: registration.edition.location ?? null,
+            timezone: registration.edition.timezone,
+            coverImageUrl: registration.edition.coverImageUrl,
+          },
+          venue: registration.venue
+            ? { name: registration.venue.name, city: registration.venue.city }
+            : null,
+        };
+        const toUi = (cardType: "welcome" | "member"): ParticipantCardUiState => {
+          const e = evaluateClickatonCardEligibility({
+            registration: snapshot,
+            cardType,
+            mode: "final",
+            actorKind: "participant",
+            hasConsent: consent,
+            hasPhoto,
+          });
+          if (e.eligible) return "available";
+          if (e.blockReason?.includes("Foto")) return "missing_photo";
+          if (e.blockReason?.includes("Consentimiento")) return "missing_consent";
+          if (
+            e.blockReason?.includes("no confirmada") ||
+            e.blockReason?.includes("no permitido")
+          ) {
+            return "not_confirmed";
+          }
+          return "error";
+        };
+        return (
+          <ParticipantCardsSection
+            registrationId={registration.id}
+            welcomeState={toUi("welcome")}
+            memberState={toUi("member")}
+          />
+        );
+      })()}
+
+      {paid ? (
+        <WelcomeCardShareCard
+          registrationId={registration.id}
+          status={registration.welcomeCardStatus}
+          visibleCode={registration.visibleCode}
+          instagramHandle={registration.instagramHandle}
+          participantName={`${registration.firstName} ${registration.lastName}`.trim()}
+          city={registration.city}
+          categoryLabel={registration.ticketType?.name ?? null}
+        />
+      ) : null}
 
       <Card variant="outlined" className="space-y-4 p-6">
         <h2 className="font-semibold">Acreditación</h2>
         {registration.checkIns[0] ? (
           <div className="space-y-2 text-sm">
-            <p className="font-semibold text-ck-yellow">Acreditado</p>
+            <p className="font-semibold text-ck-yellow">Ya estás acreditado</p>
             <p>
               {new Date(registration.checkIns[0].checkedInAt).toLocaleString("es-AR", {
                 timeZone: registration.edition.timezone ?? "America/Argentina/Cordoba",
               })}
               {" · "}
-              {registration.checkIns[0].source}
+              {presentCheckInSource(registration.checkIns[0].source)}
             </p>
             <p className="text-ck-text-muted">
-              Identidad: {registration.checkIns[0].identityStatus}. Próximo paso: inicio de la
-              maratón según cronograma.
+              Identidad: {presentIdentityStatus(registration.checkIns[0].identityStatus)}.
+              Próximo paso: seguí el cronograma del evento.
             </p>
           </div>
         ) : (
@@ -258,15 +418,15 @@ export default async function RegistrationCredentialPage({ params }: Props) {
                 ? "horario a confirmar"
                 : temporal.canCheckIn
                   ? "abierta"
-                  : "aún no habilitada / cerrada"}
+                  : "aún no habilitada o ya cerrada"}
               .
             </p>
             <p>
               Kit esperado:{" "}
               {shirt
                 ? `${shirt.nameSnapshot}${shirt.variantNameSnapshot ? ` talle ${shirt.variantNameSnapshot}` : ""}`
-                : "según fase"}
-              . La entrega la registra el equipo (no se autoacredita solo mostrando el QR).
+                : "según tu entrada"}
+              . La entrega la registra el equipo en sede.
             </p>
           </div>
         )}
@@ -276,8 +436,8 @@ export default async function RegistrationCredentialPage({ params }: Props) {
         <h2 className="font-semibold">Kit</h2>
         <p className="text-sm text-ck-text-secondary">
           {shirt
-            ? `${shirt.nameSnapshot}${shirt.variantNameSnapshot ? ` · talle ${shirt.variantNameSnapshot}` : ""} · entrega ${shirt.fulfillmentStatus}`
-            : "Sin merch incluido en esta fase."}
+            ? `${shirt.nameSnapshot}${shirt.variantNameSnapshot ? ` · talle ${shirt.variantNameSnapshot}` : ""} · ${presentFulfillmentStatus(shirt.fulfillmentStatus)}`
+            : "Sin merchandising incluido en esta fase."}
         </p>
       </Card>
 
@@ -286,29 +446,23 @@ export default async function RegistrationCredentialPage({ params }: Props) {
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-ck-text-muted">Fecha</dt>
-            <dd>
-              {registration.edition.startAt
-                ? new Date(registration.edition.startAt).toLocaleString("es-AR", {
-                    timeZone: registration.edition.timezone ?? "America/Argentina/Cordoba",
-                  })
-                : "A confirmar"}
-            </dd>
+            <dd>{eventDate}</dd>
           </div>
           <div>
             <dt className="text-ck-text-muted">Lugar</dt>
-            <dd>
-              {registration.venue
-                ? `${registration.venue.name} · ${registration.venue.city}`
-                : registration.edition.location ?? "A confirmar"}
-            </dd>
+            <dd>{placeLabel}</dd>
           </div>
           <div>
             <dt className="text-ck-text-muted">Acreditación</dt>
-            <dd>{temporal.canCheckIn ? "Abierta" : "Horario a confirmar / próxima"}</dd>
+            <dd>{temporal.canCheckIn ? "Abierta" : "Horario a confirmar"}</dd>
           </div>
           <div>
-            <dt className="text-ck-text-muted">Reloj servidor</dt>
-            <dd className="font-mono text-xs">{temporal.serverNow}</dd>
+            <dt className="text-ck-text-muted">Inscripción confirmada</dt>
+            <dd>
+              {registration.confirmedAt
+                ? new Date(registration.confirmedAt).toLocaleString("es-AR")
+                : "—"}
+            </dd>
           </div>
         </dl>
         {temporal.nextEvent ? (
@@ -321,30 +475,55 @@ export default async function RegistrationCredentialPage({ params }: Props) {
               : " · horario a confirmar"}
           </p>
         ) : null}
-        <Button href={`/maratones/${registration.edition.slug}`} variant="secondary" size="sm">
-          Ver ficha / reglamento
+        <Button
+          href={`/maratones/${registration.edition.slug}`}
+          variant="secondary"
+          className="min-h-11 w-full sm:w-auto"
+        >
+          Ver ficha del evento
         </Button>
       </Card>
 
       <Card variant="outlined" className="space-y-4 p-6">
-        <h2 className="font-semibold">FotoRank</h2>
-        <p className="text-sm text-ck-text-secondary">
-          Sync: {registration.fotoRankSyncStatus ?? "NO_CONFIGURADO"}
-          {registration.fotoRankParticipantId
-            ? ` · participante ${registration.fotoRankParticipantId}`
-            : " · sin vínculo aún"}
+        <h2 className="font-semibold">Consignas y carga de fotos</h2>
+        <p className="text-sm text-ck-text-secondary leading-relaxed">
+          Antes del horario de apertura las consignas aparecen como bloqueadas. El contenido
+          secreto no se muestra hasta que se habiliten. Progreso: {completedCount}/
+          {requiredCount || "—"} confirmadas.
         </p>
-      </Card>
-
-      <Card variant="outlined" className="space-y-4 p-6">
-        <h2 className="font-semibold">Consignas y carga</h2>
-        <p className="text-sm text-ck-text-secondary">
-          Antes del horario de apertura solo ves estado LOCKED. El contenido secreto no viaja al
-          navegador. Progreso: {completedCount}/{requiredCount || "—"} confirmadas.
+        <p
+          className="rounded-lg border border-ck-yellow/40 bg-ck-yellow/10 px-4 py-3 text-sm leading-relaxed text-ck-text"
+          role="note"
+        >
+          {CAMERA_CLOCK_WARNING_ES}
         </p>
+        {(() => {
+          const sample = promptRows[0] ? resolveEffectiveWindows(promptRows[0]) : null;
+          if (!sample) return null;
+          const uploadState = getUploadWindowState(sample, clock);
+          if (uploadState === "CLOSED") {
+            return (
+              <p className="rounded-lg border border-ck-border bg-ck-bg-elevated px-4 py-3 text-sm">
+                {UPLOAD_CLOSED_MESSAGE_ES}
+              </p>
+            );
+          }
+          if (isCaptureClosedUploadOpen(sample, clock)) {
+            return (
+              <p className="rounded-lg border border-ck-yellow/50 bg-ck-yellow/10 px-4 py-3 text-sm leading-relaxed">
+                {CAPTURE_CLOSED_UPLOAD_OPEN_MESSAGE_ES}
+              </p>
+            );
+          }
+          return null;
+        })()}
         <p className="text-xs text-ck-text-muted">
-          Uploads edición: {uploadsEnabled ? "habilitados" : "deshabilitados (admin)"} · canUpload
-          timeline: {temporal.canUpload ? "sí" : "no / a confirmar"}
+          {uploadsEnabled
+            ? "La carga de fotos está habilitada para esta edición."
+            : "La carga de fotos todavía no está habilitada."}{" "}
+          {temporal.canUpload
+            ? "Ya podés enviar dentro de la ventana del evento."
+            : "La ventana de carga se habilita según el cronograma."}
         </p>
         {prompts.length === 0 ? (
           <p className="text-sm text-ck-text-muted">
@@ -363,11 +542,14 @@ export default async function RegistrationCredentialPage({ params }: Props) {
                 p.status === "RELEASED" &&
                 windows != null &&
                 isWithinUploadWindow(windows, clock);
+              const admission = submission
+                ? admissionBySubmission.get(submission.id)
+                : null;
               return (
                 <li key={p.sequence} className="space-y-3">
                   <div className="rounded border border-ck-border p-4 text-sm">
                     <p className="font-semibold">
-                      Consigna {p.sequence} · {p.status}
+                      Consigna {p.sequence} · {presentPromptStatus(p.status)}
                     </p>
                     {p.status === "LOCKED" ? (
                       <p className="mt-1 text-ck-text-muted">{p.message}</p>
@@ -387,7 +569,7 @@ export default async function RegistrationCredentialPage({ params }: Props) {
                             : "a confirmar"}
                         </p>
                         <p className="text-xs text-ck-text-muted">
-                          Subida hasta:{" "}
+                          Carga hasta:{" "}
                           {windows?.uploadEndsAt
                             ? windows.uploadEndsAt.toLocaleString("es-AR")
                             : "a confirmar"}
@@ -411,17 +593,25 @@ export default async function RegistrationCredentialPage({ params }: Props) {
                       />
                       {submission ? (
                         <p className="text-xs text-ck-text-muted">
-                          Admisión técnica:{" "}
-                          {admissionBySubmission.get(submission.id)?.status ??
-                            (submission.status === "CONFIRMED"
-                              ? "pendiente de evaluación"
-                              : submission.status === "REJECTED"
-                                ? "rechazada"
-                                : submission.status === "WITHDRAWN"
-                                  ? "retirada"
-                                  : "—")}
-                          {admissionBySubmission.get(submission.id)?.publicRejectionReason
-                            ? ` · ${admissionBySubmission.get(submission.id)?.publicRejectionReason}`
+                          Revisión técnica:{" "}
+                          {admission?.status === "ELIGIBLE" ||
+                          admission?.status === "FROZEN_FOR_JURY"
+                            ? "Admitida"
+                            : admission?.status === "EXCLUDED"
+                              ? "No admitida"
+                              : admission?.status === "PENDING_AUTOMATIC_REVIEW" ||
+                                  admission?.status === "PENDING_MANUAL_REVIEW" ||
+                                  admission?.status === "NOT_EVALUATED"
+                                ? "Pendiente de revisión"
+                                : submission.status === "CONFIRMED"
+                                  ? "Pendiente de evaluación"
+                                  : submission.status === "REJECTED"
+                                    ? "Rechazada"
+                                    : submission.status === "WITHDRAWN"
+                                      ? "Retirada"
+                                      : "En proceso"}
+                          {admission?.publicRejectionReason
+                            ? ` · ${admission.publicRejectionReason}`
                             : null}
                         </p>
                       ) : null}
@@ -435,6 +625,7 @@ export default async function RegistrationCredentialPage({ params }: Props) {
       </Card>
 
       <Card
+        id="credencial-qr"
         variant="outlined"
         className="space-y-6 border-ck-yellow/40 p-8 print:border-black"
       >
@@ -443,8 +634,13 @@ export default async function RegistrationCredentialPage({ params }: Props) {
             Credencial Clickatón
           </p>
           <h2 className="font-[family-name:var(--font-ck-display)] text-2xl text-ck-text">
-            QR de acreditación
+            Código QR de acreditación
           </h2>
+          <p className="text-sm text-ck-text-secondary">
+            Credencial del participante:{" "}
+            {presentCredentialStatus(registration.credential.status)}. El código QR se utiliza
+            durante la acreditación para identificarte en sede.
+          </p>
         </div>
 
         {qrDataUrl ? (
@@ -463,14 +659,17 @@ export default async function RegistrationCredentialPage({ params }: Props) {
           </div>
         ) : (
           <p className="text-sm text-ck-text-secondary">
-            No pudimos regenerar el QR. Contactá soporte.
+            No pudimos mostrar el QR ahora. Probá de nuevo en unos minutos o contactá soporte.
           </p>
         )}
       </Card>
 
-      <div className="flex flex-wrap gap-3">
-        <Button href="/mi-cuenta" variant="secondary">
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Button href="/mi-cuenta" variant="secondary" className="min-h-11 w-full sm:w-auto">
           Volver a Mi cuenta
+        </Button>
+        <Button href="/contacto" variant="outline" className="min-h-11 w-full sm:w-auto">
+          Pedir ayuda
         </Button>
       </div>
     </div>

@@ -26,7 +26,9 @@ export type {
 export {
   validateMercadoPagoTestCredentials,
   createMercadoPagoCheckoutProTestAdapter,
+  createMercadoPagoCheckoutProLiveAdapter,
   createMercadoPagoTestClickatonProviderBridge,
+  createMercadoPagoProductionClickatonProviderBridge,
   resolveClickatonPaymentsProviderMode,
   mapMercadoPagoPaymentStatusToNormalized,
   sanitizeMercadoPagoPreferenceResponse,
@@ -64,10 +66,20 @@ export {
   CLICKATON_DNX_CHECKOUT_FLAG,
   isClickatonDnxCheckoutEnabled,
   assertClickatonDnxCheckoutAllowed,
+  CLICKATON_MP_LIVE_PAYMENTS_FLAG,
+  isClickatonLivePaymentsEnabled,
+  isClickatonProductionRuntime,
+  resolveClickatonPaymentsProviderModeControlled,
+  assertLivePaymentsExecutionAllowed,
+  preflightClickatonLivePayments,
   buildClickatonOperationalSnapshot,
   CLICKATON_STAGING_AGREEMENT_SCOPE,
   createMercadoPagoOrders1nClickatonBridge,
   fulfillRegistrationFromOrdersObserve,
+} from "./application/services/clickaton-checkout";
+export type {
+  LivePaymentsPreflightResult,
+  ClickatonPaymentsProviderMode,
 } from "./application/services/clickaton-checkout";
 export type {
   OperationalSnapshotResult,
@@ -85,6 +97,22 @@ export {
   signMercadoPagoTestWebhook,
 } from "./providers/mercado-pago/webhooks/sign-test-fixture";
 export { mapMercadoPagoOrderResponse } from "./providers/mercado-pago/orders/mapper";
+export {
+  createOrders1nRefundService,
+  InMemoryRefundStore,
+  reconcileMercadoPagoOrderRefunds,
+  applyOrdersRefundWebhookEffects,
+  allocateRefundProportionally,
+  getRefundableAmount,
+  assertRefundAuthorized,
+  REFUND_ALLOCATION_STRATEGY,
+} from "./application/services/orders-1n-refunds";
+export type {
+  RefundRequest,
+  RefundResult,
+  RefundableBalance,
+  Orders1nRefundService,
+} from "./application/services/orders-1n-refunds";
 export {
   EDITION_CHECKOUT_BPS_TOTAL,
   allocateByBasisPoints,

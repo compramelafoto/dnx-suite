@@ -1,0 +1,61 @@
+- main [ref=e2]:
+  - generic [ref=e102]:
+    - generic [ref=e103]:
+      - heading "Completá los datos de tu tarjeta" [level=1] [ref=e105]
+      - generic [ref=e111]:
+        - generic [ref=e112]:
+          - generic [ref=e115]:
+            - generic [ref=e116]: Número de tarjeta
+            - generic [ref=e118]:
+              - iframe [ref=e120]:
+                - textbox "Número de tarjeta" [ref=f6e2]:
+                  - /placeholder: 0000 0000 0000 0000
+                  - text: 5031 7557 3453 0604
+              - generic [ref=e200]:
+                - img "Tarjeta Mastercard" [ref=e201]
+                - generic [ref=e202]: Tarjeta Mastercard
+              - generic [ref=e125]: Tarjeta Mastercard
+          - generic [ref=e126]:
+            - generic [ref=e127]: Nombre del titular
+            - textbox "Nombre del titular" [ref=e130]:
+              - /placeholder: "Ej.: María López"
+              - text: APRO
+            - generic [ref=e131]: Como aparece en la tarjeta.
+          - generic [ref=e134]:
+            - generic [ref=e137]:
+              - generic [ref=e138]: Vencimiento
+              - iframe [ref=e142]:
+                - textbox "Vencimiento" [ref=f7e2]:
+                  - /placeholder: MM/AA
+                  - text: 11/30
+            - generic [ref=e146]:
+              - generic [ref=e147]: Código de seguridad
+              - generic [ref=e149]:
+                - iframe [ref=e151]:
+                  - textbox "Código de seguridad" [invalid] [ref=f8e2]:
+                    - /placeholder: "000"
+                    - text: "123"
+                - generic [ref=e153]:
+                  - button [ref=e203] [cursor=pointer]:
+                    - img "Ayuda" [ref=e204]
+                  - generic [ref=e160]: Es un número de 3 dígitos que encontrás en el dorso de tu tarjeta o en la app de tu banco o billetera.
+              - generic [ref=e208]: Completá este campo.
+          - generic [ref=e162]:
+            - generic [ref=e163]: Documento del titular
+            - generic [ref=e165]:
+              - combobox "Documento del titular DNI" [ref=e168]:
+                - generic [ref=e169]: Documento del titular
+                - generic [ref=e170]: DNI
+              - textbox "Documento del titular" [ref=e176]:
+                - /placeholder: 00.000.000
+                - text: 12.345.678
+        - alert [ref=e177]
+      - generic [ref=e178]:
+        - button "Continuar" [active] [ref=e179] [cursor=pointer]
+        - link "Volver" [ref=e181] [cursor=pointer]
+    - generic [ref=e185]:
+      - generic [ref=e186]: Detalles del pago
+      - generic [ref=e188]:
+        - generic [ref=e189]: Inscripción Clickatón — cms9j1qs TEST
+        - img [ref=e193]:
+          - generic [ref=e194]: $ 25.000

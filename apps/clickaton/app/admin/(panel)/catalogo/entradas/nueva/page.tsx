@@ -24,7 +24,7 @@ export default async function AdminNewTicketTypePage({ searchParams }: Props) {
         <AdminPageHeader
           title="Nueva entrada"
           breadcrumbs={[
-            { label: "Catálogo", href: catalogAdminRoutes.hub },
+            { label: "Productos y kits", href: catalogAdminRoutes.hub },
             { label: "Entradas", href: catalogAdminRoutes.tickets },
             { label: "Nueva" },
           ]}
@@ -62,7 +62,7 @@ export default async function AdminNewTicketTypePage({ searchParams }: Props) {
         title="Nueva entrada"
         description="Creá la entrada y configurá productos del kit en el detalle."
         breadcrumbs={[
-          { label: "Catálogo", href: catalogAdminRoutes.hub },
+          { label: "Productos y kits", href: catalogAdminRoutes.hub },
           { label: "Entradas", href: catalogAdminRoutes.tickets },
           { label: "Nueva" },
         ]}

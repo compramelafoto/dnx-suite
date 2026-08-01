@@ -1,0 +1,368 @@
+- generic [active] [ref=e1]:
+  - link "Saltar al contenido" [ref=e2] [cursor=pointer]:
+    - /url: "#contenido-principal"
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "Clickatón — inicio" [ref=e6] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e8]:
+        - navigation "Principal" [ref=e9]:
+          - link "Maratones" [ref=e10] [cursor=pointer]:
+            - /url: /maratones
+          - link "Cómo funciona" [ref=e11] [cursor=pointer]:
+            - /url: /como-funciona
+          - link "Comunidad" [ref=e12] [cursor=pointer]:
+            - /url: /comunidad
+          - link "Llevá Clickatón a tu ciudad" [ref=e13] [cursor=pointer]:
+            - /url: /organizar
+          - link "Formá parte" [ref=e14] [cursor=pointer]:
+            - /url: /formar-parte
+        - generic [ref=e15]:
+          - link "Iniciar sesión" [ref=e16] [cursor=pointer]:
+            - /url: /login?next=%2F
+          - link "Ver maratones" [ref=e17] [cursor=pointer]:
+            - /url: /maratones
+  - main [ref=e18]:
+    - region [ref=e19]:
+      - generic [ref=e21]:
+        - paragraph [ref=e22]: Maratón Fotográfica Internacional
+        - heading "Salí a buscar el instante." [level=1] [ref=e23]
+        - paragraph [ref=e24]: Fotografía + creatividad + comunidad
+        - paragraph [ref=e27]: Una experiencia que transforma la ciudad en escenario y cada consigna en una oportunidad para crear, aprender y compartir.
+        - generic [ref=e28]:
+          - link "Conocé cómo funciona" [ref=e29] [cursor=pointer]:
+            - /url: /como-funciona
+          - link "Próximas maratones" [ref=e30] [cursor=pointer]:
+            - /url: /maratones
+        - paragraph [ref=e31]: Mirar · crear · aprender · compartir
+    - region [ref=e32]:
+      - generic [ref=e34]:
+        - generic [ref=e36]:
+          - paragraph [ref=e37]: Qué es
+          - heading "Clickatón es una experiencia fotográfica." [level=2] [ref=e38]
+          - paragraph [ref=e39]: La maratón es el formato. El crecimiento de la mirada y la creación de comunidad son el propósito.
+        - generic [ref=e40]:
+          - paragraph [ref=e41]: "Es una maratón fotográfica: durante un período delimitado, salís a recorrer un territorio con consignas que despiertan la observación."
+          - paragraph [ref=e42]: La jornada invita a mirar, crear y entregar fotografías. También es un espacio de encuentro, intercambio y aprendizaje entre personas de distintos niveles.
+          - paragraph [ref=e43]: Cada edición define su duración, recorrido, consignas y modalidad. Las reglas específicas se publican en las bases de esa Clickatón.
+    - region [ref=e44]:
+      - generic [ref=e45]:
+        - generic [ref=e47]:
+          - paragraph [ref=e48]: Pilares
+          - heading "Cuatro ideas que sostienen cada edición." [level=2] [ref=e49]
+        - list [ref=e50]:
+          - listitem [ref=e51]:
+            - generic [ref=e52]:
+              - generic [ref=e53]: "01"
+              - heading "Fotografía como aventura" [level=3] [ref=e60]
+              - paragraph [ref=e61]: Salís con una misión creativa y volvés con una mirada distinta sobre lo cotidiano.
+          - listitem [ref=e62]:
+            - generic [ref=e63]:
+              - generic [ref=e64]: "02"
+              - heading "El tiempo como desafío" [level=3] [ref=e71]
+              - paragraph [ref=e72]: "El reloj ordena la experiencia: cada decisión cuenta y cada instante puede convertirse en una historia."
+          - listitem [ref=e73]:
+            - generic [ref=e74]:
+              - generic [ref=e75]: "03"
+              - heading "La ciudad como escenario" [level=3] [ref=e82]
+              - paragraph [ref=e83]: Calles, luces, gestos y detalles se transforman en el territorio creativo de la jornada.
+          - listitem [ref=e84]:
+            - generic [ref=e85]:
+              - generic [ref=e86]: "04"
+              - heading "La comunidad como protagonista" [level=3] [ref=e93]
+              - paragraph [ref=e94]: Participás junto a otras personas que también quieren mirar mejor, crear y compartir.
+    - region [ref=e95]:
+      - generic [ref=e96]:
+        - generic [ref=e97]:
+          - generic [ref=e98]:
+            - paragraph [ref=e99]: Cómo funciona
+            - heading "Un recorrido claro, una experiencia intensa." [level=2] [ref=e100]
+            - paragraph [ref=e101]: Este es el flujo conceptual de una Clickatón. La inscripción y la carga real se activarán cuando exista la integración con FotoRank.
+          - generic [ref=e102]: Explicación conceptual — sin formularios ni pagos en esta etapa.
+        - list [ref=e104]:
+          - listitem [ref=e105]:
+            - generic [ref=e106]:
+              - generic "Paso 1" [ref=e107]: "1"
+              - generic [ref=e109]:
+                - heading "Elegís una Clickatón" [level=3] [ref=e110]
+                - paragraph [ref=e111]: Conocés la edición, su territorio y la propuesta creativa de esa jornada.
+          - listitem [ref=e112]:
+            - generic [ref=e113]:
+              - generic "Paso 2" [ref=e114]: "2"
+              - generic [ref=e116]:
+                - heading "Te inscribís" [level=3] [ref=e117]
+                - paragraph [ref=e118]: Cuando abramos inscripciones, vas a poder sumarte según las bases de cada edición.
+          - listitem [ref=e119]:
+            - generic [ref=e120]:
+              - generic "Paso 3" [ref=e121]: "3"
+              - generic [ref=e123]:
+                - heading "Recibís las consignas" [level=3] [ref=e124]
+                - paragraph [ref=e125]: Las consignas guían tu mirada y te desafían a probar nuevas formas de observar.
+          - listitem [ref=e126]:
+            - generic [ref=e127]:
+              - generic "Paso 4" [ref=e128]: "4"
+              - generic [ref=e130]:
+                - heading "Salís a fotografiar" [level=3] [ref=e131]
+                - paragraph [ref=e132]: Recorrés, buscás y decidís. La ciudad se convierte en tu escenario.
+          - listitem [ref=e133]:
+            - generic [ref=e134]:
+              - generic "Paso 5" [ref=e135]: "5"
+              - generic [ref=e137]:
+                - heading "Subís tus imágenes" [level=3] [ref=e138]
+                - paragraph [ref=e139]: Entregás tus fotografías para formar parte de la experiencia y la evaluación.
+          - listitem [ref=e140]:
+            - generic [ref=e141]:
+              - generic "Paso 6" [ref=e142]: "6"
+              - generic [ref=e144]:
+                - heading "Compartís, aprendés y descubrís" [level=3] [ref=e145]
+                - paragraph [ref=e146]: Los resultados, el intercambio y la comunidad cierran el ciclo de la edición.
+    - region [ref=e147]:
+      - generic [ref=e148]:
+        - generic [ref=e149]:
+          - generic [ref=e150]:
+            - paragraph [ref=e151]: Agenda
+            - heading "Próximas maratones" [level=2] [ref=e152]
+          - generic [ref=e153]: Inscripción abierta (TEST)
+        - generic [ref=e156]:
+          - generic [ref=e157]:
+            - generic [ref=e158]: Ciudad TEST
+            - heading "1er Clickaton \"Día del Fotógrafo 2026\"" [level=3] [ref=e159]
+            - paragraph [ref=e160]: Clickatón Argentina 2026 es una maratón fotográfica presencial que se realizará el 20 de septiembre. Durante la jornada deberás resolver 10 consignas fotográficas recorriendo la ciudad, poniendo a prueba tu creatividad, tu mirada y tu capacidad para contar historias con imágenes. Los primeros 100 inscriptos recibirán un Kit Oficial de Participación junto con la Remera Oficial de Clickatón.
+            - paragraph [ref=e161]: 29 de julio de 2026 · Ver entrada
+          - link "Ver ficha" [ref=e163] [cursor=pointer]:
+            - /url: /maratones/1er-clickaton
+          - paragraph [ref=e164]:
+            - text: Entorno de prueba — no se realiza un cobro real.
+            - link "Detalles" [ref=e165] [cursor=pointer]:
+              - /url: /maratones/1er-clickaton
+    - region [ref=e166]:
+      - generic [ref=e167]:
+        - generic [ref=e168]:
+          - generic [ref=e170]:
+            - paragraph [ref=e171]: Pedagogía
+            - heading "Aprender mientras participás." [level=2] [ref=e172]
+            - paragraph [ref=e173]: Clickatón no se limita a competir. Busca construir progresivamente un espacio pedagógico alrededor de cada experiencia.
+          - figure [ref=e174]:
+            - img "Participantes con remeras Clickatón compartiendo la experiencia fotográfica" [ref=e175]
+        - list [ref=e178]:
+          - listitem [ref=e179]:
+            - generic [ref=e180]:
+              - heading "Consignas que abren la mirada" [level=3] [ref=e181]
+              - paragraph [ref=e182]: Cada consigna invita a probar nuevas formas de observar y contar lo que pasa a tu alrededor.
+          - listitem [ref=e183]:
+            - generic [ref=e184]:
+              - heading "Crecimiento compartido" [level=3] [ref=e185]
+              - paragraph [ref=e186]: Fotógrafos de distintos niveles pueden practicar, intercambiar y aprender juntos.
+          - listitem [ref=e187]:
+            - generic [ref=e188]:
+              - heading "Más que el equipo" [level=3] [ref=e189]
+              - paragraph [ref=e190]: La cámara importa, pero la práctica, la observación y el intercambio ayudan a crecer.
+          - listitem [ref=e191]:
+            - generic [ref=e192]:
+              - heading "Contenidos en construcción" [level=3] [ref=e193]
+              - paragraph [ref=e194]: Cada edición podrá incorporar, de a poco, herramientas, contenidos y espacios de devolución.
+        - paragraph [ref=e195]: No prometemos todavía cursos, mentorías, certificados ni talleres incluidos. La dimensión pedagógica crecerá con el proyecto.
+    - region [ref=e196]:
+      - generic [ref=e197]:
+        - generic [ref=e198]:
+          - generic [ref=e200]:
+            - paragraph [ref=e201]: Comunidad
+            - heading "Una red de miradas en movimiento." [level=2] [ref=e202]
+            - paragraph [ref=e203]: "Clickatón reúne a quienes salen a observar, crear y compartir: participantes, fotógrafos, jurados, docentes, clubes, asociaciones, organizadores y ciudades."
+          - list [ref=e204]:
+            - listitem [ref=e205]:
+              - generic [ref=e206]: Participantes
+            - listitem [ref=e207]:
+              - generic [ref=e208]: Fotógrafos
+            - listitem [ref=e209]:
+              - generic [ref=e210]: Jurados
+            - listitem [ref=e211]:
+              - generic [ref=e212]: Docentes
+            - listitem [ref=e213]:
+              - generic [ref=e214]: Clubes
+            - listitem [ref=e215]:
+              - generic [ref=e216]: Asociaciones
+            - listitem [ref=e217]:
+              - generic [ref=e218]: Organizadores
+            - listitem [ref=e219]:
+              - generic [ref=e220]: Ciudades
+          - generic [ref=e221]:
+            - link "Formá parte desde el comienzo" [ref=e222] [cursor=pointer]:
+              - /url: /comunidad
+            - paragraph [ref=e223]: Próximamente — sin formulario activo todavía.
+        - generic [ref=e224]:
+          - figure [ref=e225]:
+            - img "Fotógrafa en recorrido urbano" [ref=e226]
+          - generic [ref=e227]:
+            - figure [ref=e228]:
+              - img "Kit y materiales de la experiencia Clickatón" [ref=e229]
+            - figure [ref=e230]:
+              - img "Stand y expo de marcas Clickatón" [ref=e231]
+    - region [ref=e232]:
+      - generic [ref=e233]:
+        - generic [ref=e234]:
+          - generic [ref=e236]:
+            - paragraph [ref=e237]: Sedes
+            - heading "Llevá Clickatón a tu ciudad." [level=2] [ref=e238]
+            - paragraph [ref=e239]: Convertite en Organizador Oficial de Sede y hacé posible la maratón fotográfica en tu territorio.
+          - paragraph [ref=e240]: "Recibís capacitación, infraestructura, marca y acompañamiento. No es un empleo: es representar a Clickatón en tu ciudad."
+          - generic [ref=e241]:
+            - link "Quiero ser Organizador" [ref=e242] [cursor=pointer]:
+              - /url: /organizar
+            - paragraph [ref=e243]: Postulate como Organizador Oficial de Sede.
+          - generic [ref=e244]:
+            - paragraph [ref=e245]: Orientado a
+            - list [ref=e246]:
+              - listitem [ref=e247]:
+                - generic [ref=e248]: Clubes fotográficos
+              - listitem [ref=e249]:
+                - generic [ref=e250]: Asociaciones
+              - listitem [ref=e251]:
+                - generic [ref=e252]: Instituciones
+              - listitem [ref=e253]:
+                - generic [ref=e254]: Municipios
+              - listitem [ref=e255]:
+                - generic [ref=e256]: Universidades
+              - listitem [ref=e257]:
+                - generic [ref=e258]: Organizadores culturales
+              - listitem [ref=e259]:
+                - generic [ref=e260]: Referentes comunitarios
+        - figure "Sedes, kits y comunidad local." [ref=e261]:
+          - img "Encuentro de sede local de maratón fotográfica" [ref=e262]
+          - generic:
+            - paragraph: Sedes, kits y comunidad local.
+    - region [ref=e263]:
+      - generic [ref=e264]:
+        - generic [ref=e266]:
+          - paragraph [ref=e267]: Aliados Fundadores
+          - heading "Formá parte de esta historia." [level=2] [ref=e268]
+          - paragraph [ref=e269]: Las mejores experiencias se construyen entre muchos.
+        - paragraph [ref=e270]: Buscamos marcas e instituciones que quieran escribir el primer capítulo de Clickatón — con pertenencia, no con publicidad.
+        - generic [ref=e271]:
+          - paragraph [ref=e272]: Espacios de alianza posibles
+          - list [ref=e273]:
+            - listitem [ref=e274]:
+              - generic [ref=e275]: Fotografía
+            - listitem [ref=e276]:
+              - generic [ref=e277]: Creatividad
+            - listitem [ref=e278]:
+              - generic [ref=e279]: Comunidad
+            - listitem [ref=e280]:
+              - generic [ref=e281]: Ciudad
+            - listitem [ref=e282]:
+              - generic [ref=e283]: Cultura
+            - listitem [ref=e284]:
+              - generic [ref=e285]: Aprendizaje
+            - listitem [ref=e286]:
+              - generic [ref=e287]: Encuentro
+            - listitem [ref=e288]:
+              - generic [ref=e289]: Expo de marcas
+          - paragraph [ref=e290]: Sin logos inventados. Sin precios. Una invitación a construir juntos.
+        - generic [ref=e291]:
+          - link "Quiero formar parte" [ref=e292] [cursor=pointer]:
+            - /url: /formar-parte
+          - paragraph [ref=e293]: Conocé cómo empresas e instituciones pueden acompañar Clickatón.
+    - region [ref=e294]:
+      - generic [ref=e295]:
+        - paragraph [ref=e296]: Manifiesto
+        - heading "No importa solamente la cámara que llevás. Importa cómo mirás." [level=2] [ref=e302]: No importa solamente la cámara que llevás.Importa cómo mirás.
+        - paragraph [ref=e303]: Salí a buscar el instante.
+        - paragraph [ref=e304]: Cada ciudad guarda historias, luces, gestos y detalles que suelen pasar desapercibidos. Clickatón es una invitación a salir, observar, crear y compartir esas miradas con otras personas.
+    - region [ref=e305]:
+      - generic [ref=e306]:
+        - generic [ref=e308]:
+          - paragraph [ref=e309]: Preguntas
+          - heading "Preguntas frecuentes" [level=2] [ref=e310]
+        - generic [ref=e311]:
+          - group [ref=e312]:
+            - generic "¿Necesito ser fotógrafo profesional?" [ref=e313] [cursor=pointer]:
+              - generic [ref=e314]:
+                - generic [ref=e315]: ¿Necesito ser fotógrafo profesional?
+                - generic [ref=e316]: +
+          - group [ref=e317]:
+            - generic "¿Puedo participar con celular?" [ref=e318] [cursor=pointer]:
+              - generic [ref=e319]:
+                - generic [ref=e320]: ¿Puedo participar con celular?
+                - generic [ref=e321]: +
+          - group [ref=e322]:
+            - generic "¿Todas las Clickatón funcionan igual?" [ref=e323] [cursor=pointer]:
+              - generic [ref=e324]:
+                - generic [ref=e325]: ¿Todas las Clickatón funcionan igual?
+                - generic [ref=e326]: +
+          - group [ref=e327]:
+            - generic "¿Cómo se conocen las consignas?" [ref=e328] [cursor=pointer]:
+              - generic [ref=e329]:
+                - generic [ref=e330]: ¿Cómo se conocen las consignas?
+                - generic [ref=e331]: +
+          - group [ref=e332]:
+            - generic "¿Las fotografías son evaluadas?" [ref=e333] [cursor=pointer]:
+              - generic [ref=e334]:
+                - generic [ref=e335]: ¿Las fotografías son evaluadas?
+                - generic [ref=e336]: +
+          - group [ref=e337]:
+            - generic "¿Dónde se anuncian las próximas fechas?" [ref=e338] [cursor=pointer]:
+              - generic [ref=e339]:
+                - generic [ref=e340]: ¿Dónde se anuncian las próximas fechas?
+                - generic [ref=e341]: +
+          - group [ref=e342]:
+            - generic "¿Puede mi ciudad organizar una edición?" [ref=e343] [cursor=pointer]:
+              - generic [ref=e344]:
+                - generic [ref=e345]: ¿Puede mi ciudad organizar una edición?
+                - generic [ref=e346]: +
+    - region [ref=e347]:
+      - generic:
+        - figure
+      - generic [ref=e348]:
+        - paragraph [ref=e354]: Maratón Fotográfica Internacional
+        - heading "La primera Clickatón empieza mucho antes del disparo." [level=2] [ref=e355]
+        - paragraph [ref=e356]: Salí a buscar el instante.
+        - paragraph [ref=e357]: Empieza cuando una comunidad decide salir a mirar su ciudad de otra manera.
+        - generic [ref=e358]:
+          - link "Conocé las próximas novedades" [ref=e359] [cursor=pointer]:
+            - /url: /maratones
+          - link "Explorá cómo funciona" [ref=e360] [cursor=pointer]:
+            - /url: /como-funciona
+        - paragraph [ref=e361]: Sin newsletter ficticia ni captura de correos en esta etapa.
+  - contentinfo [ref=e362]:
+    - generic [ref=e363]:
+      - generic [ref=e364]:
+        - link "Clickatón — inicio" [ref=e365] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=e367]: Maratón Fotográfica Internacional
+        - paragraph [ref=e368]: Proyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones, catálogo ni formularios activos todavía.
+        - paragraph [ref=e369]: Cada Clickatón te ayuda a mirar mejor.
+      - navigation "Pie de página" [ref=e370]:
+        - paragraph [ref=e371]: Navegación
+        - list [ref=e372]:
+          - listitem [ref=e373]:
+            - link "Maratones" [ref=e374] [cursor=pointer]:
+              - /url: /maratones
+          - listitem [ref=e375]:
+            - link "Cómo funciona" [ref=e376] [cursor=pointer]:
+              - /url: /como-funciona
+          - listitem [ref=e377]:
+            - link "Comunidad" [ref=e378] [cursor=pointer]:
+              - /url: /comunidad
+          - listitem [ref=e379]:
+            - link "Llevá Clickatón a tu ciudad" [ref=e380] [cursor=pointer]:
+              - /url: /organizar
+          - listitem [ref=e381]:
+            - link "Formá parte" [ref=e382] [cursor=pointer]:
+              - /url: /formar-parte
+          - listitem [ref=e383]:
+            - link "Sobre Clickatón" [ref=e384] [cursor=pointer]:
+              - /url: /sobre
+          - listitem [ref=e385]:
+            - link "Manual de marca" [ref=e386] [cursor=pointer]:
+              - /url: /manualdemarca
+          - listitem [ref=e387]:
+            - link "Contacto" [ref=e388] [cursor=pointer]:
+              - /url: /contacto
+    - separator [ref=e389]
+    - generic [ref=e390]:
+      - paragraph [ref=e391]: © 2026 Clickatón. Todos los derechos reservados.
+      - paragraph [ref=e392]:
+        - link "Manual de marca" [ref=e393] [cursor=pointer]:
+          - /url: /manualdemarca
+        - text: · Identidad visual
+  - button "Open Next.js Dev Tools" [ref=e399] [cursor=pointer]

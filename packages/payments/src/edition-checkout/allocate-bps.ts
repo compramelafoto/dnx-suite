@@ -140,7 +140,13 @@ export function validateEditionCheckoutSnapshot(
  */
 export function planEditionCheckoutFromSnapshot(
   snapshot: EditionCheckoutFinanceSnapshot,
-  opts?: { bridgeMode?: "manual" | "mercado_pago_test" | "mercado_pago_orders_test" },
+  opts?: {
+    bridgeMode?:
+      | "manual"
+      | "mercado_pago_test"
+      | "mercado_pago_orders_test"
+      | "mercado_pago_production";
+  },
 ): PlannedEditionCheckout {
   validateEditionCheckoutSnapshot(snapshot);
 
@@ -174,7 +180,7 @@ export function planEditionCheckoutFromSnapshot(
   let modality: PlannedEditionCheckout["modality"] = "MANUAL_SIMULATED";
   if (mode === "mercado_pago_orders_test") {
     modality = "ORDERS_1N_SPLIT";
-  } else if (mode === "mercado_pago_test") {
+  } else if (mode === "mercado_pago_test" || mode === "mercado_pago_production") {
     if (allocations.length !== 1 || allocations[0]!.basisPoints !== EDITION_CHECKOUT_BPS_TOTAL) {
       throw new EditionCheckoutAllocationError(
         "CHECKOUT_PRO_N1_ONLY",

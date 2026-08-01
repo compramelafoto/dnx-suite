@@ -1,0 +1,59 @@
+[     743ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[     773ms] [LOG] [HMR] connected @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[   36507ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[   37723ms] [LOG] [Fast Refresh] done in 1318ms @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[  110878ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[  111177ms] [LOG] [Fast Refresh] done in 393ms @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[  111228ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111325ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111375ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[  111425ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111482ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111501ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111517ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111523ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111527ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111532ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111538ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111546ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111551ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111556ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111560ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111568ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111585ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111609ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111634ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111670ms] [LOG] [Fast Refresh] done in 396ms @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[  111684ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111714ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111718ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111723ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111727ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111732ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111742ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111747ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111751ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111758ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111763ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111768ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111775ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[  111777ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111782ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111788ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111792ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111797ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111801ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111806ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111811ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111815ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111819ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111823ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111831ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111836ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111850ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111856ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111860ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111866ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/?_rsc=vcitw:0
+[  111897ms] [LOG] [Fast Refresh] done in 224ms @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[  112303ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/:0
+[  112317ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3005/favicon.ico:0

@@ -1,6 +1,7 @@
 import { createCheckoutEligibilityUseCase } from "@/lib/public-registration/application/checkout-eligibility";
 import type { PublicRegistrationRepository } from "@/lib/public-registration/domain/repository";
 import { PublicRegistrationError } from "@/lib/public-registration/domain/errors";
+import { resolveClickatonPaymentsProviderMode } from "@repo/payments/next";
 import { buildCheckoutIdempotencyKey } from "../domain/idempotency";
 import { assertSafeCheckoutUrl } from "../domain/checkout-url";
 import { CheckoutError } from "../domain/errors";
@@ -9,12 +10,34 @@ import type { CheckoutRegistrationPort } from "../domain/checkout-registration-p
 import type { CheckoutRedirectDto, CreatePaymentOrderInput } from "../domain/types";
 import type { DnxPaymentsClient } from "../infrastructure/dnx-payments-client";
 
+function buildCheckoutDescription(code: string): string {
+  const base = `Inscripción Clickatón — ${code}`;
+  // Checkout Pro TEST adapter requires "TEST" in the preference title (sandbox safety).
+  const mode = resolveClickatonPaymentsProviderMode(
+    process.env.CLICKATON_DNX_PAYMENTS_PROVIDER ?? "manual",
+  );
+  if (mode === "mercado_pago_test" || mode === "mercado_pago_orders_test") {
+    return `${base} TEST`;
+  }
+  return base;
+}
+
 export type CreateRegistrationCheckoutInput = {
   registrationId: string;
   editionSlug: string;
   accessToken: string;
   publicBaseUrl: string;
   now?: Date;
+  /**
+   * Card Payment Brick submission. Commercial amounts are NEVER taken from here —
+   * only token / device / payment method / payer email hints.
+   */
+  cardPayment?: import("@repo/payments/frontend").CardPaymentSubmission;
+  /**
+   * Optional amount from browser — compared for mismatch detection only.
+   * Charging always uses server eligibility amount.
+   */
+  clientDisplayedAmountMinor?: number;
 };
 
 function mapEligibilityReason(reason: string | null): CheckoutError {
@@ -190,6 +213,20 @@ export function createRegistrationCheckoutUseCase(deps: {
 
       const base = input.publicBaseUrl.replace(/\/$/, "");
       const tokenQ = encodeURIComponent(input.accessToken);
+      if (
+        input.clientDisplayedAmountMinor != null &&
+        input.clientDisplayedAmountMinor !== eligible.amountMinor
+      ) {
+        log?.({
+          event: "price_tamper_ignored",
+          registrationId: registration.id,
+          meta: {
+            clientAmount: input.clientDisplayedAmountMinor,
+            serverAmount: eligible.amountMinor,
+          },
+        });
+      }
+
       const orderInput: CreatePaymentOrderInput = {
         sourceApp: "CLICKATON",
         sourceType: "REGISTRATION",
@@ -197,7 +234,9 @@ export function createRegistrationCheckoutUseCase(deps: {
         idempotencyKey,
         amountMinor: eligible.amountMinor,
         currency: "ARS",
-        description: `Inscripci?n Clickat?n TEST ? ${eligible.publicCode ?? registration.id.slice(0, 8)}`,
+        description: buildCheckoutDescription(
+          eligible.publicCode ?? registration.id.slice(0, 8),
+        ),
         payer: {
           email: registration.participant.email,
           firstName: registration.participant.firstName,
@@ -212,6 +251,18 @@ export function createRegistrationCheckoutUseCase(deps: {
           sourceApp: "CLICKATON",
         },
         ...(editionFinance ? { editionFinance } : {}),
+        ...(input.cardPayment
+          ? {
+              cardPayment: {
+                ...input.cardPayment,
+                // Always charge with server participant email (never trust browser).
+                payer: {
+                  ...input.cardPayment.payer,
+                  email: registration.participant.email,
+                },
+              },
+            }
+          : {}),
       };
 
       const result = await deps.payments.createOrder(orderInput);
@@ -271,6 +322,7 @@ export function createRegistrationCheckoutUseCase(deps: {
         status: order.status,
         reused: result.outcome === "reused",
         expiresAt: registration.holdExpiresAt ?? null,
+        statusDetail: order.statusDetail ?? null,
       };
     },
   };

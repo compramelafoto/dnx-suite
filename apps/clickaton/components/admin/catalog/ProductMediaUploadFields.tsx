@@ -53,7 +53,7 @@ export function ProductMediaUploadFields({
     <div className="space-y-6">
       <p className="text-sm text-ck-text-secondary">
         Subí archivos a R2 (namespace <code>clickaton/products</code>). También podés
-        pegar un asset id existente abajo en el formulario.
+        pegar un identificador de imagen existente abajo en el formulario.
       </p>
       {!hasPrimary || !hasChart ? (
         <p className="text-sm text-amber-600">

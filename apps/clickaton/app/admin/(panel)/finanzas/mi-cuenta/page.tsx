@@ -8,34 +8,20 @@ import {
 } from "@repo/payments";
 import { canPerformFinanceAction } from "@repo/payments/finance-permissions";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
 import { PartnerMpConnectActions } from "@/components/admin/PartnerMpConnectActions";
+import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { loadFinanceActor } from "@/lib/admin/edition-finance/infrastructure/load-finance-actor";
+import {
+  financeToneToBadgeVariant,
+  presentMpConnectionStatus,
+} from "@/lib/admin/edition-finance/ui/finance-status-presentation";
 import { createPartnerOAuthRuntime } from "@/lib/admin/mp-partner-oauth/runtime";
 import { adminRoutes } from "@/config/admin/navigation";
 
 export const dynamic = "force-dynamic";
-
-function statusLabel(status: PartnerPanelViewModel["status"]): string {
-  switch (status) {
-    case "NOT_CONNECTED":
-      return "No conectada";
-    case "OAUTH_PENDING":
-      return "Conectando";
-    case "ACTIVE":
-    case "VERIFIED":
-      return "Activa";
-    case "EXPIRED":
-      return "Requiere reconexión";
-    case "REVOKED":
-      return "Revocada";
-    case "ERROR":
-      return "Error";
-    default:
-      return status;
-  }
-}
 
 async function loadPartnerPanel(userId: number): Promise<PartnerPanelViewModel | null> {
   try {
@@ -77,58 +63,76 @@ export default async function PartnerMpAccountPage({
   const connectEnabled = Boolean(
     app.configured && panel?.featureEnabled && panel.canConnect,
   );
+  const connection = presentMpConnectionStatus(panel?.status ?? "NOT_CONNECTED");
 
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-8">
       <AdminPageHeader
         title="Mi cuenta de cobro"
-        description="Conectá tu Mercado Pago personal para recibir fondos. No modifica la cuenta owner ni los porcentajes."
+        description="Conectá tu Mercado Pago personal para poder recibir fondos cuando una distribución te asigne como receptor. No modifica la cuenta principal ni los porcentajes."
         breadcrumbs={[
           { label: "Mi cuenta de cobro", href: adminRoutes.financePartner },
           { label: "Cuenta" },
         ]}
+        actions={
+          <Badge variant={financeToneToBadgeVariant(connection.tone)}>
+            {connection.label}
+          </Badge>
+        }
       />
 
       {isFinanceOwner ? (
-        <Card variant="outlined" className="space-y-3 text-sm text-ck-text-secondary">
+        <Card variant="outlined" className="space-y-3 p-5 text-sm text-ck-text-secondary md:p-6">
           <h2 className="text-base font-semibold text-ck-text-primary">
             Administración financiera
           </h2>
           <p>
-            Como finance owner podés gestionar recipients, porcentajes y
-            allocations desde la edición. Esta pantalla es solo tu cuenta de
-            cobro personal (PARTNER_CONNECT).
+            Como responsable financiero podés gestionar cuentas receptoras y porcentajes
+            desde la edición. Esta pantalla es solo tu cuenta personal de cobro.
           </p>
-          <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2 text-sm font-medium">
+          <div className="flex flex-col gap-3 pt-2 text-sm font-medium sm:flex-row sm:flex-wrap">
             <Link
               href="/admin/ediciones"
-              className="text-ck-yellow underline-offset-4 hover:underline"
+              className="min-h-11 text-ck-yellow underline-offset-4 hover:underline"
             >
               Ir a ediciones / finanzas
             </Link>
             <Link
               href={adminRoutes.financeOwner}
-              className="text-ck-yellow underline-offset-4 hover:underline"
+              className="min-h-11 text-ck-yellow underline-offset-4 hover:underline"
             >
-              Cuenta collector owner
+              Cuenta que recibirá los pagos (principal)
             </Link>
           </div>
         </Card>
       ) : null}
 
       {params.mp_oauth === "connected" ? (
-        <Card variant="outlined" className="border-emerald-500/40 text-sm text-emerald-300">
+        <Card
+          variant="outlined"
+          className="border-emerald-500/40 p-4 text-sm text-emerald-300"
+          role="status"
+        >
           Conexión completada. {PARTNER_ACCOUNT_UI_MESSAGES.tokensNeverShown}
         </Card>
       ) : null}
       {params.mp_oauth === "error" ? (
-        <Card variant="outlined" className="border-red-500/40 text-sm text-red-300">
-          No se pudo completar la conexión
-          {params.code ? ` (${params.code.slice(0, 64)})` : ""}.
+        <Card
+          variant="outlined"
+          className="border-red-500/40 p-4 text-sm text-red-300"
+          role="alert"
+        >
+          No pudimos completar la conexión con Mercado Pago. Intentá nuevamente.
+          {params.code ? (
+            <span className="mt-2 block text-xs text-ck-text-muted">
+              Referencia: {params.code.slice(0, 64)}
+            </span>
+          ) : null}
         </Card>
       ) : null}
 
-      <Card variant="outlined" className="space-y-4 text-sm text-ck-text-secondary">
+      <Card variant="outlined" className="space-y-4 p-5 text-sm text-ck-text-secondary md:p-6">
+        <p className="text-ck-text-primary">{connection.description}</p>
         <ul className="list-disc space-y-2 pl-5">
           {(panel?.messages?.length
             ? panel.messages
@@ -140,17 +144,26 @@ export default async function PartnerMpAccountPage({
             <li key={msg}>{msg}</li>
           ))}
         </ul>
+        <p className="text-xs text-ck-text-muted">
+          {/* FINANCE_REVIEW */}
+          Conectar tu cuenta no garantiza por sí sola el derecho a recibir fondos ni
+          modifica acuerdos comerciales. <span className="font-mono">FINANCE_REVIEW</span>
+        </p>
       </Card>
 
-      <Card variant="outlined" className="space-y-4">
+      <Card variant="outlined" className="space-y-4 p-5 md:p-6">
         <h2 className="text-base font-semibold text-ck-text-primary">
           Mercado Pago personal
         </h2>
+        <p className="text-sm text-ck-text-secondary">
+          Conectá la cuenta de Mercado Pago que podrá recibir pagos cuando una distribución
+          te incluya. Serás redirigido a Mercado Pago para autorizar la conexión. Clickatón
+          no pide ni guarda tu contraseña de Mercado Pago.
+        </p>
         {!app.configured ? (
-          <p className="text-sm text-amber-300">
-            App Mercado Pago incompleta en este entorno (faltan Client ID/Secret).
-            El botón Conectar permanece deshabilitado hasta configurar
-            CLICKATON_MP_CLIENT_ID y CLICKATON_MP_CLIENT_SECRET.
+          <p className="text-sm text-amber-300" role="status">
+            La aplicación de Mercado Pago está incompleta en este entorno. El botón Conectar
+            permanece deshabilitado hasta completar la configuración técnica.
           </p>
         ) : null}
         {panel ? (
@@ -161,15 +174,39 @@ export default async function PartnerMpAccountPage({
             canRevoke={panel.canRevoke}
             connectEnabled={connectEnabled || (panel.canReconnect && app.configured)}
             accountMasked={panel.accountMasked}
-            statusLabel={statusLabel(panel.status)}
+            statusLabel={connection.label}
           />
         ) : (
           <p className="text-sm text-ck-text-muted">
-            No tenés permiso para ver o conectar una cuenta de cobro propia. Pedí
-            el grant DNX_FINANCE_PARTNER_CONNECT.
+            No tenés permiso para ver o conectar una cuenta de cobro propia. Pedí acceso al
+            responsable financiero.
           </p>
         )}
       </Card>
+
+      <AdminTechnicalInfo
+        rows={[
+          {
+            label: "Estado interno de conexión",
+            value: panel?.status ?? "NOT_CONNECTED",
+            mono: true,
+          },
+          {
+            label: "Cuenta enmascarada",
+            value: panel?.accountMasked ?? "No informada",
+            mono: true,
+          },
+          {
+            label: "Aplicación Mercado Pago configurada",
+            value: app.configured ? "sí" : "no",
+          },
+          {
+            label: "Credenciales faltantes",
+            value: app.missing.length ? app.missing.join(", ") : "Ninguna",
+            mono: true,
+          },
+        ]}
+      />
     </div>
   );
 }

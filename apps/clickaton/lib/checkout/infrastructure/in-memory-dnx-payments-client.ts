@@ -189,7 +189,10 @@ export function createInMemoryDnxPaymentsClient(
         const attempt =
           [...store.orders.values()].filter((o) => o.sourceId === input.sourceId).length + 1;
         const id = `dnx_ord_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-        const externalReference = `clickaton:registration:${input.sourceId}`;
+        const externalReference =
+          input.sourceType === "STORE_ORDER"
+            ? `CLICKATON_STORE_ORDER:${input.sourceId}`
+            : `clickaton:registration:${input.sourceId}`;
         let status: DnxNormalizedPaymentStatus = "CREATED";
         if (store.forceProviderStatus) {
           status = mapProviderStatusToDnx(store.forceProviderStatus);
@@ -210,7 +213,7 @@ export function createInMemoryDnxPaymentsClient(
           externalReference,
           checkoutUrl: `${store.checkoutBaseUrl}/${id}?t=${checkoutToken}`,
           sourceApp: "CLICKATON",
-          sourceType: "REGISTRATION",
+          sourceType: input.sourceType,
           sourceId: input.sourceId,
           idempotencyKey: input.idempotencyKey,
           payloadHash,

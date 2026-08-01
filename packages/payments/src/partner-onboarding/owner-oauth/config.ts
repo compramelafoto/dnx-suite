@@ -18,6 +18,21 @@ export const CLICKATON_MP_OWNER_ORIGIN_APP = "clickaton" as const;
 export const CLICKATON_MP_OWNER_DEDICATED_MARKER = "dedicatedProduct=clickaton" as const;
 export const CLICKATON_MP_OWNER_PURPOSE = "OWNER_CONNECTION" as const;
 
+/** Markers of the dedicated Clickatón collector PaymentAccount (not a partner PERSON PA). */
+export function isClickatonOwnerCollectorAccount(account: {
+  originApp?: string | null;
+  externalReference?: string | null;
+  capabilities?: readonly string[] | null;
+}): boolean {
+  if (account.originApp !== CLICKATON_MP_OWNER_ORIGIN_APP) return false;
+  if (account.externalReference !== CLICKATON_MP_OWNER_DEDICATED_MARKER) {
+    return false;
+  }
+  const caps = account.capabilities ?? [];
+  // Markers are authoritative; COLLECTOR capability preferred when present.
+  return caps.length === 0 || caps.includes("COLLECTOR");
+}
+
 export const CLICKATON_MP_OAUTH_ENV = {
   clientId: "CLICKATON_MP_CLIENT_ID",
   clientSecret: "CLICKATON_MP_CLIENT_SECRET",

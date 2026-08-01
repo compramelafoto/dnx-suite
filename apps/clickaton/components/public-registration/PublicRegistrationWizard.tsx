@@ -3,16 +3,38 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { IncludedProductsSection } from "@/components/public-registration/IncludedProductsSection";
+import { RegistrationCompare } from "@/components/public-registration/experience/RegistrationCompare";
+import { RegistrationExperienceHero } from "@/components/public-registration/experience/RegistrationExperienceHero";
+import { RegistrationFaq } from "@/components/public-registration/experience/RegistrationFaq";
+import { RegistrationHowItWorks } from "@/components/public-registration/experience/RegistrationHowItWorks";
+import { RegistrationIncludes } from "@/components/public-registration/experience/RegistrationIncludes";
+import { RegistrationLiveBenefits } from "@/components/public-registration/experience/RegistrationLiveBenefits";
+import { RegistrationMobileCtaBar } from "@/components/public-registration/experience/RegistrationMobileCtaBar";
+import {
+  RegistrationOptionCards,
+  type ExperienceTicketOption,
+} from "@/components/public-registration/experience/RegistrationOptionCards";
+import { RegistrationReassuranceCards } from "@/components/public-registration/experience/RegistrationReassuranceCards";
+import { RegistrationShirtSizeStep } from "@/components/public-registration/experience/RegistrationShirtSizeStep";
+import { RegistrationSocialProof } from "@/components/public-registration/experience/RegistrationSocialProof";
+import { RegistrationStickySummary } from "@/components/public-registration/experience/RegistrationStickySummary";
+import { RegistrationWhatHappensNext } from "@/components/public-registration/experience/RegistrationWhatHappensNext";
+import { RegistrationWhatYouCanWin } from "@/components/public-registration/experience/RegistrationWhatYouCanWin";
+import { RegistrationWhyParticipate } from "@/components/public-registration/experience/RegistrationWhyParticipate";
+import { RegistrationWelcomeBanner } from "@/components/public-registration/experience/RegistrationWelcomeBanner";
+import {
+  markReturningParticipant,
+  readReturningParticipantFlag,
+  resolveParticipantPersona,
+  type ParticipantPersona,
+} from "@/components/public-registration/experience/participant-persona";
 import { createPublicRegistrationAction } from "@/lib/public-registration/actions/public-registration";
 import type { PublicRegistrationContextDto } from "@/lib/public-registration/domain/types";
-import {
-  formatHoldExpiry,
-  formatPublicPrice,
-  kitKindLabel,
-} from "@/lib/public-registration/ui/format";
+import { formatPublicPrice } from "@/lib/public-registration/ui/format";
+import { formatExperiencePrice } from "@/components/public-registration/experience/format-experience-price";
 import { marathonPath } from "@/config/navigation";
 import { CLICKATON_TERMS_VERSION } from "@/config/editions/argentina-2026";
+import { formatMarathonDateRange } from "@/lib/datetime";
 
 type Props = {
   context: PublicRegistrationContextDto;
@@ -39,12 +61,33 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
   const [pending, startTransition] = useTransition();
   const idemRef = useRef(idempotencyKey);
   const [idemKey, setIdemKey] = useState(idempotencyKey);
+  const packCreditsReady = Boolean(
+    context.passCredits && context.passCredits.remaining > 0,
+  );
+  const [persona, setPersona] = useState<ParticipantPersona>(() =>
+    resolveParticipantPersona({
+      hasActivePassCredits: Boolean(
+        context.passCredits && context.passCredits.remaining > 0,
+      ),
+      isReturningLocal: false,
+    }),
+  );
+  const [advancing, setAdvancing] = useState(false);
 
   useEffect(() => {
     const key = stableIdempotencyKey(context.edition.slug, idempotencyKey);
     idemRef.current = key;
     setIdemKey(key);
   }, [context.edition.slug, idempotencyKey]);
+
+  useEffect(() => {
+    const next = resolveParticipantPersona({
+      hasActivePassCredits: packCreditsReady,
+      isReturningLocal: readReturningParticipantFlag(),
+    });
+    setPersona(next);
+  }, [packCreditsReady]);
+
   const [step, setStep] = useState<Step>(
     context.venues.length > 1 ? "venue" : "ticket",
   );
@@ -53,9 +96,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
   );
   const [ticketTypeId, setTicketTypeId] = useState("");
   const [usePassCredit, setUsePassCredit] = useState(false);
-  const [variantChoices, setVariantChoices] = useState<
-    Record<string, string>
-  >({});
+  const [variantChoices, setVariantChoices] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -76,13 +117,18 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
   const ticketsForVenue = useMemo(() => {
     return context.tickets.filter((t) => {
       if (t.venueId && venueId && t.venueId !== venueId) return false;
-      // Canje de crédito: solo entradas normales (no el Pack).
       if (usePassCredit && t.isMarathonPack) return false;
       return true;
     });
   }, [context.tickets, venueId, usePassCredit]);
 
-  // Si hay una sola entrada general abierta, auto-seleccionar (así aparece el talle).
+  const ticketsForOptions = useMemo(() => {
+    return context.tickets.filter((t) => {
+      if (t.venueId && venueId && t.venueId !== venueId) return false;
+      return true;
+    });
+  }, [context.tickets, venueId]);
+
   useEffect(() => {
     const open = ticketsForVenue.filter((t) => t.salesStatus === "open" && !t.isSoldOut);
     if (!ticketTypeId && open.length === 1) {
@@ -90,10 +136,42 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     }
   }, [ticketsForVenue, ticketTypeId]);
 
+  const packPrefillDone = useRef(false);
+  useEffect(() => {
+    if (packPrefillDone.current) return;
+    if (persona !== "pack_holder" || !packCreditsReady) return;
+    const openEntry = ticketsForOptions.find(
+      (t) => !t.isMarathonPack && t.salesStatus === "open" && !t.isSoldOut,
+    );
+    if (!openEntry) return;
+    packPrefillDone.current = true;
+    setUsePassCredit(true);
+    setTicketTypeId(openEntry.id);
+  }, [persona, packCreditsReady, ticketsForOptions]);
+
   const selectedTicket = ticketsForVenue.find((t) => t.id === ticketTypeId) ?? null;
   const selectedVenue =
     context.venues.find((v) => v.id === venueId) ??
     (context.venues.length === 1 ? context.venues[0]! : null);
+
+  const cityHint =
+    selectedVenue?.city ??
+    context.venues.find((v) => v.city)?.city ??
+    null;
+  const dateHint = context.edition.startAt
+    ? formatMarathonDateRange(
+        context.edition.startAt instanceof Date
+          ? context.edition.startAt.toISOString()
+          : String(context.edition.startAt),
+        (context.edition.endAt instanceof Date
+          ? context.edition.endAt.toISOString()
+          : context.edition.endAt) ||
+          (context.edition.startAt instanceof Date
+            ? context.edition.startAt.toISOString()
+            : String(context.edition.startAt)),
+        context.edition.timezone || "America/Argentina/Buenos_Aires",
+      )
+    : null;
 
   const displayCharge = useMemo(() => {
     if (!selectedTicket) return null;
@@ -114,11 +192,81 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     };
   }, [selectedTicket, usePassCredit, context.currentPricePhase]);
 
+  const experienceOptions: ExperienceTicketOption[] = useMemo(() => {
+    return ticketsForOptions.map((t) => {
+      const isPack = Boolean(t.isMarathonPack);
+      const priceMinor = isPack
+        ? t.priceAmount
+        : (context.currentPricePhase?.amount ?? t.priceAmount);
+      const compareAt =
+        !isPack &&
+        context.currentPricePhase &&
+        context.nextPricePhase &&
+        context.nextPricePhase.amount > context.currentPricePhase.amount
+          ? context.nextPricePhase.amount
+          : null;
+      return {
+        id: t.id,
+        name: t.name,
+        isPack,
+        isOpen: t.salesStatus === "open" && !t.isSoldOut,
+        priceMinor,
+        compareAtMinor: compareAt,
+        savingsMinor:
+          compareAt != null && priceMinor != null ? compareAt - priceMinor : null,
+        phaseLabel: isPack ? null : (context.currentPricePhase?.name ?? null),
+      };
+    });
+  }, [ticketsForOptions, context.currentPricePhase, context.nextPricePhase]);
+
+  const shirtProducts = useMemo(() => {
+    if (!selectedTicket) return [];
+    return selectedTicket.products.filter((p) => p.requiresVariantChoice);
+  }, [selectedTicket]);
+
   const steps: Step[] =
     context.venues.length > 1
       ? ["venue", "ticket", "participant", "review"]
       : ["ticket", "participant", "review"];
   const stepIndex = steps.indexOf(step);
+
+  function pickOpenEntryTicketId(): string {
+    const open = ticketsForOptions.find(
+      (t) => !t.isMarathonPack && t.salesStatus === "open" && !t.isSoldOut,
+    );
+    return open?.id ?? ticketsForOptions.find((t) => !t.isMarathonPack)?.id ?? "";
+  }
+
+  function validateTicketSelection(
+    ticketId: string,
+    passCredit: boolean,
+  ): string | null {
+    const ticket = context.tickets.find((t) => t.id === ticketId) ?? null;
+    if (!ticket) return "Elegí una opción para continuar.";
+    if (ticket.isSoldOut || ticket.salesStatus !== "open") {
+      return "Esa opción no está disponible para inscripción.";
+    }
+    if (passCredit && ticket.isMarathonPack) {
+      return "Para usar tu Pack, elegí la inscripción a esta Clickatón.";
+    }
+    return null;
+  }
+
+  function advanceFromTicket(ticketId: string, passCredit: boolean) {
+    setError(null);
+    const msg = validateTicketSelection(ticketId, passCredit);
+    if (msg) {
+      setError(msg);
+      return;
+    }
+    setTicketTypeId(ticketId);
+    setUsePassCredit(passCredit);
+    setAdvancing(true);
+    window.setTimeout(() => {
+      setStep("participant");
+      setAdvancing(false);
+    }, 280);
+  }
 
   function goNext() {
     setError(null);
@@ -132,18 +280,13 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     }
     if (step === "ticket") {
       if (!selectedTicket) {
-        setError("Elegí una entrada.");
+        setError("Elegí cómo querés participar.");
         return;
       }
-      if (selectedTicket.isSoldOut || selectedTicket.salesStatus !== "open") {
-        setError("Esa entrada no está disponible para inscripción.");
+      const msg = validateTicketSelection(selectedTicket.id, usePassCredit);
+      if (msg) {
+        setError(msg);
         return;
-      }
-      for (const p of selectedTicket.products) {
-        if (p.requiresVariantChoice && !variantChoices[p.productId]) {
-          setError(`Elegí el talle de ${p.productName}.`);
-          return;
-        }
       }
       setStep("participant");
       return;
@@ -158,9 +301,20 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       if (!acceptTerms) errs.acceptTerms = "Obligatorio.";
       if (!instagramHandle.trim()) errs.instagramHandle = "Instagram requerido.";
       if (!profilePhotoAssetId) errs.profilePhotoAssetId = "Subí una foto de perfil.";
+      if (selectedTicket) {
+        for (const p of selectedTicket.products) {
+          if (p.requiresVariantChoice && !variantChoices[p.productId]) {
+            errs[`variant_${p.productId}`] = `Elegí el talle de ${p.productName}.`;
+          }
+        }
+      }
       setFieldErrors(errs);
       if (Object.keys(errs).length) {
-        setError("Completá los datos obligatorios y aceptá las bases y condiciones.");
+        setError(
+          errs[`variant_${shirtProducts[0]?.productId ?? ""}`]
+            ? "Elegí el talle de la remera para continuar."
+            : "Completá los datos obligatorios y aceptá las bases y condiciones.",
+        );
         return;
       }
       setStep("review");
@@ -175,9 +329,18 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     try {
       const form = new FormData();
       form.set("file", file);
-      const response = await fetch("/api/public/registration/profile-photo", { method: "POST", body: form });
-      const result = (await response.json()) as { ok: boolean; assetId?: string; error?: string };
-      if (!result.ok || !result.assetId) throw new Error(result.error ?? "No se pudo subir la foto.");
+      const response = await fetch("/api/public/registration/profile-photo", {
+        method: "POST",
+        body: form,
+      });
+      const result = (await response.json()) as {
+        ok: boolean;
+        assetId?: string;
+        error?: string;
+      };
+      if (!result.ok || !result.assetId) {
+        throw new Error(result.error ?? "No se pudo subir la foto.");
+      }
       setProfilePhotoAssetId(result.assetId);
     } catch (err) {
       setProfilePhotoAssetId("");
@@ -219,7 +382,6 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     fd.set("city", city);
     fd.set("province", province);
     fd.set("country", "AR");
-    // Un solo checkbox: aceptar Bases implica privacidad + consentimientos del funnel.
     if (acceptTerms) {
       fd.set("acceptTerms", "true");
       fd.set("acceptPrivacy", "true");
@@ -249,14 +411,102 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       } catch {
         /* ignore */
       }
+      markReturningParticipant();
       const href = `${marathonPath(context.edition.slug)}/inscripcion/resumen/${result.data.registrationId}?t=${encodeURIComponent(result.data.accessToken)}`;
       router.push(href);
     });
   }
 
+  const stickyIncludes = selectedTicket?.isMarathonPack
+    ? [
+        "Esta Clickatón incluida",
+        "3 Clickatones más",
+        "Válido por 2 años",
+        "Mejor precio por edición",
+      ]
+    : [
+        "Tu lugar en la Clickatón",
+        "Tu número de participante",
+        "Acceso a las consignas",
+        "Certificado digital",
+      ];
+
+  const stickyCtaLabel =
+    step === "venue"
+      ? "Continuar"
+      : step === "ticket"
+        ? usePassCredit
+          ? "Usar mi Pack"
+          : selectedTicket?.isMarathonPack
+            ? "Quiero el Pack"
+            : "Reservar mi lugar"
+        : step === "participant"
+          ? "Revisar inscripción"
+          : "Confirmar reserva";
+
+  const stickyProductLabel = usePassCredit
+    ? "Inscripción con tu Pack"
+    : selectedTicket?.isMarathonPack
+      ? "Pack de 4 Clickatones"
+      : selectedTicket
+        ? "Inscripción a esta Clickatón"
+        : "Elegí cómo participar";
+
+  const stickyNextStep =
+    step === "ticket"
+      ? "Completar tus datos"
+      : step === "participant"
+        ? "Revisar y confirmar"
+        : "Confirmar tu lugar";
+
+  const entryPromo =
+    !usePassCredit && selectedTicket && !selectedTicket.isMarathonPack
+      ? {
+          compareAt:
+            context.currentPricePhase &&
+            context.nextPricePhase &&
+            context.nextPricePhase.amount > context.currentPricePhase.amount
+              ? context.nextPricePhase.amount
+              : null,
+          savings:
+            context.currentPricePhase &&
+            context.nextPricePhase &&
+            context.nextPricePhase.amount > context.currentPricePhase.amount
+              ? context.nextPricePhase.amount -
+                (context.currentPricePhase.amount ?? 0)
+              : null,
+        }
+      : { compareAt: null, savings: null };
+
+  function onPrimaryCta() {
+    if (step === "review") submit();
+    else if (step === "ticket") {
+      if (!selectedTicket) {
+        setError("Elegí cómo querés participar.");
+        return;
+      }
+      advanceFromTicket(selectedTicket.id, usePassCredit);
+    } else goNext();
+  }
+
+  const showSticky = step === "ticket" || step === "participant" || step === "review";
+  const ctaBusy = advancing || pending;
+  const mobilePriceHint =
+    usePassCredit
+      ? "Con tu Pack"
+      : displayCharge != null
+        ? formatExperiencePrice(displayCharge.amount)
+        : null;
+
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="space-y-8">
+    <div
+      className={
+        showSticky
+          ? "grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem] xl:gap-12"
+          : "space-y-8"
+      }
+    >
+      <div className="space-y-10 md:space-y-12">
         <ol className="flex flex-wrap gap-2 text-sm" aria-label="Progreso de inscripción">
           {steps.map((s, i) => (
             <li
@@ -273,7 +523,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
               {s === "venue"
                 ? "Sede"
                 : s === "ticket"
-                  ? "Entrada"
+                  ? "Participar"
                   : s === "participant"
                     ? "Datos"
                     : "Confirmar"}
@@ -317,176 +567,101 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
         ) : null}
 
         {step === "ticket" ? (
-          <fieldset className="space-y-4">
-            <legend className="text-xl font-semibold">Elegí tu entrada</legend>
-            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/40 p-4">
-              <input
-                type="checkbox"
-                className="mt-1 size-4 accent-[var(--ck-yellow)]"
-                checked={usePassCredit}
-                onChange={(e) => {
-                  const on = e.target.checked;
-                  setUsePassCredit(on);
-                  if (on && selectedTicket?.isMarathonPack) {
-                    setTicketTypeId("");
-                  }
-                }}
+          <div className="space-y-12 pb-24 md:space-y-16 md:pb-28 lg:pb-0">
+            <RegistrationWelcomeBanner
+              persona={persona}
+              remainingCredits={context.passCredits?.remaining ?? null}
+            />
+            {persona !== "pack_holder" ? (
+              <RegistrationExperienceHero
+                editionName={context.edition.name}
+                cityHint={cityHint}
+                dateHint={dateHint}
               />
-              <span className="text-sm text-ck-text">
-                <span className="font-semibold">Canjear 1 crédito de mi Pack de 4 maratones</span>
-                <span className="mt-1 block text-ck-text-secondary">
-                  Inscripción sin cargo. Usá el mismo email con el que compraste el Pack.
-                  {context.passCredits
-                    ? ` Te quedan ${context.passCredits.remaining} uso${context.passCredits.remaining === 1 ? "" : "s"}.`
-                    : " El descuento se valida al confirmar con tu email."}
-                </span>
-              </span>
-            </label>
-            {ticketsForVenue.length === 0 ? (
+            ) : null}
+            {persona === "new" ? <RegistrationLiveBenefits cityHint={cityHint} /> : null}
+            {persona !== "pack_holder" ? <RegistrationHowItWorks /> : null}
+            {persona === "new" ? <RegistrationWhyParticipate /> : null}
+            {persona === "new" ? <RegistrationReassuranceCards /> : null}
+            {ticketsForOptions.length === 0 ? (
               <p role="status" className="text-sm text-ck-text-muted">
-                No hay entradas vendibles para esta selección.
+                No hay opciones disponibles por ahora.
               </p>
             ) : (
-              <div className="grid gap-4">
-                {ticketsForVenue.map((t) => {
-                  const disabled = t.isSoldOut || t.salesStatus !== "open";
-                  const displayAmount =
-                    usePassCredit
-                      ? 0
-                      : t.isMarathonPack
-                        ? t.priceAmount
-                        : (context.currentPricePhase?.amount ?? t.priceAmount);
-                  const displayCurrency = t.isMarathonPack
-                    ? t.currency
-                    : (context.currentPricePhase?.currency ?? t.currency);
-                  return (
-                    <label
-                      key={t.id}
-                      className={`block rounded-[var(--ck-radius-card)] border p-5 ${
-                        disabled
-                          ? "cursor-not-allowed opacity-60"
-                          : "cursor-pointer"
-                      } ${ticketTypeId === t.id ? "border-ck-yellow" : "border-ck-border"}`}
-                    >
-                      <input
-                        type="radio"
-                        name="ticket"
-                        className="sr-only"
-                        disabled={disabled}
-                        checked={ticketTypeId === t.id}
-                        onChange={() => {
-                          setTicketTypeId(t.id);
-                          if (t.isMarathonPack) setUsePassCredit(false);
-                        }}
-                      />
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <span className="font-semibold">{t.name}</span>
-                          <span className="ml-2 text-xs text-ck-text-muted">
-                            {t.isMarathonPack
-                              ? "Pack · 4 usos · 2 años"
-                              : kitKindLabel(t.kitKind)}
-                          </span>
-                          {t.description ? (
-                            <p className="mt-2 text-sm text-ck-text-secondary">
-                              {t.description}
-                            </p>
-                          ) : null}
-                          {t.isMarathonPack ? (
-                            <p className="mt-2 text-sm text-ck-text-secondary">
-                              Incluye esta maratón + 3 créditos más para cualquier Clickatón durante 2 años.
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="text-right">
-                          <div className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1">
-                            <p className="font-semibold">
-                              {usePassCredit
-                                ? "Con crédito Pack"
-                                : formatPublicPrice(displayAmount, displayCurrency)}
-                            </p>
-                            {!t.isMarathonPack &&
-                            !usePassCredit &&
-                            context.currentPricePhase &&
-                            context.nextPricePhase &&
-                            context.nextPricePhase.amount >
-                              context.currentPricePhase.amount ? (
-                              <p
-                                className="text-sm text-ck-text-muted line-through decoration-2"
-                                aria-label={`Próximo precio ${formatPublicPrice(
-                                  context.nextPricePhase.amount,
-                                  context.nextPricePhase.currency,
-                                )}`}
-                              >
-                                {formatPublicPrice(
-                                  context.nextPricePhase.amount,
-                                  context.nextPricePhase.currency,
-                                )}
-                              </p>
-                            ) : null}
-                          </div>
-                          {t.isMarathonPack ? (
-                            <p className="text-xs text-ck-text-muted">Precio fijo del Pack</p>
-                          ) : usePassCredit ? (
-                            <p className="text-xs text-ck-text-muted">1 crédito · Pack 4</p>
-                          ) : context.currentPricePhase ? (
-                            <p className="text-xs text-ck-text-muted">
-                              {context.currentPricePhase.name}
-                            </p>
-                          ) : null}
-                          {!t.isMarathonPack &&
-                          !usePassCredit &&
-                          context.currentPricePhase &&
-                          context.nextPricePhase &&
-                          context.nextPricePhase.amount >
-                            context.currentPricePhase.amount ? (
-                            <p className="mt-1 text-xs text-ck-text-muted">
-                              Precio promocional de esta fase. Luego sube.
-                            </p>
-                          ) : null}
-                          <p className="text-xs text-ck-text-muted">
-                            {t.isUnlimited
-                              ? "Cupo ilimitado"
-                              : t.isSoldOut
-                                ? "Agotada"
-                                : `Disp. ${t.available}`}
-                          </p>
-                        </div>
-                      </div>
-                      <IncludedProductsSection
-                        products={t.products}
-                        selected={ticketTypeId === t.id}
-                        variantChoices={variantChoices}
-                        onVariantChange={(productId, variantId) =>
-                          setVariantChoices((prev) => ({
-                            ...prev,
-                            [productId]: variantId,
-                          }))
-                        }
-                        benefitAvailable={
-                          context.currentPricePhase?.shirtBenefitAvailable
-                        }
-                        benefitEnded={context.currentPricePhase?.shirtBenefitEnded}
-                        emptyPhaseMessage={
-                          context.currentPricePhase?.shirtBenefitEnded
-                            ? null
-                            : context.currentPricePhase &&
-                                !context.currentPricePhase.includesPhysicalMerch
-                              ? "Esta fase incluye la participación en Clickatón. La promoción de remera incluida no aplica en esta etapa."
-                              : null
-                        }
-                      />
-                    </label>
-                  );
-                })}
-              </div>
+              <RegistrationOptionCards
+                tickets={experienceOptions}
+                selectedTicketId={ticketTypeId}
+                usePassCredit={usePassCredit}
+                canUsePassCredit={packCreditsReady}
+                remainingCredits={context.passCredits?.remaining ?? null}
+                persona={persona}
+                advancing={advancing}
+                onSelectTicket={(id) => {
+                  setTicketTypeId(id);
+                  setUsePassCredit(false);
+                }}
+                onSelectPassCredit={() => {
+                  const id = pickOpenEntryTicketId();
+                  setUsePassCredit(true);
+                  if (id) setTicketTypeId(id);
+                }}
+                onConfirmTicket={(id) => advanceFromTicket(id, false)}
+                onConfirmPassCredit={() => {
+                  const id = pickOpenEntryTicketId();
+                  if (!id) {
+                    setError("No hay una inscripción disponible para usar tu Pack.");
+                    return;
+                  }
+                  advanceFromTicket(id, true);
+                }}
+              />
             )}
-          </fieldset>
+            {persona === "pack_holder" ? <RegistrationHowItWorks /> : null}
+            {persona !== "pack_holder" ? <RegistrationCompare /> : null}
+            <RegistrationIncludes
+              shirtMention={
+                context.currentPricePhase?.includesPhysicalMerch !== false &&
+                !context.currentPricePhase?.shirtBenefitEnded
+              }
+            />
+            <RegistrationWhatYouCanWin />
+            <RegistrationWhatHappensNext />
+            <RegistrationSocialProof />
+            <RegistrationFaq />
+          </div>
         ) : null}
 
         {step === "participant" ? (
-          <fieldset className="space-y-6">
-            <legend className="text-xl font-semibold">Tus datos</legend>
+          <fieldset className="space-y-8">
+            <legend className="text-xl font-semibold md:text-2xl">Tus datos</legend>
+
+            {shirtProducts.map((p) => {
+              const activeVariants = [...p.variants]
+                .filter((v) => v.isActive && v.availableStock > 0)
+                .sort((a, b) => (a.sortOrder ?? 100) - (b.sortOrder ?? 100));
+              return (
+                <RegistrationShirtSizeStep
+                  key={p.productId}
+                  productName={p.productName}
+                  options={activeVariants.map((v) => ({
+                    value: v.id,
+                    label: v.name,
+                  }))}
+                  value={variantChoices[p.productId] ?? ""}
+                  error={fieldErrors[`variant_${p.productId}`] ?? null}
+                  onChange={(variantId) =>
+                    setVariantChoices((prev) => ({
+                      ...prev,
+                      [p.productId]: variantId,
+                    }))
+                  }
+                  sizeChartUrl={p.sizeChartUrl}
+                  sizeChartDescription={p.sizeChartDescription}
+                  sizeChartInstructions={p.sizeChartInstructions}
+                />
+              );
+            })}
+
             <div className="grid gap-5 sm:grid-cols-2">
               <Field
                 id="firstName"
@@ -580,47 +755,23 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 <p className="mt-2 text-sm text-red-400">{fieldErrors.profilePhotoAssetId}</p>
               ) : null}
             </div>
-            {/*
-              LEGAL_REVIEW — Un solo checkbox concentra aceptación de Bases, privacidad,
-              uso de imagen, placa de bienvenida, publicación social, personas identificables
-              y licencia promocional. No se cambia el alcance ni la persistencia en Etapa 02.
-              Ver docs/clickaton/ux-improvements/legal-review-consents.md
-            */}
-            <div
-              className="space-y-4 rounded border border-ck-border bg-ck-surface/40 p-4 text-sm"
-              data-legal-review="consent-funnel-single-checkbox"
-            >
-              <div className="space-y-2">
-                <p className="font-semibold text-ck-text">Consentimientos y autorizaciones</p>
-                <p className="leading-relaxed text-ck-text-secondary">
-                  Antes de continuar, leé las Bases y Condiciones. Al marcar la casilla
-                  aceptás también la Política de Privacidad y las autorizaciones incluidas
-                  en esas Bases (uso de imagen para la placa de bienvenida, posible
-                  publicación en redes del evento y licencia promocional de las obras
-                  presentadas).
-                </p>
-                <ul className="list-disc space-y-1 pl-5 text-ck-text-muted">
-                  <li>Uso de tu foto de perfil para generar la placa de bienvenida</li>
-                  <li>Posible publicación de esa placa en redes del evento</li>
-                  <li>Tratamiento de datos personales según la política de privacidad</li>
-                </ul>
-              </div>
+            <div className="space-y-3 text-sm" data-legal-review="consent-funnel-single-checkbox">
               <label className="flex gap-3">
                 <input
                   type="checkbox"
                   checked={acceptTerms}
                   onChange={(e) => setAcceptTerms(e.target.checked)}
                   className="mt-1 size-5 shrink-0"
-                  aria-describedby="consent-funnel-help"
                 />
-                <span id="consent-funnel-help">
-                  Leí y acepto las{" "}
-                  <a className="underline" href={context.legal.termsPath} target="_blank" rel="noreferrer">
-                    Bases y Condiciones
-                  </a>
-                  , la{" "}
-                  <a className="underline" href="/legal/privacidad" target="_blank" rel="noreferrer">
-                    Política de Privacidad
+                <span>
+                  Acepto las{" "}
+                  <a
+                    className="underline"
+                    href={context.legal.termsPath}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    bases y condiciones
                   </a>{" "}
                   y las{" "}
                   <a className="underline" href={context.legal.rulesAnchor}>
@@ -652,22 +803,12 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
               ) : selectedTicket.isMarathonPack ? (
                 <>
                   Al pagar el Pack quedás inscripto/a en esta maratón y obtenés 3
-                  créditos más (validez 2 años) para otras Clickatón. La reserva de
-                  cupo es temporal
-                  {selectedTicket.holdMinutes
-                    ? ` (aprox. ${selectedTicket.holdMinutes} minutos)`
-                    : ""}
-                  .
+                  créditos más (validez 2 años) para otras Clickatón.
                 </>
               ) : (
                 <>
-                  La inscripción todavía no está confirmada. La confirmación
-                  dependerá del pago o validación correspondiente. La reserva de
-                  cupo es temporal
-                  {selectedTicket.holdMinutes
-                    ? ` (aprox. ${selectedTicket.holdMinutes} minutos)`
-                    : ""}
-                  .
+                  La inscripción se confirma con el pago o validación correspondiente.
+                  Tu lugar queda reservado de forma temporal.
                 </>
               )}
             </p>
@@ -681,7 +822,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 <dd>{selectedVenue?.name ?? "Sin sede específica"}</dd>
               </div>
               <div>
-                <dt className="text-ck-text-secondary">Entrada</dt>
+                <dt className="text-ck-text-secondary">Opción</dt>
                 <dd>
                   {selectedTicket.name}
                   {usePassCredit ? " · canje Pack" : null}
@@ -709,22 +850,17 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
             </dl>
             {selectedTicket.products.length > 0 ? (
               <div className="rounded border border-ck-border p-4">
-                <h3 className="font-semibold">Incluido en la inscripción</h3>
-                <ul className="mt-3 space-y-3 text-sm">
+                <h3 className="font-semibold">Incluido</h3>
+                <ul className="mt-3 space-y-2 text-sm">
                   {selectedTicket.products.map((p) => {
                     const choiceId = variantChoices[p.productId];
                     const chosen = p.variants.find((v) => v.id === choiceId);
                     return (
                       <li key={p.productId}>
                         <p className="font-medium">{p.productName}</p>
-                        <p className="text-ck-text-secondary">
-                          Cantidad: {p.quantity} · Incluida · Precio adicional:{" "}
-                          {formatPublicPrice(0, selectedTicket.currency)}
-                        </p>
                         {p.requiresVariantChoice ? (
                           <p>
-                            Talle seleccionado:{" "}
-                            <strong>{chosen?.name ?? "—"}</strong>
+                            Talle: <strong>{chosen?.name ?? "—"}</strong>
                           </p>
                         ) : p.fixedVariant ? (
                           <p>Talle: {p.fixedVariant.name}</p>
@@ -738,81 +874,67 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
           </section>
         ) : null}
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-          {stepIndex > 0 ? (
+        {step === "venue" ? (
+          <div className="flex flex-col gap-3 border-t border-ck-border pt-8 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={goNext}
+              className="w-full min-h-12 sm:w-auto"
+            >
+              Continuar
+            </Button>
+          </div>
+        ) : null}
+
+        {stepIndex > 0 ? (
+          <div className="flex flex-col gap-3 border-t border-ck-border pt-8 pb-24 lg:pb-0">
             <Button
               type="button"
               variant="secondary"
               disabled={pending}
               onClick={() => setStep(steps[stepIndex - 1]!)}
-              className="w-full sm:w-auto"
+              className="w-full min-h-12 sm:w-auto"
             >
               Volver
             </Button>
-          ) : (
-            <span />
-          )}
-          {step !== "review" ? (
-            <Button
-              type="button"
-              disabled={pending}
-              onClick={goNext}
-              className="min-h-11 w-full sm:w-auto"
-            >
-              {step === "venue"
-                ? "Continuar a elegir entrada"
-                : step === "ticket"
-                  ? "Continuar a datos personales"
-                  : "Continuar a revisar la inscripción"}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              disabled={pending}
-              onClick={submit}
-              className="w-full sm:w-auto"
-            >
-              {pending ? "Reservando…" : "Confirmar reserva"}
-            </Button>
-          )}
-        </div>
+          </div>
+        ) : step === "ticket" ? (
+          <div className="pb-24 lg:pb-0" aria-hidden />
+        ) : null}
       </div>
 
-      <aside className="h-fit rounded-[var(--ck-radius-card)] border border-ck-border p-5 lg:sticky lg:top-28">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-ck-text-muted">
-          Resumen
-        </h2>
-        <p className="mt-3 font-semibold">{context.edition.name}</p>
-        <p className="mt-2 text-sm text-ck-text-secondary">
-          {selectedVenue?.name ?? "Sede a elegir"}
-        </p>
-        <p className="mt-2 text-sm text-ck-text-secondary">
-          {selectedTicket
-            ? `${selectedTicket.name}${usePassCredit ? " · canje Pack" : ""}`
-            : "Entrada a elegir"}
-        </p>
-        <p className="mt-4 text-lg font-semibold">
-          {displayCharge
-            ? formatPublicPrice(displayCharge.amount, displayCharge.currency)
-            : "—"}
-        </p>
-        {displayCharge?.label ? (
-          <p className="mt-1 text-xs text-ck-text-muted">{displayCharge.label}</p>
-        ) : null}
-        {selectedTicket && !usePassCredit ? (
-          <p className="mt-2 text-xs text-ck-text-muted">
-            Reserva temporal ~{selectedTicket.holdMinutes} min · vence aprox.{" "}
-            {formatHoldExpiry(
-              new Date(Date.now() + selectedTicket.holdMinutes * 60_000),
-            )}
-          </p>
-        ) : null}
-        {selectedTicket?.isMarathonPack && !usePassCredit ? (
-          <p className="mt-2 text-xs text-ck-text-secondary">
-            Incluye esta edición + 3 créditos (2 años) para futuras maratones.
-          </p>
-        ) : null}
-      </aside>
+      {showSticky ? (
+        <RegistrationStickySummary
+          productLabel={stickyProductLabel}
+          priceMinor={displayCharge?.amount ?? null}
+          compareAtMinor={entryPromo.compareAt}
+          savingsMinor={entryPromo.savings}
+          usingCredit={usePassCredit}
+          includes={stickyIncludes}
+          nextStepLabel={stickyNextStep}
+          ctaLabel={stickyCtaLabel}
+          ctaBusyLabel={
+            pending ? "Confirmando tu lugar…" : "Preparando tu lugar…"
+          }
+          ctaDisabled={
+            ctaBusy || (step === "ticket" && !selectedTicket)
+          }
+          ctaBusy={ctaBusy}
+          onCta={onPrimaryCta}
+        />
+      ) : null}
+
+      {showSticky ? (
+        <RegistrationMobileCtaBar
+          label={stickyCtaLabel}
+          busyLabel={pending ? "Confirmando…" : "Preparando…"}
+          disabled={ctaBusy || (step === "ticket" && !selectedTicket)}
+          busy={ctaBusy}
+          onClick={onPrimaryCta}
+          priceHint={mobilePriceHint}
+        />
+      ) : null}
     </div>
   );
 }

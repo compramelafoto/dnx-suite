@@ -66,6 +66,11 @@ export type MercadoPagoCheckoutProTestAdapterOptions = {
   httpClient?: MercadoPagoHttpClient;
   /** Skip live credential gate only in unit tests with mocks. */
   skipCredentialGate?: boolean;
+  /**
+   * LIVE Checkout Pro (collector OAuth). Skips sandbox-only gates.
+   * Higher layers must enforce LIVE flag + Production runtime before wiring.
+   */
+  liveMode?: boolean;
 };
 
 function minorToUnitAmount(amountMinor: number, currency: CurrencyCode): number {
@@ -89,12 +94,24 @@ function pickCheckoutUrl(body: Record<string, unknown>): string {
   throw new Error("preference_missing_checkout_url");
 }
 
+function uLooksLikeLocalhost(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === "localhost" || host === "127.0.0.1" || host.endsWith(".local");
+  } catch {
+    return true;
+  }
+}
+
 export class MercadoPagoCheckoutProTestAdapter {
   readonly name = "mercadopago_preferences_legacy" as const;
   private readonly config: MercadoPagoProviderConfig;
   private readonly http: MercadoPagoHttpClient;
   private readonly credentialsSource: "credenciales_de_prueba" | "unknown" | "production_panel";
   private readonly skipCredentialGate: boolean;
+  private readonly liveMode: boolean;
+  /** Last collector OAuth used for a LIVE preference (same instance reads). */
+  private liveCollectorToken: string | null = null;
   private lastCredentialResult: ValidateMercadoPagoTestCredentialsResult | null = null;
 
   constructor(opts: MercadoPagoCheckoutProTestAdapterOptions) {
@@ -102,6 +119,25 @@ export class MercadoPagoCheckoutProTestAdapter {
     this.http = opts.httpClient ?? new MercadoPagoHttpClient(opts.config);
     this.credentialsSource = opts.credentialsSource ?? "unknown";
     this.skipCredentialGate = Boolean(opts.skipCredentialGate);
+    this.liveMode = Boolean(opts.liveMode);
+    if (this.liveMode && this.config.environment !== "production") {
+      throw new Error("mp_live_adapter_requires_production_environment");
+    }
+    if (!this.liveMode && this.config.environment === "production") {
+      throw new Error("mp_test_adapter_forbids_production_environment");
+    }
+    if (
+      this.liveMode &&
+      this.config.accessToken &&
+      this.config.accessToken !== "live-collector-oauth-required"
+    ) {
+      this.liveCollectorToken = this.config.accessToken;
+    }
+  }
+
+  private liveReadToken(): string | undefined {
+    if (!this.liveMode) return undefined;
+    return this.liveCollectorToken?.trim() || undefined;
   }
 
   getLastCredentialValidation(): ValidateMercadoPagoTestCredentialsResult | null {
@@ -125,7 +161,18 @@ export class MercadoPagoCheckoutProTestAdapter {
     return result;
   }
 
-  private async assertSafeToCreate(): Promise<void> {
+  private async assertSafeToCreate(input: CreateCheckoutProPreferenceInput): Promise<void> {
+    if (this.liveMode) {
+      if (!input.accessTokenOverride?.trim()) {
+        throw new Error(
+          "mp_live_collector_token_required: preferencia LIVE exige OAuth del collector",
+        );
+      }
+      if (this.config.environment !== "production") {
+        throw new Error("mp_live_requires_production_environment");
+      }
+      return;
+    }
     assertSandboxWriteAllowed(this.config);
     assertSandboxToken(this.config);
     if (this.skipCredentialGate) return;
@@ -135,24 +182,44 @@ export class MercadoPagoCheckoutProTestAdapter {
     }
   }
 
+  private assertReadAllowed(): void {
+    if (this.liveMode) {
+      if (this.config.environment !== "production") {
+        throw new Error("mp_live_requires_production_environment");
+      }
+      return;
+    }
+    assertSandboxWriteAllowed(this.config);
+  }
+
   async createPreference(
     input: CreateCheckoutProPreferenceInput,
   ): Promise<CreateCheckoutProPreferenceResult> {
-    await this.assertSafeToCreate();
+    await this.assertSafeToCreate(input);
+    if (this.liveMode && input.accessTokenOverride?.trim()) {
+      this.liveCollectorToken = input.accessTokenOverride.trim();
+    }
 
     if (input.currency !== "ARS") {
-      throw new Error("mp_test_currency_ars_only");
+      throw new Error(this.liveMode ? "mp_live_currency_ars_only" : "mp_test_currency_ars_only");
     }
-    if (!input.description.toUpperCase().includes("TEST")) {
+    if (!this.liveMode && !input.description.toUpperCase().includes("TEST")) {
       throw new Error("mp_test_description_must_include_TEST");
     }
     if (!input.notificationUrl.startsWith("https://")) {
-      throw new Error("mp_test_notification_https_required");
+      throw new Error(
+        this.liveMode
+          ? "mp_live_notification_https_required"
+          : "mp_test_notification_https_required",
+      );
     }
     for (const u of [input.successUrl, input.pendingUrl, input.failureUrl]) {
       if (!u.startsWith("https://") && !u.startsWith("http://localhost")) {
-        throw new Error("mp_test_back_url_invalid");
+        throw new Error(this.liveMode ? "mp_live_back_url_invalid" : "mp_test_back_url_invalid");
       }
+    }
+    if (this.liveMode && uLooksLikeLocalhost(input.notificationUrl)) {
+      throw new Error("mp_live_notification_must_be_production_https");
     }
 
     const unit = minorToUnitAmount(input.amountMinor, input.currency);
@@ -219,14 +286,17 @@ export class MercadoPagoCheckoutProTestAdapter {
     externalReference: string | null;
     rawSanitized: Record<string, unknown>;
   }> {
-    assertSandboxWriteAllowed(this.config);
+    this.assertReadAllowed();
+    const liveTok = this.liveReadToken();
     const response = await this.http.request<Record<string, unknown>>({
       method: "GET",
       path: `/checkout/preferences/${encodeURIComponent(preferenceId)}`,
+      skipTestToken: true,
+      ...(liveTok ? { accessTokenOverride: liveTok } : {}),
     });
     const raw = (response.body ?? {}) as Record<string, unknown>;
     const sanitized = sanitizeMercadoPagoPreferenceResponse(raw);
-    assertNoSecretLeak(sanitized, this.config.accessToken);
+    assertNoSecretLeak(sanitized, liveTok ?? this.config.accessToken);
     let checkoutUrl: string | null = null;
     try {
       checkoutUrl = pickCheckoutUrl(raw);
@@ -243,11 +313,16 @@ export class MercadoPagoCheckoutProTestAdapter {
   }
 
   async getPayment(paymentId: string): Promise<GetCheckoutProPaymentResult> {
-    assertSandboxWriteAllowed(this.config);
+    this.assertReadAllowed();
+    const liveTok = this.liveReadToken();
+    if (this.liveMode && !liveTok) {
+      throw new Error("mp_live_collector_token_required_for_payment_read");
+    }
     const response = await this.http.request<Record<string, unknown>>({
       method: "GET",
       path: `/v1/payments/${encodeURIComponent(paymentId)}`,
       skipTestToken: true,
+      ...(liveTok ? { accessTokenOverride: liveTok } : {}),
     });
     const raw = (response.body ?? {}) as Record<string, unknown>;
     return this.mapPaymentBody(raw, paymentId);
@@ -260,11 +335,16 @@ export class MercadoPagoCheckoutProTestAdapter {
   async searchPaymentsByExternalReference(
     externalReference: string,
   ): Promise<GetCheckoutProPaymentResult | null> {
-    assertSandboxWriteAllowed(this.config);
+    this.assertReadAllowed();
+    const liveTok = this.liveReadToken();
+    if (this.liveMode && !liveTok) {
+      throw new Error("mp_live_collector_token_required_for_payment_search");
+    }
     const response = await this.http.request<Record<string, unknown>>({
       method: "GET",
       path: "/v1/payments/search",
       skipTestToken: true,
+      ...(liveTok ? { accessTokenOverride: liveTok } : {}),
       query: {
         external_reference: externalReference,
         sort: "date_created",
@@ -341,5 +421,31 @@ export function createMercadoPagoCheckoutProTestAdapter(input: {
     credentialsSource: input.credentialsSource ?? "unknown",
     ...(input.httpClient ? { httpClient: input.httpClient } : {}),
     skipCredentialGate: input.skipCredentialGate,
+    liveMode: false,
+  });
+}
+
+/**
+ * Checkout Pro LIVE (collector OAuth). Preferencias reales — no sandbox gates.
+ * Caller must enforce DNX_CLICKATON_MP_LIVE_PAYMENTS_ENABLED + Production runtime.
+ */
+export function createMercadoPagoCheckoutProLiveAdapter(input: {
+  /** Stub bearer for HTTP client construction; real writes use accessTokenOverride. */
+  accessToken?: string;
+  publicKey?: string;
+  httpClient?: MercadoPagoHttpClient;
+}): MercadoPagoCheckoutProTestAdapter {
+  const config = createMercadoPagoProviderConfig({
+    accessToken: input.accessToken?.trim() || "live-collector-oauth-required",
+    environment: "production",
+    allowProductionWrites: true,
+    ...(input.publicKey ? { publicKey: input.publicKey } : {}),
+  });
+  return new MercadoPagoCheckoutProTestAdapter({
+    config,
+    credentialsSource: "production_panel",
+    ...(input.httpClient ? { httpClient: input.httpClient } : {}),
+    skipCredentialGate: true,
+    liveMode: true,
   });
 }

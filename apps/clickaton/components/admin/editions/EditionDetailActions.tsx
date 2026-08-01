@@ -13,6 +13,7 @@ type Props = {
 const MODULES = [
   { key: "precios", label: "Precios" },
   { key: "finanzas", label: "Finanzas" },
+  { key: "sponsors", label: "Sponsors y beneficios" },
   { key: "cronograma", label: "Cronograma" },
   { key: "consignas", label: "Consignas" },
   { key: "envios", label: "Envíos" },

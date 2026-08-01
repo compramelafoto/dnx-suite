@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Role, LabApprovalStatus, TokenPurpose } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@repo/auth";
 import { randomBytes } from "crypto";
 import { hashToken } from "@/lib/token-hash";
 import { sendEmail } from "@/emails/send";
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Hash de la contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = hashPassword(password);
 
     const marketingOptIn = !!body.marketingOptIn;
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";

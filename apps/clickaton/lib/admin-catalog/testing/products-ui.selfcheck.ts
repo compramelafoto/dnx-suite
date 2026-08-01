@@ -77,7 +77,7 @@ async function main() {
   assert(detailPage.includes("ProductActiveToggle"), "activate toggle");
 
   const nav = file("config/admin/navigation.ts");
-  assert(nav.includes('label: "Catálogo"'), "nav label");
+  assert(nav.includes('label: "Productos y kits"'), "nav label");
 
   // client components: no Prisma
   const clients = [

@@ -1,5 +1,5 @@
 /**
- * Menú lateral del panel admin MVP — fuente única.
+ * Menú lateral del panel administrativo — fuente única de etiquetas visibles.
  */
 
 export const adminRoutes = {
@@ -47,11 +47,21 @@ export type AdminNavItem = {
 };
 
 export const adminNavigation: readonly AdminNavItem[] = [
-  { label: "Dashboard", href: adminRoutes.dashboard, icon: "dashboard", section: "main" },
+  { label: "Inicio", href: adminRoutes.dashboard, icon: "dashboard", section: "main" },
   { label: "Ediciones", href: adminRoutes.editions, icon: "editions", section: "main" },
-  { label: "Banners Home", href: adminRoutes.homeBanners, icon: "banners", section: "main" },
+  {
+    label: "Banners del inicio",
+    href: adminRoutes.homeBanners,
+    icon: "banners",
+    section: "main",
+  },
   { label: "Sedes", href: adminRoutes.venues, icon: "venues", section: "main" },
-  { label: "Catálogo", href: adminRoutes.catalog, icon: "catalog", section: "main" },
+  {
+    label: "Productos y kits",
+    href: adminRoutes.catalog,
+    icon: "catalog",
+    section: "main",
+  },
   {
     label: "Inscripciones",
     href: adminRoutes.registrations,
@@ -59,18 +69,28 @@ export const adminNavigation: readonly AdminNavItem[] = [
     section: "main",
   },
   {
-    label: "Promociones",
+    label: "Códigos promocionales",
     href: adminRoutes.promotions,
     icon: "promotions",
     section: "main",
   },
-  { label: "Publicaciones sociales", href: adminRoutes.social, icon: "social", section: "main" },
-  { label: "Sponsors", href: adminRoutes.sponsors, icon: "sponsors", section: "main" },
+  {
+    label: "Publicaciones y comunicaciones",
+    href: adminRoutes.social,
+    icon: "social",
+    section: "main",
+  },
+  {
+    label: "Sponsors y beneficios",
+    href: adminRoutes.sponsors,
+    icon: "sponsors",
+    section: "main",
+  },
   { label: "Mensajes", href: adminRoutes.messages, icon: "messages", section: "main" },
   { label: "Configuración", href: adminRoutes.settings, icon: "settings", section: "system" },
   {
     /** Partner self-connect — no confundir con admin de % en la edición. */
-    label: "Mi cuenta de cobro",
+    label: "Finanzas · mi cuenta de cobro",
     href: adminRoutes.financePartner,
     icon: "finance",
     section: "system",

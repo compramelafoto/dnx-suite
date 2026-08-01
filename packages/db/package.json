@@ -19,6 +19,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "communications:migrate:webhook-staging": "tsx scripts/communications-migrate-webhook-staging.mts",
     "communications:migrate:status:staging": "tsx scripts/communications-migrate-status-staging.mts",
+    "store:migrate:staging": "tsx scripts/store-migrate-staging.mts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:infospot": "tsx prisma/scripts/seed-infospot.ts",

@@ -59,8 +59,8 @@ type Props = {
 const BLOCKED = new Set(["CANCELLED", "COMPLETED"]);
 
 const STORE_STATUS_LABELS: Record<ProductStoreStatus, string> = {
-  DRAFT: "Borrador",
-  ACTIVE: "Activo",
+  DRAFT: "En preparación",
+  ACTIVE: "Disponible para venta separada",
   OUT_OF_STOCK: "Sin stock",
   HIDDEN: "Oculto",
   ARCHIVED: "Archivado",
@@ -135,7 +135,7 @@ export function ProductForm({
 
       <AdminForm
         title={mode === "create" ? "Nuevo producto" : "Datos del producto"}
-        description="Un producto es un ítem de merchandising o kit (remera, botella, diploma…). Las variantes (talle, color, formato) se agregan después."
+        description="Configurá el artículo y, después, sus talles u opciones. Puede incluirse en una fase de precio o en una entrada."
         footer={
           <>
             {cancelHref ? (
@@ -255,7 +255,7 @@ export function ProductForm({
               ) : null}
               <Field
                 id="primaryImageAssetId"
-                label="Imagen principal (asset id)"
+                label="Imagen principal"
                 error={state?.errors?.primaryImageAssetId}
                 hint="ID de DnxMediaAsset ya subido, o usá el uploader de arriba."
               >
@@ -270,7 +270,7 @@ export function ProductForm({
               </Field>
               <Field
                 id="sizeChartAssetId"
-                label="Cuadro de talles (asset id)"
+                label="Cuadro de talles"
                 error={state?.errors?.sizeChartAssetId}
               >
                 <Input
@@ -343,7 +343,7 @@ export function ProductForm({
               </Field>
               <Field
                 id="storeSlug"
-                label="Slug tienda"
+                label="Identificador URL de tienda"
                 error={state?.errors?.storeSlug}
                 hint="Único por edición. Opcional hasta publicar."
               >

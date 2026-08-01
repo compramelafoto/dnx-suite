@@ -56,9 +56,18 @@ export function toSerializableCheckoutError(error: unknown): {
       "NOT_FOUND",
       "FORBIDDEN",
       "IDEMPOTENCY_CONFLICT",
+      "CHECKOUT_NOT_AVAILABLE",
+      "PROVIDER_UNAVAILABLE",
     ]);
     if (allowed.has(code)) {
       return { code, message };
+    }
+  }
+  // Surface vault / provider fail-closed codes without leaking tokens.
+  if (error instanceof Error) {
+    const m = error.message;
+    if (/VAULT_DECRYPT_FAILED|LIVE_PAYMENTS_DISABLED|mercado_pago_production_forbidden/i.test(m)) {
+      return { code: "CHECKOUT_NOT_AVAILABLE", message: m.slice(0, 160) };
     }
   }
   return {
