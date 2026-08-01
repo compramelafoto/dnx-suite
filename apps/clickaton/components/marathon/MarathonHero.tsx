@@ -143,14 +143,13 @@ export function MarathonHero({
 
         <PhotoFrame
           variant="hero"
-          src={marathon.coverImage}
-          srcVertical={marathon.coverImageVertical}
+          src={marathon.coverImageVertical || marathon.coverImage}
           alt={`Portada de ${marathon.name}`}
           credit={marathon.coverImageCredit}
           overlay="medium"
           caption={marathon.city}
           priority
-          className="lg:sticky lg:top-28"
+          className="!aspect-[9/16] max-h-[min(78vh,42rem)] lg:sticky lg:top-28 lg:max-h-none"
         />
       </Container>
     </Section>
