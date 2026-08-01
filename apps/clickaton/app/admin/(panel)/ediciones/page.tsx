@@ -95,6 +95,11 @@ export default async function AdminEditionsPage({ searchParams }: Props) {
                 Inicio: {formatAdminDateTime(row.startAt, row.timezone ?? undefined)}
               </p>
               <p className="text-sm text-ck-text-muted">Sedes: {row.venueCount ?? 0}</p>
+              <div className="pt-2">
+                <AdminTableLink href={`${adminRoutes.editions}/${row.id}/editar`}>
+                  Editar
+                </AdminTableLink>
+              </div>
             </>
           )}
         />

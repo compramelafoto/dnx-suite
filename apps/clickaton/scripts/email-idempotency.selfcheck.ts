@@ -41,8 +41,8 @@ async function main() {
   assert.match(built.text, /AR26-00001/);
   assert.match(built.text, /@ana\.photo/);
   assert.match(built.text, /Remera Clickatón — M/);
-  assert.match(built.text, /APPROVED/);
-  assert.match(built.text, /Ver inscripción|Resumen|Mi cuenta/);
+  assert.match(built.text, /PAGO APROBADO/);
+  assert.match(built.text, /Fontanarrosa|Mi cuenta|credencial/i);
   assert.match(built.html, /AR26-00001/);
   assert.equal(built.skipped, true);
 

@@ -97,6 +97,24 @@ export async function getEditionById(
   });
 }
 
+/** Resuelve por id (cuid) o slug — evita 404 si la URL usa el slug público. */
+export async function getEditionByIdOrSlug(
+  editionIdOrSlug: string,
+): Promise<ClickatonDbResult<ClickatonEditionRecord | null>> {
+  return withClickatonDb(async () => {
+    const byId = await prisma.clickatonEdition.findUnique({
+      where: { id: editionIdOrSlug },
+      select: editionSelect,
+    });
+    if (byId) return mapEdition(byId);
+    const bySlug = await prisma.clickatonEdition.findUnique({
+      where: { slug: editionIdOrSlug },
+      select: editionSelect,
+    });
+    return bySlug ? mapEdition(bySlug) : null;
+  });
+}
+
 export async function getEditionBySlug(
   slug: string,
 ): Promise<ClickatonDbResult<ClickatonEditionRecord | null>> {

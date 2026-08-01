@@ -5,6 +5,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/cn";
 
 const variantClass = {
@@ -59,7 +60,7 @@ function buttonClasses({
   disabled?: boolean;
 }) {
   return cn(
-    "ck-button-label inline-flex items-center justify-center rounded-[var(--ck-radius-control)] border-2 transition-[background-color,color,border-color,transform,box-shadow,filter] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
+    "ck-button-label inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-[var(--ck-radius-control)] border-2 transition-[background-color,color,border-color,transform,box-shadow,filter] duration-[var(--ck-duration-base)] ease-[var(--ck-easing-standard)]",
     variantClass[variant],
     sizeClass[size],
     (disabled || loading) && "pointer-events-none opacity-[var(--ck-opacity-muted)]",
@@ -78,21 +79,22 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
       ...rest
     } = props;
 
-    if ("href" in props && props.href) {
+    if ("href" in props && typeof props.href === "string" && props.href.length > 0) {
       const { href, ...linkRest } = rest as AnchorHTMLAttributes<HTMLAnchorElement> & {
-        href: string;
+        href?: string;
       };
+      const resolvedHref = props.href;
       return (
-        <a
+        <Link
           ref={ref as Ref<HTMLAnchorElement>}
-          href={href}
+          href={resolvedHref}
           className={buttonClasses({ variant, size, loading, className })}
           aria-busy={loading || undefined}
           {...linkRest}
         >
           {loading ? <span className="sr-only">Cargando</span> : null}
           {children}
-        </a>
+        </Link>
       );
     }
 

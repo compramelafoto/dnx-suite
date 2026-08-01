@@ -4,11 +4,13 @@ import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminStatusBadge } from "@/components/admin/AdminStatusBadge";
 import { EditionDeleteButton } from "@/components/admin/editions/EditionDeleteButton";
-import { EditionUnpublishButton } from "@/components/admin/venues/VenueActionButtons";
+import { EditionDetailActions } from "@/components/admin/editions/EditionDetailActions";
 import { AdminDataTable, AdminTableLink } from "@/components/admin/AdminDataTable";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
+import { marathonRegistrationPath } from "@/config/navigation";
+import { siteConfig } from "@/config/site";
 import { formatAdminDateTime } from "@/lib/admin/datetime-input";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { listVenuesByEditionId } from "@/lib/admin/venues/queries";
@@ -47,6 +49,7 @@ export default async function EditionDetailPage({ params, searchParams }: Props)
   const venuesResult = await listVenuesByEditionId(editionId);
   const venues = venuesResult.ok ? venuesResult.data : [];
   const fr = await getEditionFotoRankAdminData(editionId);
+  const salesUrl = `${siteConfig.url}${marathonRegistrationPath(edition.slug)}`;
 
   return (
     <div className="space-y-8">
@@ -58,36 +61,12 @@ export default async function EditionDetailPage({ params, searchParams }: Props)
           { label: edition.name },
         ]}
         actions={
-          <>
-            <EditionUnpublishButton editionId={edition.id} isPublished={edition.isPublished} />
-            <Button href={`${adminRoutes.editions}/${edition.id}/editar`} variant="secondary">
-              Editar
-            </Button>
-            <Button href={`${adminRoutes.editions}/${edition.id}/precios`} variant="secondary">
-              Precios
-            </Button>
-            <Button href={`${adminRoutes.editions}/${edition.id}/finanzas`} variant="secondary">
-              Finanzas
-            </Button>
-            <Button href={`${adminRoutes.editions}/${edition.id}/cronograma`} variant="secondary">
-              Cronograma
-            </Button>
-            <Button href={`${adminRoutes.editions}/${edition.id}/consignas`} variant="secondary">
-              Consignas
-            </Button>
-            <Button href={`${adminRoutes.editions}/${edition.id}/envios`} variant="secondary">
-              Envíos
-            </Button>
-            <Button href={`${adminRoutes.editions}/${edition.id}/admision`} variant="secondary">
-              Admisión
-            </Button>
-            <Button href={`${adminRoutes.editions}/${edition.id}/acreditacion`} variant="secondary">
-              Acreditación
-            </Button>
-            <Button href={`${adminRoutes.editions}/${edition.id}/sedes/nueva`} variant="primary">
-              Nueva sede
-            </Button>
-          </>
+          <EditionDetailActions
+            editionId={edition.id}
+            editionName={edition.name}
+            isPublished={edition.isPublished}
+            salesUrl={salesUrl}
+          />
         }
       />
 

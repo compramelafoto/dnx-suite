@@ -33,6 +33,8 @@ import {
   rejectWelcomeCardAction,
   retryWelcomeCardAction,
 } from "@/lib/welcome-card/admin-actions";
+import { adminResendConfirmationEmailAction } from "@/lib/registration/notifications/admin-resend-confirmation-action";
+import { classifyResendStatus } from "@/lib/registration/notifications/resend-delivery-status";
 
 type Props = {
   params: Promise<{ registrationId: string }>;
@@ -105,6 +107,58 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
     durableOrder = null;
     reconcile = null;
   }
+
+  const emailRows = await prisma.emailQueue.findMany({
+    where: {
+      OR: [
+        { to: reg.email },
+        {
+          idempotencyKey: {
+            startsWith: `${reg.id}:CLICKATON_PAYMENT_CONFIRMATION`,
+          },
+        },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+    select: {
+      id: true,
+      to: true,
+      subject: true,
+      status: true,
+      sentAt: true,
+      attempts: true,
+      errorMessage: true,
+      createdAt: true,
+      templateData: true,
+      idempotencyKey: true,
+    },
+  });
+  const latestEmail = emailRows[0] ?? null;
+  const latestTemplate =
+    latestEmail?.templateData && typeof latestEmail.templateData === "object"
+      ? (latestEmail.templateData as Record<string, unknown>)
+      : null;
+  const providerMessageId =
+    typeof latestTemplate?.providerMessageId === "string"
+      ? latestTemplate.providerMessageId
+      : null;
+  const resendClassification = classifyResendStatus(
+    typeof latestTemplate?.resendLastEvent === "string"
+      ? { last_event: latestTemplate.resendLastEvent }
+      : typeof latestTemplate?.last_event === "string"
+        ? { last_event: latestTemplate.last_event }
+        : latestEmail?.status === "SENT"
+          ? { status: "sent" }
+          : null,
+  );
+  const resendAttempts = await prisma.clickatonRegistrationAudit.count({
+    where: { registrationId: reg.id, action: "EMAIL_RESEND" },
+  });
+  const bounceReason =
+    typeof latestTemplate?.bounceReason === "string"
+      ? String(latestTemplate.bounceReason).slice(0, 240)
+      : latestEmail?.errorMessage?.slice(0, 240) ?? null;
 
   return (
     <div className="space-y-10">
@@ -239,6 +293,76 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
             {socialPublish.permalink ? <a className="ml-2 underline" href={socialPublish.permalink} target="_blank" rel="noreferrer">Ver en Instagram</a> : null}
           </p>
         ) : null}
+      </section>
+
+      <section
+        className="space-y-3 rounded-[var(--ck-radius-card)] border border-ck-border p-5"
+        aria-labelledby="email-delivery-heading"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="email-delivery-heading" className="text-lg font-semibold">
+            EMAIL
+          </h2>
+          {reg.status === "CONFIRMED" ? (
+            <form action={adminResendConfirmationEmailAction.bind(null, reg.id)}>
+              <Button type="submit" variant="secondary" size="sm">
+                Reintentar envío
+              </Button>
+            </form>
+          ) : null}
+        </div>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <dt className="text-ck-text-secondary">Destinatario</dt>
+            <dd className="break-all">{latestEmail?.to ?? reg.email}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Último envío</dt>
+            <dd>
+              {latestEmail?.sentAt
+                ? formatArDateTime(latestEmail.sentAt)
+                : latestEmail?.createdAt
+                  ? formatArDateTime(latestEmail.createdAt)
+                  : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Resend ID</dt>
+            <dd className="font-mono text-xs">{providerMessageId ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Estado cola</dt>
+            <dd>{latestEmail?.status ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Clasificación Resend</dt>
+            <dd>{resendClassification}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">deliveredAt</dt>
+            <dd>
+              {typeof latestTemplate?.deliveredAt === "string"
+                ? latestTemplate.deliveredAt
+                : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Bounce / suppression</dt>
+            <dd className="text-xs">{bounceReason ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Reintentos (audit)</dt>
+            <dd>{resendAttempts}</dd>
+          </div>
+          <div>
+            <dt className="text-ck-text-secondary">Intentos cola</dt>
+            <dd>{latestEmail?.attempts ?? "—"}</dd>
+          </div>
+        </dl>
+        <p className="text-xs text-ck-text-muted">
+          RESEND DELIVERY EVENT WEBHOOK MISSING — sin eventos delivered/bounced automáticos
+          hasta implementar webhook Resend.
+        </p>
       </section>
 
       <section

@@ -1,9 +1,9 @@
-import { notFound } from "next/navigation";
 import { EditionForm } from "@/components/admin/editions/EditionForm";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { Button } from "@/components/ui/Button";
 import { adminRoutes } from "@/config/admin/navigation";
-import { getEditionById } from "@/lib/admin/editions/queries";
+import { getEditionByIdOrSlug } from "@/lib/admin/editions/queries";
 import { editionToFormInput } from "@/lib/admin/editions/types";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { updateEditionFormAction } from "../../actions";
@@ -14,8 +14,8 @@ type Props = {
 
 export default async function EditEditionPage({ params }: Props) {
   await requireClickatonAdmin();
-  const { editionId } = await params;
-  const result = await getEditionById(editionId);
+  const { editionId: editionIdOrSlug } = await params;
+  const result = await getEditionByIdOrSlug(editionIdOrSlug);
 
   if (!result.ok) {
     return (
@@ -24,10 +24,26 @@ export default async function EditEditionPage({ params }: Props) {
       </div>
     );
   }
-  if (!result.data) notFound();
+  if (!result.data) {
+    return (
+      <div className="space-y-6">
+        <AdminPageHeader
+          title="Edición no encontrada"
+          description="No hay una edición con ese identificador. Volvé al listado e ingresá de nuevo."
+          breadcrumbs={[
+            { label: "Ediciones", href: adminRoutes.editions },
+            { label: "Editar" },
+          ]}
+        />
+        <Button href={adminRoutes.editions} variant="primary">
+          Volver a ediciones
+        </Button>
+      </div>
+    );
+  }
 
   const edition = result.data;
-  const boundAction = updateEditionFormAction.bind(null, editionId);
+  const boundAction = updateEditionFormAction.bind(null, edition.id);
 
   return (
     <div className="space-y-8">
