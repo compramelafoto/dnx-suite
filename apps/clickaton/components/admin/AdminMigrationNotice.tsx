@@ -12,8 +12,9 @@ export function AdminMigrationNotice({ message }: Props) {
       </p>
       <p className="text-sm text-ck-text-secondary">{message}</p>
       <p className="text-xs text-ck-text-muted">
-        Migración: <code>20260718120000_clickaton_editions_and_venues</code>. No aplicada a Neon shared
-        en esta etapa.
+        La base de Production de Clickatón es Neon <code>clickaton-production</code> (
+        <code>ep-silent-haze…</code>). Las migraciones se aplican con{" "}
+        <code>prisma migrate deploy</code> contra esa DB.
       </p>
     </Card>
   );

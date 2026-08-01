@@ -39,11 +39,10 @@ export default async function AdminHomeBannersPage() {
         }
       />
 
-      {carouselResult.ok ? (
-        <HomeBannerCarouselSettingsForm initial={carousel} />
-      ) : (
+      {!carouselResult.ok ? (
         <AdminMigrationNotice message={carouselResult.message} />
-      )}
+      ) : null}
+      <HomeBannerCarouselSettingsForm initial={carousel} />
 
       {!result.ok ? (
         <AdminMigrationNotice message={result.message} />
