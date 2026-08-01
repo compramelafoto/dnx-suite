@@ -6,7 +6,6 @@ import { adminRoutes } from "@/config/admin/navigation";
 import { getEditionByIdOrSlug } from "@/lib/admin/editions/queries";
 import { editionToFormInput } from "@/lib/admin/editions/types";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
-import { updateEditionFormAction } from "../../actions";
 
 type Props = {
   params: Promise<{ editionId: string }>;
@@ -55,7 +54,7 @@ export default async function EditEditionPage({ params }: Props) {
         ]}
       />
       <EditionForm
-        action={updateEditionFormAction}
+        mode="edit"
         editionId={edition.id}
         initialValues={editionToFormInput(edition)}
         cancelHref={`${adminRoutes.editions}/${edition.id}`}

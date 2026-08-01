@@ -47,8 +47,10 @@ function CoverSlot({
     }
     const fd = new FormData();
     fd.set("file", file);
+    fd.set("variant", variant);
+    if (editionId) fd.set("editionId", editionId);
     startTransition(async () => {
-      const result = await uploadEditionCoverAction(variant, editionId, null, fd);
+      const result = await uploadEditionCoverAction(null, fd);
       setState(result);
       if (result.ok && result.publicUrl) onUrl(result.publicUrl);
     });

@@ -24,15 +24,21 @@ function extensionFor(contentType: string): string {
 
 /**
  * Sube portada horizontal o vertical a R2/local y opcionalmente la asocia a una edición.
- * Usable en creación (sin editionId): el formulario guarda la URL y la persiste al guardar.
+ * variant / editionId via FormData (firma compatible con llamadas desde client components).
  */
 export async function uploadEditionCoverAction(
-  variant: "horizontal" | "vertical",
-  editionId: string | null,
   _prev: EditionCoverUploadState | null,
   formData: FormData,
 ): Promise<EditionCoverUploadState> {
   await requireClickatonAdmin();
+  const variantRaw = String(formData.get("variant") ?? "");
+  const variant = variantRaw === "vertical" ? "vertical" : variantRaw === "horizontal" ? "horizontal" : null;
+  if (!variant) {
+    return { ok: false, error: "Variante de portada inválida." };
+  }
+  const editionIdRaw = String(formData.get("editionId") ?? "").trim();
+  const editionId = editionIdRaw || null;
+
   const file = formData.get("file");
   if (!(file instanceof File) || file.size < 1) {
     return { ok: false, error: "Seleccioná una imagen." };

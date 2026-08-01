@@ -16,18 +16,13 @@ import {
   type ClickatonEditionFormInput,
 } from "@/lib/admin/editions/types";
 import { EditionCoverUploadFields } from "@/components/admin/editions/EditionCoverUploadFields";
-
-type EditionFormActionState = {
-  ok: boolean;
-  errors?: Partial<Record<keyof ClickatonEditionFormInput, string>> & { form?: string };
-  message?: string;
-};
+import {
+  createEditionFormAction,
+  updateEditionFormAction,
+} from "@/lib/admin/editions/form-actions";
 
 type Props = {
-  action: (
-    prev: EditionFormActionState | undefined,
-    formData: FormData,
-  ) => Promise<EditionFormActionState>;
+  mode: "create" | "edit";
   initialValues?: ClickatonEditionFormInput;
   submitLabel?: string;
   cancelHref?: string;
@@ -35,13 +30,16 @@ type Props = {
 };
 
 export function EditionForm({
-  action,
+  mode,
   initialValues = emptyEditionFormInput(),
   submitLabel = "Guardar edición",
   cancelHref,
   editionId = null,
 }: Props) {
   const router = useRouter();
+  // Importar la action en el client (no pasarla como prop desde RSC):
+  // evita "module not in React Client Manifest" en /editar.
+  const action = mode === "edit" ? updateEditionFormAction : createEditionFormAction;
   const [state, formAction, pending] = useActionState(action, undefined);
   const [values, setValues] = useState(initialValues);
   const [slugTouched, setSlugTouched] = useState(Boolean(initialValues.slug));
