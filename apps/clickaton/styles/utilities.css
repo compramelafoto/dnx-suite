@@ -354,7 +354,7 @@
 }
 
 .ck-spotlight-progress {
-  animation: ck-spotlight-progress 7s linear forwards;
+  animation: ck-spotlight-progress 3s linear forwards;
   transform-origin: left center;
 }
 

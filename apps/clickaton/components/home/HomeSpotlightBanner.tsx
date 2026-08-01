@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/Button";
@@ -20,7 +19,7 @@ export type HomeSpotlightSlide = {
   imageUrlVertical?: string;
 };
 
-const AUTOPLAY_MS = 7000;
+const AUTOPLAY_MS = 3000;
 
 type Props = {
   slides: HomeSpotlightSlide[];
@@ -123,7 +122,7 @@ export function HomeSpotlightBanner({ slides }: Props) {
           aria-hidden
         />
 
-        <Container className="relative z-[2] flex min-h-[inherit] flex-col justify-end py-12 md:py-16">
+        <Container className="relative z-[2] flex min-h-[inherit] flex-col justify-end pb-20 pt-12 md:pb-24 md:pt-16">
           <div className="max-w-2xl space-y-4">
             <div className="flex flex-wrap items-center gap-3">
               <p className="ck-overline text-ck-yellow">{current.eyebrow}</p>
@@ -171,81 +170,65 @@ export function HomeSpotlightBanner({ slides }: Props) {
               Pasá el mouse para ver acciones
             </p>
           </div>
-
-          <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-4">
-            {count > 1 ? (
-              <>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    className="ck-caption rounded border border-ck-border px-3 py-2 text-ck-text-secondary hover:border-ck-yellow hover:text-ck-yellow"
-                    onClick={() => goTo(index - 1)}
-                    aria-label="Slide anterior"
-                  >
-                    ←
-                  </button>
-                  <div className="flex gap-2" role="tablist" aria-label="Slides">
-                    {items.map((slide, i) => (
-                      <button
-                        key={slide.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={i === index}
-                        aria-label={`${slide.eyebrow}: ${slide.title}`}
-                        title={slide.title}
-                        className={[
-                          "h-2.5 rounded-full transition-all",
-                          i === index
-                            ? "w-7 bg-ck-yellow"
-                            : "w-2.5 bg-ck-border hover:bg-ck-text-muted",
-                        ].join(" ")}
-                        onClick={() => goTo(i)}
-                      />
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    className="ck-caption rounded border border-ck-border px-3 py-2 text-ck-text-secondary hover:border-ck-yellow hover:text-ck-yellow"
-                    onClick={() => goTo(index + 1)}
-                    aria-label="Slide siguiente"
-                  >
-                    →
-                  </button>
-                </div>
-
-                {/* Barra de progreso del autoplay */}
-                <div
-                  className="h-0.5 flex-1 overflow-hidden rounded-full bg-ck-border/60 sm:max-w-xs"
-                  aria-hidden
-                >
-                  <div
-                    key={progressKey}
-                    className={[
-                      "h-full origin-left bg-ck-yellow",
-                      paused ? "scale-x-0" : "ck-spotlight-progress",
-                    ].join(" ")}
-                  />
-                </div>
-
-                <Link
-                  href={current.href}
-                  className="ck-caption text-ck-text-muted underline-offset-4 hover:text-ck-yellow hover:underline sm:ml-auto"
-                >
-                  {current.kind === "edition" ? "Ir a la edición" : "Ver más"}
-                </Link>
-              </>
-            ) : (
-              <Link
-                href={current.href}
-                className="ck-caption text-ck-text-muted underline-offset-4 hover:text-ck-yellow hover:underline"
-              >
-                {current.kind === "edition" ? "Ir a la edición" : "Ver más"}
-              </Link>
-            )}
-          </div>
         </Container>
-      </div>
 
+        {/* Selector centrado abajo del banner */}
+        {count > 1 ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-5 z-[3] flex justify-center px-4 md:bottom-7">
+            <div className="pointer-events-auto flex flex-col items-center gap-3">
+              <div className="flex items-center gap-3 rounded-full border border-ck-border/70 bg-ck-bg/55 px-3 py-2 backdrop-blur-md">
+                <button
+                  type="button"
+                  className="ck-caption rounded border border-ck-border px-3 py-1.5 text-ck-text-secondary hover:border-ck-yellow hover:text-ck-yellow"
+                  onClick={() => goTo(index - 1)}
+                  aria-label="Slide anterior"
+                >
+                  ←
+                </button>
+                <div className="flex gap-2" role="tablist" aria-label="Slides">
+                  {items.map((slide, i) => (
+                    <button
+                      key={slide.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={i === index}
+                      aria-label={`${slide.eyebrow}: ${slide.title}`}
+                      title={slide.title}
+                      className={[
+                        "h-2.5 rounded-full transition-all",
+                        i === index
+                          ? "w-7 bg-ck-yellow"
+                          : "w-2.5 bg-ck-border hover:bg-ck-text-muted",
+                      ].join(" ")}
+                      onClick={() => goTo(i)}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="ck-caption rounded border border-ck-border px-3 py-1.5 text-ck-text-secondary hover:border-ck-yellow hover:text-ck-yellow"
+                  onClick={() => goTo(index + 1)}
+                  aria-label="Slide siguiente"
+                >
+                  →
+                </button>
+              </div>
+              <div
+                className="h-0.5 w-40 overflow-hidden rounded-full bg-ck-border/60"
+                aria-hidden
+              >
+                <div
+                  key={progressKey}
+                  className={[
+                    "h-full origin-left bg-ck-yellow",
+                    paused ? "scale-x-0" : "ck-spotlight-progress",
+                  ].join(" ")}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
