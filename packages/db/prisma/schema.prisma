@@ -9752,6 +9752,8 @@ model ClickatonEdition {
   admissionDecisions       ClickatonTechnicalAdmissionDecision[]
   admissionAudits          ClickatonAdmissionAudit[]
   admissionJobs            ClickatonAdmissionJob[]
+  entitlementsSource       ClickatonUserEntitlement[]        @relation("EntitlementSourceEdition")
+  entitlementsTarget       ClickatonUserEntitlement[]        @relation("EntitlementTargetEdition")
   homeBanners              ClickatonHomeBanner[]
 
   @@index([status])
@@ -12126,5 +12128,66 @@ model DnxCommunicationWebhookEvent {
   @@index([status, receivedAt])
   @@index([provider, normalizedEventType])
   @@index([providerMessageId])
+}
+
+// ---------------------------------------------------------------------------
+// Clickatón — pack / annual pass entitlements
+// ---------------------------------------------------------------------------
+
+enum ClickatonEntitlementType {
+  RETURNING_PARTICIPANT_EARLY_PRICE
+  ANNUAL_PASS
+}
+
+enum ClickatonEntitlementStatus {
+  ACTIVE
+  USED
+  EXHAUSTED
+  EXPIRED
+  CANCELLED
+}
+
+model ClickatonUserEntitlement {
+  id               String                     @id @default(cuid())
+  userId           Int
+  type             ClickatonEntitlementType
+  status           ClickatonEntitlementStatus @default(ACTIVE)
+  sourceEditionId  String?
+  targetEditionId  String?
+  startsAt         DateTime?
+  expiresAt        DateTime?
+  usedAt           DateTime?
+  purchasedAt      DateTime?
+  purchasePriceMinor Int?
+  startingEditionId String?
+  totalCredits     Int?
+  consumedCredits  Int                        @default(0)
+  cycleKey         String?
+  metadata         Json?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  sourceEdition ClickatonEdition? @relation("EntitlementSourceEdition", fields: [sourceEditionId], references: [id], onDelete: SetNull)
+  targetEdition ClickatonEdition? @relation("EntitlementTargetEdition", fields: [targetEditionId], references: [id], onDelete: SetNull)
+  consumptions  ClickatonEntitlementConsumption[]
+
+  @@index([userId, type, status])
+  @@index([targetEditionId, status])
+  @@index([sourceEditionId])
+}
+
+model ClickatonEntitlementConsumption {
+  id              String   @id @default(cuid())
+  entitlementId   String
+  editionId       String
+  eventType       String
+  idempotencyKey  String
+  consumedAt      DateTime @default(now())
+  metadata        Json?
+
+  entitlement ClickatonUserEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@unique([entitlementId, idempotencyKey])
+  @@index([editionId, eventType])
 }
 
