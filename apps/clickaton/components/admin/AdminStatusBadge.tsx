@@ -13,6 +13,7 @@ const STATUS_VARIANT: Record<
   REGISTRATION_CLOSED: "warning",
   IN_PROGRESS: "brand",
   COMPLETED: "accent",
+  REPROGRAMMED: "warning",
   CANCELLED: "danger",
 };
 
