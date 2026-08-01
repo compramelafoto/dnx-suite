@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Health operativo del webhook Resend.
- * Requiere Authorization: Bearer <CRON_SECRET|CLICKATON_CRON_SECRET|COMMUNICATIONS_WEBHOOK_HEALTH_TOKEN>
+ * Requiere Authorization: Bearer <COMMUNICATIONS_HEALTH_TOKEN|COMMUNICATIONS_WEBHOOK_HEALTH_TOKEN|CRON_SECRET|CLICKATON_CRON_SECRET>
  * No expone secretos, URLs de DB ni allowlist completa.
  */
 function authorize(request: Request): boolean {
@@ -17,6 +17,7 @@ function authorize(request: Request): boolean {
     : "";
   if (!token) return false;
   const allowed = [
+    process.env.COMMUNICATIONS_HEALTH_TOKEN,
     process.env.COMMUNICATIONS_WEBHOOK_HEALTH_TOKEN,
     process.env.CRON_SECRET,
     process.env.CLICKATON_CRON_SECRET,

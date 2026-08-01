@@ -56,7 +56,9 @@ async function main() {
     .trim()
     .toLowerCase();
   const expectedHostPrefix = (
-    process.env.COMMUNICATIONS_EXPECTED_HOST_PREFIX ?? "ep-round-fog"
+    process.env.COMMUNICATIONS_EXPECTED_HOST_PREFIX ??
+    process.env.COMMUNICATIONS_EXPECTED_DATABASE_HOST ??
+    "ep-round-fog"
   )
     .trim()
     .toLowerCase();

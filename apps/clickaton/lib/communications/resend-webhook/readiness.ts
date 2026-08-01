@@ -4,17 +4,62 @@ import { classifySmokeDatabaseUrl } from "../../../scripts/lib/classify-smoke-da
 
 export type ReadinessStatus = "READY" | "READY WITH WARNINGS" | "NOT READY";
 
+export type ReadinessDbMode = "local" | "staging_explicit" | "remote_health";
+
 export type ReadinessReport = {
   status: ReadinessStatus;
   phase: "A_prepared" | "B_exposed_disabled" | "C_verify_only" | "D_process" | "unknown";
+  dbMode: ReadinessDbMode;
   checks: Record<string, { ok: boolean; detail?: string }>;
   warnings: string[];
 };
 
 export type ReadinessDeps = {
   env: Readonly<Record<string, string | undefined>>;
+  /**
+   * Modo de chequeo de DB:
+   * - staging_explicit (default CLI): exige COMMUNICATIONS_STAGING_DATABASE_URL
+   * - local: solo diagnóstico; no usar para go-live staging
+   * - remote_health: no consulta DB local; schema vía ping opcional remoto
+   */
+  dbMode?: ReadinessDbMode;
   pingDatabase?: () => Promise<{ ok: boolean; tableReady?: boolean; uniqueReady?: boolean }>;
 };
+
+function parsePg(raw: string): { host: string; database: string } {
+  try {
+    const normalized = raw
+      .replace(/^postgresql:/i, "http:")
+      .replace(/^postgres:/i, "http:");
+    const u = new URL(normalized);
+    return {
+      host: (u.hostname || "").toLowerCase(),
+      database: decodeURIComponent(
+        (u.pathname || "/").replace(/^\//, "").split("/")[0] ?? "",
+      ).toLowerCase(),
+    };
+  } catch {
+    return { host: "", database: "" };
+  }
+}
+
+function expectedHostPrefix(env: Readonly<Record<string, string | undefined>>): string {
+  return (
+    env.COMMUNICATIONS_EXPECTED_HOST_PREFIX ??
+    env.COMMUNICATIONS_EXPECTED_DATABASE_HOST ??
+    "ep-round-fog"
+  )
+    .trim()
+    .toLowerCase();
+}
+
+function expectedDatabaseName(
+  env: Readonly<Record<string, string | undefined>>,
+): string {
+  return (env.COMMUNICATIONS_EXPECTED_DATABASE_NAME ?? "neondb")
+    .trim()
+    .toLowerCase();
+}
 
 export async function evaluateResendWebhookReadiness(
   deps: ReadinessDeps,
@@ -22,6 +67,7 @@ export async function evaluateResendWebhookReadiness(
   const warnings: string[] = [];
   const checks: ReadinessReport["checks"] = {};
   const env = deps.env;
+  const dbMode: ReadinessDbMode = deps.dbMode ?? "staging_explicit";
 
   const loaded = loadResendWebhookConfig(env);
   checks.config = {
@@ -29,7 +75,6 @@ export async function evaluateResendWebhookReadiness(
     detail: loaded.ok ? "ok" : loaded.errorMessage,
   };
 
-  // Flags leídos del env (aunque load falle por secret ausente).
   const enabledFlag = ["true", "1", "yes"].includes(
     (env.COMMUNICATIONS_RESEND_WEBHOOK_ENABLED ?? "false").trim().toLowerCase(),
   );
@@ -54,7 +99,7 @@ export async function evaluateResendWebhookReadiness(
     detail: mode,
   };
   if (mode === "process") {
-    checks.mode = { ok: false, detail: "process_not_allowed_in_imp07" };
+    checks.mode = { ok: false, detail: "process_not_allowed_in_staging_go_live" };
   }
 
   checks.secretPresent = {
@@ -93,36 +138,141 @@ export async function evaluateResendWebhookReadiness(
     detail: String(loaded.ok && loaded.config.environmentPolicy.persistBehavioralEvents),
   };
 
-  const dbClass = classifySmokeDatabaseUrl(env.DATABASE_URL);
-  checks.databaseIdentity = {
-    ok:
-      dbClass.classification === "staging" ||
-      dbClass.classification === "local" ||
-      dbClass.classification === "test",
-    detail: `${dbClass.classification}:${dbClass.reason}`,
-  };
-  if (dbClass.classification === "production") {
-    checks.databaseIdentity = {
-      ok: false,
-      detail: "production_blocked",
-    };
-  }
+  const stagingUrlExplicit = env.COMMUNICATIONS_STAGING_DATABASE_URL?.trim() ?? "";
+  const hostPrefix = expectedHostPrefix(env);
+  const dbNameExpected = expectedDatabaseName(env);
 
-  if (deps.pingDatabase) {
-    try {
-      const ping = await deps.pingDatabase();
-      checks.databaseReachable = { ok: ping.ok };
-      checks.schemaTable = { ok: ping.tableReady !== false, detail: String(ping.tableReady) };
-      checks.uniqueConstraint = {
-        ok: ping.uniqueReady !== false,
-        detail: String(ping.uniqueReady),
+  if (dbMode === "staging_explicit") {
+    checks.explicitStagingUrl = {
+      ok: Boolean(stagingUrlExplicit),
+      detail: stagingUrlExplicit ? "present" : "COMMUNICATIONS_STAGING_DATABASE_URL_absent",
+    };
+    checks.noDatabaseUrlFallback = {
+      ok: true,
+      detail: "staging_explicit_ignores_DATABASE_URL",
+    };
+
+    if (!stagingUrlExplicit) {
+      checks.databaseIdentity = {
+        ok: false,
+        detail: "staging_url_required",
       };
-    } catch {
-      checks.databaseReachable = { ok: false, detail: "ping_failed" };
+      checks.databaseReachable = { ok: false, detail: "skipped_no_staging_url" };
+      checks.schemaTable = { ok: false, detail: "skipped_no_staging_url" };
+      checks.uniqueConstraint = { ok: false, detail: "skipped_no_staging_url" };
+    } else {
+      const dbClass = classifySmokeDatabaseUrl(stagingUrlExplicit);
+      const { host, database } = parsePg(stagingUrlExplicit);
+      const denylist =
+        dbClass.classification === "production" ||
+        host.includes("ep-dawn-dew") ||
+        /maratonfotografica\.com/i.test(stagingUrlExplicit);
+      const hostOk = host.includes(hostPrefix);
+      const nameOk = !dbNameExpected || database === dbNameExpected;
+
+      checks.databaseIdentity = {
+        ok:
+          !denylist &&
+          dbClass.classification === "staging" &&
+          hostOk &&
+          nameOk,
+        detail: denylist
+          ? "production_or_denylist_blocked"
+          : !hostOk
+            ? `host_mismatch_expected_${hostPrefix}`
+            : !nameOk
+              ? `database_mismatch_expected_${dbNameExpected}`
+              : `${dbClass.classification}:${dbClass.reason}`,
+      };
+
+      if (deps.pingDatabase && checks.databaseIdentity.ok) {
+        try {
+          const ping = await deps.pingDatabase();
+          checks.databaseReachable = { ok: ping.ok };
+          checks.schemaTable = {
+            ok: ping.tableReady === true,
+            detail: String(ping.tableReady),
+          };
+          checks.uniqueConstraint = {
+            ok: ping.uniqueReady === true,
+            detail: String(ping.uniqueReady),
+          };
+        } catch {
+          checks.databaseReachable = { ok: false, detail: "ping_failed" };
+          checks.schemaTable = { ok: false, detail: "ping_failed" };
+          checks.uniqueConstraint = { ok: false, detail: "ping_failed" };
+        }
+      } else if (!deps.pingDatabase) {
+        checks.databaseReachable = { ok: true, detail: "skipped_no_ping" };
+        warnings.push("database_ping_skipped");
+      } else {
+        checks.databaseReachable = { ok: false, detail: "skipped_identity_failed" };
+        checks.schemaTable = { ok: false, detail: "skipped_identity_failed" };
+        checks.uniqueConstraint = { ok: false, detail: "skipped_identity_failed" };
+      }
+    }
+  } else if (dbMode === "local") {
+    warnings.push("db_mode_local_not_valid_for_staging_go_live");
+    const localUrl = env.DATABASE_URL?.trim() ?? "";
+    const dbClass = classifySmokeDatabaseUrl(localUrl || undefined);
+    checks.databaseIdentity = {
+      ok:
+        dbClass.classification === "staging" ||
+        dbClass.classification === "local" ||
+        dbClass.classification === "test",
+      detail: `${dbClass.classification}:${dbClass.reason}`,
+    };
+    if (dbClass.classification === "production") {
+      checks.databaseIdentity = { ok: false, detail: "production_blocked" };
+    }
+    if (deps.pingDatabase) {
+      try {
+        const ping = await deps.pingDatabase();
+        checks.databaseReachable = { ok: ping.ok };
+        checks.schemaTable = {
+          ok: ping.tableReady === true,
+          detail: String(ping.tableReady),
+        };
+        checks.uniqueConstraint = {
+          ok: ping.uniqueReady === true,
+          detail: String(ping.uniqueReady),
+        };
+      } catch {
+        checks.databaseReachable = { ok: false, detail: "ping_failed" };
+      }
+    } else {
+      checks.databaseReachable = { ok: true, detail: "skipped_no_ping" };
+      warnings.push("database_ping_skipped");
     }
   } else {
-    checks.databaseReachable = { ok: true, detail: "skipped_no_ping" };
-    warnings.push("database_ping_skipped");
+    // remote_health: no usa DATABASE_URL local; schema solo si hay ping inyectado.
+    checks.databaseIdentity = {
+      ok: true,
+      detail: "remote_health_mode_no_local_db",
+    };
+    checks.noDatabaseUrlFallback = {
+      ok: true,
+      detail: "remote_health_ignores_DATABASE_URL",
+    };
+    if (deps.pingDatabase) {
+      try {
+        const ping = await deps.pingDatabase();
+        checks.databaseReachable = { ok: ping.ok };
+        checks.schemaTable = {
+          ok: ping.tableReady === true,
+          detail: String(ping.tableReady),
+        };
+        checks.uniqueConstraint = {
+          ok: ping.uniqueReady === true,
+          detail: String(ping.uniqueReady),
+        };
+      } catch {
+        checks.databaseReachable = { ok: false, detail: "ping_failed" };
+      }
+    } else {
+      checks.databaseReachable = { ok: true, detail: "skipped_no_ping" };
+      warnings.push("database_ping_skipped");
+    }
   }
 
   checks.rateLimitConfigured = {
@@ -142,12 +292,12 @@ export async function evaluateResendWebhookReadiness(
     detail: loaded.ok && loaded.config.alerts.enabled ? "enabled_noop_sink" : "disabled",
   };
 
-  const stagingUrl =
+  const stagingWebhookUrl =
     env.COMMUNICATIONS_WEBHOOK_STAGING_URL ??
     "https://clickaton-staging.vercel.app/api/webhooks/resend";
   checks.stagingUrl = {
-    ok: stagingUrl.includes("clickaton-staging.vercel.app"),
-    detail: stagingUrl.includes("maratonfotografica.com")
+    ok: stagingWebhookUrl.includes("clickaton-staging.vercel.app"),
+    detail: stagingWebhookUrl.includes("maratonfotografica.com")
       ? "production_url_detected"
       : "staging_ok",
   };
@@ -162,14 +312,21 @@ export async function evaluateResendWebhookReadiness(
   if (failed.length > 0) status = "NOT READY";
   else if (warnings.length > 0) status = "READY WITH WARNINGS";
 
-  // Fase A/B pueden ser "ready" para preparación pero no para recepción.
   if (phase === "A_prepared" || phase === "B_exposed_disabled") {
     if (status === "READY") status = "READY WITH WARNINGS";
-    warnings.push(`activation_phase_${phase}_not_receiving`);
+    if (phase === "B_exposed_disabled" && !env.RESEND_WEBHOOK_SECRET?.trim()) {
+      warnings.push("READY FOR RESEND WEBHOOK SECRET");
+    } else {
+      warnings.push(`activation_phase_${phase}_not_receiving`);
+    }
   }
   if (phase === "D_process") {
     status = "NOT READY";
   }
+  if (dbMode === "local" && status !== "NOT READY") {
+    status = "NOT READY";
+    warnings.push("local_db_mode_blocks_go_live_ready");
+  }
 
-  return { status, phase, checks, warnings };
+  return { status, phase, dbMode, checks, warnings };
 }

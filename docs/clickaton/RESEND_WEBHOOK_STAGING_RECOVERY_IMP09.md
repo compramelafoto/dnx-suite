@@ -8,6 +8,9 @@
 DO NOT USE CURRENT LOCAL DATABASE_URL FOR STAGING MIGRATIONS
 ```
 
+> **Imp10 (2026-08-01):** go-live staging **BLOCKED**. Ver [`RESEND_WEBHOOK_STAGING_GO_LIVE_IMP10.md`](./RESEND_WEBHOOK_STAGING_GO_LIVE_IMP10.md).
+> Hallazgo crítico: la rama `migration-legacy-clf-to-monorepo` también desplegó `clickaton-dnxsuite` / `maratonfotografica.com` con el ingress (disabled). Migración/Resend/smoke no ejecutados. Readiness corregido para exigir `COMMUNICATIONS_STAGING_DATABASE_URL`.
+
 ---
 
 ## 1. Causa raíz (Imp08 → Imp09)
