@@ -11,6 +11,8 @@ DO NOT USE CURRENT LOCAL DATABASE_URL FOR STAGING MIGRATIONS
 
 > **Imp10bis (2026-08-01):** aislamiento de deploys documentado en [`VERCEL_DEPLOYMENT_ISOLATION_IMP10BIS.md`](./VERCEL_DEPLOYMENT_ISOLATION_IMP10BIS.md) y [`DEPLOYMENT_TOPOLOGY.md`](./DEPLOYMENT_TOPOLOGY.md).
 > El estado histórico `BLOCKED` de Imp10 se conserva. Causa: Ignored Build Step productivo incorrecto (solo saltaba `clickaton-staging`). Corregido a **solo `main`**. No reanudar migrate/Resend hasta `communications:imp10-resume-readiness` + prereqs manuales.
+>
+> **Imp10ter (2026-08-01):** push controlado verificado — staging git READY + producción git CANCELED. Evidencia [`CONTROLLED_STAGING_PUSH_VALIDATION_IMP10TER.md`](./CONTROLLED_STAGING_PUSH_VALIDATION_IMP10TER.md). Imp10 go-live (backup/migrate/Resend) sigue pendiente de prereqs manuales.
 
 ---
 

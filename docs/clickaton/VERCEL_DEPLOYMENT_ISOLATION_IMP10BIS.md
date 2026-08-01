@@ -8,6 +8,9 @@
 DEPLOYMENT FREEZE: ACTIVE (no push de dbcc191 / Imp10bis en esta sesión)
 ```
 
+> **Imp10ter (2026-08-01):** prueba real Git — push `ae25ad7..8dceb51` → staging git READY (`dpl_9XRxJBhTf6GtxxXPjeMgtgJ7e5S`) + producción git **CANCELED** (`dpl_CDn2wDMyWr58m6vz2KWVAeaZDFF7`).
+> `DEPLOYMENT ISOLATION VERIFIED`. Ver [`CONTROLLED_STAGING_PUSH_VALIDATION_IMP10TER.md`](./CONTROLLED_STAGING_PUSH_VALIDATION_IMP10TER.md).
+
 ---
 
 ## 1. Causa raíz
