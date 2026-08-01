@@ -9798,6 +9798,18 @@ model ClickatonHomeBanner {
   @@index([editionId])
 }
 
+/// Config global del carousel de banners del Home (fila única id = "default").
+model ClickatonHomeBannerSettings {
+  id              String   @id @default("default")
+  /// Si false, el carousel no avanza solo.
+  autoplayEnabled Boolean  @default(true)
+  /// Tiempo visible de cada slide antes de pasar al siguiente (ms).
+  autoplayMs      Int      @default(2000)
+  /// Duración de la animación de desplazamiento horizontal (ms).
+  transitionMs    Int      @default(700)
+  updatedAt       DateTime @updatedAt
+}
+
 /// Fase de precio configurable por edición (early bird / regular / late).
 /// El backend resuelve la fase vigente; el frontend nunca define el monto.
 model ClickatonRegistrationPricePhase {

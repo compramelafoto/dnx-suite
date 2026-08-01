@@ -354,7 +354,8 @@
 }
 
 .ck-spotlight-progress {
-  animation: ck-spotlight-progress 3s linear forwards;
+  /* duration se setea inline desde autoplayMs del admin */
+  animation: ck-spotlight-progress 2s linear forwards;
   transform-origin: left center;
 }
 

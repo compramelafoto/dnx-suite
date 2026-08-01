@@ -69,3 +69,36 @@ export function bannerToFormInput(banner: HomeBannerRecord): HomeBannerFormInput
     isActive: banner.isActive,
   };
 }
+
+/** Config del carousel (autoplay + animación horizontal). */
+export type HomeBannerCarouselConfig = {
+  autoplayEnabled: boolean;
+  /** ms entre slides */
+  autoplayMs: number;
+  /** ms de la transición horizontal */
+  transitionMs: number;
+};
+
+export const DEFAULT_HOME_BANNER_CAROUSEL: HomeBannerCarouselConfig = {
+  autoplayEnabled: true,
+  autoplayMs: 2000,
+  transitionMs: 700,
+};
+
+export type HomeBannerCarouselFormInput = {
+  autoplayEnabled: boolean;
+  /** segundos (UI admin) */
+  autoplaySeconds: string;
+  /** ms (UI admin) */
+  transitionMs: string;
+};
+
+export function carouselConfigToFormInput(
+  config: HomeBannerCarouselConfig,
+): HomeBannerCarouselFormInput {
+  return {
+    autoplayEnabled: config.autoplayEnabled,
+    autoplaySeconds: String(Math.round((config.autoplayMs / 1000) * 10) / 10),
+    transitionMs: String(config.transitionMs),
+  };
+}

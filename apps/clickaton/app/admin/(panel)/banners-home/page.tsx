@@ -1,19 +1,30 @@
 import { AdminDataTable, AdminTableLink } from "@/components/admin/AdminDataTable";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { HomeBannerCarouselSettingsForm } from "@/components/admin/home-banners/HomeBannerCarouselSettingsForm";
 import { Button } from "@/components/ui/Button";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
-import { listHomeBanners } from "@/lib/admin/home-banners/queries";
+import {
+  getHomeBannerCarouselSettings,
+  listHomeBanners,
+} from "@/lib/admin/home-banners/queries";
 import {
   deleteHomeBannerAction,
   moveHomeBannerAction,
 } from "@/lib/admin/home-banners/mutations";
-import { HOME_BANNER_LINK_LABELS } from "@/lib/admin/home-banners/types";
+import {
+  DEFAULT_HOME_BANNER_CAROUSEL,
+  HOME_BANNER_LINK_LABELS,
+} from "@/lib/admin/home-banners/types";
 
 export default async function AdminHomeBannersPage() {
   await requireClickatonAdmin();
-  const result = await listHomeBanners();
+  const [result, carouselResult] = await Promise.all([
+    listHomeBanners(),
+    getHomeBannerCarouselSettings(),
+  ]);
+  const carousel = carouselResult.ok ? carouselResult.data : DEFAULT_HOME_BANNER_CAROUSEL;
 
   return (
     <div className="space-y-8">
@@ -27,6 +38,12 @@ export default async function AdminHomeBannersPage() {
           </Button>
         }
       />
+
+      {carouselResult.ok ? (
+        <HomeBannerCarouselSettingsForm initial={carousel} />
+      ) : (
+        <AdminMigrationNotice message={carouselResult.message} />
+      )}
 
       {!result.ok ? (
         <AdminMigrationNotice message={result.message} />

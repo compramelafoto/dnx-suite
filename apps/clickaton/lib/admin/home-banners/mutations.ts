@@ -143,6 +143,56 @@ export async function deleteHomeBannerAction(formData: FormData) {
   revalidateBannerPaths();
 }
 
+export type HomeBannerCarouselActionState = {
+  ok: boolean;
+  message?: string;
+  errors?: { autoplaySeconds?: string; transitionMs?: string; form?: string };
+};
+
+export async function updateHomeBannerCarouselSettingsAction(
+  _prev: HomeBannerCarouselActionState | undefined,
+  formData: FormData,
+): Promise<HomeBannerCarouselActionState> {
+  await requireClickatonAdmin();
+  const autoplayEnabled =
+    formData.get("autoplayEnabled") === "on" || formData.get("autoplayEnabled") === "true";
+  const secondsRaw = String(formData.get("autoplaySeconds") ?? "2").trim().replace(",", ".");
+  const transitionRaw = String(formData.get("transitionMs") ?? "700").trim();
+  const seconds = Number.parseFloat(secondsRaw);
+  const transitionMs = Number.parseInt(transitionRaw, 10);
+
+  const errors: NonNullable<HomeBannerCarouselActionState["errors"]> = {};
+  if (!Number.isFinite(seconds) || seconds < 1 || seconds > 30) {
+    errors.autoplaySeconds = "Usá entre 1 y 30 segundos.";
+  }
+  if (!Number.isFinite(transitionMs) || transitionMs < 200 || transitionMs > 2000) {
+    errors.transitionMs = "Usá entre 200 y 2000 ms.";
+  }
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors, message: "Revisá los campos del carousel." };
+  }
+
+  const autoplayMs = Math.round(seconds * 1000);
+  const result = await withClickatonDb(async () => {
+    await prisma.clickatonHomeBannerSettings.upsert({
+      where: { id: "default" },
+      create: {
+        id: "default",
+        autoplayEnabled,
+        autoplayMs,
+        transitionMs,
+      },
+      update: { autoplayEnabled, autoplayMs, transitionMs },
+    });
+  });
+  if (!result.ok) return { ok: false, message: result.message };
+  revalidateBannerPaths();
+  return {
+    ok: true,
+    message: `Carousel guardado (${autoplayEnabled ? `${seconds}s` : "sin autoplay"}, transición ${transitionMs}ms).`,
+  };
+}
+
 export async function moveHomeBannerAction(formData: FormData) {
   await requireClickatonAdmin();
   const bannerId = String(formData.get("bannerId") ?? "").trim();

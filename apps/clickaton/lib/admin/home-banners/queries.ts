@@ -1,5 +1,9 @@
 import { prisma, withClickatonDb } from "@/lib/admin/db";
-import type { HomeBannerRecord } from "./types";
+import {
+  DEFAULT_HOME_BANNER_CAROUSEL,
+  type HomeBannerCarouselConfig,
+  type HomeBannerRecord,
+} from "./types";
 
 const select = {
   id: true,
@@ -65,5 +69,31 @@ export async function listActiveHomeBannersForPublic() {
         },
       },
     });
+  });
+}
+
+function clampCarouselConfig(raw: {
+  autoplayEnabled: boolean;
+  autoplayMs: number;
+  transitionMs: number;
+}): HomeBannerCarouselConfig {
+  const autoplayMs = Math.min(30_000, Math.max(1000, Math.round(raw.autoplayMs) || 2000));
+  const transitionMs = Math.min(2000, Math.max(200, Math.round(raw.transitionMs) || 700));
+  return {
+    autoplayEnabled: Boolean(raw.autoplayEnabled),
+    autoplayMs,
+    transitionMs,
+  };
+}
+
+/** Config del carousel (defaults si aún no hay fila en DB). */
+export async function getHomeBannerCarouselSettings() {
+  return withClickatonDb(async () => {
+    const row = await prisma.clickatonHomeBannerSettings.findUnique({
+      where: { id: "default" },
+      select: { autoplayEnabled: true, autoplayMs: true, transitionMs: true },
+    });
+    if (!row) return DEFAULT_HOME_BANNER_CAROUSEL;
+    return clampCarouselConfig(row);
   });
 }

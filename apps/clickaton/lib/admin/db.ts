@@ -14,7 +14,7 @@ function isMissingTableError(error: unknown): boolean {
     "message" in error && typeof (error as { message?: unknown }).message === "string"
       ? (error as { message: string }).message
       : "";
-  return /does not exist|relation .* does not exist|ClickatonEdition|ClickatonHomeBanner|ClickatonContactMessage|DnxPromotion/i.test(
+  return /does not exist|relation .* does not exist|ClickatonEdition|ClickatonHomeBanner|ClickatonHomeBannerSettings|ClickatonContactMessage|DnxPromotion/i.test(
     message,
   );
 }

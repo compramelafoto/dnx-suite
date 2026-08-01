@@ -21,11 +21,13 @@ export default async function HomePage() {
   } catch {
     editions = [];
   }
-  const spotlightSlides = await buildHomeSpotlightSlides(editions);
+  const spotlight = await buildHomeSpotlightSlides(editions);
 
   return (
     <>
-      {spotlightSlides.length > 0 ? <HomeSpotlightBanner slides={spotlightSlides} /> : null}
+      {spotlight.slides.length > 0 ? (
+        <HomeSpotlightBanner slides={spotlight.slides} carousel={spotlight.carousel} />
+      ) : null}
       <Hero />
       <WhatIsClickaton />
       <BrandPillars />
