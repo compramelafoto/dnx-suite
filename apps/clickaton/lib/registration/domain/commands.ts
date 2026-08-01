@@ -33,6 +33,11 @@ export type CreateDraftRegistrationCommand = {
   socialPublicationConsent?: boolean;
   consentAcceptedAt?: Date | null;
   consentVersion?: string | null;
+  termsVersion?: string | null;
+  termsAcceptedAt?: Date | null;
+  promotionalLicenseAcceptedAt?: Date | null;
+  identifiablePersonsDeclaredAt?: Date | null;
+  identifiablePersonsPolicyVersion?: string | null;
   holdMinutes?: number;
   items: Array<{
     ticketTypeItemId?: string | null;
