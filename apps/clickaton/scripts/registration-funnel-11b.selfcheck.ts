@@ -7,7 +7,11 @@ import { issueRegistrationQrToken } from "../lib/registration/security/qr-token"
 
 process.env.CLICKATON_QR_TOKEN_SECRET =
   process.env.CLICKATON_QR_TOKEN_SECRET || "test-qr-secret-11b-xxxxxxxx";
+// Isolate from product production audience (siteConfig fallback / VERCEL_ENV=production).
+process.env.VERCEL_ENV = "preview";
+process.env.CLICKATON_PUBLIC_URL = "https://clickaton-staging.vercel.app";
 process.env.CLICKATON_EMAIL_TEST_TO = "funnel-11b@example.test";
+delete process.env.CLICKATON_EMAIL_ALLOW_ANY;
 
 const qr = issueRegistrationQrToken({
   registrationId: "r1",

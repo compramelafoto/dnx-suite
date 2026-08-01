@@ -12,8 +12,12 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 export default function PrivacyPage() {
-  const { privacySections, privacyVersion, legalReviewRequired } =
-    clickatonLegalFunnelContent;
+  const {
+    privacySections,
+    privacyVersion,
+    legalReviewRequired,
+    publicationStatus,
+  } = clickatonLegalFunnelContent;
 
   return (
     <Section>
@@ -24,7 +28,7 @@ export default function PrivacyPage() {
             Versión {privacyVersion}
             {legalReviewRequired
               ? " · Pendiente de validación jurídica antes del go-live comercial."
-              : null}
+              : ` · ${publicationStatus} · Aprobada para inscripción`}
           </p>
         </header>
         {privacySections.map((section) => (

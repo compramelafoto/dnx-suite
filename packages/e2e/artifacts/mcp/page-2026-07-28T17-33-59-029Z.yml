@@ -1,0 +1,57 @@
+- generic [active] [ref=f7e1]:
+  - banner [ref=f7e2]:
+    - generic [ref=f7e3]:
+      - link "Saltar al contenido" [ref=f7e4] [cursor=pointer]:
+        - /url: "#root-app"
+      - link "Procesamos los pagos online de compradores y vendedores - Mercado Pago" [ref=f7e6] [cursor=pointer]:
+        - /url: https://www.mercadopago.com.ar
+  - main [ref=f7e7]:
+    - generic [ref=f7e10]:
+      - generic [ref=f7e11]:
+        - paragraph [ref=f7e12]: INICIO DE SESIÓN
+        - heading "Elegí un método de verificación para iniciar sesión" [level=1] [ref=f7e13]
+      - generic [ref=f7e20]:
+        - paragraph [ref=f7e21]: dnxfotografia@gmail.com
+        - button "Cambiar cuenta" [ref=f7e22] [cursor=pointer]
+      - link "Necesito ayuda" [ref=f7e25] [cursor=pointer]:
+        - /url: "#"
+      - generic [ref=f7e28]:
+        - list [ref=f7e31]:
+          - listitem [ref=f7e32] [cursor=pointer]:
+            - button "Contraseña Ingresarás tu contraseña." [ref=f7e33]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Contraseña
+                  - generic: Ingresarás tu contraseña.
+          - listitem [ref=f7e34] [cursor=pointer]:
+            - button "Código QR Escanearás el código con la cámara de tu teléfono o desde la app de Mercado Pago." [ref=f7e35]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Código QR
+                  - generic: Escanearás el código con la cámara de tu teléfono o desde la app de Mercado Pago.
+          - listitem [ref=f7e36] [cursor=pointer]:
+            - button "SMS Te enviaremos un código al teléfono terminado en 8324." [ref=f7e37]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: SMS
+                  - generic: Te enviaremos un código al teléfono terminado en 8324.
+          - listitem [ref=f7e38] [cursor=pointer]:
+            - button "WhatsApp Te enviaremos un código al teléfono terminado en 8324." [ref=f7e39]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: WhatsApp
+                  - generic: Te enviaremos un código al teléfono terminado en 8324.
+          - listitem [ref=f7e40] [cursor=pointer]:
+            - button "E-mail Te enviaremos un código a dn***ia@gmail.com." [ref=f7e41]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: E-mail
+                  - generic: Te enviaremos un código a dn***ia@gmail.com.
+          - link "No puedo iniciar sesión" [ref=f7e42] [cursor=pointer]:
+            - /url: "#"
+        - status [ref=f7e49]

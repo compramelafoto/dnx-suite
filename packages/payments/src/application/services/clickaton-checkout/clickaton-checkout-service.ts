@@ -27,10 +27,16 @@ import type {
   CreateClickatonCheckoutOrderResult,
   DurableCheckoutOrder,
   NormalizedCheckoutEvent,
+  NormalizedCheckoutStatus,
   ReconcileClickatonCheckoutResult,
 } from "./types";
 import type { ProviderName } from "../../../contracts/primitives";
 import type { PlannedEditionCheckout } from "../../../edition-checkout/types.js";
+import {
+  assertLivePaymentsExecutionAllowed,
+  isClickatonLivePaymentsEnabled,
+  isClickatonProductionRuntime,
+} from "./live-payments-flag";
 
 const SOURCE_PRODUCT = "clickaton";
 const DEFAULT_CHECKOUT_BASE = "https://payments.test/checkout";
@@ -75,7 +81,36 @@ function externalRefForRegistration(
   return `clickaton:registration:${sourceId}`;
 }
 
+function externalRefForStoreOrder(
+  publicId: string,
+  mode: ClickatonCheckoutProviderBridge["mode"] = "manual",
+): string {
+  if (mode === "mercado_pago_orders_test") {
+    return `CLICKATON_STORE_ORDER-${publicId}`;
+  }
+  return `CLICKATON_STORE_ORDER:${publicId}`;
+}
+
+function externalRefForSource(
+  sourceType: "REGISTRATION" | "STORE_ORDER",
+  sourceId: string,
+  mode: ClickatonCheckoutProviderBridge["mode"] = "manual",
+): string {
+  if (sourceType === "STORE_ORDER") {
+    return externalRefForStoreOrder(sourceId, mode);
+  }
+  return externalRefForRegistration(sourceId, mode);
+}
+
 function extractSourceId(externalReference: string): string {
+  const storeColon = "CLICKATON_STORE_ORDER:";
+  const storeHyphen = "CLICKATON_STORE_ORDER-";
+  if (externalReference.startsWith(storeColon)) {
+    return externalReference.slice(storeColon.length);
+  }
+  if (externalReference.startsWith(storeHyphen)) {
+    return externalReference.slice(storeHyphen.length);
+  }
   const colonPrefix = "clickaton:registration:";
   const hyphenPrefix = "clickaton-registration-";
   if (externalReference.startsWith(colonPrefix)) {
@@ -87,11 +122,31 @@ function extractSourceId(externalReference: string): string {
   return externalReference;
 }
 
+function extractSourceType(
+  externalReference: string,
+): "REGISTRATION" | "STORE_ORDER" {
+  if (
+    externalReference.startsWith("CLICKATON_STORE_ORDER:") ||
+    externalReference.startsWith("CLICKATON_STORE_ORDER-")
+  ) {
+    return "STORE_ORDER";
+  }
+  return "REGISTRATION";
+}
+
 export function isClickatonRegistrationExternalRef(ref: string | null | undefined): boolean {
   if (!ref) return false;
   return (
     ref.startsWith("clickaton:registration:") ||
     ref.startsWith("clickaton-registration-")
+  );
+}
+
+export function isClickatonStoreOrderExternalRef(ref: string | null | undefined): boolean {
+  if (!ref) return false;
+  return (
+    ref.startsWith("CLICKATON_STORE_ORDER:") ||
+    ref.startsWith("CLICKATON_STORE_ORDER-")
   );
 }
 
@@ -116,8 +171,9 @@ function inferCheckoutEventOrigin(event: NormalizedCheckoutEvent): CheckoutEvent
 }
 
 /**
- * Acepta live_mode=true solo con attestation de sandbox TEST
- * (bridge mercado_pago_test + orden SANDBOX / fixture).
+ * Acepta live_mode=true cuando:
+ * - attestation sandbox TEST (bridge TEST + orden SANDBOX / fixture), o
+ * - LIVE real (bridge mercado_pago_production + orden PRODUCTION).
  * No usa "if staging then ignore".
  */
 function isSandboxLiveModeAttested(input: {
@@ -127,6 +183,9 @@ function isSandboxLiveModeAttested(input: {
 }): boolean {
   if (input.isTestFixture) return true;
   const env = String(input.orderEnvironment).toUpperCase();
+  if (input.bridgeMode === "mercado_pago_production") {
+    return env === "PRODUCTION" || env === "PROD" || env === "LIVE";
+  }
   const testBridge =
     input.bridgeMode === "mercado_pago_test" ||
     input.bridgeMode === "mercado_pago_orders_test";
@@ -170,6 +229,14 @@ async function buildDurableOrder(
   const payloadHash =
     opts?.payloadHash ?? (typeof snap.payloadHash === "string" ? snap.payloadHash : "");
   const attempt = typeof snap.attempt === "number" ? snap.attempt : 1;
+  const statusDetail =
+    typeof snap.statusDetail === "string"
+      ? snap.statusDetail
+      : typeof providerOrder?.rawResponseSanitized?.statusDetail === "string"
+        ? providerOrder.rawResponseSanitized.statusDetail
+        : typeof providerOrder?.providerStatus === "string"
+          ? providerOrder.providerStatus
+          : null;
 
   return {
     id: paymentOrder.id,
@@ -181,12 +248,15 @@ async function buildDurableOrder(
     externalReference: intent?.externalReference ?? externalRefForRegistration("unknown"),
     checkoutUrl,
     sourceApp: "CLICKATON",
-    sourceType: "REGISTRATION",
+    sourceType: intent
+      ? extractSourceType(intent.externalReference)
+      : "REGISTRATION",
     sourceId: intent ? extractSourceId(intent.externalReference) : "unknown",
     idempotencyKey,
     payloadHash,
     attempt,
     providerOrderId: providerOrder?.providerOrderId ?? null,
+    statusDetail,
     createdAt: paymentOrder.createdAt,
     updatedAt: paymentOrder.updatedAt,
     approvedAt,
@@ -252,11 +322,25 @@ export function createClickatonCheckoutService(
       input: CreateClickatonCheckoutOrderInput,
     ): Promise<CreateClickatonCheckoutOrderResult> {
       const environment = input.environment ?? "sandbox";
-      if (environment === "production") {
+      const liveGate = assertLivePaymentsExecutionAllowed({
+        bridgeMode: bridge.mode,
+        environment,
+        liveFlagEnabled: isClickatonLivePaymentsEnabled(),
+        productionRuntime: isClickatonProductionRuntime(),
+      });
+      if (!liveGate.ok) {
+        throw new Error(liveGate.reason);
+      }
+      // Legacy hard-block for accidental production env without LIVE bridge.
+      if (environment === "production" && bridge.mode !== "mercado_pago_production") {
         throw new Error("clickaton_checkout_production_forbidden");
       }
       const now = new Date().toISOString();
-      const externalReference = externalRefForRegistration(input.sourceId, bridge.mode);
+      const externalReference = externalRefForSource(
+        input.sourceType,
+        input.sourceId,
+        bridge.mode,
+      );
 
       // Etapa 6: snapshot financiero obligatorio para Mercado Pago (no stub owner).
       let editionPlan: PlannedEditionCheckout | null = null;
@@ -507,6 +591,7 @@ export function createClickatonCheckoutService(
           notificationUrl: input.notificationUrl,
           checkoutBaseUrl: input.checkoutBaseUrl,
           sourceId: input.sourceId,
+          ...(input.cardPayment ? { cardPayment: input.cardPayment } : {}),
           ...(editionPlan && input.editionFinance?.collectorAccessToken
             ? {
                 collectorAccessToken: input.editionFinance.collectorAccessToken,
@@ -521,8 +606,12 @@ export function createClickatonCheckoutService(
           ...created.rawSanitized,
           checkoutUrl: created.checkoutUrl,
           sourceApp: "CLICKATON",
-          sourceType: "REGISTRATION",
+          sourceType: input.sourceType,
           sourceId: input.sourceId,
+          ...(created.immediateStatus
+            ? { immediateStatus: created.immediateStatus }
+            : {}),
+          ...(created.statusDetail ? { statusDetail: created.statusDetail } : {}),
         };
       } catch (error) {
         await db.idempotency.markFailed(reserve.id, now2);
@@ -545,6 +634,16 @@ export function createClickatonCheckoutService(
       }
 
       const providerRowId = `dnx_po_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+      const immediateNormalized =
+        typeof rawSanitized.immediateStatus === "string"
+          ? (rawSanitized.immediateStatus as NormalizedCheckoutStatus)
+          : undefined;
+      const immediateMapped = immediateNormalized
+        ? mapNormalizedToProviderMappedStatus(immediateNormalized)
+        : "OPEN";
+      const immediatePaymentStatus = immediateNormalized
+        ? mapNormalizedToPaymentOrderStatus(immediateNormalized)
+        : undefined;
 
       try {
         await registerProviderOrderUnit(db, {
@@ -554,8 +653,11 @@ export function createClickatonCheckoutService(
             provider: PROVIDER,
             environment,
             providerOrderId,
-            providerStatus: "created",
-            mappedStatus: "OPEN",
+            providerStatus:
+              typeof rawSanitized.statusDetail === "string"
+                ? rawSanitized.statusDetail
+                : "created",
+            mappedStatus: immediateMapped === "UNKNOWN" ? "OPEN" : immediateMapped,
             totalMinor: BigInt(input.amountMinor),
             currency: input.currency,
             rawResponseSanitized: rawSanitized,
@@ -659,12 +761,19 @@ export function createClickatonCheckoutService(
           }
           await db.paymentOrders.save({
             ...order,
+            ...(immediatePaymentStatus ? { status: immediatePaymentStatus } : {}),
             distributionSnapshot: {
               ...(order.distributionSnapshot ?? {}),
               checkoutUrl,
               idempotencyKey: input.idempotencyKey,
               payloadHash: input.payloadHash,
               attempt,
+              ...(immediateNormalized
+                ? { normalizedStatus: immediateNormalized }
+                : {}),
+              ...(typeof rawSanitized.statusDetail === "string"
+                ? { statusDetail: rawSanitized.statusDetail }
+                : {}),
               ...(economicSnap ?? {}),
             },
             updatedAt: now2,

@@ -319,6 +319,42 @@ describe("10D.2.1 Partner MP self-connect", () => {
     );
   });
 
+  it("10G.2C collector MP via partner → COLLECTOR_ACCOUNT_REQUIRES_OWNER_RECONNECT", async () => {
+    const store = createMemoryPartnerOAuthStore();
+    await seedOwnerCollector(store);
+    const service = createTestPartnerOAuthService({
+      store,
+      vaultStore: createMemoryCredentialStore(),
+      mpClient: mockMp("97484805"),
+      // Same env as collector PA (PROD) — mirrors Production conflict.
+      env: partnerEnv({ [PARTNER_OAUTH_ENVIRONMENT_ENV]: "PROD" }),
+    });
+    const partner = actor(5, [
+      grant(5, "DNX_FINANCE_PARTNER_CONNECT"),
+      grant(5, "DNX_FINANCE_OWNER"),
+    ]);
+    const started = await service.startConnect({ actor: partner });
+    const token = new URL(started.authorizeUrl).searchParams.get("state")!;
+    await assert.rejects(
+      () =>
+        service.completeCallback({
+          actor: partner,
+          stateToken: token,
+          code: "c",
+        }),
+      (err: unknown) =>
+        err instanceof PartnerOAuthError &&
+        err.code === "COLLECTOR_ACCOUNT_REQUIRES_OWNER_RECONNECT",
+    );
+    assert.equal(
+      [...store.ownerStore.accounts.values()].filter(
+        (a) => a.providerUserId === "97484805",
+      ).length,
+      1,
+      "collector PA not duplicated",
+    );
+  });
+
   it("11–12. reconnect + revoke", async () => {
     const store = createMemoryPartnerOAuthStore();
     await seedOwnerCollector(store);

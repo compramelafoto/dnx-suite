@@ -10,17 +10,21 @@ import type { CurrencyCode } from "../../../contracts/primitives.js";
 
 export function planRequiredEditionFinance(input: {
   snapshot: EditionCheckoutFinanceSnapshot;
-  bridgeMode: "manual" | "mercado_pago_test" | "mercado_pago_orders_test";
+  bridgeMode:
+    | "manual"
+    | "mercado_pago_test"
+    | "mercado_pago_orders_test"
+    | "mercado_pago_production";
   collectorAccessToken?: string;
 }): PlannedEditionCheckout {
   const planned = planEditionCheckoutFromSnapshot(input.snapshot, {
     bridgeMode: input.bridgeMode,
   });
-  if (
-    input.bridgeMode === "mercado_pago_test" &&
-    planned.modality === "CHECKOUT_PRO_COLLECTOR_OAUTH" &&
-    !input.collectorAccessToken
-  ) {
+  const needsCollector =
+    (input.bridgeMode === "mercado_pago_test" ||
+      input.bridgeMode === "mercado_pago_production") &&
+    planned.modality === "CHECKOUT_PRO_COLLECTOR_OAUTH";
+  if (needsCollector && !input.collectorAccessToken) {
     throw new Error(
       "edition_finance_collector_token_required: falta OAuth del payment account beneficiario",
     );

@@ -90,7 +90,10 @@ export function EditionDistributionEditor({
     : createEditionDraftFormAction.bind(null, editionId);
 
   return (
-    <form action={action} className="space-y-4 rounded border border-ck-border p-4">
+    <form
+      action={action}
+      className="min-w-0 space-y-4 rounded-[var(--ck-radius-card)] border border-ck-border p-4 sm:p-5"
+    >
       {draftVersionId ? (
         <input type="hidden" name="versionId" value={draftVersionId} />
       ) : (
@@ -98,10 +101,15 @@ export function EditionDistributionEditor({
       )}
       <input type="hidden" name="allocationsJson" value={allocationsJson} />
 
-      <p className="text-sm text-ck-text-secondary">
-        Seleccioná recipients ACTIVE y porcentajes. La suma debe ser exactamente 100%.
-        Activar exige cuenta Mercado Pago ACTIVE por recipient.
+      <p className="text-sm leading-relaxed text-ck-text-secondary">
+        Elegí la cuenta receptora y el porcentaje que recibirá. La suma debe ser exactamente
+        100 %. Para publicar, cada cuenta necesita Mercado Pago conectado y autorizado.
       </p>
+      {!sumOk ? (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200" role="status">
+          La distribución debe sumar 100 % antes de habilitar los cobros.
+        </p>
+      ) : null}
 
       <ul className="space-y-4">
         {rows.map((row, idx) => {
@@ -111,12 +119,12 @@ export function EditionDistributionEditor({
           return (
             <li
               key={row.key}
-              className="grid gap-3 rounded border border-ck-border/70 p-3 md:grid-cols-[2fr_2fr_1fr_auto]"
+              className="grid min-w-0 gap-3 rounded border border-ck-border/70 p-3 md:grid-cols-[2fr_2fr_1fr_auto]"
             >
-              <label className="block space-y-1 text-sm">
-                <span className="text-ck-text-secondary">Recipient</span>
+              <label className="block space-y-2 text-sm">
+                <span className="text-ck-text-secondary">Cuenta receptora</span>
                 <select
-                  className="block w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
+                  className="block min-h-11 w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
                   value={row.financialIdentityId}
                   onChange={(e) => {
                     const financialIdentityId = e.target.value;
@@ -137,19 +145,19 @@ export function EditionDistributionEditor({
                   }}
                   required
                 >
-                  <option value="">Elegí beneficiario</option>
+                  <option value="">Elegí cuenta</option>
                   {recipients.map((r) => (
                     <option key={r.financialIdentityId} value={r.financialIdentityId}>
                       {r.label}
-                      {r.emailMasked ? ` · ${r.emailMasked}` : ""} · {r.subjectType}
+                      {r.emailMasked ? ` · ${r.emailMasked}` : ""}
                     </option>
                   ))}
                 </select>
               </label>
-              <label className="block space-y-1 text-sm">
-                <span className="text-ck-text-secondary">Cuenta MP</span>
+              <label className="block space-y-2 text-sm">
+                <span className="text-ck-text-secondary">Cuenta de Mercado Pago</span>
                 <select
-                  className="block w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
+                  className="block min-h-11 w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
                   value={row.paymentConnectionId}
                   onChange={(e) =>
                     setRows((prev) =>
@@ -159,23 +167,23 @@ export function EditionDistributionEditor({
                     )
                   }
                 >
-                  <option value="">Elegí cuenta ACTIVE</option>
+                  <option value="">Elegí cuenta conectada</option>
                   {(recipient?.accounts ?? []).map((a) => (
                     <option key={a.id} value={a.id} disabled={a.status !== "ACTIVE"}>
                       {a.label}
-                      {a.status === "ACTIVE" ? "" : ` · ${a.status}`}
+                      {a.status === "ACTIVE" ? "" : " · no disponible"}
                     </option>
                   ))}
                 </select>
               </label>
-              <label className="block space-y-1 text-sm">
-                <span className="text-ck-text-secondary">%</span>
+              <label className="block space-y-2 text-sm">
+                <span className="text-ck-text-secondary">Participación (%)</span>
                 <input
                   type="number"
                   min={0.01}
                   max={100}
                   step={0.01}
-                  className="block w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
+                  className="block min-h-11 w-full rounded border border-ck-border bg-ck-surface px-3 py-2"
                   value={row.sharePercent}
                   onChange={(e) =>
                     setRows((prev) =>
@@ -191,6 +199,7 @@ export function EditionDistributionEditor({
                 <Button
                   type="button"
                   variant="secondary"
+                  className="min-h-11 w-full md:w-auto"
                   disabled={rows.length <= 1}
                   onClick={() => setRows((prev) => prev.filter((_, i) => i !== idx))}
                 >
@@ -202,20 +211,30 @@ export function EditionDistributionEditor({
         })}
       </ul>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="secondary" onClick={() => setRows((p) => [...p, newRow()])}>
-          Agregar recipient
+      <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <Button
+          type="button"
+          variant="secondary"
+          className="min-h-11 w-full sm:w-auto"
+          onClick={() => setRows((p) => [...p, newRow()])}
+        >
+          Agregar cuenta
         </Button>
         <p className={`text-sm font-semibold ${sumOk ? "text-emerald-400" : "text-amber-400"}`}>
-          Total: {total.toFixed(2)}%
+          Total: {total.toFixed(2)} %
         </p>
         {hasDup ? (
-          <p className="text-sm text-red-400">No se puede duplicar el mismo recipient.</p>
+          <p className="text-sm text-red-400">No se puede duplicar la misma cuenta.</p>
         ) : null}
       </div>
 
-      <Button type="submit" variant="secondary" disabled={!canSubmit}>
-        {draftVersionId ? "Guardar DRAFT" : "Crear versión DRAFT"}
+      <Button
+        type="submit"
+        variant="secondary"
+        disabled={!canSubmit}
+        className="min-h-11 w-full sm:w-auto"
+      >
+        {draftVersionId ? "Guardar configuración" : "Crear borrador de distribución"}
       </Button>
     </form>
   );

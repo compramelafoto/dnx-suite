@@ -1,163 +1,64 @@
 # Clickatón Argentina 2026 — Checklist maestro pre-lanzamiento
 
-**Etapa:** **10E.1 — Cierre de oferta comercial (remera / first-100 / media / panel %)**  
+**Etapa:** **10G.0 — Launch scope: venta de inscripciones**  
 **Fecha:** 2026-07-31  
-**Edición:** Clickatón Argentina 2026 (`clickaton-argentina-2026` / `cms78cthj0000xpc4841bihf4`)  
-**Evento:** 19/09/2026 · TZ `America/Argentina/Cordoba`  
+**Edición:** Clickatón Argentina 2026 (`clickaton-argentina-2026`)  
 **Dominio:** `https://maratonfotografica.com`  
-**Inscripciones:** `registrationEnabled=false` (no abiertas)  
-**Checkout LIVE:** OFF  
-**Legal:** `LEGAL REVIEW REQUIRED` (sin cambios en esta etapa)  
-**Deploy Staging:** `dpl_GANX1W8hMF65fTRSi5SPefQNb7K6` → `clickaton-staging.vercel.app`  
-**Deploy Production:** `dpl_AJVrV9X5gmp9eoVpjc6xm3zRMv6c` → `maratonfotografica.com`
-
-Estados: `PASS` · `PARTIAL` · `MISSING` · `BLOCKED` · `HUMAN UPLOAD REQUIRED`
-
-### Evidencia ya cerrada (no re-auditar)
-
-R2 READY · Resend vars PRESENT · Partner OAuth PROD · social LIVE OFF · checkout LIVE OFF · DB/migrations/backup PASS (10D / 10E.0).
+**Inscripciones:** `registrationEnabled=false`  
+**LIVE payments flag:** `DNX_CLICKATON_MP_LIVE_PAYMENTS_ENABLED` = **OFF**  
+**Social LIVE:** `DNX_SOCIAL_PUBLISHER_LIVE` = **OFF**  
+**Legal:** `LEGAL REVIEW REQUIRED`  
+**Sales gate doc:** `docs/clickaton/CLICKATON_REGISTRATION_SALES_LAUNCH.md`  
+**Alignment (parcial OK):** `docs/clickaton/CLICKATON_2026_RULES_PLATFORM_ALIGNMENT.md`  
+**Runbook:** `docs/clickaton/CLICKATON_FINAL_LIVE_E2E_RUNBOOK.md`
 
 ---
 
-## Veredicto final (10E.1)
+## Veredicto (10G.0)
 
 ```text
-CLICKATON COMMERCIAL UI READY — PRODUCT MEDIA HUMAN UPLOAD REQUIRED
+CLICKATON REGISTRATION SALES BLOCKED
 ```
 
-Implementación técnica de oferta comercial visible: **lista** (regla 100+30/08, copy dinámico, talles, panel allocations genérico, admin media R2).  
-Bloqueo restante de oferta: **archivos reales** (foto remera + guía talles) aún no cargados.
+Rules alignment global puede seguir PARTIAL. Post-evento (CLF/royalties) **no** bloquea venta.
 
-No aplica `CLICKATON COMMERCIAL OFFER READY` hasta media humana.  
-No aplica `CLICKATON SALES READY`: siguen LIVE pago, legal, Resend smoke, apertura regs.
+| Capacidad | Estado |
+|-----------|--------|
+| Ficha pública sales (Rosario / horarios / remera) | PASS deploy 10G |
+| MP LIVE config preflight | PASS · execution OFF |
+| Post-pago funnel (evidencia previa) | PASS |
+| LEGAL SALES | **BLOCKED** |
+| Edition DRAFT → REGISTRATION_OPEN | **BLOCKED** (ops) |
+| LIVE + registrationEnabled | OFF a propósito |
+| CONTROLLED LIVE E2E | PENDING auth |
 
----
-
-## BLOCKERS PARA ABRIR VENTAS
-
-| # | Ítem | Estado | Evidencia 10E.1 |
-|---|------|--------|-----------------|
-| 1 | Cobro LIVE Production | **BLOCKED** | Sin cambios; no ejecutar. |
-| 2 | Legal | **BLOCKED** | `LEGAL REVIEW REQUIRED`. |
-| 3 | Media referencia remera | **PASS** | 10D.3: primary dúo + galería hombre/mujer en `/media/remera-clickaton/` (HTTP 200). |
-| 4 | Guía / tabla de talles | **PASS** | SIZE_CHART vertical + DETAIL horizontal reales cargadas. |
-| 5 | Regla first-100 **y** ≤30/08/2026 AR | **PASS** (código) | Ver §4. Migración `benefitDeadlineAt` + seed/reconcile. Aplicar en Staging→Prod con regs cerradas. |
-| 6 | Smoke Resend Production | **BLOCKED** | Vars PRESENT; smoke humano pendiente. |
-| 7 | LIVE E2E pago real | **MISSING** | No autorizado. |
-| 8 | UX venta con remera inequívoca | **PARTIAL** | Copy+UI listos; media humana + regs off impiden validación visual final. |
+No GO de ventas. No cobro LIVE. No apertura de inscripciones.
 
 ---
 
-## IMPORTANTES NO BLOQUEANTES
+## Resumen reglas críticas
 
-| # | Ítem | Estado | Notas |
-|---|------|--------|-------|
-| 1 | Copy público TEST | **PASS** | Landing sin “Ciudad TEST”. |
-| 2 | Plan B financiero DNX 100% | **PASS** | `dnxfotografia@gmail.com` 100%; Tammy fuera. |
-| 3 | Permisos % (grants) | **PASS** | Solo `DNX_FINANCE_OWNER` muta. |
-| 4 | UI panel % genérico | **PASS** | `EditionDistributionEditor`: select recipient ACTIVE, %, suma 100, add/remove, sin Tammy hardcode. |
-| 5 | Producto remera + talles | **PASS** | XS–XXXL catálogo. |
-| 6 | Precios $25k/$30k/$35k | **PASS** | Fechas de fase intactas (beneficio separado). |
-| 7 | Instagram handle | **PASS** | |
-| 8 | Welcome card | **PARTIAL** | Sin cambios 10E.1. |
-| 9 | Stories API | **BLOCKED** | Post-legal. |
-| 10 | Panel pagos en ficha inscripción | **PARTIAL** | Allocation UI en finanzas edición; ficha inscripción sigue parcial. |
+| Área | Estado |
+|------|--------|
+| Schedule 17:00–21:00 + TZ BA + reject @21:00 | PASS (dominio/seed) |
+| 10 consignas + 8/10 elegibilidad | PARTIAL |
+| Remera first-100 / 30/08 | PASS |
+| Royalty 20% / colectivo 0% | PASS (dominio) |
+| Returning / Annual pass / transfer | PARTIAL |
+| CLF sync finalistas + panel retiro | MISSING |
+| Social carousel + likes 72h | PARTIAL (LIVE OFF) |
+| Menores / licencias / términos | PARTIAL + LEGAL REVIEW |
 
 ---
 
-# Detalle 10E.1
-
-## 1. Regla oficial remera — PASS (código)
-
-Canónica:
+## Frases de control
 
 ```text
-benefitEligible =
-  CONFIRMED
-  AND confirmedAt <= 2026-08-30T23:59:59.999-03:00 (America/Argentina/Buenos_Aires)
-  AND confirmedBeneficiaries < stockLimit(100)
+LEGAL APPROVED FOR REGISTRATION
 ```
 
-- Cupo = `stockLimit=100` (no capacity general).
-- N+1 se inscribe sin beneficio; sin capacity error.
-- PENDING+hold = soft anti-oversell; definitivo al confirmar con `FOR UPDATE` + revoke.
-- Corte documentado: **fin de día 30/08/2026 AR** (default ante falta de decisión humana distinta).
-- Selfcheck: `pnpm --filter clickaton selfcheck:first-n-benefit` → **ok**.
-
-Separación:
-
-| Concepto | Campo / ventana |
-|----------|-----------------|
-| Precio / fase | `RegistrationPricePhase` starts/ends ($25k hasta 20/08, etc.) |
-| Beneficio remera | `ClickatonPricePhaseItem.benefitDeadlineAt` + `stockLimit` |
-
-Seed: remera en fases $25k **y** $30k; Fase $35k (desde 06/09) sin remera.
-
-## 2. Copy público — PASS
-
-- Oferta: `Remera Clickatón incluida para los primeros 100 inscriptos con pago confirmado o hasta el 30 de agosto, lo que ocurra primero.`
-- Disponible: `Tu inscripción incluye remera Clickatón.`
-- Agotado/vencido: `La promoción de remera incluida ya finalizó.`
-
-## 3. Media producto — PASS (pipeline) / HUMAN UPLOAD REQUIRED (contenido)
-
-Schema soporta PRIMARY / GALLERY / SIZE_CHART + sortOrder + altText.  
-Admin: subir principal, adicionales, guía; reemplazar; ordenar; borrar → R2 `clickaton/products/...`.  
-Sin inventar medidas ni fotos.
-
-Estados contenido:
-
-```text
-PRODUCT MEDIA HUMAN UPLOAD REQUIRED
-MEDIA CONTENT HUMAN UPLOAD REQUIRED
-```
-
-## 4. Panel allocations — PASS
-
-- Selector recipients ACTIVE (no Tammy-oriented).
-- Add/remove, %, validación suma exacta 100.
-- Reject: &lt;100, &gt;100, duplicate, identity/account inactive, sin payment account ACTIVE.
-- Mutate solo `DNX_FINANCE_OWNER`.
-- Production Plan B intacto: DNX ORGANIZATION 100%.
-
-## 5. Tests selfcheck 10E.1 — PASS
-
-Cubre: first 100, N+1, deadline before/after, race final slot, media upload/replace/delete/reorder wires, frontend size guide + copy, allocation 100/80/120/dup, inactive account source, viewer forbidden.
-
-## 6. Staging / Production
-
-Orden:
-
-1. Migrar `benefitDeadlineAt` en Staging.
-2. Correr seed AR2026 (idempotente) con regs cerradas.
-3. Validar selfcheck + admin UI.
-4. Deploy Production **sin** abrir inscripciones ni LIVE.
-5. Cargar media real solo si hay archivos humanos.
-
-**Ops 10E.1 ejecutado:**
-
-| Paso | Staging (`ep-round-fog` / `neondb`) | Production (`ep-silent-haze` / `clickaton_production`) |
-|------|-------------------------------------|------------------------------------------------------|
-| migrate `benefitDeadlineAt` | PASS | PASS |
-| seed AR2026 (shirt F1+F2, deadline 30/08 AR) | PASS | PASS |
-| `registrationEnabled` | **false** (forzado post-seed; Staging tenía OPEN previo) | **false** |
-| Plan B ACTIVE DNX 100% / owner PA | n/a (Tammy DRAFT no activado) | PASS intacto |
-| media remera / guía | HUMAN UPLOAD REQUIRED | HUMAN UPLOAD REQUIRED |
-| deploy app | PASS `dpl_GANX1…` | PASS `dpl_AJVr…` |
-
-Selfcheck local: `pnpm --filter clickaton selfcheck:first-n-benefit` → **ok**.
+Solo después: activar LIVE flag + E2E controlado según runbook.
 
 ---
 
-## Decisiones humanas abiertas
-
-1. ~~Hora de corte 30/08~~ → default documentado fin de día AR (cambiar solo si hay decisión distinta).  
-2. `LEGAL APPROVED FOR REGISTRATION`.  
-3. Cargar media remera + guía talles reales.  
-4. Smoke Resend humano.  
-5. Autorizar E2E LIVE.  
-6. Cuándo volver % a Tammy.
-
----
-
-**Fin 10E.1 (código)** — pendiente migrate/seed/deploy + upload humano.
+**Fin checklist (10F.0)**

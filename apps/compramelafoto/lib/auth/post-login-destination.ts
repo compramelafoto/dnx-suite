@@ -17,15 +17,13 @@ export type ClfPostLoginRole =
   | string;
 
 /**
- * Rutas de landing por rol.
- * LAB aún no migrado en monorepo → destino seguro `/` (no not-found).
+ * Rutas de landing por rol (paridad Legacy).
  */
 export const CLF_POST_LOGIN_PATHS = {
   ADMIN: "/admin",
   PHOTOGRAPHER: "/fotografo/dashboard",
-  /** Lab no migrado todavía; evitar 404. */
-  LAB: "/",
-  LAB_PHOTOGRAPHER: "/",
+  LAB: "/lab/dashboard",
+  LAB_PHOTOGRAPHER: "/lab/dashboard",
   CUSTOMER: "/cliente/dashboard",
   ORGANIZER: "/organizador/dashboard",
   SCHOOL_ORGANIZER: "/escuela",

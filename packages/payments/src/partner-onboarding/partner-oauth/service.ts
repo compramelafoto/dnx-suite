@@ -14,6 +14,7 @@ import type { PartnerPaymentConnectionStatus } from "../connection-states.js";
 import {
   OAUTH_STATE_TTL_MS,
   isClickatonMpOAuthPkceEnabled,
+  isClickatonOwnerCollectorAccount,
   readClickatonMpOAuthAppConfig,
 } from "../owner-oauth/config.js";
 import {
@@ -429,6 +430,13 @@ export class ClickatonPartnerOAuthService {
       duplicate.status !== "REVOKED" &&
       duplicate.status !== "DISABLED"
     ) {
+      // 10G.2C — collector MP account must be reconnected via owner panel, not partner PERSON FI.
+      if (isClickatonOwnerCollectorAccount(duplicate)) {
+        throw new PartnerOAuthError(
+          "COLLECTOR_ACCOUNT_REQUIRES_OWNER_RECONNECT",
+          "This Mercado Pago account is the Clickatón collector — reconnect from /admin/finanzas/cuenta-owner",
+        );
+      }
       throw new PartnerOAuthError(
         "PAYMENT_ACCOUNT_OWNERSHIP_CONFLICT",
         "Provider account already bound to another user/identity",

@@ -2,6 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
+import { CAMERA_CLOCK_WARNING_ES } from "@/config/editions/argentina-2026";
+import { publicUploadError } from "@/lib/public-ux/public-errors";
+import { presentPhotoSubmissionStatus } from "@/lib/public-ux/status-presentation";
 
 type Props = {
   registrationId: string;
@@ -44,12 +47,13 @@ export function PromptPhotoUpload({
       checklist?: Record<string, unknown>;
     };
     if (!res.ok) {
-      setMessage(json.message ?? json.error ?? "Error al subir");
+      const err = publicUploadError(json.message ?? json.error);
+      setMessage(`${err.title}. ${err.description}`);
       return;
     }
     setStatus(json.status ?? null);
     setChecklist(json.checklist ?? null);
-    setMessage("Archivo recibido. Revisá el checklist y confirmá.");
+    setMessage("Archivo recibido. Revisá el resumen y confirmá el envío.");
   }
 
   async function onConfirm() {
@@ -64,7 +68,8 @@ export function PromptPhotoUpload({
     );
     const json = (await res.json()) as { error?: string; message?: string; status?: string };
     if (!res.ok) {
-      setMessage(json.message ?? json.error ?? "No se pudo confirmar");
+      const err = publicUploadError(json.message ?? json.error);
+      setMessage(`${err.title}. ${err.description}`);
       return;
     }
     setStatus(json.status ?? "CONFIRMED");
@@ -78,29 +83,39 @@ export function PromptPhotoUpload({
           Consigna {sequence}: {title}
         </p>
         <p className="text-xs text-ck-text-muted">
-          Estado envío: {status ?? "sin envío"}
-          {validationResult ? ` · ${validationResult}` : ""}
+          Estado del envío: {presentPhotoSubmissionStatus(status)}
+          {validationResult && !/^[A-Z][A-Z0-9_]{2,}$/.test(validationResult)
+            ? ` · ${validationResult}`
+            : ""}
         </p>
       </div>
 
       {canUpload ? (
-        <label className="block text-sm">
-          <span className="sr-only">Seleccionar fotografía</span>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/*"
-            capture="environment"
-            disabled={pending}
-            className="block w-full text-sm"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              startTransition(() => {
-                void onUpload(file, status === "CONFIRMED");
-              });
-            }}
-          />
-        </label>
+        <div className="space-y-3">
+          <p
+            className="rounded-lg border border-ck-yellow/40 bg-ck-yellow/10 px-4 py-3 text-sm leading-relaxed text-ck-text"
+            role="note"
+          >
+            {CAMERA_CLOCK_WARNING_ES}
+          </p>
+          <label className="block text-sm">
+            <span className="sr-only">Seleccionar fotografía</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/*"
+              capture="environment"
+              disabled={pending}
+              className="block w-full text-sm"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                startTransition(() => {
+                  void onUpload(file, status === "CONFIRMED");
+                });
+              }}
+            />
+          </label>
+        </div>
       ) : (
         <p className="text-sm text-ck-text-muted">Carga no disponible en este momento.</p>
       )}
@@ -108,9 +123,9 @@ export function PromptPhotoUpload({
       {checklist ? (
         <dl className="grid gap-1 text-xs text-ck-text-secondary sm:grid-cols-2">
           <div>Dimensiones: {String(checklist.width)}×{String(checklist.height)}</div>
-          <div>Captura: {String(checklist.captureDate ?? "sin EXIF")}</div>
+          <div>Fecha de captura: {String(checklist.captureDate ?? "no detectada")}</div>
           <div>Cámara: {String(checklist.camera ?? "—")}</div>
-          <div>GPS: {String(checklist.gps ?? "—")}</div>
+          <div>Ubicación: {String(checklist.gps ?? "—")}</div>
         </dl>
       ) : null}
 
@@ -121,8 +136,8 @@ export function PromptPhotoUpload({
           </p>
           <Button
             type="button"
-            size="sm"
             variant="primary"
+            className="min-h-11 w-full sm:w-auto"
             disabled={pending}
             onClick={() => startTransition(() => void onConfirm())}
           >

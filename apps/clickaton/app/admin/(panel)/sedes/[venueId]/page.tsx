@@ -71,7 +71,7 @@ export default async function VenueDetailPage({ params, searchParams }: Props) {
             </dd>
           </div>
           <div>
-            <dt className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">Slug</dt>
+            <dt className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">Identificador de URL</dt>
             <dd className="text-sm text-ck-text">{venue.slug}</dd>
           </div>
           <div>

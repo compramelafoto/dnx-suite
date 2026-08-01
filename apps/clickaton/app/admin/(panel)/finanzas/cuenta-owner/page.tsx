@@ -1,20 +1,28 @@
-import { notFound } from "next/navigation";
+import Link from "next/link";
 import {
   CLICKATON_MP_NOTIFICATION_URLS,
   CLICKATON_MP_REDIRECTS,
   OWNER_OAUTH_MANUAL_AUTHORIZATION_PHRASE,
   OWNER_PANEL_UI_MESSAGES,
   hydrateClickatonProductionPaymentReadiness,
+  isClickatonMpOAuthPkceEnabled,
   isOwnerOnboardingEnabled,
   isOwnerOAuthManuallyAuthorized,
   readClickatonMpOAuthAppConfig,
   type OwnerPanelViewModel,
 } from "@repo/payments";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
 import { OwnerMpConnectActions } from "@/components/admin/OwnerMpConnectActions";
+import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { loadFinanceActor } from "@/lib/admin/edition-finance/infrastructure/load-finance-actor";
+import {
+  financeToneToBadgeVariant,
+  presentMpConnectionStatus,
+  presentPaymentEnvironment,
+} from "@/lib/admin/edition-finance/ui/finance-status-presentation";
 import { createOwnerOAuthRuntime } from "@/lib/admin/mp-owner-oauth/runtime";
 import { adminRoutes } from "@/config/admin/navigation";
 
@@ -42,7 +50,41 @@ export default async function OwnerMpAccountPage() {
   });
 
   if (!isOwnerOnboardingEnabled()) {
-    notFound();
+    return (
+      <div className="min-w-0 space-y-8">
+        <AdminPageHeader
+          title="Cuenta que recibirá los pagos"
+          description="Administrá la cuenta receptora de los pagos cuando esta función esté habilitada."
+          breadcrumbs={[
+            { label: "Finanzas", href: adminRoutes.financeOwner },
+            { label: "Cuenta receptora" },
+          ]}
+        />
+        <Card variant="outlined" className="space-y-4 p-5 text-sm text-ck-text-secondary md:p-6">
+          <h2 className="text-base font-semibold text-ck-text-primary">
+            Panel de cuenta receptora no habilitado
+          </h2>
+          <p>
+            Este panel estará disponible cuando se habilite la función de incorporación de
+            la cuenta receptora. No se modificó ninguna configuración de cobro.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={adminRoutes.financePartner}
+              className="inline-flex min-h-11 items-center rounded-md border border-ck-border px-4 font-medium text-ck-text-primary hover:border-ck-yellow hover:text-ck-yellow"
+            >
+              Ir a Mi cuenta de cobro
+            </Link>
+            <Link
+              href="/admin/integraciones/diagnostico"
+              className="inline-flex min-h-11 items-center rounded-md border border-ck-border px-4 font-medium text-ck-text-primary hover:border-ck-yellow hover:text-ck-yellow"
+            >
+              Ver diagnóstico de integraciones
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
   }
 
   const app = readClickatonMpOAuthAppConfig();
@@ -60,138 +102,152 @@ export default async function OwnerMpAccountPage() {
   });
   const manual = isOwnerOAuthManuallyAuthorized();
   const connectEnabled = app.configured && manual;
+  const connection = presentMpConnectionStatus(panel?.status ?? "NOT_CONNECTED");
+  const environment = presentPaymentEnvironment(panel?.environment ?? "LIVE");
+  const pkceOn = isClickatonMpOAuthPkceEnabled();
+
+  const operationalMessages = (
+    panel?.messages?.length
+      ? panel.messages
+      : [
+          OWNER_PANEL_UI_MESSAGES.noCharges,
+          OWNER_PANEL_UI_MESSAGES.partnersPending,
+          OWNER_PANEL_UI_MESSAGES.ordersOff,
+          OWNER_PANEL_UI_MESSAGES.distributionUnpublished,
+          ...(!manual
+            ? [
+                "La conexión real está bloqueada hasta una autorización manual explícita del responsable.",
+              ]
+            : []),
+        ]
+  ).map((msg) =>
+    msg
+      .replace(/OAuth real/gi, "conexión real")
+      .replace(/collector/gi, "receptora")
+      .replace(/\bOrders\b/g, "Cobros productivos"),
+  );
 
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-8">
       <AdminPageHeader
-        title="Cuenta owner Mercado Pago"
-        description="Conexión de la cuenta exclusiva de Clickatón. No activa cobros ni Orders productivo."
+        title="Cuenta que recibirá los pagos"
+        description="Conectá la cuenta de Mercado Pago de Clickatón. Esta pantalla no activa cobros por sí sola."
         breadcrumbs={[
           { label: "Finanzas", href: adminRoutes.financeOwner },
-          { label: "Cuenta owner" },
+          { label: "Cuenta receptora" },
         ]}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={financeToneToBadgeVariant(connection.tone)}>
+              {connection.label}
+            </Badge>
+            <Badge variant={financeToneToBadgeVariant(environment.tone)}>
+              {environment.label}
+            </Badge>
+          </div>
+        }
       />
 
-      <Card variant="outlined" className="space-y-4 text-sm text-ck-text-secondary">
-        <p className="font-medium text-ck-text-primary">
+      <Card variant="outlined" className="space-y-4 p-5 text-sm text-ck-text-secondary md:p-6">
+        <p className="text-base font-medium text-ck-text-primary">
           {connected
-            ? "Cuenta owner conectada"
-            : OWNER_PANEL_UI_MESSAGES.notConnected}
+            ? "Cuenta de Mercado Pago conectada"
+            : "Todavía no conectaste una cuenta"}
+        </p>
+        <p className="rounded-md border border-ck-yellow/40 bg-ck-yellow/10 px-3 py-2 text-ck-text">
+          Volvé a conectar o desconectá la cuenta receptora solo desde este panel. No uses
+          «Mi cuenta de cobro» para la cuenta principal: esa ruta es para cuentas personales
+          y puede generar conflictos.
         </p>
         <ul className="list-disc space-y-2 pl-5">
-          {(panel?.messages?.length
-            ? panel.messages
-            : [
-                OWNER_PANEL_UI_MESSAGES.noCharges,
-                OWNER_PANEL_UI_MESSAGES.partnersPending,
-                OWNER_PANEL_UI_MESSAGES.ordersOff,
-                OWNER_PANEL_UI_MESSAGES.distributionUnpublished,
-                ...(!manual ? [OWNER_PANEL_UI_MESSAGES.awaitManualAuth] : []),
-              ]
-          ).map((msg) => (
+          {operationalMessages.map((msg) => (
             <li key={msg}>{msg}</li>
           ))}
         </ul>
+        <p className="text-xs text-ck-text-muted">
+          {/* FINANCE_REVIEW */}
+          Conectar una cuenta no redefine por sí sola la titularidad legal ni las
+          obligaciones fiscales de los cobros. <span className="font-mono">FINANCE_REVIEW</span>
+        </p>
       </Card>
 
-      <Card variant="outlined" className="space-y-3 text-sm">
-        <h2 className="text-base font-semibold text-ck-text-primary">Estado</h2>
-        <dl className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <dt className="text-ck-text-muted">Entorno</dt>
-            <dd>{panel?.environment ?? "LIVE / PROD (objetivo)"}</dd>
-          </div>
-          <div>
-            <dt className="text-ck-text-muted">Cuenta</dt>
+      <Card variant="outlined" className="space-y-3 p-5 text-sm md:p-6">
+        <h2 className="text-base font-semibold text-ck-text-primary">Resumen operativo</h2>
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <div className="min-w-0 space-y-1">
+            <dt className="text-ck-text-muted">Cuenta de Mercado Pago</dt>
             <dd>
               {connected
                 ? `Conectada${panel?.accountMasked ? ` (${panel.accountMasked})` : ""}`
                 : "No conectada"}
             </dd>
           </div>
-          <div>
-            <dt className="text-ck-text-muted">Estado OAuth</dt>
-            <dd>{panel?.status ?? "NOT_CONNECTED"}</dd>
+          <div className="min-w-0 space-y-1">
+            <dt className="text-ck-text-muted">Estado de la conexión</dt>
+            <dd>{connection.label}</dd>
           </div>
-          <div>
-            <dt className="text-ck-text-muted">App MP dedicada</dt>
+          <div className="min-w-0 space-y-1">
+            <dt className="text-ck-text-muted">Entorno</dt>
+            <dd>{environment.label}</dd>
+          </div>
+          <div className="min-w-0 space-y-1">
+            <dt className="text-ck-text-muted">Aplicación de Mercado Pago</dt>
             <dd>
               {app.configured
                 ? "Credenciales presentes"
-                : `Faltan: ${app.missing.join(", ")}`}
+                : "Faltan credenciales de la aplicación"}
             </dd>
           </div>
-          <div>
-            <dt className="text-ck-text-muted">Application ID (client_id)</dt>
-            <dd className="font-mono text-xs break-all">
-              {process.env.CLICKATON_MP_CLIENT_ID?.trim() || "—"}
-            </dd>
+          <div className="min-w-0 space-y-1">
+            <dt className="text-ck-text-muted">Autorización manual</dt>
+            <dd>{manual ? "Confirmada" : "Pendiente"}</dd>
           </div>
-          <div>
-            <dt className="text-ck-text-muted">Redirect URI que enviamos</dt>
-            <dd className="font-mono text-xs break-all">
-              {app.redirectUri || CLICKATON_MP_REDIRECTS.production}
-            </dd>
+          <div className="min-w-0 space-y-1">
+            <dt className="text-ck-text-muted">Preparación para pruebas internas</dt>
+            <dd>{readiness.readyForDryRun ? "Lista" : "Incompleta"}</dd>
           </div>
-          <div>
-            <dt className="text-ck-text-muted">PKCE en authorize</dt>
-            <dd>
-              {(process.env.CLICKATON_MP_OAUTH_USE_PKCE ?? "true").trim() ===
-              "false"
-                ? "OFF"
-                : "ON"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-ck-text-muted">Autorización manual OAuth</dt>
-            <dd>{manual ? "Presente" : "Pendiente"}</dd>
-          </div>
-          <div>
-            <dt className="text-ck-text-muted">Readiness dry-run</dt>
-            <dd>{readiness.readyForDryRun ? "sí" : "no"}</dd>
-          </div>
-          <div className="sm:col-span-2">
+          <div className="min-w-0 space-y-1 sm:col-span-2">
             <dt className="text-ck-text-muted">Bloqueos</dt>
             <dd className="break-words">
-              {readiness.blockers.join(", ") || "ninguno"}
+              {readiness.blockers.length > 0
+                ? readiness.blockers.join(" · ")
+                : "Ninguno en esta verificación"}
             </dd>
           </div>
         </dl>
       </Card>
 
       {!connected ? (
-        <Card variant="outlined" className="space-y-3 text-sm border-amber-500/40 bg-amber-500/5">
+        <Card
+          variant="outlined"
+          className="space-y-3 border-amber-500/40 bg-amber-500/5 p-5 text-sm md:p-6"
+        >
           <h2 className="text-base font-semibold text-ck-text-primary">
-            Si Mercado Pago dice “aplicación no preparada”
+            Si Mercado Pago dice que la aplicación no está preparada
           </h2>
           <p className="text-ck-text-secondary">
-            Ese mensaje lo muestra Mercado Pago Developers, no Clickatón. En la
-            app cuyo Application ID coincide con el de arriba, en{" "}
-            <strong>Editar → URLs de redireccionamiento</strong>, cargá
-            exactamente:
-          </p>
-          <p className="font-mono text-xs break-all text-ck-text-primary">
-            {app.redirectUri || CLICKATON_MP_REDIRECTS.production}
+            Ese mensaje lo muestra Mercado Pago, no Clickatón. En la aplicación de
+            desarrolladores, en URLs de redireccionamiento, cargá exactamente la URL
+            indicada en información técnica (sin barra final y con https).
           </p>
           <ul className="list-disc space-y-2 pl-5 text-ck-text-secondary">
-            <li>Sin barra final, sin www, https exacto.</li>
+            <li>Guardá los cambios en Mercado Pago.</li>
+            <li>Volvé a intentar «Conectar Mercado Pago».</li>
             <li>
-              Si en esa app tenés PKCE habilitado, en Vercel debe estar{" "}
-              <code>CLICKATON_MP_OAUTH_USE_PKCE=true</code> (ahora está OFF).
+              Si el problema continúa, revisá la información técnica o pedí soporte.
             </li>
-            <li>
-              Si PKCE está deshabilitado en MP, dejá el flag en false (estado
-              actual).
-            </li>
-            <li>Guardá la app y reintentá “Conectar Mercado Pago”.</li>
           </ul>
         </Card>
       ) : null}
 
-      <Card variant="outlined" className="space-y-4 text-sm">
+      <Card variant="outlined" className="space-y-4 p-5 md:p-6">
         <h2 className="text-base font-semibold text-ck-text-primary">
-          {connected ? "Cuenta Mercado Pago" : "Conectar Mercado Pago"}
+          {connected ? "Cuenta de Mercado Pago conectada" : "Conectar Mercado Pago"}
         </h2>
+        <p className="text-sm text-ck-text-secondary">
+          Conectá la cuenta de Mercado Pago que recibirá los pagos de las inscripciones
+          cuando la distribución la utilice como cuenta receptora.
+        </p>
         <OwnerMpConnectActions
           connected={connected}
           canConnect={panel?.canConnect ?? true}
@@ -202,34 +258,66 @@ export default async function OwnerMpAccountPage() {
         />
         {panel === null ? (
           <p className="text-xs text-ck-text-muted">
-            Solo un usuario con permiso DNX_FINANCE_OWNER puede conectar o
-            desconectar la cuenta owner.
+            Solo un usuario con permiso de administración financiera de la suite puede
+            conectar o desconectar esta cuenta.
           </p>
         ) : null}
       </Card>
 
-      <Card variant="outlined" className="space-y-2 text-sm text-ck-text-muted">
-        <p>Redirects documentados (configurar en panel MP):</p>
-        <p className="font-mono text-xs break-all">
-          {CLICKATON_MP_REDIRECTS.staging}
-        </p>
-        <p className="font-mono text-xs break-all">
-          {CLICKATON_MP_REDIRECTS.production}
-        </p>
-        <p className="pt-2">Notification URLs:</p>
-        <p className="font-mono text-xs break-all">
-          {CLICKATON_MP_NOTIFICATION_URLS.staging}
-        </p>
-        <p className="font-mono text-xs break-all">
-          {CLICKATON_MP_NOTIFICATION_URLS.production}
-        </p>
-        <p className="pt-4 text-ck-text-secondary">
-          Para autorizar OAuth real, Daniel debe confirmar exactamente:
-        </p>
-        <p className="font-mono text-xs text-ck-text-primary">
-          {OWNER_OAUTH_MANUAL_AUTHORIZATION_PHRASE}
-        </p>
-      </Card>
+      <AdminTechnicalInfo
+        description="Datos para soporte y configuración avanzada. Cerrado por defecto. Sin secretos."
+        rows={[
+          {
+            label: "Estado interno de conexión",
+            value: panel?.status ?? "NOT_CONNECTED",
+            mono: true,
+          },
+          {
+            label: "Application ID configurado",
+            value: app.clientIdPresent ? "Sí (valor solo en configuración del servidor)" : "No",
+          },
+          {
+            label: "URL de retorno que enviamos",
+            value: app.redirectUri || CLICKATON_MP_REDIRECTS.production,
+            mono: true,
+            copyText: app.redirectUri || CLICKATON_MP_REDIRECTS.production,
+          },
+          {
+            label: "Protección de autorización (PKCE)",
+            value: pkceOn ? "Activa" : "Desactivada",
+          },
+          {
+            label: "Credenciales faltantes",
+            value: app.missing.length ? app.missing.join(", ") : "Ninguna",
+            mono: true,
+          },
+          {
+            label: "Redirect staging",
+            value: CLICKATON_MP_REDIRECTS.staging,
+            mono: true,
+          },
+          {
+            label: "Redirect producción",
+            value: CLICKATON_MP_REDIRECTS.production,
+            mono: true,
+          },
+          {
+            label: "URL de notificaciones (staging)",
+            value: CLICKATON_MP_NOTIFICATION_URLS.staging,
+            mono: true,
+          },
+          {
+            label: "URL de notificaciones (producción)",
+            value: CLICKATON_MP_NOTIFICATION_URLS.production,
+            mono: true,
+          },
+          {
+            label: "Frase de autorización manual",
+            value: OWNER_OAUTH_MANUAL_AUTHORIZATION_PHRASE,
+            mono: true,
+          },
+        ]}
+      />
     </div>
   );
 }

@@ -1,0 +1,330 @@
+{
+  "h1": [
+    {
+      "profile": "participantConfirmed",
+      "href": "/mi-cuenta/inscripciones/cmsa4su8p0008itp1f5jnj0kv",
+      "url": "/mi-cuenta/inscripciones/cmsa4su8p0008itp1f5jnj0kv",
+      "h1s": [
+        "Inscripción de TEST UX Confirmado"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Clickatón — Maratón Fotográfica Internacional"
+    },
+    {
+      "profile": "participantEmpty",
+      "note": "no detail link"
+    }
+  ],
+  "auth": {
+    "anonCuentaOwner": {
+      "url": "/login?next=%2Fadmin%2Ffinanzas%2Fcuenta-owner",
+      "h1s": [
+        "Iniciar sesión"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Clickatón — Maratón Fotográfica Internacional"
+    },
+    "nopermCuentaOwner": {
+      "url": "/admin/acceso-denegado",
+      "h1s": [
+        "No tenés permiso para acceder a esta sección"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Panel admin — Clickatón"
+    },
+    "participantLogin": {
+      "finalUrl": "/mi-cuenta"
+    },
+    "miCuenta": {
+      "url": "/mi-cuenta",
+      "h1s": [
+        "Hola, TEST UX Participante Confirmado"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Clickatón — Maratón Fotográfica Internacional"
+    },
+    "detailLinks": [
+      "/mi-cuenta/inscripciones/cmsa4su8p0008itp1f5jnj0kv"
+    ],
+    "participantEmptyLogin": {
+      "finalUrl": "/mi-cuenta"
+    },
+    "emptyDetailLinks": [],
+    "adminLogin": {
+      "finalUrl": "/mi-cuenta"
+    },
+    "nopermLogin": {
+      "finalUrl": "/mi-cuenta"
+    }
+  },
+  "mobile": [
+    {
+      "route": "/mi-cuenta/inscripciones/cmsa4su8p0008itp1f5jnj0kv",
+      "w": 320,
+      "h": 568,
+      "n": "320",
+      "overflowX": false,
+      "h1": "Inscripción de TEST UX Confirmado"
+    },
+    {
+      "route": "/mi-cuenta/inscripciones/cmsa4su8p0008itp1f5jnj0kv",
+      "w": 390,
+      "h": 844,
+      "n": "390",
+      "overflowX": false,
+      "h1": "Inscripción de TEST UX Confirmado"
+    },
+    {
+      "route": "/admin/finanzas/cuenta-owner",
+      "w": 320,
+      "h": 568,
+      "n": "320",
+      "overflowX": false,
+      "h1": "Cuenta que recibirá los pagos"
+    },
+    {
+      "route": "/admin/finanzas/cuenta-owner",
+      "w": 360,
+      "h": 800,
+      "n": "360",
+      "overflowX": false,
+      "h1": "Cuenta que recibirá los pagos"
+    },
+    {
+      "route": "/admin/finanzas/cuenta-owner",
+      "w": 390,
+      "h": 844,
+      "n": "390",
+      "overflowX": false,
+      "h1": "Cuenta que recibirá los pagos"
+    },
+    {
+      "route": "/admin/finanzas/cuenta-owner",
+      "w": 430,
+      "h": 932,
+      "n": "430",
+      "overflowX": false,
+      "h1": "Cuenta que recibirá los pagos"
+    },
+    {
+      "route": "/admin/finanzas/cuenta-owner",
+      "w": 768,
+      "h": 1024,
+      "n": "tablet",
+      "overflowX": false,
+      "h1": "Cuenta que recibirá los pagos"
+    },
+    {
+      "route": "/admin/finanzas/cuenta-owner",
+      "w": 1280,
+      "h": 800,
+      "n": "desktop",
+      "overflowX": false,
+      "h1": "Cuenta que recibirá los pagos"
+    }
+  ],
+  "smoke": [
+    {
+      "path": "/api/public/health/db",
+      "status": 200,
+      "location": null,
+      "json": {
+        "ok": true,
+        "source": "prisma",
+        "databaseHostHint": "ep-round-fog-a4xgibtv-pooler",
+        "hasDirectUrl": true,
+        "publishedEditions": 12
+      }
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "location": null,
+      "meta": {
+        "canonical": "https://clickaton-staging.vercel.app",
+        "og:url": "https://clickaton-staging.vercel.app"
+      },
+      "hosts": {
+        "maratonfotografica.com": 0,
+        "clickaton-dnxsuite": 0,
+        "localhost": 0,
+        "clickaton-staging.vercel.app": 8
+      }
+    },
+    {
+      "path": "/maratones",
+      "status": 200,
+      "location": null
+    },
+    {
+      "path": "/maratones/clickaton-argentina-2026",
+      "status": 200,
+      "location": null,
+      "meta": {
+        "canonical": "https://clickaton-staging.vercel.app/maratones/clickaton-argentina-2026",
+        "og:url": "https://clickaton-staging.vercel.app/maratones/clickaton-argentina-2026"
+      },
+      "hosts": {
+        "maratonfotografica.com": 0,
+        "clickaton-dnxsuite": 0,
+        "localhost": 0,
+        "clickaton-staging.vercel.app": 8
+      }
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "location": null,
+      "meta": {
+        "canonical": "https://clickaton-staging.vercel.app",
+        "og:url": "https://clickaton-staging.vercel.app"
+      },
+      "hosts": {
+        "maratonfotografica.com": 0,
+        "clickaton-dnxsuite": 0,
+        "localhost": 0,
+        "clickaton-staging.vercel.app": 8
+      }
+    },
+    {
+      "path": "/mi-cuenta",
+      "status": 200,
+      "location": null
+    },
+    {
+      "path": "/admin",
+      "status": 307,
+      "location": "/login?next=%2Fadmin"
+    },
+    {
+      "path": "/admin/inscripciones",
+      "status": 307,
+      "location": "/login?next=%2Fadmin%2Finscripciones"
+    },
+    {
+      "path": "/admin/finanzas/cuenta-owner",
+      "status": 307,
+      "location": "/login?next=%2Fadmin%2Ffinanzas%2Fcuenta-owner"
+    },
+    {
+      "path": "/admin/integraciones",
+      "status": 307,
+      "location": "/login?next=%2Fadmin%2Fintegraciones"
+    },
+    {
+      "path": "/admin/integraciones/diagnostico",
+      "status": 307,
+      "location": "/login?next=%2Fadmin%2Fintegraciones%2Fdiagnostico"
+    },
+    {
+      "path": "/ruta-inexistente-xyz",
+      "status": 404,
+      "location": null
+    },
+    {
+      "path": "/admin/ruta-inexistente-xyz",
+      "status": 404,
+      "location": null
+    }
+  ],
+  "health": {
+    "ok": true,
+    "host": "ep-round-fog-a4xgibtv-pooler",
+    "editions": 12
+  },
+  "canonical": {
+    "canonical": "https://clickaton-staging.vercel.app",
+    "ogUrl": "https://clickaton-staging.vercel.app"
+  },
+  "hosts": {
+    "maratonfotografica": 0,
+    "clickatonStaging": 8,
+    "localhost": 0,
+    "clickatonDnxsuite": 0
+  },
+  "deploy": {
+    "id": "dpl_B5EDq4UE5FJ5R2yKS7NSj45zNLKr",
+    "alias": "https://clickaton-staging.vercel.app",
+    "url": "https://clickaton-staging-3nikju408-compramelafotos-projects.vercel.app"
+  },
+  "probedAt": "2026-08-01Tpost-h1-redeploy",
+  "routes": [
+    {
+      "role": "admin",
+      "route": "/admin",
+      "url": "/admin",
+      "h1s": [
+        "Inicio del panel"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Panel admin — Clickatón",
+      "snippet": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Sponsors y beneficios Mensajes SISTEMA Configuración Finanzas · mi cuenta de cobro Integraciones V"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/inscripciones",
+      "url": "/admin/inscripciones",
+      "h1s": [
+        "Inscripciones"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Panel admin — Clickatón",
+      "snippet": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Sponsors y beneficios Mensajes SISTEMA Configuración Finanzas · mi cuenta de cobro Integraciones V"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/finanzas/cuenta-owner",
+      "url": "/admin/finanzas/cuenta-owner",
+      "h1s": [
+        "Cuenta que recibirá los pagos"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Panel admin — Clickatón",
+      "snippet": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Sponsors y beneficios Mensajes SISTEMA Configuración Finanzas · mi cuenta de cobro Integraciones V"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/finanzas",
+      "url": "/admin/finanzas",
+      "h1s": [
+        "No encontramos esta página"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Clickatón — Maratón Fotográfica Internacional",
+      "snippet": "PÁGINA NO DISPONIBLE NO ENCONTRAMOS ESTA PÁGINA Es posible que el enlace haya cambiado o que la sección ya no esté disponible. Volver al inicio Ir a Mi cuenta"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/integraciones",
+      "url": "/admin/integraciones",
+      "h1s": [
+        "Integraciones"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Panel admin — Clickatón",
+      "snippet": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Sponsors y beneficios Mensajes SISTEMA Configuración Finanzas · mi cuenta de cobro Integraciones V"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/integraciones/diagnostico",
+      "url": "/admin/integraciones/diagnostico",
+      "h1s": [
+        "Diagnóstico de integraciones"
+      ],
+      "count": 1,
+      "empty": false,
+      "title": "Panel admin — Clickatón",
+      "snippet": "PANEL OPERATIVO Inicio Ediciones Banners del inicio Sedes Productos y kits Inscripciones Códigos promocionales Publicaciones y comunicaciones Sponsors y beneficios Mensajes SISTEMA Configuración Finanzas · mi cuenta de cobro Integraciones V"
+    }
+  ],
+  "validatedAt": "2026-08-01T10:50:15.246Z"
+}

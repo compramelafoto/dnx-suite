@@ -62,7 +62,7 @@ export function StockAdjustForm({
 
       <AdminForm
         title={`Ajustar stock — ${variantName}`}
-        description="No edita el reservado. El disponible MVP es stock − reservado. Motivo obligatorio (auditoría)."
+        description="No modifica el stock reservado. El disponible actual es stock menos reservado. El motivo es obligatorio para auditoría."
         footer={
           <>
             {onCancel ? (

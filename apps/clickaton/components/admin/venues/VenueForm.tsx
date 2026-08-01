@@ -109,7 +109,13 @@ export function VenueForm({
           />
         </Field>
 
-        <Field id="slug" label="Slug" required error={state?.errors?.slug}>
+        <Field
+          id="slug"
+          label="Identificador de URL"
+          required
+          error={state?.errors?.slug}
+          hint="Se usa en enlaces internos. No es el nombre visible de la sede."
+        >
           <Input
             name="slug"
             value={values.slug}

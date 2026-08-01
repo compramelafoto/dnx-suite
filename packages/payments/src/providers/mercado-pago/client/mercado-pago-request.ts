@@ -19,4 +19,9 @@ export interface MercadoPagoRequestOptions {
    * No se loguea; reemplaza el Bearer del config para esta request.
    */
   accessTokenOverride?: string;
+  /**
+   * Orders total refund: MP sandbox accepts an empty body string more reliably
+   * than omitting the body entirely (Imp 05 evidence).
+   */
+  emptyBody?: boolean;
 }

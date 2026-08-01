@@ -14,7 +14,7 @@ type Props = {
 
 export function AdminBreadcrumbs({ items, className }: Props) {
   const crumbs: AdminBreadcrumbItem[] = [
-    { label: "Admin", href: adminRoutes.dashboard },
+    { label: "Inicio", href: adminRoutes.dashboard },
     ...items,
   ];
 

@@ -59,6 +59,11 @@ export interface MpOrderCreateRequest {
     quantity?: number;
     unit_price?: string;
   }>;
+  /**
+   * Do NOT put catalog `items` under additional_info — sandbox MP rejects
+   * `additional_info.items` (Imp 05). Use top-level `items` only.
+   */
+  additional_info?: Record<string, unknown>;
   shipment?: { address?: Record<string, string> };
   integration_data?: {
     integrator_id?: string;

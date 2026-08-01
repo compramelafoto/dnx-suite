@@ -84,8 +84,15 @@ export class MercadoPagoHttpClient {
 
   async request<T>(opts: MercadoPagoRequestOptions): Promise<ParsedMpResponse<T>> {
     if (WRITE_METHODS.has(opts.method)) {
-      assertSandboxWriteAllowed(this.config);
-      assertSandboxToken(this.config);
+      if (this.config.environment === "production") {
+        if (!this.config.allowProductionWrites) {
+          assertSandboxWriteAllowed(this.config);
+        }
+        // LIVE path: sandbox token shape is not required (collector OAuth).
+      } else {
+        assertSandboxWriteAllowed(this.config);
+        assertSandboxToken(this.config);
+      }
     }
 
     let lastError: Error | null = null;
@@ -151,8 +158,12 @@ export class MercadoPagoHttpClient {
   private async executeOnce<T>(opts: MercadoPagoRequestOptions): Promise<ParsedMpResponse<T>> {
     const correlationId = opts.correlationId ?? crypto.randomUUID();
     const bearer = opts.accessTokenOverride?.trim() || this.config.accessToken;
-    if (opts.accessTokenOverride?.trim() && WRITE_METHODS.has(opts.method)) {
-      // Collector OAuth también debe ser sandbox en path TEST.
+    if (
+      this.config.environment === "sandbox" &&
+      opts.accessTokenOverride?.trim() &&
+      WRITE_METHODS.has(opts.method)
+    ) {
+      // Collector OAuth también debe ser sandbox-eligible en path TEST.
       assertSandboxToken({ ...this.config, accessToken: bearer });
     }
     const headers: Record<string, string> = {
@@ -182,7 +193,9 @@ export class MercadoPagoHttpClient {
         signal: controller.signal,
       };
 
-      if (opts.body !== undefined && opts.method !== "GET") {
+      if (opts.emptyBody && opts.method !== "GET") {
+        init.body = "";
+      } else if (opts.body !== undefined && opts.method !== "GET") {
         init.body = JSON.stringify(opts.body);
       }
 

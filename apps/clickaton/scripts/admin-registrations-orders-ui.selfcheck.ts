@@ -55,12 +55,18 @@ async function main() {
 
   const listPage = file("app/admin/(panel)/inscripciones/page.tsx");
   assert(listPage.includes("listRegistrationsAction"), "list action");
-  assert(listPage.includes("ClickatonRegistration"), "model note");
+  assert(listPage.includes("RegistrationListMobileCard"), "mobile cards");
+  assert(listPage.includes("presentAdminOperationalSummary"), "operational summary");
+  assert(!listPage.includes("min-w-[640px]"), "no wide min-width table");
   assert(!listPage.includes('href="/admin/ordenes"'), "no broken orders link");
 
   const detailPage = file("app/admin/(panel)/inscripciones/[registrationId]/page.tsx");
   assert(detailPage.includes("RegistrationTransitionButtons"), "transitions");
-  assert(detailPage.includes("soft refs"), "soft payment");
+  assert(detailPage.includes("AdminTechnicalInfo"), "technical info collapsed block");
+  assert(detailPage.includes("Inscripción de"), "human detail title");
+  assert(!detailPage.includes("min-w-[640px]"), "no wide kit table");
+  assert(!detailPage.includes("DNX Payments"), "no provider jargon in primary UI");
+  assert(!detailPage.includes("Resend ID"), "no Resend ID as primary label");
 
   for (const rel of [
     "components/admin/registrations/RegistrationTransitionButtons.tsx",

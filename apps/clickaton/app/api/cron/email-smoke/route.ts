@@ -1,10 +1,13 @@
 /**
- * Resend smoke Production (10D.3).
+ * Resend smoke Production (10D.3 / 10E.2).
  * Envía 2 emails a destinatario controlado:
- * 1) payment_confirmed
+ * 1) payment_confirmed (fecha 19/09/2026, links Production)
  * 2) activación Cuenta DNX (set-password canónico)
  *
- * Auth: Bearer CRON_SECRET | CLICKATON_CRON_SECRET.
+ * Auth:
+ * - Bearer CRON_SECRET | CLICKATON_CRON_SECRET
+ * - o body.opsToken === CLICKATON_EMAIL_SMOKE_TOKEN (ops, no-sensitive)
+ *
  * No abre inscripciones. No toca pagos.
  */
 import { NextResponse } from "next/server";
@@ -15,12 +18,11 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-function authorized(request: Request): boolean {
-  const secret =
-    process.env.CRON_SECRET?.trim() || process.env.CLICKATON_CRON_SECRET?.trim();
-  const auth = request.headers.get("authorization");
-  return Boolean(secret) && auth === `Bearer ${secret}`;
-}
+type SmokeBody = {
+  confirm?: string;
+  to?: string;
+  opsToken?: string;
+};
 
 function presence(name: string): "PRESENT" | "MISSING" {
   return process.env[name]?.trim() ? "PRESENT" : "MISSING";
@@ -35,18 +37,56 @@ function publicBase(): string {
   );
 }
 
-export async function POST(request: Request) {
-  if (!authorized(request)) {
-    return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
-  }
+function authorized(request: Request, body: SmokeBody): boolean {
+  const secret =
+    process.env.CRON_SECRET?.trim() || process.env.CLICKATON_CRON_SECRET?.trim();
+  const auth = request.headers.get("authorization");
+  if (secret && auth === `Bearer ${secret}`) return true;
 
-  let body: { confirm?: string; to?: string };
+  const ops = process.env.CLICKATON_EMAIL_SMOKE_TOKEN?.trim();
+  if (
+    ops &&
+    body.opsToken === ops &&
+    (body.confirm === "RESEND_SMOKE_10E2" || body.confirm === "RESEND_SMOKE_10D3")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+async function resendDeliveryHint(messageId: string | null | undefined): Promise<{
+  lookedUp: boolean;
+  lastEvent: string | null;
+}> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey || !messageId) return { lookedUp: false, lastEvent: null };
   try {
-    body = (await request.json()) as { confirm?: string; to?: string };
+    const res = await fetch(`https://api.resend.com/emails/${messageId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) return { lookedUp: true, lastEvent: `http_${res.status}` };
+    const data = (await res.json().catch(() => ({}))) as {
+      last_event?: string;
+    };
+    return { lookedUp: true, lastEvent: data.last_event ?? null };
+  } catch {
+    return { lookedUp: true, lastEvent: "lookup_error" };
+  }
+}
+
+export async function POST(request: Request) {
+  let body: SmokeBody = {};
+  try {
+    body = (await request.json()) as SmokeBody;
   } catch {
     return NextResponse.json({ ok: false, error: "INVALID_JSON" }, { status: 400 });
   }
-  if (body.confirm !== "RESEND_SMOKE_10D3") {
+
+  if (!authorized(request, body)) {
+    return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+  }
+
+  if (body.confirm !== "RESEND_SMOKE_10D3" && body.confirm !== "RESEND_SMOKE_10E2") {
     return NextResponse.json({ ok: false, error: "CONFIRM_REQUIRED" }, { status: 400 });
   }
 
@@ -69,17 +109,20 @@ export async function POST(request: Request) {
   // Force allow controlled recipient for this smoke only (process-local).
   process.env.CLICKATON_EMAIL_ALLOW_ANY = "true";
 
+  const eventDate = new Date("2026-09-19T12:00:00.000-03:00");
+
   const confirmed = await sendParticipantFunnelEmail({
     kind: "payment_confirmed",
     to,
-    participantName: "Smoke 10D.3",
+    participantName: "Smoke 10E.2",
     editionName: "Clickatón Argentina 2026",
     editionSlug: "clickaton-argentina-2026",
-    registrationId: "smoke-10d3-registration",
+    registrationId: "smoke-10e2-registration",
     amountLabel: "$25.000",
     visibleCode: "CKA26-SMOKE",
     instagramHandle: "@clickaton_smoke",
     paymentStatus: "APPROVED",
+    startAt: eventDate,
     includedItemLabels: ["Remera Clickatón (beneficio first-100 / 30-08)"],
   });
 
@@ -98,16 +141,37 @@ export async function POST(request: Request) {
     "DNX Suite <noreply@dnxsuite.com>";
 
   const stagingLeak =
-    /staging|vercel\.app/i.test(confirmed.html) ||
-    /staging|vercel\.app/i.test(confirmed.text);
+    /staging|vercel\.app|localhost|127\.0\.0\.1/i.test(confirmed.html) ||
+    /staging|vercel\.app|localhost|127\.0\.0\.1/i.test(confirmed.text);
+
+  const hasEventDate =
+    confirmed.html.includes("19/09/2026") ||
+    confirmed.text.includes("19/09/2026") ||
+    confirmed.html.includes("19/9/2026") ||
+    confirmed.text.includes("19/9/2026");
+
+  const confirmedDelivery = await resendDeliveryHint(confirmed.messageId);
+  const activationDelivery = await resendDeliveryHint(
+    activation.emailResult?.messageId ?? null,
+  );
+
+  const activationOk = Boolean(activation.emailResult?.sent);
+
+  const ok =
+    confirmed.sent &&
+    envPresence.RESEND_API_KEY === "PRESENT" &&
+    isProdHost &&
+    !stagingLeak &&
+    hasEventDate;
 
   return NextResponse.json({
-    ok: confirmed.sent && Boolean(activation.emailResult?.sent ?? activation.created),
+    ok,
     envPresence,
     publicBase: base,
     isProdHost,
     fromHint,
     stagingLeak,
+    hasEventDate,
     paymentConfirmed: {
       sent: confirmed.sent,
       skipped: confirmed.skipped,
@@ -116,8 +180,9 @@ export async function POST(request: Request) {
       deliveredTo: confirmed.deliveredTo,
       subject: confirmed.subject,
       hasMaratonHost: confirmed.html.includes("maratonfotografica.com"),
-      hasActivarPath: confirmed.html.includes("/activar"),
       hasMiCuenta: confirmed.html.includes("/mi-cuenta"),
+      hasTestPrefix: confirmed.subject.startsWith("[TEST]"),
+      delivery: confirmedDelivery,
     },
     activation: {
       created: activation.created,
@@ -127,14 +192,26 @@ export async function POST(request: Request) {
       messageId: activation.emailResult?.messageId ?? null,
       resetPath: "/recuperar",
       note:
-        "Set-password DNX usa /recuperar. Página de activación post-pago: /maratones/.../inscripcion/activar/[id].",
-      activarExample: `${base}/maratones/clickaton-argentina-2026/inscripcion/activar/smoke-10d3-registration`,
+        "Set-password DNX usa /recuperar. Página de activación post-pago: /maratones/.../inscripcion/activar/[id]. Sin password automática.",
+      activarExample: `${base}/maratones/clickaton-argentina-2026/inscripcion/activar/smoke-10e2-registration`,
+      loginExample: `${base}/login`,
+      panelExample: `${base}/mi-cuenta`,
+      delivery: activationDelivery,
+      ok: activationOk,
+    },
+    errorTemplatesAudit: {
+      reservation_created: "EXISTS (pending payment / hold)",
+      payment_confirmed: "EXISTS",
+      free_confirmed: "EXISTS",
+      hold_expired: "EXISTS",
+      payment_rejected_failed: "MISSING (no dedicated template)",
+      refund_cancel: "MISSING (no dedicated template)",
     },
     verdict:
-      !confirmed.sent || envPresence.RESEND_API_KEY === "MISSING"
+      !ok
         ? "PRODUCTION EMAIL BLOCKED"
-        : stagingLeak || !isProdHost
-          ? "PRODUCTION EMAIL BLOCKED"
-          : "PRODUCTION EMAIL SMOKE PASS",
+        : activation.emailResult?.sent
+          ? "PRODUCTION EMAIL SMOKE PASS"
+          : "PRODUCTION EMAIL SMOKE PASS — ACTIVATION PARTIAL",
   });
 }

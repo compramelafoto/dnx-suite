@@ -101,7 +101,10 @@ export default async function PlantillasV2ListPage() {
   }));
 
   return (
-    <div className="mx-auto w-full max-w-screen-xl px-5 py-8 sm:px-8 lg:px-12">
+    <div
+      className="mx-auto w-full max-w-screen-xl px-5 py-8 sm:px-8 lg:px-12"
+      data-testid="template-v2-dashboard"
+    >
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-4xl">
           <h1 className="text-2xl font-bold text-[#111827] sm:text-3xl">Plantillas</h1>

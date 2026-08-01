@@ -24,6 +24,7 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 export default async function MarathonsPage() {
+  // Errores de fuente/DB deben llegar al error boundary (no fingir “sin ediciones”).
   const listed = await listPublicMarathons();
   const demo = await getPublicMarathonBySlug("demo");
   const hasPublicEditions = listed.length > 0;

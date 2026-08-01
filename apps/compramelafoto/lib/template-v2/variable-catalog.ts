@@ -6,7 +6,13 @@ export type TemplateV2VariableGroupId =
   | "order"
   | "photographer"
   | "event"
-  | "branding";
+  | "branding"
+  | "participant"
+  | "edition"
+  | "organization"
+  | "sponsors"
+  | "card"
+  | (string & {});
 
 export type TemplateV2VariableValueType = "string" | "date" | "imageUrl" | "qrUrl";
 
@@ -17,7 +23,11 @@ export type TemplateV2VariableFormatterV1 =
   | "uppercase"
   | "titleCase"
   | "truncate"
-  | "date.short";
+  | "date.short"
+  | "date.long"
+  | "date.longUppercase"
+  | "date.dayMonthUppercase"
+  | "participantNumber";
 
 export type TemplateV2VariableDefinition = {
   key: string;
@@ -246,6 +256,7 @@ export const TEMPLATE_V2_VARIABLE_KEYS_V1_REQUIRED: string[] = Object.values(
   .map((v) => v.key);
 
 export function getTemplateV2VariableByKey(key: string): TemplateV2VariableDefinition | undefined {
+  if (!Object.hasOwn(TEMPLATE_V2_VARIABLE_MAP, key)) return undefined;
   return TEMPLATE_V2_VARIABLE_MAP[key];
 }
 

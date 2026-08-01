@@ -1,0 +1,127 @@
+{
+  "canvas": {
+    "width": 1080,
+    "height": 1350,
+    "background": "#ffffff",
+    "dpi": 300,
+    "safeAreaMm": 5,
+    "unknownCanvasField": "preserve-me"
+  },
+  "blocks": [
+    {
+      "id": "legacy-bg-1",
+      "type": "BACKGROUND",
+      "pageIndex": 0,
+      "name": "Fondo",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "width": 1080,
+        "height": 1350,
+        "rotation": 0,
+        "zIndex": 0,
+        "opacity": 1,
+        "locked": true,
+        "visible": true
+      },
+      "configJson": {
+        "backgroundColor": "#f8fafc",
+        "src": "",
+        "fit": "cover"
+      }
+    },
+    {
+      "id": "legacy-text-1",
+      "type": "TEXT",
+      "pageIndex": 0,
+      "name": "Saludo",
+      "layout": {
+        "x": 64,
+        "y": 96,
+        "width": 900,
+        "height": 72,
+        "rotation": 0,
+        "zIndex": 2,
+        "opacity": 1,
+        "locked": false,
+        "visible": true
+      },
+      "configJson": {
+        "content": "E2E ORIGINAL",
+        "fontFamily": "Helvetica",
+        "fontSize": 48,
+        "fontWeight": 700,
+        "lineHeight": 1.2,
+        "letterSpacing": 0,
+        "textAlign": "CENTER",
+        "color": "#0f172a",
+        "unknownStyle": "keep"
+      }
+    },
+    {
+      "id": "legacy-var-1",
+      "type": "VARIABLE_TEXT",
+      "pageIndex": 0,
+      "name": "Alumno",
+      "layout": {
+        "x": 64,
+        "y": 200,
+        "width": 900,
+        "height": 56,
+        "rotation": 0,
+        "zIndex": 3,
+        "opacity": 1,
+        "locked": false,
+        "visible": true
+      },
+      "configJson": {
+        "variableKey": "student.fullName",
+        "fallback": "Nombre completo",
+        "fontFamily": "Helvetica",
+        "fontSize": 36,
+        "fontWeight": 500,
+        "lineHeight": 1.2,
+        "letterSpacing": 0,
+        "textAlign": "CENTER",
+        "color": "#334155"
+      }
+    },
+    {
+      "id": "legacy-shape-1",
+      "type": "SHAPE",
+      "pageIndex": 0,
+      "name": "Rect",
+      "layout": {
+        "x": 240,
+        "y": 420,
+        "width": 600,
+        "height": 160,
+        "rotation": 0,
+        "zIndex": 1,
+        "opacity": 1,
+        "locked": false,
+        "visible": true
+      },
+      "configJson": {
+        "variant": "rectangle",
+        "fill": "#e2e8f0",
+        "stroke": "#64748b",
+        "strokeWidth": 2,
+        "cornerRadius": 12
+      }
+    }
+  ],
+  "variableBindings": [
+    {
+      "id": "legacy-bind-1",
+      "blockId": "legacy-var-1",
+      "targetPath": "variableKey",
+      "variableKey": "student.fullName"
+    }
+  ],
+  "meta": {
+    "templatePageCount": 1,
+    "schoolFolderKind": "tapa",
+    "e2eLegacyFixture": true
+  }
+}

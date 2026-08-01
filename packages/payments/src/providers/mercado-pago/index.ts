@@ -1,16 +1,4 @@
-import type { ProviderCapabilities } from "../types.js";
-
-/**
- * Mercado Pago Orders API Split 1:N adapter capabilities.
- */
-export const MERCADOPAGO_ORDERS_CAPABILITIES: ProviderCapabilities = {
-  supportsSplit1N: true,
-  supportsMarketplaceFee: false,
-  supportsRefundPerRecipient: true,
-  supportsDeviceId: true,
-  supportsSplitConsent: true,
-  supportedCurrencies: ["ARS", "BRL", "USD", "MXN", "CLP", "UYU"],
-};
+export { MERCADOPAGO_ORDERS_CAPABILITIES } from "./capabilities.js";
 
 export { createMercadoPagoProviderConfig } from "./client/mercado-pago-environment.js";
 export type { MercadoPagoProviderConfig, MercadoPagoEnvironment } from "./client/mercado-pago-environment.js";
@@ -40,11 +28,45 @@ export {
   ORDERS_1N_WEBHOOK_OBSERVE_FLAG,
   isOrders1nWebhookObserveEnabled,
 } from "./orders/orders-1n-observe-flag.js";
-export { validateSplitOrderForMercadoPago } from "./orders/validator.js";
+export {
+  validateSplitOrderForMercadoPago,
+  validateMercadoPagoSplitOrder,
+  assertDeviceSessionId,
+} from "./orders/validator.js";
+export {
+  MERCADO_PAGO_SPLIT_1N_MAX_PARTNERS,
+  DEFAULT_MP_SPLIT_AMOUNT_TYPE_STRATEGY,
+  MERCADO_PAGO_STATEMENT_DESCRIPTOR_MAX_LENGTH,
+} from "./orders/constants.js";
+export type { MpSplitAmountTypeStrategy } from "./orders/constants.js";
+export {
+  assertPartnerConsentsForSplitOrder,
+  testActivePartnerConsent,
+  ConsentRequiredError,
+  ConsentExpiredError,
+} from "./orders/consent-evidence.js";
+export type { PartnerConsentEvidence } from "./orders/consent-evidence.js";
+export {
+  validateOrderItems,
+  mapOrderItemsToMercadoPago,
+  singleIntangibleItem,
+  sumOrderItemsMinor,
+} from "./orders/order-items.js";
+export type { OrderItemInput, ItemsTotalRelation } from "./orders/order-items.js";
+export {
+  assertOpaqueExternalReference,
+  buildOpaqueExternalReference,
+} from "./orders/external-reference.js";
+export { normalizePayerEmail } from "./orders/payer.js";
+export {
+  sanitizeStatementDescriptor,
+  resolveStatementDescriptor,
+} from "./orders/statement-descriptor.js";
 export {
   buildMercadoPagoSplitOrderRequest,
   buildSplitEntriesFromDistribution,
   inferAmountType,
+  resolveMpAmountType,
   mapMercadoPagoOrderStatus,
   mapMercadoPagoOrderResponse,
   stablePayloadHash,
@@ -80,3 +102,16 @@ export type {
 export { FakeMercadoPagoHttpClient } from "./testing/fake-client.js";
 export * from "./testing/fixtures.js";
 export * from "./checkout-pro/index.js";
+export {
+  createMercadoPagoOrderRefund,
+  createMercadoPagoRefund,
+  getMercadoPagoRefund,
+  MercadoPagoRefundError,
+  mapMercadoPagoRefundHttpError,
+} from "./refunds/index.js";
+export type {
+  CreateMercadoPagoOrderRefundInput,
+  CreateMercadoPagoOrderRefundResult,
+  MpOrderRefundResponse,
+  MpOrderRefundRequestBody,
+} from "./refunds/index.js";

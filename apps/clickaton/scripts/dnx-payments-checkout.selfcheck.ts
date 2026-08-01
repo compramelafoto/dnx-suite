@@ -157,15 +157,19 @@ async function main() {
   file("app/api/webhooks/dnx-payments/route.ts");
   file("components/public-registration/CheckoutPayButton.tsx");
 
-  // 31–32: client sin Prisma / MP SDK
+  // 31–32: client sin Prisma; MP SDK solo vía CardPaymentBrickCheckout (Imp 03)
   const clientBtn = file("components/public-registration/CheckoutPayButton.tsx");
   assert(clientBtn.includes('"use client"'), "client component marker");
   assert(!/from\s+["']@prisma\/client["']/.test(clientBtn), "no prisma import in client");
   assert(!/from\s+["']@repo\/db["']/.test(clientBtn), "no @repo/db import in client");
-  assert(!/from\s+["'][^"']*mercadopago[^"']*["']/.test(clientBtn), "no MP import in client");
-  assert(!clientBtn.includes("MercadoPago"), "no MP SDK in client");
+  assert(!/from\s+["']@mercadopago\/sdk-react["']/.test(clientBtn), "MP SDK not in CheckoutPayButton directly");
   assert(!clientBtn.includes("createInMemoryDnxPayments"), "no payments client in UI");
-  assert(clientBtn.includes("startRegistrationCheckoutAction"), "uses server action");
+  assert(clientBtn.includes("startRegistrationCheckoutAction"), "uses server action fallback");
+  assert(clientBtn.includes("CardPaymentBrickCheckout"), "Brick path wired");
+  const brick = file("components/payments/CardPaymentBrickCheckout.tsx");
+  assert(brick.includes("@mercadopago/sdk-react"), "official Brick SDK");
+  assert(brick.includes("submitRegistrationCardPaymentAction"), "token → server action");
+  assert(!brick.includes("ACCESS_TOKEN"), "no access token in Brick client");
 
   // 33: no hard delete Prisma
   const checkoutFiles = walkTs(join(ROOT, "lib/checkout"));

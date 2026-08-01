@@ -1,0 +1,479 @@
+- generic [active] [ref=f1e1]:
+  - link "Saltar al contenido" [ref=f1e2] [cursor=pointer]:
+    - /url: "#contenido-principal"
+  - banner [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - link "Clickatón — inicio" [ref=f1e6] [cursor=pointer]:
+        - /url: /
+      - generic [ref=f1e8]:
+        - link "Iniciar sesión" [ref=f1e9] [cursor=pointer]:
+          - /url: /login?next=%2Fsobre
+        - button "Abrir menú de navegación" [ref=f1e10]
+  - main [ref=f1e15]:
+    - article [ref=f1e16]:
+      - region [ref=f1e17]:
+        - generic [ref=f1e20]:
+          - img "Clickatón — Maratón Fotográfica Internacional" [ref=f1e22]
+          - heading "Una ciudad. Diez consignas. Miles de miradas." [level=1] [ref=f1e23]
+          - paragraph [ref=f1e24]: Fotografía, cultura, educación, tecnología y comunidad.
+          - generic [ref=f1e25]:
+            - paragraph [ref=f1e26]: Clickatón es una maratón fotográfica que transforma la ciudad en un gran escenario creativo.
+            - paragraph [ref=f1e27]: Durante una jornada, fotógrafos, estudiantes, aficionados y amantes de la imagen reciben una serie de consignas que los invitan a recorrer, observar, interpretar y fotografiar su entorno desde una mirada propia.
+        - generic [ref=f1e28]: Fotógrafo en la ciudad durante una jornada creativa
+      - region [ref=f1e29]:
+        - generic [ref=f1e31]:
+          - heading "¿Qué es Clickatón?" [level=2] [ref=f1e32]
+          - generic [ref=f1e33]:
+            - paragraph [ref=f1e34]: Clickatón es una experiencia fotográfica presencial apoyada por una plataforma tecnológica que permite desarrollar una maratón de fotografía de manera organizada, transparente y dinámica.
+            - paragraph [ref=f1e35]: Los participantes se acreditan, reciben las consignas en un horario determinado y comienzan a recorrer la ciudad buscando sus propias respuestas visuales.
+            - paragraph [ref=f1e36]: Cada consigna es una invitación a mirar.
+            - paragraph [ref=f1e37]: Una misma palabra, concepto o desafío puede generar cientos de interpretaciones completamente diferentes.
+          - generic [ref=f1e38]:
+            - paragraph [ref=f1e39]: "Ahí está una de las principales ideas de Clickatón:"
+            - paragraph [ref=f1e40]: descubrir cuántas historias distintas pueden surgir cuando muchas personas observan una misma ciudad al mismo tiempo.
+      - region [ref=f1e41]:
+        - generic [ref=f1e43]:
+          - heading "¿Cómo nace Clickatón?" [level=2] [ref=f1e44]
+          - paragraph [ref=f1e45]: "Clickatón nace del encuentro de tres mundos que forman parte de nuestro trabajo cotidiano:"
+          - list "Mundos que conforman Clickatón" [ref=f1e46]:
+            - listitem [ref=f1e47]: la fotografía
+            - listitem [ref=f1e48]: la educación
+            - listitem [ref=f1e49]: la tecnología
+          - generic [ref=f1e50]:
+            - paragraph [ref=f1e51]: La idea surge de imaginar una experiencia capaz de sacar la fotografía de los espacios tradicionales y llevarla directamente a las calles.
+            - paragraph [ref=f1e52]: "Una actividad donde no importe solamente quién realiza la mejor fotografía, sino todo lo que sucede durante el recorrido:"
+          - list [ref=f1e53]:
+            - listitem [ref=f1e54]:
+              - generic [ref=f1e55]: →
+              - generic [ref=f1e56]: observar
+            - listitem [ref=f1e57]:
+              - generic [ref=f1e58]: →
+              - generic [ref=f1e59]: caminar
+            - listitem [ref=f1e60]:
+              - generic [ref=f1e61]: →
+              - generic [ref=f1e62]: descubrir
+            - listitem [ref=f1e63]:
+              - generic [ref=f1e64]: →
+              - generic [ref=f1e65]: interpretar
+            - listitem [ref=f1e66]:
+              - generic [ref=f1e67]: →
+              - generic [ref=f1e68]: aprender
+            - listitem [ref=f1e69]:
+              - generic [ref=f1e70]: →
+              - generic [ref=f1e71]: compartir
+            - listitem [ref=f1e72]:
+              - generic [ref=f1e73]: →
+              - generic [ref=f1e74]: crear
+          - generic [ref=f1e75]:
+            - paragraph [ref=f1e76]: Queremos que cada edición pueda convertirse también en una fotografía colectiva de un determinado lugar y momento.
+            - paragraph [ref=f1e77]: Las imágenes producidas por cientos de participantes pueden terminar construyendo, entre todas, una enorme memoria visual de cada ciudad.
+      - region [ref=f1e78]:
+        - generic [ref=f1e80]:
+          - heading "Nuestra visión" [level=2] [ref=f1e81]
+          - paragraph [ref=f1e82]: "Uno de los grandes objetivos de Clickatón es acercar la fotografía a nuevos públicos y convertirla en una herramienta de:"
+          - paragraph [ref=f1e83]: expresión · educación · integración · construcción cultural
+          - paragraph [ref=f1e84]: "Queremos generar vínculos con:"
+          - list [ref=f1e85]:
+            - listitem [ref=f1e86]:
+              - generic [ref=f1e87]: •
+              - text: colegios y escuelas
+            - listitem [ref=f1e88]:
+              - generic [ref=f1e89]: •
+              - text: instituciones educativas
+            - listitem [ref=f1e90]:
+              - generic [ref=f1e91]: •
+              - text: universidades
+            - listitem [ref=f1e92]:
+              - generic [ref=f1e93]: •
+              - text: escuelas de fotografía
+            - listitem [ref=f1e94]:
+              - generic [ref=f1e95]: •
+              - text: centros culturales
+            - listitem [ref=f1e96]:
+              - generic [ref=f1e97]: •
+              - text: municipios
+            - listitem [ref=f1e98]:
+              - generic [ref=f1e99]: •
+              - text: organizaciones sociales
+            - listitem [ref=f1e100]:
+              - generic [ref=f1e101]: •
+              - text: espacios vinculados al arte y la cultura
+          - generic [ref=f1e102]:
+            - paragraph [ref=f1e103]: Imaginamos Clickatón como una plataforma capaz de generar experiencias fotográficas educativas adaptadas a diferentes edades y contextos.
+            - paragraph [ref=f1e104]: La fotografía permite trabajar creatividad, observación, identidad, patrimonio, comunicación, historia y territorio.
+            - paragraph [ref=f1e105]: Por eso buscamos que cada nueva sede no sea solamente una competencia, sino también una oportunidad para poner en valor la cultura local y la identidad de cada comunidad.
+          - paragraph [ref=f1e106]: Estas alianzas forman parte de nuestra visión y líneas de trabajo; no representan acuerdos ya confirmados.
+      - region [ref=f1e107]:
+        - generic [ref=f1e108]:
+          - generic [ref=f1e109]:
+            - heading "De Rosario a todo el país" [level=2] [ref=f1e110]
+            - generic [ref=f1e111]:
+              - paragraph [ref=f1e112]:
+                - text: Clickatón nace en
+                - strong [ref=f1e113]: Rosario, Santa Fe
+                - text: ", pero desde su origen fue pensado como un proyecto capaz de crecer mucho más allá de una única ciudad."
+              - paragraph [ref=f1e114]:
+                - text: Nuestra proyección es construir una
+                - strong [ref=f1e115]: red de sedes Clickatón en diferentes ciudades de Argentina
+                - text: ", generando una comunidad conectada de fotógrafos, estudiantes, aficionados, instituciones, escuelas, comercios, marcas y organizaciones vinculadas a la fotografía y la cultura."
+              - paragraph [ref=f1e116]:
+                - text: Cada ciudad podrá convertirse en una
+                - strong [ref=f1e117]: Ciudad Sede Clickatón
+                - text: ", con un equipo local encargado de acompañar la organización y adaptar la experiencia a la identidad, los espacios y la realidad cultural de su comunidad."
+              - paragraph [ref=f1e118]: La intención no es simplemente repetir el mismo evento en distintos lugares.
+              - paragraph [ref=f1e119]: Queremos que cada sede tenga identidad propia.
+            - paragraph [ref=f1e120]: "Que las consignas permitan descubrir:"
+            - list [ref=f1e121]:
+              - listitem [ref=f1e122]: arquitectura
+              - listitem [ref=f1e123]: gente
+              - listitem [ref=f1e124]: costumbres
+              - listitem [ref=f1e125]: paisajes
+              - listitem [ref=f1e126]: historias
+              - listitem [ref=f1e127]: identidad local
+            - paragraph [ref=f1e128]: Y que, edición tras edición, Clickatón pueda generar un enorme registro fotográfico colectivo de las ciudades de nuestro país.
+          - generic [ref=f1e129]:
+            - heading "Una red federal de fotógrafos" [level=3] [ref=f1e130]
+            - generic [ref=f1e131]:
+              - paragraph [ref=f1e132]: Uno de nuestros principales objetivos es integrar a fotógrafos de todo el territorio argentino.
+              - paragraph [ref=f1e133]: Imaginamos ediciones realizadas simultánea o progresivamente en diferentes ciudades, conectadas mediante una misma plataforma y una misma comunidad.
+              - paragraph [ref=f1e134]: Rosario puede ser el punto de partida.
+              - paragraph [ref=f1e135]: Pero queremos que Clickatón llegue progresivamente a ciudades de todo el país.
+              - paragraph [ref=f1e136]: "La conformación de sedes permitirá además generar nuevos referentes locales y construir alianzas con:"
+            - list [ref=f1e137]:
+              - listitem [ref=f1e138]:
+                - generic [ref=f1e139]: •
+                - text: instituciones educativas
+              - listitem [ref=f1e140]:
+                - generic [ref=f1e141]: •
+                - text: municipios
+              - listitem [ref=f1e142]:
+                - generic [ref=f1e143]: •
+                - text: espacios culturales
+              - listitem [ref=f1e144]:
+                - generic [ref=f1e145]: •
+                - text: fotógrafos
+              - listitem [ref=f1e146]:
+                - generic [ref=f1e147]: •
+                - text: comercios
+              - listitem [ref=f1e148]:
+                - generic [ref=f1e149]: •
+                - text: empresas
+              - listitem [ref=f1e150]:
+                - generic [ref=f1e151]: •
+                - text: organizaciones de cada región
+            - paragraph [ref=f1e152]: Así, Clickatón puede convertirse en un gran punto de encuentro nacional para la fotografía.
+      - region [ref=f1e153]:
+        - generic [ref=f1e154]:
+          - generic [ref=f1e155]:
+            - 'heading "El próximo paso: Clickatón Internacional" [level=2] [ref=f1e156]'
+            - generic [ref=f1e157]:
+              - paragraph [ref=f1e158]: Nuestra visión no termina en Argentina.
+              - paragraph [ref=f1e159]: "A medida que el proyecto consolide sus primeras ediciones y su red nacional de sedes, queremos comenzar una nueva etapa:"
+            - paragraph [ref=f1e160]: convertir Clickatón en una maratón fotográfica internacional.
+            - generic [ref=f1e161]:
+              - paragraph [ref=f1e162]: Imaginamos ciudades de diferentes países participando bajo una misma dinámica.
+              - paragraph [ref=f1e163]: Miles de personas fotografiando durante una misma jornada.
+              - paragraph [ref=f1e164]: Una misma consigna interpretada desde culturas, paisajes y realidades completamente diferentes.
+              - paragraph [ref=f1e165]: La tecnología permite pensar Clickatón sin fronteras.
+              - paragraph [ref=f1e166]: Las consignas pueden liberarse desde la plataforma, las fotografías pueden validarse digitalmente y los jurados pueden evaluar las obras de manera online desde cualquier parte del mundo.
+              - paragraph [ref=f1e167]: "Pero detrás de esa tecnología queremos conservar siempre la esencia del proyecto:"
+            - paragraph [ref=f1e168]: salir a la calle, observar nuestro entorno y contar una historia a través de una fotografía.
+          - generic [ref=f1e169]:
+            - paragraph [ref=f1e170]: Visión y proyección futura — no sedes confirmadas ni fechas asociadas.
+            - paragraph [ref=f1e171]: ROSARIO → ARGENTINA → LATINOAMÉRICA → INTERNACIONAL
+          - paragraph [ref=f1e172]: Primero Rosario. Después Argentina. Y luego, el mundo.
+      - region [ref=f1e173]:
+        - generic [ref=f1e174]:
+          - generic [ref=f1e175]:
+            - heading "La experiencia Clickatón" [level=2] [ref=f1e176]
+            - paragraph [ref=f1e177]: Una jornada pensada para recorrer, crear y compartir — de la acreditación a la premiación.
+          - list "Etapas de la jornada" [ref=f1e178]:
+            - listitem [ref=f1e179]:
+              - generic [ref=f1e180]: "01"
+              - generic [ref=f1e182]:
+                - heading "Acreditación" [level=3] [ref=f1e183]
+                - paragraph [ref=f1e184]: La jornada comienza varias horas antes de la maratón. Los participantes reciben su acreditación, información del evento e indicaciones, y se encuentran con la comunidad Clickatón.
+            - listitem [ref=f1e185]:
+              - generic [ref=f1e186]: "02"
+              - generic [ref=f1e188]:
+                - heading "Charlas + Expo" [level=3] [ref=f1e189]
+                - paragraph [ref=f1e190]: Espacio abierto a charlas, capacitaciones, presentaciones, demostraciones e intercambio. Las sedes pueden sumar una Expo Clickatón con stands del sector.
+            - listitem [ref=f1e191]:
+              - generic [ref=f1e192]: "03"
+              - generic [ref=f1e194]:
+                - heading "Liberación de consignas" [level=3] [ref=f1e195]
+                - paragraph [ref=f1e196]: A la hora establecida, la plataforma habilita simultáneamente las consignas. Hasta ese momento permanecen ocultas.
+            - listitem [ref=f1e197]:
+              - generic [ref=f1e198]: "04"
+              - generic [ref=f1e200]:
+                - heading "Maratón" [level=3] [ref=f1e201]
+                - paragraph [ref=f1e202]: Cada participante interpreta las consignas y transforma la ciudad en un escenario creativo dentro del período establecido.
+            - listitem [ref=f1e203]:
+              - generic [ref=f1e204]: "05"
+              - generic [ref=f1e206]:
+                - heading "Carga" [level=3] [ref=f1e207]
+                - paragraph [ref=f1e208]: Las fotografías se cargan en la plataforma para continuar el proceso de la competencia.
+            - listitem [ref=f1e209]:
+              - generic [ref=f1e210]: "06"
+              - generic [ref=f1e212]:
+                - heading "Validación" [level=3] [ref=f1e213]
+                - paragraph [ref=f1e214]: Herramientas tecnológicas —como el análisis de metadatos— ayudan a ordenar y verificar que las imágenes se hayan realizado en el período correspondiente.
+            - listitem [ref=f1e215]:
+              - generic [ref=f1e216]: "07"
+              - generic [ref=f1e218]:
+                - heading "Jurado" [level=3] [ref=f1e219]
+                - paragraph [ref=f1e220]: Los jurados evalúan online las obras mediante la infraestructura de Clickatón y FotoRank, centralizando fotografías, puntajes y resultados.
+            - listitem [ref=f1e221]:
+              - generic [ref=f1e222]: "08"
+              - generic [ref=f1e224]:
+                - heading "Premiación" [level=3] [ref=f1e225]
+                - paragraph [ref=f1e226]: "Uno de los momentos centrales de cada encuentro: se destacan finalistas y ganadores de la edición."
+          - paragraph [ref=f1e227]: ACREDITACIÓN → CHARLAS + EXPO → LIBERACIÓN DE CONSIGNAS → MARATÓN → CARGA → VALIDACIÓN → JURADO → PREMIACIÓN
+      - region [ref=f1e228]:
+        - generic [ref=f1e230]:
+          - heading "Charlas + Expo Clickatón" [level=2] [ref=f1e231]
+          - generic [ref=f1e232]:
+            - paragraph [ref=f1e233]: Durante las horas previas a la maratón pueden realizarse charlas, presentaciones, demostraciones y actividades relacionadas con fotografía, creatividad, tecnología y producción audiovisual.
+            - paragraph [ref=f1e234]: Cada sede puede contar además con una Expo Clickatón, donde marcas, comercios, laboratorios, escuelas, instituciones y empresas vinculadas al sector puedan presentar sus productos y servicios mediante stands.
+            - paragraph [ref=f1e235]: De esta manera, fotógrafos, participantes, instituciones y marcas comparten un mismo espacio antes de comenzar la competencia.
+          - list "Actividades del espacio previo" [ref=f1e236]:
+            - listitem [ref=f1e237]: charlas
+            - listitem [ref=f1e238]: capacitaciones
+            - listitem [ref=f1e239]: presentaciones
+            - listitem [ref=f1e240]: demostraciones
+            - listitem [ref=f1e241]: actividades
+            - listitem [ref=f1e242]: intercambio entre fotógrafos
+            - listitem [ref=f1e243]: presentación de productos y servicios
+      - region [ref=f1e244]:
+        - generic [ref=f1e246]:
+          - heading "¿Cómo funciona la maratón?" [level=2] [ref=f1e247]
+          - generic [ref=f1e248]:
+            - paragraph [ref=f1e249]: A la hora establecida comienza oficialmente Clickatón.
+            - paragraph [ref=f1e250]: Desde nuestra plataforma se habilitan simultáneamente las consignas de la competencia.
+            - paragraph [ref=f1e251]: Hasta ese momento permanecen ocultas.
+            - paragraph [ref=f1e252]: Cada participante puede acceder desde su teléfono a las consignas y comenzar su recorrido.
+            - paragraph [ref=f1e253]: "A partir de ahí comienza el verdadero desafío:"
+          - paragraph [ref=f1e254]: interpretar cada consigna y transformarla en una fotografía.
+          - paragraph [ref=f1e255]: Durante las horas siguientes puede recorrer libremente la ciudad y producir sus imágenes dentro del período establecido por la organización.
+      - region [ref=f1e256]:
+        - generic [ref=f1e258]:
+          - heading "Tecnología al servicio de la transparencia" [level=2] [ref=f1e259]
+          - generic [ref=f1e260]:
+            - paragraph [ref=f1e261]: Cuando cada participante carga sus fotografías, nuestra plataforma puede analizar la información técnica almacenada dentro de los archivos de imagen.
+            - paragraph [ref=f1e262]: Estos metadatos permiten, entre otras validaciones, comprobar que una fotografía haya sido realizada dentro del período correspondiente a la maratón.
+            - paragraph [ref=f1e263]: Esto permite sumar herramientas tecnológicas que ayuden a garantizar una competencia más ordenada, verificable y transparente.
+          - paragraph [ref=f1e264]: "Son herramientas de validación y transparencia: no afirman una garantía absoluta contra todo tipo de fraude."
+      - region [ref=f1e265]:
+        - generic [ref=f1e267]:
+          - heading "Jurado y calificación" [level=2] [ref=f1e268]
+          - generic [ref=f1e269]:
+            - paragraph [ref=f1e270]: La evaluación se realiza mediante la infraestructura tecnológica de Clickatón y FotoRank.
+            - paragraph [ref=f1e271]: Los jurados pueden acceder de manera online a las fotografías correspondientes a las categorías o consignas que deben evaluar.
+            - paragraph [ref=f1e272]: "El sistema permite centralizar:"
+          - list [ref=f1e273]:
+            - listitem [ref=f1e274]:
+              - generic [ref=f1e275]: •
+              - text: fotografías
+            - listitem [ref=f1e276]:
+              - generic [ref=f1e277]: •
+              - text: participantes
+            - listitem [ref=f1e278]:
+              - generic [ref=f1e279]: •
+              - text: consignas
+            - listitem [ref=f1e280]:
+              - generic [ref=f1e281]: •
+              - text: evaluaciones
+            - listitem [ref=f1e282]:
+              - generic [ref=f1e283]: •
+              - text: puntajes
+            - listitem [ref=f1e284]:
+              - generic [ref=f1e285]: •
+              - text: resultados
+          - generic [ref=f1e286]:
+            - paragraph [ref=f1e287]: A partir de las evaluaciones se determinan las fotografías destacadas, finalistas y ganadoras de cada edición.
+            - paragraph [ref=f1e288]: "Posteriormente llega uno de los momentos centrales de cada encuentro:"
+          - paragraph [ref=f1e289]: la premiación Clickatón.
+      - region [ref=f1e290]:
+        - generic [ref=f1e292]:
+          - heading "Mucho más que una competencia" [level=2] [ref=f1e293]
+          - generic [ref=f1e294]:
+            - paragraph [ref=f1e295]: Sí, Clickatón tiene ganadores.
+            - paragraph [ref=f1e296]: Sí, hay desafíos.
+            - paragraph [ref=f1e297]: Sí, hay premios.
+            - paragraph [ref=f1e298]: Pero creemos que el verdadero valor del proyecto está en todo lo que ocurre alrededor de la competencia.
+            - paragraph [ref=f1e299]: Una persona puede participar para ganar.
+            - paragraph [ref=f1e300]: Otra puede participar para aprender.
+            - paragraph [ref=f1e301]: Otra para conocer gente.
+            - paragraph [ref=f1e302]: Otra simplemente para ponerse el desafío de salir a fotografiar.
+            - paragraph [ref=f1e303]: Un estudiante puede descubrir por primera vez la fotografía.
+            - paragraph [ref=f1e304]: Un fotógrafo profesional puede encontrarse frente a una consigna que lo obligue a mirar de otra manera.
+            - paragraph [ref=f1e305]: Y cientos de personas pueden recorrer simultáneamente una misma ciudad descubriendo lugares, historias y situaciones que normalmente pasarían inadvertidas.
+          - paragraph [ref=f1e306]: Competimos, aprendemos, recorremos, observamos y creamos juntos.
+          - paragraph [ref=f1e307]: Eso es Clickatón.
+      - region [ref=f1e308]:
+        - generic [ref=f1e309]:
+          - generic [ref=f1e310]:
+            - heading "Nuestro equipo" [level=2] [ref=f1e311]
+            - paragraph [ref=f1e312]: Tres miradas que unen fotografía, educación, logística y tecnología para hacer posible Clickatón.
+          - generic [ref=f1e313]:
+            - article [ref=f1e314]:
+              - generic [ref=f1e322]:
+                - paragraph [ref=f1e323]: FOTO TAMMY
+                - paragraph [ref=f1e324]: "Pendiente: foto oficial de Tammy Tamer"
+              - generic [ref=f1e325]:
+                - heading "Tammy Tamer" [level=3] [ref=f1e326]
+                - paragraph [ref=f1e327]: Fotógrafa · Docente · Diseñadora · Creadora de contenido
+                - generic [ref=f1e328]:
+                  - paragraph [ref=f1e329]: Tammy Tamer es fotógrafa profesional, docente de fotografía, diseñadora, creadora de contenido e instructora de yoga.
+                  - paragraph [ref=f1e330]: Su experiencia vinculada a la enseñanza, la creatividad y el trabajo con personas es una de las bases sobre las que se construye Clickatón.
+                - generic [ref=f1e331]:
+                  - heading "Rol dentro de Clickatón" [level=4] [ref=f1e332]
+                  - generic [ref=f1e333]:
+                    - paragraph [ref=f1e334]:
+                      - text: Tammy es
+                      - strong [ref=f1e335]: ideadora del proyecto
+                      - text: y responsable de gran parte de su identidad creativa y pedagógica.
+                    - paragraph [ref=f1e336]: Trabaja especialmente sobre la experiencia que viven los participantes, las dinámicas educativas, las consignas, los contenidos y la manera en que Clickatón puede vincular fotografía, aprendizaje y creatividad.
+                    - paragraph [ref=f1e337]: Su mirada busca que cada edición pueda ser entretenida y competitiva, pero que al mismo tiempo deje una experiencia de aprendizaje.
+                - list [ref=f1e338]:
+                  - listitem [ref=f1e339]:
+                    - link "Instagram @tammy_tamer" [ref=f1e340] [cursor=pointer]:
+                      - /url: https://www.instagram.com/tammy_tamer/
+            - article [ref=f1e341]:
+              - generic [ref=f1e349]:
+                - paragraph [ref=f1e350]: FOTO RODRI
+                - paragraph [ref=f1e351]: "Pendiente: foto oficial de Rodrigo Rincón"
+              - generic [ref=f1e352]:
+                - heading "Rodrigo Rincón" [level=3] [ref=f1e353]
+                - paragraph [ref=f1e354]: Fotógrafo · Periodista deportivo · Técnico Superior y Guía de Turismo · Diseñador Web
+                - generic [ref=f1e355]:
+                  - paragraph [ref=f1e356]: Rodrigo Rincón desarrolla su actividad dentro de diferentes áreas de la fotografía, incluyendo fotografía deportiva, social y documental.
+                  - paragraph [ref=f1e357]: Su formación como periodista deportivo y Técnico Superior y Guía de Turismo aporta además una mirada especialmente vinculada a la comunicación, los eventos, las personas y el territorio.
+                - generic [ref=f1e358]:
+                  - heading "Rol dentro de Clickatón" [level=4] [ref=f1e359]
+                  - generic [ref=f1e360]:
+                    - paragraph [ref=f1e361]:
+                      - text: Rodri trabaja principalmente en las áreas de
+                      - strong [ref=f1e362]: logística, gestión comercial, ventas y relaciones interinstitucionales
+                      - text: .
+                    - paragraph [ref=f1e363]: Su tarea es fundamental para conectar Clickatón con instituciones, empresas, sponsors, organizaciones y actores locales, además de participar en la planificación operativa de cada edición.
+                - list [ref=f1e364]:
+                  - listitem [ref=f1e365]:
+                    - link "Instagram @corner.foto" [ref=f1e366] [cursor=pointer]:
+                      - /url: https://www.instagram.com/corner.foto/
+                  - listitem [ref=f1e367]:
+                    - link "Instagram @corner.foto.doc" [ref=f1e368] [cursor=pointer]:
+                      - /url: https://www.instagram.com/corner.foto.doc/
+            - article [ref=f1e369]:
+              - img "Retrato de Daniel Cuart" [ref=f1e371]
+              - generic [ref=f1e372]:
+                - heading "Daniel Cuart" [level=3] [ref=f1e373]
+                - paragraph [ref=f1e374]: Fotógrafo profesional · Docente de fotografía · Técnico informático · Emprendedor tecnológico
+                - generic [ref=f1e375]:
+                  - paragraph [ref=f1e376]: Daniel Cuart combina desde hace años la fotografía con la tecnología.
+                  - paragraph [ref=f1e377]: Fotógrafo profesional y docente, desarrolla además proyectos digitales vinculados a fotografía, eventos y automatización de procesos.
+                  - paragraph [ref=f1e378]:
+                    - text: Es creador de
+                    - link "Cómprame la Foto — CLF" [ref=f1e379] [cursor=pointer]:
+                      - /url: https://compramelafoto.com
+                    - text: ", una plataforma tecnológica orientada a fotógrafos, organizadores y eventos que permite publicar, gestionar y comercializar contenido fotográfico."
+                  - paragraph [ref=f1e380]: La experiencia desarrollando este tipo de plataformas es también una de las bases tecnológicas sobre las que se construye Clickatón.
+                - generic [ref=f1e381]:
+                  - heading "Rol dentro de Clickatón" [level=4] [ref=f1e382]
+                  - generic [ref=f1e383]:
+                    - paragraph [ref=f1e384]:
+                      - text: Dani está a cargo principalmente del área de
+                      - strong [ref=f1e385]: tecnología, desarrollo e implementación técnica
+                      - text: .
+                    - paragraph [ref=f1e386]: Su trabajo incluye el desarrollo de la plataforma de Clickatón, los sistemas de inscripción, acreditación, consignas, carga y validación de fotografías, integración con FotoRank, automatizaciones y soporte tecnológico durante cada edición.
+                    - paragraph [ref=f1e387]: "El objetivo es que la tecnología esté presente sin convertirse en protagonista:"
+                  - paragraph [ref=f1e388]: debe simplificar el evento, hacerlo escalable y ayudar a garantizar una experiencia clara para participantes, organizadores y jurados.
+                - list [ref=f1e389]:
+                  - listitem [ref=f1e390]:
+                    - link "Instagram @dnxfotografia" [ref=f1e391] [cursor=pointer]:
+                      - /url: https://www.instagram.com/dnxfotografia/
+      - region [ref=f1e392]:
+        - generic [ref=f1e394]:
+          - heading "Fotografía + Educación + Cultura + Tecnología" [level=2] [ref=f1e395]
+          - generic [ref=f1e396]:
+            - paragraph [ref=f1e397]: Estos cuatro conceptos resumen gran parte de lo que queremos construir.
+            - paragraph [ref=f1e398]: Queremos que Clickatón pueda recorrer diferentes ciudades.
+            - paragraph [ref=f1e399]: Que cada sede tenga su propia identidad.
+            - paragraph [ref=f1e400]: Que cada edición genere miles de fotografías.
+            - paragraph [ref=f1e401]: Que escuelas y estudiantes puedan participar.
+            - paragraph [ref=f1e402]: Que fotógrafos puedan conocerse.
+            - paragraph [ref=f1e403]: Que marcas e instituciones encuentren un espacio donde relacionarse con la comunidad.
+            - paragraph [ref=f1e404]: Y que las fotografías creadas durante cada edición se conviertan también en parte de la memoria visual de cada lugar.
+          - generic [ref=f1e405]:
+            - paragraph [ref=f1e406]: Porque una ciudad puede recorrerse de muchas maneras.
+            - paragraph [ref=f1e407]: Nosotros elegimos hacerlo mirando.
+      - region [ref=f1e408]:
+        - generic [ref=f1e410]:
+          - heading "Sumate a la comunidad Clickatón" [level=2] [ref=f1e411]
+          - paragraph [ref=f1e412]: Seguinos para conocer próximas ediciones, participantes, fotografías, actividades y novedades.
+          - paragraph [ref=f1e413]: "@clickaton.ok"
+          - link "Seguir a Clickatón en Instagram" [ref=f1e415] [cursor=pointer]:
+            - /url: https://www.instagram.com/clickaton.ok/
+          - list [ref=f1e416]:
+            - listitem [ref=f1e417]:
+              - link "Ver maratones" [ref=f1e418] [cursor=pointer]:
+                - /url: /maratones
+            - listitem [ref=f1e419]:
+              - link "Formá parte" [ref=f1e420] [cursor=pointer]:
+                - /url: /formar-parte
+            - listitem [ref=f1e421]:
+              - link "Organizar una sede" [ref=f1e422] [cursor=pointer]:
+                - /url: /organizar
+            - listitem [ref=f1e423]:
+              - link "Cómo funciona" [ref=f1e424] [cursor=pointer]:
+                - /url: /como-funciona
+      - region [ref=f1e425]:
+        - generic [ref=f1e427]:
+          - heading "Cierre" [level=2] [ref=f1e428]
+          - paragraph [ref=f1e429]:
+            - generic [ref=f1e430]: Una ciudad puede iniciar una historia.
+            - generic [ref=f1e431]: Muchas ciudades pueden construir un movimiento.
+          - paragraph [ref=f1e432]: Nos encontramos en la próxima consigna.
+  - contentinfo [ref=f1e433]:
+    - generic [ref=f1e434]:
+      - generic [ref=f1e435]:
+        - link "Clickatón — inicio" [ref=f1e436] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=f1e438]: Maratón Fotográfica Internacional
+        - paragraph [ref=f1e439]: Proyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones, catálogo ni formularios activos todavía.
+        - paragraph [ref=f1e440]: Cada Clickatón te ayuda a mirar mejor.
+      - navigation "Pie de página" [ref=f1e441]:
+        - paragraph [ref=f1e442]: Navegación
+        - list [ref=f1e443]:
+          - listitem [ref=f1e444]:
+            - link "Maratones" [ref=f1e445] [cursor=pointer]:
+              - /url: /maratones
+          - listitem [ref=f1e446]:
+            - link "Cómo funciona" [ref=f1e447] [cursor=pointer]:
+              - /url: /como-funciona
+          - listitem [ref=f1e448]:
+            - link "Comunidad" [ref=f1e449] [cursor=pointer]:
+              - /url: /comunidad
+          - listitem [ref=f1e450]:
+            - link "Llevá Clickatón a tu ciudad" [ref=f1e451] [cursor=pointer]:
+              - /url: /organizar
+          - listitem [ref=f1e452]:
+            - link "Formá parte" [ref=f1e453] [cursor=pointer]:
+              - /url: /formar-parte
+          - listitem [ref=f1e454]:
+            - link "Sobre Clickatón" [ref=f1e455] [cursor=pointer]:
+              - /url: /sobre
+          - listitem [ref=f1e456]:
+            - link "Manual de marca" [ref=f1e457] [cursor=pointer]:
+              - /url: /manualdemarca
+          - listitem [ref=f1e458]:
+            - link "Contacto" [ref=f1e459] [cursor=pointer]:
+              - /url: /contacto
+    - separator [ref=f1e460]
+    - generic [ref=f1e461]:
+      - paragraph [ref=f1e462]: © 2026 Clickatón. Todos los derechos reservados.
+      - paragraph [ref=f1e463]:
+        - link "Manual de marca" [ref=f1e464] [cursor=pointer]:
+          - /url: /manualdemarca
+        - text: · Identidad visual
+  - button "Open Next.js Dev Tools" [ref=f1e470] [cursor=pointer]

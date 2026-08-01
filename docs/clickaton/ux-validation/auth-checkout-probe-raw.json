@@ -1,0 +1,76 @@
+{
+  "steps": [
+    {
+      "label": "start",
+      "url": "/maratones/piloto-test-11b/inscripcion",
+      "bricks": 0,
+      "inputs": 4,
+      "buttons": [
+        "0",
+        "TTEST UX Participante Sin Inscripcion",
+        "Continuar a datos personales"
+      ],
+      "text": "0 T TEST UX Participante Sin Inscripcion Inicio / Maratones / Clickatón Piloto TEST 11B / Inscripción INSCRIPCIÓN PÚBLICA CLICKATÓN PILOTO TEST 11B Completá los pasos para reservar tu lugar. En entradas pagas, el cupo se reserva por un tiempo limitado hasta acreditar el pago. Entorno de prueba: no se realiza un cobro real. 1. Entrada 2. Datos 3. Co"
+    },
+    {
+      "label": "click:/continuar/i",
+      "url": "/maratones/piloto-test-11b/inscripcion",
+      "bricks": 0,
+      "inputs": 4,
+      "buttons": [
+        "0",
+        "TTEST UX Participante Sin Inscripcion",
+        "Continuar a datos personales"
+      ],
+      "text": "0 T TEST UX Participante Sin Inscripcion Inicio / Maratones / Clickatón Piloto TEST 11B / Inscripción INSCRIPCIÓN PÚBLICA CLICKATÓN PILOTO TEST 11B Completá los pasos para reservar tu lugar. En entradas pagas, el cupo se reserva por un tiempo limitado hasta acreditar el pago. Entorno de prueba: no se realiza un cobro real. 1. Entrada 2. Datos 3. Co"
+    },
+    {
+      "label": "radio1",
+      "url": "/maratones/piloto-test-11b/inscripcion",
+      "bricks": 0,
+      "inputs": 4,
+      "buttons": [
+        "0",
+        "TTEST UX Participante Sin Inscripcion",
+        "Continuar a datos personales"
+      ],
+      "text": "0 T TEST UX Participante Sin Inscripcion Inicio / Maratones / Clickatón Piloto TEST 11B / Inscripción INSCRIPCIÓN PÚBLICA CLICKATÓN PILOTO TEST 11B Completá los pasos para reservar tu lugar. En entradas pagas, el cupo se reserva por un tiempo limitado hasta acreditar el pago. Entorno de prueba: no se realiza un cobro real. 1. Entrada 2. Datos 3. Co"
+    },
+    {
+      "label": "after-fill",
+      "url": "/maratones/piloto-test-11b/inscripcion",
+      "bricks": 0,
+      "inputs": 4,
+      "buttons": [
+        "0",
+        "TTEST UX Participante Sin Inscripcion",
+        "Continuar a datos personales"
+      ],
+      "text": "0 T TEST UX Participante Sin Inscripcion Inicio / Maratones / Clickatón Piloto TEST 11B / Inscripción INSCRIPCIÓN PÚBLICA CLICKATÓN PILOTO TEST 11B Completá los pasos para reservar tu lugar. En entradas pagas, el cupo se reserva por un tiempo limitado hasta acreditar el pago. Entorno de prueba: no se realiza un cobro real. 1. Entrada 2. Datos 3. Co"
+    },
+    {
+      "label": "nav:/continuar/i",
+      "url": "/maratones/piloto-test-11b/inscripcion",
+      "bricks": 0,
+      "inputs": 10,
+      "buttons": [
+        "0",
+        "TTEST UX Participante Sin Inscripcion",
+        "Elegir fotoJPG, PNG o WEBP. Mínimo 400×400 px.",
+        "Volver",
+        "Continuar a revisar la inscripción"
+      ],
+      "text": "0 T TEST UX Participante Sin Inscripcion Inicio / Maratones / Clickatón Piloto TEST 11B / Inscripción INSCRIPCIÓN PÚBLICA CLICKATÓN PILOTO TEST 11B Completá los pasos para reservar tu lugar. En entradas pagas, el cupo se reserva por un tiempo limitado hasta acreditar el pago. Entorno de prueba: no se realiza un cobro real. 1. Entrada 2. Datos 3. Co"
+    }
+  ],
+  "final": {
+    "sessionAfterNav": "/mi-cuenta",
+    "miCuentaH1": "Hola, TEST UX Participante Sin Inscripcion",
+    "sessionAfterReload": {
+      "url": "/mi-cuenta",
+      "h1": "Hola, TEST UX Participante Sin Inscripcion",
+      "loggedOut": false
+    },
+    "editionPublic": "0 T TEST UX Participante Sin Inscripcion Inicio / Maratones / Clickatón Piloto TEST 11B INSCRIPCIÓN ABIERTA INSCRIPCIÓN: ABIERTA CLICKATÓN PILOTO TEST 11B CLICKATÓN PILOTO TEST 11B Edición piloto TEST para validar inscripción, pago sandbox, QR y Mi cuenta. TERRITORIO CIUDAD TEST, PROVINCIA TEST, ARGENTINA FECHAS 15 DE SEPTIEMBRE DE 2026 FORMATO INDIVIDUAL INSCRIPCIÓN INSCRIPCIÓN: DESDE $0 ARS Insc"
+  }
+}

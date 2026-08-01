@@ -13,6 +13,8 @@ DO NOT USE CURRENT LOCAL DATABASE_URL FOR STAGING MIGRATIONS
 > El estado histórico `BLOCKED` de Imp10 se conserva. Causa: Ignored Build Step productivo incorrecto (solo saltaba `clickaton-staging`). Corregido a **solo `main`**. No reanudar migrate/Resend hasta `communications:imp10-resume-readiness` + prereqs manuales.
 >
 > **Imp10ter (2026-08-01):** push controlado verificado — staging git READY + producción git CANCELED. Evidencia [`CONTROLLED_STAGING_PUSH_VALIDATION_IMP10TER.md`](./CONTROLLED_STAGING_PUSH_VALIDATION_IMP10TER.md). Imp10 go-live (backup/migrate/Resend) sigue pendiente de prereqs manuales.
+>
+> **Imp10quater (2026-08-01):** activación de base staging completada — backup Neon, identity, migración webhook ya APPLIED, tabla/unique/dedupe, health token, health Communications `schema=ready`, webhook sigue disabled, Resend no configurado. Evidencia [`STAGING_DATABASE_ACTIVATION_IMP10QUATER.md`](./STAGING_DATABASE_ACTIVATION_IMP10QUATER.md). El estado histórico `BLOCKED` de Imp10 (go-live Resend) se conserva hasta legal + secret + verify_only.
 
 ---
 

@@ -69,7 +69,7 @@ export function VariantForm({
       ) : null}
 
       <AdminForm
-        title={mode === "create" ? "Agregar variante" : "Editar variante"}
+        title={mode === "create" ? "Agregar talle u opción" : "Editar talle u opción"}
         description="Ejemplos: Talle S, Amarilla 750 ml, A5 tapa dura, 20×30 mate, Digital. No asume que sea una remera."
         footer={
           <>
@@ -79,12 +79,19 @@ export function VariantForm({
               </Button>
             ) : null}
             <Button type="submit" variant="primary" loading={pending} disabled={pending}>
-              {submitLabel ?? (mode === "create" ? "Crear variante" : "Guardar variante")}
+              {submitLabel ??
+                (mode === "create" ? "Crear talle u opción" : "Guardar cambios")}
             </Button>
           </>
         }
       >
-        <Field id="variant-name" label="Nombre" required error={state?.errors?.name}>
+        <Field
+          id="variant-name"
+          label="Nombre del talle u opción"
+          required
+          error={state?.errors?.name}
+          hint="Ejemplo: S, M, L o un color. Es lo que ve el participante."
+        >
           <Input
             name="name"
             value={values.name}
@@ -93,10 +100,10 @@ export function VariantForm({
         </Field>
         <Field
           id="variant-code"
-          label="Código"
+          label="Código corto"
           required
           error={state?.errors?.code}
-          hint="Único dentro del producto (normalizado)."
+          hint="Identificador corto único dentro del producto (uso interno)."
         >
           <Input
             name="code"
@@ -106,10 +113,10 @@ export function VariantForm({
         </Field>
         <Field
           id="variant-sku"
-          label="SKU"
+          label="Código interno (SKU)"
           required
           error={state?.errors?.sku}
-          hint="Único global."
+          hint="Único global. Solo para soporte e inventario; no es el nombre que ve el participante."
         >
           <Input
             name="sku"

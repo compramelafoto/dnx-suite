@@ -15,8 +15,10 @@ import { money } from "../money/index.js";
 import {
   buildMercadoPagoSplitOrderRequest,
   buildSplitEntriesFromDistribution,
-  inferAmountType,
+  resolveMpAmountType,
 } from "../providers/mercado-pago/orders/mapper.js";
+import { testActivePartnerConsent } from "../providers/mercado-pago/orders/consent-evidence.js";
+import { singleIntangibleItem } from "../providers/mercado-pago/orders/order-items.js";
 import { distributionRulesToEngineInput } from "./to-dnx-payments.js";
 
 export interface Orders1nDryRunInput {
@@ -30,7 +32,11 @@ export interface Orders1nDryRunInput {
   testReceiverIdsByParticipantId: ReadonlyMap<string, string>;
   ownerParticipantId: string;
   externalReference: string;
+  /** Explicit TEST device only — dry-run never invents production device context. */
   deviceSessionId?: string;
+  payerEmail?: string;
+  statementDescriptor?: string;
+  itemTitle?: string;
 }
 
 export interface Orders1nDryRunResult {
@@ -48,6 +54,7 @@ export interface Orders1nDryRunResult {
   payloadHashPrefix: string;
   distribution: CalculatedDistribution;
   realHttpCall: false;
+  note: "DRY_RUN_USES_TEST_FIXTURE_CONSENTS_AND_DEVICE";
 }
 
 function sanitizeReceiverId(id: string): string {
@@ -83,25 +90,43 @@ export function buildOrders1nDryRun(
     "TEST_OWNER";
 
   const partnerReceiverIds = new Map<string, string>();
+  const partnerConsentsByRecipientId = new Map();
   for (const p of input.participants) {
     if (p.id === input.ownerParticipantId) continue;
     const rid = input.testReceiverIdsByParticipantId.get(p.id);
-    if (rid) partnerReceiverIds.set(p.id, rid);
+    if (rid) {
+      partnerReceiverIds.set(p.id, rid);
+      partnerConsentsByRecipientId.set(p.id, testActivePartnerConsent(rid));
+    }
   }
 
-  const amountType = inferAmountType(distribution);
+  const amountType = resolveMpAmountType(distribution, "fixed_preferred");
   const entries = buildSplitEntriesFromDistribution(
     distribution,
     ownerReceiverId,
     partnerReceiverIds,
+    { partnerConsentsByRecipientId, amountType },
   );
 
+  const total = money(input.agreement.currency as "ARS", input.totalMinor);
   const built = buildMercadoPagoSplitOrderRequest({
     externalReference: input.externalReference,
-    total: money(input.agreement.currency as "ARS", input.totalMinor),
+    total,
     amountType,
     entries,
-    deviceSessionId: input.deviceSessionId ?? "TEST_DEVICE_SESSION_10D3I_E",
+    deviceSessionId: input.deviceSessionId ?? "dnx-test-device-session-dry-run",
+    payerEmail: input.payerEmail ?? "test_buyer@testuser.com",
+    statementDescriptor: input.statementDescriptor ?? "DNX",
+    items: [
+      singleIntangibleItem({
+        title: input.itemTitle ?? "Dry-run intangible item",
+        total,
+        categoryId: "others",
+      }),
+    ],
+    // Dry-run never POSTs to MP; fixture satisfies required transactions.payments shape.
+    paymentToken: "DRY_RUN_CARD_TOKEN_FIXTURE_NOT_SENT",
+    paymentMethodId: "visa",
   });
 
   return {
@@ -121,5 +146,6 @@ export function buildOrders1nDryRun(
     payloadHashPrefix: built.payloadHash.slice(0, 12),
     distribution,
     realHttpCall: false,
+    note: "DRY_RUN_USES_TEST_FIXTURE_CONSENTS_AND_DEVICE",
   };
 }

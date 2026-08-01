@@ -1,0 +1,34 @@
+- main [ref=f21e2]:
+  - generic [ref=f21e17]:
+    - generic [ref=f21e18]:
+      - heading "¿Cómo querés pagar?" [level=1] [ref=f21e19]
+      - generic [ref=f21e20]:
+        - heading "Con tu cuenta de Mercado Pago" [level=2] [ref=f21e22]
+        - list "login" [ref=f21e24]:
+          - listitem [ref=f21e25] [cursor=pointer]:
+            - button "Ingresar con mi cuenta" [ref=f21e26]
+            - generic [ref=f21e27]: Ingresar con mi cuenta
+        - heading "Sin cuenta de Mercado Pago" [level=2] [ref=f21e49]
+        - list "other-options" [ref=f21e51]:
+          - listitem [ref=f21e52] [cursor=pointer]:
+            - button "Tarjeta Crédito, débito o prepaga" [ref=f21e53]:
+              - generic [ref=f21e63]:
+                - generic [ref=f21e64]: Tarjeta
+                - paragraph [ref=f21e66]: Crédito, débito o prepaga
+          - listitem [ref=f21e71] [cursor=pointer]:
+            - button "Efectivo Pago Fácil y Rapipago" [ref=f21e72]:
+              - generic [ref=f21e84]:
+                - generic [ref=f21e85]: Efectivo
+                - paragraph [ref=f21e87]: Pago Fácil y Rapipago
+        - link [ref=f21e92] [cursor=pointer]:
+          - /url: https://clickaton-staging.vercel.app/maratones/clickaton-argentina-2026/inscripcion/pago/error?registrationId=cms9dbk1g0003xppehrysck7n&t=v2.1785529279208.3zFgepDtWBpZ7ATAW00MI9tU1S_cvSLpQSDkflS1iVk&collection_id=null&collection_status=null&payment_id=null&status=null&external_reference=clickaton:registration:cms9dbk1g0003xppehrysck7n&payment_type=null&merchant_order_id=null&preference_id=3141372692-72cfee4c-196e-4df0-976a-f2885e13f144&site_id=MLA&processing_mode=aggregator&merchant_account_id=null
+    - generic [ref=f21e98]:
+      - heading "Detalles del pago" [level=2] [ref=f21e99]
+      - generic [ref=f21e101]:
+        - generic [ref=f21e102]: Inscripción Clickatón — cms9dbk1 TEST
+        - img [ref=f21e106]:
+          - generic [ref=f21e107]: $ 25.000
+    - generic [ref=f21e109]:
+      - separator [ref=f21e110]
+      - generic [ref=f21e111]: Procesado por Mercado Pago.
+      - text: Procesado por Mercado Pago.

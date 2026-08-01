@@ -1,5 +1,7 @@
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { StoreCartDrawer } from "@/components/store/cart/StoreCartDrawer";
+import { StoreCartProvider } from "@/components/store/cart/StoreCartProvider";
 import {
   getClickatonAuthUser,
   hasClickatonAdminAccess,
@@ -21,10 +23,11 @@ export default async function PublicLayout({
     : null;
 
   return (
-    <>
+    <StoreCartProvider>
       <SiteHeader authUser={authUser} />
       <main id="contenido-principal">{children}</main>
       <SiteFooter />
-    </>
+      <StoreCartDrawer />
+    </StoreCartProvider>
   );
 }

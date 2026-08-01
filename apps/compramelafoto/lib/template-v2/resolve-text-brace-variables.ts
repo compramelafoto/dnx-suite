@@ -1,4 +1,5 @@
 import { TEMPLATE_V2_VARIABLE_MAP, type TemplateV2VariableDefinition } from "@/lib/template-v2/variable-catalog";
+import { getVariableGroupsForProduct } from "@/lib/template-v2/variable-catalog-product";
 
 /**
  * Contenido entre llaves: `{clave}`.
@@ -26,7 +27,20 @@ const BRACE_ALIAS_TO_KEY: Record<string, string> = {
   referencia: "order.referenceShort",
   qr: "order.fulfillmentQrUrl",
   fotografo: "photographer.displayName",
+  // Clickatón (aliases que no chocan con school)
+  participante: "participant.fullName",
+  instagram: "participant.instagramHandle",
+  ig: "participant.instagramHandle",
+  ciudad: "participant.city",
+  categoria: "participant.category",
+  numero: "participant.numberFormatted",
+  dorsal: "participant.numberFormatted",
+  edicion: "edition.name",
 };
+
+const CLICKATON_KEY_SET = new Set(
+  getVariableGroupsForProduct("clickaton").flatMap((g) => g.variables.map((v) => v.key))
+);
 
 function normalizeBraceSlug(s: string): string {
   return s
@@ -40,12 +54,14 @@ function normalizeBraceSlug(s: string): string {
 
 function catalogKeyFromBraceInner(inner: string): string | undefined {
   const raw = inner.trim();
-  if (TEMPLATE_V2_VARIABLE_MAP[raw]) return raw;
+  if (Object.hasOwn(TEMPLATE_V2_VARIABLE_MAP, raw) || CLICKATON_KEY_SET.has(raw)) {
+    return raw;
+  }
 
   const slug = normalizeBraceSlug(raw);
   if (BRACE_ALIAS_TO_KEY[slug]) return BRACE_ALIAS_TO_KEY[slug];
 
-  for (const key of Object.keys(TEMPLATE_V2_VARIABLE_MAP)) {
+  for (const key of [...Object.keys(TEMPLATE_V2_VARIABLE_MAP), ...CLICKATON_KEY_SET]) {
     const compact = normalizeBraceSlug(key.replace(/\./g, ""));
     if (compact === slug) return key;
   }
@@ -79,7 +95,9 @@ export function resolveBracePlaceholdersInText(
   return raw.replace(TEXT_BRACE_TOKEN_RE, (full, inner: string) => {
     const key = catalogKeyFromBraceInner(String(inner));
     if (!key) return full;
-    const def = TEMPLATE_V2_VARIABLE_MAP[key];
+    const def = Object.hasOwn(TEMPLATE_V2_VARIABLE_MAP, key)
+      ? TEMPLATE_V2_VARIABLE_MAP[key]
+      : undefined;
     const val = resolvedValueForKey(key, resolvedVariables, def);
     if (val === null) return full;
     return val;

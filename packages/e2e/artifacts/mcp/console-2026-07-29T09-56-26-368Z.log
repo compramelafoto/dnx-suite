@@ -1,0 +1,11 @@
+[     671ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[     691ms] [LOG] [HMR] connected @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[     729ms] [WARNING] Image with src "/brand/logo-horizontal-color.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio. @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[     733ms] [WARNING] Image with src "/images/hero-city-photographer.jpg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[    6047ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[    6162ms] [LOG] [Fast Refresh] done in 196ms @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[    9715ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[    9836ms] [LOG] [Fast Refresh] done in 54ms @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[   10806ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431
+[   10913ms] [LOG] [Fast Refresh] done in 43ms @ http://localhost:3005/_next/static/chunks/0h37_next_dist_044sb~k._.js:2431

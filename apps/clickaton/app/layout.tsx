@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bebas_Neue, Caveat, Montserrat } from "next/font/google";
 import { siteConfig } from "@/config/site";
+import { resolveClickatonPublicOrigin } from "@/lib/site/public-origin";
 import "./globals.css";
 
 const display = Bebas_Neue({
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   applicationName: siteConfig.name,
-  metadataBase: new URL(siteConfig.url),
+  metadataBase: new URL(resolveClickatonPublicOrigin()),
   alternates: {
     canonical: "/",
   },
@@ -47,7 +48,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "es_AR",
-    url: siteConfig.url,
+    url: resolveClickatonPublicOrigin(),
     siteName: siteConfig.name,
     title: siteConfig.nameFull,
     description: siteConfig.description,

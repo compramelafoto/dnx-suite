@@ -15,7 +15,7 @@ export default async function AdminSettingsPage() {
     <div className="space-y-8">
       <AdminPageHeader
         title="Configuración"
-        description="Datos generales del panel. Vista de solo lectura en esta etapa."
+        description="Datos generales del panel administrativo. En esta etapa la vista es de solo lectura."
         breadcrumbs={[{ label: "Configuración" }]}
       />
 
@@ -45,8 +45,9 @@ export default async function AdminSettingsPage() {
             Administradores iniciales
           </h2>
           <p className="text-sm text-ck-text-secondary">
-            Acceso completo al panel MVP. No se pueden eliminar desde aquí todavía. Sin roles
-            diferenciados ni permisos por sede. El ícono celeste indica Mercado Pago conectado.
+            Rol visible: administrador general. No se pueden eliminar desde aquí todavía. Todavía
+            no hay roles diferenciados ni permisos por sede. El ícono celeste indica Mercado Pago
+            conectado.
           </p>
           <ul className="space-y-2">
             {admins.map((email) => (
@@ -63,12 +64,12 @@ export default async function AdminSettingsPage() {
       </div>
 
       <Card variant="outlined" className="space-y-2">
-        <h2 className="text-sm font-semibold text-ck-text">Pendiente para etapas posteriores</h2>
+        <h2 className="text-sm font-semibold text-ck-text">Mejoras previstas</h2>
         <ul className="list-disc space-y-1 pl-5 text-sm text-ck-text-secondary">
           <li>Redes y contacto oficiales editables</li>
           <li>Identidad visual avanzada del panel</li>
-          <li>Migración del acceso a appAccess `CLICKATON` en DNX Identity</li>
-          <li>DNX Communications / email marketing (Etapa 2)</li>
+          <li>Gestión de roles y permisos más fina</li>
+          <li>Comunicaciones y marketing por correo (cuando esté habilitado)</li>
         </ul>
       </Card>
     </div>

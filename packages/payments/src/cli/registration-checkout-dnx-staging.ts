@@ -460,6 +460,8 @@ async function main() {
         confirmStaging: true,
         confirmOrdersTest: true,
         verifyAfterCreate: true,
+        allowTestFixtures: true,
+        defaultStatementDescriptor: "CLICKATON",
       });
 
       const persistence = createInMemoryDnxPaymentsPersistence();
@@ -472,6 +474,7 @@ async function main() {
         deviceSessionId: envInput.deviceId,
         confirmStaging: true,
         confirmOrdersTest: true,
+        statementDescriptor: "CLICKATON",
       });
 
       const service = createClickatonCheckoutService(persistence, {

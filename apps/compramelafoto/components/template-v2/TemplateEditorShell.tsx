@@ -36,7 +36,6 @@ import {
   selectBlock,
   selectSelectedBlock,
   setCanvas,
-  syncRevisionFromServer,
   templateV2EditorReducer,
   setVariableBindings,
   setZoom,
@@ -68,6 +67,10 @@ import { cn } from "@/lib/utils";
 import { CanvasSizeModal } from "@/components/template-v2/CanvasSizeModal";
 import { TemplateEditorExitModal } from "@/components/template-v2/TemplateEditorExitModal";
 import { getCopiedBlockStyleSnapshot, subscribeCopiedBlockStyle } from "@/lib/template-v2/block-style-clipboard";
+import {
+  isRevisionConflictResponse,
+  TEMPLATE_V2_REVISION_CONFLICT_MESSAGE,
+} from "@/lib/template-v2/revision-conflict";
 
 const TEMPLATE_V2_EDITOR_LIST_PATH = "/fotografo/diseno/plantillas/v2";
 
@@ -337,6 +340,8 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
   const [versionNumber, setVersionNumber] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
+  /** Tras 409: bloquear nuevos saves hasta recargar (evita sobrescribir con revisión sincronizada). */
+  const [revisionConflictLocked, setRevisionConflictLocked] = useState(false);
   const [saveAsNewError, setSaveAsNewError] = useState<string | null>(null);
   const [savingAsNew, setSavingAsNew] = useState(false);
   const [versionsPanelOpen, setVersionsPanelOpen] = useState(false);
@@ -372,6 +377,13 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
   stateRef.current = state;
 
   const cancelAutosaveRef = useRef<() => void>(() => {});
+  const conflictBannerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (saveErrorMessage === TEMPLATE_V2_REVISION_CONFLICT_MESSAGE) {
+      conflictBannerRef.current?.focus();
+    }
+  }, [saveErrorMessage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -398,20 +410,25 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
       })
       .then((data) => {
         if (cancelled) return;
-        setTemplateName(data.template?.name || "Plantilla");
-        setVersionNumber(typeof data.versionNumber === "number" ? data.versionNumber : 1);
-        dispatch(
-          initializeEditor({
-            templateId,
-            versionId,
-            revision: Number(data.revision ?? 0),
-            canvas: data.canvas ?? { width: 1200, height: 1800, background: "#ffffff" },
-            blocks: data.blocks ?? [],
-            variableBindings: data.variableBindings ?? [],
-            lastSavedAt: data.updatedAt ?? null,
-            meta: data.meta && typeof data.meta === "object" && !Array.isArray(data.meta) ? data.meta : {},
-          })
-        );
+        try {
+          setTemplateName(data.template?.name || "Plantilla");
+          setVersionNumber(typeof data.versionNumber === "number" ? data.versionNumber : 1);
+          dispatch(
+            initializeEditor({
+              templateId,
+              versionId,
+              revision: Number(data.revision ?? 0),
+              canvas: data.canvas ?? { width: 1200, height: 1800, background: "#ffffff" },
+              blocks: data.blocks ?? [],
+              variableBindings: data.variableBindings ?? [],
+              lastSavedAt: data.updatedAt ?? null,
+              meta: data.meta && typeof data.meta === "object" && !Array.isArray(data.meta) ? data.meta : {},
+            })
+          );
+        } catch (err) {
+          setLoadError(err instanceof Error ? err.message : "Error inicializando editor.");
+          dispatch({ type: "setLoadStatus", payload: { loadStatus: "error" } });
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -528,36 +545,70 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
     setPreviewOpen(true);
     setPreviewLoading(true);
     setPreviewError(null);
-    setPreviewSrc(null);
+    setPreviewSrc((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
     try {
       const res = await fetch("/api/template-v2/preview", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "image/png",
+        },
         credentials: "include",
         body: JSON.stringify({
-          templateVersionId: versionId,
-          mode: "mock",
+          templateId,
+          versionId,
           mockData: {},
           previewPageIndex: state.activePageIndex ?? 0,
           draft: {
             canvas: state.canvas,
             blocks: state.blocks,
             variableBindings: state.variableBindings,
+            meta: state.versionMeta ?? {},
           },
           output: { format: "png" },
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-        imageBase64?: string;
-        mimeType?: string;
-      };
-      if (!res.ok || data.ok !== true || typeof data.imageBase64 !== "string") {
-        throw new Error(typeof data.error === "string" ? data.error : "No se pudo generar la vista previa.");
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+        };
+        throw new Error(
+          typeof data.error === "string"
+            ? data.error
+            : "No se pudo generar la vista previa."
+        );
       }
-      const mime = typeof data.mimeType === "string" && data.mimeType ? data.mimeType : "image/png";
-      setPreviewSrc(`data:${mime};base64,${data.imageBase64}`);
+      if (contentType.includes("application/json")) {
+        const data = (await res.json()) as {
+          ok?: boolean;
+          imageBase64?: string;
+          mimeType?: string;
+        };
+        if (data.ok !== true || typeof data.imageBase64 !== "string") {
+          throw new Error("Respuesta de preview inválida.");
+        }
+        const mime =
+          typeof data.mimeType === "string" && data.mimeType
+            ? data.mimeType
+            : "image/png";
+        const bin = Uint8Array.from(atob(data.imageBase64), (c) => c.charCodeAt(0));
+        setPreviewSrc(URL.createObjectURL(new Blob([bin], { type: mime })));
+      } else if (contentType.includes("image/png")) {
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength < 8) {
+          throw new Error("Preview vacío.");
+        }
+        setPreviewSrc(
+          URL.createObjectURL(new Blob([buf], { type: "image/png" }))
+        );
+      } else {
+        throw new Error("Respuesta de preview inválida (se esperaba PNG).");
+      }
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "Error al generar la vista previa.");
     } finally {
@@ -566,9 +617,12 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
   }
 
   function closePreview() {
+    setPreviewSrc((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
     setPreviewOpen(false);
     setPreviewError(null);
-    setPreviewSrc(null);
     setPreviewLoading(false);
   }
 
@@ -598,6 +652,7 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
   const handleSave = useCallback(async (): Promise<boolean> => {
     cancelAutosaveRef.current();
     const s0 = stateRef.current;
+    if (revisionConflictLocked) return false;
     if (s0.isSaving || !s0.isDirty) return true;
     setSaveErrorMessage(null);
     dispatch({ type: "setSaving", payload: { isSaving: true } });
@@ -612,54 +667,46 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
     };
 
     try {
-      let revisionOverride: number | undefined;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const s = stateRef.current;
-        const base = selectSerializableSavePayload(s);
-        const payload =
-          revisionOverride !== undefined ? { ...base, revision: revisionOverride } : base;
-        const res = await fetch(
-          `/api/template-v2/templates/${encodeURIComponent(templateId)}/versions/${encodeURIComponent(versionId)}/save`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(payload),
-          }
-        );
-        const data = (await res.json().catch(() => ({}))) as SaveJson;
-
-        if (res.status === 409 && data?.error === "revision_conflict" && typeof data.currentRevision === "number") {
-          dispatch(syncRevisionFromServer(data.currentRevision));
-          revisionOverride = data.currentRevision;
-          if (attempt === 0) continue;
-          throw new Error(
-            "La versión en el servidor cambió mientras editabas. Se sincronizó la revisión; si el error persiste, guardá de nuevo."
-          );
+      const s = stateRef.current;
+      const payload = selectSerializableSavePayload(s);
+      const res = await fetch(
+        `/api/template-v2/templates/${encodeURIComponent(templateId)}/versions/${encodeURIComponent(versionId)}/save`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
         }
+      );
+      const data = (await res.json().catch(() => ({}))) as SaveJson;
 
-        if (!res.ok || data?.ok !== true) {
-          const raw = typeof data?.error === "string" ? data.error : "No se pudo guardar";
-          const msg =
-            raw === "revision_conflict"
-              ? "Conflicto de versión al guardar. Probá otra vez en un momento."
-              : raw === "template_publicado_bloqueado"
-                ? "Esta plantilla está publicada y aprobada en el catálogo: no se pueden guardar cambios sobre esta versión. Duplicá la plantilla o usá una copia propia para editar."
-                : raw;
-          throw new Error(msg);
-        }
-
-        dispatch({
-          type: "markSaved",
-          payload: {
-            at: typeof data?.updatedAt === "string" ? data.updatedAt : new Date().toISOString(),
-            revision: typeof data?.revision === "number" ? data.revision : s.revision + 1,
-          },
-        });
-        dispatch({ type: "setSaveStatus", payload: { saveStatus: "saved" } });
-        return true;
+      // No reintentar ni sincronizar revision para reintentar: sobrescribiría cambios ajenos.
+      if (isRevisionConflictResponse(res.status, data?.error)) {
+        setRevisionConflictLocked(true);
+        setSaveErrorMessage(TEMPLATE_V2_REVISION_CONFLICT_MESSAGE);
+        dispatch({ type: "setSaving", payload: { isSaving: false } });
+        dispatch({ type: "setSaveStatus", payload: { saveStatus: "error" } });
+        return false;
       }
-      throw new Error("No se pudo completar el guardado.");
+
+      if (!res.ok || data?.ok !== true) {
+        const raw = typeof data?.error === "string" ? data.error : "No se pudo guardar";
+        const msg =
+          raw === "template_publicado_bloqueado"
+            ? "Esta plantilla está publicada y aprobada en el catálogo: no se pueden guardar cambios sobre esta versión. Duplicá la plantilla o usá una copia propia para editar."
+            : raw;
+        throw new Error(msg);
+      }
+
+      dispatch({
+        type: "markSaved",
+        payload: {
+          at: typeof data?.updatedAt === "string" ? data.updatedAt : new Date().toISOString(),
+          revision: typeof data?.revision === "number" ? data.revision : s.revision + 1,
+        },
+      });
+      dispatch({ type: "setSaveStatus", payload: { saveStatus: "saved" } });
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al guardar";
       setSaveErrorMessage(message);
@@ -667,7 +714,7 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
       dispatch({ type: "setSaveStatus", payload: { saveStatus: "error" } });
       return false;
     }
-  }, [templateId, versionId, dispatch]);
+  }, [templateId, versionId, dispatch, revisionConflictLocked]);
 
   const handleSaveAndExit = useCallback(async () => {
     const ok = await handleSave();
@@ -772,7 +819,10 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
   }, [editorReady, state.selectedBlockIds.join("|")]);
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", className)}>
+    <div
+      className={cn("flex h-full min-h-0 flex-col", className)}
+      data-testid="template-v2-editor"
+    >
       <div className="flex min-h-0 w-full flex-1 flex-col bg-[#dfe3e8]">
         <header className="sticky top-0 z-30 shrink-0 border-b border-[#b8c2cf] bg-[#eceff4] shadow-[0_1px_0_rgba(0,0,0,0.06)]">
           <div className="flex justify-end border-b border-[#d8dee6] bg-[#e8ebf0]/95 px-3 py-1.5 md:px-4">
@@ -831,7 +881,10 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
                   )}
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex rounded border border-[#d8dee6] bg-white px-2 py-0.5 text-[10px] font-medium text-[#374151]">
+                  <span
+                    className="inline-flex rounded border border-[#d8dee6] bg-white px-2 py-0.5 text-[10px] font-medium text-[#374151]"
+                    data-testid="template-v2-save-status"
+                  >
                     {saveBadge}
                   </span>
                   {editorReady ? (
@@ -890,7 +943,13 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
                   variant="primary"
                   className={cn(toolbarIconOnlyClass, "shadow-sm")}
                   onClick={() => void handleSave()}
-                  disabled={state.isSaving || savingAsNew || !state.isDirty}
+                  disabled={
+                    state.isSaving ||
+                    savingAsNew ||
+                    !state.isDirty ||
+                    revisionConflictLocked
+                  }
+                  data-testid="template-v2-save-button"
                   title={
                     state.isSaving
                       ? "Guardando cambios en el servidor…"
@@ -919,6 +978,7 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
                   variant="secondary"
                   type="button"
                   className={toolbarIconOnlyClass}
+                  data-testid="template-v2-preview-button"
                   onClick={handlePreview}
                   disabled={!editorReady || previewLoading}
                   title="Vista previa en imagen del lienzo actual (incluye cambios sin guardar)"
@@ -1195,7 +1255,29 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
               )
             ) : null}
 
-            {saveErrorMessage ? <p className="border-t border-[#fecaca] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{saveErrorMessage}</p> : null}
+            {saveErrorMessage ? (
+              <div
+                ref={conflictBannerRef}
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-[#fecaca] bg-red-50/90 px-3 py-1.5"
+                data-testid="template-v2-error-banner"
+                role="alert"
+                tabIndex={-1}
+              >
+                <p className="text-xs text-red-700">{saveErrorMessage}</p>
+                {saveErrorMessage === TEMPLATE_V2_REVISION_CONFLICT_MESSAGE ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="!px-2.5 !py-1 !text-xs"
+                    onClick={() => window.location.reload()}
+                    data-testid="template-v2-conflict-reload"
+                  >
+                    Recargar versión reciente
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             {backgroundUploadError ? (
               <p className="border-t border-[#fecaca] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{backgroundUploadError}</p>
             ) : null}
@@ -1463,6 +1545,9 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
                     versionId={versionId}
                     variableBindings={state.variableBindings}
                     dispatch={dispatch}
+                    product={
+                      state.versionMeta?.product === "clickaton" ? "clickaton" : "school"
+                    }
                   />
                 </RightSidebarSection>
 
@@ -1512,6 +1597,7 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
           role="dialog"
           aria-modal="true"
           aria-labelledby="template-v2-preview-title"
+          data-testid="template-v2-preview-dialog"
           onClick={closePreview}
         >
           <div
@@ -1533,11 +1619,17 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
                   <span>Generando preview…</span>
                 </div>
               ) : previewError ? (
-                <p className="text-center text-sm text-red-600">{previewError}</p>
+                <p
+                  className="text-center text-sm text-red-600"
+                  data-testid="template-v2-preview-error"
+                >
+                  {previewError}
+                </p>
               ) : previewSrc ? (
                 <div className="flex justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
+                    data-testid="template-v2-preview-image"
                     src={previewSrc}
                     alt="Vista previa de la plantilla"
                     className="max-h-[min(78vh,1200px)] w-auto max-w-full rounded-lg border border-[#e5e7eb] bg-white object-contain shadow-sm"

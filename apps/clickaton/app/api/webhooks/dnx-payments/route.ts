@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCheckoutService } from "@/lib/checkout/actions/runtime";
+import { getCheckoutServiceReady } from "@/lib/checkout/actions/runtime";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     "x-request-id": request.headers.get("x-request-id") ?? undefined,
   };
 
-  const service = getCheckoutService();
+  const service = await getCheckoutServiceReady();
 
   // Preferir Webhooks firmados de Mercado Pago cuando viene x-signature.
   if (headers["x-signature"]) {

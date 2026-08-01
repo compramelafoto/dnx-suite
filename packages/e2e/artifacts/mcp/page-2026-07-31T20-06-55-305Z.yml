@@ -1,0 +1,4 @@
+- generic [active] [ref=f46e1]:
+  - paragraph [ref=f46e3]: Verificando autenticación...
+  - button "Open Next.js Dev Tools" [ref=f46e9] [cursor=pointer]
+  - alert [ref=f46e13]

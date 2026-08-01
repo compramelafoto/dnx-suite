@@ -4,6 +4,8 @@ import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { PublicStatusCard } from "@/components/account/PublicStatusCard";
 import { QrDownloadButton } from "@/components/public-registration/QrDownloadButton";
 import { ResendConfirmationButton } from "@/components/public-registration/ResendConfirmationButton";
 import { routes, marathonPath } from "@/config/navigation";
@@ -19,6 +21,13 @@ import {
   POST_PAYMENT_SUBTITLE,
   POST_PAYMENT_TITLE,
 } from "@/lib/registration/ui/post-payment-public-copy";
+import { publicCheckoutError } from "@/lib/public-ux/public-errors";
+import {
+  presentCredentialStatus,
+  presentPaymentReturn,
+  presentRegistrationStatus,
+  publicToneToBadgeVariant,
+} from "@/lib/public-ux/status-presentation";
 import { PaymentReturnPoller } from "./PaymentReturnPoller";
 
 type Props = {
@@ -43,23 +52,25 @@ export async function PaymentReturnView({
   );
 
   if (!result.ok || !result.data) {
-    const code = result.code ?? "";
-    const hint =
-      code === "TOKEN_EXPIRED"
-        ? "El enlace de acceso expiró. El retorno del navegador no confirma el pago; el sistema lo verifica por separado."
-        : code === "TOKEN_INVALID" || !accessToken
-          ? "No pudimos validar el enlace de acceso (token ausente, truncado o firmado con otro secreto). El retorno del navegador no confirma el pago."
-          : (result.message ?? "Enlace inválido o expirado.");
+    const err = publicCheckoutError(result.code, result.message);
     return (
       <Section>
         <Container className="space-y-6 py-12">
-          <h1 className="ck-display-md">No pudimos verificar el pago</h1>
-          <p className="text-ck-text-secondary" role="alert">
-            {hint}
+          <h1 className="ck-display-md">{err.title}</h1>
+          <p className="text-ck-text-secondary leading-relaxed" role="alert">
+            {err.description}
           </p>
-          <Button href={marathonPath(slug)} variant="secondary">
-            Volver a la maratón
-          </Button>
+          {err.nextAction ? (
+            <p className="text-sm font-medium text-ck-text">{err.nextAction}</p>
+          ) : null}
+          <div className="flex w-full flex-col gap-3 sm:flex-row">
+            <Button href="/mi-cuenta" variant="primary" className="min-h-11 w-full sm:w-auto">
+              Ir a Mi cuenta
+            </Button>
+            <Button href={marathonPath(slug)} variant="secondary" className="min-h-11 w-full sm:w-auto">
+              Volver a la maratón
+            </Button>
+          </div>
         </Container>
       </Section>
     );
@@ -124,16 +135,18 @@ export async function PaymentReturnView({
   const shirtIncluded = Boolean(shirtItem);
 
   if (!confirmed) {
-    const title =
-      variant === "exito"
-        ? "Verificando tu pago…"
-        : variant === "pendiente"
-          ? "Pago pendiente"
-          : "No se completó el pago";
+    const presentation = presentPaymentReturn({
+      variant,
+      registrationStatus: s.registrationStatus,
+      paymentStatus: s.paymentStatus,
+      displayAsApproved: false,
+      errCode,
+    });
+    const regLabel = presentRegistrationStatus(s.registrationStatus).label;
 
     return (
       <Section>
-        <Container className="space-y-8 py-10 md:py-14">
+        <Container className="min-w-0 space-y-8 py-10 md:py-14">
           <SimpleBreadcrumb
             items={[
               { label: "Inicio", href: routes.home },
@@ -142,13 +155,26 @@ export async function PaymentReturnView({
               { label: "Pago" },
             ]}
           />
-          <header className="space-y-4">
-            <p className="ck-label text-[#F9B114]">Retorno de checkout</p>
-            <h1 className="ck-display-md">{title}</h1>
-            <p className="max-w-2xl text-ck-text-secondary leading-relaxed" role="status">
-              {s.message}
-              {errCode ? ` Código: ${errCode}.` : ""}
-            </p>
+          <PublicStatusCard
+            presentation={presentation}
+            title="Resultado del pago"
+            actions={
+              <>
+                {variant === "error" ? (
+                  <Button href={summaryHref} variant="primary" className="min-h-11 w-full sm:w-auto">
+                    Volver a intentar el pago
+                  </Button>
+                ) : (
+                  <Button href="/mi-cuenta" variant="primary" className="min-h-11 w-full sm:w-auto">
+                    Ir a Mi cuenta
+                  </Button>
+                )}
+                <Button href={summaryHref} variant="secondary" className="min-h-11 w-full sm:w-auto">
+                  {variant === "error" ? "Volver al resumen" : "Consultar resumen"}
+                </Button>
+              </>
+            }
+          >
             {variant === "exito" ? (
               <PaymentReturnPoller
                 registrationId={registrationId}
@@ -157,36 +183,27 @@ export async function PaymentReturnView({
                 initiallyConfirmed={false}
               />
             ) : null}
-          </header>
-          <dl className="grid gap-4 rounded-[var(--ck-radius-card)] border border-ck-border bg-black/40 p-6 text-sm md:grid-cols-2">
-            <div>
-              <dt className="text-ck-text-secondary">Inscripción</dt>
-              <dd className="font-mono">{s.publicCode ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-ck-text-secondary">Estado</dt>
-              <dd>
-                {s.registrationStatus.replaceAll("_", " ")} ·{" "}
-                {s.paymentStatus.replaceAll("_", " ")}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-ck-text-secondary">Importe</dt>
-              <dd>{formatPublicPrice(s.amountMinor, s.currency)}</dd>
-            </div>
-            <div>
-              <dt className="text-ck-text-secondary">Reserva</dt>
-              <dd>{formatHoldExpiry(s.holdExpiresAt)}</dd>
-            </div>
-          </dl>
-          <div className="flex flex-wrap gap-3">
-            <Button href={summaryHref} variant="primary">
-              Ver resumen
-            </Button>
-            <Button href={marathonPath(slug)} variant="secondary">
-              Volver a la maratón
-            </Button>
-          </div>
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-ck-text-secondary">Inscripción</dt>
+                <dd>{regLabel}</dd>
+              </div>
+              <div>
+                <dt className="text-ck-text-secondary">Referencia de la operación</dt>
+                <dd className="font-mono text-xs text-ck-text-muted">
+                  {s.publicCode ?? "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-ck-text-secondary">Importe</dt>
+                <dd>{formatPublicPrice(s.amountMinor, s.currency)}</dd>
+              </div>
+              <div>
+                <dt className="text-ck-text-secondary">Reserva</dt>
+                <dd>{formatHoldExpiry(s.holdExpiresAt)}</dd>
+              </div>
+            </dl>
+          </PublicStatusCard>
         </Container>
       </Section>
     );
@@ -200,10 +217,16 @@ export async function PaymentReturnView({
   const ig = registration?.instagramHandle
     ? `@${registration.instagramHandle.replace(/^@/, "")}`
     : "—";
+  const confirmedPresentation = presentPaymentReturn({
+    variant: "exito",
+    registrationStatus: registration?.status ?? "CONFIRMED",
+    paymentStatus: registration?.paymentStatus ?? "APPROVED",
+    displayAsApproved: true,
+  });
 
   return (
     <Section className="bg-[#050505]">
-      <Container className="space-y-10 py-10 md:py-14">
+      <Container className="min-w-0 space-y-10 py-10 md:py-14">
         <SimpleBreadcrumb
           items={[
             { label: "Inicio", href: routes.home },
@@ -221,16 +244,21 @@ export async function PaymentReturnView({
           <p className="max-w-2xl text-base leading-relaxed text-ck-text-secondary md:text-lg">
             {POST_PAYMENT_SUBTITLE}
           </p>
-          <p className="inline-flex items-center rounded-full bg-[#F9B114] px-4 py-2 text-xs font-extrabold tracking-[0.08em] text-[#111]">
-            {POST_PAYMENT_PAYMENT_SEAL}
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="inline-flex items-center rounded-full bg-[#F9B114] px-4 py-2 text-xs font-extrabold tracking-[0.08em] text-[#111]">
+              {POST_PAYMENT_PAYMENT_SEAL}
+            </p>
+            <Badge variant={publicToneToBadgeVariant(confirmedPresentation.tone)}>
+              {confirmedPresentation.label}
+            </Badge>
+          </div>
         </header>
 
         <section
-          className="grid gap-6 rounded-[var(--ck-radius-card)] border border-[#F9B114]/45 bg-[#0a0a0a] p-6 md:grid-cols-2 md:p-8"
+          className="grid min-w-0 gap-6 rounded-[var(--ck-radius-card)] border border-[#F9B114]/45 bg-[#0a0a0a] p-6 md:grid-cols-2 md:p-8"
           aria-labelledby="participant-heading"
         >
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <h2 id="participant-heading" className="text-lg font-semibold text-white">
               Tus datos
             </h2>
@@ -250,7 +278,7 @@ export async function PaymentReturnView({
               <div>
                 <dt className="text-ck-text-secondary">Estado de inscripción</dt>
                 <dd className="font-semibold text-emerald-400">
-                  {registration?.status ?? "CONFIRMED"}
+                  {presentRegistrationStatus(registration?.status ?? "CONFIRMED").label}
                 </dd>
               </div>
               <div>
@@ -272,7 +300,7 @@ export async function PaymentReturnView({
             </dl>
           </div>
 
-          <div className="flex flex-col items-center justify-center gap-4 rounded-[var(--ck-radius-card)] border border-ck-border bg-black p-6 text-center">
+          <div className="flex min-w-0 flex-col items-center justify-center gap-4 rounded-[var(--ck-radius-card)] border border-ck-border bg-black p-6 text-center">
             <p className="text-xs font-extrabold tracking-[0.12em] text-[#F9B114]">
               CREDENCIAL · QR
             </p>
@@ -291,17 +319,18 @@ export async function PaymentReturnView({
               </p>
             )}
             <p className="font-mono text-base font-bold text-white">{visibleCode}</p>
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
-              Estado {registration?.credential?.status ?? "ACTIVE"}
+            <p className="text-xs font-semibold text-emerald-400">
+              Credencial {presentCredentialStatus(registration?.credential?.status)}
             </p>
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+            <div className="flex w-full flex-col gap-3">
               {qrDataUrl ? (
                 <QrDownloadButton
                   dataUrl={qrDataUrl}
                   fileName={`${visibleCode}-qr.png`}
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--ck-radius-control)] border-2 border-[#F9B114] bg-transparent px-5 text-sm font-semibold text-[#F9B114] transition hover:bg-[#F9B114] hover:text-[#111]"
                 />
               ) : null}
-              <Button href={dashboardHref} variant="secondary" className="min-h-11">
+              <Button href={dashboardHref} variant="secondary" className="min-h-11 w-full">
                 Ver mi credencial
               </Button>
             </div>
@@ -353,12 +382,6 @@ export async function PaymentReturnView({
           <p className="text-sm leading-relaxed text-ck-text-secondary">
             {POST_PAYMENT_ACCREDITATION.presentWithQr}
           </p>
-          {POST_PAYMENT_ACCREDITATION.venueAddressConfigRequired ? (
-            <p className="text-xs text-ck-text-muted">
-              {POST_PAYMENT_ACCREDITATION.venueAddressConfigFlag} — dirección postal
-              exacta pendiente en configuración.
-            </p>
-          ) : null}
         </section>
 
         <section
@@ -369,7 +392,7 @@ export async function PaymentReturnView({
             id="schedule-heading"
             className="text-sm font-extrabold tracking-[0.12em] text-[#F9B114]"
           >
-            CRONOGRAMA DEL EVENTO
+            Cronograma del evento
           </h2>
           <ul className="space-y-3">
             {POST_PAYMENT_SCHEDULE.map((row) => (
@@ -394,30 +417,29 @@ export async function PaymentReturnView({
           aria-labelledby="account-cta-heading"
         >
           <h2 id="account-cta-heading" className="text-lg font-semibold text-white">
-            Cuenta DNX
+            Tu cuenta Clickatón
           </h2>
           {activationRequired ? (
             <>
               <p className="text-sm leading-relaxed text-ck-text-secondary">
-                Creá tu contraseña para gestionar inscripción, QR y placa. No enviamos
-                contraseñas temporales.
+                Creá tu contraseña para gestionar la inscripción, el QR y la placa de
+                bienvenida.
               </p>
               <Button href={activateHref} variant="primary" className="min-h-12 w-full sm:w-auto">
-                CREAR / ACTIVAR MI CUENTA DNX
+                Creá tu cuenta para ver el QR
               </Button>
             </>
           ) : (
             <>
               <p className="text-sm leading-relaxed text-ck-text-secondary">
-                Tu Cuenta DNX ya está activa. Entrá para ver tu inscripción y compartir tu
-                placa.
+                Tu cuenta ya está activa. Entrá para ver tu inscripción y compartir tu placa.
               </p>
               <Button
                 href={existingCreds ? loginHref : dashboardHref}
                 variant="primary"
                 className="min-h-12 w-full sm:w-auto"
               >
-                IR A MI CUENTA
+                Ir a Mi cuenta
               </Button>
             </>
           )}
@@ -448,34 +470,38 @@ export async function PaymentReturnView({
           <h2 id="actions-heading" className="sr-only">
             Acciones
           </h2>
-          <div className="flex flex-col gap-3 sm:flex-wrap sm:flex-row">
-            <Button href={dashboardHref} variant="primary" className="min-h-11">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Button href={dashboardHref} variant="primary" className="min-h-11 w-full sm:w-auto">
               Ver mi inscripción
             </Button>
             {qrDataUrl ? (
-              <QrDownloadButton dataUrl={qrDataUrl} fileName={`${visibleCode}-qr.png`} />
+              <QrDownloadButton
+                dataUrl={qrDataUrl}
+                fileName={`${visibleCode}-qr.png`}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--ck-radius-control)] border-2 border-[#F9B114] bg-transparent px-5 text-sm font-semibold text-[#F9B114] transition hover:bg-[#F9B114] hover:text-[#111] sm:w-auto"
+              />
             ) : null}
             {activationRequired ? (
-              <Button href={activateHref} variant="secondary" className="min-h-11">
-                Activar mi Cuenta DNX
+              <Button href={activateHref} variant="secondary" className="min-h-11 w-full sm:w-auto">
+                Activar mi cuenta
               </Button>
             ) : (
               <Button
                 href={existingCreds ? loginHref : dashboardHref}
                 variant="secondary"
-                className="min-h-11"
+                className="min-h-11 w-full sm:w-auto"
               >
-                Ir a Mi Cuenta
+                Ir a Mi cuenta
               </Button>
             )}
             <Button
               href={`${dashboardHref}#placa`}
               variant="outline"
-              className="min-h-11"
+              className="min-h-11 w-full sm:w-auto"
             >
               Ver y compartir mi placa
             </Button>
-            <Button href={termsHref} variant="outline" className="min-h-11">
+            <Button href={termsHref} variant="outline" className="min-h-11 w-full sm:w-auto">
               Ver Bases y Condiciones
             </Button>
           </div>

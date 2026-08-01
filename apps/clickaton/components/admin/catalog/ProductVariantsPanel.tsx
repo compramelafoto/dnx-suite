@@ -46,16 +46,15 @@ export function ProductVariantsPanel({ productId, variants }: Props) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 id="variants-heading" className="text-xl font-semibold text-ck-text">
-            Variantes
+            Talles y opciones
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-ck-text-secondary">
-            Stock, precio opcional y estado por variante. Umbral «poco stock»: disponible ≤ 5
-            (configurable en código).
+            Stock, precio opcional y estado por talle u opción. Umbral «poco stock»: disponible ≤ 5.
           </p>
         </div>
         {mode.kind === "idle" ? (
           <Button type="button" variant="primary" onClick={() => setMode({ kind: "create" })}>
-            Agregar variante
+            Agregar talle u opción
           </Button>
         ) : null}
       </div>
@@ -96,14 +95,14 @@ export function ProductVariantsPanel({ productId, variants }: Props) {
 
       {variants.length === 0 && mode.kind === "idle" ? (
         <div className="rounded-[var(--ck-radius-card)] border border-dashed border-ck-border px-4 py-10 text-center">
-          <p className="text-lg text-ck-text">Producto sin variantes</p>
+          <p className="text-lg text-ck-text">Todavía no hay talles u opciones</p>
           <p className="mt-2 text-sm text-ck-text-secondary">
-            Agregá al menos una variante para gestionar stock y precios opcionales. Luego podrá
-            incluirse en entradas y kits.
+            Agregá al menos un talle u opción para gestionar disponibilidad. Después podés incluir
+            el producto en una fase o entrada.
           </p>
           <div className="mt-6">
             <Button type="button" variant="primary" onClick={() => setMode({ kind: "create" })}>
-              Agregar variante
+              Agregar talle u opción
             </Button>
           </div>
         </div>
@@ -114,7 +113,7 @@ export function ProductVariantsPanel({ productId, variants }: Props) {
               <tr>
                 <th className="px-4 py-3 font-medium">Nombre</th>
                 <th className="px-4 py-3 font-medium">Código</th>
-                <th className="px-4 py-3 font-medium">SKU</th>
+                <th className="px-4 py-3 font-medium">Código interno</th>
                 <th className="px-4 py-3 font-medium">Precio</th>
                 <th className="px-4 py-3 font-medium">Stock</th>
                 <th className="px-4 py-3 font-medium">Reservado</th>

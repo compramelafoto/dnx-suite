@@ -324,8 +324,57 @@ describe("10D3I-I1 Clickatón owner OAuth", () => {
     await assert.rejects(
       () => s2.completeCallback({ actor: owner, stateToken: st2, code: "c2" }),
       (err: unknown) =>
-        err instanceof OwnerOAuthError && err.code === "OWNER_REPLACEMENT_BLOCKED",
+        err instanceof OwnerOAuthError &&
+        (err.code === "MERCADO_PAGO_ACCOUNT_MISMATCH" ||
+          err.code === "OWNER_REPLACEMENT_BLOCKED"),
     );
+  });
+
+  it("10G.2C reconnect same providerUserId reuses canonical PA and rotates vault", async () => {
+    const store = createMemoryOwnerOAuthStore();
+    const vaultStore = createMemoryCredentialStore();
+    const s = createTestOwnerOAuthService({
+      store,
+      vaultStore,
+      mpClient: mockMp("97484805"),
+      env: authorizedEnv(),
+    });
+    // FI owned by recipient user (1); Finance Owner actor is user 5
+    const recipientOwner = actor(1, [grant(1, "DNX_FINANCE_OWNER")]);
+    const financeOwner = actor(5, [grant(5, "DNX_FINANCE_OWNER")]);
+    const started = await s.startConnect({ actor: recipientOwner });
+    const st = new URL(started.authorizeUrl).searchParams.get("state")!;
+    const first = await s.completeCallback({
+      actor: recipientOwner,
+      stateToken: st,
+      code: "c1",
+    });
+    assert.equal(first.paymentAccountId.startsWith("pa_"), true);
+    const before = store.accounts.get(first.paymentAccountId)!;
+    assert.equal(before.providerUserId, "97484805");
+    const oldCred = before.credentialReference;
+    assert.ok(oldCred);
+
+    const started2 = await s.startReconnect({ actor: financeOwner });
+    const st2 = new URL(started2.authorizeUrl).searchParams.get("state")!;
+    const second = await s.completeCallback({
+      actor: financeOwner,
+      stateToken: st2,
+      code: "c2",
+    });
+    assert.equal(second.paymentAccountId, first.paymentAccountId, "same PA id");
+    const after = store.accounts.get(second.paymentAccountId)!;
+    assert.equal(after.providerUserId, "97484805");
+    assert.equal(after.financialIdentityId, before.financialIdentityId);
+    assert.notEqual(after.credentialReference, oldCred, "vault rotated");
+    assert.equal(
+      [...store.accounts.values()].filter((a) => a.providerUserId === "97484805")
+        .length,
+      1,
+      "no duplicate PA",
+    );
+    const oldRecord = await vaultStore.get(oldCred);
+    assert.ok(oldRecord?.revokedAt, "old credential revoked");
   });
 
   it("revokes account and invalidates credential reference", async () => {

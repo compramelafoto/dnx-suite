@@ -1,4 +1,8 @@
-import { TEMPLATE_V2_VARIABLE_MAP, isTemplateV2VariableUsableIn } from "@/lib/template-v2/variable-catalog";
+import {
+  getAllowedVariableKeysForProduct,
+  isVariableUsableInForProduct,
+  resolveTemplateProduct,
+} from "@/lib/template-v2/resolve-template-product";
 
 export type TemplateV2SaveBlockType =
   | "BACKGROUND"
@@ -58,7 +62,7 @@ const ALLOWED_BLOCK_TYPES: Set<string> = new Set([
 
 const ALLOWED_TARGET_PATHS: Record<TemplateV2SaveBlockType, Set<string>> = {
   BACKGROUND: new Set(),
-  PHOTO: new Set(),
+  PHOTO: new Set(["source.variableKey", "source.src", "src"]),
   TEXT: new Set(["content.value", "content"]),
   VARIABLE_TEXT: new Set(["variableKey", "fallback", "content"]),
   IMAGE: new Set(["source.variableKey", "source.src", "src"]),
@@ -181,6 +185,11 @@ export function parseTemplateV2EditorPayload(body: unknown):
     }
   }
 
+  const product = resolveTemplateProduct(meta);
+  const allowedKeys = getAllowedVariableKeysForProduct(
+    product === "unknown" ? "school" : product
+  );
+
   for (const binding of variableBindings) {
     if (!binding || typeof binding !== "object" || Array.isArray(binding)) {
       return { ok: false, error: "binding inválido" };
@@ -192,7 +201,7 @@ export function parseTemplateV2EditorPayload(body: unknown):
     if (typeof vb.targetPath !== "string" || vb.targetPath.trim() === "") {
       return { ok: false, error: "binding.targetPath inválido" };
     }
-    if (typeof vb.variableKey !== "string" || !TEMPLATE_V2_VARIABLE_MAP[vb.variableKey]) {
+    if (typeof vb.variableKey !== "string" || !allowedKeys.has(vb.variableKey)) {
       return { ok: false, error: "binding.variableKey inválido" };
     }
 
@@ -204,7 +213,13 @@ export function parseTemplateV2EditorPayload(body: unknown):
 
     const target: "TEXT" | "IMAGE" =
       blockType === "TEXT" || blockType === "VARIABLE_TEXT" ? "TEXT" : "IMAGE";
-    if (!isTemplateV2VariableUsableIn(vb.variableKey, target)) {
+    if (
+      !isVariableUsableInForProduct(
+        product === "unknown" ? "school" : product,
+        vb.variableKey,
+        target
+      )
+    ) {
       return { ok: false, error: `variableKey no compatible con bloque ${blockType}` };
     }
   }

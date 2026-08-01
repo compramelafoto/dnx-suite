@@ -18,6 +18,12 @@ export const routes = {
   /** Página institucional Sobre Clickatón (`/nosotros` redirige aquí). */
   about: "/sobre",
   contact: "/contacto",
+  /** Storefront público TIENDA (vitrina; sin checkout en Etapa 02). */
+  store: "/tienda",
+  /** Carrito público TIENDA. */
+  storeCart: "/tienda/carrito",
+  /** Checkout TIENDA (feature flag; default OFF). */
+  storeCheckout: "/tienda/checkout",
   /** Manual de marca público para sedes y diseñadores. */
   brandManual: "/manualdemarca",
   designSystem: "/design-system",
@@ -30,6 +36,11 @@ export const routes = {
 
 export function marathonPath(slug: string): string {
   return `/maratones/${slug}`;
+}
+
+/** Detalle de producto en tienda (ruta preparada; página de detalle en etapa posterior). */
+export function storeProductPath(storeSlug: string): string {
+  return `/tienda/${encodeURIComponent(storeSlug)}`;
 }
 
 /** Flujo público de inscripción/reserva (10D3F). */
@@ -49,6 +60,7 @@ export const mainNavigation: readonly NavItem[] = [
   { label: "Maratones", href: routes.marathons },
   { label: "Cómo funciona", href: routes.howItWorks },
   { label: "Comunidad", href: routes.community },
+  { label: "Tienda", href: routes.store },
   { label: "Llevá Clickatón a tu ciudad", href: routes.organize },
   { label: "Formá parte", href: routes.joinUs },
 ] as const;
@@ -71,6 +83,7 @@ export const footerNavigation: readonly NavItem[] = [
   { label: "Maratones", href: routes.marathons },
   { label: "Cómo funciona", href: routes.howItWorks },
   { label: "Comunidad", href: routes.community },
+  { label: "Tienda", href: routes.store },
   { label: "Llevá Clickatón a tu ciudad", href: routes.organize },
   { label: "Formá parte", href: routes.joinUs },
   { label: "Sobre Clickatón", href: routes.about },
@@ -85,7 +98,6 @@ export const headerCta: NavItem = {
 
 /** Áreas futuras o fuera del nav público. */
 export const futureAreas = [
-  "tienda",
   "blog",
   "ranking",
   "galería",

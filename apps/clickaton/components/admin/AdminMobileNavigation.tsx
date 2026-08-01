@@ -59,7 +59,7 @@ export function AdminMobileNavigation({ open, onClose }: Props) {
             ref={closeRef}
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--ck-radius-control)] border border-ck-border bg-ck-surface text-ck-text"
+            className="inline-flex size-11 min-h-11 min-w-11 items-center justify-center rounded-[var(--ck-radius-control)] border border-ck-border bg-ck-surface text-ck-text"
             aria-label="Cerrar menú de administración"
           >
             <span aria-hidden>×</span>

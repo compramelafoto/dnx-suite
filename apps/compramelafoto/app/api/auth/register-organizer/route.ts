@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ReferralProgram, Role, TokenPurpose } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@repo/auth";
 import { randomBytes } from "crypto";
 import { hashToken } from "@/lib/token-hash";
 import { sendEmail } from "@/emails/send";
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = hashPassword(password);
 
     const ip = getClientIp(req);
     const userData: Record<string, unknown> = {

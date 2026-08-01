@@ -634,7 +634,10 @@ export function TemplateEditorCanvas({
       : "default";
 
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}>
+    <div
+      className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}
+      data-testid="template-v2-canvas"
+    >
       {/* Área de trabajo: gris suave. El lienzo se centra; el marco tiene el tamaño *ya escalado* para no duplicar altura en el scroll (bug: hijo con width/height en px + scale ocupaba layout completo). */}
       <div
         ref={workAreaRef}

@@ -1,5 +1,4 @@
 import { sendIdentityEmail, type IdentityEmailResult } from "@repo/auth";
-import { siteConfig } from "@/config/site";
 import {
   POST_PAYMENT_ACCREDITATION,
   POST_PAYMENT_CAPTURE_WARNING,
@@ -9,6 +8,10 @@ import {
   POST_PAYMENT_TITLE,
   PRODUCTION_SITE_ORIGIN,
 } from "@/lib/registration/ui/post-payment-public-copy";
+import {
+  isClickatonProductionAudience,
+  resolveClickatonPublicOrigin,
+} from "@/lib/site/public-origin";
 
 export type ParticipantEmailKind =
   | "reservation_created"
@@ -23,7 +26,7 @@ export type ParticipantEmailKind =
  * Staging/dev: permite TEST_TO / FALLBACK / ALLOW_ANY para no spamear terceros.
  */
 function resolveRecipient(to: string): string {
-  if (isProductionAudience()) {
+  if (isClickatonProductionAudience()) {
     return to.trim();
   }
   const override = process.env.CLICKATON_EMAIL_TEST_TO?.trim();
@@ -44,28 +47,14 @@ function resolveRecipient(to: string): string {
 }
 
 function baseUrl(): string {
-  if (isProductionAudience()) {
+  if (isClickatonProductionAudience()) {
     return PRODUCTION_SITE_ORIGIN;
   }
-  return (
-    process.env.CLICKATON_PUBLIC_URL?.replace(/\/$/, "") ||
-    process.env.CLICKATON_PUBLIC_WEB_BASE_URL?.replace(/\/$/, "") ||
-    siteConfig.url
-  );
-}
-
-function isProductionAudience(): boolean {
-  const env = process.env.VERCEL_ENV?.trim() || process.env.NODE_ENV?.trim();
-  if (env === "production") return true;
-  const configured =
-    process.env.CLICKATON_PUBLIC_URL?.replace(/\/$/, "") ||
-    process.env.CLICKATON_PUBLIC_WEB_BASE_URL?.replace(/\/$/, "") ||
-    siteConfig.url;
-  return /maratonfotografica\.com/i.test(configured);
+  return resolveClickatonPublicOrigin();
 }
 
 function subjectLine(body: string): string {
-  return isProductionAudience() ? body : `[TEST] ${body}`;
+  return isClickatonProductionAudience() ? body : `[TEST] ${body}`;
 }
 
 function formatEditionDate(value: Date): string {
@@ -284,16 +273,15 @@ function buildConfirmedHtml(input: {
           <p style="margin:0 0 4px;color:#333;">Acreditación: ${escapeHtml(POST_PAYMENT_ACCREDITATION.accreditationWindow)}</p>
           <p style="margin:0 0 8px;color:#333;">Charla introductoria: ${escapeHtml(POST_PAYMENT_ACCREDITATION.talkWindow)}</p>
           <p style="margin:0;color:#555;font-size:13px;">${escapeHtml(POST_PAYMENT_ACCREDITATION.presentWithQr)}</p>
-          <p style="margin:8px 0 0;color:#888;font-size:11px;">${escapeHtml(POST_PAYMENT_ACCREDITATION.venueAddressConfigFlag)} — dirección postal exacta pendiente en configuración.</p>
         </div>
         <div style="margin:0 0 20px;padding:16px;border:1px solid #eee;border-radius:12px;">
-          <p style="margin:0 0 8px;color:${input.brand};font-size:12px;font-weight:800;letter-spacing:0.08em;">CRONOGRAMA</p>
+          <p style="margin:0 0 8px;color:${input.brand};font-size:12px;font-weight:800;letter-spacing:0.08em;">Cronograma</p>
           ${POST_PAYMENT_SCHEDULE.map((row) => `<p style="margin:0 0 4px;color:#333;">${escapeHtml(row.time)} · ${escapeHtml(row.label)}</p>`).join("")}
           <p style="margin:8px 0 0;color:#111;font-size:13px;"><strong>${escapeHtml(POST_PAYMENT_CAPTURE_WARNING)}</strong></p>
         </div>
         <p style="margin:0 0 16px;">
-          ${btn(input.credentialUrl, "VER MI QR DE ACREDITACIÓN", true)}
-          ${btn(input.activateUrl, "CREAR / ACTIVAR MI CUENTA DNX")}
+          ${btn(input.credentialUrl, "Ver mi QR de acreditación", true)}
+          ${btn(input.activateUrl, "Creá tu cuenta para ver el QR")}
           ${btn(input.summaryUrl, "Ver mi inscripción")}
           ${btn(input.termsUrl, "Bases y Condiciones")}
         </p>

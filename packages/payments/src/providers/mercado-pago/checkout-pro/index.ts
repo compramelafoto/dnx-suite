@@ -15,6 +15,7 @@ export {
 export {
   MercadoPagoCheckoutProTestAdapter,
   createMercadoPagoCheckoutProTestAdapter,
+  createMercadoPagoCheckoutProLiveAdapter,
   type CreateCheckoutProPreferenceInput,
   type CreateCheckoutProPreferenceResult,
   type GetCheckoutProPaymentResult,
@@ -23,5 +24,6 @@ export {
 export {
   createManualClickatonProviderBridge,
   createMercadoPagoTestClickatonProviderBridge,
+  createMercadoPagoProductionClickatonProviderBridge,
   resolveClickatonPaymentsProviderMode,
 } from "./provider-bridge";

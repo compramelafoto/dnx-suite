@@ -15,6 +15,7 @@ import {
   OAUTH_STATE_TTL_MS,
   canStartLiveOwnerOAuth,
   isClickatonMpOAuthPkceEnabled,
+  isClickatonOwnerCollectorAccount,
   isOwnerOnboardingEnabled,
   isOwnerOAuthManuallyAuthorized,
   readClickatonMpOAuthAppConfig,
@@ -377,15 +378,30 @@ export class ClickatonOwnerOAuthService {
       );
     }
 
-    const duplicate = await this.deps.store.findPaymentAccountByProviderUser({
+    const byProvider = await this.deps.store.findPaymentAccountByProviderUser({
       providerUserId: me.providerUserId,
       environment: "PROD",
     });
+    const existingOnStateFi = await this.deps.store.findOwnerPaymentAccount({
+      financialIdentityId: row.financialIdentityId,
+      environment: "PROD",
+    });
+
+    /**
+     * 10G.2C — RECONNECT_EXISTING_CANONICAL_ACCOUNT
+     * Same real MP account (providerUserId) + Clickatón collector markers →
+     * reuse that PaymentAccount (vault rotate). Do not create a second PA.
+     * Finance Owner actor may differ from FI.ownerUserId (recipient User).
+     */
+    const isCanonicalCollector =
+      byProvider != null && isClickatonOwnerCollectorAccount(byProvider);
+
     if (
-      duplicate &&
-      duplicate.financialIdentityId !== row.financialIdentityId &&
-      duplicate.status !== "REVOKED" &&
-      duplicate.status !== "DISABLED"
+      byProvider &&
+      !isCanonicalCollector &&
+      byProvider.financialIdentityId !== row.financialIdentityId &&
+      byProvider.status !== "REVOKED" &&
+      byProvider.status !== "DISABLED"
     ) {
       throw new OwnerOAuthError(
         "ACCOUNT_DUPLICATE",
@@ -393,15 +409,27 @@ export class ClickatonOwnerOAuthService {
       );
     }
 
-    const existingOwner = await this.deps.store.findOwnerPaymentAccount({
-      financialIdentityId: row.financialIdentityId,
-      environment: "PROD",
-    });
+    const targetExisting = isCanonicalCollector
+      ? byProvider
+      : existingOnStateFi;
 
     if (
-      existingOwner?.providerUserId &&
-      existingOwner.providerUserId !== me.providerUserId &&
-      existingOwner.status === "ACTIVE"
+      targetExisting?.providerUserId &&
+      targetExisting.providerUserId !== me.providerUserId &&
+      targetExisting.status === "ACTIVE"
+    ) {
+      throw new OwnerOAuthError(
+        "MERCADO_PAGO_ACCOUNT_MISMATCH",
+        "OAuth providerUserId does not match the canonical owner collector account",
+      );
+    }
+
+    // Keep OWNER_REPLACEMENT_BLOCKED alias for older clients/tests.
+    if (
+      existingOnStateFi?.providerUserId &&
+      existingOnStateFi.providerUserId !== me.providerUserId &&
+      existingOnStateFi.status === "ACTIVE" &&
+      !isCanonicalCollector
     ) {
       throw new OwnerOAuthError(
         "OWNER_REPLACEMENT_BLOCKED",
@@ -431,18 +459,24 @@ export class ClickatonOwnerOAuthService {
       },
     });
 
-    if (existingOwner?.credentialReference) {
+    if (targetExisting?.credentialReference) {
       try {
-        await this.deps.vault.revoke(existingOwner.credentialReference);
+        await this.deps.vault.revoke(targetExisting.credentialReference);
       } catch {
         // best-effort revoke previous credential
       }
     }
 
-    const accountId = existingOwner?.id ?? `pa_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+    const accountId =
+      targetExisting?.id ?? `pa_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+    /** Never move canonical collector off its org FI. */
+    const financialIdentityId = isCanonicalCollector
+      ? byProvider!.financialIdentityId
+      : row.financialIdentityId;
+
     const account: OwnerPaymentAccountRecord = {
       id: accountId,
-      financialIdentityId: row.financialIdentityId,
+      financialIdentityId,
       provider: "MERCADOPAGO",
       environment: "PROD",
       providerUserId: me.providerUserId,
@@ -455,7 +489,7 @@ export class ClickatonOwnerOAuthService {
       connectedAt: now,
       verifiedAt: now,
       lastHealthCheckAt: now,
-      createdAt: existingOwner?.createdAt ?? now,
+      createdAt: targetExisting?.createdAt ?? now,
       updatedAt: now,
     };
     await this.deps.store.upsertOwnerPaymentAccount(account);
@@ -467,11 +501,17 @@ export class ClickatonOwnerOAuthService {
       actorUserId: input.actor.userId,
       result: "SUCCEEDED",
       metadata: {
-        purpose: CLICKATON_MP_OWNER_PURPOSE,
+        purpose: row.purpose,
+        reconnectMode: isCanonicalCollector
+          ? "RECONNECT_EXISTING_CANONICAL_ACCOUNT"
+          : row.purpose === "OWNER_RECONNECT"
+            ? "OWNER_RECONNECT"
+            : "OWNER_CONNECTION",
         providerUserIdMasked: maskAccountLabel(me.providerUserId),
         nicknameMasked: me.nicknameMasked,
         emailMasked: me.emailMasked,
         dedicatedProduct: "clickaton",
+        paymentAccountId: account.id,
       },
       createdAt: now,
     });

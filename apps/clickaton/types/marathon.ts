@@ -298,11 +298,11 @@ export const allowedDeviceLabels: Record<AllowedDevice, string> = {
 };
 
 export const resultsStatusLabels: Record<ResultsStatus, string> = {
-  not_available: "No disponibles",
-  pending: "Pendientes",
-  partial: "Parciales",
-  published: "Publicados",
-  archived: "Archivados",
+  not_available: "Resultados no disponibles",
+  pending: "Resultados en preparación",
+  partial: "Resultados parciales",
+  published: "Resultados publicados",
+  archived: "Resultados archivados",
 };
 
 export const galleryStatusLabels: Record<GalleryStatus, string> = {

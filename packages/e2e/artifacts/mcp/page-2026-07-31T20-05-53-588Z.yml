@@ -1,0 +1,60 @@
+- generic [active] [ref=f31e1]:
+  - generic [ref=f31e2]:
+    - banner [ref=f31e3]:
+      - generic [ref=f31e5]:
+        - link [ref=f31e7] [cursor=pointer]:
+          - /url: /
+          - img "ComprameLaFoto" [ref=f31e8]
+          - paragraph [ref=f31e10]: ComprameLaFoto
+        - generic [ref=f31e11]:
+          - button "Comunidad CLF" [ref=f31e13]
+          - generic [ref=f31e16]: Verificando sesión...
+    - main [ref=f31e18]:
+      - generic [ref=f31e20]:
+        - generic [ref=f31e21]:
+          - generic [ref=f31e22]:
+            - link [ref=f31e23] [cursor=pointer]:
+              - /url: /
+              - img "ComprameLaFoto" [ref=f31e24]
+            - generic [ref=f31e25]:
+              - heading "Iniciar sesión" [level=1] [ref=f31e26]
+              - paragraph [ref=f31e27]: Accedé con tu Cuenta DNX para comprar, vender o gestionar álbumes.
+          - generic [ref=f31e28]:
+            - generic [ref=f31e29]:
+              - generic [ref=f31e30]: Email*
+              - textbox "Email" [ref=f31e31]
+            - generic [ref=f31e32]:
+              - generic [ref=f31e33]: Contraseña*
+              - generic [ref=f31e34]:
+                - textbox "Contraseña" [ref=f31e35]
+                - button "Mostrar contraseña" [ref=f31e36] [cursor=pointer]
+            - link "¿Olvidaste tu contraseña?" [ref=f31e41] [cursor=pointer]:
+              - /url: /forgot-password
+            - button "Iniciar sesión" [ref=f31e42] [cursor=pointer]
+          - separator "o" [ref=f31e44]
+          - link "Continuar con Google" [ref=f31e48] [cursor=pointer]:
+            - /url: /api/auth/google?role=AUTO
+          - paragraph [ref=f31e55]:
+            - text: ¿No tenés cuenta?
+            - link "Crear cuenta" [ref=f31e56] [cursor=pointer]:
+              - /url: /registro
+          - paragraph [ref=f31e57]:
+            - link "Volver al inicio" [ref=f31e58] [cursor=pointer]:
+              - /url: /
+        - paragraph [ref=f31e59]:
+          - link "Términos" [ref=f31e60] [cursor=pointer]:
+            - /url: /terminos
+          - text: ·
+          - link "Privacidad" [ref=f31e61] [cursor=pointer]:
+            - /url: /privacidad
+    - contentinfo [ref=f31e62]:
+      - generic [ref=f31e64]:
+        - generic [ref=f31e65]:
+          - link "Términos y Condiciones" [ref=f31e66] [cursor=pointer]:
+            - /url: /terminos
+          - link "Política de Privacidad" [ref=f31e67] [cursor=pointer]:
+            - /url: /privacidad
+        - img "ComprameLaFoto" [ref=f31e68]
+        - paragraph [ref=f31e69]: creado por ComprameLaFoto
+    - button "Trabajá con nosotros" [ref=f31e71]
+  - button "Open Next.js Dev Tools" [ref=f31e77] [cursor=pointer]

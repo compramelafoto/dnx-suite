@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Wordmark } from "@/components/brand/Wordmark";
 import { AccountMenu, type HeaderAuthUser } from "@/components/layout/AccountMenu";
 import { Container } from "@/components/layout/Container";
+import { StoreCartButton } from "@/components/store/cart/StoreCartButton";
 import { Button } from "@/components/ui/Button";
 import {
   aboutSectionNavigation,
@@ -149,6 +150,7 @@ export function SiteHeader({ authUser = null }: Props) {
           </nav>
 
           <div className="flex shrink-0 items-center gap-3">
+            <StoreCartButton />
             {authUser ? (
               <AccountMenu user={authUser} />
             ) : (
@@ -172,6 +174,7 @@ export function SiteHeader({ authUser = null }: Props) {
         </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3 2xl:hidden">
+          <StoreCartButton />
           {authUser ? (
             <AccountMenu user={authUser} />
           ) : (
@@ -275,6 +278,14 @@ export function SiteHeader({ authUser = null }: Props) {
                   </Link>
                 );
               })}
+              <Button
+                href={routes.storeCart}
+                variant="secondary"
+                className="mt-3 w-full whitespace-nowrap"
+                onClick={() => setOpen(false)}
+              >
+                Ver carrito
+              </Button>
               {!authUser ? (
                 <Button
                   href={loginHref}

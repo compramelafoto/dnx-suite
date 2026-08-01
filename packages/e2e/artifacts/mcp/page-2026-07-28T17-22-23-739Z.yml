@@ -1,0 +1,53 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Saltar al contenido" [ref=e4] [cursor=pointer]:
+        - /url: "#root-app"
+      - link "Procesamos los pagos online de compradores y vendedores - Mercado Pago" [ref=e6] [cursor=pointer]:
+        - /url: https://www.mercadopago.com.ar
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e10]:
+        - heading "Ingresá tu DNI, e‑mail o teléfono para iniciar sesión" [level=1] [ref=e12]
+        - generic [ref=e14]:
+          - list [ref=e15]:
+            - listitem [ref=e16] [cursor=pointer]:
+              - link "Tengo un problema de seguridad" [ref=e17]:
+                - /url: https://www.mercadopago.com.ar/ato-complaint/classifier?origin=LOGIN_IDENTIFICATION_WEB
+              - generic [ref=e18]: Tengo un problema de seguridad
+          - link "Necesito ayuda" [ref=e30] [cursor=pointer]:
+            - /url: "#"
+        - generic [ref=e33]:
+          - generic [ref=e35]:
+            - generic [ref=e38]:
+              - generic [ref=e39]: DNI, e-mail o teléfono
+              - textbox "DNI, e-mail o teléfono" [active] [ref=e42]:
+                - /placeholder: ""
+              - generic:
+                - generic:
+                  - generic:
+                    - alert
+            - generic [ref=e43]:
+              - button "Continuar" [ref=e44] [cursor=pointer]
+              - link "Crear cuenta" [ref=e46] [cursor=pointer]:
+                - /url: https://registration.mercadopago.com.ar/registration-mp?confirmation_url=https%3A%2F%2Fwww.mercadopago.com.ar%2Fdevelopers%2Fpanel%2Fapp
+              - generic [ref=e48]:
+                - separator [ref=e49]
+                - paragraph [ref=e50]: o
+                - separator [ref=e51]
+              - generic [ref=e58]:
+                - progressbar
+          - status [ref=e67]
+      - region "Cómo cuidamos tu privacidad (abrirá una nueva ventana)" [ref=e68]:
+        - generic [ref=e69]:
+          - link "Cómo cuidamos tu privacidad (abrirá una nueva ventana)" [ref=e70] [cursor=pointer]:
+            - /url: https://www.mercadopago.com.ar/privacidad
+            - text: Cómo cuidamos tu privacidad
+            - generic [ref=e71]: (abrirá una nueva ventana)
+          - generic [ref=e72]: "-Copyright © 1999-2026 MercadoLibre S.R.L."
+        - generic [ref=e73]:
+          - text: Protegido por reCAPTCHA
+          - link "-Privacidad" [ref=e74] [cursor=pointer]:
+            - /url: https://policies.google.com/privacy?hl=es-419
+          - link "-Condiciones" [ref=e75] [cursor=pointer]:
+            - /url: https://policies.google.com/terms?hl=es-419

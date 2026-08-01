@@ -124,6 +124,7 @@ export async function getSessionIdentityByRawToken(
           id: true,
           email: true,
           role: true,
+          globalRole: true,
         },
       },
     },

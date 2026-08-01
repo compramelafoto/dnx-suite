@@ -14,6 +14,9 @@ export function registrationStatusLabel(status: ClickatonRegistrationStatus): st
     CANCELLED: "Cancelada",
     REFUNDED: "Reembolsada",
     DISQUALIFIED: "Descalificada",
+    TRANSFERRED_TO_NEXT_EDITION: "Trasladada a próxima edición",
+    EXPIRED: "Expirada",
+    REFUND_REQUESTED: "Reembolso solicitado",
   };
   return map[status] ?? status;
 }

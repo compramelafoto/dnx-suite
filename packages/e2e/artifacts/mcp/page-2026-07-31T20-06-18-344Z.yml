@@ -1,0 +1,464 @@
+- generic [active] [ref=f32e1]:
+  - generic [ref=f32e2]:
+    - banner [ref=f32e3]:
+      - generic [ref=f32e5]:
+        - link [ref=f32e7] [cursor=pointer]:
+          - /url: /
+          - img "ComprameLaFoto" [ref=f32e8]
+          - paragraph [ref=f32e10]: ComprameLaFoto
+        - generic [ref=f32e12]:
+          - link [ref=f32e13] [cursor=pointer]:
+            - /url: /blog
+            - button "Blog" [ref=f32e14]
+          - link [ref=f32e15] [cursor=pointer]:
+            - /url: /tutoriales
+            - button "Tutoriales" [ref=f32e16]
+          - generic [ref=f32e17]:
+            - generic [ref=f32e18]: Sesión activa
+            - generic [ref=f32e19]: CLF Homologation Admin (TEST)
+            - generic [ref=f32e20]: Administrador
+          - link "Admin" [ref=f32e21] [cursor=pointer]:
+            - /url: /admin
+          - link "Cambiar contraseña" [ref=f32e24] [cursor=pointer]:
+            - /url: /cuenta/cambiar-contrasena
+          - button "Cerrar sesión" [ref=f32e27]
+    - main [ref=f32e30]:
+      - generic [ref=f32e31]:
+        - generic [ref=f32e34]:
+          - generic [ref=f32e35]:
+            - button "Ocultar menú" [expanded] [ref=f32e36]
+            - link "ComprameLaFoto Admin" [ref=f32e39] [cursor=pointer]:
+              - /url: /admin
+              - img "ComprameLaFoto" [ref=f32e40]
+              - generic [ref=f32e41]: Admin
+          - generic [ref=f32e42]:
+            - button "Notificaciones, 1 sin leer" [ref=f32e44]:
+              - generic [ref=f32e47]: "1"
+            - link "Emails" [ref=f32e48] [cursor=pointer]:
+              - /url: /admin/emails
+            - button "Salir" [ref=f32e52]
+        - generic [ref=f32e53]:
+          - complementary [ref=f32e54]:
+            - generic [ref=f32e55]: Panel Admin
+            - navigation [ref=f32e57]:
+              - generic [ref=f32e58]:
+                - button "Inicio" [ref=f32e59]
+                - list [ref=f32e68]:
+                  - listitem [ref=f32e69]:
+                    - link "Dashboard" [ref=f32e70] [cursor=pointer]:
+                      - /url: /admin
+                  - listitem [ref=f32e71]:
+                    - link "Funnel de compra" [ref=f32e72] [cursor=pointer]:
+                      - /url: /admin#funnel-compra
+              - generic [ref=f32e73]:
+                - button "Ventas y pedidos" [ref=f32e74]
+                - list [ref=f32e81]:
+                  - listitem [ref=f32e82]:
+                    - link "Conversión checkout" [ref=f32e83] [cursor=pointer]:
+                      - /url: /admin/conversion
+                  - listitem [ref=f32e84]:
+                    - link "Pedidos" [ref=f32e85] [cursor=pointer]:
+                      - /url: /admin/pedidos
+                  - listitem [ref=f32e86]:
+                    - link "Clientes" [ref=f32e87] [cursor=pointer]:
+                      - /url: /admin/clientes
+                  - listitem [ref=f32e88]:
+                    - link "Interesados" [ref=f32e89] [cursor=pointer]:
+                      - /url: /admin/interesados
+                  - listitem [ref=f32e90]:
+                    - link "FotoOffice interesados" [ref=f32e91] [cursor=pointer]:
+                      - /url: /admin/fotooffice-interesados
+                  - listitem [ref=f32e92]:
+                    - link "Pagos MP / anomalías" [ref=f32e93] [cursor=pointer]:
+                      - /url: /admin/pagos-mp-anomalias
+                  - listitem [ref=f32e94]:
+                    - link "Homologación MP Split 1:N" [ref=f32e95] [cursor=pointer]:
+                      - /url: /admin/homologacion-mp-split-1n
+              - generic [ref=f32e96]:
+                - button "Álbumes y eventos" [ref=f32e97]
+                - list [ref=f32e104]:
+                  - listitem [ref=f32e105]:
+                    - link "Álbumes públicos" [ref=f32e106] [cursor=pointer]:
+                      - /url: /admin/albums?visibility=public
+                  - listitem [ref=f32e107]:
+                    - link "Álbumes privados" [ref=f32e108] [cursor=pointer]:
+                      - /url: /admin/albums?visibility=private
+                  - listitem [ref=f32e109]:
+                    - link "Eventos" [ref=f32e110] [cursor=pointer]:
+                      - /url: /admin/eventos
+              - generic [ref=f32e111]:
+                - button "Escolar" [ref=f32e112]
+                - list [ref=f32e120]:
+                  - listitem [ref=f32e121]:
+                    - link "Escuelas" [ref=f32e122] [cursor=pointer]:
+                      - /url: /admin/escuelas
+                  - listitem [ref=f32e123]:
+                    - link "Admins escolares" [ref=f32e124] [cursor=pointer]:
+                      - /url: /admin/usuarios?tab=administradores-escuela
+              - generic [ref=f32e125]:
+                - button "Catálogo" [ref=f32e126]
+                - list [ref=f32e133]:
+                  - listitem [ref=f32e134]:
+                    - link "Plantillas de productos" [ref=f32e135] [cursor=pointer]:
+                      - /url: /admin/catalog-templates
+                  - listitem [ref=f32e136]:
+                    - link "Upselling" [ref=f32e137] [cursor=pointer]:
+                      - /url: /admin/upselling
+              - generic [ref=f32e138]:
+                - button "Diseños" [ref=f32e139]
+                - list [ref=f32e146]:
+                  - listitem [ref=f32e147]:
+                    - link "Plantillas y editor V2" [ref=f32e148] [cursor=pointer]:
+                      - /url: /dashboard/designs
+                  - listitem [ref=f32e149]:
+                    - link "Revisión plantillas V2" [ref=f32e150] [cursor=pointer]:
+                      - /url: /admin/template-v2/revision
+                  - listitem [ref=f32e151]:
+                    - link "Plantillas clásicas (V1)" [ref=f32e152] [cursor=pointer]:
+                      - /url: /admin/plantillas
+                  - listitem [ref=f32e153]:
+                    - link "Diseñador clásico (V1)" [ref=f32e154] [cursor=pointer]:
+                      - /url: /admin/plantillas/disenador
+                  - listitem [ref=f32e155]:
+                    - link "Proyectos de diseño" [ref=f32e156] [cursor=pointer]:
+                      - /url: /admin/proyectos
+              - generic [ref=f32e157]:
+                - button "Usuarios y partners" [ref=f32e158]
+                - list [ref=f32e165]:
+                  - listitem [ref=f32e166]:
+                    - link "Usuarios" [ref=f32e167] [cursor=pointer]:
+                      - /url: /admin/usuarios
+                  - listitem [ref=f32e168]:
+                    - link "Fotógrafos" [ref=f32e169] [cursor=pointer]:
+                      - /url: /admin/fotografos
+                  - listitem [ref=f32e170]:
+                    - link "Mapa fotógrafos" [ref=f32e171] [cursor=pointer]:
+                      - /url: /admin/fotografos/mapa
+                  - listitem [ref=f32e172]:
+                    - link "Laboratorios" [ref=f32e173] [cursor=pointer]:
+                      - /url: /admin/laboratorios
+                  - listitem [ref=f32e174]:
+                    - link "Organizadores" [ref=f32e175] [cursor=pointer]:
+                      - /url: /admin/usuarios?tab=organizadores
+                  - listitem [ref=f32e176]:
+                    - link "Laboratorios recomendados" [ref=f32e177] [cursor=pointer]:
+                      - /url: /admin/recomendados
+              - generic [ref=f32e178]:
+                - button "Finanzas" [ref=f32e179]
+                - list [ref=f32e186]:
+                  - listitem [ref=f32e187]:
+                    - link "Resumen financiero" [ref=f32e188] [cursor=pointer]:
+                      - /url: /admin/finanzas
+                  - listitem [ref=f32e189]:
+                    - link "Cobros referidos" [ref=f32e190] [cursor=pointer]:
+                      - /url: /admin/referral-payouts
+                  - listitem [ref=f32e191]:
+                    - link "Estadísticas referidos" [ref=f32e192] [cursor=pointer]:
+                      - /url: /admin/referral-stats
+                  - listitem [ref=f32e193]:
+                    - link "Retiros organizadores" [ref=f32e194] [cursor=pointer]:
+                      - /url: /admin/organizer-commission-withdrawals
+              - generic [ref=f32e195]:
+                - button "Marketing" [ref=f32e196]
+                - list [ref=f32e203]:
+                  - listitem [ref=f32e204]:
+                    - link "Mensajes" [ref=f32e205] [cursor=pointer]:
+                      - /url: /admin/mensajes
+                  - listitem [ref=f32e206]:
+                    - link "Emails" [ref=f32e207] [cursor=pointer]:
+                      - /url: /admin/emails
+                  - listitem [ref=f32e208]:
+                    - link "Email marketing" [ref=f32e209] [cursor=pointer]:
+                      - /url: /admin/email-marketing
+                  - listitem [ref=f32e210]:
+                    - link "Charlas" [ref=f32e211] [cursor=pointer]:
+                      - /url: /admin/marketing/charlas
+                  - listitem [ref=f32e212]:
+                    - generic [ref=f32e213]: Cursos
+                    - list [ref=f32e214]:
+                      - listitem [ref=f32e215]:
+                        - link "Fotografía Básica — Funes" [ref=f32e216] [cursor=pointer]:
+                          - /url: /admin/marketing/cursos/fotografia-basica-funes
+                  - listitem [ref=f32e217]:
+                    - link "Banner del home" [ref=f32e218] [cursor=pointer]:
+                      - /url: /admin/banner
+                  - listitem [ref=f32e219]:
+                    - link "Blog" [ref=f32e220] [cursor=pointer]:
+                      - /url: /admin/blog
+                  - listitem [ref=f32e221]:
+                    - link "Testimonios" [ref=f32e222] [cursor=pointer]:
+                      - /url: /admin/testimonios
+                  - listitem [ref=f32e223]:
+                    - link "Tutoriales" [ref=f32e224] [cursor=pointer]:
+                      - /url: /admin/tutoriales
+              - generic [ref=f32e225]:
+                - button "Comunidad" [ref=f32e226]
+                - list [ref=f32e233]:
+                  - listitem [ref=f32e234]:
+                    - link "Para fotógrafos" [ref=f32e235] [cursor=pointer]:
+                      - /url: /admin/comunidad/para-fotografos
+                  - listitem [ref=f32e236]:
+                    - link "Proveedores" [ref=f32e237] [cursor=pointer]:
+                      - /url: /admin/comunidad/proveedores
+              - generic [ref=f32e238]:
+                - button "Soporte" [ref=f32e239]
+                - list [ref=f32e246]:
+                  - listitem [ref=f32e247]:
+                    - link "Incidencias" [ref=f32e248] [cursor=pointer]:
+                      - /url: /admin/soporte
+              - generic [ref=f32e249]:
+                - button "Seguridad y auditoría" [ref=f32e250]
+                - list [ref=f32e257]:
+                  - listitem [ref=f32e258]:
+                    - link "Auditoría" [ref=f32e259] [cursor=pointer]:
+                      - /url: /admin/auditoria
+                  - listitem [ref=f32e260]:
+                    - link "Antifraude" [ref=f32e261] [cursor=pointer]:
+                      - /url: /admin/antifraude
+                  - listitem [ref=f32e262]:
+                    - link "Auditoría selfies" [ref=f32e263] [cursor=pointer]:
+                      - /url: /admin/auditoria-selfies
+                  - listitem [ref=f32e264]:
+                    - link "Procesamiento fotos" [ref=f32e265] [cursor=pointer]:
+                      - /url: /admin/procesamiento-fotos
+                  - listitem [ref=f32e266]:
+                    - link "Equipos fotográficos" [ref=f32e267] [cursor=pointer]:
+                      - /url: /admin/equipos-fotograficos
+                  - listitem [ref=f32e268]:
+                    - link "IA / Reconocimiento" [ref=f32e269] [cursor=pointer]:
+                      - /url: /admin/ia
+                  - listitem [ref=f32e270]:
+                    - link "Solicitudes ARCO" [ref=f32e271] [cursor=pointer]:
+                      - /url: /admin/privacidad/solicitudes
+              - generic [ref=f32e272]:
+                - button "Plataforma" [ref=f32e273]
+                - list [ref=f32e281]:
+                  - listitem [ref=f32e282]:
+                    - link "Salud de la Plataforma" [ref=f32e283] [cursor=pointer]:
+                      - /url: /admin/salud-plataforma
+                  - listitem [ref=f32e284]:
+                    - link "Configuración general" [ref=f32e285] [cursor=pointer]:
+                      - /url: /admin/configuracion
+                  - listitem [ref=f32e286]:
+                    - link "Almacenamiento R2" [ref=f32e287] [cursor=pointer]:
+                      - /url: /admin/r2
+                  - listitem [ref=f32e288]:
+                    - link "Cambiar contraseña" [ref=f32e289] [cursor=pointer]:
+                      - /url: /cuenta/cambiar-contrasena
+          - main [ref=f32e290]:
+            - generic [ref=f32e291]:
+              - generic [ref=f32e292]:
+                - heading "Dashboard" [level=1] [ref=f32e293]
+                - paragraph [ref=f32e294]: Resumen general de la plataforma
+              - generic [ref=f32e295]:
+                - generic [ref=f32e297]:
+                  - generic [ref=f32e298]:
+                    - paragraph [ref=f32e299]: Ventas Hoy
+                    - paragraph [ref=f32e300]: $ 0
+                    - paragraph [ref=f32e301]: Confirmadas
+                    - paragraph [ref=f32e302]: "Pendientes: $ 0"
+                    - paragraph [ref=f32e303]: "Con error: $ 0"
+                  - generic [ref=f32e304]: 💰
+                - generic [ref=f32e307]:
+                  - generic [ref=f32e308]:
+                    - paragraph [ref=f32e309]: Ventas Semana
+                    - paragraph [ref=f32e310]: $ 0
+                    - paragraph [ref=f32e311]: Confirmadas
+                    - paragraph [ref=f32e312]: "Pendientes: $ 0"
+                    - paragraph [ref=f32e313]: "Con error: $ 0"
+                  - generic [ref=f32e314]: 📊
+                - generic [ref=f32e317]:
+                  - generic [ref=f32e318]:
+                    - paragraph [ref=f32e319]: Ventas Mes
+                    - paragraph [ref=f32e320]: $ 0
+                    - paragraph [ref=f32e321]: Confirmadas
+                    - paragraph [ref=f32e322]: "Pendientes: $ 0"
+                    - paragraph [ref=f32e323]: "Con error: $ 0"
+                  - generic [ref=f32e324]: 📈
+                - generic [ref=f32e327]:
+                  - generic [ref=f32e328]:
+                    - paragraph [ref=f32e329]: Pedidos Hoy
+                    - paragraph [ref=f32e330]: "0"
+                    - paragraph [ref=f32e331]: 0 efectivos
+                  - generic [ref=f32e332]: 📦
+              - generic [ref=f32e334]:
+                - heading "Funnel compra álbum (hoy, Argentina)" [level=2] [ref=f32e335]
+                - paragraph [ref=f32e336]: Conteo de vistas y visitantes distintos (cookie httpOnly anónima). Incluye usuarios no logueados.
+                - generic [ref=f32e337]:
+                  - generic [ref=f32e338]:
+                    - paragraph [ref=f32e339]: ORDER_CONFIG_VIEW
+                    - paragraph [ref=f32e340]: 0 vistas
+                    - paragraph [ref=f32e341]: 0 visitantes distintos
+                  - generic [ref=f32e342]:
+                    - paragraph [ref=f32e343]: ORDER_FINAL_VIEW
+                    - paragraph [ref=f32e344]: 0 vistas
+                    - paragraph [ref=f32e345]: 0 visitantes distintos
+                  - generic [ref=f32e346]:
+                    - paragraph [ref=f32e347]: ORDER_CREATED
+                    - paragraph [ref=f32e348]: 0 vistas
+                    - paragraph [ref=f32e349]: 0 visitantes distintos
+                  - generic [ref=f32e350]:
+                    - paragraph [ref=f32e351]: PAYMENT_START
+                    - paragraph [ref=f32e352]: 0 vistas
+                    - paragraph [ref=f32e353]: 0 visitantes distintos
+                  - generic [ref=f32e354]:
+                    - paragraph [ref=f32e355]: PAYMENT_SUCCESS
+                    - paragraph [ref=f32e356]: 0 vistas
+                    - paragraph [ref=f32e357]: 0 visitantes distintos
+              - generic [ref=f32e358]:
+                - heading "Efectividad de álbumes (semanal, últimos 90 días)" [level=2] [ref=f32e359]
+                - paragraph [ref=f32e360]: "Álbumes con al menos una foto publicada en cada semana (Argentina). Con ventas: al menos un pago confirmado (`PAYMENT_SUCCESS` o pedido PAID). Sin ventas: tenían fotos pero no vendieron en esa semana."
+                - paragraph [ref=f32e361]: Sin datos suficientes para el gráfico.
+              - generic [ref=f32e362]:
+                - heading "Fotógrafos que arrancan (primer álbum con fotos)" [level=2] [ref=f32e363]
+                - paragraph [ref=f32e364]:
+                  - text: Fotógrafos cuya
+                  - strong [ref=f32e365]: primera carga de fotos
+                  - text: en un álbum fue en los últimos 90 días. Útil para seguimiento de onboarding. La columna Venta esta semana indica si tuvieron al menos un pedido PAID (álbum o impresión) en la semana calendario actual (Argentina).
+                - paragraph [ref=f32e366]: Ningún fotógrafo subió su primer álbum con fotos en los últimos 90 días.
+              - generic [ref=f32e367]:
+                - heading "Demora de subida vs ventas del álbum" [level=2] [ref=f32e368]
+                - paragraph [ref=f32e369]:
+                  - text: Compara la
+                  - strong [ref=f32e370]: fecha del evento
+                  - text: del álbum con la
+                  - strong [ref=f32e371]: primera foto publicada
+                  - text: "(`firstPhotoDate` o primera subida) y las ventas digitales confirmadas (pedidos PAID, sin test). Sirve para ver si los fotógrafos que tardan en subir venden menos. Período: eventos de los últimos 18 meses."
+                - paragraph [ref=f32e372]: Sin álbumes con fecha de evento y fotos publicadas en el período.
+              - generic [ref=f32e373]:
+                - heading "Ventas por fotógrafo (semanal, últimos 90 días)" [level=2] [ref=f32e374]
+                - paragraph [ref=f32e375]: "Elegí un fotógrafo del listado (ordenado por facturación total en el período). Montos en pesos de pedidos pagados: álbumes + impresiones."
+                - paragraph [ref=f32e376]: Sin ventas de fotógrafos en los últimos 90 días.
+              - group [ref=f32e378]:
+                - generic [ref=f32e379] [cursor=pointer]:
+                  - generic [ref=f32e380]:
+                    - heading "Funnel — eventos (últimos 30 días)" [level=2] [ref=f32e381]
+                    - paragraph [ref=f32e382]: Sin registros
+                  - generic [ref=f32e383]: ▼
+              - generic [ref=f32e384]:
+                - heading "Pedidos por estado (últimos 30 días)" [level=2] [ref=f32e385]
+                - generic [ref=f32e386]:
+                  - link [ref=f32e387] [cursor=pointer]:
+                    - /url: /admin/pedidos?paymentStatus=PAID
+                    - paragraph [ref=f32e388]: Pedidos efectivos (pagados)
+                    - paragraph [ref=f32e389]: "0"
+                    - paragraph [ref=f32e390]: Pagos acreditados
+                  - link [ref=f32e391] [cursor=pointer]:
+                    - /url: /admin/pedidos?paymentStatus=REFUNDED
+                    - paragraph [ref=f32e392]: Cancelados / Reembolsados
+                    - paragraph [ref=f32e393]: "0"
+                    - paragraph [ref=f32e394]: Fallidos o devueltos
+                  - link [ref=f32e395] [cursor=pointer]:
+                    - /url: /admin/pedidos?paymentStatus=PENDING
+                    - paragraph [ref=f32e396]: Pendientes
+                    - paragraph [ref=f32e397]: "0"
+                    - paragraph [ref=f32e398]: Sin finalizar pago
+              - generic [ref=f32e399]:
+                - generic [ref=f32e400]:
+                  - paragraph [ref=f32e401]: Pedidos Impresión (30d)
+                  - paragraph [ref=f32e402]: "0"
+                - generic [ref=f32e403]:
+                  - paragraph [ref=f32e404]: Pedidos Digitales (30d)
+                  - paragraph [ref=f32e405]: "0"
+                - generic [ref=f32e406]:
+                  - paragraph [ref=f32e407]: Pedidos Álbum (30d)
+                  - paragraph [ref=f32e408]: "0"
+                - generic [ref=f32e409]:
+                  - paragraph [ref=f32e410]: Laboratorios Activos
+                  - paragraph [ref=f32e411]: "0"
+                - generic [ref=f32e412]:
+                  - paragraph [ref=f32e413]: Fotógrafos Activos
+                  - paragraph [ref=f32e414]: "0"
+                - generic [ref=f32e415]:
+                  - paragraph [ref=f32e416]: Clientes Activos
+                  - paragraph [ref=f32e417]: "0"
+                - generic [ref=f32e418]:
+                  - paragraph [ref=f32e419]: Pagos Pendientes (7d)
+                  - paragraph [ref=f32e420]: "0"
+                - generic [ref=f32e421]:
+                  - paragraph [ref=f32e422]: Labs Pendientes
+                  - paragraph [ref=f32e423]: "0"
+                - generic [ref=f32e424]:
+                  - paragraph [ref=f32e425]: Pedidos Trabados
+                  - paragraph [ref=f32e426]: "0"
+              - generic [ref=f32e427]:
+                - heading "Promedio diario de ventas por mes (últimos 12 meses)" [level=2] [ref=f32e428]
+                - paragraph [ref=f32e429]: Ingreso confirmado (pedidos pagados) atribuido a digital vs impreso, y total. Cada punto es el total del mes en ARS dividido por los días del mes calendario (zona Argentina). En el mes en curso el divisor suma los días completos anteriores más la fracción del día según las horas transcurridas, así el promedio no cae al empezar un día en $0.
+                - generic [ref=f32e432]:
+                  - list [ref=f32e434]:
+                    - listitem [ref=f32e435]:
+                      - img "Prom. diario digital legend icon" [ref=f32e436]
+                      - text: Prom. diario digital
+                    - listitem [ref=f32e438]:
+                      - img "Prom. diario impreso legend icon" [ref=f32e439]
+                      - text: Prom. diario impreso
+                    - listitem [ref=f32e441]:
+                      - img "Prom. diario total legend icon" [ref=f32e442]
+                      - text: Prom. diario total
+                  - application [ref=f32e444]:
+                    - generic [ref=f32e490]:
+                      - generic [ref=f32e491]:
+                        - generic [ref=f32e492]: Ago 2025
+                        - generic [ref=f32e494]: Sept 2025
+                        - generic [ref=f32e496]: Oct 2025
+                        - generic [ref=f32e498]: Nov 2025
+                        - generic [ref=f32e500]: Dic 2025
+                        - generic [ref=f32e502]: Ene 2026
+                        - generic [ref=f32e504]: Feb 2026
+                        - generic [ref=f32e506]: Mar 2026
+                        - generic [ref=f32e508]: Abr 2026
+                        - generic [ref=f32e510]: May 2026
+                        - generic [ref=f32e512]: Jun 2026
+                        - generic [ref=f32e514]: Jul 2026
+                      - generic [ref=f32e516]:
+                        - generic [ref=f32e517]: "0"
+                        - generic [ref=f32e519]: "1"
+                        - generic [ref=f32e521]: "2"
+                        - generic [ref=f32e523]: "3"
+                        - generic [ref=f32e525]: "4"
+              - generic [ref=f32e527]:
+                - heading "Estudio de horarios de venta (últimos 90 días)" [level=2] [ref=f32e528]
+                - paragraph [ref=f32e529]: "Pedidos pagados (digital e impreso) agrupados por día de la semana y hora en zona horaria Argentina. Período: 2 de may de 2026 — 31 de jul de 2026. Total: 0 pedidos ($ 0)."
+                - paragraph [ref=f32e530]: Sin pedidos pagados en el período.
+              - generic [ref=f32e531]:
+                - heading "Estadísticas de Fotos" [level=2] [ref=f32e532]
+                - generic [ref=f32e533]:
+                  - generic [ref=f32e534]:
+                    - paragraph [ref=f32e535]: Fotos Subidas (Total)
+                    - paragraph [ref=f32e536]: "0"
+                    - paragraph [ref=f32e537]: Histórico acumulado (incluye fotos ya purgadas o eliminadas)
+                  - generic [ref=f32e538]:
+                    - paragraph [ref=f32e539]: Fotos activas en BD
+                    - paragraph [ref=f32e540]: "0"
+                  - generic [ref=f32e541]:
+                    - paragraph [ref=f32e542]: Fotos Vendidas (Total)
+                    - paragraph [ref=f32e543]: "0"
+                  - generic [ref=f32e544]:
+                    - paragraph [ref=f32e545]: Tasa de Conversión
+                    - paragraph [ref=f32e546]: 0.00%
+                    - paragraph [ref=f32e547]: Sin fotos subidas
+              - generic [ref=f32e548]:
+                - heading "Alertas" [level=2] [ref=f32e549]
+                - generic [ref=f32e551]:
+                  - generic [ref=f32e552]: 1 fotógrafo(s) sin Mercado Pago conectado
+                  - button "Ver" [ref=f32e553]
+              - generic [ref=f32e554]:
+                - generic [ref=f32e555]:
+                  - heading "Top fotógrafos por facturación (últimos 90 días)" [level=2] [ref=f32e556]
+                  - paragraph [ref=f32e557]: Sin datos en el período
+                - generic [ref=f32e558]:
+                  - heading "Top fotógrafos por referidos (últimos 90 días)" [level=2] [ref=f32e559]
+                  - paragraph [ref=f32e560]: Sin datos en el período
+    - contentinfo [ref=f32e561]:
+      - generic [ref=f32e563]:
+        - generic [ref=f32e564]:
+          - link "Términos y Condiciones" [ref=f32e565] [cursor=pointer]:
+            - /url: /terminos
+          - link "Política de Privacidad" [ref=f32e566] [cursor=pointer]:
+            - /url: /privacidad
+        - img "ComprameLaFoto" [ref=f32e567]
+        - paragraph [ref=f32e568]: creado por ComprameLaFoto
+    - button "Trabajá con nosotros" [ref=f32e570]
+  - button "Open Next.js Dev Tools" [ref=f32e576] [cursor=pointer]
+  - alert [ref=f32e580]
+  - generic [ref=f32e581]: "0"

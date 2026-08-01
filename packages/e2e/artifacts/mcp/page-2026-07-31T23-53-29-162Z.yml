@@ -1,0 +1,106 @@
+- generic [active] [ref=f12e1]:
+  - banner [ref=f12e2]:
+    - generic [ref=f12e3]:
+      - link "Clickatón — inicio" [ref=f12e5] [cursor=pointer]:
+        - /url: /
+      - generic [ref=f12e7]:
+        - navigation "Principal" [ref=f12e8]:
+          - link "Maratones" [ref=f12e9] [cursor=pointer]:
+            - /url: /maratones
+          - link "Cómo funciona" [ref=f12e10] [cursor=pointer]:
+            - /url: /como-funciona
+          - link "Comunidad" [ref=f12e11] [cursor=pointer]:
+            - /url: /comunidad
+          - link "Llevá Clickatón a tu ciudad" [ref=f12e12] [cursor=pointer]:
+            - /url: /organizar
+          - link "Formá parte" [ref=f12e13] [cursor=pointer]:
+            - /url: /formar-parte
+        - generic [ref=f12e14]:
+          - link "Iniciar sesión" [ref=f12e15] [cursor=pointer]:
+            - /url: /login?next=%2Flegal%2Fterminos
+          - link "Ver maratones" [ref=f12e16] [cursor=pointer]:
+            - /url: /maratones
+  - main [ref=f12e17]:
+    - generic [ref=f12e19]:
+      - generic [ref=f12e20]:
+        - heading "Bases y condiciones" [level=1] [ref=f12e21]
+        - paragraph [ref=f12e22]: Versión CLICKATON_TERMS_2026_09_19_v2 · PUBLISHED · Aprobadas para inscripción
+      - generic [ref=f12e23]:
+        - heading "Organizador y alcance" [level=2] [ref=f12e24]
+        - paragraph [ref=f12e25]: Estas Bases y Condiciones (versión CLICKATON_TERMS_2026_09_19_v2) rigen la inscripción y participación en Clickatón Argentina 2026 (edición del 19 de septiembre de 2026, Rosario, Santa Fe, República Argentina). La inscripción implica la aceptación expresa de esta versión publicada. El organizador opera la plataforma a través de Clickatón / DNX Suite.
+      - generic [ref=f12e26]:
+        - heading "Cronograma del día del evento (hora Argentina)" [level=2] [ref=f12e27]
+        - paragraph [ref=f12e28]: "Acreditación: 14:00 a 16:00. Charla introductoria: 16:00 a 16:30. Ventana válida de captura de fotografías: desde las 16:00 inclusive hasta las 20:00 exclusive (las fotos tomadas antes de las 16:00 o desde las 20:00 en adelante no serán válidas). Ventana habilitada para carga: desde las 16:00 inclusive hasta las 22:00 exclusive. La plataforma permanecerá abierta hasta las 22:00 para permitir selección, revelado y carga. El horario de upload no modifica la validez de la hora de captura: la validez se determina por la metadata de captura (p. ej. DateTimeOriginal / EXIF) según el mecanismo técnico de la plataforma. La organización podrá verificar el horario mediante los metadatos de cada archivo."
+      - generic [ref=f12e29]:
+        - heading "Inscripción, cupos y edad" [level=2] [ref=f12e30]
+        - paragraph [ref=f12e31]: La inscripción reserva un cupo sujeto a disponibilidad y al pago correspondiente cuando el ticket sea oneroso. Si el pago no se acredita antes del vencimiento de la reserva, el cupo se libera. La participación en esta edición está orientada a personas mayores de 18 años. Quien se inscribe declara contar con capacidad legal para contratar.
+      - generic [ref=f12e32]:
+        - heading "Precio y medio de pago" [level=2] [ref=f12e33]
+        - paragraph [ref=f12e34]: "El precio vigente es el de la fase comercial activa al momento del checkout (primera etapa: $25.000 ARS según calendario publicado). El cobro se procesa mediante Mercado Pago u otros proveedores habilitados por DNX Payments. El resumen de compra muestra el monto antes de pagar. No se aceptan pagos fuera de los canales oficiales."
+      - generic [ref=f12e35]:
+        - heading "Cancelaciones y devoluciones" [level=2] [ref=f12e36]
+        - paragraph [ref=f12e37]: "Salvo disposición legal imperativa en contrario, la inscripción paga confirmada no es reembolsable por desistimiento unilateral del participante. Ante cancelación o reprogramación del evento por el organizador, se comunicará por canales oficiales la opción aplicable (reprogramación, crédito o reembolso según el caso). Solicitudes de soporte: canales oficiales del sitio / Mi cuenta."
+      - generic [ref=f12e38]:
+        - heading "Kit, remera, QR y credencial" [level=2] [ref=f12e39]
+        - paragraph [ref=f12e40]: Tras la confirmación del pago, el participante accede a QR y credencial digitales desde Mi cuenta. El QR es personal e intransferible y podrá usarse para acreditación en sede. El beneficio de remera oficial (primeros 100 participantes confirmados o hasta el 30/08/2026 23:59:59.999 hora Argentina, lo que ocurra primero) requiere elección de talle al inscribirse cuando el beneficio aplique. El beneficio no constituye venta de merchandising en storefront.
+      - generic [ref=f12e41]:
+        - heading "Datos personales, Cuenta DNX e imagen" [level=2] [ref=f12e42]
+        - paragraph [ref=f12e43]: "Los datos se usan para gestionar la inscripción, comunicaciones del evento, acreditación y operación de la Cuenta DNX (identidad compartida en la suite: Clickatón y aplicaciones vinculadas). El consentimiento de imagen, si se otorga, autoriza el uso en piezas de difusión del evento (incluida la placa de bienvenida) según la política de privacidad. La publicación automática en redes de la placa no está habilitada salvo consentimiento y configuración operativa posteriores."
+      - generic [ref=f12e44]:
+        - heading "Fotografías, personas identificables y licencia promocional" [level=2] [ref=f12e45]
+        - paragraph [ref=f12e46]: El participante es responsable de contar con las autorizaciones necesarias respecto de personas identificables en las fotografías que presente, con especial atención si aparecen menores. Otorga al organizador una licencia no exclusiva, no transferente de autoría, para difusión promocional (web, redes, prensa, muestras, archivo) de las obras presentadas, en los términos aceptados en el formulario de inscripción.
+      - generic [ref=f12e47]:
+        - heading "Reglas de la edición y consignas" [level=2] [ref=f12e48]
+        - paragraph [ref=f12e49]: El día del evento rigen las reglas operativas de la edición (horario, consignas, límites de envío, criterios técnicos). Hay 10 consignas (1 fotografía por consigna); el mínimo competitivo es 8 obras válidas según ventana de captura. Las consignas se liberan desde las 16:00 según el cronograma oficial. El incumplimiento de reglas técnicas o de integridad (incluida captura fuera de ventana) puede invalidar obras o la participación competitiva sin derecho a reembolso de la inscripción, sin perjuicio de derechos irrenunciables del consumidor cuando correspondan.
+      - generic [ref=f12e50]:
+        - heading "Cambios de fecha, sede o cronograma" [level=2] [ref=f12e51]
+        - paragraph [ref=f12e52]: Clickatón podrá modificar fecha, sede o cronograma por razones operativas, de fuerza mayor o seguridad, comunicándolo por los canales oficiales. El mal tiempo no implica cancelación automática. Esta versión v2 sustituye el cronograma de la v1 para nuevas aceptaciones; las aceptaciones históricas de v1 se conservan en auditoría.
+      - generic [ref=f12e53]:
+        - heading "Jurisdicción" [level=2] [ref=f12e54]
+        - paragraph [ref=f12e55]: Salvo normas de orden público aplicables, estas Bases se interpretan conforme a la ley de la República Argentina. Para controversias, serán competentes los tribunales ordinarios de Rosario, Provincia de Santa Fe, sin perjuicio de los fueros del consumidor cuando corresponda.
+      - generic [ref=f12e56]:
+        - heading "Contacto" [level=2] [ref=f12e57]
+        - paragraph [ref=f12e58]: Para soporte de inscripción usá el formulario de contacto del sitio o el canal indicado en Mi cuenta.
+  - contentinfo [ref=f12e59]:
+    - generic [ref=f12e60]:
+      - generic [ref=f12e61]:
+        - link "Clickatón — inicio" [ref=f12e62] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=f12e64]: Maratón Fotográfica Internacional
+        - paragraph [ref=f12e65]: Proyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones, catálogo ni formularios activos todavía.
+        - paragraph [ref=f12e66]: Cada Clickatón te ayuda a mirar mejor.
+      - navigation "Pie de página" [ref=f12e67]:
+        - paragraph [ref=f12e68]: Navegación
+        - list [ref=f12e69]:
+          - listitem [ref=f12e70]:
+            - link "Maratones" [ref=f12e71] [cursor=pointer]:
+              - /url: /maratones
+          - listitem [ref=f12e72]:
+            - link "Cómo funciona" [ref=f12e73] [cursor=pointer]:
+              - /url: /como-funciona
+          - listitem [ref=f12e74]:
+            - link "Comunidad" [ref=f12e75] [cursor=pointer]:
+              - /url: /comunidad
+          - listitem [ref=f12e76]:
+            - link "Llevá Clickatón a tu ciudad" [ref=f12e77] [cursor=pointer]:
+              - /url: /organizar
+          - listitem [ref=f12e78]:
+            - link "Formá parte" [ref=f12e79] [cursor=pointer]:
+              - /url: /formar-parte
+          - listitem [ref=f12e80]:
+            - link "Sobre Clickatón" [ref=f12e81] [cursor=pointer]:
+              - /url: /sobre
+          - listitem [ref=f12e82]:
+            - link "Manual de marca" [ref=f12e83] [cursor=pointer]:
+              - /url: /manualdemarca
+          - listitem [ref=f12e84]:
+            - link "Contacto" [ref=f12e85] [cursor=pointer]:
+              - /url: /contacto
+    - separator [ref=f12e86]
+    - generic [ref=f12e87]:
+      - paragraph [ref=f12e88]: © 2026 Clickatón. Todos los derechos reservados.
+      - paragraph [ref=f12e89]:
+        - link "Manual de marca" [ref=f12e90] [cursor=pointer]:
+          - /url: /manualdemarca
+        - text: · Identidad visual
+  - alert [ref=f12e91]

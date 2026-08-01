@@ -1,0 +1,71 @@
+- generic [active] [ref=f30e1]:
+  - banner [ref=f30e2]:
+    - generic [ref=f30e3]:
+      - link "Clickatón — inicio" [ref=f30e5] [cursor=pointer]:
+        - /url: /
+      - generic [ref=f30e7]:
+        - navigation "Principal" [ref=f30e8]:
+          - link [ref=f30e9] [cursor=pointer]:
+            - /url: /maratones
+          - link "Cómo funciona" [ref=f30e12] [cursor=pointer]:
+            - /url: /como-funciona
+          - link "Comunidad" [ref=f30e13] [cursor=pointer]:
+            - /url: /comunidad
+          - link "Llevá Clickatón a tu ciudad" [ref=f30e14] [cursor=pointer]:
+            - /url: /organizar
+          - link "Formá parte" [ref=f30e15] [cursor=pointer]:
+            - /url: /formar-parte
+        - generic [ref=f30e16]:
+          - link "Iniciar sesión" [ref=f30e17] [cursor=pointer]:
+            - /url: /login?next=%2Fmaratones%2Fclickaton-argentina-2026%2Finscripcion%2Fpago%2Fexito
+          - link "Ver maratones" [ref=f30e18] [cursor=pointer]:
+            - /url: /maratones
+  - main [ref=f30e19]:
+    - generic [ref=f30e21]:
+      - heading "No pudimos verificar el pago" [level=1] [ref=f30e22]
+      - alert [ref=f30e23]: No pudimos validar el enlace de acceso (token ausente, truncado o firmado con otro secreto). El retorno del navegador no confirma el pago.
+      - link "Volver a la maratón" [ref=f30e24] [cursor=pointer]:
+        - /url: /maratones/clickaton-argentina-2026
+  - contentinfo [ref=f30e25]:
+    - generic [ref=f30e26]:
+      - generic [ref=f30e27]:
+        - link "Clickatón — inicio" [ref=f30e28] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=f30e30]: Maratón Fotográfica Internacional
+        - paragraph [ref=f30e31]: Proyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones, catálogo ni formularios activos todavía.
+        - paragraph [ref=f30e32]: Cada Clickatón te ayuda a mirar mejor.
+      - navigation "Pie de página" [ref=f30e33]:
+        - paragraph [ref=f30e34]: Navegación
+        - list [ref=f30e35]:
+          - listitem [ref=f30e36]:
+            - link "Maratones" [ref=f30e37] [cursor=pointer]:
+              - /url: /maratones
+          - listitem [ref=f30e38]:
+            - link "Cómo funciona" [ref=f30e39] [cursor=pointer]:
+              - /url: /como-funciona
+          - listitem [ref=f30e40]:
+            - link "Comunidad" [ref=f30e41] [cursor=pointer]:
+              - /url: /comunidad
+          - listitem [ref=f30e42]:
+            - link "Llevá Clickatón a tu ciudad" [ref=f30e43] [cursor=pointer]:
+              - /url: /organizar
+          - listitem [ref=f30e44]:
+            - link "Formá parte" [ref=f30e45] [cursor=pointer]:
+              - /url: /formar-parte
+          - listitem [ref=f30e46]:
+            - link "Sobre Clickatón" [ref=f30e47] [cursor=pointer]:
+              - /url: /sobre
+          - listitem [ref=f30e48]:
+            - link "Manual de marca" [ref=f30e49] [cursor=pointer]:
+              - /url: /manualdemarca
+          - listitem [ref=f30e50]:
+            - link "Contacto" [ref=f30e51] [cursor=pointer]:
+              - /url: /contacto
+    - separator [ref=f30e52]
+    - generic [ref=f30e53]:
+      - paragraph [ref=f30e54]: © 2026 Clickatón. Todos los derechos reservados.
+      - paragraph [ref=f30e55]:
+        - link "Manual de marca" [ref=f30e56] [cursor=pointer]:
+          - /url: /manualdemarca
+        - text: · Identidad visual
+  - alert [ref=f30e57]

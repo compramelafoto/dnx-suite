@@ -46,6 +46,34 @@ export function createCheckoutService(deps: {
     process.env.NEXT_PUBLIC_APP_URL ??
     "http://localhost:3005";
 
+  async function routePaymentEffects(
+    event: import("../domain/types").NormalizedPaymentEvent,
+  ) {
+    const { isStoreOrderPaymentSource } = await import(
+      "@/lib/public-store/checkout/payment-source"
+    );
+    // Lazy-load store path only when needed — avoids pulling `server-only`
+    // modules into registration selfchecks / non-Next runners.
+    if (isStoreOrderPaymentSource(event)) {
+      const { applyStorePaymentEvent } = await import(
+        "@/lib/public-store/checkout/apply-store-payment-event"
+      );
+      const store = await applyStorePaymentEvent(event);
+      return {
+        applied: store.applied,
+        duplicate: store.duplicate,
+        conflict: store.conflict,
+        conflictCode: store.conflictCode,
+        registrationId: store.publicId,
+        registrationStatus: "PENDING_PAYMENT" as const,
+        paymentStatus: "PENDING" as const,
+        holdsAction: "none" as const,
+        orderStatus: event.status,
+      };
+    }
+    return applyEvent.execute(event);
+  }
+
   return {
     createCheckout(input: {
       registrationId: string;
@@ -53,6 +81,8 @@ export function createCheckoutService(deps: {
       accessToken: string;
       publicBaseUrl?: string;
       now?: Date;
+      cardPayment?: import("@repo/payments/frontend").CardPaymentSubmission;
+      clientDisplayedAmountMinor?: number;
     }) {
       return createCheckout.execute({
         ...input,
@@ -62,7 +92,7 @@ export function createCheckoutService(deps: {
     getPaymentStatus: status.getStatus.bind(status),
     refreshPaymentStatus: status.refreshStatus.bind(status),
     getCheckoutReturn: status.getReturnResult.bind(status),
-    applyNormalizedEvent: applyEvent.execute.bind(applyEvent),
+    applyNormalizedEvent: routePaymentEffects,
     verifyWebhook: deps.payments.verifyWebhook.bind(deps.payments),
     async ingestMercadoPagoWebhook(input: {
       headers: Record<string, string | undefined>;
@@ -80,7 +110,7 @@ export function createCheckoutService(deps: {
       if ("observed" in ingested && ingested.observed) {
         const observedEvent = ingested.event;
         if (observedEvent) {
-          const effects = await applyEvent.execute(observedEvent);
+          const effects = await routePaymentEffects(observedEvent);
           return {
             ok: true as const,
             observed: true as const,
@@ -108,8 +138,8 @@ export function createCheckoutService(deps: {
       if (!("event" in ingested) || !ingested.event) {
         return { ok: false as const, code: "WEBHOOK_INVALID_BODY" };
       }
-      // Efectos Clickatón (confirm/holds). Idempotente si S2S ya confirmó.
-      const effects = await applyEvent.execute(ingested.event);
+      // Efectos Clickatón (confirm/holds / TIENDA). Idempotente si S2S ya confirmó.
+      const effects = await routePaymentEffects(ingested.event);
       return {
         ok: true as const,
         event: ingested.event,

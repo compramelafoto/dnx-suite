@@ -27,13 +27,15 @@ import {
   money,
   buildMercadoPagoSplitOrderRequest,
   buildSplitEntriesFromDistribution,
-  inferAmountType,
   ORDERS_1N_STAGING_FLAG,
   isOrders1nStagingFlagEnabled,
   assertOrders1nStagingCreateAllowed,
   parseMercadoPagoOrdersWebhook,
 } from "../index.js";
 import { assertFinancialIdentityStagingHost } from "./staging-host-gate.js";
+import { testActivePartnerConsent } from "../providers/mercado-pago/orders/consent-evidence.js";
+import { singleIntangibleItem } from "../providers/mercado-pago/orders/order-items.js";
+import { resolveMpAmountType } from "../providers/mercado-pago/orders/mapper.js";
 
 type Mode =
   | "preflight"
@@ -257,19 +259,39 @@ async function main(): Promise<void> {
       partnerReceiverIds.set("tammy", envInput.partnerReceiverId2);
     }
 
-    const amountType = inferAmountType(distribution);
+    const partnerConsentsByRecipientId = new Map(
+      [...partnerReceiverIds.entries()].map(([recipientId, receiverId]) => [
+        recipientId,
+        testActivePartnerConsent(receiverId),
+      ]),
+    );
+    const amountType = resolveMpAmountType(distribution, "fixed_preferred");
     const entries = buildSplitEntriesFromDistribution(
       distribution,
       envInput.ownerUserId ?? "MISSING_OWNER",
       partnerReceiverIds,
+      { partnerConsentsByRecipientId, amountType },
     );
+    const dryItems = [
+      singleIntangibleItem({
+        title: "Staging dry-run intangible",
+        total,
+        categoryId: "others",
+      }),
+    ];
     const dryBuilt = buildMercadoPagoSplitOrderRequest({
       externalReference: "clickaton-10d3i-f-dry-run",
       total,
       amountType,
       entries,
-      deviceSessionId: envInput.deviceId ?? "MISSING_DEVICE",
-      ...(envInput.paymentToken ? { paymentToken: "[PRESENT]" } : {}),
+      deviceSessionId: envInput.deviceId ?? "dnx-test-device-session-cli-dry",
+      payerEmail: "test_buyer@testuser.com",
+      statementDescriptor: "CLICKATON",
+      items: dryItems,
+      paymentToken: envInput.paymentToken
+        ? "[PRESENT]"
+        : "DRY_RUN_CARD_TOKEN_FIXTURE_NOT_SENT",
+      paymentMethodId: "visa",
     });
 
     const sanitizedPayload = {
@@ -296,8 +318,14 @@ async function main(): Promise<void> {
       total,
       amountType,
       entries,
-      deviceSessionId: "DEVICE_PRESENT",
-      ...(envInput.paymentToken ? { paymentToken: "TOKEN_PRESENT" } : {}),
+      deviceSessionId: "dnx-test-device-session-cli-shape",
+      payerEmail: "test_buyer@testuser.com",
+      statementDescriptor: "CLICKATON",
+      items: dryItems,
+      paymentToken: envInput.paymentToken
+        ? "TOKEN_PRESENT"
+        : "DRY_RUN_CARD_TOKEN_FIXTURE_NOT_SENT",
+      paymentMethodId: "visa",
     });
     sanitizedPayload.hasTransactions = Boolean(
       dryShape.body.transactions?.payments?.length,
@@ -515,6 +543,8 @@ async function main(): Promise<void> {
       confirmStaging: args.confirmStaging,
       confirmOrdersTest: args.confirmOrdersTest,
       verifyAfterCreate: true,
+      allowTestFixtures: true,
+      defaultStatementDescriptor: "CLICKATON",
     });
 
     const statePath = resolve(reportDir, "last_order_state.json");
@@ -543,6 +573,19 @@ async function main(): Promise<void> {
     const idempotencyKey = randomUUID();
     const payerEmail =
       process.env.MERCADOPAGO_TEST_PAYER_EMAIL?.trim() || "test_buyer@testuser.com";
+    const createConsents = new Map(
+      [...partnerReceiverIds.entries()].map(([recipientId, receiverId]) => [
+        recipientId,
+        testActivePartnerConsent(receiverId),
+      ]),
+    );
+    const createItems = [
+      singleIntangibleItem({
+        title: "Inscripcion Clickaton staging",
+        total,
+        categoryId: "others",
+      }),
+    ];
     const createInput = {
       environment: "sandbox" as const,
       externalReference,
@@ -553,7 +596,10 @@ async function main(): Promise<void> {
       paymentToken: envInput.paymentToken,
       paymentMethodId: process.env.MERCADOPAGO_TEST_PAYMENT_METHOD_ID?.trim() || "visa",
       payerEmail,
+      statementDescriptor: "CLICKATON",
+      items: createItems,
       partnerReceiverIds,
+      partnerConsentsByRecipientId: createConsents,
       metadata: {
         stage: "10D3I-F",
         snapshotRef: snapshotBefore?.idPrefix ?? "none",
@@ -672,7 +718,10 @@ async function main(): Promise<void> {
         paymentToken: envInput.paymentToken,
         paymentMethodId: process.env.MERCADOPAGO_TEST_PAYMENT_METHOD_ID?.trim() || "visa",
         payerEmail,
+        statementDescriptor: "CLICKATON",
+        items: createItems,
         partnerReceiverIds,
+        partnerConsentsByRecipientId: createConsents,
       });
 
       let conflictBlocked = false;
@@ -687,7 +736,10 @@ async function main(): Promise<void> {
           paymentToken: envInput.paymentToken,
           paymentMethodId: process.env.MERCADOPAGO_TEST_PAYMENT_METHOD_ID?.trim() || "visa",
           payerEmail,
+          statementDescriptor: "CLICKATON",
+          items: createItems,
           partnerReceiverIds,
+          partnerConsentsByRecipientId: createConsents,
         });
       } catch {
         conflictBlocked = true;

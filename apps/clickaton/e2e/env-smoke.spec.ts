@@ -26,21 +26,24 @@ test.describe("Clickatón staging readiness smoke", () => {
     });
   });
 
-  test("pilot edition route is reachable after seed+deploy", async ({ page }, testInfo) => {
-    const res = await page.goto("/maratones/piloto-test-11b", {
+  test("published edition detail responds after schema recovery", async ({ page }, testInfo) => {
+    const listRes = await page.goto("/maratones", { waitUntil: "domcontentloaded" });
+    expect(listRes?.status()).toBe(200);
+
+    const res = await page.goto("/maratones/clickaton-argentina-2026", {
       waitUntil: "domcontentloaded",
     });
     const status = res?.status() ?? 0;
-    // Soft readiness: 200 expected after QA1 complete; 404 documents current gap.
     testInfo.annotations.push({
-      type: "pilot-status",
+      type: "edition-status",
       description: String(status),
     });
     await page.screenshot({
-      path: join(evidenceDir, `${testInfo.project.name}-piloto.png`),
+      path: join(evidenceDir, `${testInfo.project.name}-argentina-2026.png`),
       fullPage: true,
     });
-    expect([200, 404]).toContain(status);
+    expect(status).toBe(200);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/Argentina|Clickatón/i);
   });
 
   test("legal terms page responds", async ({ page }) => {

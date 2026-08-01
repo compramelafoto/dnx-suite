@@ -1,0 +1,50 @@
+- main [ref=e2]:
+  - generic [ref=e215]:
+    - generic [ref=e216]:
+      - heading "Revisá tu pago" [level=3] [ref=e218]
+      - generic [ref=e220]:
+        - generic [ref=e221]: Medio de pago
+        - generic [ref=e222]:
+          - generic [ref=e223]: buy**************@tes*********
+          - generic [ref=e240] [cursor=pointer]:
+            - generic [ref=e244]:
+              - generic [ref=e245]: MASTERCARD EUROPA **** 0604
+              - generic [ref=e247]: Mastercard Crédito
+            - generic [ref=e248]: Modificar
+          - generic [ref=e252] [cursor=pointer]:
+            - generic [ref=e253]: 1x
+            - generic [ref=e255]:
+              - generic [ref=e256]: Cuotas
+              - generic [ref=e258]: $ 25.000
+              - generic [ref=e259]: Sin interés
+            - generic [ref=e261]: Modificar
+        - generic:
+          - paragraph
+        - link [ref=e262] [cursor=pointer]:
+          - /url: https://clickaton-staging.vercel.app/maratones/clickaton-argentina-2026/inscripcion/pago/error?registrationId=cms9j1qsj0003xpm4fy7inz7m&t=v2.1785538898609.38X_RdTZXI04z9v2OiBKqCJpcifX6lWE6bOx6PB82qg&collection_id=null&collection_status=null&payment_id=null&status=null&external_reference=clickaton:registration:cms9j1qsj0003xpm4fy7inz7m&payment_type=null&merchant_order_id=null&preference_id=3141372692-2f98e076-4c69-459c-af7d-50a265d68d63&site_id=MLA&processing_mode=aggregator&merchant_account_id=null
+    - generic [ref=e269]:
+      - heading "Detalles del pago" [level=2] [ref=e270]
+      - generic [ref=e272]:
+        - generic [ref=e273]: Inscripción Clickatón — cms9j1qs TEST
+        - img [ref=e277]:
+          - generic [ref=e278]: $ 25.000
+      - separator [ref=e279]
+      - generic [ref=e280]:
+        - generic [ref=e281]: Pagás
+        - img [ref=e285]:
+          - generic [ref=e286]: 1x $ 25.000
+      - paragraph [ref=e288]:
+        - text: Al pagar, aceptás los
+        - link "Términos y condiciones" [ref=e289] [cursor=pointer]:
+          - /url: https://www.mercadopago.com.ar/ayuda/terminos-y-politicas_194
+        - text: de Mercado Pago.
+      - button "Pagar" [disabled]
+      - generic [ref=e291]: Pago seguro
+    - generic [ref=e297]:
+      - separator [ref=e298]
+      - generic [ref=e299]: Pago procesado por Mercado Pago y protegido por recaptcha.
+      - text: Procesado por Mercado Pago.|Protegido por reCAPTCHA -
+      - link "Privacidad -" [ref=e300] [cursor=pointer]:
+        - /url: https://policies.google.com/privacy
+      - link "Condiciones" [ref=e301] [cursor=pointer]:
+        - /url: https://policies.google.com/terms

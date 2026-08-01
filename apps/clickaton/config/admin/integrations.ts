@@ -43,35 +43,37 @@ export function getAdminIntegrations(): {
       id: "fotorank",
       name: "FotoRank",
       purpose:
-        "Motor de competencia: consignas, fotografías, validaciones, jurados, evaluación, rankings y resultados.",
+        "Donde se gestionan jurados, evaluación artística, ranking y publicación de resultados. Clickatón prepara la admisión técnica y el congelamiento para el jurado.",
       owns: [
-        "Participantes competitivos",
-        "Consignas y entregas",
-        "Validaciones",
-        "Jurados y evaluación",
-        "Rankings y resultados",
+        "Invitaciones y asignaciones de jurado",
+        "Evaluación anónima y puntajes",
+        "Conflictos de interés",
+        "Ranking preliminar y resultados confirmados",
+        "Publicación de resultados",
       ],
       status: fotorankHref ? "pending" : "not_configured",
-      statusLabel: fotorankHref ? "Pendiente de sincronización" : "No configurada",
+      statusLabel: fotorankHref
+        ? "Disponible para continuar en FotoRank"
+        : "Sin conectar",
       href: fotorankHref,
-      hrefLabel: "Abrir FotoRank",
+      hrefLabel: "Abrir evaluación y resultados en FotoRank",
     },
     payments: {
       id: "payments",
-      name: "DNX Payments",
+      name: "Mercado Pago",
       purpose:
-        "Órdenes, cobros, webhooks, conciliación, reembolsos, split y collector. Clickatón solo consulta estado operativo.",
+        "Permite cobrar las inscripciones de la edición, verificar pagos y revisar la distribución. Clickatón consulta el estado operativo.",
       owns: [
-        "Órdenes y cobros",
-        "Webhooks del proveedor",
-        "Conciliación",
+        "Cobros e inscripciones pagas",
+        "Actualizaciones automáticas de pagos",
+        "Verificación de pagos",
         "Reembolsos",
-        "Split y collector",
+        "Distribución de los pagos",
       ],
       status: paymentsHref ? "pending" : "not_configured",
-      statusLabel: paymentsHref ? "Pendiente de conexión" : "No configurada",
+      statusLabel: paymentsHref ? "Configuración incompleta" : "Sin conectar",
       href: paymentsHref,
-      hrefLabel: "Abrir DNX Payments",
+      hrefLabel: "Abrir panel de pagos",
     },
   };
 }

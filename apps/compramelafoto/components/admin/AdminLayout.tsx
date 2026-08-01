@@ -55,6 +55,11 @@ const menuGroups: MenuGroup[] = [
         label: "Pagos MP / anomalías",
         path: "/admin/pagos-mp-anomalias",
       },
+      {
+        id: "homologacion-mp-split-1n",
+        label: "Homologación MP Split 1:N",
+        path: "/admin/homologacion-mp-split-1n",
+      },
     ],
   },
   {
@@ -216,6 +221,7 @@ function getActiveMenuId(
   if (pathname?.startsWith("/admin/testimonios")) return "testimonios";
   if (pathname?.startsWith("/admin/proyectos")) return "proyectos";
   if (pathname?.startsWith("/admin/pagos-mp-anomalias")) return "pagos-mp-anomalias";
+  if (pathname?.startsWith("/admin/homologacion-mp-split-1n")) return "homologacion-mp-split-1n";
   if (pathname?.startsWith("/admin/antifraude")) return "antifraude";
   if (pathname?.startsWith("/admin/banner")) return "banner";
   if (pathname?.startsWith("/admin/blog")) return "blog";

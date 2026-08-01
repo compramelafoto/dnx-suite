@@ -1,0 +1,179 @@
+[
+  {
+    "profile": "admin",
+    "step": "post-login",
+    "url": "/mi-cuenta",
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Hola, TEST UX Admin Staging",
+    "overflowX": false,
+    "bodySample": "0\nT\nTEST UX Admin Staging\nT\n\nMI PARTICIPACIÓN EN CLICKATÓN\n\nHOLA, TEST UX ADMIN STAGING\n\nConsultá el estado de tu inscripción, el pago y la información necesaria para participar.\n\nux.admin@clickaton.staging.test\n\nPANEL ADMINISTRATIVO\nVER MARATONES\nCERRAR SESIÓN\nMIS INSCRIPCIONES\n\nTodavía no tenés inscripciones asociadas a esta cuenta.\n\nCuando te inscribas a un maratón, vas a ver acá el estado, el pago y tu acreditación.\n\nINSCRIBIRME\n\nMaratón Fotográfica Internacional\n\nProyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones, catálogo ni formularios activos todavía.\n\nCada Clickatón te ayuda a mirar mejor.\n\nNAVEGACIÓN\n\nMaratones\nCómo funciona\nComunidad\nTienda\nLlevá Clickatón a tu ciudad\nFormá parte\nSobre Clickatón\nManual de marca\nContacto\n\n© 2026 Clickatón. Todos los derechos reservados.\n\nManual de marca · Identidad visual"
+  },
+  {
+    "profile": "admin",
+    "path": "/admin",
+    "status": 200,
+    "url": "/admin",
+    "title": "Panel admin — Clickatón",
+    "h1": "Inicio del panel",
+    "overflowX": false,
+    "bodySample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nInicio\nINICIO DEL PANEL\n\nRevisá el estado operativo de Clickatón, las ediciones activas y las acciones más frecuentes. La evaluación artística se gestiona en FotoRank.\n\nSESIÓN ACTIVA\n\nBienvenido, TEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nRol visible: administrador general de Clickatón. El acceso no está limitado por sede en esta etapa.\n\nEDICIONES\n\n12\n\n12 operativas\n\nPRÓXIMA EDICIÓN\n\nClickatón Piloto TEST 11B\n\n15 sept 2026, 5:50 a. m.\n\nSEDES\n\n11\n\nTodas las ediciones\n\nCAPACIDAD TOTAL\n\n550\n\nSuma de capacidades de sedes o valor por defecto de edición\n\nACCIONES RÁPIDAS\nRevisar inscripciones\nAbrir ediciones\nConfigurar productos y kits\nGestionar códigos promocionales\nConectar Mercado Pago\nPreparar publicaciones\nAdministrar sedes\nVer patrocinadores\nRevisar integraciones\nINTEGRACIONES\nVER DETALLE\n\nFotoRank\n\nSIN CONECTAR\n\nDonde se gestionan jurados, e"
+  },
+  {
+    "profile": "admin",
+    "path": "/admin/inscripciones",
+    "status": 200,
+    "url": "/admin/inscripciones",
+    "title": "Panel admin — Clickatón",
+    "h1": "Inscripciones",
+    "overflowX": false,
+    "bodySample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\n\nCargando el panel…\n\nEstamos preparando la información administrativa."
+  },
+  {
+    "profile": "admin",
+    "path": "/admin/ediciones",
+    "status": 200,
+    "url": "/admin/ediciones",
+    "title": "Panel admin — Clickatón",
+    "h1": "Ediciones",
+    "overflowX": false,
+    "bodySample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nEdiciones\nEDICIONES\n\nCada edición de Clickatón puede tener una o varias sedes. Aquí se administrará el producto de marca; la competencia asociada se ejecutará en FotoRank.\n\nCREAR EDICIÓN\nEDICIÓN\tESTADO\tINICIO\tSEDES\t\nClickatón Piloto TEST 11B\t\nINSCRIPCIÓN ABIERTA\nPUBLICADA\n\t15 sept 2026, 5:50 a. m.\t1\tEditar\nClickatón Argentina 2026\t\nINSCRIPCIÓN ABIERTA\nPUBLICADA\n\t19 sept 2026, 4:00 p. m.\t0\tEditar\nCLICKATÓN TEST Smoke\t\nINSCRIPCIÓN ABIERTA\nPUBLICADA\n\t—\t1\tEditar\nCLICKATÓN TEST Smoke\t\nINSCRIPCIÓN ABIERTA\nPUBLICADA\n\t—\t1\tEditar\nCLICKATÓN TEST Smoke\t\nINSCRIPCIÓN ABIERTA\nPUBLICADA\n\t—\t1\tEditar\nCLICKATÓN TEST Smoke\t\nINSCRIPCIÓN ABIERTA\nPUBLICADA\n\t—\t1\tEditar\nCLICKATÓN TEST Smoke\t\nINSCRIPCIÓN ABIERTA\nPUBLICADA\n\t—\t1\tEditar\nCLICKATÓN TEST Smoke\t\nINSCRIPCIÓN ABIERTA\nPUBLICADA\n\t—\t1\tEditar\nCLICKATÓN TEST Smoke\t\nINSCRIPCIÓN ABIERTA\nPUBLICADA\n\t—\t1\tEditar\nCLICKATÓN TEST Smoke"
+  },
+  {
+    "profile": "admin",
+    "path": "/admin/finanzas",
+    "status": 404,
+    "url": "/admin/finanzas",
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "No encontramos esta página",
+    "overflowX": false,
+    "bodySample": "PÁGINA NO DISPONIBLE\n\nNO ENCONTRAMOS ESTA PÁGINA\n\nEs posible que el enlace haya cambiado o que la sección ya no esté disponible.\n\nVolver al inicio\nIr a Mi cuenta"
+  },
+  {
+    "profile": "admin",
+    "path": "/admin/integraciones",
+    "status": 200,
+    "url": "/admin/integraciones",
+    "title": "Panel admin — Clickatón",
+    "h1": "Integraciones",
+    "overflowX": false,
+    "bodySample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nIntegraciones\nINTEGRACIONES\n\nRevisá con qué sistemas trabaja Clickatón, qué hace cada uno y qué acción conviene seguir.\n\nSolo se muestra estado verificable. Si falta configuración, aparece como sin conectar. Nunca se afirma una conexión activa sin evidencia.\n\nLa evaluación artística, el ranking y la publicación de resultados continúan en FotoRank. Los correos se envían con Resend desde los flujos de inscripción. Las publicaciones se preparan en Publicaciones y comunicaciones.\n\nFOTORANK\n\nDonde se gestionan jurados, evaluación artística, ranking y publicación de resultados. Clickatón prepara la admisión técnica y el congelamiento para el jurado.\n\nSIN CONECTAR\n\nRESPONSABILIDADES\n\nInvitaciones y asignaciones de jurado\nEvaluación anónima y puntajes\nConflictos de interés\nRanking preliminar y resultados confirmados\nPublicación de resultados\n\nSin URL operativa co"
+  },
+  {
+    "profile": "admin",
+    "path": "/admin/social",
+    "status": 200,
+    "url": "/admin/social",
+    "title": "Panel admin — Clickatón",
+    "h1": "Publicaciones en redes sociales",
+    "overflowX": false,
+    "bodySample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nPublicaciones en redes sociales\nPUBLICACIONES EN REDES SOCIALES\n\nPrepará y revisá el contenido que Clickatón podrá publicar o dejar listo para compartir.\n\nPublicación automática desactivada\n\nLas piezas pueden prepararse y revisarse, pero no se publicarán automáticamente en redes sociales.\n\nNo se muestra “Publicar ahora” porque la publicación automática está desactivada.\n\nUso de nombre, imagen, Instagram y publicación en redes requiere consentimiento válido. No asumir etiquetado ni publicación automática.\n\nEstado\nTodos los estados\nListo para revisar\nAprobada\nProgramada\nPublicada\nCon error\nCancelada\nRechazada\nAplicación\nTodas\nClickatón\nAPLICAR FILTROS\nLIMPIAR FILTROS\n\nNo hay publicaciones programadas\n\nPrepará una pieza y definí cuándo deberá publicarse. También puede estar vacío por los filtros aplicados."
+  },
+  {
+    "profile": "admin",
+    "path": "/admin/promociones",
+    "status": 200,
+    "url": "/admin/promociones",
+    "title": "Panel admin — Clickatón",
+    "h1": "Códigos promocionales",
+    "overflowX": false,
+    "bodySample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nCódigos promocionales\nCÓDIGOS PROMOCIONALES\n\nCreá descuentos para campañas, sponsors, invitados o acciones especiales.\n\nEl descuento se calcula en el servidor al momento de usarlo. No se crean códigos de producción automáticamente.\n\nCambios en precios vigentes, beneficios incluidos o promociones pueden requerir revisión comercial antes de comunicarse.\n\nCÓDIGOS EXISTENTES\n\nAún no hay códigos promocionales\n\nCreá uno cuando necesites ofrecer un descuento especial.\n\nCREAR CÓDIGO\n\nCompletá el código visible para el participante y las reglas de descuento.\n\nCÓDIGO QUE UTILIZARÁ EL PARTICIPANTE *\n\nSe normaliza a mayúsculas\n\nNOMBRE INTERNO *\nTIPO DE DESCUENTO\nPorcentaje\nImporte fijo\nVALOR DEL DESCUENTO *\n\nPorcentaje 1–100, o pesos enteros si es importe fijo\n\nFECHA DE INICIO *\nFECHA DE FINALIZACIÓN *\nCOMPRA MÍNIMA (PESOS)\nTOPE DE DESCUENTO (PESOS)\nLÍMITE TOTAL DE U"
+  },
+  {
+    "profile": "admin",
+    "path": "/admin/catalogo",
+    "status": 200,
+    "url": "/admin/catalogo",
+    "title": "Panel admin — Clickatón",
+    "h1": "Productos y kits",
+    "overflowX": false,
+    "bodySample": "PANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público\n\nTEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\nInicio\n/\nProductos y kits\nPRODUCTOS Y KITS\n\nConfigurá los artículos incluidos con la inscripción y las opciones que deberá elegir cada participante.\n\nRESUMEN\nPRODUCTOS\nENTRADAS Y KITS\nPRODUCTOS Y TALLES\nDISPONIBLE\n\nRemeras y artículos con talles u opciones, stock e imágenes. La venta separada todavía no está disponible como tienda pública.\n\nADMINISTRAR PRODUCTOS\nENTRADAS Y KITS\nDISPONIBLE\n\nTipos de entrada, cupos, períodos de venta y composición de productos incluidos.\n\nTotal\n14\nActivas\n14\n\n10 entrada(s) activa(s) fuera del período de venta actual.\n\nADMINISTRAR ENTRADAS\nDISPONIBILIDAD Y CUPOS\nPRÓXIMAMENTE\n\nVista dedicada de cupos y holds. Los cupos ya se ven en el listado de entradas.\n\nSin ruta productiva en esta etapa.\n\nOPERACIÓN DE KITS\nPRÓXIMAMENTE\n\nEntrega operativa de kits en sede. Fuera del alcance de esta etapa.\n\nSin ruta productiva en esta etapa."
+  },
+  {
+    "profile": "admin",
+    "path": "/admin/acceso-denegado",
+    "status": 200,
+    "url": "/admin/acceso-denegado",
+    "title": "Panel admin — Clickatón",
+    "h1": "No tenés permiso para acceder a esta sección",
+    "overflowX": false,
+    "bodySample": "SIN PERMISO\n\nNO TENÉS PERMISO PARA ACCEDER A ESTA SECCIÓN\n\nLa sesión activa (ux.admin@clickaton.staging.test) no está autorizada para administrar Clickatón. Podés volver al sitio o comunicarte con un administrador si necesitás acceso.\n\nIR A MI CUENTA\nVOLVER AL INICIO\nCERRAR SESIÓN\nProbar con otra cuenta"
+  },
+  {
+    "profile": "admin",
+    "path": "/admin/inscripciones",
+    "vp": "390",
+    "url": "/admin/inscripciones",
+    "title": "Panel admin — Clickatón",
+    "h1": "Inscripciones",
+    "overflowX": false,
+    "bodySample": "TEST UX Admin Staging\n\nux.admin@clickaton.staging.test\n\nCERRAR SESIÓN\n\nCargando el panel…\n\nEstamos preparando la información administrativa.\n\n×\n\nPANEL OPERATIVO\n\nInicio\nEdiciones\nBanners del inicio\nSedes\nProductos y kits\nInscripciones\nCódigos promocionales\nPublicaciones y comunicaciones\nPatrocinadores\nMensajes\n\nSISTEMA\n\nConfiguración\nFinanzas · mi cuenta de cobro\nIntegraciones\nVer sitio público"
+  },
+  {
+    "profile": "admin",
+    "step": "logout",
+    "url": "/",
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Salí a buscar el instante.",
+    "overflowX": false,
+    "bodySample": "0\nINICIAR SESIÓN\n\nPRÓXIMA · CIUDAD TEST\n\nClickatón Piloto TEST 11B\n\nEdición piloto TEST para validar inscripción, pago sandbox, QR y Mi cuenta.\n\nInscribirme\n\nCLICKATÓN PILOTO TEST 11B\n←\n→\n\nMARATÓN FOTOGRÁFICA INTERNACIONAL\n\nSALÍ A BUSCAR EL INSTANTE.\n\nFotografía + creatividad + comunidad\n\nUna experiencia que transforma la ciudad en escenario y cada consigna en una oportunidad para crear, aprender y compartir.\n\nCONOCÉ CÓMO FUNCIONA\nPRÓXIMAS MARATONES\n\nMirar · crear · aprender · compartir\n\nQUÉ ES\n\nCLICKATÓN ES UNA EXPERIENCIA FOTOGRÁFICA.\n\nLa maratón es el formato. El crecimiento de la mirada y la creación de comunidad son el propósito.\n\nEs una maratón fotográfica: durante un período delimitado, salís a recorrer un territorio con consignas que despiertan la observación.\n\nLa jornada invita a mirar, crear y entregar fotografías. También es un espacio de encuentro, intercambio y aprendizaje entre personas de distintos niveles.\n\nCada edición define su duración, recorrido, consignas y modalidad. Las reglas específicas se publican en las bases de esa Clickatón.\n\nPILARES\n\nCUATRO IDEAS QUE SOSTIENEN CADA EDICIÓN.\n01\nFOTOGRAFÍA COMO AVENTURA\n\nSalís con una misión creativa y volvés con una mir"
+  },
+  {
+    "profile": "participantConfirmed",
+    "step": "post-login",
+    "url": "/mi-cuenta",
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Hola, TEST UX Participante Confirmado",
+    "overflowX": false,
+    "bodySample": "0\nT\nTEST UX Participante Confirmado\nT\n\nMI PARTICIPACIÓN EN CLICKATÓN\n\nHOLA, TEST UX PARTICIPANTE CONFIRMADO\n\nConsultá el estado de tu inscripción, el pago y la información necesaria para participar.\n\nux.participant.confirmed@clickaton.staging.test\n\nVER MARATONES\nCERRAR SESIÓN\nMIS INSCRIPCIONES\n\nClickatón Piloto TEST 11B\n\nEntrada cortesía TEST\n\n15 de septiembre de 2026 a las 5:50 a. m.\n\nINSCRIPCIÓN CONFIRMADA\n\nTu lugar en Clickatón ya está reservado y el pago está acreditado.\n\nPago: Pago recibido\n\nPróximo paso: Presentá tu QR en la acreditación el día del evento.\n\nVER QR Y CREDENCIAL\nFicha del evento\n\n¿Necesitás ayuda? Usá el formulario de contacto del sitio. No compartas tu QR.\n\nMaratón Fotográfica Internacional\n\nProyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones, catálogo ni formularios activos todavía.\n\nCada Clickatón te ayuda a mirar mejor.\n\nNAVEGACIÓN\n\nMaratones\nCómo funciona\nComunidad\nTienda\nLlevá Clickatón a tu ciudad\nFormá parte\nSobre Clickatón\nManual de marca\nContacto\n\n© 2026 Clickatón. Todos los derechos reservados.\n\nManual de marca · Identidad visual"
+  },
+  {
+    "profile": "participantConfirmed",
+    "path": "/mi-cuenta",
+    "status": 200,
+    "url": "/mi-cuenta",
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Hola, TEST UX Participante Confirmado",
+    "overflowX": false,
+    "bodySample": "0\nT\nTEST UX Participante Confirmado\nT\n\nMI PARTICIPACIÓN EN CLICKATÓN\n\nHOLA, TEST UX PARTICIPANTE CONFIRMADO\n\nConsultá el estado de tu inscripción, el pago y la información necesaria para participar.\n\nux.participant.confirmed@clickaton.staging.test\n\nVER MARATONES\nCERRAR SESIÓN\nMIS INSCRIPCIONES\n\nClickatón Piloto TEST 11B\n\nEntrada cortesía TEST\n\n15 de septiembre de 2026 a las 5:50 a. m.\n\nINSCRIPCIÓN CONFIRMADA\n\nTu lugar en Clickatón ya está reservado y el pago está acreditado.\n\nPago: Pago recibido\n\nPróximo paso: Presentá tu QR en la acreditación el día del evento.\n\nVER QR Y CREDENCIAL\nFicha del evento\n\n¿Necesitás ayuda? Usá el formulario de contacto del sitio. No compartas tu QR.\n\nMaratón Fotográfica Internacional\n\nProyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones, catálogo ni formularios activos todavía.\n\nCada Clickatón te ayuda a mirar mejor.\n\nNAVEGACIÓN\n\nMaratones\nCómo funciona\nComunidad\nTienda\nLlevá Clickatón a tu ciudad\nFormá parte\nSobre Clickatón\nManual de marca\nContacto\n\n© 2026 Clickatón. Todos los derechos reservados.\n\nManual de marca · Identidad visual"
+  },
+  {
+    "profile": "participantConfirmed",
+    "path": "/maratones/piloto-test-11b/inscripcion",
+    "status": 200,
+    "url": "/maratones/piloto-test-11b/inscripcion",
+    "title": "Inscripción — Clickatón Piloto TEST 11B — Clickatón",
+    "h1": "Clickatón Piloto TEST 11B",
+    "overflowX": false,
+    "bodySample": "—\nT\nTEST UX Participante Confirmado\nInicio\n/\nMaratones\n/\nClickatón Piloto TEST 11B\n/\nInscripción\n\nINSCRIPCIÓN PÚBLICA\n\nCLICKATÓN PILOTO TEST 11B\n\nCompletá los pasos para reservar tu lugar. En entradas pagas, el cupo se reserva por un tiempo limitado hasta acreditar el pago. Entorno de prueba: no se realiza un cobro real.\n\n1. Entrada\n2. Datos\n3. Confirmar\nElegí tu entrada\nCanjear 1 crédito de mi Pack de 4 maratones\nInscripción sin cargo. Usá el mismo email con el que compraste el Pack. El descuento se valida al confirmar con tu email.\nEntrada cortesía TESTEntrada\n\nEntrada gratuita — confirmación automática.\n\nGratis\n\nDisp. 9\n\nEntrada general TESTEntrada\n\nEntrada paga sandbox — sin cobro real.\n\n$ 1.000 ARS\n\nDisp. 40\n\nPack de 4 maratonesPack · 4 usos · 2 años\n\nInscribite a esta maratón y obtené 3 usos más para futuras Clickatón. Validez 2 años desde la compra. Los créditos se descuentan al inscribirte en cada edición.\n\nIncluye esta maratón + 3 créditos más para cualquier Clickatón durante 2 años.\n\n$ 100.000 ARS\n\nPrecio fijo del Pack\n\nCupo ilimitado\n\nCONTINUAR A DATOS PERSONALES\nRESUMEN\n\nClickatón Piloto TEST 11B\n\nSede TEST Centro\n\nEntrada a elegir\n\n—\n\nMaratón Fotográfica Internacional\n"
+  },
+  {
+    "profile": "participantEmpty",
+    "path": "/mi-cuenta",
+    "url": "/mi-cuenta",
+    "title": "Clickatón — Maratón Fotográfica Internacional",
+    "h1": "Hola, TEST UX Participante Sin Inscripcion",
+    "overflowX": false,
+    "bodySample": "0\nT\nTEST UX Participante Sin Inscripcion\nT\n\nMI PARTICIPACIÓN EN CLICKATÓN\n\nHOLA, TEST UX PARTICIPANTE SIN INSCRIPCION\n\nConsultá el estado de tu inscripción, el pago y la información necesaria para participar.\n\nux.participant.empty@clickaton.staging.test\n\nVER MARATONES\nCERRAR SESIÓN\nMIS INSCRIPCIONES\n\nTodavía no tenés inscripciones asociadas a esta cuenta.\n\nCuando te inscribas a un maratón, vas a ver acá el estado, el pago y tu acreditación.\n\nINSCRIBIRME\n\nMaratón Fotográfica Internacional\n\nProyecto en desarrollo. Arquitectura pública de lanzamiento — sin inscripciones, catálogo ni formularios activos todavía.\n\nCada Clickatón te ayuda a mirar mejor.\n\nNAVEGACIÓN\n\nMaratones\nCómo funciona\nComunidad\nTienda\nLlevá Clickatón a tu ciudad\nFormá parte\nSobre Clickatón\nManual de marca\nContacto\n\n© 2026 Clickatón. Todos los derechos reservados.\n\nManual de marca · Identidad visual"
+  },
+  {
+    "profile": "noPermission",
+    "path": "/admin",
+    "status": 200,
+    "url": "/admin/acceso-denegado",
+    "title": "Panel admin — Clickatón",
+    "h1": "No tenés permiso para acceder a esta sección",
+    "overflowX": false,
+    "bodySample": "SIN PERMISO\n\nNO TENÉS PERMISO PARA ACCEDER A ESTA SECCIÓN\n\nLa sesión activa (ux.noperm@clickaton.staging.test) no está autorizada para administrar Clickatón. Podés volver al sitio o comunicarte con un administrador si necesitás acceso.\n\nIR A MI CUENTA\nVOLVER AL INICIO\nCERRAR SESIÓN\nProbar con otra cuenta"
+  },
+  {
+    "profile": "visitor",
+    "path": "/maratones/piloto-test-11b/inscripcion",
+    "status": 200,
+    "hasForm": 4,
+    "url": "/maratones/piloto-test-11b/inscripcion",
+    "title": "Inscripción — Clickatón Piloto TEST 11B — Clickatón",
+    "h1": "Clickatón Piloto TEST 11B",
+    "overflowX": false,
+    "bodySample": "—\nINICIAR SESIÓN\nInicio\n/\nMaratones\n/\nClickatón Piloto TEST 11B\n/\nInscripción\n\nINSCRIPCIÓN PÚBLICA\n\nCLICKATÓN PILOTO TEST 11B\n\nCompletá los pasos para reservar tu lugar. En entradas pagas, el cupo se reserva por un tiempo limitado hasta acreditar el pago. Entorno de prueba: no se realiza un cobro real.\n\n1. Entrada\n2. Datos\n3. Confirmar\nElegí tu entrada\nCanjear 1 crédito de mi Pack de 4 maratones\nInscripción sin cargo. Usá el mismo email con el que compraste el Pack. El descuento se valida al confirmar con tu email.\nEntrada cortesía TESTEntrada\n\nEntrada gratuita — confirmación automática.\n\nGratis\n\nDisp. 9\n\nEntrada general TESTEntrada\n\nEntrada paga sandbox — sin cobro real.\n\n$ 1.000 ARS\n\nDisp. 40\n\nPack de 4 maratonesPack · 4 usos · 2 años\n\nInscribite a esta maratón y obtené 3 usos más para futuras Clickatón. Validez 2 años desde la compra. Los créditos se descuentan al inscribirte en cada edición.\n\nIncluye esta maratón + 3 créditos más para cualquier Clickatón durante 2 años.\n\n$ 100.000 ARS\n\nPrecio fijo del Pack\n\nCupo ilimitado\n\nCONTINUAR A DATOS PERSONALES\nRESUMEN\n\nClickatón Piloto TEST 11B\n\nSede TEST Centro\n\nEntrada a elegir\n\n—\n\nMaratón Fotográfica Internacional\n\nProyecto en desarr"
+  }
+]

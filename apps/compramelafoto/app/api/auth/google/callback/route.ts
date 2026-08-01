@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { setAuthCookieOnResponse, getAuthCookieHeaderValue } from "@/lib/auth";
+import { setAuthCookieOnResponse } from "@/lib/auth";
 import { Role, LabApprovalStatus, TokenPurpose } from "@/lib/prisma";
 import { DEFAULT_LAB_PRODUCTS } from "@/lib/default-lab-products";
 import { randomBytes } from "crypto";
@@ -295,8 +295,16 @@ export async function GET(req: Request) {
       role: user.role,
     };
     const response = NextResponse.redirect(redirectUrl.toString());
-    await setAuthCookieOnResponse(response, authUser);
-    response.headers.append("Set-Cookie", getAuthCookieHeaderValue(authUser));
+    try {
+      // Solo dnx_session (ETAPA 03 / P0-06). Expira auth-token residual.
+      await setAuthCookieOnResponse(response, authUser);
+    } catch (sessionErr) {
+      console.error("GOOGLE CALLBACK SESSION ERROR >>>", sessionErr);
+      const loginPath = "/login";
+      return NextResponse.redirect(
+        `${baseUrl}${loginPath}?error=${encodeURIComponent("No se pudo crear la sesión")}`,
+      );
+    }
     return response;
   } catch (err: any) {
     console.error("GOOGLE CALLBACK ERROR >>>", err);

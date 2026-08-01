@@ -56,6 +56,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function MarathonDetailPage({ params }: PageProps) {
   const { slug } = await params;
   const marathon = await getPublicMarathonBySlug(slug);
+  // 404 solo si el slug no existe / no está publicado. Errores de DB → boundary.
   if (!marathon) notFound();
 
   const visibility = getPublicMarathonVisibility(marathon);

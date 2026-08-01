@@ -10,7 +10,10 @@ export type ClickatonRegistrationStatus =
   | "WAITLISTED"
   | "CANCELLED"
   | "REFUNDED"
-  | "DISQUALIFIED";
+  | "DISQUALIFIED"
+  | "TRANSFERRED_TO_NEXT_EDITION"
+  | "EXPIRED"
+  | "REFUND_REQUESTED";
 
 export type ClickatonPaymentStatus =
   | "NOT_REQUIRED"

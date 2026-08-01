@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
+import { paymentStatusLabel } from "@/lib/admin-registration/ui/status-labels";
+import { presentAdminFulfillmentStatus } from "@/lib/admin-registration/ui/admin-status-presentation";
+import { presentAccreditationEligibilityReason } from "@/lib/social-communications/ui/social-communications-status-presentation";
 
 type ScanResult = {
   tone?: "GREEN" | "YELLOW" | "RED" | "BLUE";
@@ -257,17 +260,36 @@ export function AccreditationScanner({ editionId }: Props) {
           aria-live="polite"
         >
           <p className="text-sm font-semibold uppercase tracking-wide">
-            {toneLabel[result.tone]} · {result.reason}
+            {toneLabel[result.tone]} ·{" "}
+            {presentAccreditationEligibilityReason(result.reason).label}
+          </p>
+          <p className="text-sm text-ck-text-secondary">
+            {presentAccreditationEligibilityReason(result.reason).description}
           </p>
           {result.participant ? (
             <div className="space-y-1 text-sm">
               <p className="text-lg font-semibold">
                 {result.participant.firstName} {result.participant.lastName}
               </p>
-              <p>Número: {result.participant.participantNumber ?? "—"}</p>
-              <p>Pago: {result.participant.paymentStatus}</p>
-              <p>Instagram: {result.participant.instagramHandle ?? "—"}</p>
-              <p>Foto perfil: {result.participant.hasProfilePhoto ? "sí" : "no"}</p>
+              <p>Número de participante: {result.participant.participantNumber ?? "—"}</p>
+              <p>
+                Pago:{" "}
+                {paymentStatusLabel(
+                  result.participant.paymentStatus as Parameters<
+                    typeof paymentStatusLabel
+                  >[0],
+                )}
+              </p>
+              <p>
+                Usuario de Instagram del participante:{" "}
+                {result.participant.instagramHandle
+                  ? `@${result.participant.instagramHandle.replace(/^@/, "")}`
+                  : "Instagram no informado"}
+              </p>
+              <p>
+                Foto de perfil:{" "}
+                {result.participant.hasProfilePhoto ? "Disponible" : "No cargada"}
+              </p>
             </div>
           ) : null}
 
@@ -275,7 +297,10 @@ export function AccreditationScanner({ editionId }: Props) {
             <p className="text-sm">
               Acreditado el {new Date(result.checkIn.checkedInAt).toLocaleString("es-AR")}
               {result.checkIn.operatorName ? ` por ${result.checkIn.operatorName}` : ""}.
-              Identidad: {result.checkIn.identityStatus}.
+              Identidad:{" "}
+              {result.checkIn.identityStatus === "VERIFIED"
+                ? "Verificada"
+                : result.checkIn.identityStatus}
             </p>
           ) : null}
 
@@ -286,7 +311,7 @@ export function AccreditationScanner({ editionId }: Props) {
                   <span>
                     {item.nameSnapshot}
                     {item.variantNameSnapshot ? ` · ${item.variantNameSnapshot}` : ""} ·{" "}
-                    {item.fulfillmentStatus}
+                    {presentAdminFulfillmentStatus(item.fulfillmentStatus).label}
                   </span>
                   {item.fulfillmentStatus !== "DELIVERED" && item.fulfillmentStatus !== "CANCELLED" ? (
                     <Button

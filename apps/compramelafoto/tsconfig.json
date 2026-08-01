@@ -26,6 +26,8 @@
     "node_modules",
     "**/*.test.ts",
     "scripts/**",
+    "e2e/**",
+    "playwright.config.ts",
     "vitest.cuantocobro.config.ts"
   ]
 }

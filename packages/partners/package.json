@@ -1,0 +1,25 @@
+{
+  "name": "@repo/partners",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DNX Partners — dominio transversal de sponsors, aportes y beneficios (sin pagos automáticos).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit -p tsconfig.json",
+    "test": "pnpm exec tsx --test src/partners.test.ts",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.39.1",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.2"
+  }
+}

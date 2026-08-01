@@ -2109,6 +2109,35 @@ async function main() {
     },
   });
 
+  /**
+   * Etapa 14 — jurado / rúbricas / scoring anónimo.
+   * - scoringEnabled queda OFF (ninguna sesión OPEN en seed).
+   * - rúbrica ejemplo solo on-demand vía ensureDraftScoringSession (local).
+   * - sin scores FotorankJuryEvaluation, sin apertura LIVE, sin ranking.
+   * - sin batch FROZEN aquí → no se crea scoring session DRAFT en seed.
+   */
+  await prisma.fotorankJuryScoringSession.updateMany({
+    where: { contestId: e2eContest.id, scoringEnabled: true },
+    data: { scoringEnabled: false, status: "DRAFT" },
+  });
+
+  /**
+   * Etapa 15 — ranking / resultados.
+   * - rankingEnabled=false; sin batch GENERATED/FINALIZED/PUBLISHED en seed.
+   * - ruleset solo on-demand DRAFT; sin ganadores ni premios inventados.
+   */
+  await prisma.fotorankResultRuleSet.updateMany({
+    where: { contestId: e2eContest.id, rankingEnabled: true },
+    data: { rankingEnabled: false, status: "DRAFT" },
+  });
+  await prisma.fotorankResultBatch.updateMany({
+    where: {
+      contestId: e2eContest.id,
+      status: { in: ["GENERATED", "REVIEW_REQUIRED", "READY_TO_FINALIZE", "FINALIZED", "PUBLISHED"] },
+    },
+    data: { status: "CANCELLED", publicationApproved: false },
+  });
+
   await seedFotorankComUsers(workspace.id);
 
   await seedFotofficeCoursesSalesDemo([user.id, danielUser.id, dnxDevUser.id]);

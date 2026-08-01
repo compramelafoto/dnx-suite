@@ -71,7 +71,7 @@ export function RegistrationTransitionButtons({ registrationId, status }: Props)
           Queda registrado en historial y auditoría. Obligatorio.
         </p>
       </div>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap">
         {plans.map((plan) => (
           <Button
             key={plan.action}
@@ -79,6 +79,7 @@ export function RegistrationTransitionButtons({ registrationId, status }: Props)
             variant={plan.action === "cancel" || plan.action === "disqualify" ? "outline" : "primary"}
             disabled={pending}
             title={plan.description}
+            className="min-h-11 w-full sm:w-auto"
             onClick={() => run(plan.action, plan.label, plan.effects)}
           >
             {plan.label}
@@ -87,7 +88,9 @@ export function RegistrationTransitionButtons({ registrationId, status }: Props)
       </div>
       {error ? (
         <p className="text-sm text-[var(--ck-danger)]" role="alert">
-          {error}
+          {error.includes("desde estado")
+            ? "No pudimos actualizar la inscripción con esa acción en el estado actual."
+            : (error || "No pudimos actualizar la inscripción. Intentá nuevamente.")}
         </p>
       ) : null}
     </div>

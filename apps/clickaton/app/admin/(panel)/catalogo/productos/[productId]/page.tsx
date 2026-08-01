@@ -33,7 +33,7 @@ export default async function AdminProductDetailPage({ params, searchParams }: P
         <AdminPageHeader
           title="Producto"
           breadcrumbs={[
-            { label: "Catálogo", href: catalogAdminRoutes.hub },
+            { label: "Productos y kits", href: catalogAdminRoutes.hub },
             { label: "Productos", href: catalogAdminRoutes.products },
           ]}
         />
@@ -86,7 +86,7 @@ export default async function AdminProductDetailPage({ params, searchParams }: P
         title={product.name}
         description={`Código ${product.code} · Edición ${editionLabel}`}
         breadcrumbs={[
-          { label: "Catálogo", href: catalogAdminRoutes.hub },
+          { label: "Productos y kits", href: catalogAdminRoutes.hub },
           { label: "Productos", href: listHref },
           { label: product.name },
         ]}

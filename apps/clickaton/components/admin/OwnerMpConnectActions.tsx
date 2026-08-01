@@ -12,6 +12,17 @@ type Props = {
   accountMasked: string | null;
 };
 
+function humanizeConnectError(raw: string | undefined): string {
+  if (!raw) return "No pudimos completar la acción. Intentá nuevamente.";
+  if (/invalid_grant|token_expired|refresh_token|oauth|pkce/i.test(raw)) {
+    return "La conexión con Mercado Pago necesita actualizarse. Volvé a conectar la cuenta.";
+  }
+  if (/network|fetch|failed to fetch/i.test(raw)) {
+    return "No pudimos contactar a Mercado Pago. Revisá la conexión e intentá nuevamente.";
+  }
+  return raw.slice(0, 200);
+}
+
 export function OwnerMpConnectActions({
   connected,
   canConnect,
@@ -27,32 +38,35 @@ export function OwnerMpConnectActions({
   async function handleDisconnect() {
     setError(null);
     const ok = window.confirm(
-      "¿Desconectar la cuenta owner de Mercado Pago?\n\nSe revoca el token guardado. No se pueden cobrar hasta reconectar.",
+      [
+        "¿Desconectar esta cuenta?",
+        "",
+        "Mientras esté desconectada, no se podrán iniciar nuevos cobros con esta cuenta receptora.",
+        "Los pagos ya registrados no se eliminan.",
+        "Podés volver a conectar la misma cuenta después.",
+      ].join("\n"),
     );
     if (!ok) return;
 
     startTransition(async () => {
       try {
-        const res = await fetch(
-          "/api/clickaton/payments/mercadopago/revoke",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reinforcedConfirm: true }),
-          },
-        );
+        const res = await fetch("/api/clickaton/payments/mercadopago/revoke", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reinforcedConfirm: true }),
+        });
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
           error?: string;
           message?: string;
         };
         if (!res.ok || !data.ok) {
-          setError(data.error || data.message || "No se pudo desconectar");
+          setError(humanizeConnectError(data.error || data.message));
           return;
         }
         router.refresh();
       } catch {
-        setError("Error de red al desconectar");
+        setError("No pudimos desconectar la cuenta. Intentá nuevamente.");
       }
     });
   }
@@ -61,27 +75,23 @@ export function OwnerMpConnectActions({
     <div className="space-y-4">
       {connected ? (
         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-ck-text">
-          <p className="font-medium text-emerald-300">
-            Conectado con Mercado Pago
-          </p>
+          <p className="font-medium text-emerald-300">Conectado con Mercado Pago</p>
           {accountMasked ? (
-            <p className="mt-1 text-xs text-ck-text-muted">
-              Cuenta: {accountMasked}
-            </p>
+            <p className="mt-1 text-xs text-ck-text-muted">Cuenta: {accountMasked}</p>
           ) : null}
         </div>
       ) : (
-        <p className="text-ck-text-secondary">
-          Inicia el consentimiento OAuth LIVE en el dominio oficial de Mercado
-          Pago. No se muestran tokens ni secretos en esta pantalla.
+        <p className="text-sm text-ck-text-secondary">
+          Serás redirigido a Mercado Pago para autorizar la conexión. Clickatón no pide ni
+          guarda tu contraseña de Mercado Pago.
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         {!connected && canConnect && connectEnabled ? (
           <a
             href="/api/clickaton/payments/mercadopago/connect"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#009EE3] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#0088cc]"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#009EE3] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#0088cc] sm:w-auto"
           >
             <MpGlyph />
             Conectar Mercado Pago
@@ -107,21 +117,19 @@ export function OwnerMpConnectActions({
                     message?: string;
                   };
                   if (!res.ok || !data.ok || !data.authorizeUrl) {
-                    setError(
-                      data.error || data.message || "No se pudo reconectar",
-                    );
+                    setError(humanizeConnectError(data.error || data.message));
                     return;
                   }
                   window.location.href = data.authorizeUrl;
                 } catch {
-                  setError("Error de red al reconectar");
+                  setError("No pudimos iniciar la reconexión. Intentá nuevamente.");
                 }
               });
             }}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#009EE3] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#0088cc] disabled:opacity-50"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#009EE3] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#0088cc] disabled:opacity-50 sm:w-auto"
           >
             <MpGlyph />
-            {pending ? "Redirigiendo…" : "Reconectar Mercado Pago"}
+            {pending ? "Redirigiendo…" : "Volver a conectar"}
           </button>
         ) : null}
 
@@ -130,16 +138,16 @@ export function OwnerMpConnectActions({
             type="button"
             onClick={handleDisconnect}
             disabled={pending}
-            className="inline-flex min-h-11 items-center justify-center rounded-md border border-ck-border bg-transparent px-5 text-sm font-semibold text-ck-text transition-colors hover:border-red-400/50 hover:text-red-300 disabled:opacity-50"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-ck-border bg-transparent px-5 text-sm font-semibold text-ck-text transition-colors hover:border-red-400/50 hover:text-red-300 disabled:opacity-50 sm:w-auto"
           >
-            {pending ? "Desconectando…" : "Desconectar Mercado Pago"}
+            {pending ? "Desconectando…" : "Desconectar cuenta"}
           </button>
         ) : null}
 
         {!connected && !connectEnabled ? (
-          <p className="rounded-md border border-ck-border bg-ck-surface px-4 py-3 text-ck-text-secondary">
-            Botón de conexión bloqueado hasta completar credenciales de app MP y
-            la autorización manual.
+          <p className="w-full rounded-md border border-ck-border bg-ck-surface px-4 py-3 text-ck-text-secondary">
+            La conexión está bloqueada hasta completar la configuración de la aplicación y
+            la autorización manual del responsable.
           </p>
         ) : null}
       </div>

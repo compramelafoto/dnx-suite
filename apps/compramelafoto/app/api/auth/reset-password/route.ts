@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@repo/auth";
 import { hashToken } from "@/lib/token-hash";
 import { sendEmail } from "@/emails/send";
 import { buildPasswordChangedEmail } from "@/emails/templates/auth";
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Hashear nueva contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = hashPassword(password);
 
     // Actualizar contraseña y limpiar token
     if (tokenModel?.update && resetToken?.id) {

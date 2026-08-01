@@ -11,10 +11,11 @@ export type PromptWindowSource = {
 };
 
 /**
- * Política Etapa 11:
+ * Política Etapa 11 / 10G.3:
  * - Captura efectiva inicia en releasedAt (liberación real) si existe; si no, captureStartsAt planificado.
- * - Subida puede extenderse después del cierre de captura (uploadEndsAt).
- * - No mezclar captura y subida.
+ * - captureEndsAt / uploadEndsAt son boundaries EXCLUSIVOS (t < endsAt).
+ * - Subida puede extenderse después del cierre de captura (uploadEndsAt > captureEndsAt).
+ * - No mezclar captura y subida: la hora de upload no valida la captura.
  */
 export function resolveEffectiveWindows(prompt: PromptWindowSource) {
   const captureStartsAt = prompt.releasedAt ?? prompt.captureStartsAt;
@@ -35,15 +36,58 @@ export function isPromptReleasedForUpload(status: string): boolean {
   return status === "RELEASED" || status === "CLOSED";
 }
 
+export type UploadWindowState = "NOT_OPEN" | "OPEN" | "CLOSED" | "NOT_CONFIGURED";
+
+export function getUploadWindowState(
+  windows: ReturnType<typeof resolveEffectiveWindows>,
+  clock: EditionClock = systemClock(),
+): UploadWindowState {
+  if (!windows.uploadStartsAt) return "NOT_CONFIGURED";
+  const now = clock.now().getTime();
+  if (windows.uploadStartsAt.getTime() > now) return "NOT_OPEN";
+  if (windows.uploadEndsAt && windows.uploadEndsAt.getTime() <= now) return "CLOSED";
+  return "OPEN";
+}
+
+/**
+ * Upload window: [startsAt, endsAt) — exclusive end.
+ * AR2026: a las 22:00:00.000 server-side se rechaza cualquier nuevo upload.
+ */
 export function isWithinUploadWindow(
   windows: ReturnType<typeof resolveEffectiveWindows>,
   clock: EditionClock = systemClock(),
 ): boolean {
-  const now = clock.now().getTime();
-  if (!windows.uploadStartsAt) return false;
-  if (windows.uploadStartsAt.getTime() > now) return false;
-  if (windows.uploadEndsAt && windows.uploadEndsAt.getTime() < now) return false;
+  return getUploadWindowState(windows, clock) === "OPEN";
+}
+
+/**
+ * Capture window exacta: [startsAt, endsAt) — exclusive end.
+ * AR2026: 16:00:00 inclusive … 20:00:00 exclusive.
+ * No inventa timestamps si EXIF ausente.
+ */
+export function isWithinCaptureWindowExact(input: {
+  captureDate: Date | null;
+  windows: ReturnType<typeof resolveEffectiveWindows>;
+}): boolean {
+  if (!input.captureDate || !input.windows.captureStartsAt) return false;
+  const t = input.captureDate.getTime();
+  const start = input.windows.captureStartsAt.getTime();
+  const end = input.windows.captureEndsAt?.getTime();
+  if (t < start) return false;
+  if (end != null && t >= end) return false;
   return true;
+}
+
+/**
+ * Fase 20:00–22:00: captura cerrada, upload aún abierto.
+ */
+export function isCaptureClosedUploadOpen(
+  windows: ReturnType<typeof resolveEffectiveWindows>,
+  clock: EditionClock = systemClock(),
+): boolean {
+  if (!isWithinUploadWindow(windows, clock)) return false;
+  if (!windows.captureEndsAt) return false;
+  return clock.now().getTime() >= windows.captureEndsAt.getTime();
 }
 
 export function evaluateCaptureDate(input: {
@@ -77,20 +121,23 @@ export function evaluateCaptureDate(input: {
 
   const t = input.captureDate.getTime();
   const start = input.windows.captureStartsAt.getTime();
+  /** Exclusive end boundary. */
   const end = input.windows.captureEndsAt?.getTime() ?? Number.POSITIVE_INFINITY;
   const tol = Math.max(0, input.toleranceMinutes) * 60_000;
 
-  if (t >= start - tol && t <= end + tol) {
-    const outsideExact = t < start || t > end;
+  const withinExact = t >= start && t < end;
+  const withinSoft = t >= start - tol && t < end + tol;
+
+  if (withinSoft) {
     return {
-      result: outsideExact ? "WARNING" : "PASS",
+      result: withinExact ? "PASS" : "WARNING",
       deltaMinutes: Math.round((t - start) / 60_000),
       assumedTimezone,
-      reason: outsideExact ? "WITHIN_TOLERANCE" : "WITHIN_CAPTURE_WINDOW",
+      reason: withinExact ? "WITHIN_CAPTURE_WINDOW" : "WITHIN_TOLERANCE",
     };
   }
 
-  const extreme = t < start - tol * 6 || t > end + tol * 6;
+  const extreme = t < start - tol * 6 || t >= end + tol * 6;
   return {
     result: extreme ? "FAIL" : "MANUAL_REVIEW",
     deltaMinutes: Math.round((t - start) / 60_000),

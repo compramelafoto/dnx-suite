@@ -22,4 +22,5 @@ export function mutableClock(initial = new Date()): EditionClock & { set(at: Dat
   };
 }
 
-export const DEFAULT_EDITION_TIMEZONE = "America/Argentina/Cordoba";
+/** Bases 2026: America/Argentina/Buenos_Aires (UTC−3; Cordoba es alias equivalente). */
+export const DEFAULT_EDITION_TIMEZONE = "America/Argentina/Buenos_Aires";

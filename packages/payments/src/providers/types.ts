@@ -17,13 +17,21 @@ export interface CreateProviderOrderInput {
   externalReference: string;
   total: Money;
   distribution: CalculatedDistribution;
+  /** Required for Mercado Pago Orders 1:N createSplitOrder. */
   payerEmail?: string;
   idempotencyKey: string;
+  /**
+   * Payer device/session context for x-meli-session-id.
+   * Must come from frontend (Brick) — not server-invented.
+   * DEVICE CONTEXT FRONTEND BLOCKED UNTIL BRICK for production capture.
+   */
   deviceSessionId?: string;
   /** Card token from MercadoPago.js (TEST) — never log. */
   paymentToken?: string;
   /** MP payment_method.id (e.g. visa) — required by Orders when token is sent. */
   paymentMethodId?: string;
+  /** Installments from Brick (default 1). */
+  installments?: number;
   metadata?: Record<string, string>;
 }
 
@@ -42,9 +50,27 @@ export interface GetProviderOrderResult {
 
 export interface ProviderRefundInput {
   providerOrderId: string;
+  /**
+   * Omit for total Orders refund (empty body).
+   * Required with providerTransactionId for partial refund.
+   */
   amount?: Money;
+  /** Payment transaction id (PAY…) — required for partial Orders refunds. */
+  providerTransactionId?: string;
+  /**
+   * Not sent to Mercado Pago Orders refund API.
+   * Reserved for internal / future per-recipient accounting only.
+   */
   recipientExternalId?: string;
   idempotencyKey: string;
+}
+
+export interface ProviderRefundResult {
+  providerRefundId: string;
+  providerRefundIds?: string[];
+  orderStatus?: string;
+  statusDetail?: string;
+  rawSanitized?: Record<string, unknown>;
 }
 
 export interface NormalizedWebhook {
@@ -59,7 +85,7 @@ export interface PaymentProvider {
   capabilities(): ProviderCapabilities;
   createOrder(input: CreateProviderOrderInput): Promise<CreateProviderOrderResult>;
   getOrder(providerOrderId: string, environment: PaymentEnvironment): Promise<GetProviderOrderResult>;
-  refund(input: ProviderRefundInput): Promise<{ providerRefundId: string }>;
+  refund(input: ProviderRefundInput): Promise<ProviderRefundResult>;
   parseWebhook(
     headers: Record<string, string | undefined>,
     rawBody: string,

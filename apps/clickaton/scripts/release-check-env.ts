@@ -340,13 +340,45 @@ function main(): void {
     }
   }
 
-  // Mezcla TEST/LIVE
+  // Mezcla TEST/LIVE (10E.4: production provider allowed only on production target + LIVE flag)
   const provider = env.CLICKATON_DNX_PAYMENTS_PROVIDER?.trim();
+  const liveFlagRaw = (env.DNX_CLICKATON_MP_LIVE_PAYMENTS_ENABLED ?? "")
+    .trim()
+    .toLowerCase();
+  const liveFlagOn =
+    liveFlagRaw === "1" ||
+    liveFlagRaw === "true" ||
+    liveFlagRaw === "yes" ||
+    liveFlagRaw === "on";
   if (provider === "mercado_pago_production") {
+    if (TARGET !== "production") {
+      findings.push({
+        severity: "block",
+        code: "LIVE_PROVIDER_STAGING_FORBIDDEN",
+        message:
+          "CLICKATON_DNX_PAYMENTS_PROVIDER=mercado_pago_production prohibido fuera de Production",
+      });
+    } else if (!liveFlagOn) {
+      findings.push({
+        severity: "warn",
+        code: "LIVE_PROVIDER_FLAG_OFF",
+        message:
+          "Provider mercado_pago_production configurado pero DNX_CLICKATON_MP_LIVE_PAYMENTS_ENABLED=OFF (checkout LIVE fail-closed)",
+      });
+    } else {
+      findings.push({
+        severity: "warn",
+        code: "LIVE_PROVIDER_ARMED",
+        message:
+          "LIVE payments ARMED (provider production + flag ON). Solo tras LEGAL APPROVED FOR REGISTRATION",
+      });
+    }
+  }
+  if (TARGET !== "production" && liveFlagOn) {
     findings.push({
       severity: "block",
-      code: "LIVE_PROVIDER",
-      message: "CLICKATON_DNX_PAYMENTS_PROVIDER=mercado_pago_production bloqueado en 10A",
+      code: "LIVE_FLAG_ON_NON_PROD",
+      message: "DNX_CLICKATON_MP_LIVE_PAYMENTS_ENABLED no debe estar ON en staging/preview",
     });
   }
   if (TARGET === "production" && provider === "mercado_pago_test") {
