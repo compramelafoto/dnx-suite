@@ -19,10 +19,14 @@ export async function createEditionFormAction(
 }
 
 export async function updateEditionFormAction(
-  editionId: string,
   prev: Awaited<ReturnType<typeof updateEdition>> | undefined,
   formData: FormData,
 ) {
+  // editionId via FormData (no .bind) — evita bug RSC Client Manifest en /editar
+  const editionId = String(formData.get("editionId") ?? "").trim();
+  if (!editionId) {
+    return { ok: false, message: "Falta el identificador de la edición." };
+  }
   const result = await updateEdition(editionId, prev, formData);
   if (result.ok) {
     redirect(`${adminRoutes.editions}/${editionId}?flash=edition_updated`);

@@ -15,14 +15,19 @@ import {
   emptyEditionFormInput,
   type ClickatonEditionFormInput,
 } from "@/lib/admin/editions/types";
-import type { EditionActionState } from "@/lib/admin/editions/mutations";
 import { EditionCoverUploadFields } from "@/components/admin/editions/EditionCoverUploadFields";
+
+type EditionFormActionState = {
+  ok: boolean;
+  errors?: Partial<Record<keyof ClickatonEditionFormInput, string>> & { form?: string };
+  message?: string;
+};
 
 type Props = {
   action: (
-    prev: EditionActionState | undefined,
+    prev: EditionFormActionState | undefined,
     formData: FormData,
-  ) => Promise<EditionActionState>;
+  ) => Promise<EditionFormActionState>;
   initialValues?: ClickatonEditionFormInput;
   submitLabel?: string;
   cancelHref?: string;
@@ -62,6 +67,7 @@ export function EditionForm({
 
   return (
     <form action={formAction} className="space-y-4">
+      {editionId ? <input type="hidden" name="editionId" value={editionId} /> : null}
       {state?.message && !state.ok ? (
         <p className="rounded-[var(--ck-radius-card)] border border-[var(--ck-danger)]/40 bg-[var(--ck-danger-soft)] px-4 py-3 text-sm text-ck-text" role="alert">
           {state.message}

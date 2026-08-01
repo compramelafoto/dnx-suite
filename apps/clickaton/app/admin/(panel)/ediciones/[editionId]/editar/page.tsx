@@ -43,7 +43,6 @@ export default async function EditEditionPage({ params }: Props) {
   }
 
   const edition = result.data;
-  const boundAction = updateEditionFormAction.bind(null, edition.id);
 
   return (
     <div className="space-y-8">
@@ -56,7 +55,7 @@ export default async function EditEditionPage({ params }: Props) {
         ]}
       />
       <EditionForm
-        action={boundAction}
+        action={updateEditionFormAction}
         editionId={edition.id}
         initialValues={editionToFormInput(edition)}
         cancelHref={`${adminRoutes.editions}/${edition.id}`}
