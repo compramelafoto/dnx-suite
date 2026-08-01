@@ -6,7 +6,7 @@ export const howItWorksPageContent = {
   },
   hero: {
     eyebrow: "La experiencia",
-    title: "Del primer disparo a la comunidad que queda.",
+    title: "De la primera foto a la comunidad fotográfica más grande de tu ciudad.",
     description:
       "Una Clickatón combina desafío creativo, tiempo, territorio y aprendizaje. Cada edición define sus reglas; acá te contamos el recorrido general.",
   },
