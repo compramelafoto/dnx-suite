@@ -113,16 +113,8 @@ export default async function PublicRegistrationPage({ params }: PageProps) {
             { label: "Inscripción" },
           ]}
         />
-        <header className="space-y-3">
-          <p className="ck-label text-ck-yellow">Inscripción pública</p>
-          <h1 className="ck-display-md">{context.edition.name}</h1>
-          <p className="max-w-2xl text-ck-text-secondary">
-            Completá los pasos para reservar tu lugar. En entradas pagas, el cupo se
-            reserva por un tiempo limitado hasta acreditar el pago.{" "}
-            <span className="text-ck-text-muted">
-              Entorno de prueba: no se realiza un cobro real.
-            </span>
-          </p>
+        <header className="sr-only">
+          <h1>Inscripción — {context.edition.name}</h1>
         </header>
         <PublicRegistrationWizard context={context} idempotencyKey={idempotencyKey} />
       </Container>
