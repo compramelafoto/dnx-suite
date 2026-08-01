@@ -107,7 +107,9 @@ export class R2Storage implements StoragePort {
       Bucket: this.config.bucket, Key: key, Body: input.body, ContentType: input.contentType,
     }));
     const base = this.config.publicBaseUrl?.replace(/\/$/, "");
-    return stored(key, input.body, base ? `${base}/${key}` : null);
+    // Sin R2_PUBLIC_URL (bucket privado a propósito): URL same-origin vía proxy /api/media.
+    const publicUrl = base ? `${base}/${key}` : `/api/media/${key}`;
+    return stored(key, input.body, publicUrl);
   }
   async get(key: string) {
     if (!key.startsWith("clickaton/")) throw new Error("INVALID_MEDIA_KEY");

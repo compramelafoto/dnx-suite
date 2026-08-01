@@ -71,7 +71,7 @@ export async function uploadEditionCoverAction(
   if (!stored.publicUrl) {
     return {
       ok: false,
-      error: "No se pudo obtener URL pública del archivo. Verificá R2 en este entorno.",
+      error: "No se pudo obtener URL de la imagen. Verificá storage R2 en este entorno.",
     };
   }
 
