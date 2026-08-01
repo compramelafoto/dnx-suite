@@ -45,14 +45,26 @@ function CoverSlot({
       setState({ ok: false, error: "Seleccioná una imagen." });
       return;
     }
+    const maxBytes = 8 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setState({ ok: false, error: "Máximo 8 MB. Comprimí la imagen e intentá de nuevo." });
+      return;
+    }
     const fd = new FormData();
     fd.set("file", file);
     fd.set("variant", variant);
     if (editionId) fd.set("editionId", editionId);
     startTransition(async () => {
-      const result = await uploadEditionCoverAction(null, fd);
-      setState(result);
-      if (result.ok && result.publicUrl) onUrl(result.publicUrl);
+      try {
+        const result = await uploadEditionCoverAction(null, fd);
+        setState(result);
+        if (result.ok && result.publicUrl) onUrl(result.publicUrl);
+      } catch {
+        setState({
+          ok: false,
+          error: "No se pudo subir la imagen (archivo muy grande o error de red).",
+        });
+      }
     });
   }
 

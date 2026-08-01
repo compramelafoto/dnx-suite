@@ -6,9 +6,30 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 const monorepoRoot = path.join(appDir, "../..");
 
+/** CSP for Card Payment Brick / MercadoPago.js — official origins only (no wildcards). */
+const clickatonCsp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
+  "script-src-elem 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
+  "connect-src 'self' https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com https://www.mercadopago.com.ar https://events.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live wss://vercel.live",
+  "frame-src https://www.mercadopago.com https://www.mercadopago.com.ar https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live",
+  "img-src 'self' data: blob: https:",
+  "style-src 'self' 'unsafe-inline' https:",
+  "font-src 'self' data: https:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self' https://www.mercadopago.com https://www.mercadopago.com.ar",
+].join("; ");
+
 const nextConfig: NextConfig = {
+  // Portadas de edición permiten hasta 8 MB; default de Server Actions es 1 MB.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
   // @repo/db se externaliza (no transpile) para conservar el Query Engine de Prisma.
-  transpilePackages: ["@repo/auth", "@repo/payments"],
+  transpilePackages: ["@repo/auth", "@repo/payments", "@mercadopago/sdk-react"],
   // Evita que el bundler omita el Query Engine de Prisma en Vercel (rhel-openssl-3.0.x).
   serverExternalPackages: ["@prisma/client", "@repo/db"],
   outputFileTracingRoot: monorepoRoot,
@@ -33,6 +54,14 @@ const nextConfig: NextConfig = {
       ".mjs": [".mts", ".mjs"],
     };
     return config;
+  },
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [{ key: "Content-Security-Policy", value: clickatonCsp }],
+      },
+    ];
   },
   async redirects() {
     return [
