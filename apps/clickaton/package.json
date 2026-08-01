@@ -61,7 +61,11 @@
     "smoke:resend-webhook-ingress": "tsx scripts/resend-webhook-ingress-smoke.ts",
     "communications:webhook:readiness": "tsx scripts/communications-webhook-readiness.ts",
     "communications:webhook:recent": "tsx scripts/communications-webhook-recent.ts",
-    "communications:webhook:e2e-smoke": "tsx scripts/communications-webhook-e2e-smoke.ts"
+    "communications:webhook:e2e-smoke": "tsx scripts/communications-webhook-e2e-smoke.ts",
+    "test:deployment-identity": "tsx --test scripts/lib/deployment-identity.test.ts scripts/lib/vercel-ignore-build.test.ts",
+    "communications:imp10-resume-readiness": "tsx scripts/communications-imp10-resume-readiness.ts",
+    "deployment:identity": "tsx scripts/deployment-identity.ts",
+    "deploy:staging:safe": "tsx scripts/deploy-staging-safe.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",
