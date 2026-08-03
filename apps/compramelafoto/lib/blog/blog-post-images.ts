@@ -22,8 +22,13 @@ function shareImageCacheKey(updatedAt?: Date | string | null): string | undefine
 }
 
 /** URL pública en el mismo dominio del sitio (fallback para rutas relativas / dev). */
-export function getBlogPostOgImageProxyUrl(slug: string, cacheKey?: string | number | null): string {
-  const base = `${getBlogSiteUrl()}/api/blog/og-image/${encodeURIComponent(slug.trim())}`;
+export function getBlogPostOgImageProxyUrl(
+  slug: string,
+  cacheKey?: string | number | null,
+  siteUrl?: string
+): string {
+  const origin = (siteUrl?.trim() || getBlogSiteUrl()).replace(/\/$/, "");
+  const base = `${origin}/api/blog/og-image/${encodeURIComponent(slug.trim())}`;
   if (cacheKey == null || cacheKey === "") return base;
   return `${base}?v=${encodeURIComponent(String(cacheKey))}`;
 }
@@ -38,14 +43,22 @@ export function resolveBlogPostThumbnailUrl(post: BlogPostImageFields = {}): str
   return hero || og || getBlogDefaultCoverImagePath();
 }
 
+export type ResolveBlogPostShareImageOptions = {
+  /** Override del origen del sitio (útil en tests; producción usa `getBlogSiteUrl`). */
+  siteUrl?: string;
+};
+
 /**
  * URL absoluta para compartir en RRSS (og:image, twitter:image, JSON-LD).
  * El proxy sirve exactamente la misma imagen que `resolveBlogPostThumbnailUrl`.
  */
-export function resolveBlogPostShareImageUrl(post: BlogPostShareImageInput = {}): string {
+export function resolveBlogPostShareImageUrl(
+  post: BlogPostShareImageInput = {},
+  options?: ResolveBlogPostShareImageOptions
+): string {
   const slug = post.slug?.trim();
   if (slug) {
-    return getBlogPostOgImageProxyUrl(slug, shareImageCacheKey(post.updatedAt));
+    return getBlogPostOgImageProxyUrl(slug, shareImageCacheKey(post.updatedAt), options?.siteUrl);
   }
 
   const thumbnail = resolveBlogPostThumbnailUrl(post);
