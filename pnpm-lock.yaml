@@ -168,6 +168,9 @@ importers:
       '@repo/content':
         specifier: workspace:*
         version: link:../../packages/content
+      '@repo/content-ui':
+        specifier: workspace:*
+        version: link:../../packages/content-ui
       '@repo/cuanto-cobro-core':
         specifier: workspace:*
         version: link:../../packages/cuanto-cobro-core
@@ -1026,6 +1029,43 @@ importers:
       eslint:
         specifier: ^9.39.1
         version: 9.39.1(jiti@2.6.1)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/content-ui:
+    dependencies:
+      '@repo/content':
+        specifier: workspace:*
+        version: link:../content
+      '@tiptap/core':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/pm@2.27.2)
+      '@tiptap/react':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      '@types/react':
+        specifier: 19.2.2
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: 19.2.2
+        version: 19.2.2(@types/react@19.2.2)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.4(react@19.2.4)
       tsx:
         specifier: ^4.21.0
         version: 4.23.0
