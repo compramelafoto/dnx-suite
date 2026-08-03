@@ -96,7 +96,12 @@ export function toErrorResponse(err: unknown): {
     "httpStatus" in err &&
     "code" in err
   ) {
-    const e = err as { httpStatus: number; message: string; code: string; details?: unknown };
+    const e = err as unknown as {
+      httpStatus: number;
+      message: string;
+      code: string;
+      details?: unknown;
+    };
     return {
       status: e.httpStatus,
       body: {
