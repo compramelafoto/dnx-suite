@@ -5,6 +5,7 @@
 
 import { BlogPostStatus, PrismaClient } from "@prisma/client";
 import { buildBlogArticleMetadata } from "../lib/blog/blog-metadata";
+import { CLF_CONTENT_PLATFORM, clfPlatformWhere } from "../lib/blog/content-platform";
 import { getBlogSitemapEntries } from "../lib/blog/sitemap-data";
 import {
   getLatestPublishedPosts,
@@ -36,9 +37,15 @@ async function main() {
   let tagSlug = "";
 
   try {
-    const category = await prisma.blogCategory.findFirst({ orderBy: { sortOrder: "asc" } });
-    const tag = await prisma.blogTag.findFirst({ orderBy: { name: "asc" } });
-    const author = await prisma.blogAuthor.findFirst();
+    const category = await prisma.blogCategory.findFirst({
+      where: clfPlatformWhere,
+      orderBy: { sortOrder: "asc" },
+    });
+    const tag = await prisma.blogTag.findFirst({
+      where: clfPlatformWhere,
+      orderBy: { name: "asc" },
+    });
+    const author = await prisma.blogAuthor.findFirst({ where: clfPlatformWhere });
 
     if (!category || !tag) {
       console.error("Faltan categoría o tag. Ejecutá: npm run seed:blog");
@@ -64,6 +71,7 @@ async function main() {
     // 1–2: crear borrador (simula /admin/blog/new + guardar)
     const draft = await prisma.blogPost.create({
       data: {
+        platform: CLF_CONTENT_PLATFORM,
         title: "Auditoría MVP V2",
         slug: TEST_SLUG,
         excerpt: "Excerpt fallback SEO",
@@ -96,11 +104,13 @@ async function main() {
     );
 
     // 4–8: publicar y visibilidad
-    await prisma.blogPost.update({
-      where: { id: postId },
+    await prisma.blogPost.updateMany({
+      where: { id: postId, ...clfPlatformWhere },
       data: { status: BlogPostStatus.PUBLISHED, publishedAt: new Date() },
     });
-    const published = await prisma.blogPost.findUnique({ where: { id: postId } });
+    const published = await prisma.blogPost.findFirst({
+      where: { id: postId, ...clfPlatformWhere },
+    });
     record(4, "Publicar artículo", published?.status === "PUBLISHED", `status=${published?.status}`);
 
     const inHome = (await getLatestPublishedPosts(100)).some((p) => p.slug === TEST_SLUG);

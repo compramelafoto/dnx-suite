@@ -4,6 +4,7 @@ import {
   handleBlogPrismaError,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { CLF_CONTENT_PLATFORM, clfPlatformWhere } from "@/lib/blog/content-platform";
 import { formatBlogValidationError, parseBlogTagCreate } from "@/lib/blog/validate-blog-tag";
 
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ export async function GET() {
   if (auth.response) return auth.response;
 
   const tags = await prisma.blogTag.findMany({
+    where: clfPlatformWhere,
     orderBy: { name: "asc" },
     include: {
       _count: { select: { posts: true } },
@@ -37,7 +39,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const tag = await prisma.blogTag.create({ data: parsed.data });
+    const tag = await prisma.blogTag.create({
+      data: {
+        ...parsed.data,
+        platform: CLF_CONTENT_PLATFORM,
+      },
+    });
     return NextResponse.json({ tag }, { status: 201 });
   } catch (err) {
     return handleBlogPrismaError(err, "el tag");

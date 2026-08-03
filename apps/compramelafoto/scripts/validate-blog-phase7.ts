@@ -5,6 +5,7 @@
 
 import { BlogPostStatus, PrismaClient } from "@prisma/client";
 import { PHASE7_ALL_ARTICLES, PHASE7_ARTICLE_COUNT } from "@/data/blog/phase7";
+import { CLF_CONTENT_PLATFORM } from "@/lib/blog/content-platform";
 import { parseBlogSeoGoal } from "@/lib/blog/blog-seo-goal";
 import {
   getLatestPublishedPosts,
@@ -25,7 +26,7 @@ function record(id: number, name: string, ok: boolean, detail: string) {
 
 async function main() {
   const posts = await prisma.blogPost.findMany({
-    where: { slug: { in: [...PHASE7_SLUGS] } },
+    where: { platform: CLF_CONTENT_PLATFORM, slug: { in: [...PHASE7_SLUGS] } },
     select: {
       slug: true,
       status: true,
@@ -79,7 +80,7 @@ async function main() {
 
   const newCats = ["guias", "funcionalidades", "comparativas", "casos-de-uso"];
   const cats = await prisma.blogCategory.findMany({
-    where: { slug: { in: newCats } },
+    where: { platform: CLF_CONTENT_PLATFORM, slug: { in: newCats } },
     select: { slug: true, name: true },
   });
   record(

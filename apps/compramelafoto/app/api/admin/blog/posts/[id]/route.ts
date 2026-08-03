@@ -5,6 +5,7 @@ import {
   parseRouteId,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 import { mapPostResponse, postInclude } from "@/lib/blog/post-queries";
 
 export const runtime = "nodejs";
@@ -21,8 +22,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   if (!postId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   try {
-    const post = await prisma.blogPost.findUnique({
-      where: { id: postId },
+    const post = await prisma.blogPost.findFirst({
+      where: { id: postId, ...clfPlatformWhere },
       include: postInclude,
     });
     if (!post) return NextResponse.json({ error: "Artículo no encontrado" }, { status: 404 });
@@ -86,7 +87,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   if (!postId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   try {
-    await prisma.blogPost.delete({ where: { id: postId } });
+    const { deleteBlogPostRecord } = await import("@/lib/blog/post-persistence");
+    const deleted = await deleteBlogPostRecord(prisma, postId);
+    if (!deleted) return NextResponse.json({ error: "Artículo no encontrado" }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleBlogPrismaError(err, "el artículo");

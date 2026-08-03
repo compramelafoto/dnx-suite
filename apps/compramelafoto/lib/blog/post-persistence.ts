@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { JSONContent } from "@tiptap/core";
 import type { PrismaClient } from "@prisma/client";
+import { CLF_CONTENT_PLATFORM, clfPlatformWhere } from "@/lib/blog/content-platform";
 import { mapPostResponse, postInclude } from "@/lib/blog/post-queries";
 import { ensureSingleFeaturedBlogPost } from "@/lib/blog/unset-other-featured";
 import { syncBlogPostImageFields } from "@/lib/blog/blog-post-images";
@@ -23,15 +24,23 @@ async function assertPostRelations(
   data: { categoryId?: number | null; authorId?: number | null; tagIds?: number[] }
 ) {
   if (data.categoryId != null) {
-    const category = await tx.blogCategory.findUnique({ where: { id: data.categoryId }, select: { id: true } });
+    const category = await tx.blogCategory.findFirst({
+      where: { id: data.categoryId, ...clfPlatformWhere },
+      select: { id: true },
+    });
     if (!category) throw new Error("CATEGORY_NOT_FOUND");
   }
   if (data.authorId != null) {
-    const author = await tx.blogAuthor.findUnique({ where: { id: data.authorId }, select: { id: true } });
+    const author = await tx.blogAuthor.findFirst({
+      where: { id: data.authorId, ...clfPlatformWhere },
+      select: { id: true },
+    });
     if (!author) throw new Error("AUTHOR_NOT_FOUND");
   }
   if (data.tagIds && data.tagIds.length > 0) {
-    const count = await tx.blogTag.count({ where: { id: { in: data.tagIds } } });
+    const count = await tx.blogTag.count({
+      where: { id: { in: data.tagIds }, ...clfPlatformWhere },
+    });
     if (count !== data.tagIds.length) throw new Error("TAG_NOT_FOUND");
   }
 }
@@ -65,6 +74,7 @@ export async function createBlogPostRecord(prisma: PrismaClient, input: BlogPost
 
     const post = await tx.blogPost.create({
       data: {
+        platform: CLF_CONTENT_PLATFORM,
         title: input.title,
         slug: input.slug,
         excerpt: input.excerpt,
@@ -96,8 +106,8 @@ export async function createBlogPostRecord(prisma: PrismaClient, input: BlogPost
       await ensureSingleFeaturedBlogPost(tx, post.id, true);
     }
 
-    return tx.blogPost.findUniqueOrThrow({
-      where: { id: post.id },
+    return tx.blogPost.findFirstOrThrow({
+      where: { id: post.id, ...clfPlatformWhere },
       include: postInclude,
     });
   });
@@ -108,8 +118,8 @@ export async function updateBlogPostRecord(
   postId: number,
   input: BlogPostUpdateInput
 ) {
-  const existing = await prisma.blogPost.findUnique({
-    where: { id: postId },
+  const existing = await prisma.blogPost.findFirst({
+    where: { id: postId, ...clfPlatformWhere },
     select: {
       id: true,
       status: true,
@@ -182,10 +192,11 @@ export async function updateBlogPostRecord(
       ...(scalar.authorId !== undefined ? { authorId: scalar.authorId } : {}),
     };
 
-    await tx.blogPost.update({
-      where: { id: postId },
-      data: updateData,
+    const updated = await tx.blogPost.updateMany({
+      where: { id: postId, ...clfPlatformWhere },
+      data: updateData as Prisma.BlogPostUpdateManyMutationInput,
     });
+    if (updated.count === 0) return null;
 
     if (tagIds !== undefined) {
       await syncPostTags(tx, postId, tagIds);
@@ -195,11 +206,18 @@ export async function updateBlogPostRecord(
       await ensureSingleFeaturedBlogPost(tx, postId, true);
     }
 
-    return tx.blogPost.findUniqueOrThrow({
-      where: { id: postId },
+    return tx.blogPost.findFirstOrThrow({
+      where: { id: postId, ...clfPlatformWhere },
       include: postInclude,
     });
   });
+}
+
+export async function deleteBlogPostRecord(prisma: PrismaClient, postId: number): Promise<boolean> {
+  const result = await prisma.blogPost.deleteMany({
+    where: { id: postId, ...clfPlatformWhere },
+  });
+  return result.count > 0;
 }
 
 export function mapRelationError(error: unknown): string | null {

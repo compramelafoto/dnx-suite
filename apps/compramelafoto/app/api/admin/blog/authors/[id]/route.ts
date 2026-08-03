@@ -5,6 +5,7 @@ import {
   parseRouteId,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 import {
   formatBlogValidationError,
   parseBlogAuthorUpdate,
@@ -23,8 +24,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const authorId = parseRouteId(id);
   if (!authorId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
-  const author = await prisma.blogAuthor.findUnique({
-    where: { id: authorId },
+  const author = await prisma.blogAuthor.findFirst({
+    where: { id: authorId, ...clfPlatformWhere },
     include: {
       _count: { select: { posts: true } },
       user: { select: { id: true, name: true, email: true } },
@@ -63,9 +64,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    const author = await prisma.blogAuthor.update({
-      where: { id: authorId },
+    const updated = await prisma.blogAuthor.updateMany({
+      where: { id: authorId, ...clfPlatformWhere },
       data: parsed.data,
+    });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "Autor no encontrado" }, { status: 404 });
+    }
+    const author = await prisma.blogAuthor.findFirst({
+      where: { id: authorId, ...clfPlatformWhere },
     });
     return NextResponse.json({ author });
   } catch (err) {
@@ -82,7 +89,12 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   if (!authorId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   try {
-    await prisma.blogAuthor.delete({ where: { id: authorId } });
+    const deleted = await prisma.blogAuthor.deleteMany({
+      where: { id: authorId, ...clfPlatformWhere },
+    });
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: "Autor no encontrado" }, { status: 404 });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleBlogPrismaError(err, "el autor");

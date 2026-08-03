@@ -9,6 +9,8 @@
  */
 
 import { BlogPostStatus, PrismaClient } from "@prisma/client";
+
+import { CLF_CONTENT_PLATFORM } from "../lib/blog/content-platform";
 import { FUNCIONALIDADES_ARTICLES } from "@/data/blog/phase7/catalog-funcionalidades";
 import { NEGOCIO_ARTICLES } from "@/data/blog/phase7/catalog-negocio";
 import type { Phase7ArticleDraft } from "@/data/blog/phase7/types";
@@ -34,7 +36,7 @@ async function seedArticle(slug: (typeof SLUGS)[number]) {
   }
 
   const category = await prisma.blogCategory.findUnique({
-    where: { slug: draft.categorySlug },
+    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.categorySlug } },
     select: { id: true },
   });
   if (!category) {
@@ -42,23 +44,26 @@ async function seedArticle(slug: (typeof SLUGS)[number]) {
   }
 
   const author =
-    (await prisma.blogAuthor.findUnique({ where: { slug: "equipo-compramelafoto" } })) ??
-    (await prisma.blogAuthor.findFirst({ where: { isActive: true }, orderBy: { id: "asc" } }));
+    (await prisma.blogAuthor.findUnique({ where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: "equipo-compramelafoto" } } })) ??
+    (await prisma.blogAuthor.findFirst({
+      where: { platform: CLF_CONTENT_PLATFORM, isActive: true },
+      orderBy: { id: "asc" },
+    }));
 
   const prepared = await preparePhase8Article(draft);
   const tagIds: number[] = [];
   for (const name of draft.tags) {
     const tagSlug = slugifyBlogFromName(name);
     const tag = await prisma.blogTag.upsert({
-      where: { slug: tagSlug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: tagSlug } },
       update: { name },
-      create: { name, slug: tagSlug },
+      create: { platform: CLF_CONTENT_PLATFORM, name, slug: tagSlug },
     });
     tagIds.push(tag.id);
   }
 
   const post = await prisma.blogPost.upsert({
-    where: { slug },
+    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug } },
     update: {
       title: prepared.title,
       excerpt: prepared.excerpt,
@@ -75,6 +80,7 @@ async function seedArticle(slug: (typeof SLUGS)[number]) {
       authorId: author?.id ?? null,
     },
     create: {
+      platform: CLF_CONTENT_PLATFORM,
       title: prepared.title,
       slug,
       excerpt: prepared.excerpt,

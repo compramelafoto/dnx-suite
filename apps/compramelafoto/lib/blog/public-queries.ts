@@ -1,4 +1,5 @@
 import { BlogPostStatus, Prisma } from "@prisma/client";
+import { CLF_CONTENT_PLATFORM, clfPlatformWhere } from "@/lib/blog/content-platform";
 import { prisma } from "@/lib/prisma";
 
 export const publicPostListSelect = {
@@ -56,6 +57,7 @@ export type PublicBlogPostDetail = Prisma.BlogPostGetPayload<{
 }>;
 
 const publishedWhere: Prisma.BlogPostWhereInput = {
+  ...clfPlatformWhere,
   status: BlogPostStatus.PUBLISHED,
 };
 
@@ -115,7 +117,7 @@ export async function getPublishedPostsByCategorySlug(
   limit = 50
 ): Promise<{ category: { id: number; name: string; slug: string; description: string | null }; posts: PublicBlogPostListItem[] } | null> {
   const category = await prisma.blogCategory.findUnique({
-    where: { slug: categorySlug },
+    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: categorySlug } },
     select: { id: true, name: true, slug: true, description: true },
   });
   if (!category) return null;
@@ -135,7 +137,7 @@ export async function getPublishedPostsByTagSlug(
   limit = 50
 ): Promise<{ tag: { id: number; name: string; slug: string }; posts: PublicBlogPostListItem[] } | null> {
   const tag = await prisma.blogTag.findUnique({
-    where: { slug: tagSlug },
+    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: tagSlug } },
     select: { id: true, name: true, slug: true },
   });
   if (!tag) return null;
@@ -162,6 +164,7 @@ export async function getPublishedPostBySlug(slug: string): Promise<PublicBlogPo
 
 export async function getBlogCategoriesForHome() {
   return prisma.blogCategory.findMany({
+    where: clfPlatformWhere,
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
       _count: {
