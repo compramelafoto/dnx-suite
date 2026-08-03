@@ -145,9 +145,9 @@ export function maskAccountLabel(providerUserId: string | null): string | null {
 export function maskEmail(email: string | null | undefined): string | null {
   if (!email) return null;
   const [user, domain] = email.split("@");
-  if (!domain) return "***";
+  if (!user || !domain) return "***";
   const u = user.length <= 2 ? "**" : `${user.slice(0, 1)}***`;
-  return `${u}@${domain[0]}***`;
+  return `${u}@${domain[0] ?? "*"}***`;
 }
 
 export function fingerprintOpaque(value: string): string {

@@ -44,7 +44,8 @@ function maskNick(nickname: unknown): string | null {
 function maskEmail(email: unknown): string | null {
   if (typeof email !== "string" || !email.includes("@")) return null;
   const [u, d] = email.split("@");
-  return `${u.slice(0, 1)}***@${d[0]}***`;
+  if (!u || !d) return null;
+  return `${u.slice(0, 1)}***@${d[0] ?? "*"}***`;
 }
 
 export function createLiveClickatonMpOAuthHttpClient(

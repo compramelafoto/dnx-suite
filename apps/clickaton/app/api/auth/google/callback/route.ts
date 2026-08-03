@@ -12,10 +12,12 @@ import {
 import { prisma } from "@repo/db";
 import {
   CLICKATON_GOOGLE_OAUTH_APP,
-  attachClickatonSessionCookieToResponse,
   resolveClickatonPostGoogleLoginPath,
 } from "@/lib/auth/google-oauth";
-import { cookieOptionsForRequest } from "@/lib/auth/session-cookie";
+import {
+  attachClickatonSessionCookieToResponse,
+  cookieOptionsForRequest,
+} from "@/lib/auth/session-cookie";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 
 export const runtime = "nodejs";
