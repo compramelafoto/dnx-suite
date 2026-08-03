@@ -12,7 +12,7 @@
 | Campo | Valor |
 |-------|-------|
 | Branch | `main` |
-| Commit | `36bac6980ccfb7d38c5244c558db2fe9a77be7d0` |
+| Commit | `a438562` (cherry-pick de `36bac69` sobre main) |
 | Mensaje | `feat(clickaton): persist participant cards and add remote render worker` |
 | Push | **NO** (diferido: R2/worker no resueltos; evitar disparar prod en `main`) |
 | Manifiesto | [`clickaton-participant-cards-p011-commit-manifest.md`](./clickaton-participant-cards-p011-commit-manifest.md) |
@@ -23,7 +23,7 @@
 
 | Criterio | Estado |
 |----------|--------|
-| Código P0-09/10 en commit limpio | **PASS** (`36bac69`) |
+| Código P0-09/10 en commit limpio | **PASS** (`a438562`) |
 | Secret scan del commit | **PASS** |
 | Migración Neon staging | **PASS** (previa) |
 | R2 staging privado | **BLOCKED** — Cloudflare MCP auth error post-reauth |
@@ -33,7 +33,7 @@
 | Health remoto | **NOT RUN** |
 | HMAC/replay real | **PASS unit** / **NOT RUN staging** |
 | Flags Vercel staging | **FAIL** — no configuradas |
-| Deploy clickaton-staging @ 36bac69 | **NOT RUN** |
+| Deploy clickaton-staging @ a438562 | **NOT RUN** |
 | E2E críticos 0 skips | **FAIL** — no ejecutados |
 | Producción intacta | **PASS** |
 
