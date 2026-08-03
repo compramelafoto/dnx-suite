@@ -683,23 +683,28 @@ model BlogCategory {
   id          Int        @id @default(autoincrement())
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  platform    String
   name        String
-  slug        String     @unique
+  slug        String
   description String?
   sortOrder   Int        @default(0)
   isFeatured  Boolean    @default(false)
   posts       BlogPost[]
 
-  @@index([sortOrder])
+  @@unique([platform, slug])
+  @@index([platform, sortOrder])
 }
 
 /// *
 /// * Blog — tags transversales
 model BlogTag {
-  id    Int           @id @default(autoincrement())
-  name  String
-  slug  String        @unique
-  posts BlogPostTag[]
+  id       Int           @id @default(autoincrement())
+  platform String
+  name     String
+  slug     String
+  posts    BlogPostTag[]
+
+  @@unique([platform, slug])
 }
 
 /// *
@@ -708,8 +713,9 @@ model BlogAuthor {
   id        Int        @id @default(autoincrement())
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+  platform  String
   name      String
-  slug      String     @unique
+  slug      String
   bio       String?
   avatarUrl String?
   role      String?
@@ -718,7 +724,8 @@ model BlogAuthor {
   user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
   posts     BlogPost[]
 
-  @@index([isActive])
+  @@unique([platform, slug])
+  @@index([platform, isActive])
 }
 
 /// *
@@ -726,6 +733,7 @@ model BlogAuthor {
 model BlogMedia {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
+  platform  String
   title     String?
   altText   String?
   caption   String?
@@ -735,7 +743,7 @@ model BlogMedia {
   mimeType  String
   sizeBytes Int
 
-  @@index([createdAt])
+  @@index([platform, createdAt])
 }
 
 /// *
@@ -744,8 +752,9 @@ model BlogPost {
   id             Int            @id @default(autoincrement())
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  platform       String
   title          String
-  slug           String         @unique
+  slug           String
   excerpt        String?
   contentJson    Json
   contentHtml    String         @db.Text
@@ -771,10 +780,11 @@ model BlogPost {
   tags           BlogPostTag[]
   views          BlogPostView[]
 
-  @@index([status, publishedAt])
-  @@index([status, isFeatured])
-  @@index([categoryId])
-  @@index([type])
+  @@unique([platform, slug])
+  @@index([platform, status, publishedAt])
+  @@index([platform, status, isFeatured])
+  @@index([platform, categoryId])
+  @@index([platform, type])
 }
 
 /// *

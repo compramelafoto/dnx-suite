@@ -4,6 +4,7 @@ import {
   handleBlogPrismaError,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { CLF_CONTENT_PLATFORM, clfPlatformWhere } from "@/lib/blog/content-platform";
 import {
   formatBlogValidationError,
   parseBlogAuthorCreate,
@@ -20,7 +21,10 @@ export async function GET(req: NextRequest) {
   const activeOnly = searchParams.get("active") === "1";
 
   const authors = await prisma.blogAuthor.findMany({
-    where: activeOnly ? { isActive: true } : undefined,
+    where: {
+      ...clfPlatformWhere,
+      ...(activeOnly ? { isActive: true } : {}),
+    },
     orderBy: { name: "asc" },
     include: {
       _count: { select: { posts: true } },
@@ -55,7 +59,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const author = await prisma.blogAuthor.create({ data: parsed.data });
+    const author = await prisma.blogAuthor.create({
+      data: {
+        ...parsed.data,
+        platform: CLF_CONTENT_PLATFORM,
+      },
+    });
     return NextResponse.json({ author }, { status: 201 });
   } catch (err) {
     return handleBlogPrismaError(err, "el autor");

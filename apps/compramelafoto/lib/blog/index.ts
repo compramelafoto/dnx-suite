@@ -1,4 +1,12 @@
 export {
+  CLF_CONTENT_PLATFORM,
+  CONTENT_PLATFORMS,
+  clfPlatformWhere,
+  isContentPlatform,
+} from "@/lib/blog/content-platform";
+export type { ClfContentPlatform, ContentPlatform } from "@/lib/blog/content-platform";
+
+export {
   slugifyBlog,
   slugifyBlogFromName,
   validateBlogSlug,
@@ -86,6 +94,7 @@ export {
 export {
   createBlogPostRecord,
   updateBlogPostRecord,
+  deleteBlogPostRecord,
   mapPostResponse,
   postInclude,
 } from "@/lib/blog/post-persistence";

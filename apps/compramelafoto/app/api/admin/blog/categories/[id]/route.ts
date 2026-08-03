@@ -5,6 +5,7 @@ import {
   parseRouteId,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 import {
   formatBlogValidationError,
   parseBlogCategoryUpdate,
@@ -23,8 +24,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const categoryId = parseRouteId(id);
   if (!categoryId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
-  const category = await prisma.blogCategory.findUnique({
-    where: { id: categoryId },
+  const category = await prisma.blogCategory.findFirst({
+    where: { id: categoryId, ...clfPlatformWhere },
     include: { _count: { select: { posts: true } } },
   });
   if (!category) return NextResponse.json({ error: "Categoría no encontrada" }, { status: 404 });
@@ -50,9 +51,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    const category = await prisma.blogCategory.update({
-      where: { id: categoryId },
+    const updated = await prisma.blogCategory.updateMany({
+      where: { id: categoryId, ...clfPlatformWhere },
       data: parsed.data,
+    });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "Categoría no encontrada" }, { status: 404 });
+    }
+    const category = await prisma.blogCategory.findFirst({
+      where: { id: categoryId, ...clfPlatformWhere },
     });
     return NextResponse.json({ category });
   } catch (err) {
@@ -69,7 +76,12 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   if (!categoryId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   try {
-    await prisma.blogCategory.delete({ where: { id: categoryId } });
+    const deleted = await prisma.blogCategory.deleteMany({
+      where: { id: categoryId, ...clfPlatformWhere },
+    });
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: "Categoría no encontrada" }, { status: 404 });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleBlogPrismaError(err, "la categoría");

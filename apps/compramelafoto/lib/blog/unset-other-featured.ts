@@ -1,10 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 
 type PrismaLike = Pick<PrismaClient, "blogPost">;
 
 /**
- * Garantiza un solo artículo destacado activo.
- * Desmarca `isFeatured` en todos los demás posts publicados.
+ * Garantiza un solo artículo destacado activo (por plataforma CLF).
+ * Desmarca `isFeatured` en todos los demás posts de la misma plataforma.
  */
 export async function unsetOtherFeaturedBlogPosts(
   prisma: PrismaLike,
@@ -12,6 +13,7 @@ export async function unsetOtherFeaturedBlogPosts(
 ): Promise<number> {
   const result = await prisma.blogPost.updateMany({
     where: {
+      ...clfPlatformWhere,
       id: { not: featuredPostId },
       isFeatured: true,
     },

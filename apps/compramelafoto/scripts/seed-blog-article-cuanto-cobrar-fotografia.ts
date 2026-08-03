@@ -4,6 +4,8 @@
  */
 
 import { BlogPostStatus, PrismaClient } from "@prisma/client";
+
+import { CLF_CONTENT_PLATFORM } from "../lib/blog/content-platform";
 import { HERRAMIENTAS_ARTICLES } from "@/data/blog/phase7/catalog-herramientas";
 import { preparePhase8Article } from "@/data/blog/phase8/prepare-phase8";
 import { syncBlogPostImageFields } from "@/lib/blog/blog-post-images";
@@ -24,13 +26,14 @@ async function main() {
   }
 
   const category = await prisma.blogCategory.upsert({
-    where: { slug: CATEGORY_SLUG },
+    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: CATEGORY_SLUG } },
     update: {
       name: "Herramientas para Fotógrafos",
       description:
         "Calculadoras, presupuestos y recursos para profesionalizar tu negocio fotográfico.",
     },
     create: {
+      platform: CLF_CONTENT_PLATFORM,
       name: "Herramientas para Fotógrafos",
       slug: CATEGORY_SLUG,
       description:
@@ -43,9 +46,10 @@ async function main() {
 
   const author =
     (await prisma.blogAuthor.upsert({
-      where: { slug: AUTHOR_SLUG },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: AUTHOR_SLUG } },
       update: { name: "Comprame la Foto" },
       create: {
+        platform: CLF_CONTENT_PLATFORM,
         name: "Comprame la Foto",
         slug: AUTHOR_SLUG,
         role: "Equipo CLF",
@@ -53,7 +57,10 @@ async function main() {
         isActive: true,
       },
     })) ??
-    (await prisma.blogAuthor.findFirst({ where: { isActive: true }, orderBy: { id: "asc" } }));
+    (await prisma.blogAuthor.findFirst({
+      where: { platform: CLF_CONTENT_PLATFORM, isActive: true },
+      orderBy: { id: "asc" },
+    }));
 
   const prepared = await preparePhase8Article(draft);
   const images = syncBlogPostImageFields({
@@ -65,9 +72,9 @@ async function main() {
   for (const name of draft.tags) {
     const tagSlug = slugifyBlogFromName(name);
     const tag = await prisma.blogTag.upsert({
-      where: { slug: tagSlug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: tagSlug } },
       update: { name },
-      create: { name, slug: tagSlug },
+      create: { platform: CLF_CONTENT_PLATFORM, name, slug: tagSlug },
     });
     tagIds.push(tag.id);
   }
@@ -75,7 +82,7 @@ async function main() {
   const now = new Date();
 
   const post = await prisma.blogPost.upsert({
-    where: { slug: SLUG },
+    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: SLUG } },
     update: {
       title: prepared.title,
       excerpt: prepared.excerpt,
@@ -97,6 +104,7 @@ async function main() {
       noIndex: false,
     },
     create: {
+      platform: CLF_CONTENT_PLATFORM,
       title: prepared.title,
       slug: SLUG,
       excerpt: prepared.excerpt,

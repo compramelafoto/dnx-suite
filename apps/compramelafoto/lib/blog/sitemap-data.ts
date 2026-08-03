@@ -1,4 +1,5 @@
 import { BlogPostStatus } from "@prisma/client";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 import { prisma } from "@/lib/prisma";
 
 /** Rutas estáticas públicas relevantes para SEO. */
@@ -14,12 +15,15 @@ export const PUBLIC_STATIC_SITEMAP_PATHS = [
 ] as const;
 
 export async function getBlogSitemapEntries() {
+  const publishedClf = {
+    ...clfPlatformWhere,
+    status: BlogPostStatus.PUBLISHED,
+    noIndex: false,
+  } as const;
+
   const [posts, categories, tags] = await Promise.all([
     prisma.blogPost.findMany({
-      where: {
-        status: BlogPostStatus.PUBLISHED,
-        noIndex: false,
-      },
+      where: publishedClf,
       select: {
         slug: true,
         updatedAt: true,
@@ -30,11 +34,9 @@ export async function getBlogSitemapEntries() {
     }),
     prisma.blogCategory.findMany({
       where: {
+        ...clfPlatformWhere,
         posts: {
-          some: {
-            status: BlogPostStatus.PUBLISHED,
-            noIndex: false,
-          },
+          some: publishedClf,
         },
       },
       select: { slug: true, updatedAt: true },
@@ -42,12 +44,10 @@ export async function getBlogSitemapEntries() {
     }),
     prisma.blogTag.findMany({
       where: {
+        ...clfPlatformWhere,
         posts: {
           some: {
-            post: {
-              status: BlogPostStatus.PUBLISHED,
-              noIndex: false,
-            },
+            post: publishedClf,
           },
         },
       },

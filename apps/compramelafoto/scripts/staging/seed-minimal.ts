@@ -16,6 +16,7 @@
 import bcrypt from "bcryptjs";
 import { BlogPostStatus, Role } from "@prisma/client";
 import { prisma } from "@repo/db";
+import { CLF_CONTENT_PLATFORM } from "../../lib/blog/content-platform";
 import {
   createStagingPhoto,
   findStagingPhotoId,
@@ -207,7 +208,7 @@ async function ensureBlogPost(skipBlog: boolean) {
   }
 
   const category = await prisma.blogCategory.upsert({
-    where: { slug: BLOG_CATEGORY_SLUG },
+    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: BLOG_CATEGORY_SLUG } },
     update: {
       name: "Staging CLF",
       description: "Categoría de prueba para preview staging.",
@@ -215,6 +216,7 @@ async function ensureBlogPost(skipBlog: boolean) {
       isFeatured: false,
     },
     create: {
+      platform: CLF_CONTENT_PLATFORM,
       name: "Staging CLF",
       slug: BLOG_CATEGORY_SLUG,
       description: "Categoría de prueba para preview staging.",
@@ -225,7 +227,7 @@ async function ensureBlogPost(skipBlog: boolean) {
   });
 
   const author = await prisma.blogAuthor.upsert({
-    where: { slug: BLOG_AUTHOR_SLUG },
+    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: BLOG_AUTHOR_SLUG } },
     update: {
       name: "Equipo Staging CLF",
       role: "Preview",
@@ -233,6 +235,7 @@ async function ensureBlogPost(skipBlog: boolean) {
       isActive: true,
     },
     create: {
+      platform: CLF_CONTENT_PLATFORM,
       name: "Equipo Staging CLF",
       slug: BLOG_AUTHOR_SLUG,
       role: "Preview",
@@ -258,7 +261,7 @@ async function ensureBlogPost(skipBlog: boolean) {
   };
 
   const post = await prisma.blogPost.upsert({
-    where: { slug: BLOG_POST_SLUG },
+    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: BLOG_POST_SLUG } },
     update: {
       title,
       excerpt,
@@ -273,6 +276,7 @@ async function ensureBlogPost(skipBlog: boolean) {
       authorId: author.id,
     },
     create: {
+      platform: CLF_CONTENT_PLATFORM,
       title,
       slug: BLOG_POST_SLUG,
       excerpt,

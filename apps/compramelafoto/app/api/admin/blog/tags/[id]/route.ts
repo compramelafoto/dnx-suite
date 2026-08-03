@@ -5,6 +5,7 @@ import {
   parseRouteId,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 import { formatBlogValidationError, parseBlogTagUpdate } from "@/lib/blog/validate-blog-tag";
 
 export const runtime = "nodejs";
@@ -20,8 +21,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const tagId = parseRouteId(id);
   if (!tagId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
-  const tag = await prisma.blogTag.findUnique({
-    where: { id: tagId },
+  const tag = await prisma.blogTag.findFirst({
+    where: { id: tagId, ...clfPlatformWhere },
     include: { _count: { select: { posts: true } } },
   });
   if (!tag) return NextResponse.json({ error: "Tag no encontrado" }, { status: 404 });
@@ -47,9 +48,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    const tag = await prisma.blogTag.update({
-      where: { id: tagId },
+    const updated = await prisma.blogTag.updateMany({
+      where: { id: tagId, ...clfPlatformWhere },
       data: parsed.data,
+    });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "Tag no encontrado" }, { status: 404 });
+    }
+    const tag = await prisma.blogTag.findFirst({
+      where: { id: tagId, ...clfPlatformWhere },
     });
     return NextResponse.json({ tag });
   } catch (err) {
@@ -66,7 +73,12 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   if (!tagId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   try {
-    await prisma.blogTag.delete({ where: { id: tagId } });
+    const deleted = await prisma.blogTag.deleteMany({
+      where: { id: tagId, ...clfPlatformWhere },
+    });
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: "Tag no encontrado" }, { status: 404 });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleBlogPrismaError(err, "el tag");

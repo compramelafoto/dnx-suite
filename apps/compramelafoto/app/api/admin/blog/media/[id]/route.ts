@@ -7,6 +7,7 @@ import {
   parseRouteId,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 import { formatBlogValidationError } from "@/lib/blog/validate-blog-category";
 
 export const runtime = "nodejs";
@@ -35,7 +36,9 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const mediaId = parseRouteId(id);
   if (!mediaId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
-  const media = await prisma.blogMedia.findUnique({ where: { id: mediaId } });
+  const media = await prisma.blogMedia.findFirst({
+    where: { id: mediaId, ...clfPlatformWhere },
+  });
   if (!media) return NextResponse.json({ error: "Imagen no encontrada" }, { status: 404 });
 
   return NextResponse.json({ media });
@@ -59,13 +62,19 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    const media = await prisma.blogMedia.update({
-      where: { id: mediaId },
+    const updated = await prisma.blogMedia.updateMany({
+      where: { id: mediaId, ...clfPlatformWhere },
       data: {
         title: normalizeOptionalString(parsed.data.title, 200),
         altText: normalizeOptionalString(parsed.data.altText, 500),
         caption: normalizeOptionalString(parsed.data.caption, 1000),
       },
+    });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "Imagen no encontrada" }, { status: 404 });
+    }
+    const media = await prisma.blogMedia.findFirst({
+      where: { id: mediaId, ...clfPlatformWhere },
     });
     return NextResponse.json({ media });
   } catch (err) {
@@ -81,7 +90,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const mediaId = parseRouteId(id);
   if (!mediaId) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
-  const media = await prisma.blogMedia.findUnique({ where: { id: mediaId } });
+  const media = await prisma.blogMedia.findFirst({
+    where: { id: mediaId, ...clfPlatformWhere },
+  });
   if (!media) return NextResponse.json({ error: "Imagen no encontrada" }, { status: 404 });
 
   try {
@@ -90,7 +101,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
         console.error("DELETE /api/admin/blog/media/[id] R2:", err);
       });
     }
-    await prisma.blogMedia.delete({ where: { id: mediaId } });
+    await prisma.blogMedia.deleteMany({
+      where: { id: mediaId, ...clfPlatformWhere },
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleBlogPrismaError(err, "la imagen");

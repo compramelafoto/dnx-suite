@@ -1,9 +1,10 @@
 import { BlogPostStatus, Prisma } from "@prisma/client";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 import { prisma } from "@/lib/prisma";
 
 /**
  * Registra una vista única del artículo (por visitorKey) e incrementa viewCount solo la primera vez.
- * Errores se registran y no se propagan al visitante.
+ * Solo aplica a posts publicados de CLF. Errores se registran y no se propagan al visitante.
  */
 export function incrementBlogPostUniqueViewCount(postId: number, visitorKey: string): void {
   const normalizedKey = visitorKey.trim().slice(0, 64);
@@ -12,7 +13,11 @@ export function incrementBlogPostUniqueViewCount(postId: number, visitorKey: str
   void (async () => {
     try {
       const published = await prisma.blogPost.findFirst({
-        where: { id: postId, status: BlogPostStatus.PUBLISHED },
+        where: {
+          id: postId,
+          ...clfPlatformWhere,
+          status: BlogPostStatus.PUBLISHED,
+        },
         select: { id: true },
       });
       if (!published) return;
@@ -34,8 +39,8 @@ export function incrementBlogPostUniqueViewCount(postId: number, visitorKey: str
         throw err;
       }
 
-      await prisma.blogPost.update({
-        where: { id: postId },
+      await prisma.blogPost.updateMany({
+        where: { id: postId, ...clfPlatformWhere },
         data: { viewCount: { increment: 1 } },
       });
     } catch (err) {

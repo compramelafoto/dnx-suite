@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
 
+/**
+ * Admin del Blog CLF: alinea con layout `/admin` (ADMIN | SUPER_ADMIN).
+ * No amplía a otros roles.
+ */
 export async function requireBlogAdmin() {
-  const { error, user } = await requireAuth([Role.ADMIN]);
+  const { error, user } = await requireAuth([Role.ADMIN, Role.SUPER_ADMIN]);
   if (error || !user) {
     return {
       user: null,

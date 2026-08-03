@@ -1,4 +1,5 @@
 import type { AdminBlogPostRow } from "@/lib/blog/admin-blog-types";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 import { prisma } from "@/lib/prisma";
 
 const adminPostListSelect = {
@@ -16,6 +17,7 @@ const adminPostListSelect = {
 
 export async function getAdminBlogPostRows(): Promise<AdminBlogPostRow[]> {
   const posts = await prisma.blogPost.findMany({
+    where: clfPlatformWhere,
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     select: adminPostListSelect,
   });
