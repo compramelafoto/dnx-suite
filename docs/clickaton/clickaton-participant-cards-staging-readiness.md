@@ -1,46 +1,41 @@
-# Clickatón — Staging readiness placas participante (P0-10)
+# Clickatón — Staging readiness placas participante (P0-11)
 
 **Fecha:** 2026-08-03  
-**Etapa:** 10 — Cierre técnico staging  
+**Etapa:** 11 — Desbloqueo infra + deploy staging  
 **Veredicto técnico staging:** **NO-GO**  
-**Veredicto producción pública:** **NO-GO LEGAL** (+ NO-GO técnico)
-
-Separación explícita: readiness técnico ≠ aprobación legal.
+**Veredicto producción pública:** **NO-GO LEGAL**
 
 ---
 
-## Clasificación P0-10
+## Commit desplegable
 
-| Criterio | Estado | Evidencia |
-|----------|--------|-----------|
-| Código P0-09 en workspace | **PASS** | worker, remote provider, flags, matrix, HMAC |
-| Código P0-09 en commit desplegable | **FAIL** | working tree dirty / untracked; HEAD `3dfbfa7` sin P0-09 |
-| Deploy staging contiene P0-09/10 | **FAIL** | Vercel staging build SHA = `3dfbfa7` |
-| Identidad staging (Vercel/Neon/URL) | **PASS** | clickaton-staging · ep-round-fog · denylist |
-| Migración Neon staging | **PASS** | aplicada P0-09 + backup |
-| R2 staging privado | **BLOCKED** | Cloudflare MCP auth error; sin R2_* en Vercel/local |
-| Smoke R2 real | **NOT RUN** | bloqueado por credenciales |
-| Worker desplegado 24/7 | **BLOCKED** | sin fly/railway/render/docker; no runtime disponible |
-| Healthcheck worker remoto | **NOT RUN** | |
-| HMAC real end-to-end | **PASS unit** / **NOT RUN staging** | |
-| Replay protection | **PASS unit** / **NOT RUN staging** | |
-| Flags en Vercel staging | **FAIL** | ausentes en `vercel env ls` |
-| E2E Welcome | **NOT RUN** | flag off → skipped (no PASS) |
-| E2E Member | **NOT RUN** | |
-| E2E sin Instagram | **NOT RUN** | |
-| E2E sin foto | **NOT RUN** | |
-| E2E ownership | **NOT RUN** | |
-| E2E admin | **NOT RUN** | |
-| Concurrencia real | **PASS unit** / **NOT RUN staging** | |
-| Invalidación real | **PASS unit** / **NOT RUN staging** | |
-| Fallo worker + recovery | **PASS unit** / **NOT RUN staging** | |
-| Privacidad R2 | **NOT RUN** | |
-| Cleanup R2 real | **NOT RUN** | |
-| Performance medida | **NOT RUN** | |
-| Observabilidad validada | **PASS código** / **NOT RUN staging** | |
-| Circuit breaker real | **PASS unit** / **NOT RUN staging** | |
-| UX legacy/V2 flags | **PASS código** | fail-closed runtime config |
-| Typecheck / unit tests | **PASS** | suites locales verdes |
+| Campo | Valor |
+|-------|-------|
+| Branch | `main` |
+| Commit | `36bac6980ccfb7d38c5244c558db2fe9a77be7d0` |
+| Mensaje | `feat(clickaton): persist participant cards and add remote render worker` |
+| Push | **NO** (diferido: R2/worker no resueltos; evitar disparar prod en `main`) |
+| Manifiesto | [`clickaton-participant-cards-p011-commit-manifest.md`](./clickaton-participant-cards-p011-commit-manifest.md) |
+
+---
+
+## Clasificación
+
+| Criterio | Estado |
+|----------|--------|
+| Código P0-09/10 en commit limpio | **PASS** (`36bac69`) |
+| Secret scan del commit | **PASS** |
+| Migración Neon staging | **PASS** (previa) |
+| R2 staging privado | **BLOCKED** — Cloudflare MCP auth error post-reauth |
+| Smoke R2 | **NOT RUN** |
+| Worker runtime 24/7 | **BLOCKED** — sin Docker/Fly/Railway/Render |
+| Dockerfile worker | **PASS** (preparado, no construido) |
+| Health remoto | **NOT RUN** |
+| HMAC/replay real | **PASS unit** / **NOT RUN staging** |
+| Flags Vercel staging | **FAIL** — no configuradas |
+| Deploy clickaton-staging @ 36bac69 | **NOT RUN** |
+| E2E críticos 0 skips | **FAIL** — no ejecutados |
+| Producción intacta | **PASS** |
 
 ```text
 GO TÉCNICO STAGING: NO-GO
@@ -48,47 +43,32 @@ GO TÉCNICO STAGING: NO-GO
 
 ---
 
-## Bloqueos duros (P0-10)
+## Bloqueos
 
 ```text
 R2_STAGING_CREDENTIALS_REQUIRED
 CLOUDFLARE_MCP_AUTH_ERROR
 WORKER_RUNTIME_UNAVAILABLE
-CODE_NOT_ON_DEPLOYABLE_COMMIT
 STAGING_FLAGS_NOT_CONFIGURED
+DEPLOY_STAGING_PENDING_PUSH_OR_CLI
 E2E_CRITICAL_SKIPPED
 ```
 
-No se usó LOCAL/INLINE para declarar verde.  
-No se configuraron flags que apunten a código/infra ausente.  
-No se desplegó una versión incompleta.
+---
+
+## Acción humana mínima
+
+1. Autenticar Cloudflare MCP **o** emitir API Token R2 restringida al bucket staging.
+2. Crear bucket privado `clickaton-participant-cards-staging` (o equivalente) + credenciales S3.
+3. Autorizar runtime 24/7 (Docker host / Fly / Railway / VPS) para `services/template-render-worker`.
+4. Tras R2+worker: `git push` controlado **o** `deploy:staging:safe` solo a `clickaton-staging`, setear flags, E2E con `CLICKATON_E2E_PARTICIPANT_CARDS=1`.
 
 ---
 
-## Condiciones para GO TÉCNICO
-
-1. Commit/deploy del código P0-09/10 a `clickaton-staging` (sin tocar producción).
-2. Bucket R2 privado `clickaton-staging` + credenciales + smoke PASS.
-3. Worker Node+Chromium desplegado (no Vercel function) + health + HMAC.
-4. Flags V2/persistence/remote/R2 solo en staging.
-5. Matriz E2E con `CLICKATON_E2E_PARTICIPANT_CARDS=1` → **0 skips críticos**, 0 fails.
-6. Performance medida (HIT/MISS) documentada.
-
----
-
-## NO-GO PRODUCCIÓN
+## Legal
 
 ```text
-PRODUCCIÓN PÚBLICA: NO-GO LEGAL
-ACCIÓN LEGAL: REQUIERE REVISIÓN Y APROBACIÓN DE CONSENTIMIENTOS
+NO-GO LEGAL PARA PRODUCCIÓN / PARTICIPANTES REALES
 ```
 
-Aunque el técnico staging pase a GO, producción pública permanece NO-GO hasta cierre legal.
-
----
-
-## Helpers añadidos en P0-10
-
-- `assertClickatonStagingEnvironment()` — denylist prod/DB/URL/Vercel
-- `validateParticipantCardsRuntimeConfig()` — fail-closed V2/remote/R2/prefix
-- API placas → `503 CLICKATON_CARD_RENDER_UNAVAILABLE` si config incompleta
+No se activó generación automática ni se modificó Mercado Pago.
