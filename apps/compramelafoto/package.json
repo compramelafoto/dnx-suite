@@ -38,6 +38,7 @@
     "@repo/auth": "workspace:*",
     "@repo/auth-guards": "workspace:*",
     "@repo/auth-ui": "workspace:*",
+    "@repo/content": "workspace:*",
     "@repo/cuanto-cobro-core": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/design-system": "workspace:*",
