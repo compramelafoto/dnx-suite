@@ -1,37 +1,11 @@
 import type { AdminBlogPostRow } from "@/lib/blog/admin-blog-types";
-import { clfPlatformWhere } from "@/lib/blog/content-platform";
+import { CLF_CONTENT_PLATFORM } from "@/lib/blog/content-platform";
 import { prisma } from "@/lib/prisma";
-
-const adminPostListSelect = {
-  id: true,
-  title: true,
-  slug: true,
-  status: true,
-  type: true,
-  isFeatured: true,
-  publishedAt: true,
-  viewCount: true,
-  category: { select: { id: true, name: true, slug: true } },
-  author: { select: { id: true, name: true, slug: true } },
-} as const;
+import { listAdminPosts } from "@repo/content";
 
 export async function getAdminBlogPostRows(): Promise<AdminBlogPostRow[]> {
-  const posts = await prisma.blogPost.findMany({
-    where: clfPlatformWhere,
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    select: adminPostListSelect,
+  return listAdminPosts({
+    prisma,
+    platform: CLF_CONTENT_PLATFORM,
   });
-
-  return posts.map((post) => ({
-    id: post.id,
-    title: post.title,
-    slug: post.slug,
-    status: post.status,
-    type: post.type,
-    isFeatured: post.isFeatured,
-    publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
-    viewCount: post.viewCount,
-    category: post.category,
-    author: post.author,
-  }));
 }

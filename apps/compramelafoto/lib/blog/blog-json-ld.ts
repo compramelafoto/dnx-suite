@@ -1,3 +1,4 @@
+import { buildArticleJsonLd } from "@repo/content";
 import { resolveBlogPostShareImageUrl } from "@/lib/blog/blog-post-images";
 import { getBlogCategoryUrl, getBlogHomeUrl, getBlogPostUrl } from "@/lib/blog/blog-site-url";
 
@@ -18,21 +19,10 @@ export type BlogArticleJsonLdInput = {
 };
 
 const PUBLISHER = {
-  "@type": "Organization" as const,
   name: "ComprameLaFoto",
   url: "https://compramelafoto.com",
-  logo: {
-    "@type": "ImageObject" as const,
-    url: "https://compramelafoto.com/watermark.png",
-  },
+  logoUrl: "https://compramelafoto.com/watermark.png",
 };
-
-function toIsoDate(value: Date | string | null | undefined): string | undefined {
-  if (!value) return undefined;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return undefined;
-  return date.toISOString();
-}
 
 /** Genera el objeto JSON-LD Article (Schema.org) para un artículo del blog. */
 export function buildBlogArticleJsonLd(input: BlogArticleJsonLdInput): Record<string, unknown> {
@@ -49,34 +39,20 @@ export function buildBlogArticleJsonLd(input: BlogArticleJsonLdInput): Record<st
     input.excerpt?.trim() ||
     undefined;
 
-  const author = input.author?.name
-    ? {
-        "@type": "Person" as const,
-        name: input.author.name,
-        ...(input.author.url ? { url: input.author.url } : {}),
-      }
-    : {
-        "@type": "Organization" as const,
-        name: "ComprameLaFoto",
-      };
-
-  return {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    headline: input.title,
+  return buildArticleJsonLd({
+    title: input.title,
     description,
-    image: [image],
     url,
-    mainEntityOfPage: {
-      "@type": "WebPage",
-      "@id": url,
-    },
-    datePublished: toIsoDate(input.publishedAt),
-    dateModified: toIsoDate(input.updatedAt ?? input.publishedAt),
-    author,
-    publisher: PUBLISHER,
+    imageUrl: image,
+    publishedAt: input.publishedAt,
+    updatedAt: input.updatedAt,
+    authorName: input.author?.name,
+    authorUrl: input.author?.url ?? undefined,
+    publisherName: PUBLISHER.name,
+    publisherUrl: PUBLISHER.url,
+    publisherLogoUrl: PUBLISHER.logoUrl,
     inLanguage: "es-AR",
-  };
+  });
 }
 
 /** Serializa JSON-LD para insertar en `<script type="application/ld+json">`. */

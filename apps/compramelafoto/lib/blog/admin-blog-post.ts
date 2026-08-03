@@ -1,12 +1,11 @@
-import { clfPlatformWhere } from "@/lib/blog/content-platform";
-import { mapPostResponse, postInclude } from "@/lib/blog/post-queries";
+import { CLF_CONTENT_PLATFORM } from "@/lib/blog/content-platform";
 import { prisma } from "@/lib/prisma";
+import { getAdminPostById } from "@repo/content";
 
 export async function getAdminBlogPostForEdit(id: number) {
-  const post = await prisma.blogPost.findFirst({
-    where: { id, ...clfPlatformWhere },
-    include: postInclude,
+  return getAdminPostById({
+    prisma,
+    platform: CLF_CONTENT_PLATFORM,
+    id,
   });
-  if (!post) return null;
-  return mapPostResponse(post);
 }
