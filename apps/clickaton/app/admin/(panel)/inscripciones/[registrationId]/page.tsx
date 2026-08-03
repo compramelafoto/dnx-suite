@@ -16,6 +16,7 @@ import {
   evaluateClickatonCardEligibility,
   hasClickatonCardConsent,
 } from "@/lib/participant-cards";
+import { isAdminCardsV2Enabled } from "@/lib/participant-cards/participant-card-feature-flags";
 import { adminRoutes } from "@/config/admin/navigation";
 import { listTicketTypesAction } from "@/lib/admin-catalog/actions/tickets";
 import { getCatalogAvailabilityAction } from "@/lib/admin-catalog/actions/tickets";
@@ -680,7 +681,8 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
         ) : null}
       </section>
 
-      {await (async () => {
+      {isAdminCardsV2Enabled()
+        ? await (async () => {
         const cardReg = await prisma.clickatonRegistration.findUnique({
           where: { id: reg.id },
           select: {
@@ -767,7 +769,8 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
             memberEligible={memberElig.eligible}
           />
         );
-      })()}
+      })()
+        : null}
 
       {/* 8. Comunicaciones */}
       <section

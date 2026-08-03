@@ -227,11 +227,11 @@ export async function updateEditionPartnerParticipation(
     includeArchived: true,
   });
   const fromList = listed.find((p) => p.id === participationId);
-  const row =
-    fromList ??
-    ((await prisma.dnxPartnerParticipation.findUnique({
-      where: { id: participationId },
-    })) as ParticipationRecord | null);
+  // findUnique → null; el dominio Partners usa undefined para “ausente”.
+  const fromDb = (await prisma.dnxPartnerParticipation.findUnique({
+    where: { id: participationId },
+  })) as ParticipationRecord | null;
+  const row: ParticipationRecord | undefined = fromList ?? fromDb ?? undefined;
   if (!row) {
     throw new PartnersDomainError("NOT_FOUND", "Participación no encontrada.");
   }

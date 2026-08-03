@@ -3,6 +3,13 @@ import type { PrismaClient } from "@repo/db";
 import { prisma as defaultPrisma } from "@/lib/admin/db";
 import { recordParticipantCardAudit } from "./participant-card-audit";
 import {
+  recordParticipantCardCacheHit,
+  recordParticipantCardCacheMiss,
+  recordParticipantCardRenderDuration,
+  recordParticipantCardStatus,
+  recordParticipantCardStoragePut,
+} from "./participant-card-metrics";
+import {
   createParticipantCardAssetStore,
   loadParticipantCardPngFromAsset,
   persistParticipantCardMediaAsset,
@@ -772,6 +779,8 @@ export async function getOrGenerateClickatonParticipantCard(
 
   if (ready) {
     const png = await loadPngForRecord(ready, deps.store);
+    recordParticipantCardCacheHit();
+    recordParticipantCardStatus("READY");
     recordParticipantCardAudit("CLICKATON_CARD_REUSED", {
       registrationId: ctx.registration.id,
       editionId: ctx.registration.editionId,
@@ -1005,7 +1014,9 @@ export async function getOrGenerateClickatonParticipantCard(
       preset: ctx.preset,
     });
 
+    recordParticipantCardCacheMiss();
     const rendered = await deps.renderProvider.render({ document });
+    recordParticipantCardRenderDuration(rendered.durationMs);
     const storageKey = buildParticipantCardStorageKey({
       editionId: ctx.registration.editionId,
       registrationId: ctx.registration.id,
@@ -1016,6 +1027,7 @@ export async function getOrGenerateClickatonParticipantCard(
 
     const generatedAt = deps.now();
     const prefix = renderHashPrefix(ctx.renderHash);
+    const putStarted = deps.now().getTime();
     const stored = await deps.store.putAtKey(storageKey, rendered.png, {
       cardType: ctx.cardType,
       templateKey: ctx.preset.meta.templateKey,
@@ -1026,6 +1038,11 @@ export async function getOrGenerateClickatonParticipantCard(
       mimeType: "image/png",
       generatedAt: generatedAt.toISOString(),
     });
+    recordParticipantCardStoragePut(
+      deps.now().getTime() - putStarted,
+      stored.bytes
+    );
+    recordParticipantCardStatus("READY");
 
     const assetId = input.skipPersist
       ? null

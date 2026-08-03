@@ -91,8 +91,10 @@
     "test:e2e:smoke": "playwright test e2e/env-smoke.spec.ts",
     "test:e2e:desktop": "playwright test --project=desktop",
     "test:e2e:mobile": "playwright test --project=mobile",
-    "test:e2e:clickaton-participant-cards": "playwright test e2e/participant-cards.spec.ts e2e/admin-participant-cards.spec.ts",
-    "test:e2e:clickaton-participant-cards:persistence": "playwright test e2e/participant-cards-persistence.spec.ts"
+    "test:e2e:clickaton-participant-cards": "playwright test e2e/participant-cards.spec.ts e2e/admin-participant-cards.spec.ts e2e/participant-cards-staging-matrix.spec.ts",
+    "test:e2e:clickaton-participant-cards:persistence": "playwright test e2e/participant-cards-persistence.spec.ts",
+    "e2e:clickaton-participant-cards:setup": "tsx scripts/e2e-clickaton-participant-cards-setup.ts",
+    "e2e:clickaton-participant-cards:cleanup": "tsx scripts/e2e-clickaton-participant-cards-cleanup.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",

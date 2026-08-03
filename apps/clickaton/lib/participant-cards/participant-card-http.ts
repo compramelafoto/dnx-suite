@@ -10,6 +10,11 @@ import {
   type ParticipantCardDisposition,
   type ParticipantCardMode,
 } from "@/lib/participant-cards";
+import {
+  isAdminCardsV2Enabled,
+  isParticipantCardsV2Enabled,
+} from "@/lib/participant-cards/participant-card-feature-flags";
+import { validateParticipantCardsRuntimeConfig } from "@/lib/participant-cards/participant-card-runtime-config";
 
 export function parseParticipantCardTypeParam(
   raw: string
@@ -218,6 +223,25 @@ export async function runParticipantCardHttp(args: {
       },
       { status: 422 }
     );
+  }
+
+  const needsV2 =
+    args.actor.kind === "admin"
+      ? isAdminCardsV2Enabled()
+      : isParticipantCardsV2Enabled();
+  if (needsV2) {
+    const runtime = validateParticipantCardsRuntimeConfig();
+    if (!runtime.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Placas V2 no disponibles: configuración incompleta",
+          code: "CLICKATON_CARD_RENDER_UNAVAILABLE",
+          issues: runtime.issues.map((i) => i.code),
+        },
+        { status: 503 }
+      );
+    }
   }
 
   const url = new URL(args.req.url);

@@ -499,6 +499,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../../packages/partners
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -1486,6 +1489,34 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
+
+  services/template-render-worker:
+    dependencies:
+      '@repo/template-engine':
+        specifier: workspace:*
+        version: link:../../packages/template-engine
+      '@repo/template-engine-renderer':
+        specifier: workspace:*
+        version: link:../../packages/template-engine-renderer
+      playwright-core:
+        specifier: ^1.51.1
+        version: 1.51.1
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^22.19.1
+        version: 22.20.1
+      tsx:
+        specifier: ^4.22.4
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
 
 packages:
 

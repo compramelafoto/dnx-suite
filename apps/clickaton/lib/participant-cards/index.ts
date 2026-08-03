@@ -75,7 +75,16 @@ export {
   recordParticipantCardAttempt,
   recordParticipantCardError,
   recordParticipantCardSuccess,
+  recordParticipantCardCacheHit,
+  recordParticipantCardCacheMiss,
+  recordParticipantCardRenderDuration,
+  recordParticipantCardRemoteDuration,
+  recordParticipantCardStoragePut,
+  recordParticipantCardConcurrentWait,
+  recordParticipantCardStatus,
+  recordParticipantCardWorkerCircuitState,
   getParticipantCardMetricsSnapshot,
+  getParticipantCardStagingMetricsSummary,
   __resetParticipantCardMetricsForTests,
 } from "./participant-card-metrics";
 export type {
@@ -139,12 +148,55 @@ export {
   LocalPlaywrightRenderProvider,
   UnavailableRenderProvider,
   RemoteRenderProvider,
+  RemoteParticipantCardRenderProvider,
   FixedPngRenderProvider,
 } from "./participant-card-render-provider";
 export type {
   ParticipantCardRenderProvider,
   ParticipantCardRenderResult,
+  RemoteParticipantCardRenderProviderOptions,
 } from "./participant-card-render-provider";
+
+export {
+  signTemplateRenderRequest,
+  buildRemoteTemplateRenderBody,
+  createRemoteRenderRequestIds,
+  DNX_TEMPLATE_RENDER_AUTH_HEADERS,
+} from "./participant-card-remote-auth";
+
+export {
+  ParticipantCardCircuitBreaker,
+  getParticipantCardRemoteRenderCircuit,
+  __resetParticipantCardRemoteRenderCircuitForTests,
+} from "./participant-card-circuit-breaker";
+export type { ParticipantCardCircuitState } from "./participant-card-circuit-breaker";
+
+export {
+  isParticipantCardsV2Enabled,
+  isAdminCardsV2Enabled,
+  isPersistenceEnabled,
+  getCardRenderProviderName,
+  getCardRemoteRenderUrl,
+  getTemplateRenderHmacSecret,
+  getParticipantCardsStorageProvider,
+  getParticipantCardsKeyPrefix,
+  PARTICIPANT_CARDS_V2_FLAG,
+  PARTICIPANT_CARDS_V2_ADMIN_FLAG,
+  PARTICIPANT_CARDS_PERSISTENCE_FLAG,
+  CARD_RENDER_PROVIDER_FLAG,
+  CARD_REMOTE_RENDER_URL_FLAG,
+  PARTICIPANT_CARDS_STORAGE_PROVIDER_FLAG,
+  PARTICIPANT_CARDS_KEY_PREFIX_FLAG,
+} from "./participant-card-feature-flags";
+
+export {
+  validateParticipantCardsRuntimeConfig,
+  canExposeParticipantCardsActions,
+} from "./participant-card-runtime-config";
+export type {
+  ParticipantCardsRuntimeConfigIssue,
+  ParticipantCardsRuntimeConfigResult,
+} from "./participant-card-runtime-config";
 
 export { recordParticipantCardAudit } from "./participant-card-audit";
 export type {
