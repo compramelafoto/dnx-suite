@@ -13,6 +13,8 @@ import { PublicStatusCard } from "@/components/account/PublicStatusCard";
 import { getClickatonAuthUser } from "@/lib/admin/auth";
 import { hasClickatonCardConsent } from "@/lib/participant-cards";
 import { evaluateClickatonCardEligibility } from "@/lib/participant-cards";
+import { isParticipantCardsV2Enabled } from "@/lib/participant-cards/participant-card-feature-flags";
+import { canExposeParticipantCardsActions } from "@/lib/participant-cards/participant-card-runtime-config";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { resolveActiveQrPlaintext } from "@/lib/registration/application/confirm-free-registration";
 import { Button } from "@/components/ui/Button";
@@ -310,7 +312,8 @@ export default async function RegistrationCredentialPage({ params }: Props) {
         </dl>
       </Card>
 
-      {(() => {
+      {canExposeParticipantCardsActions()
+        ? (() => {
         const consent = hasClickatonCardConsent(registration);
         const hasPhoto = Boolean(registration.profilePhotoAssetId);
         const snapshot = {
@@ -378,9 +381,10 @@ export default async function RegistrationCredentialPage({ params }: Props) {
             memberState={toUi("member")}
           />
         );
-      })()}
+      })()
+        : null}
 
-      {paid ? (
+      {paid && !isParticipantCardsV2Enabled() ? (
         <WelcomeCardShareCard
           registrationId={registration.id}
           status={registration.welcomeCardStatus}

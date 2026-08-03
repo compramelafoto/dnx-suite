@@ -1,0 +1,16 @@
+**/node_modules
+**/.git
+**/.local
+**/.env
+**/.env.*
+!**/.env.example
+**/playwright-report
+**/test-results
+**/*.png
+**/.wrangler
+**/dist
+**/coverage
+apps
+docs
+packages/db
+packages/e2e

@@ -1,7 +1,13 @@
+import { getParticipantCardsKeyPrefix } from "./participant-card-feature-flags";
 import type { ClickatonParticipantCardType } from "./participant-card-types";
 
 function sanitizeSegment(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "x";
+}
+
+/** Prefijo de key R2. Staging: `clickaton-staging/participant-cards`. Default: `clickaton/participant-cards`. */
+export function getParticipantCardKeyPrefix(): string {
+  return getParticipantCardsKeyPrefix();
 }
 
 export function buildParticipantCardStorageKey(input: {
@@ -20,5 +26,6 @@ export function buildParticipantCardStorageKey(input: {
   const registration = sanitizeSegment(input.registrationId);
   const version = Math.max(1, Math.floor(input.templateVersion));
   const hash = sanitizeSegment(input.renderHash);
-  return `clickaton/participant-cards/edition-${edition}/registration-${registration}/${cardSegment}/v${version}/${hash}.png`;
+  const prefix = getParticipantCardKeyPrefix();
+  return `${prefix}/edition-${edition}/registration-${registration}/${cardSegment}/v${version}/${hash}.png`;
 }

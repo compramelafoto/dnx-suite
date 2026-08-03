@@ -351,3 +351,18 @@ pnpm --filter clickaton test:clickaton-participant-cards
 ```
 
 Cobertura relevante Etapa 08: `participant-card-persistence.test.ts`, `participant-card-hash.test.ts`, `participant-card-concurrency.test.ts`, `participant-card-storage.test.ts`.
+
+---
+
+## Staging (Etapa 09)
+
+Ver:
+
+- [`clickaton-participant-cards-staging-runbook.md`](./clickaton-participant-cards-staging-runbook.md)
+- [`clickaton-participant-cards-staging-readiness.md`](./clickaton-participant-cards-staging-readiness.md)
+- [`../template-engine/template-render-worker.md`](../template-engine/template-render-worker.md)
+
+Migración `20260801140000_clickaton_participant_cards` aplicada en Neon staging (`ep-round-fog`), **no** en producción.  
+Provider recomendado en Vercel: `remote` → `@repo/template-render-worker` (HMAC).  
+Prefijo R2 staging: `CLICKATON_PARTICIPANT_CARDS_KEY_PREFIX=clickaton-staging/participant-cards`.  
+UX legacy vs V2: flags `CLICKATON_PARTICIPANT_CARDS_V2_*` (default público OFF).
