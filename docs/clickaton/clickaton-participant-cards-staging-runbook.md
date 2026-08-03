@@ -4,7 +4,8 @@
 **Etapa:** 10 — Cierre técnico staging (continuación de 09)  
 **Legal:** ver [`clickaton-participant-cards-legal-gap.md`](./clickaton-participant-cards-legal-gap.md) — **no habilitar público** hasta aprobación de consentimientos.
 
-**Estado P0-10:** `BLOCKED` — ver [`clickaton-participant-cards-staging-readiness.md`](./clickaton-participant-cards-staging-readiness.md).
+**Estado P0-11:** `BLOCKED` — ver [`clickaton-participant-cards-staging-readiness.md`](./clickaton-participant-cards-staging-readiness.md).  
+**Commit código placas:** `36bac69` (`feat(clickaton): persist participant cards and add remote render worker`) — push diferido.
 
 ---
 
