@@ -116,6 +116,61 @@
   text-transform: uppercase;
 }
 
+/* Alias legacy usado por CTAs públicos (inscripción, error, 404). */
+.ck-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--ck-radius-control);
+  border-width: 2px;
+  border-style: solid;
+  font-family: var(--ck-font-sans);
+  font-size: var(--ck-text-button);
+  font-weight: var(--ck-weight-semibold);
+  letter-spacing: var(--ck-tracking-button);
+  line-height: 1;
+  text-transform: uppercase;
+  transition:
+    background-color var(--ck-duration-base) var(--ck-easing-standard),
+    color var(--ck-duration-base) var(--ck-easing-standard),
+    border-color var(--ck-duration-base) var(--ck-easing-standard),
+    transform var(--ck-duration-base) var(--ck-easing-standard),
+    box-shadow var(--ck-duration-base) var(--ck-easing-standard);
+}
+
+.ck-btn:disabled {
+  pointer-events: none;
+  opacity: var(--ck-opacity-muted);
+}
+
+.ck-btn-primary {
+  border-color: var(--ck-core-ink-on-brand);
+  background: var(--ck-brand-primary);
+  color: var(--ck-text-on-brand);
+  box-shadow: var(--ck-shadow-subtle);
+}
+
+.ck-btn-primary:hover:not(:disabled) {
+  background: var(--ck-brand-primary-hover);
+  box-shadow: var(--ck-shadow-glow);
+  transform: translateY(-0.125rem);
+}
+
+.ck-btn-secondary {
+  border-color: var(--ck-brand-primary);
+  background: transparent;
+  color: var(--ck-brand-primary);
+}
+
+.ck-btn-secondary:hover:not(:disabled) {
+  background: var(--ck-brand-primary);
+  color: var(--ck-text-on-brand);
+  transform: translateY(-0.125rem);
+}
+
 .ck-numeric-display {
   font-family: var(--ck-font-display);
   font-size: var(--ck-text-numeric);

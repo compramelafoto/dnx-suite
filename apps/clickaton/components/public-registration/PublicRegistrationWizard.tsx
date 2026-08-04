@@ -17,6 +17,7 @@ import {
 import { RegistrationReassuranceCards } from "@/components/public-registration/experience/RegistrationReassuranceCards";
 import { RegistrationShirtSizeStep } from "@/components/public-registration/experience/RegistrationShirtSizeStep";
 import { RegistrationSocialProof } from "@/components/public-registration/experience/RegistrationSocialProof";
+import { RegistrationPromoCodeField } from "@/components/public-registration/experience/RegistrationPromoCodeField";
 import { RegistrationStickySummary } from "@/components/public-registration/experience/RegistrationStickySummary";
 import { RegistrationWhatHappensNext } from "@/components/public-registration/experience/RegistrationWhatHappensNext";
 import { RegistrationWhatYouCanWin } from "@/components/public-registration/experience/RegistrationWhatYouCanWin";
@@ -29,6 +30,10 @@ import {
   type ParticipantPersona,
 } from "@/components/public-registration/experience/participant-persona";
 import { createPublicRegistrationAction } from "@/lib/public-registration/actions/public-registration";
+import {
+  previewPublicPromotionAction,
+  type PreviewPromotionActionResult,
+} from "@/lib/public-registration/actions/preview-promotion";
 import type { PublicRegistrationContextDto } from "@/lib/public-registration/domain/types";
 import { formatPublicPrice } from "@/lib/public-registration/ui/format";
 import { formatExperiencePrice } from "@/components/public-registration/experience/format-experience-price";
@@ -37,6 +42,8 @@ import { marathonPath } from "@/config/navigation";
 import { CLICKATON_TERMS_VERSION } from "@/config/editions/argentina-2026";
 import { resolveShirtBenefitUiStatus } from "@/lib/catalog/domain/first-n-benefit";
 import { formatMarathonDateRange } from "@/lib/datetime";
+
+type AppliedPromoQuote = Extract<PreviewPromotionActionResult, { ok: true }>["quote"];
 
 type Props = {
   context: PublicRegistrationContextDto;
@@ -136,6 +143,10 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
   const [profilePhotoFileName, setProfilePhotoFileName] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const profilePhotoInputRef = useRef<HTMLInputElement>(null);
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromoQuote | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoPending, setPromoPending] = useState(false);
 
   const ticketsForVenue = useMemo(() => {
     return context.tickets.filter((t) => {
@@ -196,7 +207,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       )
     : null;
 
-  const displayCharge = useMemo(() => {
+  const baseCharge = useMemo(() => {
     if (!selectedTicket) return null;
     if (usePassCredit) {
       return { amount: 0, currency: selectedTicket.currency, label: "1 crédito Pack" };
@@ -214,6 +225,26 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       label: context.currentPricePhase?.name ?? null,
     };
   }, [selectedTicket, usePassCredit, context.currentPricePhase]);
+
+  const displayCharge = useMemo(() => {
+    if (!baseCharge) return null;
+    if (!appliedPromo || usePassCredit) return baseCharge;
+    return {
+      amount: appliedPromo.finalAmount,
+      currency: appliedPromo.currency || baseCharge.currency,
+      label: appliedPromo.name || baseCharge.label,
+    };
+  }, [baseCharge, appliedPromo, usePassCredit]);
+
+  const canUsePromo = Boolean(
+    selectedTicket && !usePassCredit && baseCharge && baseCharge.amount > 0,
+  );
+
+  useEffect(() => {
+    setAppliedPromo(null);
+    setPromoCodeInput("");
+    setPromoError(null);
+  }, [ticketTypeId, usePassCredit]);
 
   const experienceOptions: ExperienceTicketOption[] = useMemo(() => {
     return ticketsForOptions.map((t) => {
@@ -373,6 +404,43 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     }
   }
 
+  async function applyPromoCode() {
+    if (!selectedTicket || !canUsePromo) return;
+    const code = promoCodeInput.trim();
+    if (code.length < 2) {
+      setPromoError("Ingresá un código válido.");
+      return;
+    }
+    setPromoPending(true);
+    setPromoError(null);
+    try {
+      const result = await previewPublicPromotionAction({
+        editionSlug: context.edition.slug,
+        ticketTypeId: selectedTicket.id,
+        promoCode: code,
+      });
+      if (!result.ok) {
+        setAppliedPromo(null);
+        setPromoError(result.message);
+        return;
+      }
+      setAppliedPromo(result.quote);
+      setPromoCodeInput(result.quote.code);
+      setPromoError(null);
+    } catch {
+      setAppliedPromo(null);
+      setPromoError("No se pudo validar el código.");
+    } finally {
+      setPromoPending(false);
+    }
+  }
+
+  function clearPromoCode() {
+    setAppliedPromo(null);
+    setPromoCodeInput("");
+    setPromoError(null);
+  }
+
   function submit() {
     if (!selectedTicket) return;
     setError(null);
@@ -385,6 +453,9 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       if (context.passCredits?.entitlementId) {
         fd.set("passEntitlementId", context.passCredits.entitlementId);
       }
+    }
+    if (appliedPromo?.code) {
+      fd.set("promoCode", appliedPromo.code);
     }
     fd.set(
       "variantChoices",
@@ -489,13 +560,51 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
         ? "Revisar y confirmar"
         : "Confirmar tu lugar";
 
-  const entryPromo =
-    !usePassCredit && selectedTicket && !selectedTicket.isMarathonPack
-      ? resolveRegistrationCompareAt({
-          currentAmount: context.currentPricePhase?.amount,
-          highestAmount: context.highestPricePhase?.amount,
-        })
-      : { compareAt: null, savings: null };
+  const entryPromo = useMemo(() => {
+    if (usePassCredit || !selectedTicket) {
+      return { compareAt: null as number | null, savings: null as number | null };
+    }
+    if (appliedPromo) {
+      return {
+        compareAt: appliedPromo.originalAmount,
+        savings: appliedPromo.discountAmount,
+      };
+    }
+    if (selectedTicket.isMarathonPack) {
+      return { compareAt: null, savings: null };
+    }
+    return resolveRegistrationCompareAt({
+      currentAmount: context.currentPricePhase?.amount,
+      highestAmount: context.highestPricePhase?.amount,
+    });
+  }, [
+    usePassCredit,
+    selectedTicket,
+    appliedPromo,
+    context.currentPricePhase?.amount,
+    context.highestPricePhase?.amount,
+  ]);
+
+  const promoFieldProps = canUsePromo
+    ? {
+        value: promoCodeInput,
+        onChange: setPromoCodeInput,
+        onApply: () => {
+          void applyPromoCode();
+        },
+        onClear: clearPromoCode,
+        pending: promoPending,
+        error: promoError,
+        applied: appliedPromo
+          ? {
+              code: appliedPromo.code,
+              name: appliedPromo.name,
+              discountLabel: `− ${formatExperiencePrice(appliedPromo.discountAmount)}`,
+            }
+          : null,
+        disabled: pending,
+      }
+    : null;
 
   function onPrimaryCta() {
     if (step === "review") submit();
@@ -801,6 +910,11 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 </p>
               ) : null}
             </div>
+            {promoFieldProps ? (
+              <div className="rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/60 p-4 lg:hidden">
+                <RegistrationPromoCodeField id="promoCodeParticipant" {...promoFieldProps} />
+              </div>
+            ) : null}
           </fieldset>
         ) : null}
 
@@ -849,6 +963,15 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                   {displayCharge
                     ? formatPublicPrice(displayCharge.amount, displayCharge.currency)
                     : "—"}
+                  {appliedPromo ? (
+                    <span className="mt-1 block text-xs text-emerald-300">
+                      Código {appliedPromo.code}: −{" "}
+                      {formatPublicPrice(
+                        appliedPromo.discountAmount,
+                        appliedPromo.currency,
+                      )}
+                    </span>
+                  ) : null}
                   {displayCharge?.label ? (
                     <span className="mt-1 block text-xs text-ck-text-muted">
                       {displayCharge.label}
@@ -863,6 +986,11 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 </dd>
               </div>
             </dl>
+            {promoFieldProps ? (
+              <div className="rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/60 p-4 lg:hidden">
+                <RegistrationPromoCodeField id="promoCodeReview" {...promoFieldProps} />
+              </div>
+            ) : null}
             {selectedTicket.products.length > 0 ? (
               <div className="rounded border border-ck-border p-4">
                 <h3 className="font-semibold">Incluido</h3>
@@ -904,15 +1032,14 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
 
         {stepIndex > 0 ? (
           <div className="flex flex-col gap-3 border-t border-ck-border pt-8 pb-24 lg:pb-0">
-            <Button
+            <button
               type="button"
-              variant="secondary"
               disabled={pending}
               onClick={() => setStep(steps[stepIndex - 1]!)}
-              className="w-full min-h-12 sm:w-auto"
+              className="self-start text-sm font-medium text-ck-text-muted underline-offset-4 transition-colors hover:text-ck-text hover:underline disabled:opacity-50"
             >
-              Volver
-            </Button>
+              ← Volver
+            </button>
           </div>
         ) : step === "ticket" ? (
           <div className="pb-24 lg:pb-0" aria-hidden />
@@ -937,6 +1064,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
           }
           ctaBusy={ctaBusy}
           onCta={onPrimaryCta}
+          promo={promoFieldProps}
         />
       ) : null}
 
