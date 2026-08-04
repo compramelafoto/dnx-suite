@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
+
 type Props = {
   label: string;
   busyLabel?: string;
@@ -29,15 +31,17 @@ export function RegistrationMobileCtaBar({
           ) : (
             <span className="flex-1" />
           )}
-          <button
+          <Button
             type="button"
-            className="ck-btn ck-btn-primary min-h-12 min-w-[10rem] flex-1 px-4 text-sm font-semibold disabled:opacity-70"
+            variant="primary"
+            size="lg"
+            className="min-w-[10rem] flex-1 px-4"
             disabled={disabled || busy}
-            aria-busy={busy || undefined}
+            loading={busy}
             onClick={onClick}
           >
             {busy ? busyLabel : label}
-          </button>
+          </Button>
         </div>
         <p className="text-center text-[10px] leading-snug text-ck-text-muted">
           Podrás revisar todo antes de confirmar.

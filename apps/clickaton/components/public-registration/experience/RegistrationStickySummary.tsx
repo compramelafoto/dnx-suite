@@ -1,9 +1,27 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
 import { RegistrationCtaHint } from "./RegistrationCtaHint";
+import { RegistrationPromoCodeField } from "./RegistrationPromoCodeField";
 import { RegistrationPromoPrice } from "./RegistrationPromoPrice";
 import { RegistrationTrustStrip } from "./RegistrationTrustStrip";
 import { formatExperiencePrice } from "./format-experience-price";
+
+type PromoFieldProps = {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  onApply: () => void;
+  onClear: () => void;
+  pending?: boolean;
+  error?: string | null;
+  applied?: {
+    code: string;
+    name: string;
+    discountLabel: string;
+  } | null;
+  disabled?: boolean;
+};
 
 type Props = {
   productLabel: string;
@@ -18,6 +36,7 @@ type Props = {
   ctaDisabled?: boolean;
   ctaBusy?: boolean;
   onCta: () => void;
+  promo?: PromoFieldProps | null;
 };
 
 export function RegistrationStickySummary({
@@ -33,6 +52,7 @@ export function RegistrationStickySummary({
   ctaDisabled,
   ctaBusy,
   onCta,
+  promo,
 }: Props) {
   return (
     <aside
@@ -63,6 +83,12 @@ export function RegistrationStickySummary({
           )}
         </div>
 
+        {promo ? (
+          <div className="mt-6 border-t border-ck-border pt-6">
+            <RegistrationPromoCodeField id="promoCodeSticky" {...promo} />
+          </div>
+        ) : null}
+
         <div className="mt-6 border-t border-ck-border pt-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-ck-text-muted">
             Qué incluye
@@ -80,15 +106,17 @@ export function RegistrationStickySummary({
 
         <RegistrationTrustStrip className="mt-5 border-t border-ck-border pt-5" />
 
-        <button
+        <Button
           type="button"
-          className="ck-btn ck-btn-primary mt-6 w-full min-h-12 transition duration-200 hover:brightness-105 disabled:opacity-70"
+          variant="primary"
+          size="lg"
+          className="mt-6 w-full"
           disabled={ctaDisabled || ctaBusy}
-          aria-busy={ctaBusy || undefined}
+          loading={ctaBusy}
           onClick={onCta}
         >
           {ctaBusy ? ctaBusyLabel : ctaLabel}
-        </button>
+        </Button>
         <RegistrationCtaHint />
         {!usingCredit && priceMinor != null && compareAtMinor == null ? (
           <p className="sr-only">{formatExperiencePrice(priceMinor)}</p>
