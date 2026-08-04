@@ -240,6 +240,7 @@ async function main() {
     minorAuthorization: {
       guardianName: "Tutor Test",
       relationship: "Madre",
+      guardianEmail: "tutor.test@example.com",
       declarationAccepted: true,
     },
   });
