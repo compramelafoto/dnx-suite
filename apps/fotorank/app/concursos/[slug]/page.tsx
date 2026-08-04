@@ -9,9 +9,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const data = await getPublicContestLandingBySlug(slug);
   if (!data) return { title: "Concurso | FotoRank" };
+  const title = data.highlights.editionLabel
+    ? `${data.contest.title} · ${data.highlights.editionLabel}`
+    : `${data.contest.title} · ${data.organization.name}`;
   return {
-    title: `${data.contest.title} · ${data.organization.name}`,
+    title,
     description: data.contest.shortDescription ?? data.organization.shortDescription ?? undefined,
+    alternates: {
+      canonical: `https://fotorank.com/concursos/${data.contest.slug}`,
+    },
   };
 }
 

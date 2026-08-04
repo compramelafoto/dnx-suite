@@ -2,14 +2,8 @@
   "redirects": [
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "fotorank.com" }],
-      "destination": "https://fotorank.dnxsuite.com/:path*",
-      "permanent": true
-    },
-    {
-      "source": "/:path*",
       "has": [{ "type": "host", "value": "www.fotorank.com" }],
-      "destination": "https://fotorank.dnxsuite.com/:path*",
+      "destination": "https://fotorank.com/:path*",
       "permanent": true
     }
   ]

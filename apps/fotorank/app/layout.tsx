@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// Canonical público: https://fotorank.com (ver docs/fotorank/canonical-domain-fotorank-com.md).
+// Staging/preview deben setear APP_URL / NEXT_PUBLIC_APP_URL al host de preview.
 const siteUrl =
   process.env.APP_URL?.trim() ||
   process.env.NEXT_PUBLIC_APP_URL?.trim() ||
   process.env.NEXT_PUBLIC_FOTORANK_URL?.trim() ||
   process.env.AUTH_URL?.trim() ||
-  "";
+  (process.env.VERCEL_ENV === "production" ? "https://fotorank.com" : "");
 
 const defaultTitle = "FotoRank | Plataforma de Concursos Fotográficos";
 const defaultDescription =

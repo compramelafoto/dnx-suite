@@ -27,8 +27,16 @@ type LandingPhase = "coming-soon" | "open" | "last-days" | "closed" | "in-evalua
 
 function getLandingPhase(data: PublicContestLandingData): LandingPhase {
   const now = Date.now();
-  const start = data.contest.startAt?.getTime() ?? null;
-  const deadline = data.contest.submissionDeadline?.getTime() ?? null;
+  const start =
+    data.contest.registrationOpensAt?.getTime() ?? data.contest.startAt?.getTime() ?? null;
+  // Prefer registration close; ignore far-future submission deadlines used to keep upload OFF.
+  const regClose = data.contest.registrationClosesAt?.getTime() ?? null;
+  const submissionDeadline = data.contest.submissionDeadline?.getTime() ?? null;
+  const deadline =
+    regClose ??
+    (submissionDeadline && submissionDeadline > now + 1000 * 60 * 60 * 24 * 365 * 5
+      ? null
+      : submissionDeadline);
   const judgingStart = data.contest.judgingStartAt?.getTime() ?? null;
   const results = data.contest.resultsAt?.getTime() ?? null;
 
@@ -36,6 +44,7 @@ function getLandingPhase(data: PublicContestLandingData): LandingPhase {
   if (data.contest.status === "CLOSED") return "closed";
   if (results && now >= results) return "finalized";
   if (judgingStart && now >= judgingStart && (!results || now < results)) return "in-evaluation";
+  if (!data.contest.registrationEnabled) return "coming-soon";
   if (deadline && now > deadline) return "closed";
   if (start && now < start) return "coming-soon";
   if (deadline) {
@@ -63,7 +72,7 @@ function phaseCta(phase: LandingPhase): { primary: string; enabled: boolean } {
 }
 
 export function ContestPublicLanding({ data }: { data: PublicContestLandingData }) {
-  const { contest, organization: org, judges } = data;
+  const { contest, organization: org, judges, highlights } = data;
   const prConfig = parsePrizesRewardsConfig(contest.rulesData);
   const publicPrizes = prConfig.prizes.filter((p) => p.visiblePublic);
   const publicRewards = prConfig.rewards.filter((r) => r.visiblePublic);
@@ -73,6 +82,7 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
   const heroImage = contest.coverImageUrl ?? org.coverImageUrl ?? null;
   /** Flujo de participante (no login de organizador / dashboard). */
   const inscripcionHref = `/concursos/${contest.slug}/inscripcion`;
+  const contactEmail = highlights.contactEmail ?? org.contactEmail ?? null;
 
   const categoriasCount = contest.categories.length;
   const maxObrasHint =
@@ -122,8 +132,18 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
             <h1 className="font-sans text-3xl font-semibold leading-[1.08] tracking-tight text-fr-primary md:text-5xl lg:text-6xl">
               {contest.title}
             </h1>
+            {highlights.editionLabel ? (
+              <p className="text-base font-medium text-gold" data-testid="landing-edition">
+                {highlights.editionLabel}
+              </p>
+            ) : null}
             {contest.shortDescription ? (
               <p className="max-w-2xl text-lg leading-relaxed text-fr-muted md:text-xl">{contest.shortDescription}</p>
+            ) : null}
+            {highlights.uploadClosedNotice ? (
+              <p className="max-w-2xl text-sm leading-relaxed text-fr-muted" data-testid="landing-upload-closed">
+                {highlights.uploadClosedNotice}
+              </p>
             ) : null}
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               {cta.enabled ? (
@@ -147,11 +167,10 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
               </a>
             </div>
             <p className="text-xs text-fr-muted-soft">
-              Gestionado con{" "}
-              <Link href="/" className="text-gold hover:text-gold-hover">
+              Desarrollado sobre{" "}
+              <Link href="https://fotorank.com" className="text-gold hover:text-gold-hover">
                 FotoRank
-              </Link>{" "}
-              · plataforma profesional para concursos fotográficos
+              </Link>
             </p>
           </div>
         </div>
@@ -176,12 +195,40 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
         <div className={containerClass}>
           <h2 className={h2Class}>En resumen</h2>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <ResumenItem label="Apertura" value={fmtDate(contest.startAt)} />
-            <ResumenItem label="Cierre de inscripción" value={fmtDate(contest.submissionDeadline)} />
+            <ResumenItem
+              label="Apertura de inscripción"
+              value={fmtDate(contest.registrationOpensAt ?? contest.startAt)}
+            />
+            <ResumenItem
+              label="Cierre de inscripción"
+              value={fmtDate(contest.registrationClosesAt)}
+            />
             <ResumenItem label="Categorías" value={categoriasCount ? String(categoriasCount) : "—"} />
-            <ResumenItem label="Evaluación" value={fmtDate(contest.judgingStartAt)} />
-            <ResumenItem label="Resultados" value={fmtDate(contest.resultsAt)} />
-            <ResumenItem label="Inscripción" value="Consultá bases" />
+            <ResumenItem
+              label="Inscripción"
+              value={highlights.freeRegistration ? "Gratuita" : "Consultá bases"}
+            />
+            <ResumenItem
+              label="Participación"
+              value={highlights.openParticipation ? "Abierta (sin residencia)" : "Consultá bases"}
+            />
+            <ResumenItem
+              label="Período de captura"
+              value={highlights.capturePeriodLabel ?? "Consultá bases"}
+            />
+            {highlights.minAge != null ? (
+              <ResumenItem label="Edad mínima" value={`${highlights.minAge} años`} />
+            ) : null}
+            {highlights.instagramRequired ? (
+              <ResumenItem label="Instagram" value="Obligatorio en la inscripción" />
+            ) : null}
+            <ResumenItem
+              label="Carga de fotos"
+              value={highlights.photoUploadOpen ? "Habilitada" : "Próximamente"}
+            />
+            {highlights.prizesPerCategoryLabel ? (
+              <ResumenItem label="Premios" value={highlights.prizesPerCategoryLabel} />
+            ) : null}
           </div>
           <div className="mt-10">
             {cta.enabled ? (
@@ -224,10 +271,10 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
                     {[org.city, org.country].filter(Boolean).join(", ")}
                   </li>
                 ) : null}
-                {org.contactEmail ? (
+                {contactEmail ? (
                   <li>
-                    <a href={`mailto:${org.contactEmail}`} className="text-gold hover:text-gold-hover">
-                      {org.contactEmail}
+                    <a href={`mailto:${contactEmail}`} className="text-gold hover:text-gold-hover">
+                      {contactEmail}
                     </a>
                   </li>
                 ) : null}
@@ -372,8 +419,16 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
           <h2 className={h2Class}>Cronograma</h2>
           <ol className="mt-10 space-y-4">
             {[
-              ["Apertura", fmtDate(contest.startAt)],
-              ["Cierre de inscripción", fmtDate(contest.submissionDeadline)],
+              ["Apertura de inscripción", fmtDate(contest.registrationOpensAt ?? contest.startAt)],
+              ["Cierre de inscripción", fmtDate(contest.registrationClosesAt)],
+              [
+                "Período de captura de fotografías",
+                highlights.capturePeriodLabel ?? null,
+              ],
+              [
+                "Carga de fotografías",
+                highlights.photoUploadOpen ? "Habilitada" : "Próximamente (canales oficiales)",
+              ],
               ["Inicio de evaluación", fmtDate(contest.judgingStartAt)],
               ["Fin de evaluación", fmtDate(contest.judgingEndAt)],
               ["Resultados", fmtDate(contest.resultsAt)],
@@ -456,10 +511,19 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
           <h2 className={h2Class}>Cómo participar</h2>
           <ol className="mt-10 max-w-2xl list-decimal space-y-4 pl-6 text-fr-muted marker:text-gold">
             <li>Creá tu cuenta o iniciá sesión en FotoRank.</li>
-            <li>Elegí las categorías que mejor encuarden con tus obras.</li>
-            <li>Subí tus archivos respetando formato y tamaño indicados en las bases.</li>
-            <li>Confirmá la inscripción antes del cierre.</li>
+            <li>Completá la inscripción gratuita eligiendo una categoría e Instagram.</li>
+            <li>
+              {highlights.photoUploadOpen
+                ? "Subí tu fotografía respetando formato y tamaño indicados en las bases."
+                : "Cuando se habilite la carga, subí tu fotografía (se comunicará por canales oficiales)."}
+            </li>
+            <li>Conservá tu número de inscripción y revisá bases y privacidad.</li>
           </ol>
+          {highlights.uploadClosedNotice ? (
+            <p className="mt-6 max-w-2xl text-sm text-fr-muted" data-testid="how-to-upload-closed">
+              {highlights.uploadClosedNotice}
+            </p>
+          ) : null}
           {maxObrasHint ? <p className="mt-6 max-w-2xl text-sm text-fr-muted-soft">{maxObrasHint}</p> : null}
         </div>
       </section>
@@ -495,12 +559,34 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
           <div className="mt-10 space-y-4 max-w-3xl">
             <FaqItem
               q="¿Cómo me inscribo?"
-              a="Creá una cuenta en FotoRank, iniciá sesión y seguí el flujo de inscripción desde el botón «Inscribirme»."
+              a="Creá una cuenta en FotoRank, iniciá sesión y seguí el flujo de inscripción desde el botón de participar."
             />
             <FaqItem
               q="¿Hay costo de inscripción?"
-              a="Si el concurso define arancel, figurará en las bases. Si no se indica, asumí que no hay cargo salvo que el organizador lo comunique."
+              a={
+                highlights.freeRegistration
+                  ? "No. La inscripción a Santa Fe en Foco 2026 es gratuita."
+                  : "Si el concurso define arancel, figurará en las bases."
+              }
             />
+            {highlights.openParticipation ? (
+              <FaqItem
+                q="¿Debo residir en Santa Fe?"
+                a="No. La participación es abierta. La fotografía sí debe haber sido tomada en la Provincia de Santa Fe durante el período oficial."
+              />
+            ) : null}
+            {highlights.instagramRequired ? (
+              <FaqItem
+                q="¿Es obligatorio Instagram?"
+                a="Sí, el usuario de Instagram es obligatorio al inscribirse. No es necesario que la cuenta sea pública."
+              />
+            ) : null}
+            {!highlights.photoUploadOpen ? (
+              <FaqItem
+                q="¿Puedo cargar la fotografía ahora?"
+                a="Todavía no. La carga se habilitará próximamente y se comunicará por los canales oficiales del concurso."
+              />
+            ) : null}
             <FaqItem
               q="¿Cuándo se conocen los resultados?"
               a={fmtDate(contest.resultsAt) ? `Fecha prevista: ${fmtDate(contest.resultsAt)}.` : "La fecha de resultados se comunicará según el cronograma del concurso."}
@@ -508,8 +594,8 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
             <FaqItem
               q="¿A quién contacto por dudas?"
               a={
-                org.contactEmail
-                  ? `Escribí a ${org.contactEmail}.`
+                contactEmail
+                  ? `Escribí a ${contactEmail}.`
                   : "Usá los canales del organizador indicados en esta página."
               }
             />
