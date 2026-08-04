@@ -7,6 +7,8 @@ export const routes = {
   marathons: "/maratones",
   howItWorks: "/como-funciona",
   community: "/comunidad",
+  /** Blog CMS público (`platform = clickaton`). */
+  blog: "/blog",
   /** Landing “Llevá Clickatón a tu ciudad” — Organizadores Oficiales de Sede. */
   organize: "/organizar",
   /** @deprecated Usar `joinUs` (`/formar-parte`). Redirect permanente en next.config. */
@@ -60,6 +62,7 @@ export const mainNavigation: readonly NavItem[] = [
   { label: "Maratones", href: routes.marathons },
   { label: "Cómo funciona", href: routes.howItWorks },
   { label: "Comunidad", href: routes.community },
+  { label: "Blog", href: routes.blog },
   { label: "Tienda", href: routes.store },
   { label: "Llevá Clickatón a tu ciudad", href: routes.organize },
   { label: "Formá parte", href: routes.joinUs },
@@ -83,6 +86,7 @@ export const footerNavigation: readonly NavItem[] = [
   { label: "Maratones", href: routes.marathons },
   { label: "Cómo funciona", href: routes.howItWorks },
   { label: "Comunidad", href: routes.community },
+  { label: "Blog", href: routes.blog },
   { label: "Tienda", href: routes.store },
   { label: "Llevá Clickatón a tu ciudad", href: routes.organize },
   { label: "Formá parte", href: routes.joinUs },
@@ -98,7 +102,6 @@ export const headerCta: NavItem = {
 
 /** Áreas futuras o fuera del nav público. */
 export const futureAreas = [
-  "blog",
   "ranking",
   "galería",
   "hall de la fama",

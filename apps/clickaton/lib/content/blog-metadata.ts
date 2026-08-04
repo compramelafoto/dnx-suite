@@ -52,8 +52,10 @@ function buildMetadata(input: {
     locale: clickatonContentSite.locale,
   });
 
+  // El layout root ya aplica `title.template = "%s — Clickatón"`.
+  // Aquí solo el título de página; Twitter/OG llevan marca explícita una vez.
   return {
-    title: `${input.title} — ${siteConfig.name}`,
+    title: input.title,
     description: input.description,
     alternates: { canonical: input.canonicalUrl?.trim() || url },
     openGraph,
