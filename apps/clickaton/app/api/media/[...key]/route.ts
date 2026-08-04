@@ -1,16 +1,15 @@
 /**
- * Proxy público de media para namespaces de marketing (editions / products).
+ * Proxy público de media para namespaces de marketing (editions / products) y
+ * para las imágenes del blog (`clickaton/blog/hero|media`).
  * Sin R2_PUBLIC_URL el bucket no es público; estas rutas sirven los bytes vía R2 S3.
  * No expone `clickaton/private/` ni welcome/profile (tienen proxies autenticados).
  */
 import { NextResponse } from "next/server";
+import { isPublicMediaKey } from "@/lib/content/public-media-keys";
 import { getWelcomeCardStorage } from "@/lib/welcome-card/storage";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const PUBLIC_KEY =
-  /^clickaton\/(editions|products)\/[0-9]{4}-[0-9]{2}-[0-9]{2}\/[a-z0-9-]+\.[a-z0-9]+$/i;
 
 function contentTypeForKey(key: string): string {
   const ext = key.split(".").pop()?.toLowerCase();
@@ -26,7 +25,7 @@ type Params = { params: Promise<{ key: string[] }> };
 export async function GET(_request: Request, { params }: Params) {
   const segments = (await params).key ?? [];
   const key = segments.map((s) => decodeURIComponent(s)).join("/");
-  if (!PUBLIC_KEY.test(key) || key.includes("..")) {
+  if (!isPublicMediaKey(key)) {
     return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
   }
 

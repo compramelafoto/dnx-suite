@@ -29,7 +29,13 @@ const nextConfig: NextConfig = {
     },
   },
   // @repo/db se externaliza (no transpile) para conservar el Query Engine de Prisma.
-  transpilePackages: ["@repo/auth", "@repo/payments", "@mercadopago/sdk-react"],
+  transpilePackages: [
+    "@repo/auth",
+    "@repo/content",
+    "@repo/content-ui",
+    "@repo/payments",
+    "@mercadopago/sdk-react",
+  ],
   // Evita que el bundler omita el Query Engine de Prisma en Vercel (rhel-openssl-3.0.x).
   serverExternalPackages: ["@prisma/client", "@repo/db"],
   outputFileTracingRoot: monorepoRoot,

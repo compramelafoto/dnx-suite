@@ -25,4 +25,4 @@ Helpers puros + funciones de repositorio Prisma que **exigen** `platform: Conten
 - Guards/auth de app, cookies de vistas, newsletter / `BlogSubscriber`
 - Implementación R2, variables de entorno
 - Integración real con Info Spot o Communications
-- `@repo/content-ui`
+- UI React (ver `@repo/content-ui`)
