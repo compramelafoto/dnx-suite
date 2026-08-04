@@ -15,6 +15,7 @@
     "test:e2e:only": "playwright test",
     "test:e2e:smoke:only": "playwright test --grep @smoke",
     "test:registration:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/registration/registration.selfcheck.ts",
+    "test:santa-fe-registration-selfcheck": "node app/lib/fotorank/registration/santa-fe-registration.selfcheck.mjs",
     "test:registration:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/registration/registration.integration.selfcheck.ts",
     "test:entries:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries.selfcheck.ts",
     "test:entries:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries.integration.selfcheck.ts",
