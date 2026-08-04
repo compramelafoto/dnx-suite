@@ -8,6 +8,7 @@ import {
   extensionForMimeType,
   hasR2BlogStorage,
   isClickatonBlogKey,
+  resolveClickatonBlogStorage,
   validateBlogImageFile,
 } from "./blog-storage";
 
@@ -93,4 +94,43 @@ test("hasR2BlogStorage requiere las cuatro variables de R2", () => {
     }),
     true,
   );
+});
+
+const completeR2 = {
+  R2_BUCKET: "clickaton-media-staging",
+  R2_ENDPOINT: "https://example.r2.cloudflarestorage.com",
+  R2_ACCESS_KEY_ID: "k",
+  R2_SECRET_ACCESS_KEY: "s",
+};
+
+test("resolveClickatonBlogStorage usa R2 cuando está completo", () => {
+  const resolved = resolveClickatonBlogStorage(completeR2);
+  assert.equal(resolved.kind, "r2");
+});
+
+test("resolveClickatonBlogStorage permite fallback local solo en development", () => {
+  const local = resolveClickatonBlogStorage({ NODE_ENV: "development" });
+  assert.equal(local.kind, "local");
+
+  const vercelPreview = resolveClickatonBlogStorage({
+    NODE_ENV: "production",
+    VERCEL_ENV: "preview",
+    VERCEL: "1",
+  });
+  assert.equal(vercelPreview.kind, "unavailable");
+  if (vercelPreview.kind === "unavailable") {
+    assert.equal(vercelPreview.code, "CONTENT_STORAGE_NOT_CONFIGURED");
+  }
+
+  const vercelProd = resolveClickatonBlogStorage({
+    NODE_ENV: "production",
+    VERCEL_ENV: "production",
+    VERCEL: "1",
+  });
+  assert.equal(vercelProd.kind, "unavailable");
+});
+
+test("validateBlogImageFile rechaza SVG", () => {
+  const svg = validateBlogImageFile({ type: "image/svg+xml", size: 1024 });
+  assert.equal(svg.ok, false);
 });

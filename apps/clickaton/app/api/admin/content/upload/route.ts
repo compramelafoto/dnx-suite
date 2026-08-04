@@ -31,6 +31,15 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error subiendo imagen";
+    if (message === "CONTENT_STORAGE_NOT_CONFIGURED") {
+      return NextResponse.json(
+        {
+          error: "Almacenamiento de medios no configurado en este entorno",
+          code: "CONTENT_STORAGE_NOT_CONFIGURED",
+        },
+        { status: 503 },
+      );
+    }
     const isValidation =
       message.includes("permiten") || message.includes("superar") || message.includes("vacío");
     if (!isValidation) {

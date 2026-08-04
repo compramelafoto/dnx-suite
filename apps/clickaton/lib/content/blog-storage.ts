@@ -207,18 +207,55 @@ export function hasR2BlogStorage(env: BlogStorageEnv = process.env): boolean {
   );
 }
 
-export function getClickatonBlogStorage(env: BlogStorageEnv = process.env): BlogStoragePort {
+export type BlogStorageResolution =
+  | { kind: "r2"; storage: R2BlogStorage }
+  | { kind: "local"; storage: LocalBlogStorage }
+  | { kind: "unavailable"; code: "CONTENT_STORAGE_NOT_CONFIGURED" };
+
+/**
+ * Resuelve el backend de storage del blog.
+ * - R2 completo → R2
+ * - development sin R2 → disco local (`public/uploads`)
+ * - preview/staging/production sin R2 → unavailable (nunca filesystem efímero)
+ */
+export function resolveClickatonBlogStorage(
+  env: BlogStorageEnv = process.env,
+): BlogStorageResolution {
   const bucket = env.R2_BUCKET_NAME || env.R2_BUCKET;
   if (bucket && hasR2BlogStorage(env)) {
-    return new R2BlogStorage({
-      bucket,
-      endpoint: env.R2_ENDPOINT as string,
-      accessKeyId: env.R2_ACCESS_KEY_ID as string,
-      secretAccessKey: env.R2_SECRET_ACCESS_KEY as string,
-      publicBaseUrl: env.R2_PUBLIC_URL,
-    });
+    return {
+      kind: "r2",
+      storage: new R2BlogStorage({
+        bucket,
+        endpoint: env.R2_ENDPOINT as string,
+        accessKeyId: env.R2_ACCESS_KEY_ID as string,
+        secretAccessKey: env.R2_SECRET_ACCESS_KEY as string,
+        publicBaseUrl: env.R2_PUBLIC_URL,
+      }),
+    };
   }
-  return new LocalBlogStorage();
+
+  const nodeEnv = (env.NODE_ENV || "").toLowerCase();
+  const vercelEnv = (env.VERCEL_ENV || "").toLowerCase();
+  const allowLocalFallback =
+    nodeEnv === "development" &&
+    vercelEnv !== "preview" &&
+    vercelEnv !== "production" &&
+    env.VERCEL !== "1";
+
+  if (allowLocalFallback) {
+    return { kind: "local", storage: new LocalBlogStorage() };
+  }
+
+  return { kind: "unavailable", code: "CONTENT_STORAGE_NOT_CONFIGURED" };
+}
+
+export function getClickatonBlogStorage(env: BlogStorageEnv = process.env): BlogStoragePort {
+  const resolved = resolveClickatonBlogStorage(env);
+  if (resolved.kind === "unavailable") {
+    throw new Error(resolved.code);
+  }
+  return resolved.storage;
 }
 
 export type UploadedBlogImage = {

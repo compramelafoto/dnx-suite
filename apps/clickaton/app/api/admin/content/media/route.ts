@@ -50,6 +50,15 @@ export async function POST(req: NextRequest) {
     uploaded = await uploadBlogImage(file, "media");
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error subiendo imagen";
+    if (message === "CONTENT_STORAGE_NOT_CONFIGURED") {
+      return NextResponse.json(
+        {
+          error: "Almacenamiento de medios no configurado en este entorno",
+          code: "CONTENT_STORAGE_NOT_CONFIGURED",
+        },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
