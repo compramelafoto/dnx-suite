@@ -152,7 +152,7 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
   const orgDto = mapOrganizationToProfileDTO(contest.organization);
   const highlights = buildHighlights({
     slug: contest.slug,
-    registrationPricingMode: contest.registrationPricingMode,
+    registrationPricingMode: contest.registrationPricingMode ?? "FREE",
     submissionOpensAt: contest.submissionOpensAt,
     organizationContactEmail: orgDto.contactEmail,
   });
