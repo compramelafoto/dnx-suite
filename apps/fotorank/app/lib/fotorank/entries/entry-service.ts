@@ -16,6 +16,11 @@ function newId(): string {
   return `c${randomBytes(12).toString("hex")}`;
 }
 
+/**
+ * Ventana de carga de obras.
+ * Preferimos `submissionOpensAt` / `submissionDeadline` explícitos.
+ * Si `submissionOpensAt` es null, la carga permanece cerrada (fail-closed para RC con upload OFF).
+ */
 function assertUploadWindow(contest: {
   submissionOpensAt: Date | null;
   submissionDeadline: Date | null;
@@ -25,12 +30,17 @@ function assertUploadWindow(contest: {
   status: string;
 }, now: Date): boolean {
   if (contest.status === "CLOSED" || contest.status === "ARCHIVED") return false;
-  const opens = contest.submissionOpensAt ?? contest.registrationOpensAt ?? contest.startAt;
+  // Fail-closed: sin apertura explícita de submission, no hay carga.
+  if (!contest.submissionOpensAt) return false;
+  const opens = contest.submissionOpensAt;
   const closes = contest.submissionDeadline ?? contest.registrationClosesAt;
-  if (opens && opens.getTime() > now.getTime()) return false;
+  if (opens.getTime() > now.getTime()) return false;
   if (closes && closes.getTime() < now.getTime()) return false;
   return true;
 }
+
+const UPLOAD_CLOSED_MESSAGE =
+  "La carga de fotografías aún no está habilitada. Se comunicará por los canales oficiales del concurso.";
 
 async function findDuplicate(input: {
   contestId: string;
@@ -135,7 +145,7 @@ export async function createUploadIntent(input: {
   const contest = await prisma.fotorankContest.findUnique({ where: { id: input.contestId } });
   if (!contest) throw new EntryError("CONTEST_NOT_FOUND", "Concurso no encontrado.", 404);
   if (!assertUploadWindow(contest, new Date())) {
-    throw new EntryError("UPLOAD_WINDOW_CLOSED", "La ventana de carga está cerrada.", 403);
+    throw new EntryError("UPLOAD_WINDOW_CLOSED", UPLOAD_CLOSED_MESSAGE, 403);
   }
 
   const policy = parseUploadPolicy(contest.uploadPolicyJson);
@@ -188,7 +198,7 @@ export async function processUploadedFile(input: {
     throw new EntryError("REGISTRATION_NOT_CONFIRMED", "Inscripción no confirmada.", 403);
   }
   if (!assertUploadWindow(entry.contest, new Date())) {
-    throw new EntryError("UPLOAD_WINDOW_CLOSED", "La ventana de carga está cerrada.", 403);
+    throw new EntryError("UPLOAD_WINDOW_CLOSED", UPLOAD_CLOSED_MESSAGE, 403);
   }
 
   const policy = parseUploadPolicy(entry.contest.uploadPolicyJson);
@@ -498,7 +508,7 @@ export async function confirmEntry(input: {
     throw new EntryError("FORBIDDEN", "No autorizado.", 403);
   }
   if (!assertUploadWindow(entry.contest, new Date())) {
-    throw new EntryError("UPLOAD_WINDOW_CLOSED", "La ventana está cerrada.", 403);
+    throw new EntryError("UPLOAD_WINDOW_CLOSED", UPLOAD_CLOSED_MESSAGE, 403);
   }
   if (entry.status === "REJECTED" || entry.technicalSummaryStatus === "TECHNICALLY_REJECTED") {
     throw new EntryError("CONFIRM_BLOCKED", "Hay fallos técnicos bloqueantes. Reemplazá la fotografía.", 409);

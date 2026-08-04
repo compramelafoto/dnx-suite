@@ -24,7 +24,11 @@ export type RegistrationErrorCode =
   | "PLACEHOLDER_RULES_BLOCKED"
   | "LICENSE_NOT_ACCEPTED"
   | "AGE_INVALID"
-  | "MINOR_AUTH_REQUIRED";
+  | "MINOR_AUTH_REQUIRED"
+  | "ARGRA_REQUIRED"
+  | "INSTAGRAM_REQUIRED"
+  | "OPERATIONAL_COMMS_REQUIRED"
+  | "GUARDIAN_EMAIL_INVALID";
 
 export class RegistrationError extends Error {
   readonly code: RegistrationErrorCode;

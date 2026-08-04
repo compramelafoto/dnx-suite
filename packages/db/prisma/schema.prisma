@@ -7463,6 +7463,8 @@ model FotorankContestRegistration {
   licenseAcceptedAt                                                        DateTime?
   promotionalOptIn                                                         Boolean                  @default(false)
   declaredAgeYears                                                         Int?
+  /// Respuestas estructuradas de inscripción (p.ej. ARGRA, Instagram, comunicaciones operativas). No exponer en APIs públicas.
+  answersJson                                                              Json?
 
   configurationVersion FotorankContestConfigurationVersion? @relation(fields: [configurationVersionId], references: [id], onDelete: SetNull)
   minorAuthorizations  FotorankMinorAuthorization[]
@@ -12181,6 +12183,8 @@ model FotorankMinorAuthorization {
   participantUserId      Int
   guardianName           String
   relationship           String
+  /// Email de contacto del adulto responsable (menores 16–17).
+  guardianEmail          String?
   declarationTextVersion String
   declarationAccepted    Boolean
   acceptedAt             DateTime

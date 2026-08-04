@@ -1,11 +1,27 @@
 import { prisma, type Prisma } from "@repo/db";
 import { frLog } from "../observability/structured-log";
 import { enqueueTransactionalEmail } from "../notifications/outbox";
+import {
+  assertOpenParticipation,
+  categoryRequiresArgra,
+  normalizeArgraMembershipNumber,
+  redactArgraForLog,
+  validateArgraMembershipNumber,
+  type RegistrationAnswers,
+} from "../eligibility";
+import type { ContestRulesConfiguration } from "../rules-config/types";
 import { RegistrationError } from "./errors";
 import { resolveFinancePolicy } from "./finance";
+import { validateInstagramHandle } from "./instagram";
 import { buildRegistrationNumber } from "./registration-number";
 import { getCurrentPublishedRules } from "./rules-service";
 import { assertRegistrationWindowOpen } from "./windows";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidEmail(raw: string): boolean {
+  return EMAIL_RE.test(raw.trim()) && raw.trim().length <= 254;
+}
 
 export type CreateRegistrationInput = {
   contestId: string;
@@ -20,10 +36,17 @@ export type CreateRegistrationInput = {
   minorAuthorization?: {
     guardianName: string;
     relationship: string;
+    guardianEmail: string;
     declarationAccepted: boolean;
   } | null;
-  /** Opcional; nunca sustituye aceptación de bases/licencia. */
+  /** Opcional; nunca sustituye aceptación de bases/licencia ni comunicaciones operativas. */
   promotionalOptIn?: boolean;
+  /** Obligatorio: comunicaciones operativas del concurso. */
+  operationalCommunicationsAccepted?: boolean;
+  /** Instagram obligatorio (handle). */
+  instagramHandle?: string | null;
+  /** Número de socio ARGRA (obligatorio solo si la categoría lo exige). */
+  argraMembershipNumber?: string | null;
   rulesAcceptanceIp?: string | null;
   rulesAcceptanceUserAgent?: string | null;
   now?: Date;
@@ -52,7 +75,7 @@ export type RegistrationDTO = {
   organizerNetBpsSnapshot: number;
   feeSourceSnapshot: string;
   paymentOrderId: string | null;
-  /** P0-01: upload aún no implementado. */
+  /** P0-01: upload aún no implementado / ventana cerrada en RC01. */
   photoUploadStatus: "pending";
   checkoutUrl: string | null;
   paymentRequired: boolean;
@@ -108,7 +131,6 @@ function toDTO(
     feeSourceSnapshot: row.feeSourceSnapshot,
     paymentOrderId: row.paymentOrderId,
     photoUploadStatus: "pending",
-    // 09B2: cablear @repo/payments. FREE nunca tiene checkout.
     checkoutUrl: null,
     paymentRequired,
   };
@@ -141,17 +163,45 @@ export async function createContestRegistration(input: CreateRegistrationInput):
       "Debés aceptar la licencia necesaria para participar.",
     );
   }
+  if (input.operationalCommunicationsAccepted !== true) {
+    throw new RegistrationError(
+      "OPERATIONAL_COMMS_REQUIRED",
+      "Debés aceptar recibir las comunicaciones operativas necesarias del concurso.",
+    );
+  }
+
+  const ig = validateInstagramHandle(input.instagramHandle);
+  if (!ig.ok) {
+    throw new RegistrationError("INSTAGRAM_REQUIRED", ig.message);
+  }
 
   const age = input.declaredAgeYears;
-  if (age != null && (age < 16 || age > 120)) {
-    throw new RegistrationError("AGE_INVALID", "La edad declarada no es válida para este concurso.");
+  if (age == null || !Number.isFinite(age) || age < 16 || age > 120) {
+    throw new RegistrationError(
+      "AGE_INVALID",
+      age != null && age < 16
+        ? "La edad mínima para participar es 16 años."
+        : "La edad declarada no es válida para este concurso.",
+    );
   }
-  if (age != null && age >= 16 && age < 18) {
+  if (age >= 16 && age < 18) {
     const auth = input.minorAuthorization;
-    if (!auth?.declarationAccepted || !auth.guardianName?.trim() || !auth.relationship?.trim()) {
+    const guardianEmail = auth?.guardianEmail?.trim() ?? "";
+    if (
+      !auth?.declarationAccepted ||
+      !auth.guardianName?.trim() ||
+      !auth.relationship?.trim() ||
+      !guardianEmail
+    ) {
       throw new RegistrationError(
         "MINOR_AUTH_REQUIRED",
-        "Para participantes menores de 18 años, la inscripción requiere autorización de padre, madre o tutor legal.",
+        "Para participantes de 16 o 17 años, la inscripción requiere autorización de padre, madre o tutor legal (nombre, vínculo, email y declaración).",
+      );
+    }
+    if (!isValidEmail(guardianEmail)) {
+      throw new RegistrationError(
+        "GUARDIAN_EMAIL_INVALID",
+        "El email del adulto responsable no es válido.",
       );
     }
   }
@@ -205,6 +255,45 @@ export async function createContestRegistration(input: CreateRegistrationInput):
     );
   }
 
+  // Participación abierta: residencia del participante nunca bloquea.
+  void assertOpenParticipation();
+
+  const publishedCfgRow = await prisma.fotorankContestConfigurationVersion.findFirst({
+    where: { contestId: contest.id, status: "PUBLISHED" },
+    orderBy: { versionNumber: "desc" },
+    select: { configurationJson: true },
+  });
+  const publishedCfg = publishedCfgRow?.configurationJson as ContestRulesConfiguration | null;
+  const cfgCategory = publishedCfg?.categories?.find((c) => c.slug === category.slug);
+  const requiresArgra =
+    cfgCategory?.membershipRestriction === "ARGRA" || categoryRequiresArgra(category.slug);
+
+  let answersJson: RegistrationAnswers = {
+    openParticipationAcknowledged: true,
+    argraVerificationStatus: "NOT_REQUIRED",
+    instagramHandle: ig.handle,
+    operationalCommunicationsAccepted: true,
+  };
+  if (requiresArgra) {
+    const argraCheck = validateArgraMembershipNumber(input.argraMembershipNumber);
+    if (argraCheck.decision === "NOT_ELIGIBLE") {
+      throw new RegistrationError("ARGRA_REQUIRED", argraCheck.publicMessage, 400);
+    }
+    const normalized = normalizeArgraMembershipNumber(input.argraMembershipNumber);
+    answersJson = {
+      ...answersJson,
+      argraMembershipNumber: normalized,
+      argraVerificationStatus: "PENDING_VERIFICATION",
+      argraDeclaredOwn: true,
+    };
+    frLog("registration.created", {
+      contestId: contest.id,
+      categorySlug: category.slug,
+      argraPresent: true,
+      argraRedacted: redactArgraForLog(normalized),
+    });
+  }
+
   const currentRules = await getCurrentPublishedRules(contest.id);
   if (!currentRules) {
     throw new RegistrationError(
@@ -221,7 +310,6 @@ export async function createContestRegistration(input: CreateRegistrationInput):
     );
   }
 
-  // Snapshot de configuración estructurada vigente (P0-09A/B).
   const publishedConfig = await prisma.fotorankContestConfigurationVersion.findFirst({
     where: { contestId: contest.id, status: "PUBLISHED" },
     orderBy: { versionNumber: "desc" },
@@ -243,18 +331,11 @@ export async function createContestRegistration(input: CreateRegistrationInput):
     now,
   );
 
-  // PAID: dejar PENDING_PAYMENT + snapshot. No crear DnxPaymentOrder hasta 09B2.
-  // FREE: CONFIRMED + NOT_REQUIRED, sin orden.
   const isFree = finance.paymentMode === "FREE";
-  if (!isFree && finance.paymentMode === "PAID") {
-    // Preparación correcta: inscripción creada, checkout aún no cableado.
-    // El cliente debe mostrar que el pago está pendiente de integración.
-  }
 
   let created: { row: Parameters<typeof toDTO>[0]; created: boolean };
   try {
     created = await prisma.$transaction(async (tx) => {
-      // Serializa altas concurrentes por concurso (evita colisión de registrationNumber).
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${contest.id}))`;
 
       const again = await tx.fotorankContestRegistration.findUnique({
@@ -289,6 +370,11 @@ export async function createContestRegistration(input: CreateRegistrationInput):
       const status = isFree ? "CONFIRMED" : "PENDING_PAYMENT";
       const paymentStatus = isFree ? "NOT_REQUIRED" : "PENDING";
 
+      await tx.user.update({
+        where: { id: input.participantUserId },
+        data: { instagram: ig.handle },
+      });
+
       const row = await tx.fotorankContestRegistration.create({
         data: {
           contestId: contest.id,
@@ -309,7 +395,7 @@ export async function createContestRegistration(input: CreateRegistrationInput):
           licenseAccepted: true,
           licenseAcceptedAt: now,
           promotionalOptIn: input.promotionalOptIn === true,
-          declaredAgeYears: age ?? null,
+          declaredAgeYears: age,
           paymentModeSnapshot: finance.paymentMode,
           registrationPriceSnapshot: finance.registrationPriceMinor,
           currencySnapshot: finance.currency,
@@ -319,11 +405,12 @@ export async function createContestRegistration(input: CreateRegistrationInput):
           financialPolicySnapshot: finance.policySnapshot,
           paymentOrderId: null,
           categoryLockedAt: now,
+          answersJson: answersJson as Prisma.InputJsonValue,
         },
         include: registrationInclude,
       });
 
-      if (age != null && age >= 16 && age < 18 && input.minorAuthorization) {
+      if (age >= 16 && age < 18 && input.minorAuthorization) {
         const { MINOR_CONSENT_VERSION } = await import("../rules-lifecycle/minors");
         await tx.fotorankMinorAuthorization.create({
           data: {
@@ -332,6 +419,7 @@ export async function createContestRegistration(input: CreateRegistrationInput):
             participantUserId: input.participantUserId,
             guardianName: input.minorAuthorization.guardianName.trim(),
             relationship: input.minorAuthorization.relationship.trim(),
+            guardianEmail: input.minorAuthorization.guardianEmail.trim(),
             declarationTextVersion: MINOR_CONSENT_VERSION,
             declarationAccepted: true,
             acceptedAt: now,
@@ -392,6 +480,9 @@ export async function createContestRegistration(input: CreateRegistrationInput):
       payload: {
         contestTitle: created.row.contest?.title ?? contest.title,
         registrationNumber: dto.registrationNumber,
+        categoryName: created.row.category?.name ?? category.name,
+        contestSlug: contest.slug,
+        status: dto.status,
       },
     }).catch(() => {
       frLog("email.failed", { correlationId, kind: "REGISTRATION_CONFIRMED" });

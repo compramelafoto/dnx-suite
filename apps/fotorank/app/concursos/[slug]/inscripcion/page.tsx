@@ -72,7 +72,14 @@ export default async function ContestInscriptionPage({ params }: Props) {
             </Link>
           </div>
           {existing.status === "CONFIRMED" ? (
-            <EntryUploadPanel contestId={contest.id} contestSlug={slug} />
+            <div className="fr-recuadro mt-10 space-y-4 border border-fr-border bg-fr-card">
+              <p className="text-sm leading-relaxed text-fr-muted" data-testid="upload-closed-notice">
+                La inscripción ya está abierta. La carga de fotografías se habilitará próximamente y se
+                comunicará por los canales oficiales del concurso.
+              </p>
+              {/* Upload panel stays mounted for API readiness; server rejects when window closed. */}
+              <EntryUploadPanel contestId={contest.id} contestSlug={slug} />
+            </div>
           ) : null}
         </div>
       </main>
@@ -110,7 +117,9 @@ export default async function ContestInscriptionPage({ params }: Props) {
             categories={contest.categories.map((c) => ({
               id: c.id,
               name: c.name,
+              slug: c.slug,
               maxFiles: c.maxFiles,
+              description: c.description,
             }))}
             rules={{
               id: rules.id,

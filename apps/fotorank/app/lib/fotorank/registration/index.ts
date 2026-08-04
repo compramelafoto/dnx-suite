@@ -13,6 +13,7 @@ export {
   RULES_PLACEHOLDER_MARKER,
 } from "./rules-hash";
 export { buildRegistrationNumber } from "./registration-number";
+export { normalizeInstagramHandle, validateInstagramHandle } from "./instagram";
 export { assertRegistrationWindowOpen } from "./windows";
 export {
   getCurrentPublishedRules,

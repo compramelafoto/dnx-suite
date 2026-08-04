@@ -28,9 +28,13 @@ export async function POST(req: Request, ctx: Ctx) {
     licenseAccepted?: boolean;
     declaredAgeYears?: number;
     promotionalOptIn?: boolean;
+    operationalCommunicationsAccepted?: boolean;
+    instagramHandle?: string;
+    argraMembershipNumber?: string;
     minorAuthorization?: {
       guardianName?: string;
       relationship?: string;
+      guardianEmail?: string;
       declarationAccepted?: boolean;
     };
   };
@@ -67,10 +71,15 @@ export async function POST(req: Request, ctx: Ctx) {
           ? Math.floor(body.declaredAgeYears)
           : null,
       promotionalOptIn: body.promotionalOptIn === true,
+      operationalCommunicationsAccepted: body.operationalCommunicationsAccepted === true,
+      instagramHandle: typeof body.instagramHandle === "string" ? body.instagramHandle : null,
+      argraMembershipNumber:
+        typeof body.argraMembershipNumber === "string" ? body.argraMembershipNumber : null,
       minorAuthorization: body.minorAuthorization?.declarationAccepted
         ? {
             guardianName: String(body.minorAuthorization.guardianName ?? ""),
             relationship: String(body.minorAuthorization.relationship ?? ""),
+            guardianEmail: String(body.minorAuthorization.guardianEmail ?? ""),
             declarationAccepted: true,
           }
         : null,
