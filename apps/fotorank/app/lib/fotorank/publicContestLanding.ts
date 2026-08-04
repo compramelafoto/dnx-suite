@@ -184,7 +184,7 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
       registrationOpensAt: contest.registrationOpensAt,
       registrationClosesAt: contest.registrationClosesAt,
       registrationEnabled: contest.registrationEnabled,
-      registrationPricingMode: contest.registrationPricingMode,
+      registrationPricingMode: contest.registrationPricingMode ?? "FREE",
       submissionOpensAt: contest.submissionOpensAt,
       submissionDeadline: contest.submissionDeadline,
       judgingStartAt: contest.judgingStartAt,
