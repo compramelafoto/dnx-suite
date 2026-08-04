@@ -106,7 +106,7 @@ export function buildBlogCategoryMetadata(category: {
   description: string | null;
 }): Metadata {
   return buildMetadata({
-    title: `${category.name} — Blog de Clickatón`,
+    title: `${category.name} · Blog`,
     description:
       category.description?.trim() ||
       `Notas del blog de Clickatón sobre ${category.name.toLowerCase()}.`,
@@ -116,7 +116,7 @@ export function buildBlogCategoryMetadata(category: {
 
 export function buildBlogTagMetadata(tag: { name: string; slug: string }): Metadata {
   return buildMetadata({
-    title: `${tag.name} — Blog de Clickatón`,
+    title: `${tag.name} · Blog`,
     description: `Notas del blog de Clickatón etiquetadas como ${tag.name}.`,
     path: blogTagPath(tag.slug),
   });
