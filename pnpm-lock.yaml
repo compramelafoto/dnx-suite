@@ -35,6 +35,12 @@ importers:
       '@repo/communications':
         specifier: workspace:*
         version: link:../../packages/communications
+      '@repo/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@repo/content-ui':
+        specifier: workspace:*
+        version: link:../../packages/content-ui
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db

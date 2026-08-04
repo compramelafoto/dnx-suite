@@ -12,6 +12,8 @@ export const adminRoutes = {
   promotions: "/admin/promociones",
   social: "/admin/social",
   sponsors: "/admin/sponsors",
+  /** CMS del blog público (`@repo/content`, platform = clickaton). */
+  contents: "/admin/contenidos",
   messages: "/admin/mensajes",
   settings: "/admin/configuracion",
   financeOwner: "/admin/finanzas/cuenta-owner",
@@ -34,6 +36,7 @@ export type AdminNavIcon =
   | "promotions"
   | "social"
   | "sponsors"
+  | "contents"
   | "messages"
   | "settings"
   | "finance"
@@ -84,6 +87,12 @@ export const adminNavigation: readonly AdminNavItem[] = [
     label: "Sponsors y beneficios",
     href: adminRoutes.sponsors,
     icon: "sponsors",
+    section: "main",
+  },
+  {
+    label: "Contenidos",
+    href: adminRoutes.contents,
+    icon: "contents",
     section: "main",
   },
   { label: "Mensajes", href: adminRoutes.messages, icon: "messages", section: "main" },
