@@ -34,6 +34,13 @@ export {
   detectPlaceholders,
 } from "./production-gate";
 export {
+  SANTA_FE_LEGAL_STATUS,
+  SANTA_FE_TERMS_VERSION,
+  SANTA_FE_PRIVACY_VERSION,
+  SANTA_FE_CONSENT_VERSION,
+  SANTA_FE_LEGAL_PATHS,
+} from "./santa-fe-legal-versions";
+export {
   createContestRegistration,
   getMyContestRegistration,
   listMyRegistrations,
