@@ -6,6 +6,9 @@ export const SFEF_PRIZE_FIRST_MINOR = 500_000 * 100;
 export const SFEF_PRIZE_SECOND_MINOR = 400_000 * 100;
 export const SFEF_PRIZE_THIRD_MINOR = 300_000 * 100;
 
+export const SFEF_CONTACT_EMAIL = "sfprosario@gmail.com";
+export const SFEF_ORGANIZER_VISIBLE = "Sociedad de Fotógrafos Profesionales de Rosario";
+
 const TZ = "America/Argentina/Cordoba";
 
 /** Ventanas en UTC derivadas de wall-clock ART (límite exclusivo 1 oct 00:00). */
@@ -16,13 +19,23 @@ function art(localIso: string): string {
 const PIPELINE_MIME = ["image/jpeg", "image/png", "image/webp"] as const;
 const PIPELINE_EXT = ["jpg", "jpeg", "png", "webp"] as const;
 
+export type SantaFeConfigOptions = {
+  /** Si true, submission queda cerrada (apertura far-future). Default true para RC01. */
+  uploadClosed?: boolean;
+};
+
 /**
- * Configuración oficial Santa Fe en Foco 2026 (P0-09A).
- * Fuente: decisiones confirmadas en el prompt de etapa (no inventar más).
+ * Configuración oficial Santa Fe en Foco 2026.
+ * Decisiones de producto confirmadas; textos legales provisionales sujetos a revisión profesional.
  */
-export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration {
+export function buildSantaFeEnFoco2026Configuration(
+  options: SantaFeConfigOptions = {},
+): ContestRulesConfiguration {
+  const uploadClosed = options.uploadClosed !== false;
   const regOpen = art("2026-08-01T00:00:00");
   const closeExclusive = art("2026-10-01T00:00:00");
+  const submissionOpen = uploadClosed ? art("2099-01-01T00:00:00") : regOpen;
+  const submissionClose = uploadClosed ? art("2099-12-31T00:00:00") : closeExclusive;
 
   return {
     schemaVersion: 1,
@@ -30,20 +43,14 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
       officialName: "Santa Fe en Foco 2026",
       slug: "santa-fe-en-foco",
       description:
-        "Concurso fotográfico provincial sobre el deporte santafesino, con perspectiva documental, cultural, social, territorial o humana.",
-      organizers: [
-        { name: "Sociedad de Fotógrafos Profesionales de Rosario", role: "organizador" },
-        { name: "Cámara de Senadores de la Provincia de Santa Fe", role: "organizador" },
-      ],
-      participatingInstitutions: [
-        "Sociedad de Fotógrafos Profesionales de Rosario",
-        "Cámara de Senadores de la Provincia de Santa Fe",
-      ],
+        "Concurso fotográfico sobre el deporte santafesino, con perspectiva documental, cultural, social, territorial o humana. Participación abierta: no se exige residencia en la Provincia de Santa Fe; la fotografía debe haberse tomado en el territorio provincial durante el período oficial.",
+      organizers: [{ name: SFEF_ORGANIZER_VISIBLE, role: "organizador" }],
+      participatingInstitutions: [SFEF_ORGANIZER_VISIBLE],
       territoryScope: "Provincia de Santa Fe",
       country: "Argentina",
       province: "Santa Fe",
-      siteUrl: null,
-      contactEmail: null,
+      siteUrl: "https://fotorank.com",
+      contactEmail: SFEF_CONTACT_EMAIL,
       language: "es-AR",
       timezone: TZ,
       platformName: "FotoRank",
@@ -51,9 +58,9 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
     schedule: {
       registrationOpensAt: regOpen,
       registrationClosesAtExclusive: closeExclusive,
-      submissionOpensAt: regOpen,
-      submissionClosesAtExclusive: closeExclusive,
-      replaceClosesAtExclusive: closeExclusive,
+      submissionOpensAt: submissionOpen,
+      submissionClosesAtExclusive: submissionClose,
+      replaceClosesAtExclusive: uploadClosed ? null : closeExclusive,
       judgingStartsAt: null,
       judgingEndsAt: null,
       resultsAt: null,
@@ -61,8 +68,9 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
       captureWindowStartsAt: regOpen,
       captureWindowEndsExclusiveAt: closeExclusive,
       timezone: TZ,
-      publicScheduleNote:
-        "Inscripción y carga desde el 1 de agosto de 2026 hasta el 30 de septiembre de 2026 inclusive (cierre exclusivo 1 de octubre 00:00 ART).",
+      publicScheduleNote: uploadClosed
+        ? "Inscripción desde el 1 de agosto de 2026. Período de captura de fotografías: 1 de agosto al 30 de septiembre de 2026 inclusive. La carga de fotografías se habilitará próximamente."
+        : "Inscripción y carga desde el 1 de agosto de 2026 hasta el 30 de septiembre de 2026 inclusive (cierre exclusivo 1 de octubre 00:00 ART).",
     },
     participation: {
       pricingMode: "FREE",
@@ -73,64 +81,74 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
       minorsAllowed: true,
       adultAuthorizationRequired: true,
       adultAuthorizationPendingHumanConfirmation: false,
-      residencyRequired: true,
-      residencyScope: "Provincia de Santa Fe",
+      residencyRequired: false,
+      residencyScope: null,
       individualOnly: true,
       maxRegistrationsPerPerson: 1,
       maxCategoriesPerRegistration: 1,
       maxEntriesPerRegistration: 1,
-      allowReplaceUntilClose: true,
+      allowReplaceUntilClose: !uploadClosed,
       allowWithdrawal: true,
+      instagramRequired: true,
     },
     theme: {
       summary: "Deporte santafesino con mirada documental, cultural, social, territorial o humana.",
       geographicScope: "Provincia de Santa Fe",
       temporalScopeNote: "Fotografías tomadas entre el 1 de agosto y el 30 de septiembre de 2026 inclusive.",
       subjectNotes: [
-        "No exclusivamente relacionadas con los Juegos Suramericanos.",
-        "Tomadas dentro de la Provincia de Santa Fe.",
+        "Participación abierta sin requisito de residencia del participante.",
+        "La fotografía debe haberse tomado dentro de la Provincia de Santa Fe.",
+        "La fotografía debe haberse tomado durante el período oficial de captura.",
+        "Una fotografía por participante; una única categoría por fotografía.",
+        "Usuario de Instagram obligatorio en la inscripción (no se exige cuenta pública).",
       ],
     },
     categories: [
       {
-        name: "Profesional",
-        slug: "profesional",
-        description: "Fotografía profesional.",
-        deviceType: "OPEN",
-        particularRequirements: null,
+        name: "Fotógrafo Profesional",
+        slug: "fotografo-profesional",
+        description:
+          "Para personas que participan como fotógrafos profesionales. La fotografía debe haber sido realizada con una cámara fotográfica. No se admiten fotografías tomadas con teléfono celular.",
+        deviceType: "CAMERA",
+        particularRequirements:
+          "Cámara fotográfica obligatoria (DSLR/mirrorless/compacta/bridge). Celular y dron no permitidos.",
         maxEntries: 1,
         active: true,
         sortOrder: 1,
         membershipRestriction: null,
       },
       {
-        name: "Reportero Gráfico",
-        slug: "reportero-grafico",
-        description: "Reservado a miembros registrados de ARGRA.",
-        deviceType: "CAMERA",
-        particularRequirements: "Miembro registrado de ARGRA.",
+        name: "Fotógrafo Amateur",
+        slug: "fotografo-amateur",
+        description:
+          "Para fotógrafos aficionados. Se admiten fotografías realizadas con teléfono celular o cámara fotográfica.",
+        deviceType: "OPEN",
+        particularRequirements: "Celular o cámara. Dron no permitido (usar Fotografía Aérea).",
         maxEntries: 1,
         active: true,
         sortOrder: 2,
-        membershipRestriction: "ARGRA",
-      },
-      {
-        name: "Amateur",
-        slug: "amateur",
-        description: "Fotografía amateur.",
-        deviceType: "OPEN",
-        particularRequirements: null,
-        maxEntries: 1,
-        active: true,
-        sortOrder: 3,
         membershipRestriction: null,
       },
       {
-        name: "Fotografía Aérea — Dron",
-        slug: "fotografia-aerea-dron",
-        description: "Fotografía aérea con dron.",
+        name: "Reportero Gráfico",
+        slug: "reportero-grafico",
+        description:
+          "Para reporteros gráficos. Es obligatorio ingresar un número de socio de ARGRA, sujeto a verificación por la organización.",
+        deviceType: "CAMERA",
+        particularRequirements: "Número de socio ARGRA obligatorio (verificación manual por la organización).",
+        maxEntries: 1,
+        active: true,
+        sortOrder: 3,
+        membershipRestriction: "ARGRA",
+      },
+      {
+        name: "Fotografía Aérea",
+        slug: "fotografia-aerea",
+        description:
+          "Para fotografías realizadas con dron. La organización podrá solicitar información técnica o documentación adicional.",
         deviceType: "DRONE",
-        particularRequirements: "Operación conforme a normativa aplicable.",
+        particularRequirements:
+          "Dron obligatorio. Cumplimiento normativo declarado por el participante.",
         maxEntries: 1,
         active: true,
         sortOrder: 4,
@@ -158,8 +176,8 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
     metadata: {
       exifGeneral: { level: "RECOMMENDED", missingAction: "WARN" },
       captureDate: { level: "RECOMMENDED", missingAction: "REQUIRES_REVIEW" },
-      gps: { level: "RECOMMENDED", missingAction: "REQUIRES_REVIEW" },
-      deviceModel: { level: "RECOMMENDED", missingAction: "WARN" },
+      gps: { level: "RECOMMENDED", missingAction: "ALLOW" },
+      deviceModel: { level: "RECOMMENDED", missingAction: "REQUIRES_REVIEW" },
       lens: { level: "INFORMATIVE", missingAction: "ALLOW" },
       altitude: { level: "INFORMATIVE", missingAction: "ALLOW" },
       editingSoftware: { level: "INFORMATIVE", missingAction: "ALLOW" },
@@ -251,7 +269,7 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
       conserveOriginal: true,
       deletionPolicyNote: null,
       legalReviewFlags: [
-        "Revisar contradicción potencial entre licencia exclusiva temporal (todas las obras), titularidad del autor, uso patrimonial permanente de seleccionadas y sublicencia.",
+        "Estado legal: PROVISIONALLY_AUTHORIZED_PENDING_LEGAL_REVIEW (CAMINO B). Revisión profesional pendiente.",
       ],
     },
     jury: {
@@ -267,7 +285,7 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
         "Hasta 5 integrantes (cantidad efectiva configurable); asignables por categoría; evaluación anónima; conflicto de interés obligatorio; fallo definitivo e inapelable; menciones especiales posibles.",
     },
     prizes: [
-      ...(["profesional", "reportero-grafico", "amateur", "fotografia-aerea-dron"] as const).flatMap(
+      ...(["fotografo-profesional", "fotografo-amateur", "reportero-grafico", "fotografia-aerea"] as const).flatMap(
         (categorySlug) => [
           {
             categorySlug,

@@ -1,16 +1,18 @@
 /**
  * Aplica configuración estructurada Santa Fe en Foco 2026 al concurso seed.
  *
- * DATABASE_URL=...staging \
+ * DATABASE_URL=... \
  *   pnpm --filter @repo/db exec tsx prisma/scripts/seed-santa-fe-rules-config.ts
+ *
+ * Bloqueado en producción (usar flujo production seed + publish operativo).
  */
 import { prisma } from "../../src/client.js";
+import { buildSantaFeEnFoco2026Configuration } from "../../../../apps/fotorank/app/lib/fotorank/rules-config/santa-fe-en-foco-2026.ts";
 import {
-  buildSantaFeEnFoco2026Configuration,
   saveDraftConfiguration,
   publishConfigurationVersion,
   ensureSystemProvincialTemplate,
-} from "../../../../apps/fotorank/app/lib/fotorank/rules-config/index.ts";
+} from "../../../../apps/fotorank/app/lib/fotorank/rules-config/service.ts";
 
 async function main() {
   if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
@@ -27,7 +29,7 @@ async function main() {
   });
   if (!contest) throw new Error("Concurso santa-fe-en-foco no existe — correr seed-santa-fe-en-foco");
 
-  const config = buildSantaFeEnFoco2026Configuration();
+  const config = buildSantaFeEnFoco2026Configuration({ uploadClosed: true });
   const draft = await saveDraftConfiguration({
     contestId: contest.id,
     config,
@@ -48,6 +50,7 @@ async function main() {
   console.log(`  configVersion: ${draft.id} v${draft.versionNumber}`);
   console.log(`  hash: ${published.hash}`);
   console.log(`  validation draft: ${draft.validation.status}`);
+  console.log(`  uploadClosed: true · residencyRequired: false · instagramRequired: true`);
 }
 
 main()

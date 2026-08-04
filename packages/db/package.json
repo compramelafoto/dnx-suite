@@ -29,6 +29,7 @@
     "db:seed:infospot-events": "tsx prisma/scripts/seed-infospot-demo-events.ts",
     "db:seed:infospot-launch-drafts": "tsx prisma/scripts/seed-infospot-launch-drafts.ts",
     "db:seed:santa-fe-en-foco": "tsx prisma/scripts/seed-santa-fe-en-foco.ts",
+    "db:seed:santa-fe-en-foco:production": "tsx prisma/scripts/seed-santa-fe-en-foco-production.ts",
     "db:seed:santa-fe-rules-config": "tsx prisma/scripts/seed-santa-fe-rules-config.ts",
     "test:clf-availability": "tsx src/clf-album-availability.test.ts",
     "db:studio": "prisma studio",

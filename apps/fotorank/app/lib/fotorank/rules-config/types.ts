@@ -77,6 +77,8 @@ export type ContestRulesParticipation = {
   maxEntriesPerRegistration: number;
   allowReplaceUntilClose: boolean;
   allowWithdrawal: boolean;
+  /** Si true, la inscripción exige handle de Instagram. */
+  instagramRequired?: boolean;
 };
 
 export type ContestRulesCategory = {
