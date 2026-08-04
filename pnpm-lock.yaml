@@ -499,9 +499,6 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@repo/partners':
-        specifier: workspace:*
-        version: link:../../packages/partners
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
