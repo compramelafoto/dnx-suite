@@ -10,6 +10,12 @@ import {
   resolveBaseUrl,
   resolveGoogleRedirectUri,
 } from "../../../../lib/google-oauth";
+import {
+  RATE_LIMITS,
+  clientIpFromHeaders,
+  consumeRateLimit,
+  rateLimitResponse,
+} from "../../../../lib/fotorank/security/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +29,13 @@ function redirectToLogin(baseUrl: string, message: string): NextResponse {
 }
 
 export async function GET(req: Request) {
+  const rl = consumeRateLimit(
+    "auth.google.callback",
+    clientIpFromHeaders(req.headers),
+    RATE_LIMITS.googleOAuth,
+  );
+  if (!rl.allowed) return rateLimitResponse(rl);
+
   const origin = new URL(req.url).origin;
   const baseUrl = resolveBaseUrl(origin);
 

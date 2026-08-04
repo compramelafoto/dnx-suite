@@ -472,21 +472,37 @@ export async function createContestRegistration(input: CreateRegistrationInput):
     paymentMode: dto.paymentModeSnapshot ?? null,
   });
   if (created.created && isFree) {
-    void enqueueTransactionalEmail({
-      kind: "REGISTRATION_CONFIRMED",
-      toUserId: input.participantUserId,
-      contestId: input.contestId,
-      registrationId: dto.id,
-      payload: {
-        contestTitle: created.row.contest?.title ?? contest.title,
-        registrationNumber: dto.registrationNumber,
-        categoryName: created.row.category?.name ?? category.name,
-        contestSlug: contest.slug,
-        status: dto.status,
-      },
-    }).catch(() => {
-      frLog("email.failed", { correlationId, kind: "REGISTRATION_CONFIRMED" });
-    });
+    const { RATE_LIMITS, consumeRateLimit } = await import("../security/rate-limit");
+    const emailRl = consumeRateLimit(
+      "email.enqueue",
+      `user:${input.participantUserId}`,
+      RATE_LIMITS.emailEnqueue,
+    );
+    if (emailRl.allowed) {
+      void enqueueTransactionalEmail({
+        kind: "REGISTRATION_CONFIRMED",
+        toUserId: input.participantUserId,
+        contestId: input.contestId,
+        registrationId: dto.id,
+        payload: {
+          contestTitle: created.row.contest?.title ?? contest.title,
+          registrationNumber: dto.registrationNumber,
+          categoryName: created.row.category?.name ?? category.name,
+          contestSlug: contest.slug,
+          status: dto.status,
+          contactEmail: "sfprosario@gmail.com",
+          replyTo: "sfprosario@gmail.com",
+        },
+      }).catch(() => {
+        frLog("email.failed", { correlationId, kind: "REGISTRATION_CONFIRMED" });
+      });
+    } else {
+      frLog("email.failed", {
+        correlationId,
+        kind: "REGISTRATION_CONFIRMED",
+        reason: "rate_limited",
+      });
+    }
   }
 
   return {

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import {
   registerDnxAccount,
   createUserSession,
@@ -9,6 +9,11 @@ import {
   DNX_SESSION_MAX_AGE_SECONDS,
 } from "@repo/auth";
 import { safeNextPath } from "../lib/safe-next-path";
+import {
+  RATE_LIMITS,
+  clientIpFromHeaders,
+  consumeRateLimit,
+} from "../lib/fotorank/security/rate-limit";
 
 export type FotorankRegisterFormState = { error: string | null };
 
@@ -26,6 +31,16 @@ export async function registerFotorankAccountAction(
   _prev: FotorankRegisterFormState | undefined,
   formData: FormData,
 ): Promise<FotorankRegisterFormState> {
+  const h = await headers();
+  const rl = consumeRateLimit(
+    "account.create",
+    clientIpFromHeaders(h),
+    RATE_LIMITS.accountCreate,
+  );
+  if (!rl.allowed) {
+    return { error: "Demasiados intentos. Probá de nuevo en unos segundos." };
+  }
+
   const firstName = formData.get("firstName")?.toString() ?? "";
   const lastName = formData.get("lastName")?.toString() ?? "";
   const email = formData.get("email")?.toString() ?? "";

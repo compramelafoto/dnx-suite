@@ -5,11 +5,24 @@ import {
   resolveGoogleRedirectUri,
 } from "../../../lib/google-oauth";
 import { safeNextPath } from "../../../lib/safe-next-path";
+import {
+  RATE_LIMITS,
+  clientIpFromHeaders,
+  consumeRateLimit,
+  rateLimitResponse,
+} from "../../../lib/fotorank/security/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const rl = consumeRateLimit(
+    "auth.google",
+    clientIpFromHeaders(req.headers),
+    RATE_LIMITS.googleOAuth,
+  );
+  if (!rl.allowed) return rateLimitResponse(rl);
+
   try {
     const origin = new URL(req.url).origin;
     const baseUrl = resolveBaseUrl(origin);

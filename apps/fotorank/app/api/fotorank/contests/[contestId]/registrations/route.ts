@@ -4,17 +4,29 @@ import {
   RegistrationError,
   createContestRegistration,
 } from "../../../../../lib/fotorank/registration";
+import {
+  RATE_LIMITS,
+  clientIpFromHeaders,
+  consumeRateLimit,
+  rateLimitResponse,
+} from "../../../../../lib/fotorank/security/rate-limit";
 
 type Ctx = { params: Promise<{ contestId: string }> };
 
 function clientMeta(req: Request): { ip: string | null; ua: string | null } {
-  const forwarded = req.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || null;
+  const ip = clientIpFromHeaders(req.headers);
   const ua = req.headers.get("user-agent");
-  return { ip, ua };
+  return { ip: ip === "unknown" ? null : ip, ua };
 }
 
 export async function POST(req: Request, ctx: Ctx) {
+  const rl = consumeRateLimit(
+    "registration.create",
+    clientIpFromHeaders(req.headers),
+    RATE_LIMITS.registrationCreate,
+  );
+  if (!rl.allowed) return rateLimitResponse(rl);
+
   const user = await getAuthUser();
   if (!user) {
     return NextResponse.json({ error: { code: "UNAUTHENTICATED", message: "Debés iniciar sesión." } }, { status: 401 });

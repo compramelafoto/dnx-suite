@@ -1,9 +1,15 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { DNX_AUTH_MESSAGES, verifyUserPassword } from "@repo/auth";
 import { createAdminSessionForUser } from "../lib/auth";
 import { safeNextPath } from "../lib/safe-next-path";
+import {
+  RATE_LIMITS,
+  clientIpFromHeaders,
+  consumeRateLimit,
+} from "../lib/fotorank/security/rate-limit";
 
 export type LoginFormState = { error: string | null };
 
@@ -11,6 +17,12 @@ export async function loginAction(
   _prevState: LoginFormState | undefined,
   formData: FormData,
 ): Promise<LoginFormState> {
+  const h = await headers();
+  const rl = consumeRateLimit("auth.login", clientIpFromHeaders(h), RATE_LIMITS.login);
+  if (!rl.allowed) {
+    return { error: "Demasiados intentos. Probá de nuevo en unos segundos." };
+  }
+
   const email = formData.get("email")?.toString()?.trim().toLowerCase();
   const password = formData.get("password")?.toString() ?? "";
   const next = safeNextPath(formData.get("next")?.toString());
