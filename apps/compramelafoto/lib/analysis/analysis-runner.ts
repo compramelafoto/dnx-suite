@@ -5,6 +5,11 @@ import { getR2ObjectMetadata, readFromR2 } from "@/lib/r2-client";
 import { extractOcrTokensFromImage } from "@/lib/ocr/extract-ocr-tokens";
 import { indexFaces, searchFacesByImage } from "@/lib/faces/rekognition";
 import { processPhotoExifFromBuffer } from "@/lib/photographic-equipment/process-photo-exif";
+import {
+  ANALYSIS_SUSPENDED_BY_AGE_PREFIX,
+  photoCreatedAtCutoff,
+  resolveMaxPhotoAgeDays,
+} from "@/lib/analysis/analysis-age-policy";
 import sharp from "sharp";
 
 const DEFAULT_BATCH_SIZE = 2;
@@ -54,17 +59,29 @@ async function runWithConcurrency<T, R>(
   return results;
 }
 
-async function claimJobsAtomic(now: Date, batchSize: number, albumId?: number) {
-  const albumFilter =
-    typeof albumId === "number" && Number.isFinite(albumId)
-      ? { photo: { albumId, isRemoved: false } }
-      : {};
+async function claimJobsAtomic(
+  now: Date,
+  batchSize: number,
+  albumId?: number,
+  maxPhotoAgeDays?: number | null
+) {
+  const scopedAlbum =
+    typeof albumId === "number" && Number.isFinite(albumId) ? albumId : undefined;
+  // Con albumId (reproceso manual) no aplicamos tope de antigüedad.
+  const ageCutoff =
+    scopedAlbum == null && typeof maxPhotoAgeDays === "number"
+      ? photoCreatedAtCutoff(maxPhotoAgeDays, now)
+      : null;
 
   const candidates = await prisma.photoAnalysisJob.findMany({
     where: {
       status: "PENDING",
       OR: [{ runAfter: null }, { runAfter: { lte: now } }],
-      ...albumFilter,
+      photo: {
+        isRemoved: false,
+        ...(scopedAlbum != null ? { albumId: scopedAlbum } : {}),
+        ...(ageCutoff ? { createdAt: { gte: ageCutoff } } : {}),
+      },
     },
     orderBy: { createdAt: "asc" },
     take: batchSize,
@@ -73,7 +90,7 @@ async function claimJobsAtomic(now: Date, batchSize: number, albumId?: number) {
 
   // Usamos FOR UPDATE SKIP LOCKED para evitar doble toma entre workers concurrentes.
   const locked =
-    typeof albumId === "number" && Number.isFinite(albumId)
+    scopedAlbum != null
       ? await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
           WITH claimed AS (
             SELECT j.id
@@ -81,7 +98,7 @@ async function claimJobsAtomic(now: Date, batchSize: number, albumId?: number) {
             INNER JOIN "Photo" p ON p.id = j."photoId"
             WHERE j.status = 'PENDING'
               AND (j."runAfter" IS NULL OR j."runAfter" <= ${now})
-              AND p."albumId" = ${albumId}
+              AND p."albumId" = ${scopedAlbum}
               AND p."isRemoved" = false
             ORDER BY j."createdAt" ASC
             LIMIT ${batchSize}
@@ -92,21 +109,40 @@ async function claimJobsAtomic(now: Date, batchSize: number, albumId?: number) {
           WHERE id IN (SELECT id FROM claimed)
           RETURNING id, "photoId"
         `
-      : await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
-          WITH claimed AS (
-            SELECT id
-            FROM "PhotoAnalysisJob"
-            WHERE status = 'PENDING'
-              AND ("runAfter" IS NULL OR "runAfter" <= ${now})
-            ORDER BY "createdAt" ASC
-            LIMIT ${batchSize}
-            FOR UPDATE SKIP LOCKED
-          )
-          UPDATE "PhotoAnalysisJob"
-          SET status = 'PROCESSING', "lockedAt" = ${now}
-          WHERE id IN (SELECT id FROM claimed)
-          RETURNING id, "photoId"
-        `;
+      : ageCutoff
+        ? await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
+            WITH claimed AS (
+              SELECT j.id
+              FROM "PhotoAnalysisJob" j
+              INNER JOIN "Photo" p ON p.id = j."photoId"
+              WHERE j.status = 'PENDING'
+                AND (j."runAfter" IS NULL OR j."runAfter" <= ${now})
+                AND p."isRemoved" = false
+                AND p."createdAt" >= ${ageCutoff}
+              ORDER BY j."createdAt" ASC
+              LIMIT ${batchSize}
+              FOR UPDATE OF j SKIP LOCKED
+            )
+            UPDATE "PhotoAnalysisJob"
+            SET status = 'PROCESSING', "lockedAt" = ${now}
+            WHERE id IN (SELECT id FROM claimed)
+            RETURNING id, "photoId"
+          `
+        : await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
+            WITH claimed AS (
+              SELECT id
+              FROM "PhotoAnalysisJob"
+              WHERE status = 'PENDING'
+                AND ("runAfter" IS NULL OR "runAfter" <= ${now})
+              ORDER BY "createdAt" ASC
+              LIMIT ${batchSize}
+              FOR UPDATE SKIP LOCKED
+            )
+            UPDATE "PhotoAnalysisJob"
+            SET status = 'PROCESSING', "lockedAt" = ${now}
+            WHERE id IN (SELECT id FROM claimed)
+            RETURNING id, "photoId"
+          `;
 
   return { jobsFound: candidates.length, locked };
 }
@@ -618,17 +654,24 @@ export async function runAnalysisPipeline(options: RunOptions) {
     typeof options.albumId === "number" && Number.isFinite(options.albumId)
       ? options.albumId
       : undefined;
+  const maxPhotoAgeDays = resolveMaxPhotoAgeDays();
+  const ageCutoff =
+    albumId == null && maxPhotoAgeDays != null
+      ? photoCreatedAtCutoff(maxPhotoAgeDays, now)
+      : null;
 
   const missingPhotos = await prisma.photo.findMany({
     where: {
       analysisJob: null,
       isRemoved: false,
       ...(albumId != null ? { albumId } : {}),
+      ...(ageCutoff ? { createdAt: { gte: ageCutoff } } : {}),
       NOT: {
         OR: [
           { analysisError: { contains: "excluida del procesamiento automático" } },
           { analysisError: { contains: "Error en análisis - excluida del procesamiento automático" } },
           { analysisError: { contains: "Pendiente excluida del procesamiento automático" } },
+          { analysisError: { contains: ANALYSIS_SUSPENDED_BY_AGE_PREFIX } },
         ],
       },
     },
@@ -651,12 +694,18 @@ export async function runAnalysisPipeline(options: RunOptions) {
     });
   }
 
-  const { jobsFound, locked } = await claimJobsAtomic(now, batchSize, albumId);
+  const { jobsFound, locked } = await claimJobsAtomic(
+    now,
+    batchSize,
+    albumId,
+    maxPhotoAgeDays
+  );
   const lockedJobIds = locked.map((j) => j.id);
 
   console.log("[analysis_v2] claim", {
     source: options.source,
     albumId: albumId ?? null,
+    max_photo_age_days: maxPhotoAgeDays,
     jobs_claimed: jobsFound,
     jobs_locked_real: lockedJobIds.length,
     batch_size_config: batchSize,
