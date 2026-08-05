@@ -8,7 +8,10 @@ import type { AuthUser } from "../../auth";
 import type { UserOrganization } from "../organizations";
 
 export const FOTORANK_SA_ACT_AS_ORG_COOKIE = "fotorank_sa_act_as_org_id";
+/** Debe coincidir con `FOTORANK_ACTIVE_ORG_COOKIE` (evitar import circular). */
+const ACTIVE_ORG_COOKIE = "fotorank_active_org_id";
 const ACT_AS_MAX_AGE = 60 * 60 * 8; // 8h
+const ACTIVE_ORG_MAX_AGE = 60 * 60 * 24 * 400;
 
 export function userIsFotorankSuperAdmin(user: {
   globalRole?: string | null;
@@ -83,12 +86,21 @@ export async function setActAsOrganization(params: {
   if (!org) return { ok: false, error: "Organización no encontrada." };
 
   const jar = await cookies();
+  const secure = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
   jar.set(FOTORANK_SA_ACT_AS_ORG_COOKIE, org.id, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
+    secure,
     path: "/",
     maxAge: ACT_AS_MAX_AGE,
+  });
+  // Alinea el selector de Concursos / Jurados con el contexto «Actuar como…».
+  jar.set(ACTIVE_ORG_COOKIE, org.id, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure,
+    path: "/",
+    maxAge: ACTIVE_ORG_MAX_AGE,
   });
 
   await recordPlatformAudit({

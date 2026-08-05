@@ -32,8 +32,17 @@ export default async function ContestResultadosPage({ params, searchParams }: Pa
   const { category: categoryIdParam } = await searchParams;
 
   const user = await requireAuth();
+  const contest = await getFotorankContestById(contestId);
+  if (!contest) notFound();
+
   const orgRes = await resolveActiveOrganizationForUser(user.id);
-  if (!orgRes.ok) {
+  // Super Admin puede abrir el concurso aunque el selector apunte a otra org.
+  const orgMismatch =
+    orgRes.ok &&
+    contest.organizationId !== orgRes.org.id &&
+    user.globalRole !== "SUPER_ADMIN" &&
+    user.role !== "SUPER_ADMIN";
+  if (!orgRes.ok && user.globalRole !== "SUPER_ADMIN" && user.role !== "SUPER_ADMIN") {
     return (
       <PageContainer title="Resultados" description="Ranking por categoría (votos de jurado).">
         <PageInfoRecuadro variant="warning">
@@ -42,9 +51,7 @@ export default async function ContestResultadosPage({ params, searchParams }: Pa
       </PageContainer>
     );
   }
-
-  const contest = await getFotorankContestById(contestId);
-  if (!contest || contest.organizationId !== orgRes.org.id) {
+  if (orgMismatch) {
     notFound();
   }
 

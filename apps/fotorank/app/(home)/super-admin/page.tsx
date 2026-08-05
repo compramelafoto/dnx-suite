@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
-import { startActAsOrganizerAction } from "../../actions/super-admin-context";
+import {
+  openContestAsSuperAdminAction,
+  startActAsOrganizerAction,
+} from "../../actions/super-admin-context";
 import { requireAuth } from "../../lib/auth";
 import {
   getActAsOrganizationId,
@@ -130,19 +133,31 @@ export default async function SuperAdminPage() {
         </p>
         <ul className="space-y-4">
           {contests.map((c) => (
-            <li key={c.id}>
-              <Link
-                href={routes.dashboard.concursos.detalle(c.id)}
-                className="fr-recuadro flex flex-wrap items-center justify-between gap-4 border border-fr-border bg-fr-card transition-colors hover:border-gold/40"
-              >
-                <div>
-                  <p className="font-semibold">{c.title}</p>
-                  <p className="mt-2 text-sm text-fr-muted">
-                    {c.organization.name} · /{c.slug}
-                  </p>
-                </div>
+            <li
+              key={c.id}
+              className="fr-recuadro flex flex-wrap items-center justify-between gap-4 border border-fr-border bg-fr-card"
+            >
+              <div>
+                <p className="font-semibold">{c.title}</p>
+                <p className="mt-2 text-sm text-fr-muted">
+                  {c.organization.name} · /{c.slug}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs text-fr-muted">{c.status}</span>
-              </Link>
+                <form action={openContestAsSuperAdminAction}>
+                  <input type="hidden" name="contestId" value={c.id} />
+                  <button type="submit" className="fr-btn fr-btn-primary px-5 py-3 text-sm">
+                    Abrir como admin
+                  </button>
+                </form>
+                <Link
+                  href={routes.dashboard.concursos.detalle(c.id)}
+                  className="fr-btn fr-btn-secondary px-5 py-3 text-sm"
+                >
+                  Ir directo
+                </Link>
+              </div>
             </li>
           ))}
         </ul>

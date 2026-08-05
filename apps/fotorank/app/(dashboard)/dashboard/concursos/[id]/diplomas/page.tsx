@@ -17,8 +17,10 @@ interface PageProps {
 export default async function ContestDiplomasPage({ params }: PageProps) {
   const { id: contestId } = await params;
   const user = await requireAuth();
+  const isSuperAdmin =
+    user.globalRole === "SUPER_ADMIN" || user.role === "SUPER_ADMIN";
   const orgRes = await resolveActiveOrganizationForUser(user.id);
-  if (!orgRes.ok) {
+  if (!orgRes.ok && !isSuperAdmin) {
     return (
       <PageContainer title="Diplomas" description="Emisión y validación.">
         <p className="text-sm text-fr-muted">{orgRes.error}</p>
@@ -27,15 +29,17 @@ export default async function ContestDiplomasPage({ params }: PageProps) {
   }
 
   const contest = await prisma.fotorankContest.findFirst({
-    where: { id: contestId, organizationId: orgRes.org.id },
-    select: { id: true, title: true, slug: true },
+    where: isSuperAdmin
+      ? { id: contestId }
+      : { id: contestId, organizationId: orgRes.ok ? orgRes.org.id : "__none__" },
+    select: { id: true, title: true, slug: true, organizationId: true },
   });
   if (!contest) notFound();
 
   await ensureDefaultDiplomaTemplateAction(contest.id);
 
   const templates = await prisma.fotorankDiplomaTemplate.findMany({
-    where: { contestId: contest.id, organizationId: orgRes.org.id },
+    where: { contestId: contest.id, organizationId: contest.organizationId },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -111,7 +115,7 @@ export default async function ContestDiplomasPage({ params }: PageProps) {
   const participants = [...participantMap.values()];
 
   const initialIssued = await prisma.fotorankDiplomaIssued.findMany({
-    where: { contestId: contest.id, organizationId: orgRes.org.id },
+    where: { contestId: contest.id, organizationId: contest.organizationId },
     orderBy: { createdAt: "desc" },
     take: 120,
     select: {

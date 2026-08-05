@@ -197,6 +197,35 @@ async function main() {
     },
   });
 
+  // Contacto institucional SFPR — organizador real del concurso.
+  const institutionalOwnerEmail =
+    (process.env.SFEF_ORG_OWNER_EMAIL ?? "sfprosario@gmail.com").trim().toLowerCase();
+  const institutionalOwner = await prisma.user.findUnique({
+    where: { email: institutionalOwnerEmail },
+    select: { id: true, email: true },
+  });
+  if (institutionalOwner) {
+    await prisma.contestOrganizationMember.upsert({
+      where: {
+        organizationId_userId: {
+          organizationId: org.id,
+          userId: institutionalOwner.id,
+        },
+      },
+      update: { status: "ACTIVE", role: "OWNER" },
+      create: {
+        organizationId: org.id,
+        userId: institutionalOwner.id,
+        role: "OWNER",
+        status: "ACTIVE",
+      },
+    });
+  } else {
+    console.warn(
+      `[seed-sfef-prod] usuario institucional no encontrado: ${institutionalOwnerEmail}`,
+    );
+  }
+
   const opens = new Date("2026-08-01T03:00:00.000Z");
   const regCloses = new Date("2026-10-01T03:00:00.000Z");
   const submissionOpens = new Date("2099-01-01T03:00:00.000Z");
