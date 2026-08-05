@@ -3,16 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { resolvePublicPhotoPreviewSrc } from "@/lib/images/public-photo-view-url";
 import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
+import {
+  MIN_TEXT_SEARCH_LENGTH,
+  normalizeSearchText,
+  ocrTokenWhereForQuery,
+} from "@/lib/search/text-query";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function normalizeText(value: string): string {
-  return value
-    .toUpperCase()
-    .trim()
-    .replace(/[\s-]+/g, "");
-}
 
 function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get("x-forwarded-for");
@@ -57,14 +55,15 @@ export async function GET(
   if (!q) {
     return NextResponse.json({ error: "q requerido" }, { status: 400 });
   }
-  const qNorm = normalizeText(q);
-  if (qNorm.length < 2) {
+  const qNorm = normalizeSearchText(q);
+  if (qNorm.length < MIN_TEXT_SEARCH_LENGTH) {
     return NextResponse.json({ error: "q demasiado corto" }, { status: 400 });
   }
 
   const page = Math.max(1, Number(url.searchParams.get("page") || 1));
   const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") || 30)));
   const skip = (page - 1) * limit;
+  const tokenWhere = ocrTokenWhereForQuery(qNorm);
 
   const [items, total] = await Promise.all([
     prisma.photo.findMany({
@@ -76,7 +75,7 @@ export async function GET(
         },
         isRemoved: false,
         analysisStatus: "DONE",
-        ocrTokens: { some: { textNorm: { contains: qNorm } } },
+        ocrTokens: { some: tokenWhere },
         ...photographerFilter,
       },
       select: {
@@ -112,7 +111,7 @@ export async function GET(
         },
         isRemoved: false,
         analysisStatus: "DONE",
-        ocrTokens: { some: { textNorm: { contains: qNorm } } },
+        ocrTokens: { some: tokenWhere },
         ...photographerFilter,
       },
     }),

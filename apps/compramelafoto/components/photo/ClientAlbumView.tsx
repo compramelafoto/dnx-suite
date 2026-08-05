@@ -1709,7 +1709,7 @@ export default function ClientAlbumView({
     .filter((p): p is { id: string; src: string; alt: string; selected: boolean } => Boolean(p));
 
   async function handleSearchText() {
-    if (searchText.trim().length < 3) return;
+    if (searchText.trim().length < 1) return;
     setSearchLoading(true);
     setSearchError(null);
     try {
@@ -2056,12 +2056,12 @@ export default function ClientAlbumView({
                       value={searchText}
                       onChange={(e) => setSearchText(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && searchText.trim().length >= 3 && !searchLoading) {
+                        if (e.key === "Enter" && searchText.trim().length >= 1 && !searchLoading) {
                           handleSearchText();
                           setShowOcrModal(false);
                         }
                       }}
-                      placeholder="Ej: apellido, patente, dorsal..."
+                      placeholder="Ej: 5, 33, apellido, patente, dorsal..."
                       className="w-full border border-[#e5e7eb] rounded-md pl-9 pr-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-offset-0"
                       onFocus={(e) => {
                         e.target.style.borderColor = accentColor;
@@ -2083,7 +2083,7 @@ export default function ClientAlbumView({
                       handleSearchText();
                       setShowOcrModal(false);
                     }}
-                    disabled={searchLoading || searchText.trim().length < 3}
+                    disabled={searchLoading || searchText.trim().length < 1}
                     className="px-6 py-3"
                   >
                     {searchLoading ? "Buscando..." : "Buscar"}
