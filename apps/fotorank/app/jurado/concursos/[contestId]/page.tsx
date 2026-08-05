@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireJudgeAuth } from "../../../lib/judge-auth";
-import { JuryError, listAnonymousEntriesForJuror } from "../../../lib/fotorank/jury";
+import {
+  JuryError,
+  hasAcceptedJuryTerms,
+  listAnonymousEntriesForJuror,
+} from "../../../lib/fotorank/jury";
+import { JuryTermsGate } from "./JuryTermsGate";
 
 type Props = { params: Promise<{ contestId: string }> };
 
@@ -23,6 +28,11 @@ export default async function JuryContestEntriesPage({ params }: Props) {
     throw err;
   }
 
+  const termsAccepted = await hasAcceptedJuryTerms({
+    judgeAccountId: judge.id,
+    contestId,
+  });
+
   return (
     <div className="min-h-screen bg-fr-bg px-4 py-10 md:px-8">
       <div className="mx-auto max-w-5xl space-y-10">
@@ -33,7 +43,8 @@ export default async function JuryContestEntriesPage({ params }: Props) {
               {data.contestTitle}
             </h1>
             <p className="mt-4 max-w-2xl text-sm text-fr-muted">
-              Solo obras confirmadas de tus categorías. No se muestra identidad del participante.
+              Solo obras congeladas / asignadas de tus categorías. No se muestra identidad del
+              participante.
             </p>
             {data.judgingEndsAt ? (
               <p className="mt-2 text-xs text-fr-muted">Cierre de evaluación: {data.judgingEndsAt}</p>
@@ -44,37 +55,47 @@ export default async function JuryContestEntriesPage({ params }: Props) {
           </Link>
         </div>
 
-        <ul className="grid gap-8 md:grid-cols-2" data-testid="jury-entries-list">
-          {data.entries.map((e) => (
-            <li key={e.entryId} className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
-              {e.previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={e.previewUrl}
-                  alt={`Preview ${e.anonymousCode}`}
-                  className="max-h-56 w-full rounded-xl object-contain"
-                />
-              ) : null}
-              <div>
-                <p className="text-lg font-semibold text-gold">{e.anonymousCode}</p>
-                <p className="mt-2 text-sm text-fr-muted">Categoría: {e.categoryName}</p>
-                <p className="mt-1 text-xs text-fr-muted">
-                  Técnico: {e.technicalSummaryStatus} · Advertencias: {e.warningCount}
-                </p>
-                <p className="mt-1 text-xs text-fr-muted">Evaluación: Pendiente (aún no habilitada)</p>
-              </div>
-              <Link
-                href={`/jurado/concursos/${contestId}/obras/${e.entryId}`}
-                className="fr-btn fr-btn-primary inline-flex min-h-11 px-5 py-3 text-sm"
-              >
-                Ver detalle
-              </Link>
-            </li>
-          ))}
-          {data.entries.length === 0 ? (
-            <li className="text-fr-muted">No hay obras confirmadas disponibles en tus categorías.</li>
-          ) : null}
-        </ul>
+        <JuryTermsGate contestId={contestId} initiallyAccepted={termsAccepted} />
+
+        {!termsAccepted ? (
+          <p className="text-sm text-amber-200" data-testid="jury-entries-blocked-terms">
+            Debés aceptar los términos de jurado antes de ver u evaluar obras.
+          </p>
+        ) : (
+          <ul className="grid gap-8 md:grid-cols-2" data-testid="jury-entries-list">
+            {data.entries.map((e) => (
+              <li key={e.entryId} className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
+                {e.previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={e.previewUrl}
+                    alt={`Preview ${e.anonymousCode}`}
+                    className="max-h-56 w-full rounded-xl object-contain"
+                  />
+                ) : null}
+                <div>
+                  <p className="text-lg font-semibold text-gold">{e.anonymousCode}</p>
+                  <p className="mt-2 text-sm text-fr-muted">Categoría: {e.categoryName}</p>
+                  <p className="mt-1 text-xs text-fr-muted">
+                    Técnico: {e.technicalSummaryStatus} · Advertencias: {e.warningCount}
+                  </p>
+                  <p className="mt-1 text-xs text-fr-muted">
+                    Evaluación: abrir detalle para draft / submit
+                  </p>
+                </div>
+                <Link
+                  href={`/jurado/concursos/${contestId}/obras/${e.entryId}`}
+                  className="fr-btn fr-btn-primary inline-flex min-h-11 px-5 py-3 text-sm"
+                >
+                  Ver detalle
+                </Link>
+              </li>
+            ))}
+            {data.entries.length === 0 ? (
+              <li className="text-fr-muted">No hay obras confirmadas disponibles en tus categorías.</li>
+            ) : null}
+          </ul>
+        )}
       </div>
     </div>
   );

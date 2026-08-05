@@ -105,9 +105,13 @@ assert.ok((upload.maxFileSizeBytes ?? 0) > 0);
 assert.equal(buildEditingPolicy(config).photomontage, "PROHIBITED");
 assert.equal(buildRightsPolicy(config).licenseAppliesToAllWorks, true);
 
-// categorías SF
+// categorías SF + participación abierta
+assert.equal(config.participation.residencyRequired, false);
 assert.equal(config.categories.length, 4);
+assert.ok(config.categories.some((c) => c.slug === "fotografo-profesional" && c.deviceType === "CAMERA"));
+assert.ok(config.categories.some((c) => c.slug === "fotografo-amateur" && c.deviceType === "OPEN"));
 assert.ok(config.categories.some((c) => c.slug === "reportero-grafico" && c.membershipRestriction === "ARGRA"));
+assert.ok(config.categories.some((c) => c.slug === "fotografia-aerea" && c.deviceType === "DRONE"));
 
 console.log(
   JSON.stringify(

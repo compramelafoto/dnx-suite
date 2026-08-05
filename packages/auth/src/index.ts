@@ -57,6 +57,14 @@ export {
 } from "./bootstrap-director";
 
 export {
+  grantGlobalRole,
+  ensureGlobalSuperAdmin,
+  isGlobalSuperAdmin,
+  type GlobalRoleName,
+  type GrantGlobalRoleResult,
+} from "./global-role";
+
+export {
   DNX_GOOGLE_OAUTH_COOKIE,
   DNX_GOOGLE_OAUTH_COOKIE_MAX_AGE,
   getGoogleOAuthCredentials,

@@ -20,6 +20,9 @@ export type UploadPolicy = {
   allowEditedFiles: boolean;
   maxEntriesPerRegistration: number;
   allowReplaceUntilSubmissionClose: boolean;
+  /** Ventana de captura (DateTimeOriginal), no de carga. */
+  captureWindowStartsAt?: Date | null;
+  captureWindowEndsExclusiveAt?: Date | null;
   /** Si true, el concurso no debe publicarse en producción sin revisión. */
   draftConfig: boolean;
   notes?: string;
@@ -51,6 +54,8 @@ export function parseUploadPolicy(raw: unknown): UploadPolicy {
   }
   const o = raw as Partial<UploadPolicy>;
   const base = { ...SANTA_FE_EN_FOCO_UPLOAD_POLICY_DRAFT };
+  const startsRaw = (o as { captureWindowStartsAt?: unknown }).captureWindowStartsAt;
+  const endsRaw = (o as { captureWindowEndsExclusiveAt?: unknown }).captureWindowEndsExclusiveAt;
   return {
     ...base,
     ...o,
@@ -60,6 +65,10 @@ export function parseUploadPolicy(raw: unknown): UploadPolicy {
     allowedExtensions: Array.isArray(o.allowedExtensions)
       ? o.allowedExtensions.map((e) => String(e).toLowerCase().replace(/^\./, ""))
       : base.allowedExtensions,
+    captureWindowStartsAt: startsRaw ? new Date(String(startsRaw)) : (base.captureWindowStartsAt ?? null),
+    captureWindowEndsExclusiveAt: endsRaw
+      ? new Date(String(endsRaw))
+      : (base.captureWindowEndsExclusiveAt ?? null),
     draftConfig: o.draftConfig ?? base.draftConfig,
   };
 }

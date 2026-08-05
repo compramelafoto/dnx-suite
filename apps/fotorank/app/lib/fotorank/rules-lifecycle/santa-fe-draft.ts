@@ -17,7 +17,11 @@ Organizan el concurso:
 Difundir el deporte santafesino desde una perspectiva documental, cultural, social, territorial o humana. Las obras no deben referirse exclusivamente a los Juegos Suramericanos.
 
 ## 4. Participantes
-Pueden participar personas físicas residentes en la Provincia de Santa Fe, en forma individual.
+**BORRADOR — LEGAL REVIEW REQUIRED — NO PUBLICAR**
+
+La participación es **abierta**. No se exige residencia, domicilio ni nacimiento en la Provincia de Santa Fe. Pueden participar personas físicas en forma individual, sin importar provincia, país o nacionalidad.
+
+El criterio geográfico se aplica a la **fotografía**, no al domicilio del participante.
 
 ## 5. Menores
 La edad mínima es de **16 años**. Los participantes de **16 y 17 años** requieren autorización expresa de padre, madre o tutor legal, que debe aceptarse antes de confirmar la inscripción.
@@ -25,25 +29,25 @@ La edad mínima es de **16 años**. Los participantes de **16 y 17 años** requi
 ## 6. Gratuidad
 La participación es **gratuita**. No se cobra precio de inscripción ni fee de plataforma en esta edición.
 
-## 7. Territorio
-Las fotografías deben haberse tomado dentro de la Provincia de Santa Fe.
+## 7. Territorio de la fotografía
+Las fotografías deben haberse tomado dentro de la Provincia de Santa Fe. El participante declara localidad/paraje y confirma el territorio. El GPS es opcional, no se publica y no genera rechazo automático por ausencia; inconsistencias pueden derivar a revisión manual.
 
 ## 8. Cronograma
 - Apertura de inscripción y carga: **1 de agosto de 2026** (00:00, America/Argentina/Cordoba).
 - Cierre de inscripción y carga: **cierre exclusivo 1 de octubre de 2026** (00:00), equivalente al **30 de septiembre de 2026 inclusive**.
-- Ventana de captura válida: desde el 1 de agosto hasta el 30 de septiembre de 2026 inclusive.
+- Ventana de captura válida: desde el 1 de agosto hasta el 30 de septiembre de 2026 inclusive (fuente principal: DateTimeOriginal).
 - Se permite el reemplazo de la fotografía hasta el cierre de carga.
 
 ## 9. Categorías
-1. Profesional.
-2. Reportero Gráfico (reservado a miembros registrados de **ARGRA**).
-3. Amateur.
-4. Fotografía Aérea — Dron.
+1. **Fotógrafo Profesional** — cámara fotográfica; celular no permitido.
+2. **Fotógrafo Amateur** — celular o cámara.
+3. **Reportero Gráfico** — número de socio **ARGRA** obligatorio (verificación manual; PENDING_INSTITUTIONAL_APPROVAL; no afirmar asociación oficial).
+4. **Fotografía Aérea** — realizada con dron (LEGAL REVIEW REQUIRED).
 
-Cada participante elige **una sola categoría**.
+Cada participante elige **una sola categoría**. Una misma fotografía no compite en más de una categoría.
 
 ## 10. Cantidad de obras
-Se admite **una sola fotografía** por inscripción.
+Se admite **una sola fotografía** por inscripción / participante.
 
 ## 11. Temática
 Fotografías vinculadas al deporte santafesino, con mirada documental, cultural, social, territorial o humana.

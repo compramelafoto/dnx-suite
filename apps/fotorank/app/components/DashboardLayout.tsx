@@ -35,12 +35,18 @@ interface DashboardLayoutProps {
 
 const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
+    title: "Mi actividad",
+    items: [
+      { label: "Hub personal", href: "/mi-actividad", icon: "dashboard" },
+      { label: "Participaciones", href: "/participaciones", icon: "gallery" },
+    ],
+  },
+  {
     title: "Concursos",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
       { label: "Concursos", href: "/concursos", icon: "camera" },
       { label: "Categorías", href: "/categorias", icon: "album" },
-      { label: "Participaciones", href: "/participaciones", icon: "gallery" },
     ],
   },
   {

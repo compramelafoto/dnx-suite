@@ -47,9 +47,15 @@ export default async function ContestInscripcionesAdminPage({ params }: Props) {
       title="Inscripciones y obras"
       description="Panel operativo mínimo: participantes, estado técnico y checklist."
     >
-      <div className="mb-8">
+      <div className="mb-8 flex flex-wrap gap-4">
         <Link href={`/dashboard/concursos/${contestId}`} className="text-sm text-gold hover:text-gold-hover">
           ← Volver al concurso
+        </Link>
+        <Link
+          href={`/dashboard/concursos/${contestId}/admision`}
+          className="text-sm text-fr-muted hover:text-gold"
+        >
+          Cola de admisión técnica
         </Link>
       </div>
 

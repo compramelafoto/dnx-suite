@@ -53,13 +53,30 @@ export async function openScoringSessionAction(contestId: string, formData: Form
 
 export async function closeScoringSessionAction(contestId: string, formData: FormData) {
   const user = await requireOrganizer(contestId);
-  await closeScoringSession({
-    contestId,
-    sessionId: String(formData.get("sessionId") ?? ""),
-    actorUserId: user.id,
-    force: formData.get("force") === "1",
-    reason: String(formData.get("reason") ?? "") || null,
-  });
+  const { JuryError } = await import("./errors");
+  const { redirect } = await import("next/navigation");
+  let closeError: string | null = null;
+  try {
+    await closeScoringSession({
+      contestId,
+      sessionId: String(formData.get("sessionId") ?? ""),
+      actorUserId: user.id,
+      force: formData.get("force") === "1",
+      reason: String(formData.get("reason") ?? "") || null,
+    });
+  } catch (err) {
+    // redirect() lanza; no capturar NEXT_REDIRECT dentro del mismo catch que JuryError.
+    if (err instanceof JuryError) {
+      closeError = err.code;
+    } else {
+      throw err;
+    }
+  }
+  if (closeError) {
+    redirect(
+      `/dashboard/concursos/${contestId}/jurado?closeError=${encodeURIComponent(closeError)}`,
+    );
+  }
   revalidatePath(`/dashboard/concursos/${contestId}/jurado`);
 }
 

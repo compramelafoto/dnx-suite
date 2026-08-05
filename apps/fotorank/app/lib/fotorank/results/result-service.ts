@@ -1,4 +1,3 @@
-// @ts-nocheck — P0 jury/scoring models not in deployed Prisma client yet
 import { randomBytes } from "node:crypto";
 import { prisma } from "@repo/db";
 import { ResultError } from "./errors";
@@ -62,14 +61,28 @@ export async function ensureDraftResultRuleSet(input: {
   });
   if (existing) return existing;
 
+  const contest = await prisma.fotorankContest.findUnique({
+    where: { id: input.contestId },
+    select: { slug: true },
+  });
+  const isSantaFe = contest?.slug === "santa-fe-en-foco";
+  const name = isSantaFe
+    ? "Santa Fe en Foco — ranking privado (borrador legal)"
+    : "Reglas de resultados";
+  const maxVersion = await prisma.fotorankResultRuleSet.aggregate({
+    where: { contestId: input.contestId, name },
+    _max: { version: true },
+  });
+  const version = (maxVersion._max.version ?? 0) + 1;
+
   const created = await prisma.fotorankResultRuleSet.create({
     data: {
       id: newId(),
       contestId: input.contestId,
       admissionBatchId: session.admissionBatchId,
       scoringSessionId: session.id,
-      version: 1,
-      name: "Reglas de resultados",
+      version,
+      name,
       status: "DRAFT",
       aggregationMethod: "WEIGHTED_AVERAGE",
       tieBreakStrategy: "PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION",
@@ -77,6 +90,7 @@ export async function ensureDraftResultRuleSet(input: {
       discardHighestScore: false,
       discardLowestScore: false,
       rankingEnabled: false,
+      priorityCriterionKey: isSantaFe ? "narrative_impact" : null,
       createdByUserId: input.actorUserId,
     },
   });
@@ -86,7 +100,7 @@ export async function ensureDraftResultRuleSet(input: {
     eventType: "RESULT_RULESET_CREATED",
     entityType: "FotorankResultRuleSet",
     entityId: created.id,
-    payload: { version: 1, rankingEnabled: false },
+    payload: { version, rankingEnabled: false },
   });
   return created;
 }
@@ -714,7 +728,7 @@ export async function exportAdminResultsCsv(
   const entries = await prisma.fotorankResultEntry.findMany({
     where: { resultBatchId: batchId, resultBatch: { contestId } },
     include: {
-      snapshot: {
+      juryEntrySnapshot: {
         include: {
           entry: {
             select: {
@@ -743,9 +757,11 @@ export async function exportAdminResultsCsv(
   const lines = entries.map((e) =>
     [
       e.anonymousCode,
-      resolveIdentity ? (e.snapshot.entry.authorUserId ?? "") : "",
-      resolveIdentity ? (e.snapshot.entry.registrationId ?? "") : "",
-      resolveIdentity ? (e.snapshot.entry.clickatonParticipantNumber ?? "") : "",
+      resolveIdentity ? (e.juryEntrySnapshot.entry.authorUserId ?? "") : "",
+      resolveIdentity ? (e.juryEntrySnapshot.entry.registrationId ?? "") : "",
+      resolveIdentity
+        ? (e.juryEntrySnapshot.entry.clickatonParticipantNumber ?? "")
+        : "",
       e.categoryId,
       e.promptExternalId ?? "",
       e.aggregateScore ?? "",

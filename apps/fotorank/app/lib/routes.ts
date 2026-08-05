@@ -13,6 +13,12 @@ export const routes = {
   participaciones: {
     index: () => "/participaciones",
   },
+  miActividad: {
+    index: () => "/mi-actividad",
+  },
+  superAdmin: {
+    index: () => "/super-admin",
+  },
   dashboard: {
     index: () => "/dashboard",
     concursos: {

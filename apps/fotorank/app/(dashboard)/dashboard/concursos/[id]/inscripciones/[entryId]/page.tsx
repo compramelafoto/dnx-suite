@@ -3,9 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "../../../../../../lib/auth";
 import { EntryError, listContestEntriesForOrganizer } from "../../../../../../lib/fotorank/entries";
+import { redactArgraForLog } from "../../../../../../lib/fotorank/eligibility";
 import { getContestEntryStorage } from "../../../../../../lib/fotorank/storage/private-local-storage";
 import { PageContainer } from "../../../../../../components/PageContainer";
 import { ManualReviewForm } from "./ManualReviewForm";
+import { AdmissionActionsForm } from "./AdmissionActionsForm";
 
 type Props = { params: Promise<{ id: string; entryId: string }> };
 
@@ -41,6 +43,22 @@ export default async function ContestEntryDetailAdminPage({ params }: Props) {
   });
   if (!entry) notFound();
 
+  const eligibilityMeta =
+    entry.metadataJson && typeof entry.metadataJson === "object" && !Array.isArray(entry.metadataJson)
+      ? ((entry.metadataJson as { eligibility?: Record<string, unknown> }).eligibility ?? null)
+      : null;
+  const registrationAnswersJson = entry.registration?.answersJson ?? null;
+  const answers =
+    registrationAnswersJson &&
+    typeof registrationAnswersJson === "object" &&
+    !Array.isArray(registrationAnswersJson)
+      ? (registrationAnswersJson as {
+          argraMembershipNumber?: string;
+          argraVerificationStatus?: string;
+        })
+      : null;
+  const argraRedacted = redactArgraForLog(answers?.argraMembershipNumber ?? null);
+
   const storage = getContestEntryStorage();
   const thumb = entry.assets.find((a) => a.isActive && a.kind === "THUMBNAIL");
   const previewUrl = thumb ? await storage.getSignedUrl(thumb.storageKey, "read", 600) : null;
@@ -52,12 +70,18 @@ export default async function ContestEntryDetailAdminPage({ params }: Props) {
       title={`Obra ${entry.entryNumber ?? entry.id.slice(0, 8)}`}
       description="Detalle técnico, checklist, versiones y revisión manual."
     >
-      <div className="mb-8">
+      <div className="mb-8 flex flex-wrap gap-4">
         <Link
           href={`/dashboard/concursos/${contestId}/inscripciones`}
           className="text-sm text-gold hover:text-gold-hover"
         >
           ← Volver a inscripciones
+        </Link>
+        <Link
+          href={`/dashboard/concursos/${contestId}/admision`}
+          className="text-sm text-fr-muted hover:text-gold"
+        >
+          Cola de admisión
         </Link>
       </div>
 
@@ -71,7 +95,69 @@ export default async function ContestEntryDetailAdminPage({ params }: Props) {
               Categoría: {entry.category.name} · Estado obra: {entry.status} · Técnico:{" "}
               {entry.technicalSummaryStatus}
             </p>
+            <p className="text-sm text-fr-muted" data-testid="admission-status-line">
+              Admisión: {entry.admissionStatus ?? "—"} · Manual: {entry.manualReviewStatus}
+            </p>
           </section>
+
+          {eligibilityMeta || argraRedacted ? (
+            <section
+              className="fr-recuadro border border-fr-border bg-fr-card space-y-4"
+              data-testid="admin-eligibility"
+            >
+              <h2 className="text-lg font-semibold">Elegibilidad</h2>
+              <dl className="grid gap-4 text-sm md:grid-cols-2">
+                <div>
+                  <dt className="text-fr-muted">Dispositivo declarado</dt>
+                  <dd className="mt-2 text-fr-primary">
+                    {String(eligibilityMeta?.declaredDeviceKind ?? "—")}
+                    {eligibilityMeta?.declaredDeviceMake || eligibilityMeta?.declaredDeviceModel
+                      ? ` · ${String(eligibilityMeta?.declaredDeviceMake ?? "")} ${String(eligibilityMeta?.declaredDeviceModel ?? "")}`.trim()
+                      : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-fr-muted">Estado dispositivo</dt>
+                  <dd className="mt-2 text-fr-primary">
+                    {String(eligibilityMeta?.deviceEligibilityStatus ?? "—")}
+                    {eligibilityMeta?.deviceReasonCode
+                      ? ` (${String(eligibilityMeta.deviceReasonCode)})`
+                      : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-fr-muted">Localidad / territorio</dt>
+                  <dd className="mt-2 text-fr-primary">
+                    {String(eligibilityMeta?.captureLocality ?? "—")}
+                    {eligibilityMeta?.captureDepartment
+                      ? ` · ${String(eligibilityMeta.captureDepartment)}`
+                      : ""}
+                    <span className="mt-1 block text-fr-muted">
+                      {String(eligibilityMeta?.territoryStatus ?? "—")} · GPS presente:{" "}
+                      {eligibilityMeta?.gpsPresent === true ? "sí" : "no"}
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-fr-muted">Período de captura</dt>
+                  <dd className="mt-2 text-fr-primary">
+                    {String(eligibilityMeta?.captureWindowStatus ?? "—")}
+                  </dd>
+                </div>
+                {argraRedacted || answers?.argraVerificationStatus ? (
+                  <div>
+                    <dt className="text-fr-muted">ARGRA (restringido)</dt>
+                    <dd className="mt-2 text-fr-primary">
+                      {argraRedacted ?? "—"} · {answers?.argraVerificationStatus ?? "NOT_REQUIRED"}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+              <p className="text-xs text-fr-muted">
+                Coordenadas GPS exactas y número ARGRA completo no se muestran en listados públicos ni logs.
+              </p>
+            </section>
+          ) : null}
 
           {previewUrl ? (
             <section className="fr-recuadro border border-fr-border bg-fr-card">
@@ -127,7 +213,18 @@ export default async function ContestEntryDetailAdminPage({ params }: Props) {
 
         <aside className="space-y-8">
           <section className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
-            <h2 className="text-lg font-semibold">Revisión manual</h2>
+            <h2 className="text-lg font-semibold">Admisión operativa</h2>
+            <p className="text-xs text-fr-muted">
+              Toda acción valida permisos server-side, registra operador, estados y reason code.
+            </p>
+            <AdmissionActionsForm
+              contestId={contestId}
+              entryId={entry.id}
+              categorySlug={entry.category.slug}
+            />
+          </section>
+          <section className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
+            <h2 className="text-lg font-semibold">Revisión manual (legacy)</h2>
             <ManualReviewForm contestId={contestId} entryId={entry.id} />
             <ul className="mt-6 space-y-3 text-xs text-fr-muted">
               {entry.reviews.map((r) => (

@@ -82,14 +82,63 @@ export async function enqueueTransactionalEmail(msg: OutboxMessage): Promise<{ q
     }
   }
 
-  // Provider real ausente → marcar como queued (mock).
-  if (!process.env.RESEND_API_KEY && !process.env.FOTORANK_SMTP_URL) {
+  // Provider real ausente → queued (fallback pantalla/admin). No fallar inscripción.
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey && !process.env.FOTORANK_SMTP_URL) {
     return { queued: true, id };
   }
 
-  // Hook futuro: enviar y marcar SENT/FAILED sin lanzar al caller.
   try {
-    // placeholder — no enviar en P0-08 sin provider cableado
+    if (apiKey) {
+      const to =
+        msg.toEmail?.trim() ||
+        (msg.toUserId
+          ? (
+              await prisma.user.findUnique({
+                where: { id: msg.toUserId },
+                select: { email: true },
+              })
+            )?.email
+          : null);
+      if (!to) {
+        row.status = "FAILED";
+        return { queued: true, id };
+      }
+      const from =
+        process.env.EMAIL_FROM?.trim() ||
+        process.env.RESEND_FROM?.trim() ||
+        process.env.FOTORANK_EMAIL_FROM?.trim() ||
+        "FotoRank <noreply@fotorank.com>";
+      const tpl = TRANSACTIONAL_EMAIL_TEMPLATES[msg.kind];
+      let subject = tpl.subject;
+      const bodyLines: string[] = [`Evento: ${msg.kind}`];
+      for (const [k, v] of Object.entries(msg.payload)) {
+        if (v == null) continue;
+        if (/argra|password|token|secret|gps/i.test(k)) continue;
+        const s = String(v);
+        subject = subject.split(`{{${k}}}`).join(s);
+        bodyLines.push(`${k}: ${s}`);
+      }
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: [to],
+          subject,
+          text: bodyLines.join("\n"),
+        }),
+      });
+      if (!res.ok) {
+        row.status = "FAILED";
+        return { queued: true, id };
+      }
+      row.status = "SENT";
+      return { queued: true, id };
+    }
     return { queued: true, id };
   } catch {
     row.status = "FAILED";

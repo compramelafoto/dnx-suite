@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "../../../../../../lib/auth";
 import { getContestEntryStorage } from "../../../../../../lib/fotorank/storage/private-local-storage";
 import { getMyEntry } from "../../../../../../lib/fotorank/entries";
+import { toPublicParticipantAdmissionView } from "../../../../../../lib/fotorank/admission";
+import type { AdmissionOpsMetadata } from "../../../../../../lib/fotorank/admission";
 
 type Ctx = { params: Promise<{ contestId: string }> };
 
@@ -23,6 +25,19 @@ export async function GET(_req: Request, ctx: Ctx) {
     previewUrl = await storage.getSignedUrl(thumb.storageKey, "read", 600);
   }
 
+  const meta =
+    entry.metadataJson && typeof entry.metadataJson === "object" && !Array.isArray(entry.metadataJson)
+      ? (entry.metadataJson as { admissionOps?: AdmissionOpsMetadata })
+      : {};
+  const admissionPublic = toPublicParticipantAdmissionView({
+    status: entry.status,
+    technicalSummaryStatus: entry.technicalSummaryStatus,
+    manualReviewStatus: entry.manualReviewStatus,
+    admissionStatus: entry.admissionStatus,
+    withdrawnAt: entry.withdrawnAt,
+    admissionOps: meta.admissionOps ?? null,
+  });
+
   return NextResponse.json({
     ok: true,
     entry: {
@@ -30,6 +45,10 @@ export async function GET(_req: Request, ctx: Ctx) {
       status: entry.status,
       entryNumber: entry.entryNumber,
       technicalSummaryStatus: entry.technicalSummaryStatus,
+      manualReviewStatus: entry.manualReviewStatus,
+      admissionStatus: entry.admissionStatus,
+      admissionPublic,
+      publicRejectionReason: entry.publicRejectionReason,
       technicalSummary: entry.technicalSummaryJson,
       submittedAt: entry.submittedAt?.toISOString() ?? null,
       confirmedAt: entry.confirmedAt?.toISOString() ?? null,

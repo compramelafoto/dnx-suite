@@ -201,9 +201,21 @@ export function InvitationsPageClient({
       ) : null}
 
       {pendingUrl ? (
-        <Card>
+        <Card data-testid="invitation-link-panel">
           <p style={{ margin: 0, fontSize: "0.9rem", color: theme.text.secondary }}>
-            Último enlace generado en esta sesión (el token no se muestra solo): podés copiarlo de nuevo para pegarlo en tu proveedor de email.
+            Último enlace generado en esta sesión (el token no se lista completo en tablas):
+            copiálo por un canal seguro. No enviamos email real si el proveedor está inactivo.
+          </p>
+          <p
+            data-testid="invitation-registration-url"
+            style={{
+              marginTop: spacing[3],
+              fontSize: "0.8rem",
+              wordBreak: "break-all",
+              color: theme.text.primary,
+            }}
+          >
+            {pendingUrl}
           </p>
           <div style={{ marginTop: spacing[3], display: "flex", flexWrap: "wrap", gap: spacing[2] }}>
             <Button

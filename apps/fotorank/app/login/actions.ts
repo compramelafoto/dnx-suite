@@ -2,7 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { DNX_AUTH_MESSAGES, verifyUserPassword } from "@repo/auth";
+import { prisma } from "@repo/db";
 import { createAdminSessionForUser } from "../lib/auth";
+import { resolvePostLoginPathForUser } from "../lib/fotorank/access/home-capabilities";
 import { safeNextPath } from "../lib/safe-next-path";
 
 export type LoginFormState = { error: string | null };
@@ -39,5 +41,16 @@ export async function loginAction(
     return { error: "No se pudo guardar la sesión." };
   }
 
-  redirect(next ?? "/dashboard");
+  const profile = await prisma.user.findUnique({
+    where: { id: verified.user.id },
+    select: { email: true, globalRole: true },
+  });
+
+  const dest = await resolvePostLoginPathForUser({
+    userId: verified.user.id,
+    email: profile?.email ?? email,
+    globalRole: profile?.globalRole ?? null,
+    next,
+  });
+  redirect(dest);
 }

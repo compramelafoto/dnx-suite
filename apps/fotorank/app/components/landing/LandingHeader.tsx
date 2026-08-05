@@ -5,7 +5,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { LayoutDashboard, LogIn, LogOut } from "lucide-react";
 import { FullscreenMenu, getLandingMenuLinks } from "./FullscreenMenu";
-import { LoginChoiceModal } from "./LoginChoiceModal";
 import { landingSignOutAction } from "../../actions/landing-session";
 import {
   AppHeaderFlexZones,
@@ -15,7 +14,7 @@ import {
   dashboardWordmarkLogoClassName,
 } from "../app-header";
 
-/** Iconos circulares dorados (outline): panel, sesión — alineado a `appShellHeader.circularAction` y `PublicMarketingHeader`. */
+/** Iconos circulares dorados (outline): panel, sesión — alineado a `appShellHeader.circularAction`. */
 const landingHeaderIconBtnClass =
   "flex size-11 shrink-0 items-center justify-center rounded-full text-[#D4AF37] transition-colors hover:bg-[#D4AF37]/10 hover:text-[#e5c04a] focus:outline-none focus-visible:ring-2 focus-visible:ring-gold";
 
@@ -26,22 +25,10 @@ export type LandingHeaderProps = {
 
 export function LandingHeader({ hasAdminSession, hasJudgeSession }: LandingHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
 
   const hasAnySession = hasAdminSession || hasJudgeSession;
-  /** Panel por tipo de sesión: organizador → app interna; solo jurado → panel jurado. */
-  const panelHref = hasAdminSession ? "/dashboard" : "/jurado/panel";
-
-  const openLoginModal = () => setLoginModalOpen(true);
-
-  const handleSessionIconClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (e.shiftKey) {
-      e.preventDefault();
-      window.location.assign("/login");
-      return;
-    }
-    openLoginModal();
-  };
+  /** Hub personal si hay sesión User; solo jurado → panel jurado. */
+  const panelHref = hasAdminSession ? "/mi-actividad" : "/jurado/panel";
 
   return (
     <>
@@ -82,15 +69,14 @@ export function LandingHeader({ hasAdminSession, hasJudgeSession }: LandingHeade
                   </form>
                 </>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleSessionIconClick}
+                <Link
+                  href="/login"
                   className={landingHeaderIconBtnClass}
                   aria-label="Iniciar sesión"
-                  title="Iniciar sesión (Mayús+clic: acceso administrador)"
+                  title="Iniciar sesión"
                 >
                   <LogIn className="size-6" strokeWidth={2} aria-hidden />
-                </button>
+                </Link>
               )}
               <HeaderMenuToggle onClick={() => setMenuOpen(true)} />
             </HeaderActions>
@@ -98,13 +84,10 @@ export function LandingHeader({ hasAdminSession, hasJudgeSession }: LandingHeade
         />
       </HeaderContainer>
 
-      <LoginChoiceModal isOpen={loginModalOpen} onClose={() => setLoginModalOpen(false)} />
-
       <FullscreenMenu
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
         links={getLandingMenuLinks(hasAnySession)}
-        onRequestLoginModal={hasAnySession ? undefined : openLoginModal}
       />
     </>
   );

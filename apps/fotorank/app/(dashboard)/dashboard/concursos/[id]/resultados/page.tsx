@@ -1,4 +1,3 @@
-// @ts-nocheck — P0 jury/scoring models not in deployed Prisma client yet
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
@@ -14,9 +13,12 @@ import {
   reviewResultBatchAction,
 } from "../../../../../lib/fotorank/results/result-actions";
 import { exportBlindResultsCsv } from "../../../../../lib/fotorank/results/result-service";
+import { evaluateResultPublicationReadiness } from "../../../../../lib/fotorank/results/publication-readiness";
+import { ensurePublicationMeta } from "../../../../../lib/fotorank/results/publication-service";
 import { PageContainer } from "../../../../../components/PageContainer";
 import { PageInfoRecuadro } from "../../../../../components/ui/PageInfoRecuadro";
 import { routes } from "../../../../../lib/routes";
+import { PublicationGatesPanel } from "./PublicationGatesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +75,17 @@ export default async function ContestResultadosPage({ params, searchParams }: Pa
   const blindCsv =
     resultBatch != null ? await exportBlindResultsCsv(contestId, resultBatch.id) : null;
 
+  if (resultBatch) {
+    await ensurePublicationMeta({
+      contestId,
+      batchId: resultBatch.id,
+      actorUserId: user.id,
+    });
+  }
+  const readiness = resultBatch
+    ? await evaluateResultPublicationReadiness({ contestId, batchId: resultBatch.id })
+    : null;
+
   const categories = contest.categories.filter((c) => c.status === "ACTIVE" || !c.status);
   const activeCategoryId =
     categoryIdParam && categories.some((c) => c.id === categoryIdParam)
@@ -96,6 +109,14 @@ export default async function ContestResultadosPage({ params, searchParams }: Pa
           Panel jurado
         </Link>
       </div>
+
+      {resultBatch && readiness ? (
+        <PublicationGatesPanel
+          contestId={contestId}
+          batchId={resultBatch.id}
+          readiness={readiness}
+        />
+      ) : null}
 
       <section className="fr-recuadro mb-12 space-y-4 border border-fr-border bg-fr-card">
         <h2 className="text-lg font-semibold text-fr-primary">Ranking Etapa 15 (privado)</h2>

@@ -43,6 +43,15 @@ export default async function ContestInscriptionPage({ params }: Props) {
   }
 
   const existing = await getMyContestRegistration(contest.id, user.id);
+  const now = Date.now();
+  const uploadOpens = contest.submissionOpensAt?.getTime() ?? null;
+  const uploadCloses = contest.submissionDeadline?.getTime() ?? null;
+  const uploadOpen =
+    contest.status !== "CLOSED" &&
+    contest.status !== "ARCHIVED" &&
+    (uploadOpens == null || uploadOpens <= now) &&
+    (uploadCloses == null || uploadCloses >= now);
+
   if (existing && existing.status !== "CANCELLED" && existing.status !== "DISQUALIFIED") {
     return (
       <main className="min-h-screen bg-fr-bg text-fr-primary">
@@ -71,8 +80,19 @@ export default async function ContestInscriptionPage({ params }: Props) {
               Ver mis participaciones
             </Link>
           </div>
-          {existing.status === "CONFIRMED" ? (
+          {existing.status === "CONFIRMED" && uploadOpen ? (
             <EntryUploadPanel contestId={contest.id} contestSlug={slug} />
+          ) : null}
+          {existing.status === "CONFIRMED" && !uploadOpen ? (
+            <div
+              className="fr-recuadro mt-10 border border-amber-500/40 bg-amber-500/10"
+              data-testid="upload-closed-notice"
+            >
+              <p className="fr-body text-fr-primary">
+                La carga de fotografías todavía no está habilitada. Tu inscripción quedó confirmada;
+                te avisaremos cuando puedas subir tu obra.
+              </p>
+            </div>
           ) : null}
         </div>
       </main>
@@ -110,6 +130,7 @@ export default async function ContestInscriptionPage({ params }: Props) {
             categories={contest.categories.map((c) => ({
               id: c.id,
               name: c.name,
+              slug: c.slug,
               maxFiles: c.maxFiles,
             }))}
             rules={{

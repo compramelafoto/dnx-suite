@@ -1,0 +1,88 @@
+{
+  "_comment": "Fixtures sintéticos ETAPA 05 — sin fotos reales ni domicilios privados. Coordenadas públicas/sintéticas.",
+  "cases": [
+    {
+      "id": "phone-within-period",
+      "make": "Apple",
+      "model": "iPhone 15",
+      "software": "iOS 17",
+      "captureDateIso": "2026-09-10T15:30:00.000Z",
+      "gpsLatitude": null,
+      "gpsLongitude": null,
+      "declaredDeviceKind": "SMARTPHONE"
+    },
+    {
+      "id": "camera-within-period",
+      "make": "Canon",
+      "model": "EOS R6",
+      "software": null,
+      "captureDateIso": "2026-08-20T18:00:00.000Z",
+      "gpsLatitude": null,
+      "gpsLongitude": null,
+      "declaredDeviceKind": "MIRRORLESS"
+    },
+    {
+      "id": "drone-within-period",
+      "make": "DJI",
+      "model": "Air 2S",
+      "software": null,
+      "captureDateIso": "2026-09-01T12:00:00.000Z",
+      "gpsLatitude": -31.6333,
+      "gpsLongitude": -60.7,
+      "declaredDeviceKind": "DRONE",
+      "gpsNote": "Punto sintético cercano a Santa Fe capital (público/demo)"
+    },
+    {
+      "id": "no-exif",
+      "make": null,
+      "model": null,
+      "software": null,
+      "captureDateIso": null,
+      "gpsLatitude": null,
+      "gpsLongitude": null,
+      "declaredDeviceKind": "UNKNOWN"
+    },
+    {
+      "id": "outside-period",
+      "make": "Nikon",
+      "model": "D850",
+      "software": null,
+      "captureDateIso": "2026-07-01T12:00:00.000Z",
+      "gpsLatitude": null,
+      "gpsLongitude": null,
+      "declaredDeviceKind": "DSLR"
+    },
+    {
+      "id": "gps-inside-santa-fe",
+      "make": "Sony",
+      "model": "ILCE-7M3",
+      "software": null,
+      "captureDateIso": "2026-09-05T10:00:00.000Z",
+      "gpsLatitude": -32.9468,
+      "gpsLongitude": -60.6393,
+      "declaredDeviceKind": "MIRRORLESS",
+      "gpsNote": "Monumento a la Bandera / Rosario (público)"
+    },
+    {
+      "id": "gps-inconsistent",
+      "make": "Sony",
+      "model": "ILCE-7M3",
+      "software": null,
+      "captureDateIso": "2026-09-05T10:00:00.000Z",
+      "gpsLatitude": -34.6037,
+      "gpsLongitude": -58.3816,
+      "declaredDeviceKind": "MIRRORLESS",
+      "gpsNote": "Obelisco CABA — inconsistente con declaración Santa Fe"
+    },
+    {
+      "id": "device-ambiguous",
+      "make": "Generic",
+      "model": "Camera 1000",
+      "software": "UnknownEditor",
+      "captureDateIso": "2026-09-12T08:00:00.000Z",
+      "gpsLatitude": null,
+      "gpsLongitude": null,
+      "declaredDeviceKind": "OTHER_CAMERA"
+    }
+  ]
+}

@@ -1,9 +1,12 @@
-// @ts-nocheck — P0 jury/scoring models not in deployed Prisma client yet
 import { randomBytes } from "node:crypto";
 import { prisma } from "@repo/db";
 import { JuryError } from "./errors";
 import { enqueueJuryNotificationIntent } from "./notification-intents";
 import { computePrivateAggregates } from "./scoring-engine";
+import {
+  SANTA_FE_EN_FOCO_JURY_CRITERIA,
+  SANTA_FE_MIN_EVALUATIONS_PER_ENTRY,
+} from "./santa-fe-en-foco-rubric";
 
 function newId() {
   return `js${randomBytes(12).toString("hex")}`;
@@ -56,15 +59,32 @@ export async function ensureDraftRubric(input: {
   });
   if (existing) return existing;
 
-  if (!input.localExample && process.env.NODE_ENV === "production") {
-    // En prod no inventar criterios definitivos.
+  const contest = await prisma.fotorankContest.findUnique({
+    where: { id: input.contestId },
+    select: { slug: true },
+  });
+  const isSantaFe = contest?.slug === "santa-fe-en-foco";
+  const rubricName = isSantaFe
+    ? "Santa Fe en Foco — rúbrica staging (borrador legal)"
+    : input.localExample || process.env.NODE_ENV !== "production"
+      ? "Rúbrica ejemplo (local)"
+      : "Rúbrica principal";
+
+  const maxVersion = await prisma.fotorankJuryRubric.aggregate({
+    where: { contestId: input.contestId, name: rubricName },
+    _max: { version: true },
+  });
+  const nextVersion = (maxVersion._max.version ?? 0) + 1;
+
+  if (!input.localExample && !isSantaFe && process.env.NODE_ENV === "production") {
+    // En prod no inventar criterios definitivos (salvo plantilla staging Santa Fe).
     const empty = await prisma.fotorankJuryRubric.create({
       data: {
         id: newId(),
         contestId: input.contestId,
         admissionBatchId: input.admissionBatchId,
-        version: 1,
-        name: "Rúbrica principal",
+        version: nextVersion,
+        name: rubricName,
         description: "Borrador — configurar criterios antes de activar.",
         status: "DRAFT",
         scoringMode: "WEIGHTED_SCORE",
@@ -75,30 +95,46 @@ export async function ensureDraftRubric(input: {
     return empty;
   }
 
+  const criteria = isSantaFe
+    ? SANTA_FE_EN_FOCO_JURY_CRITERIA.map((c) => ({
+        id: newId(),
+        key: c.key,
+        name: c.name,
+        description: c.description,
+        weight: c.weight,
+        minScore: c.minScore,
+        maxScore: c.maxScore,
+        step: c.step,
+        required: c.required,
+        sortOrder: c.sortOrder,
+      }))
+    : EXAMPLE_CRITERIA.map((c) => ({
+        id: newId(),
+        key: c.key,
+        name: c.name,
+        description: null as string | null,
+        weight: c.weight,
+        minScore: 1,
+        maxScore: 10,
+        step: 1,
+        required: true,
+        sortOrder: c.sortOrder,
+      }));
+
   const rubric = await prisma.fotorankJuryRubric.create({
     data: {
       id: newId(),
       contestId: input.contestId,
       admissionBatchId: input.admissionBatchId,
-      version: 1,
-      name: "Rúbrica ejemplo (local)",
-      description: "Fixture local — no usar como reglamento definitivo.",
+      version: nextVersion,
+      name: rubricName,
+      description: isSantaFe
+        ? "PENDING_ORGANIZER_DECISION · BORRADOR — LEGAL REVIEW REQUIRED — NO PUBLICAR"
+        : "Fixture local — no usar como reglamento definitivo.",
       status: "DRAFT",
       scoringMode: "WEIGHTED_SCORE",
       createdByUserId: input.actorUserId,
-      criteria: {
-        create: EXAMPLE_CRITERIA.map((c) => ({
-          id: newId(),
-          key: c.key,
-          name: c.name,
-          weight: c.weight,
-          minScore: 1,
-          maxScore: 10,
-          step: 1,
-          required: true,
-          sortOrder: c.sortOrder,
-        })),
-      },
+      criteria: { create: criteria },
     },
     include: { criteria: true },
   });
@@ -195,11 +231,17 @@ export async function ensureDraftScoringSession(input: {
   });
   if (existing) return existing;
 
+  const contest = await prisma.fotorankContest.findUnique({
+    where: { id: input.contestId },
+    select: { slug: true },
+  });
+  const isSantaFe = contest?.slug === "santa-fe-en-foco";
+
   const rubric = await ensureDraftRubric({
     contestId: input.contestId,
     admissionBatchId: input.admissionBatchId,
     actorUserId: input.actorUserId,
-    localExample: process.env.NODE_ENV !== "production",
+    localExample: process.env.NODE_ENV !== "production" || isSantaFe,
   });
 
   return prisma.fotorankJuryScoringSession.create({
@@ -210,7 +252,7 @@ export async function ensureDraftScoringSession(input: {
       rubricId: rubric.id,
       status: "DRAFT",
       scoringEnabled: false,
-      minimumEvaluationsPerEntry: 1,
+      minimumEvaluationsPerEntry: isSantaFe ? SANTA_FE_MIN_EVALUATIONS_PER_ENTRY : 1,
       assignmentSeed: randomBytes(16).toString("hex"),
     },
   });
@@ -446,7 +488,7 @@ export async function exportJuryProgressCsv(contestId: string, sessionId: string
   const evals = await prisma.fotorankJuryEvaluation.findMany({
     where: { contestId, scoringSessionId: sessionId },
     include: {
-      snapshot: { select: { anonymousCode: true } },
+      juryEntrySnapshot: { select: { anonymousCode: true } },
       juror: { select: { email: true } },
     },
     orderBy: { updatedAt: "asc" },
@@ -455,7 +497,7 @@ export async function exportJuryProgressCsv(contestId: string, sessionId: string
   const lines = evals.map((e) =>
     [
       e.juror.email,
-      e.snapshot.anonymousCode,
+      e.juryEntrySnapshot.anonymousCode,
       e.status,
       e.totalScore ?? "",
       e.submittedAt?.toISOString() ?? "",
@@ -498,7 +540,7 @@ export async function exportAdminEvaluationsCsv(contestId: string, sessionId: st
   const evals = await prisma.fotorankJuryEvaluation.findMany({
     where: { contestId, scoringSessionId: sessionId },
     include: {
-      snapshot: {
+      juryEntrySnapshot: {
         select: {
           anonymousCode: true,
           categoryId: true,
@@ -517,7 +559,10 @@ export async function exportAdminEvaluationsCsv(contestId: string, sessionId: st
         },
       },
     },
-    orderBy: [{ snapshot: { anonymousCode: "asc" } }, { juror: { email: "asc" } }],
+    orderBy: [
+      { juryEntrySnapshot: { anonymousCode: "asc" } },
+      { juror: { email: "asc" } },
+    ],
   });
 
   const header = [
@@ -544,9 +589,9 @@ export async function exportAdminEvaluationsCsv(contestId: string, sessionId: st
       })),
     ).replace(/"/g, '""');
     return [
-      e.snapshot.anonymousCode,
-      e.snapshot.categoryId,
-      e.snapshot.promptExternalId ?? "",
+      e.juryEntrySnapshot.anonymousCode,
+      e.juryEntrySnapshot.categoryId,
+      e.juryEntrySnapshot.promptExternalId ?? "",
       e.juror.email,
       e.status,
       e.totalScore ?? "",

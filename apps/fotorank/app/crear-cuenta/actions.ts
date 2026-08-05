@@ -71,5 +71,6 @@ export async function registerFotorankAccountAction(
     maxAge: DNX_SESSION_MAX_AGE_SECONDS,
   });
 
+  // Nuevas cuentas: sin orgs/jurado → participaciones (o next de inscripción).
   redirect(next ?? "/participaciones");
 }

@@ -16,6 +16,7 @@ type Criterion = {
 
 type Props = {
   contestId: string;
+  entryId: string;
   snapshotId: string;
   rubric: {
     id: string;
@@ -32,6 +33,7 @@ type Props = {
 
 export function JuryEvaluationForm({
   contestId,
+  entryId,
   snapshotId,
   rubric,
   initialScores,
@@ -157,6 +159,7 @@ export function JuryEvaluationForm({
           type="button"
           className="fr-btn fr-btn-secondary min-h-11 px-5 py-3"
           disabled={locked || pending}
+          data-testid="jury-eval-draft"
           onClick={() => startTransition(() => void persist(false))}
         >
           Guardar borrador
@@ -165,12 +168,46 @@ export function JuryEvaluationForm({
           type="button"
           className="fr-btn fr-btn-primary min-h-11 px-5 py-3"
           disabled={locked || pending}
+          data-testid="jury-eval-submit"
           onClick={() => {
             if (!confirm("¿Enviar evaluación definitiva? No podrás editarla libremente.")) return;
             startTransition(() => void persist(true));
           }}
         >
           Enviar definitiva
+        </button>
+        <button
+          type="button"
+          className="fr-btn fr-btn-secondary min-h-11 px-5 py-3"
+          disabled={locked || pending}
+          data-testid="jury-eval-abstain"
+          onClick={() => {
+            const reason = window.prompt("Motivo de abstención (obligatorio):");
+            if (!reason?.trim()) return;
+            startTransition(async () => {
+              setMessage("Registrando abstención…");
+              const res = await fetch(
+                `/api/fotorank/jury/contests/${contestId}/entries/${entryId}/abstain`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    snapshotId,
+                    reason,
+                    reasonCode: "OTHER",
+                  }),
+                },
+              );
+              if (!res.ok) {
+                const json = (await res.json()) as { error?: { message?: string } };
+                setMessage(json.error?.message ?? "No se pudo abstener");
+                return;
+              }
+              setMessage("Abstención registrada (no cuenta como score).");
+            });
+          }}
+        >
+          Abstenerse
         </button>
       </div>
       {message ? (

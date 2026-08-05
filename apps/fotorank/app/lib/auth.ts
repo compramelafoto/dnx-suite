@@ -133,6 +133,21 @@ export function hasAppAccess(user: AuthUser | null, app: "FOTOFFICE" | "COMPRAME
 }
 
 /**
+ * Acceso al panel organizador FotoRank.
+ * Incluye membresía ACTIVE en ContestOrganization (fuente de verdad del producto),
+ * además del gate de suite `hasAppAccess` / SUPER_ADMIN.
+ */
+export async function canAccessFotorankOrganizerDashboard(user: AuthUser | null): Promise<boolean> {
+  if (!user) return false;
+  if (hasAppAccess(user, "FOTORANK")) return true;
+  const membership = await prisma.contestOrganizationMember.findFirst({
+    where: { userId: user.id, status: "ACTIVE" },
+    select: { id: true },
+  });
+  return Boolean(membership);
+}
+
+/**
  * Crea fila de sesión y fija cookie httpOnly con el token en claro (solo en tránsito).
  */
 export async function createAdminSessionForUser(userId: number): Promise<void> {

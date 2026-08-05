@@ -4,6 +4,7 @@
 import type { PrivateContestStorageProvider, SignedUrlPurpose } from "./contest-entry-storage";
 import { createLocalPrivateContestEntryStorage } from "./private-local-storage";
 import { createR2PrivateContestStorageProvider, isR2PrivateStorageConfigured } from "./r2-private-storage";
+import { assertProductionR2Isolation } from "./r2-staging-preflight";
 
 export type { PrivateContestStorageProvider, SignedUrlPurpose };
 
@@ -23,6 +24,10 @@ export function getPrivateContestStorageProvider(): PrivateContestStorageProvide
         "FOTORANK_PRIVATE_STORAGE_PROVIDER=r2 pero faltan credenciales R2. No hay fallback silencioso a local.",
       );
     }
+    assertProductionR2Isolation({
+      vercelEnv: process.env.VERCEL_ENV,
+      bucket: r2.bucket,
+    });
     if (r2.bucket && /uploads$/i.test(r2.bucket) && !/staging/i.test(r2.bucket)) {
       const allowProd = process.env.FOTORANK_ALLOW_PROD_R2 === "1";
       if (!allowProd) {

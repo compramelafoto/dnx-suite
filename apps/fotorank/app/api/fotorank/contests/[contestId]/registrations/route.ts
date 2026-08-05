@@ -28,6 +28,7 @@ export async function POST(req: Request, ctx: Ctx) {
     licenseAccepted?: boolean;
     declaredAgeYears?: number;
     promotionalOptIn?: boolean;
+    argraMembershipNumber?: string;
     minorAuthorization?: {
       guardianName?: string;
       relationship?: string;
@@ -67,6 +68,8 @@ export async function POST(req: Request, ctx: Ctx) {
           ? Math.floor(body.declaredAgeYears)
           : null,
       promotionalOptIn: body.promotionalOptIn === true,
+      argraMembershipNumber:
+        typeof body.argraMembershipNumber === "string" ? body.argraMembershipNumber : null,
       minorAuthorization: body.minorAuthorization?.declarationAccepted
         ? {
             guardianName: String(body.minorAuthorization.guardianName ?? ""),

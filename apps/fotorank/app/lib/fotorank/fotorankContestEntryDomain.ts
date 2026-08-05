@@ -86,6 +86,8 @@ export async function getCategoryJudgingReadiness(
       status: true,
       entryNumber: true,
       withdrawnAt: true,
+      admissionStatus: true,
+      sourcePlatform: true,
     },
   });
   const totalEntries = rows.length;

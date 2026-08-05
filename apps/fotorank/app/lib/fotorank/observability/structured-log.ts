@@ -32,6 +32,8 @@ const REDACT_KEYS = [
   "phone",
   "dni",
   "signedUrl",
+  "argraMembershipNumber",
+  "argra",
 ];
 
 function scrub(value: unknown): unknown {

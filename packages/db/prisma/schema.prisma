@@ -181,6 +181,9 @@ model User {
   schoolOrganizerInvitationsSent        SchoolOrganizerInvitation[]            @relation("SchoolOrganizerInvitationInvitedBy")
   removalRequestsDecided                RemovalRequest[]                       @relation("RemovalRequestDecider")
   removalRequests                       RemovalRequest[]
+  contentReportsReported                ContentReport[]                        @relation("ContentReportReportedUser")
+  contentReportsAssigned                ContentReport[]                        @relation("ContentReportAssignedAdmin")
+  contentReportEvents                   ContentReportEvent[]                   @relation("ContentReportEventActor")
   schoolOrganizerMemberships            SchoolOrganizer[]
   schools                               School[]                               @relation("SchoolOwner")
   schoolLeadsReferred                   SchoolLead[]                           @relation("SchoolLeadReferredBy")
@@ -264,6 +267,7 @@ model User {
   fotorankContestConfigurationVersions FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates        FotorankContestRulesTemplate[]
   fotorankContestRulesAuditEvents      FotorankContestRulesAuditEvent[]
+  fotorankPlatformAuditEvents          FotorankPlatformAuditEvent[]
   fotorankMinorAuthorizations          FotorankMinorAuthorization[]
   fotorankRulesReviewed                FotorankContestRulesVersion[] @relation("FrRulesReviewedBy")
   fotorankRulesApproved                FotorankContestRulesVersion[] @relation("FrRulesApprovedBy")
@@ -2293,6 +2297,7 @@ model Album {
   organizerFeaturedGalleries      OrganizerFeaturedGallery[]
   redemptionSessions              RedemptionSession[]
   removalRequests                 RemovalRequest[]
+  contentReports                  ContentReport[]
   studentRosterImportBatches      StudentRosterImportBatch[]
   subjects                        Subject[]
   templates                       Template[]
@@ -3081,6 +3086,7 @@ model Photo {
   photoClaims              PhotoClaim[]
   photoFaces               PhotoFace[]
   removalRequests          RemovalRequest[]
+  contentReports           ContentReport[]
   albumPackSelectionPhotos AlbumPackSelectionPhoto[]
   selectionPhotos          SelectionPhoto[]
   exifMetadata             PhotoExifMetadata?
@@ -5679,6 +5685,73 @@ model PrivacyRequest {
   @@index([createdAt])
 }
 
+/// Denuncia pública de contenido (propiedad intelectual / infracción presunta).
+/// No equivale automáticamente a un procedimiento DMCA formal.
+/// [LEGAL_REVIEW] Redacción, plazos, conservación y consecuencias requieren abogado.
+model ContentReport {
+  id                       Int                      @id @default(autoincrement())
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  status                   ContentReportStatus      @default(RECEIVED)
+  priority                 ContentReportPriority    @default(NORMAL)
+  contentType              ContentReportContentType
+  contentUrl               String
+  photoId                  Int?
+  albumId                  Int?
+  reportedUserId           Int?
+  reporterName             String
+  reporterEmail            String
+  actingAs                 ContentReportActingAs
+  originalWorkDescription  String
+  claimDescription         String
+  evidenceLinks            String?
+  goodFaithDeclaration     Boolean                  @default(false)
+  truthfulnessDeclaration  Boolean                  @default(false)
+  dataProcessingAccepted   Boolean                  @default(false)
+  resolution               String?
+  internalNotes            String?
+  assignedAdminId          Int?
+  resolvedAt               DateTime?
+  /// IP minimizada (últimos octetos/hash truncado); no exponer públicamente.
+  reporterIpMinimized      String?
+  reporterUserAgent        String?
+  metadata                 Json?
+  album                    Album?                   @relation(fields: [albumId], references: [id])
+  photo                    Photo?                   @relation(fields: [photoId], references: [id])
+  reportedUser             User?                    @relation("ContentReportReportedUser", fields: [reportedUserId], references: [id])
+  assignedAdmin            User?                    @relation("ContentReportAssignedAdmin", fields: [assignedAdminId], references: [id])
+  events                   ContentReportEvent[]
+
+  @@index([status])
+  @@index([contentType])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([reportedUserId])
+  @@index([assignedAdminId])
+  @@index([photoId])
+  @@index([albumId])
+  @@index([reporterEmail])
+}
+
+model ContentReportEvent {
+  id         Int                  @id @default(autoincrement())
+  reportId   Int
+  createdAt  DateTime             @default(now())
+  actorId    Int?
+  actorRole  String?
+  action     String
+  fromStatus ContentReportStatus?
+  toStatus   ContentReportStatus?
+  reason     String?
+  metadata   Json?
+  report     ContentReport        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor      User?                @relation("ContentReportEventActor", fields: [actorId], references: [id])
+
+  @@index([reportId])
+  @@index([createdAt])
+  @@index([action])
+}
+
 /// Auditoría de eventos de privacidad (consentimientos facial, etc.)
 model PrivacyEvent {
   id        Int      @id @default(autoincrement())
@@ -6631,6 +6704,38 @@ enum PrivacyRequestStatus {
   REJECTED
 }
 
+/// Denuncias de contenido / propiedad intelectual (procedimiento interno de plataforma).
+/// TEXTOS Y ALCANCE LEGAL: pendientes de revisión por abogado argentino especializado.
+enum ContentReportStatus {
+  RECEIVED
+  UNDER_REVIEW
+  NEEDS_INFORMATION
+  CONTENT_TEMPORARILY_HIDDEN
+  REJECTED
+  RESTORED
+  REMOVED
+  CLOSED
+}
+
+enum ContentReportContentType {
+  PHOTO
+  ALBUM
+  OTHER_URL
+}
+
+enum ContentReportPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ContentReportActingAs {
+  COPYRIGHT_OWNER
+  AUTHORIZED_AGENT
+  OTHER_INTERESTED_PARTY
+}
+
 enum CommunityProfileType {
   PHOTOGRAPHER_SERVICE
   EVENT_VENDOR
@@ -7473,6 +7578,8 @@ model FotorankContestRegistration {
   licenseAcceptedAt                                                        DateTime?
   promotionalOptIn                                                         Boolean                  @default(false)
   declaredAgeYears                                                         Int?
+  /// Respuestas estructuradas de inscripción (p.ej. ARGRA). No exponer en APIs públicas.
+  answersJson                                                              Json?
 
   configurationVersion FotorankContestConfigurationVersion? @relation(fields: [configurationVersionId], references: [id], onDelete: SetNull)
   minorAuthorizations  FotorankMinorAuthorization[]
@@ -10212,6 +10319,12 @@ model ClickatonRegistration {
   confirmedAt                        DateTime?
   cancelledAt                        DateTime?
   refundedAt                         DateTime?
+  /// Importe acumulado reembolsado en minor units (espejo financiero; no borra totalAmount).
+  refundedAmountMinor                Int?
+  /// Soft ref al payment id de Mercado Pago (Checkout Pro / Payments API).
+  providerPaymentId                  String?
+  /// Último refund id de Mercado Pago observado (idempotencia / auditoría).
+  lastProviderRefundId               String?
   /// Soft refs a DNX Payments (sin FK rígida; Orders evolucionan aparte).
   paymentOrderId                     String?
   paymentProvider                    String?
@@ -10302,6 +10415,7 @@ model ClickatonRegistration {
   @@index([holdExpiresAt])
   @@index([paymentOrderId])
   @@index([paymentIdempotencyKey])
+  @@index([providerPaymentId])
   @@index([financialAgreementId])
   @@index([financialDistributionVersionId])
   @@index([fotoRankSyncStatus])
@@ -11988,6 +12102,25 @@ model FotorankContestRulesAuditEvent {
   @@index([actorUserId])
   @@index([contestId, createdAt])
   @@index([rulesVersionId, createdAt])
+}
+
+/// Auditoría de acciones de plataforma / Super Admin (sin alterar membresías).
+model FotorankPlatformAuditEvent {
+  id               String   @id @default(cuid())
+  actorUserId      Int
+  action           String
+  organizationId   String?
+  contestId        String?
+  ip               String?
+  userAgent        String?
+  metadataJson     Json?
+  createdAt        DateTime @default(now())
+  actorUser        User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([actorUserId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([contestId, createdAt])
+  @@index([action, createdAt])
 }
 
 model FotorankContestRulesTemplate {
