@@ -67,7 +67,7 @@ export function UploadConfirmModal({
         <div className="fr-upload-modal__actions">
           <button
             type="button"
-            className="fr-btn fr-btn-secondary"
+            className="fr-public-btn fr-public-btn--secondary"
             disabled={busy}
             onClick={onCancel}
           >
@@ -76,7 +76,7 @@ export function UploadConfirmModal({
           <button
             ref={confirmRef}
             type="button"
-            className="fr-btn fr-btn-primary"
+            className="fr-public-btn fr-public-btn--primary"
             data-testid="upload-confirm-submit"
             disabled={busy}
             onClick={onConfirm}
