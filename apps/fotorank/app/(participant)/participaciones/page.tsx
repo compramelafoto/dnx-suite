@@ -113,9 +113,12 @@ export default async function ParticipacionesPage() {
                   </div>
                 </dl>
                 <div className="fr-public-card-actions">
-                  <PrimaryButton href={`/concursos/${r.contestSlug}/inscripcion`}>
-                    Continuar participación
+                  <PrimaryButton href={`/participaciones/${r.id}`}>
+                    Ver detalle de participación
                   </PrimaryButton>
+                  <SecondaryButton href={`/concursos/${r.contestSlug}/inscripcion`}>
+                    Continuar participación
+                  </SecondaryButton>
                   <SecondaryButton href={`/concursos/${r.contestSlug}`}>
                     Ver concurso
                   </SecondaryButton>
