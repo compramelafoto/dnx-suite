@@ -3,6 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import {
+  ContestFormField,
+  ContentToActions,
+  contestControlClass,
+  contestSelectClass,
+  RulesDocument,
+  Stack,
+  Surface,
+} from "../../../components/contest-public";
+import { isSantaFeEnFocoSlug } from "../../../lib/fotorank/contest-visual";
 import { MINOR_CONSENT_NOTICE } from "../../../lib/fotorank/rules-lifecycle/minors";
 
 type CategoryOption = {
@@ -50,6 +60,7 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
   const [promotionalOptIn, setPromotionalOptIn] = useState(false);
   const [declaredAgeYears, setDeclaredAgeYears] = useState<string>("");
   const [argraMembershipNumber, setArgraMembershipNumber] = useState("");
+  const [instagramHandle, setInstagramHandle] = useState("");
   const [guardianName, setGuardianName] = useState("");
   const [relationship, setRelationship] = useState("");
   const [minorAccepted, setMinorAccepted] = useState(false);
@@ -65,6 +76,7 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
     [ageNum],
   );
   const needsArgra = selected ? requiresArgra(selected.slug) : false;
+  const needsInstagram = isSantaFeEnFocoSlug(contestSlug);
   const categoryHint =
     selected?.description ||
     (selected ? CATEGORY_HINTS[selected.slug] : null) ||
@@ -79,6 +91,10 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
     }
     if (needsArgra && !argraMembershipNumber.trim()) {
       setError("Para Reportero Gráfico debés ingresar tu número de socio de ARGRA.");
+      return;
+    }
+    if (needsInstagram && !instagramHandle.trim()) {
+      setError("Instagram es obligatorio para participar.");
       return;
     }
     if (!acceptedRules) {
@@ -111,6 +127,7 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
             declaredAgeYears: Math.floor(ageNum),
             promotionalOptIn,
             argraMembershipNumber: needsArgra ? argraMembershipNumber : undefined,
+            instagramHandle: needsInstagram ? instagramHandle : undefined,
             minorAuthorization: needsMinorAuth
               ? {
                   guardianName,
@@ -139,205 +156,254 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
 
   if (registrationNumber) {
     return (
-      <div className="fr-recuadro mt-10 space-y-6 border border-fr-border bg-fr-card" data-testid="inscription-success">
-        <p className="text-lg font-semibold text-fr-primary">
-          {isFree ? "Inscripción confirmada" : "Inscripción registrada (pago pendiente)"}
-        </p>
-        <p className="text-fr-muted">Tu número de inscripción:</p>
-        <p className="text-2xl font-semibold text-gold" data-testid="registration-number">
-          {registrationNumber}
-        </p>
-        <div className="flex flex-wrap gap-4">
-          <Link href={`/concursos/${contestSlug}/inscripcion`} className="fr-btn fr-btn-primary px-6 py-3">
-            Continuar con la fotografía
-          </Link>
-          <Link href="/participaciones" className="fr-btn fr-btn-secondary px-6 py-3">
-            Ir a mis participaciones
-          </Link>
-        </div>
-      </div>
+      <Surface className="mt-8" padding="lg" data-testid="inscription-success">
+        <Stack gap="md">
+          <p className="fr-type-h3" style={{ color: "var(--cv-foreground)" }}>
+            {isFree ? "Inscripción confirmada" : "Inscripción registrada (pago pendiente)"}
+          </p>
+          <p className="fr-type-body">Tu número de inscripción:</p>
+          <p className="text-2xl font-semibold text-gold" data-testid="registration-number">
+            {registrationNumber}
+          </p>
+          <ContentToActions className="fr-contest-cluster fr-contest-cluster--gap-sm">
+            <Link href={`/concursos/${contestSlug}/inscripcion`} className="fr-btn fr-btn-primary">
+              Continuar con la fotografía
+            </Link>
+            <Link href="/participaciones" className="fr-btn fr-btn-secondary">
+              Ir a mis participaciones
+            </Link>
+          </ContentToActions>
+        </Stack>
+      </Surface>
     );
   }
 
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-10 space-y-10"
+      className="mt-8 fr-contest-stack fr-contest-stack--lg"
       data-testid="inscription-form"
       data-contest-id={contestId}
     >
-      {contestSlug === "santa-fe-en-foco" || contestSlug.includes("santa-fe") ? (
-        <section className="fr-recuadro space-y-6 border border-fr-border bg-fr-card">
-          <h2 className="text-xl font-semibold tracking-tight">Participación abierta</h2>
-          <p className="text-sm leading-relaxed text-fr-muted" data-testid="open-participation-note">
+      {isSantaFeEnFocoSlug(contestSlug) ? (
+        <Surface padding="md">
+          <h2 className="fr-type-h3" style={{ color: "var(--cv-foreground)" }}>
+            Participación abierta
+          </h2>
+          <p className="fr-type-body-small mt-2" data-testid="open-participation-note">
             La participación es abierta. No es necesario residir en la Provincia de Santa Fe. La fotografía
             presentada deberá haber sido realizada dentro del territorio de la Provincia de Santa Fe y durante
             el período oficial establecido para el concurso.
           </p>
-        </section>
+        </Surface>
       ) : null}
 
-      <section className="fr-recuadro space-y-6 border border-fr-border bg-fr-card">
-        <h2 className="text-xl font-semibold tracking-tight">Categoría</h2>
-        {singleCategory ? (
-          <p className="text-fr-primary">
-            {categories[0]?.name}
-            <span className="mt-2 block text-sm text-fr-muted">Hasta {categories[0]?.maxFiles} fotografía(s).</span>
+      <Surface padding="md">
+        <Stack gap="md">
+          <h2 className="fr-type-h3" style={{ color: "var(--cv-foreground)" }}>
+            Datos de inscripción
+          </h2>
+          {singleCategory ? (
+            <div>
+              <p className="fr-type-label">Categoría</p>
+              <p className="mt-2" style={{ color: "var(--cv-foreground)" }}>
+                {categories[0]?.name}
+              </p>
+              <p className="fr-type-helper mt-1">Hasta {categories[0]?.maxFiles} fotografía(s).</p>
+            </div>
+          ) : (
+            <ContestFormField id="inscription-category" label="Elegí una categoría" required>
+              <select
+                id="inscription-category"
+                className={contestSelectClass}
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                required
+                data-testid="inscription-category"
+              >
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} (máx. {c.maxFiles})
+                  </option>
+                ))}
+              </select>
+            </ContestFormField>
+          )}
+          <p className="fr-type-helper" data-testid="category-hint">
+            {categoryHint}
           </p>
-        ) : (
-          <label className="block">
-            <span className="text-base font-semibold text-fr-primary">Elegí una categoría</span>
-            <select
-              className="mt-8 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4 text-fr-primary"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+          {needsArgra ? (
+            <ContestFormField
+              id="inscription-argra"
+              label="Número de socio de ARGRA"
               required
-              data-testid="inscription-category"
+              hint="El número será utilizado únicamente para verificar la elegibilidad en esta categoría. No se publica en perfiles ni resultados."
             >
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} (máx. {c.maxFiles})
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <p className="text-sm leading-relaxed text-fr-muted" data-testid="category-hint">
-          {categoryHint}
-        </p>
-        {needsArgra ? (
-          <label className="block">
-            <span className="text-base font-semibold text-fr-primary">Número de socio de ARGRA</span>
-            <input
-              className="mt-8 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4 text-fr-primary"
-              value={argraMembershipNumber}
-              onChange={(e) => setArgraMembershipNumber(e.target.value)}
+              <input
+                id="inscription-argra"
+                className={contestControlClass}
+                value={argraMembershipNumber}
+                onChange={(e) => setArgraMembershipNumber(e.target.value)}
+                required
+                autoComplete="off"
+                data-testid="inscription-argra"
+              />
+            </ContestFormField>
+          ) : null}
+          {needsInstagram ? (
+            <ContestFormField
+              id="inscription-instagram"
+              label="Instagram"
               required
-              autoComplete="off"
-              data-testid="inscription-argra"
-            />
-            <span className="mt-3 block text-sm text-fr-muted">
-              El número será utilizado únicamente para verificar la elegibilidad en esta categoría. No se
-              publica en perfiles ni resultados.
-            </span>
-          </label>
-        ) : null}
-        <label className="block">
-          <span className="text-base font-semibold text-fr-primary">Edad (años)</span>
-          <input
-            type="number"
-            min={16}
-            max={120}
-            className="mt-8 w-full max-w-xs rounded-xl border border-fr-border bg-fr-bg px-5 py-4 text-fr-primary"
-            value={declaredAgeYears}
-            onChange={(e) => setDeclaredAgeYears(e.target.value)}
+              hint="Obligatorio. Podés ingresar @usuario o el enlace de tu perfil. No se usa como identidad pública de la obra."
+            >
+              <input
+                id="inscription-instagram"
+                className={contestControlClass}
+                value={instagramHandle}
+                onChange={(e) => setInstagramHandle(e.target.value)}
+                required
+                autoComplete="off"
+                placeholder="@tu_usuario"
+                data-testid="inscription-instagram"
+              />
+            </ContestFormField>
+          ) : null}
+          <ContestFormField
+            id="inscription-age"
+            label="Edad (años)"
             required
-            data-testid="inscription-age"
-          />
-        </label>
-      </section>
-
-      <section className="fr-recuadro space-y-6 border border-fr-border bg-fr-card" id="bases-inscripcion">
-        <h2 className="text-xl font-semibold tracking-tight">
-          {rules.title}{" "}
-          <span className="text-sm font-normal text-fr-muted">(v{rules.versionNumber})</span>
-        </h2>
-        {rules.publishedAt ? (
-          <p className="text-sm text-fr-muted">Publicada: {new Date(rules.publishedAt).toLocaleString("es-AR")}</p>
-        ) : null}
-        <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl border border-fr-border bg-fr-bg p-6 text-sm leading-relaxed text-fr-muted">
-          {rules.content}
-        </div>
-        <label className="flex items-start gap-4 text-base text-fr-primary">
-          <input
-            type="checkbox"
-            className="mt-1 size-5 accent-[#d4af37]"
-            checked={acceptedRules}
-            onChange={(e) => setAcceptedRules(e.target.checked)}
-            data-testid="inscription-accept-rules"
-          />
-          <span>
-            Acepto las bases publicadas (versión {rules.versionNumber}). Esta aceptación queda registrada con
-            fecha, versión y hashes.
-          </span>
-        </label>
-        <label className="flex items-start gap-4 text-base text-fr-primary">
-          <input
-            type="checkbox"
-            className="mt-1 size-5 accent-[#d4af37]"
-            checked={acceptedLicense}
-            onChange={(e) => setAcceptedLicense(e.target.checked)}
-            data-testid="inscription-accept-license"
-          />
-          <span>Acepto la licencia necesaria para participar (obligatoria, separada de las bases).</span>
-        </label>
-        <label className="flex items-start gap-4 text-base text-fr-muted">
-          <input
-            type="checkbox"
-            className="mt-1 size-5 accent-[#d4af37]"
-            checked={promotionalOptIn}
-            onChange={(e) => setPromotionalOptIn(e.target.checked)}
-            data-testid="inscription-promo-optin"
-          />
-          <span>Deseo recibir comunicaciones promocionales opcionales (no obligatorio).</span>
-        </label>
-      </section>
-
-      {needsMinorAuth ? (
-        <section className="fr-recuadro space-y-6 border border-amber-500/30 bg-amber-500/5">
-          <h2 className="text-xl font-semibold tracking-tight">Autorización de menor</h2>
-          <p className="text-sm text-fr-muted">{MINOR_CONSENT_NOTICE}</p>
-          <label className="block">
-            <span className="text-base font-semibold">Nombre del adulto responsable</span>
+            hint="Edad mínima: 16 años. Entre 16 y 17 se solicita autorización de un adulto responsable."
+            className="fr-contest-field--inline"
+          >
             <input
-              className="mt-8 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
-              value={guardianName}
-              onChange={(e) => setGuardianName(e.target.value)}
-              data-testid="inscription-guardian-name"
+              id="inscription-age"
+              type="number"
+              min={16}
+              max={120}
+              inputMode="numeric"
+              className={`${contestControlClass} fr-contest-control--narrow`}
+              value={declaredAgeYears}
+              onChange={(e) => setDeclaredAgeYears(e.target.value)}
+              required
+              data-testid="inscription-age"
             />
-          </label>
-          <label className="block">
-            <span className="text-base font-semibold">Vínculo</span>
-            <input
-              className="mt-8 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
-              value={relationship}
-              onChange={(e) => setRelationship(e.target.value)}
-              placeholder="Padre / Madre / Tutor legal"
-              data-testid="inscription-guardian-relationship"
-            />
-          </label>
-          <label className="flex items-start gap-4">
+          </ContestFormField>
+        </Stack>
+      </Surface>
+
+      <Surface padding="md" id="bases-inscripcion">
+        <Stack gap="md">
+          <div>
+            <h2 className="fr-type-h3" style={{ color: "var(--cv-foreground)" }}>
+              Bases publicadas
+            </h2>
+            <p className="fr-type-caption mt-1">
+              {rules.title} · versión {rules.versionNumber}
+            </p>
+            {rules.publishedAt ? (
+              <p className="fr-type-caption mt-1">
+                Publicada: {new Date(rules.publishedAt).toLocaleString("es-AR")}
+              </p>
+            ) : null}
+          </div>
+          <div className="fr-rules-scroll rounded-[var(--cv-radius)] border border-[var(--cv-border)] bg-[var(--cv-background)] p-4">
+            <RulesDocument content={rules.content} />
+          </div>
+          <label className="fr-contest-check">
             <input
               type="checkbox"
-              className="mt-1 size-5 accent-[#d4af37]"
-              checked={minorAccepted}
-              onChange={(e) => setMinorAccepted(e.target.checked)}
-              data-testid="inscription-minor-auth"
+              checked={acceptedRules}
+              onChange={(e) => setAcceptedRules(e.target.checked)}
+              data-testid="inscription-accept-rules"
             />
-            <span>Declaro como adulto responsable autorizar la participación del menor.</span>
+            <span>
+              Acepto las bases publicadas (versión {rules.versionNumber}). Esta aceptación queda registrada con
+              fecha, versión y hashes.
+            </span>
           </label>
-        </section>
+          <label className="fr-contest-check">
+            <input
+              type="checkbox"
+              checked={acceptedLicense}
+              onChange={(e) => setAcceptedLicense(e.target.checked)}
+              data-testid="inscription-accept-license"
+            />
+            <span>Acepto la licencia necesaria para participar (obligatoria, separada de las bases).</span>
+          </label>
+          <label className="fr-contest-check" style={{ color: "var(--cv-muted-foreground)" }}>
+            <input
+              type="checkbox"
+              checked={promotionalOptIn}
+              onChange={(e) => setPromotionalOptIn(e.target.checked)}
+              data-testid="inscription-promo-optin"
+            />
+            <span>Deseo recibir comunicaciones promocionales opcionales (no obligatorio).</span>
+          </label>
+        </Stack>
+      </Surface>
+
+      {needsMinorAuth ? (
+        <Surface padding="md" className="fr-contest-surface--warning">
+          <Stack gap="md">
+            <h2 className="fr-type-h3" style={{ color: "var(--cv-foreground)" }}>
+              Autorización de menor
+            </h2>
+            <p className="fr-type-helper">{MINOR_CONSENT_NOTICE}</p>
+            <ContestFormField id="inscription-guardian-name" label="Nombre del adulto responsable" required>
+              <input
+                id="inscription-guardian-name"
+                className={contestControlClass}
+                value={guardianName}
+                onChange={(e) => setGuardianName(e.target.value)}
+                data-testid="inscription-guardian-name"
+              />
+            </ContestFormField>
+            <ContestFormField id="inscription-guardian-relationship" label="Vínculo" required>
+              <input
+                id="inscription-guardian-relationship"
+                className={contestControlClass}
+                value={relationship}
+                onChange={(e) => setRelationship(e.target.value)}
+                placeholder="Padre / Madre / Tutor legal"
+                data-testid="inscription-guardian-relationship"
+              />
+            </ContestFormField>
+            <label className="fr-contest-check">
+              <input
+                type="checkbox"
+                checked={minorAccepted}
+                onChange={(e) => setMinorAccepted(e.target.checked)}
+                data-testid="inscription-minor-auth"
+              />
+              <span>Declaro como adulto responsable autorizar la participación del menor.</span>
+            </label>
+          </Stack>
+        </Surface>
       ) : null}
 
       {error ? (
-        <div className="rounded-xl border border-red-500/35 bg-red-500/10 px-5 py-4 text-sm text-red-200" role="alert">
+        <div className="fr-contest-alert-error px-4 py-3" role="alert">
           {error}
         </div>
       ) : null}
 
-      <div className="fr-content-to-actions mt-16 flex flex-wrap gap-4 border-t border-fr-border pt-8">
+      <ContentToActions
+        bordered
+        className="fr-contest-cluster fr-contest-cluster--gap-sm"
+      >
         <button
           type="submit"
           disabled={pending}
-          className="fr-btn fr-btn-primary px-8 py-4 text-base font-semibold disabled:opacity-60"
+          className="fr-btn fr-btn-primary"
           data-testid="inscription-submit"
         >
           {pending ? "Confirmando…" : isFree ? "Confirmar inscripción gratuita" : "Continuar a pago"}
         </button>
-        <Link href={`/concursos/${contestSlug}`} className="fr-btn fr-btn-secondary px-8 py-4">
+        <Link href={`/concursos/${contestSlug}`} className="fr-btn fr-btn-secondary">
           Cancelar
         </Link>
-      </div>
+      </ContentToActions>
     </form>
   );
 }

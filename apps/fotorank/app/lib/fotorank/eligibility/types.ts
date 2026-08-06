@@ -76,6 +76,8 @@ export type RegistrationAnswers = {
   argraVerificationStatus?: ArgraVerificationStatus;
   argraDeclaredOwn?: boolean;
   openParticipationAcknowledged?: boolean;
+  /** Handle Instagram normalizado (@user). Obligatorio en Santa Fe en Foco. */
+  instagramHandle?: string | null;
 };
 
 export type EntryEligibilityAnswers = {
@@ -87,6 +89,10 @@ export type EntryEligibilityAnswers = {
   declaredDeviceModel?: string | null;
   captureWithinPeriodDeclared: boolean;
   authorshipDeclared?: boolean;
+  /** Revelado básico permitido; fotomontaje / alteraciones sustanciales prohibidas. */
+  editingPolicyDeclared?: boolean;
+  /** Sin IA generativa (relleno, eliminación, expansión, agregado o reemplazo). */
+  noGenerativeAiDeclared?: boolean;
   droneRegulationAcknowledged?: boolean;
   territoryStatus?: TerritoryStatus;
   captureWindowStatus?: EligibilityDecision;
@@ -95,6 +101,19 @@ export type EntryEligibilityAnswers = {
   /** Never expose on public APIs. */
   gpsPresent?: boolean;
 };
+
+/** Normaliza handle Instagram (@user). null si vacío o inválido. */
+export function normalizeInstagramHandle(raw: string | null | undefined): string | null {
+  const t = (raw ?? "").trim();
+  if (!t) return null;
+  const withoutUrl = t
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/\/+$/, "")
+    .replace(/^@/, "");
+  const handle = withoutUrl.split(/[/?#]/)[0]?.trim() ?? "";
+  if (!/^[A-Za-z0-9._]{1,30}$/.test(handle)) return null;
+  return `@${handle}`;
+}
 
 /** Bounding box aproximado Provincia de Santa Fe (evidencia, no geofencing legal). */
 export const SANTA_FE_APPROX_BOUNDS = {

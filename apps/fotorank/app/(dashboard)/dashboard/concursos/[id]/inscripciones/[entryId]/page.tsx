@@ -8,6 +8,10 @@ import { getContestEntryStorage } from "../../../../../../lib/fotorank/storage/p
 import { PageContainer } from "../../../../../../components/PageContainer";
 import { ManualReviewForm } from "./ManualReviewForm";
 import { AdmissionActionsForm } from "./AdmissionActionsForm";
+import {
+  AdmissionChecklistView,
+} from "../../../../../../components/admission/AdmissionChecklistView";
+import { toLogicalAdmissionState } from "../../../../../../lib/fotorank/admission/state-mapping";
 
 type Props = { params: Promise<{ id: string; entryId: string }> };
 
@@ -169,17 +173,24 @@ export default async function ContestEntryDetailAdminPage({ params }: Props) {
 
           <section className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
             <h2 className="text-lg font-semibold">Checklist</h2>
-            <ul className="space-y-3 text-sm">
-              {entry.checks.map((c) => (
-                <li key={c.id} className="flex gap-3 border-b border-fr-border/40 pb-3">
-                  <span className="w-32 shrink-0 font-medium text-fr-muted">{c.status}</span>
-                  <span>
-                    <span className="text-fr-primary">{c.title}</span>
-                    <span className="mt-1 block text-fr-muted">{c.message}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <AdmissionChecklistView
+              checks={entry.checks.map((c) => ({
+                checkCode: c.checkCode,
+                status: c.status,
+                title: c.title,
+                message: c.message,
+              }))}
+              technicalSummaryStatus={entry.technicalSummaryStatus}
+              admissionStatus={entry.admissionStatus}
+              entryStatus={entry.status}
+              logicalState={toLogicalAdmissionState({
+                status: entry.status,
+                technicalSummaryStatus: entry.technicalSummaryStatus,
+                manualReviewStatus: entry.manualReviewStatus,
+                admissionStatus: entry.admissionStatus,
+                withdrawnAt: entry.withdrawnAt,
+              })}
+            />
           </section>
 
           <section className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
@@ -200,12 +211,24 @@ export default async function ContestEntryDetailAdminPage({ params }: Props) {
               <h2 className="text-lg font-semibold">Metadata EXIF</h2>
               <p>Estado: {entry.activeAsset.exifMetadata.metadataStatus}</p>
               <p>
-                {entry.activeAsset.exifMetadata.cameraMake ?? "—"}{" "}
+                Marca/modelo: {entry.activeAsset.exifMetadata.cameraMake ?? "—"}{" "}
                 {entry.activeAsset.exifMetadata.cameraModel ?? ""}
               </p>
+              <p>Lente: {entry.activeAsset.exifMetadata.lensModel ?? "—"}</p>
+              <p>
+                Orientación: {entry.activeAsset.exifMetadata.orientation ?? "—"} · Resolución asset:{" "}
+                {entry.activeAsset.width ?? "—"}×{entry.activeAsset.height ?? "—"}
+              </p>
               <p className="text-fr-muted">
-                Software: {entry.activeAsset.exifMetadata.software ?? "—"} · Captura:{" "}
+                Software: {entry.activeAsset.exifMetadata.software ?? "—"} · DateTimeOriginal:{" "}
                 {entry.activeAsset.exifMetadata.captureDate?.toISOString() ?? "—"}
+              </p>
+              <p className="text-xs text-fr-muted">
+                GPS:{" "}
+                {entry.activeAsset.exifMetadata.gpsLatitude != null ||
+                entry.activeAsset.exifMetadata.gpsLongitude != null
+                  ? "presente (coordenadas no expuestas en UI)"
+                  : "ausente"}
               </p>
             </section>
           ) : null}

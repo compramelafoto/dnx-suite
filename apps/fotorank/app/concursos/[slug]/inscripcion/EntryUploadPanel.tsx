@@ -46,6 +46,10 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
   const [declaredDeviceMake, setDeclaredDeviceMake] = useState("");
   const [declaredDeviceModel, setDeclaredDeviceModel] = useState("");
   const [captureWithinPeriod, setCaptureWithinPeriod] = useState(false);
+  const [authorshipDeclared, setAuthorshipDeclared] = useState(false);
+  const [editingPolicyDeclared, setEditingPolicyDeclared] = useState(false);
+  const [noGenerativeAiDeclared, setNoGenerativeAiDeclared] = useState(false);
+  const [instagramHandle, setInstagramHandle] = useState("");
   const [droneAck, setDroneAck] = useState(false);
 
   async function refresh() {
@@ -75,6 +79,10 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
       }
       if (declaredDeviceKind === "UNKNOWN") {
         setError("Indicá el tipo de dispositivo utilizado.");
+        return;
+      }
+      if (!authorshipDeclared || !editingPolicyDeclared || !noGenerativeAiDeclared) {
+        setError("Confirmá autoría, edición permitida y ausencia de IA generativa antes de subir.");
         return;
       }
     }
@@ -109,6 +117,10 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
           if (declaredDeviceMake.trim()) fd.set("declaredDeviceMake", declaredDeviceMake.trim());
           if (declaredDeviceModel.trim()) fd.set("declaredDeviceModel", declaredDeviceModel.trim());
           fd.set("captureWithinPeriodDeclared", captureWithinPeriod ? "1" : "0");
+          fd.set("authorshipDeclared", authorshipDeclared ? "1" : "0");
+          fd.set("editingPolicyDeclared", editingPolicyDeclared ? "1" : "0");
+          fd.set("noGenerativeAiDeclared", noGenerativeAiDeclared ? "1" : "0");
+          if (instagramHandle.trim()) fd.set("instagramHandle", instagramHandle.trim());
           if (droneAck) fd.set("droneRegulationAcknowledged", "1");
         }
         const upRes = await fetch(
@@ -183,6 +195,19 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
 
       {requiresSantaFeEligibility ? (
         <>
+          <label className="block">
+            <span className="text-sm font-semibold text-fr-primary">Instagram</span>
+            <input
+              className="mt-4 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
+              value={instagramHandle}
+              onChange={(e) => setInstagramHandle(e.target.value)}
+              placeholder="@tu_usuario"
+              data-testid="entry-instagram"
+            />
+            <span className="mt-2 block text-xs text-fr-muted">
+              Obligatorio si aún no lo declaraste en la inscripción.
+            </span>
+          </label>
           <label className="block">
             <span className="text-sm font-semibold text-fr-primary">Localidad o paraje de captura</span>
             <input
@@ -274,6 +299,42 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
               </span>
             </label>
           ) : null}
+          <label className="flex items-start gap-4 text-sm text-fr-primary">
+            <input
+              type="checkbox"
+              className="mt-1 size-5 accent-[#d4af37]"
+              checked={authorshipDeclared}
+              onChange={(e) => setAuthorshipDeclared(e.target.checked)}
+              data-testid="entry-authorship-declare"
+            />
+            <span>Declaro ser el autor de la fotografía y contar con las autorizaciones de imagen necesarias.</span>
+          </label>
+          <label className="flex items-start gap-4 text-sm text-fr-primary">
+            <input
+              type="checkbox"
+              className="mt-1 size-5 accent-[#d4af37]"
+              checked={editingPolicyDeclared}
+              onChange={(e) => setEditingPolicyDeclared(e.target.checked)}
+              data-testid="entry-editing-declare"
+            />
+            <span>
+              Declaro que, de existir edición, se limita a revelado fotográfico básico sin fotomontaje ni
+              alteración sustancial de la escena.
+            </span>
+          </label>
+          <label className="flex items-start gap-4 text-sm text-fr-primary">
+            <input
+              type="checkbox"
+              className="mt-1 size-5 accent-[#d4af37]"
+              checked={noGenerativeAiDeclared}
+              onChange={(e) => setNoGenerativeAiDeclared(e.target.checked)}
+              data-testid="entry-no-ai-declare"
+            />
+            <span>
+              Declaro que la fotografía no fue generada ni alterada con inteligencia artificial generativa
+              (relleno, eliminación, expansión, agregado o reemplazo).
+            </span>
+          </label>
         </>
       ) : null}
 

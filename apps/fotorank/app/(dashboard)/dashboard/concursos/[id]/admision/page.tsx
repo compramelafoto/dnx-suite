@@ -7,7 +7,9 @@ import {
   type AdmissionQueueFilter,
 } from "../../../../../lib/fotorank/admission";
 import { PageContainer } from "../../../../../components/PageContainer";
+import { AdmissionSemaphoreBadge } from "../../../../../components/admission/AdmissionChecklistView";
 import { AdmissionFreezePanel } from "./AdmissionFreezePanel";
+import { AdmissionQueueAutoRefresh } from "./AdmissionQueueAutoRefresh";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -66,6 +68,7 @@ export default async function ContestAdmissionQueuePage({ params, searchParams }
       title="Cola de admisión técnica"
       description="Revisión operativa: una carga exitosa no implica admisión. Solo obras ADMITTED+FROZEN van al jurado."
     >
+      <AdmissionQueueAutoRefresh />
       <div className="mb-8 flex flex-wrap gap-4">
         <Link href={`/dashboard/concursos/${contestId}`} className="text-sm text-gold hover:text-gold-hover">
           ← Volver al concurso
@@ -107,19 +110,35 @@ export default async function ContestAdmissionQueuePage({ params, searchParams }
         <table className="min-w-full text-left text-sm" data-testid="admission-queue-table">
           <thead className="border-b border-fr-border text-fr-muted">
             <tr>
+              <th className="px-4 py-3">Miniatura</th>
               <th className="px-4 py-3">Obra</th>
               <th className="px-4 py-3">Categoría</th>
               <th className="px-4 py-3">Participante</th>
-              <th className="px-4 py-3">Estados</th>
-              <th className="px-4 py-3">Dispositivo</th>
-              <th className="px-4 py-3">Territorio / fecha</th>
-              <th className="px-4 py-3">ARGRA</th>
+              <th className="px-4 py-3">Semáforo</th>
+              <th className="px-4 py-3">Checklist</th>
+              <th className="px-4 py-3">Prioridad</th>
+              <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Acción</th>
             </tr>
           </thead>
           <tbody>
             {queue.items.map((row) => (
-              <tr key={row.entryId} className="border-b border-fr-border/60">
+              <tr key={row.entryId} className="border-b border-fr-border/60" data-testid="admission-queue-row">
+                <td className="px-4 py-3">
+                  {row.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={row.thumbnailUrl}
+                      alt=""
+                      className="h-14 w-14 rounded object-cover border border-fr-border"
+                      data-testid="admission-queue-thumb"
+                    />
+                  ) : (
+                    <div className="flex h-14 w-14 items-center justify-center rounded border border-fr-border text-xs text-fr-muted">
+                      N/D
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <div className="text-fr-primary">{row.entryNumber ?? row.entryId.slice(0, 8)}</div>
                   <div className="text-xs text-fr-muted">{row.submittedAt?.slice(0, 10) ?? "—"}</div>
@@ -130,6 +149,20 @@ export default async function ContestAdmissionQueuePage({ params, searchParams }
                   <div className="text-xs text-fr-muted">{row.participantEmail}</div>
                 </td>
                 <td className="px-4 py-3">
+                  <AdmissionSemaphoreBadge
+                    technicalSummaryStatus={row.technicalSummaryStatus}
+                    admissionStatus={row.admissionStatus}
+                    logicalState={row.logicalState}
+                  />
+                </td>
+                <td className="px-4 py-3 text-xs text-fr-muted">
+                  🟢 {row.checkSummary.passCount} · 🟡 {row.checkSummary.warnCount} · 🔴{" "}
+                  {row.checkSummary.failCount}
+                </td>
+                <td className="px-4 py-3 text-fr-primary" data-testid="admission-queue-priority">
+                  P{row.priority}
+                </td>
+                <td className="px-4 py-3">
                   <span className={`inline-block rounded border px-2 py-1 text-xs ${badgeClass(row.logicalState)}`}>
                     {row.logicalState}
                   </span>
@@ -137,21 +170,10 @@ export default async function ContestAdmissionQueuePage({ params, searchParams }
                     T:{row.technicalSummaryStatus} · M:{row.manualReviewStatus} · A:
                     {row.admissionStatus ?? "—"}
                   </div>
-                </td>
-                <td className="px-4 py-3 text-fr-muted">
-                  <div>{row.declaredDeviceKind ?? "—"}</div>
-                  <div className="text-xs">{row.detectedDevice ?? "EXIF n/d"}</div>
-                </td>
-                <td className="px-4 py-3 text-fr-muted">
-                  <div>{row.locality ?? "—"}</div>
-                  <div className="text-xs">
-                    {row.territoryStatus ?? "—"} · GPS: {row.gpsPresent ? "sí" : "no"}
+                  <div className="mt-1 text-xs text-fr-muted">
+                    {row.locality ?? "—"} · GPS: {row.gpsPresent ? "sí" : "no"} ·{" "}
+                    {row.declaredDeviceKind ?? "—"}
                   </div>
-                  <div className="text-xs">{row.captureWindowStatus ?? "—"}</div>
-                </td>
-                <td className="px-4 py-3 text-fr-muted">
-                  {row.argraRedacted ?? "—"}
-                  <div className="text-xs">{row.argraStatus}</div>
                 </td>
                 <td className="px-4 py-3">
                   <Link
@@ -165,7 +187,7 @@ export default async function ContestAdmissionQueuePage({ params, searchParams }
             ))}
             {queue.items.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-fr-muted">
+                <td colSpan={9} className="px-4 py-8 text-fr-muted">
                   No hay obras para este filtro.
                 </td>
               </tr>
@@ -174,7 +196,7 @@ export default async function ContestAdmissionQueuePage({ params, searchParams }
         </table>
         <div className="flex items-center justify-between border-t border-fr-border px-4 py-4 text-sm text-fr-muted">
           <span>
-            Página {queue.page} · {queue.items.length} ítems (pageSize {queue.pageSize})
+            Página {queue.page} · {queue.items.length} ítems (pageSize {queue.pageSize}) · auto-refresh 20s
           </span>
           <div className="flex gap-3">
             {page > 1 ? (

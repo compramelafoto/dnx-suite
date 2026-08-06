@@ -25,6 +25,11 @@ export type UploadPolicy = {
   captureWindowEndsExclusiveAt?: Date | null;
   /** Si true, el concurso no debe publicarse en producción sin revisión. */
   draftConfig: boolean;
+  /**
+   * Flag operativo ETAPA 10: además de las fechas, la carga pública requiere true.
+   * Si está ausente (concursos legacy), solo aplican las fechas.
+   */
+  publicUploadOpen?: boolean;
   notes?: string;
 };
 
@@ -70,7 +75,19 @@ export function parseUploadPolicy(raw: unknown): UploadPolicy {
       ? new Date(String(endsRaw))
       : (base.captureWindowEndsExclusiveAt ?? null),
     draftConfig: o.draftConfig ?? base.draftConfig,
+    publicUploadOpen:
+      typeof (o as { publicUploadOpen?: unknown }).publicUploadOpen === "boolean"
+        ? Boolean((o as { publicUploadOpen?: boolean }).publicUploadOpen)
+        : undefined,
   };
+}
+
+/** true si la política permite carga pública (flag + no draft). */
+export function isPublicUploadOpenFlag(rawPolicy: unknown): boolean | null {
+  if (!rawPolicy || typeof rawPolicy !== "object") return null;
+  const v = (rawPolicy as { publicUploadOpen?: unknown }).publicUploadOpen;
+  if (typeof v !== "boolean") return null;
+  return v;
 }
 
 export function assertUploadPolicySafeForProduction(policy: UploadPolicy): void {

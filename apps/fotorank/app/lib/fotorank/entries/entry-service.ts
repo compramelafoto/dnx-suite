@@ -5,6 +5,7 @@ import {
   evaluateCaptureWindowEligibility,
   evaluateSantaFeCategoryDeviceEligibility,
   evaluateTerritoryEligibility,
+  normalizeInstagramHandle,
   type ArgraVerificationStatus,
   type DeviceKind,
   type EntryEligibilityAnswers,
@@ -17,12 +18,13 @@ import { buildChecklist, CHECKLIST_RULE_VERSION, entryStatusFromSummary, summari
 import { generateEntryDerivatives, readImageDimensions } from "./derivatives";
 import { assessDeviceCompatibility, extractEntryExif } from "./exif";
 import { sha256Buffer, type DuplicateMatch } from "./hash";
-import { parseUploadPolicy } from "./upload-policy";
+import { isPublicUploadOpenFlag, parseUploadPolicy } from "./upload-policy";
 import {
   buildVersionedEntryStorageKey,
   storageKeyContainsPiiLeak,
 } from "../storage/private-local-storage";
 import { getContestEntryStorage } from "../storage/provider";
+import { enqueueTransactionalEmail } from "../notifications/outbox";
 
 export type EntryEligibilityFormInput = {
   captureLocality?: string | null;
@@ -32,7 +34,12 @@ export type EntryEligibilityFormInput = {
   declaredDeviceMake?: string | null;
   declaredDeviceModel?: string | null;
   captureWithinPeriodDeclared?: boolean;
+  authorshipDeclared?: boolean;
+  editingPolicyDeclared?: boolean;
+  noGenerativeAiDeclared?: boolean;
   droneRegulationAcknowledged?: boolean;
+  /** Permite completar Instagram faltante en inscripciones previas a ETAPA 10. */
+  instagramHandle?: string | null;
 };
 
 function newId(): string {
@@ -46,8 +53,11 @@ function assertUploadWindow(contest: {
   registrationClosesAt: Date | null;
   startAt: Date | null;
   status: string;
+  uploadPolicyJson?: unknown;
 }, now: Date): boolean {
   if (contest.status === "CLOSED" || contest.status === "ARCHIVED") return false;
+  const flag = isPublicUploadOpenFlag(contest.uploadPolicyJson);
+  if (flag === false) return false;
   const opens = contest.submissionOpensAt ?? contest.registrationOpensAt ?? contest.startAt;
   const closes = contest.submissionDeadline ?? contest.registrationClosesAt;
   if (opens && opens.getTime() > now.getTime()) return false;
@@ -365,6 +375,13 @@ export async function processUploadedFile(input: {
     if (territoryEval.decision === "NOT_ELIGIBLE") {
       throw new EntryError("TERRITORY_REQUIRED", territoryEval.publicMessage, 400);
     }
+    if (!elig.authorshipDeclared || !elig.editingPolicyDeclared || !elig.noGenerativeAiDeclared) {
+      throw new EntryError(
+        "DECLARATIONS_REQUIRED",
+        "Debés confirmar autoría, política de edición y ausencia de IA generativa antes de subir.",
+        400,
+      );
+    }
     if (categoryRequiresArgra(entry.category.slug)) {
       const answers = (entry.registration.answersJson ?? null) as { argraMembershipNumber?: string } | null;
       if (!answers?.argraMembershipNumber?.trim()) {
@@ -374,6 +391,30 @@ export async function processUploadedFile(input: {
           400,
         );
       }
+    }
+    let regAnswers = (entry.registration.answersJson ?? null) as RegistrationAnswers | null;
+    if (!regAnswers?.instagramHandle?.trim()) {
+      const ig = normalizeInstagramHandle(elig.instagramHandle);
+      if (!ig) {
+        throw new EntryError(
+          "INSTAGRAM_REQUIRED",
+          "Falta Instagram. Completá @usuario antes de cargar la fotografía.",
+          400,
+        );
+      }
+      const nextAnswers: RegistrationAnswers = {
+        ...(regAnswers ?? {}),
+        instagramHandle: ig,
+        openParticipationAcknowledged: regAnswers?.openParticipationAcknowledged ?? true,
+      };
+      if (!entry.registrationId) {
+        throw new EntryError("REGISTRATION_REQUIRED", "Falta la inscripción asociada a la obra.", 400);
+      }
+      await prisma.fotorankContestRegistration.update({
+        where: { id: entry.registrationId },
+        data: { answersJson: nextAnswers as Prisma.InputJsonValue },
+      });
+      regAnswers = nextAnswers;
     }
   }
 
@@ -385,6 +426,9 @@ export async function processUploadedFile(input: {
     declaredDeviceMake: elig.declaredDeviceMake ?? null,
     declaredDeviceModel: elig.declaredDeviceModel ?? null,
     captureWithinPeriodDeclared: elig.captureWithinPeriodDeclared === true,
+    authorshipDeclared: elig.authorshipDeclared === true,
+    editingPolicyDeclared: elig.editingPolicyDeclared === true,
+    noGenerativeAiDeclared: elig.noGenerativeAiDeclared === true,
     droneRegulationAcknowledged: elig.droneRegulationAcknowledged === true,
     territoryStatus: territoryEval.territoryStatus,
     captureWindowStatus: captureEval.decision,
@@ -497,10 +541,16 @@ export async function processUploadedFile(input: {
     nextStatus = "REJECTED";
   }
 
+  const previousActiveAssets = await prisma.fotorankContestEntryAsset.findMany({
+    where: { entryId: entry.id, isActive: true },
+    select: { id: true, storageKey: true, kind: true },
+  });
+  const storageProviderName = storage.providerName === "r2" ? "r2" : "local_private";
+
   const result = await prisma.$transaction(async (tx) => {
-    // Desactivar originales previos
+    // Desactivar assets previos (original + derivados)
     await tx.fotorankContestEntryAsset.updateMany({
-      where: { entryId: entry.id, kind: "ORIGINAL", isActive: true },
+      where: { entryId: entry.id, isActive: true },
       data: { isActive: false, replacedAt: new Date() },
     });
 
@@ -512,7 +562,7 @@ export async function processUploadedFile(input: {
         entryId: entry.id,
         versionNumber,
         kind: "ORIGINAL",
-        storageProvider: "local_private",
+        storageProvider: storageProviderName,
         storageBucket: storage.bucket,
         storageKey: originalKey,
         mimeType: realMime,
@@ -580,7 +630,7 @@ export async function processUploadedFile(input: {
             entryId: entry.id,
             versionNumber,
             kind: "THUMBNAIL",
-            storageProvider: "local_private",
+            storageProvider: storageProviderName,
             storageBucket: storage.bucket,
             storageKey: thumbKey,
             mimeType: "image/jpeg",
@@ -600,7 +650,7 @@ export async function processUploadedFile(input: {
             entryId: entry.id,
             versionNumber,
             kind: "JURY_PREVIEW",
-            storageProvider: "local_private",
+            storageProvider: storageProviderName,
             storageBucket: storage.bucket,
             storageKey: juryKey,
             mimeType: "image/jpeg",
@@ -641,11 +691,18 @@ export async function processUploadedFile(input: {
       prevMeta.admissionOps && typeof prevMeta.admissionOps === "object"
         ? (prevMeta.admissionOps as Record<string, unknown>)
         : {};
-    const nextAdmissionStatus = admissionDecision
+    let nextAdmissionStatus = admissionDecision
       ? admissionDecision.admissionStatus
       : needsManualReview
         ? "PENDING_MANUAL_REVIEW"
         : "ELIGIBLE";
+    // Reemplazo: nunca conservar ADMITTED automáticamente.
+    if (
+      versionNumber > 1 &&
+      (nextAdmissionStatus === "ADMITTED" || nextAdmissionStatus === "FROZEN_FOR_JURY")
+    ) {
+      nextAdmissionStatus = "PENDING_MANUAL_REVIEW";
+    }
     const updated = await tx.fotorankContestEntry.update({
       where: { id: entry.id },
       data: {
@@ -692,6 +749,23 @@ export async function processUploadedFile(input: {
     return { updated, versionNumber };
   });
 
+  // Política ETAPA 10C: retener assets anteriores INACTIVE (auditoría).
+  // Delete físico solo con FOTORANK_DELETE_REPLACED_ASSETS=1 y tras persistir la nueva versión.
+  if (
+    previousActiveAssets.length > 0 &&
+    // Retención por defecto; delete físico solo con flag ops explícito.
+    // eslint-disable-next-line turbo/no-undeclared-env-vars -- ops flag no listado en turbo globalEnv
+    process.env.FOTORANK_DELETE_REPLACED_ASSETS === "1"
+  ) {
+    for (const prev of previousActiveAssets) {
+      try {
+        await storage.deleteObject(prev.storageKey);
+      } catch {
+        // huérfano reportable por ops; no revertir la obra nueva
+      }
+    }
+  }
+
   const warnings = checks.filter((c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW").map((c) => c.message);
 
   return {
@@ -712,7 +786,12 @@ export async function confirmEntry(input: {
 }): Promise<{ entryNumber: string; status: string }> {
   const entry = await prisma.fotorankContestEntry.findUnique({
     where: { id: input.entryId },
-    include: { contest: true },
+    include: {
+      contest: true,
+      registration: { select: { id: true } },
+      category: { select: { name: true, slug: true } },
+      activeAsset: { select: { id: true, versionNumber: true } },
+    },
   });
   if (!entry || entry.contestId !== input.contestId) {
     throw new EntryError("ENTRY_NOT_FOUND", "Obra no encontrada.", 404);
@@ -735,6 +814,13 @@ export async function confirmEntry(input: {
       "La fotografía necesita revisión. Podés confirmar asumiendo las advertencias o esperar revisión del organizador.",
       409,
     );
+  }
+
+  const assetVersion = entry.activeAsset?.versionNumber ?? 1;
+
+  // Idempotencia UI: re-confirm de la misma versión ya confirmada no reenvía.
+  if (entry.status === "CONFIRMED" && entry.confirmedAt) {
+    return { entryNumber: entry.entryNumber!, status: entry.status };
   }
 
   let entryNumber = entry.entryNumber;
@@ -763,6 +849,35 @@ export async function confirmEntry(input: {
       admissionStatus: nextAdmission,
     },
   });
+
+  const emailKind =
+    assetVersion > 1 ? ("PHOTO_REPLACEMENT_RECEIVED" as const) : ("PHOTO_RECEIVED" as const);
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    "https://fotorank.dnxsuite.com";
+
+  void enqueueTransactionalEmail({
+    kind: emailKind,
+    toUserId: input.participantUserId,
+    contestId: entry.contestId,
+    entryId: entry.id,
+    registrationId: entry.registrationId ?? entry.registration?.id ?? undefined,
+    assetVersion,
+    payload: {
+      contestTitle: entry.contest.title,
+      entryNumber: updated.entryNumber,
+      categoryName: entry.category?.name ?? null,
+      statusLabel: "En revisión",
+      panelUrl: `${appUrl.replace(/\/$/, "")}/participaciones`,
+      contact: "soporte vía panel FotoRank",
+      message:
+        emailKind === "PHOTO_REPLACEMENT_RECEIVED"
+          ? "Recibimos el reemplazo de tu fotografía. Volverá a revisión."
+          : "Hemos recibido correctamente tu fotografía.",
+      assetVersion,
+    },
+  }).catch(() => null);
 
   return { entryNumber: updated.entryNumber!, status: updated.status };
 }

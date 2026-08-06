@@ -12123,6 +12123,33 @@ model FotorankPlatformAuditEvent {
   @@index([action, createdAt])
 }
 
+/// Outbox transaccional FotoRank (ETAPA 10C) — idempotencia por clave única.
+/// status: CREATED | QUEUED | PROCESSING | SENT | FAILED | RETRYABLE | DEAD
+model FotorankTransactionalEmailOutbox {
+  id                String    @id @default(cuid())
+  idempotencyKey    String    @unique
+  kind              String
+  status            String    @default("CREATED")
+  contestId         String?
+  entryId           String?
+  registrationId    String?
+  toUserId          Int?
+  provider          String?
+  providerMessageId String?
+  attemptCount      Int       @default(0)
+  lastError         String?
+  payloadJson       Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  queuedAt          DateTime?
+  sentAt            DateTime?
+  failedAt          DateTime?
+
+  @@index([entryId, kind])
+  @@index([status, createdAt])
+  @@index([contestId, createdAt])
+}
+
 model FotorankContestRulesTemplate {
   id                String   @id @default(cuid())
   name              String

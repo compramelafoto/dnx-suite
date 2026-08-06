@@ -24,6 +24,7 @@ import {
   type EvidenceRequestRecord,
   type EvidenceType,
 } from "./types";
+import { getContestEntryStorage } from "../storage/provider";
 
 function newId(prefix = "adm") {
   return `${prefix}${randomBytes(10).toString("hex")}`;
@@ -151,7 +152,7 @@ export async function listAdmissionQueue(input: {
             participant: { select: { id: true, name: true, email: true } },
           },
         },
-        checks: { select: { checkCode: true, status: true } },
+        checks: { select: { checkCode: true, status: true, title: true } },
         activeAsset: {
           select: {
             id: true,
@@ -167,6 +168,11 @@ export async function listAdmissionQueue(input: {
             },
           },
         },
+        assets: {
+          where: { isActive: true, kind: { in: ["THUMBNAIL", "JURY_PREVIEW"] } },
+          select: { kind: true, storageKey: true },
+          take: 2,
+        },
       },
       orderBy: [{ submittedAt: "asc" }, { createdAt: "asc" }],
       skip: (page - 1) * pageSize,
@@ -174,8 +180,9 @@ export async function listAdmissionQueue(input: {
     }),
   ]);
 
-  const mapped = rows
-    .map((e) => {
+  const storage = getContestEntryStorage();
+  const mappedRaw = await Promise.all(
+    rows.map(async (e) => {
       const ops = parseAdmissionOps(e.metadataJson);
       const eligibility =
         e.metadataJson && typeof e.metadataJson === "object" && !Array.isArray(e.metadataJson)
@@ -197,6 +204,24 @@ export async function listAdmissionQueue(input: {
         withdrawnAt: e.withdrawnAt,
         admissionOps: ops,
       });
+
+      const thumb =
+        e.assets.find((a) => a.kind === "THUMBNAIL") ??
+        e.assets.find((a) => a.kind === "JURY_PREVIEW");
+      let thumbnailUrl: string | null = null;
+      if (thumb?.storageKey) {
+        try {
+          thumbnailUrl = await storage.getSignedUrl(thumb.storageKey, "read", 300);
+        } catch {
+          thumbnailUrl = null;
+        }
+      }
+
+      const failCount = e.checks.filter((c) => c.status === "FAIL").length;
+      const warnCount = e.checks.filter(
+        (c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW",
+      ).length;
+      const passCount = e.checks.filter((c) => c.status === "PASS").length;
 
       return {
         entryId: e.id,
@@ -230,15 +255,21 @@ export async function listAdmissionQueue(input: {
         reasonCodes: reasonHints,
         evidenceOpen: ops.evidenceRequest?.status === "OPEN",
         checkCodes: [...checkCodes],
+        checkSummary: { passCount, warnCount, failCount },
+        thumbnailUrl,
+        // Nunca exponer storageKey en la cola
         priority: computeQueuePriority({
           logicalState,
           admissionStatus: e.admissionStatus,
           submittedAt: e.submittedAt,
           evidenceOpen: ops.evidenceRequest?.status === "OPEN",
-          hasCritical: e.checks.some((c) => c.status === "FAIL"),
+          hasCritical: failCount > 0,
         }),
       };
-    })
+    }),
+  );
+
+  const mapped = mappedRaw
     .filter((row) => matchesSemanticFilter(row, filter))
     .sort((a, b) => a.priority - b.priority || String(a.submittedAt).localeCompare(String(b.submittedAt)))
     .slice(0, pageSize);
