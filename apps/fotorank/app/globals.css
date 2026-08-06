@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "./styles/public-tokens.css";
+/* Inscripción / concurso público ETAPA 10C (ContestShell, formularios, upload wizard) */
+@import "./styles/contest-public.css";
 
 /* ==========================================================================
    FOTORANK — Sistema de diseño premium 2026
@@ -7,6 +9,7 @@
    LEGACY: clases `fr-*` / tokens `@theme` gold/fr-* — dashboard + superficies
    aún no migradas. Experiencia pública/participante nueva: `public-tokens.css`
    + `app/components/public-ui/` (prefijo `.fr-public-*`).
+   Inscripción Santa Fe: `contest-public.css` (conserva lógica 10C con formato).
    ========================================================================== */
 
 @theme {
