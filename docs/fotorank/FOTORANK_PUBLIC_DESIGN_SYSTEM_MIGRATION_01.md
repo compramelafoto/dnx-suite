@@ -3,7 +3,9 @@
 **Rama:** `feat/fotorank-public-participant-design-system-01`  
 **Worktree:** `dnx-suite-fotorank-public-ds-01`  
 **Commit base de arranque:** `43553fbd`  
-**Etapas:** IMPL 01 → IMPL 02 (cierre visual público)
+**HEAD de la rama (IMPL 02):** `eead7d49`  
+**Commits IMPL 02:** `7e659cc0` → `f9211021` → `d2d44671` → `eead7d49`  
+**Etapas:** IMPL 01 → IMPL 02 (cierre visual público; deploy productivo bloqueado)
 
 ---
 
