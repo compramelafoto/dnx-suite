@@ -540,6 +540,7 @@ export function ParticipantUploadWizard({
           <h2 className="fr-upload-wizard__title">Carga no habilitada</h2>
           <p className="fr-upload-wizard__lead">
             Tu inscripción está confirmada. La carga de fotografías todavía no está habilitada.
+            Podés revisar tus datos; cuando abra la ventana de carga vas a poder continuar desde acá.
           </p>
           <dl className="fr-upload-wizard__facts">
             <div>
