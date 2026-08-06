@@ -36,7 +36,7 @@ export function ParticipantArtworkCard({
             </div>
           )}
         </div>
-        <div className="min-w-0 flex-1 space-y-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge label={statusLabel} tone={statusTone} stateText="Estado de la obra" />
             {categoryName ? (
@@ -46,11 +46,11 @@ export function ParticipantArtworkCard({
           {title ? <h3 className="text-lg font-semibold text-[var(--foreground)]">{title}</h3> : null}
           {dateLabel ? <p className="text-sm text-[var(--foreground-muted)]">{dateLabel}</p> : null}
           {observation ? (
-            <p className="rounded-[var(--radius-md)] border border-[rgb(251_191_36_/_0.35)] bg-[var(--warning-soft)] p-3 text-sm text-[var(--foreground)]">
+            <p className="rounded-[var(--radius-md)] border border-[rgb(251_191_36_/_0.35)] bg-[var(--warning-soft)] p-4 text-sm leading-relaxed text-[var(--foreground)]">
               {observation}
             </p>
           ) : null}
-          {action ? <div className="pt-2">{action}</div> : null}
+          {action ? <div className="fr-public-card-actions">{action}</div> : null}
         </div>
       </div>
     </article>

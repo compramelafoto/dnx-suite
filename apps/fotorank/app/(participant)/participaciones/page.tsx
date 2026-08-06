@@ -87,24 +87,24 @@ export default async function ParticipacionesPage() {
                     stateText="Estado de inscripción"
                   />
                 </div>
-                <h2 className="mt-4 text-xl font-semibold tracking-tight text-[var(--foreground)]">
+                <h2 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">
                   {r.contestTitle}
                 </h2>
-                <dl className="mt-6 space-y-4 text-sm">
-                  <div>
-                    <dt className="text-[var(--foreground-muted)]">Número</dt>
-                    <dd className="mt-2 font-semibold text-[var(--primary)]">
+                <dl className="fr-public-meta-list">
+                  <div className="fr-public-meta-list__item">
+                    <dt>Número</dt>
+                    <dd className="fr-public-meta-list__value--accent">
                       {r.registrationNumber}
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-[var(--foreground-muted)]">Categoría</dt>
-                    <dd className="mt-2 text-[var(--foreground)]">{r.categoryName}</dd>
+                  <div className="fr-public-meta-list__item">
+                    <dt>Categoría</dt>
+                    <dd>{r.categoryName}</dd>
                   </div>
-                  <div>
-                    <dt className="text-[var(--foreground-muted)]">Fotografía</dt>
+                  <div className="fr-public-meta-list__item">
+                    <dt>Fotografía</dt>
                     <dd
-                      className="mt-2 text-[var(--foreground-muted)]"
+                      className="text-[var(--foreground-muted)]"
                       data-testid="participacion-photo-status"
                       data-status-code={publicStatus.code}
                     >
@@ -112,7 +112,7 @@ export default async function ParticipacionesPage() {
                     </dd>
                   </div>
                 </dl>
-                <div className="mt-8 flex flex-wrap gap-3">
+                <div className="fr-public-card-actions">
                   <PrimaryButton href={`/concursos/${r.contestSlug}/inscripcion`}>
                     Continuar participación
                   </PrimaryButton>

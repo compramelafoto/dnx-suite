@@ -22,11 +22,15 @@ export function Notice({
 }: Props) {
   return (
     <div
-      className={cn("fr-public-notice", `fr-public-notice--${tone}`, className)}
+      className={cn(
+        "fr-public-notice flex flex-col gap-3",
+        `fr-public-notice--${tone}`,
+        className,
+      )}
       role={role}
       data-testid={testId}
     >
-      {title ? <p className="mb-3 font-semibold text-[var(--foreground)]">{title}</p> : null}
+      {title ? <p className="font-semibold text-[var(--foreground)]">{title}</p> : null}
       <div className="fr-public-body text-[0.95rem] text-[var(--foreground)]">{children}</div>
     </div>
   );

@@ -11,8 +11,10 @@ export function ErrorState({ title = "No se pudo cargar", message, action }: Pro
   return (
     <div data-testid="public-error-state">
       <Notice tone="danger" title={title} role="alert">
-        <p>{message}</p>
-        {action ? <div className="mt-6">{action}</div> : null}
+        <div className="flex flex-col gap-6">
+          <p>{message}</p>
+          {action}
+        </div>
       </Notice>
     </div>
   );

@@ -16,8 +16,8 @@ export function EmptyState({ title, description, action, className }: Props) {
       data-testid="public-empty-state"
     >
       <h2 className="fr-public-title text-xl">{title}</h2>
-      <p className="fr-public-body mt-4">{description}</p>
-      {action ? <div className="mt-8 flex justify-center">{action}</div> : null}
+      <p className="fr-public-body">{description}</p>
+      {action ? <div className="fr-public-card-actions justify-center">{action}</div> : null}
     </div>
   );
 }

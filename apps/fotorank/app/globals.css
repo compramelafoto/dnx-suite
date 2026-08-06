@@ -38,15 +38,22 @@
   --color-fr-muted-soft: #737373;
 }
 
-/* No usar padding:0 universal: en Tailwind v4 puede ganar al layer de utilidades y deja inputs/select sin sangría. */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+/*
+ * Reset en @layer base (OBLIGATORIO).
+ * Si `* { margin: 0 }` queda sin layer, gana a las utilidades Tailwind (mt-*, space-y-*, etc.)
+ * y el texto queda pegado a botones/bordes. Nunca sacar este reset del layer base.
+ * Tampoco usar padding:0 universal: en Tailwind v4 puede dejar inputs/select sin sangría.
+ */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 
-* {
-  margin: 0;
+  * {
+    margin: 0;
+  }
 }
 
 html {

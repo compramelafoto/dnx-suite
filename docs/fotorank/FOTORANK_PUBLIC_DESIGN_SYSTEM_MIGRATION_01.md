@@ -61,7 +61,18 @@ Guard automático: `legacy-public-routes.guard.test.ts` + `home-and-header.guard
 
 ## Ritmo vertical
 
-Ver `.cursor/rules/fotorank_public_composition.mdc` y tokens `--public-stack-*` (contrato tipo Clickatón, sin tokens `--ck-*`).
+Tokens `--public-stack-*` en `apps/fotorank/app/styles/public-tokens.css` (contrato tipo Clickatón, sin `--ck-*`).
+
+**Anti-aplastamiento (regla de plataforma):** texto / labels / valores nunca pegados a botones ni al borde interno de un recuadro.
+
+| Pieza | Clase / token |
+|-------|----------------|
+| Card | `.fr-public-card` — `gap` interno + padding 24/32 |
+| Meta label→valor | `.fr-public-meta-list` / `--public-label-to-value` (12px) |
+| Contenido → CTAs en card | `.fr-public-card-actions` — borde + `padding-top` 48px |
+| Sección → CTAs | `.fr-public-stack-actions` |
+
+**Reset CSS:** en `globals.css`, `* { margin: 0 }` debe estar en `@layer base` para no anular utilidades Tailwind.
 
 ---
 

@@ -46,14 +46,22 @@
 
   /*
    * Rhythm — mismo contrato estructural que Clickatón (stack semántico),
-   * con valores FotoRank. Nunca apretar título→caja ni copy→acciones.
+   * con valores FotoRank. Nunca apretar título→caja ni copy→acciones/bordes.
    *
    * title → subtitle/description: 20px
    * subtitle/title → contenido (cards/listas): 40px
    * bloque → bloque: 40px
-   * contenido → acciones: 48px
+   * contenido → acciones: 48px (mínimo; ver .fr-public-card-actions)
+   * label → valor (meta): 12px
+   * filas meta: 20px
+   * padding interno card: 24px / 32px
    * entre cards: 24px (móvil) / 32px (desktop)
+   *
+   * REGLA: texto, labels y valores NUNCA pueden tocar botones ni el borde
+   * interno de un recuadro. Preferir `gap` en stacks de card; acciones con
+   * `.fr-public-card-actions` o `.fr-public-stack-actions`.
    */
+  --public-space-3: 0.75rem;
   --public-space-4: 1rem;
   --public-space-5: 1.25rem;
   --public-space-6: 1.5rem;
@@ -74,6 +82,11 @@
   --public-content-actions: var(--public-stack-content-to-actions);
   --public-card-gap: var(--public-space-6);
   --public-card-gap-lg: var(--public-space-8);
+  --public-card-padding: var(--public-space-6);
+  --public-card-padding-lg: var(--public-space-8);
+  --public-card-internal-gap: var(--public-space-6);
+  --public-label-to-value: var(--public-space-3);
+  --public-meta-row-gap: var(--public-space-5);
   --public-label-control: var(--public-space-8);
   --public-leading-body: 1.7;
   --public-leading-relaxed: 1.8;
@@ -201,17 +214,82 @@
 }
 
 .fr-public-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-card-internal-gap);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  padding: 1.5rem;
+  padding: var(--public-card-padding);
   box-shadow: var(--shadow-sm);
+}
+
+/* El gap del card ya separa hijos; anular stack margins para no duplicar. */
+.fr-public-card > .fr-public-stack-title,
+.fr-public-card > .fr-public-stack-content,
+.fr-public-card > .fr-public-stack-block,
+.fr-public-card > .fr-public-stack-actions {
+  margin-top: 0;
 }
 
 @media (min-width: 640px) {
   .fr-public-card {
-    padding: 2rem;
+    padding: var(--public-card-padding-lg);
   }
+}
+
+/* Meta label/valor — ritmo por gap (no depender solo de mt-* utilidades) */
+.fr-public-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-meta-row-gap);
+  margin: 0;
+  padding: 0;
+}
+
+.fr-public-meta-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-label-to-value);
+  margin: 0;
+  min-width: 0;
+}
+
+.fr-public-meta-list__item dt,
+.fr-public-meta-list__item dd {
+  margin: 0;
+}
+
+.fr-public-meta-list__item dt {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--foreground-muted);
+}
+
+.fr-public-meta-list__item dd {
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--foreground);
+}
+
+.fr-public-meta-list__item dd[data-accent],
+.fr-public-meta-list__item dd.fr-public-meta-list__value--accent {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/*
+ * Acciones dentro de card — separación obligatoria con el contenido.
+ * Prohibido pegar botones al último renglón o al borde inferior del recuadro.
+ */
+.fr-public-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--public-space-3);
+  margin-top: auto;
+  padding-top: var(--public-stack-content-to-actions);
+  border-top: 1px solid var(--border);
 }
 
 /* CTA / bandas finales: ritmo interno obligatorio */
@@ -354,8 +432,14 @@
 .fr-public-notice {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  padding: 1.25rem 1.5rem;
+  padding: var(--public-card-padding);
   background: var(--surface);
+}
+
+@media (min-width: 640px) {
+  .fr-public-notice {
+    padding: var(--public-card-padding-lg);
+  }
 }
 
 .fr-public-notice--info {
@@ -455,18 +539,18 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--public-space-4);
 }
 
 .fr-public-checklist__item {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.75rem 1rem;
+  gap: var(--public-space-4) var(--public-space-5);
   align-items: start;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
-  padding: 1rem 1.25rem;
+  padding: var(--public-card-padding);
 }
 
 .fr-public-checklist__mark {

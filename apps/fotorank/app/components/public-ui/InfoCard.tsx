@@ -13,10 +13,8 @@ export function InfoCard({ label, value, hint, className, accent }: Props) {
   return (
     <div className={cn("fr-public-card", accent && "fr-public-card--accent", className)}>
       <p className="fr-public-eyebrow text-[0.7rem]">{label}</p>
-      <p className="fr-public-stack-title text-lg font-semibold tracking-tight text-[var(--foreground)]">
-        {value}
-      </p>
-      {hint ? <p className="fr-public-body fr-public-stack-title text-sm">{hint}</p> : null}
+      <p className="text-lg font-semibold tracking-tight text-[var(--foreground)]">{value}</p>
+      {hint ? <p className="fr-public-body text-sm">{hint}</p> : null}
     </div>
   );
 }

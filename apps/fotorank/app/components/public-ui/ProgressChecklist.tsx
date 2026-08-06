@@ -25,13 +25,13 @@ export function ProgressChecklist({ items, title = "Tu progreso" }: Props) {
             <span className="fr-public-checklist__mark" aria-hidden>
               {item.mark}
             </span>
-            <div>
+            <div className="flex min-w-0 flex-col gap-3">
               <p className="font-semibold text-[var(--foreground)]">
                 {item.title}
                 <span className="fr-public-sr-only"> — {STATE_LABEL[item.state]}</span>
               </p>
-              <p className="fr-public-body mt-2 text-sm">{item.description}</p>
-              <p className="mt-2 text-xs font-medium uppercase tracking-wide text-[var(--foreground-muted)]">
+              <p className="fr-public-body text-sm">{item.description}</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--foreground-muted)]">
                 {STATE_LABEL[item.state]}
               </p>
             </div>

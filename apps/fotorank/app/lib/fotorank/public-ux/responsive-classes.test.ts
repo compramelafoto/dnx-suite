@@ -16,7 +16,11 @@ describe("public tokens responsive contract", () => {
     assert.match(css, /--public-stack-title-to-subtitle:\s*var\(--public-space-5\)/);
     assert.match(css, /--public-stack-subtitle-to-content:\s*var\(--public-space-10\)/);
     assert.match(css, /--public-stack-content-to-actions:\s*var\(--public-space-12\)/);
+    assert.match(css, /--public-card-internal-gap:\s*var\(--public-space-6\)/);
+    assert.match(css, /--public-label-to-value:\s*var\(--public-space-3\)/);
     assert.match(css, /\.fr-public-stack-content/);
+    assert.match(css, /\.fr-public-card-actions/);
+    assert.match(css, /\.fr-public-meta-list/);
     assert.match(css, /\.fr-public-cta-band/);
     assert.match(css, /\.fr-public-mobile-bar/);
     assert.match(css, /@media \(min-width: 768px\)/);
@@ -24,5 +28,10 @@ describe("public tokens responsive contract", () => {
     assert.match(css, /--background:/);
     assert.match(css, /--container-width:/);
     assert.doesNotMatch(css, /#FFC400|#ffc400|--ck-/);
+  });
+
+  it("keeps global margin reset inside @layer base so Tailwind mt/space utilities work", () => {
+    const css = readFileSync(join(HERE, "../../../globals.css"), "utf8");
+    assert.match(css, /@layer\s+base\s*\{[\s\S]*?\*\s*\{\s*margin:\s*0;/);
   });
 });
