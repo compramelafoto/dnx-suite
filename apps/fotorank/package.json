@@ -64,7 +64,7 @@
     "ops:sfef-10c:cleanup": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/ops-sfef-10c-cleanup-fixtures.ts",
     "ops:sfef-10c:setup": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/ops-sfef-10c-setup-fixtures.ts",
     "test:e2e:sfef-10c:production": "playwright test -c playwright.10c.config.ts",
-    "test:public-ui": "pnpm --filter @repo/db exec tsx --test --test-reporter=spec ../../apps/fotorank/app/lib/fotorank/public-ux/contest-landing-phase.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/participant-status.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/responsive-classes.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/legacy-public-routes.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/home-and-header.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/inscription-restyle.guard.test.ts ../../apps/fotorank/app/components/public-ui/public-ui.isolation.test.ts"
+    "test:public-ui": "pnpm --filter @repo/db exec tsx --test --test-reporter=spec ../../apps/fotorank/app/lib/fotorank/public-ux/contest-landing-phase.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/participant-status.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/responsive-classes.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/legacy-public-routes.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/home-and-header.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/inscription-restyle.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/participacion-detail.guard.test.ts ../../apps/fotorank/app/components/public-ui/public-ui.isolation.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",

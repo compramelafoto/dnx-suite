@@ -22,6 +22,7 @@ const SCOPED_FILES = [
   "concursos/[slug]/page.tsx",
   "(participant)/layout.tsx",
   "(participant)/participaciones/page.tsx",
+  "(participant)/participaciones/[id]/page.tsx",
 ];
 
 const FORBIDDEN = [
