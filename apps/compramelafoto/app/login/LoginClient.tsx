@@ -1,7 +1,7 @@
 "use client";
 
 import "@repo/auth-ui/tokens.css";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { DnxLoginPanel, compramelafotoAuthBrand } from "@repo/auth-ui";
 import { DNX_AUTH_MESSAGES } from "@repo/auth/messages";
@@ -10,6 +10,8 @@ import {
   getPostLoginDestination,
   sanitizeInternalRedirect,
 } from "@/lib/auth/post-login-destination";
+import { buildGoogleAuthUrl } from "@/lib/auth/build-google-auth-url";
+import { getReferralCookie, getReferralMetaCookie } from "@/lib/referral-cookie";
 
 export default function LoginClient() {
   const searchParams = useSearchParams();
@@ -17,6 +19,11 @@ export default function LoginClient() {
   const [error, setError] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | undefined>();
   const [showWelcome, setShowWelcome] = useState(false);
+  const [refCode, setRefCode] = useState<string | null>(null);
+  const [trainingMeta, setTrainingMeta] = useState<{
+    sourceType: string;
+    sourceEntityId: number;
+  } | null>(null);
   const pendingRedirectRef = useRef<{
     role: string;
     safeRedirect: string;
@@ -25,6 +32,11 @@ export default function LoginClient() {
 
   const redirectParam = searchParams?.get("redirect") || "";
   const safeRedirect = sanitizeInternalRedirect(redirectParam);
+
+  useEffect(() => {
+    setRefCode(getReferralCookie());
+    setTrainingMeta(getReferralMetaCookie());
+  }, []);
 
   useEffect(() => {
     const passwordReset = searchParams?.get("passwordReset");
@@ -116,9 +128,17 @@ export default function LoginClient() {
     }
   }
 
-  const googleHref = safeRedirect
-    ? `/api/auth/google?role=AUTO&redirect=${encodeURIComponent(safeRedirect)}`
-    : "/api/auth/google?role=AUTO";
+  const googleHref = useMemo(
+    () =>
+      buildGoogleAuthUrl({
+        role: "AUTO",
+        redirect: safeRedirect || null,
+        ref: refCode,
+        sourceType: trainingMeta?.sourceType,
+        sourceEntityId: trainingMeta?.sourceEntityId,
+      }),
+    [safeRedirect, refCode, trainingMeta]
+  );
   const registerHref = safeRedirect
     ? `/registro?redirect=${encodeURIComponent(safeRedirect)}`
     : "/registro";

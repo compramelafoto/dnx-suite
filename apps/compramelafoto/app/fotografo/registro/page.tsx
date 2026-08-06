@@ -236,7 +236,12 @@ export default function PhotographerRegisterPage() {
                 type="button"
                 variant="secondary"
                 className="w-full flex items-center justify-center gap-2"
-                onClick={() => window.location.href = "/api/auth/google"}
+                onClick={() => {
+                  const ref = document.cookie.match(/(?:^|;\s*)clf_ref=([^;]*)/)?.[1];
+                  const params = new URLSearchParams({ role: "PHOTOGRAPHER" });
+                  if (ref) params.set("ref", decodeURIComponent(ref));
+                  window.location.href = `/api/auth/google?${params.toString()}`;
+                }}
                 disabled={loading}
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">

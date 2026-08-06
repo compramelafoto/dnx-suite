@@ -1,20 +1,32 @@
 "use client";
 
 import "@repo/auth-ui/tokens.css";
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DnxRegisterPanel, compramelafotoAuthBrand } from "@repo/auth-ui";
 import { DNX_AUTH_MESSAGES } from "@repo/auth/messages";
 import { sanitizeInternalRedirect } from "@/lib/auth/post-login-destination";
+import { buildGoogleAuthUrl } from "@/lib/auth/build-google-auth-url";
+import { getReferralCookie, getReferralMetaCookie } from "@/lib/referral-cookie";
 
 export default function RegisterClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [refCode, setRefCode] = useState<string | null>(null);
+  const [trainingMeta, setTrainingMeta] = useState<{
+    sourceType: string;
+    sourceEntityId: number;
+  } | null>(null);
 
   const redirectParam = searchParams?.get("redirect") || "";
   const safeRedirect = sanitizeInternalRedirect(redirectParam);
+
+  useEffect(() => {
+    setRefCode(getReferralCookie());
+    setTrainingMeta(getReferralMetaCookie());
+  }, []);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -64,9 +76,17 @@ export default function RegisterClient() {
     }
   }
 
-  const googleHref = safeRedirect
-    ? `/api/auth/google?role=AUTO&redirect=${encodeURIComponent(safeRedirect)}`
-    : "/api/auth/google?role=AUTO";
+  const googleHref = useMemo(
+    () =>
+      buildGoogleAuthUrl({
+        role: "AUTO",
+        redirect: safeRedirect || null,
+        ref: refCode,
+        sourceType: trainingMeta?.sourceType,
+        sourceEntityId: trainingMeta?.sourceEntityId,
+      }),
+    [safeRedirect, refCode, trainingMeta]
+  );
   const loginHref = safeRedirect
     ? `/login?redirect=${encodeURIComponent(safeRedirect)}`
     : "/login";

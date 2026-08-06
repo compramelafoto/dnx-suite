@@ -12,7 +12,9 @@ import {
 } from "@/lib/cuantocobro/constants";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { buildGoogleAuthUrl } from "@/lib/auth/build-google-auth-url";
+import { getReferralCookie, getReferralMetaCookie } from "@/lib/referral-cookie";
 
 const CC_ALLOWED_ROLES = new Set(["PHOTOGRAPHER", "LAB_PHOTOGRAPHER", "ADMIN"]);
 
@@ -25,11 +27,21 @@ export default function CuantoCobroLoginClient() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [refCode, setRefCode] = useState<string | null>(null);
+  const [trainingMeta, setTrainingMeta] = useState<{
+    sourceType: string;
+    sourceEntityId: number;
+  } | null>(null);
   const pendingRedirectRef = useRef<{ role: string; safeRedirect: string; user: unknown } | null>(null);
 
   const redirectParam = searchParams?.get("redirect") || "";
   const safeRedirect =
     redirectParam.startsWith("/") && !redirectParam.startsWith("//") ? redirectParam : CC_APP_PATH;
+
+  useEffect(() => {
+    setRefCode(getReferralCookie());
+    setTrainingMeta(getReferralMetaCookie());
+  }, []);
 
   useEffect(() => {
     const passwordReset = searchParams?.get("passwordReset");
@@ -117,7 +129,17 @@ export default function CuantoCobroLoginClient() {
     }
   }
 
-  const googleHref = `/api/auth/google?role=PHOTOGRAPHER&redirect=${encodeURIComponent(safeRedirect)}`;
+  const googleHref = useMemo(
+    () =>
+      buildGoogleAuthUrl({
+        role: "PHOTOGRAPHER",
+        redirect: safeRedirect,
+        ref: refCode,
+        sourceType: trainingMeta?.sourceType,
+        sourceEntityId: trainingMeta?.sourceEntityId,
+      }),
+    [safeRedirect, refCode, trainingMeta]
+  );
   const forgotPasswordHref = `/forgot-password?redirect=${encodeURIComponent(`/cuantocobro/login?redirect=${encodeURIComponent(safeRedirect)}`)}`;
 
   return (
