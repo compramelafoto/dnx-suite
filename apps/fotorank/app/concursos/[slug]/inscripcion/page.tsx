@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { getAuthUser } from "../../../lib/auth";
@@ -7,6 +6,20 @@ import {
   getCurrentPublishedRules,
   getMyContestRegistration,
 } from "../../../lib/fotorank/registration";
+import {
+  buildParticipantChecklist,
+  presentArtworkStatus,
+  presentRegistrationStatus,
+} from "../../../lib/fotorank/public-ux/participant-status";
+import {
+  Notice,
+  PageContainer,
+  PageHeader,
+  ParticipantDashboard,
+  PrimaryButton,
+  PublicShell,
+  SecondaryButton,
+} from "../../../components/public-ui";
 import { InscriptionForm } from "./InscriptionForm";
 import { EntryUploadPanel } from "./EntryUploadPanel";
 
@@ -31,7 +44,7 @@ export default async function ContestInscriptionPage({ params }: Props) {
     },
     include: {
       categories: { where: { status: "ACTIVE" }, orderBy: { sortOrder: "asc" } },
-      organization: { select: { name: true } },
+      organization: { select: { name: true, contactEmail: true } },
     },
   });
   if (!contest) notFound();
@@ -53,49 +66,110 @@ export default async function ContestInscriptionPage({ params }: Props) {
     (uploadCloses == null || uploadCloses >= now);
 
   if (existing && existing.status !== "CANCELLED" && existing.status !== "DISQUALIFIED") {
+    const entry = await prisma.fotorankContestEntry.findFirst({
+      where: { registrationId: existing.id },
+      select: {
+        status: true,
+        entryNumber: true,
+        technicalSummaryStatus: true,
+        publicRejectionReason: true,
+        title: true,
+      },
+    });
+
+    const registrationStatus = presentRegistrationStatus(existing.status);
+    const artworkStatus = presentArtworkStatus({
+      hasEntry: Boolean(entry),
+      entryStatus: entry?.status,
+      technicalSummaryStatus: entry?.technicalSummaryStatus,
+      uploadOpen,
+    });
+    const checklist = buildParticipantChecklist({
+      registered: true,
+      registrationStatus: existing.status,
+      hasEntry: Boolean(entry),
+      entryStatus: entry?.status,
+      uploadOpen,
+    });
+
+    const primaryAction =
+      uploadOpen && existing.status === "CONFIRMED" && !entry ? (
+        <PrimaryButton href="#cargar-fotografia">Cargar fotografía</PrimaryButton>
+      ) : (
+        <PrimaryButton href="/participaciones">Ver mis participaciones</PrimaryButton>
+      );
+
     return (
-      <main className="min-h-screen bg-fr-bg text-fr-primary">
-        <div className="mx-auto max-w-2xl px-8 py-16 md:px-10">
-          <p className="fr-eyebrow text-gold">Inscripción</p>
-          <h1 className="mt-4 font-sans text-3xl font-semibold tracking-tight md:text-4xl">{contest.title}</h1>
-          <div className="fr-recuadro mt-10 space-y-6 border border-fr-border bg-fr-card">
-            <p className="text-lg text-fr-primary">Ya estás inscripto/a.</p>
-            <dl className="space-y-4 text-sm">
-              <div>
-                <dt className="text-fr-muted">Número</dt>
-                <dd className="mt-2 text-xl font-semibold text-gold" data-testid="registration-number">
-                  {existing.registrationNumber}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-fr-muted">Categoría</dt>
-                <dd className="mt-2 text-fr-primary">{existing.categoryName}</dd>
-              </div>
-              <div>
-                <dt className="text-fr-muted">Estado</dt>
-                <dd className="mt-2 text-fr-primary">{existing.status}</dd>
-              </div>
-            </dl>
-            <Link href="/participaciones" className="fr-btn fr-btn-primary inline-flex w-fit px-6 py-3">
-              Ver mis participaciones
-            </Link>
-          </div>
+      <PublicShell
+        organizationName={contest.organization.name}
+        supportEmail={contest.organization.contactEmail}
+        header={{
+          variant: "participant",
+          hasSession: true,
+          userEmail: user.email,
+          panelHref: "/participaciones",
+        }}
+      >
+        <PageContainer width="readable" className="py-12 md:py-16">
+          <ParticipantDashboard
+            contestTitle={contest.title}
+            participantLabel={user.email}
+            registrationStatus={registrationStatus}
+            artworkStatus={artworkStatus}
+            categoryName={existing.categoryName}
+            registrationNumber={existing.registrationNumber}
+            relevantDateLabel={
+              contest.submissionDeadline
+                ? `Cierre: ${contest.submissionDeadline.toLocaleDateString("es-AR", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}`
+                : null
+            }
+            checklist={checklist}
+            primaryAction={primaryAction}
+            notice={
+              existing.status === "CONFIRMED" && !uploadOpen ? (
+                <Notice tone="warning" data-testid="upload-closed-notice">
+                  La carga de fotografías todavía no está habilitada. Tu inscripción quedó
+                  confirmada; te avisaremos cuando puedas subir tu obra.
+                </Notice>
+              ) : null
+            }
+            artworks={
+              entry ? (
+                <div className="fr-public-card space-y-3" data-testid="participation-entry-summary">
+                  <p className="font-semibold text-[var(--foreground)]">
+                    {entry.title?.trim() || "Tu fotografía"}
+                  </p>
+                  <p className="text-sm text-[var(--foreground-muted)]">
+                    {artworkStatus.label}
+                    {entry.entryNumber ? ` · ${entry.entryNumber}` : ""}
+                  </p>
+                  {entry.publicRejectionReason ? (
+                    <Notice tone="warning" title="Observación">
+                      {entry.publicRejectionReason}
+                    </Notice>
+                  ) : null}
+                </div>
+              ) : (
+                <Notice tone="info">Todavía no hay una fotografía presentada.</Notice>
+              )
+            }
+          />
+
           {existing.status === "CONFIRMED" && uploadOpen ? (
-            <EntryUploadPanel contestId={contest.id} contestSlug={slug} />
-          ) : null}
-          {existing.status === "CONFIRMED" && !uploadOpen ? (
-            <div
-              className="fr-recuadro mt-10 border border-amber-500/40 bg-amber-500/10"
-              data-testid="upload-closed-notice"
-            >
-              <p className="fr-body text-fr-primary">
-                La carga de fotografías todavía no está habilitada. Tu inscripción quedó confirmada;
-                te avisaremos cuando puedas subir tu obra.
-              </p>
+            <div id="cargar-fotografia" className="mt-12">
+              <EntryUploadPanel contestId={contest.id} contestSlug={slug} />
             </div>
           ) : null}
-        </div>
-      </main>
+
+          <div className="fr-public-actions">
+            <SecondaryButton href={`/concursos/${slug}`}>Volver al concurso</SecondaryButton>
+          </div>
+        </PageContainer>
+      </PublicShell>
     );
   }
 
@@ -103,26 +177,37 @@ export default async function ContestInscriptionPage({ params }: Props) {
   const isFree = contest.registrationPricingMode === "FREE";
 
   return (
-    <main className="min-h-screen bg-fr-bg text-fr-primary">
-      <div className="mx-auto max-w-2xl px-8 py-16 md:px-10">
-        <p className="fr-eyebrow text-gold">Inscripción · {contest.organization.name}</p>
-        <h1 className="mt-4 font-sans text-3xl font-semibold tracking-tight md:text-4xl">{contest.title}</h1>
-        <p className="mt-6 max-w-xl text-base leading-relaxed text-fr-muted">
-          {isFree
-            ? "Concurso gratuito: al confirmar quedarás inscripto/a sin cobro ni redirección a pagos."
-            : "Concurso con inscripción paga: el cobro se completará vía DNX Payments (en preparación)."}
-        </p>
+    <PublicShell
+      organizationName={contest.organization.name}
+      supportEmail={contest.organization.contactEmail}
+      header={{
+        variant: "participant",
+        hasSession: true,
+        userEmail: user.email,
+        panelHref: "/participaciones",
+      }}
+    >
+      <PageContainer width="readable" className="py-12 md:py-16">
+        <PageHeader
+          eyebrow={`Inscripción · ${contest.organization.name}`}
+          title={contest.title}
+          description={
+            isFree
+              ? "Concurso gratuito: al confirmar quedarás inscripto/a sin cobro ni redirección a pagos."
+              : "Concurso con inscripción paga: el cobro se completará vía el proceso de pago indicado."
+          }
+        />
 
         {!rules ? (
-          <div className="fr-recuadro mt-10 border border-amber-500/40 bg-amber-500/10">
-            <p className="fr-body text-fr-primary">
-              Todavía no hay bases publicadas. El organizador debe publicar una versión antes de abrir
-              inscripciones.
+          <Notice tone="warning" className="mt-10" title="Bases pendientes">
+            <p>
+              Todavía no hay bases publicadas. El organizador debe publicar una versión antes de
+              abrir inscripciones.
             </p>
-            <Link href={`/concursos/${slug}`} className="fr-btn fr-btn-secondary mt-8 inline-flex w-fit">
-              Volver al concurso
-            </Link>
-          </div>
+            <div className="mt-6">
+              <SecondaryButton href={`/concursos/${slug}`}>Volver al concurso</SecondaryButton>
+            </div>
+          </Notice>
         ) : (
           <InscriptionForm
             contestId={contest.id}
@@ -142,7 +227,7 @@ export default async function ContestInscriptionPage({ params }: Props) {
             isFree={isFree}
           />
         )}
-      </div>
-    </main>
+      </PageContainer>
+    </PublicShell>
   );
 }

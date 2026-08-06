@@ -139,19 +139,19 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
 
   if (registrationNumber) {
     return (
-      <div className="fr-recuadro mt-10 space-y-6 border border-fr-border bg-fr-card" data-testid="inscription-success">
-        <p className="text-lg font-semibold text-fr-primary">
+      <div className="fr-public-card mt-10 space-y-6" data-testid="inscription-success">
+        <p className="text-lg font-semibold text-[var(--foreground)]">
           {isFree ? "Inscripción confirmada" : "Inscripción registrada (pago pendiente)"}
         </p>
-        <p className="text-fr-muted">Tu número de inscripción:</p>
-        <p className="text-2xl font-semibold text-gold" data-testid="registration-number">
+        <p className="text-[var(--foreground-muted)]">Tu número de inscripción:</p>
+        <p className="text-2xl font-semibold text-[var(--primary)]" data-testid="registration-number">
           {registrationNumber}
         </p>
         <div className="flex flex-wrap gap-4">
-          <Link href={`/concursos/${contestSlug}/inscripcion`} className="fr-btn fr-btn-primary px-6 py-3">
+          <Link href={`/concursos/${contestSlug}/inscripcion`} className="fr-public-btn fr-public-btn--primary px-6 py-3">
             Continuar con la fotografía
           </Link>
-          <Link href="/participaciones" className="fr-btn fr-btn-secondary px-6 py-3">
+          <Link href="/participaciones" className="fr-public-btn fr-public-btn--secondary px-6 py-3">
             Ir a mis participaciones
           </Link>
         </div>
@@ -167,9 +167,9 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
       data-contest-id={contestId}
     >
       {contestSlug === "santa-fe-en-foco" || contestSlug.includes("santa-fe") ? (
-        <section className="fr-recuadro space-y-6 border border-fr-border bg-fr-card">
+        <section className="fr-public-card space-y-6">
           <h2 className="text-xl font-semibold tracking-tight">Participación abierta</h2>
-          <p className="text-sm leading-relaxed text-fr-muted" data-testid="open-participation-note">
+          <p className="text-sm leading-relaxed text-[var(--foreground-muted)]" data-testid="open-participation-note">
             La participación es abierta. No es necesario residir en la Provincia de Santa Fe. La fotografía
             presentada deberá haber sido realizada dentro del territorio de la Provincia de Santa Fe y durante
             el período oficial establecido para el concurso.
@@ -177,18 +177,18 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
         </section>
       ) : null}
 
-      <section className="fr-recuadro space-y-6 border border-fr-border bg-fr-card">
+      <section className="fr-public-card space-y-6">
         <h2 className="text-xl font-semibold tracking-tight">Categoría</h2>
         {singleCategory ? (
-          <p className="text-fr-primary">
+          <p className="text-[var(--foreground)]">
             {categories[0]?.name}
-            <span className="mt-2 block text-sm text-fr-muted">Hasta {categories[0]?.maxFiles} fotografía(s).</span>
+            <span className="mt-2 block text-sm text-[var(--foreground-muted)]">Hasta {categories[0]?.maxFiles} fotografía(s).</span>
           </p>
         ) : (
           <label className="block">
-            <span className="text-base font-semibold text-fr-primary">Elegí una categoría</span>
+            <span className="text-base font-semibold text-[var(--foreground)]">Elegí una categoría</span>
             <select
-              className="mt-8 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4 text-fr-primary"
+              className="mt-8 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4 text-[var(--foreground)]"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               required
@@ -202,33 +202,33 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
             </select>
           </label>
         )}
-        <p className="text-sm leading-relaxed text-fr-muted" data-testid="category-hint">
+        <p className="text-sm leading-relaxed text-[var(--foreground-muted)]" data-testid="category-hint">
           {categoryHint}
         </p>
         {needsArgra ? (
           <label className="block">
-            <span className="text-base font-semibold text-fr-primary">Número de socio de ARGRA</span>
+            <span className="text-base font-semibold text-[var(--foreground)]">Número de socio de ARGRA</span>
             <input
-              className="mt-8 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4 text-fr-primary"
+              className="mt-8 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4 text-[var(--foreground)]"
               value={argraMembershipNumber}
               onChange={(e) => setArgraMembershipNumber(e.target.value)}
               required
               autoComplete="off"
               data-testid="inscription-argra"
             />
-            <span className="mt-3 block text-sm text-fr-muted">
+            <span className="mt-3 block text-sm text-[var(--foreground-muted)]">
               El número será utilizado únicamente para verificar la elegibilidad en esta categoría. No se
               publica en perfiles ni resultados.
             </span>
           </label>
         ) : null}
         <label className="block">
-          <span className="text-base font-semibold text-fr-primary">Edad (años)</span>
+          <span className="text-base font-semibold text-[var(--foreground)]">Edad (años)</span>
           <input
             type="number"
             min={16}
             max={120}
-            className="mt-8 w-full max-w-xs rounded-xl border border-fr-border bg-fr-bg px-5 py-4 text-fr-primary"
+            className="mt-8 w-full max-w-xs rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4 text-[var(--foreground)]"
             value={declaredAgeYears}
             onChange={(e) => setDeclaredAgeYears(e.target.value)}
             required
@@ -237,21 +237,21 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
         </label>
       </section>
 
-      <section className="fr-recuadro space-y-6 border border-fr-border bg-fr-card" id="bases-inscripcion">
+      <section className="fr-public-card space-y-6" id="bases-inscripcion">
         <h2 className="text-xl font-semibold tracking-tight">
           {rules.title}{" "}
-          <span className="text-sm font-normal text-fr-muted">(v{rules.versionNumber})</span>
+          <span className="text-sm font-normal text-[var(--foreground-muted)]">(v{rules.versionNumber})</span>
         </h2>
         {rules.publishedAt ? (
-          <p className="text-sm text-fr-muted">Publicada: {new Date(rules.publishedAt).toLocaleString("es-AR")}</p>
+          <p className="text-sm text-[var(--foreground-muted)]">Publicada: {new Date(rules.publishedAt).toLocaleString("es-AR")}</p>
         ) : null}
-        <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl border border-fr-border bg-fr-bg p-6 text-sm leading-relaxed text-fr-muted">
+        <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--background)] p-6 text-sm leading-relaxed text-[var(--foreground-muted)]">
           {rules.content}
         </div>
-        <label className="flex items-start gap-4 text-base text-fr-primary">
+        <label className="flex items-start gap-4 text-base text-[var(--foreground)]">
           <input
             type="checkbox"
-            className="mt-1 size-5 accent-[#d4af37]"
+            className="mt-1 size-5 accent-[var(--primary)]"
             checked={acceptedRules}
             onChange={(e) => setAcceptedRules(e.target.checked)}
             data-testid="inscription-accept-rules"
@@ -261,20 +261,20 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
             fecha, versión y hashes.
           </span>
         </label>
-        <label className="flex items-start gap-4 text-base text-fr-primary">
+        <label className="flex items-start gap-4 text-base text-[var(--foreground)]">
           <input
             type="checkbox"
-            className="mt-1 size-5 accent-[#d4af37]"
+            className="mt-1 size-5 accent-[var(--primary)]"
             checked={acceptedLicense}
             onChange={(e) => setAcceptedLicense(e.target.checked)}
             data-testid="inscription-accept-license"
           />
           <span>Acepto la licencia necesaria para participar (obligatoria, separada de las bases).</span>
         </label>
-        <label className="flex items-start gap-4 text-base text-fr-muted">
+        <label className="flex items-start gap-4 text-base text-[var(--foreground-muted)]">
           <input
             type="checkbox"
-            className="mt-1 size-5 accent-[#d4af37]"
+            className="mt-1 size-5 accent-[var(--primary)]"
             checked={promotionalOptIn}
             onChange={(e) => setPromotionalOptIn(e.target.checked)}
             data-testid="inscription-promo-optin"
@@ -284,13 +284,13 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
       </section>
 
       {needsMinorAuth ? (
-        <section className="fr-recuadro space-y-6 border border-amber-500/30 bg-amber-500/5">
+        <section className="fr-public-notice fr-public-notice--warning space-y-6">
           <h2 className="text-xl font-semibold tracking-tight">Autorización de menor</h2>
-          <p className="text-sm text-fr-muted">{MINOR_CONSENT_NOTICE}</p>
+          <p className="text-sm text-[var(--foreground-muted)]">{MINOR_CONSENT_NOTICE}</p>
           <label className="block">
             <span className="text-base font-semibold">Nombre del adulto responsable</span>
             <input
-              className="mt-8 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
+              className="mt-8 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4"
               value={guardianName}
               onChange={(e) => setGuardianName(e.target.value)}
               data-testid="inscription-guardian-name"
@@ -299,7 +299,7 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
           <label className="block">
             <span className="text-base font-semibold">Vínculo</span>
             <input
-              className="mt-8 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
+              className="mt-8 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4"
               value={relationship}
               onChange={(e) => setRelationship(e.target.value)}
               placeholder="Padre / Madre / Tutor legal"
@@ -309,7 +309,7 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
           <label className="flex items-start gap-4">
             <input
               type="checkbox"
-              className="mt-1 size-5 accent-[#d4af37]"
+              className="mt-1 size-5 accent-[var(--primary)]"
               checked={minorAccepted}
               onChange={(e) => setMinorAccepted(e.target.checked)}
               data-testid="inscription-minor-auth"
@@ -325,16 +325,16 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
         </div>
       ) : null}
 
-      <div className="fr-content-to-actions mt-16 flex flex-wrap gap-4 border-t border-fr-border pt-8">
+      <div className="fr-public-actions">
         <button
           type="submit"
           disabled={pending}
-          className="fr-btn fr-btn-primary px-8 py-4 text-base font-semibold disabled:opacity-60"
+          className="fr-public-btn fr-public-btn--primary px-8 py-4 text-base font-semibold disabled:opacity-60"
           data-testid="inscription-submit"
         >
           {pending ? "Confirmando…" : isFree ? "Confirmar inscripción gratuita" : "Continuar a pago"}
         </button>
-        <Link href={`/concursos/${contestSlug}`} className="fr-btn fr-btn-secondary px-8 py-4">
+        <Link href={`/concursos/${contestSlug}`} className="fr-public-btn fr-public-btn--secondary px-8 py-4">
           Cancelar
         </Link>
       </div>

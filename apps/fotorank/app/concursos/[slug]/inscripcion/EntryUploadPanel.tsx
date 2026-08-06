@@ -174,9 +174,9 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
   }
 
   return (
-    <section className="fr-recuadro mt-10 space-y-6 border border-fr-border bg-fr-card" data-testid="entry-upload-panel">
+    <section className="fr-public-card mt-10 space-y-6" data-testid="entry-upload-panel">
       <h2 className="text-xl font-semibold tracking-tight">Fotografía</h2>
-      <p className="text-sm text-fr-muted">
+      <p className="text-sm text-[var(--foreground-muted)]">
         JPG/JPEG. Una fotografía por participante. El GPS no es obligatorio y nunca se publica. El original se
         guarda de forma privada.
       </p>
@@ -184,37 +184,37 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
       {requiresSantaFeEligibility ? (
         <>
           <label className="block">
-            <span className="text-sm font-semibold text-fr-primary">Localidad o paraje de captura</span>
+            <span className="text-sm font-semibold text-[var(--foreground)]">Localidad o paraje de captura</span>
             <input
-              className="mt-4 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
+              className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4"
               value={captureLocality}
               onChange={(e) => setCaptureLocality(e.target.value)}
               data-testid="entry-capture-locality"
             />
           </label>
           <label className="block">
-            <span className="text-sm font-semibold text-fr-primary">Departamento (opcional)</span>
+            <span className="text-sm font-semibold text-[var(--foreground)]">Departamento (opcional)</span>
             <input
-              className="mt-4 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
+              className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4"
               value={captureDepartment}
               onChange={(e) => setCaptureDepartment(e.target.value)}
               data-testid="entry-capture-department"
             />
           </label>
-          <label className="flex items-start gap-4 text-sm text-fr-primary">
+          <label className="flex items-start gap-4 text-sm text-[var(--foreground)]">
             <input
               type="checkbox"
-              className="mt-1 size-5 accent-[#d4af37]"
+              className="mt-1 size-5 accent-[var(--primary)]"
               checked={territoryConfirmed}
               onChange={(e) => setTerritoryConfirmed(e.target.checked)}
               data-testid="entry-territory-confirm"
             />
             <span>La fotografía fue tomada dentro de la Provincia de Santa Fe.</span>
           </label>
-          <label className="flex items-start gap-4 text-sm text-fr-primary">
+          <label className="flex items-start gap-4 text-sm text-[var(--foreground)]">
             <input
               type="checkbox"
-              className="mt-1 size-5 accent-[#d4af37]"
+              className="mt-1 size-5 accent-[var(--primary)]"
               checked={captureWithinPeriod}
               onChange={(e) => setCaptureWithinPeriod(e.target.checked)}
               data-testid="entry-period-confirm"
@@ -222,9 +222,9 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
             <span>Declaro que la fotografía fue tomada durante el período oficial del concurso.</span>
           </label>
           <label className="block">
-            <span className="text-sm font-semibold text-fr-primary">Dispositivo utilizado</span>
+            <span className="text-sm font-semibold text-[var(--foreground)]">Dispositivo utilizado</span>
             <select
-              className="mt-4 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
+              className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4"
               value={declaredDeviceKind}
               onChange={(e) => setDeclaredDeviceKind(e.target.value)}
               data-testid="entry-device-kind"
@@ -241,18 +241,18 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
           </label>
           <div className="grid gap-6 md:grid-cols-2">
             <label className="block">
-              <span className="text-sm font-semibold text-fr-primary">Marca (si falta en EXIF)</span>
+              <span className="text-sm font-semibold text-[var(--foreground)]">Marca (si falta en EXIF)</span>
               <input
-                className="mt-4 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
+                className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4"
                 value={declaredDeviceMake}
                 onChange={(e) => setDeclaredDeviceMake(e.target.value)}
                 data-testid="entry-device-make"
               />
             </label>
             <label className="block">
-              <span className="text-sm font-semibold text-fr-primary">Modelo (si falta en EXIF)</span>
+              <span className="text-sm font-semibold text-[var(--foreground)]">Modelo (si falta en EXIF)</span>
               <input
-                className="mt-4 w-full rounded-xl border border-fr-border bg-fr-bg px-5 py-4"
+                className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-5 py-4"
                 value={declaredDeviceModel}
                 onChange={(e) => setDeclaredDeviceModel(e.target.value)}
                 data-testid="entry-device-model"
@@ -260,10 +260,10 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
             </label>
           </div>
           {declaredDeviceKind === "DRONE" ? (
-            <label className="flex items-start gap-4 text-sm text-fr-muted">
+            <label className="flex items-start gap-4 text-sm text-[var(--foreground-muted)]">
               <input
                 type="checkbox"
-                className="mt-1 size-5 accent-[#d4af37]"
+                className="mt-1 size-5 accent-[var(--primary)]"
                 checked={droneAck}
                 onChange={(e) => setDroneAck(e.target.checked)}
                 data-testid="entry-drone-ack"
@@ -278,11 +278,11 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
       ) : null}
 
       <label className="block">
-        <span className="text-sm font-semibold text-fr-primary">Seleccionar archivo</span>
+        <span className="text-sm font-semibold text-[var(--foreground)]">Seleccionar archivo</span>
         <input
           type="file"
           accept="image/jpeg,.jpg,.jpeg"
-          className="mt-4 block w-full text-sm text-fr-muted"
+          className="mt-4 block w-full text-sm text-[var(--foreground-muted)]"
           data-testid="entry-file-input"
           disabled={pending}
           onChange={(e) => {
@@ -293,13 +293,13 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
       </label>
 
       {phase === "uploading" || phase === "processing" ? (
-        <p className="text-gold" data-testid="entry-processing">
+        <p className="text-[var(--primary)]" data-testid="entry-processing">
           {phase === "uploading" ? "Subiendo…" : "Estamos verificando el archivo…"}
         </p>
       ) : null}
 
       {info ? (
-        <p className="text-sm text-fr-primary" data-testid="entry-info">
+        <p className="text-sm text-[var(--foreground)]" data-testid="entry-info">
           {info}
         </p>
       ) : null}
@@ -314,24 +314,34 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
         <img
           src={entry.previewUrl}
           alt="Vista previa"
-          className="max-h-80 rounded-xl border border-fr-border object-contain"
+          className="max-h-80 rounded-xl border border-[var(--border)] object-contain"
           data-testid="entry-preview"
         />
       ) : null}
 
       {entry ? (
         <div className="space-y-4" data-testid="entry-status-block">
-          <p className="text-sm text-fr-muted">
-            Archivo: <span className="text-fr-primary">{entry.status}</span> · Técnico:{" "}
-            <span className="text-fr-primary">{entry.technicalSummaryStatus}</span>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Estado de la obra:{" "}
+            <span className="text-[var(--foreground)]">
+              {entry.status === "CONFIRMED"
+                ? "Presentada"
+                : entry.status === "READY_TO_CONFIRM"
+                  ? "Lista para confirmar"
+                  : entry.status === "REQUIRES_REVIEW"
+                    ? "Requiere revisión"
+                    : entry.status === "DRAFT"
+                      ? "Borrador"
+                      : "En proceso"}
+            </span>
           </p>
           {entry.admissionPublic ? (
             <div
-              className="rounded-xl border border-fr-border bg-fr-bg/40 px-4 py-4 space-y-2"
+              className="rounded-xl border border-[var(--border)] bg-[var(--background)]/40 px-4 py-4 space-y-2"
               data-testid="admission-public-status"
             >
-              <p className="text-base font-semibold text-fr-primary">{entry.admissionPublic.publicLabel}</p>
-              <p className="text-sm text-fr-muted">{entry.admissionPublic.publicMessage}</p>
+              <p className="text-base font-semibold text-[var(--foreground)]">{entry.admissionPublic.publicLabel}</p>
+              <p className="text-sm text-[var(--foreground-muted)]">{entry.admissionPublic.publicMessage}</p>
               {entry.admissionPublic.evidenceRequested ? (
                 <p className="text-sm text-amber-300">
                   {entry.admissionPublic.evidencePublicMessage}
@@ -341,7 +351,7 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
                 </p>
               ) : null}
               {entry.admissionPublic.replacementAllowed ? (
-                <p className="text-sm text-gold">Reemplazo habilitado: podés subir un nuevo archivo.</p>
+                <p className="text-sm text-[var(--primary)]">Reemplazo habilitado: podés subir un nuevo archivo.</p>
               ) : null}
               {entry.publicRejectionReason ? (
                 <p className="text-sm text-red-300">{entry.publicRejectionReason}</p>
@@ -349,15 +359,15 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
             </div>
           ) : null}
           {entry.entryNumber ? (
-            <p className="text-lg font-semibold text-gold" data-testid="entry-number">
+            <p className="text-lg font-semibold text-[var(--primary)]" data-testid="entry-number">
               Obra {entry.entryNumber}
             </p>
           ) : null}
           <ul className="space-y-2 text-sm">
             {entry.checks.slice(0, 12).map((c) => (
               <li key={c.checkCode} className="flex gap-3">
-                <span className="w-28 shrink-0 font-medium text-fr-muted">{c.status}</span>
-                <span className="text-fr-primary">
+                <span className="w-28 shrink-0 font-medium text-[var(--foreground-muted)]">{c.status}</span>
+                <span className="text-[var(--foreground)]">
                   {c.title}: {c.message}
                 </span>
               </li>
@@ -368,7 +378,7 @@ export function EntryUploadPanel({ contestId, contestSlug }: Props) {
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
-                className="fr-btn fr-btn-primary px-6 py-3"
+                className="fr-public-btn fr-public-btn--primary px-6 py-3"
                 disabled={pending}
                 data-testid="entry-confirm"
                 onClick={() => void confirm(entry.status === "REQUIRES_REVIEW")}
