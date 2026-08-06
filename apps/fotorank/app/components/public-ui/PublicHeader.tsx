@@ -71,19 +71,19 @@ export function PublicHeader({
       )}
       data-public-header={variant}
     >
-      <div className="fr-public-container flex min-h-[4.5rem] items-center justify-between gap-4 py-3 md:min-h-[5.5rem] lg:min-h-[6.5rem] lg:py-4">
+      <div className="fr-public-container flex min-h-[11.5rem] items-center justify-between gap-4 py-4 md:min-h-[14rem] lg:min-h-[16rem] lg:py-5">
         <Link
           href="/"
-          className="flex min-w-0 items-center"
+          className="flex min-w-0 shrink items-center"
           aria-label="FotoRank — inicio"
           onClick={closeMenu}
         >
           <Image
             src="/fotorank-logo.png"
             alt="FotoRank"
-            width={288}
-            height={96}
-            className="h-14 w-auto max-w-[min(72vw,12rem)] object-contain object-left sm:h-16 sm:max-w-[14rem] md:h-[4.5rem] md:max-w-[16rem] lg:h-20 lg:max-w-[18rem]"
+            width={864}
+            height={288}
+            className="h-[10.5rem] w-auto max-w-[min(70vw,34rem)] object-contain object-left sm:h-[12rem] sm:max-w-[38rem] md:h-[13.5rem] md:max-w-[42rem] lg:h-[15rem] lg:max-w-[46rem]"
             priority
           />
         </Link>

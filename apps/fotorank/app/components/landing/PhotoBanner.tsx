@@ -35,8 +35,12 @@ const PHOTOS = [
 
 export function PhotoBanner() {
   return (
-    <div className="relative h-[8rem] w-full overflow-hidden border-b border-[#1a1a1a] md:h-[10rem] lg:h-[12rem]">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#050505]/60 via-transparent to-[#050505]/60 z-10 pointer-events-none" />
+    <div
+      className="relative h-[8rem] w-full overflow-hidden border-b border-[var(--border)] md:h-[10rem] lg:h-[12rem]"
+      data-testid="home-photo-banner"
+      aria-hidden
+    >
+      <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-b from-[var(--background)]/60 via-transparent to-[var(--background)]/60" />
       <motion.div
         className="absolute inset-0 flex items-center gap-2"
         animate={{ x: [0, -6000] }}

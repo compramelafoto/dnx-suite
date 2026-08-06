@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PublicHomeContestCard } from "../../lib/fotorank/publicContests";
+import { PhotoBanner } from "../landing/PhotoBanner";
 import {
   EmptyState,
   PageContainer,
@@ -39,24 +40,29 @@ export function HomeView({ contests, header }: Props) {
     <PublicShell
       header={{ ...header, variant: "marketing" }}
       showFooter
-      mainClassName="pt-[4.5rem] md:pt-[5.5rem] lg:pt-[6.5rem]"
+      mainClassName="pt-[11.5rem] md:pt-[14rem] lg:pt-[16rem]"
     >
-      {/* Hero — participante primero */}
-      <section className="fr-public-section border-b-0 pb-0" aria-labelledby="home-hero-title">
-        <PageContainer className="py-16 md:py-24">
-          <div className="mx-auto max-w-3xl text-center">
+      <PhotoBanner />
+
+      {/* Hero — bloque tipográfico centrado en el centro de la página */}
+      <section
+        className="fr-public-section flex min-h-[calc(100dvh-11.5rem-8rem)] items-center justify-center border-b-0 pb-0 md:min-h-[calc(100dvh-14rem-10rem)] lg:min-h-[calc(100dvh-16rem-12rem)]"
+        aria-labelledby="home-hero-title"
+      >
+        <PageContainer className="flex w-full justify-center py-16 md:py-24">
+          <div className="mx-auto flex w-full max-w-3xl flex-col items-center text-center">
             <p className="fr-public-eyebrow">Concursos fotográficos</p>
             <h1
               id="home-hero-title"
-              className="fr-public-title fr-public-stack-title text-3xl md:text-5xl lg:text-[3.25rem]"
+              className="fr-public-title fr-public-stack-title text-balance text-3xl md:text-5xl lg:text-[3.25rem]"
             >
               Encontrá convocatorias abiertas y presentá tu obra con claridad
             </h1>
-            <p className="fr-public-body fr-public-stack-title mx-auto max-w-2xl text-base md:text-lg">
+            <p className="fr-public-body fr-public-stack-title mx-auto max-w-2xl text-balance text-base md:text-lg">
               FotoRank publica concursos de instituciones y organizaciones. Inscribite, seguí tu
               participación y cargá tu fotografía cuando la convocatoria lo habilite.
             </p>
-            <div className="fr-public-stack-actions flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="fr-public-stack-actions flex w-full flex-col items-center justify-center gap-4 sm:flex-row sm:gap-5">
               <PrimaryButton href="#concursos" size="lg">
                 Ver concursos
               </PrimaryButton>
