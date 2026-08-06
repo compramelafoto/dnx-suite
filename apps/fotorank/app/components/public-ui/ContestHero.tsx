@@ -43,15 +43,15 @@ export function ContestHero({
         className="absolute inset-0 bg-[linear-gradient(to_top,var(--background)_0%,rgb(20_20_20_/_0.85)_45%,rgb(20_20_20_/_0.4)_100%)]"
         aria-hidden
       />
-      <PageContainer className="relative z-10 flex min-h-[70vh] flex-col justify-end pb-14 pt-28 md:min-h-[76vh] md:pb-20 md:pt-32">
-        <div className="max-w-3xl space-y-6">
+      <PageContainer className="relative z-10 flex min-h-[70vh] flex-col justify-end pb-16 pt-28 md:min-h-[76vh] md:pb-24 md:pt-32">
+        <div className="fr-public-hero-copy max-w-3xl">
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge label={phaseLabel} tone={phaseTone} stateText="Estado del concurso" />
             {editionLabel ? <StatusBadge label={editionLabel} tone="neutral" /> : null}
             {visibilityNote ? <StatusBadge label={visibilityNote} tone="neutral" /> : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="fr-public-stack-content flex flex-wrap items-center gap-4">
             {organizerLogoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -60,22 +60,28 @@ export function ContestHero({
                 className="h-12 w-auto max-w-[140px] object-contain md:h-14"
               />
             ) : null}
-            <p className="text-sm text-[var(--foreground-muted)]">
+            <p className="text-sm leading-relaxed text-[var(--foreground-muted)] md:text-base">
               Organiza{" "}
               <span className="font-semibold text-[var(--foreground)]">{organizerName}</span>
             </p>
           </div>
 
-          <h1 className="fr-public-title text-3xl md:text-5xl lg:text-[3.5rem]">{title}</h1>
-          {summary ? <p className="fr-public-body max-w-2xl text-lg md:text-xl">{summary}</p> : null}
+          <h1 className="fr-public-title fr-public-stack-content text-3xl md:text-5xl lg:text-[3.5rem]">
+            {title}
+          </h1>
+          {summary ? (
+            <p className="fr-public-body fr-public-stack-title max-w-2xl text-lg md:text-xl">
+              {summary}
+            </p>
+          ) : null}
           {deadlineLabel ? (
-            <p className="text-sm text-[var(--foreground-muted)]">
+            <p className="fr-public-stack-title text-sm leading-relaxed text-[var(--foreground-muted)] md:text-base">
               Cierre de inscripción:{" "}
               <strong className="font-semibold text-[var(--foreground)]">{deadlineLabel}</strong>
             </p>
           ) : null}
 
-          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="fr-public-stack-actions flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5">
             {primaryAction}
             {secondaryAction}
           </div>

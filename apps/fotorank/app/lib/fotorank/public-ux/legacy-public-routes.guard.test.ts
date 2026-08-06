@@ -7,7 +7,11 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = join(HERE, "../../..");
 
-/** Rutas públicas / participante migradas — no deben reintroducir UI legacy. */
+/**
+ * Rutas públicas / participante migradas a public-ui.
+ * Inscripción (`inscripcion/*`) conserva UI ETAPA 10C (`contest-public` + upload wizard)
+ * a propósito: la lógica productiva de Santa Fe prevalece sobre el restyle visual.
+ */
 const SCOPED_FILES = [
   "page.tsx",
   "components/public-home/HomeView.tsx",
@@ -16,9 +20,6 @@ const SCOPED_FILES = [
   "components/public-ui/PublicShell.tsx",
   "concursos/[slug]/ContestPublicLanding.tsx",
   "concursos/[slug]/page.tsx",
-  "concursos/[slug]/inscripcion/page.tsx",
-  "concursos/[slug]/inscripcion/InscriptionForm.tsx",
-  "concursos/[slug]/inscripcion/EntryUploadPanel.tsx",
   "(participant)/layout.tsx",
   "(participant)/participaciones/page.tsx",
 ];

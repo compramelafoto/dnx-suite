@@ -169,6 +169,14 @@
   margin-top: var(--public-stack-content-to-actions);
 }
 
+/*
+ * Hero de concurso — ritmo más abierto que un card:
+ * badge → meta 40px; meta → título 40px; título → copy 20px; copy → CTAs 48px.
+ */
+.fr-public-hero-copy > :first-child {
+  margin-top: 0;
+}
+
 .fr-public-card-grid {
   display: grid;
   gap: var(--public-card-gap);
