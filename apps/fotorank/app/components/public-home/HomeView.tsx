@@ -44,31 +44,59 @@ export function HomeView({ contests, header }: Props) {
     >
       <PhotoBanner />
 
-      {/* Hero — bloque tipográfico centrado en el centro de la página */}
+      {/* Sección 1 — Organizaciones */}
       <section
-        className="fr-public-section flex min-h-[calc(100dvh-8rem-8rem)] items-center justify-center border-b-0 pb-0 md:min-h-[calc(100dvh-10rem-10rem)] lg:min-h-[calc(100dvh-11.25rem-12rem)]"
-        aria-labelledby="home-hero-title"
+        className="fr-public-section flex min-h-[calc(100dvh-8rem-8rem)] items-center justify-center border-b border-[var(--border)] pb-0 md:min-h-[calc(100dvh-10rem-10rem)] lg:min-h-[min(70vh,40rem)]"
+        aria-labelledby="home-org-title"
+        id="organizar"
       >
         <PageContainer className="flex w-full justify-center py-16 md:py-24">
           <div className="mx-auto flex w-full max-w-3xl flex-col items-center text-center">
-            <p className="fr-public-eyebrow">Concursos fotográficos</p>
+            <p className="fr-public-eyebrow">Para organizaciones</p>
             <h1
-              id="home-hero-title"
+              id="home-org-title"
               className="fr-public-title fr-public-stack-title text-balance text-3xl md:text-5xl lg:text-[3.25rem]"
             >
               Organizá concursos fotográficos sin desorden ni procesos manuales
             </h1>
-            <p className="fr-public-title fr-public-stack-title text-balance text-xl font-semibold md:text-2xl lg:text-3xl">
-              Encontrá convocatorias abiertas y presentá tu obra con claridad
-            </p>
             <p className="fr-public-body fr-public-stack-title mx-auto max-w-2xl text-balance text-base md:text-lg">
-              FotoRank ayuda a instituciones y organizaciones a publicar convocatorias, y a los
-              participantes a inscribirse, seguir su participación y cargar su fotografía cuando la
+              Publicá convocatorias, categorías, bases y fechas en un solo lugar. Ordená
+              inscripciones y presentá resultados con claridad institucional.
+            </p>
+            <div className="fr-public-stack-actions flex w-full flex-col items-center justify-center gap-4 sm:flex-row sm:gap-5">
+              <PrimaryButton href="/dashboard" size="lg">
+                Organizar un concurso
+              </PrimaryButton>
+              <SecondaryButton href="#que-es" size="lg">
+                Cómo funciona
+              </SecondaryButton>
+            </div>
+          </div>
+        </PageContainer>
+      </section>
+
+      {/* Sección 2 — Participantes */}
+      <section
+        className="fr-public-section flex items-center justify-center border-b-0 pb-0"
+        aria-labelledby="home-participant-title"
+        id="participar"
+      >
+        <PageContainer className="flex w-full justify-center py-16 md:py-24">
+          <div className="mx-auto flex w-full max-w-3xl flex-col items-center text-center">
+            <p className="fr-public-eyebrow">Para participantes</p>
+            <h2
+              id="home-participant-title"
+              className="fr-public-title fr-public-stack-title text-balance text-3xl md:text-4xl lg:text-5xl"
+            >
+              Encontrá convocatorias abiertas y presentá tu obra con claridad
+            </h2>
+            <p className="fr-public-body fr-public-stack-title mx-auto max-w-2xl text-balance text-base md:text-lg">
+              Inscribite, seguí el estado de tu participación y cargá tu fotografía cuando la
               convocatoria lo habilite.
             </p>
             <div className="fr-public-stack-actions flex w-full flex-col items-center justify-center gap-4 sm:flex-row sm:gap-5">
               <PrimaryButton href="#concursos" size="lg">
-                Ver concursos
+                Participar de un concurso
               </PrimaryButton>
               <SecondaryButton href="#como-participar" size="lg">
                 Cómo participar

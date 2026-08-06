@@ -12,8 +12,11 @@ describe("home pública migrada", () => {
     const home = readFileSync(join(APP, "components/public-home/HomeView.tsx"), "utf8");
     assert.match(home, /PublicShell/);
     assert.match(home, /PublicSectionHeader/);
-    assert.match(home, /Ver concursos/);
+    assert.match(home, /Organizar un concurso/);
+    assert.match(home, /Participar de un concurso/);
     assert.match(home, /id="concursos"/);
+    assert.match(home, /id="organizar"/);
+    assert.match(home, /id="participar"/);
     assert.doesNotMatch(home, /LandingHeader|HeroSection|ProblemSection|FullscreenMenu/);
     assert.doesNotMatch(home, /#d4af37|text-gold|fr-btn\b|fr-recuadro\b/);
   });
