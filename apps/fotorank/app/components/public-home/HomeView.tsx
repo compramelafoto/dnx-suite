@@ -56,11 +56,15 @@ export function HomeView({ contests, header }: Props) {
               id="home-hero-title"
               className="fr-public-title fr-public-stack-title text-balance text-3xl md:text-5xl lg:text-[3.25rem]"
             >
-              Encontrá convocatorias abiertas y presentá tu obra con claridad
+              Organizá concursos fotográficos sin desorden ni procesos manuales
             </h1>
+            <p className="fr-public-title fr-public-stack-title text-balance text-xl font-semibold md:text-2xl lg:text-3xl">
+              Encontrá convocatorias abiertas y presentá tu obra con claridad
+            </p>
             <p className="fr-public-body fr-public-stack-title mx-auto max-w-2xl text-balance text-base md:text-lg">
-              FotoRank publica concursos de instituciones y organizaciones. Inscribite, seguí tu
-              participación y cargá tu fotografía cuando la convocatoria lo habilite.
+              FotoRank ayuda a instituciones y organizaciones a publicar convocatorias, y a los
+              participantes a inscribirse, seguir su participación y cargar su fotografía cuando la
+              convocatoria lo habilite.
             </p>
             <div className="fr-public-stack-actions flex w-full flex-col items-center justify-center gap-4 sm:flex-row sm:gap-5">
               <PrimaryButton href="#concursos" size="lg">
