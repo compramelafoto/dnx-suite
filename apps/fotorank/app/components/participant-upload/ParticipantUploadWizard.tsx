@@ -457,6 +457,7 @@ export function ParticipantUploadWizard({
           technicalSummaryStatus?: string;
         };
         if (!upRes.ok || !up.ok) {
+          setInfo(null);
           setError(translateUploadError(up.error?.code, up.error?.message));
           setUploadPhase("idle");
           return;
