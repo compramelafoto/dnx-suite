@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAuthUser } from "../../../../../../../lib/auth";
-import { EntryError, processUploadedFile } from "../../../../../../../lib/fotorank/entries";
+import {
+  EntryError,
+  parseEntryEligibilityFormData,
+  processUploadedFile,
+} from "../../../../../../../lib/fotorank/entries";
 
 type Ctx = { params: Promise<{ contestId: string; entryId: string }> };
 
@@ -18,10 +22,6 @@ export async function POST(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: { code: "INVALID_FILE", message: "Archivo requerido." } }, { status: 400 });
     }
     const buf = Buffer.from(await file.arrayBuffer());
-    const str = (key: string) => {
-      const v = form.get(key);
-      return typeof v === "string" ? v : null;
-    };
     const result = await processUploadedFile({
       contestId,
       entryId,
@@ -30,27 +30,7 @@ export async function POST(req: Request, ctx: Ctx) {
       originalFileName: file.name || "replace.jpg",
       declaredMime: file.type || "application/octet-stream",
       isReplace: true,
-      eligibility: {
-        captureLocality: str("captureLocality"),
-        captureDepartment: str("captureDepartment"),
-        territoryConfirmedSantaFe: str("territoryConfirmedSantaFe") === "1" || str("territoryConfirmedSantaFe") === "true",
-        declaredDeviceKind: (str("declaredDeviceKind") as
-          | "SMARTPHONE"
-          | "DSLR"
-          | "MIRRORLESS"
-          | "COMPACT_CAMERA"
-          | "BRIDGE_CAMERA"
-          | "OTHER_CAMERA"
-          | "DRONE"
-          | "UNKNOWN"
-          | null) ?? null,
-        declaredDeviceMake: str("declaredDeviceMake"),
-        declaredDeviceModel: str("declaredDeviceModel"),
-        captureWithinPeriodDeclared:
-          str("captureWithinPeriodDeclared") === "1" || str("captureWithinPeriodDeclared") === "true",
-        droneRegulationAcknowledged:
-          str("droneRegulationAcknowledged") === "1" || str("droneRegulationAcknowledged") === "true",
-      },
+      eligibility: parseEntryEligibilityFormData(form),
     });
     return NextResponse.json({
       ok: true,

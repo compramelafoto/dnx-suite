@@ -250,6 +250,25 @@ async function main() {
     assert.equal(dims.decodable, false);
   }
 
+  // 11 FormData eligibility must forward declarations (wizard → API)
+  {
+    const { parseEntryEligibilityFormData } = await import("./eligibility-form");
+    const fd = new FormData();
+    fd.set("captureLocality", "Rosario");
+    fd.set("territoryConfirmedSantaFe", "1");
+    fd.set("declaredDeviceKind", "DSLR");
+    fd.set("captureWithinPeriodDeclared", "1");
+    fd.set("authorshipDeclared", "1");
+    fd.set("editingPolicyDeclared", "1");
+    fd.set("noGenerativeAiDeclared", "1");
+    fd.set("instagramHandle", "@qa_test");
+    const parsed = parseEntryEligibilityFormData(fd);
+    assert.equal(parsed.authorshipDeclared, true);
+    assert.equal(parsed.editingPolicyDeclared, true);
+    assert.equal(parsed.noGenerativeAiDeclared, true);
+    assert.equal(parsed.instagramHandle, "@qa_test");
+    assert.equal(parseEntryEligibilityFormData(new FormData()).authorshipDeclared, false);
+  }
 
   console.log("entries.selfcheck.ts OK");
 }
