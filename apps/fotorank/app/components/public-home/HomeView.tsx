@@ -40,13 +40,13 @@ export function HomeView({ contests, header }: Props) {
     <PublicShell
       header={{ ...header, variant: "marketing" }}
       showFooter
-      mainClassName="pt-[11.5rem] md:pt-[14rem] lg:pt-[16rem]"
+      mainClassName="pt-[8rem] md:pt-[10rem] lg:pt-[11.25rem]"
     >
       <PhotoBanner />
 
       {/* Hero — bloque tipográfico centrado en el centro de la página */}
       <section
-        className="fr-public-section flex min-h-[calc(100dvh-11.5rem-8rem)] items-center justify-center border-b-0 pb-0 md:min-h-[calc(100dvh-14rem-10rem)] lg:min-h-[calc(100dvh-16rem-12rem)]"
+        className="fr-public-section flex min-h-[calc(100dvh-8rem-8rem)] items-center justify-center border-b-0 pb-0 md:min-h-[calc(100dvh-10rem-10rem)] lg:min-h-[calc(100dvh-11.25rem-12rem)]"
         aria-labelledby="home-hero-title"
       >
         <PageContainer className="flex w-full justify-center py-16 md:py-24">
