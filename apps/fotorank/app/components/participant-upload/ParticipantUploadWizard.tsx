@@ -540,6 +540,7 @@ export function ParticipantUploadWizard({
           <h2 className="fr-upload-wizard__title">Carga no habilitada</h2>
           <p className="fr-upload-wizard__lead">
             Tu inscripción está confirmada. La carga de fotografías todavía no está habilitada.
+            Podés revisar tus datos; cuando abra la ventana de carga vas a poder continuar desde acá.
           </p>
           <dl className="fr-upload-wizard__facts">
             <div>
@@ -558,10 +559,10 @@ export function ParticipantUploadWizard({
             ) : null}
           </dl>
           <div className="fr-upload-wizard__actions">
-            <Link href={detailHref} className="fr-btn fr-btn-primary">
+            <Link href={detailHref} className="fr-public-btn fr-public-btn--primary">
               Volver al detalle
             </Link>
-            <Link href={requirements.basesHref} className="fr-btn fr-btn-secondary">
+            <Link href={requirements.basesHref} className="fr-public-btn fr-public-btn--secondary">
               Consultar bases
             </Link>
           </div>
@@ -579,7 +580,7 @@ export function ParticipantUploadWizard({
       ) : null}
 
       <header className="fr-upload-wizard__header">
-        <p className="fr-eyebrow text-gold">Carga de fotografía</p>
+        <p className="fr-public-eyebrow">Carga de fotografía</p>
         <h2 className="fr-upload-wizard__title">Participación guiada</h2>
         <p className="fr-upload-wizard__lead">
           {requirements.categoryName} · {registrationNumber}
@@ -681,14 +682,14 @@ export function ParticipantUploadWizard({
           <div className="fr-upload-wizard__actions">
             <button
               type="button"
-              className="fr-btn fr-btn-primary"
+              className="fr-public-btn fr-public-btn--primary"
               data-testid="upload-start"
               disabled={!startGate.allowed && !replacementAllowed}
               onClick={goNext}
             >
               Comenzar carga
             </button>
-            <Link href={requirements.basesHref} className="fr-btn fr-btn-secondary">
+            <Link href={requirements.basesHref} className="fr-public-btn fr-public-btn--secondary">
               Consultar bases
             </Link>
           </div>
@@ -720,7 +721,7 @@ export function ParticipantUploadWizard({
             />
             <button
               type="button"
-              className="fr-btn fr-btn-secondary fr-upload-dropzone__btn"
+              className="fr-public-btn fr-public-btn--secondary fr-upload-dropzone__btn"
               disabled={pending}
               onClick={() => inputRef.current?.click()}
             >
@@ -768,12 +769,12 @@ export function ParticipantUploadWizard({
           )}
 
           <div className="fr-upload-wizard__actions">
-            <button type="button" className="fr-btn fr-btn-secondary" onClick={goBack}>
+            <button type="button" className="fr-public-btn fr-public-btn--secondary" onClick={goBack}>
               Atrás
             </button>
             <button
               type="button"
-              className="fr-btn fr-btn-primary"
+              className="fr-public-btn fr-public-btn--primary"
               data-testid="upload-photo-next"
               onClick={goNext}
             >
@@ -956,12 +957,12 @@ export function ParticipantUploadWizard({
           </p>
 
           <div className="fr-upload-wizard__actions">
-            <button type="button" className="fr-btn fr-btn-secondary" onClick={goBack}>
+            <button type="button" className="fr-public-btn fr-public-btn--secondary" onClick={goBack}>
               Atrás
             </button>
             <button
               type="button"
-              className="fr-btn fr-btn-primary"
+              className="fr-public-btn fr-public-btn--primary"
               data-testid="upload-data-next"
               onClick={goNext}
             >
@@ -1030,19 +1031,19 @@ export function ParticipantUploadWizard({
             modificarse después. Enviar no implica admisión.
           </p>
           <div className="fr-upload-wizard__actions fr-upload-wizard__actions--split">
-            <button type="button" className="fr-btn fr-btn-secondary" onClick={goBack}>
+            <button type="button" className="fr-public-btn fr-public-btn--secondary" onClick={goBack}>
               Editar datos
             </button>
             <button
               type="button"
-              className="fr-btn fr-btn-secondary"
+              className="fr-public-btn fr-public-btn--secondary"
               onClick={() => setStep("photo")}
             >
               Cambiar fotografía
             </button>
             <button
               type="button"
-              className="fr-btn fr-btn-primary"
+              className="fr-public-btn fr-public-btn--primary"
               data-testid="entry-confirm"
               disabled={pending || uploadPhase === "uploading" || uploadPhase === "processing"}
               onClick={() => setConfirmOpen(true)}
@@ -1085,10 +1086,10 @@ export function ParticipantUploadWizard({
             ) : null}
           </dl>
           <div className="fr-upload-wizard__actions">
-            <Link href={detailHref} className="fr-btn fr-btn-primary">
+            <Link href={detailHref} className="fr-public-btn fr-public-btn--primary">
               Ver detalle
             </Link>
-            <Link href={participacionesHref} className="fr-btn fr-btn-secondary">
+            <Link href={participacionesHref} className="fr-public-btn fr-public-btn--secondary">
               Mis participaciones
             </Link>
           </div>

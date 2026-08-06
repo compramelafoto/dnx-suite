@@ -1,11 +1,12 @@
 # FotoRank — Migración del sistema visual público
 
 **Rama visual:** `feat/fotorank-public-participant-design-system-01`  
-**Rama release (IMPL 03):** `release/fotorank-public-design-system-prod-01`  
-**Worktree release:** `dnx-suite-fotorank-public-prod-02`  
-**Commit base productiva:** `43553fbd` (+ snapshot ETAPA 10C)  
-**Nota:** `origin/main` **no** contiene Santa Fe / 43553fbd; la integración productiva se hizo sobre el tip productivo real, no sobre `main`.  
-**Etapas:** IMPL 01 → IMPL 02 → IMPL 03 (integración + deploy)
+**Rama canónica productiva (IMPL 04+):** `release/fotorank-production` — ver `FOTORANK_PRODUCTION_BRANCH_POLICY.md`  
+**Rama release (IMPL 03, histórica):** `release/fotorank-public-design-system-prod-01`  
+**Worktree release (IMPL 03):** `dnx-suite-fotorank-public-prod-02`  
+**Commit base productiva histórica:** `43553fbd` (+ snapshot ETAPA 10C)  
+**Advertencia:** `origin/main` **no** representa FotoRank productivo. No desplegar desde `main`.  
+**Etapas:** IMPL 01 → IMPL 02 → IMPL 03 (integración + deploy) → IMPL 04 (rama canónica + cierre visual inscripción)
 
 ---
 

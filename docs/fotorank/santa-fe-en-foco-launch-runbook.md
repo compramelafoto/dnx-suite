@@ -4,6 +4,11 @@
 **Resultado actual:** **NO-GO** — ver `fotorank-p0-08b-ops-go-no-go-report.md`  
 **Prohibido:** Neon prod · `db push` final · bucket `fotorank-uploads` · deploy producción sin GO
 
+> **ADVERTENCIA PRODUCTIVA:** `origin/main` **no** es la fuente de FotoRank en producción.  
+> Rama canónica: `release/fotorank-production`.  
+> Política: `docs/fotorank/FOTORANK_PRODUCTION_BRANCH_POLICY.md`.  
+> No desplegar FotoRank desde `main`.
+
 ---
 
 ## Valores operativos (staging local actual)

@@ -2,6 +2,8 @@
 @import "./styles/public-tokens.css";
 /* Inscripción / concurso público ETAPA 10C (ContestShell, formularios, upload wizard) */
 @import "./styles/contest-public.css";
+/* Puente visual inscripción/upload → public-ui (IMPL 04; sin cambios de lógica) */
+@import "./styles/inscription-public-bridge.css";
 
 /* ==========================================================================
    FOTORANK — Sistema de diseño premium 2026

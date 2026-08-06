@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@repo/db";
-import { ContestShell, ContentToActions, Stack, Surface } from "../../../components/contest-public";
-import { PublicShell } from "../../../components/public-ui";
+import { ContestShell } from "../../../components/contest-public";
+import {
+  Notice,
+  PageContainer,
+  PageHeader,
+  PrimaryButton,
+  PublicShell,
+  SecondaryButton,
+  StatusBadge,
+} from "../../../components/public-ui";
 import {
   contestThemeToCssVars,
   resolveContestVisualTheme,
@@ -89,76 +96,79 @@ export default async function ContestInscriptionPage({ params }: Props) {
           timezone: contest.timezone,
         })
       : null;
+    const regStatus = presentRegistrationStatus(existing.status);
+    const badgeTone =
+      regStatus.tone === "info"
+        ? ("primary" as const)
+        : regStatus.tone === "locked"
+          ? ("neutral" as const)
+          : regStatus.tone;
     return (
       <PublicShell header={shellHeader} showFooter>
         <ContestShell cssVars={cssVars}>
           <main className="fr-contest-inscription">
-            <div className="fr-contest-inscription__inner">
-              <p className="fr-type-eyebrow">Inscripción</p>
-              <p className="fr-type-caption mt-2">{contest.organization.name}</p>
-              <h1 className="fr-type-h1 mt-3" style={{ color: "var(--cv-foreground)", maxWidth: "none" }}>
-                {contest.title}
-              </h1>
-              <Surface className="mt-8" padding="lg">
-                <Stack gap="md">
-                  <p className="fr-type-body-large" style={{ color: "var(--cv-foreground)" }}>
-                    Ya estás inscripto/a.
-                  </p>
-                  <dl className="fr-contest-stack fr-contest-stack--sm">
-                    <div>
-                      <dt className="fr-type-caption">Número</dt>
-                      <dd
-                        className="mt-1 text-xl font-semibold text-gold"
-                        data-testid="registration-number"
-                      >
-                        {existing.registrationNumber}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="fr-type-caption">Categoría</dt>
-                      <dd className="mt-1" style={{ color: "var(--cv-foreground)" }}>
-                        {existing.categoryName}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="fr-type-caption">Estado</dt>
-                      <dd className="mt-1" style={{ color: "var(--cv-foreground)" }}>
-                        {presentRegistrationStatus(existing.status).label}
-                      </dd>
-                    </div>
-                  </dl>
-                  <ContentToActions>
-                    <Link
-                      href={`/participaciones/${existing.id}`}
-                      className="fr-btn fr-btn-primary w-fit"
+            <PageContainer width="readable" className="fr-contest-inscription__inner space-y-10">
+              <PageHeader
+                eyebrow="Inscripción"
+                title={contest.title}
+                description={`${contest.organization.name}. Ya estás inscripto/a en este concurso.`}
+                actions={
+                  <div className="flex flex-col items-stretch gap-3 sm:items-end">
+                    <StatusBadge
+                      label={regStatus.label}
+                      tone={badgeTone}
+                      stateText="Estado de inscripción"
+                    />
+                    <SecondaryButton href={`/concursos/${slug}`} size="md">
+                      Volver al concurso
+                    </SecondaryButton>
+                  </div>
+                }
+              />
+
+              <section className="fr-public-card" aria-labelledby="inscription-summary-title">
+                <h2 id="inscription-summary-title" className="fr-public-title text-xl">
+                  Resumen de inscripción
+                </h2>
+                <dl className="fr-public-meta-list">
+                  <div className="fr-public-meta-list__item">
+                    <dt>Número</dt>
+                    <dd
+                      className="fr-public-meta-list__value--accent text-xl"
+                      data-testid="registration-number"
                     >
-                      Ver detalle de participación
-                    </Link>
-                    <Link href="/participaciones" className="fr-btn fr-btn-secondary w-fit">
-                      Mis participaciones
-                    </Link>
-                  </ContentToActions>
-                </Stack>
-              </Surface>
-              {existing.status === "CONFIRMED" && requirements ? (
-                <div className="mt-10">
-                  <ParticipantUploadWizard
-                    contestId={contest.id}
-                    contestSlug={slug}
-                    registrationId={existing.id}
-                    registrationNumber={existing.registrationNumber}
-                    registrationStatus={existing.status}
-                    requirements={requirements}
-                    detailHref={`/participaciones/${existing.id}`}
-                  />
+                      {existing.registrationNumber}
+                    </dd>
+                  </div>
+                  <div className="fr-public-meta-list__item">
+                    <dt>Categoría</dt>
+                    <dd>{existing.categoryName}</dd>
+                  </div>
+                  <div className="fr-public-meta-list__item">
+                    <dt>Estado</dt>
+                    <dd>{regStatus.label}</dd>
+                  </div>
+                </dl>
+                <div className="fr-public-card-actions">
+                  <PrimaryButton href={`/participaciones/${existing.id}`}>
+                    Ver detalle de participación
+                  </PrimaryButton>
+                  <SecondaryButton href="/participaciones">Mis participaciones</SecondaryButton>
                 </div>
+              </section>
+
+              {existing.status === "CONFIRMED" && requirements ? (
+                <ParticipantUploadWizard
+                  contestId={contest.id}
+                  contestSlug={slug}
+                  registrationId={existing.id}
+                  registrationNumber={existing.registrationNumber}
+                  registrationStatus={existing.status}
+                  requirements={requirements}
+                  detailHref={`/participaciones/${existing.id}`}
+                />
               ) : null}
-              <p className="mt-8">
-                <Link href={`/concursos/${slug}`} className="fr-btn fr-btn-ghost">
-                  ← Volver al concurso
-                </Link>
-              </p>
-            </div>
+            </PageContainer>
           </main>
         </ContestShell>
       </PublicShell>
@@ -172,30 +182,30 @@ export default async function ContestInscriptionPage({ params }: Props) {
     <PublicShell header={shellHeader} showFooter>
       <ContestShell cssVars={cssVars}>
         <main className="fr-contest-inscription">
-          <div className="fr-contest-inscription__inner">
-            <p className="fr-type-eyebrow">Inscripción</p>
-            <p className="fr-type-caption mt-2">{contest.organization.name}</p>
-            <h1 className="fr-type-h1 mt-3" style={{ color: "var(--cv-foreground)", maxWidth: "none" }}>
-              {contest.title}
-            </h1>
-            <p className="fr-type-body mt-4">
-              {isFree
-                ? "Concurso gratuito: al confirmar quedarás inscripto/a sin cobro ni redirección a pagos."
-                : "Concurso con inscripción paga: el cobro se completará vía DNX Payments (en preparación)."}
-            </p>
+          <PageContainer width="readable" className="fr-contest-inscription__inner space-y-10">
+            <PageHeader
+              eyebrow="Inscripción"
+              title={contest.title}
+              description={
+                isFree
+                  ? `${contest.organization.name}. Concurso gratuito: al confirmar quedarás inscripto/a sin cobro ni redirección a pagos.`
+                  : `${contest.organization.name}. Concurso con inscripción paga: el cobro se completará vía DNX Payments (en preparación).`
+              }
+              actions={
+                <SecondaryButton href={`/concursos/${slug}`}>Volver al concurso</SecondaryButton>
+              }
+            />
 
             {!rules ? (
-              <Surface className="fr-contest-surface--warning mt-8" padding="md">
-                <p className="fr-type-body" style={{ color: "var(--cv-foreground)" }}>
-                  Todavía no hay bases publicadas. El organizador debe publicar una versión antes de abrir
-                  inscripciones.
+              <Notice tone="warning" title="Bases no publicadas">
+                <p>
+                  Todavía no hay bases publicadas. El organizador debe publicar una versión antes de
+                  abrir inscripciones.
                 </p>
-                <ContentToActions>
-                  <Link href={`/concursos/${slug}`} className="fr-btn fr-btn-secondary inline-flex w-fit">
-                    Volver al concurso
-                  </Link>
-                </ContentToActions>
-              </Surface>
+                <div className="fr-public-card-actions border-0 pt-6">
+                  <SecondaryButton href={`/concursos/${slug}`}>Volver al concurso</SecondaryButton>
+                </div>
+              </Notice>
             ) : (
               <InscriptionForm
                 contestId={contest.id}
@@ -215,7 +225,7 @@ export default async function ContestInscriptionPage({ params }: Props) {
                 isFree={isFree}
               />
             )}
-          </div>
+          </PageContainer>
         </main>
       </ContestShell>
     </PublicShell>

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageContainer, PublicShell } from "../components/public-ui";
 import { getAuthUser } from "../lib/auth";
 import { resolvePostLoginPathForUser } from "../lib/fotorank/access/home-capabilities";
 import { safeNextPath } from "../lib/safe-next-path";
@@ -25,14 +26,21 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const isParticipantReturn = Boolean(next?.includes("/inscripcion"));
 
   return (
-    <LoginForm
-      oauthError={oauthError}
-      nextPath={next}
-      contextualNotice={
-        isParticipantReturn
-          ? "Vas a continuar tu inscripción al concurso después de iniciar sesión."
-          : undefined
-      }
-    />
+    <PublicShell
+      header={{ variant: "marketing", hasSession: false }}
+      showFooter
+    >
+      <PageContainer width="narrow" className="py-12 md:py-16">
+        <LoginForm
+          oauthError={oauthError}
+          nextPath={next}
+          contextualNotice={
+            isParticipantReturn
+              ? "Vas a continuar tu inscripción al concurso después de iniciar sesión."
+              : undefined
+          }
+        />
+      </PageContainer>
+    </PublicShell>
   );
 }
