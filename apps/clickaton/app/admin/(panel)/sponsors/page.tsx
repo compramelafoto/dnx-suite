@@ -1,4 +1,10 @@
 import Link from "next/link";
+import {
+  PARTNER_ONBOARDING_ADMIN_STATUS_LABELS,
+  PARTNER_STATUS_LABELS,
+  PARTNER_TYPE_LABELS,
+  resolveOnboardingAdminStatus,
+} from "@repo/partners";
 import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -22,7 +28,17 @@ export default async function AdminSponsorsPage({
 
   const listResult = await withClickatonDb(async () => {
     const svc = getClickatonPartnersService();
-    return svc.listPartners(actor, { search: q });
+    const partners = await svc.listPartners(actor, { search: q });
+    const withOnboarding = await Promise.all(
+      partners.map(async (p) => {
+        const invitations = await svc.listOnboardingInvitations(actor, p.id);
+        return {
+          ...p,
+          onboardingStatus: resolveOnboardingAdminStatus(invitations),
+        };
+      }),
+    );
+    return withOnboarding;
   });
 
   if (!listResult.ok) {
@@ -82,6 +98,7 @@ export default async function AdminSponsorsPage({
                 <th className="px-4 py-3 font-medium">Nombre</th>
                 <th className="px-4 py-3 font-medium">Tipo</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
+                <th className="px-4 py-3 font-medium">Datos del Partner</th>
                 <th className="px-4 py-3 font-medium">Participaciones activas</th>
                 <th className="px-4 py-3 font-medium">Beneficios activos</th>
                 <th className="px-4 py-3 font-medium">Actualizado</th>
@@ -95,9 +112,16 @@ export default async function AdminSponsorsPage({
                     <div className="font-medium text-ck-text">{p.name}</div>
                     <div className="text-xs text-ck-text-muted">{p.slug}</div>
                   </td>
-                  <td className="px-4 py-3 text-ck-text-secondary">{p.type}</td>
+                  <td className="px-4 py-3 text-ck-text-secondary">
+                    {PARTNER_TYPE_LABELS[p.type] ?? p.type}
+                  </td>
                   <td className="px-4 py-3">
-                    <Badge variant="neutral">{p.status}</Badge>
+                    <Badge variant="neutral">
+                      {PARTNER_STATUS_LABELS[p.status] ?? p.status}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-ck-text-secondary">
+                    {PARTNER_ONBOARDING_ADMIN_STATUS_LABELS[p.onboardingStatus]}
                   </td>
                   <td className="px-4 py-3">{p.activeParticipationsCount}</td>
                   <td className="px-4 py-3">{p.activeBenefitsCount}</td>

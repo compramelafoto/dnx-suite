@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   BENEFIT_STATUS_LABELS,
+  INSTITUTIONAL_ROLE_LABELS,
   PARTICIPATION_STATUS_LABELS,
   PARTICIPATION_TYPE_LABELS,
+  type DnxPartnerInstitutionalRole,
 } from "@repo/partners";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -140,7 +142,7 @@ export default async function EditionSponsorsPage({ params, searchParams }: Prop
               <thead className="border-b border-ck-border text-ck-text-muted">
                 <tr>
                   <th className="px-6 py-4 font-medium">Partner</th>
-                  <th className="px-6 py-4 font-medium">Tipo</th>
+                  <th className="px-6 py-4 font-medium">Rol</th>
                   <th className="px-6 py-4 font-medium">Estado</th>
                   <th className="px-6 py-4 font-medium">Aportes</th>
                   <th className="px-6 py-4 font-medium">Beneficios</th>
@@ -169,10 +171,24 @@ export default async function EditionSponsorsPage({ params, searchParams }: Prop
                       </div>
                     </td>
                     <td className="px-6 py-4 text-ck-text-secondary">
-                      {PARTICIPATION_TYPE_LABELS[row.participation.participationType]}
+                      {(() => {
+                        const role = (
+                          "institutionalRole" in row.participation
+                            ? (row.participation.institutionalRole as DnxPartnerInstitutionalRole | undefined)
+                            : undefined
+                        ) ?? null;
+                        return role
+                          ? INSTITUTIONAL_ROLE_LABELS[role]
+                          : PARTICIPATION_TYPE_LABELS[row.participation.participationType];
+                      })()}
                       {row.participation.title ? (
                         <span className="block text-xs text-ck-text-muted">
                           {row.participation.title}
+                        </span>
+                      ) : null}
+                      {"displayOrder" in row.participation ? (
+                        <span className="block text-xs text-ck-text-muted">
+                          Orden {String(row.participation.displayOrder ?? 100)}
                         </span>
                       ) : null}
                     </td>

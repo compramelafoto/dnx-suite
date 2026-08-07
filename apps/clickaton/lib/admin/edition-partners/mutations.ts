@@ -7,12 +7,16 @@ import {
   CLICKATON_PARTICIPATION_ROLE_OPTIONS,
   DNX_PARTNER_BENEFIT_TYPES,
   DNX_PARTNER_CONTRIBUTION_TYPES,
+  DNX_PARTNER_DISPLAY_TIERS,
+  DNX_PARTNER_INSTITUTIONAL_ROLES,
   DNX_PARTNER_PARTICIPATION_STATUSES,
   DNX_PARTNER_PAYMENT_MODES,
   DNX_PARTNER_REDEMPTION_METHODS,
   PartnersDomainError,
   type DnxPartnerBenefitType,
   type DnxPartnerContributionType,
+  type DnxPartnerDisplayTier,
+  type DnxPartnerInstitutionalRole,
   type DnxPartnerParticipationStatus,
   type DnxPartnerPaymentMode,
   type DnxPartnerRedemptionMethod,
@@ -71,12 +75,28 @@ export async function createEditionParticipationFormAction(formData: FormData): 
     ROLE_VALUES,
     "SPONSOR",
   );
+  const institutionalRole = asEnum(
+    formData.get("institutionalRole")?.toString() ?? "SPONSOR",
+    DNX_PARTNER_INSTITUTIONAL_ROLES,
+    "SPONSOR",
+  ) as DnxPartnerInstitutionalRole;
+  const displayTier = asEnum(
+    formData.get("displayTier")?.toString() ?? "STANDARD",
+    DNX_PARTNER_DISPLAY_TIERS,
+    "STANDARD",
+  ) as DnxPartnerDisplayTier;
 
   try {
     const result = await withClickatonDb(async () =>
       createEditionPartnerParticipation(actor, editionId, {
         partnerId,
         role,
+        institutionalRole,
+        displayTier,
+        displayOrder: optionalInt(formData.get("displayOrder")?.toString() ?? "") ?? 100,
+        publicRoleLabel: formData.get("publicRoleLabel")?.toString()?.trim() || null,
+        destinationUrl: formData.get("destinationUrl")?.toString()?.trim() || null,
+        clickTrackingEnabled: formData.get("clickTrackingEnabled") !== "false",
         title: formData.get("title")?.toString()?.trim() || null,
         description: formData.get("description")?.toString()?.trim() || null,
         status: asEnum(
@@ -135,6 +155,20 @@ export async function updateEditionParticipationFormAction(formData: FormData): 
   try {
     const result = await withClickatonDb(async () =>
       updateEditionPartnerParticipation(actor, editionId, participationId, {
+        institutionalRole: asEnum(
+          formData.get("institutionalRole")?.toString() ?? "SPONSOR",
+          DNX_PARTNER_INSTITUTIONAL_ROLES,
+          "SPONSOR",
+        ) as DnxPartnerInstitutionalRole,
+        displayTier: asEnum(
+          formData.get("displayTier")?.toString() ?? "STANDARD",
+          DNX_PARTNER_DISPLAY_TIERS,
+          "STANDARD",
+        ) as DnxPartnerDisplayTier,
+        displayOrder: optionalInt(formData.get("displayOrder")?.toString() ?? "") ?? 100,
+        publicRoleLabel: formData.get("publicRoleLabel")?.toString()?.trim() || null,
+        destinationUrl: formData.get("destinationUrl")?.toString()?.trim() || null,
+        clickTrackingEnabled: formData.get("clickTrackingEnabled") !== "false",
         title: formData.get("title")?.toString()?.trim() || null,
         description: formData.get("description")?.toString()?.trim() || null,
         status: asEnum(
@@ -247,6 +281,33 @@ export async function markEditionContributionDeliveredFormAction(
   });
   revalidateEditionPartners(editionId, participationId);
   redirect(`${editionSponsorsPath(editionId, participationId)}?ok=delivered`);
+}
+
+export async function deleteEditionContributionFormAction(formData: FormData): Promise<void> {
+  const user = await requireClickatonAdmin();
+  const actor = toPartnerActor(user);
+  const editionId = formData.get("editionId")?.toString() ?? "";
+  const participationId = formData.get("participationId")?.toString() ?? "";
+  const contributionId = formData.get("contributionId")?.toString() ?? "";
+  try {
+    const result = await withClickatonDb(async () => {
+      const svc = getClickatonPartnersService();
+      return svc.deleteContribution(actor, contributionId);
+    });
+    if (!result.ok) {
+      redirect(
+        `${editionSponsorsPath(editionId, participationId)}?error=${encodeURIComponent(result.message)}`,
+      );
+    }
+  } catch (err) {
+    const message =
+      err instanceof PartnersDomainError ? err.message : "No se pudo eliminar el aporte.";
+    redirect(
+      `${editionSponsorsPath(editionId, participationId)}?error=${encodeURIComponent(message)}`,
+    );
+  }
+  revalidateEditionPartners(editionId, participationId);
+  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=contribution-deleted`);
 }
 
 export async function linkEditionContributionPrizeFormAction(formData: FormData): Promise<void> {

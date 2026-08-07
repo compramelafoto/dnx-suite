@@ -2,16 +2,23 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   BENEFIT_STATUS_LABELS,
+  BENEFIT_TYPE_LABELS,
   CLICKATON_AUDIENCE_OPTIONS,
   CONTRIBUTION_STATUS_LABELS,
   CONTRIBUTION_TYPE_LABELS,
+  DISPLAY_TIER_OPTIONS,
   DNX_PARTNER_BENEFIT_TYPES,
   DNX_PARTNER_CONTRIBUTION_TYPES,
   DNX_PARTNER_PARTICIPATION_STATUSES,
   DNX_PARTNER_REDEMPTION_METHODS,
+  INSTITUTIONAL_ROLE_LABELS,
+  INSTITUTIONAL_ROLE_OPTIONS,
   PARTICIPATION_STATUS_LABELS,
   PARTICIPATION_TYPE_LABELS,
+  PAYMENT_MODE_LABELS,
+  REDEMPTION_METHOD_LABELS,
 } from "@repo/partners";
+import { DeleteContributionButton } from "@/components/admin/partners/DeleteContributionButton";
 import { RequiresPaymentFields } from "@/components/admin/partners/RequiresPaymentFields";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -31,6 +38,7 @@ import {
   archiveEditionParticipationFormAction,
   createEditionBenefitFormAction,
   createEditionContributionFormAction,
+  deleteEditionContributionFormAction,
   grantEditionBenefitAccessFormAction,
   linkEditionContributionPrizeFormAction,
   markEditionContributionDeliveredFormAction,
@@ -203,6 +211,92 @@ export default async function EditionParticipationDetailPage({
           <form action={updateEditionParticipationFormAction} className="space-y-6">
             <input type="hidden" name="editionId" value={editionId} />
             <input type="hidden" name="participationId" value={participationId} />
+            <Field id="institutionalRole" label="Rol institucional" required>
+              <Select
+                name="institutionalRole"
+                defaultValue={
+                  "institutionalRole" in participation && participation.institutionalRole
+                    ? String(participation.institutionalRole)
+                    : "SPONSOR"
+                }
+              >
+                {INSTITUTIONAL_ROLE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <p className="text-sm text-ck-text-secondary">
+              Rol ≠ aporte. Los aportes (qué entrega el partner) se gestionan en la sección inferior.
+            </p>
+            <div className="grid gap-6 md:grid-cols-2">
+              <Field id="displayTier" label="Jerarquía visual" required>
+                <Select
+                  name="displayTier"
+                  defaultValue={
+                    "displayTier" in participation && participation.displayTier
+                      ? String(participation.displayTier)
+                      : "STANDARD"
+                  }
+                >
+                  {DISPLAY_TIER_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field id="displayOrder" label="Orden">
+                <Input
+                  name="displayOrder"
+                  type="number"
+                  min={0}
+                  defaultValue={
+                    "displayOrder" in participation && typeof participation.displayOrder === "number"
+                      ? participation.displayOrder
+                      : 100
+                  }
+                />
+              </Field>
+            </div>
+            <Field id="publicRoleLabel" label="Etiqueta pública opcional">
+              <Input
+                name="publicRoleLabel"
+                defaultValue={
+                  "publicRoleLabel" in participation && participation.publicRoleLabel
+                    ? String(participation.publicRoleLabel)
+                    : ""
+                }
+                placeholder="Si vacío, usa la etiqueta del rol"
+              />
+            </Field>
+            <Field id="destinationUrl" label="Destino del clic (HTTPS)">
+              <Input
+                name="destinationUrl"
+                type="url"
+                placeholder="https://… (prioridad sobre el sitio global)"
+                defaultValue={
+                  "destinationUrl" in participation && participation.destinationUrl
+                    ? String(participation.destinationUrl)
+                    : ""
+                }
+              />
+            </Field>
+            <Field id="clickTrackingEnabled" label="Registrar clics">
+              <Select
+                name="clickTrackingEnabled"
+                defaultValue={
+                  "clickTrackingEnabled" in participation &&
+                  participation.clickTrackingEnabled === false
+                    ? "false"
+                    : "true"
+                }
+              >
+                <option value="true">Sí</option>
+                <option value="false">No</option>
+              </Select>
+            </Field>
             <Field id="title" label="Título">
               <Input name="title" defaultValue={participation.title ?? ""} />
             </Field>
@@ -247,7 +341,7 @@ export default async function EditionParticipationDetailPage({
             <p className="text-sm text-ck-text-muted">
               Actual: requiere pago = {participation.requiresPayment ? "sí" : "no"}
               {participation.requiresPayment
-                ? ` · ${participation.paymentMode} · ${participation.paymentAmountMinor ?? "—"} ${participation.paymentCurrency ?? ""}`
+                ? ` · ${PAYMENT_MODE_LABELS[participation.paymentMode] ?? participation.paymentMode} · ${participation.paymentAmountMinor ?? "—"} ${participation.paymentCurrency ?? ""}`
                 : ""}
               . Cambiar el select de pago sobrescribe estos campos.
             </p>
@@ -279,7 +373,7 @@ export default async function EditionParticipationDetailPage({
                         <p className="mt-2 text-sm text-ck-text-secondary">{c.description}</p>
                       ) : null}
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {c.status !== "DELIVERED" ? (
                         <form action={markEditionContributionDeliveredFormAction}>
                           <input type="hidden" name="editionId" value={editionId} />
@@ -290,6 +384,12 @@ export default async function EditionParticipationDetailPage({
                           </Button>
                         </form>
                       ) : null}
+                      <DeleteContributionButton
+                        action={deleteEditionContributionFormAction}
+                        editionId={editionId}
+                        participationId={participationId}
+                        contributionId={c.id}
+                      />
                     </div>
                   </div>
                   {!c.prizeBundleId &&
@@ -389,7 +489,8 @@ export default async function EditionParticipationDetailPage({
                       <div>
                         <p className="font-medium text-ck-text">{b.title}</p>
                         <p className="text-sm text-ck-text-muted">
-                          {b.benefitType} · {BENEFIT_STATUS_LABELS[b.status]}
+                          {BENEFIT_TYPE_LABELS[b.benefitType] ?? b.benefitType} ·{" "}
+                          {BENEFIT_STATUS_LABELS[b.status]}
                           {b.promoCode ? ` · Código ${b.promoCode}` : ""}
                         </p>
                         {b.description ? (
@@ -454,7 +555,7 @@ export default async function EditionParticipationDetailPage({
                                     value={participationId}
                                   />
                                   <input type="hidden" name="benefitId" value={b.id} />
-                                  <input type="hidden" name="userId" value={a.userId} />
+                                  <input type="hidden" name="userId" value={a.userId ?? ""} />
                                   <Button type="submit" size="sm" variant="outline">
                                     Revocar
                                   </Button>
@@ -470,7 +571,7 @@ export default async function EditionParticipationDetailPage({
                         <input type="hidden" name="editionId" value={editionId} />
                         <input type="hidden" name="participationId" value={participationId} />
                         <input type="hidden" name="benefitId" value={b.id} />
-                        <Field id={`grant-${b.id}`} label="userId DNX">
+                        <Field id={`grant-${b.id}`} label="ID de usuario DNX">
                           <Input name="userId" type="number" min={1} required />
                         </Field>
                         <Field id={`grant-notes-${b.id}`} label="Notas">
@@ -503,7 +604,7 @@ export default async function EditionParticipationDetailPage({
                 <Select name="benefitType" defaultValue="PERCENTAGE_DISCOUNT">
                   {DNX_PARTNER_BENEFIT_TYPES.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {BENEFIT_TYPE_LABELS[t]}
                     </option>
                   ))}
                 </Select>
@@ -512,7 +613,7 @@ export default async function EditionParticipationDetailPage({
                 <Select name="redemptionMethod" defaultValue="CONTACT_PARTNER">
                   {DNX_PARTNER_REDEMPTION_METHODS.map((m) => (
                     <option key={m} value={m}>
-                      {m}
+                      {REDEMPTION_METHOD_LABELS[m]}
                     </option>
                   ))}
                 </Select>

@@ -59,6 +59,28 @@ export const DNX_PARTNER_PARTICIPATION_TYPES = [
 export type DnxPartnerParticipationType =
   (typeof DNX_PARTNER_PARTICIPATION_TYPES)[number];
 
+export const DNX_PARTNER_INSTITUTIONAL_ROLES = [
+  "ORGANIZER",
+  "CO_ORGANIZER",
+  "INSTITUTIONAL_SPONSOR",
+  "MAIN_SPONSOR",
+  "SPONSOR",
+  "COLLABORATOR",
+  "STRATEGIC_PARTNER",
+  "MEDIA_PARTNER",
+  "SUPPLIER",
+] as const;
+export type DnxPartnerInstitutionalRole =
+  (typeof DNX_PARTNER_INSTITUTIONAL_ROLES)[number];
+
+export const DNX_PARTNER_DISPLAY_TIERS = [
+  "INSTITUTIONAL",
+  "MAIN",
+  "STANDARD",
+  "SUPPORTING",
+] as const;
+export type DnxPartnerDisplayTier = (typeof DNX_PARTNER_DISPLAY_TIERS)[number];
+
 export const DNX_PARTNER_PARTICIPATION_STATUSES = [
   "DRAFT",
   "PROPOSED",
@@ -70,6 +92,11 @@ export const DNX_PARTNER_PARTICIPATION_STATUSES = [
 ] as const;
 export type DnxPartnerParticipationStatus =
   (typeof DNX_PARTNER_PARTICIPATION_STATUSES)[number];
+
+/** Gate de landing pública. Independiente de status comercial. */
+export const DNX_PARTNER_PUBLIC_VISIBILITIES = ["HIDDEN", "PUBLIC"] as const;
+export type DnxPartnerPublicVisibility =
+  (typeof DNX_PARTNER_PUBLIC_VISIBILITIES)[number];
 
 export const DNX_PARTNER_PAYMENT_MODES = [
   "NONE",
@@ -174,12 +201,38 @@ export const DNX_PARTNER_CAPABILITIES = [
   "PARTNER_PAYMENTS_VIEW",
   "PARTNER_PAYMENTS_MANAGE",
   "PARTNER_CONTACT_SENSITIVE",
+  "PARTNER_ASSETS_VIEW",
+  "PARTNER_ASSETS_UPLOAD",
+  "PARTNER_ASSETS_UPDATE",
+  "PARTNER_ASSETS_ARCHIVE",
+  "PARTNER_ASSETS_APPROVE",
+  "PARTNER_ASSETS_MANAGE_BRAND",
+  "PARTNER_ASSETS_MANAGE_PARTICIPATION",
+  "PARTNER_BENEFITS_VIEW_ELIGIBILITY",
+  "PARTNER_BENEFITS_SYNC_ACCESS",
+  "PARTNER_BENEFITS_REVOKE",
+  "PARTNER_BENEFITS_VIEW_ACCESS",
+  "PARTNER_BENEFITS_VIEW_SYNC_EVENTS",
+  "PARTNER_BENEFITS_PROCESS_SYNC_EVENTS",
+  "PARTNER_BENEFITS_RETRY_SYNC_EVENTS",
+  "PARTNER_BENEFITS_DISCARD_SYNC_EVENTS",
+  "PARTNER_BENEFITS_ENABLE_AUTO_SYNC",
 ] as const;
 export type DnxPartnerCapability = (typeof DNX_PARTNER_CAPABILITIES)[number];
 
-export const DNX_PARTNER_BENEFIT_ACCESS_STATUSES = ["ACTIVE", "REVOKED"] as const;
+export const DNX_PARTNER_BENEFIT_ACCESS_STATUSES = [
+  "ACTIVE",
+  "REVOKED",
+  "EXPIRED",
+  "PENDING_IDENTITY",
+  "SKIPPED",
+] as const;
 export type DnxPartnerBenefitAccessStatus =
   (typeof DNX_PARTNER_BENEFIT_ACCESS_STATUSES)[number];
+
+export const DNX_PARTNER_BENEFIT_ACCESS_SOURCES = ["MANUAL", "AUTOMATIC"] as const;
+export type DnxPartnerBenefitAccessSource =
+  (typeof DNX_PARTNER_BENEFIT_ACCESS_SOURCES)[number];
 
 export type PartnerRecord = {
   id: string;
@@ -192,9 +245,16 @@ export type PartnerRecord = {
   logoUrl: string | null;
   websiteUrl: string | null;
   instagram: string | null;
+  facebookUrl: string | null;
+  linkedinUrl: string | null;
   email: string | null;
   phone: string | null;
   taxId: string | null;
+  address: string | null;
+  city: string | null;
+  provinceOrState: string | null;
+  country: string | null;
+  postalCode: string | null;
   notes: string | null;
   financialIdentityId: string | null;
   createdByUserId: number | null;
@@ -213,6 +273,8 @@ export type PartnerContactRecord = {
   email: string | null;
   phone: string | null;
   whatsapp: string | null;
+  emailIsPublic: boolean;
+  phoneIsPublic: boolean;
   isPrimary: boolean;
   notes: string | null;
   createdAt: Date;
@@ -228,6 +290,13 @@ export type ParticipationRecord = {
   contextType: DnxPartnerContextType;
   contextId: string | null;
   participationType: DnxPartnerParticipationType;
+  institutionalRole: DnxPartnerInstitutionalRole;
+  displayTier: DnxPartnerDisplayTier;
+  displayOrder: number;
+  publicRoleLabel: string | null;
+  destinationUrl: string | null;
+  clickTrackingEnabled: boolean;
+  publicVisibility: DnxPartnerPublicVisibility;
   title: string | null;
   description: string | null;
   status: DnxPartnerParticipationStatus;
@@ -344,13 +413,21 @@ export type PartnerGrantRecord = {
  */
 export type BenefitAccessRecord = {
   id: string;
+  accessKey: string;
   benefitId: string;
-  userId: number;
+  userId: number | null;
   status: DnxPartnerBenefitAccessStatus;
+  source: DnxPartnerBenefitAccessSource;
+  sourceType: string | null;
+  sourceId: string | null;
+  reasonCode: string | null;
   reason: string | null;
   notes: string | null;
   grantedByUserId: number | null;
+  revokedByUserId: number | null;
+  grantedAt: Date;
   revokedAt: Date | null;
+  metadata: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -361,6 +438,16 @@ export type GrantBenefitAccessInput = {
   reason?: string | null;
   notes?: string | null;
   grantedByUserId?: number | null;
+  source?: DnxPartnerBenefitAccessSource;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  reasonCode?: string | null;
+  accessKey?: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type UpsertBenefitAccessInput = GrantBenefitAccessInput & {
+  status?: DnxPartnerBenefitAccessStatus;
 };
 
 export type PartnerListItem = PartnerRecord & {
@@ -378,9 +465,16 @@ export type CreatePartnerInput = {
   logoUrl?: string | null;
   websiteUrl?: string | null;
   instagram?: string | null;
+  facebookUrl?: string | null;
+  linkedinUrl?: string | null;
   email?: string | null;
   phone?: string | null;
   taxId?: string | null;
+  address?: string | null;
+  city?: string | null;
+  provinceOrState?: string | null;
+  country?: string | null;
+  postalCode?: string | null;
   notes?: string | null;
   createdByUserId?: number | null;
 };
@@ -399,6 +493,15 @@ export type CreateParticipationInput = {
   contextType?: DnxPartnerContextType;
   contextId?: string | null;
   participationType?: DnxPartnerParticipationType;
+  institutionalRole?: DnxPartnerInstitutionalRole;
+  displayTier?: DnxPartnerDisplayTier;
+  displayOrder?: number | null;
+  publicRoleLabel?: string | null;
+  destinationUrl?: string | null;
+  clickTrackingEnabled?: boolean;
+  publicVisibility?: DnxPartnerPublicVisibility;
+  /** Solo para sync de outbound link; no se persiste en la participación. */
+  utmCampaign?: string | null;
   title?: string | null;
   description?: string | null;
   status?: DnxPartnerParticipationStatus;
@@ -507,6 +610,8 @@ export type CreateContactInput = {
   email?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
+  emailIsPublic?: boolean;
+  phoneIsPublic?: boolean;
   isPrimary?: boolean;
   notes?: string | null;
 };

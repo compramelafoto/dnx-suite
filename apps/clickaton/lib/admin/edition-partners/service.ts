@@ -2,10 +2,13 @@ import { prisma } from "@repo/db";
 import {
   CLICKATON_AUDIENCE_OPTIONS,
   PartnersDomainError,
+  normalizeInstitutionalFields,
   resolveClickatonParticipationType,
   type CreateBenefitInput,
   type CreateContributionInput,
   type CreateParticipationInput,
+  type DnxPartnerDisplayTier,
+  type DnxPartnerInstitutionalRole,
   type PartnerActor,
   type ParticipationRecord,
 } from "@repo/partners";
@@ -136,7 +139,13 @@ export async function createEditionPartnerParticipation(
   editionId: string,
   input: {
     partnerId: string;
-    role: string;
+    role?: string;
+    institutionalRole?: DnxPartnerInstitutionalRole;
+    displayTier?: DnxPartnerDisplayTier;
+    displayOrder?: number | null;
+    publicRoleLabel?: string | null;
+    destinationUrl?: string | null;
+    clickTrackingEnabled?: boolean;
     title?: string | null;
     description?: string | null;
     status?: CreateParticipationInput["status"];
@@ -158,8 +167,22 @@ export async function createEditionPartnerParticipation(
   await ensureEditionExists(editionId);
   const partner = await getClickatonPartnersService().getPartner(actor, input.partnerId);
   void partner;
+  const edition = await prisma.clickatonEdition.findUnique({
+    where: { id: editionId },
+    select: { slug: true },
+  });
+  const utmCampaign = edition?.slug?.trim() || null;
 
-  const resolved = resolveClickatonParticipationType(input.role);
+  const resolved = resolveClickatonParticipationType(input.role ?? "SPONSOR");
+  const institutional = normalizeInstitutionalFields({
+    institutionalRole: input.institutionalRole,
+    displayTier: input.displayTier,
+    displayOrder: input.displayOrder,
+    publicRoleLabel: input.publicRoleLabel,
+    participationType: input.institutionalRole
+      ? undefined
+      : resolved.participationType,
+  });
 
   // Contexto canónico de edición: siempre EDITION + editionId.
   // Sponsor de categoría/sede se expresa en título + notes (sin perder el vínculo a la edición).
@@ -188,7 +211,14 @@ export async function createEditionPartnerParticipation(
     organizationId: null,
     contextType: "EDITION",
     contextId: editionId,
-    participationType: resolved.participationType,
+    participationType: institutional.participationType,
+    institutionalRole: institutional.institutionalRole,
+    displayTier: institutional.displayTier,
+    displayOrder: institutional.displayOrder,
+    publicRoleLabel: institutional.publicRoleLabel,
+    destinationUrl: input.destinationUrl ?? null,
+    clickTrackingEnabled: input.clickTrackingEnabled !== false,
+    utmCampaign,
     title:
       input.title?.trim() ||
       resolved.titleHint ||
@@ -227,16 +257,23 @@ export async function updateEditionPartnerParticipation(
     includeArchived: true,
   });
   const fromList = listed.find((p) => p.id === participationId);
-  const row =
-    fromList ??
-    ((await prisma.dnxPartnerParticipation.findUnique({
-      where: { id: participationId },
-    })) as ParticipationRecord | null);
+  // findUnique → null; el dominio Partners usa undefined para “ausente”.
+  const fromDb = (await prisma.dnxPartnerParticipation.findUnique({
+    where: { id: participationId },
+  })) as ParticipationRecord | null;
+  const row: ParticipationRecord | undefined = fromList ?? fromDb ?? undefined;
   if (!row) {
     throw new PartnersDomainError("NOT_FOUND", "Participación no encontrada.");
   }
   assertEditionParticipation(row, editionId);
-  return svc.updateParticipation(actor, participationId, input);
+  const edition = await prisma.clickatonEdition.findUnique({
+    where: { id: editionId },
+    select: { slug: true },
+  });
+  return svc.updateParticipation(actor, participationId, {
+    ...input,
+    utmCampaign: input.utmCampaign ?? edition?.slug?.trim() ?? null,
+  });
 }
 
 export async function archiveEditionPartnerParticipation(

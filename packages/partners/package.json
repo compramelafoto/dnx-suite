@@ -7,11 +7,12 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./client-safe": "./src/client-safe.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "test": "pnpm exec tsx --test src/partners.test.ts",
+    "test": "pnpm exec tsx --test src/partners.test.ts src/partners-institutional.test.ts src/partners-assets.test.ts src/partners-eligibility.test.ts src/partners-auto-sync.test.ts src/partners-availability.test.ts src/partners-tracking.test.ts src/partners-visibility.test.ts src/partners-onboarding.test.ts",
     "lint": "eslint ."
   },
   "devDependencies": {

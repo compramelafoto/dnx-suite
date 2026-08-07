@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 import {
   CLICKATON_PARTICIPATION_ROLE_OPTIONS,
+  DISPLAY_TIER_OPTIONS,
   DNX_PARTNER_PARTICIPATION_STATUSES,
+  INSTITUTIONAL_ROLE_OPTIONS,
+  PARTICIPATION_STATUS_LABELS,
 } from "@repo/partners";
 import { RequiresPaymentFields } from "@/components/admin/partners/RequiresPaymentFields";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
@@ -116,7 +119,49 @@ export default async function VincularEditionPartnerPage({ params, searchParams 
                 )}
               </Select>
             </Field>
-            <Field id="role" label="Tipo de participación" required>
+            <Field id="institutionalRole" label="Rol institucional" required>
+              <Select name="institutionalRole" defaultValue="SPONSOR">
+                {INSTITUTIONAL_ROLE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <p className="text-sm text-ck-text-secondary">
+              El rol es una decisión administrativa. Qué aporta se registra aparte en aportes.
+            </p>
+            <div className="grid gap-6 md:grid-cols-2">
+              <Field id="displayTier" label="Jerarquía visual" required>
+                <Select name="displayTier" defaultValue="STANDARD">
+                  {DISPLAY_TIER_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field id="displayOrder" label="Orden (menor = primero)">
+                <Input name="displayOrder" type="number" min={0} defaultValue={100} />
+              </Field>
+            </div>
+            <Field id="publicRoleLabel" label="Etiqueta pública opcional">
+              <Input name="publicRoleLabel" placeholder="Ej. Con el apoyo de · Acompaña" />
+            </Field>
+            <Field id="destinationUrl" label="Destino del clic (HTTPS)">
+              <Input
+                name="destinationUrl"
+                type="url"
+                placeholder="https://… (opcional; si no, usa el sitio del partner)"
+              />
+            </Field>
+            <Field id="clickTrackingEnabled" label="Registrar clics">
+              <Select name="clickTrackingEnabled" defaultValue="true">
+                <option value="true">Sí</option>
+                <option value="false">No</option>
+              </Select>
+            </Field>
+            <Field id="role" label="Tipo (compatibilidad)" required>
               <Select name="role" defaultValue="SPONSOR">
                 {CLICKATON_PARTICIPATION_ROLE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -135,7 +180,7 @@ export default async function VincularEditionPartnerPage({ params, searchParams 
               <Select name="status" defaultValue="DRAFT">
                 {DNX_PARTNER_PARTICIPATION_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {PARTICIPATION_STATUS_LABELS[s]}
                   </option>
                 ))}
               </Select>
@@ -198,9 +243,9 @@ export default async function VincularEditionPartnerPage({ params, searchParams 
               <Field id="websiteUrl" label="Web">
                 <Input name="websiteUrl" />
               </Field>
-              <Field id="logoUrl" label="Logo URL (temporal)">
-                <Input name="logoUrl" placeholder="https://…" />
-              </Field>
+              <p className="text-sm text-ck-text-muted md:col-span-2">
+                Logo: subir archivo desde la ficha del partner después de crearlo (no URL manual).
+              </p>
             </div>
             <Field id="description" label="Descripción">
               <Textarea name="description" rows={3} />

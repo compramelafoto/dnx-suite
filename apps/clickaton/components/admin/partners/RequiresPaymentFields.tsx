@@ -36,7 +36,7 @@ export function RequiresPaymentFields() {
               <option value="RECURRING">Recurrente (solo registro; sin cron)</option>
             </Select>
           </Field>
-          <Field id="paymentAmountMinor" label="Monto (centavos / minor units, opcional)">
+          <Field id="paymentAmountMinor" label="Monto (centavos, opcional)">
             <Input name="paymentAmountMinor" type="number" min={0} placeholder="Ej. 500000" />
           </Field>
           <Field id="paymentNotes" label="Notas de pago">
