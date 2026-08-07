@@ -9,6 +9,7 @@ import {
   type PartnerLogoSlotBackground,
   type PartnerLogoSlotGuide,
 } from "@repo/partners/client-safe";
+import { withPreservedScroll } from "@/lib/admin/preserve-scroll";
 import { PartnerLogoVariantCard } from "./PartnerLogoVariantCard";
 import { findLogoSlotAsset } from "./find-logo-slot-asset";
 import { resolvePartnerBrandAssetSrc } from "./partner-logo-src";
@@ -231,7 +232,11 @@ export function PartnerLogoLibrary({
                   {canApprove || canArchive ? (
                     <div className="flex flex-wrap gap-3">
                       {canApprove && partnerId && approveAction && current?.assetId ? (
-                        <form action={approveAction}>
+                        <form
+                          action={async (formData) => {
+                            await withPreservedScroll(() => approveAction(formData));
+                          }}
+                        >
                           <input type="hidden" name="partnerId" value={partnerId} />
                           <input type="hidden" name="assetId" value={current.assetId} />
                           <button
@@ -243,7 +248,11 @@ export function PartnerLogoLibrary({
                         </form>
                       ) : null}
                       {canArchive && partnerId && archiveAction && current?.assetId ? (
-                        <form action={archiveAction}>
+                        <form
+                          action={async (formData) => {
+                            await withPreservedScroll(() => archiveAction(formData));
+                          }}
+                        >
                           <input type="hidden" name="partnerId" value={partnerId} />
                           <input type="hidden" name="assetId" value={current.assetId} />
                           <button

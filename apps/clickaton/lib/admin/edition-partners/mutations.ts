@@ -208,7 +208,7 @@ export async function updateEditionParticipationFormAction(formData: FormData): 
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=updated`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function archiveEditionParticipationFormAction(formData: FormData): Promise<void> {
@@ -264,7 +264,7 @@ export async function createEditionContributionFormAction(formData: FormData): P
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=contribution`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function markEditionContributionDeliveredFormAction(
@@ -280,7 +280,7 @@ export async function markEditionContributionDeliveredFormAction(
     return svc.markContributionDelivered(actor, contributionId);
   });
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=delivered`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function deleteEditionContributionFormAction(formData: FormData): Promise<void> {
@@ -307,7 +307,7 @@ export async function deleteEditionContributionFormAction(formData: FormData): P
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=contribution-deleted`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function linkEditionContributionPrizeFormAction(formData: FormData): Promise<void> {
@@ -329,7 +329,7 @@ export async function linkEditionContributionPrizeFormAction(formData: FormData)
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=prize`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function createEditionBenefitFormAction(formData: FormData): Promise<void> {
@@ -393,7 +393,7 @@ export async function createEditionBenefitFormAction(formData: FormData): Promis
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=benefit`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function activateEditionBenefitFormAction(formData: FormData): Promise<void> {
@@ -412,7 +412,7 @@ export async function activateEditionBenefitFormAction(formData: FormData): Prom
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=activated`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function pauseEditionBenefitFormAction(formData: FormData): Promise<void> {
@@ -431,7 +431,7 @@ export async function pauseEditionBenefitFormAction(formData: FormData): Promise
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=paused`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function archiveEditionBenefitFormAction(formData: FormData): Promise<void> {
@@ -450,7 +450,7 @@ export async function archiveEditionBenefitFormAction(formData: FormData): Promi
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=benefit_archived`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function grantEditionBenefitAccessFormAction(formData: FormData): Promise<void> {
@@ -483,7 +483,7 @@ export async function grantEditionBenefitAccessFormAction(formData: FormData): P
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=grant`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 export async function revokeEditionBenefitAccessFormAction(formData: FormData): Promise<void> {
@@ -510,7 +510,7 @@ export async function revokeEditionBenefitAccessFormAction(formData: FormData): 
     );
   }
   revalidateEditionPartners(editionId, participationId);
-  redirect(`${editionSponsorsPath(editionId, participationId)}?ok=revoked`);
+  // sin redirect same-page (evita scroll jump)
 }
 
 /** Crear partner canónico y volver a vincular a la edición. */

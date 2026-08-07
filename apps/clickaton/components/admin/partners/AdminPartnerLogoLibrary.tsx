@@ -7,6 +7,7 @@ import {
   type PartnerLogoUploadSlot,
 } from "@/components/partners/logo/PartnerLogoLibrary";
 import { resolvePartnerBrandAssetSrc } from "@/components/partners/logo/partner-logo-src";
+import { refreshPreservingScroll } from "@/lib/admin/preserve-scroll";
 
 type Props = {
   partnerId: string;
@@ -51,7 +52,7 @@ export function AdminPartnerLogoLibrary({
       fileUrl: json.asset?.fileUrl,
       storageKey: json.asset?.storageKey,
     });
-    router.refresh();
+    refreshPreservingScroll(() => router.refresh());
   }
 
   return (

@@ -8,6 +8,7 @@ import {
 } from "@repo/partners/client-safe";
 import { PartnerLogoDualPreview } from "@/components/partners/logo/PartnerLogoDualPreview";
 import { resolvePartnerBrandAssetSrc } from "@/components/partners/logo/partner-logo-src";
+import { refreshPreservingScroll } from "@/lib/admin/preserve-scroll";
 
 type Props = {
   partnerId: string;
@@ -71,7 +72,7 @@ export function PartnerLogoUpload({
         if (prev) URL.revokeObjectURL(prev);
         return null;
       });
-      startTransition(() => router.refresh());
+      startTransition(() => refreshPreservingScroll(() => router.refresh()));
     } catch {
       setError("Error de red al subir el logo.");
     }

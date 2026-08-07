@@ -29,6 +29,7 @@ import {
   resolvePartnerPrimaryLogo,
   resolvePartnerPublicationAdminState,
 } from "@repo/partners";
+import { AdminScrollStability } from "@/components/admin/AdminScrollStability";
 import { AdminPartnerLogoLibrary } from "@/components/admin/partners/AdminPartnerLogoLibrary";
 import { DeleteContributionButton } from "@/components/admin/partners/DeleteContributionButton";
 import { PartnerOnboardingInvitePanel } from "@/components/admin/partners/PartnerOnboardingInvitePanel";
@@ -159,6 +160,7 @@ export default async function AdminPartnerDetailPage({
     logoState === "APPROVED" ? "Aprobado" : logoState === "UPLOADED" ? "Cargado" : "Pendiente";
 
   return (
+    <AdminScrollStability>
     <div className="space-y-10">
       <AdminPageHeader
         title={partner.name}
@@ -798,5 +800,6 @@ export default async function AdminPartnerDetailPage({
         .
       </p>
     </div>
+    </AdminScrollStability>
   );
 }

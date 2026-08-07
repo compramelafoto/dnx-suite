@@ -12,6 +12,7 @@ import { PartnerLogoDualPreview } from "@/components/partners/logo/PartnerLogoDu
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Textarea } from "@/components/ui/Textarea";
+import { refreshPreservingScroll } from "@/lib/admin/preserve-scroll";
 
 const REVIEW_STATUS_LABELS: Record<string, string> = {
   NONE: "Sin revisión",
@@ -116,7 +117,7 @@ export function PartnerOnboardingReviewPanel({ partnerId, partner, invitation }:
           return;
         }
         setMessage("Revisión guardada.");
-        router.refresh();
+        refreshPreservingScroll(() => router.refresh());
       } catch {
         setError("Error de red al revisar.");
       }

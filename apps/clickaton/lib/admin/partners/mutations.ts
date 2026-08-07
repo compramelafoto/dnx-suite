@@ -112,8 +112,8 @@ export async function updatePartnerFormAction(formData: FormData): Promise<void>
   if (!result.ok) {
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
   }
+  // Sin redirect al mismo URL: evita scroll jump al tope en fichas largas.
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=1`);
 }
 
 export async function approvePartnerLogoFormAction(formData: FormData): Promise<void> {
@@ -129,7 +129,6 @@ export async function approvePartnerLogoFormAction(formData: FormData): Promise<
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=logo-approved`);
 }
 
 export async function archivePartnerLogoFormAction(formData: FormData): Promise<void> {
@@ -145,7 +144,6 @@ export async function archivePartnerLogoFormAction(formData: FormData): Promise<
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=logo-archived`);
 }
 
 export async function publishParticipationFormAction(formData: FormData): Promise<void> {
@@ -170,7 +168,6 @@ export async function publishParticipationFormAction(formData: FormData): Promis
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=published`);
 }
 
 export async function unpublishParticipationFormAction(formData: FormData): Promise<void> {
@@ -186,7 +183,6 @@ export async function unpublishParticipationFormAction(formData: FormData): Prom
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=unpublished`);
 }
 
 export async function archivePartnerFormAction(formData: FormData): Promise<void> {
@@ -259,7 +255,6 @@ export async function createParticipationFormAction(formData: FormData): Promise
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=participation`);
 }
 
 export async function createContributionFormAction(formData: FormData): Promise<void> {
@@ -295,7 +290,6 @@ export async function createContributionFormAction(formData: FormData): Promise<
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=contribution`);
 }
 
 export async function deleteContributionFormAction(formData: FormData): Promise<void> {
@@ -317,7 +311,6 @@ export async function deleteContributionFormAction(formData: FormData): Promise<
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=contribution-deleted`);
 }
 
 export async function createBenefitFormAction(formData: FormData): Promise<void> {
@@ -385,7 +378,6 @@ export async function createBenefitFormAction(formData: FormData): Promise<void>
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=benefit`);
 }
 
 export async function createContactFormAction(formData: FormData): Promise<void> {
@@ -407,5 +399,4 @@ export async function createContactFormAction(formData: FormData): Promise<void>
     });
   });
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=contact`);
 }

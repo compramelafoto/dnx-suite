@@ -18,6 +18,7 @@ import {
   PAYMENT_MODE_LABELS,
   REDEMPTION_METHOD_LABELS,
 } from "@repo/partners";
+import { AdminScrollStability } from "@/components/admin/AdminScrollStability";
 import { DeleteContributionButton } from "@/components/admin/partners/DeleteContributionButton";
 import { RequiresPaymentFields } from "@/components/admin/partners/RequiresPaymentFields";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
@@ -139,6 +140,7 @@ export default async function EditionParticipationDetailPage({
   const audienceMap = new Map(audiencesByBenefit.map((a) => [a.benefitId, a]));
 
   return (
+    <AdminScrollStability>
     <div className="min-w-0 space-y-10">
       <AdminPageHeader
         title={partner.name}
@@ -692,5 +694,6 @@ export default async function EditionParticipationDetailPage({
         </Card>
       </section>
     </div>
+    </AdminScrollStability>
   );
 }
