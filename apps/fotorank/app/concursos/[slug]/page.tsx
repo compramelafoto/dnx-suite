@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { resolveContestVisualTheme } from "../../lib/fotorank/contest-visual";
-import { loadContestPublicPartnerGroups } from "../../lib/fotorank/partners/public-groups";
 import { getPublicContestLandingBySlug } from "../../lib/fotorank/publicContestLanding";
 import { ContestPublicLanding } from "./ContestPublicLanding";
 
@@ -40,6 +39,6 @@ export default async function ContestPublicPage({ params }: Props) {
   const { slug } = await params;
   const data = await getPublicContestLandingBySlug(slug);
   if (!data) notFound();
-  const partnerGroups = await loadContestPublicPartnerGroups(data.contest.id);
-  return <ContestPublicLanding data={data} partnerGroups={partnerGroups} />;
+  // Partners públicos: fuera de alcance de ETAPA 07 (evita acoplar schema partners en este deploy).
+  return <ContestPublicLanding data={data} partnerGroups={[]} />;
 }
