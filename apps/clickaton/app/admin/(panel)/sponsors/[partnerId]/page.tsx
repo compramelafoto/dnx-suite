@@ -309,6 +309,7 @@ export default async function AdminPartnerDetailPage({
                 ? latestLogoAsset?.fileUrl ?? null
                 : primaryLogo.url
             }
+            storageKey={latestLogoAsset?.storageKey ?? null}
             logoStateLabel={logoStateLabel}
             approveAction={approvePartnerLogoFormAction}
             archiveAction={archivePartnerLogoFormAction}
@@ -334,6 +335,7 @@ export default async function AdminPartnerDetailPage({
               type: a.type,
               assetId: a.id,
               fileUrl: a.fileUrl,
+              storageKey: a.storageKey,
               mimeType: a.mimeType,
               width: a.width,
               height: a.height,

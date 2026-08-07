@@ -11,6 +11,7 @@ import {
 import type { PartnerLogoLibraryAsset } from "@/components/partners/logo/PartnerLogoLibrary";
 import { PartnerLogoDualPreview } from "@/components/partners/logo/PartnerLogoDualPreview";
 import { PartnerLogoVariantCard } from "@/components/partners/logo/PartnerLogoVariantCard";
+import { resolvePartnerBrandAssetSrc } from "@/components/partners/logo/partner-logo-src";
 
 type Props = {
   partnerId: string;
@@ -36,10 +37,16 @@ export function AdminPartnerLogoLibrary({
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [busyType, setBusyType] = useState<string | null>(null);
   const [errorByType, setErrorByType] = useState<Record<string, string>>({});
+  const [localPreviewByType, setLocalPreviewByType] = useState<Record<string, string>>({});
 
   async function handleUpload(type: DnxPartnerBrandAssetType, file: File | null) {
     if (!file) return;
     setErrorByType((prev) => ({ ...prev, [type]: "" }));
+    const objectUrl = URL.createObjectURL(file);
+    setLocalPreviewByType((prev) => {
+      if (prev[type]) URL.revokeObjectURL(prev[type]);
+      return { ...prev, [type]: objectUrl };
+    });
     setBusyType(type);
     try {
       const body = new FormData();
@@ -49,14 +56,37 @@ export function AdminPartnerLogoLibrary({
         method: "POST",
         body,
       });
-      const json = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+        asset?: { fileUrl?: string | null; storageKey?: string | null };
+      };
       if (!res.ok || !json.ok) {
         throw new Error(json.message || json.error || "No se pudo subir el logo.");
+      }
+      const serverSrc = resolvePartnerBrandAssetSrc({
+        fileUrl: json.asset?.fileUrl,
+        storageKey: json.asset?.storageKey,
+      });
+      if (serverSrc) {
+        setLocalPreviewByType((prev) => {
+          if (prev[type]) URL.revokeObjectURL(prev[type]);
+          const next = { ...prev };
+          delete next[type];
+          return next;
+        });
       }
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "No se pudo subir el archivo.";
       setErrorByType((prev) => ({ ...prev, [type]: message }));
+      setLocalPreviewByType((prev) => {
+        if (prev[type]) URL.revokeObjectURL(prev[type]);
+        const next = { ...prev };
+        delete next[type];
+        return next;
+      });
     } finally {
       setBusyType(null);
     }
@@ -72,7 +102,8 @@ export function AdminPartnerLogoLibrary({
 
       <div className="grid gap-6 md:grid-cols-2">
         {PARTNER_LOGO_VARIANT_GUIDES.map((guide) => {
-          const current = assets.find((a) => a.type === guide.type);
+          const ofType = assets.filter((a) => a.type === guide.type);
+          const current = ofType[ofType.length - 1] ?? assets.find((a) => a.type === guide.type);
           const resolutionWarn = partnerLogoResolutionWarning(
             current?.width,
             current?.height,
@@ -82,7 +113,17 @@ export function AdminPartnerLogoLibrary({
           const canApprove =
             Boolean(current?.assetId) && current?.approvalStatus !== "APPROVED";
           const canArchive = Boolean(current?.assetId);
-          const hasFile = Boolean(current?.fileUrl);
+          const serverSrc = resolvePartnerBrandAssetSrc({
+            fileUrl: current?.fileUrl,
+            storageKey: current?.storageKey,
+          });
+          const previewSrc = localPreviewByType[guide.type] || serverSrc;
+          const hasFile = Boolean(previewSrc);
+          const showDualCheck =
+            guide.previewKind === "neutral" ||
+            guide.previewKind === "horizontal" ||
+            guide.previewKind === "vertical" ||
+            guide.previewKind === "isotipo";
 
           return (
             <PartnerLogoVariantCard
@@ -92,12 +133,17 @@ export function AdminPartnerLogoLibrary({
               recommendation={guide.recommendation}
               previewKind={guide.previewKind}
               required={guide.required}
+              previewSrc={previewSrc}
+              previewAlt={guide.title}
             >
-              <PartnerLogoDualPreview
-                src={current?.fileUrl}
-                alt={guide.title}
-                transparencyHint
-              />
+              {showDualCheck && previewSrc ? (
+                <PartnerLogoDualPreview
+                  src={previewSrc}
+                  alt={guide.title}
+                  previewKind={guide.previewKind}
+                  transparencyHint
+                />
+              ) : null}
 
               {current?.approvalStatus ? (
                 <p className="text-xs text-ck-text-muted">

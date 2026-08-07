@@ -9,11 +9,13 @@ import {
 } from "@repo/partners/client-safe";
 import { PartnerLogoDualPreview } from "./PartnerLogoDualPreview";
 import { PartnerLogoVariantCard } from "./PartnerLogoVariantCard";
+import { resolvePartnerBrandAssetSrc } from "./partner-logo-src";
 
 export type PartnerLogoLibraryAsset = {
   type: DnxPartnerBrandAssetType;
   assetId?: string;
   fileUrl?: string | null;
+  storageKey?: string | null;
   mimeType?: string | null;
   width?: number | null;
   height?: number | null;
@@ -47,8 +49,8 @@ export function PartnerLogoLibrary({
 }: Props) {
   const [busyType, setBusyType] = useState<string | null>(null);
   const [errorByType, setErrorByType] = useState<Record<string, string>>({});
+  const [localPreviewByType, setLocalPreviewByType] = useState<Record<string, string>>({});
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  // Mostrar CTA de carga siempre que no sea readOnly; el handler valida onUpload.
   const showUploadControls = !readOnly;
 
   async function handleFile(type: DnxPartnerBrandAssetType, file: File | null) {
@@ -61,12 +63,23 @@ export function PartnerLogoLibrary({
       return;
     }
     setErrorByType((prev) => ({ ...prev, [type]: "" }));
+    const objectUrl = URL.createObjectURL(file);
+    setLocalPreviewByType((prev) => {
+      if (prev[type]) URL.revokeObjectURL(prev[type]);
+      return { ...prev, [type]: objectUrl };
+    });
     setBusyType(type);
     try {
       await onUpload(type, file);
     } catch (err) {
       const message = err instanceof Error ? err.message : "No se pudo subir el archivo.";
       setErrorByType((prev) => ({ ...prev, [type]: message }));
+      setLocalPreviewByType((prev) => {
+        if (prev[type]) URL.revokeObjectURL(prev[type]);
+        const next = { ...prev };
+        delete next[type];
+        return next;
+      });
     } finally {
       setBusyType(null);
     }
@@ -82,7 +95,8 @@ export function PartnerLogoLibrary({
 
       <div className="grid gap-6 md:grid-cols-2">
         {PARTNER_LOGO_VARIANT_GUIDES.map((guide) => {
-          const current = assets.find((a) => a.type === guide.type);
+          const ofType = assets.filter((a) => a.type === guide.type);
+          const current = ofType[ofType.length - 1];
           const resolutionWarn = partnerLogoResolutionWarning(
             current?.width,
             current?.height,
@@ -93,6 +107,16 @@ export function PartnerLogoLibrary({
             Boolean(partnerId && approveAction && current?.assetId) &&
             current?.approvalStatus !== "APPROVED";
           const canArchive = Boolean(partnerId && archiveAction && current?.assetId);
+          const serverSrc = resolvePartnerBrandAssetSrc({
+            fileUrl: current?.fileUrl,
+            storageKey: current?.storageKey,
+          });
+          const previewSrc = localPreviewByType[guide.type] || serverSrc;
+          const showDualCheck =
+            guide.previewKind === "neutral" ||
+            guide.previewKind === "horizontal" ||
+            guide.previewKind === "vertical" ||
+            guide.previewKind === "isotipo";
 
           return (
             <PartnerLogoVariantCard
@@ -102,12 +126,17 @@ export function PartnerLogoLibrary({
               recommendation={guide.recommendation}
               previewKind={guide.previewKind}
               required={guide.required}
+              previewSrc={previewSrc}
+              previewAlt={guide.title}
             >
-              <PartnerLogoDualPreview
-                src={current?.fileUrl}
-                alt={guide.title}
-                transparencyHint
-              />
+              {showDualCheck && previewSrc ? (
+                <PartnerLogoDualPreview
+                  src={previewSrc}
+                  alt={guide.title}
+                  previewKind={guide.previewKind}
+                  transparencyHint
+                />
+              ) : null}
 
               {current?.approvalStatus ? (
                 <p className="text-xs text-ck-text-muted">
@@ -159,7 +188,7 @@ export function PartnerLogoLibrary({
                   >
                     {busyType === guide.type
                       ? "Subiendo…"
-                      : current?.fileUrl
+                      : previewSrc
                         ? "Reemplazar archivo"
                         : "Subir PNG o WEBP"}
                   </button>

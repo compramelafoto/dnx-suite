@@ -7,10 +7,12 @@ import {
   type DnxPartnerBrandAssetType,
 } from "@repo/partners/client-safe";
 import { PartnerLogoDualPreview } from "@/components/partners/logo/PartnerLogoDualPreview";
+import { resolvePartnerBrandAssetSrc } from "@/components/partners/logo/partner-logo-src";
 
 type Props = {
   partnerId: string;
   previewUrl?: string | null;
+  storageKey?: string | null;
   logoStateLabel: string;
   approveAction: (formData: FormData) => Promise<void>;
   archiveAction: (formData: FormData) => Promise<void>;
@@ -25,6 +27,7 @@ const ACCEPT = [...PARTNER_ALLOWED_LOGO_MIMES, ".png", ".webp"].join(",");
 export function PartnerLogoUpload({
   partnerId,
   previewUrl,
+  storageKey,
   logoStateLabel,
   approveAction,
   archiveAction,
@@ -42,7 +45,10 @@ export function PartnerLogoUpload({
     if (!file) return;
     setError(null);
     const objectUrl = URL.createObjectURL(file);
-    setLocalPreview(objectUrl);
+    setLocalPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return objectUrl;
+    });
     const body = new FormData();
     body.set("file", file);
     body.set("assetType", assetType);
@@ -51,20 +57,30 @@ export function PartnerLogoUpload({
         method: "POST",
         body,
       });
-      const json = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+        asset?: { fileUrl?: string | null; storageKey?: string | null };
+      };
       if (!res.ok || !json.ok) {
         setError(json.message || json.error || "No se pudo subir el logo.");
         return;
       }
+      setLocalPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       startTransition(() => router.refresh());
     } catch {
       setError("Error de red al subir el logo.");
-    } finally {
-      URL.revokeObjectURL(objectUrl);
     }
   }
 
-  const shown = localPreview || previewUrl || null;
+  const shown =
+    localPreview ||
+    resolvePartnerBrandAssetSrc({ fileUrl: previewUrl, storageKey }) ||
+    null;
 
   return (
     <div className="space-y-4">

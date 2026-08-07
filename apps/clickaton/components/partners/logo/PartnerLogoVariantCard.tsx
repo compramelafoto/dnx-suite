@@ -20,10 +20,13 @@ type Props = {
   required?: boolean;
   children?: ReactNode;
   className?: string;
+  /** Si hay archivo, reemplaza la ilustración CSS por el logo real en el fondo correcto. */
+  previewSrc?: string | null;
+  previewAlt?: string;
 };
 
 /**
- * Card educativa por variante de logo (título, copy, recomendación + ilustración CSS).
+ * Card educativa por variante de logo (título, copy, recomendación + preview).
  */
 export function PartnerLogoVariantCard({
   title,
@@ -33,6 +36,8 @@ export function PartnerLogoVariantCard({
   required = false,
   children,
   className,
+  previewSrc,
+  previewAlt,
 }: Props) {
   return (
     <Card variant="outlined" className={cn("flex flex-col gap-6 p-6 sm:p-8", className)}>
@@ -53,10 +58,66 @@ export function PartnerLogoVariantCard({
         <p className="text-xs leading-relaxed text-ck-text-muted">{recommendation}</p>
       </div>
 
-      <LogoPreviewIllustration kind={previewKind} />
+      {previewSrc ? (
+        <PartnerLogoLivePreview
+          kind={previewKind}
+          src={previewSrc}
+          alt={previewAlt ?? title}
+        />
+      ) : (
+        <LogoPreviewIllustration kind={previewKind} />
+      )}
 
       {children ? <div className="space-y-4 border-t border-ck-border pt-6">{children}</div> : null}
     </Card>
+  );
+}
+
+function PartnerLogoLivePreview({
+  kind,
+  src,
+  alt,
+}: {
+  kind: PartnerLogoPreviewKind;
+  src: string;
+  alt: string;
+}) {
+  const tone: "light" | "dark" | "neutral" =
+    kind === "light" ? "light" : kind === "dark" ? "dark" : "neutral";
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-ck-text-muted">
+        {tone === "light"
+          ? "Vista sobre fondo claro"
+          : tone === "dark"
+            ? "Vista sobre fondo oscuro"
+            : "Vista previa"}
+      </p>
+      <div
+        className={cn(
+          "relative flex h-28 items-center justify-center overflow-hidden rounded-lg border border-ck-border p-3 sm:h-32",
+          tone === "light" && "bg-white",
+          tone === "dark" && "bg-[#0a0a0a]",
+          tone === "neutral" && "bg-ck-surface-strong",
+        )}
+        style={
+          tone !== "neutral"
+            ? {
+                backgroundImage:
+                  tone === "light"
+                    ? "linear-gradient(45deg, #e8e8e8 25%, transparent 25%), linear-gradient(-45deg, #e8e8e8 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e8e8e8 75%), linear-gradient(-45deg, transparent 75%, #e8e8e8 75%)"
+                    : "linear-gradient(45deg, #1a1a1a 25%, transparent 25%), linear-gradient(-45deg, #1a1a1a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1a1a1a 75%), linear-gradient(-45deg, transparent 75%, #1a1a1a 75%)",
+                backgroundSize: "16px 16px",
+                backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0",
+                backgroundColor: tone === "light" ? "#ffffff" : "#0a0a0a",
+              }
+            : undefined
+        }
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={alt} className="max-h-full max-w-full object-contain" />
+      </div>
+    </div>
   );
 }
 

@@ -1,16 +1,34 @@
 "use client";
 
 import { cn } from "@/lib/cn";
+import type { PartnerLogoPreviewKind } from "./PartnerLogoVariantCard";
+
+export type PartnerLogoPreviewTone = "light" | "dark";
 
 type Props = {
   src?: string | null;
   alt?: string;
   transparencyHint?: boolean;
   className?: string;
+  /**
+   * Fondos a mostrar. Si no se pasa, se deduce de `previewKind`
+   * (logo oscuro → solo claro; logo claro → solo oscuro; resto → ambos).
+   */
+  tones?: readonly PartnerLogoPreviewTone[];
+  previewKind?: PartnerLogoPreviewKind;
 };
 
+/** Tonos de preview según variante de logo. */
+export function tonesForPartnerLogoPreviewKind(
+  kind: PartnerLogoPreviewKind | undefined,
+): readonly PartnerLogoPreviewTone[] {
+  if (kind === "light") return ["light"];
+  if (kind === "dark") return ["dark"];
+  return ["light", "dark"];
+}
+
 /**
- * Vista dual del logo sobre fondo claro y oscuro (object-contain).
+ * Vista del logo sobre el/los fondos relevantes (object-contain).
  * Con transparencyHint, muestra damero sutil para sugerir transparencia.
  */
 export function PartnerLogoDualPreview({
@@ -18,23 +36,24 @@ export function PartnerLogoDualPreview({
   alt = "Vista previa del logo",
   transparencyHint = false,
   className,
+  tones,
+  previewKind,
 }: Props) {
+  const panes = tones ?? tonesForPartnerLogoPreviewKind(previewKind);
+  const multi = panes.length > 1;
+
   return (
-    <div className={cn("grid grid-cols-2 gap-3", className)}>
-      <PreviewPane
-        label="Fondo claro"
-        tone="light"
-        src={src}
-        alt={`${alt} (fondo claro)`}
-        transparencyHint={transparencyHint}
-      />
-      <PreviewPane
-        label="Fondo oscuro"
-        tone="dark"
-        src={src}
-        alt={`${alt} (fondo oscuro)`}
-        transparencyHint={transparencyHint}
-      />
+    <div className={cn(multi ? "grid grid-cols-2 gap-3" : "grid grid-cols-1", className)}>
+      {panes.map((tone) => (
+        <PreviewPane
+          key={tone}
+          label={tone === "light" ? "Fondo claro" : "Fondo oscuro"}
+          tone={tone}
+          src={src}
+          alt={`${alt} (${tone === "light" ? "fondo claro" : "fondo oscuro"})`}
+          transparencyHint={transparencyHint}
+        />
+      ))}
     </div>
   );
 }
@@ -47,7 +66,7 @@ function PreviewPane({
   transparencyHint,
 }: {
   label: string;
-  tone: "light" | "dark";
+  tone: PartnerLogoPreviewTone;
   src?: string | null;
   alt: string;
   transparencyHint: boolean;

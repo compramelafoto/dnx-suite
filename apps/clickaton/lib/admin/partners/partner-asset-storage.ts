@@ -96,8 +96,9 @@ class R2PartnerAssetStorage implements PartnerAssetStoragePort {
         ContentType: input.contentType,
       }),
     );
-    const base = this.config.publicBaseUrl?.replace(/\/$/, "");
-    const publicUrl = base ? `${base}/${key}` : `/api/media/${key}`;
+    // Same-origin proxy: R2_PUBLIC_URL no siempre sirve `partners/...` y rompe el <img>.
+    void this.config.publicBaseUrl;
+    const publicUrl = `/api/media/${key}`;
     return stored(key, input.body, publicUrl);
   }
   async get(key: string) {
