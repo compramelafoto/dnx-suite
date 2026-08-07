@@ -20,6 +20,12 @@ test("el proxy sigue sirviendo los namespaces de marketing", () => {
   assert.ok(isPublicMediaKey("clickaton/products/2026-08-04/abc-123.png"));
 });
 
+test("el proxy sirve logos de partners", () => {
+  assert.ok(
+    isPublicMediaKey("clickaton/partners/partner123/brand/2026-08-07/abc-123.png"),
+  );
+});
+
 test("el proxy no expone namespaces privados ni traversal", () => {
   const rejected = [
     "clickaton/private/2026-08-04/abc.jpg",
