@@ -339,12 +339,14 @@ export function createPartnerOnboardingApi(repo: PartnersRepository, audit: Audi
           firstName: "Obligatorio.",
         });
       }
-      const hasPrimaryLogo = (normalized.logos ?? []).some((l) => l.type === "LOGO_PRIMARY");
-      if (!hasPrimaryLogo) {
+      const hasRequiredLogo = (normalized.logos ?? []).some(
+        (l) => l.type === "LOGO_GENERAL" || l.type === "LOGO_PRIMARY",
+      );
+      if (!hasRequiredLogo) {
         throw new PartnersDomainError(
           "VALIDATION",
-          "El logo principal es obligatorio.",
-          { logos: "Subí el logo principal (PNG o WEBP)." },
+          "El logo general (color) es obligatorio.",
+          { logos: "Subí el logo general en color (PNG o WEBP)." },
         );
       }
 

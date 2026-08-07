@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type {
-  DnxPartnerBrandAssetType,
   PartnerOnboardingDraft,
   PartnerOnboardingSubmission,
 } from "@repo/partners/client-safe";
 import { PartnerOnboardingWizard } from "@/components/partners/onboarding/PartnerOnboardingWizard";
 import { Card } from "@/components/ui/Card";
 import { Container } from "@/components/layout/Container";
-import type { PartnerLogoLibraryAsset } from "@/components/partners/logo/PartnerLogoLibrary";
+import type {
+  PartnerLogoLibraryAsset,
+  PartnerLogoUploadSlot,
+} from "@/components/partners/logo/PartnerLogoLibrary";
 
 type LoadState =
   | { kind: "loading" }
@@ -82,10 +84,11 @@ export function PartnerOnboardingClient({ token }: Props) {
   );
 
   const uploadLogo = useCallback(
-    async (type: DnxPartnerBrandAssetType, file: File): Promise<PartnerLogoLibraryAsset> => {
+    async (slot: PartnerLogoUploadSlot, file: File): Promise<PartnerLogoLibraryAsset> => {
       const body = new FormData();
       body.set("file", file);
-      body.set("assetType", type);
+      body.set("assetType", slot.type);
+      body.set("backgroundType", slot.backgroundType);
       const res = await fetch(
         `/api/public/partners/onboarding/${encodeURIComponent(token)}/logo`,
         { method: "POST", body },
@@ -99,9 +102,11 @@ export function PartnerOnboardingClient({ token }: Props) {
         throw new Error(json.message || "No se pudo subir el logo.");
       }
       return {
-        type,
+        type: slot.type,
+        backgroundType: slot.backgroundType,
         assetId: json.asset.assetId,
         fileUrl: json.asset.fileUrl,
+        storageKey: json.asset.storageKey,
         mimeType: json.asset.mimeType,
         width: json.asset.width,
         height: json.asset.height,

@@ -1,6 +1,7 @@
 import type { DnxPartnerApplication } from "./types";
 
 export const DNX_PARTNER_BRAND_ASSET_TYPES = [
+  "LOGO_GENERAL",
   "LOGO_PRIMARY",
   "LOGO_HORIZONTAL",
   "LOGO_VERTICAL",

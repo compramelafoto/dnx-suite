@@ -235,12 +235,25 @@ export {
 } from "./assets-mime";
 
 export {
+  PARTNER_LOGO_FAMILIES,
+  PARTNER_LOGO_SLOTS,
   PARTNER_LOGO_VARIANT_GUIDES,
   PARTNER_LOGO_ASSET_TYPES,
+  PARTNER_LOGO_LEGACY_ASSET_TYPES,
+  partnerLogoSlotKey,
   isPartnerLogoAssetType,
+  isPartnerLogoSlotBackground,
+  getPartnerLogoSlotGuide,
   getPartnerLogoVariantGuide,
+  getPartnerLogoFamilyGuide,
 } from "./logo-types";
-export type { PartnerLogoVariantGuide } from "./logo-types";
+export type {
+  PartnerLogoVariantGuide,
+  PartnerLogoSlotGuide,
+  PartnerLogoFamilyGuide,
+  PartnerLogoSlotBackground,
+  PartnerLogoPreviewKind,
+} from "./logo-types";
 
 export {
   DNX_PARTNER_ONBOARDING_INVITATION_STATUSES,
@@ -280,7 +293,11 @@ export { createPartnerOnboardingApi } from "./onboarding-api";
 export {
   resolvePartnerPrimaryLogo,
   resolvePartnerLogoVariant,
+  resolvePartnerLogoSlot,
+  resolvePartnerLogoForSurface,
   resolvePartnerDisplayImage,
+  brandAssetMatchesLogoSlot,
+  normalizePartnerLogoBackground,
   filterParticipationAssets,
   findBestAssetForChannel,
 } from "./assets-resolve";

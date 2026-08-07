@@ -1,4 +1,5 @@
 import type {
+  DnxPartnerAssetBackground,
   DnxPartnerBrandAssetType,
   ListParticipationAssetsQuery,
   ParticipationAssetRecord,
@@ -6,8 +7,10 @@ import type {
   ResolvedPartnerImage,
 } from "./assets-types";
 import { PARTNER_LOGO_PLACEHOLDER } from "./assets-types";
+import type { PartnerLogoSlotBackground } from "./logo-types";
 
 const LOGO_TYPES = new Set<DnxPartnerBrandAssetType>([
+  "LOGO_GENERAL",
   "LOGO_PRIMARY",
   "LOGO_HORIZONTAL",
   "LOGO_VERTICAL",
@@ -68,35 +71,104 @@ function toResolved(asset: PartnerBrandAssetRecord): ResolvedPartnerImage {
   };
 }
 
+/** Normaliza background del asset; UNKNOWN/TRANSPARENT se tratan como COLOR en resolución. */
+export function normalizePartnerLogoBackground(
+  backgroundType: DnxPartnerAssetBackground | null | undefined,
+): PartnerLogoSlotBackground {
+  if (backgroundType === "LIGHT" || backgroundType === "DARK" || backgroundType === "COLOR") {
+    return backgroundType;
+  }
+  return "COLOR";
+}
+
+/**
+ * ¿El asset cubre el slot pedido?
+ * Legacy: LOGO_LIGHT ≡ fondo oscuro; LOGO_DARK ≡ fondo claro; sin background ≡ COLOR.
+ */
+export function brandAssetMatchesLogoSlot(
+  asset: PartnerBrandAssetRecord,
+  type: DnxPartnerBrandAssetType,
+  backgroundType: PartnerLogoSlotBackground,
+): boolean {
+  if (asset.type === type) {
+    return normalizePartnerLogoBackground(asset.backgroundType) === backgroundType;
+  }
+  // Legacy dedicados
+  if (backgroundType === "DARK" && asset.type === "LOGO_LIGHT") {
+    return type === "LOGO_PRIMARY" || type === "LOGO_GENERAL";
+  }
+  if (backgroundType === "LIGHT" && asset.type === "LOGO_DARK") {
+    return type === "LOGO_PRIMARY" || type === "LOGO_GENERAL";
+  }
+  return false;
+}
+
+function findUsableSlot(
+  usable: readonly PartnerBrandAssetRecord[],
+  type: DnxPartnerBrandAssetType,
+  backgroundType: PartnerLogoSlotBackground,
+): PartnerBrandAssetRecord | undefined {
+  return usable.find((a) => brandAssetMatchesLogoSlot(a, type, backgroundType));
+}
+
 /**
  * Resolución canónica de logo / imagen de display.
- * 1) tipo solicitado usable → 2) primary usable → 3) LOGO_PRIMARY → 4) logoUrl → 5) placeholder
+ * Prefiere Logo general Color → Principal Color → primary flag → cualquier logo → logoUrl.
  */
 export function resolvePartnerPrimaryLogo(input: {
   assets: readonly PartnerBrandAssetRecord[];
   logoUrl?: string | null;
   now?: Date;
 }): ResolvedPartnerImage {
-  return resolvePartnerLogoVariant({ ...input, type: "LOGO_PRIMARY" });
+  return resolvePartnerLogoSlot({
+    ...input,
+    type: "LOGO_GENERAL",
+    backgroundType: "COLOR",
+  });
 }
 
-export function resolvePartnerLogoVariant(input: {
+export function resolvePartnerLogoSlot(input: {
   assets: readonly PartnerBrandAssetRecord[];
   type: DnxPartnerBrandAssetType;
+  backgroundType?: PartnerLogoSlotBackground;
   logoUrl?: string | null;
   now?: Date;
 }): ResolvedPartnerImage {
   const now = input.now ?? new Date();
+  const backgroundType = input.backgroundType ?? "COLOR";
   const usable = input.assets.filter((a) => isUsableBrandAsset(a, now));
 
-  const byType = usable.find((a) => a.type === input.type);
-  if (byType) return toResolved(byType);
+  const exact = findUsableSlot(usable, input.type, backgroundType);
+  if (exact) return toResolved(exact);
 
-  const primary = usable.find((a) => a.isPrimary && LOGO_TYPES.has(a.type));
-  if (primary) return toResolved(primary);
+  // Misma familia, color como fallback del tratamiento pedido
+  if (backgroundType !== "COLOR") {
+    const color = findUsableSlot(usable, input.type, "COLOR");
+    if (color) return toResolved(color);
+  }
 
-  const logoPrimary = usable.find((a) => a.type === "LOGO_PRIMARY");
-  if (logoPrimary) return toResolved(logoPrimary);
+  // General / primary cruzados
+  if (input.type !== "LOGO_GENERAL") {
+    const general = findUsableSlot(usable, "LOGO_GENERAL", backgroundType);
+    if (general) return toResolved(general);
+    const generalColor = findUsableSlot(usable, "LOGO_GENERAL", "COLOR");
+    if (generalColor) return toResolved(generalColor);
+  }
+  if (input.type !== "LOGO_PRIMARY") {
+    const primary = findUsableSlot(usable, "LOGO_PRIMARY", backgroundType);
+    if (primary) return toResolved(primary);
+    const primaryColor = findUsableSlot(usable, "LOGO_PRIMARY", "COLOR");
+    if (primaryColor) return toResolved(primaryColor);
+  }
+
+  // Legacy type-only (sin background) o cualquier LOGO_PRIMARY/GENERAL
+  const legacyPrimary = usable.find((a) => a.type === "LOGO_PRIMARY");
+  if (legacyPrimary) return toResolved(legacyPrimary);
+  const legacyGeneral = usable.find((a) => a.type === "LOGO_GENERAL");
+  if (legacyGeneral) return toResolved(legacyGeneral);
+
+  const primaryFlag = usable.find((a) => a.isPrimary && LOGO_TYPES.has(a.type));
+  if (primaryFlag) return toResolved(primaryFlag);
 
   const anyLogo = usable.find((a) => LOGO_TYPES.has(a.type));
   if (anyLogo) return toResolved(anyLogo);
@@ -117,15 +189,87 @@ export function resolvePartnerLogoVariant(input: {
   return { ...PARTNER_LOGO_PLACEHOLDER };
 }
 
+export function resolvePartnerLogoVariant(input: {
+  assets: readonly PartnerBrandAssetRecord[];
+  type: DnxPartnerBrandAssetType;
+  logoUrl?: string | null;
+  now?: Date;
+}): ResolvedPartnerImage {
+  // Compat: LOGO_LIGHT/DARK legacy como pedido de superficie
+  if (input.type === "LOGO_LIGHT") {
+    return resolvePartnerLogoSlot({
+      ...input,
+      type: "LOGO_PRIMARY",
+      backgroundType: "DARK",
+    });
+  }
+  if (input.type === "LOGO_DARK") {
+    return resolvePartnerLogoSlot({
+      ...input,
+      type: "LOGO_PRIMARY",
+      backgroundType: "LIGHT",
+    });
+  }
+  return resolvePartnerLogoSlot({
+    ...input,
+    backgroundType: "COLOR",
+  });
+}
+
+/**
+ * Para placas / superficies: pide el mejor archivo disponible para ese fondo.
+ * Cadena: familia pedida → general → principal → color → cualquier logo.
+ */
+export function resolvePartnerLogoForSurface(input: {
+  assets: readonly PartnerBrandAssetRecord[];
+  surface: PartnerLogoSlotBackground;
+  preferredType?: DnxPartnerBrandAssetType;
+  logoUrl?: string | null;
+  now?: Date;
+}): ResolvedPartnerImage {
+  const preferred = input.preferredType ?? "LOGO_GENERAL";
+  const families: DnxPartnerBrandAssetType[] = [
+    preferred,
+    "LOGO_GENERAL",
+    "LOGO_PRIMARY",
+    "LOGO_HORIZONTAL",
+    "ISOTYPE",
+    "LOGO_VERTICAL",
+  ];
+  const seen = new Set<string>();
+  for (const type of families) {
+    if (seen.has(type)) continue;
+    seen.add(type);
+    const resolved = resolvePartnerLogoSlot({
+      assets: input.assets,
+      type,
+      backgroundType: input.surface,
+      logoUrl: input.logoUrl,
+      now: input.now,
+    });
+    if (resolved.source !== "placeholder") return resolved;
+  }
+  return resolvePartnerPrimaryLogo(input);
+}
+
 export function resolvePartnerDisplayImage(input: {
   assets: readonly PartnerBrandAssetRecord[];
   logoUrl?: string | null;
   preferredTypes?: readonly DnxPartnerBrandAssetType[];
   now?: Date;
 }): ResolvedPartnerImage {
-  const preferred = input.preferredTypes ?? ["LOGO_PRIMARY", "LOGO_HORIZONTAL", "ISOTYPE"];
+  const preferred = input.preferredTypes ?? [
+    "LOGO_GENERAL",
+    "LOGO_PRIMARY",
+    "LOGO_HORIZONTAL",
+    "ISOTYPE",
+  ];
   for (const type of preferred) {
-    const resolved = resolvePartnerLogoVariant({ ...input, type });
+    const resolved = resolvePartnerLogoSlot({
+      ...input,
+      type,
+      backgroundType: "COLOR",
+    });
     if (resolved.source !== "placeholder") return resolved;
   }
   return resolvePartnerPrimaryLogo(input);

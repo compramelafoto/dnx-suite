@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import {
   assertPartnerLogoUploadAllowed,
   assertSafeStorageFilename,
-  getPartnerLogoVariantGuide,
+  getPartnerLogoFamilyGuide,
+  getPartnerLogoSlotGuide,
   isPartnerLogoAssetType,
+  isPartnerLogoSlotBackground,
   type DnxPartnerBrandAssetType,
+  type PartnerLogoSlotBackground,
 } from "@repo/partners";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { withClickatonDb } from "@/lib/admin/db";
@@ -42,6 +45,18 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
   const assetType = rawType as DnxPartnerBrandAssetType;
+  const rawBg = (form.get("backgroundType")?.toString() || "COLOR").trim().toUpperCase();
+  if (!isPartnerLogoSlotBackground(rawBg)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "invalid_background_type",
+        message: "Tratamiento inválido (COLOR, LIGHT o DARK).",
+      },
+      { status: 400 },
+    );
+  }
+  const backgroundType = rawBg as PartnerLogoSlotBackground;
 
   const buffer = Buffer.from(await file.arrayBuffer());
   let detected;
@@ -68,10 +83,15 @@ export async function POST(request: Request, { params }: Params) {
   const result = await withClickatonDb(async () => {
     const svc = getClickatonPartnersService();
     await svc.getPartner(actor, partnerId);
+    const family = getPartnerLogoFamilyGuide(assetType);
+    const slotGuide = getPartnerLogoSlotGuide(assetType, backgroundType);
+    const assetName = family && slotGuide
+      ? `${family.title} · ${slotGuide.title}`
+      : `${assetType}:${backgroundType}`;
     const asset = await svc.createPartnerAsset(actor, {
       partnerId,
       type: assetType,
-      name: getPartnerLogoVariantGuide(assetType)?.title ?? assetType,
+      name: assetName,
       storageProvider: process.env.R2_BUCKET || process.env.R2_BUCKET_NAME ? "R2" : "LOCAL",
       storageKey: stored.key,
       fileUrl: stored.publicUrl,
@@ -79,12 +99,19 @@ export async function POST(request: Request, { params }: Params) {
       mimeType: detected.mime,
       fileExtension: detected.extension,
       fileSize: stored.bytes,
-      isPrimary: assetType === "LOGO_PRIMARY",
+      backgroundType,
+      isPrimary:
+        (assetType === "LOGO_GENERAL" || assetType === "LOGO_PRIMARY") &&
+        backgroundType === "COLOR",
       status: "DRAFT",
       approvalStatus: "PENDING",
       altText: null,
       notes: null,
-      metadata: { contentHash: stored.contentHash, source: "admin_upload" },
+      metadata: {
+        contentHash: stored.contentHash,
+        source: "admin_upload",
+        slotKey: `${assetType}:${backgroundType}`,
+      },
     });
     return asset;
   });
@@ -101,6 +128,7 @@ export async function POST(request: Request, { params }: Params) {
     asset: {
       id: result.data.id,
       type: result.data.type,
+      backgroundType: result.data.backgroundType,
       fileUrl: result.data.fileUrl,
       storageKey: result.data.storageKey,
       approvalStatus: result.data.approvalStatus,

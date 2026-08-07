@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import type {
-  DnxPartnerBrandAssetType,
   PartnerOnboardingDraft,
   PartnerOnboardingSubmission,
 } from "@repo/partners/client-safe";
@@ -12,7 +11,11 @@ import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
-import { PartnerLogoLibrary, type PartnerLogoLibraryAsset } from "../logo/PartnerLogoLibrary";
+import {
+  PartnerLogoLibrary,
+  type PartnerLogoLibraryAsset,
+  type PartnerLogoUploadSlot,
+} from "../logo/PartnerLogoLibrary";
 
 const STEPS = [
   { id: 1, label: "Empresa" },
@@ -25,7 +28,10 @@ type Props = {
   initialDraft?: PartnerOnboardingDraft | null;
   partnerDisplayName?: string | null;
   onSaveDraft?: (draft: PartnerOnboardingDraft) => Promise<void> | void;
-  onUploadLogo?: (type: DnxPartnerBrandAssetType, file: File) => Promise<PartnerLogoLibraryAsset | void> | PartnerLogoLibraryAsset | void;
+  onUploadLogo?: (
+    slot: PartnerLogoUploadSlot,
+    file: File,
+  ) => Promise<PartnerLogoLibraryAsset | void> | PartnerLogoLibraryAsset | void;
   onSubmit: (submission: PartnerOnboardingSubmission) => Promise<void> | void;
 };
 
@@ -89,8 +95,10 @@ export function PartnerOnboardingWizard({
 
   const logoAssets: PartnerLogoLibraryAsset[] = (draft.logos ?? []).map((logo) => ({
     type: logo.type,
+    backgroundType: logo.backgroundType ?? "COLOR",
     assetId: logo.assetId,
     fileUrl: logo.fileUrl,
+    storageKey: logo.storageKey,
     mimeType: logo.mimeType,
     width: logo.width,
     height: logo.height,
@@ -135,9 +143,13 @@ export function PartnerOnboardingWizard({
       }
     }
     if (current === 3) {
-      const hasPrimary = (draft.logos ?? []).some((l) => l.type === "LOGO_PRIMARY");
-      if (!hasPrimary) {
-        nextErrors.logos = "Subí al menos el logo principal (PNG o WEBP).";
+      const hasRequired = (draft.logos ?? []).some(
+        (l) =>
+          (l.type === "LOGO_GENERAL" || l.type === "LOGO_PRIMARY") &&
+          (l.backgroundType == null || l.backgroundType === "COLOR"),
+      );
+      if (!hasRequired) {
+        nextErrors.logos = "Subí al menos el Logo general · Color (PNG o WEBP).";
       }
     }
     if (current === 4) {
@@ -185,24 +197,33 @@ export function PartnerOnboardingWizard({
     }
   }
 
-  async function handleUpload(type: DnxPartnerBrandAssetType, file: File) {
+  async function handleUpload(slot: PartnerLogoUploadSlot, file: File) {
     if (!onUploadLogo) throw new Error("Upload no disponible.");
-    const result = await onUploadLogo(type, file);
+    const result = await onUploadLogo(slot, file);
     setDraft((prev) => {
-      const others = (prev.logos ?? []).filter((l) => l.type !== type);
+      const others = (prev.logos ?? []).filter(
+        (l) =>
+          !(
+            l.type === slot.type &&
+            (l.backgroundType ?? "COLOR") === slot.backgroundType
+          ),
+      );
       const nextLogo = result
         ? {
-            assetId: result.assetId ?? `local-${type}`,
-            type,
+            assetId: result.assetId ?? `local-${slot.slotKey}`,
+            type: slot.type,
+            backgroundType: slot.backgroundType,
             fileUrl: result.fileUrl ?? URL.createObjectURL(file),
+            storageKey: result.storageKey ?? null,
             mimeType: result.mimeType ?? file.type,
             width: result.width ?? null,
             height: result.height ?? null,
             fileSize: file.size,
           }
         : {
-            assetId: `local-${type}`,
-            type,
+            assetId: `local-${slot.slotKey}`,
+            type: slot.type,
+            backgroundType: slot.backgroundType,
             fileUrl: URL.createObjectURL(file),
             mimeType: file.type,
             fileSize: file.size,
@@ -473,8 +494,8 @@ export function PartnerOnboardingWizard({
           <Card variant="outlined" className="space-y-3 p-6 sm:p-8">
             <h2 className="text-xl font-semibold text-ck-text">Logos de marca</h2>
             <p className="text-sm leading-relaxed text-ck-text-secondary">
-              Subí al menos el logo principal. Las variantes claras/oscuras ayudan a que se vea bien
-              en fondos distintos. Solo PNG o WEBP.
+              Subí al menos el Logo general en Color. Cada casilla (Color / Negativo-Positivo o Fondo
+              claro-oscuro) es un archivo distinto. Solo PNG o WEBP.
             </p>
             {errors.logos ? (
               <p className="text-sm text-red-300" role="alert">

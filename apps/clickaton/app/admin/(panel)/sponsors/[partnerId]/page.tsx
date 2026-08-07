@@ -31,7 +31,6 @@ import {
 } from "@repo/partners";
 import { AdminPartnerLogoLibrary } from "@/components/admin/partners/AdminPartnerLogoLibrary";
 import { DeleteContributionButton } from "@/components/admin/partners/DeleteContributionButton";
-import { PartnerLogoUpload } from "@/components/admin/partners/PartnerLogoUpload";
 import { PartnerOnboardingInvitePanel } from "@/components/admin/partners/PartnerOnboardingInvitePanel";
 import { PartnerOnboardingReviewPanel } from "@/components/admin/partners/PartnerOnboardingReviewPanel";
 import { RequiresPaymentFields } from "@/components/admin/partners/RequiresPaymentFields";
@@ -300,32 +299,10 @@ export default async function AdminPartnerDetailPage({
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-ck-text">Logo</h2>
-        <Card variant="outlined" className="space-y-4 p-6">
-          <PartnerLogoUpload
-            partnerId={partner.id}
-            previewUrl={
-              primaryLogo.source === "placeholder"
-                ? latestLogoAsset?.fileUrl ?? null
-                : primaryLogo.url
-            }
-            storageKey={latestLogoAsset?.storageKey ?? null}
-            logoStateLabel={logoStateLabel}
-            approveAction={approvePartnerLogoFormAction}
-            archiveAction={archivePartnerLogoFormAction}
-            assetId={latestLogoAsset?.id ?? null}
-            canApprove={
-              Boolean(latestLogoAsset) && latestLogoAsset?.approvalStatus !== "APPROVED"
-            }
-            assetType="LOGO_PRIMARY"
-          />
-          <p className="text-xs text-ck-text-muted">
-            Aprobar el logo no publica el partner. La publicación es un paso aparte.
-          </p>
-        </Card>
+        <h2 className="text-xl font-semibold text-ck-text">Logos de marca</h2>
         <p className="text-sm text-ck-text-secondary">
-          Variantes opcionales: cada tarjeta tiene su propio botón para subir PNG/WEBP. El preview
-          claro/oscuro muestra el mismo archivo sobre dos fondos (no son dos uploads distintos).
+          Estado resumen: {logoStateLabel}. Cada casilla es un archivo distinto (Color / Negativo o
+          Positivo / Fondo claro u oscuro). Aprobar un logo no publica al partner.
         </p>
         <AdminPartnerLogoLibrary
           partnerId={partner.id}
@@ -333,6 +310,7 @@ export default async function AdminPartnerDetailPage({
             .filter((a) => !a.archivedAt)
             .map((a) => ({
               type: a.type,
+              backgroundType: a.backgroundType,
               assetId: a.id,
               fileUrl: a.fileUrl,
               storageKey: a.storageKey,

@@ -13143,6 +13143,7 @@ enum DnxPartnerPublicVisibility {
 }
 
 enum DnxPartnerBrandAssetType {
+  LOGO_GENERAL
   LOGO_PRIMARY
   LOGO_HORIZONTAL
   LOGO_VERTICAL

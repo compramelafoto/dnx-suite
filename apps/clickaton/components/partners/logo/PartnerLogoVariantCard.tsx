@@ -4,13 +4,9 @@ import type { ReactNode } from "react";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 
-export type PartnerLogoPreviewKind =
-  | "neutral"
-  | "dark"
-  | "light"
-  | "horizontal"
-  | "vertical"
-  | "isotipo";
+import type { PartnerLogoPreviewKind as PreviewKind } from "@repo/partners/client-safe";
+
+export type PartnerLogoPreviewKind = PreviewKind;
 
 type Props = {
   title: string;

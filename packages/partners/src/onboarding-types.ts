@@ -86,7 +86,9 @@ export type PartnerOnboardingContactDraft = {
 export type PartnerOnboardingLogoRef = {
   assetId: string;
   type: DnxPartnerBrandAssetType;
+  backgroundType?: "COLOR" | "LIGHT" | "DARK" | null;
   fileUrl?: string | null;
+  storageKey?: string | null;
   mimeType?: string | null;
   width?: number | null;
   height?: number | null;

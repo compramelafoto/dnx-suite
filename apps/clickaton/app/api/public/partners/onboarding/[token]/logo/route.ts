@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import {
   assertPartnerLogoUploadAllowed,
   assertSafeStorageFilename,
+  getPartnerLogoFamilyGuide,
+  getPartnerLogoSlotGuide,
   isPartnerLogoAssetType,
+  isPartnerLogoSlotBackground,
   PartnersDomainError,
   type DnxPartnerBrandAssetType,
   type PartnerActor,
+  type PartnerLogoSlotBackground,
 } from "@repo/partners";
 import { withClickatonDb } from "@/lib/admin/db";
 import { getPartnerAssetStorage } from "@/lib/admin/partners/partner-asset-storage";
@@ -47,7 +51,7 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  const rawType = (form.get("assetType")?.toString() || "LOGO_PRIMARY").trim();
+  const rawType = (form.get("assetType")?.toString() || "LOGO_GENERAL").trim();
   if (!isPartnerLogoAssetType(rawType)) {
     return NextResponse.json(
       { ok: false, error: "invalid_asset_type", message: "Tipo de logo inválido." },
@@ -55,6 +59,18 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
   const assetType = rawType as DnxPartnerBrandAssetType;
+  const rawBg = (form.get("backgroundType")?.toString() || "COLOR").trim().toUpperCase();
+  if (!isPartnerLogoSlotBackground(rawBg)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "invalid_background_type",
+        message: "Tratamiento inválido (COLOR, LIGHT o DARK).",
+      },
+      { status: 400 },
+    );
+  }
+  const backgroundType = rawBg as PartnerLogoSlotBackground;
 
   const buffer = Buffer.from(await file.arrayBuffer());
   let detected;
@@ -85,10 +101,17 @@ export async function POST(request: Request, { params }: Params) {
         contentType: detected.mime,
       });
 
+      const family = getPartnerLogoFamilyGuide(assetType);
+      const slotGuide = getPartnerLogoSlotGuide(assetType, backgroundType);
+      const assetName =
+        family && slotGuide
+          ? `${family.title} · ${slotGuide.title}`
+          : `${assetType}:${backgroundType}`;
+
       const asset = await svc.createPartnerAsset(PUBLIC_ONBOARDING_ACTOR, {
         partnerId,
         type: assetType,
-        name: assetType === "LOGO_PRIMARY" ? "Logo principal" : assetType,
+        name: assetName,
         storageProvider:
           process.env.R2_BUCKET || process.env.R2_BUCKET_NAME ? "R2" : "LOCAL",
         storageKey: stored.key,
@@ -97,7 +120,10 @@ export async function POST(request: Request, { params }: Params) {
         mimeType: detected.mime,
         fileExtension: detected.extension,
         fileSize: stored.bytes,
-        isPrimary: assetType === "LOGO_PRIMARY",
+        backgroundType,
+        isPrimary:
+          (assetType === "LOGO_GENERAL" || assetType === "LOGO_PRIMARY") &&
+          backgroundType === "COLOR",
         status: "DRAFT",
         approvalStatus: "PENDING",
         altText: null,
@@ -105,6 +131,7 @@ export async function POST(request: Request, { params }: Params) {
         metadata: {
           contentHash: stored.contentHash,
           source: "public_onboarding_upload",
+          slotKey: `${assetType}:${backgroundType}`,
         },
       });
 
@@ -124,7 +151,9 @@ export async function POST(request: Request, { params }: Params) {
       asset: {
         assetId: asset.id,
         type: asset.type,
+        backgroundType: asset.backgroundType,
         fileUrl: asset.fileUrl,
+        storageKey: asset.storageKey,
         mimeType: asset.mimeType,
         width: asset.width,
         height: asset.height,

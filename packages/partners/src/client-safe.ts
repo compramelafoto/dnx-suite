@@ -4,16 +4,35 @@
  */
 
 export {
+  PARTNER_LOGO_FAMILIES,
+  PARTNER_LOGO_SLOTS,
   PARTNER_LOGO_VARIANT_GUIDES,
   PARTNER_LOGO_ASSET_TYPES,
+  partnerLogoSlotKey,
   isPartnerLogoAssetType,
+  isPartnerLogoSlotBackground,
+  getPartnerLogoSlotGuide,
   getPartnerLogoVariantGuide,
+  getPartnerLogoFamilyGuide,
 } from "./logo-types";
-export type { PartnerLogoVariantGuide } from "./logo-types";
+export type {
+  PartnerLogoVariantGuide,
+  PartnerLogoSlotGuide,
+  PartnerLogoFamilyGuide,
+  PartnerLogoSlotBackground,
+  PartnerLogoPreviewKind,
+} from "./logo-types";
 
 export { PARTNER_ALLOWED_LOGO_MIMES } from "./assets-limits";
 
 export { partnerLogoResolutionWarning } from "./assets-mime";
+
+export {
+  brandAssetMatchesLogoSlot,
+  normalizePartnerLogoBackground,
+} from "./assets-resolve";
+
+export type { DnxPartnerAssetBackground, DnxPartnerBrandAssetType } from "./assets-types";
 
 export {
   DNX_PARTNER_ONBOARDING_INVITATION_STATUSES,
@@ -34,5 +53,4 @@ export type {
   OnboardingInvitationRecord,
 } from "./onboarding-types";
 
-export type { DnxPartnerBrandAssetType } from "./assets-types";
 export type { PartnerRecord } from "./types";
