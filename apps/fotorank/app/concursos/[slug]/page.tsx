@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { resolveContestVisualTheme } from "../../lib/fotorank/contest-visual";
+import { loadContestPublicPartnerGroups } from "../../lib/fotorank/partners/public-groups";
 import { getPublicContestLandingBySlug } from "../../lib/fotorank/publicContestLanding";
 import { ContestPublicLanding } from "./ContestPublicLanding";
 
@@ -9,9 +11,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const data = await getPublicContestLandingBySlug(slug);
   if (!data) return { title: "Concurso | FotoRank" };
+
+  const theme = resolveContestVisualTheme(slug, undefined, {
+    coverImageUrl: data.contest.coverImageUrl,
+    organizerLogoUrl: data.organization.logoUrl,
+    contestTitle: data.contest.title,
+    organizerName: data.organization.name,
+  });
+  const social = theme.presentation.social;
+
   return {
     title: `${data.contest.title} · ${data.organization.name}`,
     description: data.contest.shortDescription ?? data.organization.shortDescription ?? undefined,
+    ...(social
+      ? {
+          openGraph: {
+            images: [{ url: social.url, alt: social.alt }],
+          },
+          twitter: {
+            images: [social.url],
+          },
+        }
+      : {}),
   };
 }
 
@@ -19,5 +40,6 @@ export default async function ContestPublicPage({ params }: Props) {
   const { slug } = await params;
   const data = await getPublicContestLandingBySlug(slug);
   if (!data) notFound();
-  return <ContestPublicLanding data={data} />;
+  const partnerGroups = await loadContestPublicPartnerGroups(data.contest.id);
+  return <ContestPublicLanding data={data} partnerGroups={partnerGroups} />;
 }

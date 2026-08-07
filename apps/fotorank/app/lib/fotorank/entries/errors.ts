@@ -16,7 +16,10 @@ export type EntryErrorCode =
   | "DEVICE_NOT_ELIGIBLE"
   | "TERRITORY_REQUIRED"
   | "ARGRA_REQUIRED"
-  | "FROZEN";
+  | "INSTAGRAM_REQUIRED"
+  | "DECLARATIONS_REQUIRED"
+  | "FROZEN"
+  | "RULES_VERSION_MISMATCH";
 
 export class EntryError extends Error {
   readonly code: EntryErrorCode;

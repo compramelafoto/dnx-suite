@@ -42,3 +42,10 @@ export {
   type CreateRegistrationInput,
   type RegistrationDTO,
 } from "./registration-service";
+export {
+  registrationNeedsRulesReacceptance,
+  getRulesReacceptanceStatus,
+  acceptCurrentPublishedRules,
+  assertRegistrationAcceptedCurrentRules,
+  type RulesReacceptanceStatus,
+} from "./rules-reacceptance";

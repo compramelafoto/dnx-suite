@@ -72,7 +72,7 @@ assert.ok(
   `expected VALID*, got ${validation.status}`,
 );
 assert.equal(config.participation.adultAuthorizationRequired, true);
-assert.equal(config.jury.maxJudges, 5);
+assert.equal(config.jury.maxJudges, 12);
 assert.equal(config.jury.judgesPendingHumanConfirmation, false);
 
 // 19 contradicción texto

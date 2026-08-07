@@ -5,6 +5,7 @@ import {
   evaluateCaptureWindowEligibility,
   evaluateSantaFeCategoryDeviceEligibility,
   evaluateTerritoryEligibility,
+  normalizeInstagramHandle,
   type ArgraVerificationStatus,
   type DeviceKind,
   type EntryEligibilityAnswers,
@@ -17,12 +18,17 @@ import { buildChecklist, CHECKLIST_RULE_VERSION, entryStatusFromSummary, summari
 import { generateEntryDerivatives, readImageDimensions } from "./derivatives";
 import { assessDeviceCompatibility, extractEntryExif } from "./exif";
 import { sha256Buffer, type DuplicateMatch } from "./hash";
-import { parseUploadPolicy } from "./upload-policy";
+import { isPublicUploadOpenFlag, parseUploadPolicy } from "./upload-policy";
 import {
   buildVersionedEntryStorageKey,
   storageKeyContainsPiiLeak,
 } from "../storage/private-local-storage";
 import { getContestEntryStorage } from "../storage/provider";
+import { enqueueTransactionalEmail } from "../notifications/outbox";
+import {
+  assertRegistrationAcceptedCurrentRules,
+} from "../registration/rules-reacceptance";
+import { RegistrationError } from "../registration/errors";
 
 export type EntryEligibilityFormInput = {
   captureLocality?: string | null;
@@ -32,11 +38,31 @@ export type EntryEligibilityFormInput = {
   declaredDeviceMake?: string | null;
   declaredDeviceModel?: string | null;
   captureWithinPeriodDeclared?: boolean;
+  authorshipDeclared?: boolean;
+  editingPolicyDeclared?: boolean;
+  noGenerativeAiDeclared?: boolean;
   droneRegulationAcknowledged?: boolean;
+  /** Permite completar Instagram faltante en inscripciones previas a ETAPA 10. */
+  instagramHandle?: string | null;
 };
 
 function newId(): string {
   return `c${randomBytes(12).toString("hex")}`;
+}
+
+async function assertCurrentRulesAccepted(input: {
+  contestId: string;
+  registrationId: string;
+  acceptedRulesVersionId: string;
+}): Promise<void> {
+  try {
+    await assertRegistrationAcceptedCurrentRules(input);
+  } catch (err) {
+    if (err instanceof RegistrationError && err.code === "RULES_VERSION_MISMATCH") {
+      throw new EntryError("RULES_VERSION_MISMATCH", err.message, 409);
+    }
+    throw err;
+  }
 }
 
 function assertUploadWindow(contest: {
@@ -46,8 +72,11 @@ function assertUploadWindow(contest: {
   registrationClosesAt: Date | null;
   startAt: Date | null;
   status: string;
+  uploadPolicyJson?: unknown;
 }, now: Date): boolean {
   if (contest.status === "CLOSED" || contest.status === "ARCHIVED") return false;
+  const flag = isPublicUploadOpenFlag(contest.uploadPolicyJson);
+  if (flag === false) return false;
   const opens = contest.submissionOpensAt ?? contest.registrationOpensAt ?? contest.startAt;
   const closes = contest.submissionDeadline ?? contest.registrationClosesAt;
   if (opens && opens.getTime() > now.getTime()) return false;
@@ -154,6 +183,11 @@ export async function createUploadIntent(input: {
   if (reg.status !== "CONFIRMED") {
     throw new EntryError("REGISTRATION_NOT_CONFIRMED", "La inscripción debe estar confirmada.", 403);
   }
+  await assertCurrentRulesAccepted({
+    contestId: input.contestId,
+    registrationId: reg.id,
+    acceptedRulesVersionId: reg.rulesVersionId,
+  });
 
   const contest = await prisma.fotorankContest.findUnique({ where: { id: input.contestId } });
   if (!contest) throw new EntryError("CONTEST_NOT_FOUND", "Concurso no encontrado.", 404);
@@ -211,6 +245,11 @@ export async function processUploadedFile(input: {
   if (!entry.registration || entry.registration.status !== "CONFIRMED") {
     throw new EntryError("REGISTRATION_NOT_CONFIRMED", "Inscripción no confirmada.", 403);
   }
+  await assertCurrentRulesAccepted({
+    contestId: input.contestId,
+    registrationId: entry.registration.id,
+    acceptedRulesVersionId: entry.registration.rulesVersionId,
+  });
   if (!assertUploadWindow(entry.contest, new Date())) {
     throw new EntryError("UPLOAD_WINDOW_CLOSED", "La ventana de carga está cerrada.", 403);
   }
@@ -365,6 +404,13 @@ export async function processUploadedFile(input: {
     if (territoryEval.decision === "NOT_ELIGIBLE") {
       throw new EntryError("TERRITORY_REQUIRED", territoryEval.publicMessage, 400);
     }
+    if (!elig.authorshipDeclared || !elig.editingPolicyDeclared || !elig.noGenerativeAiDeclared) {
+      throw new EntryError(
+        "DECLARATIONS_REQUIRED",
+        "Debés confirmar autoría, política de edición y ausencia de IA generativa antes de subir.",
+        400,
+      );
+    }
     if (categoryRequiresArgra(entry.category.slug)) {
       const answers = (entry.registration.answersJson ?? null) as { argraMembershipNumber?: string } | null;
       if (!answers?.argraMembershipNumber?.trim()) {
@@ -374,6 +420,30 @@ export async function processUploadedFile(input: {
           400,
         );
       }
+    }
+    let regAnswers = (entry.registration.answersJson ?? null) as RegistrationAnswers | null;
+    if (!regAnswers?.instagramHandle?.trim()) {
+      const ig = normalizeInstagramHandle(elig.instagramHandle);
+      if (!ig) {
+        throw new EntryError(
+          "INSTAGRAM_REQUIRED",
+          "Falta Instagram. Completá @usuario antes de cargar la fotografía.",
+          400,
+        );
+      }
+      const nextAnswers: RegistrationAnswers = {
+        ...(regAnswers ?? {}),
+        instagramHandle: ig,
+        openParticipationAcknowledged: regAnswers?.openParticipationAcknowledged ?? true,
+      };
+      if (!entry.registrationId) {
+        throw new EntryError("REGISTRATION_REQUIRED", "Falta la inscripción asociada a la obra.", 400);
+      }
+      await prisma.fotorankContestRegistration.update({
+        where: { id: entry.registrationId },
+        data: { answersJson: nextAnswers as Prisma.InputJsonValue },
+      });
+      regAnswers = nextAnswers;
     }
   }
 
@@ -385,6 +455,9 @@ export async function processUploadedFile(input: {
     declaredDeviceMake: elig.declaredDeviceMake ?? null,
     declaredDeviceModel: elig.declaredDeviceModel ?? null,
     captureWithinPeriodDeclared: elig.captureWithinPeriodDeclared === true,
+    authorshipDeclared: elig.authorshipDeclared === true,
+    editingPolicyDeclared: elig.editingPolicyDeclared === true,
+    noGenerativeAiDeclared: elig.noGenerativeAiDeclared === true,
     droneRegulationAcknowledged: elig.droneRegulationAcknowledged === true,
     territoryStatus: territoryEval.territoryStatus,
     captureWindowStatus: captureEval.decision,
@@ -497,10 +570,16 @@ export async function processUploadedFile(input: {
     nextStatus = "REJECTED";
   }
 
+  const previousActiveAssets = await prisma.fotorankContestEntryAsset.findMany({
+    where: { entryId: entry.id, isActive: true },
+    select: { id: true, storageKey: true, kind: true },
+  });
+  const storageProviderName = storage.providerName === "r2" ? "r2" : "local_private";
+
   const result = await prisma.$transaction(async (tx) => {
-    // Desactivar originales previos
+    // Desactivar assets previos (original + derivados)
     await tx.fotorankContestEntryAsset.updateMany({
-      where: { entryId: entry.id, kind: "ORIGINAL", isActive: true },
+      where: { entryId: entry.id, isActive: true },
       data: { isActive: false, replacedAt: new Date() },
     });
 
@@ -512,7 +591,7 @@ export async function processUploadedFile(input: {
         entryId: entry.id,
         versionNumber,
         kind: "ORIGINAL",
-        storageProvider: "local_private",
+        storageProvider: storageProviderName,
         storageBucket: storage.bucket,
         storageKey: originalKey,
         mimeType: realMime,
@@ -580,7 +659,7 @@ export async function processUploadedFile(input: {
             entryId: entry.id,
             versionNumber,
             kind: "THUMBNAIL",
-            storageProvider: "local_private",
+            storageProvider: storageProviderName,
             storageBucket: storage.bucket,
             storageKey: thumbKey,
             mimeType: "image/jpeg",
@@ -600,7 +679,7 @@ export async function processUploadedFile(input: {
             entryId: entry.id,
             versionNumber,
             kind: "JURY_PREVIEW",
-            storageProvider: "local_private",
+            storageProvider: storageProviderName,
             storageBucket: storage.bucket,
             storageKey: juryKey,
             mimeType: "image/jpeg",
@@ -692,6 +771,17 @@ export async function processUploadedFile(input: {
     return { updated, versionNumber };
   });
 
+  // Best-effort: borrar objetos R2/local previos tras replace (sin bloquear si falla).
+  if (previousActiveAssets.length > 0) {
+    for (const prev of previousActiveAssets) {
+      try {
+        await storage.deleteObject(prev.storageKey);
+      } catch {
+        // huérfano reportable por ops; no revertir la obra nueva
+      }
+    }
+  }
+
   const warnings = checks.filter((c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW").map((c) => c.message);
 
   return {
@@ -712,13 +802,23 @@ export async function confirmEntry(input: {
 }): Promise<{ entryNumber: string; status: string }> {
   const entry = await prisma.fotorankContestEntry.findUnique({
     where: { id: input.entryId },
-    include: { contest: true },
+    include: {
+      contest: true,
+      registration: { select: { id: true, rulesVersionId: true } },
+    },
   });
   if (!entry || entry.contestId !== input.contestId) {
     throw new EntryError("ENTRY_NOT_FOUND", "Obra no encontrada.", 404);
   }
   if (entry.authorUserId !== input.participantUserId) {
     throw new EntryError("FORBIDDEN", "No autorizado.", 403);
+  }
+  if (entry.registration) {
+    await assertCurrentRulesAccepted({
+      contestId: input.contestId,
+      registrationId: entry.registration.id,
+      acceptedRulesVersionId: entry.registration.rulesVersionId,
+    });
   }
   if (!assertUploadWindow(entry.contest, new Date())) {
     throw new EntryError("UPLOAD_WINDOW_CLOSED", "La ventana está cerrada.", 403);
@@ -735,6 +835,11 @@ export async function confirmEntry(input: {
       "La fotografía necesita revisión. Podés confirmar asumiendo las advertencias o esperar revisión del organizador.",
       409,
     );
+  }
+
+  // Idempotencia: re-confirm sin cambios no reenvía email.
+  if (entry.status === "CONFIRMED" && entry.confirmedAt) {
+    return { entryNumber: entry.entryNumber!, status: entry.status };
   }
 
   let entryNumber = entry.entryNumber;
@@ -763,6 +868,19 @@ export async function confirmEntry(input: {
       admissionStatus: nextAdmission,
     },
   });
+
+  void enqueueTransactionalEmail({
+    kind: "PHOTO_RECEIVED",
+    toUserId: input.participantUserId,
+    contestId: entry.contestId,
+    entryId: entry.id,
+    registrationId: entry.registrationId ?? entry.registration?.id ?? undefined,
+    payload: {
+      contestTitle: entry.contest.title,
+      entryNumber: updated.entryNumber,
+      message: "Hemos recibido correctamente tu fotografía.",
+    },
+  }).catch(() => null);
 
   return { entryNumber: updated.entryNumber!, status: updated.status };
 }

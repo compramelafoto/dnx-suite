@@ -96,7 +96,7 @@ async function main() {
   assert.equal(semantic.aiMayPublish, false);
 
   assert.equal(config.participation.adultAuthorizationRequired, true);
-  assert.equal(config.jury.maxJudges, 5);
+  assert.equal(config.jury.maxJudges, 12);
 
   console.log(
     JSON.stringify(

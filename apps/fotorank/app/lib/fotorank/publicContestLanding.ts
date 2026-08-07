@@ -25,6 +25,9 @@ export type PublicContestLandingData = {
     sponsorsText: string | null;
     rulesData: unknown;
     startAt: Date | null;
+    registrationOpensAt: Date | null;
+    registrationClosesAt: Date | null;
+    submissionOpensAt: Date | null;
     submissionDeadline: Date | null;
     judgingStartAt: Date | null;
     judgingEndAt: Date | null;
@@ -32,6 +35,8 @@ export type PublicContestLandingData = {
     categories: Array<{ id: string; name: string; slug: string; description: string | null; maxFiles: number }>;
     status: "DRAFT" | "SETUP_IN_PROGRESS" | "READY_TO_PUBLISH" | "PUBLISHED" | "ACTIVE" | "CLOSED" | "ARCHIVED";
     visibility: "PUBLIC" | "UNLISTED" | "PRIVATE";
+    registrationPricingMode: "FREE" | "PAID" | "MIXED" | string;
+    registrationEnabled: boolean;
   };
   organization: ContestOrganizationProfileDTO;
   judges: PublicContestJudgeCard[];
@@ -96,6 +101,9 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
       sponsorsText: contest.sponsorsText,
       rulesData: contest.rulesData,
       startAt: contest.startAt,
+      registrationOpensAt: contest.registrationOpensAt,
+      registrationClosesAt: contest.registrationClosesAt,
+      submissionOpensAt: contest.submissionOpensAt,
       submissionDeadline: contest.submissionDeadline,
       judgingStartAt: contest.judgingStartAt,
       judgingEndAt: contest.judgingEndAt,
@@ -109,6 +117,8 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
       })),
       status: contest.status,
       visibility: contest.visibility,
+      registrationPricingMode: contest.registrationPricingMode ?? "FREE",
+      registrationEnabled: contest.registrationEnabled,
     },
     organization: mapOrganizationToProfileDTO(contest.organization),
     judges,

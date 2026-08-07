@@ -266,7 +266,7 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
     },
     jury: {
       minJudges: null,
-      maxJudges: 5,
+      maxJudges: 12,
       judgesPendingHumanConfirmation: false,
       perCategory: true,
       decisionFinal: true,
@@ -274,7 +274,7 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
       conflictOfInterestEnabled: true,
       anonymizedEvaluation: true,
       generalCriteria:
-        "Hasta 5 integrantes (cantidad efectiva configurable); asignables por categoría; evaluación anónima; conflicto de interés obligatorio; fallo definitivo e inapelable; menciones especiales posibles.",
+        "Hasta 12 integrantes; organizables y distribuibles por categoría; evaluación anónima; conflicto de interés obligatorio; un jurado puede concursar solo en categoría distinta a la que evalúa; fallo definitivo e inapelable; menciones especiales posibles.",
     },
     prizes: [
       ...(["fotografo-profesional", "fotografo-amateur", "reportero-grafico", "fotografia-aerea"] as const).flatMap(
