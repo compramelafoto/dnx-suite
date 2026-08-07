@@ -1105,6 +1105,9 @@ importers:
       '@prisma/client':
         specifier: ^6.9.0
         version: 6.19.2(prisma@6.19.2(typescript@5.9.2))(typescript@5.9.2)
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../partners
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
