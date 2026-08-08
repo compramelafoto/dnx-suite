@@ -13,6 +13,7 @@ export type DnxNormalizedPaymentStatus =
   | "CANCELLED"
   | "EXPIRED"
   | "REFUNDED"
+  | "PARTIALLY_REFUNDED"
   | "CHARGEBACK";
 
 export type CreatePaymentOrderInput = {
@@ -139,6 +140,12 @@ export type NormalizedPaymentEvent = {
   sourceId: string;
   receivedAt: Date;
   signature?: string;
+  refundedAmountMinor?: number;
+  netAmountMinor?: number;
+  providerPaymentId?: string | null;
+  providerRefundIds?: string[];
+  statusDetail?: string | null;
+  providerFeeMinor?: number | null;
 };
 
 export type ApplyPaymentEventResult = {

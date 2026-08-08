@@ -48,6 +48,8 @@ export function mapProviderStatusToDnx(providerStatus: string): DnxNormalizedPay
       return "EXPIRED";
     case "REFUNDED":
       return "REFUNDED";
+    case "PARTIALLY_REFUNDED":
+      return "PARTIALLY_REFUNDED";
     case "CHARGEBACK":
     case "CHARGED_BACK":
       return "CHARGEBACK";
@@ -108,7 +110,16 @@ export function mapDnxStatusToClickatonEffect(
         paymentStatus: "REFUNDED",
         holds: "keep",
         allowRetry: false,
-        publicMessage: "El pago fue reembolsado. Revisá el estado con organización.",
+        publicMessage: "El pago fue reembolsado. La inscripción ya no figura como confirmada.",
+      };
+    case "PARTIALLY_REFUNDED":
+      return {
+        // Parcial: la inscripción sigue vigente; el cobro se identifica como reembolso parcial.
+        registrationStatus: "CONFIRMED",
+        paymentStatus: "PARTIALLY_REFUNDED",
+        holds: "keep",
+        allowRetry: false,
+        publicMessage: "Hay un reembolso parcial. El saldo neto ya no es el cobro completo.",
       };
     case "CHARGEBACK":
       return {

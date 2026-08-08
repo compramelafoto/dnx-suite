@@ -11,6 +11,7 @@ import {
   type MercadoPagoProviderConfig,
 } from "../client/mercado-pago-environment";
 import { mapMercadoPagoPaymentStatusToNormalized } from "./map-status";
+import { detectPaymentRefundState } from "./detect-payment-refund-state.js";
 import {
   assertNoSecretLeak,
   sanitizeMercadoPagoPaymentResponse,
@@ -57,6 +58,10 @@ export type GetCheckoutProPaymentResult = {
   currency: CurrencyCode;
   externalReference: string | null;
   liveMode: boolean;
+  refundedAmountMinor?: number;
+  netAmountMinor?: number;
+  providerRefundIds?: string[];
+  statusDetail?: string | null;
   rawSanitized: Record<string, unknown>;
 };
 
@@ -76,11 +81,6 @@ export type MercadoPagoCheckoutProTestAdapterOptions = {
 function minorToUnitAmount(amountMinor: number, currency: CurrencyCode): number {
   if (currency === "CLP") return amountMinor;
   return Math.round(amountMinor) / 100;
-}
-
-function unitToMinor(amount: number, currency: CurrencyCode): number {
-  if (currency === "CLP") return Math.round(amount);
-  return Math.round(amount * 100);
 }
 
 function pickCheckoutUrl(body: Record<string, unknown>): string {
@@ -383,23 +383,31 @@ export class MercadoPagoCheckoutProTestAdapter {
     assertNoSecretLeak(sanitized, this.config.accessToken);
 
     const currency = (String(raw.currency_id ?? "ARS") as CurrencyCode) || "ARS";
-    const amount =
-      typeof raw.transaction_amount === "number"
-        ? unitToMinor(raw.transaction_amount, currency)
-        : 0;
-
+    const detected = detectPaymentRefundState({ raw, fallbackPaymentId: fallbackId });
     const fee = extractProviderFeeMinorFromMpPayment(raw, currency);
 
     return {
-      providerPaymentId: String(raw.id ?? fallbackId),
-      status: mapMercadoPagoPaymentStatusToNormalized(String(raw.status ?? "")),
-      amountMinor: amount,
+      providerPaymentId: detected.providerPaymentId || fallbackId,
+      status: detected.status,
+      amountMinor: detected.amountMinor,
       currency,
       providerFeeMinor: fee.providerFeeConfirmedMinor,
+      refundedAmountMinor: detected.refundedAmountMinor,
+      netAmountMinor: detected.netAmountMinor,
+      providerRefundIds: detected.providerRefundIds,
+      statusDetail: detected.statusDetail,
       externalReference:
         typeof raw.external_reference === "string" ? raw.external_reference : null,
       liveMode: raw.live_mode === true,
-      rawSanitized: sanitized,
+      rawSanitized: {
+        ...sanitized,
+        refundDetection: {
+          kind: detected.kind,
+          refundedAmountMinor: detected.refundedAmountMinor,
+          netAmountMinor: detected.netAmountMinor,
+          status: detected.status,
+        },
+      },
     };
   }
 }

@@ -26,6 +26,7 @@ import {
   paymentStatusLabel,
   registrationStatusLabel,
 } from "@/lib/admin-registration/ui/status-labels";
+import { presentAdminRefundBadge } from "@/lib/admin-registration/ui/admin-refund-presentation";
 import { listEditionOptions } from "@/lib/admin/editions/queries";
 import { listVenues } from "@/lib/admin/venues/queries";
 import { listTicketTypesAction } from "@/lib/admin-catalog/actions/tickets";
@@ -246,6 +247,7 @@ export default async function AdminRegistrationsPage({ searchParams }: Props) {
                         "EXPIRED",
                         "CANCELLED",
                         "REFUNDED",
+                        "PARTIALLY_REFUNDED",
                         "MANUAL_REVIEW",
                       ].map((s) => (
                         <option key={s} value={s}>
@@ -424,11 +426,22 @@ export default async function AdminRegistrationsPage({ searchParams }: Props) {
                   header: "Pago",
                   cell: (row) => {
                     const payment = presentAdminPaymentStatus(row.paymentStatus);
+                    const refund = presentAdminRefundBadge({
+                      registrationStatus: row.status,
+                      paymentStatus: row.paymentStatus,
+                    });
                     return (
                       <div className="space-y-1">
-                        <Badge variant={adminToneToBadgeVariant(payment.tone)}>
-                          {payment.label}
-                        </Badge>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant={adminToneToBadgeVariant(payment.tone)}>
+                            {payment.label}
+                          </Badge>
+                          {refund.kind !== "none" ? (
+                            <Badge variant={refund.tone === "danger" ? "danger" : "warning"}>
+                              {refund.label}
+                            </Badge>
+                          ) : null}
+                        </div>
                         <p className="text-xs text-ck-text-muted">
                           {displayRegistrationAmount(row.totalAmount, row.currency)}
                         </p>

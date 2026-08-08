@@ -44,6 +44,16 @@ export function createInMemoryCheckoutMutations(
       if (existing.status === "CONFIRMED" && existing.paymentStatus === "APPROVED") {
         return structuredClone(existing);
       }
+      if (
+        existing.status === "REFUNDED" ||
+        existing.paymentStatus === "REFUNDED" ||
+        existing.paymentStatus === "PARTIALLY_REFUNDED"
+      ) {
+        throw new CheckoutError(
+          "PAYMENT_CONFLICT",
+          "No se puede confirmar una inscripción reembolsada.",
+        );
+      }
       if (existing.paymentOrderId && existing.paymentOrderId !== input.paymentOrderId) {
         throw new CheckoutError(
           "PAYMENT_CONFLICT",
@@ -59,6 +69,8 @@ export function createInMemoryCheckoutMutations(
         source: input.source,
         requestId: input.requestId,
       });
+      confirmed.cancelledAt = null;
+      store.domain.registrations.set(confirmed.id, confirmed);
 
       store.domain.audits.push({
         registrationId: confirmed.id,
@@ -77,6 +89,11 @@ export function createInMemoryCheckoutMutations(
       r.paymentStatus = input.paymentStatus;
       if (input.registrationStatus === "CANCELLED") r.cancelledAt = new Date();
       if (input.registrationStatus === "REFUNDED") r.refundedAt = new Date();
+      if (typeof input.refundedAmountMinor === "number") {
+        r.refundedAmountMinor = input.refundedAmountMinor;
+      }
+      if (input.providerPaymentId) r.providerPaymentId = input.providerPaymentId;
+      if (input.lastProviderRefundId) r.lastProviderRefundId = input.lastProviderRefundId;
       store.domain.registrations.set(r.id, r);
       store.domain.statusHistory.push({
         registrationId: r.id,
@@ -85,11 +102,18 @@ export function createInMemoryCheckoutMutations(
         previousPaymentStatus: prev.paymentStatus,
         newPaymentStatus: r.paymentStatus,
       });
+      const isRefund =
+        input.paymentStatus === "REFUNDED" || input.paymentStatus === "PARTIALLY_REFUNDED";
       store.domain.audits.push({
         registrationId: r.id,
-        action: "PAYMENT_STATUS_UPDATED",
+        action: isRefund ? "PAYMENT_REFUND_APPLIED" : "PAYMENT_STATUS_UPDATED",
         source: input.source,
-        metadata: { reason: input.reason, requestId: input.requestId },
+        metadata: {
+          reason: input.reason,
+          requestId: input.requestId,
+          refundedAmountMinor: input.refundedAmountMinor ?? null,
+          providerPaymentId: input.providerPaymentId ?? null,
+        },
       });
       return structuredClone(r);
     },

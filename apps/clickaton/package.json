@@ -96,7 +96,12 @@
     "test:e2e:clickaton-participant-cards": "playwright test e2e/participant-cards.spec.ts e2e/admin-participant-cards.spec.ts e2e/participant-cards-staging-matrix.spec.ts",
     "test:e2e:clickaton-participant-cards:persistence": "playwright test e2e/participant-cards-persistence.spec.ts",
     "e2e:clickaton-participant-cards:setup": "tsx scripts/e2e-clickaton-participant-cards-setup.ts",
-    "e2e:clickaton-participant-cards:cleanup": "tsx scripts/e2e-clickaton-participant-cards-cleanup.ts"
+    "e2e:clickaton-participant-cards:cleanup": "tsx scripts/e2e-clickaton-participant-cards-cleanup.ts",
+    "payments:reconcile-refund": "tsx scripts/reconcile-refund.ts",
+    "payments:reconcile-approved": "tsx scripts/reconcile-approved.ts",
+    "payments:inspect": "tsx scripts/inspect-payment.ts",
+    "payments:audit": "tsx scripts/audit-payments.ts",
+    "test:refunds": "tsx --test lib/checkout/refunds/*.test.ts lib/checkout/application/apply-payment-refund.test.ts lib/checkout/application/apply-payment-precedence.test.ts lib/checkout/domain/payment-precedence.test.ts lib/admin-registration/ui/admin-refund-presentation.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",

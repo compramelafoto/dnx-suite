@@ -41,6 +41,10 @@ import {
   registrationStatusLabel,
   paymentStatusLabel,
 } from "@/lib/admin-registration/ui/status-labels";
+import {
+  presentAdminRefundAmounts,
+  presentAdminRefundBadge,
+} from "@/lib/admin-registration/ui/admin-refund-presentation";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { listVenues } from "@/lib/admin/venues/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
@@ -143,6 +147,15 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
   });
   const regStatus = presentAdminRegistrationStatus(reg.status);
   const payStatus = presentAdminPaymentStatus(reg.paymentStatus);
+  const refundBadge = presentAdminRefundBadge({
+    registrationStatus: reg.status,
+    paymentStatus: reg.paymentStatus,
+  });
+  const refundAmounts = presentAdminRefundAmounts({
+    totalAmount: reg.totalAmount,
+    refundedAmountMinor: reg.refundedAmountMinor,
+    currency: reg.currency,
+  });
   const welcomeStatus = presentAdminWelcomeCardStatus(
     reg.welcomeCardStatus ?? reg.welcomeCard?.status,
   );
@@ -394,12 +407,39 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
         </p>
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Estado del pago">
-            <Badge variant={adminToneToBadgeVariant(payStatus.tone)}>{payStatus.label}</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={adminToneToBadgeVariant(payStatus.tone)}>{payStatus.label}</Badge>
+              {refundBadge.kind !== "none" ? (
+                <Badge variant={refundBadge.tone === "danger" ? "danger" : "warning"}>
+                  {refundBadge.label}
+                </Badge>
+              ) : null}
+            </div>
           </Field>
-          <Field label="Total">
-            <span className="text-lg font-semibold">
-              {displayRegistrationAmount(reg.totalAmount, reg.currency)}
-            </span>
+          <Field label="Importe pagado (original)">
+            <span className="text-lg font-semibold">{refundAmounts.paidLabel}</span>
+          </Field>
+          <Field label="Importe devuelto">
+            {refundAmounts.refundType === "none" ? "—" : refundAmounts.refundedLabel}
+          </Field>
+          <Field label="Saldo neto">
+            {refundAmounts.refundType === "none" ? "—" : refundAmounts.netLabel}
+          </Field>
+          <Field label="Tipo de reembolso">
+            {refundAmounts.refundType === "total"
+              ? "Total"
+              : refundAmounts.refundType === "partial"
+                ? "Parcial"
+                : "Sin reembolso"}
+          </Field>
+          <Field label="Fecha de reembolso">
+            {reg.refundedAt ? formatArDateTime(reg.refundedAt) : "—"}
+          </Field>
+          <Field label="Payment ID (Mercado Pago)">
+            {reg.providerPaymentId ?? "—"}
+          </Field>
+          <Field label="Refund ID (Mercado Pago)">
+            {reg.lastProviderRefundId ?? "—"}
           </Field>
           <Field label="Subtotal">
             {displayRegistrationAmount(reg.subtotalAmount, reg.currency)}

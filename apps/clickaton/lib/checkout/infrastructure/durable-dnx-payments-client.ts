@@ -425,6 +425,11 @@ export function createDurableDnxPaymentsClient(deps: {
         sourceId: order.sourceId,
         receivedAt: new Date(),
         signature: "x-signature",
+        refundedAmountMinor: order.refundedAmountMinor ?? undefined,
+        netAmountMinor: order.netAmountMinor ?? undefined,
+        providerPaymentId: order.providerPaymentId ?? null,
+        providerRefundIds: order.providerRefundIds ?? [],
+        statusDetail: order.statusDetail ?? null,
       };
       return { ok: true as const, event, apply };
     },
@@ -440,6 +445,11 @@ export function createDurableDnxPaymentsClient(deps: {
         externalReference: event.externalReference,
         sourceId: event.sourceId,
         receivedAt: event.receivedAt.toISOString(),
+        refundedAmountMinor: event.refundedAmountMinor,
+        netAmountMinor: event.netAmountMinor,
+        providerPaymentId: event.providerPaymentId,
+        providerRefundIds: event.providerRefundIds,
+        statusDetail: event.statusDetail,
       };
       const result = await service.applyNormalizedEvent(durableEvent);
       if (result.outcome === "not_found") return null;
@@ -450,6 +460,7 @@ export function createDurableDnxPaymentsClient(deps: {
           { conflictCode: result.conflictCode },
         );
       }
+      // En duplicate (mismo eventId), la orden ya tiene el estado/refund; devolverla igual.
       return result.order ? mapDurableToPaymentOrder(result.order) : null;
     },
   };

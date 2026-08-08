@@ -1,6 +1,7 @@
 import { notifyPaidRegistrationConfirmed } from "@/lib/registration/notifications/notify-registration-lifecycle";
 import { CheckoutError } from "../domain/errors";
 import { mapDnxStatusToClickatonEffect } from "../domain/mapping";
+import { classifyLateApprovalRecovery } from "../domain/payment-precedence";
 import type { CheckoutLogSink } from "../domain/observability";
 import type { CheckoutRegistrationPort } from "../domain/checkout-registration-port";
 import type { ApplyPaymentEventResult, NormalizedPaymentEvent } from "../domain/types";
@@ -85,7 +86,7 @@ export function createApplyPaymentEventUseCase(deps: {
         };
       }
 
-      // Evento duplicado: orden ya en estado terminal aprobado
+      // Evento duplicado: orden ya en estado terminal aprobado (sin refund pendiente)
       if (
         registration.status === "CONFIRMED" &&
         registration.paymentStatus === "APPROVED" &&
@@ -103,11 +104,39 @@ export function createApplyPaymentEventUseCase(deps: {
         };
       }
 
+      // Idempotencia refund: ya aplicado el mismo estado financiero
+      if (
+        (order.status === "REFUNDED" || order.status === "PARTIALLY_REFUNDED") &&
+        registration.paymentStatus ===
+          (order.status === "REFUNDED" ? "REFUNDED" : "PARTIALLY_REFUNDED") &&
+        (order.status !== "REFUNDED" || registration.status === "REFUNDED")
+      ) {
+        const eventRefunded = (event as { refundedAmountMinor?: number }).refundedAmountMinor;
+        if (
+          typeof eventRefunded !== "number" ||
+          registration.refundedAmountMinor === eventRefunded
+        ) {
+          return {
+            applied: false,
+            duplicate: true,
+            conflict: false,
+            registrationId: registration.id,
+            registrationStatus: registration.status,
+            paymentStatus: registration.paymentStatus,
+            holdsAction: "none",
+            orderStatus: order.status,
+          };
+        }
+      }
+
       log?.({
         event: "status_normalized",
         registrationId: registration.id,
         orderId: order.id,
-        meta: { status: order.status },
+        meta: {
+          status: order.status,
+          refundedAmountMinor: (event as { refundedAmountMinor?: number }).refundedAmountMinor ?? null,
+        },
       });
 
       const effect = mapDnxStatusToClickatonEffect(order.status);
@@ -142,13 +171,73 @@ export function createApplyPaymentEventUseCase(deps: {
           };
         }
 
-        // Política: pago aprobado con hold vencido → conflicto (no confirmar silencioso).
+        // Hold vencido / liberado: APPROVED remoto prevalece sobre expiración automática.
+        // REFUNDED / cancelación manual / terminales no se reviven.
         const holdExpired =
           registration.holdExpiresAt != null &&
           registration.holdExpiresAt.getTime() < Date.now() &&
           registration.status !== "CONFIRMED";
         const holds = await deps.registrationPort.getHoldSnapshot(registration.id);
-        if (holdExpired || !holds.capacityHoldActive) {
+        const recovery = classifyLateApprovalRecovery({
+          registrationStatus: registration.status,
+          paymentStatus: registration.paymentStatus,
+          orderStatus: order.status,
+          capacityHoldActive: holds.capacityHoldActive,
+          holdExpired,
+        });
+
+        if (recovery === "blocked_refunded" || recovery === "blocked_terminal") {
+          log?.({
+            event: "conflict",
+            registrationId: registration.id,
+            orderId: order.id,
+            meta: { code: "APPROVED_BLOCKED_BY_TERMINAL", recovery },
+          });
+          return {
+            applied: false,
+            duplicate: false,
+            conflict: true,
+            conflictCode: "PAYMENT_CONFLICT",
+            registrationId: registration.id,
+            registrationStatus: registration.status,
+            paymentStatus: registration.paymentStatus,
+            holdsAction: "none",
+            orderStatus: order.status,
+          };
+        }
+
+        if (recovery === "blocked_manual_cancel") {
+          await deps.registrationPort.markPaymentStatus({
+            registrationId: registration.id,
+            paymentStatus: "MANUAL_REVIEW",
+            source: "dnx_payments_webhook",
+            reason: "approved_after_manual_cancel",
+            requestId: event.eventId,
+          });
+          log?.({
+            event: "conflict",
+            registrationId: registration.id,
+            orderId: order.id,
+            meta: { code: "APPROVED_AFTER_MANUAL_CANCEL" },
+          });
+          return {
+            applied: false,
+            duplicate: false,
+            conflict: true,
+            conflictCode: "HOLD_CONFLICT",
+            registrationId: registration.id,
+            registrationStatus: registration.status,
+            paymentStatus: "MANUAL_REVIEW",
+            holdsAction: "none",
+            orderStatus: order.status,
+          };
+        }
+
+        const lateApprovalRevive = recovery === "revive_auto_expiration";
+        if (
+          !lateApprovalRevive &&
+          (holdExpired || !holds.capacityHoldActive)
+        ) {
           await deps.registrationPort.markPaymentStatus({
             registrationId: registration.id,
             paymentStatus: "MANUAL_REVIEW",
@@ -175,6 +264,19 @@ export function createApplyPaymentEventUseCase(deps: {
           };
         }
 
+        if (lateApprovalRevive) {
+          log?.({
+            event: "status_normalized",
+            registrationId: registration.id,
+            orderId: order.id,
+            meta: {
+              code: "LATE_APPROVAL_REVIVE_AUTO_EXPIRATION",
+              previousRegistrationStatus: registration.status,
+              previousPaymentStatus: registration.paymentStatus,
+            },
+          });
+        }
+
         const prefix = await deps.registrationPort.getEditionPrefix(registration.editionId);
         if (!registration.paymentOrderId) {
           await deps.registrationPort.attachPaymentRefs({
@@ -190,7 +292,9 @@ export function createApplyPaymentEventUseCase(deps: {
         const confirmed = await deps.registrationPort.confirmPaid({
           registrationId: registration.id,
           paymentOrderId: order.id,
-          source: "dnx_payments_webhook",
+          source: lateApprovalRevive
+            ? "dnx_payments_webhook_late_approval"
+            : "dnx_payments_webhook",
           requestId: event.eventId,
           editionPrefix: prefix,
         });
@@ -338,13 +442,23 @@ export function createApplyPaymentEventUseCase(deps: {
         };
       }
 
-      // PENDING / PROCESSING / REJECTED / CHARGEBACK / REFUNDED
+      // PENDING / PROCESSING / REJECTED / CHARGEBACK / REFUNDED / PARTIALLY_REFUNDED
       const nextStatus =
         effect.registrationStatus === "unchanged"
           ? undefined
           : effect.registrationStatus;
       const nextPay =
         effect.paymentStatus === "unchanged" ? registration.paymentStatus : effect.paymentStatus;
+
+      const refundMeta = event as {
+        refundedAmountMinor?: number;
+        providerPaymentId?: string | null;
+        providerRefundIds?: string[];
+      };
+      const lastRefundId: string | null =
+        Array.isArray(refundMeta.providerRefundIds) && refundMeta.providerRefundIds.length > 0
+          ? String(refundMeta.providerRefundIds[refundMeta.providerRefundIds.length - 1])
+          : null;
 
       const updated = await deps.registrationPort.markPaymentStatus({
         registrationId: registration.id,
@@ -353,7 +467,48 @@ export function createApplyPaymentEventUseCase(deps: {
         source: "dnx_payments_webhook",
         reason: `order_${order.status.toLowerCase()}`,
         requestId: event.eventId,
+        refundedAmountMinor: refundMeta.refundedAmountMinor,
+        providerPaymentId: refundMeta.providerPaymentId ?? null,
+        lastProviderRefundId: lastRefundId,
       });
+
+      if (order.status === "REFUNDED" || order.status === "PARTIALLY_REFUNDED") {
+        log?.({
+          event: "status_normalized",
+          registrationId: updated.id,
+          orderId: order.id,
+          meta: {
+            code: "REFUND_APPLIED",
+            previousPaymentStatus: registration.paymentStatus,
+            newPaymentStatus: updated.paymentStatus,
+            previousRegistrationStatus: registration.status,
+            newRegistrationStatus: updated.status,
+            refundedAmountMinor: refundMeta.refundedAmountMinor ?? null,
+            providerPaymentId: refundMeta.providerPaymentId ?? null,
+            lastProviderRefundId: lastRefundId ?? null,
+            idempotencyKey: `${updated.id}:${updated.paymentStatus}:${refundMeta.refundedAmountMinor ?? 0}`,
+          },
+        });
+
+        // Compensación financiera blanda (allocations): no reescribe asientos; marca atención.
+        // Solo en runtime con Prisma real (evita side-effects en unit tests in-memory).
+        if (process.env.CLICKATON_DNX_PAYMENTS_MODE !== "memory") {
+          try {
+            const { observeRefundOnOrderAllocations } = await import(
+              "@/lib/checkout/application/observe-refund-allocations"
+            );
+            await observeRefundOnOrderAllocations({
+              paymentOrderId: order.id,
+              registrationId: updated.id,
+              refundedAmountMinor: refundMeta.refundedAmountMinor ?? 0,
+              kind: order.status === "REFUNDED" ? "total" : "partial",
+              requestId: event.eventId,
+            });
+          } catch {
+            // soft-fail: estado de inscripción ya quedó actualizado
+          }
+        }
+      }
 
       return {
         applied: true,

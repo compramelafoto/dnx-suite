@@ -119,6 +119,9 @@ export type ClickatonRegistrationRecord = {
   confirmedAt?: Date | null;
   cancelledAt?: Date | null;
   refundedAt?: Date | null;
+  refundedAmountMinor?: number | null;
+  providerPaymentId?: string | null;
+  lastProviderRefundId?: string | null;
   items: RegistrationItemSnapshot[];
   paymentOrderId?: string | null;
   paymentProvider?: string | null;

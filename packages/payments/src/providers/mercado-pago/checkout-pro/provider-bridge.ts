@@ -76,7 +76,19 @@ function buildCheckoutProCollectorBridge(input: {
       // Otherwise resolve the associated payment via external_reference (Checkout Pro S2S).
       if (/^\d+$/.test(params.providerOrderId)) {
         const payment = await adapter.getPayment(params.providerOrderId);
-        return payment;
+        return {
+          status: payment.status,
+          amountMinor: payment.amountMinor,
+          currency: payment.currency,
+          externalReference: payment.externalReference,
+          liveMode: payment.liveMode,
+          providerFeeMinor: payment.providerFeeMinor ?? null,
+          refundedAmountMinor: payment.refundedAmountMinor,
+          netAmountMinor: payment.netAmountMinor,
+          providerRefundIds: payment.providerRefundIds,
+          statusDetail: payment.statusDetail,
+          rawSanitized: payment.rawSanitized,
+        };
       }
       const byRef = await adapter.searchPaymentsByExternalReference(params.externalReference);
       if (byRef) {
@@ -87,6 +99,10 @@ function buildCheckoutProCollectorBridge(input: {
           externalReference: byRef.externalReference,
           liveMode: byRef.liveMode,
           providerFeeMinor: byRef.providerFeeMinor ?? null,
+          refundedAmountMinor: byRef.refundedAmountMinor,
+          netAmountMinor: byRef.netAmountMinor,
+          providerRefundIds: byRef.providerRefundIds,
+          statusDetail: byRef.statusDetail,
           rawSanitized: {
             ...byRef.rawSanitized,
             refresh_note: "payment_resolved_by_external_reference",
@@ -118,6 +134,10 @@ function buildCheckoutProCollectorBridge(input: {
         liveMode: payment.liveMode,
         providerPaymentId: payment.providerPaymentId,
         providerFeeMinor: payment.providerFeeMinor ?? null,
+        refundedAmountMinor: payment.refundedAmountMinor,
+        netAmountMinor: payment.netAmountMinor,
+        providerRefundIds: payment.providerRefundIds,
+        statusDetail: payment.statusDetail,
         rawSanitized: payment.rawSanitized,
       };
     },
