@@ -4,10 +4,12 @@ import { prisma } from "@repo/db";
 import {
   openContestAsSuperAdminAction,
   startActAsOrganizerAction,
+  startActAsUiContextAction,
 } from "../../actions/super-admin-context";
 import { requireAuth } from "../../lib/auth";
 import {
   getActAsOrganizationId,
+  getSuperAdminUiContext,
   userIsFotorankSuperAdmin,
 } from "../../lib/fotorank/access/super-admin";
 import { routes } from "../../lib/routes";
@@ -21,7 +23,10 @@ export default async function SuperAdminPage() {
     redirect("/mi-actividad");
   }
 
-  const actAsOrgId = await getActAsOrganizationId();
+  const [actAsOrgId, uiContext] = await Promise.all([
+    getActAsOrganizationId(),
+    getSuperAdminUiContext(),
+  ]);
 
   const [organizations, contests, usersCount, registrationsCount, entriesCount, recentAudit] =
     await Promise.all([
@@ -73,15 +78,45 @@ export default async function SuperAdminPage() {
         </h1>
         <p className="max-w-2xl text-base leading-relaxed text-fr-muted">
           Acceso a todas las organizaciones y concursos sin pertenecer como organizador.
-          Usá «Actuar como…» para ver exactamente la UI de un organizador (sin cambiar la base de
-          datos).
+          Usá «Actuar como…» para ver la UI correspondiente con la misma cuenta (sin impersonar
+          otra identidad ni mutar permisos).
         </p>
-        {actAsOrgId ? (
+        {uiContext || actAsOrgId ? (
           <p className="text-sm text-amber-200/90" data-testid="super-admin-act-as-active">
-            Contexto activo: actuando como organizador de org {actAsOrgId}.
+            Contexto activo: {uiContext ?? "organizer"}
+            {actAsOrgId ? ` · org ${actAsOrgId}` : ""}. Toda acción sigue auditada como Super Admin.
           </p>
         ) : null}
       </header>
+
+      <section className="space-y-6" data-testid="super-admin-act-as">
+        <h2 className="text-2xl font-semibold tracking-tight">Actuar como</h2>
+        <p className="text-sm text-fr-muted">
+          Cambia solo el contexto de interfaz. No crea sesiones falsas ni altera membresías.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <form action={startActAsUiContextAction}>
+            <input type="hidden" name="context" value="participant" />
+            <button type="submit" className="fr-btn fr-btn-secondary px-5 py-3 text-sm">
+              Actuar como participante
+            </button>
+          </form>
+          <form action={startActAsUiContextAction}>
+            <input type="hidden" name="context" value="jury" />
+            <button type="submit" className="fr-btn fr-btn-secondary px-5 py-3 text-sm">
+              Actuar como jurado
+            </button>
+          </form>
+          {organizations[0] ? (
+            <form action={startActAsOrganizerAction}>
+              <input type="hidden" name="organizationId" value={organizations[0].id} />
+              <button type="submit" className="fr-btn fr-btn-secondary px-5 py-3 text-sm">
+                Actuar como organizador (primera org)
+              </button>
+            </form>
+          ) : null}
+        </div>
+      </section>
 
       <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4" data-testid="super-admin-kpis">
         {[
