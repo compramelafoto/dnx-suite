@@ -613,5 +613,5 @@ export function createPrismaPartnersRepository(): PartnersRepository {
         },
       });
     },
-  } as PartnersRepository;
+  } as unknown as PartnersRepository;
 }
