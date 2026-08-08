@@ -208,9 +208,14 @@ export function assertPartnerLogoUploadAllowed(input: {
     );
   }
   if (input.buffer.byteLength > limits.logoMaxBytes) {
-    throw new PartnersDomainError("VALIDATION", "Logo demasiado grande.", {
-      fileSize: `Máximo ${limits.logoMaxBytes} bytes.`,
-    });
+    const mb = Math.max(1, Math.round(limits.logoMaxBytes / (1024 * 1024)));
+    throw new PartnersDomainError(
+      "VALIDATION",
+      `Logo demasiado grande (máximo ${mb} MB). Comprimí el PNG/WEBP e intentá de nuevo.`,
+      {
+        fileSize: `Máximo ${limits.logoMaxBytes} bytes.`,
+      },
+    );
   }
   return detected;
 }

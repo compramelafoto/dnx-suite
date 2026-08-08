@@ -40,7 +40,10 @@ export type {
   PartnerSponsorReadinessMissing,
 } from "./sponsor-readiness";
 
-export { PARTNER_ALLOWED_LOGO_MIMES } from "./assets-limits";
+export {
+  DEFAULT_PARTNER_ASSET_LIMITS,
+  PARTNER_ALLOWED_LOGO_MIMES,
+} from "./assets-limits";
 
 export { partnerLogoResolutionWarning } from "./assets-mime";
 
