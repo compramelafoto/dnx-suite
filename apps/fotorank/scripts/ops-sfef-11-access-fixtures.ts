@@ -19,11 +19,16 @@ function hashPassword(plain: string): string {
   return `${salt}:${digest}`;
 }
 
-function assertStaging() {
+function assertDbTarget() {
   const url = process.env.DATABASE_URL ?? "";
   const host = new URL(url).hostname;
-  if (!host.includes("ep-round-fog") || host.includes("dawn-dew")) {
-    throw new Error(`ABORT host no staging: ${host}`);
+  const allowPreviewProd =
+    process.env.SFEF11_ALLOW_PREVIEW_PROD_DB === "1" && host.includes("dawn-dew");
+  const stagingOk = host.includes("ep-round-fog") && !host.includes("dawn-dew");
+  if (!stagingOk && !allowPreviewProd) {
+    throw new Error(
+      `ABORT host no permitido: ${host}. Usá staging (ep-round-fog) o SFEF11_ALLOW_PREVIEW_PROD_DB=1 si Preview apunta a dawn-dew.`,
+    );
   }
   if (process.env.SFEF11_ALLOW_FIXTURES !== "1") {
     throw new Error("ABORT: SFEF11_ALLOW_FIXTURES=1 requerido");
@@ -64,7 +69,7 @@ async function ensureUser(
 }
 
 async function main() {
-  assertStaging();
+  assertDbTarget();
   const runId = `${Date.now().toString(36)}-${randomBytes(2).toString("hex")}`;
 
   const contest = await prisma.fotorankContest.findFirst({
