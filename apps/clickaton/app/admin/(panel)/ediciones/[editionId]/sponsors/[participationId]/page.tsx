@@ -454,7 +454,7 @@ export default async function EditionParticipationDetailPage({
                                     value={participationId}
                                   />
                                   <input type="hidden" name="benefitId" value={b.id} />
-                                  <input type="hidden" name="userId" value={a.userId} />
+                                  <input type="hidden" name="userId" value={a.userId ?? ""} />
                                   <Button type="submit" size="sm" variant="outline">
                                     Revocar
                                   </Button>
