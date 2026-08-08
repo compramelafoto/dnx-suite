@@ -8,7 +8,12 @@ import { Textarea } from "@/components/ui/Textarea";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { createPartnerFormAction } from "@/lib/admin/partners/mutations";
-import { DNX_PARTNER_STATUSES, DNX_PARTNER_TYPES } from "@repo/partners";
+import {
+  DNX_PARTNER_STATUSES,
+  DNX_PARTNER_TYPES,
+  PARTNER_STATUS_LABELS,
+  PARTNER_TYPE_LABELS,
+} from "@repo/partners";
 
 export default async function AdminNewPartnerPage({
   searchParams,
@@ -52,7 +57,7 @@ export default async function AdminNewPartnerPage({
               <Select name="type" defaultValue="COMPANY">
                 {DNX_PARTNER_TYPES.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {PARTNER_TYPE_LABELS[t]}
                   </option>
                 ))}
               </Select>
@@ -61,7 +66,7 @@ export default async function AdminNewPartnerPage({
               <Select name="status" defaultValue="PROSPECT">
                 {DNX_PARTNER_STATUSES.filter((s) => s !== "ARCHIVED").map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {PARTNER_STATUS_LABELS[s]}
                   </option>
                 ))}
               </Select>
@@ -78,13 +83,13 @@ export default async function AdminNewPartnerPage({
             <Field id="phone" label="Teléfono">
               <Input name="phone" />
             </Field>
-            <Field id="taxId" label="CUIT / tax id (opcional)">
+            <Field id="taxId" label="CUIT / identificación fiscal (opcional)">
               <Input name="taxId" />
             </Field>
-            <Field id="logoUrl" label="Logo URL">
-              <Input name="logoUrl" />
-            </Field>
           </div>
+          <p className="text-sm text-ck-text-muted">
+            El logo se carga como archivo desde la ficha del partner (Subir logo), no por URL.
+          </p>
           <Field id="description" label="Descripción">
             <Textarea name="description" rows={3} />
           </Field>

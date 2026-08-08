@@ -42,7 +42,9 @@
     "audit:clickaton-registration-schema": "tsx scripts/audit-clickaton-registration-schema.mts",
     "staging:identity-cutover": "tsx scripts/staging-identity-cutover.mts",
     "communications:db:identity": "tsx scripts/communications-db-identity.mts",
-    "test:communications-identity": "tsx --test scripts/communications-db-identity.test.ts"
+    "test:communications-identity": "tsx --test scripts/communications-db-identity.test.ts",
+    "partners:migrate:production": "tsx scripts/partners-migrate-production.mts",
+    "partners:migrate:fotorank-production": "tsx scripts/partners-migrate-fotorank-production.mts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

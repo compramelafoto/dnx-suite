@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  APPLICATION_LABELS,
+  AUDIENCE_TYPE_LABELS,
+  BENEFIT_STATUS_LABELS,
+  BENEFIT_TYPE_LABELS,
+  CONTEXT_TYPE_LABELS,
+  CONTRIBUTION_STATUS_LABELS,
+  CONTRIBUTION_TYPE_LABELS,
   DNX_PARTNER_APPLICATIONS,
   DNX_PARTNER_AUDIENCE_TYPES,
   DNX_PARTNER_BENEFIT_TYPES,
@@ -10,7 +17,23 @@ import {
   DNX_PARTNER_REDEMPTION_METHODS,
   DNX_PARTNER_STATUSES,
   DNX_PARTNER_TYPES,
+  OUTBOUND_LINK_STATUS_LABELS,
+  PARTICIPATION_STATUS_LABELS,
+  PARTICIPATION_TYPE_LABELS,
+  PARTNER_STATUS_LABELS,
+  PARTNER_TYPE_LABELS,
+  PAYMENT_MODE_LABELS,
+  REDEMPTION_METHOD_LABELS,
+  resolveOnboardingAdminStatus,
+  resolvePartnerLogoAdminState,
+  resolvePartnerPrimaryLogo,
+  resolvePartnerPublicationAdminState,
 } from "@repo/partners";
+import { AdminScrollStability } from "@/components/admin/AdminScrollStability";
+import { AdminPartnerLogoLibrary } from "@/components/admin/partners/AdminPartnerLogoLibrary";
+import { DeleteContributionButton } from "@/components/admin/partners/DeleteContributionButton";
+import { PartnerOnboardingInvitePanel } from "@/components/admin/partners/PartnerOnboardingInvitePanel";
+import { PartnerOnboardingReviewPanel } from "@/components/admin/partners/PartnerOnboardingReviewPanel";
 import { RequiresPaymentFields } from "@/components/admin/partners/RequiresPaymentFields";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -25,11 +48,16 @@ import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { withClickatonDb } from "@/lib/admin/db";
 import {
+  approvePartnerLogoFormAction,
   archivePartnerFormAction,
+  archivePartnerLogoFormAction,
   createBenefitFormAction,
   createContactFormAction,
   createContributionFormAction,
   createParticipationFormAction,
+  deleteContributionFormAction,
+  publishParticipationFormAction,
+  unpublishParticipationFormAction,
   updatePartnerFormAction,
 } from "@/lib/admin/partners/mutations";
 import { getClickatonPartnersService, toPartnerActor } from "@/lib/admin/partners/runtime";
@@ -49,18 +77,35 @@ export default async function AdminPartnerDetailPage({
   const loaded = await withClickatonDb(async () => {
     const svc = getClickatonPartnersService();
     const partner = await svc.getPartner(actor, partnerId);
-    const [participations, benefits, contacts] = await Promise.all([
-      svc.listParticipations(actor, partnerId),
-      svc.listBenefits(actor, partnerId),
-      svc.listContacts(actor, partnerId),
-    ]);
+    const [participations, benefits, contacts, traffic, outboundLinks, brandAssets, invitations] =
+      await Promise.all([
+        svc.listParticipations(actor, partnerId),
+        svc.listBenefits(actor, partnerId),
+        svc.listContacts(actor, partnerId),
+        svc.getPartnerTrafficSummary(actor, partnerId),
+        svc.listPartnerOutboundLinks(actor, partnerId),
+        svc.listPartnerAssets(actor, partnerId),
+        svc.listOnboardingInvitations(actor, partnerId),
+      ]);
     const contributionsByParticipation = await Promise.all(
       participations.map(async (p) => ({
         participationId: p.id,
         items: await svc.listContributions(actor, p.id),
       })),
     );
-    return { partner, participations, benefits, contacts, contributionsByParticipation };
+    const onboardingAdminStatus = resolveOnboardingAdminStatus(invitations);
+    return {
+      partner,
+      participations,
+      benefits,
+      contacts,
+      contributionsByParticipation,
+      traffic,
+      outboundLinks,
+      brandAssets,
+      invitations,
+      onboardingAdminStatus,
+    };
   });
 
   if (!loaded.ok) {
@@ -78,15 +123,44 @@ export default async function AdminPartnerDetailPage({
     );
   }
 
-  const { partner, participations, benefits, contacts, contributionsByParticipation } =
-    loaded.data;
+  const {
+    partner,
+    participations,
+    benefits,
+    contacts,
+    contributionsByParticipation,
+    traffic,
+    outboundLinks,
+    brandAssets,
+    invitations,
+    onboardingAdminStatus,
+  } = loaded.data;
   if (!partner) notFound();
 
   const contributionMap = new Map(
     contributionsByParticipation.map((c) => [c.participationId, c.items]),
   );
+  const clicksByParticipation = traffic.byParticipation;
+  const primaryLogo = resolvePartnerPrimaryLogo({
+    assets: brandAssets,
+    logoUrl: partner.logoUrl,
+  });
+  const latestLogoAsset =
+    brandAssets.find((a) => a.type === "LOGO_PRIMARY" && !a.archivedAt) ??
+    brandAssets.find((a) => !a.archivedAt) ??
+    null;
+  const hasUploadedLogo = brandAssets.some(
+    (a) => !a.archivedAt && Boolean(a.fileUrl || a.storageKey),
+  );
+  const logoState = resolvePartnerLogoAdminState({
+    hasUsableApprovedLogo: primaryLogo.source === "brand_asset",
+    hasUploadedLogo,
+  });
+  const logoStateLabel =
+    logoState === "APPROVED" ? "Aprobado" : logoState === "UPLOADED" ? "Cargado" : "Pendiente";
 
   return (
+    <AdminScrollStability>
     <div className="space-y-10">
       <AdminPageHeader
         title={partner.name}
@@ -135,7 +209,7 @@ export default async function AdminPartnerDetailPage({
                 <Select name="type" defaultValue={partner.type}>
                   {DNX_PARTNER_TYPES.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {PARTNER_TYPE_LABELS[t]}
                     </option>
                   ))}
                 </Select>
@@ -144,7 +218,7 @@ export default async function AdminPartnerDetailPage({
                 <Select name="status" defaultValue={partner.status}>
                   {DNX_PARTNER_STATUSES.map((s) => (
                     <option key={s} value={s}>
-                      {s}
+                      {PARTNER_STATUS_LABELS[s]}
                     </option>
                   ))}
                 </Select>
@@ -161,11 +235,8 @@ export default async function AdminPartnerDetailPage({
               <Field id="phone" label="Teléfono">
                 <Input name="phone" defaultValue={partner.phone ?? ""} />
               </Field>
-              <Field id="taxId" label="Tax id">
+              <Field id="taxId" label="CUIT / identificación fiscal">
                 <Input name="taxId" defaultValue={partner.taxId ?? ""} />
-              </Field>
-              <Field id="logoUrl" label="Logo URL">
-                <Input name="logoUrl" defaultValue={partner.logoUrl ?? ""} />
               </Field>
             </div>
             <Field id="description" label="Descripción">
@@ -180,6 +251,186 @@ export default async function AdminPartnerDetailPage({
       </section>
 
       <section className="space-y-4">
+        <h2 className="text-xl font-semibold text-ck-text">Onboarding</h2>
+        <PartnerOnboardingInvitePanel
+          partnerId={partner.id}
+          invitations={invitations.map((inv) => ({
+            id: inv.id,
+            status: inv.status,
+            reviewStatus: inv.reviewStatus,
+            expiresAt: inv.expiresAt,
+            openedAt: inv.openedAt,
+            submittedAt: inv.submittedAt,
+            createdAt: inv.createdAt,
+          }))}
+          adminStatus={onboardingAdminStatus}
+        />
+        {invitations
+          .filter((inv) => inv.status === "SUBMITTED" && inv.submissionJson)
+          .slice(0, 1)
+          .map((inv) => (
+            <PartnerOnboardingReviewPanel
+              key={inv.id}
+              partnerId={partner.id}
+              partner={{
+                name: partner.name,
+                legalName: partner.legalName,
+                description: partner.description,
+                websiteUrl: partner.websiteUrl,
+                instagram: partner.instagram,
+                facebookUrl: partner.facebookUrl,
+                linkedinUrl: partner.linkedinUrl,
+                address: partner.address,
+                city: partner.city,
+                provinceOrState: partner.provinceOrState,
+                country: partner.country,
+                postalCode: partner.postalCode,
+                taxId: partner.taxId,
+                status: partner.status,
+              }}
+              invitation={{
+                id: inv.id,
+                status: inv.status,
+                reviewStatus: inv.reviewStatus,
+                reviewNotes: inv.reviewNotes,
+                submissionJson: inv.submissionJson,
+                submittedAt: inv.submittedAt,
+              }}
+            />
+          ))}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold text-ck-text">Logos de marca</h2>
+        <p className="text-sm text-ck-text-secondary">
+          Estado resumen: {logoStateLabel}. Cada casilla es un archivo distinto (Color / Positivo /
+          Negativo, o Fondo claro / Fondo oscuro). Aprobar un logo no publica al partner.
+        </p>
+        <AdminPartnerLogoLibrary
+          partnerId={partner.id}
+          assets={brandAssets
+            .filter((a) => !a.archivedAt)
+            .map((a) => ({
+              type: a.type,
+              backgroundType: a.backgroundType,
+              assetId: a.id,
+              fileUrl: a.fileUrl,
+              storageKey: a.storageKey,
+              mimeType: a.mimeType,
+              width: a.width,
+              height: a.height,
+              approvalStatus: a.approvalStatus,
+              reusedFromGeneral: Boolean(
+                a.metadata &&
+                  typeof a.metadata === "object" &&
+                  (a.metadata as { reusedFromGeneral?: unknown }).reusedFromGeneral === true,
+              ),
+            }))}
+          showLegacyJpegWarning={brandAssets.some(
+            (a) =>
+              !a.archivedAt &&
+              (a.mimeType === "image/jpeg" || a.mimeType === "image/jpg"),
+          )}
+          approveAction={approvePartnerLogoFormAction}
+          archiveAction={archivePartnerLogoFormAction}
+        />
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold text-ck-text">Tráfico</h2>
+        <Card variant="outlined" className="space-y-6 p-6">
+          <p className="text-sm text-ck-text-muted">
+            Clicks outbound hacia el partner. Un click no equivale a una persona ni a una venta.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-ck-text-muted">Clicks totales</p>
+              <p className="mt-2 text-2xl font-semibold text-ck-text">{traffic.totalClicks}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-ck-text-muted">Últimos 7 días</p>
+              <p className="mt-2 text-2xl font-semibold text-ck-text">{traffic.last7Days}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-ck-text-muted">Últimos 30 días</p>
+              <p className="mt-2 text-2xl font-semibold text-ck-text">{traffic.last30Days}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-ck-text">Por plataforma</p>
+            <ul className="mt-2 space-y-1 text-sm text-ck-text-secondary">
+              {Object.keys(traffic.byApplication).length === 0 ? (
+                <li className="text-ck-text-muted">Sin clicks todavía.</li>
+              ) : (
+                Object.entries(traffic.byApplication)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([app, count]) => (
+                    <li key={app}>
+                      {APPLICATION_LABELS[app as keyof typeof APPLICATION_LABELS] ?? app}:{" "}
+                      {count}
+                    </li>
+                  ))
+              )}
+            </ul>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-ck-text">Por participación</p>
+            <ul className="mt-2 space-y-1 text-sm text-ck-text-secondary">
+              {Object.keys(traffic.byParticipation).length === 0 ? (
+                <li className="text-ck-text-muted">Sin clicks por participación.</li>
+              ) : (
+                Object.entries(traffic.byParticipation)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([participationId, count]) => {
+                    const p = participations.find((x) => x.id === participationId);
+                    const label =
+                      p?.title ||
+                      (p ? PARTICIPATION_TYPE_LABELS[p.participationType] : null) ||
+                      participationId.slice(0, 10);
+                    return (
+                      <li key={participationId}>
+                        {label}: {count}
+                      </li>
+                    );
+                  })
+              )}
+            </ul>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-ck-text">Sitio web global</p>
+            <p className="mt-1 text-sm text-ck-text-secondary">
+              {partner.websiteUrl || "Sin sitio web"}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-ck-text">Enlaces con seguimiento</p>
+            {outboundLinks.length === 0 ? (
+              <p className="mt-2 text-sm text-ck-text-muted">
+                Ninguno. Se crean al guardar una participación con destino y seguimiento activo.
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-3 text-sm text-ck-text-secondary">
+                {outboundLinks.map((link) => (
+                  <li key={link.id} className="rounded-lg border border-ck-border p-3">
+                    <p className="font-medium text-ck-text">/r/{link.trackingKey}</p>
+                    <p className="mt-1 break-all">{link.destinationUrl}</p>
+                    <p className="mt-1">
+                      {APPLICATION_LABELS[link.application] ?? link.application} ·{" "}
+                      {CONTEXT_TYPE_LABELS[
+                        link.contextType as keyof typeof CONTEXT_TYPE_LABELS
+                      ] ?? link.contextType}
+                      {link.contextId ? ` · ${link.contextId}` : ""} ·{" "}
+                      {OUTBOUND_LINK_STATUS_LABELS[link.status] ?? link.status}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+      </section>
+
+      <section className="space-y-4">
         <h2 className="text-xl font-semibold text-ck-text">Participaciones</h2>
         <Card variant="outlined" className="space-y-4 p-5">
           {participations.length === 0 ? (
@@ -190,28 +441,88 @@ export default async function AdminPartnerDetailPage({
                 <li key={p.id} className="rounded-lg border border-ck-border p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-ck-text">
-                      {p.title || p.participationType}
+                      {p.title || PARTICIPATION_TYPE_LABELS[p.participationType]}
                     </span>
-                    <Badge variant="neutral">{p.application}</Badge>
-                    <Badge variant="neutral">{p.status}</Badge>
                     <Badge variant="neutral">
-                      {p.requiresPayment ? `Pago: ${p.paymentMode}` : "Sin pago"}
+                      {APPLICATION_LABELS[p.application] ?? p.application}
+                    </Badge>
+                    <Badge variant="neutral">
+                      {PARTICIPATION_STATUS_LABELS[p.status] ?? p.status}
+                    </Badge>
+                    <Badge variant="neutral">
+                      {p.requiresPayment
+                        ? `Pago: ${PAYMENT_MODE_LABELS[p.paymentMode] ?? p.paymentMode}`
+                        : "Sin pago"}
                     </Badge>
                   </div>
                   <p className="mt-2 text-sm text-ck-text-secondary">
-                    {p.contextType}
+                    {CONTEXT_TYPE_LABELS[p.contextType] ?? p.contextType}
                     {p.contextId ? ` · ${p.contextId}` : ""}
-                    {p.organizationId ? ` · org ${p.organizationId}` : ""}
+                    {p.organizationId ? ` · organización ${p.organizationId}` : ""}
+                    {" · "}
+                    Clicks: {clicksByParticipation[p.id] ?? 0}
+                    {" · "}
+                    Publicación:{" "}
+                    {
+                      {
+                        HIDDEN: "Oculto",
+                        READY: "Listo para publicar",
+                        PUBLISHED: "Publicado",
+                      }[
+                        resolvePartnerPublicationAdminState({
+                          publicVisibility: p.publicVisibility,
+                          participationStatus: p.status,
+                          logoState,
+                          partnerType: partner.type,
+                        })
+                      ]
+                    }
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {p.publicVisibility !== "PUBLIC" ? (
+                      <form action={publishParticipationFormAction}>
+                        <input type="hidden" name="partnerId" value={partner.id} />
+                        <input type="hidden" name="participationId" value={p.id} />
+                        <Button type="submit" variant="secondary">
+                          Publicar en landing
+                        </Button>
+                      </form>
+                    ) : (
+                      <form action={unpublishParticipationFormAction}>
+                        <input type="hidden" name="partnerId" value={partner.id} />
+                        <input type="hidden" name="participationId" value={p.id} />
+                        <Button type="submit" variant="secondary">
+                          Ocultar de landing
+                        </Button>
+                      </form>
+                    )}
+                  </div>
+                  {p.publicVisibility !== "PUBLIC" && logoState !== "APPROVED" ? (
+                    <p className="mt-2 text-xs text-amber-200">
+                      Para publicar necesitás un logo aprobado (arriba: Subir logo → Aprobar logo).
+                      Solo admin Clickaton puede publicarlo; no el partner.
+                    </p>
+                  ) : null}
                   <div className="mt-3 space-y-2 text-sm">
                     <p className="font-medium text-ck-text">Aportes</p>
                     {(contributionMap.get(p.id) ?? []).length === 0 ? (
                       <p className="text-ck-text-muted">Ninguno</p>
                     ) : (
-                      <ul className="list-disc space-y-1 pl-5 text-ck-text-secondary">
+                      <ul className="space-y-2">
                         {(contributionMap.get(p.id) ?? []).map((c) => (
-                          <li key={c.id}>
-                            [{c.type}] {c.title} — {c.status}
+                          <li
+                            key={c.id}
+                            className="flex items-start justify-between gap-3 rounded-lg border border-ck-border/70 px-3 py-2"
+                          >
+                            <span className="text-ck-text-secondary">
+                              [{CONTRIBUTION_TYPE_LABELS[c.type] ?? c.type}] {c.title} —{" "}
+                              {CONTRIBUTION_STATUS_LABELS[c.status] ?? c.status}
+                            </span>
+                            <DeleteContributionButton
+                              action={deleteContributionFormAction}
+                              partnerId={partner.id}
+                              contributionId={c.id}
+                            />
                           </li>
                         ))}
                       </ul>
@@ -232,7 +543,7 @@ export default async function AdminPartnerDetailPage({
                 <Select name="application" defaultValue="CLICKATON">
                   {DNX_PARTNER_APPLICATIONS.map((a) => (
                     <option key={a} value={a}>
-                      {a}
+                      {APPLICATION_LABELS[a]}
                     </option>
                   ))}
                 </Select>
@@ -241,7 +552,7 @@ export default async function AdminPartnerDetailPage({
                 <Select name="participationType" defaultValue="SPONSOR">
                   {DNX_PARTNER_PARTICIPATION_TYPES.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {PARTICIPATION_TYPE_LABELS[t]}
                     </option>
                   ))}
                 </Select>
@@ -250,16 +561,16 @@ export default async function AdminPartnerDetailPage({
                 <Select name="contextType" defaultValue="GLOBAL">
                   {DNX_PARTNER_CONTEXT_TYPES.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {CONTEXT_TYPE_LABELS[t]}
                     </option>
                   ))}
                 </Select>
               </Field>
-              <Field id="contextId" label="Context ID (opcional)">
-                <Input name="contextId" placeholder="editionId / contestId…" />
+              <Field id="contextId" label="ID de contexto (opcional)">
+                <Input name="contextId" placeholder="ID de edición / concurso…" />
               </Field>
-              <Field id="organizationId" label="Organization ID (opaco, opcional)">
-                <Input name="organizationId" placeholder="sfpr / org cuid…" />
+              <Field id="organizationId" label="ID de organización (opcional)">
+                <Input name="organizationId" placeholder="sfpr / id de organización…" />
               </Field>
               <Field id="title" label="Título">
                 <Input name="title" />
@@ -288,7 +599,8 @@ export default async function AdminPartnerDetailPage({
                 <Select name="participationId" required>
                   {participations.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.title || p.participationType} ({p.application})
+                      {p.title || PARTICIPATION_TYPE_LABELS[p.participationType]} (
+                      {APPLICATION_LABELS[p.application]})
                     </option>
                   ))}
                 </Select>
@@ -298,7 +610,7 @@ export default async function AdminPartnerDetailPage({
                   <Select name="type" defaultValue="SERVICE">
                     {DNX_PARTNER_CONTRIBUTION_TYPES.map((t) => (
                       <option key={t} value={t}>
-                        {t}
+                        {CONTRIBUTION_TYPE_LABELS[t]}
                       </option>
                     ))}
                   </Select>
@@ -309,7 +621,7 @@ export default async function AdminPartnerDetailPage({
                 <Field id="quantity" label="Cantidad (opcional)">
                   <Input name="quantity" type="number" min={0} />
                 </Field>
-                <Field id="estimatedTotalValueMinor" label="Valor estimado (minor, opcional)">
+                <Field id="estimatedTotalValueMinor" label="Valor estimado (centavos, opcional)">
                   <Input name="estimatedTotalValueMinor" type="number" min={0} />
                 </Field>
               </div>
@@ -333,8 +645,12 @@ export default async function AdminPartnerDetailPage({
                 <li key={b.id} className="rounded-lg border border-ck-border p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-ck-text">{b.title}</span>
-                    <Badge variant="neutral">{b.status}</Badge>
-                    <Badge variant="neutral">{b.benefitType}</Badge>
+                    <Badge variant="neutral">
+                      {BENEFIT_STATUS_LABELS[b.status] ?? b.status}
+                    </Badge>
+                    <Badge variant="neutral">
+                      {BENEFIT_TYPE_LABELS[b.benefitType] ?? b.benefitType}
+                    </Badge>
                     {b.promoCode ? <Badge variant="neutral">Código {b.promoCode}</Badge> : null}
                   </div>
                   {b.description ? (
@@ -355,7 +671,7 @@ export default async function AdminPartnerDetailPage({
                 <option value="">— Sin vincular —</option>
                 {participations.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.title || p.participationType}
+                    {p.title || PARTICIPATION_TYPE_LABELS[p.participationType]}
                   </option>
                 ))}
               </Select>
@@ -368,7 +684,7 @@ export default async function AdminPartnerDetailPage({
                 <Select name="benefitType" defaultValue="PERCENTAGE_DISCOUNT">
                   {DNX_PARTNER_BENEFIT_TYPES.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {BENEFIT_TYPE_LABELS[t]}
                     </option>
                   ))}
                 </Select>
@@ -377,7 +693,7 @@ export default async function AdminPartnerDetailPage({
                 <Select name="redemptionMethod" defaultValue="CONTACT_PARTNER">
                   {DNX_PARTNER_REDEMPTION_METHODS.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {REDEMPTION_METHOD_LABELS[t]}
                     </option>
                   ))}
                 </Select>
@@ -392,25 +708,25 @@ export default async function AdminPartnerDetailPage({
                 <Select name="audienceType" defaultValue="ORGANIZATION_MEMBERS">
                   {DNX_PARTNER_AUDIENCE_TYPES.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {AUDIENCE_TYPE_LABELS[t]}
                     </option>
                   ))}
                 </Select>
               </Field>
-              <Field id="audienceOrganizationId" label="Org ID audiencia (opcional)">
+              <Field id="audienceOrganizationId" label="ID organización audiencia (opcional)">
                 <Input name="audienceOrganizationId" placeholder="sfpr" />
               </Field>
-              <Field id="audienceContextType" label="Context type audiencia">
+              <Field id="audienceContextType" label="Tipo de contexto de audiencia">
                 <Select name="audienceContextType" defaultValue="">
                   <option value="">—</option>
                   {DNX_PARTNER_CONTEXT_TYPES.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {CONTEXT_TYPE_LABELS[t]}
                     </option>
                   ))}
                 </Select>
               </Field>
-              <Field id="audienceContextId" label="Context ID audiencia">
+              <Field id="audienceContextId" label="ID de contexto de audiencia">
                 <Input name="audienceContextId" />
               </Field>
             </div>
@@ -489,5 +805,6 @@ export default async function AdminPartnerDetailPage({
         .
       </p>
     </div>
+    </AdminScrollStability>
   );
 }

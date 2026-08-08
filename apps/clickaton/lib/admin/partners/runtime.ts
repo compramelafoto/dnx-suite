@@ -1,4 +1,8 @@
-import { createPartnersService, type PartnerActor, type PartnersService } from "@repo/partners";
+import {
+  createPartnersService,
+  type PartnerActor,
+  type PartnersService,
+} from "@repo/partners";
 import { createPrismaPartnersRepository } from "./prisma-partners-adapter";
 import type { ClickatonAuthUser } from "@/lib/admin/auth";
 

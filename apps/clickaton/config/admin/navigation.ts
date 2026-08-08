@@ -12,6 +12,7 @@ export const adminRoutes = {
   promotions: "/admin/promociones",
   social: "/admin/social",
   sponsors: "/admin/sponsors",
+  sponsorsSync: "/admin/sponsors/sincronizacion",
   /** CMS del blog público (`@repo/content`, platform = clickaton). */
   contents: "/admin/contenidos",
   messages: "/admin/mensajes",
@@ -36,6 +37,7 @@ export type AdminNavIcon =
   | "promotions"
   | "social"
   | "sponsors"
+  | "sponsorsSync"
   | "contents"
   | "messages"
   | "settings"

@@ -70,7 +70,7 @@ export async function createPartnerFormAction(formData: FormData): Promise<void>
       phone: formData.get("phone")?.toString()?.trim() || null,
       taxId: formData.get("taxId")?.toString()?.trim() || null,
       notes: formData.get("notes")?.toString()?.trim() || null,
-      logoUrl: formData.get("logoUrl")?.toString()?.trim() || null,
+      // logoUrl legacy: no se carga desde el alta; usar Subir logo en la ficha.
     });
   });
   if (!result.ok) {
@@ -107,14 +107,82 @@ export async function updatePartnerFormAction(formData: FormData): Promise<void>
       phone: formData.get("phone")?.toString()?.trim() || null,
       taxId: formData.get("taxId")?.toString()?.trim() || null,
       notes: formData.get("notes")?.toString()?.trim() || null,
-      logoUrl: formData.get("logoUrl")?.toString()?.trim() || null,
     });
   });
   if (!result.ok) {
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
   }
+  // Sin redirect al mismo URL: evita scroll jump al tope en fichas largas.
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=1`);
+}
+
+export async function approvePartnerLogoFormAction(formData: FormData): Promise<void> {
+  const user = await requireClickatonAdmin();
+  const actor = toPartnerActor(user);
+  const partnerId = formData.get("partnerId")?.toString() ?? "";
+  const assetId = formData.get("assetId")?.toString() ?? "";
+  const result = await withClickatonDb(async () => {
+    const svc = getClickatonPartnersService();
+    return svc.approvePartnerAsset(actor, assetId);
+  });
+  if (!result.ok) {
+    redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
+  }
+  revalidatePartner(partnerId);
+}
+
+export async function archivePartnerLogoFormAction(formData: FormData): Promise<void> {
+  const user = await requireClickatonAdmin();
+  const actor = toPartnerActor(user);
+  const partnerId = formData.get("partnerId")?.toString() ?? "";
+  const assetId = formData.get("assetId")?.toString() ?? "";
+  const result = await withClickatonDb(async () => {
+    const svc = getClickatonPartnersService();
+    return svc.archivePartnerAsset(actor, assetId);
+  });
+  if (!result.ok) {
+    redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
+  }
+  revalidatePartner(partnerId);
+}
+
+export async function publishParticipationFormAction(formData: FormData): Promise<void> {
+  const user = await requireClickatonAdmin();
+  const actor = toPartnerActor(user);
+  const partnerId = formData.get("partnerId")?.toString() ?? "";
+  const participationId = formData.get("participationId")?.toString() ?? "";
+  const allowWithoutLogo = formData.get("allowWithoutLogo") === "true";
+  try {
+    const result = await withClickatonDb(async () => {
+      const svc = getClickatonPartnersService();
+      return svc.publishParticipation(actor, participationId, { allowWithoutLogo });
+    });
+    if (!result.ok) {
+      redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
+    }
+  } catch (err) {
+    const message =
+      err instanceof PartnersDomainError
+        ? err.message
+        : "No se pudo publicar la participación en landing.";
+    redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePartner(partnerId);
+}
+
+export async function unpublishParticipationFormAction(formData: FormData): Promise<void> {
+  const user = await requireClickatonAdmin();
+  const actor = toPartnerActor(user);
+  const partnerId = formData.get("partnerId")?.toString() ?? "";
+  const participationId = formData.get("participationId")?.toString() ?? "";
+  const result = await withClickatonDb(async () => {
+    const svc = getClickatonPartnersService();
+    return svc.unpublishParticipation(actor, participationId);
+  });
+  if (!result.ok) {
+    redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
+  }
+  revalidatePartner(partnerId);
 }
 
 export async function archivePartnerFormAction(formData: FormData): Promise<void> {
@@ -187,7 +255,6 @@ export async function createParticipationFormAction(formData: FormData): Promise
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=participation`);
 }
 
 export async function createContributionFormAction(formData: FormData): Promise<void> {
@@ -223,7 +290,27 @@ export async function createContributionFormAction(formData: FormData): Promise<
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=contribution`);
+}
+
+export async function deleteContributionFormAction(formData: FormData): Promise<void> {
+  const user = await requireClickatonAdmin();
+  const actor = toPartnerActor(user);
+  const partnerId = formData.get("partnerId")?.toString() ?? "";
+  const contributionId = formData.get("contributionId")?.toString() ?? "";
+  try {
+    const result = await withClickatonDb(async () => {
+      const svc = getClickatonPartnersService();
+      return svc.deleteContribution(actor, contributionId);
+    });
+    if (!result.ok) {
+      redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(result.message)}`);
+    }
+  } catch (err) {
+    const message =
+      err instanceof PartnersDomainError ? err.message : "No se pudo eliminar el aporte.";
+    redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePartner(partnerId);
 }
 
 export async function createBenefitFormAction(formData: FormData): Promise<void> {
@@ -291,7 +378,6 @@ export async function createBenefitFormAction(formData: FormData): Promise<void>
     redirect(`${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=benefit`);
 }
 
 export async function createContactFormAction(formData: FormData): Promise<void> {
@@ -313,5 +399,4 @@ export async function createContactFormAction(formData: FormData): Promise<void>
     });
   });
   revalidatePartner(partnerId);
-  redirect(`${adminRoutes.sponsors}/${partnerId}?ok=contact`);
 }
