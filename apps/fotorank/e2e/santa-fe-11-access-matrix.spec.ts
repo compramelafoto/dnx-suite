@@ -26,7 +26,17 @@ async function loginAndCaptureDestination(page: Page, email: string, password: s
   await emailInput.fill(email);
   await page.locator('input[name="password"]').fill(password);
   await page.getByRole("button", { name: /Iniciar sesión|Entrar/i }).click();
-  await page.waitForURL((u) => !u.pathname.includes("/login"), { timeout: 90_000 });
+  // Destinos válidos post-login (incluye /jurado/login como aterrizaje de jurado).
+  await page.waitForURL(
+    (u) =>
+      u.pathname.startsWith("/participaciones") ||
+      u.pathname.startsWith("/dashboard") ||
+      u.pathname.startsWith("/mi-actividad") ||
+      u.pathname.startsWith("/jurado/login") ||
+      u.pathname.startsWith("/super-admin") ||
+      u.pathname.startsWith("/concursos"),
+    { timeout: 90_000 },
+  );
   await expect(page.locator("body")).not.toContainText(/¿Cómo querés ingresar\?/i);
   await expect(page.locator("body")).not.toContainText(/Elegí tu perfil/i);
   return page.url();
