@@ -31,29 +31,36 @@ function toInputJson(
   return value as Prisma.InputJsonValue;
 }
 
-function mapPartner(row: {
-  id: string;
-  name: string;
-  legalName: string | null;
-  slug: string;
-  description: string | null;
-  type: PartnerRecord["type"];
-  status: PartnerRecord["status"];
-  logoUrl: string | null;
-  websiteUrl: string | null;
-  instagram: string | null;
-  email: string | null;
-  phone: string | null;
-  taxId: string | null;
-  notes: string | null;
-  financialIdentityId: string | null;
-  createdByUserId: number | null;
-  updatedByUserId: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-  archivedAt: Date | null;
-}): PartnerRecord {
-  return { ...row };
+function mapPartner(row: PartnerRecord): PartnerRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    legalName: row.legalName,
+    slug: row.slug,
+    description: row.description,
+    type: row.type,
+    status: row.status,
+    logoUrl: row.logoUrl,
+    websiteUrl: row.websiteUrl,
+    instagram: row.instagram,
+    facebookUrl: row.facebookUrl ?? null,
+    linkedinUrl: row.linkedinUrl ?? null,
+    email: row.email,
+    phone: row.phone,
+    taxId: row.taxId,
+    address: row.address ?? null,
+    city: row.city ?? null,
+    provinceOrState: row.provinceOrState ?? null,
+    country: row.country ?? null,
+    postalCode: row.postalCode ?? null,
+    notes: row.notes,
+    financialIdentityId: row.financialIdentityId,
+    createdByUserId: row.createdByUserId,
+    updatedByUserId: row.updatedByUserId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt,
+  };
 }
 
 function mapParticipation(row: ParticipationRecord): ParticipationRecord {
