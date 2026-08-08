@@ -20,17 +20,13 @@ function loadCreds() {
 
 async function loginAndCaptureDestination(page: Page, email: string, password: string) {
   await page.goto("/login", { waitUntil: "load" });
-  const form = page.getByTestId("fotorank-login-form");
-  await form.waitFor({ state: "visible" });
-  await form.locator("#email").fill(email);
-  await form.locator("#password").fill(password);
-  await Promise.all([
-    page.waitForURL(
-      /\/(mi-actividad|participaciones|dashboard|jurado\/login|concursos|super-admin)(\/|$|\?)/,
-      { timeout: 60_000, waitUntil: "commit" },
-    ),
-    form.getByRole("button", { name: /Entrar/i }).click(),
-  ]);
+  // Preview/staging usa @repo/auth-ui (sin data-testid fotorank-login-form).
+  const emailInput = page.locator("#email");
+  await emailInput.waitFor({ state: "visible", timeout: 45_000 });
+  await emailInput.fill(email);
+  await page.locator('input[name="password"]').fill(password);
+  await page.getByRole("button", { name: /Iniciar sesión|Entrar/i }).click();
+  await page.waitForURL((u) => !u.pathname.includes("/login"), { timeout: 90_000 });
   await expect(page.locator("body")).not.toContainText(/¿Cómo querés ingresar\?/i);
   await expect(page.locator("body")).not.toContainText(/Elegí tu perfil/i);
   return page.url();
