@@ -15,10 +15,10 @@ FotoRank es SoT de:
 
 Clickatón orquesta UX + gates de consigna; dual-write legado CK queda para rollback.
 
-## Flag
+## Flags (AND estricto)
 
 ```bash
-# Clickatón
+# Clickatón (env global — puede estar ON sin afectar comercial)
 CLICKATON_FOTORANK_CANONICAL_ASSETS=1
 FOTORANK_INTERNAL_ASSET_SECRET=<mismo secreto ≥16 chars>
 FOTORANK_INTERNAL_ASSET_BASE_URL=https://fotorank.com
@@ -27,7 +27,15 @@ FOTORANK_INTERNAL_ASSET_BASE_URL=https://fotorank.com
 FOTORANK_INTERNAL_ASSET_SECRET=<mismo>
 ```
 
-Sin el flag, el comportamiento previo (storage CK + soft-link entry) se mantiene.
+**Más** config por edición:
+
+`ClickatonEditionUploadConfig.canonicalAssetsEnabled` (default `false`)
+
+Canonical path solo si:
+
+`env === "1"` **AND** `uploadConfig.canonicalAssetsEnabled === true`
+
+La edición comercial permanece `false`. Marker ops: `ClickatonEdition.isOpsFixture`.
 
 ## Flujo
 

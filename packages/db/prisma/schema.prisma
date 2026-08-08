@@ -9887,6 +9887,8 @@ model ClickatonEdition {
   description              String?
   status                   ClickatonEditionStatus            @default(DRAFT)
   isPublished              Boolean                           @default(false)
+  /// Edición ops/fixture: nunca comercial. Cleanup solo permitido si true.
+  isOpsFixture             Boolean                           @default(false)
   /// Gate explícito de venta. Debe ser true además de ventanas/status para inscribir.
   registrationEnabled      Boolean                           @default(false)
   timezone                 String?
@@ -10602,6 +10604,9 @@ model ClickatonEditionUploadConfig {
   id                           String   @id @default(cuid())
   editionId                    String   @unique
   uploadsEnabled               Boolean  @default(false)
+  /// SoT assets FotoRank: requiere además env CLICKATON_FOTORANK_CANONICAL_ASSETS=1.
+  /// Default false → edición comercial intacta.
+  canonicalAssetsEnabled       Boolean  @default(false)
   allowedMimeTypes             Json     @default("[\"image/jpeg\",\"image/png\",\"image/webp\"]")
   maxFileSizeBytes             Int      @default(26214400)
   minWidth                     Int      @default(800)

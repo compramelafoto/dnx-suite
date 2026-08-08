@@ -3,6 +3,7 @@
  * Auth: Bearer FOTORANK_INTERNAL_ASSET_SECRET (mismo valor en Clickatón).
  */
 import { NextResponse } from "next/server";
+import { prisma } from "@repo/db";
 import { persistCanonicalEntryOriginal } from "../../../../lib/fotorank/entries/persist-canonical-asset";
 import { EntryError } from "../../../../lib/fotorank/entries/errors";
 
@@ -47,6 +48,13 @@ export async function POST(req: Request) {
   if (!contestId || !entryId || !fileBase64) {
     return NextResponse.json({ ok: false, error: "MISSING_FIELDS" }, { status: 400 });
   }
+  // No aceptar claves/storage arbitrarios del cliente.
+  if (body.legacyStorageKey && typeof body.legacyStorageKey === "string") {
+    const legacy = body.legacyStorageKey;
+    if (legacy.includes("..") || legacy.includes("@") || legacy.startsWith("http")) {
+      return NextResponse.json({ ok: false, error: "LEGACY_KEY_REJECTED" }, { status: 400 });
+    }
+  }
 
   let buffer: Buffer;
   try {
@@ -56,6 +64,30 @@ export async function POST(req: Request) {
   }
   if (buffer.byteLength < 32 || buffer.byteLength > 40 * 1024 * 1024) {
     return NextResponse.json({ ok: false, error: "INVALID_SIZE" }, { status: 413 });
+  }
+
+  const entry = await prisma.fotorankContestEntry.findUnique({
+    where: { id: entryId },
+    select: {
+      id: true,
+      contestId: true,
+      sourcePlatform: true,
+      externalEditionId: true,
+      externalRegistrationId: true,
+      externalPromptId: true,
+    },
+  });
+  if (!entry) {
+    return NextResponse.json({ ok: false, error: "ENTRY_NOT_FOUND" }, { status: 404 });
+  }
+  if (entry.contestId !== contestId) {
+    return NextResponse.json({ ok: false, error: "CROSS_CONTEST_DENIED" }, { status: 403 });
+  }
+  if (entry.sourcePlatform !== "CLICKATON") {
+    return NextResponse.json({ ok: false, error: "SOURCE_PLATFORM_DENIED" }, { status: 403 });
+  }
+  if (!entry.externalRegistrationId || !entry.externalPromptId) {
+    return NextResponse.json({ ok: false, error: "EXTERNAL_REFS_REQUIRED" }, { status: 400 });
   }
 
   try {
@@ -74,7 +106,7 @@ export async function POST(req: Request) {
     if (err instanceof EntryError) {
       return NextResponse.json(
         { ok: false, error: err.code, message: err.message },
-        { status: err.status },
+        { status: err.httpStatus },
       );
     }
     const message = err instanceof Error ? err.message : "unknown";

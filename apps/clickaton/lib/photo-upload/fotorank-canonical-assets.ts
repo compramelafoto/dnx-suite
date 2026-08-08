@@ -1,14 +1,24 @@
 /**
  * Cliente: persiste original canónico en FotoRank (SoT de assets).
- * Requiere:
+ *
+ * Activación (AND estricto):
  * - CLICKATON_FOTORANK_CANONICAL_ASSETS=1
- * - FOTORANK_INTERNAL_ASSET_SECRET
- * - FOTORANK_INTERNAL_ASSET_BASE_URL (ej. https://fotorank.com)
+ * - edition.uploadConfig.canonicalAssetsEnabled === true
+ *
+ * + secret/base URL para el endpoint interno FR.
  */
 import { PhotoUploadError } from "./errors";
 
-export function isCanonicalFotoRankAssetsEnabled(): boolean {
+export function isEnvCanonicalFotoRankAssetsEnabled(): boolean {
   return process.env.CLICKATON_FOTORANK_CANONICAL_ASSETS === "1";
+}
+
+/** Gate completo: env global AND config de edición. */
+export function isCanonicalFotoRankAssetsEnabled(input?: {
+  editionCanonicalAssetsEnabled?: boolean | null;
+}): boolean {
+  if (!isEnvCanonicalFotoRankAssetsEnabled()) return false;
+  return input?.editionCanonicalAssetsEnabled === true;
 }
 
 export async function persistCanonicalAssetViaFotoRank(input: {
@@ -30,19 +40,12 @@ export async function persistCanonicalAssetViaFotoRank(input: {
   const base = (
     process.env.FOTORANK_INTERNAL_ASSET_BASE_URL?.trim() ||
     process.env.FOTORANK_PUBLIC_WEB_BASE_URL?.trim() ||
-    ""
+    "https://fotorank.com"
   ).replace(/\/$/, "");
   if (!secret || secret.length < 16) {
     throw new PhotoUploadError(
       "FOTORANK_ASSET_CONFIG",
       "Falta FOTORANK_INTERNAL_ASSET_SECRET para assets canónicos.",
-      500,
-    );
-  }
-  if (!base) {
-    throw new PhotoUploadError(
-      "FOTORANK_ASSET_CONFIG",
-      "Falta FOTORANK_INTERNAL_ASSET_BASE_URL para assets canónicos.",
       500,
     );
   }

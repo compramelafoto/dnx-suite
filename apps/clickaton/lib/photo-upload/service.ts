@@ -399,7 +399,11 @@ export async function processPromptUpload(input: {
       versionNumber: number;
       idempotent: boolean;
     } | null = null;
-    if (isCanonicalFotoRankAssetsEnabled()) {
+    if (
+      isCanonicalFotoRankAssetsEnabled({
+        editionCanonicalAssetsEnabled: ctx.config.canonicalAssetsEnabled,
+      })
+    ) {
       canonicalAsset = await persistCanonicalAssetViaFotoRank({
         contestId: ctx.registration.edition.fotorankContestId!,
         entryId,
