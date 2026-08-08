@@ -106,3 +106,4 @@ apps/dnx-sales-assistant/.local/
 # FotoRank private local storage
 apps/fotorank/.data/
 .data/fotorank-private/
+.env*

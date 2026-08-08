@@ -10,7 +10,8 @@
     "./client": "./src/client.ts",
     "./permissions": "./src/infospot-permissions.ts",
     "./clf-album-availability": "./src/clf-album-availability.ts",
-    "./clf-event-write": "./src/clf-event-write.ts"
+    "./clf-event-write": "./src/clf-event-write.ts",
+    "./partners-prisma-repository": "./src/partners-prisma-repository.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",
@@ -47,7 +48,8 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.9.0"
+    "@prisma/client": "^6.9.0",
+    "@repo/partners": "workspace:*"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

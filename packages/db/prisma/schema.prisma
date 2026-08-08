@@ -12838,6 +12838,28 @@ enum DnxPartnerParticipationType {
   OTHER
 }
 
+/// Rol institucional de la participación (no es global en DnxPartner).
+/// Independiente del aporte (contribution type) y del tipo legacy participationType.
+enum DnxPartnerInstitutionalRole {
+  ORGANIZER
+  CO_ORGANIZER
+  INSTITUTIONAL_SPONSOR
+  MAIN_SPONSOR
+  SPONSOR
+  COLLABORATOR
+  STRATEGIC_PARTNER
+  MEDIA_PARTNER
+  SUPPLIER
+}
+
+/// Jerarquía visual / agrupación de presentación.
+enum DnxPartnerDisplayTier {
+  INSTITUTIONAL
+  MAIN
+  STANDARD
+  SUPPORTING
+}
+
 enum DnxPartnerParticipationStatus {
   DRAFT
   PROPOSED
@@ -12936,6 +12958,10 @@ enum DnxPartnerCapability {
   PARTNER_BENEFITS_MANAGE
   PARTNER_BENEFITS_PUBLISH
   PARTNER_BENEFITS_GRANT
+  PARTNER_BENEFITS_VIEW_ELIGIBILITY
+  PARTNER_BENEFITS_SYNC_ACCESS
+  PARTNER_BENEFITS_REVOKE
+  PARTNER_BENEFITS_VIEW_ACCESS
   PARTNER_PAYMENTS_VIEW
   PARTNER_PAYMENTS_MANAGE
   PARTNER_CONTACT_SENSITIVE
@@ -12958,9 +12984,16 @@ model DnxPartner {
   logoUrl         String?
   websiteUrl      String?
   instagram       String?
+  facebookUrl     String?
+  linkedinUrl     String?
   email           String?
   phone           String?
   taxId           String?
+  address         String?
+  city            String?
+  provinceOrState String?
+  country         String?
+  postalCode      String?
   notes           String?
   /// Soft-link opcional a identidad financiera (nunca obligatorio).
   financialIdentityId String?
@@ -12970,10 +13003,14 @@ model DnxPartner {
   updatedAt       DateTime        @updatedAt
   archivedAt      DateTime?
 
-  contacts        DnxPartnerContact[]
-  participations  DnxPartnerParticipation[]
-  benefits        DnxPartnerBenefit[]
-  auditEvents     DnxPartnerAuditEvent[]
+  contacts               DnxPartnerContact[]
+  participations         DnxPartnerParticipation[]
+  benefits               DnxPartnerBenefit[]
+  auditEvents            DnxPartnerAuditEvent[]
+  outboundLinks          DnxPartnerOutboundLink[]
+  clickEvents            DnxPartnerClickEvent[]
+  brandAssets            DnxPartnerAsset[]
+  onboardingInvitations  DnxPartnerOnboardingInvitation[]
 
   @@index([status, updatedAt])
   @@index([type, status])
@@ -12981,23 +13018,73 @@ model DnxPartner {
 }
 
 model DnxPartnerContact {
-  id          String   @id @default(cuid())
-  partnerId   String
-  firstName   String
-  lastName    String?
-  roleTitle   String?
-  email       String?
-  phone       String?
-  whatsapp    String?
-  isPrimary   Boolean  @default(false)
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  archivedAt  DateTime?
+  id            String   @id @default(cuid())
+  partnerId     String
+  firstName     String
+  lastName      String?
+  roleTitle     String?
+  email         String?
+  phone         String?
+  whatsapp      String?
+  /// Default false: contacto privado salvo opt-in explícito.
+  emailIsPublic Boolean  @default(false)
+  phoneIsPublic Boolean  @default(false)
+  isPrimary     Boolean  @default(false)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  archivedAt    DateTime?
 
   partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([partnerId, isPrimary])
+}
+
+enum DnxPartnerOnboardingInvitationStatus {
+  PENDING
+  OPENED
+  SUBMITTED
+  EXPIRED
+  REVOKED
+}
+
+enum DnxPartnerOnboardingReviewStatus {
+  NONE
+  PENDING_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+}
+
+/// Invitación pública con token hasheado (nunca plaintext) para completar ficha.
+model DnxPartnerOnboardingInvitation {
+  id               String                              @id @default(cuid())
+  partnerId        String
+  participationId  String?
+  /// SHA-256 del token público. El plaintext solo se muestra una vez al crear.
+  tokenHash        String                              @unique
+  status           DnxPartnerOnboardingInvitationStatus @default(PENDING)
+  reviewStatus     DnxPartnerOnboardingReviewStatus     @default(NONE)
+  expiresAt        DateTime
+  openedAt         DateTime?
+  submittedAt      DateTime?
+  revokedAt        DateTime?
+  reviewNotes      String?
+  draftJson        Json?
+  submissionJson   Json?
+  createdByUserId  Int?
+  reviewedByUserId Int?
+  reviewedAt       DateTime?
+  createdAt        DateTime                            @default(now())
+  updatedAt        DateTime                            @updatedAt
+
+  partner       DnxPartner              @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  participation DnxPartnerParticipation? @relation(fields: [participationId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId, status])
+  @@index([participationId])
+  @@index([expiresAt])
+  @@index([reviewStatus])
 }
 
 model DnxPartnerParticipation {
@@ -13009,6 +13096,20 @@ model DnxPartnerParticipation {
   contextType        DnxPartnerContextType          @default(GLOBAL)
   contextId          String?
   participationType  DnxPartnerParticipationType    @default(SPONSOR)
+  /// Rol institucional contextual (Organizador, Sponsor, Colaborador, …).
+  institutionalRole  DnxPartnerInstitutionalRole    @default(SPONSOR)
+  /// Jerarquía visual (tamaño/grupo), independiente del rol.
+  displayTier        DnxPartnerDisplayTier          @default(STANDARD)
+  /// Orden manual dentro del grupo (menor = primero).
+  displayOrder       Int                            @default(100)
+  /// Label público opcional (sin HTML). Fallback al label del enum.
+  publicRoleLabel    String?                        @db.VarChar(120)
+  /// Destino de click de esta participación (prioridad sobre partner.websiteUrl).
+  destinationUrl     String?
+  /// Si true y hay destino válido, se genera/usa outbound link trackeable.
+  clickTrackingEnabled Boolean                      @default(true)
+  /// Gate de landing: CONFIRMED + PUBLIC (+ logo cuando aplique). Default HIDDEN.
+  publicVisibility   DnxPartnerPublicVisibility     @default(HIDDEN)
   title              String?
   description        String?
   status             DnxPartnerParticipationStatus  @default(DRAFT)
@@ -13029,14 +13130,317 @@ model DnxPartnerParticipation {
   updatedAt          DateTime                       @updatedAt
   archivedAt         DateTime?
 
-  partner       DnxPartner                 @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-  contributions DnxPartnerContribution[]
-  benefits      DnxPartnerBenefit[]
+  partner                DnxPartner                         @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  contributions          DnxPartnerContribution[]
+  benefits               DnxPartnerBenefit[]
+  outboundLinks          DnxPartnerOutboundLink[]
+  materials              DnxPartnerParticipationAsset[]
+  onboardingInvitations  DnxPartnerOnboardingInvitation[]
 
   @@index([partnerId, status])
   @@index([application, status])
   @@index([contextType, contextId])
   @@index([organizationId])
+  @@index([publicVisibility])
+  @@index([application, contextType, contextId, publicVisibility, status])
+  @@index([application, contextType, contextId, institutionalRole, displayOrder], map: "DnxPartnerParticipation_context_role_order_idx")
+}
+
+enum DnxPartnerPublicVisibility {
+  HIDDEN
+  PUBLIC
+}
+
+enum DnxPartnerBrandAssetType {
+  LOGO_GENERAL
+  LOGO_PRIMARY
+  LOGO_HORIZONTAL
+  LOGO_VERTICAL
+  LOGO_LIGHT
+  LOGO_DARK
+  LOGO_MONOCHROME
+  ISOTYPE
+  ICON
+  BRAND_GUIDELINES
+  BRAND_PHOTO
+  DOCUMENT
+  OTHER
+}
+
+enum DnxPartnerAssetBackground {
+  TRANSPARENT
+  LIGHT
+  DARK
+  COLOR
+  UNKNOWN
+}
+
+enum DnxPartnerAssetStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum DnxPartnerAssetApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum DnxPartnerMaterialChannel {
+  WEB
+  MOBILE
+  INSTAGRAM_POST
+  INSTAGRAM_STORY
+  INSTAGRAM_REEL
+  FACEBOOK_POST
+  FACEBOOK_STORY
+  LINKEDIN_POST
+  EMAIL
+  NEWSLETTER
+  PUSH_NOTIFICATION
+  DIGITAL_SCREEN
+  PRINT
+  CREDENTIAL
+  EVENT_SIGNAGE
+  STORE
+  OTHER
+}
+
+enum DnxPartnerMaterialType {
+  LOGO
+  IMAGE
+  VIDEO
+  BANNER
+  COVER
+  THUMBNAIL
+  POST
+  STORY
+  REEL
+  FLYER
+  COUPON
+  VOUCHER
+  PRODUCT_IMAGE
+  PRIZE_IMAGE
+  BENEFIT_IMAGE
+  DOCUMENT
+  AUDIO
+  OTHER
+}
+
+enum DnxPartnerMaterialPurpose {
+  BRANDING
+  SPONSOR_VISIBILITY
+  BENEFIT_PROMOTION
+  PRIZE_PROMOTION
+  EVENT_PROMOTION
+  SOCIAL_PUBLICATION
+  EMAIL_CONTENT
+  WEBSITE_CONTENT
+  PRINT_CONTENT
+  INTERNAL_REFERENCE
+  OTHER
+}
+
+enum DnxPartnerAssetOrientation {
+  SQUARE
+  PORTRAIT
+  LANDSCAPE
+  VERTICAL
+  HORIZONTAL
+  FREE
+  UNKNOWN
+}
+
+enum DnxPartnerStorageProvider {
+  R2
+  LOCAL
+  INLINE
+  EXTERNAL
+}
+
+/// Identidad de marca permanente del partner (logos, isotipo, manual).
+model DnxPartnerAsset {
+  id               String                         @id @default(cuid())
+  partnerId        String
+  type             DnxPartnerBrandAssetType
+  name             String
+  description      String?
+  storageProvider  DnxPartnerStorageProvider      @default(R2)
+  storageKey       String?
+  fileUrl          String?
+  mediaAssetId     String?
+  originalFilename String?
+  mimeType         String?
+  fileExtension    String?
+  fileSize         Int?
+  width            Int?
+  height           Int?
+  durationSeconds  Float?
+  aspectRatio      String?
+  backgroundType   DnxPartnerAssetBackground      @default(UNKNOWN)
+  isPrimary        Boolean                        @default(false)
+  status           DnxPartnerAssetStatus          @default(DRAFT)
+  approvalStatus   DnxPartnerAssetApprovalStatus  @default(PENDING)
+  altText          String?
+  notes            String?
+  metadata         Json?
+  uploadedById     Int?
+  approvedById     Int?
+  approvedAt       DateTime?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+  archivedAt       DateTime?
+
+  partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, type])
+  @@index([partnerId, status, approvalStatus])
+  @@index([partnerId, isPrimary])
+  @@index([status, approvalStatus])
+  @@index([archivedAt])
+}
+
+/// Materiales de una participación concreta (canal/edición/beneficio).
+model DnxPartnerParticipationAsset {
+  id               String                         @id @default(cuid())
+  participationId  String
+  benefitId        String?
+  contributionId   String?
+  prizeBundleId    String?
+  application      DnxPartnerApplication          @default(CLICKATON)
+  channel          DnxPartnerMaterialChannel      @default(WEB)
+  assetType        DnxPartnerMaterialType         @default(IMAGE)
+  purpose          DnxPartnerMaterialPurpose      @default(SPONSOR_VISIBILITY)
+  name             String
+  description      String?
+  storageProvider  DnxPartnerStorageProvider      @default(R2)
+  storageKey       String?
+  fileUrl          String?
+  mediaAssetId     String?
+  originalFilename String?
+  mimeType         String?
+  fileExtension    String?
+  fileSize         Int?
+  width            Int?
+  height           Int?
+  durationSeconds  Float?
+  aspectRatio      String?
+  orientation      DnxPartnerAssetOrientation     @default(UNKNOWN)
+  status           DnxPartnerAssetStatus          @default(DRAFT)
+  approvalStatus   DnxPartnerAssetApprovalStatus  @default(PENDING)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  altText          String?
+  caption          String?
+  ctaText          String?
+  ctaUrl           String?
+  sortOrder        Int                            @default(100)
+  metadata         Json?
+  uploadedById     Int?
+  approvedById     Int?
+  approvedAt       DateTime?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+  archivedAt       DateTime?
+
+  participation DnxPartnerParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@index([participationId, status])
+  @@index([application, channel])
+  @@index([approvalStatus, status])
+  @@index([archivedAt])
+}
+
+enum DnxPartnerOutboundLinkStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum DnxPartnerPlacement {
+  LOGO
+  PARTNER_NAME
+  SPONSOR_SECTION
+  ORGANIZER_SECTION
+  PRIZE
+  BENEFIT
+  CTA
+  ASSET
+  BANNER
+  ARTICLE
+  OTHER
+}
+
+enum DnxPartnerDeviceClass {
+  MOBILE
+  TABLET
+  DESKTOP
+  OTHER
+}
+
+/// Enlace outbound trackeable (logo/CTA/asset). Una sola entidad multiplataforma.
+model DnxPartnerOutboundLink {
+  id              String                       @id @default(cuid())
+  trackingKey     String                       @unique @db.VarChar(80)
+  partnerId       String
+  participationId String?
+  application     DnxPartnerApplication
+  contextType     DnxPartnerContextType        @default(GLOBAL)
+  contextId       String?
+  assetId         String?
+  placement       DnxPartnerPlacement          @default(LOGO)
+  destinationUrl  String
+  utmSource       String?                      @db.VarChar(80)
+  utmMedium       String?                      @db.VarChar(80)
+  utmCampaign     String?                      @db.VarChar(160)
+  utmContent      String?                      @db.VarChar(160)
+  status          DnxPartnerOutboundLinkStatus @default(ACTIVE)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  archivedAt      DateTime?
+
+  partner       DnxPartner              @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  participation DnxPartnerParticipation? @relation(fields: [participationId], references: [id], onDelete: SetNull)
+  clickEvents   DnxPartnerClickEvent[]
+
+  @@index([partnerId])
+  @@index([participationId])
+  @@index([application, contextId])
+  @@index([status])
+}
+
+/// Evento de click outbound. Privacy-first: sin IP, sin UA crudo, sin PII.
+model DnxPartnerClickEvent {
+  id              String                 @id @default(cuid())
+  outboundLinkId  String
+  partnerId       String
+  participationId String?
+  application     DnxPartnerApplication
+  contextType     DnxPartnerContextType  @default(GLOBAL)
+  contextId       String?
+  assetId         String?
+  placement       DnxPartnerPlacement    @default(LOGO)
+  occurredAt      DateTime               @default(now())
+  referrerHost    String?                @db.VarChar(255)
+  deviceClass     DnxPartnerDeviceClass  @default(OTHER)
+  browserFamily   String?                @db.VarChar(40)
+  countryCode     String?                @db.VarChar(2)
+  metadata        Json?
+
+  outboundLink DnxPartnerOutboundLink @relation(fields: [outboundLinkId], references: [id], onDelete: Cascade)
+  partner      DnxPartner             @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  @@index([outboundLinkId])
+  @@index([partnerId])
+  @@index([participationId])
+  @@index([application])
+  @@index([contextId])
+  @@index([occurredAt])
+  @@index([partnerId, occurredAt])
 }
 
 model DnxPartnerContribution {
@@ -13171,25 +13575,61 @@ model DnxPartnerAuditEvent {
 enum DnxPartnerBenefitAccessStatus {
   ACTIVE
   REVOKED
+  EXPIRED
+  PENDING_IDENTITY
+  SKIPPED
 }
 
-/// Acceso manual a un beneficio (cortesía / excepción).
+enum DnxPartnerBenefitAccessSource {
+  MANUAL
+  AUTOMATIC
+}
+
+/// Acceso materializado a un beneficio (manual o automático por elegibilidad).
 /// Distinto de DnxPartnerGrant (= capabilities RBAC del módulo partners).
 model DnxPartnerBenefitAccess {
-  id              String                        @id @default(cuid())
+  id              String                         @id @default(cuid())
+  accessKey       String                         @unique
   benefitId       String
-  userId          Int
-  status          DnxPartnerBenefitAccessStatus @default(ACTIVE)
-  reason          String?                       @default("MANUAL")
+  userId          Int?
+  status          DnxPartnerBenefitAccessStatus  @default(ACTIVE)
+  source          DnxPartnerBenefitAccessSource  @default(MANUAL)
+  sourceType      String?
+  sourceId        String?
+  reasonCode      String?
+  reason          String?                        @default("MANUAL")
   notes           String?
   grantedByUserId Int?
+  revokedByUserId Int?
+  grantedAt       DateTime                       @default(now())
   revokedAt       DateTime?
-  createdAt       DateTime                      @default(now())
-  updatedAt       DateTime                      @updatedAt
+  metadata        Json?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
 
   benefit DnxPartnerBenefit @relation(fields: [benefitId], references: [id], onDelete: Cascade)
 
-  @@unique([benefitId, userId])
   @@index([userId, status])
   @@index([benefitId, status])
+  @@index([benefitId, source, status])
+  @@index([sourceType, sourceId])
+}
+
+/// Auditoría de sync de elegibilidad → accesos (Stage 02 Imp 02).
+model DnxPartnerBenefitSyncRun {
+  id           String    @id @default(cuid())
+  benefitId    String?
+  editionId    String?
+  mode         String
+  status       String
+  actorUserId  Int?
+  summaryJson  Json?
+  errorSummary String?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([benefitId, status, startedAt])
+  @@index([editionId, status, startedAt])
 }
