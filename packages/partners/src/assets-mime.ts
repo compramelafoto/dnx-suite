@@ -80,14 +80,13 @@ export function detectPartnerFileMime(
 }
 
 export function assertSafeStorageFilename(filename: string): string {
-  const base = filename.split(/[/\\]/).pop() ?? "file";
-  if (base.includes("..") || base.includes("\0")) {
-    throw new PartnersDomainError("VALIDATION", "Nombre de archivo inválido.", {
-      originalFilename: "Path traversal no permitido.",
-    });
-  }
-  const safe = base.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
-  if (!safe || safe === "." || safe === "..") {
+  // Solo el basename: quita path traversal real (`../x.png` → `x.png`).
+  // No rechazar ".." dentro del nombre (p. ej. `logo..png` / exports de diseño).
+  const base = (filename.split(/[/\\]/).pop() ?? "file").replace(/\0/g, "");
+  let safe = base.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+  // Colapsar puntos repetidos tras sanitizar (evita `logo..png` y `....`).
+  safe = safe.replace(/\.{2,}/g, ".");
+  if (!safe || safe === "." || /^\.+$/.test(safe)) {
     throw new PartnersDomainError("VALIDATION", "Nombre de archivo inválido.", {
       originalFilename: "Nombre vacío o inválido.",
     });

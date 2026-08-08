@@ -90,9 +90,14 @@ export async function POST(request: Request, { params }: Params) {
       const svc = getClickatonPartnersService();
       const { partnerId } = await svc.resolvePartnerIdForOnboardingToken(token.trim());
 
-      const safeName = assertSafeStorageFilename(
-        file.name || `logo.${detected.extension}`,
-      );
+      let safeName: string;
+      try {
+        safeName = assertSafeStorageFilename(
+          file.name?.trim() || `logo.${detected.extension}`,
+        );
+      } catch {
+        safeName = `logo.${detected.extension}`;
+      }
       const storage = getPartnerAssetStorage();
       let stored;
       try {

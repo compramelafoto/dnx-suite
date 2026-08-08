@@ -116,7 +116,16 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "invalid_file", message }, { status: 400 });
     }
 
-    const safeName = assertSafeStorageFilename(file.name || `logo.${detected.extension}`);
+    // Storage key ya usa UUID; el nombre original es solo metadata.
+    // Si el cliente manda nombre vacío/raro, no bloquear el upload.
+    let safeName: string;
+    try {
+      safeName = assertSafeStorageFilename(
+        file.name?.trim() || `logo.${detected.extension}`,
+      );
+    } catch {
+      safeName = `logo.${detected.extension}`;
+    }
     const storage = getPartnerAssetStorage();
     let stored;
     try {
