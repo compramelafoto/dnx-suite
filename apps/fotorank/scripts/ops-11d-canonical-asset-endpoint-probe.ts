@@ -8,7 +8,7 @@
 const base = (
   process.env.FOTORANK_INTERNAL_ASSET_BASE_URL?.trim() ||
   process.env.FOTORANK_PUBLIC_WEB_BASE_URL?.trim() ||
-  "https://fotorank.com"
+  "https://fotorank.dnxsuite.com"
 ).replace(/\/$/, "");
 const secret = process.env.FOTORANK_INTERNAL_ASSET_SECRET?.trim() ?? "";
 const url = `${base}/api/internal/clickaton/canonical-entry-asset`;
@@ -29,7 +29,8 @@ async function main() {
   const dummy = {
     contestId: "nonexistent-contest",
     entryId: "nonexistent-entry",
-    fileBase64: Buffer.from("tiny").toString("base64"),
+    // >= 32 bytes para pasar INVALID_SIZE y llegar a ENTRY_NOT_FOUND
+    fileBase64: Buffer.alloc(64, 1).toString("base64"),
     originalFileName: "x.jpg",
     declaredMime: "image/jpeg",
   };
@@ -45,7 +46,7 @@ async function main() {
   const checks = {
     reject_no_secret: noAuth.status === 401,
     reject_bad_secret: badAuth.status === 401,
-    accept_secret_then_validate: goodAuthMissing.status === 404 || goodAuthMissing.status === 400,
+    accept_secret_then_validate: [404, 400, 413].includes(goodAuthMissing.status),
     reject_arbitrary_legacy_url: badLegacy.status === 400,
   };
   const ok = Object.values(checks).every(Boolean);

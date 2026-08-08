@@ -40,7 +40,7 @@ export async function persistCanonicalAssetViaFotoRank(input: {
   const base = (
     process.env.FOTORANK_INTERNAL_ASSET_BASE_URL?.trim() ||
     process.env.FOTORANK_PUBLIC_WEB_BASE_URL?.trim() ||
-    "https://fotorank.com"
+    "https://fotorank.dnxsuite.com"
   ).replace(/\/$/, "");
   if (!secret || secret.length < 16) {
     throw new PhotoUploadError(
