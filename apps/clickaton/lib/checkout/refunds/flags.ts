@@ -13,19 +13,33 @@ function isTestRuntime(): boolean {
   return false;
 }
 
+/** Parser puro: ausencia / falsey → off (default productivo). */
+export function parseRefundAutoReconcileEnabled(value: string | undefined): boolean {
+  return envTruthy(value);
+}
+
+/** Parser puro: ausencia / falsey → off (default productivo). */
+export function parseRefundAutoReconcileWritesEnabled(value: string | undefined): boolean {
+  return envTruthy(value);
+}
+
 /**
  * Reconciliación automática de refunds (cron).
  * Tests: activa. Staging: evaluable. Producción: off hasta validación.
  */
 export function isRefundAutoReconcileEnabled(): boolean {
   if (isTestRuntime()) return true;
-  return envTruthy(process.env.DNX_CLICKATON_REFUND_AUTO_RECONCILE_ENABLED);
+  return parseRefundAutoReconcileEnabled(
+    process.env.DNX_CLICKATON_REFUND_AUTO_RECONCILE_ENABLED,
+  );
 }
 
 /** Escrituras reales del cron de refunds (sin esto → shadow/dry). */
 export function isRefundAutoReconcileWritesEnabled(): boolean {
   if (isTestRuntime()) return true;
-  return envTruthy(process.env.DNX_CLICKATON_REFUND_AUTO_RECONCILE_WRITES_ENABLED);
+  return parseRefundAutoReconcileWritesEnabled(
+    process.env.DNX_CLICKATON_REFUND_AUTO_RECONCILE_WRITES_ENABLED,
+  );
 }
 
 export type RefundReconcileMode = "disabled" | "shadow" | "apply";

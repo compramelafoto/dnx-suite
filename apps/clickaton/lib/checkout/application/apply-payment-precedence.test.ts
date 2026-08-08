@@ -63,6 +63,31 @@ function makePort(reg: ClickatonRegistrationRecord): CheckoutRegistrationPort & 
       current.paymentStatus = input.paymentStatus;
       return structuredClone(current);
     },
+    syncProviderPaymentId: async (input) => {
+      const local = current.providerPaymentId?.trim() ?? "";
+      const remote = input.providerPaymentId.trim();
+      if (!local) {
+        current.providerPaymentId = remote;
+        return {
+          outcome: "persisted" as const,
+          providerPaymentId: remote,
+          paymentStatus: current.paymentStatus,
+        };
+      }
+      if (local === remote) {
+        return {
+          outcome: "noop" as const,
+          providerPaymentId: local,
+          paymentStatus: current.paymentStatus,
+        };
+      }
+      current.paymentStatus = "MANUAL_REVIEW";
+      return {
+        outcome: "manual_review" as const,
+        providerPaymentId: local,
+        paymentStatus: "MANUAL_REVIEW" as const,
+      };
+    },
     releaseForPaymentTerminal: async () => current,
     expireRegistration: async () => ({ outcome: "ok" }),
     getHoldSnapshot: async () => ({ capacityHoldActive: false, stockHoldsActive: 0 }),

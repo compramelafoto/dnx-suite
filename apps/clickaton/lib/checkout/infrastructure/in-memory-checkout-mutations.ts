@@ -70,6 +70,10 @@ export function createInMemoryCheckoutMutations(
         requestId: input.requestId,
       });
       confirmed.cancelledAt = null;
+      const remotePid = input.providerPaymentId?.trim() ?? "";
+      if (!confirmed.providerPaymentId && /^\d+$/.test(remotePid)) {
+        confirmed.providerPaymentId = remotePid;
+      }
       store.domain.registrations.set(confirmed.id, confirmed);
 
       store.domain.audits.push({
@@ -79,6 +83,61 @@ export function createInMemoryCheckoutMutations(
         metadata: { paymentOrderId: input.paymentOrderId, requestId: input.requestId },
       });
       return confirmed;
+    },
+
+    async syncProviderPaymentId(input) {
+      const { decideProviderPaymentIdSync } = await import(
+        "@/lib/checkout/domain/sync-provider-payment-id"
+      );
+      const r = store.domain.registrations.get(input.registrationId);
+      if (!r) throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");
+      const decision = decideProviderPaymentIdSync({
+        localProviderPaymentId: r.providerPaymentId,
+        remoteProviderPaymentId: input.providerPaymentId,
+      });
+      if (decision.action === "noop") {
+        return {
+          outcome: "noop" as const,
+          providerPaymentId: r.providerPaymentId ?? null,
+          paymentStatus: r.paymentStatus,
+        };
+      }
+      if (decision.action === "manual_review") {
+        r.paymentStatus = "MANUAL_REVIEW";
+        store.domain.registrations.set(r.id, r);
+        store.domain.audits.push({
+          registrationId: r.id,
+          action: "PAYMENT_STATUS_UPDATED",
+          source: input.source,
+          metadata: {
+            reason: "provider_payment_id_conflict",
+            requestId: input.requestId,
+            local: decision.local,
+            remote: decision.remote,
+          },
+        });
+        return {
+          outcome: "manual_review" as const,
+          providerPaymentId: r.providerPaymentId ?? null,
+          paymentStatus: "MANUAL_REVIEW",
+        };
+      }
+      r.providerPaymentId = decision.providerPaymentId;
+      store.domain.registrations.set(r.id, r);
+      store.domain.audits.push({
+        registrationId: r.id,
+        action: "PROVIDER_PAYMENT_ID_BACKFILL",
+        source: input.source,
+        metadata: {
+          requestId: input.requestId,
+          providerPaymentId: decision.providerPaymentId,
+        },
+      });
+      return {
+        outcome: "persisted" as const,
+        providerPaymentId: decision.providerPaymentId,
+        paymentStatus: r.paymentStatus,
+      };
     },
 
     async markPaymentStatus(input) {

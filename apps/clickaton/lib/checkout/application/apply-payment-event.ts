@@ -92,6 +92,41 @@ export function createApplyPaymentEventUseCase(deps: {
         registration.paymentStatus === "APPROVED" &&
         order.status === "APPROVED"
       ) {
+        const remotePid =
+          (event.providerPaymentId ?? order.providerPaymentId)?.trim() || "";
+        if (/^\d+$/.test(remotePid)) {
+          const sync = await deps.registrationPort.syncProviderPaymentId({
+            registrationId: registration.id,
+            providerPaymentId: remotePid,
+            source: "dnx_payments_webhook",
+            requestId: event.eventId,
+          });
+          if (sync.outcome === "manual_review") {
+            return {
+              applied: false,
+              duplicate: false,
+              conflict: true,
+              conflictCode: "PAYMENT_CONFLICT",
+              registrationId: registration.id,
+              registrationStatus: registration.status,
+              paymentStatus: sync.paymentStatus,
+              holdsAction: "none",
+              orderStatus: order.status,
+            };
+          }
+          if (sync.outcome === "persisted") {
+            return {
+              applied: true,
+              duplicate: false,
+              conflict: false,
+              registrationId: registration.id,
+              registrationStatus: registration.status,
+              paymentStatus: registration.paymentStatus,
+              holdsAction: "none",
+              orderStatus: order.status,
+            };
+          }
+        }
         return {
           applied: false,
           duplicate: true,
@@ -289,6 +324,8 @@ export function createApplyPaymentEventUseCase(deps: {
           });
         }
 
+        const remoteProviderPaymentId =
+          (event.providerPaymentId ?? order.providerPaymentId)?.trim() || null;
         const confirmed = await deps.registrationPort.confirmPaid({
           registrationId: registration.id,
           paymentOrderId: order.id,
@@ -297,7 +334,32 @@ export function createApplyPaymentEventUseCase(deps: {
             : "dnx_payments_webhook",
           requestId: event.eventId,
           editionPrefix: prefix,
+          providerPaymentId: remoteProviderPaymentId,
         });
+
+        if (remoteProviderPaymentId && /^\d+$/.test(remoteProviderPaymentId)) {
+          const sync = await deps.registrationPort.syncProviderPaymentId({
+            registrationId: confirmed.id,
+            providerPaymentId: remoteProviderPaymentId,
+            source: lateApprovalRevive
+              ? "dnx_payments_webhook_late_approval"
+              : "dnx_payments_webhook",
+            requestId: event.eventId,
+          });
+          if (sync.outcome === "manual_review") {
+            return {
+              applied: false,
+              duplicate: false,
+              conflict: true,
+              conflictCode: "PAYMENT_CONFLICT",
+              registrationId: confirmed.id,
+              registrationStatus: confirmed.status,
+              paymentStatus: sync.paymentStatus,
+              holdsAction: "none",
+              orderStatus: order.status,
+            };
+          }
+        }
 
         // Settlement projection: marcar PAID; reconciliar fee si el evento la trae.
         try {

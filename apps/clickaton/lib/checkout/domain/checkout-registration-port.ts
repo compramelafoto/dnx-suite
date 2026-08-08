@@ -16,6 +16,21 @@ export type ConfirmPaidInput = {
   source: string;
   requestId: string;
   editionPrefix: string;
+  /** Id de pago MP a persistir si aún es null (idempotente). */
+  providerPaymentId?: string | null;
+};
+
+export type SyncProviderPaymentIdInput = {
+  registrationId: string;
+  providerPaymentId: string;
+  source: string;
+  requestId: string;
+};
+
+export type SyncProviderPaymentIdResult = {
+  outcome: "noop" | "persisted" | "manual_review";
+  providerPaymentId: string | null;
+  paymentStatus: ClickatonRegistrationRecord["paymentStatus"];
 };
 
 export type MarkPaymentStatusInput = {
@@ -52,6 +67,13 @@ export interface CheckoutRegistrationPort {
   confirmPaid(input: ConfirmPaidInput): Promise<ClickatonRegistrationRecord>;
   markPaymentStatus(input: MarkPaymentStatusInput): Promise<ClickatonRegistrationRecord>;
   /**
+   * Persiste providerPaymentId si es null; noop si igual; MANUAL_REVIEW si conflige.
+   * No sobrescribe un ID distinto en silencio.
+   */
+  syncProviderPaymentId(
+    input: SyncProviderPaymentIdInput,
+  ): Promise<SyncProviderPaymentIdResult>;
+  /**
    * Liberación por orden cancelada/expirada.
    * Misma mecánica de holds que 10D3F-B (ACTIVE→EXPIRED + reservedStock),
    * sin exigir que holdExpiresAt ya haya vencido.
@@ -80,6 +102,9 @@ export type CheckoutRegistrationMutations = {
   attachPaymentRefs(input: AttachPaymentRefsInput): Promise<ClickatonRegistrationRecord>;
   confirmPaid(input: ConfirmPaidInput): Promise<ClickatonRegistrationRecord>;
   markPaymentStatus(input: MarkPaymentStatusInput): Promise<ClickatonRegistrationRecord>;
+  syncProviderPaymentId(
+    input: SyncProviderPaymentIdInput,
+  ): Promise<SyncProviderPaymentIdResult>;
   releaseForPaymentTerminal(
     input: ReleaseForPaymentTerminalInput,
   ): Promise<ClickatonRegistrationRecord>;
@@ -96,6 +121,7 @@ export function createCheckoutRegistrationPort(
     attachPaymentRefs: (input) => mutations.attachPaymentRefs(input),
     confirmPaid: (input) => mutations.confirmPaid(input),
     markPaymentStatus: (input) => mutations.markPaymentStatus(input),
+    syncProviderPaymentId: (input) => mutations.syncProviderPaymentId(input),
     releaseForPaymentTerminal: (input) => mutations.releaseForPaymentTerminal(input),
     expireRegistration: (input) =>
       publicRepo.expireRegistration({ ...input, dryRun: false }),

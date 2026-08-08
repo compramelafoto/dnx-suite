@@ -3,6 +3,8 @@ import { afterEach, describe, it } from "node:test";
 import {
   isRefundAutoReconcileEnabled,
   isRefundAutoReconcileWritesEnabled,
+  parseRefundAutoReconcileEnabled,
+  parseRefundAutoReconcileWritesEnabled,
   resolveRefundReconcileMode,
 } from "./flags";
 
@@ -33,19 +35,24 @@ function setEnv(key: (typeof KEYS)[number], value: string | undefined) {
 }
 
 describe("refund reconcile flags", () => {
-  it("activa en NODE_ENV=test", () => {
+  it("activa en NODE_ENV=test / node:test", () => {
     assert.equal(isRefundAutoReconcileEnabled(), true);
     assert.equal(isRefundAutoReconcileWritesEnabled(), true);
     assert.equal(resolveRefundReconcileMode(), "apply");
   });
 
-  it("shadow cuando enable sin writes (fuera de test forzado)", () => {
-    setEnv("CLICKATON_TEST_MODE", undefined);
-    setEnv("VITEST", undefined);
-    // En test runner NODE_ENV suele ser test; validamos parsers truthy.
+  it("default productivo OFF cuando env ausente (parser puro)", () => {
+    assert.equal(parseRefundAutoReconcileEnabled(undefined), false);
+    assert.equal(parseRefundAutoReconcileWritesEnabled(undefined), false);
+    assert.equal(parseRefundAutoReconcileEnabled(""), false);
+    assert.equal(parseRefundAutoReconcileWritesEnabled("0"), false);
+    assert.equal(parseRefundAutoReconcileWritesEnabled("false"), false);
+  });
+
+  it("truthy explícito habilita writes", () => {
     setEnv("DNX_CLICKATON_REFUND_AUTO_RECONCILE_ENABLED", "true");
     setEnv("DNX_CLICKATON_REFUND_AUTO_RECONCILE_WRITES_ENABLED", "1");
-    assert.equal(isRefundAutoReconcileEnabled(), true);
-    assert.equal(isRefundAutoReconcileWritesEnabled(), true);
+    assert.equal(parseRefundAutoReconcileEnabled("true"), true);
+    assert.equal(parseRefundAutoReconcileWritesEnabled("1"), true);
   });
 });

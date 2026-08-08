@@ -101,7 +101,7 @@
     "payments:reconcile-approved": "tsx scripts/reconcile-approved.ts",
     "payments:inspect": "tsx scripts/inspect-payment.ts",
     "payments:audit": "tsx scripts/audit-payments.ts",
-    "test:refunds": "tsx --test lib/checkout/refunds/*.test.ts lib/checkout/application/apply-payment-refund.test.ts lib/checkout/application/apply-payment-precedence.test.ts lib/checkout/domain/payment-precedence.test.ts lib/admin-registration/ui/admin-refund-presentation.test.ts"
+    "test:refunds": "tsx --test lib/checkout/refunds/*.test.ts lib/checkout/application/apply-payment-refund.test.ts lib/checkout/application/apply-payment-precedence.test.ts lib/checkout/application/apply-provider-payment-id.test.ts lib/checkout/domain/payment-precedence.test.ts lib/checkout/domain/sync-provider-payment-id.test.ts lib/admin-registration/ui/admin-refund-presentation.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",

@@ -75,6 +75,10 @@ export type PaymentOrder = {
   attempt: number;
   /** Mercado Pago status_detail when available (Orders Brick path). */
   statusDetail?: string | null;
+  providerPaymentId?: string | null;
+  providerRefundIds?: string[];
+  refundedAmountMinor?: number | null;
+  netAmountMinor?: number | null;
   createdAt: Date;
   updatedAt: Date;
   approvedAt: Date | null;

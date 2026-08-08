@@ -332,6 +332,20 @@ export async function reconcileApprovedFromProviderPayment(input: {
     };
   }
 
+  if (changes.length === 1 && changes[0] === "already_in_sync") {
+    return {
+      registrationId,
+      paymentOrderId,
+      providerPaymentId,
+      previous,
+      detected,
+      recovery,
+      changes,
+      applied: false,
+      dryRun,
+    };
+  }
+
   if (dryRun) {
     return {
       registrationId,

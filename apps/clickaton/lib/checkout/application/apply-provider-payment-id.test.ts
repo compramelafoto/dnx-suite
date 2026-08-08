@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { mapDnxStatusToClickatonEffect, mapProviderStatusToDnx } from "../domain/mapping";
 import { createApplyPaymentEventUseCase } from "./apply-payment-event";
 import type { CheckoutRegistrationPort } from "../domain/checkout-registration-port";
 import type { DnxPaymentsClient } from "../infrastructure/dnx-payments-client";
@@ -17,6 +16,7 @@ function baseReg(
     ticketTypeId: "tt_1",
     status: "CONFIRMED",
     paymentStatus: "APPROVED",
+    holdExpiresAt: null,
     participant: {
       firstName: "A",
       lastName: "B",
@@ -25,74 +25,85 @@ function baseReg(
     },
     money: {
       currency: "ARS",
-      subtotalAmount: 100_000,
+      subtotalAmount: 2_500_000,
       discountAmount: 0,
-      totalAmount: 100_000,
+      totalAmount: 2_500_000,
     },
     items: [],
     paymentOrderId: "ord_1",
+    providerPaymentId: null,
     ...overrides,
   };
 }
 
 function makePort(reg: ClickatonRegistrationRecord): CheckoutRegistrationPort & {
-  marks: unknown[];
+  syncs: string[];
 } {
-  const marks: unknown[] = [];
   let current = structuredClone(reg);
+  const syncs: string[] = [];
   return {
-    marks,
+    syncs,
     getRegistration: async () => structuredClone(current),
     getEditionPrefix: async () => "AR",
     attachPaymentRefs: async () => current,
-    confirmPaid: async () => {
-      throw new Error("should_not_confirm_on_refund");
+    confirmPaid: async (input) => {
+      current = {
+        ...current,
+        status: "CONFIRMED",
+        paymentStatus: "APPROVED",
+        cancelledAt: null,
+        confirmedAt: new Date(),
+        providerPaymentId:
+          current.providerPaymentId ??
+          (input.providerPaymentId && /^\d+$/.test(input.providerPaymentId)
+            ? input.providerPaymentId
+            : current.providerPaymentId),
+      };
+      return structuredClone(current);
     },
     markPaymentStatus: async (input) => {
-      marks.push(input);
       if (input.registrationStatus) current.status = input.registrationStatus;
       current.paymentStatus = input.paymentStatus;
-      if (typeof input.refundedAmountMinor === "number") {
-        current.refundedAmountMinor = input.refundedAmountMinor;
-      }
-      if (input.providerPaymentId) current.providerPaymentId = input.providerPaymentId;
       return structuredClone(current);
     },
     syncProviderPaymentId: async (input) => {
-      if (!current.providerPaymentId) {
-        current.providerPaymentId = input.providerPaymentId;
+      syncs.push(input.providerPaymentId);
+      const local = current.providerPaymentId?.trim() ?? "";
+      const remote = input.providerPaymentId.trim();
+      if (!local) {
+        current.providerPaymentId = remote;
         return {
           outcome: "persisted" as const,
-          providerPaymentId: input.providerPaymentId,
+          providerPaymentId: remote,
           paymentStatus: current.paymentStatus,
         };
       }
-      if (current.providerPaymentId === input.providerPaymentId) {
+      if (local === remote) {
         return {
           outcome: "noop" as const,
-          providerPaymentId: current.providerPaymentId,
+          providerPaymentId: local,
           paymentStatus: current.paymentStatus,
         };
       }
       current.paymentStatus = "MANUAL_REVIEW";
       return {
         outcome: "manual_review" as const,
-        providerPaymentId: current.providerPaymentId,
+        providerPaymentId: local,
         paymentStatus: "MANUAL_REVIEW" as const,
       };
     },
     releaseForPaymentTerminal: async () => current,
     expireRegistration: async () => ({ outcome: "ok" }),
-    getHoldSnapshot: async () => ({ capacityHoldActive: false, stockHoldsActive: 0 }),
+    getHoldSnapshot: async () => ({ capacityHoldActive: true, stockHoldsActive: 0 }),
   };
 }
 
-function makePayments(orderStatus: PaymentOrder["status"]): DnxPaymentsClient {
+function makePayments(status: PaymentOrder["status"]): DnxPaymentsClient {
   const order: PaymentOrder = {
     id: "ord_1",
     provider: "mercadopago_preferences_legacy",
-    status: orderStatus,
-    amountMinor: 100_000,
+    status,
+    amountMinor: 2_500_000,
     currency: "ARS",
     externalReference: "clickaton:reg_1",
     checkoutUrl: null,
@@ -102,6 +113,7 @@ function makePayments(orderStatus: PaymentOrder["status"]): DnxPaymentsClient {
     idempotencyKey: "k",
     payloadHash: "h",
     attempt: 1,
+    providerPaymentId: "171556178494",
     createdAt: new Date(),
     updatedAt: new Date(),
     approvedAt: new Date(),
@@ -117,114 +129,73 @@ function makePayments(orderStatus: PaymentOrder["status"]): DnxPaymentsClient {
   };
 }
 
-describe("apply payment refund effects", () => {
-  it("mapea PARTIALLY_REFUNDED sin cancelar inscripción", () => {
-    assert.equal(mapProviderStatusToDnx("PARTIALLY_REFUNDED"), "PARTIALLY_REFUNDED");
-    const effect = mapDnxStatusToClickatonEffect("PARTIALLY_REFUNDED");
-    assert.equal(effect.registrationStatus, "CONFIRMED");
-    assert.equal(effect.paymentStatus, "PARTIALLY_REFUNDED");
-  });
-
-  it("reembolso total marca REFUNDED", async () => {
-    const port = makePort(baseReg());
+describe("providerPaymentId sync on APPROVED", () => {
+  it("null local → backfill (applied)", async () => {
+    const port = makePort(baseReg({ providerPaymentId: null }));
     const uc = createApplyPaymentEventUseCase({
-      payments: makePayments("REFUNDED"),
+      payments: makePayments("APPROVED"),
       registrationPort: port,
     });
     const result = await uc.execute({
-      eventId: "evt_refund_1",
+      eventId: "evt_backfill",
       orderId: "ord_1",
-      status: "REFUNDED",
-      amountMinor: 100_000,
+      status: "APPROVED",
+      amountMinor: 2_500_000,
       currency: "ARS",
       provider: "mp",
       externalReference: "clickaton:reg_1",
       sourceId: "reg_1",
       receivedAt: new Date(),
-      refundedAmountMinor: 100_000,
-      providerPaymentId: "999",
-      providerRefundIds: ["r1"],
+      providerPaymentId: "171556178494",
     });
     assert.equal(result.applied, true);
-    assert.equal(result.registrationStatus, "REFUNDED");
-    assert.equal(result.paymentStatus, "REFUNDED");
-    assert.equal((port.marks[0] as { refundedAmountMinor?: number }).refundedAmountMinor, 100_000);
+    assert.equal(result.duplicate, false);
+    assert.deepEqual(port.syncs, ["171556178494"]);
+    const reg = await port.getRegistration("reg_1");
+    assert.equal(reg?.providerPaymentId, "171556178494");
   });
 
-  it("reembolso parcial", async () => {
-    const port = makePort(baseReg());
+  it("mismo ID → noop duplicate", async () => {
+    const port = makePort(baseReg({ providerPaymentId: "171556178494" }));
     const uc = createApplyPaymentEventUseCase({
-      payments: makePayments("PARTIALLY_REFUNDED"),
+      payments: makePayments("APPROVED"),
       registrationPort: port,
     });
     const result = await uc.execute({
-      eventId: "evt_refund_p",
+      eventId: "evt_same",
       orderId: "ord_1",
-      status: "PARTIALLY_REFUNDED",
-      amountMinor: 100_000,
+      status: "APPROVED",
+      amountMinor: 2_500_000,
       currency: "ARS",
       provider: "mp",
       externalReference: "clickaton:reg_1",
       sourceId: "reg_1",
       receivedAt: new Date(),
-      refundedAmountMinor: 40_000,
-      providerPaymentId: "999",
-      providerRefundIds: ["r1"],
+      providerPaymentId: "171556178494",
     });
-    assert.equal(result.applied, true);
-    assert.equal(result.registrationStatus, "CONFIRMED");
-    assert.equal(result.paymentStatus, "PARTIALLY_REFUNDED");
-  });
-
-  it("webhook duplicado no vuelve a mutar", async () => {
-    const port = makePort(
-      baseReg({
-        status: "REFUNDED",
-        paymentStatus: "REFUNDED",
-        refundedAmountMinor: 100_000,
-      }),
-    );
-    const uc = createApplyPaymentEventUseCase({
-      payments: makePayments("REFUNDED"),
-      registrationPort: port,
-    });
-    const result = await uc.execute({
-      eventId: "evt_dup",
-      orderId: "ord_1",
-      status: "REFUNDED",
-      amountMinor: 100_000,
-      currency: "ARS",
-      provider: "mp",
-      externalReference: "clickaton:reg_1",
-      sourceId: "reg_1",
-      receivedAt: new Date(),
-      refundedAmountMinor: 100_000,
-    });
+    assert.equal(result.applied, false);
     assert.equal(result.duplicate, true);
-    assert.equal(port.marks.length, 0);
   });
 
-  it("inscripción inexistente", async () => {
-    const port = makePort(baseReg());
-    port.getRegistration = async () => null;
+  it("ID distinto → MANUAL_REVIEW", async () => {
+    const port = makePort(baseReg({ providerPaymentId: "111" }));
     const uc = createApplyPaymentEventUseCase({
-      payments: makePayments("REFUNDED"),
+      payments: makePayments("APPROVED"),
       registrationPort: port,
     });
-    await assert.rejects(
-      () =>
-        uc.execute({
-          eventId: "evt_missing",
-          orderId: "ord_1",
-          status: "REFUNDED",
-          amountMinor: 100_000,
-          currency: "ARS",
-          provider: "mp",
-          externalReference: "x",
-          sourceId: "missing",
-          receivedAt: new Date(),
-        }),
-      /no encontrada/i,
-    );
+    const result = await uc.execute({
+      eventId: "evt_conflict",
+      orderId: "ord_1",
+      status: "APPROVED",
+      amountMinor: 2_500_000,
+      currency: "ARS",
+      provider: "mp",
+      externalReference: "clickaton:reg_1",
+      sourceId: "reg_1",
+      receivedAt: new Date(),
+      providerPaymentId: "222",
+    });
+    assert.equal(result.conflict, true);
+    assert.equal(result.paymentStatus, "MANUAL_REVIEW");
   });
 });

@@ -26,10 +26,53 @@ export type ReconcileRefundPlan = {
     providerRefundIds: string[];
   } | null;
   changes: string[];
+  /** Semántica operativa: ALREADY_IN_SYNC nunca escribe. */
+  result:
+    | "ALREADY_IN_SYNC"
+    | "PLANNED"
+    | "APPLIED"
+    | "NOT_APPLIED"
+    | "ERROR"
+    | "DRY_RUN";
   applied: boolean;
+  wrote: boolean;
+  changedRecords: number;
   dryRun: boolean;
   error?: string;
 };
+
+const EMPTY_PREVIOUS: ReconcileRefundPlan["previous"] = {
+  registrationStatus: null,
+  paymentStatus: null,
+  orderStatus: null,
+  refundedAmountMinor: null,
+};
+
+function errorPlan(
+  partial: Pick<ReconcileRefundPlan, "registrationId" | "providerPaymentId"> & {
+    paymentOrderId?: string | null;
+    previous?: ReconcileRefundPlan["previous"];
+    detected?: ReconcileRefundPlan["detected"];
+    changes?: string[];
+    dryRun: boolean;
+    error: string;
+  },
+): ReconcileRefundPlan {
+  return {
+    registrationId: partial.registrationId,
+    paymentOrderId: partial.paymentOrderId ?? null,
+    providerPaymentId: partial.providerPaymentId,
+    previous: partial.previous ?? EMPTY_PREVIOUS,
+    detected: partial.detected ?? null,
+    changes: partial.changes ?? [],
+    result: "ERROR",
+    applied: false,
+    wrote: false,
+    changedRecords: 0,
+    dryRun: partial.dryRun,
+    error: partial.error,
+  };
+}
 
 async function resolveProviderPaymentId(input: {
   providerPaymentId?: string;
@@ -90,7 +133,7 @@ function refundKind(status: string): "none" | "partial" | "total" {
   return "none";
 }
 
-function plannedChanges(input: {
+export function plannedRefundChanges(input: {
   previous: ReconcileRefundPlan["previous"];
   detectedStatus: string;
   detectedRefunded: number;
@@ -137,106 +180,56 @@ export async function reconcileRefundFromProviderPayment(input: {
   const dryRun = input.dryRun !== false;
   const resolved = await resolveProviderPaymentId(input);
   if (resolved.error) {
-    return {
+    return errorPlan({
       registrationId: resolved.registrationId,
-      paymentOrderId: null,
       providerPaymentId: resolved.providerPaymentId,
-      previous: {
-        registrationStatus: null,
-        paymentStatus: null,
-        orderStatus: null,
-        refundedAmountMinor: null,
-      },
-      detected: null,
-      changes: [],
-      applied: false,
       dryRun,
       error: resolved.error,
-    };
+    });
   }
 
   const ops = await getDurablePaymentsClientForOps();
   if (!ops.ok) {
-    return {
+    return errorPlan({
       registrationId: resolved.registrationId,
-      paymentOrderId: null,
       providerPaymentId: resolved.providerPaymentId,
-      previous: {
-        registrationStatus: null,
-        paymentStatus: null,
-        orderStatus: null,
-        refundedAmountMinor: null,
-      },
-      detected: null,
-      changes: [],
-      applied: false,
       dryRun,
       error: ops.error,
-    };
+    });
   }
 
   const svc = ops.client.service;
   if (!svc.peekProviderPayment) {
-    return {
+    return errorPlan({
       registrationId: resolved.registrationId,
-      paymentOrderId: null,
       providerPaymentId: resolved.providerPaymentId,
-      previous: {
-        registrationStatus: null,
-        paymentStatus: null,
-        orderStatus: null,
-        refundedAmountMinor: null,
-      },
-      detected: null,
-      changes: [],
-      applied: false,
       dryRun,
       error: "peek_provider_payment_unavailable",
-    };
+    });
   }
 
   let payment;
   try {
     payment = await svc.peekProviderPayment(resolved.providerPaymentId);
   } catch (err) {
-    return {
+    return errorPlan({
       registrationId: resolved.registrationId,
-      paymentOrderId: null,
       providerPaymentId: resolved.providerPaymentId,
-      previous: {
-        registrationStatus: null,
-        paymentStatus: null,
-        orderStatus: null,
-        refundedAmountMinor: null,
-      },
-      detected: null,
-      changes: [],
-      applied: false,
       dryRun,
       error:
         err instanceof Error && /tempor|timeout|5\d\d|ECONN/i.test(err.message)
           ? "provider_temporary_error"
           : "provider_fetch_failed",
-    };
+    });
   }
 
   if (!payment) {
-    return {
+    return errorPlan({
       registrationId: resolved.registrationId,
-      paymentOrderId: null,
       providerPaymentId: resolved.providerPaymentId,
-      previous: {
-        registrationStatus: null,
-        paymentStatus: null,
-        orderStatus: null,
-        refundedAmountMinor: null,
-      },
-      detected: null,
-      changes: [],
-      applied: false,
       dryRun,
       error: "payment_not_found",
-    };
+    });
   }
 
   let registrationId = resolved.registrationId;
@@ -259,12 +252,7 @@ export async function reconcileRefundFromProviderPayment(input: {
     }
   }
 
-  const previous = {
-    registrationStatus: null as string | null,
-    paymentStatus: null as string | null,
-    orderStatus: null as string | null,
-    refundedAmountMinor: null as number | null,
-  };
+  const previous = { ...EMPTY_PREVIOUS };
 
   if (registrationId) {
     const reg = await prisma.clickatonRegistration.findUnique({
@@ -277,17 +265,14 @@ export async function reconcileRefundFromProviderPayment(input: {
       },
     });
     if (!reg) {
-      return {
+      return errorPlan({
         registrationId,
         paymentOrderId,
         providerPaymentId: resolved.providerPaymentId,
         previous,
-        detected: null,
-        changes: [],
-        applied: false,
         dryRun,
         error: "registration_not_found",
-      };
+      });
     }
     previous.registrationStatus = reg.status;
     previous.paymentStatus = reg.paymentStatus;
@@ -308,11 +293,29 @@ export async function reconcileRefundFromProviderPayment(input: {
     providerRefundIds: payment.providerRefundIds ?? [],
   };
 
-  const changes = plannedChanges({
+  const changes = plannedRefundChanges({
     previous,
     detectedStatus: detected.status,
     detectedRefunded: detected.refundedAmountMinor,
   });
+
+  const alreadyInSync = changes.length === 1 && changes[0] === "already_in_sync";
+
+  if (alreadyInSync) {
+    return {
+      registrationId,
+      paymentOrderId,
+      providerPaymentId: resolved.providerPaymentId,
+      previous,
+      detected,
+      changes,
+      result: "ALREADY_IN_SYNC",
+      applied: false,
+      wrote: false,
+      changedRecords: 0,
+      dryRun,
+    };
+  }
 
   if (dryRun) {
     return {
@@ -322,12 +325,15 @@ export async function reconcileRefundFromProviderPayment(input: {
       previous,
       detected,
       changes,
+      result: "DRY_RUN",
       applied: false,
+      wrote: false,
+      changedRecords: 0,
       dryRun: true,
     };
   }
 
-  // APPLY
+  // APPLY — solo si hay cambios reales pendientes
   const eventId = `recon_refund_${resolved.providerPaymentId}_${detected.refundedAmountMinor}`;
   const apply = await svc.applyProviderPaymentNotification({
     providerPaymentId: resolved.providerPaymentId,
@@ -337,17 +343,16 @@ export async function reconcileRefundFromProviderPayment(input: {
   });
 
   if (apply.outcome === "not_found" || !apply.order) {
-    return {
+    return errorPlan({
       registrationId,
       paymentOrderId,
       providerPaymentId: resolved.providerPaymentId,
       previous,
       detected,
       changes,
-      applied: false,
       dryRun: false,
       error: "order_not_found_for_payment",
-    };
+    });
   }
 
   const order = apply.order;
@@ -379,6 +384,26 @@ export async function reconcileRefundFromProviderPayment(input: {
     statusDetail: order.statusDetail ?? payment.statusDetail ?? null,
   });
 
+  // duplicate en applyEffects tras short-circuit local = no escritura efectiva
+  if (effect.duplicate && !effect.applied) {
+    return {
+      registrationId: effect.registrationId,
+      paymentOrderId: order.id,
+      providerPaymentId: resolved.providerPaymentId,
+      previous,
+      detected: {
+        ...detected,
+        status: order.status,
+      },
+      changes: ["already_in_sync", "duplicate_noop"],
+      result: "ALREADY_IN_SYNC",
+      applied: false,
+      wrote: false,
+      changedRecords: 0,
+      dryRun: false,
+    };
+  }
+
   return {
     registrationId: effect.registrationId,
     paymentOrderId: order.id,
@@ -393,10 +418,11 @@ export async function reconcileRefundFromProviderPayment(input: {
           ...changes,
           `applied registration=${effect.registrationStatus} payment=${effect.paymentStatus}`,
         ]
-      : effect.duplicate
-        ? [...changes, "duplicate_noop"]
-        : [...changes, effect.conflict ? `conflict:${effect.conflictCode}` : "not_applied"],
+      : [...changes, effect.conflict ? `conflict:${effect.conflictCode}` : "not_applied"],
+    result: effect.applied ? "APPLIED" : "NOT_APPLIED",
     applied: effect.applied,
+    wrote: effect.applied,
+    changedRecords: effect.applied ? 1 : 0,
     dryRun: false,
   };
 }

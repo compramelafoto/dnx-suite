@@ -277,6 +277,7 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
           }
         }
 
+        const remotePid = input.providerPaymentId?.trim() ?? "";
         const updated = await tx.clickatonRegistration.update({
           where: { id: input.registrationId },
           data: {
@@ -287,6 +288,9 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
             visibleCode,
             sequenceNumber,
             paymentOrderId: input.paymentOrderId,
+            ...(!existing.providerPaymentId && /^\d+$/.test(remotePid)
+              ? { providerPaymentId: remotePid }
+              : {}),
           },
           include: { items: true },
         });
@@ -428,6 +432,125 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
           return record;
         }
       });
+    },
+
+    async syncProviderPaymentId(input) {
+      const { decideProviderPaymentIdSync } = await import(
+        "@/lib/checkout/domain/sync-provider-payment-id"
+      );
+      const existing = await prisma.clickatonRegistration.findUnique({
+        where: { id: input.registrationId },
+        select: {
+          id: true,
+          status: true,
+          providerPaymentId: true,
+          paymentStatus: true,
+        },
+      });
+      if (!existing) throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");
+
+      const decision = decideProviderPaymentIdSync({
+        localProviderPaymentId: existing.providerPaymentId,
+        remoteProviderPaymentId: input.providerPaymentId,
+      });
+
+      if (decision.action === "noop") {
+        return {
+          outcome: "noop" as const,
+          providerPaymentId: existing.providerPaymentId ?? null,
+          paymentStatus: existing.paymentStatus,
+        };
+      }
+
+      if (decision.action === "manual_review") {
+        const reviewed = await prisma.$transaction(async (tx) => {
+          const updated = await tx.clickatonRegistration.update({
+            where: { id: input.registrationId },
+            data: { paymentStatus: "MANUAL_REVIEW" },
+            select: { providerPaymentId: true, paymentStatus: true, status: true },
+          });
+          await tx.clickatonRegistrationStatusHistory.create({
+            data: {
+              registrationId: input.registrationId,
+              previousStatus: existing.status,
+              newStatus: updated.status,
+              previousPaymentStatus: existing.paymentStatus,
+              newPaymentStatus: updated.paymentStatus,
+              source: input.source,
+              reason: "provider_payment_id_conflict",
+            },
+          });
+          await tx.clickatonRegistrationAudit.create({
+            data: {
+              registrationId: input.registrationId,
+              action: "PAYMENT_STATUS_UPDATED",
+              source: input.source,
+              metadata: {
+                reason: "provider_payment_id_conflict",
+                requestId: input.requestId,
+                localProviderPaymentId: decision.local,
+                remoteProviderPaymentId: decision.remote,
+              },
+            },
+          });
+          return updated;
+        });
+        return {
+          outcome: "manual_review" as const,
+          providerPaymentId: reviewed.providerPaymentId ?? null,
+          paymentStatus: reviewed.paymentStatus,
+        };
+      }
+
+      // Solo escribe si sigue null (carrera: otro proceso pudo setearlo).
+      const updated = await prisma.clickatonRegistration.updateMany({
+        where: {
+          id: input.registrationId,
+          providerPaymentId: null,
+        },
+        data: { providerPaymentId: decision.providerPaymentId },
+      });
+      if (updated.count === 0) {
+        const again = await prisma.clickatonRegistration.findUnique({
+          where: { id: input.registrationId },
+          select: { providerPaymentId: true, paymentStatus: true },
+        });
+        if (again?.providerPaymentId === decision.providerPaymentId) {
+          return {
+            outcome: "noop" as const,
+            providerPaymentId: again.providerPaymentId,
+            paymentStatus: again.paymentStatus,
+          };
+        }
+        if (again?.providerPaymentId && again.providerPaymentId !== decision.providerPaymentId) {
+          return {
+            outcome: "manual_review" as const,
+            providerPaymentId: again.providerPaymentId,
+            paymentStatus: "MANUAL_REVIEW",
+          };
+        }
+        return {
+          outcome: "noop" as const,
+          providerPaymentId: again?.providerPaymentId ?? null,
+          paymentStatus: again?.paymentStatus ?? existing.paymentStatus,
+        };
+      }
+      await prisma.clickatonRegistrationAudit.create({
+        data: {
+          registrationId: input.registrationId,
+          action: "PROVIDER_PAYMENT_ID_BACKFILL",
+          source: input.source,
+          metadata: {
+            requestId: input.requestId,
+            providerPaymentId: decision.providerPaymentId,
+          },
+        },
+      });
+      return {
+        outcome: "persisted" as const,
+        providerPaymentId: decision.providerPaymentId,
+        paymentStatus: existing.paymentStatus,
+      };
     },
 
     async markPaymentStatus(input) {
