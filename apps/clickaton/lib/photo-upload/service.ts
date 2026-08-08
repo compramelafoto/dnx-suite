@@ -7,9 +7,14 @@ import {
   ensureFotorankEntryForPrompt,
   finalizeParticipantConfirmation,
 } from "./fotorank-entry";
+import {
+  isCanonicalFotoRankAssetsEnabled,
+  persistCanonicalAssetViaFotoRank,
+} from "./fotorank-canonical-assets";
 import { sha256Buffer, type DuplicateMatch } from "./hash";
 import { detectImageMime, isAllowedMime } from "./mime";
 import { getPrivateEntryStorage } from "./storage";
+
 import {
   evaluateCaptureDate,
   evaluateGps,
@@ -387,7 +392,29 @@ export async function processPromptUpload(input: {
       windows: ctx.windows,
     });
 
-    // Soft-link asset metadata on FR entry (hash in technicalSummary; full FR asset path future).
+    // SoT de assets: FotoRank (flag). Dual-write: CK conserva key legado para rollback/lectura.
+    let canonicalAsset: {
+      activeAssetId: string;
+      storageKey: string;
+      versionNumber: number;
+      idempotent: boolean;
+    } | null = null;
+    if (
+      isCanonicalFotoRankAssetsEnabled({
+        editionCanonicalAssetsEnabled: ctx.config.canonicalAssetsEnabled,
+      })
+    ) {
+      canonicalAsset = await persistCanonicalAssetViaFotoRank({
+        contestId: ctx.registration.edition.fotorankContestId!,
+        entryId,
+        buffer: input.buffer,
+        originalFileName: input.originalFileName,
+        declaredMime: detected.mime,
+        isReplace: Boolean(submission.originalStorageKey),
+        legacyStorageKey: original.key,
+      });
+    }
+
     await prisma.fotorankContestEntry.update({
       where: { id: entryId },
       data: {
@@ -402,7 +429,10 @@ export async function processPromptUpload(input: {
           captureEval,
           source: "CLICKATON",
           originalStorageKey: original.key,
-          // Original privado Clickatón; FR no recibe URL pública.
+          assetOwner: canonicalAsset ? "FOTORANK" : "CLICKATON_LEGACY",
+          canonicalAssetId: canonicalAsset?.activeAssetId ?? null,
+          canonicalStorageKey: canonicalAsset?.storageKey ?? null,
+          canonicalVersionNumber: canonicalAsset?.versionNumber ?? null,
         },
         captureWindowStartsAtSnapshot: ctx.windows.captureStartsAt,
         captureWindowEndsAtSnapshot: ctx.windows.captureEndsAt,
