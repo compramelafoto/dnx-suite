@@ -90,6 +90,18 @@ function main() {
     "usuario sin permisos → /mi-actividad",
   );
 
+  assert(
+    resolvePostLoginPath(
+      base({
+        kinds: ["organizer", "participant", "jury"],
+        hasOrganizations: true,
+        hasParticipations: true,
+        hasJuryAccount: true,
+      }),
+    ) === "/mi-actividad",
+    "organizador + participante + jurado → /mi-actividad",
+  );
+
   console.log("FINAL: PASS");
 }
 

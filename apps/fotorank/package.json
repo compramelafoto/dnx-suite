@@ -64,7 +64,12 @@
     "ops:sfef-10c:cleanup": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/ops-sfef-10c-cleanup-fixtures.ts",
     "ops:sfef-10c:setup": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/ops-sfef-10c-setup-fixtures.ts",
     "test:e2e:sfef-10c:production": "playwright test -c playwright.10c.config.ts",
-    "test:public-ui": "pnpm --filter @repo/db exec tsx --test --test-reporter=spec ../../apps/fotorank/app/lib/fotorank/public-ux/contest-landing-phase.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/participant-status.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/responsive-classes.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/legacy-public-routes.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/home-and-header.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/inscription-restyle.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/participacion-detail.guard.test.ts ../../apps/fotorank/app/components/public-ui/public-ui.isolation.test.ts"
+    "test:public-ui": "pnpm --filter @repo/db exec tsx --test --test-reporter=spec ../../apps/fotorank/app/lib/fotorank/public-ux/contest-landing-phase.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/participant-status.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/responsive-classes.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/legacy-public-routes.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/home-and-header.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/inscription-restyle.guard.test.ts ../../apps/fotorank/app/lib/fotorank/public-ux/participacion-detail.guard.test.ts ../../apps/fotorank/app/components/public-ui/public-ui.isolation.test.ts",
+    "test:access:permissions": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/access/access-permissions.selfcheck.ts",
+    "test:db:environment-guard": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/db/environment-db-guard.selfcheck.ts",
+    "ops:sfef-11:fixtures": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/ops-sfef-11-access-fixtures.ts",
+    "ops:sfef-11:cleanup": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/ops-sfef-11-cleanup-fixtures.ts",
+    "test:e2e:sfef-11:staging": "playwright test -c playwright.staging.config.ts e2e/santa-fe-11-access-matrix.spec.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",

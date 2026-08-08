@@ -36,14 +36,22 @@ export default async function MiActividadPage() {
 
       {caps.kinds.length === 0 ? (
         <section className="fr-recuadro max-w-xl border border-fr-border bg-fr-card" data-testid="mi-actividad-empty">
-          <h2 className="text-xl font-semibold tracking-tight">Todavía no tenés actividad</h2>
+          <h2 className="text-xl font-semibold tracking-tight">No tenés actividad todavía.</h2>
           <p className="mt-4 text-sm leading-relaxed text-fr-muted">
             Podés explorar concursos públicos e inscribirte, o esperar una invitación como
             organizador o jurado.
           </p>
-          <Link href="/" className="fr-btn fr-btn-primary mt-8 inline-flex w-fit px-6 py-3">
-            Explorar concursos
-          </Link>
+          <div className="mt-8 flex flex-wrap gap-4">
+            <Link href="/" className="fr-btn fr-btn-primary inline-flex w-fit px-6 py-3">
+              Explorar concursos
+            </Link>
+            <Link
+              href="/concursos"
+              className="fr-btn fr-btn-secondary inline-flex w-fit px-6 py-3"
+            >
+              Ver concursos abiertos
+            </Link>
+          </div>
         </section>
       ) : null}
 

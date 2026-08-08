@@ -1,5 +1,5 @@
 /**
- * Super Admin FotoRank — acceso global + “Actuar como organizador” (sin mutar membresías).
+ * Super Admin FotoRank — acceso global + “Actuar como…” (contexto UI, sin mutar membresías).
  */
 import { cookies, headers } from "next/headers";
 import { prisma } from "@repo/db";
@@ -8,10 +8,16 @@ import type { AuthUser } from "../../auth";
 import type { UserOrganization } from "../organizations";
 
 export const FOTORANK_SA_ACT_AS_ORG_COOKIE = "fotorank_sa_act_as_org_id";
+/** Contexto de UI: organizador | participante | jurado (no impersona otra identidad). */
+export const FOTORANK_SA_UI_CONTEXT_COOKIE = "fotorank_sa_ui_context";
+export type SuperAdminUiContext = "organizer" | "participant" | "jury";
+
 /** Debe coincidir con `FOTORANK_ACTIVE_ORG_COOKIE` (evitar import circular). */
 const ACTIVE_ORG_COOKIE = "fotorank_active_org_id";
 const ACT_AS_MAX_AGE = 60 * 60 * 8; // 8h
 const ACTIVE_ORG_MAX_AGE = 60 * 60 * 24 * 400;
+
+const UI_CONTEXTS = new Set<SuperAdminUiContext>(["organizer", "participant", "jury"]);
 
 export function userIsFotorankSuperAdmin(user: {
   globalRole?: string | null;
@@ -128,6 +134,88 @@ export async function clearActAsOrganization(actor: AuthUser): Promise<void> {
       actorUserId: actor.id,
       action: "SUPER_ADMIN_ACT_AS_ORGANIZER_STOP",
       organizationId: prev,
+    });
+  }
+}
+
+export async function getSuperAdminUiContext(): Promise<SuperAdminUiContext | null> {
+  const jar = await cookies();
+  const v = jar.get(FOTORANK_SA_UI_CONTEXT_COOKIE)?.value?.trim();
+  if (!v || !UI_CONTEXTS.has(v as SuperAdminUiContext)) return null;
+  return v as SuperAdminUiContext;
+}
+
+export async function setSuperAdminUiContext(params: {
+  actor: AuthUser;
+  context: SuperAdminUiContext;
+  organizationId?: string | null;
+}): Promise<{ ok: true; redirectTo: string } | { ok: false; error: string }> {
+  if (!userIsFotorankSuperAdmin(params.actor)) {
+    return { ok: false, error: "Solo Super Admin puede cambiar el contexto de UI." };
+  }
+  if (!UI_CONTEXTS.has(params.context)) {
+    return { ok: false, error: "Contexto inválido." };
+  }
+
+  let organizationId: string | null = null;
+  if (params.context === "organizer") {
+    if (!params.organizationId) {
+      return { ok: false, error: "Organización requerida para actuar como organizador." };
+    }
+    const orgResult = await setActAsOrganization({
+      actor: params.actor,
+      organizationId: params.organizationId,
+    });
+    if (!orgResult.ok) return orgResult;
+    organizationId = params.organizationId;
+  } else {
+    await clearActAsOrganization(params.actor);
+  }
+
+  const jar = await cookies();
+  const secure = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+  jar.set(FOTORANK_SA_UI_CONTEXT_COOKIE, params.context, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure,
+    path: "/",
+    maxAge: ACT_AS_MAX_AGE,
+  });
+
+  await recordPlatformAudit({
+    actorUserId: params.actor.id,
+    action: "SUPER_ADMIN_UI_CONTEXT_SET",
+    organizationId,
+    metadata: { context: params.context },
+  });
+
+  const redirectTo =
+    params.context === "organizer"
+      ? "/dashboard"
+      : params.context === "participant"
+        ? "/participaciones"
+        : "/jurado/login?next=/jurado/panel";
+
+  return { ok: true, redirectTo };
+}
+
+export async function clearSuperAdminUiContext(actor: AuthUser): Promise<void> {
+  const prev = await getSuperAdminUiContext();
+  const jar = await cookies();
+  jar.set(FOTORANK_SA_UI_CONTEXT_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
+    path: "/",
+    maxAge: 0,
+    expires: new Date(0),
+  });
+  await clearActAsOrganization(actor);
+  if (prev && userIsFotorankSuperAdmin(actor)) {
+    await recordPlatformAudit({
+      actorUserId: actor.id,
+      action: "SUPER_ADMIN_UI_CONTEXT_CLEAR",
+      metadata: { previousContext: prev },
     });
   }
 }

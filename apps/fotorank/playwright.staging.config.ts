@@ -10,6 +10,7 @@ export default defineConfig({
     "**/santa-fe-06-admission-staging-matrix.spec.ts",
     "**/santa-fe-07-jury-staging-matrix.spec.ts",
     "**/santa-fe-08-results-staging-matrix.spec.ts",
+    "**/santa-fe-11-access-matrix.spec.ts",
     "**/santa-fe-eligibility-staging.spec.ts",
   ],
   timeout: 240_000,

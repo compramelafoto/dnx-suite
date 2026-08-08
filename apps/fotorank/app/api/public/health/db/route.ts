@@ -1,17 +1,17 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function databaseHostHint(): string | null {
-  const url = process.env.DATABASE_URL ?? "";
-  const hostMatch = url.match(/@(ep-[a-z0-9-]+(?:-pooler)?)\./i);
-  return hostMatch?.[1] ?? null;
-}
+import {
+  assertEnvironmentDatabaseIdentity,
+  databaseHostHint,
+} from "../../../../lib/fotorank/db/environment-db-guard";
 
-/** Health Staging — host sanitizado + conteos mínimos (sin secretos). */
+/** Health — host sanitizado + identidad env/DB + conteos mínimos (sin secretos). */
 export async function GET() {
   const hint = databaseHostHint();
   const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim());
   const hasDirectUrl = Boolean(process.env.DIRECT_URL?.trim());
+  const identity = assertEnvironmentDatabaseIdentity();
 
   if (!hasDatabaseUrl) {
     return Response.json(
@@ -21,7 +21,27 @@ export async function GET() {
         databaseHostHint: hint,
         hasDatabaseUrl,
         hasDirectUrl,
+        dbIdentityOk: false,
+        dbIdentityReason: "DATABASE_URL_MISSING",
+        vercelEnv: process.env.VERCEL_ENV ?? null,
         error: "DATABASE_URL missing in runtime",
+      },
+      { status: 500 },
+    );
+  }
+
+  if (!identity.ok) {
+    return Response.json(
+      {
+        ok: false,
+        source: "db-identity-guard",
+        databaseHostHint: hint,
+        hasDatabaseUrl,
+        hasDirectUrl,
+        dbIdentityOk: false,
+        dbIdentityReason: identity.reason,
+        vercelEnv: identity.vercelEnv,
+        error: `DB identity mismatch: ${identity.reason}`,
       },
       { status: 500 },
     );
@@ -40,6 +60,8 @@ export async function GET() {
       databaseHostHint: hint,
       hasDatabaseUrl,
       hasDirectUrl,
+      dbIdentityOk: true,
+      vercelEnv: identity.vercelEnv,
       users,
       fotorankContests: contests,
       clickatonEditions: editions,
@@ -53,6 +75,8 @@ export async function GET() {
         databaseHostHint: hint,
         hasDatabaseUrl,
         hasDirectUrl,
+        dbIdentityOk: identity.ok,
+        vercelEnv: identity.vercelEnv,
         error: message.slice(0, 240),
       },
       { status: 500 },
