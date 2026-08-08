@@ -22,6 +22,19 @@ test("biblioteca: 5 familias × 3 slots = 15 archivos distintos", () => {
   assert.equal(keys.size, 15);
 });
 
+test("Logo general: Color → Positivo (LIGHT) → Negativo (DARK)", () => {
+  const general = PARTNER_LOGO_FAMILIES.find((f) => f.id === "general");
+  assert.ok(general);
+  assert.deepEqual(
+    general!.slots.map((s) => s.backgroundType),
+    ["COLOR", "LIGHT", "DARK"],
+  );
+  assert.deepEqual(
+    general!.slots.map((s) => s.title),
+    ["Color", "Positivo", "Negativo"],
+  );
+});
+
 function asset(
   partial: Partial<PartnerBrandAssetRecord> &
     Pick<PartnerBrandAssetRecord, "id" | "type" | "backgroundType" | "fileUrl">,

@@ -56,7 +56,7 @@ function slot(
 
 /**
  * Biblioteca de logos: una familia × tres archivos distintos.
- * - Logo general: Color / Negativo / Positivo
+ * - Logo general: Color / Positivo (fondo claro) / Negativo (fondo oscuro)
  * - Principal, Horizontal, Vertical, Isotipo: Color / Fondo claro / Fondo oscuro
  *
  * Legacy `LOGO_LIGHT` / `LOGO_DARK` siguen en DB pero ya no se ofrecen al subir.
@@ -68,7 +68,8 @@ export const PARTNER_LOGO_FAMILIES: readonly PartnerLogoFamilyGuide[] = [
     title: "Logo general",
     description:
       "Versión general de la marca. Es la base cuando no hace falta un layout especial (horizontal, vertical o isotipo).",
-    recommendation: "Subí un archivo distinto para Color, Negativo y Positivo. PNG o WEBP con transparencia cuando sea posible.",
+    recommendation:
+      "Subí un archivo distinto para Color, Positivo y Negativo (mismo orden que Fondo claro / Fondo oscuro en las otras familias). PNG o WEBP con transparencia cuando sea posible.",
     required: true,
     previewKind: "neutral",
     slots: [
@@ -80,14 +81,6 @@ export const PARTNER_LOGO_FAMILIES: readonly PartnerLogoFamilyGuide[] = [
         required: true,
         previewKind: "neutral",
       }),
-      slot("LOGO_GENERAL", "DARK", {
-        title: "Negativo",
-        shortLabel: "Negativo",
-        description: "Versión clara/negativa para fondos oscuros.",
-        recommendation: "Generalmente blanca o clara. No se genera sola: subí el archivo oficial.",
-        required: false,
-        previewKind: "dark",
-      }),
       slot("LOGO_GENERAL", "LIGHT", {
         title: "Positivo",
         shortLabel: "Positivo",
@@ -95,6 +88,14 @@ export const PARTNER_LOGO_FAMILIES: readonly PartnerLogoFamilyGuide[] = [
         recommendation: "Generalmente negra u oscura sobre fondo claro.",
         required: false,
         previewKind: "light",
+      }),
+      slot("LOGO_GENERAL", "DARK", {
+        title: "Negativo",
+        shortLabel: "Negativo",
+        description: "Versión clara/negativa para fondos oscuros.",
+        recommendation: "Generalmente blanca o clara. No se genera sola: subí el archivo oficial.",
+        required: false,
+        previewKind: "dark",
       }),
     ],
   },
