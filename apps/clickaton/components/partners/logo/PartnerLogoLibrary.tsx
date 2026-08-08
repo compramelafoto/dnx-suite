@@ -233,7 +233,7 @@ export function PartnerLogoLibrary({
                       <span className="mt-1 block text-xs text-ck-text-muted">Aplicando…</span>
                     ) : (
                       <span className="mt-1 block text-xs text-ck-text-muted">
-                        Copia Color / Negativo·Positivo o Fondo claro·oscuro desde Logo general a
+                        Copia Color / Positivo·Negativo (o Fondo claro·oscuro) desde Logo general a
                         esta sección.
                       </span>
                     )}

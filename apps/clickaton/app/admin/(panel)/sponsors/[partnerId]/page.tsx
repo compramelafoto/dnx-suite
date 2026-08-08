@@ -303,8 +303,8 @@ export default async function AdminPartnerDetailPage({
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-ck-text">Logos de marca</h2>
         <p className="text-sm text-ck-text-secondary">
-          Estado resumen: {logoStateLabel}. Cada casilla es un archivo distinto (Color / Negativo o
-          Positivo / Fondo claro u oscuro). Aprobar un logo no publica al partner.
+          Estado resumen: {logoStateLabel}. Cada casilla es un archivo distinto (Color / Positivo /
+          Negativo, o Fondo claro / Fondo oscuro). Aprobar un logo no publica al partner.
         </p>
         <AdminPartnerLogoLibrary
           partnerId={partner.id}

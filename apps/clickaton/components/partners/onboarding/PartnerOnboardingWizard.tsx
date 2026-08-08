@@ -560,8 +560,8 @@ export function PartnerOnboardingWizard({
           <Card variant="outlined" className="space-y-3 p-6 sm:p-8">
             <h2 className="text-xl font-semibold text-ck-text">Logos de marca</h2>
             <p className="text-sm leading-relaxed text-ck-text-secondary">
-              Subí al menos el Logo general en Color. Cada casilla (Color / Negativo-Positivo o Fondo
-              claro-oscuro) es un archivo distinto. Solo PNG o WEBP.
+              Subí al menos el Logo general en Color. Cada casilla (Color / Positivo / Negativo, o
+              Fondo claro / Fondo oscuro) es un archivo distinto. Solo PNG o WEBP.
             </p>
             {errors.logos ? (
               <p className="text-sm text-red-300" role="alert">
