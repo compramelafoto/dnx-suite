@@ -158,6 +158,23 @@ describe("contributions", () => {
     assert.equal(delivered.status, "DELIVERED");
     assert.ok(delivered.deliveredAt);
   });
+
+  it("deletes a contribution", async () => {
+    const { svc } = service();
+    const partner = await svc.createPartner(ops, { name: "Borrar Aporte SA" });
+    const { participation } = await svc.createParticipation(ops, {
+      partnerId: partner.id,
+      application: "CLICKATON",
+    });
+    const c = await svc.createContribution(ops, {
+      participationId: participation.id,
+      type: "MONEY",
+      title: "Aporte a eliminar",
+    });
+    await svc.deleteContribution(ops, c.id);
+    const listed = await svc.listContributions(ops, participation.id);
+    assert.equal(listed.length, 0);
+  });
 });
 
 describe("benefits", () => {
@@ -444,16 +461,23 @@ describe("edition context (stage 02)", () => {
     const access = await svc.grantBenefitAccess(ops, {
       benefitId: benefit.id,
       userId: 42,
+      reason: "Cortesía staff",
       notes: "Cortesía staff",
     });
     assert.equal(access.status, "ACTIVE");
     assert.equal(access.userId, 42);
+    assert.equal(access.source, "MANUAL");
     await assert.rejects(
-      () => svc.grantBenefitAccess(ops, { benefitId: benefit.id, userId: 42 }),
+      () =>
+        svc.grantBenefitAccess(ops, {
+          benefitId: benefit.id,
+          userId: 42,
+          reason: "Duplicado",
+        }),
       (err: unknown) => err instanceof PartnersDomainError && err.code === "CONFLICT",
     );
     await assert.rejects(
-      () => svc.grantBenefitAccess(ops, { benefitId: benefit.id, userId: 0 }),
+      () => svc.grantBenefitAccess(ops, { benefitId: benefit.id, userId: 0, reason: "x" }),
       (err: unknown) => err instanceof PartnersDomainError && err.code === "VALIDATION",
     );
     const revoked = await svc.revokeBenefitAccess(ops, benefit.id, 42);
