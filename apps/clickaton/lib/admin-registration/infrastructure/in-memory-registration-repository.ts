@@ -56,6 +56,9 @@ export type InMemoryAdminRegistrationRow = {
   confirmedAt: Date | null;
   cancelledAt: Date | null;
   refundedAt: Date | null;
+  refundedAmountMinor?: number | null;
+  providerPaymentId?: string | null;
+  lastProviderRefundId?: string | null;
   paymentOrderId: string | null;
   paymentProvider: string | null;
   paymentExternalReference: string | null;
@@ -142,6 +145,9 @@ function toDetail(row: InMemoryAdminRegistrationRow): AdminRegistrationDetail {
     subtotalAmount: row.subtotalAmount,
     discountAmount: row.discountAmount,
     refundedAt: row.refundedAt,
+    refundedAmountMinor: row.refundedAmountMinor ?? null,
+    providerPaymentId: row.providerPaymentId ?? null,
+    lastProviderRefundId: row.lastProviderRefundId ?? null,
     paymentProvider: row.paymentProvider,
     paymentExternalReference: row.paymentExternalReference,
     paymentIdempotencyKey: row.paymentIdempotencyKey,
@@ -421,6 +427,9 @@ export function seedAdminRegistration(
     confirmedAt: partial.confirmedAt ?? null,
     cancelledAt: partial.cancelledAt ?? null,
     refundedAt: partial.refundedAt ?? null,
+    refundedAmountMinor: partial.refundedAmountMinor ?? null,
+    providerPaymentId: partial.providerPaymentId ?? null,
+    lastProviderRefundId: partial.lastProviderRefundId ?? null,
     paymentOrderId: partial.paymentOrderId ?? null,
     paymentProvider: partial.paymentProvider ?? null,
     paymentExternalReference: partial.paymentExternalReference ?? null,

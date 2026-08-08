@@ -16,6 +16,8 @@ export {
   mapPaymentOrderStatusToNormalized,
   isTerminalNormalized,
   isReusableNormalized,
+  canApplyNormalizedStatusTransition,
+  normalizedStatusRank,
 } from "./map-status";
 export {
   CLICKATON_DNX_CHECKOUT_FLAG,

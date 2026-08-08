@@ -120,6 +120,9 @@ export type AdminRegistrationDetail = AdminRegistrationListItem & {
   subtotalAmount: number;
   discountAmount: number;
   refundedAt: Date | null;
+  refundedAmountMinor: number | null;
+  providerPaymentId: string | null;
+  lastProviderRefundId: string | null;
   paymentProvider: string | null;
   paymentExternalReference: string | null;
   paymentIdempotencyKey: string | null;

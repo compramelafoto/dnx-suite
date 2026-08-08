@@ -36,7 +36,11 @@
     "auth:ui:selfcheck": "pnpm --filter @repo/auth-ui selfcheck",
     "auth:ui:architecture:check": "pnpm --filter @repo/auth-ui architecture:check",
     "auth:cross-app:fixtures": "pnpm --filter @repo/auth cross-app:fixtures",
-    "clickaton:staging:identity-cutover": "pnpm --filter @repo/db staging:identity-cutover"
+    "clickaton:staging:identity-cutover": "pnpm --filter @repo/db staging:identity-cutover",
+    "clickaton:payments:reconcile-refund": "pnpm --filter clickaton payments:reconcile-refund",
+    "clickaton:payments:reconcile-approved": "pnpm --filter clickaton payments:reconcile-approved",
+    "clickaton:payments:inspect": "pnpm --filter clickaton payments:inspect",
+    "clickaton:payments:audit": "pnpm --filter clickaton payments:audit"
   },
   "devDependencies": {
     "prettier": "^3.7.4",

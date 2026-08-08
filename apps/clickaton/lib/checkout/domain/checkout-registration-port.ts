@@ -25,6 +25,12 @@ export type MarkPaymentStatusInput = {
   source: string;
   reason: string;
   requestId: string;
+  /** Importe acumulado reembolsado (minor units). */
+  refundedAmountMinor?: number | null;
+  /** Id de pago MP (soft ref). */
+  providerPaymentId?: string | null;
+  /** Último refund id MP conocido. */
+  lastProviderRefundId?: string | null;
 };
 
 export type ReleaseForPaymentTerminalInput = {

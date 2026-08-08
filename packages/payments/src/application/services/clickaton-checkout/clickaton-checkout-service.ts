@@ -13,6 +13,7 @@ import {
   sanitizeEditionFinanceForOrderSnapshot,
 } from "./edition-finance-checkout.js";
 import {
+  canApplyNormalizedStatusTransition,
   isReusableNormalized,
   isTerminalNormalized,
   mapNormalizedToPaymentOrderStatus,
@@ -237,6 +238,19 @@ async function buildDurableOrder(
         : typeof providerOrder?.providerStatus === "string"
           ? providerOrder.providerStatus
           : null;
+  const refundedAmountMinor =
+    typeof snap.refundedAmountMinor === "number" ? snap.refundedAmountMinor : null;
+  const netAmountMinor =
+    typeof snap.netAmountMinor === "number" ? snap.netAmountMinor : null;
+  const providerPaymentId =
+    typeof snap.providerPaymentId === "string"
+      ? snap.providerPaymentId
+      : typeof providerOrder?.rawResponseSanitized?.providerPaymentId === "string"
+        ? providerOrder.rawResponseSanitized.providerPaymentId
+        : null;
+  const providerRefundIds = Array.isArray(snap.providerRefundIds)
+    ? snap.providerRefundIds.map(String)
+    : [];
 
   return {
     id: paymentOrder.id,
@@ -257,6 +271,10 @@ async function buildDurableOrder(
     attempt,
     providerOrderId: providerOrder?.providerOrderId ?? null,
     statusDetail,
+    refundedAmountMinor,
+    netAmountMinor,
+    providerPaymentId,
+    providerRefundIds,
     createdAt: paymentOrder.createdAt,
     updatedAt: paymentOrder.updatedAt,
     approvedAt,
@@ -815,10 +833,15 @@ export function createClickatonCheckoutService(
     },
 
     async findActiveOrderBySource(sourceId: string): Promise<DurableCheckoutOrder | null> {
+      // Incluye REGISTRATION y STORE_ORDER (TIENDA). Sin store refs el webhook
+      // MP APPROVED devolvía not_found y nunca capturaba stock.
       const refs = [
         externalRefForRegistration(sourceId, bridge.mode),
         externalRefForRegistration(sourceId, "manual"),
         externalRefForRegistration(sourceId, "mercado_pago_orders_test"),
+        externalRefForStoreOrder(sourceId, bridge.mode),
+        externalRefForStoreOrder(sourceId, "manual"),
+        externalRefForStoreOrder(sourceId, "mercado_pago_orders_test"),
       ];
       const uniqueRefs = [...new Set(refs)];
       for (const externalReference of uniqueRefs) {
@@ -1079,50 +1102,57 @@ export function createClickatonCheckoutService(
       await db.webhooks.markProcessing(activeInboxId, now);
 
       try {
-        const currentNormalized = mapPaymentOrderStatusToNormalized(order.status);
-        // No regresar un terminal (p.ej. APPROVED→PENDING por refresh stale de preferencia).
-        if (
-          isTerminalNormalized(currentNormalized) &&
-          !isTerminalNormalized(event.status)
-        ) {
-          const updatedAt = new Date().toISOString();
-          await db.audit.append({
-            id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
-            actorType: "system",
-            action: "clickaton.checkout.event.ignored_non_terminal_after_terminal",
-            aggregateType: "payment_order",
-            aggregateId: order.id,
-            provider: PROVIDER,
-            environment: order.environment,
-            result: "SUCCEEDED",
-            metadata: {
-              eventId: event.eventId,
-              currentStatus: currentNormalized,
-              ignoredStatus: event.status,
-            },
-            createdAt: updatedAt,
-          });
-          await db.webhooks.markProcessed(activeInboxId, updatedAt);
-          return {
-            outcome: "duplicate",
-            order: await buildDurableOrder(db, order),
-            inboxId: activeInboxId,
-          };
-        }
-
-        const paymentStatus = mapNormalizedToPaymentOrderStatus(event.status);
-        const mappedStatus = mapNormalizedToProviderMappedStatus(event.status);
+      const currentNormalized = mapPaymentOrderStatusToNormalized(order.status);
+      // No regresar un terminal (p.ej. APPROVED→PENDING / REFUNDED→APPROVED).
+      if (!canApplyNormalizedStatusTransition(currentNormalized, event.status)) {
         const updatedAt = new Date().toISOString();
-
-        await db.paymentOrders.save({
-          ...order,
-          status: paymentStatus,
-          distributionSnapshot: {
-            ...(order.distributionSnapshot ?? {}),
-            normalizedStatus: event.status,
+        await db.audit.append({
+          id: `aud_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+          actorType: "system",
+          action: "clickaton.checkout.event.ignored_status_regression",
+          aggregateType: "payment_order",
+          aggregateId: order.id,
+          provider: PROVIDER,
+          environment: order.environment,
+          result: "SUCCEEDED",
+          metadata: {
+            eventId: event.eventId,
+            currentStatus: currentNormalized,
+            ignoredStatus: event.status,
+            refundedAmountMinor: event.refundedAmountMinor ?? null,
           },
-          updatedAt,
+          createdAt: updatedAt,
         });
+        await db.webhooks.markProcessed(activeInboxId, updatedAt);
+        return {
+          outcome: "duplicate",
+          order: await buildDurableOrder(db, order),
+          inboxId: activeInboxId,
+        };
+      }
+
+      const paymentStatus = mapNormalizedToPaymentOrderStatus(event.status);
+      const mappedStatus = mapNormalizedToProviderMappedStatus(event.status);
+      const updatedAt = new Date().toISOString();
+
+      await db.paymentOrders.save({
+        ...order,
+        status: paymentStatus,
+        distributionSnapshot: {
+          ...(order.distributionSnapshot ?? {}),
+          normalizedStatus: event.status,
+          ...(typeof event.refundedAmountMinor === "number"
+            ? {
+                refundedAmountMinor: event.refundedAmountMinor,
+                netAmountMinor: event.netAmountMinor ?? null,
+                providerPaymentId: event.providerPaymentId ?? null,
+                providerRefundIds: event.providerRefundIds ?? [],
+                statusDetail: event.statusDetail ?? null,
+              }
+            : {}),
+        },
+        updatedAt,
+      });
 
         const providerOrder = await db.providerOrders.findByPaymentOrderId(order.id);
         if (providerOrder) {
@@ -1148,7 +1178,16 @@ export function createClickatonCheckoutService(
           provider: PROVIDER,
           environment: order.environment,
           result: "SUCCEEDED",
-          metadata: { eventId: event.eventId, status: event.status },
+          metadata: {
+            eventId: event.eventId,
+            status: event.status,
+            previousStatus: currentNormalized,
+            refundedAmountMinor: event.refundedAmountMinor ?? null,
+            netAmountMinor: event.netAmountMinor ?? null,
+            providerPaymentId: event.providerPaymentId ?? null,
+            providerRefundIds: event.providerRefundIds ?? [],
+            idempotencyKey: `${order.id}:${event.status}:${event.refundedAmountMinor ?? 0}`,
+          },
           createdAt: updatedAt,
         });
 
@@ -1168,6 +1207,27 @@ export function createClickatonCheckoutService(
         );
         throw error;
       }
+    },
+
+    /**
+     * Lectura S2S del pago (sin mutar estado). Para dry-run / herramientas ops.
+     */
+    async peekProviderPayment(providerPaymentId: string): Promise<{
+      status: NormalizedCheckoutStatus;
+      amountMinor: number;
+      currency: string;
+      externalReference: string | null;
+      liveMode: boolean;
+      providerPaymentId: string;
+      refundedAmountMinor?: number;
+      netAmountMinor?: number;
+      providerRefundIds?: string[];
+      statusDetail?: string | null;
+      rawSanitized: Record<string, unknown>;
+    } | null> {
+      if (!bridge.fetchPaymentById) return null;
+      if (!/^\d+$/.test(providerPaymentId)) return null;
+      return bridge.fetchPaymentById(providerPaymentId);
     },
 
     /**
@@ -1286,6 +1346,11 @@ export function createClickatonCheckoutService(
         receivedAt: now,
         origin: "HTTP_WEBHOOK",
         liveModeReported: liveMode,
+        refundedAmountMinor: payment.refundedAmountMinor,
+        netAmountMinor: payment.netAmountMinor,
+        providerPaymentId: payment.providerPaymentId,
+        providerRefundIds: payment.providerRefundIds,
+        statusDetail: payment.statusDetail,
       });
     },
 

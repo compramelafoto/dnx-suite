@@ -285,6 +285,11 @@ export function getDnxPaymentsClient(): DnxPaymentsClient {
   return globals.__clickatonDnxPaymentsClient;
 }
 
+/** Alias ops/scripts: mismo cliente durable (sin tokens en logs). */
+export function buildPaymentsClientForOps(): DnxPaymentsClient {
+  return getDnxPaymentsClient();
+}
+
 const CANONICAL_LIVE_COLLECTOR_PA = "pa_ba733fa7a35f4326";
 
 /**

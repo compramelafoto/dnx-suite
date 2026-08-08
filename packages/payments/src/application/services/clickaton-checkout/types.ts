@@ -12,6 +12,7 @@ export type NormalizedCheckoutStatus =
   | "CANCELLED"
   | "EXPIRED"
   | "REFUNDED"
+  | "PARTIALLY_REFUNDED"
   | "CHARGEBACK";
 
 export type CreateClickatonCheckoutOrderInput = {
@@ -99,6 +100,10 @@ export type ClickatonCheckoutProviderBridge = {
     externalReference: string | null;
     liveMode: boolean;
     providerFeeMinor?: number | null;
+    refundedAmountMinor?: number;
+    netAmountMinor?: number;
+    providerRefundIds?: string[];
+    statusDetail?: string | null;
     rawSanitized: Record<string, unknown>;
   } | null>;
   /** S2S por payment id (webhooks firmados Checkout Pro). */
@@ -110,6 +115,10 @@ export type ClickatonCheckoutProviderBridge = {
     liveMode: boolean;
     providerPaymentId: string;
     providerFeeMinor?: number | null;
+    refundedAmountMinor?: number;
+    netAmountMinor?: number;
+    providerRefundIds?: string[];
+    statusDetail?: string | null;
     rawSanitized: Record<string, unknown>;
   } | null>;
 };
@@ -140,6 +149,10 @@ export type DurableCheckoutOrder = {
   providerOrderId: string | null;
   /** Provider status_detail when available (Brick / Orders immediate response). */
   statusDetail?: string | null;
+  refundedAmountMinor?: number | null;
+  netAmountMinor?: number | null;
+  providerPaymentId?: string | null;
+  providerRefundIds?: string[];
   createdAt: string;
   updatedAt: string;
   approvedAt: string | null;
@@ -166,6 +179,12 @@ export type NormalizedCheckoutEvent = {
   /** Si se omite, se infiere por prefijo de eventId. */
   origin?: CheckoutEventOrigin;
   liveModeReported?: boolean | null;
+  /** Importe acumulado devuelto (minor units). */
+  refundedAmountMinor?: number;
+  netAmountMinor?: number;
+  providerPaymentId?: string | null;
+  providerRefundIds?: string[];
+  statusDetail?: string | null;
 };
 
 export type ApplyNormalizedCheckoutEventResult = {

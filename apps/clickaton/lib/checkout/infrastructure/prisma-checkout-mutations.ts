@@ -41,6 +41,9 @@ function mapRecord(row: {
   confirmedAt: Date | null;
   cancelledAt: Date | null;
   refundedAt: Date | null;
+  refundedAmountMinor?: number | null;
+  providerPaymentId?: string | null;
+  lastProviderRefundId?: string | null;
   paymentOrderId: string | null;
   paymentProvider: string | null;
   paymentExternalReference: string | null;
@@ -93,6 +96,9 @@ function mapRecord(row: {
     confirmedAt: row.confirmedAt,
     cancelledAt: row.cancelledAt,
     refundedAt: row.refundedAt,
+    refundedAmountMinor: row.refundedAmountMinor ?? null,
+    providerPaymentId: row.providerPaymentId ?? null,
+    lastProviderRefundId: row.lastProviderRefundId ?? null,
     items: (row.items ?? []).map((i) => ({
       id: i.id,
       productId: i.productId,
@@ -158,6 +164,17 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
         if (!existing) throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");
         if (existing.status === "CONFIRMED" && existing.paymentStatus === "APPROVED") {
           return mapRecord(existing);
+        }
+        // REFUNDED no se revive a CONFIRMED por un APPROVED tardío.
+        if (
+          existing.status === "REFUNDED" ||
+          existing.paymentStatus === "REFUNDED" ||
+          existing.paymentStatus === "PARTIALLY_REFUNDED"
+        ) {
+          throw new CheckoutError(
+            "PAYMENT_CONFLICT",
+            "No se puede confirmar una inscripción reembolsada.",
+          );
         }
         if (existing.paymentOrderId && existing.paymentOrderId !== input.paymentOrderId) {
           throw new CheckoutError(
@@ -266,6 +283,7 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
             status: "CONFIRMED",
             paymentStatus: "APPROVED",
             confirmedAt,
+            cancelledAt: null,
             visibleCode,
             sequenceNumber,
             paymentOrderId: input.paymentOrderId,
@@ -418,17 +436,66 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
       });
       if (!existing) throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");
 
+      // Idempotencia: mismo estado + mismo importe reembolsado → no-op efectivo.
+      const sameRefundAmount =
+        typeof input.refundedAmountMinor === "number"
+          ? (existing.refundedAmountMinor ?? null) === input.refundedAmountMinor
+          : true;
+      if (
+        existing.paymentStatus === input.paymentStatus &&
+        (!input.registrationStatus || existing.status === input.registrationStatus) &&
+        sameRefundAmount &&
+        (input.paymentStatus === "REFUNDED" || input.paymentStatus === "PARTIALLY_REFUNDED")
+      ) {
+        return mapRecord({ ...existing, items: [] });
+      }
+
       const row = await prisma.$transaction(async (tx) => {
+        const isRefund =
+          input.paymentStatus === "REFUNDED" || input.paymentStatus === "PARTIALLY_REFUNDED";
         const updated = await tx.clickatonRegistration.update({
           where: { id: input.registrationId },
           data: {
             paymentStatus: input.paymentStatus,
             ...(input.registrationStatus ? { status: input.registrationStatus } : {}),
             ...(input.registrationStatus === "CANCELLED" ? { cancelledAt: new Date() } : {}),
-            ...(input.registrationStatus === "REFUNDED" ? { refundedAt: new Date() } : {}),
+            ...(input.registrationStatus === "REFUNDED"
+              ? { refundedAt: existing.refundedAt ?? new Date() }
+              : {}),
+            ...(isRefund && typeof input.refundedAmountMinor === "number"
+              ? { refundedAmountMinor: input.refundedAmountMinor }
+              : {}),
+            ...(input.providerPaymentId
+              ? { providerPaymentId: input.providerPaymentId }
+              : {}),
+            ...(input.lastProviderRefundId
+              ? { lastProviderRefundId: input.lastProviderRefundId }
+              : {}),
           },
           include: { items: true },
         });
+
+        // Revocación blanda de credencial ante reembolso total (idempotente).
+        if (input.registrationStatus === "REFUNDED") {
+          await tx.clickatonParticipantCredential.updateMany({
+            where: {
+              registrationId: input.registrationId,
+              status: "ACTIVE",
+            },
+            data: {
+              status: "REVOKED",
+              revokedAt: new Date(),
+            },
+          });
+          await tx.clickatonQrToken.updateMany({
+            where: {
+              credential: { registrationId: input.registrationId },
+              status: "ACTIVE",
+            },
+            data: { status: "REVOKED", revokedAt: new Date() },
+          });
+        }
+
         await tx.clickatonRegistrationStatusHistory.create({
           data: {
             registrationId: input.registrationId,
@@ -443,9 +510,20 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
         await tx.clickatonRegistrationAudit.create({
           data: {
             registrationId: input.registrationId,
-            action: "PAYMENT_STATUS_UPDATED",
+            action: isRefund ? "PAYMENT_REFUND_APPLIED" : "PAYMENT_STATUS_UPDATED",
             source: input.source,
-            metadata: { reason: input.reason, requestId: input.requestId },
+            metadata: {
+              reason: input.reason,
+              requestId: input.requestId,
+              previousPaymentStatus: existing.paymentStatus,
+              newPaymentStatus: updated.paymentStatus,
+              previousRegistrationStatus: existing.status,
+              newRegistrationStatus: updated.status,
+              refundedAmountMinor: input.refundedAmountMinor ?? null,
+              providerPaymentId: input.providerPaymentId ?? null,
+              lastProviderRefundId: input.lastProviderRefundId ?? null,
+              idempotencyKey: `${input.registrationId}:${input.paymentStatus}:${input.refundedAmountMinor ?? 0}`,
+            },
           },
         });
         return updated;

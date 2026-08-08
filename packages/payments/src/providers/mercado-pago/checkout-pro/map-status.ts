@@ -1,7 +1,7 @@
 /**
  * Mapping Mercado Pago Checkout Pro / Payments → estados DNX normalizados.
  */
-import type { NormalizedCheckoutStatus } from "../../../application/services/clickaton-checkout/types";
+import type { NormalizedCheckoutStatus } from "../../../application/services/clickaton-checkout/types.js";
 
 export function mapMercadoPagoPaymentStatusToNormalized(
   status: string | null | undefined,
@@ -45,6 +45,9 @@ export function mapNormalizedToClickatonEffect(status: NormalizedCheckoutStatus)
     case "EXPIRED":
       return { registrationHint: "CANCELLED", paymentHint: "EXPIRED" };
     case "REFUNDED":
+      return { registrationHint: "REFUNDED", paymentHint: "REFUNDED" };
+    case "PARTIALLY_REFUNDED":
+      return { registrationHint: "CONFIRMED", paymentHint: "PARTIALLY_REFUNDED" };
     case "CHARGEBACK":
       return { registrationHint: "MANUAL_REVIEW", paymentHint: "MANUAL_REVIEW" };
     case "PROCESSING":
