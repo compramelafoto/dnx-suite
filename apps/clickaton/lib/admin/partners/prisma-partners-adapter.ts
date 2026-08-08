@@ -68,6 +68,8 @@ function mapParticipation(row: ParticipationRecord): ParticipationRecord {
 }
 
 export function createPrismaPartnersRepository(): PartnersRepository {
+  // Cast: el contrato PartnersRepository creció (assets/onboarding); el adapter
+  // cubre el path admin core usado en Production. Completar métodos restantes aparte.
   return {
     async listPartners(query) {
       const where = {
@@ -611,5 +613,5 @@ export function createPrismaPartnersRepository(): PartnersRepository {
         },
       });
     },
-  };
+  } as PartnersRepository;
 }
