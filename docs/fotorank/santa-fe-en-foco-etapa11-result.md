@@ -1,8 +1,10 @@
 # Santa Fe en Foco — ETAPA 11 — Super Admin + acceso automático
 
 **Fecha:** 2026-08-07  
-**Alcance:** Preview/Staging — **sin Production**  
-**Branch:** `feat/sfef-etapa11`
+**Resultado:** **DONE** (Preview)  
+**Alcance:** Preview/Staging — **Production no promovida**  
+**Branch:** `feat/sfef-etapa11-preview`  
+**Preview:** `dpl_Hg5BonJiGpGuVJdwZpzQVZonsckf` → `https://fotorank.staging.dnxsuite.com`
 
 ## Reuso
 
