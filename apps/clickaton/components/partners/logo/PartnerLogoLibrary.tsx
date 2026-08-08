@@ -349,7 +349,9 @@ export function PartnerLogoLibrary({
                               ? "Reemplazar archivo"
                               : "Subir PNG o WEBP"}
                         </button>
-                        <p className="text-xs text-ck-text-muted">Solo PNG o WEBP. Sin JPG ni SVG.</p>
+                        <p className="text-xs text-ck-text-muted">
+                          Solo PNG o WEBP, máximo 4 MB. Sin JPG ni SVG.
+                        </p>
                       </div>
                     ) : null}
 

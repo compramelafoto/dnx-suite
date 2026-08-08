@@ -94,12 +94,21 @@ export async function POST(request: Request, { params }: Params) {
         file.name || `logo.${detected.extension}`,
       );
       const storage = getPartnerAssetStorage();
-      const stored = await storage.put({
-        partnerId,
-        extension: detected.extension,
-        body: buffer,
-        contentType: detected.mime,
-      });
+      let stored;
+      try {
+        stored = await storage.put({
+          partnerId,
+          extension: detected.extension,
+          body: buffer,
+          contentType: detected.mime,
+        });
+      } catch (storageErr) {
+        console.error("[clickaton] public onboarding logo storage failed:", storageErr);
+        throw new PartnersDomainError(
+          "VALIDATION",
+          "No se pudo guardar el archivo. Probá con un PNG/WEBP más liviano (máx. 4 MB).",
+        );
+      }
 
       const family = getPartnerLogoFamilyGuide(assetType);
       const slotGuide = getPartnerLogoSlotGuide(assetType, backgroundType);
@@ -174,6 +183,15 @@ export async function POST(request: Request, { params }: Params) {
         { status: 400 },
       );
     }
-    return NextResponse.json(GENERIC_INVALID, { status: 404 });
+    console.error("[clickaton] public onboarding logo upload failed:", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "upload_failed",
+        message:
+          "No se pudo subir el logo. Probá de nuevo o con un archivo más liviano (máx. 4 MB).",
+      },
+      { status: 500 },
+    );
   }
 }

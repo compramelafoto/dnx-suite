@@ -12,8 +12,11 @@ export type PartnerAssetLimits = {
 
 export const DEFAULT_PARTNER_ASSET_LIMITS: PartnerAssetLimits = {
   imageMaxBytes: 20 * 1024 * 1024,
-  /** Logos de identidad: límite más estricto (PNG/WEBP). */
-  logoMaxBytes: 10 * 1024 * 1024,
+  /**
+   * Logos de identidad: límite alineado al body max de Vercel Serverless (~4.5 MB).
+   * Si se sube más grande, el edge corta la request y el cliente ve JSON vacío.
+   */
+  logoMaxBytes: 4 * 1024 * 1024,
   svgMaxBytes: 5 * 1024 * 1024,
   pdfMaxBytes: 30 * 1024 * 1024,
   videoMaxBytes: 250 * 1024 * 1024,

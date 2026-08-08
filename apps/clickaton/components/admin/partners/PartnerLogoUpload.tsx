@@ -3,11 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import {
+  DEFAULT_PARTNER_ASSET_LIMITS,
   PARTNER_ALLOWED_LOGO_MIMES,
   type DnxPartnerBrandAssetType,
 } from "@repo/partners/client-safe";
 import { PartnerLogoDualPreview } from "@/components/partners/logo/PartnerLogoDualPreview";
 import { resolvePartnerBrandAssetSrc } from "@/components/partners/logo/partner-logo-src";
+import { parseLogoUploadResponse } from "@/lib/admin/partners/parse-logo-upload-response";
 import { refreshPreservingScroll } from "@/lib/admin/preserve-scroll";
 
 type Props = {
@@ -45,6 +47,10 @@ export function PartnerLogoUpload({
   async function onFileChange(file: File | null) {
     if (!file) return;
     setError(null);
+    if (file.size > DEFAULT_PARTNER_ASSET_LIMITS.logoMaxBytes) {
+      setError("El archivo supera 4 MB. Comprimí el PNG/WEBP e intentá de nuevo.");
+      return;
+    }
     const objectUrl = URL.createObjectURL(file);
     setLocalPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -58,12 +64,12 @@ export function PartnerLogoUpload({
         method: "POST",
         body,
       });
-      const json = (await res.json()) as {
+      const json = await parseLogoUploadResponse<{
         ok?: boolean;
         message?: string;
         error?: string;
         asset?: { fileUrl?: string | null; storageKey?: string | null };
-      };
+      }>(res);
       if (!res.ok || !json.ok) {
         setError(json.message || json.error || "No se pudo subir el logo.");
         return;
@@ -73,8 +79,8 @@ export function PartnerLogoUpload({
         return null;
       });
       startTransition(() => refreshPreservingScroll(() => router.refresh()));
-    } catch {
-      setError("Error de red al subir el logo.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error de red al subir el logo.");
     }
   }
 
@@ -104,8 +110,8 @@ export function PartnerLogoUpload({
         />
       </div>
       <p className="text-xs text-ck-text-muted">
-        Solo PNG o WEBP (fondo transparente recomendado). JPG y SVG no se aceptan en uploads
-        nuevos.
+        Solo PNG o WEBP (fondo transparente recomendado), máximo 4 MB. JPG y SVG no se aceptan
+        en uploads nuevos.
       </p>
       <PartnerLogoDualPreview src={shown} transparencyHint alt="Vista previa del logo" />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}

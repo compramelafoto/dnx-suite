@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type {
-  PartnerOnboardingDraft,
-  PartnerOnboardingSubmission,
+import {
+  DEFAULT_PARTNER_ASSET_LIMITS,
+  type PartnerOnboardingDraft,
+  type PartnerOnboardingSubmission,
 } from "@repo/partners/client-safe";
 import { PartnerOnboardingWizard } from "@/components/partners/onboarding/PartnerOnboardingWizard";
 import { Card } from "@/components/ui/Card";
@@ -12,6 +13,7 @@ import type {
   PartnerLogoLibraryAsset,
   PartnerLogoUploadSlot,
 } from "@/components/partners/logo/PartnerLogoLibrary";
+import { parseLogoUploadResponse } from "@/lib/admin/partners/parse-logo-upload-response";
 
 type LoadState =
   | { kind: "loading" }
@@ -85,6 +87,9 @@ export function PartnerOnboardingClient({ token }: Props) {
 
   const uploadLogo = useCallback(
     async (slot: PartnerLogoUploadSlot, file: File): Promise<PartnerLogoLibraryAsset> => {
+      if (file.size > DEFAULT_PARTNER_ASSET_LIMITS.logoMaxBytes) {
+        throw new Error("El archivo supera 4 MB. Comprimí el PNG/WEBP e intentá de nuevo.");
+      }
       const body = new FormData();
       body.set("file", file);
       body.set("assetType", slot.type);
@@ -93,11 +98,11 @@ export function PartnerOnboardingClient({ token }: Props) {
         `/api/public/partners/onboarding/${encodeURIComponent(token)}/logo`,
         { method: "POST", body },
       );
-      const json = (await res.json()) as {
+      const json = await parseLogoUploadResponse<{
         ok?: boolean;
         message?: string;
         asset?: PartnerLogoLibraryAsset & { assetId?: string };
-      };
+      }>(res);
       if (!res.ok || !json.ok || !json.asset) {
         throw new Error(json.message || "No se pudo subir el logo.");
       }

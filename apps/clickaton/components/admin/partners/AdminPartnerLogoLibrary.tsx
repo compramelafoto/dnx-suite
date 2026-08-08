@@ -1,13 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { DnxPartnerBrandAssetType } from "@repo/partners/client-safe";
+import {
+  DEFAULT_PARTNER_ASSET_LIMITS,
+  type DnxPartnerBrandAssetType,
+} from "@repo/partners/client-safe";
 import {
   PartnerLogoLibrary,
   type PartnerLogoLibraryAsset,
   type PartnerLogoUploadSlot,
 } from "@/components/partners/logo/PartnerLogoLibrary";
 import { resolvePartnerBrandAssetSrc } from "@/components/partners/logo/partner-logo-src";
+import { parseLogoUploadResponse } from "@/lib/admin/partners/parse-logo-upload-response";
 import { refreshPreservingScroll } from "@/lib/admin/preserve-scroll";
 
 type Props = {
@@ -31,6 +35,9 @@ export function AdminPartnerLogoLibrary({
   const router = useRouter();
 
   async function handleUpload(slot: PartnerLogoUploadSlot, file: File) {
+    if (file.size > DEFAULT_PARTNER_ASSET_LIMITS.logoMaxBytes) {
+      throw new Error("El archivo supera 4 MB. Comprimí el PNG/WEBP e intentá de nuevo.");
+    }
     const body = new FormData();
     body.set("file", file);
     body.set("assetType", slot.type);
@@ -39,12 +46,12 @@ export function AdminPartnerLogoLibrary({
       method: "POST",
       body,
     });
-    const json = (await res.json()) as {
+    const json = await parseLogoUploadResponse<{
       ok?: boolean;
       message?: string;
       error?: string;
       asset?: { fileUrl?: string | null; storageKey?: string | null };
-    };
+    }>(res);
     if (!res.ok || !json.ok) {
       throw new Error(json.message || json.error || "No se pudo subir el logo.");
     }
@@ -61,7 +68,11 @@ export function AdminPartnerLogoLibrary({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assetType: familyType, enabled }),
     });
-    const json = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+    const json = await parseLogoUploadResponse<{
+      ok?: boolean;
+      message?: string;
+      error?: string;
+    }>(res);
     if (!res.ok || !json.ok) {
       throw new Error(json.message || json.error || "No se pudo reutilizar Logo general.");
     }

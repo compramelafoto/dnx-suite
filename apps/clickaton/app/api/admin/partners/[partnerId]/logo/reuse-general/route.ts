@@ -5,7 +5,8 @@ import {
   isPartnerLogoAssetType,
   type DnxPartnerBrandAssetType,
 } from "@repo/partners";
-import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { hasClickatonAdminAccess } from "@/lib/admin/access";
+import { getClickatonAuthUser } from "@/lib/admin/auth";
 import { withClickatonDb } from "@/lib/admin/db";
 import { getClickatonPartnersService, toPartnerActor } from "@/lib/admin/partners/runtime";
 
@@ -19,7 +20,32 @@ type Params = { params: Promise<{ partnerId: string }> };
  */
 export async function POST(request: Request, { params }: Params) {
   try {
-    const user = await requireClickatonAdmin();
+    const user = await getClickatonAuthUser();
+    if (!user) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "unauthorized",
+          message: "Sesión expirada. Volvé a iniciar sesión.",
+        },
+        { status: 401 },
+      );
+    }
+    if (
+      !hasClickatonAdminAccess({
+        email: user.email,
+        globalRole: user.globalRole,
+      })
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "forbidden",
+          message: "Sin permisos administrativos.",
+        },
+        { status: 403 },
+      );
+    }
     const actor = toPartnerActor(user);
     const { partnerId } = await params;
     if (!partnerId?.trim()) {
@@ -84,6 +110,14 @@ export async function POST(request: Request, { params }: Params) {
         { status: 400 },
       );
     }
-    throw error;
+    console.error("[clickaton] partner logo reuse-general failed:", error);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "reuse_failed",
+        message: "No se pudo actualizar la reutilización de Logo general.",
+      },
+      { status: 500 },
+    );
   }
 }
