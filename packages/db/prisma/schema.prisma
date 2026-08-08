@@ -138,7 +138,13 @@ model User {
   clickatonTimelineEventsReleased       ClickatonTimelineEvent[]               @relation("ClickatonTimelineEventReleaser")
   clickatonPromptsCreated               ClickatonPrompt[]                      @relation("ClickatonPromptCreator")
   clickatonPromptsReleased              ClickatonPrompt[]                      @relation("ClickatonPromptReleaser")
+  clickatonPromptsAssignedFromLibrary   ClickatonPrompt[]                      @relation("ClickatonPromptLibraryAssigner")
   clickatonTimelineAudits               ClickatonTimelineAudit[]               @relation("ClickatonTimelineAuditActor")
+  photoPromptLibraryItemsCreated        PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemCreator")
+  photoPromptLibraryItemsReviewed       PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemReviewer")
+  photoPromptLibraryItemsApproved       PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemApprover")
+  photoPromptLibraryVersionsCreated     PhotoPromptLibraryVersion[]            @relation("PhotoPromptLibraryVersionCreator")
+  photoPromptLibraryAudits              PhotoPromptLibraryAuditEvent[]         @relation("PhotoPromptLibraryAuditActor")
   clickatonCapabilityGrants             ClickatonEditionCapabilityGrant[]      @relation("ClickatonCapabilityGrantUser")
   createdEvents                         Event[]                                @relation("EventCreator")
   eventInvitations                      EventInvitation[]
@@ -10578,6 +10584,16 @@ model ClickatonPrompt {
   captureClockToleranceMinutes Int?
   gpsMode            ClickatonPromptGpsMode     @default(OPTIONAL)
   deviceCategoryHint String?
+  /// ETAPA 13 — vínculo opcional a Biblioteca central + snapshot inmutable.
+  libraryItemId      String?
+  libraryVersion     Int?
+  titleSnapshot      String?
+  descriptionSnapshot String?
+  themeSnapshot      String?
+  subthemeSnapshot   String?
+  inspirationSnapshot Json?
+  assignedFromLibraryAt DateTime?
+  assignedFromLibraryByUserId Int?
   createdByUserId    Int?
   releasedAt         DateTime?
   releasedByUserId   Int?
@@ -10586,13 +10602,17 @@ model ClickatonPrompt {
 
   edition       ClickatonEdition       @relation(fields: [editionId], references: [id], onDelete: Cascade)
   timelineEvent ClickatonTimelineEvent? @relation(fields: [timelineEventId], references: [id], onDelete: SetNull)
+  libraryItem   PhotoPromptLibraryItem? @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
   createdBy     User?                  @relation("ClickatonPromptCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   releasedBy    User?                  @relation("ClickatonPromptReleaser", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+  assignedFromLibraryBy User?          @relation("ClickatonPromptLibraryAssigner", fields: [assignedFromLibraryByUserId], references: [id], onDelete: SetNull)
   photoSubmissions ClickatonPhotoSubmission[]
 
   @@unique([editionId, sequence])
   @@index([editionId, status])
   @@index([timelineEventId])
+  @@index([libraryItemId])
+  @@index([editionId, libraryItemId])
 }
 
 enum ClickatonPromptGpsMode {
@@ -13646,4 +13666,184 @@ model DnxPartnerBenefitSyncRun {
 
   @@index([benefitId, status, startedAt])
   @@index([editionId, status, startedAt])
+}
+
+// =============================================================================
+// ETAPA 13 — Biblioteca central de consignas DNX (Photo Prompt Library)
+// Global, reutilizable. No hardcodea Clickatón. SoT temporal sigue en ETAPA 12.
+// =============================================================================
+
+enum PhotoPromptLibraryStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum PhotoPromptInspirationType {
+  DIRECTOR
+  MOVIE
+  GENRE
+  ART_MOVEMENT
+  PHOTOGRAPHER
+  VISUAL_STYLE
+  OTHER
+}
+
+enum PhotoPromptDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum PhotoPromptLibraryAuditAction {
+  CREATE
+  UPDATE
+  SUBMIT_REVIEW
+  APPROVE
+  REJECT
+  ARCHIVE
+  RESTORE
+  ASSIGN
+  UNASSIGN
+  REORDER
+  IMPORT
+  DUPLICATE
+}
+
+/// Temática administrable (no enum rígido).
+model PhotoPromptTheme {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subthemes PhotoPromptSubtheme[]
+  items     PhotoPromptLibraryItem[]
+
+  @@index([active, sortOrder])
+}
+
+model PhotoPromptSubtheme {
+  id          String   @id @default(cuid())
+  themeId     String
+  name        String
+  slug        String
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  theme PhotoPromptTheme         @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  items PhotoPromptLibraryItem[]
+
+  @@unique([themeId, slug])
+  @@index([themeId, active, sortOrder])
+}
+
+/// Plantilla/contenido reutilizable de consigna fotográfica.
+model PhotoPromptLibraryItem {
+  id                 String                      @id @default(cuid())
+  title              String
+  /// Título normalizado para detección de duplicados.
+  normalizedTitle    String
+  description        String
+  themeId            String
+  subthemeId         String?
+  inspirationType    PhotoPromptInspirationType?
+  inspirationLabel   String?
+  inspirationNotes   String?
+  tags               String[]                    @default([])
+  difficulty         PhotoPromptDifficulty       @default(MEDIUM)
+  language           String                      @default("es")
+  /// Puede realizarse razonablemente desde cualquier lugar del mundo.
+  universal          Boolean                     @default(true)
+  status             PhotoPromptLibraryStatus    @default(DRAFT)
+  createdByUserId    Int?
+  reviewedByUserId   Int?
+  approvedByUserId   Int?
+  submittedForReviewAt DateTime?
+  reviewedAt         DateTime?
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  archivedAt         DateTime?
+  rejectionReason    String?
+  version            Int                         @default(1)
+  /// Origen de seed/import (ej. INITIAL_DNX_PROMPT_LIBRARY_2026).
+  sourceKey          String?
+  metadataJson       Json?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  theme     PhotoPromptTheme              @relation(fields: [themeId], references: [id], onDelete: Restrict)
+  subtheme  PhotoPromptSubtheme?          @relation(fields: [subthemeId], references: [id], onDelete: SetNull)
+  createdBy User?                         @relation("PhotoPromptLibraryItemCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedBy User?                        @relation("PhotoPromptLibraryItemReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  approvedBy User?                        @relation("PhotoPromptLibraryItemApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  versions  PhotoPromptLibraryVersion[]
+  audits    PhotoPromptLibraryAuditEvent[]
+  assignments ClickatonPrompt[]
+
+  @@unique([sourceKey])
+  @@index([status, updatedAt])
+  @@index([themeId, status])
+  @@index([subthemeId])
+  @@index([normalizedTitle])
+  @@index([universal, status])
+  @@index([inspirationType, status])
+  @@index([difficulty, status])
+  @@index([language, status])
+}
+
+model PhotoPromptLibraryVersion {
+  id              String   @id @default(cuid())
+  libraryItemId   String
+  version         Int
+  title           String
+  description     String
+  themeId         String?
+  subthemeId      String?
+  inspirationType PhotoPromptInspirationType?
+  inspirationLabel String?
+  inspirationNotes String?
+  tags            String[] @default([])
+  difficulty      PhotoPromptDifficulty?
+  language        String?
+  universal       Boolean?
+  status          PhotoPromptLibraryStatus?
+  changeSummary   String?
+  snapshotJson    Json?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  libraryItem PhotoPromptLibraryItem @relation(fields: [libraryItemId], references: [id], onDelete: Cascade)
+  createdBy   User?                  @relation("PhotoPromptLibraryVersionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([libraryItemId, version])
+  @@index([libraryItemId, createdAt])
+}
+
+model PhotoPromptLibraryAuditEvent {
+  id            String                        @id @default(cuid())
+  libraryItemId String?
+  editionId     String?
+  actorUserId   Int?
+  action        PhotoPromptLibraryAuditAction
+  comment       String?
+  metadataJson  Json?
+  createdAt     DateTime                      @default(now())
+
+  libraryItem PhotoPromptLibraryItem? @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
+  actor       User?                   @relation("PhotoPromptLibraryAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([libraryItemId, createdAt])
+  @@index([editionId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
 }

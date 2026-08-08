@@ -18,6 +18,9 @@ export const routes = {
   },
   superAdmin: {
     index: () => "/super-admin",
+    consignas: () => "/super-admin/consignas",
+    consigna: (id: string) => `/super-admin/consignas/${id}`,
+    import: () => "/super-admin/consignas/importar",
   },
   dashboard: {
     index: () => "/dashboard",

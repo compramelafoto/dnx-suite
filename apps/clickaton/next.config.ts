@@ -34,6 +34,7 @@ const nextConfig: NextConfig = {
     "@repo/content",
     "@repo/content-ui",
     "@repo/payments",
+    "@repo/photo-prompt-library",
     "@mercadopago/sdk-react",
   ],
   // Evita que el bundler omita el Query Engine de Prisma en Vercel (rhel-openssl-3.0.x).

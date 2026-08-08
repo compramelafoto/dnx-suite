@@ -89,6 +89,23 @@ export default async function SuperAdminPage() {
         ) : null}
       </header>
 
+      <section className="space-y-4" data-testid="super-admin-modules">
+        <h2 className="text-2xl font-semibold tracking-tight">Módulos</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Link
+            href={routes.superAdmin.consignas()}
+            className="fr-recuadro border border-fr-border bg-fr-card transition-colors hover:border-gold/40"
+            data-testid="super-admin-module-consignas"
+          >
+            <p className="fr-eyebrow text-gold">Biblioteca</p>
+            <p className="mt-3 font-semibold text-fr-primary">Biblioteca de Consignas</p>
+            <p className="mt-2 text-sm leading-relaxed text-fr-muted">
+              Catálogo global editorial: borradores, revisión, aprobación y uso en ediciones.
+            </p>
+          </Link>
+        </div>
+      </section>
+
       <section className="space-y-6" data-testid="super-admin-act-as">
         <h2 className="text-2xl font-semibold tracking-tight">Actuar como</h2>
         <p className="text-sm text-fr-muted">

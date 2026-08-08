@@ -155,17 +155,79 @@ export async function getPreEventReadyChecklist(editionId: string): Promise<{
     }),
     prisma.clickatonPrompt.findMany({
       where: { editionId, status: { not: "CANCELLED" } },
-      select: { id: true, title: true, sequence: true },
+      select: {
+        id: true,
+        title: true,
+        titleSnapshot: true,
+        sequence: true,
+        libraryItemId: true,
+      },
       orderBy: { sequence: "asc" },
     }),
     prisma.clickatonEditionUploadConfig.findUnique({ where: { editionId } }),
   ]);
 
+  const libraryIds = [
+    ...new Set(
+      prompts
+        .map((p) => p.libraryItemId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const libraryRows =
+    libraryIds.length > 0
+      ? await prisma.photoPromptLibraryItem.findMany({
+          where: { id: { in: libraryIds } },
+          select: { id: true, status: true },
+        })
+      : [];
+  const statusById = new Map(libraryRows.map((r) => [r.id, r.status]));
+
+  const count = prompts.length;
+  const hasTitleOrSnapshot = prompts.every(
+    (p) => Boolean(p.titleSnapshot?.trim()) || Boolean(p.title?.trim()),
+  );
+  const sequences = prompts.map((p) => p.sequence);
+  const seqSet = new Set(sequences);
+  const orderOk =
+    count > 0 &&
+    seqSet.size === count &&
+    sequences.every((s, i) => s === i + 1);
+
+  const linked = prompts.filter((p) => p.libraryItemId);
+  const allLibraryApproved =
+    linked.length === 0 ||
+    linked.every((p) => statusById.get(p.libraryItemId!) === "APPROVED");
+
+  const linkedIds = linked.map((p) => p.libraryItemId!);
+  const uniqueLibraryIds = new Set(linkedIds);
+  const noDuplicates = linkedIds.length === uniqueLibraryIds.size;
+
   const items: PreEventReadyItem[] = [
     {
       key: "prompts_10",
-      label: "10 consignas cargadas",
-      ok: prompts.length >= 10 && prompts.every((p) => Boolean(p.title?.trim())),
+      label: `Consignas seleccionadas: ${Math.min(count, 10)}/10`,
+      ok: count === 10,
+    },
+    {
+      key: "prompts_snapshots",
+      label: "Todas con título o snapshot de biblioteca",
+      ok: count === 10 && hasTitleOrSnapshot,
+    },
+    {
+      key: "prompts_library_approved",
+      label: "Consignas de biblioteca en estado APPROVED",
+      ok: allLibraryApproved,
+    },
+    {
+      key: "prompts_order",
+      label: "Orden OK (secuencias 1…n únicas)",
+      ok: orderOk,
+    },
+    {
+      key: "prompts_no_duplicates",
+      label: "Duplicadas: 0 (libraryItemId únicos)",
+      ok: noDuplicates,
     },
     {
       key: "reveal",
