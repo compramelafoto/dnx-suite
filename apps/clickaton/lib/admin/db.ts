@@ -7,16 +7,31 @@ export type ClickatonDbResult<T> =
   | { ok: true; data: T }
   | { ok: false; reason: ClickatonDbUnavailableReason; message: string };
 
+function errorMessage(error: unknown): string {
+  if (!error || typeof error !== "object") return "";
+  return "message" in error && typeof (error as { message?: unknown }).message === "string"
+    ? (error as { message: string }).message
+    : "";
+}
+
 function isMissingTableError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const code = "code" in error ? String((error as { code?: unknown }).code) : "";
   // Solo tablas/columnas ausentes — no matchear nombres de modelo en errores genéricos de Prisma.
   if (code === "P2021" || code === "P2022") return true;
-  const message =
-    "message" in error && typeof (error as { message?: unknown }).message === "string"
-      ? (error as { message: string }).message
-      : "";
+  const message = errorMessage(error);
   return /(?:table|relation|column).*(?:does not exist|don't exist)|does not exist in the current database/i.test(
+    message,
+  );
+}
+
+/** Enum / schema desfasado (p. ej. LOGO_GENERAL aún no migrado en Production). */
+function isSchemaMismatchError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = "code" in error ? String((error as { code?: unknown }).code) : "";
+  const message = errorMessage(error);
+  if (code === "P2010" || code === "22P02") return true;
+  return /invalid input value for enum|enum.*does not exist|Value .* not found in enum/i.test(
     message,
   );
 }
@@ -58,11 +73,22 @@ export async function withClickatonDb<T>(
           : "Falta una tabla/columna en la base de Production. Aplicá las migraciones Prisma pendientes.",
       };
     }
+    if (isSchemaMismatchError(error)) {
+      return {
+        ok: false,
+        reason: "migration_pending",
+        message:
+          "La base de Production no tiene el esquema de logos actualizado (falta LOGO_GENERAL u otro enum). Hay que aplicar las migraciones Prisma pendientes (prisma migrate deploy).",
+      };
+    }
     console.error("[clickaton] database error:", error);
+    const detail = errorMessage(error).slice(0, 220);
     return {
       ok: false,
       reason: "db_error",
-      message: fallbackMessage,
+      message: detail
+        ? `${fallbackMessage} (${detail})`
+        : fallbackMessage,
     };
   }
 }

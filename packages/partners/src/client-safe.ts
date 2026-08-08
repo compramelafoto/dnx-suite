@@ -23,6 +23,23 @@ export type {
   PartnerLogoPreviewKind,
 } from "./logo-types";
 
+export {
+  canReusePartnerLogoFamilyFromGeneral,
+  partnerLogoFamilyMatchesGeneral,
+  partnerLogoFamilyReuseBackgrounds,
+} from "./logo-reuse-general";
+
+export {
+  evaluatePartnerSponsorReadiness,
+  readinessLabel,
+  buildInstagramProfileUrl,
+} from "./sponsor-readiness";
+export type {
+  PartnerSponsorReadiness,
+  PartnerSponsorReadinessLevel,
+  PartnerSponsorReadinessMissing,
+} from "./sponsor-readiness";
+
 export { PARTNER_ALLOWED_LOGO_MIMES } from "./assets-limits";
 
 export { partnerLogoResolutionWarning } from "./assets-mime";

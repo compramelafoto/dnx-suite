@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { DnxPartnerBrandAssetType } from "@repo/partners/client-safe";
 import {
   PartnerLogoLibrary,
   type PartnerLogoLibraryAsset,
@@ -47,11 +48,23 @@ export function AdminPartnerLogoLibrary({
     if (!res.ok || !json.ok) {
       throw new Error(json.message || json.error || "No se pudo subir el logo.");
     }
-    // Preferimos refresh server; el blob local ya mostró preview al elegir archivo.
     void resolvePartnerBrandAssetSrc({
       fileUrl: json.asset?.fileUrl,
       storageKey: json.asset?.storageKey,
     });
+    refreshPreservingScroll(() => router.refresh());
+  }
+
+  async function handleReuseGeneral(familyType: DnxPartnerBrandAssetType, enabled: boolean) {
+    const res = await fetch(`/api/admin/partners/${partnerId}/logo/reuse-general`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assetType: familyType, enabled }),
+    });
+    const json = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+    if (!res.ok || !json.ok) {
+      throw new Error(json.message || json.error || "No se pudo reutilizar Logo general.");
+    }
     refreshPreservingScroll(() => router.refresh());
   }
 
@@ -63,6 +76,7 @@ export function AdminPartnerLogoLibrary({
       approveAction={approveAction}
       archiveAction={archiveAction}
       onUpload={handleUpload}
+      onReuseGeneral={handleReuseGeneral}
     />
   );
 }

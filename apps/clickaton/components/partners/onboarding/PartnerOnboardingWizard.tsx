@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type {
-  PartnerOnboardingDraft,
-  PartnerOnboardingSubmission,
+import {
+  buildInstagramProfileUrl,
+  type DnxPartnerBrandAssetType,
+  type PartnerOnboardingDraft,
+  type PartnerOnboardingSubmission,
 } from "@repo/partners/client-safe";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -63,8 +65,11 @@ export function PartnerOnboardingWizard({
       provinceOrState: initialDraft?.company?.provinceOrState ?? "",
       country: initialDraft?.company?.country ?? "Argentina",
       postalCode: initialDraft?.company?.postalCode ?? "",
-      destinationKind: initialDraft?.company?.destinationKind ?? "WEBSITE",
-      destinationUrl: initialDraft?.company?.destinationUrl ?? "",
+      destinationKind: initialDraft?.company?.destinationKind ?? "INSTAGRAM",
+      destinationUrl:
+        initialDraft?.company?.destinationUrl ??
+        buildInstagramProfileUrl(initialDraft?.company?.instagram) ??
+        "",
       contributionNotes: initialDraft?.company?.contributionNotes ?? "",
       observations: initialDraft?.company?.observations ?? "",
     },
@@ -97,6 +102,9 @@ export function PartnerOnboardingWizard({
     type: logo.type,
     backgroundType: logo.backgroundType ?? "COLOR",
     assetId: logo.assetId,
+    reusedFromGeneral: Boolean(
+      (logo as { reusedFromGeneral?: boolean }).reusedFromGeneral,
+    ),
     fileUrl: logo.fileUrl,
     storageKey: logo.storageKey,
     mimeType: logo.mimeType,
@@ -105,7 +113,24 @@ export function PartnerOnboardingWizard({
   }));
 
   function patchCompany(patch: Partial<NonNullable<PartnerOnboardingDraft["company"]>>) {
-    setDraft((prev) => ({ ...prev, company: { ...prev.company, ...patch } }));
+    setDraft((prev) => {
+      const company = { ...prev.company, ...patch };
+      const kind = company.destinationKind ?? "INSTAGRAM";
+      // Si el destino es Instagram, sincronizar URL desde el handle cuando falta o era la anterior.
+      if ("instagram" in patch || patch.destinationKind === "INSTAGRAM") {
+        const igUrl = buildInstagramProfileUrl(company.instagram);
+        const prevIgUrl = buildInstagramProfileUrl(prev.company?.instagram);
+        const dest = company.destinationUrl?.trim() ?? "";
+        if (
+          kind === "INSTAGRAM" &&
+          igUrl &&
+          (!dest || dest === prevIgUrl || patch.destinationKind === "INSTAGRAM")
+        ) {
+          company.destinationUrl = igUrl;
+        }
+      }
+      return { ...prev, company };
+    });
   }
 
   function patchContact(patch: Partial<NonNullable<PartnerOnboardingDraft["contact"]>>) {
@@ -232,6 +257,39 @@ export function PartnerOnboardingWizard({
     });
   }
 
+  async function handleReuseGeneral(familyType: DnxPartnerBrandAssetType, enabled: boolean) {
+    if (enabled) {
+      const general = (draft.logos ?? []).filter((l) => l.type === "LOGO_GENERAL");
+      if (general.length === 0) {
+        throw new Error("Primero subí al menos un archivo en Logo general.");
+      }
+    }
+    setDraft((prev) => {
+      const logos = prev.logos ?? [];
+      if (!enabled) {
+        return {
+          ...prev,
+          logos: logos.filter(
+            (l) =>
+              !(
+                l.type === familyType &&
+                Boolean((l as { reusedFromGeneral?: boolean }).reusedFromGeneral)
+              ),
+          ),
+        };
+      }
+      const general = logos.filter((l) => l.type === "LOGO_GENERAL");
+      const withoutFamily = logos.filter((l) => l.type !== familyType);
+      const mirrored = general.map((g) => ({
+        ...g,
+        type: familyType,
+        assetId: g.assetId,
+        reusedFromGeneral: true,
+      }));
+      return { ...prev, logos: [...withoutFamily, ...mirrored] };
+    });
+  }
+
   async function handleSubmit() {
     if (!validateStep(4)) return;
     setPending(true);
@@ -340,9 +398,13 @@ export function PartnerOnboardingWizard({
                 onChange={(e) => patchCompany({ linkedinUrl: e.target.value })}
               />
             </Field>
-            <Field id="destination-kind" label="Destino principal del enlace">
+            <Field
+              id="destination-kind"
+              label="Destino principal del enlace"
+              hint="Por defecto Instagram: al cargar el @ se completa la URL de destino."
+            >
               <Select
-                value={draft.company?.destinationKind ?? "WEBSITE"}
+                value={draft.company?.destinationKind ?? "INSTAGRAM"}
                 onChange={(e) =>
                   patchCompany({
                     destinationKind: e.target.value as NonNullable<
@@ -351,16 +413,20 @@ export function PartnerOnboardingWizard({
                   })
                 }
               >
-                <option value="WEBSITE">Sitio web</option>
                 <option value="INSTAGRAM">Instagram</option>
+                <option value="WEBSITE">Sitio web</option>
                 <option value="WHATSAPP">WhatsApp</option>
                 <option value="OTHER">Otro</option>
               </Select>
             </Field>
-            <Field id="destination-url" label="URL de destino">
+            <Field
+              id="destination-url"
+              label="URL de destino del click"
+              hint="Es a donde va el click desde placas/landing. Podés cambiarla si preferís web u otro enlace."
+            >
               <Input
                 type="url"
-                placeholder="https://"
+                placeholder="https://www.instagram.com/tu-marca/"
                 value={draft.company?.destinationUrl ?? ""}
                 onChange={(e) => patchCompany({ destinationUrl: e.target.value })}
               />
@@ -506,6 +572,7 @@ export function PartnerOnboardingWizard({
           <PartnerLogoLibrary
             assets={logoAssets}
             onUpload={handleUpload}
+            onReuseGeneral={handleReuseGeneral}
             showLegacyJpegWarning
           />
         </div>

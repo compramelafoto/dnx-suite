@@ -320,6 +320,11 @@ export default async function AdminPartnerDetailPage({
               width: a.width,
               height: a.height,
               approvalStatus: a.approvalStatus,
+              reusedFromGeneral: Boolean(
+                a.metadata &&
+                  typeof a.metadata === "object" &&
+                  (a.metadata as { reusedFromGeneral?: unknown }).reusedFromGeneral === true,
+              ),
             }))}
           showLegacyJpegWarning={brandAssets.some(
             (a) =>

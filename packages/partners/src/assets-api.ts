@@ -2,6 +2,7 @@ import { assertValidCtaUrl } from "./assets-mime";
 import {
   findBestAssetForChannel,
   filterParticipationAssets,
+  normalizePartnerLogoBackground,
   resolvePartnerDisplayImage,
   resolvePartnerLogoVariant,
   resolvePartnerPrimaryLogo,
@@ -17,6 +18,11 @@ import type {
   UpdateBrandAssetInput,
   UpdateParticipationAssetInput,
 } from "./assets-types";
+import {
+  canReusePartnerLogoFamilyFromGeneral,
+  partnerLogoFamilyReuseBackgrounds,
+} from "./logo-reuse-general";
+import { getPartnerLogoFamilyGuide, getPartnerLogoSlotGuide } from "./logo-types";
 import { assertPartnerCapability } from "./permissions";
 import type { PartnersRepository } from "./repository";
 import { assertDateRange } from "./validate";
@@ -221,6 +227,131 @@ export function createPartnerAssetsApi(repo: PartnersRepository, audit: AuditFn)
         action: "asset.archive",
       });
       return asset;
+    },
+
+    /**
+     * Copia Logo general (COLOR/LIGHT/DARK) a otra familia, reutilizando storageKey/fileUrl.
+     * Si enabled=false, archiva assets de esa familia marcados como reusedFromGeneral.
+     */
+    async reusePartnerLogoFamilyFromGeneral(
+      actor: PartnerActor,
+      input: {
+        partnerId: string;
+        targetType: DnxPartnerBrandAssetType;
+        enabled: boolean;
+      },
+    ): Promise<PartnerBrandAssetRecord[]> {
+      assertPartnerCapability(actor, "PARTNER_ASSETS_UPLOAD");
+      assertPartnerCapability(actor, "PARTNER_ASSETS_MANAGE_BRAND");
+      await requirePartner(input.partnerId);
+      if (!canReusePartnerLogoFamilyFromGeneral(input.targetType)) {
+        throw new PartnersDomainError(
+          "VALIDATION",
+          "Esta familia de logo no puede reutilizar Logo general.",
+          { type: input.targetType },
+        );
+      }
+
+      const all = await repo.listBrandAssets(input.partnerId);
+      const active = all.filter((a) => !a.archivedAt && a.status !== "ARCHIVED");
+
+      if (!input.enabled) {
+        const toArchive = active.filter((a) => {
+          if (a.type !== input.targetType) return false;
+          const meta = a.metadata ?? {};
+          return meta.reusedFromGeneral === true;
+        });
+        const out: PartnerBrandAssetRecord[] = [];
+        for (const asset of toArchive) {
+          out.push(await api.archivePartnerAsset(actor, asset.id));
+        }
+        return out;
+      }
+
+      const backgrounds = partnerLogoFamilyReuseBackgrounds(input.targetType);
+      const generalByBg = new Map<
+        ReturnType<typeof normalizePartnerLogoBackground>,
+        PartnerBrandAssetRecord
+      >();
+      for (const a of active) {
+        if (a.type !== "LOGO_GENERAL") continue;
+        generalByBg.set(normalizePartnerLogoBackground(a.backgroundType), a);
+      }
+
+      if (![...generalByBg.values()].some((a) => a.fileUrl || a.storageKey)) {
+        throw new PartnersDomainError(
+          "VALIDATION",
+          "Primero subí al menos un archivo en Logo general.",
+          { logos: "Falta Logo general." },
+        );
+      }
+
+      const family = getPartnerLogoFamilyGuide(input.targetType);
+      const created: PartnerBrandAssetRecord[] = [];
+      for (const backgroundType of backgrounds) {
+        const source = generalByBg.get(backgroundType);
+        if (!source || (!source.fileUrl && !source.storageKey)) continue;
+
+        // Archivar slots previos de la familia (propios o reutilizados) para ese fondo.
+        for (const prev of active) {
+          if (prev.type !== input.targetType) continue;
+          if (normalizePartnerLogoBackground(prev.backgroundType) !== backgroundType) continue;
+          await api.archivePartnerAsset(actor, prev.id);
+        }
+
+        const slotGuide = getPartnerLogoSlotGuide(input.targetType, backgroundType);
+        const assetName =
+          family && slotGuide
+            ? `${family.title} · ${slotGuide.title}`
+            : `${input.targetType}:${backgroundType}`;
+
+        created.push(
+          await api.createPartnerAsset(actor, {
+            partnerId: input.partnerId,
+            type: input.targetType,
+            name: assetName,
+            storageProvider: source.storageProvider,
+            storageKey: source.storageKey,
+            fileUrl: source.fileUrl,
+            originalFilename: source.originalFilename,
+            mimeType: source.mimeType,
+            fileExtension: source.fileExtension,
+            fileSize: source.fileSize,
+            width: source.width,
+            height: source.height,
+            backgroundType,
+            isPrimary: false,
+            status: source.status === "ACTIVE" ? "ACTIVE" : "DRAFT",
+            approvalStatus: source.approvalStatus,
+            altText: source.altText,
+            notes: "Reutilizado desde Logo general",
+            metadata: {
+              ...(source.metadata ?? {}),
+              reusedFromGeneral: true,
+              sourceAssetId: source.id,
+              sourceType: "LOGO_GENERAL",
+            },
+          }),
+        );
+      }
+
+      if (created.length === 0) {
+        throw new PartnersDomainError(
+          "VALIDATION",
+          "No hay archivos en Logo general para copiar a esta sección.",
+          { logos: "Subí Logo general primero." },
+        );
+      }
+
+      await audit(actor, {
+        partnerId: input.partnerId,
+        entityType: "DnxPartnerAsset",
+        entityId: input.partnerId,
+        action: "asset.reuse_from_general",
+        after: { targetType: input.targetType, count: created.length },
+      });
+
+      return created;
     },
 
     async resolvePartnerPrimaryLogo(

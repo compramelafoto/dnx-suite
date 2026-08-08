@@ -256,6 +256,23 @@ export type {
 } from "./logo-types";
 
 export {
+  canReusePartnerLogoFamilyFromGeneral,
+  partnerLogoFamilyMatchesGeneral,
+  partnerLogoFamilyReuseBackgrounds,
+} from "./logo-reuse-general";
+
+export {
+  evaluatePartnerSponsorReadiness,
+  readinessLabel,
+  buildInstagramProfileUrl,
+} from "./sponsor-readiness";
+export type {
+  PartnerSponsorReadiness,
+  PartnerSponsorReadinessLevel,
+  PartnerSponsorReadinessMissing,
+} from "./sponsor-readiness";
+
+export {
   DNX_PARTNER_ONBOARDING_INVITATION_STATUSES,
   DNX_PARTNER_ONBOARDING_REVIEW_STATUSES,
   DNX_PARTNER_ONBOARDING_ADMIN_STATUSES,

@@ -3,11 +3,13 @@ import {
   PARTNER_ONBOARDING_ADMIN_STATUS_LABELS,
   PARTNER_STATUS_LABELS,
   PARTNER_TYPE_LABELS,
+  evaluatePartnerSponsorReadiness,
   resolveOnboardingAdminStatus,
 } from "@repo/partners";
 import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { PartnerReadinessBadge } from "@/components/admin/partners/PartnerReadinessBadge";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -29,16 +31,27 @@ export default async function AdminSponsorsPage({
   const listResult = await withClickatonDb(async () => {
     const svc = getClickatonPartnersService();
     const partners = await svc.listPartners(actor, { search: q });
-    const withOnboarding = await Promise.all(
+    const withMeta = await Promise.all(
       partners.map(async (p) => {
-        const invitations = await svc.listOnboardingInvitations(actor, p.id);
+        const [invitations, contacts, assets, participations] = await Promise.all([
+          svc.listOnboardingInvitations(actor, p.id),
+          svc.listContacts(actor, p.id),
+          svc.listPartnerAssets(actor, p.id),
+          svc.listParticipations(actor, p.id),
+        ]);
         return {
           ...p,
           onboardingStatus: resolveOnboardingAdminStatus(invitations),
+          readiness: evaluatePartnerSponsorReadiness({
+            partner: p,
+            contacts,
+            assets,
+            participationDestinationUrls: participations.map((x) => x.destinationUrl),
+          }),
         };
       }),
     );
-    return withOnboarding;
+    return withMeta;
   });
 
   if (!listResult.ok) {
@@ -98,6 +111,7 @@ export default async function AdminSponsorsPage({
                 <th className="px-4 py-3 font-medium">Nombre</th>
                 <th className="px-4 py-3 font-medium">Tipo</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
+                <th className="px-4 py-3 font-medium">Info mínima</th>
                 <th className="px-4 py-3 font-medium">Datos del Partner</th>
                 <th className="px-4 py-3 font-medium">Participaciones activas</th>
                 <th className="px-4 py-3 font-medium">Beneficios activos</th>
@@ -119,6 +133,9 @@ export default async function AdminSponsorsPage({
                     <Badge variant="neutral">
                       {PARTNER_STATUS_LABELS[p.status] ?? p.status}
                     </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <PartnerReadinessBadge readiness={p.readiness} />
                   </td>
                   <td className="px-4 py-3 text-ck-text-secondary">
                     {PARTNER_ONBOARDING_ADMIN_STATUS_LABELS[p.onboardingStatus]}
