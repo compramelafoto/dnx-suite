@@ -154,6 +154,22 @@ export async function listPromptPublicDtos(
   options?: { clock?: EditionClock; participantPaid?: boolean },
 ) {
   const clock = options?.clock ?? systemClock();
+  const uploadConfig = await prisma.clickatonEditionUploadConfig.findUnique({
+    where: { editionId },
+  });
+  const editionSchedule = uploadConfig
+    ? {
+        globalPromptReveal: uploadConfig.globalPromptReveal,
+        eventRevealAt: uploadConfig.eventRevealAt,
+        captureWindowStartsAt: uploadConfig.captureWindowStartsAt,
+        captureWindowEndsAt: uploadConfig.captureWindowEndsAt,
+        uploadWindowStartsAt: uploadConfig.uploadWindowStartsAt,
+        uploadWindowEndsAt: uploadConfig.uploadWindowEndsAt,
+        allowReplacement: uploadConfig.allowReplacement,
+        captureClockToleranceMinutes: uploadConfig.captureClockToleranceMinutes,
+      }
+    : null;
+
   if (!options?.participantPaid) {
     // Visitante: solo conteo LOCKED sin secretos.
     const count = await prisma.clickatonPrompt.count({
@@ -180,7 +196,7 @@ export async function listPromptPublicDtos(
           releasedAt: null,
           contentVersion: 1,
         },
-        { clock },
+        { clock, editionSchedule },
       ),
     );
   }
@@ -190,7 +206,11 @@ export async function listPromptPublicDtos(
     orderBy: { sequence: "asc" },
   });
   return rows.map((r) =>
-    toPromptPublicDto(r as PromptRecord, { clock, showOpensAt: true }),
+    toPromptPublicDto(r as PromptRecord, {
+      clock,
+      showOpensAt: true,
+      editionSchedule,
+    }),
   );
 }
 

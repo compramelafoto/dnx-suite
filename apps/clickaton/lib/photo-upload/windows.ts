@@ -1,5 +1,11 @@
 import type { EditionClock } from "@/lib/timeline/clock";
 import { systemClock } from "@/lib/timeline/clock";
+import {
+  resolveEditionSchedule,
+  scheduleToWindowSource,
+  type EditionScheduleSource,
+  type PromptScheduleFallback,
+} from "./edition-schedule";
 
 export type PromptWindowSource = {
   status: string;
@@ -11,13 +17,32 @@ export type PromptWindowSource = {
 };
 
 /**
- * Política Etapa 11 / 10G.3:
- * - Captura efectiva inicia en releasedAt (liberación real) si existe; si no, captureStartsAt planificado.
- * - captureEndsAt / uploadEndsAt son boundaries EXCLUSIVOS (t < endsAt).
- * - Subida puede extenderse después del cierre de captura (uploadEndsAt > captureEndsAt).
- * - No mezclar captura y subida: la hora de upload no valida la captura.
+ * ETAPA 12:
+ * - Preferir ventanas de EDICIÓN (capture/upload independientes).
+ * - NO usar releasedAt como inicio de captura cuando hay captureWindow de edición.
+ * - Boundaries [startsAt, endsAt) — fin exclusivo.
+ * - La hora de upload NUNCA valida la captura.
  */
-export function resolveEffectiveWindows(prompt: PromptWindowSource) {
+export function resolveEffectiveWindows(
+  prompt: PromptWindowSource,
+  edition?: EditionScheduleSource | null,
+) {
+  const schedule = resolveEditionSchedule(edition ?? null, prompt as PromptScheduleFallback);
+  if (schedule.hasEditionCaptureWindow || schedule.hasEditionUploadWindow) {
+    const src = scheduleToWindowSource(schedule);
+    return {
+      captureStartsAt: src.captureStartsAt,
+      captureEndsAt: src.captureEndsAt,
+      uploadStartsAt: src.uploadStartsAt,
+      uploadEndsAt: src.uploadEndsAt,
+      plannedCaptureStartsAt: schedule.captureStartsAt,
+      actualReleasedAt: edition?.eventRevealAt ?? prompt.releasedAt,
+      schedule,
+    };
+  }
+
+  // Legacy (fixtures staggered / ediciones sin SoT edición):
+  // captura efectiva puede usar releasedAt solo si no hay ventanas de edición.
   const captureStartsAt = prompt.releasedAt ?? prompt.captureStartsAt;
   const captureEndsAt = prompt.captureEndsAt;
   const uploadStartsAt = prompt.uploadStartsAt ?? captureStartsAt;
@@ -29,10 +54,22 @@ export function resolveEffectiveWindows(prompt: PromptWindowSource) {
     uploadEndsAt,
     plannedCaptureStartsAt: prompt.captureStartsAt,
     actualReleasedAt: prompt.releasedAt,
+    schedule,
   };
 }
 
-export function isPromptReleasedForUpload(status: string): boolean {
+export function isPromptReleasedForUpload(
+  status: string,
+  options?: {
+    edition?: EditionScheduleSource | null;
+    clock?: EditionClock;
+  },
+): boolean {
+  const edition = options?.edition;
+  const clock = options?.clock ?? systemClock();
+  if (edition?.globalPromptReveal !== false && edition?.eventRevealAt) {
+    return edition.eventRevealAt.getTime() <= clock.now().getTime() && status !== "DRAFT" && status !== "CANCELLED";
+  }
   return status === "RELEASED" || status === "CLOSED";
 }
 
@@ -51,7 +88,6 @@ export function getUploadWindowState(
 
 /**
  * Upload window: [startsAt, endsAt) — exclusive end.
- * AR2026: a las 22:00:00.000 server-side se rechaza cualquier nuevo upload.
  */
 export function isWithinUploadWindow(
   windows: ReturnType<typeof resolveEffectiveWindows>,
@@ -62,8 +98,6 @@ export function isWithinUploadWindow(
 
 /**
  * Capture window exacta: [startsAt, endsAt) — exclusive end.
- * AR2026: 16:00:00 inclusive … 20:00:00 exclusive.
- * No inventa timestamps si EXIF ausente.
  */
 export function isWithinCaptureWindowExact(input: {
   captureDate: Date | null;
@@ -79,7 +113,7 @@ export function isWithinCaptureWindowExact(input: {
 }
 
 /**
- * Fase 20:00–22:00: captura cerrada, upload aún abierto.
+ * Captura cerrada, upload aún abierto.
  */
 export function isCaptureClosedUploadOpen(
   windows: ReturnType<typeof resolveEffectiveWindows>,
@@ -162,7 +196,6 @@ export function evaluateGps(input: {
     if (!present) return { status: "ABSENT_REQUIRED", result: "FAIL" };
     return { status: "PRESENT_VALID", result: "PASS" };
   }
-  // GEOFENCE sin zona configurada → revisión
   if (!present) return { status: "ABSENT_REQUIRED", result: "MANUAL_REVIEW" };
   return { status: "MANUAL_REVIEW", result: "MANUAL_REVIEW" };
 }

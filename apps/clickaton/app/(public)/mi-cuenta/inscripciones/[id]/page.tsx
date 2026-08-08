@@ -20,18 +20,19 @@ import { resolveActiveQrPlaintext } from "@/lib/registration/application/confirm
 import { Button } from "@/components/ui/Button";
 import { PromptPhotoUpload } from "@/components/account/PromptPhotoUpload";
 import { getEditionTemporalState, listPromptPublicDtos } from "@/lib/timeline/prisma-timeline";
+import { CAMERA_CLOCK_WARNING_ES } from "@/config/editions/argentina-2026";
 import {
-  CAPTURE_CLOSED_UPLOAD_OPEN_MESSAGE_ES,
-  CAMERA_CLOCK_WARNING_ES,
-  UPLOAD_CLOSED_MESSAGE_ES,
-} from "@/config/editions/argentina-2026";
+  arePromptsGloballyRevealed,
+  resolveEditionSchedule,
+} from "@/lib/photo-upload/edition-schedule";
 import {
   getUploadWindowState,
-  isCaptureClosedUploadOpen,
+  isPromptReleasedForUpload,
   isWithinUploadWindow,
   resolveEffectiveWindows,
 } from "@/lib/photo-upload/windows";
-import { systemClock } from "@/lib/timeline/clock";
+import { MarathonSchedulePanel } from "@/components/account/MarathonSchedulePanel";
+import { getTestVirtualClock } from "@/lib/test-mode/test-mode";
 import { marathonRegistrationPath } from "@/config/navigation";
 import { buildRegistrationDetailHeading } from "@/lib/public-ux/registration-detail-heading";
 import {
@@ -48,9 +49,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ testMode?: string }>;
+};
 
-export default async function RegistrationCredentialPage({ params }: Props) {
+export default async function RegistrationCredentialPage({ params, searchParams }: Props) {
   const user = await getClickatonAuthUser();
   if (!user) {
     redirect(
@@ -107,13 +111,27 @@ export default async function RegistrationCredentialPage({ params }: Props) {
     (registration.paymentStatus === "APPROVED" ||
       registration.paymentStatus === "NOT_REQUIRED");
 
+  const sp = searchParams ? await searchParams : {};
+  const isOpsTest = Boolean((registration as { isOpsTest?: boolean }).isOpsTest);
+  const showTestBanner = isOpsTest || sp.testMode === "1";
+  const clock = isOpsTest
+    ? await getTestVirtualClock(registration.editionId)
+    : (await import("@/lib/timeline/clock")).systemClock();
+
   const temporal = await getEditionTemporalState(registration.editionId);
+  const uploadConfig = registration.edition.uploadConfig;
+  const editionSchedule = resolveEditionSchedule(uploadConfig);
+  const promptsRevealed = arePromptsGloballyRevealed(editionSchedule, clock);
+
   const prompts = paid
-    ? await listPromptPublicDtos(registration.editionId, { participantPaid: true })
+    ? await listPromptPublicDtos(registration.editionId, {
+        participantPaid: true,
+        clock,
+      })
     : [];
   const promptRows = paid
     ? await prisma.clickatonPrompt.findMany({
-        where: { editionId: registration.editionId, status: { in: ["RELEASED", "CLOSED", "LOCKED", "READY"] } },
+        where: { editionId: registration.editionId, status: { in: ["RELEASED", "CLOSED", "LOCKED", "READY", "DRAFT"] } },
         orderBy: { sequence: "asc" },
         select: {
           id: true,
@@ -149,10 +167,10 @@ export default async function RegistrationCredentialPage({ params }: Props) {
   const admissionBySubmission = new Map(
     admissionDecisions.map((d) => [d.submissionId, d]),
   );
-  const clock = systemClock();
-  const uploadsEnabled = Boolean(registration.edition.uploadConfig?.uploadsEnabled);
-  const requiredCount = promptRows.filter((p) => p.status === "RELEASED" || p.status === "CLOSED").length;
+  const uploadsEnabled =
+    Boolean(uploadConfig?.uploadsEnabled) || isOpsTest;
   const completedCount = registration.photoSubmissions.filter((s) => s.status === "CONFIRMED").length;
+  const totalPrompts = Math.max(promptRows.length, prompts.length);
 
   const statusPresentation = presentParticipantRegistration(
     registration.status,
@@ -226,6 +244,18 @@ export default async function RegistrationCredentialPage({ params }: Props) {
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-12 print:py-4">
       <CredentialPrintActions />
+
+      {showTestBanner ? (
+        <div
+          className="rounded-xl border border-amber-500/50 bg-amber-500/15 px-4 py-3 text-sm text-ck-text"
+          role="status"
+        >
+          <p className="font-semibold uppercase tracking-wide text-amber-200">Modo Test</p>
+          <p className="mt-1 text-ck-text-secondary">
+            Nada realizado en esta sesión afectará participantes reales.
+          </p>
+        </div>
+      ) : null}
 
       <header className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ck-yellow">
@@ -490,43 +520,39 @@ export default async function RegistrationCredentialPage({ params }: Props) {
 
       <Card variant="outlined" className="space-y-4 p-6">
         <h2 className="font-semibold">Consignas y carga de fotos</h2>
-        <p className="text-sm text-ck-text-secondary leading-relaxed">
-          Antes del horario de apertura las consignas aparecen como bloqueadas. El contenido
-          secreto no se muestra hasta que se habiliten. Progreso: {completedCount}/
-          {requiredCount || "—"} confirmadas.
-        </p>
+        <MarathonSchedulePanel
+          schedule={editionSchedule}
+          timezone={registration.edition.timezone ?? "America/Argentina/Buenos_Aires"}
+          clock={clock}
+          revealed={promptsRevealed}
+          deliveredCount={completedCount}
+          totalPrompts={totalPrompts || 10}
+        />
         <p
           className="rounded-lg border border-ck-yellow/40 bg-ck-yellow/10 px-4 py-3 text-sm leading-relaxed text-ck-text"
           role="note"
         >
           {CAMERA_CLOCK_WARNING_ES}
         </p>
-        {(() => {
-          const sample = promptRows[0] ? resolveEffectiveWindows(promptRows[0]) : null;
-          if (!sample) return null;
-          const uploadState = getUploadWindowState(sample, clock);
-          if (uploadState === "CLOSED") {
-            return (
-              <p className="rounded-lg border border-ck-border bg-ck-bg-elevated px-4 py-3 text-sm">
-                {UPLOAD_CLOSED_MESSAGE_ES}
-              </p>
-            );
-          }
-          if (isCaptureClosedUploadOpen(sample, clock)) {
-            return (
-              <p className="rounded-lg border border-ck-yellow/50 bg-ck-yellow/10 px-4 py-3 text-sm leading-relaxed">
-                {CAPTURE_CLOSED_UPLOAD_OPEN_MESSAGE_ES}
-              </p>
-            );
-          }
-          return null;
-        })()}
         <p className="text-xs text-ck-text-muted">
           {uploadsEnabled
             ? "La carga de fotos está habilitada para esta edición."
             : "La carga de fotos todavía no está habilitada."}{" "}
-          {temporal.canUpload
-            ? "Ya podés enviar dentro de la ventana del evento."
+          {getUploadWindowState(
+            resolveEffectiveWindows(
+              promptRows[0] ?? {
+                status: "LOCKED",
+                releasedAt: null,
+                captureStartsAt: null,
+                captureEndsAt: null,
+                uploadStartsAt: null,
+                uploadEndsAt: null,
+              },
+              uploadConfig,
+            ),
+            clock,
+          ) === "OPEN"
+            ? "Ya podés enviar dentro de la ventana de carga."
             : "La ventana de carga se habilita según el cronograma."}
         </p>
         {prompts.length === 0 ? (
@@ -538,12 +564,14 @@ export default async function RegistrationCredentialPage({ params }: Props) {
             {prompts.map((p) => {
               const row = promptRows.find((r) => r.sequence === p.sequence);
               const submission = row ? submissionByPrompt.get(row.id) : null;
-              const windows = row ? resolveEffectiveWindows(row) : null;
+              const windows = row ? resolveEffectiveWindows(row, uploadConfig) : null;
               const canUploadPrompt =
                 Boolean(row) &&
                 uploadsEnabled &&
                 paid &&
                 p.status === "RELEASED" &&
+                row != null &&
+                isPromptReleasedForUpload(row.status, { edition: uploadConfig, clock }) &&
                 windows != null &&
                 isWithinUploadWindow(windows, clock);
               const admission = submission

@@ -113,22 +113,32 @@ async function loadEligibleContext(input: {
   }
 
   const config = registration.edition.uploadConfig;
-  if (!config?.uploadsEnabled) {
+  const isOpsTest = Boolean((registration as { isOpsTest?: boolean }).isOpsTest);
+  if (!config?.uploadsEnabled && !isOpsTest) {
     throw new PhotoUploadError("UPLOADS_DISABLED", "La carga de fotografías no está habilitada.", 403);
+  }
+  if (!config) {
+    throw new PhotoUploadError("UPLOADS_DISABLED", "Falta configuración de carga de la edición.", 403);
   }
 
   const prompt = await prisma.clickatonPrompt.findFirst({
     where: { id: input.promptId, editionId: registration.editionId },
   });
   if (!prompt) throw new PhotoUploadError("PROMPT_NOT_FOUND", "Consigna no encontrada.", 404);
-  if (!isPromptReleasedForUpload(prompt.status)) {
-    throw new PhotoUploadError("PROMPT_LOCKED", "La consigna aún no está liberada.", 403);
+  if (
+    !isPromptReleasedForUpload(prompt.status, {
+      edition: config,
+      clock,
+    })
+  ) {
+    throw new PhotoUploadError("PROMPT_LOCKED", "Las consignas aún no fueron reveladas.", 403);
   }
-  if (prompt.status === "CLOSED" && !prompt.allowReplacement) {
+  const allowReplacement = config.allowReplacement ?? prompt.allowReplacement;
+  if (prompt.status === "CLOSED" && !allowReplacement) {
     throw new PhotoUploadError("PROMPT_CLOSED", "La consigna está cerrada.", 403);
   }
 
-  const windows = resolveEffectiveWindows(prompt);
+  const windows = resolveEffectiveWindows(prompt, config);
   const uploadState = getUploadWindowState(windows, clock);
   if (uploadState === "NOT_OPEN" || uploadState === "NOT_CONFIGURED") {
     throw new PhotoUploadError(
@@ -173,16 +183,20 @@ export async function requestPromptUpload(input: {
     },
   });
 
+  const allowReplacement = ctx.config?.allowReplacement ?? ctx.prompt.allowReplacement;
   if (existing?.status === "CONFIRMED" && !input.isReplace) {
-    if (!ctx.prompt.allowReplacement) {
+    if (!allowReplacement) {
       throw new PhotoUploadError("REPLACE_NOT_ALLOWED", "Esta consigna no permite reemplazo.", 403);
     }
   }
   if (input.isReplace) {
-    if (!ctx.prompt.allowReplacement) {
+    if (!allowReplacement) {
       throw new PhotoUploadError("REPLACE_NOT_ALLOWED", "Esta consigna no permite reemplazo.", 403);
     }
-    if (ctx.prompt.replacementDeadline && ctx.prompt.replacementDeadline.getTime() < ctx.clock.now().getTime()) {
+    // Deadline de reemplazo = cierre de ventana de carga (SoT edición) si existe.
+    const replaceDeadline =
+      ctx.windows.uploadEndsAt ?? ctx.prompt.replacementDeadline ?? null;
+    if (replaceDeadline && replaceDeadline.getTime() < ctx.clock.now().getTime()) {
       throw new PhotoUploadError("REPLACE_DEADLINE", "Venció el plazo de reemplazo.", 403);
     }
   }

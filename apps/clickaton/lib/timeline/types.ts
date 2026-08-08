@@ -41,11 +41,24 @@ export type PromptRecord = {
   audioAssetId: string | null;
   captureStartsAt: Date | null;
   captureEndsAt: Date | null;
+  uploadStartsAt?: Date | null;
   uploadEndsAt: Date | null;
   releaseMode: string;
   status: string;
   releasedAt: Date | null;
   contentVersion: number;
+};
+
+/** Ventanas SoT de edición (ETAPA 12). */
+export type EditionScheduleRecord = {
+  globalPromptReveal?: boolean | null;
+  eventRevealAt?: Date | null;
+  captureWindowStartsAt?: Date | null;
+  captureWindowEndsAt?: Date | null;
+  uploadWindowStartsAt?: Date | null;
+  uploadWindowEndsAt?: Date | null;
+  allowReplacement?: boolean | null;
+  captureClockToleranceMinutes?: number | null;
 };
 
 /** DTO seguro — nunca incluye título/instrucciones/assets. */

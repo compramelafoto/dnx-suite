@@ -15,6 +15,16 @@ import {
   shiftFutureEventsAction,
   updateTimelineEventAction,
 } from "@/lib/timeline/admin-actions";
+import {
+  getPreEventReadyChecklist,
+  releaseAllPromptsAction,
+  saveEditionScheduleAction,
+} from "@/lib/photo-upload/edition-schedule-admin";
+import {
+  cleanupTestModeAction,
+  enterTestModeAction,
+  setTestClockAction,
+} from "@/lib/test-mode/admin-actions";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
 import {
   formatTimelineDateTime,
@@ -24,8 +34,15 @@ import {
   presentTimelineVersionStatus,
   timelineToneToBadgeVariant,
 } from "@/lib/timeline/ui/timeline-status-presentation";
+import { formatScheduleRange } from "@/lib/photo-upload/edition-schedule";
 
 type Props = { params: Promise<{ editionId: string }> };
+
+function toLocalInputValue(d: Date | null | undefined): string {
+  if (!d) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export default async function EditionTimelineAdminPage({ params }: Props) {
   await requireClickatonAdmin();
@@ -33,11 +50,19 @@ export default async function EditionTimelineAdminPage({ params }: Props) {
 
   const edition = await prisma.clickatonEdition.findUnique({
     where: { id: editionId },
-    select: { id: true, name: true, timezone: true, slug: true },
+    select: {
+      id: true,
+      name: true,
+      timezone: true,
+      slug: true,
+      uploadConfig: true,
+    },
   });
   if (!edition) notFound();
 
   const timezone = edition.timezone ?? "America/Argentina/Buenos_Aires";
+  const cfg = edition.uploadConfig;
+  const ready = await getPreEventReadyChecklist(editionId);
 
   const timelines = await prisma.clickatonEditionTimeline.findMany({
     where: { editionId },
@@ -91,6 +116,158 @@ export default async function EditionTimelineAdminPage({ params }: Props) {
           </div>
         }
       />
+
+      <Card variant="outlined" className="min-w-0 space-y-6 border-ck-yellow/40 p-5 md:p-6">
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold">Cronograma de consignas (SoT)</h2>
+          <p className="text-sm text-ck-text-secondary leading-relaxed">
+            Todas las consignas se revelan juntas. La ventana de captura (cuándo debió tomarse la
+            foto) es independiente de la ventana de carga (cuándo se acepta el archivo).
+          </p>
+          <Badge variant={ready.ready ? "success" : "warning"}>
+            {ready.ready ? "READY" : "NOT READY"}
+          </Badge>
+          <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+            {ready.items.map((i) => (
+              <li key={i.key} className={i.ok ? "text-ck-text" : "text-ck-text-muted"}>
+                {i.ok ? "✓" : "○"} {i.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs text-ck-text-muted">Revelado de consignas</dt>
+            <dd>
+              {cfg?.eventRevealAt
+                ? formatTimelineDateTime(cfg.eventRevealAt, timezone)
+                : "Sin configurar"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-ck-text-muted">Fotografías válidas si fueron tomadas entre</dt>
+            <dd>
+              {formatScheduleRange(
+                cfg?.captureWindowStartsAt ?? null,
+                cfg?.captureWindowEndsAt ?? null,
+                timezone,
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-ck-text-muted">Carga permitida</dt>
+            <dd>
+              {formatScheduleRange(
+                cfg?.uploadWindowStartsAt ?? null,
+                cfg?.uploadWindowEndsAt ?? null,
+                timezone,
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-ck-text-muted">Reemplazos · Timezone</dt>
+            <dd>
+              {cfg?.allowReplacement === false ? "No" : "Sí"} · {timezone}
+            </dd>
+          </div>
+        </dl>
+
+        <form action={saveEditionScheduleAction.bind(null, editionId)} className="grid gap-4 md:grid-cols-2">
+          <label className="block space-y-2 text-sm">
+            <span className="font-semibold">Revelado de consignas</span>
+            <input
+              type="datetime-local"
+              name="eventRevealAt"
+              defaultValue={toLocalInputValue(cfg?.eventRevealAt)}
+              className="min-h-11 w-full rounded-lg border border-ck-border bg-ck-bg px-3"
+            />
+          </label>
+          <label className="block space-y-2 text-sm">
+            <span className="font-semibold">Inicio captura (sacar fotos)</span>
+            <input
+              type="datetime-local"
+              name="captureWindowStartsAt"
+              defaultValue={toLocalInputValue(cfg?.captureWindowStartsAt)}
+              className="min-h-11 w-full rounded-lg border border-ck-border bg-ck-bg px-3"
+            />
+          </label>
+          <label className="block space-y-2 text-sm">
+            <span className="font-semibold">Fin captura</span>
+            <input
+              type="datetime-local"
+              name="captureWindowEndsAt"
+              defaultValue={toLocalInputValue(cfg?.captureWindowEndsAt)}
+              className="min-h-11 w-full rounded-lg border border-ck-border bg-ck-bg px-3"
+            />
+          </label>
+          <label className="block space-y-2 text-sm">
+            <span className="font-semibold">Inicio carga (subir fotos)</span>
+            <input
+              type="datetime-local"
+              name="uploadWindowStartsAt"
+              defaultValue={toLocalInputValue(cfg?.uploadWindowStartsAt)}
+              className="min-h-11 w-full rounded-lg border border-ck-border bg-ck-bg px-3"
+            />
+          </label>
+          <label className="block space-y-2 text-sm">
+            <span className="font-semibold">Fin carga</span>
+            <input
+              type="datetime-local"
+              name="uploadWindowEndsAt"
+              defaultValue={toLocalInputValue(cfg?.uploadWindowEndsAt)}
+              className="min-h-11 w-full rounded-lg border border-ck-border bg-ck-bg px-3"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm md:col-span-2">
+            <input type="checkbox" name="allowReplacement" value="1" defaultChecked={cfg?.allowReplacement !== false} />
+            Permitir reemplazos dentro de la ventana de carga
+          </label>
+          <input type="hidden" name="globalPromptReveal" value="1" />
+          <div className="md:col-span-2">
+            <Button type="submit" variant="primary" className="min-h-11">
+              Guardar ventanas
+            </Button>
+          </div>
+        </form>
+
+        <div className="flex flex-col gap-3 border-t border-ck-border pt-4 sm:flex-row sm:flex-wrap">
+          <form action={releaseAllPromptsAction.bind(null, editionId)}>
+            <ConfirmSubmitButton
+              confirmMessage="¿Liberar TODAS las consignas ahora?"
+              className="min-h-11"
+            >
+              Liberar todas las consignas
+            </ConfirmSubmitButton>
+          </form>
+          <form action={enterTestModeAction.bind(null, editionId)}>
+            <Button type="submit" variant="secondary" className="min-h-11">
+              Probar como participante
+            </Button>
+          </form>
+          <form action={setTestClockAction.bind(null, editionId)} className="flex flex-wrap items-end gap-2">
+            <label className="block space-y-1 text-sm">
+              <span className="text-xs text-ck-text-muted">Simular hora (Modo Test)</span>
+              <input
+                type="datetime-local"
+                name="virtualClock"
+                className="min-h-11 rounded-lg border border-ck-border bg-ck-bg px-3"
+              />
+            </label>
+            <Button type="submit" variant="outline" className="min-h-11">
+              Aplicar reloj virtual
+            </Button>
+          </form>
+          <form action={cleanupTestModeAction.bind(null, editionId)}>
+            <ConfirmSubmitButton
+              confirmMessage="¿Eliminar SOLO datos de Modo Test de esta edición?"
+              className="min-h-11"
+            >
+              Limpiar datos de prueba
+            </ConfirmSubmitButton>
+          </form>
+        </div>
+      </Card>
 
       {/* Próximo evento */}
       <Card variant="outlined" className="min-w-0 space-y-3 border-ck-yellow/40 p-5 md:p-6">

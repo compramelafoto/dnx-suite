@@ -10386,6 +10386,8 @@ model ClickatonRegistration {
   /// Elegibilidad competitiva snapshot (8/10).
   competitiveStatus                  String?
   competitiveValidPromptCount        Int?
+  /// Inscripción de Modo Test / vista participante (nunca comercial).
+  isOpsTest                          Boolean                              @default(false)
   createdAt                          DateTime                             @default(now())
   updatedAt                          DateTime                             @updatedAt
   edition                            ClickatonEdition                     @relation(fields: [editionId], references: [id], onDelete: Restrict)
@@ -10410,6 +10412,7 @@ model ClickatonRegistration {
   @@unique([editionId, sequenceNumber])
   @@index([editionId, status])
   @@index([editionId, paymentStatus])
+  @@index([editionId, isOpsTest])
   @@index([userId])
   @@index([email])
   @@index([venueId])
@@ -10607,6 +10610,17 @@ model ClickatonEditionUploadConfig {
   /// SoT assets FotoRank: requiere además env CLICKATON_FOTORANK_CANONICAL_ASSETS=1.
   /// Default false → edición comercial intacta.
   canonicalAssetsEnabled       Boolean  @default(false)
+  /// ETAPA 12 — SoT temporal de maratón (reveal global + ventanas independientes).
+  /// Si globalPromptReveal=true, TODAS las consignas se revelan juntas en eventRevealAt.
+  globalPromptReveal           Boolean  @default(true)
+  eventRevealAt                DateTime?
+  /// Horario válido para TOMAR fotografías [start, end).
+  captureWindowStartsAt        DateTime?
+  captureWindowEndsAt          DateTime?
+  /// Horario válido para SUBIR fotografías [start, end). Independiente de captura.
+  uploadWindowStartsAt         DateTime?
+  uploadWindowEndsAt           DateTime?
+  allowReplacement             Boolean  @default(true)
   allowedMimeTypes             Json     @default("[\"image/jpeg\",\"image/png\",\"image/webp\"]")
   maxFileSizeBytes             Int      @default(26214400)
   minWidth                     Int      @default(800)
