@@ -7,7 +7,11 @@
  *   pnpm --filter @repo/db exec tsx ../../apps/clickaton/scripts/ops-11d-fixture-cleanup.ts
  */
 import { readFileSync } from "node:fs";
-import { PrismaClient } from "@prisma/client";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+const require = createRequire(join(dirname(fileURLToPath(import.meta.url)), "../../../packages/db/package.json"));
+const { PrismaClient } = require("@prisma/client") as typeof import("@prisma/client");
 
 const COMMERCIAL_EDITION_ID = "cmrvq7liy0000l904s25767xe";
 const FIXTURE_EMAIL_RE = /@fotorank\.test$/i;

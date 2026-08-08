@@ -8,7 +8,11 @@
  */
 import { randomBytes, scryptSync } from "node:crypto";
 import { writeFileSync } from "node:fs";
-import { PrismaClient } from "@prisma/client";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+const require = createRequire(join(dirname(fileURLToPath(import.meta.url)), "../../../packages/db/package.json"));
+const { PrismaClient } = require("@prisma/client") as typeof import("@prisma/client");
 
 const KEY_LEN = 64;
 const PASSWORD = `Ck11d-A-${randomBytes(3).toString("hex")}!`;

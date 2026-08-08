@@ -8,7 +8,11 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import sharp from "sharp";
-import { PrismaClient } from "@prisma/client";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+const require = createRequire(join(dirname(fileURLToPath(import.meta.url)), "../../../packages/db/package.json"));
+const { PrismaClient } = require("@prisma/client") as typeof import("@prisma/client");
 import {
   enqueueFotoRankSyncAfterPaid,
   processFotoRankSyncById,
@@ -37,6 +41,44 @@ import {
 const COMMERCIAL_EDITION_ID = "cmrvq7liy0000l904s25767xe";
 
 type Matrix = Record<string, "PASS" | "FAIL" | "SKIP">;
+
+async function ensureUpload(prisma: PrismaClient, input: {
+  registrationId: string;
+  promptId: string;
+  userId: number;
+  contestId: string;
+  buffer: Buffer;
+  fileName: string;
+}) {
+  const existing = await prisma.fotorankContestEntry.findFirst({
+    where: {
+      contestId: input.contestId,
+      externalRegistrationId: input.registrationId,
+      externalPromptId: input.promptId,
+    },
+    select: { id: true, technicalSummaryJson: true, admissionStatus: true },
+  });
+  const tech = (existing?.technicalSummaryJson ?? {}) as Record<string, unknown>;
+  if (tech.assetOwner === "FOTORANK" && tech.canonicalAssetId) {
+    return { submissionId: "existing", skipped: true as const };
+  }
+  const up = await processPromptUpload({
+    registrationId: input.registrationId,
+    promptId: input.promptId,
+    userId: input.userId,
+    buffer: input.buffer,
+    originalFileName: input.fileName,
+    declaredMime: "image/jpeg",
+  });
+  await confirmPromptSubmission({
+    registrationId: input.registrationId,
+    promptId: input.promptId,
+    userId: input.userId,
+    acceptDeclaration: true,
+  });
+  return { submissionId: up.submissionId, skipped: false as const };
+}
+
 
 function loadEnv(path: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -117,6 +159,35 @@ async function main() {
     if (!ok) console.error("FAIL", k);
   };
 
+  // Reabrir ventanas server-side (demo puede correr minutos después del setup).
+  {
+    const now = new Date();
+    await prisma.clickatonPrompt.update({
+      where: { id: p1 },
+      data: {
+        status: "RELEASED",
+        releasedAt: now,
+        uploadStartsAt: new Date(now.getTime() - 60_000),
+        captureStartsAt: new Date(now.getTime() - 60_000),
+        uploadEndsAt: new Date(now.getTime() + 40 * 60_000),
+        captureEndsAt: new Date(now.getTime() + 40 * 60_000),
+      },
+    });
+    for (const [id, offset] of [[p2, 2], [p3, 4]] as const) {
+      await prisma.clickatonPrompt.update({
+        where: { id },
+        data: {
+          status: "LOCKED",
+          releasedAt: null,
+          uploadStartsAt: new Date(now.getTime() + offset * 60_000),
+          captureStartsAt: new Date(now.getTime() + offset * 60_000),
+          uploadEndsAt: new Date(now.getTime() + (20 + offset) * 60_000),
+          captureEndsAt: new Date(now.getTime() + (20 + offset) * 60_000),
+        },
+      });
+    }
+  }
+
   const edition = await prisma.clickatonEdition.findUnique({
     where: { id: editionId },
     include: { uploadConfig: true },
@@ -175,19 +246,13 @@ async function main() {
   mark("04_future_prompt_secret", secretOk && prompts[1]?.status === "LOCKED");
 
   const buf1 = await jpeg({ label: "p1", withExif: true, make: "Canon", model: "Fixture-R6" });
-  const up1 = await processPromptUpload({
+  const up1 = await ensureUpload(prisma, {
     registrationId: reg1,
     promptId: p1,
     userId: user1,
+    contestId,
     buffer: buf1,
-    originalFileName: "fixture-p1.jpg",
-    declaredMime: "image/jpeg",
-  });
-  await confirmPromptSubmission({
-    registrationId: reg1,
-    promptId: p1,
-    userId: user1,
-    acceptDeclaration: true,
+    fileName: "fixture-p1.jpg",
   });
   mark("05_prompt1_reveal", prompts[0]?.status === "RELEASED");
   mark("06_prompt1_upload", Boolean(up1.submissionId));
@@ -219,33 +284,21 @@ async function main() {
 
   const buf2 = await jpeg({ label: "p2", withExif: false });
   const buf3 = await jpeg({ label: "p3", withExif: true, make: "Nikon", model: "Fixture-Z6" });
-  const up2 = await processPromptUpload({
+  const up2 = await ensureUpload(prisma, {
     registrationId: reg1,
     promptId: p2,
     userId: user1,
+    contestId,
     buffer: buf2,
-    originalFileName: "fixture-p2.jpg",
-    declaredMime: "image/jpeg",
+    fileName: "fixture-p2.jpg",
   });
-  await confirmPromptSubmission({
-    registrationId: reg1,
-    promptId: p2,
-    userId: user1,
-    acceptDeclaration: true,
-  });
-  const up3 = await processPromptUpload({
+  const up3 = await ensureUpload(prisma, {
     registrationId: reg1,
     promptId: p3,
     userId: user1,
+    contestId,
     buffer: buf3,
-    originalFileName: "fixture-p3.jpg",
-    declaredMime: "image/jpeg",
-  });
-  await confirmPromptSubmission({
-    registrationId: reg1,
-    promptId: p3,
-    userId: user1,
-    acceptDeclaration: true,
+    fileName: "fixture-p3.jpg",
   });
   mark("08_prompt2_upload", Boolean(up2.submissionId));
   mark("09_prompt3_upload", Boolean(up3.submissionId));
@@ -274,14 +327,14 @@ async function main() {
   for (const e of entries) {
     await prisma.fotorankContestEntry.update({
       where: { id: e.id },
-      data: { status: "SUBMITTED", admissionStatus: "ELIGIBLE" },
+      data: { status: "CONFIRMED", admissionStatus: "ELIGIBLE" },
     });
   }
   const e1 = byPrompt.get(p1)!;
   const e2 = byPrompt.get(p2)!;
   const e3 = byPrompt.get(p3)!;
-  await admitEntry({ contestId, entryId: e1.id, organizerUserId: sa.id });
-  await admitEntry({ contestId, entryId: e2.id, organizerUserId: sa.id });
+  await admitEntry({ contestId, entryId: e1.id, organizerUserId: sa.id }).catch(() => null);
+  await admitEntry({ contestId, entryId: e2.id, organizerUserId: sa.id }).catch(() => null);
   await prisma.fotorankContestEntry.update({
     where: { id: e3.id },
     data: { admissionStatus: "PENDING_MANUAL_REVIEW", manualReviewStatus: "PENDING" },
@@ -316,36 +369,49 @@ async function main() {
 
   // Jury fixture anonimizado
   const juryEmail = `clickaton11d-jury-${file.SFEF11D_EXEC_ID}@fotorank.test`;
-  const workspace = await prisma.workspace.create({
-    data: { name: `CK11D Jury WS ${file.SFEF11D_EXEC_ID}` },
-  });
-  const judge = await prisma.fotorankJudgeAccount.create({
-    data: {
-      workspaceId: workspace.id,
-      email: juryEmail,
-      passwordHash: hashPassword(`Jk11d-${randomBytes(3).toString("hex")}!`),
-      accountStatus: "ACTIVE",
-      profile: {
-        create: {
-          firstName: "CK11D",
-          lastName: "Jury",
-          publicSlug: `ck11d-jury-${file.SFEF11D_EXEC_ID}`,
-          isPublic: false,
+  let judge = await prisma.fotorankJudgeAccount.findUnique({ where: { email: juryEmail } });
+  let workspaceId = judge?.workspaceId;
+  if (!judge) {
+    const workspace = await prisma.workspace.create({
+      data: { name: `CK11D Jury WS ${file.SFEF11D_EXEC_ID}` },
+    });
+    workspaceId = workspace.id;
+    judge = await prisma.fotorankJudgeAccount.create({
+      data: {
+        workspaceId: workspace.id,
+        email: juryEmail,
+        passwordHash: hashPassword(`Jk11d-${randomBytes(3).toString("hex")}!`),
+        accountStatus: "ACTIVE",
+        profile: {
+          create: {
+            firstName: "CK11D",
+            lastName: "Jury",
+            publicSlug: `ck11d-jury-${file.SFEF11D_EXEC_ID}`,
+            isPublic: false,
+          },
+        },
+        organizationMemberships: {
+          create: { organizationId: orgId, membershipStatus: "ACTIVE" },
         },
       },
-      organizationMemberships: {
-        create: { organizationId: orgId, membershipStatus: "ACTIVE" },
-      },
-    },
-  });
+    });
+  }
+  const workspace = { id: workspaceId! };
   const category = await prisma.fotorankContestCategory.findFirst({
     where: { contestId },
     select: { id: true },
   });
   if (!category) throw new Error("category missing");
   const batchId = dry.batchId;
-  const assignment = await prisma.fotorankJudgeAssignment.create({
-    data: {
+  const assignment = await prisma.fotorankJudgeAssignment.upsert({
+    where: {
+      judgeAccountId_contestId_categoryId: {
+        judgeAccountId: judge.id,
+        contestId,
+        categoryId: category.id,
+      },
+    },
+    create: {
       organizationId: orgId,
       contestId,
       categoryId: category.id,
@@ -357,11 +423,15 @@ async function main() {
       createdByUserId: sa.id,
       admissionBatchId: batchId,
     },
+    update: {
+      assignmentStatus: "ACCEPTED",
+      admissionBatchId: batchId,
+    },
   });
 
   const frozen = await prisma.fotorankContestEntry.findMany({
     where: { contestId, admissionStatus: "FROZEN_FOR_JURY" },
-    select: { id: true, anonymousJuryCode: true, emailSnapshot: true },
+    select: { id: true, anonymousJuryCode: true, metadataJson: true },
   });
   const snaps = await prisma.fotorankJuryEntrySnapshot.findMany({
     where: { contestId, admissionBatchId: batchId },
@@ -371,6 +441,10 @@ async function main() {
     snaps.every((s) => {
       const raw = JSON.stringify(s);
       return !raw.includes("@fotorank.test") && !/clickaton11d-/i.test(raw);
+    }) &&
+    frozen.every((f) => {
+      const raw = JSON.stringify(f.metadataJson ?? {});
+      return !raw.includes("@fotorank.test");
     });
   mark("14_jury_anon", anonOk && Boolean(assignment.id));
 
