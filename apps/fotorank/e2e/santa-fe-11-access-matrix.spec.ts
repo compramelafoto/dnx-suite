@@ -18,8 +18,19 @@ function loadCreds() {
   return out;
 }
 
+function stagingBypassLoginPath(): string {
+  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
+  if (!bypass) return "/login";
+  const q = new URLSearchParams({
+    "x-vercel-protection-bypass": bypass,
+    "x-vercel-set-bypass-cookie": "true",
+  });
+  return `/login?${q.toString()}`;
+}
+
 async function loginAndCaptureDestination(page: Page, email: string, password: string) {
-  await page.goto("/login", { waitUntil: "load" });
+  // Query + cookie: Deployment Protection SSO ignora solo headers en algunos navigations.
+  await page.goto(stagingBypassLoginPath(), { waitUntil: "load" });
   // Preview/staging usa @repo/auth-ui (sin data-testid fotorank-login-form).
   const emailInput = page.locator("#email");
   await emailInput.waitFor({ state: "visible", timeout: 45_000 });
