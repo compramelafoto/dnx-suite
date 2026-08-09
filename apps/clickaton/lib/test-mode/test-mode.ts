@@ -113,11 +113,21 @@ export async function ensureTestRegistration(input: {
     select: { id: true },
   });
 
-  await prisma.clickatonEditionUploadConfig.upsert({
+  // Nunca activar uploads comerciales desde Test Mode.
+  // Si ya existe uploadConfig (edición real), no tocar uploadsEnabled.
+  const existingConfig = await prisma.clickatonEditionUploadConfig.findUnique({
     where: { editionId: edition.id },
-    create: { editionId: edition.id, uploadsEnabled: true },
-    update: {},
+    select: { editionId: true },
   });
+  if (!existingConfig) {
+    await prisma.clickatonEditionUploadConfig.create({
+      data: {
+        editionId: edition.id,
+        uploadsEnabled: false,
+        canonicalAssetsEnabled: false,
+      },
+    });
+  }
 
   return { registrationId: reg.id, email: user.email };
 }
