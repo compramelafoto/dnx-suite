@@ -683,7 +683,9 @@ export async function assignToEdition(
       sequence,
       ...fields,
       inspirationSnapshot: fields.inspirationSnapshot as Prisma.InputJsonValue,
-      status: "DRAFT",
+      // LOCKED: ocultas hasta eventRevealAt (maratón). DRAFT bloquea upload
+      // aunque el reveal global ya haya pasado (isPromptReleasedForUpload).
+      status: "LOCKED",
       assignedFromLibraryAt: new Date(),
       assignedFromLibraryByUserId: input.actorUserId ?? null,
       createdByUserId: input.actorUserId ?? null,
