@@ -16,10 +16,14 @@ import {
   updateTimelineEventAction,
 } from "@/lib/timeline/admin-actions";
 import {
+  emergencyRevealAction,
+  extendUploadWindowAction,
   getPreEventReadyChecklist,
   releaseAllPromptsAction,
+  rollbackRevealToLockedAction,
   saveEditionScheduleAction,
 } from "@/lib/photo-upload/edition-schedule-admin";
+import Link from "next/link";
 import {
   cleanupTestModeAction,
   enterTestModeAction,
@@ -231,41 +235,153 @@ export default async function EditionTimelineAdminPage({ params }: Props) {
           </div>
         </form>
 
-        <div className="flex flex-col gap-3 border-t border-ck-border pt-4 sm:flex-row sm:flex-wrap">
-          <form action={releaseAllPromptsAction.bind(null, editionId)}>
-            <ConfirmSubmitButton
-              confirmMessage="¿Liberar TODAS las consignas ahora?"
-              className="min-h-11"
+        <div className="space-y-4 border-t border-ck-border pt-4">
+          <p className="text-sm text-ck-text-secondary">
+            Uploads comerciales:{" "}
+            <strong>{cfg?.uploadsEnabled ? "ON" : "OFF"}</strong>
+            {" · "}
+            Canonical:{" "}
+            <strong>{cfg?.canonicalAssetsEnabled ? "ON" : "OFF"}</strong>
+            {" · "}
+            <Link
+              href={`${adminRoutes.editions}/${editionId}/ops-dia`}
+              className="text-ck-yellow underline-offset-2 hover:underline"
             >
-              Liberar todas las consignas
-            </ConfirmSubmitButton>
-          </form>
-          <form action={enterTestModeAction.bind(null, editionId)}>
-            <Button type="submit" variant="secondary" className="min-h-11">
-              Probar como participante
-            </Button>
-          </form>
-          <form action={setTestClockAction.bind(null, editionId)} className="flex flex-wrap items-end gap-2">
+              Panel ops día
+            </Link>
+          </p>
+
+          <form
+            action={extendUploadWindowAction.bind(null, editionId)}
+            className="grid gap-3 rounded-lg border border-ck-border/80 p-4 sm:grid-cols-[8rem_1fr_auto]"
+          >
             <label className="block space-y-1 text-sm">
-              <span className="text-xs text-ck-text-muted">Simular hora (Modo Test)</span>
+              <span className="text-xs font-semibold uppercase text-ck-text-muted">
+                + minutos carga
+              </span>
               <input
-                type="datetime-local"
-                name="virtualClock"
-                className="min-h-11 rounded-lg border border-ck-border bg-ck-bg px-3"
+                type="number"
+                name="minutes"
+                min={5}
+                max={1440}
+                defaultValue={30}
+                required
+                className="min-h-11 w-full rounded-lg border border-ck-border bg-ck-bg px-3"
               />
             </label>
-            <Button type="submit" variant="outline" className="min-h-11">
-              Aplicar reloj virtual
-            </Button>
+            <label className="block space-y-1 text-sm">
+              <span className="text-xs font-semibold uppercase text-ck-text-muted">
+                Motivo (auditoría)
+              </span>
+              <input
+                type="text"
+                name="reason"
+                required
+                minLength={5}
+                placeholder="Ej. contingencia conectividad sede"
+                className="min-h-11 w-full rounded-lg border border-ck-border bg-ck-bg px-3"
+              />
+            </label>
+            <div className="flex items-end">
+              <ConfirmSubmitButton
+                confirmMessage="¿Extender la ventana de CARGA? Queda auditado."
+                className="min-h-11"
+              >
+                Extender ventana de carga
+              </ConfirmSubmitButton>
+            </div>
           </form>
-          <form action={cleanupTestModeAction.bind(null, editionId)}>
-            <ConfirmSubmitButton
-              confirmMessage="¿Eliminar SOLO datos de Modo Test de esta edición?"
-              className="min-h-11"
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <form
+              action={emergencyRevealAction.bind(null, editionId)}
+              className="flex flex-wrap items-end gap-2"
             >
-              Limpiar datos de prueba
-            </ConfirmSubmitButton>
-          </form>
+              <label className="block space-y-1 text-sm">
+                <span className="text-xs text-ck-text-muted">
+                  Motivo reveal emergencia
+                </span>
+                <input
+                  type="text"
+                  name="reason"
+                  required
+                  minLength={5}
+                  className="min-h-11 min-w-[16rem] rounded-lg border border-ck-border bg-ck-bg px-3"
+                />
+              </label>
+              <ConfirmSubmitButton
+                confirmMessage="¿Reveal de emergencia AHORA? No activa uploads."
+                className="min-h-11"
+              >
+                Reveal emergencia
+              </ConfirmSubmitButton>
+            </form>
+            <form
+              action={rollbackRevealToLockedAction.bind(null, editionId)}
+              className="flex flex-wrap items-end gap-2"
+            >
+              <label className="block space-y-1 text-sm">
+                <span className="text-xs text-ck-text-muted">
+                  Motivo rollback reveal
+                </span>
+                <input
+                  type="text"
+                  name="reason"
+                  required
+                  minLength={5}
+                  className="min-h-11 min-w-[16rem] rounded-lg border border-ck-border bg-ck-bg px-3"
+                />
+              </label>
+              <ConfirmSubmitButton
+                confirmMessage="¿Volver consignas a LOCKED? No borra envíos."
+                className="min-h-11"
+              >
+                Rollback reveal → LOCKED
+              </ConfirmSubmitButton>
+            </form>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <form action={releaseAllPromptsAction.bind(null, editionId)}>
+              <ConfirmSubmitButton
+                confirmMessage="¿Liberar TODAS las consignas ahora? No activa uploads."
+                className="min-h-11"
+              >
+                Liberar todas las consignas
+              </ConfirmSubmitButton>
+            </form>
+            <form action={enterTestModeAction.bind(null, editionId)}>
+              <Button type="submit" variant="secondary" className="min-h-11">
+                Probar como participante
+              </Button>
+            </form>
+            <form
+              action={setTestClockAction.bind(null, editionId)}
+              className="flex flex-wrap items-end gap-2"
+            >
+              <label className="block space-y-1 text-sm">
+                <span className="text-xs text-ck-text-muted">
+                  Simular hora (Modo Test)
+                </span>
+                <input
+                  type="datetime-local"
+                  name="virtualClock"
+                  className="min-h-11 rounded-lg border border-ck-border bg-ck-bg px-3"
+                />
+              </label>
+              <Button type="submit" variant="outline" className="min-h-11">
+                Aplicar reloj virtual
+              </Button>
+            </form>
+            <form action={cleanupTestModeAction.bind(null, editionId)}>
+              <ConfirmSubmitButton
+                confirmMessage="¿Eliminar SOLO datos de Modo Test de esta edición?"
+                className="min-h-11"
+              >
+                Limpiar datos de prueba
+              </ConfirmSubmitButton>
+            </form>
+          </div>
         </div>
       </Card>
 

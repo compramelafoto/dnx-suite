@@ -95,7 +95,7 @@ export async function saveEditionScheduleAction(editionId: string, formData: For
   revalidatePath(`${adminRoutes.editions}/${editionId}/consignas`);
 }
 
-/** Liberar TODAS las consignas a la vez (reveal global). */
+/** Liberar TODAS las consignas a la vez (reveal global). NUNCA prende uploads. */
 export async function releaseAllPromptsAction(editionId: string) {
   const user = await requireClickatonAdmin();
   const ok = await hasEditionCapability({
@@ -114,11 +114,13 @@ export async function releaseAllPromptsAction(editionId: string) {
       editionId,
       globalPromptReveal: true,
       eventRevealAt: now,
-      uploadsEnabled: true,
+      uploadsEnabled: false,
+      canonicalAssetsEnabled: false,
     },
     update: {
       globalPromptReveal: true,
       eventRevealAt: now,
+      // uploadsEnabled intocado a propósito
     },
   });
 
@@ -134,8 +136,206 @@ export async function releaseAllPromptsAction(editionId: string) {
     },
   });
 
+  const { writeEditionOpsAudit } = await import("./ops-audit");
+  await writeEditionOpsAudit({
+    editionId,
+    actorUserId: user.id,
+    action: "EMERGENCY_REVEAL",
+    payload: {
+      reason: "releaseAllPromptsAction",
+      previousEventRevealAt: null,
+      nextEventRevealAt: now.toISOString(),
+      uploadsEnabledUntouched: true,
+    },
+  });
+
   revalidatePath(`${adminRoutes.editions}/${editionId}/cronograma`);
   revalidatePath(`${adminRoutes.editions}/${editionId}/consignas`);
+  revalidatePath(`${adminRoutes.editions}/${editionId}/ops-dia`);
+}
+
+/**
+ * Extender ventana de carga (+minutos). Audita horario anterior/nuevo + motivo.
+ * No activa uploads comerciales.
+ */
+export async function extendUploadWindowAction(editionId: string, formData: FormData) {
+  const user = await requireClickatonAdmin();
+  const ok = await hasEditionCapability({
+    userId: user.id,
+    email: user.email,
+    globalRole: user.globalRole,
+    editionId,
+    capability: CAPABILITY_MANAGE_TIMELINE,
+  });
+  if (!ok) throw new Error("FORBIDDEN");
+
+  const minutes = Number(String(formData.get("minutes") ?? "").trim());
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 24 * 60) {
+    throw new Error("EXTEND_MINUTES_INVALID");
+  }
+  if (reason.length < 5) throw new Error("EXTEND_REASON_REQUIRED");
+
+  const cfg = await prisma.clickatonEditionUploadConfig.findUnique({
+    where: { editionId },
+  });
+  if (!cfg?.uploadWindowEndsAt) throw new Error("UPLOAD_WINDOW_NOT_CONFIGURED");
+
+  const previous = cfg.uploadWindowEndsAt;
+  const next = new Date(previous.getTime() + minutes * 60_000);
+
+  await prisma.clickatonEditionUploadConfig.update({
+    where: { editionId },
+    data: { uploadWindowEndsAt: next },
+  });
+  await prisma.clickatonPrompt.updateMany({
+    where: { editionId, status: { not: "CANCELLED" } },
+    data: {
+      uploadEndsAt: next,
+      replacementDeadline: next,
+    },
+  });
+
+  const { writeEditionOpsAudit } = await import("./ops-audit");
+  await writeEditionOpsAudit({
+    editionId,
+    actorUserId: user.id,
+    action: "EXTEND_UPLOAD_WINDOW",
+    payload: {
+      previousUploadWindowEndsAt: previous.toISOString(),
+      nextUploadWindowEndsAt: next.toISOString(),
+      minutes,
+      reason,
+    },
+  });
+
+  revalidatePath(`${adminRoutes.editions}/${editionId}/cronograma`);
+  revalidatePath(`${adminRoutes.editions}/${editionId}/ops-dia`);
+}
+
+/**
+ * Reveal de emergencia con motivo. No activa uploads.
+ */
+export async function emergencyRevealAction(editionId: string, formData: FormData) {
+  const user = await requireClickatonAdmin();
+  const ok = await hasEditionCapability({
+    userId: user.id,
+    email: user.email,
+    globalRole: user.globalRole,
+    editionId,
+    capability: CAPABILITY_MANAGE_TIMELINE,
+  });
+  if (!ok) throw new Error("FORBIDDEN");
+
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (reason.length < 5) throw new Error("REVEAL_REASON_REQUIRED");
+
+  const cfg = await prisma.clickatonEditionUploadConfig.findUnique({
+    where: { editionId },
+  });
+  const previous = cfg?.eventRevealAt ?? null;
+  const now = new Date();
+
+  await prisma.clickatonEditionUploadConfig.upsert({
+    where: { editionId },
+    create: {
+      editionId,
+      globalPromptReveal: true,
+      eventRevealAt: now,
+      uploadsEnabled: false,
+      canonicalAssetsEnabled: false,
+    },
+    update: {
+      globalPromptReveal: true,
+      eventRevealAt: now,
+    },
+  });
+
+  await prisma.clickatonPrompt.updateMany({
+    where: { editionId, status: { in: ["DRAFT", "READY", "LOCKED"] } },
+    data: {
+      status: "RELEASED",
+      releasedAt: now,
+      releasedByUserId: user.id,
+    },
+  });
+
+  const { writeEditionOpsAudit } = await import("./ops-audit");
+  await writeEditionOpsAudit({
+    editionId,
+    actorUserId: user.id,
+    action: "EMERGENCY_REVEAL",
+    payload: {
+      reason,
+      previousEventRevealAt: previous?.toISOString() ?? null,
+      nextEventRevealAt: now.toISOString(),
+      uploadsEnabledUntouched: true,
+    },
+  });
+
+  revalidatePath(`${adminRoutes.editions}/${editionId}/cronograma`);
+  revalidatePath(`${adminRoutes.editions}/${editionId}/consignas`);
+  revalidatePath(`${adminRoutes.editions}/${editionId}/ops-dia`);
+}
+
+/**
+ * Rollback de emergencia: vuelve consignas a LOCKED y mueve reveal al futuro.
+ * No borra submissions. No toca uploadsEnabled.
+ */
+export async function rollbackRevealToLockedAction(
+  editionId: string,
+  formData: FormData,
+) {
+  const user = await requireClickatonAdmin();
+  const ok = await hasEditionCapability({
+    userId: user.id,
+    email: user.email,
+    globalRole: user.globalRole,
+    editionId,
+    capability: CAPABILITY_MANAGE_TIMELINE,
+  });
+  if (!ok) throw new Error("FORBIDDEN");
+
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (reason.length < 5) throw new Error("ROLLBACK_REASON_REQUIRED");
+
+  const cfg = await prisma.clickatonEditionUploadConfig.findUnique({
+    where: { editionId },
+  });
+  const previousReveal = cfg?.eventRevealAt ?? null;
+  const future = new Date(Date.now() + 365 * 24 * 60 * 60_000);
+
+  await prisma.clickatonEditionUploadConfig.update({
+    where: { editionId },
+    data: {
+      globalPromptReveal: true,
+      eventRevealAt: future,
+    },
+  });
+  await prisma.clickatonPrompt.updateMany({
+    where: { editionId, status: "RELEASED" },
+    data: {
+      status: "LOCKED",
+      releasedAt: null,
+      releasedByUserId: null,
+    },
+  });
+
+  const { writeEditionOpsAudit } = await import("./ops-audit");
+  await writeEditionOpsAudit({
+    editionId,
+    actorUserId: user.id,
+    action: "ROLLBACK_REVEAL_TO_LOCKED",
+    payload: {
+      reason,
+      previousEventRevealAt: previousReveal?.toISOString() ?? null,
+      nextEventRevealAt: future.toISOString(),
+    },
+  });
+
+  revalidatePath(`${adminRoutes.editions}/${editionId}/cronograma`);
+  revalidatePath(`${adminRoutes.editions}/${editionId}/consignas`);
+  revalidatePath(`${adminRoutes.editions}/${editionId}/ops-dia`);
 }
 
 export type PreEventReadyItem = {
