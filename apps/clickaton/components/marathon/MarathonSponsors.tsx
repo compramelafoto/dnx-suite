@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import {
   groupPartnersForPublicDisplay,
+  type DnxPartnerInstitutionalRole,
   type PublicPartnerDisplayItem,
   type PublicPartnerGroup,
 } from "@repo/partners";
@@ -7,7 +9,7 @@ import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
+import { EditionPartnerLogoMarquee } from "@/components/marathon/EditionPartnerLogoMarquee";
 import {
   isClickatonPartnersPublicEnabled,
   listEditionPartnerPublicGroups,
@@ -18,11 +20,17 @@ type MarathonSponsorsProps = {
   marathon: PublicMarathon;
 };
 
-const TIER_CLASS: Record<string, string> = {
-  INSTITUTIONAL: "min-h-[7rem] sm:col-span-2",
-  MAIN: "min-h-[6rem]",
-  STANDARD: "min-h-[5rem]",
-  SUPPORTING: "min-h-[4.5rem] opacity-95",
+/** Solo organizadores fijos; sponsors/colaboradores en marquee. */
+const STATIC_ROLES = new Set<DnxPartnerInstitutionalRole>([
+  "ORGANIZER",
+  "CO_ORGANIZER",
+]);
+
+const TIER_SLOT: Record<string, string> = {
+  INSTITUTIONAL: "h-24 w-[20rem] sm:h-28 sm:w-[24rem]",
+  MAIN: "h-20 w-[18rem] sm:h-24 sm:w-[22rem]",
+  STANDARD: "h-20 w-[16rem] sm:h-24 sm:w-[20rem]",
+  SUPPORTING: "h-20 w-[16rem] sm:h-24 sm:w-[18rem]",
 };
 
 function legacyGroups(marathon: PublicMarathon): PublicPartnerGroup[] {
@@ -41,77 +49,105 @@ function legacyGroups(marathon: PublicMarathon): PublicPartnerGroup[] {
     title: s.level,
     description: s.description,
     status: "ACTIVE",
+    publicVisibility: "PUBLIC",
   }));
   return groupPartnersForPublicDisplay(items);
+}
+
+function partnerHref(item: PublicPartnerDisplayItem): string | null {
+  const href = item.websiteUrl?.trim() || null;
+  if (!href) return null;
+  if (href.startsWith("/r/") || href.startsWith("http") || href.startsWith("/")) return href;
+  return `https://${href}`;
+}
+
+function PartnerLogo({ item }: { item: PublicPartnerDisplayItem }) {
+  if (!item.logoUrl) {
+    return (
+      <span className="text-center text-xl font-medium text-ck-text">{item.partnerName}</span>
+    );
+  }
+  const slot = TIER_SLOT[item.displayTier] ?? TIER_SLOT.STANDARD;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={item.logoUrl}
+      alt={`Logo de ${item.partnerName}`}
+      className={`mx-auto object-contain object-center ${slot}`}
+    />
+  );
+}
+
+function PartnerLinkWrap({
+  item,
+  children,
+  className,
+}: {
+  item: PublicPartnerDisplayItem;
+  children: ReactNode;
+  className?: string;
+}) {
+  const href = partnerHref(item);
+  if (!href) {
+    return <div className={className}>{children}</div>;
+  }
+  const isTracked = href.startsWith("/r/");
+  return (
+    // eslint-disable-next-line react/jsx-no-target-blank -- rel fijo
+    <a
+      href={href}
+      target={isTracked ? undefined : "_blank"}
+      rel={isTracked ? undefined : "noopener noreferrer"}
+      className={`cursor-pointer no-underline ${className ?? ""}`}
+    >
+      {children}
+    </a>
+  );
+}
+
+function OrganizerRow({ items }: { items: PublicPartnerDisplayItem[] }) {
+  return (
+    <ul className="m-0 flex list-none flex-wrap items-center justify-center gap-10 p-0 sm:gap-14">
+      {items.map((item) => (
+        <li key={item.participationId}>
+          <PartnerLinkWrap item={item} className="flex flex-col items-center justify-center">
+            <PartnerLogo item={item} />
+          </PartnerLinkWrap>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PartnerGroupBlock({ group }: { group: PublicPartnerGroup }) {
+  const useMarquee = !STATIC_ROLES.has(group.role);
+
+  return (
+    <div className="space-y-6">
+      {useMarquee ? (
+        <EditionPartnerLogoMarquee
+          heading={group.heading}
+          items={group.items.map((item) => ({
+            participationId: item.participationId,
+            partnerName: item.partnerName,
+            logoUrl: item.logoUrl ?? null,
+            websiteUrl: item.websiteUrl ?? null,
+            displayTier: item.displayTier,
+          }))}
+        />
+      ) : (
+        <OrganizerRow items={group.items} />
+      )}
+    </div>
+  );
 }
 
 function PartnerGroups({ groups }: { groups: PublicPartnerGroup[] }) {
   if (groups.length === 0) return null;
   return (
-    <div className="mt-10 space-y-12">
+    <div className="mt-10 space-y-14">
       {groups.map((group) => (
-        <div key={group.role} className="space-y-6">
-          <h3 className="ck-heading-md text-ck-text">{group.heading}</h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {group.items.map((item) => {
-              const href = item.websiteUrl?.trim() || null;
-              const isTracked = Boolean(href?.startsWith("/r/"));
-              const body = (
-                <>
-                  {item.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item.logoUrl}
-                      alt=""
-                      className={
-                        item.displayTier === "INSTITUTIONAL"
-                          ? "mx-auto h-16 w-auto object-contain"
-                          : item.displayTier === "MAIN"
-                            ? "mx-auto h-14 w-auto object-contain"
-                            : "mx-auto h-10 w-auto object-contain"
-                      }
-                    />
-                  ) : null}
-                  <div className="text-center">
-                    <h4 className="ck-heading-sm">{item.partnerName}</h4>
-                    {item.resolvedRoleLabel ? (
-                      <p className="ck-label mt-2 text-ck-text-muted">{item.resolvedRoleLabel}</p>
-                    ) : null}
-                    {item.description ? (
-                      <p className="ck-body-sm mt-3 text-ck-text-secondary">{item.description}</p>
-                    ) : null}
-                  </div>
-                </>
-              );
-              return (
-                <Card
-                  key={item.participationId}
-                  variant="outlined"
-                  className={`flex h-full flex-col justify-center gap-3 p-6 ${TIER_CLASS[item.displayTier] ?? ""}`}
-                >
-                  {href ? (
-                    <a
-                      href={
-                        isTracked
-                          ? href
-                          : href.startsWith("http")
-                            ? href
-                            : `https://${href}`
-                      }
-                      target={isTracked ? undefined : "_blank"}
-                      rel={isTracked ? undefined : "noopener noreferrer"}
-                      className="flex h-full flex-col justify-center gap-3 no-underline"
-                    >
-                      {body}
-                    </a>
-                  ) : (
-                    body
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        </div>
+        <PartnerGroupBlock key={group.role} group={group} />
       ))}
     </div>
   );

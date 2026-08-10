@@ -4,7 +4,7 @@ import {
   isPartnerClickTrackingEnabled,
   partnerRedirectPath,
   resolveParticipationDestinationUrl,
-  resolvePartnerPrimaryLogo,
+  resolvePartnerLogoForSurface,
   resolvePublicRoleLabel,
   type PublicPartnerDisplayItem,
   type PublicPartnerGroup,
@@ -52,12 +52,18 @@ export async function listEditionPartnerPublicGroups(
               },
               select: {
                 id: true,
+                name: true,
                 type: true,
+                backgroundType: true,
                 status: true,
                 approvalStatus: true,
                 isPrimary: true,
                 fileUrl: true,
                 storageKey: true,
+                altText: true,
+                width: true,
+                height: true,
+                mimeType: true,
                 archivedAt: true,
               },
             },
@@ -78,8 +84,11 @@ export async function listEditionPartnerPublicGroups(
     const items: PublicPartnerDisplayItem[] = rows
       .filter((r) => r.partner.status !== "ARCHIVED")
       .map((r) => {
-        const logo = resolvePartnerPrimaryLogo({
+        // Franja sobre fondo negro: preferir horizontal + tratamiento DARK (legado LOGO_LIGHT).
+        const logo = resolvePartnerLogoForSurface({
           assets: r.partner.brandAssets as never,
+          surface: "DARK",
+          preferredType: "LOGO_HORIZONTAL",
           logoUrl: r.partner.logoUrl,
         });
         const destination = resolveParticipationDestinationUrl({
