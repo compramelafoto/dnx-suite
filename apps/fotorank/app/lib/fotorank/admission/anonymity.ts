@@ -12,9 +12,12 @@ export function buildAnonymousJuryCode(input: {
     .update(`jury-anon:v1:${input.contestId}:${input.categoryId}:${input.entryId}:${input.batchId}`)
     .digest("hex");
   const n = (parseInt(digest.slice(0, 8), 16) % 9000) + 1000;
+  // Sufijo de 4 hex: reduce colisiones en @@unique([contestId, anonymousJuryCode])
+  // (espacio 9000 solo era insuficiente con lotes grandes / categorías cortas).
+  const suffix = digest.slice(8, 12).toUpperCase();
   const prefix =
     (input.categorySlug ?? "CAT").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "CAT";
-  return `${prefix}-${n}`;
+  return `${prefix}-${n}-${suffix}`;
 }
 
 /** Campos prohibidos en payload de jurado. */

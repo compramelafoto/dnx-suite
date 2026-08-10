@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireJudgeAuth } from "../../../../../lib/judge-auth";
-import { JuryError, getAnonymousEntryDetailForJuror } from "../../../../../lib/fotorank/jury";
+import {
+  JuryError,
+  getAnonymousEntryDetailForJuror,
+  listAnonymousEntriesForJuror,
+} from "../../../../../lib/fotorank/jury";
 import { JuryConflictForm } from "./JuryConflictForm";
 import { JuryEvaluationForm } from "./JuryEvaluationForm";
+import { JuryEntryNav } from "./JuryEntryNav";
 
 type Props = { params: Promise<{ contestId: string; entryId: string }> };
 
@@ -35,6 +40,25 @@ export default async function JuryEntryDetailPage({ params }: Props) {
     throw err;
   }
 
+  // ETAPA 16B — orden anónimo estable del jurado (jury-order.ts) para habilitar Anterior/Siguiente.
+  // Best-effort: si la lista falla por algún motivo, la navegación cae a null (sin romper el detalle).
+  let index: number | undefined;
+  let total: number | undefined;
+  let prevEntryId: string | null = null;
+  let nextEntryId: string | null = null;
+  try {
+    const list = await listAnonymousEntriesForJuror({ judgeAccountId: judge.id, contestId });
+    const pos = list.entries.findIndex((e) => e.entryId === entryId);
+    if (pos >= 0) {
+      index = pos + 1;
+      total = list.entries.length;
+      prevEntryId = list.entries[pos - 1]?.entryId ?? null;
+      nextEntryId = list.entries[pos + 1]?.entryId ?? null;
+    }
+  } catch {
+    // navegación degradada — el detalle sigue funcionando sin Anterior/Siguiente.
+  }
+
   return (
     <div className="min-h-screen bg-fr-bg px-4 py-10 md:px-8">
       <div className="mx-auto max-w-3xl space-y-10">
@@ -45,6 +69,15 @@ export default async function JuryEntryDetailPage({ params }: Props) {
           >
             ← Volver al listado
           </Link>
+          <div className="mt-6">
+            <JuryEntryNav
+              contestId={contestId}
+              index={index}
+              total={total}
+              prevEntryId={prevEntryId}
+              nextEntryId={nextEntryId}
+            />
+          </div>
           <h1 className="mt-6 font-sans text-3xl font-semibold text-gold" data-testid="jury-anonymous-code">
             {entry.anonymousCode}
           </h1>
@@ -94,6 +127,11 @@ export default async function JuryEntryDetailPage({ params }: Props) {
             scoringSessionOpen={entry.scoringSessionOpen}
             previewUrl={entry.previewUrl}
             anonymousCode={entry.anonymousCode}
+            index={index}
+            total={total}
+            prevEntryId={prevEntryId}
+            nextEntryId={nextEntryId}
+            autoAdvanceOnComplete
           />
         ) : (
           <section className="fr-recuadro border border-fr-border bg-fr-card">

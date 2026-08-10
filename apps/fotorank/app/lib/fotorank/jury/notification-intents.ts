@@ -15,7 +15,11 @@ export type JuryNotificationKind =
   | "JURY_SCORING_CLOSING_SOON"
   | "JURY_ASSIGNMENT_NEW"
   | "JURY_CONFLICT_REASSIGNED"
-  | "JURY_SESSION_CLOSED";
+  | "JURY_SESSION_CLOSED"
+  /** ETAPA 16B — finalistas calculados; no anuncia a participantes (live: false). */
+  | "FINALISTS_READY"
+  /** ETAPA 16B — paquete confirmado / listo para prep voto público; no publica en redes. */
+  | "PUBLIC_VOTE_READY";
 
 function newId() {
   return `jni${randomBytes(10).toString("hex")}`;

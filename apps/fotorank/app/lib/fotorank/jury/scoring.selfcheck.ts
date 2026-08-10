@@ -124,8 +124,10 @@ ok(
     "JURY_ASSIGNMENT_NEW",
     "JURY_CONFLICT_REASSIGNED",
     "JURY_SESSION_CLOSED",
+    "FINALISTS_READY",
+    "PUBLIC_VOTE_READY",
   ];
-  ok(kinds.length === 8, "60 notification intents");
+  ok(kinds.length === 10, "60 notification intents");
   ok(!kinds.some((k) => k.includes("SCORE") || k.includes("RANK")), "60 sin score/rank");
 }
 

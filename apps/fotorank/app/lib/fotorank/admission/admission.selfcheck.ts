@@ -233,7 +233,7 @@ const code = buildAnonymousJuryCode({
   batchId: "b1",
   categorySlug: "fotografo-amateur",
 });
-assert.match(code, /^FOTOGR-\d{4}$/);
+assert.match(code, /^FOTOGR-\d{4}-[0-9A-F]{4}$/);
 const payload = buildAnonymousJuryPayload({
   anonymousCode: code,
   categorySlug: "fotografo-amateur",

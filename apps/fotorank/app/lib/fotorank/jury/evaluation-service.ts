@@ -54,6 +54,43 @@ async function loadOpenSession(contestId: string) {
 }
 
 /**
+ * ETAPA 16B — path de desempate: si la sesión ya está CLOSED pero el jurado tiene una
+ * evaluación NOT_STARTED/IN_PROGRESS preasignada (extra judge), permitir completar esa eval.
+ */
+async function loadSessionForEvaluation(input: {
+  contestId: string;
+  judgeAccountId: string;
+  snapshotId: string;
+}) {
+  const open = await loadOpenSession(input.contestId);
+  if (open) return open;
+
+  const pending = await prisma.fotorankJuryEvaluation.findFirst({
+    where: {
+      contestId: input.contestId,
+      jurorId: input.judgeAccountId,
+      juryEntrySnapshotId: input.snapshotId,
+      status: { in: ["NOT_STARTED", "IN_PROGRESS"] },
+      scoringSessionId: { not: null },
+    },
+    select: { scoringSessionId: true },
+  });
+  if (!pending?.scoringSessionId) return null;
+
+  return prisma.fotorankJuryScoringSession.findFirst({
+    where: {
+      id: pending.scoringSessionId,
+      contestId: input.contestId,
+      status: { in: ["CLOSED", "LOCKED"] },
+    },
+    include: {
+      rubric: { include: { criteria: { orderBy: { sortOrder: "asc" } } } },
+      admissionBatch: { select: { id: true, status: true } },
+    },
+  });
+}
+
+/**
  * ETAPA 16A — Validación de escala de sesión (independiente de min/max por criterio de la
  * rúbrica). Clickatón: enteros 1–10 (scoreIntegerOnly=true). Otros concursos pueden habilitar
  * decimales configurando scoreIntegerOnly=false en FotorankJuryScoringSession.
@@ -113,7 +150,11 @@ export async function upsertJuryEvaluation(input: {
     }
   }
 
-  const session = await loadOpenSession(input.contestId);
+  const session = await loadSessionForEvaluation({
+    contestId: input.contestId,
+    judgeAccountId: input.judgeAccountId,
+    snapshotId: input.snapshotId,
+  });
   if (!session) {
     throw new JuryError("SESSION_CLOSED", "No hay sesión de jurado OPEN habilitada.", 403);
   }
@@ -135,12 +176,15 @@ export async function upsertJuryEvaluation(input: {
     }
   }
 
+  const isTiebreakPath = session.status === "CLOSED" || session.status === "LOCKED";
   const now = new Date();
-  if (session.opensAt && session.opensAt > now) {
-    throw new JuryError("WINDOW_CLOSED", "La ventana de evaluación aún no abrió.", 403);
-  }
-  if (session.closesAt && session.closesAt < now) {
-    throw new JuryError("WINDOW_CLOSED", "La ventana de evaluación está cerrada.", 403);
+  if (!isTiebreakPath) {
+    if (session.opensAt && session.opensAt > now) {
+      throw new JuryError("WINDOW_CLOSED", "La ventana de evaluación aún no abrió.", 403);
+    }
+    if (session.closesAt && session.closesAt < now) {
+      throw new JuryError("WINDOW_CLOSED", "La ventana de evaluación está cerrada.", 403);
+    }
   }
 
   const snapshot = await prisma.fotorankJuryEntrySnapshot.findFirst({
