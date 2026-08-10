@@ -7,23 +7,36 @@ type Props = {
   /** Prioridad de carga (solo hero). */
   priority?: boolean;
   sizes?: string;
+  /** Fuerza object-fit; si no, usa campos del asset o cover. */
+  objectFit?: "cover" | "contain";
 };
 
 /**
- * Imagen de concurso con object-fit cover + punto focal.
+ * Imagen de concurso con object-fit + punto focal.
  * Usa <img> para URLs arbitrarias del organizador (next/image solo permite Unsplash).
  * No renderiza nada si la URL no es usable (sin placeholder roto).
  */
-export function ContestMedia({ asset, className, priority = false, sizes }: Props) {
+export function ContestMedia({ asset, className, priority = false, sizes, objectFit }: Props) {
   if (!asset || !hasUsableImageUrl(asset.url)) return null;
   const position = assetObjectPosition(asset);
+  const fit =
+    objectFit ??
+    asset.objectFitDesktop ??
+    asset.objectFitMobile ??
+    "cover";
   return (
     // eslint-disable-next-line @next/next/no-img-element -- URLs arbitrarias de organizador/tema
     <img
       src={asset.url.trim()}
       alt={asset.alt}
-      className={["fr-contest-media", className].filter(Boolean).join(" ")}
-      style={{ objectPosition: position }}
+      className={[
+        "fr-contest-media",
+        fit === "contain" ? "fr-contest-media--contain" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      style={{ objectPosition: position, objectFit: fit }}
       sizes={sizes}
       loading={priority ? "eager" : "lazy"}
       decoding="async"

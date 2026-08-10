@@ -170,6 +170,20 @@ export function ContestDashboard({ contest }: ContestDashboardProps) {
         >
           Jurado operativo
         </Link>
+        <Link
+          href={`/dashboard/concursos/${contest.id}/pagina-publica`}
+          className="fr-btn fr-btn-secondary min-h-11 px-5 py-3 text-sm"
+          data-testid="contest-public-page-visual-link"
+        >
+          Página pública
+        </Link>
+        <Link
+          href={`/dashboard/concursos/${contest.id}/sponsors`}
+          className="fr-btn fr-btn-secondary min-h-11 px-5 py-3 text-sm"
+          data-testid="contest-sponsors-link"
+        >
+          Sponsors y organizadores
+        </Link>
       </div>
 
       <div className="grid gap-16 lg:grid-cols-[1fr_320px]">

@@ -80,12 +80,23 @@ export function resolveLocalAssetsManifest(
   return {
     ...base,
     hero: {
-      desktop: refToMedia(slug, manifest.hero.desktop, options),
-      mobile: refToMedia(slug, manifest.hero.mobile, options),
+      desktop: (() => {
+        const m = refToMedia(slug, manifest.hero.desktop, options);
+        if (!m) return null;
+        return { ...m, objectFitDesktop: "cover" as const, objectFitMobile: "contain" as const };
+      })(),
+      mobile: (() => {
+        const m = refToMedia(slug, manifest.hero.mobile, options);
+        if (!m) return null;
+        return { ...m, objectFitDesktop: "cover" as const, objectFitMobile: "contain" as const };
+      })(),
       overlayStrength: manifest.hero.overlayStrength,
       minimumHeightPreset: manifest.hero.minimumHeightPreset,
       textAlignment: manifest.hero.textAlignment,
       contentPosition: manifest.hero.contentPosition,
+      layout: manifest.hero.overlayStrength === "none" ? ("stacked" as const) : ("overlay" as const),
+      fitDesktop: "cover",
+      fitMobile: "contain",
     },
     identity: {
       contestLogo: refToMedia(slug, manifest.identity.contestLogo, options),

@@ -40,21 +40,22 @@ export const SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST: ContestLocalAssetsManifest 
   slug: SANTA_FE_EN_FOCO_ASSETS_SLUG,
   hero: {
     desktop: {
-      file: null,
-      alt: "Fotografía representativa del concurso Santa Fe en Foco",
-      focalPointX: 50,
-      focalPointY: 42,
+      file: "hero/hero-desktop.jpg",
+      alt: "Banner institucional del concurso Santa Fe en Foco con lente fotográfica y disciplinas deportivas",
+      // Prioriza el sector derecho (logos institucionales) ante recorte cover.
+      focalPointX: 78,
+      focalPointY: 45,
       orientation: "landscape",
     },
     mobile: {
-      file: null,
-      alt: "Fotografía representativa del concurso Santa Fe en Foco (versión móvil)",
-      focalPointX: 50,
-      focalPointY: 40,
-      orientation: "portrait",
+      file: "hero/hero-mobile.jpg",
+      alt: "Banner institucional del concurso Santa Fe en Foco (versión móvil)",
+      focalPointX: 72,
+      focalPointY: 42,
+      orientation: "landscape",
     },
-    overlayStrength: "medium",
-    minimumHeightPreset: "standard",
+    overlayStrength: "none",
+    minimumHeightPreset: "compact",
     textAlignment: "start",
     contentPosition: "bottom",
   },
@@ -122,12 +123,12 @@ export const SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST: ContestLocalAssetsManifest 
     },
   ],
   social: {
-    file: null,
+    file: "hero/hero-desktop.jpg",
     alt: "Imagen para compartir Santa Fe en Foco en redes sociales",
     orientation: "landscape",
   },
-  onHeroForegroundColor: "#fafafa",
-  onHeroMutedColor: "#e4e4e7",
+  onHeroForegroundColor: "#12141a",
+  onHeroMutedColor: "#4a5560",
 };
 
 /** Presentación resuelta desde el manifiesto (solo files no nulos). */

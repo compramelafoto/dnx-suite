@@ -17,11 +17,12 @@ import {
   buildSantaFeEnFocoPresentation,
 } from "./santa-fe-en-foco-assets";
 
-/** apps/fotorank/public/contest-assets/{slug} (cwd = monorepo o app). */
+/** apps/fotorank/public/contest-assets/{slug} (cwd = monorepo o app o packages/db). */
 function resolveAssetsRoot(): string {
   const candidates = [
     path.resolve(process.cwd(), "apps/fotorank/public/contest-assets", SANTA_FE_EN_FOCO_ASSETS_SLUG),
     path.resolve(process.cwd(), "public/contest-assets", SANTA_FE_EN_FOCO_ASSETS_SLUG),
+    path.resolve(process.cwd(), "../../apps/fotorank/public/contest-assets", SANTA_FE_EN_FOCO_ASSETS_SLUG),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
@@ -31,14 +32,14 @@ function resolveAssetsRoot(): string {
 
 const publicRoot = resolveAssetsRoot();
 
-/* Manifiesto vacío / desconectado */
-const empty = buildSantaFeEnFocoPresentation();
-assert.equal(empty.hero.desktop, null);
-assert.equal(empty.hero.mobile, null);
-assert.equal(empty.identity.organizerLogo, null);
-assert.equal(empty.gallery.length, 0);
-assert.equal(empty.social, null);
-assert.equal(listConnectedRelativePaths(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST).length, 0);
+/* Manifiesto con hero institucional conectado */
+const live = buildSantaFeEnFocoPresentation();
+assert.ok(live.hero.desktop);
+assert.ok(live.hero.mobile);
+assert.equal(live.identity.organizerLogo, null);
+assert.equal(live.gallery.length, 0);
+assert.ok(live.social);
+assert.ok(listConnectedRelativePaths(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST).length >= 2);
 
 /* Alt */
 assert.equal(isUsableContestAssetAlt("imagen"), false);
@@ -68,12 +69,13 @@ const desktopOnly = resolveLocalAssetsManifest(
   withLocalAssetOverrides(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST, {
     heroDesktopFile: "hero/hero-desktop.webp",
     heroMobileFile: null,
+    socialFile: null,
   }),
   { fileExists: (_s, p) => p === "hero/hero-desktop.webp" },
 );
 assert.ok(desktopOnly.hero.desktop);
 assert.equal(desktopOnly.hero.mobile, null);
-assert.equal(desktopOnly.hero.desktop?.focalPointY, 42);
+assert.equal(desktopOnly.hero.desktop?.focalPointY, 45);
 
 /* Hero desktop + mobile */
 const both = resolveLocalAssetsManifest(
@@ -100,7 +102,11 @@ assert.equal(
 );
 
 /* Galería vacía vs con imágenes + orden */
-const galEmpty = resolveLocalAssetsManifest(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST);
+const galEmpty = resolveLocalAssetsManifest(
+  withLocalAssetOverrides(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST, {
+    socialFile: null,
+  }),
+);
 assert.equal(galEmpty.gallery.length, 0);
 
 const galManifest = withLocalAssetOverrides(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST, {
@@ -140,8 +146,8 @@ const badAlt = resolveLocalAssetsManifest(
 );
 assert.equal(badAlt.hero.desktop, null);
 
-/* Social fallback */
-assert.equal(buildSantaFeEnFocoPresentation().social, null);
+/* Social del manifiesto actual apunta al banner hero */
+assert.ok(buildSantaFeEnFocoPresentation().social?.url.includes("hero-desktop.jpg"));
 const withSocial = resolveLocalAssetsManifest(
   withLocalAssetOverrides(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST, {
     socialFile: "social/social-cover.webp",
@@ -150,7 +156,7 @@ const withSocial = resolveLocalAssetsManifest(
 );
 assert.ok(withSocial.social?.url.includes("social-cover.webp"));
 
-/* Archivos conectados en disco deben existir (hoy: ninguno) */
+/* Archivos conectados en disco deben existir */
 for (const relative of listConnectedRelativePaths(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST)) {
   const abs = path.join(publicRoot, relative);
   assert.ok(fs.existsSync(abs), `manifiesto apunta a archivo inexistente: ${relative}`);

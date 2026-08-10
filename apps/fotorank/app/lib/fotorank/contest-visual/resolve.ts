@@ -26,7 +26,7 @@ export function mergeContestVisualTheme(
 
 /**
  * Resuelve el tema visual del concurso.
- * Sin persistencia: presets en código por slug + override opcional en memoria.
+ * Orden: preset por slug → override (p. ej. publicPageVisualJson) → runtime (cover/logo).
  */
 export function resolveContestVisualTheme(
   slug: string,
@@ -92,6 +92,8 @@ export function contestThemeToCssVars(theme: ContestVisualTheme): Record<string,
   const heroMinMobile =
     heightPreset === "compact" ? "31.25rem" : heightPreset === "tall" ? "40rem" : "33.75rem";
 
+  const primaryHover = theme.primaryColor;
+
   return {
     "--cv-background": theme.backgroundColor,
     "--cv-surface": theme.surfaceColor,
@@ -100,7 +102,9 @@ export function contestThemeToCssVars(theme: ContestVisualTheme): Record<string,
     "--cv-muted-foreground": theme.mutedForegroundColor,
     "--cv-primary": theme.primaryColor,
     "--cv-primary-foreground": theme.primaryForegroundColor,
+    "--cv-primary-hover": primaryHover,
     "--cv-secondary": theme.secondaryColor,
+    "--cv-accent": theme.focusColor,
     "--cv-border": theme.borderColor,
     "--cv-focus": theme.focusColor,
     "--cv-success": theme.successColor,

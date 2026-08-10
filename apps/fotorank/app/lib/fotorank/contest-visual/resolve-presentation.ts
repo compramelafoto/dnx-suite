@@ -28,8 +28,34 @@ export function mergePresentation(
   override?: ContestVisualPresentationPartial | null,
 ): ContestVisualPresentation {
   if (!override) return base;
+  const heroOverride = override.hero;
+  let desktop = heroOverride?.desktop !== undefined ? heroOverride.desktop : base.hero.desktop;
+  let mobile = heroOverride?.mobile !== undefined ? heroOverride.mobile : base.hero.mobile;
+
+  // Focal / fit de config sin URL: aplicar sobre assets del preset.
+  if (heroOverride && desktop && heroOverride.desktop === undefined) {
+    desktop = {
+      ...desktop,
+      focalPointX: heroOverride.fitDesktop ? desktop.focalPointX : desktop.focalPointX,
+      objectFitDesktop: heroOverride.fitDesktop ?? desktop.objectFitDesktop,
+      objectFitMobile: heroOverride.fitMobile ?? desktop.objectFitMobile,
+    };
+  }
+  if (heroOverride && mobile && heroOverride.mobile === undefined) {
+    mobile = {
+      ...mobile,
+      objectFitDesktop: heroOverride.fitDesktop ?? mobile.objectFitDesktop,
+      objectFitMobile: heroOverride.fitMobile ?? mobile.objectFitMobile,
+    };
+  }
+
   return {
-    hero: { ...base.hero, ...override.hero },
+    hero: {
+      ...base.hero,
+      ...heroOverride,
+      desktop,
+      mobile,
+    },
     identity: {
       ...base.identity,
       ...override.identity,
@@ -48,6 +74,8 @@ export type PresentationRuntimeOverride = {
   organizerLogoUrl?: string | null;
   contestTitle?: string;
   organizerName?: string;
+  /** Si true, no usar coverImageUrl como fallback de hero. */
+  skipCoverAsHero?: boolean;
 };
 
 /**
@@ -59,9 +87,13 @@ export function applyRuntimeMedia(
 ): ContestVisualPresentation {
   const title = runtime.contestTitle?.trim() || "Concurso";
   const org = runtime.organizerName?.trim() || "Organizador";
-  const cover = mediaFromUrl(runtime.coverImageUrl, `Imagen de portada de ${title}`, {
-    orientation: "landscape",
-  });
+  const cover = runtime.skipCoverAsHero
+    ? null
+    : mediaFromUrl(runtime.coverImageUrl, `Imagen de portada de ${title}`, {
+        orientation: "landscape",
+        objectFitDesktop: presentation.hero.fitDesktop ?? "cover",
+        objectFitMobile: presentation.hero.fitMobile ?? "contain",
+      });
   const orgLogo = mediaFromUrl(runtime.organizerLogoUrl, `Logo de ${org}`);
 
   return {

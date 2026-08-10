@@ -1213,7 +1213,7 @@ html:has(.fr-contest-shell) {
 }
 
 .fr-contest-shell .fr-btn-primary:hover {
-  background-color: var(--cv-focus);
+  background-color: color-mix(in srgb, var(--cv-primary) 82%, #000000 18%);
 }
 
 .fr-contest-shell .fr-btn-secondary {
@@ -1864,6 +1864,87 @@ html:has(.fr-contest-shell) {
   width: 100%;
 }
 
+/* Hero stacked: banner completo sin overlay de texto sobre logos */
+.fr-contest-hero--stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+}
+
+.fr-contest-hero--stacked .fr-contest-hero__banner {
+  position: relative;
+  width: 100%;
+  background: var(--cv-background, #f7f4ef);
+  line-height: 0;
+}
+
+.fr-contest-hero--stacked .fr-contest-hero__media {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+  aspect-ratio: 16 / 9;
+}
+
+@media (min-width: 768px) {
+  .fr-contest-hero--stacked .fr-contest-hero__media--desktop {
+    display: block;
+    object-fit: cover;
+    width: 100%;
+    height: auto;
+    max-height: min(32rem, 56vw);
+    aspect-ratio: 16 / 9;
+  }
+
+  .fr-contest-hero--stacked .fr-contest-hero__media--mobile {
+    display: none;
+  }
+}
+
+.fr-contest-hero--stacked .fr-contest-hero__overlay {
+  display: none;
+}
+
+.fr-contest-hero--stacked .fr-contest-hero__content {
+  position: relative;
+  padding-top: 2rem;
+  padding-bottom: 1.75rem;
+  background: var(--cv-background);
+}
+
+@media (min-width: 768px) {
+  .fr-contest-hero--stacked .fr-contest-hero__content {
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+  }
+}
+
+.fr-contest-hero--stacked .fr-contest-hero__copy {
+  color: var(--cv-foreground);
+  max-width: 42rem;
+}
+
+.fr-contest-hero--stacked .fr-contest-hero__title {
+  color: var(--cv-foreground);
+}
+
+.fr-contest-hero--stacked .fr-contest-hero__lead,
+.fr-contest-hero--stacked .fr-contest-hero__date,
+.fr-contest-hero--stacked .fr-contest-hero__org-name {
+  color: var(--cv-muted-foreground);
+}
+
+/* Sin overlay oscuro cuando strength=none (aunque sea layout overlay) */
+.fr-contest-hero[data-overlay="none"] .fr-contest-hero__overlay {
+  display: none;
+}
+
 /* Franja de información crítica */
 .fr-contest-info-strip {
   border-bottom: 1px solid var(--cv-border, var(--color-fr-border));
@@ -1932,6 +2013,10 @@ html:has(.fr-contest-shell) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.fr-contest-media--contain {
+  object-fit: contain;
 }
 
 .fr-contest-media-figure {

@@ -13,6 +13,8 @@ export type ContestFocalPoint = {
 
 export type ContestMediaOrientation = "landscape" | "portrait" | "square";
 
+export type ContestMediaObjectFit = "cover" | "contain";
+
 export type ContestMediaAsset = {
   url: string;
   alt: string;
@@ -21,12 +23,18 @@ export type ContestMediaAsset = {
   orientation?: ContestMediaOrientation;
   credit?: string;
   caption?: string;
+  /** Ajuste desktop (banner panorámico). Default cover. */
+  objectFitDesktop?: ContestMediaObjectFit;
+  /** Ajuste mobile; contain evita recortar logos en banners horizontales. */
+  objectFitMobile?: ContestMediaObjectFit;
 };
 
 export type ContestHeroHeightPreset = "compact" | "standard" | "tall";
 export type ContestHeroTextAlignment = "start" | "center";
 export type ContestHeroContentPosition = "bottom" | "center";
 export type ContestLogoPresentationPreset = "mark" | "wordmark" | "stacked";
+/** overlay = texto sobre la imagen; stacked = banner completo + contenido debajo (sin tapar logos). */
+export type ContestHeroLayoutMode = "overlay" | "stacked";
 
 export type ContestHeroPresentation = {
   desktop: ContestMediaAsset | null;
@@ -35,6 +43,9 @@ export type ContestHeroPresentation = {
   minimumHeightPreset: ContestHeroHeightPreset;
   textAlignment: ContestHeroTextAlignment;
   contentPosition: ContestHeroContentPosition;
+  layout?: ContestHeroLayoutMode;
+  fitDesktop?: ContestMediaObjectFit;
+  fitMobile?: ContestMediaObjectFit;
 };
 
 export type ContestIdentityPresentation = {
@@ -80,6 +91,7 @@ export type ContestVisualPresentationPartial = {
 export function emptyContestVisualPresentation(
   defaults?: Partial<Pick<ContestVisualPresentation, "onHeroForegroundColor" | "onHeroMutedColor">> & {
     overlayStrength?: ContestHeroOverlayStrength;
+    layout?: ContestHeroLayoutMode;
   },
 ): ContestVisualPresentation {
   return {
@@ -90,6 +102,7 @@ export function emptyContestVisualPresentation(
       minimumHeightPreset: "standard",
       textAlignment: "start",
       contentPosition: "bottom",
+      layout: defaults?.layout ?? "overlay",
     },
     identity: {
       contestLogo: null,

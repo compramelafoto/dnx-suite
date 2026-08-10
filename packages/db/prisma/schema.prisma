@@ -7357,6 +7357,9 @@ model FotorankContest {
   shortDescription              String?
   fullDescription               String?
   coverImageUrl                 String?
+  /// Configuración visual de la landing pública (colores, banner override, layout).
+  /// Nullable = tema predeterminado / preset por slug. JSON tipado en app (sin CSS arbitrario).
+  publicPageVisualJson          Json?
   prizesSummary                 String?
   sponsorsText                  String?
   status                        FotorankContestStatus              @default(DRAFT)

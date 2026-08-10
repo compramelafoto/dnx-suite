@@ -20,6 +20,7 @@ export type PublicContestLandingData = {
     shortDescription: string | null;
     fullDescription: string | null;
     coverImageUrl: string | null;
+    publicPageVisualJson: unknown;
     rulesText: string | null;
     prizesSummary: string | null;
     sponsorsText: string | null;
@@ -96,6 +97,7 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
       shortDescription: contest.shortDescription,
       fullDescription: contest.fullDescription,
       coverImageUrl: contest.coverImageUrl,
+      publicPageVisualJson: contest.publicPageVisualJson,
       rulesText: contest.rulesText,
       prizesSummary: contest.prizesSummary,
       sponsorsText: contest.sponsorsText,

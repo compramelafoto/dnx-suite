@@ -2,13 +2,25 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@repo/db";
+import { ContestShell, ContentToActions, Stack, Surface } from "../../../components/contest-public";
+import {
+  contestThemeToCssVars,
+  parsePublicPageVisualJson,
+  publicPageVisualToThemePartial,
+  resolveContestVisualTheme,
+} from "../../../lib/fotorank/contest-visual";
 import { getAuthUser } from "../../../lib/auth";
 import {
   getCurrentPublishedRules,
   getMyContestRegistration,
 } from "../../../lib/fotorank/registration";
+import {
+  presentRegistrationStatus,
+  resolveUploadWindow,
+} from "../../../lib/fotorank/participant-experience";
+import { buildUploadRequirementsSummary } from "../../../lib/fotorank/participant-upload";
+import { ParticipantUploadWizard } from "../../../components/participant-upload";
 import { InscriptionForm } from "./InscriptionForm";
-import { EntryUploadPanel } from "./EntryUploadPanel";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -31,10 +43,22 @@ export default async function ContestInscriptionPage({ params }: Props) {
     },
     include: {
       categories: { where: { status: "ACTIVE" }, orderBy: { sortOrder: "asc" } },
-      organization: { select: { name: true } },
+      organization: { select: { name: true, logoUrl: true } },
     },
   });
   if (!contest) notFound();
+
+  const theme = resolveContestVisualTheme(
+    slug,
+    publicPageVisualToThemePartial(parsePublicPageVisualJson(contest.publicPageVisualJson)),
+    {
+      coverImageUrl: contest.coverImageUrl,
+      organizerLogoUrl: contest.organization.logoUrl,
+      contestTitle: contest.title,
+      organizerName: contest.organization.name,
+    },
+  );
+  const cssVars = contestThemeToCssVars(theme);
 
   const loginNext = `/concursos/${slug}/inscripcion`;
   const user = await getAuthUser();
@@ -43,59 +67,100 @@ export default async function ContestInscriptionPage({ params }: Props) {
   }
 
   const existing = await getMyContestRegistration(contest.id, user.id);
-  const now = Date.now();
-  const uploadOpens = contest.submissionOpensAt?.getTime() ?? null;
-  const uploadCloses = contest.submissionDeadline?.getTime() ?? null;
-  const uploadOpen =
-    contest.status !== "CLOSED" &&
-    contest.status !== "ARCHIVED" &&
-    (uploadOpens == null || uploadOpens <= now) &&
-    (uploadCloses == null || uploadCloses >= now);
-
+  const uploadWindow = resolveUploadWindow({
+    submissionOpensAt: contest.submissionOpensAt,
+    submissionDeadline: contest.submissionDeadline,
+    registrationOpensAt: contest.registrationOpensAt,
+    registrationClosesAt: contest.registrationClosesAt,
+    startAt: contest.startAt,
+    status: contest.status,
+  });
   if (existing && existing.status !== "CANCELLED" && existing.status !== "DISQUALIFIED") {
+    const category =
+      contest.categories.find((c) => c.id === existing.categoryId) ?? contest.categories[0];
+    const requirements = category
+      ? buildUploadRequirementsSummary({
+          contestSlug: slug,
+          categoryName: existing.categoryName,
+          categorySlug: category.slug,
+          maxFiles: category.maxFiles,
+          uploadPolicyJson: contest.uploadPolicyJson,
+          uploadWindow,
+          basesHref: `/concursos/${slug}#bases`,
+          timezone: contest.timezone,
+        })
+      : null;
     return (
-      <main className="min-h-screen bg-fr-bg text-fr-primary">
-        <div className="mx-auto max-w-2xl px-8 py-16 md:px-10">
-          <p className="fr-eyebrow text-gold">Inscripción</p>
-          <h1 className="mt-4 font-sans text-3xl font-semibold tracking-tight md:text-4xl">{contest.title}</h1>
-          <div className="fr-recuadro mt-10 space-y-6 border border-fr-border bg-fr-card">
-            <p className="text-lg text-fr-primary">Ya estás inscripto/a.</p>
-            <dl className="space-y-4 text-sm">
-              <div>
-                <dt className="text-fr-muted">Número</dt>
-                <dd className="mt-2 text-xl font-semibold text-gold" data-testid="registration-number">
-                  {existing.registrationNumber}
-                </dd>
+      <ContestShell cssVars={cssVars}>
+        <main className="fr-contest-inscription">
+          <div className="fr-contest-inscription__inner">
+            <p className="fr-type-eyebrow">Inscripción</p>
+            <p className="fr-type-caption mt-2">{contest.organization.name}</p>
+            <h1 className="fr-type-h1 mt-3" style={{ color: "var(--cv-foreground)", maxWidth: "none" }}>
+              {contest.title}
+            </h1>
+            <Surface className="mt-8" padding="lg">
+              <Stack gap="md">
+                <p className="fr-type-body-large" style={{ color: "var(--cv-foreground)" }}>
+                  Ya estás inscripto/a.
+                </p>
+                <dl className="fr-contest-stack fr-contest-stack--sm">
+                  <div>
+                    <dt className="fr-type-caption">Número</dt>
+                    <dd
+                      className="mt-1 text-xl font-semibold text-gold"
+                      data-testid="registration-number"
+                    >
+                      {existing.registrationNumber}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="fr-type-caption">Categoría</dt>
+                    <dd className="mt-1" style={{ color: "var(--cv-foreground)" }}>
+                      {existing.categoryName}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="fr-type-caption">Estado</dt>
+                    <dd className="mt-1" style={{ color: "var(--cv-foreground)" }}>
+                      {presentRegistrationStatus(existing.status).label}
+                    </dd>
+                  </div>
+                </dl>
+                <ContentToActions>
+                  <Link
+                    href={`/participaciones/${existing.id}`}
+                    className="fr-btn fr-btn-primary w-fit"
+                  >
+                    Ver detalle de participación
+                  </Link>
+                  <Link href="/participaciones" className="fr-btn fr-btn-secondary w-fit">
+                    Mis participaciones
+                  </Link>
+                </ContentToActions>
+              </Stack>
+            </Surface>
+            {existing.status === "CONFIRMED" && requirements ? (
+              <div className="mt-10">
+                <ParticipantUploadWizard
+                  contestId={contest.id}
+                  contestSlug={slug}
+                  registrationId={existing.id}
+                  registrationNumber={existing.registrationNumber}
+                  registrationStatus={existing.status}
+                  requirements={requirements}
+                  detailHref={`/participaciones/${existing.id}`}
+                />
               </div>
-              <div>
-                <dt className="text-fr-muted">Categoría</dt>
-                <dd className="mt-2 text-fr-primary">{existing.categoryName}</dd>
-              </div>
-              <div>
-                <dt className="text-fr-muted">Estado</dt>
-                <dd className="mt-2 text-fr-primary">{existing.status}</dd>
-              </div>
-            </dl>
-            <Link href="/participaciones" className="fr-btn fr-btn-primary inline-flex w-fit px-6 py-3">
-              Ver mis participaciones
-            </Link>
+            ) : null}
+            <p className="mt-8">
+              <Link href={`/concursos/${slug}`} className="fr-btn fr-btn-ghost">
+                ← Volver al concurso
+              </Link>
+            </p>
           </div>
-          {existing.status === "CONFIRMED" && uploadOpen ? (
-            <EntryUploadPanel contestId={contest.id} contestSlug={slug} />
-          ) : null}
-          {existing.status === "CONFIRMED" && !uploadOpen ? (
-            <div
-              className="fr-recuadro mt-10 border border-amber-500/40 bg-amber-500/10"
-              data-testid="upload-closed-notice"
-            >
-              <p className="fr-body text-fr-primary">
-                La carga de fotografías todavía no está habilitada. Tu inscripción quedó confirmada;
-                te avisaremos cuando puedas subir tu obra.
-              </p>
-            </div>
-          ) : null}
-        </div>
-      </main>
+        </main>
+      </ContestShell>
     );
   }
 
@@ -103,46 +168,53 @@ export default async function ContestInscriptionPage({ params }: Props) {
   const isFree = contest.registrationPricingMode === "FREE";
 
   return (
-    <main className="min-h-screen bg-fr-bg text-fr-primary">
-      <div className="mx-auto max-w-2xl px-8 py-16 md:px-10">
-        <p className="fr-eyebrow text-gold">Inscripción · {contest.organization.name}</p>
-        <h1 className="mt-4 font-sans text-3xl font-semibold tracking-tight md:text-4xl">{contest.title}</h1>
-        <p className="mt-6 max-w-xl text-base leading-relaxed text-fr-muted">
-          {isFree
-            ? "Concurso gratuito: al confirmar quedarás inscripto/a sin cobro ni redirección a pagos."
-            : "Concurso con inscripción paga: el cobro se completará vía DNX Payments (en preparación)."}
-        </p>
+    <ContestShell cssVars={cssVars}>
+      <main className="fr-contest-inscription">
+        <div className="fr-contest-inscription__inner">
+          <p className="fr-type-eyebrow">Inscripción</p>
+          <p className="fr-type-caption mt-2">{contest.organization.name}</p>
+          <h1 className="fr-type-h1 mt-3" style={{ color: "var(--cv-foreground)", maxWidth: "none" }}>
+            {contest.title}
+          </h1>
+          <p className="fr-type-body mt-4">
+            {isFree
+              ? "Concurso gratuito: al confirmar quedarás inscripto/a sin cobro ni redirección a pagos."
+              : "Concurso con inscripción paga: el cobro se completará vía DNX Payments (en preparación)."}
+          </p>
 
-        {!rules ? (
-          <div className="fr-recuadro mt-10 border border-amber-500/40 bg-amber-500/10">
-            <p className="fr-body text-fr-primary">
-              Todavía no hay bases publicadas. El organizador debe publicar una versión antes de abrir
-              inscripciones.
-            </p>
-            <Link href={`/concursos/${slug}`} className="fr-btn fr-btn-secondary mt-8 inline-flex w-fit">
-              Volver al concurso
-            </Link>
-          </div>
-        ) : (
-          <InscriptionForm
-            contestId={contest.id}
-            contestSlug={slug}
-            categories={contest.categories.map((c) => ({
-              id: c.id,
-              name: c.name,
-              slug: c.slug,
-              maxFiles: c.maxFiles,
-            }))}
-            rules={{
-              id: rules.id,
-              versionNumber: rules.versionNumber,
-              title: rules.title,
-              content: rules.content,
-            }}
-            isFree={isFree}
-          />
-        )}
-      </div>
-    </main>
+          {!rules ? (
+            <Surface className="fr-contest-surface--warning mt-8" padding="md">
+              <p className="fr-type-body" style={{ color: "var(--cv-foreground)" }}>
+                Todavía no hay bases publicadas. El organizador debe publicar una versión antes de abrir
+                inscripciones.
+              </p>
+              <ContentToActions>
+                <Link href={`/concursos/${slug}`} className="fr-btn fr-btn-secondary inline-flex w-fit">
+                  Volver al concurso
+                </Link>
+              </ContentToActions>
+            </Surface>
+          ) : (
+            <InscriptionForm
+              contestId={contest.id}
+              contestSlug={slug}
+              categories={contest.categories.map((c) => ({
+                id: c.id,
+                name: c.name,
+                slug: c.slug,
+                maxFiles: c.maxFiles,
+              }))}
+              rules={{
+                id: rules.id,
+                versionNumber: rules.versionNumber,
+                title: rules.title,
+                content: rules.content,
+              }}
+              isFree={isFree}
+            />
+          )}
+        </div>
+      </main>
+    </ContestShell>
   );
 }
