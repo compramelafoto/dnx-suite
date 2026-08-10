@@ -11,6 +11,7 @@ import { JuryPlanningPanel } from "../../../../../components/dashboard/jury/Jury
 import { JuryProvisionalRankingBanner } from "../../../../../components/dashboard/jury/JuryProvisionalRankingBanner";
 import { JuryCloseFinalistsPanel } from "../../../../../components/dashboard/jury/JuryCloseFinalistsPanel";
 import { FinalistsPublicPrepPanel } from "../../../../../components/dashboard/jury/FinalistsPublicPrepPanel";
+import { PublicVoteMonitorPanel } from "../../../../../components/dashboard/jury/PublicVoteMonitorPanel";
 export const dynamic = "force-dynamic";
 
 type Props = {
@@ -206,6 +207,10 @@ export default async function ContestJuradoOpsPage({ params, searchParams }: Pro
 
       <div className="mb-10">
         <FinalistsPublicPrepPanel contestId={contestId} />
+      </div>
+
+      <div className="mb-10">
+        <PublicVoteMonitorPanel contestId={contestId} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
