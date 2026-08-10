@@ -9,6 +9,7 @@
     "./themes": "./src/design-system/themes/index.ts",
     "./components/ui": "./src/design-system/components/ui/index.ts",
     "./components/patterns": "./src/design-system/components/patterns/index.ts",
+    "./components/partners": "./src/design-system/components/partners/index.ts",
     "./utils": "./src/design-system/utils/index.ts",
     "./components/layout": "./src/design-system/components/layout/index.ts",
     "./components/typography": "./src/design-system/components/typography/index.ts",

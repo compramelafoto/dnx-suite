@@ -1,6 +1,22 @@
 import { randomUUID } from "node:crypto";
 import type { PartnersRepository } from "./repository";
 import type {
+  CreateBrandAssetInput,
+  CreateParticipationAssetInput,
+  ParticipationAssetRecord,
+  PartnerBrandAssetRecord,
+  UpdateBrandAssetInput,
+  UpdateParticipationAssetInput,
+} from "./assets-types";
+import { filterParticipationAssets } from "./assets-resolve";
+import type { ClickEventRecord, OutboundLinkRecord } from "./tracking";
+import { assertSafePartnerDestinationUrl } from "./tracking";
+import type {
+  OnboardingInvitationRecord,
+  PartnerOnboardingDraft,
+  PartnerOnboardingSubmission,
+} from "./onboarding-types";
+import type {
   AssignAudienceInput,
   BenefitAccessRecord,
   BenefitAudienceRecord,
@@ -36,6 +52,11 @@ export function createMemoryPartnersRepository(): PartnersRepository {
   const benefits = new Map<string, BenefitRecord>();
   const audiences = new Map<string, BenefitAudienceRecord>();
   const benefitAccess = new Map<string, BenefitAccessRecord>();
+  const brandAssets = new Map<string, PartnerBrandAssetRecord>();
+  const participationAssets = new Map<string, ParticipationAssetRecord>();
+  const outboundLinks = new Map<string, OutboundLinkRecord>();
+  const clickEvents = new Map<string, ClickEventRecord>();
+  const onboardingInvitations = new Map<string, OnboardingInvitationRecord>();
   const audits: PartnerAuditEventRecord[] = [];
 
   return {
@@ -90,9 +111,16 @@ export function createMemoryPartnersRepository(): PartnersRepository {
         logoUrl: input.logoUrl ?? null,
         websiteUrl: input.websiteUrl ?? null,
         instagram: input.instagram ?? null,
+        facebookUrl: input.facebookUrl ?? null,
+        linkedinUrl: input.linkedinUrl ?? null,
         email: input.email ?? null,
         phone: input.phone ?? null,
         taxId: input.taxId ?? null,
+        address: input.address ?? null,
+        city: input.city ?? null,
+        provinceOrState: input.provinceOrState ?? null,
+        country: input.country ?? null,
+        postalCode: input.postalCode ?? null,
         notes: input.notes ?? null,
         financialIdentityId: null,
         createdByUserId: input.createdByUserId ?? null,
@@ -155,6 +183,8 @@ export function createMemoryPartnersRepository(): PartnersRepository {
         email: input.email ?? null,
         phone: input.phone ?? null,
         whatsapp: input.whatsapp ?? null,
+        emailIsPublic: input.emailIsPublic === true,
+        phoneIsPublic: input.phoneIsPublic === true,
         isPrimary: input.isPrimary ?? false,
         notes: input.notes ?? null,
         createdAt: ts,
@@ -194,6 +224,18 @@ export function createMemoryPartnersRepository(): PartnersRepository {
         contextType: input.contextType ?? "GLOBAL",
         contextId: input.contextId ?? null,
         participationType: input.participationType ?? "SPONSOR",
+        institutionalRole: input.institutionalRole ?? "SPONSOR",
+        displayTier: input.displayTier ?? "STANDARD",
+        displayOrder:
+          typeof input.displayOrder === "number" && Number.isFinite(input.displayOrder)
+            ? Math.max(0, Math.trunc(input.displayOrder))
+            : 100,
+        publicRoleLabel: input.publicRoleLabel ?? null,
+        destinationUrl: input.destinationUrl
+          ? assertSafePartnerDestinationUrl(input.destinationUrl)
+          : null,
+        clickTrackingEnabled: input.clickTrackingEnabled !== false,
+        publicVisibility: input.publicVisibility ?? "HIDDEN",
         title: input.title ?? null,
         description: input.description ?? null,
         status: input.status ?? "DRAFT",
@@ -220,9 +262,35 @@ export function createMemoryPartnersRepository(): PartnersRepository {
     async updateParticipation(id, input: UpdateParticipationInput) {
       const current = participations.get(id);
       if (!current) throw new PartnersDomainError("NOT_FOUND", "Participación no encontrada.");
+      const displayOrder =
+        input.displayOrder === undefined
+          ? current.displayOrder
+          : typeof input.displayOrder === "number" && Number.isFinite(input.displayOrder)
+            ? Math.max(0, Math.trunc(input.displayOrder))
+            : current.displayOrder;
+      const destinationUrl =
+        input.destinationUrl === undefined
+          ? current.destinationUrl
+          : input.destinationUrl
+            ? assertSafePartnerDestinationUrl(input.destinationUrl)
+            : null;
       const next: ParticipationRecord = {
         ...current,
         ...input,
+        displayOrder,
+        publicRoleLabel:
+          input.publicRoleLabel === undefined
+            ? current.publicRoleLabel
+            : input.publicRoleLabel,
+        destinationUrl,
+        clickTrackingEnabled:
+          input.clickTrackingEnabled === undefined
+            ? current.clickTrackingEnabled
+            : input.clickTrackingEnabled !== false,
+        publicVisibility:
+          input.publicVisibility === undefined
+            ? current.publicVisibility
+            : input.publicVisibility,
         updatedAt: now(),
         updatedByUserId: input.updatedByUserId ?? current.updatedByUserId,
       };
@@ -295,6 +363,13 @@ export function createMemoryPartnersRepository(): PartnersRepository {
       };
       contributions.set(id, next);
       return next;
+    },
+
+    async deleteContribution(id) {
+      if (!contributions.has(id)) {
+        throw new PartnersDomainError("NOT_FOUND", "Aporte no encontrado.");
+      }
+      contributions.delete(id);
     },
 
     async listBenefits(partnerId) {
@@ -397,6 +472,10 @@ export function createMemoryPartnersRepository(): PartnersRepository {
       return [...benefitAccess.values()].filter((a) => a.benefitId === benefitId);
     },
 
+    async getBenefitAccessByAccessKey(accessKey) {
+      return [...benefitAccess.values()].find((a) => a.accessKey === accessKey) ?? null;
+    },
+
     async getActiveBenefitAccess(benefitId, userId) {
       return (
         [...benefitAccess.values()].find(
@@ -405,19 +484,36 @@ export function createMemoryPartnersRepository(): PartnersRepository {
       );
     },
 
-    async upsertBenefitAccess(input: GrantBenefitAccessInput) {
-      const existing = [...benefitAccess.values()].find(
-        (a) => a.benefitId === input.benefitId && a.userId === input.userId,
+    async listActiveBenefitAccessForUser(benefitId, userId) {
+      return [...benefitAccess.values()].filter(
+        (a) => a.benefitId === benefitId && a.userId === userId && a.status === "ACTIVE",
       );
+    },
+
+    async upsertBenefitAccess(input: GrantBenefitAccessInput) {
+      const source = input.source ?? "MANUAL";
+      const accessKey =
+        input.accessKey ??
+        (source === "MANUAL"
+          ? `manual:${input.benefitId}:${input.userId}`
+          : `auto:${input.benefitId}:${input.userId}:${input.sourceType ?? "X"}:${input.sourceId ?? "X"}`);
+      const existing = [...benefitAccess.values()].find((a) => a.accessKey === accessKey);
       const ts = now();
       if (existing) {
         const next: BenefitAccessRecord = {
           ...existing,
           status: "ACTIVE",
+          source,
+          sourceType: input.sourceType ?? existing.sourceType,
+          sourceId: input.sourceId ?? existing.sourceId,
+          reasonCode: input.reasonCode ?? existing.reasonCode,
           reason: input.reason ?? existing.reason,
           notes: input.notes ?? existing.notes,
           grantedByUserId: input.grantedByUserId ?? existing.grantedByUserId,
+          revokedByUserId: null,
           revokedAt: null,
+          grantedAt: ts,
+          metadata: input.metadata ?? existing.metadata,
           updatedAt: ts,
         };
         benefitAccess.set(existing.id, next);
@@ -425,13 +521,21 @@ export function createMemoryPartnersRepository(): PartnersRepository {
       }
       const row: BenefitAccessRecord = {
         id: randomUUID(),
+        accessKey,
         benefitId: input.benefitId,
         userId: input.userId,
         status: "ACTIVE",
+        source,
+        sourceType: input.sourceType ?? (source === "MANUAL" ? "ADMIN" : null),
+        sourceId: input.sourceId ?? null,
+        reasonCode: input.reasonCode ?? (source === "MANUAL" ? "MANUAL_GRANT" : null),
         reason: input.reason ?? "MANUAL",
         notes: input.notes ?? null,
         grantedByUserId: input.grantedByUserId ?? null,
+        revokedByUserId: null,
+        grantedAt: ts,
         revokedAt: null,
+        metadata: input.metadata ?? null,
         createdAt: ts,
         updatedAt: ts,
       };
@@ -439,18 +543,185 @@ export function createMemoryPartnersRepository(): PartnersRepository {
       return row;
     },
 
-    async revokeBenefitAccess(benefitId, userId) {
+    async revokeBenefitAccessByAccessKey(accessKey, actorUserId) {
+      const existing = [...benefitAccess.values()].find((a) => a.accessKey === accessKey);
+      if (!existing) throw new PartnersDomainError("NOT_FOUND", "Acceso no encontrado.");
+      const next: BenefitAccessRecord = {
+        ...existing,
+        status: "REVOKED",
+        revokedAt: now(),
+        revokedByUserId: actorUserId,
+        updatedAt: now(),
+      };
+      benefitAccess.set(existing.id, next);
+      return next;
+    },
+
+    async revokeBenefitAccess(benefitId, userId, actorUserId) {
       const existing = [...benefitAccess.values()].find(
-        (a) => a.benefitId === benefitId && a.userId === userId,
+        (a) => a.benefitId === benefitId && a.userId === userId && a.status === "ACTIVE",
       );
       if (!existing) throw new PartnersDomainError("NOT_FOUND", "Acceso no encontrado.");
       const next: BenefitAccessRecord = {
         ...existing,
         status: "REVOKED",
         revokedAt: now(),
+        revokedByUserId: actorUserId,
         updatedAt: now(),
       };
       benefitAccess.set(existing.id, next);
+      return next;
+    },
+
+    async listBrandAssets(partnerId) {
+      return [...brandAssets.values()]
+        .filter((a) => a.partnerId === partnerId)
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    },
+
+    async getBrandAssetById(id) {
+      return brandAssets.get(id) ?? null;
+    },
+
+    async createBrandAsset(input: CreateBrandAssetInput) {
+      const ts = now();
+      const row: PartnerBrandAssetRecord = {
+        id: randomUUID(),
+        partnerId: input.partnerId,
+        type: input.type,
+        name: input.name,
+        description: input.description ?? null,
+        storageProvider: input.storageProvider ?? "R2",
+        storageKey: input.storageKey ?? null,
+        fileUrl: input.fileUrl ?? null,
+        mediaAssetId: input.mediaAssetId ?? null,
+        originalFilename: input.originalFilename ?? null,
+        mimeType: input.mimeType ?? null,
+        fileExtension: input.fileExtension ?? null,
+        fileSize: input.fileSize ?? null,
+        width: input.width ?? null,
+        height: input.height ?? null,
+        durationSeconds: input.durationSeconds ?? null,
+        aspectRatio: input.aspectRatio ?? null,
+        backgroundType: input.backgroundType ?? "UNKNOWN",
+        isPrimary: input.isPrimary === true,
+        status: input.status ?? "DRAFT",
+        approvalStatus: input.approvalStatus ?? "PENDING",
+        altText: input.altText ?? null,
+        notes: input.notes ?? null,
+        metadata: input.metadata ?? null,
+        uploadedById: input.uploadedById ?? null,
+        approvedById: null,
+        approvedAt: null,
+        createdAt: ts,
+        updatedAt: ts,
+        archivedAt: null,
+      };
+      brandAssets.set(row.id, row);
+      return row;
+    },
+
+    async updateBrandAsset(id, input: UpdateBrandAssetInput) {
+      const current = brandAssets.get(id);
+      if (!current) throw new PartnersDomainError("NOT_FOUND", "Asset no encontrado.");
+      const next: PartnerBrandAssetRecord = {
+        ...current,
+        ...input,
+        updatedAt: now(),
+      };
+      brandAssets.set(id, next);
+      return next;
+    },
+
+    async clearPrimaryBrandAssets(partnerId, exceptId) {
+      for (const [id, asset] of brandAssets) {
+        if (asset.partnerId === partnerId && asset.isPrimary && id !== exceptId) {
+          brandAssets.set(id, { ...asset, isPrimary: false, updatedAt: now() });
+        }
+      }
+    },
+
+    async listParticipationAssets(query) {
+      void filterParticipationAssets;
+      return [...participationAssets.values()]
+        .filter((a) => {
+          if (query.participationId && a.participationId !== query.participationId) return false;
+          if (query.application && a.application !== query.application) return false;
+          if (query.channel && a.channel !== query.channel) return false;
+          if (query.assetType && a.assetType !== query.assetType) return false;
+          if (query.purpose && a.purpose !== query.purpose) return false;
+          if (query.benefitId && a.benefitId !== query.benefitId) return false;
+          if (query.contributionId && a.contributionId !== query.contributionId) return false;
+          if (query.prizeBundleId && a.prizeBundleId !== query.prizeBundleId) return false;
+          if (query.status && a.status !== query.status) return false;
+          if (query.approvalStatus && a.approvalStatus !== query.approvalStatus) return false;
+          if (!query.includeArchived && (a.status === "ARCHIVED" || a.archivedAt)) return false;
+          return true;
+        })
+        .sort((a, b) => a.sortOrder - b.sortOrder || b.updatedAt.getTime() - a.updatedAt.getTime());
+    },
+
+    async getParticipationAssetById(id) {
+      return participationAssets.get(id) ?? null;
+    },
+
+    async createParticipationAsset(input: CreateParticipationAssetInput) {
+      const ts = now();
+      const row: ParticipationAssetRecord = {
+        id: randomUUID(),
+        participationId: input.participationId,
+        benefitId: input.benefitId ?? null,
+        contributionId: input.contributionId ?? null,
+        prizeBundleId: input.prizeBundleId ?? null,
+        application: input.application ?? "CLICKATON",
+        channel: input.channel ?? "WEB",
+        assetType: input.assetType ?? "IMAGE",
+        purpose: input.purpose ?? "SPONSOR_VISIBILITY",
+        name: input.name,
+        description: input.description ?? null,
+        storageProvider: input.storageProvider ?? "R2",
+        storageKey: input.storageKey ?? null,
+        fileUrl: input.fileUrl ?? null,
+        mediaAssetId: input.mediaAssetId ?? null,
+        originalFilename: input.originalFilename ?? null,
+        mimeType: input.mimeType ?? null,
+        fileExtension: input.fileExtension ?? null,
+        fileSize: input.fileSize ?? null,
+        width: input.width ?? null,
+        height: input.height ?? null,
+        durationSeconds: input.durationSeconds ?? null,
+        aspectRatio: input.aspectRatio ?? null,
+        orientation: input.orientation ?? "UNKNOWN",
+        status: input.status ?? "DRAFT",
+        approvalStatus: input.approvalStatus ?? "PENDING",
+        startsAt: input.startsAt ?? null,
+        endsAt: input.endsAt ?? null,
+        altText: input.altText ?? null,
+        caption: input.caption ?? null,
+        ctaText: input.ctaText ?? null,
+        ctaUrl: input.ctaUrl ?? null,
+        sortOrder: input.sortOrder ?? 100,
+        metadata: input.metadata ?? null,
+        uploadedById: input.uploadedById ?? null,
+        approvedById: null,
+        approvedAt: null,
+        createdAt: ts,
+        updatedAt: ts,
+        archivedAt: null,
+      };
+      participationAssets.set(row.id, row);
+      return row;
+    },
+
+    async updateParticipationAsset(id, input: UpdateParticipationAssetInput) {
+      const current = participationAssets.get(id);
+      if (!current) throw new PartnersDomainError("NOT_FOUND", "Material no encontrado.");
+      const next: ParticipationAssetRecord = {
+        ...current,
+        ...input,
+        updatedAt: now(),
+      };
+      participationAssets.set(id, next);
       return next;
     },
 
@@ -467,6 +738,173 @@ export function createMemoryPartnersRepository(): PartnersRepository {
         afterJson: event.afterJson,
         createdAt: now(),
       });
+    },
+
+    async getOutboundLinkByTrackingKey(trackingKey) {
+      return [...outboundLinks.values()].find((l) => l.trackingKey === trackingKey) ?? null;
+    },
+
+    async findOutboundLinkByParticipationPlacement(participationId, placement) {
+      return (
+        [...outboundLinks.values()].find(
+          (l) =>
+            l.participationId === participationId &&
+            l.placement === placement &&
+            !l.archivedAt,
+        ) ?? null
+      );
+    },
+
+    async listOutboundLinksByPartner(partnerId) {
+      return [...outboundLinks.values()]
+        .filter((l) => l.partnerId === partnerId && !l.archivedAt)
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    },
+
+    async createOutboundLink(input) {
+      const ts = now();
+      const row: OutboundLinkRecord = {
+        id: randomUUID(),
+        trackingKey: input.trackingKey,
+        partnerId: input.partnerId,
+        participationId: input.participationId ?? null,
+        application: input.application,
+        contextType: input.contextType,
+        contextId: input.contextId ?? null,
+        assetId: input.assetId ?? null,
+        placement: input.placement,
+        destinationUrl: assertSafePartnerDestinationUrl(input.destinationUrl),
+        utmSource: input.utmSource ?? null,
+        utmMedium: input.utmMedium ?? null,
+        utmCampaign: input.utmCampaign ?? null,
+        utmContent: input.utmContent ?? null,
+        status: input.status ?? "ACTIVE",
+        startsAt: input.startsAt ?? null,
+        endsAt: input.endsAt ?? null,
+        createdAt: ts,
+        updatedAt: ts,
+        archivedAt: null,
+      };
+      outboundLinks.set(row.id, row);
+      return row;
+    },
+
+    async updateOutboundLink(id, input) {
+      const current = outboundLinks.get(id);
+      if (!current) throw new PartnersDomainError("NOT_FOUND", "Outbound link no encontrado.");
+      const next: OutboundLinkRecord = {
+        ...current,
+        ...input,
+        destinationUrl: input.destinationUrl
+          ? assertSafePartnerDestinationUrl(input.destinationUrl)
+          : current.destinationUrl,
+        updatedAt: now(),
+      };
+      outboundLinks.set(id, next);
+      return next;
+    },
+
+    async createClickEvent(input) {
+      const row: ClickEventRecord = {
+        id: randomUUID(),
+        outboundLinkId: input.outboundLinkId,
+        partnerId: input.partnerId,
+        participationId: input.participationId ?? null,
+        application: input.application,
+        contextType: input.contextType,
+        contextId: input.contextId ?? null,
+        assetId: input.assetId ?? null,
+        placement: input.placement,
+        occurredAt: now(),
+        referrerHost: input.referrerHost ?? null,
+        deviceClass: input.deviceClass,
+        browserFamily: input.browserFamily ?? null,
+        countryCode: input.countryCode ?? null,
+        metadata: input.metadata ?? null,
+      };
+      clickEvents.set(row.id, row);
+      return row;
+    },
+
+    async listClickEventsByPartner(partnerId) {
+      return [...clickEvents.values()]
+        .filter((e) => e.partnerId === partnerId)
+        .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+    },
+
+    async countClickEvents(query) {
+      return [...clickEvents.values()].filter((e) => {
+        if (query.partnerId && e.partnerId !== query.partnerId) return false;
+        if (query.participationId && e.participationId !== query.participationId) return false;
+        if (query.application && e.application !== query.application) return false;
+        if (query.contextId && e.contextId !== query.contextId) return false;
+        if (query.since && e.occurredAt.getTime() < query.since.getTime()) return false;
+        return true;
+      }).length;
+    },
+
+    async createOnboardingInvitation(input) {
+      const ts = now();
+      const row: OnboardingInvitationRecord = {
+        id: randomUUID(),
+        partnerId: input.partnerId,
+        participationId: input.participationId ?? null,
+        tokenHash: input.tokenHash,
+        status: "PENDING",
+        reviewStatus: "NONE",
+        expiresAt: input.expiresAt,
+        openedAt: null,
+        submittedAt: null,
+        revokedAt: null,
+        reviewNotes: null,
+        draftJson: null,
+        submissionJson: null,
+        createdByUserId: input.createdByUserId ?? null,
+        reviewedByUserId: null,
+        reviewedAt: null,
+        createdAt: ts,
+        updatedAt: ts,
+      };
+      onboardingInvitations.set(row.id, row);
+      return row;
+    },
+
+    async getOnboardingInvitationById(id) {
+      return onboardingInvitations.get(id) ?? null;
+    },
+
+    async getOnboardingInvitationByTokenHash(tokenHash) {
+      return (
+        [...onboardingInvitations.values()].find((i) => i.tokenHash === tokenHash) ?? null
+      );
+    },
+
+    async listOnboardingInvitationsByPartner(partnerId) {
+      return [...onboardingInvitations.values()]
+        .filter((i) => i.partnerId === partnerId)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    },
+
+    async updateOnboardingInvitation(id, input) {
+      const current = onboardingInvitations.get(id);
+      if (!current) {
+        throw new PartnersDomainError("NOT_FOUND", "Invitación no encontrada.");
+      }
+      const next: OnboardingInvitationRecord = {
+        ...current,
+        ...input,
+        draftJson:
+          input.draftJson === undefined
+            ? current.draftJson
+            : (input.draftJson as PartnerOnboardingDraft | null),
+        submissionJson:
+          input.submissionJson === undefined
+            ? current.submissionJson
+            : (input.submissionJson as PartnerOnboardingSubmission | null),
+        updatedAt: now(),
+      };
+      onboardingInvitations.set(id, next);
+      return next;
     },
   };
 }

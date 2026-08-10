@@ -1,5 +1,14 @@
-import { assertPartnerCapability } from "./permissions";
+import { createPartnerAssetsApi } from "./assets-api";
+import {
+  assertParticipationPublicPublishable,
+  normalizeInstitutionalFields,
+} from "./institutional";
+import { resolvePartnerPrimaryLogo } from "./assets-resolve";
+import { createPartnerOnboardingApi } from "./onboarding-api";
+import { assertPartnerCapability, hasPartnerCapability } from "./permissions";
 import type { PartnersRepository } from "./repository";
+import { createPartnerTrackingApi } from "./tracking-api";
+import { assertSafePartnerDestinationUrl } from "./tracking";
 import type {
   AssignAudienceInput,
   BenefitAccessRecord,
@@ -60,7 +69,39 @@ export function createPartnersService(repo: PartnersRepository) {
     });
   }
 
+  const assetsApi = createPartnerAssetsApi(repo, audit);
+  const trackingApi = createPartnerTrackingApi(repo, audit);
+  const onboardingApi = createPartnerOnboardingApi(repo, audit);
+
+  async function syncOutboundForParticipation(
+    actor: PartnerActor,
+    participation: ParticipationRecord,
+    utmCampaign?: string | null,
+  ) {
+    const partner = await repo.getPartnerById(participation.partnerId);
+    if (!partner) return;
+    try {
+      await trackingApi.ensureParticipationOutboundLink(actor, {
+        participation,
+        partnerSlug: partner.slug,
+        partnerWebsiteUrl: partner.websiteUrl,
+        placement: "LOGO",
+        utmCampaign: utmCampaign ?? null,
+        utmContent: "logo",
+      });
+    } catch (err) {
+      console.error("[partners.tracking] ensure outbound failed", {
+        participationId: participation.id,
+        error: err instanceof Error ? err.message : "unknown",
+      });
+    }
+  }
+
   return {
+    ...assetsApi,
+    ...trackingApi,
+    ...onboardingApi,
+
     async listPartners(
       actor: PartnerActor,
       query?: { search?: string; status?: string },
@@ -197,7 +238,14 @@ export function createPartnersService(repo: PartnersRepository) {
 
       const contextType = input.contextType ?? "GLOBAL";
       const contextId = input.contextId ?? null;
-      const participationType = input.participationType ?? "SPONSOR";
+      const institutional = normalizeInstitutionalFields({
+        institutionalRole: input.institutionalRole,
+        displayTier: input.displayTier,
+        displayOrder: input.displayOrder,
+        publicRoleLabel: input.publicRoleLabel,
+        participationType: input.participationType,
+      });
+      const participationType = institutional.participationType;
       if (contextId && !input.allowDuplicateActive) {
         const existing = await repo.listParticipationsByContext({
           application: input.application,
@@ -208,7 +256,8 @@ export function createPartnersService(repo: PartnersRepository) {
         const duplicate = existing.find(
           (p) =>
             p.partnerId === input.partnerId &&
-            p.participationType === participationType &&
+            (p.institutionalRole === institutional.institutionalRole ||
+              p.participationType === participationType) &&
             !["CANCELLED", "ARCHIVED", "COMPLETED"].includes(p.status),
         );
         if (duplicate) {
@@ -220,11 +269,24 @@ export function createPartnersService(repo: PartnersRepository) {
         }
       }
 
+      const destinationUrl =
+        input.destinationUrl === undefined
+          ? undefined
+          : input.destinationUrl
+            ? assertSafePartnerDestinationUrl(input.destinationUrl)
+            : null;
       const participation = await repo.createParticipation({
         ...input,
         contextType,
         contextId,
         participationType,
+        institutionalRole: institutional.institutionalRole,
+        displayTier: institutional.displayTier,
+        displayOrder: institutional.displayOrder,
+        publicRoleLabel: institutional.publicRoleLabel,
+        destinationUrl,
+        clickTrackingEnabled: input.clickTrackingEnabled !== false,
+        publicVisibility: input.publicVisibility ?? "HIDDEN",
         ...payment,
         createdByUserId: actor.userId,
       });
@@ -244,9 +306,11 @@ export function createPartnersService(repo: PartnersRepository) {
           application: participation.application,
           contextType: participation.contextType,
           contextId: participation.contextId,
+          publicVisibility: participation.publicVisibility,
           ...paymentSideEffects,
         },
       });
+      await syncOutboundForParticipation(actor, participation, input.utmCampaign);
       return { participation, paymentSideEffects };
     },
 
@@ -275,8 +339,43 @@ export function createPartnersService(repo: PartnersRepository) {
       if (payment.requiresPayment || before.requiresPayment) {
         assertPartnerCapability(actor, "PARTNER_PAYMENTS_MANAGE");
       }
+      const institutionalTouched =
+        input.institutionalRole !== undefined ||
+        input.displayTier !== undefined ||
+        input.displayOrder !== undefined ||
+        input.publicRoleLabel !== undefined ||
+        input.participationType !== undefined;
+      const institutional = institutionalTouched
+        ? normalizeInstitutionalFields({
+            institutionalRole: input.institutionalRole ?? before.institutionalRole,
+            displayTier: input.displayTier ?? before.displayTier,
+            displayOrder:
+              input.displayOrder !== undefined ? input.displayOrder : before.displayOrder,
+            publicRoleLabel:
+              input.publicRoleLabel !== undefined
+                ? input.publicRoleLabel
+                : before.publicRoleLabel,
+            participationType: input.participationType ?? before.participationType,
+          })
+        : null;
+      const destinationUrl =
+        input.destinationUrl === undefined
+          ? undefined
+          : input.destinationUrl
+            ? assertSafePartnerDestinationUrl(input.destinationUrl)
+            : null;
       const participation = await repo.updateParticipation(id, {
         ...input,
+        ...(destinationUrl !== undefined ? { destinationUrl } : {}),
+        ...(institutional
+          ? {
+              institutionalRole: institutional.institutionalRole,
+              displayTier: institutional.displayTier,
+              displayOrder: institutional.displayOrder,
+              publicRoleLabel: institutional.publicRoleLabel,
+              participationType: institutional.participationType,
+            }
+          : {}),
         ...payment,
         updatedByUserId: actor.userId,
       });
@@ -302,6 +401,7 @@ export function createPartnersService(repo: PartnersRepository) {
           paymentMode: participation.paymentMode,
         },
       });
+      await syncOutboundForParticipation(actor, participation, input.utmCampaign);
       return participation;
     },
 
@@ -318,6 +418,66 @@ export function createPartnersService(repo: PartnersRepository) {
         entityType: "DnxPartnerParticipation",
         entityId: id,
         action: "participation.archive",
+      });
+      return participation;
+    },
+
+    async publishParticipation(
+      actor: PartnerActor,
+      id: string,
+      opts?: { allowWithoutLogo?: boolean },
+    ): Promise<ParticipationRecord> {
+      assertPartnerCapability(actor, "PARTNER_PARTICIPATIONS_MANAGE");
+      const before = await repo.getParticipationById(id);
+      if (!before) throw new PartnersDomainError("NOT_FOUND", "Participación no encontrada.");
+      const partner = await repo.getPartnerById(before.partnerId);
+      if (!partner) throw new PartnersDomainError("NOT_FOUND", "Partner no encontrado.");
+      const assets = await repo.listBrandAssets(before.partnerId);
+      const logo = resolvePartnerPrimaryLogo({
+        assets,
+        logoUrl: partner.logoUrl,
+      });
+      assertParticipationPublicPublishable({
+        status: before.status,
+        partnerType: partner.type,
+        hasApprovedLogo: logo.source === "brand_asset",
+        allowWithoutLogo: opts?.allowWithoutLogo,
+      });
+      const participation = await repo.updateParticipation(id, {
+        publicVisibility: "PUBLIC",
+        updatedByUserId: actor.userId,
+      });
+      await audit(actor, {
+        partnerId: before.partnerId,
+        entityType: "DnxPartnerParticipation",
+        entityId: id,
+        action: "participation.publish",
+        before: { publicVisibility: before.publicVisibility },
+        after: { publicVisibility: "PUBLIC" },
+      });
+      // Destino opcional para mostrar logo; si hay URL, asegurar /r/[trackingKey].
+      await syncOutboundForParticipation(actor, participation);
+      return participation;
+    },
+
+    async unpublishParticipation(
+      actor: PartnerActor,
+      id: string,
+    ): Promise<ParticipationRecord> {
+      assertPartnerCapability(actor, "PARTNER_PARTICIPATIONS_MANAGE");
+      const before = await repo.getParticipationById(id);
+      if (!before) throw new PartnersDomainError("NOT_FOUND", "Participación no encontrada.");
+      const participation = await repo.updateParticipation(id, {
+        publicVisibility: "HIDDEN",
+        updatedByUserId: actor.userId,
+      });
+      await audit(actor, {
+        partnerId: before.partnerId,
+        entityType: "DnxPartnerParticipation",
+        entityId: id,
+        action: "participation.unpublish",
+        before: { publicVisibility: before.publicVisibility },
+        after: { publicVisibility: "HIDDEN" },
       });
       return participation;
     },
@@ -392,6 +552,21 @@ export function createPartnersService(repo: PartnersRepository) {
       return this.updateContribution(actor, id, {
         status: "DELIVERED",
         deliveredAt: new Date(),
+      });
+    },
+
+    async deleteContribution(actor: PartnerActor, id: string): Promise<void> {
+      assertPartnerCapability(actor, "PARTNER_CONTRIBUTIONS_MANAGE");
+      const before = await repo.getContributionById(id);
+      if (!before) throw new PartnersDomainError("NOT_FOUND", "Aporte no encontrado.");
+      const participation = await repo.getParticipationById(before.participationId);
+      await repo.deleteContribution(id);
+      await audit(actor, {
+        partnerId: participation?.partnerId ?? null,
+        entityType: "DnxPartnerContribution",
+        entityId: id,
+        action: "contribution.delete",
+        before: { type: before.type, title: before.title, status: before.status },
       });
     },
 
@@ -589,7 +764,7 @@ export function createPartnersService(repo: PartnersRepository) {
       actor: PartnerActor,
       benefitId: string,
     ): Promise<BenefitAccessRecord[]> {
-      assertPartnerCapability(actor, "PARTNER_BENEFITS_VIEW");
+      assertPartnerCapability(actor, "PARTNER_BENEFITS_VIEW_ACCESS");
       return repo.listBenefitAccess(benefitId);
     },
 
@@ -597,7 +772,18 @@ export function createPartnersService(repo: PartnersRepository) {
       actor: PartnerActor,
       input: GrantBenefitAccessInput,
     ): Promise<BenefitAccessRecord> {
-      assertPartnerCapability(actor, "PARTNER_BENEFITS_GRANT");
+      const source = input.source ?? "MANUAL";
+      if (source === "MANUAL") {
+        assertPartnerCapability(actor, "PARTNER_BENEFITS_GRANT");
+      } else {
+        // Sync automático: SYNC_ACCESS o GRANT
+        if (
+          !hasPartnerCapability(actor, "PARTNER_BENEFITS_SYNC_ACCESS") &&
+          !hasPartnerCapability(actor, "PARTNER_BENEFITS_GRANT")
+        ) {
+          assertPartnerCapability(actor, "PARTNER_BENEFITS_SYNC_ACCESS");
+        }
+      }
       const benefit = await repo.getBenefitById(input.benefitId);
       if (!benefit) throw new PartnersDomainError("NOT_FOUND", "Beneficio no encontrado.");
       if (!Number.isInteger(input.userId) || input.userId <= 0) {
@@ -605,24 +791,50 @@ export function createPartnersService(repo: PartnersRepository) {
           userId: "Indicá un userId DNX válido.",
         });
       }
-      const existing = await repo.getActiveBenefitAccess(input.benefitId, input.userId);
-      if (existing) {
+      if (source === "MANUAL") {
+        const reason = (input.reason ?? input.reasonCode ?? input.notes ?? "").trim();
+        if (!reason) {
+          throw new PartnersDomainError("VALIDATION", "Motivo obligatorio para acceso manual.", {
+            reason: "Indicá un motivo.",
+          });
+        }
+      }
+      const accessKey =
+        input.accessKey ??
+        (source === "MANUAL"
+          ? `manual:${input.benefitId}:${input.userId}`
+          : `auto:${input.benefitId}:${input.userId}:${input.sourceType ?? "X"}:${input.sourceId ?? "X"}`);
+      const sameKey = await repo.getBenefitAccessByAccessKey(accessKey);
+      if (sameKey?.status === "ACTIVE") {
         throw new PartnersDomainError(
           "CONFLICT",
-          "Ya existe un acceso activo para este usuario y beneficio.",
+          "Ya existe un acceso activo con la misma fuente.",
           { userId: "Acceso duplicado." },
         );
       }
       const access = await repo.upsertBenefitAccess({
         ...input,
+        accessKey,
+        source,
+        sourceType: input.sourceType ?? (source === "MANUAL" ? "ADMIN" : input.sourceType),
+        sourceId: input.sourceId ?? (source === "MANUAL" ? String(actor.userId) : input.sourceId),
+        reasonCode: input.reasonCode ?? (source === "MANUAL" ? "MANUAL_GRANT" : input.reasonCode),
+        reason: input.reason ?? (source === "MANUAL" ? "MANUAL" : input.reason),
         grantedByUserId: actor.userId,
       });
       await audit(actor, {
         partnerId: benefit.partnerId,
         entityType: "DnxPartnerBenefitAccess",
         entityId: access.id,
-        action: "benefit_access.grant",
-        after: { benefitId: access.benefitId, userId: access.userId, status: access.status },
+        action:
+          source === "MANUAL" ? "benefit_access.grant_manual" : "benefit_access.grant_automatic",
+        after: {
+          benefitId: access.benefitId,
+          userId: access.userId,
+          status: access.status,
+          source: access.source,
+          reasonCode: access.reasonCode,
+        },
       });
       return access;
     },
@@ -632,7 +844,7 @@ export function createPartnersService(repo: PartnersRepository) {
       benefitId: string,
       userId: number,
     ): Promise<BenefitAccessRecord> {
-      assertPartnerCapability(actor, "PARTNER_BENEFITS_GRANT");
+      assertPartnerCapability(actor, "PARTNER_BENEFITS_REVOKE");
       const benefit = await repo.getBenefitById(benefitId);
       if (!benefit) throw new PartnersDomainError("NOT_FOUND", "Beneficio no encontrado.");
       const existing = await repo.getActiveBenefitAccess(benefitId, userId);
@@ -644,8 +856,32 @@ export function createPartnersService(repo: PartnersRepository) {
         partnerId: benefit.partnerId,
         entityType: "DnxPartnerBenefitAccess",
         entityId: access.id,
+        action:
+          access.source === "MANUAL"
+            ? "benefit_access.revoke_manual"
+            : "benefit_access.revoke_automatic",
+        after: { benefitId, userId, status: access.status, source: access.source },
+      });
+      return access;
+    },
+
+    async revokeBenefitAccessByAccessKey(actor: PartnerActor, accessKey: string) {
+      if (
+        !hasPartnerCapability(actor, "PARTNER_BENEFITS_REVOKE") &&
+        !hasPartnerCapability(actor, "PARTNER_BENEFITS_SYNC_ACCESS")
+      ) {
+        assertPartnerCapability(actor, "PARTNER_BENEFITS_REVOKE");
+      }
+      const existing = await repo.getBenefitAccessByAccessKey(accessKey);
+      if (!existing) throw new PartnersDomainError("NOT_FOUND", "Acceso no encontrado.");
+      const benefit = await repo.getBenefitById(existing.benefitId);
+      const access = await repo.revokeBenefitAccessByAccessKey(accessKey, actor.userId);
+      await audit(actor, {
+        partnerId: benefit?.partnerId ?? null,
+        entityType: "DnxPartnerBenefitAccess",
+        entityId: access.id,
         action: "benefit_access.revoke",
-        after: { benefitId, userId, status: access.status },
+        after: { accessKey, status: access.status, source: access.source },
       });
       return access;
     },

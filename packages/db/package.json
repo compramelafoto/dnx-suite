@@ -10,7 +10,11 @@
     "./client": "./src/client.ts",
     "./permissions": "./src/infospot-permissions.ts",
     "./clf-album-availability": "./src/clf-album-availability.ts",
-    "./clf-event-write": "./src/clf-event-write.ts"
+    "./clf-event-write": "./src/clf-event-write.ts",
+    "./partners-prisma-repository": "./src/partners-prisma-repository.ts",
+    "./partners-ads-loader": "./src/partners-ads-loader.ts",
+    "./partners-campaign-publisher": "./src/partners-campaign-publisher.ts",
+    "./partners-publication-targets": "./src/partners-publication-targets.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",
@@ -20,8 +24,6 @@
     "communications:migrate:webhook-staging": "tsx scripts/communications-migrate-webhook-staging.mts",
     "communications:migrate:status:staging": "tsx scripts/communications-migrate-status-staging.mts",
     "store:migrate:staging": "tsx scripts/store-migrate-staging.mts",
-    "partners:staging:preflight": "tsx scripts/partners-staging-preflight.mts",
-    "partners:migrate:staging": "tsx scripts/partners-migrate-staging.mts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:infospot": "tsx prisma/scripts/seed-infospot.ts",
@@ -47,7 +49,8 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.9.0"
+    "@prisma/client": "^6.9.0",
+    "@repo/partners": "workspace:*"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
