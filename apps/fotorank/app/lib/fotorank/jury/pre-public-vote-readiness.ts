@@ -10,7 +10,7 @@ import { assertNoPiiInFinalistMetadata } from "./finalist-pii-guard";
 
 const PUBLIC_CODE_PATTERN = /^C\d{2}-F\d{2}$/;
 const ALLOWED_UNITS = new Set(["PROMPT", "CATEGORY", "ENTRY", "ROUND"]);
-const ALLOWED_PROVIDERS = new Set(["NONE", "TEST_PROVIDER", "INSTAGRAM_FUTURE"]);
+const ALLOWED_PROVIDERS = new Set(["NONE", "TEST_PROVIDER", "INSTAGRAM", "INSTAGRAM_FUTURE"]);
 
 export type PrePublicVoteReasonCode =
   | "CONTEST_NOT_FOUND"

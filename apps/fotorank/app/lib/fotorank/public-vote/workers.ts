@@ -28,8 +28,12 @@ export async function jobSyncMetrics(roundId: string) {
   if (round.status !== "OPEN" && round.status !== "CLOSING") {
     return { ok: false as const, reason: `STATUS_${round.status}` };
   }
+  if (round.provider === "INSTAGRAM") {
+    const { runInstagramPollingTick } = await import("./instagram/polling");
+    return runInstagramPollingTick(roundId);
+  }
   if (round.provider !== "TEST_PROVIDER") {
-    return { ok: false as const, reason: "PROVIDER_NOT_TEST" };
+    return { ok: false as const, reason: "PROVIDER_NOT_SUPPORTED" };
   }
 
   const health = getTestProviderHealth(roundId);

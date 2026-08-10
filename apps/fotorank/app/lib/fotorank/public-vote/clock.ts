@@ -24,8 +24,11 @@ export function getPublicVoteNow(): Date {
   return new Date();
 }
 
-/** Reloj efectivo: virtual solo si provider === TEST_PROVIDER. */
+/** Reloj efectivo: virtual para TEST_PROVIDER y fixtures E2E Instagram (SFEF17B). */
 export function getPublicVoteNowForRound(provider: string): Date {
   if (provider === "TEST_PROVIDER") return getPublicVoteNow();
+  if (provider === "INSTAGRAM" && process.env.SFEF17B_ALLOW_PROD === "1" && injectedNow) {
+    return getPublicVoteNow();
+  }
   return new Date();
 }

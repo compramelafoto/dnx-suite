@@ -15,3 +15,4 @@ export * from "./transparency";
 export * from "./notifications";
 export * from "./clickaton-read";
 export * from "./clickaton-defaults";
+export * as instagram from "./instagram";

@@ -55,9 +55,13 @@ export async function createPublicVoteRoundsFromFinalists(input: {
 
   const config = readiness.config;
   const provider = (input.provider ??
-    (config.publicVoteProvider === "TEST_PROVIDER" ? "TEST_PROVIDER" : "TEST_PROVIDER")) as PublicVoteProviderName;
-  if (provider !== "TEST_PROVIDER") {
-    throw new PublicVoteError("INVALID_INPUT", "17A solo admite TEST_PROVIDER para crear rounds.", 400);
+    (config.publicVoteProvider === "INSTAGRAM"
+      ? "INSTAGRAM"
+      : config.publicVoteProvider === "TEST_PROVIDER"
+        ? "TEST_PROVIDER"
+        : "TEST_PROVIDER")) as PublicVoteProviderName;
+  if (provider !== "TEST_PROVIDER" && provider !== "INSTAGRAM") {
+    throw new PublicVoteError("INVALID_INPUT", "Solo TEST_PROVIDER o INSTAGRAM para crear rounds.", 400);
   }
 
   const { startsAt, endsAt } = resolveWindow({
