@@ -267,8 +267,9 @@ ok(classifyEditTechnique("ai_generation") === "FORBIDDEN", "edit forbidden");
 ok(buildAiSuspectReviewFlag("metadata").flag === AI_OR_MANIPULATION_SUSPECTED, "AI flag");
 
 // E — 4 criteria 1–10
-ok(ARGENTINA_2026_RULES.juryCriteria.length === 4, "4 criteria");
+ok(ARGENTINA_2026_RULES.juryCriteria.length === 3, "3 criteria (15B/16A)");
 ok(ARGENTINA_2026_RULES.juryCriteria.every((c) => c.min === 1 && c.max === 10), "1–10");
+ok(ARGENTINA_2026_RULES.socialVotingHours === 24, "public vote default 24h");
 
 // F — top 3
 const top = selectTopFinalistsByScore(

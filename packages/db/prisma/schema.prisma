@@ -7440,6 +7440,10 @@ model FotorankContest {
   resultRuleSets       FotorankResultRuleSet[]
   resultBatches        FotorankResultBatch[]
   tieBreakSessions     FotorankTieBreakSession[]
+  /// ETAPA 16A — configuración de jurado competitivo (genérica; reutiliza motor FotorankJury*).
+  juryConfig                     FotorankCompetitionJuryConfig?
+  competitiveEligibilityFreezes  FotorankCompetitiveEligibilityFreeze[]
+  juryActivityHeartbeats         FotorankJuryActivityHeartbeat[]
 }
 
 /// Roster mínimo de participantes sincronizados (Clickatón postpago). No es obra/entry.
@@ -7787,6 +7791,7 @@ model FotorankJudgeAccount {
   @@index([workspaceId])
   @@index([accountStatus])
   juryEvaluations FotorankJuryEvaluation[]
+  juryActivityHeartbeats FotorankJuryActivityHeartbeat[]
 }
 
 model FotorankJudgeProfile {
@@ -8404,6 +8409,7 @@ model FotorankAdmissionBatch {
   resultRuleSets      FotorankResultRuleSet[]
   resultBatches       FotorankResultBatch[]
   judgeAssignments FotorankJudgeAssignment[]
+  competitiveEligibilityFreezes FotorankCompetitiveEligibilityFreeze[]
 }
 
 /// Snapshot inmutable de obra admitida/congelada para jurado.
@@ -11978,6 +11984,7 @@ enum FotorankConfigVersionStatus {
 enum FotorankJuryEvaluationStatus {
   NOT_STARTED
   IN_PROGRESS
+  POSTPONED
   SUBMITTED
   LOCKED
   VOIDED
@@ -12273,6 +12280,12 @@ model FotorankJuryEvaluation {
   expectedVersion            Int                          @default(0)
   engineVersion              String                       @default("clickaton-jury-scoring-v1")
   criteriaSnapshot           Json?
+  /// ETAPA 16A — postergar evaluación ("revisar después").
+  postponedAt                DateTime?
+  /// ETAPA 16A — confirmación de bloque/consigna (grilla final antes de LOCKED).
+  confirmedBlockAt           DateTime?
+  /// ETAPA 16A — tiempo activo acumulado (segundos) para ETA de jurado.
+  activeSecondsAccumulated   Int                          @default(0)
   createdAt                  DateTime                     @default(now())
   updatedAt                  DateTime @updatedAt
 
@@ -12367,6 +12380,12 @@ model FotorankJuryScoringSession {
   openedAt                         DateTime?
   closedAt                         DateTime?
   metadata                         Json?
+  /// ETAPA 16A — recomendación de carga (no bloqueante); default 500 fotos evaluadas/jurado.
+  recommendedMaxEntriesPerJudge    Int                                @default(500)
+  /// ETAPA 16A — Clickatón exige enteros; otros concursos pueden habilitar decimales.
+  scoreIntegerOnly                 Boolean                            @default(true)
+  scoreScaleMin                    Int                                @default(1)
+  scoreScaleMax                    Int                                @default(10)
   createdAt                        DateTime                           @default(now())
   updatedAt                        DateTime @updatedAt
 
@@ -12380,8 +12399,87 @@ model FotorankJuryScoringSession {
   @@index([contestId, status])
   @@index([rubricId])
   resultRuleSets FotorankResultRuleSet[]
+  activityHeartbeats FotorankJuryActivityHeartbeat[]
 }
 
+/// ETAPA 16A — Configuración de jurado competitivo por concurso (genérica; no hardcodea Clickatón).
+/// Reutiliza el motor FotorankJury*; no crea tablas paralelas ClickatonJury*.
+model FotorankCompetitionJuryConfig {
+  id                                 String   @id @default(cuid())
+  contestId                          String   @unique
+  /// null = N/A (concursos clásicos sin elegibilidad competitiva por mínimo de obras).
+  minimumValidEntriesForCompetition  Int?
+  requiredEvaluationsPerEntry        Int      @default(3)
+  recommendedMaxEntriesPerJudge      Int      @default(500)
+  evaluationStartsAt                 DateTime?
+  evaluationEndsAt                   DateTime?
+  scoreScaleMin                      Int      @default(1)
+  scoreScaleMax                      Int      @default(10)
+  scoreIntegerOnly                   Boolean  @default(true)
+  finalistsPerUnit                   Int      @default(3)
+  /// DISABLED | JURY_ONLY | JURY_THEN_PUBLIC (§10 master rules).
+  publicVoteMode                     String   @default("DISABLED")
+  /// Override opcional de criterios (snapshot); si null, usar rúbrica activa del concurso.
+  criteriaConfigJson                 Json?
+  yellowLoadThreshold                Int      @default(501)
+  redLoadThreshold                   Int      @default(651)
+  createdAt                          DateTime @default(now())
+  updatedAt                          DateTime @updatedAt
+
+  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@index([contestId])
+}
+
+/// ETAPA 16A — Congelamiento de elegibilidad competitiva (participante ELEGIBLE/NO ELEGIBLE) por corte de admisión.
+model FotorankCompetitiveEligibilityFreeze {
+  id                     String    @id @default(cuid())
+  contestId              String
+  admissionBatchId       String?
+  /// ELIGIBILITY_DRAFT | ELIGIBILITY_FROZEN
+  status                 String    @default("ELIGIBILITY_DRAFT")
+  configVersion          Int       @default(1)
+  minimumValidEntries    Int
+  totalParticipants      Int
+  eligibleCount          Int
+  notEligibleCount       Int
+  validEntriesCount      Int
+  excludedEntriesCount   Int
+  reasonCodesJson        Json?
+  configSnapshotJson     Json?
+  rosterHash             String?
+  frozenAt               DateTime?
+  frozenByUserId         Int?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  contest      FotorankContest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch FotorankAdmissionBatch? @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
+
+  @@unique([contestId, configVersion])
+  @@index([contestId, status])
+  @@index([admissionBatchId])
+}
+
+/// ETAPA 16A — Heartbeat de actividad de jurado (tiempo activo / ETA §7.7). No es evaluación de desempeño.
+model FotorankJuryActivityHeartbeat {
+  id                        String   @id @default(cuid())
+  contestId                 String
+  jurorId                   String
+  scoringSessionId          String?
+  lastActiveAt              DateTime
+  activeSecondsAccumulated  Int      @default(0)
+  idleThresholdSeconds      Int      @default(75)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  contest        FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  juror          FotorankJudgeAccount        @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  scoringSession FotorankJuryScoringSession? @relation(fields: [scoringSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([contestId, jurorId])
+  @@index([scoringSessionId])
+}
 
 model FotorankMinorAuthorization {
   id                     String   @id @default(cuid())

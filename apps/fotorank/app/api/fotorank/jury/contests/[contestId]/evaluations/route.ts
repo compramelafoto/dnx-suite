@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getJudgeAuthUser } from "../../../../../../lib/judge-auth";
 import { JuryError } from "../../../../../../lib/fotorank/jury";
-import { upsertJuryEvaluation } from "../../../../../../lib/fotorank/jury/evaluation-service";
+import {
+  postponeJuryEvaluation,
+  upsertJuryEvaluation,
+} from "../../../../../../lib/fotorank/jury/evaluation-service";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +24,7 @@ export async function POST(req: Request, ctx: Ctx) {
     scores?: Array<{ key: string; score: number; comment?: string }>;
     privateComment?: string;
     submit?: boolean;
+    postpone?: boolean;
     expectedVersion?: number;
     idempotencyKey?: string;
   };
@@ -30,6 +34,26 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   try {
+    // "Revisar después" (ETAPA 16A): pospone sin invalidar scores/comentario ya ingresados.
+    if (body.postpone) {
+      const result = await postponeJuryEvaluation({
+        judgeAccountId: judge.id,
+        contestId,
+        snapshotId: body.snapshotId,
+        expectedVersion: body.expectedVersion,
+      });
+      return NextResponse.json(
+        {
+          ok: true,
+          evaluationId: result.evaluation.id,
+          status: result.evaluation.status,
+          expectedVersion: result.evaluation.expectedVersion,
+          idempotent: result.idempotent,
+        },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
     const result = await upsertJuryEvaluation({
       judgeAccountId: judge.id,
       contestId,

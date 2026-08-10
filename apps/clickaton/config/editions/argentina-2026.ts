@@ -107,12 +107,13 @@ export const ARGENTINA_2026_RULES = {
   finalistsPerPrompt: 3,
   maxFinalists: 30,
   winnersPerPrompt: 1,
-  socialVotingHours: 72,
+  /** Default operativo ETAPA 15B: 24 h (antes 72 h en matriz histórica). */
+  socialVotingHours: 24,
+  /** Rúbrica canónica 15B/16A: 3 criterios, pesos iguales, escala 1–10. */
   juryCriteria: [
-    { key: "prompt_fit", label: "Adecuación a la consigna", min: 1, max: 10 },
-    { key: "composition_technique", label: "Composición y técnica", min: 1, max: 10 },
-    { key: "creativity_originality", label: "Creatividad y originalidad", min: 1, max: 10 },
-    { key: "visual_impact", label: "Impacto visual / narrativa", min: 1, max: 10 },
+    { key: "interpretation", label: "Interpretación de la consigna", min: 1, max: 10 },
+    { key: "creativity", label: "Creatividad / originalidad", min: 1, max: 10 },
+    { key: "composition", label: "Composición / calidad fotográfica", min: 1, max: 10 },
   ] as const,
   editAllowed: [
     "exposure",

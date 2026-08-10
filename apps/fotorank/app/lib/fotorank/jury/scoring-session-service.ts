@@ -7,6 +7,8 @@ import {
   SANTA_FE_EN_FOCO_JURY_CRITERIA,
   SANTA_FE_MIN_EVALUATIONS_PER_ENTRY,
 } from "./santa-fe-en-foco-rubric";
+import { CLICKATON_2026_JURY_CRITERIA } from "./clickaton-2026-rubric";
+import { getOrCreateCompetitionJuryConfig, isClickatonJuryContest } from "./competition-jury-config";
 
 function newId() {
   return `js${randomBytes(12).toString("hex")}`;
@@ -61,14 +63,19 @@ export async function ensureDraftRubric(input: {
 
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: input.contestId },
-    select: { slug: true },
+    select: { slug: true, distributionChannel: true, experienceType: true },
   });
   const isSantaFe = contest?.slug === "santa-fe-en-foco";
+  // ETAPA 16A: Clickatón usa SIEMPRE la rúbrica canónica de 3 criterios (incluso en producción;
+  // no es "criterio inventado" — es la definición de producto de jury-and-public-voting-master-rules.md §5).
+  const isClickaton = Boolean(contest && isClickatonJuryContest(contest));
   const rubricName = isSantaFe
     ? "Santa Fe en Foco — rúbrica staging (borrador legal)"
-    : input.localExample || process.env.NODE_ENV !== "production"
-      ? "Rúbrica ejemplo (local)"
-      : "Rúbrica principal";
+    : isClickaton
+      ? "Clickatón 2026 — rúbrica jurado (3 criterios)"
+      : input.localExample || process.env.NODE_ENV !== "production"
+        ? "Rúbrica ejemplo (local)"
+        : "Rúbrica principal";
 
   const maxVersion = await prisma.fotorankJuryRubric.aggregate({
     where: { contestId: input.contestId, name: rubricName },
@@ -76,8 +83,8 @@ export async function ensureDraftRubric(input: {
   });
   const nextVersion = (maxVersion._max.version ?? 0) + 1;
 
-  if (!input.localExample && !isSantaFe && process.env.NODE_ENV === "production") {
-    // En prod no inventar criterios definitivos (salvo plantilla staging Santa Fe).
+  if (!input.localExample && !isSantaFe && !isClickaton && process.env.NODE_ENV === "production") {
+    // En prod no inventar criterios definitivos (salvo plantilla staging Santa Fe / rúbrica canónica Clickatón).
     const empty = await prisma.fotorankJuryRubric.create({
       data: {
         id: newId(),
@@ -108,18 +115,31 @@ export async function ensureDraftRubric(input: {
         required: c.required,
         sortOrder: c.sortOrder,
       }))
-    : EXAMPLE_CRITERIA.map((c) => ({
-        id: newId(),
-        key: c.key,
-        name: c.name,
-        description: null as string | null,
-        weight: c.weight,
-        minScore: 1,
-        maxScore: 10,
-        step: 1,
-        required: true,
-        sortOrder: c.sortOrder,
-      }));
+    : isClickaton
+      ? CLICKATON_2026_JURY_CRITERIA.map((c) => ({
+          id: newId(),
+          key: c.key,
+          name: c.label,
+          description: null as string | null,
+          weight: c.weight,
+          minScore: c.minScore,
+          maxScore: c.maxScore,
+          step: 1,
+          required: true,
+          sortOrder: c.sortOrder,
+        }))
+      : EXAMPLE_CRITERIA.map((c) => ({
+          id: newId(),
+          key: c.key,
+          name: c.name,
+          description: null as string | null,
+          weight: c.weight,
+          minScore: 1,
+          maxScore: 10,
+          step: 1,
+          required: true,
+          sortOrder: c.sortOrder,
+        }));
 
   const rubric = await prisma.fotorankJuryRubric.create({
     data: {
@@ -130,7 +150,9 @@ export async function ensureDraftRubric(input: {
       name: rubricName,
       description: isSantaFe
         ? "PENDING_ORGANIZER_DECISION · BORRADOR — LEGAL REVIEW REQUIRED — NO PUBLICAR"
-        : "Fixture local — no usar como reglamento definitivo.",
+        : isClickaton
+          ? "Rúbrica canónica Clickatón 2026 (ETAPA 15B) — 3 criterios, pesos iguales, escala 1–10."
+          : "Fixture local — no usar como reglamento definitivo.",
       status: "DRAFT",
       scoringMode: "WEIGHTED_SCORE",
       createdByUserId: input.actorUserId,
@@ -233,16 +255,24 @@ export async function ensureDraftScoringSession(input: {
 
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: input.contestId },
-    select: { slug: true },
+    select: { slug: true, distributionChannel: true, experienceType: true },
   });
   const isSantaFe = contest?.slug === "santa-fe-en-foco";
+  const isClickaton = Boolean(contest && isClickatonJuryContest(contest));
 
   const rubric = await ensureDraftRubric({
     contestId: input.contestId,
     admissionBatchId: input.admissionBatchId,
     actorUserId: input.actorUserId,
-    localExample: process.env.NODE_ENV !== "production" || isSantaFe,
+    localExample: process.env.NODE_ENV !== "production" || isSantaFe || isClickaton,
   });
+
+  // ETAPA 16A: minimumEvaluationsPerEntry / capacidad / escala vienen de la config genérica
+  // (no hardcodean Clickatón en el core; solo los defaults de config sí distinguen canal).
+  const juryConfig = isClickaton ? await getOrCreateCompetitionJuryConfig(input.contestId) : null;
+  const minimumEvaluationsPerEntry = isSantaFe
+    ? SANTA_FE_MIN_EVALUATIONS_PER_ENTRY
+    : (juryConfig?.requiredEvaluationsPerEntry ?? 1);
 
   return prisma.fotorankJuryScoringSession.create({
     data: {
@@ -252,7 +282,11 @@ export async function ensureDraftScoringSession(input: {
       rubricId: rubric.id,
       status: "DRAFT",
       scoringEnabled: false,
-      minimumEvaluationsPerEntry: isSantaFe ? SANTA_FE_MIN_EVALUATIONS_PER_ENTRY : 1,
+      minimumEvaluationsPerEntry,
+      recommendedMaxEntriesPerJudge: juryConfig?.recommendedMaxEntriesPerJudge ?? 500,
+      scoreIntegerOnly: juryConfig?.scoreIntegerOnly ?? true,
+      scoreScaleMin: juryConfig?.scoreScaleMin ?? 1,
+      scoreScaleMax: juryConfig?.scoreScaleMax ?? 10,
       assignmentSeed: randomBytes(16).toString("hex"),
     },
   });

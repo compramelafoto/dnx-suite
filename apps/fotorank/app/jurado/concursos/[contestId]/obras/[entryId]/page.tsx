@@ -92,6 +92,8 @@ export default async function JuryEntryDetailPage({ params }: Props) {
             expectedVersion={entry.evaluation?.expectedVersion ?? 0}
             status={entry.evaluation?.status ?? null}
             scoringSessionOpen={entry.scoringSessionOpen}
+            previewUrl={entry.previewUrl}
+            anonymousCode={entry.anonymousCode}
           />
         ) : (
           <section className="fr-recuadro border border-fr-border bg-fr-card">
