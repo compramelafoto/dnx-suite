@@ -11,11 +11,21 @@ import { computeJudgeEta } from "../../../lib/fotorank/jury/activity-eta";
 import { JuryTermsGate } from "./JuryTermsGate";
 import { JuryProgressPanel } from "./JuryProgressPanel";
 
-type Props = { params: Promise<{ contestId: string }> };
+type Props = {
+  params: Promise<{ contestId: string }>;
+  searchParams?: Promise<{ filter?: string }>;
+};
 
-export default async function JuryContestEntriesPage({ params }: Props) {
+const FILTER_LABELS: Record<string, string> = {
+  pending: "Pendientes (sin empezar / en progreso)",
+  postponed: "Postergadas (revisar después)",
+};
+
+export default async function JuryContestEntriesPage({ params, searchParams }: Props) {
   const judge = await requireJudgeAuth();
   const { contestId } = await params;
+  const sp = (await searchParams) ?? {};
+  const filter = sp.filter === "pending" || sp.filter === "postponed" ? sp.filter : null;
 
   let data: Awaited<ReturnType<typeof listAnonymousEntriesForJuror>>;
   try {
@@ -88,8 +98,28 @@ export default async function JuryContestEntriesPage({ params }: Props) {
               avgSecondsPerPhoto={eta?.secondsPerEntry ?? null}
               etaLabel={eta?.label ?? null}
             />
+
+            {filter ? (
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm text-gold"
+                data-testid="jury-entries-filter-banner"
+              >
+                <span>Filtro activo: {FILTER_LABELS[filter]}</span>
+                <Link href={`/jurado/concursos/${contestId}`} className="underline hover:text-gold-hover">
+                  Ver todas
+                </Link>
+              </div>
+            ) : null}
+
             <ul className="grid gap-8 md:grid-cols-2" data-testid="jury-entries-list">
-            {data.entries.map((e) => (
+            {(filter
+              ? data.entries.filter((e) =>
+                  filter === "pending"
+                    ? e.evaluationStatus === "NOT_STARTED" || e.evaluationStatus === "IN_PROGRESS"
+                    : e.evaluationStatus === "POSTPONED",
+                )
+              : data.entries
+            ).map((e) => (
               <li key={e.entryId} className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
                 {e.previewUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -119,6 +149,13 @@ export default async function JuryContestEntriesPage({ params }: Props) {
             ))}
             {data.entries.length === 0 ? (
               <li className="text-fr-muted">No hay obras confirmadas disponibles en tus categorías.</li>
+            ) : filter &&
+              !data.entries.some((e) =>
+                filter === "pending"
+                  ? e.evaluationStatus === "NOT_STARTED" || e.evaluationStatus === "IN_PROGRESS"
+                  : e.evaluationStatus === "POSTPONED",
+              ) ? (
+              <li className="text-fr-muted">No hay obras con ese filtro por ahora.</li>
             ) : null}
             </ul>
           </>

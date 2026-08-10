@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 type Criterion = {
   key: string;
@@ -36,8 +37,14 @@ type Props = {
   /** Progreso opcional "Obra X de Y" — el padre decide si lo pasa (sin datos inventados). */
   index?: number;
   total?: number;
-  /** Ir a la siguiente obra (N / →). Si no se pasa, el atajo muestra un aviso y no navega. */
-  onNext?: () => void;
+  /** Siguiente/anterior obra en el orden anónimo estable (jury-order.ts). null si no hay. */
+  nextEntryId?: string | null;
+  prevEntryId?: string | null;
+  /**
+   * ETAPA 16B — avance automático tras envío definitivo con los 3 criterios completos.
+   * Default false (sin sorpresas); la página puede habilitarlo explícitamente (UX Clickatón).
+   */
+  autoAdvanceOnComplete?: boolean;
 };
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -62,8 +69,11 @@ export function JuryEvaluationForm({
   anonymousCode,
   index,
   total,
-  onNext,
+  nextEntryId = null,
+  prevEntryId = null,
+  autoAdvanceOnComplete = false,
 }: Props) {
+  const router = useRouter();
   const [scores, setScores] = useState<Record<string, number>>({ ...initialScores });
   const [comment, setComment] = useState(initialComment ?? "");
   const [version, setVersion] = useState(expectedVersion);
@@ -74,6 +84,21 @@ export function JuryEvaluationForm({
   const [pending, startTransition] = useTransition();
   const locked = status === "SUBMITTED" || status === "LOCKED" || !scoringSessionOpen;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const goNext = () => {
+    if (nextEntryId) {
+      router.push(`/jurado/concursos/${contestId}/obras/${nextEntryId}`);
+    } else {
+      setMessage("No hay una obra siguiente configurada todavía.");
+    }
+  };
+  const goPrev = () => {
+    if (prevEntryId) {
+      router.push(`/jurado/concursos/${contestId}/obras/${prevEntryId}`);
+    } else {
+      setMessage("No hay una obra anterior.");
+    }
+  };
 
   const persist = async (submit: boolean) => {
     if (!submit) setSaveState("saving");
@@ -108,6 +133,9 @@ export function JuryEvaluationForm({
         setSaveState("saved");
       } else {
         setMessage(`Enviado. Total (backend): ${json.totalScore ?? "—"}`);
+        if (autoAdvanceOnComplete && nextEntryId) {
+          setTimeout(() => goNext(), 900);
+        }
       }
     } catch {
       if (!submit) setSaveState("error");
@@ -155,7 +183,7 @@ export function JuryEvaluationForm({
       }
       if (typeof json.expectedVersion === "number") setVersion(json.expectedVersion);
       setMessage("Obra marcada para revisar después.");
-      onNext?.();
+      goNext();
     });
   };
 
@@ -187,7 +215,7 @@ export function JuryEvaluationForm({
         return;
       }
       setMessage("Conflicto registrado. Esta obra ya no se te asigna.");
-      onNext?.();
+      goNext();
     });
   };
 
@@ -236,8 +264,12 @@ export function JuryEvaluationForm({
       }
       if (e.key === "ArrowRight" || e.key.toLowerCase() === "n") {
         e.preventDefault();
-        if (onNext) onNext();
-        else setMessage("No hay una obra siguiente configurada todavía.");
+        goNext();
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
         return;
       }
       if (e.key.toLowerCase() === "p") {
@@ -254,7 +286,7 @@ export function JuryEvaluationForm({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers cierran sobre estado vía refs/setters funcionales
-  }, [locked, zoomOpen, previewUrl, rubric.criteria.length, onNext]);
+  }, [locked, zoomOpen, previewUrl, rubric.criteria.length, nextEntryId, prevEntryId]);
 
   return (
     <section className="fr-recuadro space-y-6 border border-fr-border bg-fr-card">
@@ -286,7 +318,8 @@ export function JuryEvaluationForm({
             criterio
           </li>
           <li>
-            <span className="text-gold">N</span> o <span className="text-gold">→</span> siguiente obra
+            <span className="text-gold">N</span> o <span className="text-gold">→</span> siguiente obra ·{" "}
+            <span className="text-gold">←</span> obra anterior
           </li>
           <li>
             <span className="text-gold">P</span> revisar después (posponer)
@@ -473,6 +506,32 @@ export function JuryEvaluationForm({
           >
             Zoom (Z)
           </button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap gap-3 border-t border-fr-border/60 pt-6">
+        <button
+          type="button"
+          className="fr-btn fr-btn-secondary min-h-11 px-5 py-3"
+          disabled={!prevEntryId}
+          onClick={goPrev}
+          data-testid="jury-eval-prev"
+        >
+          ← Anterior
+        </button>
+        <button
+          type="button"
+          className="fr-btn fr-btn-primary min-h-11 px-5 py-3"
+          disabled={!nextEntryId}
+          onClick={goNext}
+          data-testid="jury-eval-next"
+        >
+          Siguiente →
+        </button>
+        {autoAdvanceOnComplete ? (
+          <span className="flex items-center text-xs text-fr-muted">
+            Avance automático activado tras enviar definitiva.
+          </span>
         ) : null}
       </div>
 

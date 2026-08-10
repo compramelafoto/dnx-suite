@@ -38,7 +38,20 @@ export type JuryErrorCode =
   | "TERMS_REQUIRED"
   | "NO_ASSIGNMENT"
   | "REASSIGN_TARGET_INVALID"
-  | "JUDGE_REVOKED";
+  | "JUDGE_REVOKED"
+  // ETAPA 16B — finalistas / paquete de confirmación / preparación de voto público.
+  | "READINESS_BLOCKED"
+  | "SESSION_NOT_CLOSED"
+  | "PACKAGE_NOT_FOUND"
+  | "PACKAGE_IMMUTABLE"
+  | "PACKAGE_INCOMPLETE"
+  | "SNAPSHOT_NOT_FOUND_16B"
+  | "SNAPSHOT_ALREADY_CONFIRMED"
+  | "SNAPSHOT_ALREADY_REVOKED"
+  | "NO_ELIGIBLE_REPLACEMENT"
+  | "PII_DETECTED"
+  | "COMMERCIAL_CONTEST_BLOCKED"
+  | "PUBLIC_VOTE_NOT_READY";
 
 export class JuryError extends Error {
   readonly code: JuryErrorCode;

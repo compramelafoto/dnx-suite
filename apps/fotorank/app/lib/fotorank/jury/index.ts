@@ -72,3 +72,33 @@ export { getOrganizerProvisionalRanking, PROVISIONAL_RESULT_BANNER } from "./pro
 export type { OrganizerProvisionalRanking, ProvisionalRankingRow } from "./provisional-ranking";
 export { requestExtraJudgeTiebreak } from "./tiebreak-extra-judge";
 export type { TiebreakAssignmentOutcome } from "./tiebreak-extra-judge";
+
+// ETAPA 16B — finalistas (§8 master rules), paquete de confirmación y preparación de voto
+// público (§9–§10). NO activa jurado/resultados/voto público comercial por sí sola.
+export { assertJuryActivationAllowed, COMMERCIAL_CONTEST_ID_BLOCKED } from "./commercial-contest-guard";
+export { assertNoPiiInFinalistMetadata } from "./finalist-pii-guard";
+export { evaluatePreJuryReadiness } from "./pre-jury-readiness";
+export type {
+  PreJuryReadinessResult,
+  PreJuryReadinessReasonCode,
+  PreJuryReadinessCheck,
+} from "./pre-jury-readiness";
+export { openJurySession, closeJurySession, forceCloseJurySession } from "./jury-session-lifecycle";
+export { selectFinalistsPerPrompt } from "./finalists-engine";
+export type { FinalistsSelectionResult, FinalistPromptResult } from "./finalists-engine";
+export { buildFinalistPackage, confirmFinalistsForPublicVote, revokeFinalist } from "./finalist-package";
+export { getPublicVoteConfig, upsertPublicVoteConfig } from "./public-vote-config";
+export type { PublicVoteConfigInput } from "./public-vote-config";
+export { evaluatePrePublicVoteReadiness } from "./pre-public-vote-readiness";
+export type {
+  PrePublicVoteReadinessResult,
+  PrePublicVoteReasonCode,
+} from "./pre-public-vote-readiness";
+export {
+  prepareFinalistPublicAssets,
+  markFinalistAssetFailed,
+  getDefaultSocialAssetPolicy,
+} from "./public-asset-prep";
+export type { SocialAssetPolicy } from "./public-asset-prep";
+export { getFinalistsForReview } from "./finalists-review";
+export type { FinalistsReviewResult } from "./finalists-review";

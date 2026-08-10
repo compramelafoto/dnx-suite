@@ -36,6 +36,8 @@ export async function freezeCompetitiveEligibility(input: {
   admissionBatchId?: string | null;
   actorUserId: number;
   minimumValidEntries: number;
+  /** ETAPA 16B — dry-run: calcula rosterHash + counts sin persistir. */
+  dryRun?: boolean;
 }) {
   if (!Number.isFinite(input.minimumValidEntries) || input.minimumValidEntries < 1) {
     throw new JuryError("INVALID_INPUT", "minimumValidEntries debe ser >= 1.", 400);
@@ -110,6 +112,21 @@ export async function freezeCompetitiveEligibility(input: {
     computed.map((c) => ({ participantId: c.participantId, validCount: c.validCount, status: c.status })),
   );
 
+  if (input.dryRun) {
+    return {
+      dryRun: true as const,
+      rosterHash,
+      eligibleCount,
+      notEligibleCount,
+      validEntriesCount,
+      excludedEntriesCount,
+      totalParticipants: computed.length,
+      minimumValidEntries: input.minimumValidEntries,
+      freeze: null,
+      idempotent: false as const,
+    };
+  }
+
   const lastFreeze = await prisma.fotorankCompetitiveEligibilityFreeze.findFirst({
     where: { contestId: input.contestId, status: "ELIGIBILITY_FROZEN" },
     orderBy: { configVersion: "desc" },
@@ -120,7 +137,7 @@ export async function freezeCompetitiveEligibility(input: {
     lastFreeze.minimumValidEntries === input.minimumValidEntries &&
     (lastFreeze.admissionBatchId ?? null) === (input.admissionBatchId ?? null)
   ) {
-    return { freeze: lastFreeze, idempotent: true as const };
+    return { freeze: lastFreeze, idempotent: true as const, dryRun: false as const };
   }
 
   const nextVersion = (lastFreeze?.configVersion ?? 0) + 1;
@@ -167,17 +184,14 @@ export async function freezeCompetitiveEligibility(input: {
       });
 
       if (c.externalRegistrationId) {
-        await tx.clickatonRegistration
-          .update({
-            where: { id: c.externalRegistrationId },
-            data: {
-              competitiveStatus: c.status,
-              competitiveValidPromptCount: c.validCount,
-            },
-          })
-          .catch(() => {
-            // Registro Clickatón no encontrado (roster desincronizado); no bloquea el freeze de FotoRank.
-          });
+        // updateMany: 0 filas si el regId no es un ClickatonRegistration real (fixtures FR-only).
+        await tx.clickatonRegistration.updateMany({
+          where: { id: c.externalRegistrationId },
+          data: {
+            competitiveStatus: c.status,
+            competitiveValidPromptCount: c.validCount,
+          },
+        });
       }
     }
 
@@ -203,7 +217,7 @@ export async function freezeCompetitiveEligibility(input: {
     },
   });
 
-  return { freeze, idempotent: false as const };
+  return { freeze, idempotent: false as const, dryRun: false as const };
 }
 
 /** Lista de participantId ELEGIBLE tras el último freeze (o el más reciente disponible). */

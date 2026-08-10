@@ -25,6 +25,7 @@
     "test:jury:capacity": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/capacity.selfcheck.ts",
     "test:jury:santa-fe": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/santa-fe-jury.selfcheck.ts",
     "ops:16a:e2e": "tsx scripts/ops-16a-jury-engine-e2e.ts",
+    "ops:16b:e2e": "tsx scripts/ops-16b-finalists-public-prep-e2e.ts",
     "test:results:ranking": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/results/ranking.selfcheck.ts",
     "test:results:santa-fe-source": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/results/santa-fe-ranking-source.selfcheck.ts",
     "test:results:publication": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/results/publication.selfcheck.ts",

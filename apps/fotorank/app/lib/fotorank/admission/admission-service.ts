@@ -1225,6 +1225,8 @@ export async function freezeAdmittedEntries(input: FreezeSelectionInput) {
             sha256: juryAsset?.sha256 ?? null,
             sha256Jury: juryAsset?.sha256 ?? null,
             categoryId: entry.categoryId,
+            // ETAPA 16B — consigna canónica para ranking/finalistas por prompt.
+            promptExternalId: entry.externalPromptId ?? null,
             anonymousCode,
             admittedAt: entry.confirmedAt,
             frozenAt: new Date(),
@@ -1239,6 +1241,7 @@ export async function freezeAdmittedEntries(input: FreezeSelectionInput) {
             frozenAt: new Date(),
             anonymousCode,
             juryAssetId: juryAsset?.id ?? null,
+            promptExternalId: entry.externalPromptId ?? null,
           },
         });
       });

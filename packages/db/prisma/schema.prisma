@@ -7444,6 +7444,9 @@ model FotorankContest {
   juryConfig                     FotorankCompetitionJuryConfig?
   competitiveEligibilityFreezes  FotorankCompetitiveEligibilityFreeze[]
   juryActivityHeartbeats         FotorankJuryActivityHeartbeat[]
+  /// ETAPA 16B — finalistas (§8 master rules) y paquete de confirmación previo a voto público.
+  finalistSnapshots              FotorankFinalistSnapshot[]
+  finalistPackages               FotorankFinalistPackage[]
 }
 
 /// Roster mínimo de participantes sincronizados (Clickatón postpago). No es obra/entry.
@@ -8019,6 +8022,8 @@ model FotorankContestEntry {
   reviews                FotorankContestEntryReview[]
   judgeConflicts         FotorankJudgeEntryConflict[]
   jurySnapshots          FotorankJuryEntrySnapshot[]
+  /// ETAPA 16B — finalistas (§8 master rules).
+  finalistSnapshots      FotorankFinalistSnapshot[]
 
   @@unique([contestId, entryNumber])
   @@unique([contestId, externalRegistrationId, externalPromptId])
@@ -8445,6 +8450,8 @@ model FotorankJuryEntrySnapshot {
   juryEvaluations FotorankJuryEvaluation[]
   juryAggregates  FotorankJuryPreliminaryAggregate[]
   resultEntries   FotorankResultEntry[]
+  /// ETAPA 16B — finalistas (§8 master rules).
+  finalistSnapshots FotorankFinalistSnapshot[]
 }
 
 enum FotorankTechnicalSummaryStatus {
@@ -12400,6 +12407,9 @@ model FotorankJuryScoringSession {
   @@index([rubricId])
   resultRuleSets FotorankResultRuleSet[]
   activityHeartbeats FotorankJuryActivityHeartbeat[]
+  /// ETAPA 16B — finalistas (§8 master rules) y paquete de confirmación previo a voto público.
+  finalistSnapshots FotorankFinalistSnapshot[]
+  finalistPackages FotorankFinalistPackage[]
 }
 
 /// ETAPA 16A — Configuración de jurado competitivo por concurso (genérica; no hardcodea Clickatón).
@@ -12423,6 +12433,25 @@ model FotorankCompetitionJuryConfig {
   criteriaConfigJson                 Json?
   yellowLoadThreshold                Int      @default(501)
   redLoadThreshold                   Int      @default(651)
+  /// ETAPA 16B — preparación de voto público (§9–§10 master rules). Nunca activa comercial/Instagram por sí solo.
+  /// Habilitación explícita; false = no operativo aunque publicVoteMode != DISABLED.
+  publicVoteEnabled                  Boolean  @default(false)
+  /// PROMPT | CATEGORY | ENTRY | ROUND (§10: unidad de votación pública configurable).
+  publicVoteUnit                     String   @default("PROMPT")
+  /// Métrica pública (§9: default Clickatón = Me Gusta).
+  publicVoteMetric                   String   @default("LIKE_COUNT")
+  /// Duración de la ventana de voto público en minutos (§9 default Clickatón: 24 h).
+  publicVoteDurationMinutes          Int      @default(1440)
+  publicVoteStartsAt                 DateTime?
+  publicVoteEndsAt                   DateTime?
+  /// NONE | INSTAGRAM_FUTURE (§9.3: automatización de redes fuera de alcance; NONE = manual/no activado).
+  publicVoteProvider                 String   @default("NONE")
+  /// NOT_CONFIGURED|READY|SCHEDULED|OPEN|CLOSING|PENDING_VERIFICATION|CLOSED|TIEBREAK_REQUIRED|FINALIZED.
+  publicVoteStatus                   String   @default("NOT_CONFIGURED")
+  /// Modo de desempate público (§9.1): siempre PUBLIC_TIEBREAK, nunca score de jurado ni suma.
+  publicTieBreakMode                 String   @default("PUBLIC_TIEBREAK")
+  /// IANA timezone override para ventanas de voto público. null = usar contest.timezone.
+  timezone                           String?
   createdAt                          DateTime @default(now())
   updatedAt                          DateTime @updatedAt
 
@@ -12481,6 +12510,75 @@ model FotorankJuryActivityHeartbeat {
   @@index([scoringSessionId])
 }
 
+/// ETAPA 16B — Finalistas (§8 master rules): "FINALISTA ≠ ganador definitivo". Ítem inmutable del
+/// paquete que se prepara para votación pública. internalJuryRank es SOLO el orden interno del jurado
+/// dentro de la consigna (1..N); NUNCA es la posición pública definitiva (esa la decide el público, §1/§9).
+model FotorankFinalistSnapshot {
+  id                  String    @id @default(cuid())
+  contestId           String
+  scoringSessionId    String
+  resultBatchId       String?
+  promptExternalId    String
+  promptSequence      Int?
+  entryId             String?
+  juryEntrySnapshotId String
+  /// Código público sin identidad (p. ej. C01-F01). NUNCA nombre/apellido/Instagram.
+  publicCode          String
+  /// Orden interno de jurado dentro de la consigna (1..finalistsPerUnit). No es el lugar definitivo.
+  internalJuryRank    Int
+  aggregateScore      Float?
+  normalizedScore     Float?
+  /// Referencia a derivado social-safe (recorte/marca de agua); NUNCA la key del original.
+  derivativeAssetKey  String?
+  /// PENDING|READY|FAILED (§ public-asset-prep: no publica ni sube a redes).
+  derivativeStatus    String    @default("PENDING")
+  packageHash         String?
+  confirmedAt         DateTime?
+  confirmedByUserId   Int?
+  revokedAt           DateTime?
+  revokeReason        String?
+  /// DRAFT|CONFIRMED|REVOKED. CONFIRMED = inmutable salvo revocación auditada.
+  status              String    @default("DRAFT")
+  metadataJson        Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  contest           FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  scoringSession    FotorankJuryScoringSession  @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+  resultBatch       FotorankResultBatch?        @relation(fields: [resultBatchId], references: [id], onDelete: SetNull)
+  entry             FotorankContestEntry?       @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  juryEntrySnapshot FotorankJuryEntrySnapshot   @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, promptExternalId, publicCode])
+  @@index([contestId, status])
+  @@index([scoringSessionId])
+  @@index([juryEntrySnapshotId])
+  @@index([resultBatchId])
+}
+
+/// ETAPA 16B — Sobre de confirmación de finalistas (§8 master rules). Confirmar = inmutable;
+/// habilita preparación de voto público. No activa Instagram ni comercial por sí solo.
+model FotorankFinalistPackage {
+  id                String    @id @default(cuid())
+  contestId         String
+  scoringSessionId  String
+  /// DRAFT|CONFIRMED|INVALIDATED.
+  status            String    @default("DRAFT")
+  positionsCount    Int       @default(0)
+  confirmHash       String?
+  confirmedAt       DateTime?
+  confirmedByUserId Int?
+  readinessJson     Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  contest        FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  scoringSession FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+
+  @@index([contestId, status])
+  @@index([scoringSessionId])
+}
+
 model FotorankMinorAuthorization {
   id                     String   @id @default(cuid())
   registrationId         String   @unique
@@ -12534,6 +12632,8 @@ model FotorankResultBatch {
   entries          FotorankResultEntry[]
   tieBreakSessions FotorankTieBreakSession[]
   revisions        FotorankResultRevision[]
+  /// ETAPA 16B — finalistas empaquetados desde este batch (§8 master rules).
+  finalistSnapshots FotorankFinalistSnapshot[]
 
   @@index([contestId, status])
   @@index([ruleSetId])
