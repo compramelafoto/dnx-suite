@@ -55,10 +55,25 @@ export async function POST(req: Request, ctx: Ctx) {
         typeof body.publicVoteDurationMinutes === "number" ? body.publicVoteDurationMinutes : undefined,
       publicVoteStartsAt: body.publicVoteStartsAt ? new Date(body.publicVoteStartsAt as string) : undefined,
       publicVoteEndsAt: body.publicVoteEndsAt ? new Date(body.publicVoteEndsAt as string) : undefined,
-      publicVoteProvider: body.publicVoteProvider as "NONE" | "INSTAGRAM_FUTURE" | undefined,
+      publicVoteProvider: body.publicVoteProvider as
+        | "NONE"
+        | "TEST_PROVIDER"
+        | "INSTAGRAM_FUTURE"
+        | undefined,
       publicVoteStatus: typeof body.publicVoteStatus === "string" ? body.publicVoteStatus : undefined,
       publicTieBreakMode: typeof body.publicTieBreakMode === "string" ? body.publicTieBreakMode : undefined,
       timezone: typeof body.timezone === "string" ? body.timezone : undefined,
+      publicVoteCutoffPolicy:
+        typeof body.publicVoteCutoffPolicy === "string" ? body.publicVoteCutoffPolicy : undefined,
+      resultsPublicationMode: body.resultsPublicationMode as
+        | "CALCULATED"
+        | "REVIEWED"
+        | "PUBLISHED"
+        | undefined,
+      publicVoteStaleThresholdMinutes:
+        typeof body.publicVoteStaleThresholdMinutes === "number"
+          ? body.publicVoteStaleThresholdMinutes
+          : undefined,
     };
 
     const updated = await upsertPublicVoteConfig({ contestId, actorUserId: user.id, config });

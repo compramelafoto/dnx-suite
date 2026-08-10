@@ -7447,6 +7447,8 @@ model FotorankContest {
   /// ETAPA 16B — finalistas (§8 master rules) y paquete de confirmación previo a voto público.
   finalistSnapshots              FotorankFinalistSnapshot[]
   finalistPackages               FotorankFinalistPackage[]
+  /// ETAPA 17A — motor genérico de votación pública (provider-agnostic; TestProvider only).
+  publicVoteRounds               FotorankPublicVoteRound[]
 }
 
 /// Roster mínimo de participantes sincronizados (Clickatón postpago). No es obra/entry.
@@ -12448,10 +12450,17 @@ model FotorankCompetitionJuryConfig {
   publicVoteProvider                 String   @default("NONE")
   /// NOT_CONFIGURED|READY|SCHEDULED|OPEN|CLOSING|PENDING_VERIFICATION|CLOSED|TIEBREAK_REQUIRED|FINALIZED.
   publicVoteStatus                   String   @default("NOT_CONFIGURED")
-  /// Modo de desempate público (§9.1): siempre PUBLIC_TIEBREAK, nunca score de jurado ni suma.
-  publicTieBreakMode                 String   @default("PUBLIC_TIEBREAK")
+  /// Modo de desempate público (§9.1): PUBLIC_REVOTE / PUBLIC_TIEBREAK; nunca score de jurado.
+  publicTieBreakMode                 String   @default("PUBLIC_REVOTE")
   /// IANA timezone override para ventanas de voto público. null = usar contest.timezone.
   timezone                           String?
+  /// ETAPA 17A — política de corte para snapshot final (provider-agnostic).
+  /// LAST_VALID_OBSERVATION_BEFORE_CUTOFF | EXACT_PROVIDER_TIMESTAMP | PROVIDER_FINAL_SNAPSHOT
+  publicVoteCutoffPolicy             String   @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
+  /// CALCULATED | REVIEWED | PUBLISHED — 17A nunca publica comercialmente.
+  resultsPublicationMode             String   @default("CALCULATED")
+  /// Umbral de stale observations (minutos) para alertas de salud del provider.
+  publicVoteStaleThresholdMinutes    Int      @default(30)
   createdAt                          DateTime @default(now())
   updatedAt                          DateTime @updatedAt
 
@@ -12577,6 +12586,133 @@ model FotorankFinalistPackage {
 
   @@index([contestId, status])
   @@index([scoringSessionId])
+}
+
+/// ETAPA 17A — Ronda de votación pública por unidad (PROMPT/CATEGORY/…). Provider-agnostic.
+model FotorankPublicVoteRound {
+  id                     String    @id @default(cuid())
+  contestId              String
+  /// Clave de unidad (p. ej. promptExternalId). Nunca hardcodear 10 consignas.
+  unitKey                String
+  /// PROMPT | CATEGORY | ENTRY | ROUND
+  unitType               String    @default("PROMPT")
+  roundNumber            Int       @default(1)
+  /// NORMAL | TIEBREAK
+  roundType              String    @default("NORMAL")
+  parentRoundId          String?
+  /// DRAFT|READY|SCHEDULED|OPEN|CLOSING|PENDING_FINAL_SNAPSHOT|CLOSED|TIEBREAK_REQUIRED|FINALIZED|CANCELLED|ERROR
+  status                 String    @default("DRAFT")
+  metric                 String    @default("LIKE_COUNT")
+  /// TEST_PROVIDER | NONE | INSTAGRAM_FUTURE (este último no operativo en 17A)
+  provider               String    @default("TEST_PROVIDER")
+  cutoffPolicy           String    @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
+  startsAt               DateTime
+  endsAt                 DateTime
+  timezone               String?
+  openedAt               DateTime?
+  closedAt               DateTime?
+  finalSnapshotAt        DateTime?
+  cancelledAt            DateTime?
+  cancelReason           String?
+  extendedFromEndsAt     DateTime?
+  configHash             String?
+  candidateSnapshotHash  String?
+  finalSnapshotHash      String?
+  staleThresholdMinutes  Int       @default(30)
+  /// CALCULATED | REVIEWED | PUBLISHED — 17A = CALCULATED máximo.
+  resultsPublicationStatus String  @default("CALCULATED")
+  providerHealth         String    @default("CONNECTED")
+  configVersion          Int       @default(1)
+  metadataJson           Json?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  contest      FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  parentRound  FotorankPublicVoteRound?     @relation("PublicVoteRoundTiebreak", fields: [parentRoundId], references: [id], onDelete: SetNull)
+  childRounds  FotorankPublicVoteRound[]    @relation("PublicVoteRoundTiebreak")
+  candidates   FotorankPublicVoteCandidate[]
+  observations FotorankPublicVoteObservation[]
+  finalSnapshots FotorankPublicVoteFinalSnapshot[]
+
+  @@unique([contestId, unitKey, roundNumber])
+  @@index([contestId, status])
+  @@index([contestId, unitKey])
+  @@index([parentRoundId])
+  @@index([endsAt, status])
+}
+
+/// Candidatura congelada al abrir/schedule la ronda (snapshot inmutable mientras OPEN).
+model FotorankPublicVoteCandidate {
+  id                  String   @id @default(cuid())
+  roundId             String
+  finalistSnapshotId  String?
+  publicCode          String
+  entryId             String?
+  sortOrder           Int      @default(0)
+  /// true = participa en ranking; false = excluido auditado (no borrar).
+  active              Boolean  @default(true)
+  metadataJson        Json?
+  createdAt           DateTime @default(now())
+
+  round          FotorankPublicVoteRound           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  observations   FotorankPublicVoteObservation[]
+  finalSnapshots FotorankPublicVoteFinalSnapshot[]
+
+  @@unique([roundId, publicCode])
+  @@index([roundId, active])
+  @@index([finalistSnapshotId])
+}
+
+/// Observación append-only de métrica (likes pueden bajar). Idempotente por providerEventKey.
+model FotorankPublicVoteObservation {
+  id                      String    @id @default(cuid())
+  roundId                 String
+  candidateId             String
+  metricValue             Float
+  /// Momento reportado por el provider (autoridad de cutoff cuando aplica).
+  providerObservedAt      DateTime
+  /// Timestamp de la métrica en origen si el provider lo expone.
+  providerMetricTimestamp DateTime?
+  ingestedAt              DateTime  @default(now())
+  source                  String    @default("TEST_PROVIDER")
+  /// Clave de idempotencia (event id / hash normalizado).
+  providerEventKey        String
+  rawHash                 String?
+  isDecreasing            Boolean   @default(false)
+  /// true si providerObservedAt > round.endsAt (retenida, no cuenta en snapshot default).
+  isLate                  Boolean   @default(false)
+  metadataJson            Json?
+
+  round     FotorankPublicVoteRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate FotorankPublicVoteCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, providerEventKey])
+  @@index([roundId, candidateId, providerObservedAt])
+  @@index([candidateId, providerObservedAt])
+}
+
+/// Snapshot final inmutable por candidatura/ronda. Base del ranking definitivo.
+model FotorankPublicVoteFinalSnapshot {
+  id                 String   @id @default(cuid())
+  roundId            String
+  candidateId        String
+  publicCode         String
+  finalMetricValue   Float
+  observationId      String?
+  cutoffAt           DateTime
+  providerObservedAt DateTime?
+  finalizedAt        DateTime @default(now())
+  /// 1..N dentro de la unidad. null si TIEBREAK_REQUIRED aún no resuelto.
+  finalPosition      Int?
+  integrityHash      String
+  metadataJson       Json?
+
+  round     FotorankPublicVoteRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate FotorankPublicVoteCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, candidateId])
+  @@unique([roundId, publicCode])
+  @@index([roundId, finalPosition])
 }
 
 model FotorankMinorAuthorization {

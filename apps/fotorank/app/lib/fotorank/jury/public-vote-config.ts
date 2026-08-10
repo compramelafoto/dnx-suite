@@ -12,7 +12,12 @@ import { getOrCreateCompetitionJuryConfig } from "./competition-jury-config";
 
 const ALLOWED_MODES = new Set(["DISABLED", "JURY_ONLY", "JURY_THEN_PUBLIC"]);
 const ALLOWED_UNITS = new Set(["PROMPT", "CATEGORY", "ENTRY", "ROUND"]);
-const ALLOWED_PROVIDERS = new Set(["NONE", "INSTAGRAM_FUTURE"]);
+const ALLOWED_PROVIDERS = new Set(["NONE", "TEST_PROVIDER", "INSTAGRAM_FUTURE"]);
+const ALLOWED_CUTOFF = new Set([
+  "LAST_VALID_OBSERVATION_BEFORE_CUTOFF",
+  "EXACT_PROVIDER_TIMESTAMP",
+  "PROVIDER_FINAL_SNAPSHOT",
+]);
 const ALLOWED_STATUSES = new Set([
   "NOT_CONFIGURED",
   "READY",
@@ -20,6 +25,7 @@ const ALLOWED_STATUSES = new Set([
   "OPEN",
   "CLOSING",
   "PENDING_VERIFICATION",
+  "PENDING_FINAL_SNAPSHOT",
   "CLOSED",
   "TIEBREAK_REQUIRED",
   "FINALIZED",
@@ -33,10 +39,13 @@ export type PublicVoteConfigInput = {
   publicVoteDurationMinutes?: number;
   publicVoteStartsAt?: Date | null;
   publicVoteEndsAt?: Date | null;
-  publicVoteProvider?: "NONE" | "INSTAGRAM_FUTURE";
+  publicVoteProvider?: "NONE" | "TEST_PROVIDER" | "INSTAGRAM_FUTURE";
   publicVoteStatus?: string;
   publicTieBreakMode?: string;
   timezone?: string | null;
+  publicVoteCutoffPolicy?: string;
+  resultsPublicationMode?: "CALCULATED" | "REVIEWED" | "PUBLISHED";
+  publicVoteStaleThresholdMinutes?: number;
 };
 
 export async function getPublicVoteConfig(contestId: string) {
@@ -54,6 +63,9 @@ export async function getPublicVoteConfig(contestId: string) {
     publicVoteStatus: config.publicVoteStatus,
     publicTieBreakMode: config.publicTieBreakMode,
     timezone: config.timezone,
+    publicVoteCutoffPolicy: config.publicVoteCutoffPolicy,
+    resultsPublicationMode: config.resultsPublicationMode,
+    publicVoteStaleThresholdMinutes: config.publicVoteStaleThresholdMinutes,
     finalistsPerUnit: config.finalistsPerUnit,
   };
 }
@@ -83,6 +95,19 @@ export async function upsertPublicVoteConfig(input: {
   if (c.publicVoteStartsAt && c.publicVoteEndsAt && c.publicVoteEndsAt.getTime() <= c.publicVoteStartsAt.getTime()) {
     throw new JuryError("INVALID_INPUT", "publicVoteEndsAt debe ser posterior a publicVoteStartsAt.", 400);
   }
+  if (c.publicVoteCutoffPolicy != null && !ALLOWED_CUTOFF.has(c.publicVoteCutoffPolicy)) {
+    throw new JuryError("INVALID_INPUT", `publicVoteCutoffPolicy inválido: ${c.publicVoteCutoffPolicy}.`, 400);
+  }
+  if (c.resultsPublicationMode === "PUBLISHED") {
+    throw new JuryError(
+      "INVALID_INPUT",
+      "resultsPublicationMode=PUBLISHED no permitido en ETAPA 17A.",
+      400,
+    );
+  }
+  if (c.publicVoteStaleThresholdMinutes != null && c.publicVoteStaleThresholdMinutes <= 0) {
+    throw new JuryError("INVALID_INPUT", "publicVoteStaleThresholdMinutes debe ser > 0.", 400);
+  }
 
   // "Never enable commercial auto": cualquier intento de habilitación explícita pasa por el guard
   // de concursos comerciales excluidos de esta etapa.
@@ -96,6 +121,10 @@ export async function upsertPublicVoteConfig(input: {
       "publicVoteProvider INSTAGRAM_FUTURE no está implementado; no puede habilitarse (publicVoteEnabled).",
       400,
     );
+  }
+  // TEST_PROVIDER solo fixtures/ops no comerciales (guard bloquea comercial siempre).
+  if (c.publicVoteProvider === "TEST_PROVIDER") {
+    assertJuryActivationAllowed(input.contestId);
   }
 
   await getOrCreateCompetitionJuryConfig(input.contestId);
@@ -114,6 +143,9 @@ export async function upsertPublicVoteConfig(input: {
       publicVoteStatus: c.publicVoteStatus ?? undefined,
       publicTieBreakMode: c.publicTieBreakMode ?? undefined,
       timezone: c.timezone === undefined ? undefined : c.timezone,
+      publicVoteCutoffPolicy: c.publicVoteCutoffPolicy ?? undefined,
+      resultsPublicationMode: c.resultsPublicationMode ?? undefined,
+      publicVoteStaleThresholdMinutes: c.publicVoteStaleThresholdMinutes ?? undefined,
     },
   });
 
