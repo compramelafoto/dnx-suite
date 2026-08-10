@@ -43,8 +43,6 @@ export async function confirmJudgeEvaluationBlock(input: {
   if (snapshots.length === 0) {
     throw new JuryError("NOT_FOUND", "No hay obras asignadas en este bloque.", 404);
   }
-  const snapshotIds = snapshots.map((s) => s.id);
-
   const conflicts = await prisma.fotorankJudgeEntryConflict.findMany({
     where: {
       contestId: input.contestId,

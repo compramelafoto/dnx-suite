@@ -66,7 +66,7 @@ export async function evaluatePreJuryReadiness(contestId: string): Promise<PreJu
   // 1) Congelamiento de elegibilidad competitiva (§3 master rules — solo aplica a Clickatón/con mínimo).
   let eligibilityFrozenCheck: PreJuryReadinessCheck;
   if (config.minimumValidEntriesForCompetition == null) {
-    eligibilityFrozenCheck = { pass: true, detail: { applicable: false } };
+    eligibilityFrozenCheck = { pass: true, detail: { applicable: false, isClickaton } };
   } else {
     const freeze = await prisma.fotorankCompetitiveEligibilityFreeze.findFirst({
       where: { contestId, status: "ELIGIBILITY_FROZEN" },
