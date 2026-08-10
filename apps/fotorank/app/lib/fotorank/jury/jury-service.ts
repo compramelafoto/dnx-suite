@@ -97,7 +97,9 @@ export async function listAnonymousEntriesForJuror(input: {
           ? "COMPLETED"
           : st === "IN_PROGRESS"
             ? "IN_PROGRESS"
-            : "NOT_STARTED";
+            : st === "POSTPONED"
+              ? "POSTPONED"
+              : "NOT_STARTED";
       const warningCount = snap.entry.checks.filter(
         (c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW",
       ).length;
@@ -234,7 +236,9 @@ export async function getAnonymousEntryDetailForJuror(input: {
       ? "COMPLETED"
       : evaluation?.status === "IN_PROGRESS"
         ? "IN_PROGRESS"
-        : "NOT_STARTED";
+        : evaluation?.status === "POSTPONED"
+          ? "POSTPONED"
+          : "NOT_STARTED";
 
   const technical = buildJuryTechnicalSummary({
     technicalSummaryStatus: entry.technicalSummaryStatus,

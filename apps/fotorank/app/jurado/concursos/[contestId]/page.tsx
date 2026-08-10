@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { prisma } from "@repo/db";
 import { requireJudgeAuth } from "../../../lib/judge-auth";
 import {
   JuryError,
   hasAcceptedJuryTerms,
   listAnonymousEntriesForJuror,
 } from "../../../lib/fotorank/jury";
+import { computeJudgeEta } from "../../../lib/fotorank/jury/activity-eta";
 import { JuryTermsGate } from "./JuryTermsGate";
+import { JuryProgressPanel } from "./JuryProgressPanel";
 
 type Props = { params: Promise<{ contestId: string }> };
 
@@ -32,6 +35,22 @@ export default async function JuryContestEntriesPage({ params }: Props) {
     judgeAccountId: judge.id,
     contestId,
   });
+
+  const completedCount = data.entries.filter((e) => e.evaluationStatus === "COMPLETED").length;
+  const totalCount = data.entries.length;
+
+  // ETA real (ETAPA 16A): solo con datos reales de heartbeat, nunca inventados.
+  const heartbeat = await prisma.fotorankJuryActivityHeartbeat.findUnique({
+    where: { contestId_jurorId: { contestId, jurorId: judge.id } },
+    select: { activeSecondsAccumulated: true },
+  });
+  const eta = heartbeat
+    ? computeJudgeEta({
+        completed: completedCount,
+        remaining: Math.max(0, totalCount - completedCount),
+        activeSeconds: heartbeat.activeSecondsAccumulated,
+      })
+    : null;
 
   return (
     <div className="min-h-screen bg-fr-bg px-4 py-10 md:px-8">
@@ -62,7 +81,14 @@ export default async function JuryContestEntriesPage({ params }: Props) {
             Debés aceptar los términos de jurado antes de ver u evaluar obras.
           </p>
         ) : (
-          <ul className="grid gap-8 md:grid-cols-2" data-testid="jury-entries-list">
+          <>
+            <JuryProgressPanel
+              completed={completedCount}
+              total={totalCount}
+              avgSecondsPerPhoto={eta?.secondsPerEntry ?? null}
+              etaLabel={eta?.label ?? null}
+            />
+            <ul className="grid gap-8 md:grid-cols-2" data-testid="jury-entries-list">
             {data.entries.map((e) => (
               <li key={e.entryId} className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
                 {e.previewUrl ? (
@@ -94,7 +120,8 @@ export default async function JuryContestEntriesPage({ params }: Props) {
             {data.entries.length === 0 ? (
               <li className="text-fr-muted">No hay obras confirmadas disponibles en tus categorías.</li>
             ) : null}
-          </ul>
+            </ul>
+          </>
         )}
       </div>
     </div>

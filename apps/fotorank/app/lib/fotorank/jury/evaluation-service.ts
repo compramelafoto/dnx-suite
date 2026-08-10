@@ -54,6 +54,36 @@ async function loadOpenSession(contestId: string) {
 }
 
 /**
+ * ETAPA 16A — Validación de escala de sesión (independiente de min/max por criterio de la
+ * rúbrica). Clickatón: enteros 1–10 (scoreIntegerOnly=true). Otros concursos pueden habilitar
+ * decimales configurando scoreIntegerOnly=false en FotorankJuryScoringSession.
+ */
+function validateSessionScoreScale(
+  session: { scoreIntegerOnly: boolean; scoreScaleMin: number; scoreScaleMax: number },
+  scores: CriterionScoreInput[],
+) {
+  for (const s of scores) {
+    if (!Number.isFinite(s.score)) {
+      throw new JuryError("INVALID_SCORE", `Score inválido en criterio ${s.key}.`, 400);
+    }
+    if (session.scoreIntegerOnly && !Number.isInteger(s.score)) {
+      throw new JuryError(
+        "INVALID_SCORE",
+        `El criterio ${s.key} requiere un puntaje entero (esta sesión no admite decimales).`,
+        400,
+      );
+    }
+    if (s.score < session.scoreScaleMin || s.score > session.scoreScaleMax) {
+      throw new JuryError(
+        "OUT_OF_RANGE",
+        `El criterio ${s.key} debe estar entre ${session.scoreScaleMin} y ${session.scoreScaleMax}.`,
+        400,
+      );
+    }
+  }
+}
+
+/**
  * Autosave / submit de evaluación sobre snapshot FROZEN.
  * Totales siempre calculados en backend.
  */
@@ -152,6 +182,8 @@ export async function upsertJuryEvaluation(input: {
     step: c.step,
     required: c.required,
   }));
+
+  validateSessionScoreScale(session, input.scores);
 
   const computed = computeWeightedScore({
     criteria,
@@ -329,6 +361,187 @@ export async function voidJuryEvaluation(input: {
     payload: { reason: input.reason },
   });
   return updated;
+}
+
+/**
+ * Posponer evaluación: el jurado quiere revisar la obra más tarde.
+ * Conserva scores/comentario ya ingresados (a diferencia de abstención, que los invalida).
+ * No cuenta como cobertura hasta que se envíe (SUBMITTED/LOCKED). Idempotente por versión.
+ */
+export async function postponeJuryEvaluation(input: {
+  judgeAccountId: string;
+  contestId: string;
+  snapshotId: string;
+  expectedVersion?: number;
+}) {
+  const access = await assertJudgeContestAccess({
+    judgeAccountId: input.judgeAccountId,
+    contestId: input.contestId,
+  });
+  const session = await loadOpenSession(input.contestId);
+  if (!session) {
+    throw new JuryError("SESSION_CLOSED", "No hay sesión de jurado OPEN habilitada.", 403);
+  }
+  const snapshot = await prisma.fotorankJuryEntrySnapshot.findFirst({
+    where: {
+      id: input.snapshotId,
+      contestId: input.contestId,
+      admissionBatchId: session.admissionBatchId,
+    },
+  });
+  if (!snapshot) {
+    throw new JuryError("SNAPSHOT_NOT_FOUND", "Snapshot de obra no encontrado en el lote.", 404);
+  }
+  if (!access.categoryIds.includes(snapshot.categoryId)) {
+    throw new JuryError("CATEGORY_NOT_ASSIGNED", "No estás asignado a esta categoría.", 403);
+  }
+  const assignment = access.assignments.find((a) => a.categoryId === snapshot.categoryId);
+  if (!assignment) {
+    throw new JuryError("NOT_ASSIGNED", "Sin asignación para esta categoría.", 403);
+  }
+
+  const existing = await prisma.fotorankJuryEvaluation.findUnique({
+    where: {
+      assignmentId_juryEntrySnapshotId: {
+        assignmentId: assignment.id,
+        juryEntrySnapshotId: snapshot.id,
+      },
+    },
+  });
+  if (existing?.status === "SUBMITTED" || existing?.status === "LOCKED") {
+    throw new JuryError("EVALUATION_LOCKED", "La evaluación ya fue enviada; no se puede posponer.", 409);
+  }
+  if (
+    existing &&
+    input.expectedVersion != null &&
+    existing.expectedVersion !== input.expectedVersion
+  ) {
+    throw new JuryError(
+      "VERSION_CONFLICT",
+      "Hay una versión más nueva guardada. Recargá y reintentá.",
+      409,
+    );
+  }
+
+  const now = new Date();
+  const nextVersion = (existing?.expectedVersion ?? 0) + 1;
+  const evaluation = existing
+    ? await prisma.fotorankJuryEvaluation.update({
+        where: { id: existing.id },
+        data: {
+          status: "POSTPONED",
+          postponedAt: now,
+          lastSavedAt: now,
+          expectedVersion: nextVersion,
+        },
+      })
+    : await prisma.fotorankJuryEvaluation.create({
+        data: {
+          id: newId(),
+          contestId: input.contestId,
+          admissionBatchId: session.admissionBatchId,
+          scoringSessionId: session.id,
+          juryEntrySnapshotId: snapshot.id,
+          assignmentId: assignment.id,
+          jurorId: input.judgeAccountId,
+          rubricId: session.rubricId,
+          rubricVersion: session.rubric.version,
+          status: "POSTPONED",
+          startedAt: now,
+          postponedAt: now,
+          lastSavedAt: now,
+          expectedVersion: nextVersion,
+          engineVersion: JURY_SCORING_ENGINE_VERSION,
+        },
+      });
+
+  const contest = await prisma.fotorankContest.findUniqueOrThrow({
+    where: { id: input.contestId },
+    select: { organizationId: true },
+  });
+  await writeAudit({
+    organizationId: contest.organizationId,
+    contestId: input.contestId,
+    actorJudgeId: input.judgeAccountId,
+    eventType: "JURY_EVALUATION_POSTPONED",
+    entityType: "FotorankJuryEvaluation",
+    entityId: evaluation.id,
+    payload: { snapshotId: snapshot.id, anonymousCode: snapshot.anonymousCode, version: nextVersion },
+  });
+  return { evaluation, idempotent: false as const };
+}
+
+/**
+ * ETAPA 16A — Reanuda una evaluación POSTPONED (vuelve a IN_PROGRESS).
+ * Antes de CONFIRMAR EVALUACIÓN debe haber 0 postergadas (§7.5 master rules); este es el
+ * complemento de `postponeJuryEvaluation` para que el jurado pueda retomarla desde la grilla.
+ */
+export async function resumePostponedEvaluation(input: {
+  judgeAccountId: string;
+  contestId: string;
+  snapshotId: string;
+}) {
+  const access = await assertJudgeContestAccess({
+    judgeAccountId: input.judgeAccountId,
+    contestId: input.contestId,
+  });
+  const session = await loadOpenSession(input.contestId);
+  if (!session) {
+    throw new JuryError("SESSION_CLOSED", "No hay sesión de jurado OPEN habilitada.", 403);
+  }
+  const snapshot = await prisma.fotorankJuryEntrySnapshot.findFirst({
+    where: {
+      id: input.snapshotId,
+      contestId: input.contestId,
+      admissionBatchId: session.admissionBatchId,
+    },
+  });
+  if (!snapshot) {
+    throw new JuryError("SNAPSHOT_NOT_FOUND", "Snapshot de obra no encontrado en el lote.", 404);
+  }
+  const assignment = access.assignments.find((a) => a.categoryId === snapshot.categoryId);
+  if (!assignment) {
+    throw new JuryError("NOT_ASSIGNED", "Sin asignación para esta categoría.", 403);
+  }
+
+  const existing = await prisma.fotorankJuryEvaluation.findUnique({
+    where: {
+      assignmentId_juryEntrySnapshotId: {
+        assignmentId: assignment.id,
+        juryEntrySnapshotId: snapshot.id,
+      },
+    },
+  });
+  if (!existing || existing.status !== "POSTPONED") {
+    throw new JuryError("NOT_FOUND", "No hay una evaluación postergada para reanudar.", 404);
+  }
+
+  const now = new Date();
+  const evaluation = await prisma.fotorankJuryEvaluation.update({
+    where: { id: existing.id },
+    data: {
+      status: "IN_PROGRESS",
+      postponedAt: null,
+      lastSavedAt: now,
+      expectedVersion: existing.expectedVersion + 1,
+    },
+  });
+
+  const contest = await prisma.fotorankContest.findUniqueOrThrow({
+    where: { id: input.contestId },
+    select: { organizationId: true },
+  });
+  await writeAudit({
+    organizationId: contest.organizationId,
+    contestId: input.contestId,
+    actorJudgeId: input.judgeAccountId,
+    eventType: "JURY_EVALUATION_POSTPONE_RESUMED",
+    entityType: "FotorankJuryEvaluation",
+    entityId: evaluation.id,
+    payload: { snapshotId: snapshot.id, anonymousCode: snapshot.anonymousCode },
+  });
+
+  return { evaluation, idempotent: false as const };
 }
 
 /**

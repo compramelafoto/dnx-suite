@@ -7,6 +7,8 @@ import { RegistrationError, assertOrganizerCanAccessContest } from "../../../../
 import { getContestOperationalMetrics } from "../../../../../lib/fotorank/metrics/contest-metrics";
 import { ScoringSessionPanel } from "./ScoringSessionPanel";
 import { ConflictReassignPanel } from "./ConflictReassignPanel";
+import { JuryPlanningPanel } from "../../../../../components/dashboard/jury/JuryPlanningPanel";
+import { JuryProvisionalRankingBanner } from "../../../../../components/dashboard/jury/JuryProvisionalRankingBanner";
 export const dynamic = "force-dynamic";
 
 type Props = {
@@ -187,6 +189,14 @@ export default async function ContestJuradoOpsPage({ params, searchParams }: Pro
         resultBatchId={resultBatch?.id ?? null}
         ruleSetId={ruleSet?.id ?? null}
       />
+
+      <div className="mb-10">
+        <JuryPlanningPanel contestId={contestId} />
+      </div>
+
+      <div className="mb-10">
+        <JuryProvisionalRankingBanner contestId={contestId} />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[

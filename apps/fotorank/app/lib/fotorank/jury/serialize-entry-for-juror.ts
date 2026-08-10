@@ -51,7 +51,7 @@ export type JuryTechnicalSummaryView = {
   requiresReview: boolean;
   warningCount: number;
   allowedChecks: JuryAllowedCheck[];
-  evaluationStatus: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "CONFLICT_DECLARED";
+  evaluationStatus: "NOT_STARTED" | "IN_PROGRESS" | "POSTPONED" | "COMPLETED" | "CONFLICT_DECLARED";
   evaluationEnabled: false;
   evaluationMessage: string;
 };

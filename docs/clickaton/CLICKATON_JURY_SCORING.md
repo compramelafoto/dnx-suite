@@ -3,6 +3,11 @@
 **Fecha:** 2026-07-28  
 **Alcance:** evaluación ciega sobre roster congelado. **Sin ranking público, ganadores ni resultados LIVE.**
 
+> **Supersesión de producto (ETAPA 15B):** las decisiones funcionales canónicas de elegibilidad, 3 criterios Clickatón, finalistas, votación pública (default 24 h / Me Gusta) y desempates están en  
+> `docs/clickaton/jury-and-public-voting-master-rules.md`.  
+> Este documento conserva la auditoría/implementación Etapa 14; ante divergencia de **producto**, prevalece el master 15B.  
+> **No** activa jurado ni resultados.
+
 Docs relacionadas:
 
 - `CLICKATON_TECHNICAL_ADMISSION.md` (fuente FROZEN)
