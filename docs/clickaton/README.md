@@ -257,6 +257,15 @@ Tipos Clickaton ampliados: `apps/clickaton/types/public/registration.ts`.
 - Doc: [PRICE_PHASE_PRODUCTS_AND_STORE.md](./PRICE_PHASE_PRODUCTS_AND_STORE.md)
 - Storefront público / carrito / checkout tienda → fuera de alcance
 
+### Etapa 15B — Paquete documental jurado / elegibilidad / voto público
+
+Fuente canónica funcional (sin activar jurado ni resultados):
+
+- [jury-and-public-voting-master-rules.md](./jury-and-public-voting-master-rules.md)
+- Borrador Bases v3: [CLICKATON_BASES_DRAFT_v3_jury_public_vote.md](./CLICKATON_BASES_DRAFT_v3_jury_public_vote.md) (**LEGAL REVIEW**, no publicado en runtime)
+- Calculador genérico FotoRank: [../fotorank/jury-capacity-calculator-spec.md](../fotorank/jury-capacity-calculator-spec.md)
+- Auditoría de consistencia: [jury-public-vote-consistency-audit.md](./jury-public-vote-consistency-audit.md)
+
 ### Backlog
 
 Ver [BACKLOG.md](./BACKLOG.md).
