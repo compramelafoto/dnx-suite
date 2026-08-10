@@ -12,7 +12,7 @@ import { getOrCreateCompetitionJuryConfig } from "./competition-jury-config";
 
 const ALLOWED_MODES = new Set(["DISABLED", "JURY_ONLY", "JURY_THEN_PUBLIC"]);
 const ALLOWED_UNITS = new Set(["PROMPT", "CATEGORY", "ENTRY", "ROUND"]);
-const ALLOWED_PROVIDERS = new Set(["NONE", "TEST_PROVIDER", "INSTAGRAM_FUTURE"]);
+const ALLOWED_PROVIDERS = new Set(["NONE", "TEST_PROVIDER", "INSTAGRAM", "INSTAGRAM_FUTURE"]);
 const ALLOWED_CUTOFF = new Set([
   "LAST_VALID_OBSERVATION_BEFORE_CUTOFF",
   "EXACT_PROVIDER_TIMESTAMP",
@@ -39,7 +39,7 @@ export type PublicVoteConfigInput = {
   publicVoteDurationMinutes?: number;
   publicVoteStartsAt?: Date | null;
   publicVoteEndsAt?: Date | null;
-  publicVoteProvider?: "NONE" | "TEST_PROVIDER" | "INSTAGRAM_FUTURE";
+  publicVoteProvider?: "NONE" | "TEST_PROVIDER" | "INSTAGRAM" | "INSTAGRAM_FUTURE";
   publicVoteStatus?: string;
   publicTieBreakMode?: string;
   timezone?: string | null;
@@ -98,6 +98,16 @@ export async function upsertPublicVoteConfig(input: {
   if (c.publicVoteCutoffPolicy != null && !ALLOWED_CUTOFF.has(c.publicVoteCutoffPolicy)) {
     throw new JuryError("INVALID_INPUT", `publicVoteCutoffPolicy inválido: ${c.publicVoteCutoffPolicy}.`, 400);
   }
+  if (
+    c.publicVoteProvider === "INSTAGRAM" &&
+    c.publicVoteCutoffPolicy === "EXACT_PROVIDER_TIMESTAMP"
+  ) {
+    throw new JuryError(
+      "INVALID_INPUT",
+      "Instagram no soporta EXACT_PROVIDER_TIMESTAMP; usar LAST_VALID_OBSERVATION_BEFORE_CUTOFF.",
+      400,
+    );
+  }
   if (c.resultsPublicationMode === "PUBLISHED") {
     throw new JuryError(
       "INVALID_INPUT",
@@ -114,16 +124,15 @@ export async function upsertPublicVoteConfig(input: {
   if (c.publicVoteEnabled === true || (c.publicVoteMode && c.publicVoteMode !== "DISABLED")) {
     assertJuryActivationAllowed(input.contestId);
   }
-  // INSTAGRAM_FUTURE es solo modelado (§9.3 fuera de alcance) — nunca se activa automáticamente.
+  // INSTAGRAM_FUTURE legacy alias — redirigir mentalmente a INSTAGRAM en 17B.
   if (c.publicVoteProvider === "INSTAGRAM_FUTURE" && c.publicVoteEnabled === true) {
     throw new JuryError(
       "INVALID_INPUT",
-      "publicVoteProvider INSTAGRAM_FUTURE no está implementado; no puede habilitarse (publicVoteEnabled).",
+      "Use publicVoteProvider=INSTAGRAM (INSTAGRAM_FUTURE es alias legacy).",
       400,
     );
   }
-  // TEST_PROVIDER solo fixtures/ops no comerciales (guard bloquea comercial siempre).
-  if (c.publicVoteProvider === "TEST_PROVIDER") {
+  if (c.publicVoteProvider === "INSTAGRAM" || c.publicVoteProvider === "TEST_PROVIDER") {
     assertJuryActivationAllowed(input.contestId);
   }
 

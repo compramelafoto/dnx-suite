@@ -250,6 +250,7 @@ model User {
   dnxNotificationDeliveries             DnxNotificationDelivery[]
   dnxNotificationAttributions           DnxNotificationAttribution[]
   contestOrganizationsCreated           ContestOrganization[]                  @relation("FrOrgCreator")
+  fotorankSocialConnectionsConnected    FotorankSocialConnection[]             @relation("FrSocialConnectionConnectedBy")
   frContestOrgInvitesSent               ContestOrganizationMember[]            @relation("FrCOrgMemberInviter")
   frContestOrgMemberships               ContestOrganizationMember[]            @relation("FrCOrgMemberUser")
   fotorankAdminSessions                 FotorankAdminSession[]                 @relation("FrAdminSession")
@@ -7332,6 +7333,8 @@ model ContestOrganization {
   judgeDirectoryInvitations    FotorankJudgeDirectoryInvitation[]
   judgeInvitations             FotorankJudgeInvitation[]
   judgeOrganizationMemberships FotorankJudgeOrganizationMembership[]
+  /// ETAPA 17B — conexiones sociales por organización (Instagram, etc.).
+  socialConnections            FotorankSocialConnection[]
 
   @@index([slug])
   @@index([createdByUserId])
@@ -12603,8 +12606,14 @@ model FotorankPublicVoteRound {
   /// DRAFT|READY|SCHEDULED|OPEN|CLOSING|PENDING_FINAL_SNAPSHOT|CLOSED|TIEBREAK_REQUIRED|FINALIZED|CANCELLED|ERROR
   status                 String    @default("DRAFT")
   metric                 String    @default("LIKE_COUNT")
-  /// TEST_PROVIDER | NONE | INSTAGRAM_FUTURE (este último no operativo en 17A)
+  /// TEST_PROVIDER | NONE | INSTAGRAM | INSTAGRAM_FUTURE (legacy alias)
   provider               String    @default("TEST_PROVIDER")
+  /// ETAPA 17B — conexión social usada para publicación/métricas (nullable en TEST_PROVIDER).
+  socialConnectionId     String?
+  /// NORMAL | NEAR_CLOSE | FINALIZATION
+  pollingMode            String    @default("NORMAL")
+  /// INCIDENT flag cuando publicación borrada / parcial / token, etc.
+  incidentStatus         String?
   cutoffPolicy           String    @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
   startsAt               DateTime
   endsAt                 DateTime
@@ -12627,12 +12636,14 @@ model FotorankPublicVoteRound {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  contest      FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  parentRound  FotorankPublicVoteRound?     @relation("PublicVoteRoundTiebreak", fields: [parentRoundId], references: [id], onDelete: SetNull)
-  childRounds  FotorankPublicVoteRound[]    @relation("PublicVoteRoundTiebreak")
-  candidates   FotorankPublicVoteCandidate[]
-  observations FotorankPublicVoteObservation[]
-  finalSnapshots FotorankPublicVoteFinalSnapshot[]
+  contest          FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  socialConnection FotorankSocialConnection?    @relation(fields: [socialConnectionId], references: [id], onDelete: SetNull)
+  parentRound      FotorankPublicVoteRound?     @relation("PublicVoteRoundTiebreak", fields: [parentRoundId], references: [id], onDelete: SetNull)
+  childRounds      FotorankPublicVoteRound[]    @relation("PublicVoteRoundTiebreak")
+  candidates       FotorankPublicVoteCandidate[]
+  observations     FotorankPublicVoteObservation[]
+  finalSnapshots   FotorankPublicVoteFinalSnapshot[]
+  publications     FotorankPublicVotePublication[]
 
   @@unique([contestId, unitKey, roundNumber])
   @@index([contestId, status])
@@ -12657,6 +12668,7 @@ model FotorankPublicVoteCandidate {
   round          FotorankPublicVoteRound           @relation(fields: [roundId], references: [id], onDelete: Cascade)
   observations   FotorankPublicVoteObservation[]
   finalSnapshots FotorankPublicVoteFinalSnapshot[]
+  publications   FotorankPublicVotePublication[]
 
   @@unique([roundId, publicCode])
   @@index([roundId, active])
@@ -12713,6 +12725,72 @@ model FotorankPublicVoteFinalSnapshot {
   @@unique([roundId, candidateId])
   @@unique([roundId, publicCode])
   @@index([roundId, finalPosition])
+}
+
+/// ETAPA 17B — Conexión social de organizador (Instagram Graph API).
+model FotorankSocialConnection {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  provider           String    @default("INSTAGRAM")
+  accountId          String
+  accountUsername    String?
+  accountType        String?
+  connectionStatus   String    @default("CONNECTED")
+  permissionsJson    Json?
+  /// Referencia opaca al token (mock:// o vault); nunca plaintext en DB/logs.
+  tokenReference     String
+  tokenExpiresAt     DateTime?
+  connectedAt        DateTime  @default(now())
+  disconnectedAt     DateTime?
+  connectedByUserId  Int?
+  lastValidatedAt    DateTime?
+  health             String    @default("CONNECTED")
+  rateLimitStateJson Json?
+  metadataJson       Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connectedBy  User?                         @relation("FrSocialConnectionConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
+  rounds       FotorankPublicVoteRound[]
+  publications FotorankPublicVotePublication[]
+
+  @@unique([organizationId, provider, accountId])
+  @@index([organizationId, provider])
+  @@index([connectionStatus])
+}
+
+/// ETAPA 17B — Publicación social vinculada a candidatura de voto público.
+model FotorankPublicVotePublication {
+  id                   String    @id @default(cuid())
+  roundId              String
+  candidateId          String
+  socialConnectionId   String?
+  provider             String    @default("INSTAGRAM")
+  externalMediaId      String?
+  externalContainerId  String?
+  permalink            String?
+  publishedAt          DateTime?
+  /// PREPARED | APPROVED_FOR_PUBLICATION | PUBLISHING | PUBLISHED | FAILED
+  publicationStatus    String    @default("PREPARED")
+  /// IMAGE | CAROUSEL | REEL | STORY
+  publicationType      String    @default("IMAGE")
+  captionSnapshot      String?
+  assetSnapshotJson    Json?
+  socialAssetHash      String?
+  idempotencyKey       String    @unique
+  failedReason         String?
+  providerMetadataJson Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  round            FotorankPublicVoteRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate        FotorankPublicVoteCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  socialConnection FotorankSocialConnection?   @relation(fields: [socialConnectionId], references: [id], onDelete: SetNull)
+
+  @@unique([roundId, candidateId])
+  @@index([roundId, publicationStatus])
+  @@index([socialConnectionId])
 }
 
 model FotorankMinorAuthorization {

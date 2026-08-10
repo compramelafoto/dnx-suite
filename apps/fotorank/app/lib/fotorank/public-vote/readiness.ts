@@ -41,16 +41,34 @@ export async function evaluatePublicVotePhaseReadiness(contestId: string) {
   }
 
   const provider = config.publicVoteProvider;
-  if (provider !== "TEST_PROVIDER" && provider !== "NONE") {
+  if (provider === "INSTAGRAM") {
+    const contest = await prisma.fotorankContest.findUnique({
+      where: { id: contestId },
+      select: { organizationId: true },
+    });
+    if (contest) {
+      const igReady = await import("./instagram/instagram-readiness").then((m) =>
+        m.evaluateInstagramPrePublicReadiness({
+          contestId,
+          organizationId: contest.organizationId,
+        }),
+      );
+      if (igReady.status === "BLOCKED") {
+        for (const r of igReady.reasons) {
+          reasons.push({ code: "PRE_PUBLIC_BLOCKED", message: `${r.code}: ${r.message}` });
+        }
+      }
+    }
+  } else if (provider !== "TEST_PROVIDER" && provider !== "NONE") {
     reasons.push({
       code: "PROVIDER_INVALID",
-      message: `Provider ${provider} no operativo en 17A (solo TEST_PROVIDER/NONE).`,
+      message: `Provider ${provider} no operativo (solo TEST_PROVIDER/INSTAGRAM/NONE).`,
     });
   }
   if (config.publicVoteEnabled && provider === "NONE") {
     reasons.push({
       code: "PROVIDER_INVALID",
-      message: "publicVoteEnabled requiere TEST_PROVIDER en 17A.",
+      message: "publicVoteEnabled requiere TEST_PROVIDER o INSTAGRAM.",
     });
   }
   if (!config.publicVoteMetric?.trim()) {

@@ -18,9 +18,17 @@ export type PublicVoteCutoffPolicy =
   | "EXACT_PROVIDER_TIMESTAMP"
   | "PROVIDER_FINAL_SNAPSHOT";
 
-export type PublicVoteProviderName = "NONE" | "TEST_PROVIDER" | "INSTAGRAM_FUTURE";
+export type PublicVoteProviderName = "NONE" | "TEST_PROVIDER" | "INSTAGRAM" | "INSTAGRAM_FUTURE";
 
-export type ProviderHealth = "CONNECTED" | "DEGRADED" | "STALE" | "ERROR";
+export type ProviderHealth =
+  | "CONNECTED"
+  | "DEGRADED"
+  | "STALE"
+  | "ERROR"
+  | "EXPIRED"
+  | "REAUTH_REQUIRED"
+  | "PERMISSION_MISSING"
+  | "RATE_LIMITED";
 
 export type ResultsPublicationStatus = "CALCULATED" | "REVIEWED" | "PUBLISHED";
 
