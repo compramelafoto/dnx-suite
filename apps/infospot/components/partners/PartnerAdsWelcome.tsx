@@ -15,6 +15,8 @@ export function PartnerAdsWelcome({ ad }: { ad: ResolvedAdCreative | null }) {
       body={ad.body}
       ctaText={ad.ctaText}
       frequencyHours={24}
+      creativeId={ad.creativeId}
+      placementKey="INFOSPOT_HOME_WELCOME"
     />
   );
 }

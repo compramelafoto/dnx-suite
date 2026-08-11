@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PartnerAdCreative } from "./PartnerAdCreative";
+import { PartnerViewableImpression } from "./PartnerViewableImpression";
 
 const STORAGE_PREFIX = "dnx_partner_welcome_";
 
@@ -15,6 +16,9 @@ export type PartnerWelcomeInterstitialProps = {
   ctaText?: string | null;
   /** Horas entre impresiones locales (default 24). */
   frequencyHours?: number;
+  /** Para analytics (solo si realmente se muestra). */
+  creativeId?: string | null;
+  placementKey?: string | null;
 };
 
 function storageKey(campaignId: string) {
@@ -34,6 +38,8 @@ export function PartnerWelcomeInterstitial({
   body,
   ctaText,
   frequencyHours = 24,
+  creativeId,
+  placementKey,
 }: PartnerWelcomeInterstitialProps) {
   const [open, setOpen] = useState(false);
 
@@ -64,6 +70,18 @@ export function PartnerWelcomeInterstitial({
   }
 
   if (!open) return null;
+
+  const creative = (
+    <PartnerAdCreative
+      variant="welcome"
+      partnerName={partnerName}
+      imageUrl={imageUrl}
+      href={href}
+      title={title}
+      body={body}
+      ctaText={ctaText}
+    />
+  );
 
   return (
     <div
@@ -114,15 +132,18 @@ export function PartnerWelcomeInterstitial({
           ×
         </button>
         <div style={{ paddingTop: "1.5rem" }}>
-          <PartnerAdCreative
-            variant="welcome"
-            partnerName={partnerName}
-            imageUrl={imageUrl}
-            href={href}
-            title={title}
-            body={body}
-            ctaText={ctaText}
-          />
+          {creativeId && placementKey && href ? (
+            <PartnerViewableImpression
+              campaignId={campaignId}
+              creativeId={creativeId}
+              placementKey={placementKey}
+              href={href}
+            >
+              {creative}
+            </PartnerViewableImpression>
+          ) : (
+            creative
+          )}
         </div>
       </div>
     </div>

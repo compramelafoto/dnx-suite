@@ -5,6 +5,7 @@ import { PartnerLogoMarquee } from "@repo/design-system/components/partners";
 
 type AdDto = {
   creativeId: string;
+  campaignId: string;
   partnerName: string;
   imageUrl?: string | null;
   href?: string | null;
@@ -41,6 +42,9 @@ export function PartnerLogoMarqueeClient() {
           name: ad.partnerName,
           logoUrl: ad.imageUrl ?? null,
           href: ad.href ?? null,
+          campaignId: ad.campaignId,
+          creativeId: ad.creativeId,
+          placementKey: "CLF_LOGO_MARQUEE",
         }))}
       />
     </section>

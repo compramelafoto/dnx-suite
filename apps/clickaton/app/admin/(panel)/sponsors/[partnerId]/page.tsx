@@ -96,12 +96,20 @@ export default async function AdminPartnerDetailPage({
           { label: partner.name },
         ]}
         actions={
-          <form action={archivePartnerFormAction}>
-            <input type="hidden" name="partnerId" value={partner.id} />
-            <Button type="submit" variant="secondary">
-              Archivar
+          <div className="flex flex-wrap gap-3">
+            <Button href={`${adminRoutes.sponsors}/${partner.id}/analytics`} variant="secondary">
+              Analytics
             </Button>
-          </form>
+            <Button href={`${adminRoutes.sponsors}/${partner.id}/campanas`} variant="secondary">
+              Campañas
+            </Button>
+            <form action={archivePartnerFormAction}>
+              <input type="hidden" name="partnerId" value={partner.id} />
+              <Button type="submit" variant="secondary">
+                Archivar
+              </Button>
+            </form>
+          </div>
         }
       />
 

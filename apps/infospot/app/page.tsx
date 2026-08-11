@@ -160,7 +160,12 @@ export default async function HomePage({ searchParams }: Props) {
         nearbyUpcoming={nearbyUpcoming}
         nearbyCalls={nearbyCalls}
       />
-      <PartnerAdsSlot ads={homeInlineAds} variant="card" label="Publicidad" />
+      <PartnerAdsSlot
+        ads={homeInlineAds}
+        variant="card"
+        label="Publicidad"
+        placementKey="INFOSPOT_HOME_INLINE"
+      />
       {marqueeAds.length > 0 ? (
         <section aria-label="Nos acompañan" className="space-y-6 py-10">
           <h2 className="text-center text-lg font-semibold tracking-tight">Nos acompañan</h2>
@@ -171,6 +176,9 @@ export default async function HomePage({ searchParams }: Props) {
               name: ad.partnerName,
               logoUrl: ad.imageUrl ?? null,
               href: ad.href ?? null,
+              campaignId: ad.campaignId,
+              creativeId: ad.creativeId,
+              placementKey: "INFOSPOT_HOME_MARQUEE",
             }))}
           />
         </section>

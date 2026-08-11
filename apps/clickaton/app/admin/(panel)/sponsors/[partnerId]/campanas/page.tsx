@@ -124,11 +124,16 @@ export default async function AdminPartnerCampaignsPage({
             { label: "Campañas" },
           ]}
           actions={
-            <Link href={`${adminRoutes.sponsors}/${partner.id}`}>
-              <Button type="button" variant="secondary">
-                Volver a ficha
+            <div className="flex flex-wrap gap-3">
+              <Button href={`${adminRoutes.sponsors}/${partner.id}/analytics`} variant="secondary">
+                Analytics
               </Button>
-            </Link>
+              <Link href={`${adminRoutes.sponsors}/${partner.id}`}>
+                <Button type="button" variant="secondary">
+                  Volver a ficha
+                </Button>
+              </Link>
+            </div>
           }
         />
 

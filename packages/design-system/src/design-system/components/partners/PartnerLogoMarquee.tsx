@@ -1,9 +1,10 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import { PartnerViewableImpression } from "./PartnerViewableImpression";
 
 export type PartnerLogoMarqueeItem = {
-  /** Stable id for React keys (participation id). */
+  /** Stable id for React keys (creative/participation id). */
   id: string;
   name: string;
   logoUrl?: string | null;
@@ -13,6 +14,10 @@ export type PartnerLogoMarqueeItem = {
   rel?: string;
   /** Visual size token — bounding box only */
   size?: "lg" | "md" | "sm" | "xs";
+  /** Campaign ads impression (optional). */
+  campaignId?: string | null;
+  creativeId?: string | null;
+  placementKey?: string | null;
 };
 
 export type PartnerLogoMarqueeDensity = "default" | "featured";
@@ -254,6 +259,14 @@ export function PartnerLogoMarquee({
       >
         {loop.map((item, index) => {
           const isCopy = index >= items.length;
+          const cell = renderItem ? (
+            renderItem(item, index)
+          ) : (
+            <DefaultLogoCell item={item} density={density} />
+          );
+          const canTrack =
+            !isCopy &&
+            Boolean(item.campaignId && item.creativeId && item.placementKey && item.href);
           return (
             <div
               key={`${item.id}-${isCopy ? "copy" : "src"}-${index}`}
@@ -261,10 +274,18 @@ export function PartnerLogoMarquee({
               data-loop-copy={isCopy ? "1" : "0"}
               data-partner-id={item.id}
             >
-              {renderItem ? (
-                renderItem(item, index)
+              {canTrack ? (
+                <PartnerViewableImpression
+                  campaignId={item.campaignId!}
+                  creativeId={item.creativeId!}
+                  placementKey={item.placementKey!}
+                  href={item.href}
+                  enabled={!isCopy}
+                >
+                  {cell}
+                </PartnerViewableImpression>
               ) : (
-                <DefaultLogoCell item={item} density={density} />
+                cell
               )}
             </div>
           );

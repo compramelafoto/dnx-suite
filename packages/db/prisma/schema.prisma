@@ -13000,6 +13000,7 @@ model DnxPartner {
   auditEvents            DnxPartnerAuditEvent[]
   outboundLinks          DnxPartnerOutboundLink[]
   clickEvents            DnxPartnerClickEvent[]
+  impressionEvents       DnxPartnerImpressionEvent[]
   brandAssets            DnxPartnerAsset[]
   onboardingInvitations  DnxPartnerOnboardingInvitation[]
   campaigns              DnxPartnerCampaign[]
@@ -13443,6 +13444,39 @@ model DnxPartnerClickEvent {
   @@index([contextId])
   @@index([occurredAt])
   @@index([partnerId, occurredAt])
+}
+
+/// Impresión publicitaria (viewability). Privacy-first: sin IP, UA crudo, userId ni fingerprint.
+/// Solo Campaign ads en v1 (no participation institucional ORGANIZER/CO_ORGANIZER).
+model DnxPartnerImpressionEvent {
+  id              String                 @id @default(cuid())
+  partnerId       String
+  campaignId      String?
+  creativeId      String?
+  outboundLinkId  String?
+  application     DnxPartnerApplication
+  contextType     DnxPartnerContextType  @default(GLOBAL)
+  contextId       String?
+  placement       DnxPartnerPlacement    @default(LOGO_MARQUEE)
+  /// Clave de catálogo (INFOSPOT_HOME_MARQUEE, CLF_LOGO_MARQUEE, …).
+  adPlacementKey  String?                @db.VarChar(80)
+  deviceClass     DnxPartnerDeviceClass  @default(OTHER)
+  /// CAMPAIGN (v1) | PARTICIPATION (futuro)
+  sourceType      String                 @default("CAMPAIGN") @db.VarChar(24)
+  occurredAt      DateTime               @default(now())
+  isBot           Boolean                @default(false)
+  /// Metadata mínima sanitizada (p.ej. viewSessionKey hash). Sin PII.
+  metadata        Json?
+
+  partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  @@index([partnerId, occurredAt])
+  @@index([campaignId, occurredAt])
+  @@index([application, occurredAt])
+  @@index([creativeId, occurredAt])
+  @@index([placement, occurredAt])
+  @@index([occurredAt])
+  @@index([adPlacementKey, occurredAt])
 }
 
 model DnxPartnerContribution {
