@@ -647,6 +647,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../../packages/partners
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -1105,6 +1108,9 @@ importers:
       '@prisma/client':
         specifier: ^6.9.0
         version: 6.19.2(prisma@6.19.2(typescript@5.9.2))(typescript@5.9.2)
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../partners
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
@@ -1363,6 +1369,8 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
+
+  packages/photo-prompt-library: {}
 
   packages/promotions:
     devDependencies:
