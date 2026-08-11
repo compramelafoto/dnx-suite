@@ -1,6 +1,12 @@
 import Link from "next/link";
 import type { PublicContestLandingData } from "../../lib/fotorank/publicContestLanding";
-import { parsePrizesRewardsConfig } from "../../lib/fotorank/prizesRewards";
+import {
+  formatPrizeAmount,
+  groupPrizesByCategory,
+  toPublicPrizePresentations,
+  type ContestPrizePresentation,
+} from "../../lib/fotorank/contest-public-presentation";
+import { parsePrizesRewardsConfig, type ContestPrizeItem } from "../../lib/fotorank/prizesRewards";
 import {
   finalCtaCopy,
   getLandingPhase,
@@ -22,6 +28,55 @@ import {
   StatusBadge,
 } from "../../components/public-ui";
 import type { StatusTone } from "../../lib/fotorank/public-ux/participant-status";
+
+function prizePlaceSortKey(prize: ContestPrizePresentation): number {
+  const fromRank = prize.rank?.match(/(\d+)/)?.[1];
+  if (fromRank) return Number(fromRank);
+  const fromTitle = prize.title.match(/(\d+)/)?.[1];
+  if (fromTitle) return Number(fromTitle);
+  return 999;
+}
+
+function prizeAmountLabel(prize: ContestPrizePresentation): string | null {
+  if (typeof prize.monetaryAmount === "number" && prize.currency) {
+    return formatPrizeAmount(prize.monetaryAmount, prize.currency);
+  }
+  const fallback = prize.shortDescription?.trim();
+  return fallback || null;
+}
+
+function orderPrizeGroups(
+  presentations: ContestPrizePresentation[],
+  categories: Array<{ id: string; name: string }>,
+): Array<{ categoryId: string | null; categoryName: string; prizes: ContestPrizePresentation[] }> {
+  const grouped = groupPrizesByCategory(presentations);
+  const byId = new Map(grouped.map((g) => [g.categoryId, g]));
+  const ordered: Array<{
+    categoryId: string | null;
+    categoryName: string;
+    prizes: ContestPrizePresentation[];
+  }> = [];
+
+  for (const category of categories) {
+    const group = byId.get(category.id);
+    if (!group) continue;
+    ordered.push({
+      categoryId: category.id,
+      categoryName: category.name,
+      prizes: [...group.prizes].sort((a, b) => prizePlaceSortKey(a) - prizePlaceSortKey(b)),
+    });
+    byId.delete(category.id);
+  }
+
+  for (const group of byId.values()) {
+    ordered.push({
+      ...group,
+      prizes: [...group.prizes].sort((a, b) => prizePlaceSortKey(a) - prizePlaceSortKey(b)),
+    });
+  }
+
+  return ordered;
+}
 
 function fmtDate(d: Date | null): string | null {
   if (!d) return null;
@@ -51,9 +106,11 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
   const { contest, organization: org, judges } = data;
   const isSfef = contest.slug.trim().toLowerCase() === "santa-fe-en-foco";
   const prConfig = parsePrizesRewardsConfig(contest.rulesData);
-  const publicPrizes = prConfig.prizes.filter((p) => p.visiblePublic);
+  const publicPrizeItems = prConfig.prizes.filter((p): p is ContestPrizeItem => Boolean(p.visiblePublic));
+  const publicPrizePresentations = toPublicPrizePresentations(publicPrizeItems, contest.categories);
+  const prizeGroups = orderPrizeGroups(publicPrizePresentations, contest.categories);
   const publicRewards = prConfig.rewards.filter((r) => r.visiblePublic);
-  const hasStructuredPrizes = publicPrizes.length > 0 || publicRewards.length > 0;
+  const hasStructuredPrizes = publicPrizePresentations.length > 0 || publicRewards.length > 0;
   const phase = getLandingPhase({
     status: contest.status,
     startAt: contest.startAt,
@@ -317,45 +374,69 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
       {hasStructuredPrizes || contest.prizesSummary ? (
         <section className="fr-public-section" id="premios">
           <PageContainer>
-            <PublicSectionHeader title="Premios" />
+            <PublicSectionHeader
+              title="Premios"
+              description={
+                prizeGroups.length > 0
+                  ? "Cada categoría tiene 1.º, 2.º y 3.º premio. Los montos se expresan en pesos argentinos."
+                  : undefined
+              }
+            />
             {hasStructuredPrizes ? (
               <div className="fr-public-stack-content fr-public-card-stack">
-                {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0]) ? (
-                  <div className="fr-public-card fr-public-card--accent">
-                    <p className="fr-public-eyebrow">Premio principal</p>
-                    <h3 className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
-                      {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0])?.name}
+                {prizeGroups.map((group) => (
+                  <div key={group.categoryId ?? "general"} className="space-y-6">
+                    <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)] md:text-2xl">
+                      {group.categoryName}
                     </h3>
-                    {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0])?.shortDescription ? (
-                      <p className="fr-public-body mt-3">
-                        {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0])?.shortDescription}
-                      </p>
-                    ) : null}
+                    <div className="fr-public-card-grid md:grid-cols-3">
+                      {group.prizes.map((p) => {
+                        const amount = prizeAmountLabel(p);
+                        const placeLabel = p.rank?.trim() || null;
+                        return (
+                          <article key={p.id} className="fr-public-card flex flex-col gap-3">
+                            {placeLabel ? (
+                              <p className="fr-public-eyebrow">{placeLabel}</p>
+                            ) : null}
+                            <h4 className="text-lg font-semibold text-[var(--foreground)]">{p.title}</h4>
+                            <p className="text-sm font-medium text-[var(--foreground-muted)]">
+                              Categoría: {group.categoryName}
+                            </p>
+                            {amount ? (
+                              <p className="fr-public-body text-base font-semibold text-[var(--foreground)]">
+                                {amount}
+                              </p>
+                            ) : p.shortDescription ? (
+                              <p className="fr-public-body text-sm">{p.shortDescription}</p>
+                            ) : null}
+                            {p.sponsorName ? (
+                              <p className="text-xs text-[var(--foreground-muted)]">
+                                Otorgado por {p.sponsorName}
+                              </p>
+                            ) : null}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {publicRewards.length > 0 ? (
+                  <div className="space-y-6">
+                    <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)] md:text-2xl">
+                      Beneficios y reconocimientos
+                    </h3>
+                    <div className="fr-public-card-grid md:grid-cols-2">
+                      {publicRewards.map((r) => (
+                        <article key={r.id} className="fr-public-card">
+                          <h4 className="text-lg font-semibold text-[var(--foreground)]">{r.name}</h4>
+                          {r.description ? (
+                            <p className="fr-public-body mt-2 text-sm">{r.description}</p>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
-                <div className="fr-public-card-grid md:grid-cols-2">
-                  {publicPrizes.map((p) => (
-                    <article key={p.id} className="fr-public-card">
-                      <h3 className="text-lg font-semibold text-[var(--foreground)]">{p.name}</h3>
-                      {p.shortDescription ? (
-                        <p className="fr-public-body mt-2 text-sm">{p.shortDescription}</p>
-                      ) : null}
-                      {p.sponsorName ? (
-                        <p className="mt-3 text-xs text-[var(--foreground-muted)]">
-                          Otorgado por {p.sponsorName}
-                        </p>
-                      ) : null}
-                    </article>
-                  ))}
-                  {publicRewards.map((r) => (
-                    <article key={r.id} className="fr-public-card">
-                      <h3 className="text-lg font-semibold text-[var(--foreground)]">{r.name}</h3>
-                      {r.description ? (
-                        <p className="fr-public-body mt-2 text-sm">{r.description}</p>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
               </div>
             ) : (
               <div className="fr-public-body fr-public-stack-content fr-public-prose max-w-3xl whitespace-pre-wrap">
