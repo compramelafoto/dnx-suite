@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
+import { ClickatonEventPartnerWelcome } from "@/components/marathon/ClickatonEventPartnerWelcome";
 import { MarathonDetailView } from "@/components/marathon/MarathonDetailView";
 import { routes } from "@/config/navigation";
 import {
@@ -9,6 +10,10 @@ import {
   getPublicMarathonVisibility,
   listRoutableMarathonSlugs,
 } from "@/data/public-marathons";
+import {
+  loadClickatonEventWelcomeAd,
+  toClickatonEventWelcomePublicPayload,
+} from "@/lib/public/partners-event-welcome";
 import { getPublicRegistrationOfferAction } from "@/lib/public-registration/actions/public-registration";
 import { buildPageMetadata } from "@/lib/seo";
 import { getPublicTimelineBySlug } from "@/lib/timeline/public-api";
@@ -60,12 +65,26 @@ export default async function MarathonDetailPage({ params }: PageProps) {
   if (!marathon) notFound();
 
   const visibility = getPublicMarathonVisibility(marathon);
-  const [capabilities, offerResult, timeline] = await Promise.all([
+  const pathname = `/maratones/${marathon.slug}`;
+  const publicLandingAllowed =
+    visibility.routable &&
+    !visibility.draft &&
+    !visibility.archived &&
+    !visibility.cancelled &&
+    !visibility.isDemo;
+
+  const [capabilities, offerResult, timeline, welcomeAd] = await Promise.all([
     getPublicMarathonCapabilities(marathon.id),
     getPublicRegistrationOfferAction(slug),
     getPublicTimelineBySlug(slug),
+    loadClickatonEventWelcomeAd({
+      editionId: marathon.id,
+      pathname,
+      publicLandingAllowed,
+    }),
   ]);
   const offer = offerResult.ok ? offerResult.data : null;
+  const welcomePayload = welcomeAd ? toClickatonEventWelcomePublicPayload(welcomeAd) : null;
 
   return (
     <>
@@ -84,6 +103,7 @@ export default async function MarathonDetailPage({ params }: PageProps) {
         timelineMilestones={timeline?.milestones ?? null}
         timelineServerNow={timeline?.serverNow ?? null}
       />
+      <ClickatonEventPartnerWelcome ad={welcomePayload} />
     </>
   );
 }

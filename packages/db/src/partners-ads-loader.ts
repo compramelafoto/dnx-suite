@@ -1,5 +1,5 @@
 /**
- * Loader público de creatives elegibles por placement (InfoSpot / CLF).
+ * Loader público de creatives elegibles por placement (InfoSpot / CLF / Clickatón welcome).
  * Soft-read. No crea clicks (eso es /r/).
  */
 import type { PrismaClient } from "@prisma/client";
@@ -7,7 +7,10 @@ import {
   AD_PLACEMENT_CATALOG,
   getAdPlacementCatalogEntry,
   isClfPartnerAdsEnabled,
+  isClickatonPartnerWelcomeEnabled,
   isInfospotPartnerAdsEnabled,
+  isPartnerCampaignEligibleForEditionContext,
+  isWelcomeActivationPlacementKey,
   partnerRedirectPath,
   resolveEligibleAds,
   type CampaignGeoAudience,
@@ -15,19 +18,40 @@ import {
   type DnxPartnerApplication,
   type DnxPartnerCampaignContextCategory,
   type DnxPartnerCreativeDeviceTarget,
+  type PartnerCampaignEditionContext,
   type ResolvedAdCreative,
   type ResolveAdsCandidate,
 } from "@repo/partners";
 
 export type LoadPartnerAdsInput = {
-  application: Extract<DnxPartnerApplication, "INFO_SPOT" | "COMPRAME_LA_FOTO">;
+  application: Extract<
+    DnxPartnerApplication,
+    "INFO_SPOT" | "COMPRAME_LA_FOTO" | "CLICKATON"
+  >;
   placementKey: DnxPartnerAdPlacementKey;
   device?: DnxPartnerCreativeDeviceTarget;
   audience?: CampaignGeoAudience | null;
   audienceCategories?: readonly DnxPartnerCampaignContextCategory[] | null;
   /** Día UTC para seed de rotación. */
   rotationDayKey?: string;
+  /**
+   * Clickatón EVENT welcome: ID canónico de edición (`ClickatonEdition.id` / PublicMarathon.id).
+   * Filtra por participación contextual sin migraciones.
+   */
+  editionContextId?: string | null;
+  /** Welcome: exigir partner ACTIVE (default false = comportamiento IS/CLF previo). */
+  requireActivePartner?: boolean;
 };
+
+function isAdsKillSwitchOff(application: LoadPartnerAdsInput["application"]): boolean {
+  if (application === "INFO_SPOT") return !isInfospotPartnerAdsEnabled();
+  if (application === "COMPRAME_LA_FOTO") return !isClfPartnerAdsEnabled();
+  if (application === "CLICKATON") {
+    // Solo activaciones welcome; flag dedicado default OFF.
+    return !isClickatonPartnerWelcomeEnabled();
+  }
+  return true;
+}
 
 export async function ensureAdPlacementCatalog(prisma: PrismaClient): Promise<void> {
   for (const entry of AD_PLACEMENT_CATALOG) {
@@ -68,8 +92,14 @@ export async function loadPartnerAdsForPlacement(
   prisma: PrismaClient,
   input: LoadPartnerAdsInput,
 ): Promise<ResolvedAdCreative[]> {
-  if (input.application === "INFO_SPOT" && !isInfospotPartnerAdsEnabled()) return [];
-  if (input.application === "COMPRAME_LA_FOTO" && !isClfPartnerAdsEnabled()) return [];
+  if (isAdsKillSwitchOff(input.application)) return [];
+
+  if (
+    input.application === "CLICKATON" &&
+    !isWelcomeActivationPlacementKey(input.placementKey)
+  ) {
+    return [];
+  }
 
   const catalog = getAdPlacementCatalogEntry(input.application, input.placementKey);
   if (!catalog) return [];
@@ -101,6 +131,10 @@ export async function loadPartnerAdsForPlacement(
 
   if (!placement?.isActive) return [];
 
+  const partnerStatusFilter = input.requireActivePartner
+    ? { status: "ACTIVE" as const, archivedAt: null }
+    : { status: { not: "ARCHIVED" as const }, archivedAt: null };
+
   const bindings = await prisma.dnxPartnerCampaignPlacement.findMany({
     where: {
       adPlacementId: placement.id,
@@ -108,7 +142,7 @@ export async function loadPartnerAdsForPlacement(
       campaign: {
         status: "ACTIVE",
         archivedAt: null,
-        partner: { status: { not: "ARCHIVED" }, archivedAt: null },
+        partner: partnerStatusFilter,
         // Multi-app: home `application` o target ACTIVE (aditivo).
         OR: [
           { application: input.application },
@@ -124,6 +158,16 @@ export async function loadPartnerAdsForPlacement(
       campaign: {
         include: {
           partner: { select: { id: true, name: true, status: true, archivedAt: true } },
+          participation: {
+            select: {
+              id: true,
+              application: true,
+              contextType: true,
+              contextId: true,
+              status: true,
+              archivedAt: true,
+            },
+          },
           geoTargets: true,
           contextTargets: true,
           creatives: {
@@ -147,9 +191,27 @@ export async function loadPartnerAdsForPlacement(
     orderBy: { priority: "asc" },
   });
 
+  const editionId = input.editionContextId?.trim() || null;
+
   const candidates: ResolveAdsCandidate[] = [];
   for (const binding of bindings) {
     const campaign = binding.campaign;
+    const participation = campaign.participation as PartnerCampaignEditionContext | null;
+
+    if (editionId) {
+      if (
+        !isPartnerCampaignEligibleForEditionContext({
+          editionId,
+          participation,
+        })
+      ) {
+        continue;
+      }
+    } else if (input.application === "CLICKATON") {
+      // Sin editionId no resolvemos contexto: solo globales (sin participación).
+      if (participation) continue;
+    }
+
     for (const creative of campaign.creatives) {
       const assetOk =
         creative.asset.approvalStatus === "APPROVED" &&
@@ -204,16 +266,18 @@ export async function loadPartnerAdsForPlacement(
   }
 
   const device = input.device ?? "ALL";
-  const day =
-    input.rotationDayKey ?? new Date().toISOString().slice(0, 10);
+  const day = input.rotationDayKey ?? new Date().toISOString().slice(0, 10);
   const resolved = resolveEligibleAds({
     candidates,
     audience: input.audience,
     audienceCategories: input.audienceCategories,
     device,
-    maxItems: placement.maxItems,
+    maxItems:
+      input.application === "CLICKATON"
+        ? 1
+        : Math.max(1, placement.maxItems),
     rotationMode: placement.rotationMode,
-    rotationSeed: `${input.placementKey}:${day}`,
+    rotationSeed: `${input.placementKey}:${day}${editionId ? `:${editionId}` : ""}`,
   });
 
   // Enriquecer href con outbound tracking si existe (best-effort).

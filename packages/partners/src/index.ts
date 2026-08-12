@@ -218,6 +218,9 @@ export type {
   CanMountPartnerWelcomeResult,
 } from "./welcome-activation";
 
+export { isPartnerCampaignEligibleForEditionContext } from "./campaign-edition-context";
+export type { PartnerCampaignEditionContext } from "./campaign-edition-context";
+
 export {
   DNX_PARTNER_PUBLICATION_SYNC_STATUSES,
   DNX_PARTNER_CAMPAIGN_TARGET_STATUSES,

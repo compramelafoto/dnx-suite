@@ -109,8 +109,6 @@ export default async function AdminPartnerCampaignsPage({
 
   const { partner, campaigns, assets, publicationByCampaign } = loaded.data;
   const adApps = DNX_PARTNER_APPLICATIONS.filter(
-    (a) => a !== "DNX_SUITE" && a !== "OTHER" && a !== "FOTO_OFFICE",
-  );
     (a) => a === "INFO_SPOT" || a === "COMPRAME_LA_FOTO" || a === "CLICKATON" || a === "FOTO_RANK",
   );
 
