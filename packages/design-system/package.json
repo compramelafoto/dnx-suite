@@ -13,11 +13,13 @@
     "./components/layout": "./src/design-system/components/layout/index.ts",
     "./components/typography": "./src/design-system/components/typography/index.ts",
     "./sidebar": "./src/design-system/sidebar/index.ts",
-    "./components/sidebar": "./src/design-system/components/sidebar/index.ts"
+    "./components/sidebar": "./src/design-system/components/sidebar/index.ts",
+    "./components/partners": "./src/design-system/components/partners/index.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test:partners": "pnpm exec tsx --test src/design-system/components/partners/welcome-frequency.test.ts src/design-system/components/partners/partner-impression-viewability.test.ts"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -25,7 +27,8 @@
     "@types/node": "^22.15.3",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "tsx": "^4.19.2"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

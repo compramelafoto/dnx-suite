@@ -15,6 +15,13 @@ export const DNX_PARTNER_PLACEMENTS = [
   "BANNER",
   "ARTICLE",
   "OTHER",
+  "WELCOME",
+  "HOME_INLINE",
+  "GALLERY_INLINE",
+  "PHOTO_DETAIL",
+  "EVENT_PAGE",
+  "CARD_PROMO",
+  "LOGO_MARQUEE",
 ] as const;
 export type DnxPartnerPlacement = (typeof DNX_PARTNER_PLACEMENTS)[number];
 

@@ -11,7 +11,9 @@
     "./permissions": "./src/infospot-permissions.ts",
     "./clf-album-availability": "./src/clf-album-availability.ts",
     "./clf-event-write": "./src/clf-event-write.ts",
-    "./partners-prisma-repository": "./src/partners-prisma-repository.ts"
+    "./partners-prisma-repository": "./src/partners-prisma-repository.ts",
+    "./partners-ads-loader": "./src/partners-ads-loader.ts",
+    "./partners-impression-ingest": "./src/partners-impression-ingest.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",

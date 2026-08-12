@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { FotorankContestPartnerWelcome } from "../../components/partners/FotorankContestPartnerWelcome";
+import {
+  loadFotorankContestWelcomeAd,
+  toFotorankContestWelcomePublicPayload,
+} from "../../lib/fotorank/partners/contest-welcome";
 import { getPublicContestLandingBySlug } from "../../lib/fotorank/publicContestLanding";
 import { ContestPublicLanding } from "./ContestPublicLanding";
 
@@ -34,5 +39,21 @@ export default async function ContestPublicPage({ params }: Props) {
   const { slug } = await params;
   const data = await getPublicContestLandingBySlug(slug);
   if (!data) notFound();
-  return <ContestPublicLanding data={data} />;
+
+  // getPublicContestLandingBySlug ya exige visibility=PUBLIC + PUBLISHED|ACTIVE.
+  const pathname = `/concursos/${data.contest.slug}`;
+  const welcomeAd = await loadFotorankContestWelcomeAd({
+    contestId: data.contest.id,
+    pathname,
+    publicLandingAllowed: true,
+  });
+  const welcomePayload = welcomeAd ? toFotorankContestWelcomePublicPayload(welcomeAd) : null;
+
+  // Landing public-ui intacta; welcome como sibling (no partnerGroups institucionales).
+  return (
+    <>
+      <ContestPublicLanding data={data} />
+      <FotorankContestPartnerWelcome ad={welcomePayload} />
+    </>
+  );
 }

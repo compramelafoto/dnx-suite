@@ -650,6 +650,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../../packages/partners
       '@repo/photo-prompt-library':
         specifier: workspace:*
         version: link:../../packages/photo-prompt-library
@@ -1155,6 +1158,9 @@ importers:
       '@types/react-dom':
         specifier: 19.2.2
         version: 19.2.2(@types/react@19.2.2)
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.0
       typescript:
         specifier: 5.9.2
         version: 5.9.2

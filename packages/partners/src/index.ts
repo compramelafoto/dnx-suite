@@ -165,6 +165,7 @@ export {
   classifyBrowserFamily,
   isLikelyBotUserAgent,
   shouldSkipClickForRateLimit,
+  ephemeralClientKey,
   isOutboundLinkCurrentlyValid,
   isPartnerClickTrackingEnabled,
   partnerRedirectPath,
@@ -395,3 +396,107 @@ export {
   DNX_PARTNER_BENEFIT_ACCESS_SOURCES,
 } from "./types";
 export type { DnxPartnerBenefitAccessSource } from "./types";
+
+export {
+  AD_PLACEMENT_CATALOG,
+  CAMPAIGN_CONTEXT_LABELS,
+  CREATIVE_FORMAT_LABELS,
+  FOTORANK_AD_PLACEMENT_KEYS,
+  isCampaignScheduleActive,
+  isCreativeEligible,
+  matchesCampaignGeo,
+  matchesCampaignContext,
+  matchesCreativeDevice,
+  matchesCreativeFormat,
+  resolveEligibleAds,
+  assertSafeCampaignDestination,
+  isInfospotPartnerAdsEnabled,
+  isClfPartnerAdsEnabled,
+  isClickatonPartnerWelcomeEnabled,
+  isFotorankPartnerWelcomeEnabled,
+  isClfPartnerAlbumWelcomeEnabled,
+  getAdPlacementCatalogEntry,
+} from "./campaigns";
+export type {
+  DnxPartnerCampaignStatus,
+  DnxPartnerCampaignGeoScope,
+  DnxPartnerCampaignContextCategory,
+  DnxPartnerCreativeFormat,
+  DnxPartnerCreativeDeviceTarget,
+  DnxPartnerCreativeStatus,
+  DnxPartnerAdRotationMode,
+  FotorankAdPlacementKey,
+  DnxPartnerAdPlacementKey,
+  AdPlacementCatalogEntry,
+  CampaignGeoAudience,
+  CampaignEligibilityInput,
+  ResolvedAdCreative,
+  ResolveAdsCandidate,
+} from "./campaigns";
+
+export {
+  WELCOME_ACTIVATION_APPLICATIONS,
+  WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS,
+  WELCOME_ACTIVATION_CREATIVE_FORMAT,
+  WELCOME_ACTIVATION_PLACEMENT_KEYS,
+  WELCOME_ACTIVATION_DEFAULT_FREQUENCY_HOURS,
+  WELCOME_ACTIVATION_ANIMATION_VARIANTS,
+  PARTNER_WELCOME_CRITICAL_PATH_PATTERNS,
+  PARTNER_WELCOME_PLACEMENT_PATH_ALLOWLIST,
+  isWelcomeActivationApplication,
+  isWelcomeActivationExcludedApplication,
+  isWelcomeActivationPlacementKey,
+  listWelcomeActivationCatalogEntries,
+  listAdPlacementCatalogForAdminBinding,
+  assertWelcomeActivationTargetAllowed,
+  assertWelcomeActivationPlacement,
+  isPartnerWelcomeCriticalPath,
+  isPartnerWelcomePathAllowedForPlacement,
+  canMountPartnerWelcomeActivation,
+  pickWelcomeAnimationVariant,
+} from "./welcome-activation";
+export type {
+  WelcomeActivationApplication,
+  WelcomeActivationExcludedApplication,
+  WelcomeActivationPlacementKey,
+  WelcomeActivationAnimationVariant,
+  CanMountPartnerWelcomeResult,
+} from "./welcome-activation";
+
+export {
+  isPartnerCampaignEligibleForEditionContext,
+  isPartnerCampaignEligibleForScopeContext,
+  isPartnerCampaignEligibleForContestContext,
+  isPartnerCampaignEligibleForAlbumContext,
+} from "./campaign-edition-context";
+export type {
+  PartnerCampaignEditionContext,
+  PartnerCampaignScopeContext,
+  PartnerWelcomeScopeKind,
+} from "./campaign-edition-context";
+
+export {
+  assertWelcomeCanonicalContextIdFormat,
+  validateWelcomeAssetForPublish,
+  assertWelcomeAssetPublishable,
+} from "./welcome-asset-context";
+export type {
+  WelcomeCanonicalIdKind,
+  WelcomeAssetPublishCheckInput,
+  WelcomeAssetPublishIssue,
+} from "./welcome-asset-context";
+
+export {
+  isPartnerImpressionTrackingEnabled,
+  PARTNER_VIEWABILITY_RATIO,
+  PARTNER_VIEWABILITY_MS,
+} from "./analytics";
+export type { ImpressionIngestInput } from "./analytics";
+
+export {
+  PARTNER_PUBLICATION_DATABASE_KEYS,
+  PUBLICATION_APP_TO_DB_KEY,
+  PUBLICATION_ENV_BY_DB_KEY,
+  resolvePublicationDatabaseKey,
+} from "./campaign-publication";
+

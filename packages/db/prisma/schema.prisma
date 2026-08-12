@@ -13457,8 +13457,10 @@ model DnxPartner {
   auditEvents            DnxPartnerAuditEvent[]
   outboundLinks          DnxPartnerOutboundLink[]
   clickEvents            DnxPartnerClickEvent[]
+  impressionEvents       DnxPartnerImpressionEvent[]
   brandAssets            DnxPartnerAsset[]
   onboardingInvitations  DnxPartnerOnboardingInvitation[]
+  campaigns              DnxPartnerCampaign[]
 
   @@index([status, updatedAt])
   @@index([type, status])
@@ -13584,6 +13586,8 @@ model DnxPartnerParticipation {
   outboundLinks          DnxPartnerOutboundLink[]
   materials              DnxPartnerParticipationAsset[]
   onboardingInvitations  DnxPartnerOnboardingInvitation[]
+
+  campaigns              DnxPartnerCampaign[]
 
   @@index([partnerId, status])
   @@index([application, status])
@@ -13743,6 +13747,8 @@ model DnxPartnerAsset {
 
   partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
+  creatives DnxPartnerCampaignCreative[]
+
   @@index([partnerId, type])
   @@index([partnerId, status, approvalStatus])
   @@index([partnerId, isPrimary])
@@ -13819,6 +13825,14 @@ enum DnxPartnerPlacement {
   BANNER
   ARTICLE
   OTHER
+  /// Ads / campañas (aditivo).
+  WELCOME
+  HOME_INLINE
+  GALLERY_INLINE
+  PHOTO_DETAIL
+  EVENT_PAGE
+  CARD_PROMO
+  LOGO_MARQUEE
 }
 
 enum DnxPartnerDeviceClass {
@@ -13889,6 +13903,39 @@ model DnxPartnerClickEvent {
   @@index([contextId])
   @@index([occurredAt])
   @@index([partnerId, occurredAt])
+}
+
+/// Impresión publicitaria (viewability). Privacy-first: sin IP, UA crudo, userId ni fingerprint.
+/// Solo Campaign ads en v1 (no participation institucional ORGANIZER/CO_ORGANIZER).
+model DnxPartnerImpressionEvent {
+  id              String                 @id @default(cuid())
+  partnerId       String
+  campaignId      String?
+  creativeId      String?
+  outboundLinkId  String?
+  application     DnxPartnerApplication
+  contextType     DnxPartnerContextType  @default(GLOBAL)
+  contextId       String?
+  placement       DnxPartnerPlacement    @default(LOGO_MARQUEE)
+  /// Clave de catálogo (INFOSPOT_HOME_MARQUEE, CLF_LOGO_MARQUEE, …).
+  adPlacementKey  String?                @db.VarChar(80)
+  deviceClass     DnxPartnerDeviceClass  @default(OTHER)
+  /// CAMPAIGN (v1) | PARTICIPATION (futuro)
+  sourceType      String                 @default("CAMPAIGN") @db.VarChar(24)
+  occurredAt      DateTime               @default(now())
+  isBot           Boolean                @default(false)
+  /// Metadata mínima sanitizada (p.ej. viewSessionKey hash). Sin PII.
+  metadata        Json?
+
+  partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  @@index([partnerId, occurredAt])
+  @@index([campaignId, occurredAt])
+  @@index([application, occurredAt])
+  @@index([creativeId, occurredAt])
+  @@index([placement, occurredAt])
+  @@index([occurredAt])
+  @@index([adPlacementKey, occurredAt])
 }
 
 model DnxPartnerContribution {
@@ -14260,4 +14307,267 @@ model PhotoPromptLibraryAuditEvent {
   @@index([editionId, createdAt])
   @@index([actorUserId, createdAt])
   @@index([action, createdAt])
+}
+
+// ——— DNX Partners: campañas publicitarias (ETAPA 08) ———
+
+enum DnxPartnerCampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum DnxPartnerCampaignGeoScope {
+  GLOBAL
+  COUNTRY
+  PROVINCE
+  CITY
+  MULTI_CITY
+}
+
+enum DnxPartnerCampaignContextCategory {
+  PHOTOGRAPHY
+  SPORTS
+  NATURE
+  TOURISM
+  CULTURE
+  EDUCATION
+  SCHOOL
+  SOCIAL_EVENT
+  WEDDING
+  XV
+  NIGHTLIFE
+  NEWS
+  EVENT
+  OTHER
+}
+
+enum DnxPartnerCreativeFormat {
+  LOGO
+  LOGO_MARQUEE
+  BANNER_HORIZONTAL
+  BANNER_COMPACT
+  BANNER_MOBILE
+  CARD_PROMO
+  SQUARE
+  STORY_VERTICAL
+  VIDEO_HORIZONTAL
+  VIDEO_VERTICAL
+  WELCOME_INTERSTITIAL
+  ARTICLE_INLINE
+  GALLERY_INLINE
+}
+
+enum DnxPartnerCreativeDeviceTarget {
+  ALL
+  DESKTOP
+  MOBILE
+  TABLET
+}
+
+enum DnxPartnerCreativeStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PAUSED
+  ARCHIVED
+}
+
+enum DnxPartnerAdRotationMode {
+  STATIC
+  RANDOM
+  ROUND_ROBIN
+  MARQUEE
+}
+
+/// Campaña publicitaria (independiente del rol institucional).
+model DnxPartnerCampaign {
+  id              String                   @id @default(cuid())
+  partnerId       String
+  participationId String?
+  name            String
+  description     String?
+  application     DnxPartnerApplication
+  status          DnxPartnerCampaignStatus @default(DRAFT)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  priority        Int                      @default(100)
+  destinationUrl  String?
+  trackingEnabled Boolean                  @default(true)
+  geoScope        DnxPartnerCampaignGeoScope @default(GLOBAL)
+  createdByUserId Int?
+  updatedByUserId Int?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  archivedAt      DateTime?
+
+  partner       DnxPartner                      @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  participation DnxPartnerParticipation?        @relation(fields: [participationId], references: [id], onDelete: SetNull)
+  creatives     DnxPartnerCampaignCreative[]
+  geoTargets    DnxPartnerCampaignGeoTarget[]
+  contextTargets DnxPartnerCampaignContextTarget[]
+  placementBindings DnxPartnerCampaignPlacement[]
+  /// Apps destino de publicación (aditivo; `application` sigue siendo la app “home”).
+  publishTargets DnxPartnerCampaignTarget[]
+  publicationSyncs DnxPartnerPublicationSync[]
+
+  @@index([partnerId, status])
+  @@index([application, status])
+  @@index([participationId])
+  @@index([status, startsAt, endsAt])
+  @@index([archivedAt])
+}
+
+enum DnxPartnerCampaignTargetStatus {
+  ACTIVE
+  PAUSED
+}
+
+/// Destino multi-app de una campaña (no reemplaza `application` singular).
+model DnxPartnerCampaignTarget {
+  id          String                         @id @default(cuid())
+  campaignId  String
+  application DnxPartnerApplication
+  status      DnxPartnerCampaignTargetStatus @default(ACTIVE)
+  createdAt   DateTime                       @default(now())
+  updatedAt   DateTime                       @updatedAt
+
+  campaign DnxPartnerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, application])
+  @@index([application, status])
+}
+
+enum DnxPartnerPublicationEntityType {
+  CAMPAIGN
+}
+
+enum DnxPartnerPublicationSyncStatus {
+  PENDING
+  SYNCING
+  SYNCED
+  FAILED
+}
+
+/// Estado de sync multi-DB por entidad (fuente canónica = admin Clickatón).
+model DnxPartnerPublicationSync {
+  id                String                           @id @default(cuid())
+  entityType        DnxPartnerPublicationEntityType  @default(CAMPAIGN)
+  sourceEntityId    String
+  campaignId        String?
+  targetApplication DnxPartnerApplication
+  /// Clave lógica de DB destino (INFOSPOT | CLF), sin secretos.
+  targetDatabaseKey String                           @db.VarChar(40)
+  sourceVersion     String                           @db.VarChar(64)
+  targetVersion     String?                          @db.VarChar(64)
+  status            DnxPartnerPublicationSyncStatus  @default(PENDING)
+  attempts          Int                              @default(0)
+  lastSyncedAt      DateTime?
+  lastError         String?
+  createdAt         DateTime                         @default(now())
+  updatedAt         DateTime                         @updatedAt
+
+  campaign DnxPartnerCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@unique([entityType, sourceEntityId, targetApplication])
+  @@index([status, updatedAt])
+  @@index([targetApplication, status])
+  @@index([campaignId])
+}
+
+model DnxPartnerCampaignCreative {
+  id             String                         @id @default(cuid())
+  campaignId     String
+  assetId        String
+  format         DnxPartnerCreativeFormat
+  deviceTarget   DnxPartnerCreativeDeviceTarget @default(ALL)
+  title          String?
+  body           String?
+  ctaText        String?
+  destinationUrl String?
+  status         DnxPartnerCreativeStatus       @default(DRAFT)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  sortOrder      Int                            @default(100)
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+  archivedAt     DateTime?
+
+  campaign DnxPartnerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  asset    DnxPartnerAsset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([campaignId, status])
+  @@index([assetId])
+  @@index([format, deviceTarget])
+  @@index([archivedAt])
+}
+
+model DnxPartnerCampaignGeoTarget {
+  id          String   @id @default(cuid())
+  campaignId  String
+  countryCode String?  @db.VarChar(2)
+  province    String?  @db.VarChar(120)
+  city        String?  @db.VarChar(120)
+  /// true = include, false = exclude
+  include     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  campaign DnxPartnerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([countryCode, province, city])
+}
+
+model DnxPartnerCampaignContextTarget {
+  id         String                           @id @default(cuid())
+  campaignId String
+  category   DnxPartnerCampaignContextCategory
+  createdAt  DateTime                         @default(now())
+
+  campaign DnxPartnerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, category])
+  @@index([category])
+}
+
+/// Catálogo de superficies publicitarias por aplicación.
+model DnxPartnerAdPlacement {
+  id             String                   @id @default(cuid())
+  application    DnxPartnerApplication
+  placementKey   String                   @db.VarChar(80)
+  name           String
+  description    String?
+  allowedFormats DnxPartnerCreativeFormat[]
+  deviceSupport  DnxPartnerCreativeDeviceTarget @default(ALL)
+  maxItems       Int                      @default(1)
+  rotationMode   DnxPartnerAdRotationMode @default(STATIC)
+  /// Placement de click tracking asociado (reutiliza DnxPartnerOutboundLink).
+  trackingPlacement DnxPartnerPlacement   @default(BANNER)
+  isActive       Boolean                  @default(true)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  campaignBindings DnxPartnerCampaignPlacement[]
+
+  @@unique([application, placementKey])
+  @@index([application, isActive])
+}
+
+/// Binding campaña ↔ superficie (prioridad por slot).
+model DnxPartnerCampaignPlacement {
+  id            String   @id @default(cuid())
+  campaignId    String
+  adPlacementId String
+  priority      Int      @default(100)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  campaign    DnxPartnerCampaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adPlacement DnxPartnerAdPlacement @relation(fields: [adPlacementId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, adPlacementId])
+  @@index([adPlacementId, isActive, priority])
 }
