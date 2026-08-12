@@ -166,4 +166,5 @@ export type CheckoutObservabilityEvent =
   | "invalid_amount"
   | "invalid_currency"
   | "finance_snapshot_skipped"
+  | "finance_snapshot_failed"
   | "price_tamper_ignored";
