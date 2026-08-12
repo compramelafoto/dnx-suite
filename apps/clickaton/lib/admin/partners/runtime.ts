@@ -1,8 +1,8 @@
-import { createPartnersService, type PartnerActor } from "@repo/partners";
+import { createPartnersService, type PartnerActor, type PartnersService } from "@repo/partners";
 import { createPrismaPartnersRepository } from "./prisma-partners-adapter";
 import type { ClickatonAuthUser } from "@/lib/admin/auth";
 
-export function getClickatonPartnersService() {
+export function getClickatonPartnersService(): PartnersService {
   return createPartnersService(createPrismaPartnersRepository());
 }
 
