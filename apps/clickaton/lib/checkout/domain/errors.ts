@@ -47,6 +47,13 @@ export function toSerializableCheckoutError(error: unknown): {
   ) {
     const code = (error as { code: string }).code;
     const message = String((error as { message: unknown }).message);
+    if (code === "NO_ACTIVE_DISTRIBUTION") {
+      return {
+        code: "CHECKOUT_NOT_AVAILABLE",
+        message:
+          "Todavía no se pueden cobrar inscripciones para esta edición. Probá más tarde o contactá a la organización.",
+      };
+    }
     const allowed = new Set<string>([
       "TOKEN_INVALID",
       "TOKEN_EXPIRED",
@@ -66,6 +73,13 @@ export function toSerializableCheckoutError(error: unknown): {
   // Surface vault / provider fail-closed codes without leaking tokens.
   if (error instanceof Error) {
     const m = error.message;
+    if (/NO_ACTIVE_DISTRIBUTION|distribuci[oó]n ACTIVE|snapshot_requires_payment_account/i.test(m)) {
+      return {
+        code: "CHECKOUT_NOT_AVAILABLE",
+        message:
+          "Todavía no se pueden cobrar inscripciones para esta edición. Probá más tarde o contactá a la organización.",
+      };
+    }
     if (/VAULT_DECRYPT_FAILED|LIVE_PAYMENTS_DISABLED|mercado_pago_production_forbidden/i.test(m)) {
       return { code: "CHECKOUT_NOT_AVAILABLE", message: m.slice(0, 160) };
     }

@@ -107,6 +107,7 @@
     "@repo/content": "workspace:*",
     "@repo/content-ui": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/design-system": "workspace:*",
     "@repo/media-composition": "workspace:*",
     "@repo/partners": "workspace:*",
     "@repo/payments": "workspace:*",

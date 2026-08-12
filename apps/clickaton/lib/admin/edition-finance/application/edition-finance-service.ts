@@ -8,6 +8,10 @@ import {
 } from "../constants";
 import { evaluateCommercialFinanceGate, type GateMode } from "../domain/gate";
 import { EditionFinanceError } from "../domain/errors";
+import {
+  resolvePublishedVersionForCharges,
+  shouldFreezeParticipantAccountForDraft,
+} from "../domain/resolve-published-for-charges";
 import { buildOrderFinanceSnapshot } from "../domain/snapshot";
 import type {
   EditionFinanceAuditView,
@@ -294,7 +298,29 @@ export function createEditionFinanceService(store: InMemoryEditionFinanceStore) 
         },
       });
     } else {
-      participant.paymentAccountId = row.paymentConnectionId ?? null;
+      const writingVersion = store.versions.get(versionId);
+      const agreement = store.agreements.get(agreementId);
+      const publishedVersion = agreement?.currentVersionId
+        ? store.versions.get(agreement.currentVersionId)
+        : null;
+      const participantUsedByPublished = Boolean(
+        publishedVersion &&
+          publishedVersion.status === "PUBLISHED" &&
+          [...store.rules.values()].some(
+            (r) =>
+              r.versionId === publishedVersion.id &&
+              r.participantId === participant.id,
+          ),
+      );
+      const freeze = shouldFreezeParticipantAccountForDraft({
+        writingVersionStatus: writingVersion?.status ?? "DRAFT",
+        publishedVersionId: publishedVersion?.id ?? null,
+        publishedVersionStatus: publishedVersion?.status ?? null,
+        participantUsedByPublished,
+      });
+      if (!freeze) {
+        participant.paymentAccountId = row.paymentConnectionId ?? null;
+      }
       participant.roleLabel = row.role ?? participant.roleLabel;
       participant.sortOrder = row.sortOrder ?? participant.sortOrder;
       participant.status = "ACCEPTED";
@@ -303,7 +329,10 @@ export function createEditionFinanceService(store: InMemoryEditionFinanceStore) 
         versionId,
         nextValue: {
           financialIdentityId: row.financialIdentityId,
-          paymentConnectionId: row.paymentConnectionId ?? null,
+          paymentConnectionId: freeze
+            ? participant.paymentAccountId
+            : (row.paymentConnectionId ?? null),
+          frozenForPublished: freeze,
         },
       });
     }
@@ -335,12 +364,19 @@ export function createEditionFinanceService(store: InMemoryEditionFinanceStore) 
     ): EditionFinancialDistributionView | null {
       if (actor) assertCanViewEditionFinancialDistribution(actor, editionId);
       const agreement = getAgreementForEdition(editionId);
-      if (!agreement || agreement.status !== "ACTIVE" || !agreement.currentVersionId) {
-        return null;
-      }
-      const version = store.versions.get(agreement.currentVersionId);
-      if (!version || version.status !== "PUBLISHED") return null;
-      return buildView(agreement, version);
+      const versions = agreement
+        ? [...store.versions.values()].filter((v) => v.agreementId === agreement.id)
+        : [];
+      const currentVersion = agreement?.currentVersionId
+        ? (store.versions.get(agreement.currentVersionId) ?? null)
+        : null;
+      const picked = resolvePublishedVersionForCharges({
+        agreement,
+        currentVersion,
+        versions,
+      });
+      if (!picked.ok) return null;
+      return buildView(agreement!, picked.version);
     },
 
     /** Resolver sin auth (checkout / gates internos). */

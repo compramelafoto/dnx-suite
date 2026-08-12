@@ -60,8 +60,34 @@ export function toSerializablePublicRegistrationError(error: unknown): {
         error instanceof PublicRegistrationValidationError ? error.fieldErrors : undefined,
     };
   }
+
+  // Finanzas / distribución: mensaje seguro para participantes (sin enums ni IDs internos).
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code: unknown }).code === "NO_ACTIVE_DISTRIBUTION"
+  ) {
+    return {
+      code: "EDITION_NOT_AVAILABLE",
+      message:
+        "Esta edición todavía no puede cobrar inscripciones. Probá de nuevo más tarde o contactá a la organización.",
+    };
+  }
+  if (error instanceof Error) {
+    const m = error.message;
+    if (/NO_ACTIVE_DISTRIBUTION|distribuci[oó]n ACTIVE|snapshot_requires_payment_account/i.test(m)) {
+      return {
+        code: "EDITION_NOT_AVAILABLE",
+        message:
+          "Esta edición todavía no puede cobrar inscripciones. Probá de nuevo más tarde o contactá a la organización.",
+      };
+    }
+  }
+
   return {
     code: "UNEXPECTED",
-    message: "No pudimos completar la inscripción. Intentá de nuevo en unos minutos.",
+    message:
+      "No pudimos completar la inscripción. Si el problema continúa, contactá a la organización e indicá que falló al reservar tu lugar.",
   };
 }
