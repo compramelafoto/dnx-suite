@@ -42,9 +42,16 @@ function mapPartner(row: {
   logoUrl: string | null;
   websiteUrl: string | null;
   instagram: string | null;
+  facebookUrl: string | null;
+  linkedinUrl: string | null;
   email: string | null;
   phone: string | null;
   taxId: string | null;
+  address: string | null;
+  city: string | null;
+  provinceOrState: string | null;
+  country: string | null;
+  postalCode: string | null;
   notes: string | null;
   financialIdentityId: string | null;
   createdByUserId: number | null;
@@ -53,7 +60,35 @@ function mapPartner(row: {
   updatedAt: Date;
   archivedAt: Date | null;
 }): PartnerRecord {
-  return { ...row };
+  return {
+    id: row.id,
+    name: row.name,
+    legalName: row.legalName,
+    slug: row.slug,
+    description: row.description,
+    type: row.type,
+    status: row.status,
+    logoUrl: row.logoUrl,
+    websiteUrl: row.websiteUrl,
+    instagram: row.instagram,
+    facebookUrl: row.facebookUrl,
+    linkedinUrl: row.linkedinUrl,
+    email: row.email,
+    phone: row.phone,
+    taxId: row.taxId,
+    address: row.address,
+    city: row.city,
+    provinceOrState: row.provinceOrState,
+    country: row.country,
+    postalCode: row.postalCode,
+    notes: row.notes,
+    financialIdentityId: row.financialIdentityId,
+    createdByUserId: row.createdByUserId,
+    updatedByUserId: row.updatedByUserId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt,
+  };
 }
 
 function mapParticipation(row: ParticipationRecord): ParticipationRecord {
