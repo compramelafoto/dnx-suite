@@ -1,4 +1,4 @@
-# Sponsor Global — validación visual (Etapa 8)
+# Sponsor Global — validación visual (Etapa 8 / 8B)
 
 Fecha: **2026-08-12**  
 Componente: **`PartnerWelcomeInterstitial`** (`@repo/design-system/components/partners`)  
@@ -7,7 +7,8 @@ Frequency cap: **deshabilitado** solo en harness (`disableFrequencyCap`)
 Campañas reales: **ninguna**  
 Flags productivos welcome: **no activados**
 
-> Estas capturas NO representan una campaña publicada. Usan un **sponsor sintético** (“Sponsor de ejemplo”) y fondos tomados de páginas públicas con flags OFF.
+> Estas capturas NO representan una campaña publicada. Usan un **sponsor sintético** (“Sponsor de ejemplo”) y fondos tomados de páginas públicas con flags OFF.  
+> Pack compartible: [`sponsor-global-validacion-visual.zip`](./sponsor-global-validacion-visual.zip) (`desktop/`, `mobile/`, `README.md`).
 
 ## Método
 
@@ -38,8 +39,8 @@ El harness es **solo local** (`127.0.0.1:5199`). No se desplegó.
 ## Sponsor sintético
 
 - Nombre: Sponsor de ejemplo  
-- Título / cuerpo / CTA / etiqueta según brief  
 - Asset: `sponsor-ejemplo.svg` + `harness/public/sponsor-ejemplo.svg`  
+- **Sin CTA interno** en el SVG (Etapa 8B): el único CTA es el de `PartnerWelcomeInterstitial`  
 - **No** incorporado a DNX Partners Production  
 
 ## Fondos de referencia
