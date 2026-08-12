@@ -76,6 +76,8 @@ export type RegistrationAnswers = {
   argraVerificationStatus?: ArgraVerificationStatus;
   argraDeclaredOwn?: boolean;
   openParticipationAcknowledged?: boolean;
+  /** Handle público (@usuario) cuando el concurso lo exige. */
+  instagramHandle?: string | null;
 };
 
 export type EntryEligibilityAnswers = {
@@ -87,6 +89,8 @@ export type EntryEligibilityAnswers = {
   declaredDeviceModel?: string | null;
   captureWithinPeriodDeclared: boolean;
   authorshipDeclared?: boolean;
+  editingPolicyDeclared?: boolean;
+  noGenerativeAiDeclared?: boolean;
   droneRegulationAcknowledged?: boolean;
   territoryStatus?: TerritoryStatus;
   captureWindowStatus?: EligibilityDecision;
@@ -95,6 +99,15 @@ export type EntryEligibilityAnswers = {
   /** Never expose on public APIs. */
   gpsPresent?: boolean;
 };
+
+/** Normaliza @usuario de Instagram; null si vacío o inválido. */
+export function normalizeInstagramHandle(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim().replace(/^@+/, "");
+  if (!trimmed) return null;
+  if (!/^[A-Za-z0-9._]{1,30}$/.test(trimmed)) return null;
+  return `@${trimmed.toLowerCase()}`;
+}
 
 /** Bounding box aproximado Provincia de Santa Fe (evidencia, no geofencing legal). */
 export const SANTA_FE_APPROX_BOUNDS = {

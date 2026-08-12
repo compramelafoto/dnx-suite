@@ -1,5 +1,6 @@
 /**
- * Loader público de creatives elegibles por placement (InfoSpot / CLF / Clickatón welcome).
+ * Loader público de creatives elegibles por placement
+ * (InfoSpot / CLF / Clickatón welcome / FotoRank welcome).
  * Soft-read. No crea clicks (eso es /r/).
  */
 import type { PrismaClient } from "@prisma/client";
@@ -8,7 +9,9 @@ import {
   getAdPlacementCatalogEntry,
   isClfPartnerAdsEnabled,
   isClickatonPartnerWelcomeEnabled,
+  isFotorankPartnerWelcomeEnabled,
   isInfospotPartnerAdsEnabled,
+  isPartnerCampaignEligibleForContestContext,
   isPartnerCampaignEligibleForEditionContext,
   isWelcomeActivationPlacementKey,
   partnerRedirectPath,
@@ -18,7 +21,7 @@ import {
   type DnxPartnerApplication,
   type DnxPartnerCampaignContextCategory,
   type DnxPartnerCreativeDeviceTarget,
-  type PartnerCampaignEditionContext,
+  type PartnerCampaignScopeContext,
   type ResolvedAdCreative,
   type ResolveAdsCandidate,
 } from "@repo/partners";
@@ -26,7 +29,7 @@ import {
 export type LoadPartnerAdsInput = {
   application: Extract<
     DnxPartnerApplication,
-    "INFO_SPOT" | "COMPRAME_LA_FOTO" | "CLICKATON"
+    "INFO_SPOT" | "COMPRAME_LA_FOTO" | "CLICKATON" | "FOTO_RANK"
   >;
   placementKey: DnxPartnerAdPlacementKey;
   device?: DnxPartnerCreativeDeviceTarget;
@@ -35,10 +38,14 @@ export type LoadPartnerAdsInput = {
   /** Día UTC para seed de rotación. */
   rotationDayKey?: string;
   /**
-   * Clickatón EVENT welcome: ID canónico de edición (`ClickatonEdition.id` / PublicMarathon.id).
-   * Filtra por participación contextual sin migraciones.
+   * Clickatón EVENT welcome: ID canónico de edición.
+   * Compat Etapa 3 — equivalente a scope EDITION.
    */
   editionContextId?: string | null;
+  /**
+   * FotoRank CONTEST welcome: ID canónico del concurso (`FotorankContest.id`).
+   */
+  contestContextId?: string | null;
   /** Welcome: exigir partner ACTIVE (default false = comportamiento IS/CLF previo). */
   requireActivePartner?: boolean;
 };
@@ -46,10 +53,8 @@ export type LoadPartnerAdsInput = {
 function isAdsKillSwitchOff(application: LoadPartnerAdsInput["application"]): boolean {
   if (application === "INFO_SPOT") return !isInfospotPartnerAdsEnabled();
   if (application === "COMPRAME_LA_FOTO") return !isClfPartnerAdsEnabled();
-  if (application === "CLICKATON") {
-    // Solo activaciones welcome; flag dedicado default OFF.
-    return !isClickatonPartnerWelcomeEnabled();
-  }
+  if (application === "CLICKATON") return !isClickatonPartnerWelcomeEnabled();
+  if (application === "FOTO_RANK") return !isFotorankPartnerWelcomeEnabled();
   return true;
 }
 
@@ -82,10 +87,45 @@ export async function ensureAdPlacementCatalog(prisma: PrismaClient): Promise<vo
         maxItems: entry.maxItems,
         rotationMode: entry.rotationMode,
         trackingPlacement: entry.trackingPlacement,
-        // no forzar isActive en update (ops puede desactivar)
       },
     });
   }
+}
+
+function passesScopeFilter(input: {
+  application: LoadPartnerAdsInput["application"];
+  editionId: string | null;
+  contestId: string | null;
+  participation: PartnerCampaignScopeContext | null;
+}): boolean {
+  const { application, editionId, contestId, participation } = input;
+
+  if (application === "CLICKATON") {
+    if (editionId) {
+      return isPartnerCampaignEligibleForEditionContext({
+        editionId,
+        participation,
+      });
+    }
+    // Sin editionId: solo globales históricos (null participation).
+    return participation == null;
+  }
+
+  if (application === "FOTO_RANK") {
+    if (contestId) {
+      return isPartnerCampaignEligibleForContestContext({
+        contestId,
+        participation,
+      });
+    }
+    // Sin contestId: solo GLOBAL/PLATFORM explícito (null ≠ global).
+    return isPartnerCampaignEligibleForContestContext({
+      contestId: "__none__",
+      participation,
+    });
+  }
+
+  return true;
 }
 
 export async function loadPartnerAdsForPlacement(
@@ -95,7 +135,7 @@ export async function loadPartnerAdsForPlacement(
   if (isAdsKillSwitchOff(input.application)) return [];
 
   if (
-    input.application === "CLICKATON" &&
+    (input.application === "CLICKATON" || input.application === "FOTO_RANK") &&
     !isWelcomeActivationPlacementKey(input.placementKey)
   ) {
     return [];
@@ -143,7 +183,6 @@ export async function loadPartnerAdsForPlacement(
         status: "ACTIVE",
         archivedAt: null,
         partner: partnerStatusFilter,
-        // Multi-app: home `application` o target ACTIVE (aditivo).
         OR: [
           { application: input.application },
           {
@@ -166,6 +205,9 @@ export async function loadPartnerAdsForPlacement(
               contextId: true,
               status: true,
               archivedAt: true,
+              publicVisibility: true,
+              startsAt: true,
+              endsAt: true,
             },
           },
           geoTargets: true,
@@ -192,24 +234,22 @@ export async function loadPartnerAdsForPlacement(
   });
 
   const editionId = input.editionContextId?.trim() || null;
+  const contestId = input.contestContextId?.trim() || null;
 
   const candidates: ResolveAdsCandidate[] = [];
   for (const binding of bindings) {
     const campaign = binding.campaign;
-    const participation = campaign.participation as PartnerCampaignEditionContext | null;
+    const participation = campaign.participation as PartnerCampaignScopeContext | null;
 
-    if (editionId) {
-      if (
-        !isPartnerCampaignEligibleForEditionContext({
-          editionId,
-          participation,
-        })
-      ) {
-        continue;
-      }
-    } else if (input.application === "CLICKATON") {
-      // Sin editionId no resolvemos contexto: solo globales (sin participación).
-      if (participation) continue;
+    if (
+      !passesScopeFilter({
+        application: input.application,
+        editionId,
+        contestId,
+        participation,
+      })
+    ) {
+      continue;
     }
 
     for (const creative of campaign.creatives) {
@@ -267,20 +307,20 @@ export async function loadPartnerAdsForPlacement(
 
   const device = input.device ?? "ALL";
   const day = input.rotationDayKey ?? new Date().toISOString().slice(0, 10);
+  const scopeSeed = contestId ?? editionId ?? "";
   const resolved = resolveEligibleAds({
     candidates,
     audience: input.audience,
     audienceCategories: input.audienceCategories,
     device,
     maxItems:
-      input.application === "CLICKATON"
+      input.application === "CLICKATON" || input.application === "FOTO_RANK"
         ? 1
         : Math.max(1, placement.maxItems),
     rotationMode: placement.rotationMode,
-    rotationSeed: `${input.placementKey}:${day}${editionId ? `:${editionId}` : ""}`,
+    rotationSeed: `${input.placementKey}:${day}${scopeSeed ? `:${scopeSeed}` : ""}`,
   });
 
-  // Enriquecer href con outbound tracking si existe (best-effort).
   const out: ResolvedAdCreative[] = [];
   for (const ad of resolved) {
     let href = ad.href;

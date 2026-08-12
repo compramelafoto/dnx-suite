@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { FotorankContestPartnerWelcome } from "../../components/contest-public/FotorankContestPartnerWelcome";
 import { resolveContestVisualTheme } from "../../lib/fotorank/contest-visual";
+import {
+  loadFotorankContestWelcomeAd,
+  toFotorankContestWelcomePublicPayload,
+} from "../../lib/fotorank/partners/contest-welcome";
 import { getPublicContestLandingBySlug } from "../../lib/fotorank/publicContestLanding";
 import { ContestPublicLanding } from "./ContestPublicLanding";
 
@@ -39,6 +44,21 @@ export default async function ContestPublicPage({ params }: Props) {
   const { slug } = await params;
   const data = await getPublicContestLandingBySlug(slug);
   if (!data) notFound();
-  // Partners públicos: fuera de alcance de ETAPA 07 (evita acoplar schema partners en este deploy).
-  return <ContestPublicLanding data={data} partnerGroups={[]} />;
+
+  // getPublicContestLandingBySlug ya exige visibility=PUBLIC + PUBLISHED|ACTIVE.
+  const pathname = `/concursos/${data.contest.slug}`;
+  const welcomeAd = await loadFotorankContestWelcomeAd({
+    contestId: data.contest.id,
+    pathname,
+    publicLandingAllowed: true,
+  });
+  const welcomePayload = welcomeAd ? toFotorankContestWelcomePublicPayload(welcomeAd) : null;
+
+  // Partners institucionales: partnerGroups=[] intacto (no activar ContestPartnersSection).
+  return (
+    <>
+      <ContestPublicLanding data={data} partnerGroups={[]} />
+      <FotorankContestPartnerWelcome ad={welcomePayload} />
+    </>
+  );
 }
