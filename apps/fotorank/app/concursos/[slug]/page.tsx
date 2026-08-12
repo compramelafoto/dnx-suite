@@ -50,10 +50,11 @@ export default async function ContestPublicPage({ params }: Props) {
   const welcomePayload = welcomeAd ? toFotorankContestWelcomePublicPayload(welcomeAd) : null;
 
   // Landing public-ui intacta; welcome como sibling (no partnerGroups institucionales).
+  // Flag OFF / sin campaña: no montar el wrapper cliente (cero UI, cero chunk innecesario).
   return (
     <>
       <ContestPublicLanding data={data} />
-      <FotorankContestPartnerWelcome ad={welcomePayload} />
+      {welcomePayload ? <FotorankContestPartnerWelcome ad={welcomePayload} /> : null}
     </>
   );
 }

@@ -109,6 +109,7 @@ describe("FotoRank CONTEST welcome wiring", () => {
   it("página monta wrapper + loader sobre public-ui; no home", () => {
     const page = readFileSync(join(here, "../../concursos/[slug]/page.tsx"), "utf8");
     assert.match(page, /FotorankContestPartnerWelcome/);
+    assert.match(page, /welcomePayload \? <FotorankContestPartnerWelcome/);
     assert.match(page, /loadFotorankContestWelcomeAd/);
     assert.match(page, /contestId:\s*data\.contest\.id/);
     assert.doesNotMatch(page, /partnerGroups=\{/);
