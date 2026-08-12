@@ -199,7 +199,9 @@ export async function setCampaignPublishTargets(input: {
   });
   if (!campaign) throw new Error("Campaña no encontrada");
 
-  const wanted = new Set(input.applications);
+  const wanted = new Set(
+    input.applications.filter((a) => a !== "FOTO_OFFICE" && Boolean(resolvePublicationDatabaseKey(a))),
+  );
   const existing = await prisma.dnxPartnerCampaignTarget.findMany({
     where: { campaignId: input.campaignId },
   });

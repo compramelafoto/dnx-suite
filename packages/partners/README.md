@@ -13,6 +13,9 @@ Un partner **no** implica pago. `requiresPayment` default `false`. Sin Mercado P
 - Capabilities / asserts de permisos
 - Casos de uso vía `PartnersService` + repositorio inyectable
 - `MemoryPartnersRepository` para tests
+- Campañas publicitarias + **activación destacada** (`welcome-activation.ts`)
+
+Ver: [`docs/partners/partners-welcome-activation.md`](../../docs/partners/partners-welcome-activation.md).
 
 ## Persistencia
 

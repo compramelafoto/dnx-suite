@@ -3,6 +3,10 @@
 import { PartnerWelcomeInterstitial } from "@repo/design-system/components/partners";
 import type { ResolvedAdCreative } from "@repo/partners";
 
+/**
+ * Wrapper InfoSpot — conserva contrato y placement clave estable.
+ * Frecuencia 24h; flag INFOSPOT_PARTNER_ADS_ENABLED controla la carga aguas arriba.
+ */
 export function PartnerAdsWelcome({ ad }: { ad: ResolvedAdCreative | null }) {
   if (!ad) return null;
   return (
@@ -17,6 +21,8 @@ export function PartnerAdsWelcome({ ad }: { ad: ResolvedAdCreative | null }) {
       frequencyHours={24}
       creativeId={ad.creativeId}
       placementKey="INFOSPOT_HOME_WELCOME"
+      animationVariant="fade"
+      sponsoredLabel="Contenido patrocinado"
     />
   );
 }

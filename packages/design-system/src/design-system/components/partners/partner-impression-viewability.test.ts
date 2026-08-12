@@ -26,11 +26,44 @@ describe("PartnerLogoMarquee impression dedupe", () => {
   });
 });
 
-describe("PartnerWelcomeInterstitial", () => {
-  it("does not render impression when closed / frequency capped", () => {
-    const src = readFileSync(join(here, "PartnerWelcomeInterstitial.tsx"), "utf8");
+describe("PartnerWelcomeInterstitial contracts", () => {
+  const src = readFileSync(join(here, "PartnerWelcomeInterstitial.tsx"), "utf8");
+
+  it("dialog a11y + escape + scroll lock + focus restore", () => {
+    assert.match(src, /role="dialog"/);
+    assert.match(src, /aria-modal="true"/);
+    assert.match(src, /aria-labelledby/);
+    assert.match(src, /Escape/);
+    assert.match(src, /document\.body\.style\.overflow/);
+    assert.match(src, /previousFocusRef/);
+    assert.match(src, /closeRef/);
+    assert.match(src, /aria-label="Cerrar"/);
+  });
+
+  it("sponsored label, reduced motion, stable random animation", () => {
+    assert.match(src, /Contenido patrocinado/);
+    assert.match(src, /prefers-reduced-motion/);
+    assert.match(src, /useState\(\(\) => pickAnimation/);
+    assert.match(src, /slide-left|slide-right|slide-up|fade/);
+  });
+
+  it("close does not navigate; marks shown on open; dismiss callback typed", () => {
+    assert.match(src, /e\.stopPropagation\(\)/);
+    assert.match(src, /markPartnerWelcomeShown/);
+    assert.match(src, /PARTNER_WELCOME_DISMISS/);
     assert.match(src, /if \(!open\) return null/);
     assert.match(src, /PartnerViewableImpression/);
-    assert.match(src, /frequencyHours/);
+    assert.match(src, /openInNewTab/);
+    assert.match(src, /safe-area-inset/);
+    assert.match(src, /maxHeight: "min\(85dvh/);
+  });
+});
+
+describe("PartnerAdCreative welcome tracking", () => {
+  it("opens tracking links in new tab with noopener when requested", () => {
+    const src = readFileSync(join(here, "PartnerAdCreative.tsx"), "utf8");
+    assert.match(src, /openInNewTab/);
+    assert.match(src, /noopener noreferrer/);
+    assert.match(src, /\/r\//);
   });
 });

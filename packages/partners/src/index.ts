@@ -147,6 +147,8 @@ export {
   DNX_PARTNER_AD_ROTATION_MODES,
   INFOSPOT_AD_PLACEMENT_KEYS,
   CLF_AD_PLACEMENT_KEYS,
+  CLICKATON_AD_PLACEMENT_KEYS,
+  FOTORANK_AD_PLACEMENT_KEYS,
   AD_PLACEMENT_CATALOG,
   CAMPAIGN_CONTEXT_LABELS,
   CREATIVE_FORMAT_LABELS,
@@ -160,6 +162,8 @@ export {
   assertSafeCampaignDestination,
   isInfospotPartnerAdsEnabled,
   isClfPartnerAdsEnabled,
+  isClickatonPartnerWelcomeEnabled,
+  isFotorankPartnerWelcomeEnabled,
   getAdPlacementCatalogEntry,
 } from "./campaigns";
 export type {
@@ -172,6 +176,8 @@ export type {
   DnxPartnerAdRotationMode,
   InfospotAdPlacementKey,
   ClfAdPlacementKey,
+  ClickatonAdPlacementKey,
+  FotorankAdPlacementKey,
   DnxPartnerAdPlacementKey,
   AdPlacementCatalogEntry,
   CampaignGeoAudience,
@@ -179,6 +185,38 @@ export type {
   ResolvedAdCreative,
   ResolveAdsCandidate,
 } from "./campaigns";
+
+export {
+  WELCOME_ACTIVATION_APPLICATIONS,
+  WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS,
+  WELCOME_ACTIVATION_CREATIVE_FORMAT,
+  WELCOME_ACTIVATION_PLACEMENT_KEYS,
+  WELCOME_ACTIVATION_DEFAULT_FREQUENCY_HOURS,
+  WELCOME_ACTIVATION_ANIMATION_VARIANTS,
+  PARTNER_WELCOME_CRITICAL_PATH_PATTERNS,
+  PARTNER_WELCOME_PLACEMENT_PATH_ALLOWLIST,
+  isWelcomeActivationApplication,
+  isWelcomeActivationExcludedApplication,
+  isWelcomeActivationPlacementKey,
+  listWelcomeActivationCatalogEntries,
+  listAdPlacementCatalogForAdminBinding,
+  assertWelcomeActivationTargetAllowed,
+  assertWelcomeActivationPlacement,
+  isPartnerWelcomeCriticalPath,
+  isPartnerWelcomePathAllowedForPlacement,
+  canMountPartnerWelcomeActivation,
+  pickWelcomeAnimationVariant,
+} from "./welcome-activation";
+export type {
+  WelcomeActivationApplication,
+  WelcomeActivationExcludedApplication,
+  WelcomeActivationPlacementKey,
+  WelcomeActivationAnimationVariant,
+  WelcomeActivationAnimationChoice,
+  PartnerWelcomeDismissReason,
+  PartnerWelcomeDismissEvent,
+  CanMountPartnerWelcomeResult,
+} from "./welcome-activation";
 
 export {
   DNX_PARTNER_PUBLICATION_SYNC_STATUSES,

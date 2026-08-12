@@ -13,6 +13,7 @@ import {
   DNX_PARTNER_CREATIVE_DEVICE_TARGETS,
   DNX_PARTNER_CREATIVE_FORMATS,
   DNX_PARTNER_CREATIVE_STATUSES,
+  isWelcomeActivationExcludedApplication,
   type DnxPartnerAdPlacementKey,
   type DnxPartnerApplication,
   type DnxPartnerCampaignContextCategory,
@@ -236,6 +237,15 @@ export async function bindCampaignPlacementFormAction(formData: FormData): Promi
     DNX_PARTNER_APPLICATIONS,
     "CLICKATON",
   ) as DnxPartnerApplication;
+
+  if (isWelcomeActivationExcludedApplication(application)) {
+    redirect(
+      campanasPath(
+        partnerId,
+        `error=${encodeURIComponent("FotoOffice está excluido de placements publicitarios.")}`,
+      ),
+    );
+  }
 
   const result = await withClickatonDb(async () => {
     await ensureAdPlacementCatalog(prisma);

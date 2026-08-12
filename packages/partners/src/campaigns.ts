@@ -103,6 +103,8 @@ export const INFOSPOT_AD_PLACEMENT_KEYS = [
 
 /** Superficies ComprameLaFoto. */
 export const CLF_AD_PLACEMENT_KEYS = [
+  "CLF_HOME_WELCOME",
+  "CLF_ALBUM_WELCOME",
   "CLF_HOME_PROMO",
   "CLF_GALLERY_TOP",
   "CLF_GALLERY_INLINE",
@@ -112,9 +114,27 @@ export const CLF_AD_PLACEMENT_KEYS = [
   "CLF_LOGO_MARQUEE",
 ] as const;
 
+/** Superficies Clickatón (activación destacada + futuras). */
+export const CLICKATON_AD_PLACEMENT_KEYS = [
+  "CLICKATON_HOME_WELCOME",
+  "CLICKATON_EVENT_WELCOME",
+] as const;
+
+/** Superficies FotoRank (activación destacada + futuras). */
+export const FOTORANK_AD_PLACEMENT_KEYS = [
+  "FOTORANK_HOME_WELCOME",
+  "FOTORANK_CONTEST_WELCOME",
+] as const;
+
 export type InfospotAdPlacementKey = (typeof INFOSPOT_AD_PLACEMENT_KEYS)[number];
 export type ClfAdPlacementKey = (typeof CLF_AD_PLACEMENT_KEYS)[number];
-export type DnxPartnerAdPlacementKey = InfospotAdPlacementKey | ClfAdPlacementKey;
+export type ClickatonAdPlacementKey = (typeof CLICKATON_AD_PLACEMENT_KEYS)[number];
+export type FotorankAdPlacementKey = (typeof FOTORANK_AD_PLACEMENT_KEYS)[number];
+export type DnxPartnerAdPlacementKey =
+  | InfospotAdPlacementKey
+  | ClfAdPlacementKey
+  | ClickatonAdPlacementKey
+  | FotorankAdPlacementKey;
 
 export type AdPlacementCatalogEntry = {
   application: DnxPartnerApplication;
@@ -134,8 +154,80 @@ export const AD_PLACEMENT_CATALOG: readonly AdPlacementCatalogEntry[] = [
   {
     application: "INFO_SPOT",
     placementKey: "INFOSPOT_HOME_WELCOME",
-    name: "Welcome / interstitial",
-    description: "Modal controlado al entrar (máx. 1/24h).",
+    name: "Activación destacada (home)",
+    description: "Modal controlado al entrar (máx. 1/24h). Clave estable — no renombrar.",
+    allowedFormats: ["WELCOME_INTERSTITIAL", "STORY_VERTICAL", "SQUARE"],
+    deviceSupport: "ALL",
+    maxItems: 1,
+    rotationMode: "STATIC",
+    trackingPlacement: "WELCOME",
+    isActiveDefault: true,
+  },
+  {
+    application: "CLICKATON",
+    placementKey: "CLICKATON_HOME_WELCOME",
+    name: "Activación destacada (home)",
+    description: "Interstitial en home Clickatón. Solo montaje explícito; flag default OFF.",
+    allowedFormats: ["WELCOME_INTERSTITIAL", "STORY_VERTICAL", "SQUARE"],
+    deviceSupport: "ALL",
+    maxItems: 1,
+    rotationMode: "STATIC",
+    trackingPlacement: "WELCOME",
+    isActiveDefault: true,
+  },
+  {
+    application: "CLICKATON",
+    placementKey: "CLICKATON_EVENT_WELCOME",
+    name: "Activación destacada (evento/maratón)",
+    description: "Interstitial en ficha de maratón/edición. No en inscripción ni pago.",
+    allowedFormats: ["WELCOME_INTERSTITIAL", "STORY_VERTICAL", "SQUARE"],
+    deviceSupport: "ALL",
+    maxItems: 1,
+    rotationMode: "STATIC",
+    trackingPlacement: "WELCOME",
+    isActiveDefault: true,
+  },
+  {
+    application: "FOTO_RANK",
+    placementKey: "FOTORANK_HOME_WELCOME",
+    name: "Activación destacada (home)",
+    description: "Interstitial en home FotoRank. Solo montaje explícito; flag default OFF.",
+    allowedFormats: ["WELCOME_INTERSTITIAL", "STORY_VERTICAL", "SQUARE"],
+    deviceSupport: "ALL",
+    maxItems: 1,
+    rotationMode: "STATIC",
+    trackingPlacement: "WELCOME",
+    isActiveDefault: true,
+  },
+  {
+    application: "FOTO_RANK",
+    placementKey: "FOTORANK_CONTEST_WELCOME",
+    name: "Activación destacada (concurso)",
+    description: "Interstitial en landing pública de concurso. No en carga/jurado/admin.",
+    allowedFormats: ["WELCOME_INTERSTITIAL", "STORY_VERTICAL", "SQUARE"],
+    deviceSupport: "ALL",
+    maxItems: 1,
+    rotationMode: "STATIC",
+    trackingPlacement: "WELCOME",
+    isActiveDefault: true,
+  },
+  {
+    application: "COMPRAME_LA_FOTO",
+    placementKey: "CLF_HOME_WELCOME",
+    name: "Activación destacada (home)",
+    description: "Interstitial en home CLF. No montado hasta etapa de integración.",
+    allowedFormats: ["WELCOME_INTERSTITIAL", "STORY_VERTICAL", "SQUARE"],
+    deviceSupport: "ALL",
+    maxItems: 1,
+    rotationMode: "STATIC",
+    trackingPlacement: "WELCOME",
+    isActiveDefault: true,
+  },
+  {
+    application: "COMPRAME_LA_FOTO",
+    placementKey: "CLF_ALBUM_WELCOME",
+    name: "Activación destacada (álbum)",
+    description: "Interstitial en galería/álbum público. No en checkout ni descarga.",
     allowedFormats: ["WELCOME_INTERSTITIAL", "STORY_VERTICAL", "SQUARE"],
     deviceSupport: "ALL",
     maxItems: 1,
@@ -703,16 +795,35 @@ export function assertSafeCampaignDestination(url: string): string {
   }
 }
 
+function envFlagTruthy(name: string): boolean {
+  const v = process.env[name]?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "on" || v === "yes";
+}
+
 /** Kill switch InfoSpot — default OFF (seguro). */
 export function isInfospotPartnerAdsEnabled(): boolean {
-  const v = process.env.INFOSPOT_PARTNER_ADS_ENABLED?.trim().toLowerCase();
-  return v === "1" || v === "true" || v === "on" || v === "yes";
+  return envFlagTruthy("INFOSPOT_PARTNER_ADS_ENABLED");
 }
 
 /** Kill switch CLF — default OFF (seguro). */
 export function isClfPartnerAdsEnabled(): boolean {
-  const v = process.env.CLF_PARTNER_ADS_ENABLED?.trim().toLowerCase();
-  return v === "1" || v === "true" || v === "on" || v === "yes";
+  return envFlagTruthy("CLF_PARTNER_ADS_ENABLED");
+}
+
+/**
+ * Activación destacada Clickatón — default OFF.
+ * Solo soporte en código; no cargar en Vercel hasta etapa de integración.
+ */
+export function isClickatonPartnerWelcomeEnabled(): boolean {
+  return envFlagTruthy("CLICKATON_PARTNER_WELCOME_ENABLED");
+}
+
+/**
+ * Activación destacada FotoRank — default OFF.
+ * Solo soporte en código; no cargar en Vercel hasta etapa de integración.
+ */
+export function isFotorankPartnerWelcomeEnabled(): boolean {
+  return envFlagTruthy("FOTORANK_PARTNER_WELCOME_ENABLED");
 }
 
 export function getAdPlacementCatalogEntry(

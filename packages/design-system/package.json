@@ -18,7 +18,8 @@
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test:partners": "pnpm exec tsx --test src/design-system/components/partners/welcome-frequency.test.ts src/design-system/components/partners/partner-impression-viewability.test.ts"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

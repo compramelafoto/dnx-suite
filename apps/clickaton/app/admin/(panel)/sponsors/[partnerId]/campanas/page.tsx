@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  AD_PLACEMENT_CATALOG,
   APPLICATION_LABELS,
   CAMPAIGN_CONTEXT_LABELS,
   CREATIVE_FORMAT_LABELS,
@@ -12,6 +11,7 @@ import {
   DNX_PARTNER_CREATIVE_DEVICE_TARGETS,
   DNX_PARTNER_CREATIVE_FORMATS,
   DNX_PARTNER_CREATIVE_STATUSES,
+  listAdPlacementCatalogForAdminBinding,
 } from "@repo/partners";
 import { prisma } from "@repo/db";
 import { PartnerAdCreative } from "@repo/design-system/components/partners";
@@ -109,6 +109,8 @@ export default async function AdminPartnerCampaignsPage({
 
   const { partner, campaigns, assets, publicationByCampaign } = loaded.data;
   const adApps = DNX_PARTNER_APPLICATIONS.filter(
+    (a) => a !== "DNX_SUITE" && a !== "OTHER" && a !== "FOTO_OFFICE",
+  );
     (a) => a === "INFO_SPOT" || a === "COMPRAME_LA_FOTO" || a === "CLICKATON" || a === "FOTO_RANK",
   );
 
@@ -391,6 +393,8 @@ export default async function AdminPartnerCampaignsPage({
                     <Select name="application" defaultValue="INFO_SPOT">
                       <option value="INFO_SPOT">InfoSpot</option>
                       <option value="COMPRAME_LA_FOTO">ComprameLaFoto</option>
+                      <option value="CLICKATON">Clickatón</option>
+                      <option value="FOTO_RANK">FotoRank</option>
                     </Select>
                   </Field>
                   <h3 className="text-lg font-semibold">Placement</h3>
@@ -399,10 +403,7 @@ export default async function AdminPartnerCampaignsPage({
                       <option value="" disabled>
                         Seleccionar…
                       </option>
-                      {AD_PLACEMENT_CATALOG.filter(
-                        (p) =>
-                          p.application === "INFO_SPOT" || p.application === "COMPRAME_LA_FOTO",
-                      ).map((p) => (
+                      {listAdPlacementCatalogForAdminBinding().map((p) => (
                         <option key={`${p.application}:${p.placementKey}`} value={p.placementKey}>
                           {APPLICATION_LABELS[p.application]} · {p.name} ({p.placementKey})
                           {!p.isActiveDefault ? " · OFF default" : ""}

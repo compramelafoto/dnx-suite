@@ -11,6 +11,8 @@ export type PartnerAdCreativeProps = {
   variant?: "banner" | "card" | "compact" | "welcome";
   className?: string;
   rel?: string;
+  /** Forzar pestaña nueva (welcome default true vía caller). */
+  openInNewTab?: boolean;
 };
 
 /**
@@ -26,6 +28,7 @@ export function PartnerAdCreative({
   variant = "banner",
   className,
   rel = "noopener noreferrer sponsored",
+  openInNewTab,
 }: PartnerAdCreativeProps) {
   const alt = title?.trim() || `Publicidad de ${partnerName}`;
   const shell: CSSProperties =
@@ -54,7 +57,7 @@ export function PartnerAdCreative({
 
   const imgStyle: CSSProperties =
     variant === "welcome"
-      ? { width: "100%", maxWidth: "20rem", maxHeight: "70vh", objectFit: "contain" }
+      ? { width: "100%", maxWidth: "20rem", maxHeight: "60vh", objectFit: "contain" }
       : variant === "card"
         ? { width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: "0.5rem" }
         : variant === "compact"
@@ -64,7 +67,7 @@ export function PartnerAdCreative({
   const inner: ReactNode = (
     <div style={shell} className={className}>
       {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
+        // Imagen externa de creative; next/image no aplica en DS compartido.
         <img src={imageUrl} alt={alt} style={imgStyle} />
       ) : (
         <span style={{ fontSize: "0.875rem", opacity: 0.8 }}>{partnerName}</span>
@@ -106,13 +109,15 @@ export function PartnerAdCreative({
       ? link
       : `https://${link}`;
 
+  const useBlank = openInNewTab ?? (variant === "welcome" || !isTracked);
+
   return (
     <aside aria-label={alt}>
       <a
         href={resolved}
-        target={isTracked ? undefined : "_blank"}
-        rel={rel}
-        style={{ color: "inherit", textDecoration: "none", display: "block" }}
+        target={useBlank ? "_blank" : undefined}
+        rel={useBlank ? "noopener noreferrer sponsored" : rel}
+        style={{ color: "inherit", textDecoration: "none", display: "block", cursor: "pointer" }}
       >
         {inner}
       </a>
