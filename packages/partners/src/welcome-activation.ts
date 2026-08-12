@@ -236,6 +236,8 @@ export const PARTNER_WELCOME_CRITICAL_PATH_PATTERNS: Record<
     /^\/checkout(\/|$)/i,
     /^\/pago(\/|$)/i,
     /^\/descargas(\/|$)/i,
+    /^\/pedido(\/|$)/i,
+    /^\/invite(\/|$)/i,
     /\/comprar(\/|$)/i,
     /\/confirmacion(\/|$)/i,
     /\/imprimir\/(resumen|confirmacion)(\/|$)/i,
@@ -256,7 +258,8 @@ export const PARTNER_WELCOME_PLACEMENT_PATH_ALLOWLIST: Record<
   FOTORANK_HOME_WELCOME: [/^\/$/],
   FOTORANK_CONTEST_WELCOME: [/^\/concursos\/[^/]+$/i],
   CLF_HOME_WELCOME: [/^\/$/],
-  CLF_ALBUM_WELCOME: [/^\/g\/[^/]+$/i, /^\/e\/[^/]+$/i, /^\/a\/[^/]+$/i],
+  /** Solo álbum público canónico — no /g (galería evento), /e (evento) ni /a (legacy redirect). */
+  CLF_ALBUM_WELCOME: [/^\/album\/[^/]+$/i],
 };
 
 export function isPartnerWelcomeCriticalPath(

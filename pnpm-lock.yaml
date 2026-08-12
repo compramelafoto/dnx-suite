@@ -192,6 +192,9 @@ importers:
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../../packages/partners
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments

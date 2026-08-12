@@ -826,6 +826,14 @@ export function isFotorankPartnerWelcomeEnabled(): boolean {
   return envFlagTruthy("FOTORANK_PARTNER_WELCOME_ENABLED");
 }
 
+/**
+ * Activación destacada CLF álbum — default OFF.
+ * Requiere además `CLF_PARTNER_ADS_ENABLED` en el loader de app (ambos ON).
+ */
+export function isClfPartnerAlbumWelcomeEnabled(): boolean {
+  return envFlagTruthy("CLF_PARTNER_ALBUM_WELCOME_ENABLED");
+}
+
 export function getAdPlacementCatalogEntry(
   application: DnxPartnerApplication,
   placementKey: string,

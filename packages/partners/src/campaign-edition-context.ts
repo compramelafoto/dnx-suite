@@ -23,7 +23,7 @@ export type PartnerCampaignScopeContext = {
   endsAt?: Date | string | null;
 };
 
-export type PartnerWelcomeScopeKind = "EDITION" | "EVENT" | "CONTEST";
+export type PartnerWelcomeScopeKind = "EDITION" | "EVENT" | "CONTEST" | "ALBUM";
 
 const GLOBAL_CONTEXT_TYPES = new Set(["GLOBAL", "PLATFORM"]);
 
@@ -31,6 +31,7 @@ const SCOPE_CONTEXT_TYPES: Record<PartnerWelcomeScopeKind, ReadonlySet<string>> 
   EDITION: new Set(["EDITION", "EVENT"]),
   EVENT: new Set(["EDITION", "EVENT"]),
   CONTEST: new Set(["CONTEST"]),
+  ALBUM: new Set(["ALBUM"]),
 };
 
 export type PartnerCampaignEditionContext = PartnerCampaignScopeContext;
@@ -133,6 +134,26 @@ export function isPartnerCampaignEligibleForContestContext(input: {
     application: "FOTO_RANK",
     scopeKind: "CONTEST",
     scopeId: input.contestId,
+    participation: input.participation,
+    treatNullParticipationAsGlobal: false,
+    requireActiveParticipationStatus: true,
+    now: input.now,
+  });
+}
+
+/**
+ * ComprameLaFoto álbum — null participation NO es global (misma regla segura que FotoRank).
+ * `albumId` = String(Album.id) canónico.
+ */
+export function isPartnerCampaignEligibleForAlbumContext(input: {
+  albumId: string;
+  participation: PartnerCampaignScopeContext | null | undefined;
+  now?: Date;
+}): boolean {
+  return isPartnerCampaignEligibleForScopeContext({
+    application: "COMPRAME_LA_FOTO",
+    scopeKind: "ALBUM",
+    scopeId: input.albumId,
     participation: input.participation,
     treatNullParticipationAsGlobal: false,
     requireActiveParticipationStatus: true,

@@ -11,6 +11,8 @@ import {
   isClickatonPartnerWelcomeEnabled,
   isFotorankPartnerWelcomeEnabled,
   isInfospotPartnerAdsEnabled,
+  isClfPartnerAdsEnabled,
+  isClfPartnerAlbumWelcomeEnabled,
   isWelcomeActivationExcludedApplication,
   isWelcomeActivationPlacementKey,
   listAdPlacementCatalogForAdminBinding,
@@ -117,9 +119,17 @@ describe("welcome critical paths + allowlist", () => {
       canMountPartnerWelcomeActivation({
         application: "COMPRAME_LA_FOTO",
         placementKey: "CLF_ALBUM_WELCOME",
-        pathname: "/g/abc123",
+        pathname: "/album/mi-casamiento",
       }).ok,
       true,
+    );
+    assert.equal(
+      canMountPartnerWelcomeActivation({
+        application: "COMPRAME_LA_FOTO",
+        placementKey: "CLF_ALBUM_WELCOME",
+        pathname: "/g/abc123",
+      }).ok,
+      false,
     );
   });
 
@@ -199,19 +209,29 @@ describe("welcome animation + destination safety", () => {
 });
 
 describe("welcome feature flags default OFF", () => {
-  it("clickaton/fotorank welcome y ads flags", () => {
+  it("clickaton/fotorank/clf album welcome y ads flags", () => {
     const prevC = process.env.CLICKATON_PARTNER_WELCOME_ENABLED;
     const prevF = process.env.FOTORANK_PARTNER_WELCOME_ENABLED;
     const prevI = process.env.INFOSPOT_PARTNER_ADS_ENABLED;
+    const prevClfAds = process.env.CLF_PARTNER_ADS_ENABLED;
+    const prevClfAlbum = process.env.CLF_PARTNER_ALBUM_WELCOME_ENABLED;
     try {
       delete process.env.CLICKATON_PARTNER_WELCOME_ENABLED;
       delete process.env.FOTORANK_PARTNER_WELCOME_ENABLED;
       delete process.env.INFOSPOT_PARTNER_ADS_ENABLED;
+      delete process.env.CLF_PARTNER_ADS_ENABLED;
+      delete process.env.CLF_PARTNER_ALBUM_WELCOME_ENABLED;
       assert.equal(isClickatonPartnerWelcomeEnabled(), false);
       assert.equal(isFotorankPartnerWelcomeEnabled(), false);
       assert.equal(isInfospotPartnerAdsEnabled(), false);
+      assert.equal(isClfPartnerAdsEnabled(), false);
+      assert.equal(isClfPartnerAlbumWelcomeEnabled(), false);
       process.env.CLICKATON_PARTNER_WELCOME_ENABLED = "true";
       assert.equal(isClickatonPartnerWelcomeEnabled(), true);
+      process.env.CLF_PARTNER_ALBUM_WELCOME_ENABLED = "1";
+      assert.equal(isClfPartnerAlbumWelcomeEnabled(), true);
+      process.env.CLF_PARTNER_ALBUM_WELCOME_ENABLED = "maybe";
+      assert.equal(isClfPartnerAlbumWelcomeEnabled(), false);
     } finally {
       if (prevC === undefined) delete process.env.CLICKATON_PARTNER_WELCOME_ENABLED;
       else process.env.CLICKATON_PARTNER_WELCOME_ENABLED = prevC;
@@ -219,6 +239,10 @@ describe("welcome feature flags default OFF", () => {
       else process.env.FOTORANK_PARTNER_WELCOME_ENABLED = prevF;
       if (prevI === undefined) delete process.env.INFOSPOT_PARTNER_ADS_ENABLED;
       else process.env.INFOSPOT_PARTNER_ADS_ENABLED = prevI;
+      if (prevClfAds === undefined) delete process.env.CLF_PARTNER_ADS_ENABLED;
+      else process.env.CLF_PARTNER_ADS_ENABLED = prevClfAds;
+      if (prevClfAlbum === undefined) delete process.env.CLF_PARTNER_ALBUM_WELCOME_ENABLED;
+      else process.env.CLF_PARTNER_ALBUM_WELCOME_ENABLED = prevClfAlbum;
     }
   });
 });

@@ -45,6 +45,7 @@
     "@repo/db": "workspace:*",
     "@repo/design-system": "workspace:*",
     "@repo/geo": "workspace:*",
+    "@repo/partners": "workspace:*",
     "@repo/payments": "workspace:*",
     "@repo/template-engine": "workspace:*",
     "@repo/template-engine-renderer": "workspace:*",

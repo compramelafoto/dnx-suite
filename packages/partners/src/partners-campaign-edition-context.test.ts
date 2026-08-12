@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  isPartnerCampaignEligibleForAlbumContext,
   isPartnerCampaignEligibleForContestContext,
   isPartnerCampaignEligibleForEditionContext,
   isPartnerCampaignEligibleForScopeContext,
@@ -312,5 +313,105 @@ describe("campaign contest context (FotoRank welcome)", () => {
       }),
       false,
     );
+  });
+});
+
+describe("campaign album context (CLF welcome)", () => {
+  const albumA = "42";
+  const albumB = "99";
+
+  it("null participation NO es global en CLF", () => {
+    assert.equal(
+      isPartnerCampaignEligibleForAlbumContext({
+        albumId: albumA,
+        participation: null,
+      }),
+      false,
+    );
+  });
+
+  it("GLOBAL/PLATFORM explícito aparece", () => {
+    assert.equal(
+      isPartnerCampaignEligibleForAlbumContext({
+        albumId: albumA,
+        participation: {
+          application: "COMPRAME_LA_FOTO",
+          contextType: "GLOBAL",
+          contextId: null,
+          status: "ACTIVE",
+          archivedAt: null,
+        },
+      }),
+      true,
+    );
+    assert.equal(
+      isPartnerCampaignEligibleForAlbumContext({
+        albumId: albumA,
+        participation: {
+          application: "COMPRAME_LA_FOTO",
+          contextType: "PLATFORM",
+          contextId: null,
+          status: "ACTIVE",
+          archivedAt: null,
+        },
+      }),
+      true,
+    );
+  });
+
+  it("ALBUM del álbum actual aparece; otro álbum no", () => {
+    assert.equal(
+      isPartnerCampaignEligibleForAlbumContext({
+        albumId: albumA,
+        participation: {
+          application: "COMPRAME_LA_FOTO",
+          contextType: "ALBUM",
+          contextId: albumA,
+          status: "ACTIVE",
+          archivedAt: null,
+          publicVisibility: "PUBLIC",
+        },
+      }),
+      true,
+    );
+    assert.equal(
+      isPartnerCampaignEligibleForAlbumContext({
+        albumId: albumA,
+        participation: {
+          application: "COMPRAME_LA_FOTO",
+          contextType: "ALBUM",
+          contextId: albumB,
+          status: "ACTIVE",
+          archivedAt: null,
+          publicVisibility: "PUBLIC",
+        },
+      }),
+      false,
+    );
+  });
+
+  it("Clickatón / FotoRank / InfoSpot / FotoOffice no aparecen", () => {
+    for (const application of [
+      "CLICKATON",
+      "FOTO_RANK",
+      "INFO_SPOT",
+      "FOTO_OFFICE",
+    ] as const) {
+      assert.equal(
+        isPartnerCampaignEligibleForAlbumContext({
+          albumId: albumA,
+          participation: {
+            application,
+            contextType: "ALBUM",
+            contextId: albumA,
+            status: "ACTIVE",
+            archivedAt: null,
+            publicVisibility: "PUBLIC",
+          },
+        }),
+        false,
+        application,
+      );
+    }
   });
 });

@@ -164,6 +164,7 @@ export {
   isClfPartnerAdsEnabled,
   isClickatonPartnerWelcomeEnabled,
   isFotorankPartnerWelcomeEnabled,
+  isClfPartnerAlbumWelcomeEnabled,
   getAdPlacementCatalogEntry,
 } from "./campaigns";
 export type {
@@ -222,6 +223,7 @@ export {
   isPartnerCampaignEligibleForEditionContext,
   isPartnerCampaignEligibleForScopeContext,
   isPartnerCampaignEligibleForContestContext,
+  isPartnerCampaignEligibleForAlbumContext,
 } from "./campaign-edition-context";
 export type {
   PartnerCampaignEditionContext,

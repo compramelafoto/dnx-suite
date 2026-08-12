@@ -1,150 +1,112 @@
 # DNX Partners — Activación destacada de sponsor
 
-**Etapa:** Sponsor Global / Etapa 04 (FotoRank CONTEST)  
-**Estado:** `FOTORANK_CONTEST_WELCOME` montado en landing pública de concurso; **flag OFF por defecto** (sin deploy / sin Vercel).
+**Etapa:** Sponsor Global / Etapa 05 (ComprameLaFoto ALBUM)  
+**Estado:** `CLF_ALBUM_WELCOME` montado en álbum público; **flags OFF por defecto** (sin deploy / sin Vercel).
 
 ## Qué es
 
 Una **activación destacada** es un interstitial controlado (`WELCOME_INTERSTITIAL`) que muestra una pieza aprobada de un sponsor al entrar a una **superficie expresamente autorizada** (placement). Reutiliza campañas, creatives, assets, outbound `/r/` e impresiones de DNX Partners.
 
-## Arquitectura pública FotoRank (Etapa 04)
+## Arquitectura pública CLF — álbum (Etapa 05)
 
 | Campo | Valor |
 |-------|--------|
-| Ruta real | `/concursos/[slug]` → `apps/fotorank/app/concursos/[slug]/page.tsx` |
-| Landing vigente | **`contest-public`** (`ContestPublicLanding` + `getPublicContestLandingBySlug`) |
-| `public-ui` | No presente en esta rama de trabajo; no se migró ni se montó allí |
-| Visibilidad | Solo concursos `visibility=PUBLIC` + status `PUBLISHED\|ACTIVE` |
-| ID canónico | `data.contest.id` (nunca slug como FK) |
+| Ruta canónica | `/album/[slug]` → `apps/compramelafoto/app/album/[slug]/page.tsx` |
+| Legacy | `/a/[id]` → 301 a `/album/[slug]` (no montar welcome ahí) |
+| No equivalentes | `/e/[shareSlug]` (evento), `/g/[shareSlug]` (galería agregada) |
+| Modelo | `Album` — ID canónico `Album.id` (Int → string en contexto) |
+| Visibilidad | `isPublic && !isHidden`, no `deletedAt`, no test, no `isAccessBlocked` |
+| Password | No existe; invitaciones / unlisted / hidden grants son otros flujos |
 
-Estados de inscripción / carga / jurado / resultados **no** bloquean la activación si la landing sigue pública.
+Ventas cerradas **no** bloquean si el álbum sigue públicamente visible.
 
-## Superficie integrada — FotoRank CONTEST (Etapa 04)
+## Superficie integrada — CLF ALBUM (Etapa 05)
 
 | Campo | Valor |
 |-------|--------|
-| Placement | `FOTORANK_CONTEST_WELCOME` |
-| Página | `apps/fotorank/app/concursos/[slug]/page.tsx` |
-| Loader | `loadFotorankContestWelcomeAd` (server-only) |
-| Wrapper cliente | `FotorankContestPartnerWelcome` |
-| Flag | `FOTORANK_PARTNER_WELCOME_ENABLED` (default OFF) |
-| Delay apertura | **1000 ms** (igual Clickatón) |
-| Frecuencia | 24 h local (`campaignId` + placement) |
-| Animación | `random` (reduced-motion → fade) |
-| Tracking clic | `apps/fotorank/app/r/[trackingKey]/route.ts` |
-| Impresión | `apps/fotorank/app/api/public/partners/impression` (`application: FOTO_RANK`) |
+| Placement | `CLF_ALBUM_WELCOME` |
+| Página | `apps/compramelafoto/app/album/[slug]/page.tsx` |
+| Loader | `loadClfAlbumWelcomeAd` (server-only) |
+| Wrapper cliente | `ClfAlbumPartnerWelcome` |
+| Flags (ambos requeridos) | `CLF_PARTNER_ADS_ENABLED` **y** `CLF_PARTNER_ALBUM_WELCOME_ENABLED` (default OFF) |
+| Delay | **1000 ms** |
+| Frecuencia | 24 h local |
+| Tracking clic | `apps/compramelafoto/app/r/[trackingKey]/route.ts` |
+| Impresión | `apps/compramelafoto/app/api/public/partners/impression` |
 
-**No montado:** `FOTORANK_HOME_WELCOME` (portada general).
+**No montado:** `CLF_HOME_WELCOME`.
 
-### Contexto de concurso
+### Contexto de álbum
 
-Sin migraciones. Se usa `DnxPartnerCampaign.participationId` → `DnxPartnerParticipation` vía filtro reutilizable (`isPartnerCampaignEligibleForScopeContext` / `isPartnerCampaignEligibleForContestContext`):
+Sin migraciones. Participación `DnxPartnerParticipation`:
 
 | Participación | Resultado |
 |---------------|-----------|
-| `null` | **No** se trata como global (evita campañas huérfanas) |
-| `contextType=CONTEST` + `contextId=contestId` + `ACTIVE` + visible | Solo ese concurso |
-| Otro concurso | **No** |
-| `GLOBAL` / `PLATFORM` explícito + `ACTIVE` | Visible (global deliberado) |
-| `HIDDEN` / no-ACTIVE / vencida / archivada | **No** |
-| Otra app (Clickatón, CLF, InfoSpot, FotoOffice) | **No** |
+| `null` | **No** global (evita huérfanas) |
+| `ALBUM` + `contextId=String(album.id)` + `ACTIVE` | Solo ese álbum |
+| Otro álbum | **No** |
+| `GLOBAL` / `PLATFORM` explícito + `ACTIVE` | Sí |
+| Otra app | **No** |
 
-`contestContextId` en `loadPartnerAdsForPlacement`. Compat: `editionContextId` + null-as-global se mantienen para Clickatón.
+### Convivencia `OrganizerLandingSponsor`
 
-### Consultas (rendimiento)
+Sistema **paralelo** de la landing del organizador (`/[handler]`). **No** se migra, fusiona ni convierte en campañas DNX. La galería del álbum no renderiza `OrganizerLandingSponsor`.
 
-| Flag | Comportamiento |
-|------|----------------|
-| OFF | Early return en loader app + kill-switch en ads-loader → **0** Prisma partners |
-| ON | Hasta 1 lectura de placement + 1 `findMany` de bindings (máx. 1 creative) |
+### Cómo validar localmente
 
-### Convivencia institucional
+1. Fixture: campaña `ACTIVE`, placement `CLF_ALBUM_WELCOME`, creative `APPROVED`, partner `ACTIVE`.
+2. Participación `ALBUM` con `contextId` = id del álbum, o `GLOBAL`/`PLATFORM`.
+3. Local: `CLF_PARTNER_ADS_ENABLED=true` y `CLF_PARTNER_ALBUM_WELCOME_ENABLED=true`.
+4. Abrir `/album/<slug>` público → ~1s interstitial.
+5. Cualquier flag OFF: cero consultas partners para welcome.
 
-`ContestPartnersSection` / `partnerGroups={[]}` **intactos**. La activación DNX es independiente; **no** se habilita la sección estática de sponsors en esta etapa.
+## Superficies previas
 
-### Cómo validar localmente (sin prod / sin SFEF real)
-
-1. Fixture sintético: campaña `ACTIVE`, placement `FOTORANK_CONTEST_WELCOME`, creative `APPROVED`, partner `ACTIVE`.
-2. Participación `CONTEST` con `contextId` = ID del concurso de prueba, o `GLOBAL`/`PLATFORM` explícito.
-3. Shell local: `FOTORANK_PARTNER_WELCOME_ENABLED=true` (nunca en Vercel en esta etapa).
-4. Abrir `/concursos/<slug>` público → tras ~1s el interstitial (si frequency lo permite).
-5. Sin flag: la página no consulta partners.
-
-## Superficie previa — Clickatón EVENT (Etapa 03)
-
-| Campo | Valor |
-|-------|--------|
-| Placement | `CLICKATON_EVENT_WELCOME` |
-| Página | `apps/clickaton/app/(public)/maratones/[slug]/page.tsx` |
-| Flag | `CLICKATON_PARTNER_WELCOME_ENABLED` (default OFF) |
-| Delay | 1000 ms |
-| Contexto | `editionContextId`; **null participation = global** (compat E3) |
-
-`MarathonSponsors` legacy intacto.
+| Etapa | Placement | App |
+|-------|-----------|-----|
+| 03 | `CLICKATON_EVENT_WELCOME` | Clickatón `/maratones/[slug]` |
+| 04 | `FOTORANK_CONTEST_WELCOME` | FotoRank `/concursos/[slug]` (`contest-public`) |
+| — | `INFOSPOT_HOME_WELCOME` | InfoSpot (flag ads) |
 
 ## Plataformas / placements
 
-| App enum | Welcome placements | Montaje público |
-|----------|-------------------|-----------------|
-| `CLICKATON` | `CLICKATON_HOME_WELCOME`, `CLICKATON_EVENT_WELCOME` | Solo **EVENT** (E03) |
-| `FOTO_RANK` | `FOTORANK_HOME_WELCOME`, `FOTORANK_CONTEST_WELCOME` | Solo **CONTEST** (E04) |
-| `INFO_SPOT` | `INFOSPOT_HOME_WELCOME` | Existente (flag ads) |
-| `COMPRAME_LA_FOTO` | `CLF_HOME_WELCOME`, `CLF_ALBUM_WELCOME` | Pendiente |
+| App | Welcome placements | Montaje |
+|-----|-------------------|---------|
+| `CLICKATON` | HOME, EVENT | Solo EVENT |
+| `FOTO_RANK` | HOME, CONTEST | Solo CONTEST |
+| `COMPRAME_LA_FOTO` | HOME, ALBUM | Solo **ALBUM** (E05) |
+| `INFO_SPOT` | HOME | Existente |
 
-## Exclusión de FotoOffice
+## Exclusión FotoOffice
 
-- `WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS = ["FOTO_OFFICE"]`.
-- Sin placements FO; publish / admin / mount rechazan FO.
-
-## Frecuencia local
-
-- Clave: `dnx_partner_welcome_v1:{campaignId}:{placementKey}`.
-- Marca al **abrir** (no al cerrar).
-- Sin cookies / fingerprint / PII.
-
-## Tracking
-
-| Evento | Estado |
-|--------|--------|
-| Impresión | `PartnerViewableImpression` al abrir (viewability) → POST impression app |
-| Clic | `/r/[trackingKey]` + nueva pestaña + `noopener noreferrer` |
-| Cierre | Callback tipado — **sin persistencia DB** |
+Sin cambios: FO excluido del catálogo welcome / mount / publish.
 
 ## Flags
 
 | Flag | Default | Notas |
 |------|---------|-------|
-| `CLICKATON_PARTNER_WELCOME_ENABLED` | OFF | Truthy solo `1\|true\|on\|yes` |
-| `FOTORANK_PARTNER_WELCOME_ENABLED` | OFF | Montado CONTEST; apagado |
-| `INFOSPOT_PARTNER_ADS_ENABLED` | OFF | InfoSpot |
-| `CLF_PARTNER_ADS_ENABLED` | OFF | CLF |
+| `CLICKATON_PARTNER_WELCOME_ENABLED` | OFF | |
+| `FOTORANK_PARTNER_WELCOME_ENABLED` | OFF | |
+| `CLF_PARTNER_ADS_ENABLED` | OFF | Kill switch ads CLF |
+| `CLF_PARTNER_ALBUM_WELCOME_ENABLED` | OFF | Welcome álbum; requiere también ads |
+| `INFOSPOT_PARTNER_ADS_ENABLED` | OFF | |
 
-## Rutas excluidas (FotoRank)
+## Limitaciones
 
-Allowlist del placement: solo `/concursos/:slug`. Bloqueado: inscripción, carga, reemplazo, dashboard, jurado, auth, APIs, home (`/`), etc. vía `canMountPartnerWelcomeActivation`.
-
-## Limitaciones conocidas
-
-- Home FotoRank / Home Clickatón / CLF no montados.
+- Home CLF / Home CK / Home FR no montados.
+- Unlisted/privado/oculto/test/bloqueado: sin welcome.
 - Cierre no persistido centralmente.
-- Frequency solo por dispositivo/navegador.
-- Campañas sin participación no son globales en FotoRank (sí en Clickatón por compat).
-- Desempate: prioridad del loader (`placementPriority` → `campaignPriority` → `sortOrder`).
-- No se crearon campañas productivas ni se tocó Santa Fe en Foco.
+- Frequency por dispositivo/navegador.
 
 ## Código de referencia
 
 | Pieza | Ruta |
 |-------|------|
-| Contratos welcome | `packages/partners/src/welcome-activation.ts` |
-| Contexto scope/edition/contest | `packages/partners/src/campaign-edition-context.ts` |
+| Contexto scope/album | `packages/partners/src/campaign-edition-context.ts` |
 | Ads loader | `packages/db/src/partners-ads-loader.ts` |
-| Interstitial | `packages/design-system/.../PartnerWelcomeInterstitial.tsx` |
-| Clickatón server | `apps/clickaton/lib/public/partners-event-welcome.ts` |
-| Clickatón client | `apps/clickaton/components/marathon/ClickatonEventPartnerWelcome.tsx` |
-| FotoRank server | `apps/fotorank/app/lib/fotorank/partners/contest-welcome.ts` |
-| FotoRank client | `apps/fotorank/app/components/contest-public/FotorankContestPartnerWelcome.tsx` |
+| CLF server | `apps/compramelafoto/lib/public/partners-album-welcome.ts` |
+| CLF client | `apps/compramelafoto/components/partners/ClfAlbumPartnerWelcome.tsx` |
 
 ## Próxima etapa prevista
 
-Etapa 5 (propuesta, **sin iniciar**): montar welcome en ComprameLaFoto (`CLF_HOME_WELCOME` / `CLF_ALBUM_WELCOME`) bajo flag dedicado, sin tocar producción.
+Etapa 6 (propuesta, **sin iniciar**): elegir entre `CLF_HOME_WELCOME` o administración/prueba controlada de campañas (staging, flags locales, fixtures), sin producción.

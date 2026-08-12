@@ -8,9 +8,11 @@ import {
   AD_PLACEMENT_CATALOG,
   getAdPlacementCatalogEntry,
   isClfPartnerAdsEnabled,
+  isClfPartnerAlbumWelcomeEnabled,
   isClickatonPartnerWelcomeEnabled,
   isFotorankPartnerWelcomeEnabled,
   isInfospotPartnerAdsEnabled,
+  isPartnerCampaignEligibleForAlbumContext,
   isPartnerCampaignEligibleForContestContext,
   isPartnerCampaignEligibleForEditionContext,
   isWelcomeActivationPlacementKey,
@@ -46,13 +48,26 @@ export type LoadPartnerAdsInput = {
    * FotoRank CONTEST welcome: ID canónico del concurso (`FotorankContest.id`).
    */
   contestContextId?: string | null;
+  /**
+   * CLF ALBUM welcome: ID canónico del álbum (`String(Album.id)`).
+   */
+  albumContextId?: string | null;
   /** Welcome: exigir partner ACTIVE (default false = comportamiento IS/CLF previo). */
   requireActivePartner?: boolean;
 };
 
-function isAdsKillSwitchOff(application: LoadPartnerAdsInput["application"]): boolean {
+function isAdsKillSwitchOff(
+  application: LoadPartnerAdsInput["application"],
+  placementKey: DnxPartnerAdPlacementKey,
+): boolean {
   if (application === "INFO_SPOT") return !isInfospotPartnerAdsEnabled();
-  if (application === "COMPRAME_LA_FOTO") return !isClfPartnerAdsEnabled();
+  if (application === "COMPRAME_LA_FOTO") {
+    if (!isClfPartnerAdsEnabled()) return true;
+    if (placementKey === "CLF_ALBUM_WELCOME" && !isClfPartnerAlbumWelcomeEnabled()) {
+      return true;
+    }
+    return false;
+  }
   if (application === "CLICKATON") return !isClickatonPartnerWelcomeEnabled();
   if (application === "FOTO_RANK") return !isFotorankPartnerWelcomeEnabled();
   return true;
@@ -94,11 +109,13 @@ export async function ensureAdPlacementCatalog(prisma: PrismaClient): Promise<vo
 
 function passesScopeFilter(input: {
   application: LoadPartnerAdsInput["application"];
+  placementKey: DnxPartnerAdPlacementKey;
   editionId: string | null;
   contestId: string | null;
+  albumId: string | null;
   participation: PartnerCampaignScopeContext | null;
 }): boolean {
-  const { application, editionId, contestId, participation } = input;
+  const { application, placementKey, editionId, contestId, albumId, participation } = input;
 
   if (application === "CLICKATON") {
     if (editionId) {
@@ -125,6 +142,20 @@ function passesScopeFilter(input: {
     });
   }
 
+  if (application === "COMPRAME_LA_FOTO" && placementKey === "CLF_ALBUM_WELCOME") {
+    if (albumId) {
+      return isPartnerCampaignEligibleForAlbumContext({
+        albumId,
+        participation,
+      });
+    }
+    return isPartnerCampaignEligibleForAlbumContext({
+      albumId: "__none__",
+      participation,
+    });
+  }
+
+  // Otros placements CLF (HOME_PROMO, GALLERY_*, etc.): sin filtro de álbum.
   return true;
 }
 
@@ -132,8 +163,9 @@ export async function loadPartnerAdsForPlacement(
   prisma: PrismaClient,
   input: LoadPartnerAdsInput,
 ): Promise<ResolvedAdCreative[]> {
-  if (isAdsKillSwitchOff(input.application)) return [];
+  if (isAdsKillSwitchOff(input.application, input.placementKey)) return [];
 
+  // Clickatón / FotoRank: solo placements welcome.
   if (
     (input.application === "CLICKATON" || input.application === "FOTO_RANK") &&
     !isWelcomeActivationPlacementKey(input.placementKey)
@@ -235,6 +267,7 @@ export async function loadPartnerAdsForPlacement(
 
   const editionId = input.editionContextId?.trim() || null;
   const contestId = input.contestContextId?.trim() || null;
+  const albumId = input.albumContextId?.trim() || null;
 
   const candidates: ResolveAdsCandidate[] = [];
   for (const binding of bindings) {
@@ -244,8 +277,10 @@ export async function loadPartnerAdsForPlacement(
     if (
       !passesScopeFilter({
         application: input.application,
+        placementKey: input.placementKey,
         editionId,
         contestId,
+        albumId,
         participation,
       })
     ) {
@@ -307,14 +342,16 @@ export async function loadPartnerAdsForPlacement(
 
   const device = input.device ?? "ALL";
   const day = input.rotationDayKey ?? new Date().toISOString().slice(0, 10);
-  const scopeSeed = contestId ?? editionId ?? "";
+  const scopeSeed = albumId ?? contestId ?? editionId ?? "";
   const resolved = resolveEligibleAds({
     candidates,
     audience: input.audience,
     audienceCategories: input.audienceCategories,
     device,
     maxItems:
-      input.application === "CLICKATON" || input.application === "FOTO_RANK"
+      input.application === "CLICKATON" ||
+      input.application === "FOTO_RANK" ||
+      input.placementKey === "CLF_ALBUM_WELCOME"
         ? 1
         : Math.max(1, placement.maxItems),
     rotationMode: placement.rotationMode,
