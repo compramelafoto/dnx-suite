@@ -1,0 +1,21 @@
+{
+  "name": "sponsor-welcome-visual-harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5199",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "^4.7.0",
+    "playwright": "^1.62.1",
+    "typescript": "5.9.2",
+    "vite": "^6.3.5"
+  }
+}
