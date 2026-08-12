@@ -298,6 +298,7 @@ export function createEditionFinanceService(store: InMemoryEditionFinanceStore) 
         },
       });
     } else {
+      const existingParticipant = participant;
       const writingVersion = store.versions.get(versionId);
       const agreement = store.agreements.get(agreementId);
       const publishedVersion = agreement?.currentVersionId
@@ -309,7 +310,7 @@ export function createEditionFinanceService(store: InMemoryEditionFinanceStore) 
           [...store.rules.values()].some(
             (r) =>
               r.versionId === publishedVersion.id &&
-              r.participantId === participant.id,
+              r.participantId === existingParticipant.id,
           ),
       );
       const freeze = shouldFreezeParticipantAccountForDraft({
@@ -319,18 +320,18 @@ export function createEditionFinanceService(store: InMemoryEditionFinanceStore) 
         participantUsedByPublished,
       });
       if (!freeze) {
-        participant.paymentAccountId = row.paymentConnectionId ?? null;
+        existingParticipant.paymentAccountId = row.paymentConnectionId ?? null;
       }
-      participant.roleLabel = row.role ?? participant.roleLabel;
-      participant.sortOrder = row.sortOrder ?? participant.sortOrder;
-      participant.status = "ACCEPTED";
+      existingParticipant.roleLabel = row.role ?? existingParticipant.roleLabel;
+      existingParticipant.sortOrder = row.sortOrder ?? existingParticipant.sortOrder;
+      existingParticipant.status = "ACCEPTED";
       audit(editionId, "CONNECTION_SELECTED", actorUserId, {
         agreementId,
         versionId,
         nextValue: {
           financialIdentityId: row.financialIdentityId,
           paymentConnectionId: freeze
-            ? participant.paymentAccountId
+            ? existingParticipant.paymentAccountId
             : (row.paymentConnectionId ?? null),
           frozenForPublished: freeze,
         },
