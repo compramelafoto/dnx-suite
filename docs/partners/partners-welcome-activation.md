@@ -1,28 +1,51 @@
 # DNX Partners — Activación destacada de sponsor
 
-**Etapa:** Sponsor Global / Etapa 06 (admin + validación controlada)  
-**Estado:** circuito administrativo en Clickatón `/admin/sponsors/[id]/campanas`; runtimes E3–E5 montados; **flags OFF por defecto**; **sin deploy productivo**.
+**Etapa:** Sponsor Global / Etapa 07 (preflight productivo + hardening)  
+**Estado:** adapters canónicos fail-closed; assets PENDING≠publicado; flags welcome nuevos OFF; **sin deploy / sin activación**.
+
+Runbook (no ejecutar): [`partners-welcome-activation-runbook.md`](./partners-welcome-activation-runbook.md).
+
+## Etapa 07 — Hardening
+
+### Selectores / bases
+
+| Scope | Fuente | Variable |
+|-------|--------|----------|
+| EDITION | Clickatón local | `DATABASE_URL` (admin CK) |
+| CONTEST | FotoRank canónica | `DNX_PARTNERS_FOTORANK_DATABASE_URL` (**obligatoria**; fail-closed) |
+| ALBUM | CLF canónica | `DNX_PARTNERS_CLF_DATABASE_URL` (misma que publish; fail-closed) |
+
+Sin fallback silencioso a la DB de Clickatón para FR/CLF. IDs validados (cuid/uuid o `Album.id`); slugs rechazados. Resolución de entidad antes de vincular/publicar.
+
+### Assets
+
+Registro por URL → `PENDING` (preview). Publicar exige asset APPROVED del mismo sponsor, alt, URL segura, no SVG.
+
+### Flags (Production, lectura)
+
+Welcome nuevos ausentes ⇒ default OFF. Ver informe Etapa 7.
 
 ## Qué es
 
 Una **activación destacada** es un interstitial controlado (`WELCOME_INTERSTITIAL`) que muestra una pieza aprobada de un sponsor en una **superficie autorizada**. Nombre visible: **Activación destacada**. Descripción: *Ventana patrocinada que aparece una vez cada 24 horas en una superficie autorizada.*
 
-## Flujo administrativo (Etapa 06)
+## Flujo administrativo (Etapa 06 + 07)
 
 Panel: **Clickatón** → Sponsors → ficha → **Campañas**.
 
 1. Seleccionar sponsor existente.
-2. Registrar asset (URL pública + alt) o reutilizar aprobado.
+2. Registrar asset (URL → PENDING) y **aprobar formalmente**.
 3. Crear campaña `DRAFT` (app autorizada, URL, vigencia, prioridad).
 4. Creative `WELCOME_INTERSTITIAL` + asset aprobado + destino seguro.
-5. **Alcance explícito** (participación GLOBAL / PLATFORM / EDITION / CONTEST / ALBUM) vía selector — **sin IDs a mano**.
+5. **Alcance explícito** vía selector canónico — **sin IDs a mano**.
 6. Vincular **placement montado** únicamente.
 7. Validar antes de publicar (errores + advertencia si flag OFF).
 8. Preview = `PartnerWelcomeInterstitial` (sin impresión/clic/frecuencia).
 9. Publicación multi-DB con snapshot público mínimo (reutiliza publisher existente).
 10. Consultar sync por destino; analytics sin métricas inventadas; pausar campaña.
 
-Dominio: `packages/partners/src/welcome-admin.ts`.  
+Dominio: `packages/partners/src/welcome-admin.ts` + `welcome-asset-context.ts`.  
+Clientes: `packages/db/src/partners-welcome-context-clients.ts`.  
 Mutaciones UI: `apps/clickaton/lib/admin/partners/welcome-admin-mutations.ts`.  
 Selectores: `WelcomeScopeLinkForm` + `WelcomeContextPicker` + `welcome-context-search.ts`.  
 Preview: `WelcomeInterstitialAdminPreview`.

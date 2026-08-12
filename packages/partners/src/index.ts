@@ -232,6 +232,17 @@ export type {
 } from "./campaign-edition-context";
 
 export {
+  assertWelcomeCanonicalContextIdFormat,
+  validateWelcomeAssetForPublish,
+  assertWelcomeAssetPublishable,
+} from "./welcome-asset-context";
+export type {
+  WelcomeCanonicalIdKind,
+  WelcomeAssetPublishCheckInput,
+  WelcomeAssetPublishIssue,
+} from "./welcome-asset-context";
+
+export {
   MOUNTED_WELCOME_PLACEMENT_KEYS,
   UNMOUNTED_WELCOME_PLACEMENT_KEYS,
   WELCOME_ADMIN_FORMAT_LABEL,

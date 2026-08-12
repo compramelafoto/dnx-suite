@@ -45,9 +45,11 @@ import {
 import { listCampaignPublicationUi } from "@/lib/admin/partners/campaign-publication";
 import {
   bindWelcomePlacementFormAction,
+  approvePartnerAssetFormAction,
   registerPartnerAssetUrlFormAction,
   validateWelcomeCampaignFormAction,
 } from "@/lib/admin/partners/welcome-admin-mutations";
+import { listWelcomeContextConnectionInfos } from "@repo/db/partners-welcome-context-clients";
 import { WelcomeInterstitialAdminPreview } from "@/components/admin/partners/WelcomeInterstitialAdminPreview";
 import { WelcomeScopeLinkForm } from "@/components/admin/partners/WelcomeScopeLinkForm";
 
@@ -147,6 +149,7 @@ export default async function AdminPartnerCampaignsPage({
   const adPlacementCatalog = listAdPlacementCatalogForAdminBinding().filter(
     (p) => p.application !== "FOTO_OFFICE",
   );
+  const contextDbInfos = listWelcomeContextConnectionInfos();
 
   return (
     <AdminScrollStability>
@@ -206,11 +209,32 @@ export default async function AdminPartnerCampaignsPage({
               </div>
             ))}
           </div>
+          <div className="space-y-2 border-t border-ck-border pt-6">
+            <h3 className="text-lg font-semibold">Fuentes canónicas (selectores)</h3>
+            <p className="text-xs text-ck-text-secondary">
+              Sin fallback silencioso. Si una conexión falta, el selector falla cerrado.
+            </p>
+            <ul className="space-y-2 text-sm text-ck-text-secondary">
+              {contextDbInfos.map((c) => (
+                <li key={c.key} className="rounded-lg border border-ck-border px-3 py-2">
+                  <span className="font-medium text-ck-text">{c.key}</span> · {c.envName} ·{" "}
+                  {c.configured ? (
+                    <>
+                      OK · {c.hostMasked ?? "host?"} · fp {c.fingerprint ?? "—"}
+                    </>
+                  ) : (
+                    <span className="text-amber-200">{c.reason ?? "No configurada"}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
           <form action={registerPartnerAssetUrlFormAction} className="space-y-4 border-t border-ck-border pt-6">
             <input type="hidden" name="partnerId" value={partner.id} />
-            <h3 className="text-lg font-semibold">Asset rápido (URL pública)</h3>
+            <h3 className="text-lg font-semibold">Asset por URL (borrador PENDING)</h3>
             <p className="text-xs text-ck-text-secondary">
-              PNG/WebP/JPG recomendados. Área segura para la X. No uses SVG no sanitizado.
+              PNG/WebP/JPG. Queda PENDING: sirve para preview, no para publicar. Aprobá formalmente
+              después. No uses SVG.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <Field id="asset-url" label="URL de imagen" required>
@@ -220,8 +244,34 @@ export default async function AdminPartnerCampaignsPage({
                 <Input name="altText" required placeholder="Descripción de la pieza" />
               </Field>
             </div>
-            <Button type="submit">Registrar asset aprobado</Button>
+            <Button type="submit">Registrar asset PENDING</Button>
           </form>
+          {assets.some((a) => a.approvalStatus === "PENDING") ? (
+            <div className="space-y-3 border-t border-ck-border pt-6">
+              <h3 className="text-lg font-semibold">Aprobar assets pendientes</h3>
+              <ul className="space-y-2">
+                {assets
+                  .filter((a) => a.approvalStatus === "PENDING")
+                  .map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ck-border px-3 py-2 text-sm"
+                    >
+                      <span className="text-ck-text-secondary">
+                        {a.name || a.type} · {a.altText || "sin alt"} · {a.id.slice(0, 8)}
+                      </span>
+                      <form action={approvePartnerAssetFormAction}>
+                        <input type="hidden" name="partnerId" value={partner.id} />
+                        <input type="hidden" name="assetId" value={a.id} />
+                        <Button type="submit" variant="secondary">
+                          Aprobar
+                        </Button>
+                      </form>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
         </Card>
 
         <Card variant="outlined" className="space-y-6 p-6">

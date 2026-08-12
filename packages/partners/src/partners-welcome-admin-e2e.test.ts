@@ -22,6 +22,19 @@ import {
 
 const SYNTHETIC_PARTNER = "TEST Sponsor Global E6";
 
+function approvedAsset(partnerId = "syn-partner") {
+  return {
+    partnerId,
+    assetPartnerId: partnerId,
+    approvalStatus: "APPROVED" as const,
+    status: "ACTIVE",
+    archivedAt: null,
+    fileUrl: "https://cdn.example/e6.png",
+    altText: "TEST Sponsor Global E6",
+    mimeType: "image/png",
+  };
+}
+
 function baseInput(
   overrides: Partial<WelcomeAdminPrePublishInput> &
     Pick<WelcomeAdminPrePublishInput, "application" | "placementKeys" | "scopeKind" | "participation">,
@@ -31,6 +44,7 @@ function baseInput(
     campaignStatus: "DRAFT",
     hasApprovedCreative: true,
     hasApprovedAssetWithUrl: true,
+    welcomeAsset: approvedAsset(),
     destinationUrl: "https://example.test/e6-welcome",
     contextId: overrides.participation?.contextId ?? null,
     ...overrides,
@@ -39,7 +53,7 @@ function baseInput(
 
 describe("welcome admin E2E sintético (memoria)", () => {
   it("Clickatón → evento sintético · validación OK + warning flag OFF", () => {
-    const editionId = "syn-e6-edition-001";
+    const editionId = "clsynckedition000000001";
     const issues = validateWelcomeCampaignBeforePublish(
       baseInput({
         application: "CLICKATON",
@@ -65,7 +79,7 @@ describe("welcome admin E2E sintético (memoria)", () => {
   });
 
   it("FotoRank → concurso sintético", () => {
-    const contestId = "syn-e6-contest-001";
+    const contestId = "clsynfrcontest000000001";
     const issues = validateWelcomeCampaignBeforePublish(
       baseInput({
         application: "FOTO_RANK",

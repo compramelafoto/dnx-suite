@@ -32,6 +32,11 @@ import {
   type PartnerCampaignScopeContext,
 } from "./campaign-edition-context";
 import { assertSafePartnerDestinationUrl } from "./tracking";
+import {
+  assertWelcomeCanonicalContextIdFormat,
+  validateWelcomeAssetForPublish,
+  type WelcomeAssetPublishCheckInput,
+} from "./welcome-asset-context";
 
 /** Placements con runtime público ya montado (Etapas 3–5 + InfoSpot). */
 export const MOUNTED_WELCOME_PLACEMENT_KEYS = [
@@ -370,6 +375,8 @@ export type WelcomeAdminPrePublishInput = {
   scopeKind: WelcomeAdminScopeKind;
   contextId?: string | null;
   participation: PartnerCampaignScopeContext | null | undefined;
+  /** Detalle del asset de la creative welcome; si falta, hasApprovedAssetWithUrl no basta. */
+  welcomeAsset?: WelcomeAssetPublishCheckInput | null;
 };
 
 /**
@@ -464,6 +471,25 @@ export function validateWelcomeCampaignBeforePublish(
     });
   }
 
+  if (
+    input.scopeKind === "EDITION" ||
+    input.scopeKind === "CONTEST" ||
+    input.scopeKind === "ALBUM"
+  ) {
+    try {
+      assertWelcomeCanonicalContextIdFormat(
+        input.scopeKind,
+        input.contextId ?? input.participation?.contextId,
+      );
+    } catch (e) {
+      issues.push({
+        code: "CONTEXT_ID",
+        message: e instanceof Error ? e.message : "ID contextual inválido",
+        severity: "error",
+      });
+    }
+  }
+
   if (!input.hasApprovedCreative) {
     issues.push({
       code: "CREATIVE",
@@ -471,10 +497,23 @@ export function validateWelcomeCampaignBeforePublish(
       severity: "error",
     });
   }
-  if (!input.hasApprovedAssetWithUrl) {
+
+  if (input.welcomeAsset) {
+    for (const a of validateWelcomeAssetForPublish(input.welcomeAsset)) {
+      issues.push(a);
+    }
+  } else if (!input.hasApprovedAssetWithUrl) {
     issues.push({
       code: "ASSET",
-      message: "Se requiere un asset aprobado con URL pública.",
+      message:
+        "Se requiere un asset del sponsor aprobado formalmente (no URL suelta ni PENDING).",
+      severity: "error",
+    });
+  } else {
+    issues.push({
+      code: "ASSET_DETAIL",
+      message:
+        "No se pudo verificar el asset aprobado del sponsor. Revisá la creative vinculada.",
       severity: "error",
     });
   }

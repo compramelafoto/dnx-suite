@@ -16,7 +16,8 @@
     "./partners-campaign-publisher": "./src/partners-campaign-publisher.ts",
     "./partners-publication-targets": "./src/partners-publication-targets.ts",
     "./partners-impression-ingest": "./src/partners-impression-ingest.ts",
-    "./partners-analytics-multi-db": "./src/partners-analytics-multi-db.ts"
+    "./partners-analytics-multi-db": "./src/partners-analytics-multi-db.ts",
+    "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",
@@ -39,6 +40,7 @@
     "db:seed:santa-fe-rules-config": "tsx prisma/scripts/seed-santa-fe-rules-config.ts",
     "test:clf-availability": "tsx src/clf-album-availability.test.ts",
     "test:partners-analytics": "tsx --test src/partners-analytics.test.ts",
+    "test:welcome-context": "tsx --test src/partners-welcome-context-clients.test.ts",
     "db:studio": "prisma studio",
     "audit:migration-state": "tsx scripts/audit-migration-state.mts",
     "audit:schema-baseline": "tsx scripts/verify-schema-baseline.mts",

@@ -19,7 +19,11 @@ import {
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { withClickatonDb } from "@/lib/admin/db";
-import { searchWelcomeContextEntities } from "./welcome-context-search";
+import {
+  resolveWelcomeContextEntity,
+  searchWelcomeContextEntities,
+  WelcomeContextAdapterError,
+} from "./welcome-context-search";
 
 function campanasPath(partnerId: string, qs?: string) {
   const base = `${adminRoutes.sponsors}/${partnerId}/campanas`;
@@ -51,12 +55,20 @@ export async function searchWelcomeContextAction(formData: FormData): Promise<{
     return {
       ok: false,
       hits: [],
-      error: e instanceof Error ? e.message : "Error de búsqueda",
+      error:
+        e instanceof WelcomeContextAdapterError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : "Error de búsqueda",
     };
   }
 }
 
-/** Alta rápida de asset por URL pública (admin). Queda APPROVED para preview/local. */
+/**
+ * Alta de asset por URL pública como PENDING (solo preview).
+ * Publicar exige aprobación formal posterior.
+ */
 export async function registerPartnerAssetUrlFormAction(formData: FormData): Promise<void> {
   await requireClickatonAdmin();
   const partnerId = formData.get("partnerId")?.toString() ?? "";
@@ -67,6 +79,9 @@ export async function registerPartnerAssetUrlFormAction(formData: FormData): Pro
   }
   if (!altText) {
     redirect(campanasPath(partnerId, "error=Texto+alternativo+requerido"));
+  }
+  if (/\.svg(\?|$)/i.test(fileUrl)) {
+    redirect(campanasPath(partnerId, "error=SVG+no+admitido"));
   }
 
   const result = await withClickatonDb(async () => {
@@ -80,8 +95,8 @@ export async function registerPartnerAssetUrlFormAction(formData: FormData): Pro
         mimeType: "image/png",
         altText,
         status: "ACTIVE",
-        approvalStatus: "APPROVED",
-        approvedAt: new Date(),
+        approvalStatus: "PENDING",
+        approvedAt: null,
         updatedAt: new Date(),
       },
     });
@@ -90,7 +105,43 @@ export async function registerPartnerAssetUrlFormAction(formData: FormData): Pro
     redirect(campanasPath(partnerId, `error=${encodeURIComponent(result.message)}`));
   }
   revalidateCampaigns(partnerId);
-  redirect(campanasPath(partnerId, "ok=asset"));
+  redirect(campanasPath(partnerId, "ok=asset-pending"));
+}
+
+/** Aprobación formal de asset del sponsor (requisito para publicar welcome). */
+export async function approvePartnerAssetFormAction(formData: FormData): Promise<void> {
+  await requireClickatonAdmin();
+  const partnerId = formData.get("partnerId")?.toString() ?? "";
+  const assetId = formData.get("assetId")?.toString() ?? "";
+  if (!partnerId || !assetId) {
+    redirect(campanasPath(partnerId || "x", "error=Asset+inv%C3%A1lido"));
+  }
+
+  const result = await withClickatonDb(async () => {
+    const asset = await prisma.dnxPartnerAsset.findFirst({
+      where: { id: assetId, partnerId, archivedAt: null },
+    });
+    if (!asset) throw new Error("Asset no encontrado para este sponsor");
+    if (!asset.fileUrl?.trim()) throw new Error("Asset sin URL pública");
+    if (!asset.altText?.trim()) throw new Error("Asset sin texto alternativo");
+    if (/\.svg(\?|$)/i.test(asset.fileUrl) || (asset.mimeType ?? "").includes("svg")) {
+      throw new Error("SVG no admitido");
+    }
+    return prisma.dnxPartnerAsset.update({
+      where: { id: assetId },
+      data: {
+        approvalStatus: "APPROVED",
+        approvedAt: new Date(),
+        status: "ACTIVE",
+        updatedAt: new Date(),
+      },
+    });
+  });
+  if (!result.ok) {
+    redirect(campanasPath(partnerId, `error=${encodeURIComponent(result.message)}`));
+  }
+  revalidateCampaigns(partnerId);
+  redirect(campanasPath(partnerId, "ok=asset-approved"));
 }
 
 /**
@@ -101,13 +152,21 @@ export async function linkWelcomeParticipationFormAction(formData: FormData): Pr
   const partnerId = formData.get("partnerId")?.toString() ?? "";
   const campaignId = formData.get("campaignId")?.toString() ?? "";
   const scopeKind = (formData.get("scopeKind")?.toString() ?? "GLOBAL") as WelcomeAdminScopeKind;
-  const contextId = formData.get("contextId")?.toString()?.trim() || null;
+  let contextId = formData.get("contextId")?.toString()?.trim() || null;
 
   if (!(SCOPE_KINDS as readonly string[]).includes(scopeKind)) {
     redirect(campanasPath(partnerId, "error=Alcance+inv%C3%A1lido"));
   }
 
   try {
+    if (scopeKind === "EDITION" || scopeKind === "CONTEST" || scopeKind === "ALBUM") {
+      const resolved = await resolveWelcomeContextEntity({
+        scopeKind,
+        contextId: contextId ?? "",
+      });
+      contextId = resolved.id;
+    }
+
     const result = await withClickatonDb(async () => {
       const campaign = await prisma.dnxPartnerCampaign.findFirst({
         where: { id: campaignId, partnerId },
@@ -150,12 +209,13 @@ export async function linkWelcomeParticipationFormAction(formData: FormData): Pr
       redirect(campanasPath(partnerId, `error=${encodeURIComponent(result.message)}`));
     }
   } catch (e) {
-    redirect(
-      campanasPath(
-        partnerId,
-        `error=${encodeURIComponent(e instanceof Error ? e.message : "Alcance inválido")}`,
-      ),
-    );
+    const message =
+      e instanceof WelcomeContextAdapterError
+        ? e.message
+        : e instanceof Error
+          ? e.message
+          : "Alcance inválido";
+    redirect(campanasPath(partnerId, `error=${encodeURIComponent(message)}`));
   }
   revalidateCampaigns(partnerId);
   redirect(campanasPath(partnerId, "ok=welcome-scope"));
@@ -219,11 +279,37 @@ export async function validateWelcomeCampaignFormAction(formData: FormData): Pro
   const campaignId = formData.get("campaignId")?.toString() ?? "";
   const scopeKind = (formData.get("scopeKind")?.toString() ?? "GLOBAL") as WelcomeAdminScopeKind;
 
+  try {
+    if (scopeKind === "EDITION" || scopeKind === "CONTEST" || scopeKind === "ALBUM") {
+      // Resolver entidad antes de validar publish (fail-closed si DB canónica ausente).
+      const loaded = await withClickatonDb(async () => {
+        return prisma.dnxPartnerCampaign.findFirst({
+          where: { id: campaignId, partnerId },
+          select: { participation: { select: { contextId: true } } },
+        });
+      });
+      if (!loaded.ok || !loaded.data?.participation?.contextId) {
+        redirect(campanasPath(partnerId, "error=Falta+contexto+can%C3%B3nico"));
+      }
+      await resolveWelcomeContextEntity({
+        scopeKind,
+        contextId: loaded.data.participation.contextId,
+      });
+    }
+  } catch (e) {
+    redirect(
+      campanasPath(
+        partnerId,
+        `error=${encodeURIComponent(e instanceof Error ? e.message : "Contexto inválido")}`,
+      ),
+    );
+  }
+
   const result = await withClickatonDb(async () => {
     const campaign = await prisma.dnxPartnerCampaign.findFirst({
       where: { id: campaignId, partnerId },
       include: {
-        partner: { select: { status: true, archivedAt: true } },
+        partner: { select: { status: true, archivedAt: true, id: true } },
         participation: true,
         creatives: { where: { archivedAt: null } },
         placementBindings: {
@@ -233,13 +319,23 @@ export async function validateWelcomeCampaignFormAction(formData: FormData): Pro
     });
     if (!campaign) throw new Error("Campaña no encontrada");
 
-    const assetIds = campaign.creatives.map((c) => c.assetId);
-    const assets = assetIds.length
-      ? await prisma.dnxPartnerAsset.findMany({
-          where: { id: { in: assetIds }, archivedAt: null },
-          select: { approvalStatus: true, fileUrl: true },
+    const welcomeCreative = campaign.creatives.find(
+      (c) => c.format === "WELCOME_INTERSTITIAL" && c.status === "APPROVED",
+    );
+    const asset = welcomeCreative
+      ? await prisma.dnxPartnerAsset.findFirst({
+          where: { id: welcomeCreative.assetId, archivedAt: null },
+          select: {
+            partnerId: true,
+            approvalStatus: true,
+            status: true,
+            archivedAt: true,
+            fileUrl: true,
+            altText: true,
+            mimeType: true,
+          },
         })
-      : [];
+      : null;
 
     const issues = validateWelcomeCampaignBeforePublish({
       partnerStatus: campaign.partner.status,
@@ -248,12 +344,22 @@ export async function validateWelcomeCampaignFormAction(formData: FormData): Pro
       campaignArchivedAt: campaign.archivedAt,
       application: campaign.application,
       placementKeys: campaign.placementBindings.map((b) => b.adPlacement.placementKey),
-      hasApprovedCreative: campaign.creatives.some(
-        (c) => c.status === "APPROVED" && c.format === "WELCOME_INTERSTITIAL",
+      hasApprovedCreative: Boolean(welcomeCreative),
+      hasApprovedAssetWithUrl: Boolean(
+        asset && asset.approvalStatus === "APPROVED" && asset.fileUrl?.trim(),
       ),
-      hasApprovedAssetWithUrl: assets.some(
-        (a) => a.approvalStatus === "APPROVED" && Boolean(a.fileUrl?.trim()),
-      ),
+      welcomeAsset: asset
+        ? {
+            partnerId: campaign.partnerId,
+            assetPartnerId: asset.partnerId,
+            approvalStatus: asset.approvalStatus,
+            status: asset.status,
+            archivedAt: asset.archivedAt,
+            fileUrl: asset.fileUrl,
+            altText: asset.altText,
+            mimeType: asset.mimeType,
+          }
+        : null,
       destinationUrl:
         campaign.destinationUrl ||
         campaign.creatives.find((c) => c.destinationUrl)?.destinationUrl ||
