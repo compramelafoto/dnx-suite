@@ -232,6 +232,34 @@ export type {
 } from "./campaign-edition-context";
 
 export {
+  MOUNTED_WELCOME_PLACEMENT_KEYS,
+  UNMOUNTED_WELCOME_PLACEMENT_KEYS,
+  WELCOME_ADMIN_FORMAT_LABEL,
+  WELCOME_ADMIN_FORMAT_DESCRIPTION,
+  WELCOME_FLAG_OFF_PUBLISH_WARNING,
+  isMountedWelcomePlacementKey,
+  listWelcomePlacementsForAdminUi,
+  listSelectableWelcomePlacementsForAdmin,
+  assertWelcomePlacementPublishable,
+  getWelcomeRuntimeFlagSnapshot,
+  flagsRequiredForWelcomePlacement,
+  isWelcomeRuntimeVisibleForPlacement,
+  assertWelcomeAdminScopeConfig,
+  contextTypeForWelcomeScope,
+  assertWelcomeParticipationMatchesScope,
+  validateWelcomeCampaignBeforePublish,
+  welcomeAdminCatalogMeta,
+} from "./welcome-admin";
+export type {
+  MountedWelcomePlacementKey,
+  WelcomeAdminScopeKind,
+  WelcomeAdminPlacementOption,
+  WelcomeRuntimeFlagRow,
+  WelcomeAdminPrePublishIssue,
+  WelcomeAdminPrePublishInput,
+} from "./welcome-admin";
+
+export {
   DNX_PARTNER_PUBLICATION_SYNC_STATUSES,
   DNX_PARTNER_CAMPAIGN_TARGET_STATUSES,
   PARTNER_PUBLICATION_DATABASE_KEYS,

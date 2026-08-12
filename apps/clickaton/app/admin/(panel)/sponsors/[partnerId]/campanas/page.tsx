@@ -11,7 +11,10 @@ import {
   DNX_PARTNER_CREATIVE_DEVICE_TARGETS,
   DNX_PARTNER_CREATIVE_FORMATS,
   DNX_PARTNER_CREATIVE_STATUSES,
+  getWelcomeRuntimeFlagSnapshot,
+  listWelcomePlacementsForAdminUi,
   listAdPlacementCatalogForAdminBinding,
+  welcomeAdminCatalogMeta,
 } from "@repo/partners";
 import { prisma } from "@repo/db";
 import { PartnerAdCreative } from "@repo/design-system/components/partners";
@@ -40,6 +43,13 @@ import {
   setCampaignStatusFormAction,
 } from "@/lib/admin/partners/campaign-mutations";
 import { listCampaignPublicationUi } from "@/lib/admin/partners/campaign-publication";
+import {
+  bindWelcomePlacementFormAction,
+  registerPartnerAssetUrlFormAction,
+  validateWelcomeCampaignFormAction,
+} from "@/lib/admin/partners/welcome-admin-mutations";
+import { WelcomeInterstitialAdminPreview } from "@/components/admin/partners/WelcomeInterstitialAdminPreview";
+import { WelcomeScopeLinkForm } from "@/components/admin/partners/WelcomeScopeLinkForm";
 
 const GEO_LABELS: Record<string, string> = {
   GLOBAL: "Global",
@@ -71,9 +81,22 @@ export default async function AdminPartnerCampaignsPage({
         where: { partnerId },
         orderBy: { updatedAt: "desc" },
         include: {
+          participation: {
+            select: {
+              id: true,
+              application: true,
+              contextType: true,
+              contextId: true,
+              status: true,
+              archivedAt: true,
+              publicVisibility: true,
+              startsAt: true,
+              endsAt: true,
+            },
+          },
           creatives: {
             where: { archivedAt: null },
-            include: { asset: { select: { fileUrl: true, type: true } } },
+            include: { asset: { select: { fileUrl: true, type: true, altText: true, approvalStatus: true } } },
             orderBy: { sortOrder: "asc" },
           },
           geoTargets: true,
@@ -86,7 +109,14 @@ export default async function AdminPartnerCampaignsPage({
       prisma.dnxPartnerAsset.findMany({
         where: { partnerId, archivedAt: null },
         orderBy: { updatedAt: "desc" },
-        select: { id: true, type: true, fileUrl: true, approvalStatus: true },
+        select: {
+          id: true,
+          type: true,
+          fileUrl: true,
+          approvalStatus: true,
+          altText: true,
+          name: true,
+        },
       }),
     ]);
     const publicationByCampaign = Object.fromEntries(
@@ -110,6 +140,12 @@ export default async function AdminPartnerCampaignsPage({
   const { partner, campaigns, assets, publicationByCampaign } = loaded.data;
   const adApps = DNX_PARTNER_APPLICATIONS.filter(
     (a) => a === "INFO_SPOT" || a === "COMPRAME_LA_FOTO" || a === "CLICKATON" || a === "FOTO_RANK",
+  );
+  const welcomeMeta = welcomeAdminCatalogMeta();
+  const welcomePlacements = listWelcomePlacementsForAdminUi();
+  const welcomeFlags = getWelcomeRuntimeFlagSnapshot();
+  const adPlacementCatalog = listAdPlacementCatalogForAdminBinding().filter(
+    (p) => p.application !== "FOTO_OFFICE",
   );
 
   return (
@@ -148,6 +184,46 @@ export default async function AdminPartnerCampaignsPage({
           </Card>
         ) : null}
 
+        <Card variant="outlined" className="space-y-6 border-[#D4AF37]/35 p-6">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-ck-text">{welcomeMeta.formatLabel}</h2>
+            <p className="text-sm text-ck-text-secondary">{welcomeMeta.formatDescription}</p>
+            <p className="text-xs text-ck-text-secondary">
+              Formato: {welcomeMeta.format} · Frecuencia local {welcomeMeta.frequencyHours}h · FotoOffice
+              excluido.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {welcomeFlags.map((f) => (
+              <div
+                key={f.key}
+                className="rounded-lg border border-ck-border px-3 py-2 text-sm text-ck-text-secondary"
+              >
+                <span className="font-medium text-ck-text">{f.label}</span>
+                <div className="mt-1 flex items-center gap-2">
+                  <Badge>{f.enabled ? "Runtime habilitado" : "Runtime deshabilitado"}</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+          <form action={registerPartnerAssetUrlFormAction} className="space-y-4 border-t border-ck-border pt-6">
+            <input type="hidden" name="partnerId" value={partner.id} />
+            <h3 className="text-lg font-semibold">Asset rápido (URL pública)</h3>
+            <p className="text-xs text-ck-text-secondary">
+              PNG/WebP/JPG recomendados. Área segura para la X. No uses SVG no sanitizado.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field id="asset-url" label="URL de imagen" required>
+                <Input name="fileUrl" placeholder="https://…" required />
+              </Field>
+              <Field id="asset-alt" label="Texto alternativo" required>
+                <Input name="altText" required placeholder="Descripción de la pieza" />
+              </Field>
+            </div>
+            <Button type="submit">Registrar asset aprobado</Button>
+          </form>
+        </Card>
+
         <Card variant="outlined" className="space-y-6 p-6">
           <h2 className="text-xl font-semibold text-ck-text">Nueva campaña</h2>
           <p className="text-sm text-ck-text-secondary">
@@ -174,6 +250,12 @@ export default async function AdminPartnerCampaignsPage({
               </Field>
               <Field id="priority" label="Prioridad">
                 <Input name="priority" type="number" defaultValue={100} />
+              </Field>
+              <Field id="startsAt" label="Vigencia desde">
+                <Input name="startsAt" type="datetime-local" />
+              </Field>
+              <Field id="endsAt" label="Vigencia hasta">
+                <Input name="endsAt" type="datetime-local" />
               </Field>
               <Field id="geoScope" label="Alcance geo">
                 <Select name="geoScope" defaultValue="GLOBAL">
@@ -290,16 +372,18 @@ export default async function AdminPartnerCampaignsPage({
                         </option>
                         {assets.map((a) => (
                           <option key={a.id} value={a.id}>
-                            {a.type} · {a.approvalStatus} · {a.id.slice(0, 8)}
+                            {a.approvalStatus} · {a.name || a.type} · {a.id.slice(0, 8)}
                           </option>
                         ))}
                       </Select>
                     </Field>
                     <Field id={`format-${campaign.id}`} label="Formato">
-                      <Select name="format" defaultValue="BANNER_HORIZONTAL">
+                      <Select name="format" defaultValue="WELCOME_INTERSTITIAL">
                         {DNX_PARTNER_CREATIVE_FORMATS.map((f) => (
                           <option key={f} value={f}>
-                            {CREATIVE_FORMAT_LABELS[f]}
+                            {f === "WELCOME_INTERSTITIAL"
+                              ? `${CREATIVE_FORMAT_LABELS[f]} (activación destacada)`
+                              : CREATIVE_FORMAT_LABELS[f]}
                           </option>
                         ))}
                       </Select>
@@ -350,63 +434,158 @@ export default async function AdminPartnerCampaignsPage({
                       ))}
                     </ul>
                     {previewUrl ? (
-                      <div className="grid gap-8 md:grid-cols-2">
-                        <div className="space-y-3 rounded-xl border border-ck-border p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-ck-text-secondary">
-                            Preview desktop (sin tracking)
-                          </p>
-                          <PartnerAdCreative
-                            partnerName={partner.name}
-                            imageUrl={previewUrl}
-                            href={null}
-                            title={previewCreative?.title}
-                            body={previewCreative?.body}
-                            ctaText={previewCreative?.ctaText}
-                            variant="banner"
-                          />
-                        </div>
-                        <div className="mx-auto w-full max-w-xs space-y-3 rounded-xl border border-ck-border p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-ck-text-secondary">
-                            Preview mobile (sin tracking)
-                          </p>
-                          <PartnerAdCreative
-                            partnerName={partner.name}
-                            imageUrl={previewUrl}
-                            href={null}
-                            title={previewCreative?.title}
-                            body={previewCreative?.body}
-                            ctaText={previewCreative?.ctaText}
-                            variant="welcome"
-                          />
+                      <div className="space-y-6">
+                        <WelcomeInterstitialAdminPreview
+                          partnerName={partner.name}
+                          imageUrl={previewUrl}
+                          title={previewCreative?.title}
+                          body={previewCreative?.body}
+                          ctaText={previewCreative?.ctaText}
+                          campaignId={campaign.id}
+                        />
+                        <div className="grid gap-8 md:grid-cols-2">
+                          <div className="space-y-3 rounded-xl border border-ck-border p-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-ck-text-secondary">
+                              Preview banner (sin tracking)
+                            </p>
+                            <PartnerAdCreative
+                              partnerName={partner.name}
+                              imageUrl={previewUrl}
+                              href={null}
+                              title={previewCreative?.title}
+                              body={previewCreative?.body}
+                              ctaText={previewCreative?.ctaText}
+                              variant="banner"
+                            />
+                          </div>
+                          <div className="mx-auto w-full max-w-xs space-y-3 rounded-xl border border-ck-border p-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-ck-text-secondary">
+                              Preview creative welcome (sin tracking)
+                            </p>
+                            <PartnerAdCreative
+                              partnerName={partner.name}
+                              imageUrl={previewUrl}
+                              href={null}
+                              title={previewCreative?.title}
+                              body={previewCreative?.body}
+                              ctaText={previewCreative?.ctaText}
+                              variant="welcome"
+                            />
+                          </div>
                         </div>
                       </div>
                     ) : null}
                   </div>
                 ) : null}
 
+                <section className="space-y-6 border-t border-ck-border pt-8">
+                  <h3 className="text-lg font-semibold">Alcance welcome (participación explícita)</h3>
+                  <p className="text-sm text-ck-text-secondary">
+                    Global/plataforma o entidad real (evento, concurso, álbum). No uses IDs a mano.
+                    {campaign.participation
+                      ? ` Actual: ${campaign.participation.contextType}${
+                          campaign.participation.contextId
+                            ? ` · ${campaign.participation.contextId}`
+                            : ""
+                        }`
+                      : " Sin participación vinculada."}
+                  </p>
+                  <WelcomeScopeLinkForm
+                    partnerId={partner.id}
+                    campaignId={campaign.id}
+                    application={campaign.application}
+                  />
+                </section>
+
+                <form action={bindWelcomePlacementFormAction} className="space-y-6 border-t border-ck-border pt-8">
+                  <input type="hidden" name="partnerId" value={partner.id} />
+                  <input type="hidden" name="campaignId" value={campaign.id} />
+                  <input type="hidden" name="application" value={campaign.application} />
+                  <h3 className="text-lg font-semibold">Placement welcome</h3>
+                  <Field id={`welcome-place-${campaign.id}`} label="Superficie habilitada">
+                    <Select name="placementKey" required defaultValue="">
+                      <option value="" disabled>
+                        Seleccionar…
+                      </option>
+                      {welcomePlacements
+                        .filter((p) => p.application === campaign.application)
+                        .map((p) => (
+                          <option
+                            key={`${p.application}:${p.placementKey}`}
+                            value={p.placementKey}
+                            disabled={!p.selectable}
+                          >
+                            {p.selectable
+                              ? `${p.name} (${p.placementKey})`
+                              : `${p.name} — Superficie todavía no habilitada`}
+                          </option>
+                        ))}
+                    </Select>
+                  </Field>
+                  <Button type="submit">Vincular placement welcome</Button>
+                </form>
+
+                <form action={validateWelcomeCampaignFormAction} className="space-y-4 border-t border-ck-border pt-8">
+                  <input type="hidden" name="partnerId" value={partner.id} />
+                  <input type="hidden" name="campaignId" value={campaign.id} />
+                  <input
+                    type="hidden"
+                    name="scopeKind"
+                    value={
+                      campaign.participation?.contextType === "CONTEST"
+                        ? "CONTEST"
+                        : campaign.participation?.contextType === "ALBUM"
+                          ? "ALBUM"
+                          : campaign.participation?.contextType === "EDITION" ||
+                              campaign.participation?.contextType === "EVENT"
+                            ? "EDITION"
+                            : campaign.participation?.contextType === "PLATFORM"
+                              ? "PLATFORM"
+                              : "GLOBAL"
+                    }
+                  />
+                  <h3 className="text-lg font-semibold">Validar antes de publicar</h3>
+                  <p className="text-sm text-ck-text-secondary">
+                    Comprueba sponsor, creative, asset, URL, placement montado y alcance explícito. Si el
+                    flag está OFF, verás una advertencia (la campaña puede guardarse pero no será visible).
+                  </p>
+                  <Button type="submit">Ejecutar validación</Button>
+                </form>
+
                 <form action={bindCampaignPlacementFormAction} className="space-y-6 border-t border-ck-border pt-8">
                   <input type="hidden" name="partnerId" value={partner.id} />
                   <input type="hidden" name="campaignId" value={campaign.id} />
-                  <Field id={`place-app-${campaign.id}`} label="App del placement">
-                    <Select name="application" defaultValue="INFO_SPOT">
+                  <Field id={`place-app-${campaign.id}`} label="App del placement (legacy / ads)">
+                    <Select name="application" defaultValue={campaign.application}>
                       <option value="INFO_SPOT">InfoSpot</option>
                       <option value="COMPRAME_LA_FOTO">ComprameLaFoto</option>
                       <option value="CLICKATON">Clickatón</option>
                       <option value="FOTO_RANK">FotoRank</option>
                     </Select>
                   </Field>
-                  <h3 className="text-lg font-semibold">Placement</h3>
+                  <h3 className="text-lg font-semibold">Placement (catálogo completo IS/CLF)</h3>
                   <Field id={`place-${campaign.id}`} label="Superficie">
                     <Select name="placementKey" required defaultValue="">
                       <option value="" disabled>
                         Seleccionar…
                       </option>
-                      {listAdPlacementCatalogForAdminBinding().map((p) => (
-                        <option key={`${p.application}:${p.placementKey}`} value={p.placementKey}>
-                          {APPLICATION_LABELS[p.application]} · {p.name} ({p.placementKey})
-                          {!p.isActiveDefault ? " · OFF default" : ""}
-                        </option>
-                      ))}
+                      {adPlacementCatalog.map((p) => {
+                        const welcomeOpt = welcomePlacements.find(
+                          (w) =>
+                            w.application === p.application && w.placementKey === p.placementKey,
+                        );
+                        const disabled = welcomeOpt ? !welcomeOpt.selectable : false;
+                        return (
+                          <option
+                            key={`${p.application}:${p.placementKey}`}
+                            value={p.placementKey}
+                            disabled={disabled}
+                          >
+                            {APPLICATION_LABELS[p.application]} · {p.name}
+                            {disabled ? " · Superficie todavía no habilitada" : ""}
+                          </option>
+                        );
+                      })}
                     </Select>
                   </Field>
                   <Button type="submit">Vincular placement</Button>

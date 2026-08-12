@@ -10,6 +10,7 @@ import {
   DNX_PARTNER_REDEMPTION_METHODS,
   DNX_PARTNER_STATUSES,
   DNX_PARTNER_TYPES,
+  isWelcomeActivationExcludedApplication,
 } from "@repo/partners";
 import { RequiresPaymentFields } from "@/components/admin/partners/RequiresPaymentFields";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
@@ -238,7 +239,9 @@ export default async function AdminPartnerDetailPage({
             <div className="grid gap-4 md:grid-cols-2">
               <Field id="application" label="Aplicación">
                 <Select name="application" defaultValue="CLICKATON">
-                  {DNX_PARTNER_APPLICATIONS.map((a) => (
+                  {DNX_PARTNER_APPLICATIONS.filter(
+                    (a) => !isWelcomeActivationExcludedApplication(a),
+                  ).map((a) => (
                     <option key={a} value={a}>
                       {a}
                     </option>

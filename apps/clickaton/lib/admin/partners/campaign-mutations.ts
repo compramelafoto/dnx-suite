@@ -13,7 +13,9 @@ import {
   DNX_PARTNER_CREATIVE_DEVICE_TARGETS,
   DNX_PARTNER_CREATIVE_FORMATS,
   DNX_PARTNER_CREATIVE_STATUSES,
+  assertWelcomePlacementPublishable,
   isWelcomeActivationExcludedApplication,
+  isWelcomeActivationPlacementKey,
   type DnxPartnerAdPlacementKey,
   type DnxPartnerApplication,
   type DnxPartnerCampaignContextCategory,
@@ -243,6 +245,20 @@ export async function bindCampaignPlacementFormAction(formData: FormData): Promi
       campanasPath(
         partnerId,
         `error=${encodeURIComponent("FotoOffice está excluido de placements publicitarios.")}`,
+      ),
+    );
+  }
+
+  // Welcome: solo superficies con runtime montado (no HOME CK/FR/CLF).
+  try {
+    if (isWelcomeActivationPlacementKey(placementKey)) {
+      assertWelcomePlacementPublishable(application, placementKey);
+    }
+  } catch (e) {
+    redirect(
+      campanasPath(
+        partnerId,
+        `error=${encodeURIComponent(e instanceof Error ? e.message : "Placement welcome no publicable")}`,
       ),
     );
   }
