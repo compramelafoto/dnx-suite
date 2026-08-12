@@ -1,5 +1,5 @@
 /**
- * Publica snapshot de campaña Partners a DB destino (InfoSpot / CLF).
+ * Publica snapshot de campaña Partners a DB destino (InfoSpot / CLF / FotoRank).
  * Idempotente: upsert por IDs canónicos. No replica PII privada.
  */
 import { randomUUID } from "node:crypto";
@@ -123,17 +123,68 @@ async function upsertAssets(
   }
 }
 
+async function upsertPublicParticipation(
+  db: PrismaClient,
+  participation: NonNullable<PartnerCampaignPublicationSnapshot["participation"]>,
+) {
+  const data = {
+    partnerId: participation.partnerId,
+    application: participation.application as never,
+    contextType: participation.contextType as never,
+    contextId: participation.contextId,
+    participationType: (participation.participationType ?? "SPONSOR") as never,
+    institutionalRole: (participation.institutionalRole ?? "SPONSOR") as never,
+    displayTier: (participation.displayTier ?? "STANDARD") as never,
+    displayOrder: participation.displayOrder ?? 100,
+    publicRoleLabel: participation.publicRoleLabel ?? null,
+    destinationUrl: participation.destinationUrl ?? null,
+    clickTrackingEnabled: participation.clickTrackingEnabled ?? true,
+    publicVisibility: (participation.publicVisibility ?? "HIDDEN") as never,
+    title: participation.title ?? null,
+    description: participation.description ?? null,
+    status: participation.status as never,
+    startsAt: participation.startsAt ?? null,
+    endsAt: participation.endsAt ?? null,
+    archivedAt: participation.archivedAt ?? null,
+    // Public snapshot only — no notes / payment amounts / financial details.
+    requiresPayment: false,
+    paymentMode: "NONE" as never,
+    updatedAt: now(),
+  };
+
+  await db.dnxPartnerParticipation.upsert({
+    where: { id: participation.id },
+    create: {
+      id: participation.id,
+      ...data,
+    },
+    update: data,
+  });
+}
+
 async function upsertCampaignGraph(
   db: PrismaClient,
   snapshot: PartnerCampaignPublicationSnapshot,
   application: DnxPartnerApplication,
 ) {
   const c = snapshot.campaign;
+  const participationId =
+    snapshot.participation === undefined
+      ? undefined
+      : snapshot.participation === null
+        ? null
+        : snapshot.participation.id;
+
+  if (snapshot.participation) {
+    await upsertPublicParticipation(db, snapshot.participation);
+  }
+
   await db.dnxPartnerCampaign.upsert({
     where: { id: c.id },
     create: {
       id: c.id,
       partnerId: c.partnerId,
+      ...(participationId !== undefined ? { participationId } : {}),
       name: c.name,
       description: c.description,
       application: application as never,
@@ -159,6 +210,7 @@ async function upsertCampaignGraph(
       trackingEnabled: c.trackingEnabled,
       geoScope: c.geoScope as never,
       archivedAt: c.archivedAt,
+      ...(participationId !== undefined ? { participationId } : {}),
       updatedAt: now(),
     },
   });

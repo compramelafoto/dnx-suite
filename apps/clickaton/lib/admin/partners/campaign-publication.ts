@@ -23,6 +23,7 @@ export async function loadCampaignPublicationSnapshot(
     where: { id: campaignId },
     include: {
       partner: true,
+      participation: true,
       creatives: { where: { archivedAt: null } },
       geoTargets: true,
       contextTargets: true,
@@ -56,6 +57,7 @@ export async function loadCampaignPublicationSnapshot(
   });
 
   const p = campaign.partner;
+  const part = campaign.participation;
   return {
     partner: {
       id: p.id,
@@ -89,6 +91,29 @@ export async function loadCampaignPublicationSnapshot(
       geoScope: campaign.geoScope,
       archivedAt: campaign.archivedAt,
     },
+    participation: part
+      ? {
+          id: part.id,
+          partnerId: part.partnerId,
+          application: part.application,
+          contextType: part.contextType,
+          contextId: part.contextId,
+          participationType: part.participationType,
+          institutionalRole: part.institutionalRole,
+          displayTier: part.displayTier,
+          displayOrder: part.displayOrder,
+          publicRoleLabel: part.publicRoleLabel,
+          destinationUrl: part.destinationUrl,
+          clickTrackingEnabled: part.clickTrackingEnabled,
+          publicVisibility: part.publicVisibility,
+          title: part.title,
+          description: part.description,
+          status: part.status,
+          startsAt: part.startsAt,
+          endsAt: part.endsAt,
+          archivedAt: part.archivedAt,
+        }
+      : undefined,
     creatives: campaign.creatives.map((c) => ({
       id: c.id,
       campaignId: c.campaignId,
@@ -418,12 +443,19 @@ export async function listCampaignPublicationUi(campaignId: string) {
     where: { entityType: "CAMPAIGN", sourceEntityId: campaignId },
   });
 
-  const apps: DnxPartnerApplication[] = ["INFO_SPOT", "COMPRAME_LA_FOTO"];
+  const apps: DnxPartnerApplication[] = ["INFO_SPOT", "COMPRAME_LA_FOTO", "FOTO_RANK"];
   return apps.map((application) => {
     const target = targets.find((t) => t.application === application);
     const sync = syncs.find((s) => s.targetApplication === application);
     const dbKey = resolvePublicationDatabaseKey(application);
     const info = dbKey ? getPartnersPublicationTargetInfo(dbKey) : null;
+    const adsFlagEnv =
+      application === "INFO_SPOT"
+        ? "INFOSPOT_PARTNER_ADS_ENABLED"
+        : application === "COMPRAME_LA_FOTO"
+          ? "CLF_PARTNER_ADS_ENABLED"
+          : "FOTORANK_PARTNER_ADS_ENABLED";
+    const adsFlagRaw = process.env[adsFlagEnv];
     return {
       application,
       selected: Boolean(target),
@@ -441,16 +473,8 @@ export async function listCampaignPublicationUi(campaignId: string) {
       lastSyncedAt: sync?.lastSyncedAt ?? null,
       dbConfigured: info?.configured ?? false,
       dbHostMasked: info?.hostMasked ?? null,
-      adsFlagEnv:
-        application === "INFO_SPOT"
-          ? "INFOSPOT_PARTNER_ADS_ENABLED"
-          : "CLF_PARTNER_ADS_ENABLED",
-      adsFlagOn:
-        application === "INFO_SPOT"
-          ? process.env.INFOSPOT_PARTNER_ADS_ENABLED === "true" ||
-            process.env.INFOSPOT_PARTNER_ADS_ENABLED === "1"
-          : process.env.CLF_PARTNER_ADS_ENABLED === "true" ||
-            process.env.CLF_PARTNER_ADS_ENABLED === "1",
+      adsFlagEnv,
+      adsFlagOn: adsFlagRaw === "true" || adsFlagRaw === "1",
     };
   });
 }

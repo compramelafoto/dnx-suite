@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   assertSnapshotReadyForPublish,
   computeCampaignPublicationContentHash,
+  PARTNER_PUBLICATION_DATABASE_KEYS,
   PARTNER_PUBLICATION_EXCLUDED_FIELDS,
+  PUBLICATION_ENV_BY_DB_KEY,
   resolvePublicationDatabaseKey,
   resolvePublicationFreshness,
   type PartnerCampaignPublicationSnapshot,
@@ -128,7 +130,20 @@ describe("campaign publication domain", () => {
   it("maps apps to DB keys", () => {
     assert.equal(resolvePublicationDatabaseKey("INFO_SPOT"), "INFOSPOT");
     assert.equal(resolvePublicationDatabaseKey("COMPRAME_LA_FOTO"), "CLF");
+    assert.equal(resolvePublicationDatabaseKey("FOTO_RANK"), "FOTORANK");
+    assert.equal(resolvePublicationDatabaseKey("FOTO_OFFICE"), null);
     assert.equal(resolvePublicationDatabaseKey("CLICKATON"), null);
+  });
+
+  it("FOTORANK ads env is distinct from welcome context", () => {
+    assert.equal(
+      PUBLICATION_ENV_BY_DB_KEY.FOTORANK,
+      "DNX_PARTNERS_FOTORANK_ADS_DATABASE_URL",
+    );
+    assert.notEqual(
+      PUBLICATION_ENV_BY_DB_KEY.FOTORANK,
+      "DNX_PARTNERS_FOTORANK_DATABASE_URL",
+    );
   });
 
   it("contentHash estable e idempotente", () => {
@@ -144,6 +159,36 @@ describe("campaign publication domain", () => {
     mutated.creatives[0]!.title = "Promo";
     const b = computeCampaignPublicationContentHash(mutated);
     assert.notEqual(a, b);
+  });
+
+  it("contentHash incluye participation context", () => {
+    const without = computeCampaignPublicationContentHash(baseSnapshot());
+    const withPart = computeCampaignPublicationContentHash(
+      baseSnapshot({
+        participation: {
+          id: "part_1",
+          partnerId: "partner_1",
+          application: "FOTO_RANK",
+          contextType: "GLOBAL",
+          contextId: null,
+          status: "CONFIRMED",
+        },
+      }),
+    );
+    assert.notEqual(without, withPart);
+    const otherContext = computeCampaignPublicationContentHash(
+      baseSnapshot({
+        participation: {
+          id: "part_1",
+          partnerId: "partner_1",
+          application: "FOTO_RANK",
+          contextType: "CONTEST",
+          contextId: "contest_abc",
+          status: "CONFIRMED",
+        },
+      }),
+    );
+    assert.notEqual(withPart, otherContext);
   });
 
   it("freshness UP_TO_DATE / OUTDATED / FAILED", () => {
@@ -185,6 +230,90 @@ describe("campaign publication domain", () => {
     );
   });
 
+  it("assertSnapshot rejects FOTO_OFFICE participation", () => {
+    assert.throws(
+      () =>
+        assertSnapshotReadyForPublish(
+          baseSnapshot({
+            participation: {
+              id: "part_fo",
+              partnerId: "partner_1",
+              application: "FOTO_OFFICE",
+              contextType: "GLOBAL",
+              contextId: null,
+              status: "CONFIRMED",
+            },
+          }),
+        ),
+      /FOTO_OFFICE/,
+    );
+  });
+
+  it("assertSnapshot rejects CONTEST with empty contextId", () => {
+    assert.throws(
+      () =>
+        assertSnapshotReadyForPublish(
+          baseSnapshot({
+            participation: {
+              id: "part_ct",
+              partnerId: "partner_1",
+              application: "FOTO_RANK",
+              contextType: "CONTEST",
+              contextId: "  ",
+              status: "CONFIRMED",
+            },
+          }),
+        ),
+      /contextId/,
+    );
+    assert.doesNotThrow(() =>
+      assertSnapshotReadyForPublish(
+        baseSnapshot({
+          participation: {
+            id: "part_ct",
+            partnerId: "partner_1",
+            application: "FOTO_RANK",
+            contextType: "CONTEST",
+            contextId: "contest_ok",
+            status: "CONFIRMED",
+          },
+        }),
+      ),
+    );
+  });
+
+  it("assertSnapshot rejects cancelled/archived participation", () => {
+    assert.throws(() =>
+      assertSnapshotReadyForPublish(
+        baseSnapshot({
+          participation: {
+            id: "part_x",
+            partnerId: "partner_1",
+            application: "FOTO_RANK",
+            contextType: "GLOBAL",
+            contextId: null,
+            status: "CANCELLED",
+          },
+        }),
+      ),
+    );
+    assert.throws(() =>
+      assertSnapshotReadyForPublish(
+        baseSnapshot({
+          participation: {
+            id: "part_x",
+            partnerId: "partner_1",
+            application: "FOTO_RANK",
+            contextType: "GLOBAL",
+            contextId: null,
+            status: "CONFIRMED",
+            archivedAt: new Date(),
+          },
+        }),
+      ),
+    );
+  });
+
   it("excluye campos privados del contrato", () => {
     assert.ok(PARTNER_PUBLICATION_EXCLUDED_FIELDS.includes("notes"));
     assert.ok(PARTNER_PUBLICATION_EXCLUDED_FIELDS.includes("email"));
@@ -192,9 +321,10 @@ describe("campaign publication domain", () => {
     assert.ok(PARTNER_PUBLICATION_EXCLUDED_FIELDS.includes("contacts"));
   });
 
-  it("multi-target keys independientes", () => {
-    const apps = ["INFO_SPOT", "COMPRAME_LA_FOTO"] as const;
+  it("multi-target keys independientes incluyen FOTORANK", () => {
+    const apps = ["INFO_SPOT", "COMPRAME_LA_FOTO", "FOTO_RANK"] as const;
     const keys = apps.map((a) => resolvePublicationDatabaseKey(a));
-    assert.deepEqual(keys, ["INFOSPOT", "CLF"]);
+    assert.deepEqual(keys, ["INFOSPOT", "CLF", "FOTORANK"]);
+    assert.ok(PARTNER_PUBLICATION_DATABASE_KEYS.includes("FOTORANK"));
   });
 });

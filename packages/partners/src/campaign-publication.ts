@@ -29,7 +29,7 @@ export const DNX_PARTNER_CAMPAIGN_TARGET_STATUSES = ["ACTIVE", "PAUSED"] as cons
 export type DnxPartnerCampaignTargetStatus =
   (typeof DNX_PARTNER_CAMPAIGN_TARGET_STATUSES)[number];
 
-export const PARTNER_PUBLICATION_DATABASE_KEYS = ["INFOSPOT", "CLF"] as const;
+export const PARTNER_PUBLICATION_DATABASE_KEYS = ["INFOSPOT", "CLF", "FOTORANK"] as const;
 export type PartnerPublicationDatabaseKey =
   (typeof PARTNER_PUBLICATION_DATABASE_KEYS)[number];
 
@@ -38,11 +38,14 @@ export const PUBLICATION_APP_TO_DB_KEY: Partial<
 > = {
   INFO_SPOT: "INFOSPOT",
   COMPRAME_LA_FOTO: "CLF",
+  FOTO_RANK: "FOTORANK",
 };
 
 export const PUBLICATION_ENV_BY_DB_KEY: Record<PartnerPublicationDatabaseKey, string> = {
   INFOSPOT: "DNX_PARTNERS_INFOSPOT_DATABASE_URL",
   CLF: "DNX_PARTNERS_CLF_DATABASE_URL",
+  /** Snapshot de campañas ads — distinto de `DNX_PARTNERS_FOTORANK_DATABASE_URL` (welcome/context). */
+  FOTORANK: "DNX_PARTNERS_FOTORANK_ADS_DATABASE_URL",
 };
 
 /** Campos de Partner que NUNCA se publican a DBs destino. */
@@ -170,6 +173,28 @@ export type PartnerCampaignPublicationSnapshot = {
     geoScope: DnxPartnerCampaignGeoScope;
     archivedAt: Date | null;
   };
+  /** Participación pública opcional (p. ej. sponsor GLOBAL/CONTEST en FotoRank). */
+  participation?: {
+    id: string;
+    partnerId: string;
+    application: DnxPartnerApplication | string;
+    contextType: string; // GLOBAL | PLATFORM | CONTEST | ...
+    contextId: string | null;
+    participationType?: string;
+    institutionalRole?: string;
+    displayTier?: string;
+    displayOrder?: number;
+    publicRoleLabel?: string | null;
+    destinationUrl?: string | null;
+    clickTrackingEnabled?: boolean;
+    publicVisibility?: string | null;
+    title?: string | null;
+    description?: string | null;
+    status: string;
+    startsAt?: Date | null;
+    endsAt?: Date | null;
+    archivedAt?: Date | null;
+  } | null;
   creatives: PartnerPublicationCreative[];
   assets: PartnerPublicationAsset[];
   geoTargets: PartnerPublicationGeoTarget[];
@@ -267,6 +292,13 @@ export function computeCampaignPublicationContentHash(
         status: o.status,
       }))
       .sort((a, b) => a.id.localeCompare(b.id)),
+    participation: snapshot.participation
+      ? {
+          id: snapshot.participation.id,
+          contextType: snapshot.participation.contextType,
+          contextId: snapshot.participation.contextId,
+        }
+      : null,
   };
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 40);
 }
@@ -304,6 +336,25 @@ export function assertSnapshotReadyForPublish(snapshot: PartnerCampaignPublicati
   }
   if (snapshot.partner.archivedAt || snapshot.partner.status === "ARCHIVED") {
     throw new Error("Partner archivado: no se publica");
+  }
+  if (snapshot.participation) {
+    const part = snapshot.participation;
+    if (String(part.application) === "FOTO_OFFICE") {
+      throw new Error("Participación FOTO_OFFICE no se publica");
+    }
+    if (part.archivedAt) {
+      throw new Error("Participación archivada: no se publica");
+    }
+    const status = String(part.status).toUpperCase();
+    if (status === "CANCELLED" || status === "ARCHIVED") {
+      throw new Error(`Participación ${status}: no se publica`);
+    }
+    if (String(part.contextType).toUpperCase() === "CONTEST") {
+      const contextId = part.contextId?.trim() ?? "";
+      if (!contextId) {
+        throw new Error("Participación CONTEST requiere contextId");
+      }
+    }
   }
   if (!snapshot.creatives.some((c) => c.status === "APPROVED" && !c.archivedAt)) {
     throw new Error("Se requiere al menos un creative APPROVED");

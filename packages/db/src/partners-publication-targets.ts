@@ -1,6 +1,12 @@
 /**
- * Clientes Prisma remotos para publicación Partners (InfoSpot / CLF).
+ * Clientes Prisma remotos para publicación Partners (InfoSpot / CLF / FotoRank).
  * Patrón alineado a clf-write-client: URL explícita, sin exponer al cliente.
+ *
+ * Env keys (`PUBLICATION_ENV_BY_DB_KEY`):
+ * - INFOSPOT → DNX_PARTNERS_INFOSPOT_DATABASE_URL
+ * - CLF → DNX_PARTNERS_CLF_DATABASE_URL
+ * - FOTORANK → DNX_PARTNERS_FOTORANK_ADS_DATABASE_URL
+ *   (distinto de DNX_PARTNERS_FOTORANK_DATABASE_URL = welcome/contest context)
  */
 import { PrismaClient } from "@prisma/client";
 import {
