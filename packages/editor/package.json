@@ -8,7 +8,8 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "test": "pnpm exec tsx --test src/*.test.ts"
   },
   "dependencies": {
     "@tiptap/core": "^2.11.5",
@@ -22,8 +23,10 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
     "@types/sanitize-html": "^2.16.1",
     "@types/turndown": "^5.0.5",
+    "tsx": "^4.21.0",
     "typescript": "5.9.2"
   }
 }
