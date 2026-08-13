@@ -449,6 +449,8 @@ export async function updateInfoSpotMemberAction(
 
   revalidatePath("/admin/usuarios");
   revalidatePath("/admin/aprobaciones");
+  revalidatePath("/");
+  revalidatePath("/noticias");
   return {
     ok: true,
     message: `Miembro actualizado (${infoSpotRoleLabel(role)}, ${status}, ${publicationPolicyLabel(fields.publicationPolicy)}) por ${access.user.email}.`,

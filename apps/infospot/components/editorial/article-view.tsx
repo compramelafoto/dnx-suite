@@ -100,7 +100,7 @@ export function ArticleView({
         ) : null}
 
         <nav aria-label="Migas" className="is-meta mb-5 flex flex-wrap items-center gap-2">
-          <Link href="/noticias" className="hover:text-[var(--is-accent)]">
+          <Link href="/" className="hover:text-[var(--is-accent)]">
             Noticias
           </Link>
           {article.category ? (

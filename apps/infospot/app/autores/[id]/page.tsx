@@ -170,7 +170,7 @@ export default async function AutorPublicPage({ params }: Props) {
             Notas publicadas
           </h2>
           <Link
-            href="/noticias"
+            href="/"
             className="text-sm font-medium text-[var(--is-accent)] hover:underline"
           >
             Ver todas

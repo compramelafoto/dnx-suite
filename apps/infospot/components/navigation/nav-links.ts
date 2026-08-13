@@ -4,7 +4,7 @@ import type { NavLink } from "@/components/navigation/MobileNavigation";
  * Navegación principal de medio — solo rutas existentes.
  */
 export const primaryNavLinks: NavLink[] = [
-  { href: "/noticias", label: "Noticias" },
+  { href: "/", label: "Noticias" },
   { href: "/eventos", label: "Eventos" },
   { href: "/colaboradores", label: "Colaboradores" },
   { href: "/categorias/deportes", label: "Deportes" },

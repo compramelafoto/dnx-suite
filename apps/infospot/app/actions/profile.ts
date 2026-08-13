@@ -92,6 +92,7 @@ export async function updateMyEditorialProfileAction(
   revalidatePath("/redaccion");
   revalidatePath("/redaccion/perfil");
   revalidatePath(`/autores/${access.user.id}`);
+  revalidatePath("/");
   revalidatePath("/noticias");
   redirect("/redaccion/perfil?ok=1");
 }

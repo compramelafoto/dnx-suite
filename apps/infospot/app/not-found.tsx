@@ -14,7 +14,7 @@ export default function NotFound() {
           <Link href="/" className="is-btn is-btn-solid">
             Ir al inicio
           </Link>
-          <Link href="/noticias" className="is-btn is-btn-secondary">
+          <Link href="/" className="is-btn is-btn-secondary">
             Ver noticias
           </Link>
           <Link href="/eventos" className="is-btn is-btn-secondary">

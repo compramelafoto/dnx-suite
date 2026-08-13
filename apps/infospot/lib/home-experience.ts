@@ -161,7 +161,7 @@ function headerForMode(mode: HomeExperienceMode): {
       return {
         primary: { href: "/eventos", label: "Convocatorias" },
         secondary: [
-          { href: "/noticias", label: "Noticias" },
+          { href: "/", label: "Noticias" },
           { href: "/colaboradores", label: "Autores" },
         ],
       };
@@ -169,7 +169,7 @@ function headerForMode(mode: HomeExperienceMode): {
       return {
         primary: { href: "/eventos", label: "Eventos" },
         secondary: [
-          { href: "/noticias", label: "Noticias" },
+          { href: "/", label: "Noticias" },
           { href: "/publicar-evento", label: "Publicar" },
         ],
       };

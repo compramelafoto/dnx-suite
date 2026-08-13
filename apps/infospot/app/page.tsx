@@ -1,22 +1,8 @@
 import type { Metadata } from "next";
-import { HomeAdaptiveSections } from "@/components/home";
-import { composeHomeEditorial } from "@/lib/home-composition";
-import { getHomeEditorialData } from "@/lib/articles";
-import {
-  getCachedHomepageCore,
-  getNearbyEvents,
-  getUpcomingEvents,
-} from "@/lib/distribution";
-import { getCachedPublicFeedGeneral } from "@/lib/feed/server";
-import {
-  getNearbyOpenPhotographerCalls,
-  getNearbyUpcomingActivities,
-} from "@/lib/feed/nearby-blocks";
-import { parseGeoParams } from "@/lib/geo";
-import { getAuthUser } from "@/lib/auth";
-import { listActivePublicProfiles } from "@/lib/dnx-user-profiles";
-import { resolveHomeExperience } from "@/lib/home-experience";
-import { readPreferredHomeModeFromCookie } from "@/app/actions/home-experience";
+import { HomeHeroSlider } from "@/components/home";
+import { NoticiasIndex, NOTICIAS_PAGE_SIZE, parseNoticiasPage } from "@/components/editorial/noticias-index";
+import { getCategories, getPublishedArticles } from "@/lib/articles";
+import { getCachedHomepageCore } from "@/lib/distribution";
 import { loadInfospotAds } from "@/lib/partners-ads";
 import { PartnerAdsSlot } from "@/components/partners/PartnerAdsSlot";
 import { PartnerAdsWelcome } from "@/components/partners/PartnerAdsWelcome";
@@ -29,14 +15,14 @@ export const metadata: Metadata = {
     absolute: "Info Spot — Donde nacen los eventos",
   },
   description:
-    "Info Spot conecta organizadores, fotógrafos y participantes. Publicá tu evento, conseguí cobertura y descubrí qué está pasando.",
+    "Últimas noticias y coberturas de eventos deportivos, culturales y sociales. Info Spot, medio digital argentino.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
     title: "Info Spot — Donde nacen los eventos",
     description:
-      "Info Spot conecta organizadores, fotógrafos y participantes. Publicá tu evento, conseguí cobertura y descubrí qué está pasando.",
+      "Últimas noticias y coberturas de eventos deportivos, culturales y sociales. Info Spot, medio digital argentino.",
     images: [
       {
         url: "/brand/og-default.png",
@@ -49,81 +35,33 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ lat?: string; lng?: string; radio?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    lat?: string;
+    lng?: string;
+    radio?: string;
+  }>;
 };
 
 export default async function HomePage({ searchParams }: Props) {
   const params = await searchParams;
-  const near = parseGeoParams(params);
+  const page = parseNoticiasPage(params.page);
+  const skip = (page - 1) * NOTICIAS_PAGE_SIZE;
 
-  const emptyFeed = {
-    items: [] as Awaited<ReturnType<typeof getCachedPublicFeedGeneral>>["items"],
-    nextCursor: null as string | null,
-    hasMore: false,
-  };
-
-  const [
-    core,
-    editorialData,
-    nearby,
-    upcomingFallback,
-    user,
-    preferredMode,
-    feed,
-    nearbyUpcoming,
-    nearbyCalls,
-  ] = await Promise.all([
-    getCachedHomepageCore(),
-    getHomeEditorialData(),
-    near
-      ? getNearbyEvents({
-          latitude: near.lat,
-          longitude: near.lng,
-          radiusKm: near.radiusKm,
-          limit: 6,
-        })
-      : Promise.resolve([]),
-    near ? Promise.resolve([]) : getUpcomingEvents({ limit: 6 }),
-    getAuthUser(),
-    readPreferredHomeModeFromCookie(),
-    getCachedPublicFeedGeneral(12).catch((err) => {
-      console.error("[infospot/home] feed unavailable:", err);
-      return emptyFeed;
+  const [core, articles, categories] = await Promise.all([
+    getCachedHomepageCore().catch((err) => {
+      console.error("[infospot/home] core unavailable:", err);
+      return { banner: [] as Awaited<ReturnType<typeof getCachedHomepageCore>>["banner"] };
     }),
-    near
-      ? getNearbyUpcomingActivities({
-          latitude: near.lat,
-          longitude: near.lng,
-          radiusKm: near.radiusKm,
-          limit: 6,
-        }).catch(() => [])
-      : Promise.resolve([]),
-    near
-      ? getNearbyOpenPhotographerCalls({
-          latitude: near.lat,
-          longitude: near.lng,
-          radiusKm: near.radiusKm,
-          limit: 6,
-        }).catch(() => [])
-      : Promise.resolve([]),
+    getPublishedArticles({ take: NOTICIAS_PAGE_SIZE + 1, skip }),
+    getCategories(),
   ]);
 
-  const activeProfiles = user
-    ? (await listActivePublicProfiles(user.id)).map((p) => p.profileType)
-    : [];
+  const banners = page === 1 ? core.banner : [];
+  const hasNext = articles.length > NOTICIAS_PAGE_SIZE;
+  const visible = hasNext ? articles.slice(0, NOTICIAS_PAGE_SIZE) : articles;
 
-  const experience = resolveHomeExperience({
-    activeProfiles,
-    preferredMode,
-  });
-
-  const home = composeHomeEditorial(editorialData);
-  const banners = core.banner;
-  const nearEvents = nearby.length > 0 ? nearby : upcomingFallback;
-
-  const audience = near
-    ? { countryCode: "AR" as const }
-    : { countryCode: "AR" as const };
+  const audience = { countryCode: "AR" as const };
 
   const [welcomeAds, homeTopAds, homeInlineAds, marqueeAds] = await Promise.all([
     loadInfospotAds("INFOSPOT_HOME_WELCOME", { audience }),
@@ -132,33 +70,17 @@ export default async function HomePage({ searchParams }: Props) {
     loadInfospotAds("INFOSPOT_HOME_MARQUEE", { audience }),
   ]);
 
-  /** Evitar duplicar hero / destacados en el feed unificado. */
-  const feedExcludeContentKeys = [
-    ...banners.map((b) => `${b.kind === "event" ? "event" : "article"}:${b.id}`),
-    ...core.featured.slice(0, 3).map((e) => `event:${e.id}`),
-    home.featured ? `article:${home.featured.id}` : null,
-  ].filter((k): k is string => Boolean(k));
-
   return (
     <>
       <PartnerAdsWelcome ad={welcomeAds[0] ?? null} />
       <PartnerAdsSlot ads={homeTopAds} variant="banner" label="Publicidad" />
-      <HomeAdaptiveSections
-        experience={experience}
-        banners={banners}
-        home={home}
-        featured={core.featured}
-        upcoming={core.upcoming}
-        photographerCalls={core.photographerCalls}
-        coverages={core.coverages}
-        nearEvents={nearEvents}
-        hasUserLocation={Boolean(near)}
-        feedItems={feed.items}
-        feedNextCursor={feed.nextCursor}
-        feedHasMore={feed.hasMore}
-        feedExcludeContentKeys={feedExcludeContentKeys}
-        nearbyUpcoming={nearbyUpcoming}
-        nearbyCalls={nearbyCalls}
+      {banners.length > 0 ? <HomeHeroSlider items={banners} /> : null}
+      <NoticiasIndex
+        articles={visible}
+        categories={categories}
+        page={page}
+        hasNext={hasNext}
+        showPageHeader={banners.length === 0}
       />
       <PartnerAdsSlot
         ads={homeInlineAds}
