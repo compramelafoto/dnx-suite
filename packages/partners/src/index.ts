@@ -494,6 +494,32 @@ export {
 export type { ImpressionIngestInput } from "./analytics";
 
 export {
+  LOGO_MARQUEE_CREATIVE_FORMAT,
+  MARQUEE_ADMIN_FORMAT_LABEL,
+  MARQUEE_ADMIN_FORMAT_DESCRIPTION,
+  LOGO_MARQUEE_PLACEMENT_KEYS,
+  MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS,
+  UNMOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS,
+  isLogoMarqueePlacementKey,
+  isMountedLogoMarqueePlacementKey,
+  listLogoMarqueePlacementMatrix,
+  listLogoMarqueePlacementsForAdminUi,
+  listSelectableLogoMarqueePlacementsForAdmin,
+  assertLogoMarqueePlacementPublishable,
+  assertLogoMarqueeScopeConfig,
+  assertLogoMarqueeBindingAllowed,
+  marqueeAdminCatalogMeta,
+  getLogoMarqueeCatalogEntry,
+} from "./marquee-admin";
+export type {
+  LogoMarqueePlacementKey,
+  MountedLogoMarqueePlacementKey,
+  MarqueeAdminScopeKind,
+  MarqueeAdminPlacementOption,
+  MarqueePlacementMatrixRow,
+} from "./marquee-admin";
+
+export {
   PARTNER_PUBLICATION_DATABASE_KEYS,
   PUBLICATION_APP_TO_DB_KEY,
   PUBLICATION_ENV_BY_DB_KEY,

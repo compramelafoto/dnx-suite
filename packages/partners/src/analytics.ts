@@ -215,7 +215,7 @@ export const DEVICE_ANALYTICS_LABELS: Record<DnxPartnerDeviceClass, string> = {
 };
 
 export const PLACEMENT_ANALYTICS_LABELS: Partial<Record<DnxPartnerPlacement, string>> = {
-  LOGO_MARQUEE: "Marquee de logos",
+  LOGO_MARQUEE: "Slider de marcas",
   WELCOME: "Welcome interstitial",
   HOME_INLINE: "Home inline",
   BANNER: "Banner",
