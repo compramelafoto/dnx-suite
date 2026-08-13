@@ -39,6 +39,11 @@ export type PartnerLogoMarqueeProps = {
   /** Optional render override for a logo cell */
   renderItem?: (item: PartnerLogoMarqueeItem, visualIndex: number) => ReactNode;
   "aria-label"?: string;
+  /**
+   * Preview / fixtures / admin: `false` desactiva impresiones (y no inventa clics).
+   * Default `true` en runtime productivo.
+   */
+  trackingEnabled?: boolean;
 };
 
 /** Fixed slide slot: logo adapts inside (contain). Values are CSS length strings. */
@@ -162,7 +167,7 @@ function DefaultLogoCell({
     );
   }
 
-  // Sin destino: no enlace falso. Impresión viewable requiere /r/ (gap documentado).
+  // Sin destino: no enlace falso ni cursor de enlace. La impresión viewable vive fuera del href.
   return (
     <div
       style={{
@@ -181,7 +186,8 @@ function DefaultLogoCell({
  * Continuous horizontal logo marquee (CSS animation) or static row for few logos.
  * Visual array is duplicated for seamless loop; callers must reuse the same href/tracking key.
  * Honors prefers-reduced-motion (static row + optional overflow scroll).
- * Pause on :hover and :focus-within. Impressions only on canonical loop copy.
+ * Pause on :hover and :focus-within. Impressions only on canonical loop copy
+ * (independent of outbound href; disable with trackingEnabled={false}).
  */
 export function PartnerLogoMarquee({
   items,
@@ -192,6 +198,7 @@ export function PartnerLogoMarquee({
   itemClassName,
   renderItem,
   "aria-label": ariaLabel = "Slider de marcas",
+  trackingEnabled = true,
 }: PartnerLogoMarqueeProps) {
   if (items.length === 0) return null;
 
@@ -311,10 +318,11 @@ export function PartnerLogoMarquee({
           ) : (
             <DefaultLogoCell item={item} density={density} />
           );
-          // Impresión solo en copia canónica y con tracking /r/ (sin outbound = sin impresión).
+          // Impresión solo en copia canónica; no exige outbound/href.
           const canTrack =
+            trackingEnabled &&
             !isCopy &&
-            Boolean(item.campaignId && item.creativeId && item.placementKey && item.href);
+            Boolean(item.campaignId && item.creativeId && item.placementKey);
           return (
             <li
               key={`${item.id}-${isCopy ? "copy" : "src"}-${index}`}
@@ -328,7 +336,8 @@ export function PartnerLogoMarquee({
                   campaignId={item.campaignId!}
                   creativeId={item.creativeId!}
                   placementKey={item.placementKey!}
-                  href={item.href!}
+                  href={item.href ?? null}
+                  enabled={trackingEnabled}
                 >
                   {cell}
                 </PartnerViewableImpression>

@@ -7,13 +7,21 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("PartnerViewableImpression", () => {
+  const src = readFileSync(join(here, "PartnerViewableImpression.tsx"), "utf8");
+
   it("requires viewability threshold and duration", () => {
-    const src = readFileSync(join(here, "PartnerViewableImpression.tsx"), "utf8");
     assert.match(src, /VIEWABILITY_RATIO = 0\.5/);
     assert.match(src, /VIEWABILITY_MS = 1000/);
     assert.match(src, /IntersectionObserver/);
     assert.match(src, /logicalViewKey|campaignId.*creativeId.*placementKey/);
     assert.match(src, /sendBeacon|fetch/);
+  });
+
+  it("fires without requiring outbound href/trackingKey", () => {
+    assert.doesNotMatch(src, /if \(!trackingKey\) return/);
+    assert.match(src, /campaignId/);
+    assert.match(src, /if \(trackingKey\) payload\.trackingKey/);
+    assert.match(src, /enabled/);
   });
 });
 
@@ -34,6 +42,15 @@ describe("PartnerLogoMarquee impression dedupe + a11y", () => {
     assert.match(src, /<ul/);
     assert.match(src, /--static/);
     assert.match(src, /--animate/);
+  });
+
+  it("tracks logos without href; never invents fake links; supports trackingEnabled=false", () => {
+    assert.match(src, /trackingEnabled/);
+    assert.match(src, /Boolean\(item\.campaignId && item\.creativeId && item\.placementKey\)/);
+    assert.doesNotMatch(src, /placementKey && item\.href/);
+    assert.match(src, /cursor: "default"/);
+    assert.doesNotMatch(src, /href="#"/);
+    assert.match(src, /Sin destino: no enlace falso/);
   });
 });
 
@@ -67,6 +84,11 @@ describe("PartnerWelcomeInterstitial contracts", () => {
     assert.match(src, /openInNewTab/);
     assert.match(src, /safe-area-inset/);
     assert.match(src, /maxHeight: "min\(85dvh/);
+  });
+
+  it("impression tracking can be disabled without relying on missing href", () => {
+    assert.match(src, /trackingEnabled/);
+    assert.match(src, /trackingEnabled && creativeId && placementKey/);
   });
 });
 

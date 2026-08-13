@@ -60,12 +60,19 @@ export type PartnerViewableImpressionProps = {
   campaignId: string;
   creativeId: string;
   placementKey: string;
+  /**
+   * Si apunta a `/r/[trackingKey]`, se envía trackingKey (asocia outbound).
+   * No es requisito para registrar impresión.
+   */
   href?: string | null;
   /** Endpoint first-party, default /api/public/partners/impression */
   endpoint?: string;
   children: ReactNode;
   className?: string;
-  /** Solo observar nodos canónicos (marquee loop copy 0). */
+  /**
+   * Solo observar nodos canónicos (marquee loop copy 0).
+   * Preview / fixtures: `enabled={false}` → cero métricas.
+   */
   enabled?: boolean;
 };
 
@@ -73,6 +80,7 @@ export type PartnerViewableImpressionProps = {
  * Cuenta una impresión cuando el creative está ≥50% visible ≥1s.
  * Dedup por campaign+creative+placement en la sesión de página.
  * Soft-fail: nunca rompe el render.
+ * Independiente del clic / outbound (href opcional).
  * Sin dependencia de @repo/partners (constantes alineadas con dominio).
  */
 export function PartnerViewableImpression({
@@ -103,7 +111,6 @@ export function PartnerViewableImpression({
     if (alreadyFired(logicalKey)) return;
 
     const trackingKey = extractTrackingKeyFromHref(href);
-    if (!trackingKey) return;
 
     const clearTimer = () => {
       if (timerRef.current) {
@@ -115,12 +122,14 @@ export function PartnerViewableImpression({
     const fire = () => {
       if (alreadyFired(logicalKey)) return;
       markFired(logicalKey);
-      const body = JSON.stringify({
-        trackingKey,
+      const payload: Record<string, string> = {
         creativeId,
+        campaignId,
         placementKey,
         viewSessionKey: logicalKey.slice(0, 64),
-      });
+      };
+      if (trackingKey) payload.trackingKey = trackingKey;
+      const body = JSON.stringify(payload);
       try {
         if (navigator.sendBeacon) {
           const blob = new Blob([body], { type: "application/json" });
