@@ -1,8 +1,9 @@
-export { PartnerLogoMarquee } from "./PartnerLogoMarquee";
+export { PartnerLogoMarquee, resolvePartnerLogoMarqueeMotion } from "./PartnerLogoMarquee";
 export type {
   PartnerLogoMarqueeDensity,
   PartnerLogoMarqueeItem,
   PartnerLogoMarqueeProps,
+  PartnerLogoMarqueeMotionMode,
 } from "./PartnerLogoMarquee";
 
 export { PartnerAdCreative } from "./PartnerAdCreative";
