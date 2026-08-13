@@ -8,13 +8,18 @@ import { ensureAdPlacementCatalog } from "@repo/db/partners-ads-loader";
 import {
   assertWelcomeAdminScopeConfig,
   assertWelcomePlacementPublishable,
+  buildWelcomeGraphicMetadata,
   contextTypeForWelcomeScope,
+  getWelcomeGraphicSlot,
+  isAnimatedWelcomeMime,
   isMountedWelcomePlacementKey,
   isWelcomeActivationExcludedApplication,
   validateWelcomeCampaignBeforePublish,
+  wrapWelcomeGraphicMetadata,
   type WelcomeAdminScopeKind,
   type DnxPartnerApplication,
   type DnxPartnerAdPlacementKey,
+  type WelcomeGraphicSlotKey,
 } from "@repo/partners";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
@@ -66,14 +71,17 @@ export async function searchWelcomeContextAction(formData: FormData): Promise<{
 }
 
 /**
- * Alta de asset por URL pública como PENDING (solo preview).
+ * Alta de asset welcome por URL pública como PENDING (solo preview).
  * Publicar exige aprobación formal posterior.
+ * Soporta gráfica desktop/mobile (+ fallback estático) vía metadata tipada.
  */
 export async function registerPartnerAssetUrlFormAction(formData: FormData): Promise<void> {
   await requireClickatonAdmin();
   const partnerId = formData.get("partnerId")?.toString() ?? "";
   const fileUrl = formData.get("fileUrl")?.toString()?.trim() ?? "";
   const altText = formData.get("altText")?.toString()?.trim() ?? "";
+  const slotKey = formData.get("welcomeSlot")?.toString()?.trim() ?? "";
+  const mimeHint = formData.get("mimeType")?.toString()?.trim().toLowerCase() ?? "";
   if (!partnerId || !fileUrl || !/^https?:\/\//i.test(fileUrl)) {
     redirect(campanasPath(partnerId || "x", "error=URL+de+asset+inv%C3%A1lida"));
   }
@@ -84,19 +92,45 @@ export async function registerPartnerAssetUrlFormAction(formData: FormData): Pro
     redirect(campanasPath(partnerId, "error=SVG+no+admitido"));
   }
 
+  let metadata: Record<string, unknown> | undefined;
+  let name = altText.slice(0, 120);
+  let mimeType = mimeHint || "image/png";
+  if (slotKey) {
+    try {
+      const slot = getWelcomeGraphicSlot(slotKey as WelcomeGraphicSlotKey);
+      const animated =
+        isAnimatedWelcomeMime(mimeType) ||
+        /\.gif(\?|$)/i.test(fileUrl) ||
+        mimeHint === "image/gif";
+      if (animated) mimeType = "image/gif";
+      metadata = wrapWelcomeGraphicMetadata(
+        buildWelcomeGraphicMetadata({
+          deviceTarget: slot.deviceTarget,
+          motionVariant: slot.motionVariant,
+          animated: slot.motionVariant === "STATIC_FALLBACK" ? false : animated,
+          isDefault: true,
+        }),
+      ) as unknown as Record<string, unknown>;
+      name = `${slot.title} · ${altText}`.slice(0, 120);
+    } catch {
+      redirect(campanasPath(partnerId, "error=Slot+welcome+inv%C3%A1lido"));
+    }
+  }
+
   const result = await withClickatonDb(async () => {
     return prisma.dnxPartnerAsset.create({
       data: {
         id: randomUUID(),
         partnerId,
         type: "BRAND_PHOTO",
-        name: altText.slice(0, 120),
+        name,
         fileUrl,
-        mimeType: "image/png",
+        mimeType,
         altText,
         status: "ACTIVE",
         approvalStatus: "PENDING",
         approvedAt: null,
+        metadata: metadata as never,
         updatedAt: new Date(),
       },
     });

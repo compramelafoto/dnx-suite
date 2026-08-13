@@ -670,6 +670,8 @@ export type ResolvedAdCreative = {
   body: string | null;
   ctaText: string | null;
   imageUrl: string | null;
+  /** Snapshot responsivo welcome (opcional; prioridad sobre imageUrl en UI). */
+  welcomeMedia?: import("./welcome-graphic-assets").WelcomeResponsiveMediaSnapshot | null;
   href: string | null;
   priority: number;
   sortOrder: number;

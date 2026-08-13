@@ -87,5 +87,6 @@ export function toClfAlbumWelcomePublicPayload(
     title: ad.title,
     body: ad.body,
     ctaText: ad.ctaText,
+    welcomeMedia: ad.welcomeMedia ?? null,
   };
 }

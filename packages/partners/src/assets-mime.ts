@@ -47,6 +47,18 @@ export function detectPartnerFileMime(
   if (b.length >= 4 && String.fromCharCode(...b.slice(0, 4)) === "%PDF") {
     return { mime: "application/pdf", extension: "pdf", kind: "pdf", valid: true };
   }
+  // GIF87a / GIF89a — admitido solo en gráficas welcome (no en logos ni uploads genéricos).
+  if (
+    b.length >= 6 &&
+    b[0] === 0x47 &&
+    b[1] === 0x49 &&
+    b[2] === 0x46 &&
+    b[3] === 0x38 &&
+    (b[4] === 0x37 || b[4] === 0x39) &&
+    b[5] === 0x61
+  ) {
+    return { mime: "image/gif", extension: "gif", kind: "image", valid: true };
+  }
   // MP4 / ISO BMFF
   if (b.length >= 12 && String.fromCharCode(...b.slice(4, 8)) === "ftyp") {
     return { mime: "video/mp4", extension: "mp4", kind: "video", valid: true };

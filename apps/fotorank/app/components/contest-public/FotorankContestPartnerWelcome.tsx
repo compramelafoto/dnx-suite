@@ -23,6 +23,7 @@ export function FotorankContestPartnerWelcome({
       campaignId={ad.campaignId}
       partnerName={ad.partnerName}
       imageUrl={ad.imageUrl}
+      media={ad.welcomeMedia ?? null}
       href={ad.href}
       title={ad.title}
       body={ad.body}

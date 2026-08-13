@@ -14,6 +14,7 @@ const ALLOWED_WELCOME_MIME = new Set([
   "image/jpeg",
   "image/jpg",
   "image/webp",
+  "image/gif",
 ]);
 
 export type WelcomeCanonicalIdKind = "EDITION" | "CONTEST" | "ALBUM";
@@ -162,7 +163,7 @@ export function validateWelcomeAssetForPublish(
     if (!mime.startsWith("image/")) {
       issues.push({
         code: "ASSET_MIME",
-        message: "Tipo de archivo no admitido. Usá PNG, WebP o JPG.",
+        message: "Tipo de archivo no admitido. Usá PNG, WebP, JPG o GIF.",
         severity: "error",
       });
     }

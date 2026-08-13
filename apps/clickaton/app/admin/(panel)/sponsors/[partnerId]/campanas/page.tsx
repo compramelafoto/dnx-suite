@@ -17,6 +17,13 @@ import {
   listAdPlacementCatalogForAdminBinding,
   welcomeAdminCatalogMeta,
   marqueeAdminCatalogMeta,
+  WELCOME_GRAPHIC_SLOTS,
+  WELCOME_GRAPHIC_SAFE_AREA_COPY,
+  WELCOME_GRAPHIC_CTA_COPY,
+  DEFAULT_WELCOME_GRAPHIC_LIMITS,
+  parseWelcomeGraphicMetadata,
+  isWelcomeGraphicAsset,
+  buildWelcomeResponsiveMediaSnapshot,
 } from "@repo/partners";
 import { prisma } from "@repo/db";
 import { PartnerAdCreative } from "@repo/design-system/components/partners";
@@ -115,11 +122,21 @@ export default async function AdminPartnerCampaignsPage({
         orderBy: { updatedAt: "desc" },
         select: {
           id: true,
+          partnerId: true,
           type: true,
           fileUrl: true,
           approvalStatus: true,
+          status: true,
+          archivedAt: true,
           altText: true,
           name: true,
+          mimeType: true,
+          fileSize: true,
+          width: true,
+          height: true,
+          isPrimary: true,
+          metadata: true,
+          updatedAt: true,
         },
       }),
     ]);
@@ -235,12 +252,38 @@ export default async function AdminPartnerCampaignsPage({
           </div>
           <form action={registerPartnerAssetUrlFormAction} className="space-y-4 border-t border-ck-border pt-6">
             <input type="hidden" name="partnerId" value={partner.id} />
-            <h3 className="text-lg font-semibold">Asset por URL (borrador PENDING)</h3>
+            <h3 className="text-lg font-semibold">Gráfica para ventana destacada</h3>
+            <p className="text-sm text-ck-text-secondary">
+              Escritorio y celular son opcionales e independientes. El sistema usa fallbacks (cruzados →
+              logo). Ambas piezas admiten PNG, WebP, JPG y GIF.
+            </p>
+            <p className="text-xs text-ck-text-secondary">{WELCOME_GRAPHIC_SAFE_AREA_COPY}</p>
+            <p className="text-xs text-ck-text-secondary">{WELCOME_GRAPHIC_CTA_COPY}</p>
             <p className="text-xs text-ck-text-secondary">
-              PNG/WebP/JPG. Queda PENDING: sirve para preview, no para publicar. Aprobá formalmente
-              después. No uses SVG.
+              Límites: desktop estático {Math.round(DEFAULT_WELCOME_GRAPHIC_LIMITS.desktopStaticMaxBytes / 1024)}{" "}
+              KB · mobile estático {Math.round(DEFAULT_WELCOME_GRAPHIC_LIMITS.mobileStaticMaxBytes / 1024)}{" "}
+              KB · desktop GIF {Math.round(DEFAULT_WELCOME_GRAPHIC_LIMITS.desktopGifMaxBytes / 1024)} KB ·
+              mobile GIF {Math.round(DEFAULT_WELCOME_GRAPHIC_LIMITS.mobileGifMaxBytes / 1024)} KB. Breakpoint
+              desktop ≥768px (DS md).
             </p>
             <div className="grid gap-4 md:grid-cols-2">
+              <Field id="welcome-slot" label="Variante" required>
+                <Select name="welcomeSlot" defaultValue="WELCOME_GRAPHIC_DESKTOP" required>
+                  {WELCOME_GRAPHIC_SLOTS.map((s) => (
+                    <option key={s.slotKey} value={s.slotKey}>
+                      {s.title}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field id="asset-mime" label="MIME">
+                <Select name="mimeType" defaultValue="image/png">
+                  <option value="image/png">PNG</option>
+                  <option value="image/webp">WebP</option>
+                  <option value="image/jpeg">JPEG</option>
+                  <option value="image/gif">GIF</option>
+                </Select>
+              </Field>
               <Field id="asset-url" label="URL de imagen" required>
                 <Input name="fileUrl" placeholder="https://…" required />
               </Field>
@@ -248,14 +291,56 @@ export default async function AdminPartnerCampaignsPage({
                 <Input name="altText" required placeholder="Descripción de la pieza" />
               </Field>
             </div>
-            <Button type="submit">Registrar asset PENDING</Button>
+            <ul className="grid gap-3 sm:grid-cols-2 text-xs text-ck-text-secondary">
+              {WELCOME_GRAPHIC_SLOTS.map((s) => (
+                <li key={s.slotKey} className="rounded-lg border border-ck-border px-3 py-2">
+                  <span className="font-medium text-ck-text">{s.title}</span>
+                  <p className="mt-1">{s.description}</p>
+                  <p className="mt-1 opacity-80">{s.recommendation}</p>
+                </li>
+              ))}
+            </ul>
+            <Button type="submit">Registrar variante PENDING</Button>
           </form>
-          {assets.some((a) => a.approvalStatus === "PENDING") ? (
+          {assets.filter((a) => isWelcomeGraphicAsset(a as never)).length > 0 ? (
             <div className="space-y-3 border-t border-ck-border pt-6">
-              <h3 className="text-lg font-semibold">Aprobar assets pendientes</h3>
+              <h3 className="text-lg font-semibold">Variantes welcome del sponsor</h3>
               <ul className="space-y-2">
                 {assets
-                  .filter((a) => a.approvalStatus === "PENDING")
+                  .filter((a) => isWelcomeGraphicAsset(a as never))
+                  .map((a) => {
+                    const meta = parseWelcomeGraphicMetadata(a.metadata);
+                    return (
+                      <li
+                        key={a.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ck-border px-3 py-2 text-sm"
+                      >
+                        <span className="text-ck-text-secondary">
+                          {meta?.deviceTarget}/{meta?.motionVariant}
+                          {meta?.animated ? " · GIF" : " · estático"} · {a.approvalStatus} ·{" "}
+                          {a.mimeType || "mime?"} · {a.altText || "sin alt"} · {a.id.slice(0, 8)}
+                        </span>
+                        {a.approvalStatus === "PENDING" ? (
+                          <form action={approvePartnerAssetFormAction}>
+                            <input type="hidden" name="partnerId" value={partner.id} />
+                            <input type="hidden" name="assetId" value={a.id} />
+                            <Button type="submit" variant="secondary">
+                              Aprobar
+                            </Button>
+                          </form>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          ) : null}
+          {assets.some((a) => a.approvalStatus === "PENDING" && !isWelcomeGraphicAsset(a as never)) ? (
+            <div className="space-y-3 border-t border-ck-border pt-6">
+              <h3 className="text-lg font-semibold">Aprobar assets pendientes (otros)</h3>
+              <ul className="space-y-2">
+                {assets
+                  .filter((a) => a.approvalStatus === "PENDING" && !isWelcomeGraphicAsset(a as never))
                   .map((a) => (
                     <li
                       key={a.id}
@@ -336,6 +421,30 @@ export default async function AdminPartnerCampaignsPage({
           campaigns.map((campaign) => {
             const previewCreative = campaign.creatives[0];
             const previewUrl = previewCreative?.asset.fileUrl ?? null;
+            const logoAsset =
+              assets.find(
+                (a) =>
+                  a.type === "LOGO_GENERAL" &&
+                  a.approvalStatus === "APPROVED" &&
+                  a.status === "ACTIVE" &&
+                  !a.archivedAt,
+              ) ?? null;
+            const welcomeSnap = buildWelcomeResponsiveMediaSnapshot({
+              assets: assets as never,
+              logoAsset: logoAsset as never,
+              legacyImageUrl: previewUrl,
+              legacyAlt: previewCreative?.asset.altText ?? previewCreative?.title,
+            });
+            const resolutionRows = [
+              {
+                device: "Escritorio",
+                piece: welcomeSnap.snapshot.desktop,
+              },
+              {
+                device: "Celular",
+                piece: welcomeSnap.snapshot.mobile,
+              },
+            ] as const;
             return (
               <Card key={campaign.id} variant="outlined" className="space-y-8 p-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -489,11 +598,44 @@ export default async function AdminPartnerCampaignsPage({
                         </li>
                       ))}
                     </ul>
-                    {previewUrl ? (
+                    {previewUrl || welcomeSnap.snapshot.imageUrl ? (
                       <div className="space-y-6">
+                        <div className="overflow-x-auto rounded-lg border border-ck-border">
+                          <table className="min-w-full text-left text-sm">
+                            <thead className="border-b border-ck-border text-xs uppercase tracking-wide text-ck-text-secondary">
+                              <tr>
+                                <th className="px-3 py-2">Dispositivo</th>
+                                <th className="px-3 py-2">Pieza seleccionada</th>
+                                <th className="px-3 py-2">Fallback reduced motion</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {resolutionRows.map((row) => (
+                                <tr key={row.device} className="border-b border-ck-border/60">
+                                  <td className="px-3 py-2 text-ck-text">{row.device}</td>
+                                  <td className="px-3 py-2 text-ck-text-secondary">
+                                    {row.piece
+                                      ? `${row.piece.source}${row.piece.animated ? " · GIF" : " · estático"}`
+                                      : "—"}
+                                  </td>
+                                  <td className="px-3 py-2 text-ck-text-secondary">
+                                    {row.piece?.animated
+                                      ? row.piece.reducedMotionFallbackUrl
+                                        ? "Fallback estático"
+                                        : welcomeSnap.snapshot.logoFallback
+                                          ? "Logo"
+                                          : "Sin fallback"
+                                      : "N/A (estática)"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                         <WelcomeInterstitialAdminPreview
                           partnerName={partner.name}
                           imageUrl={previewUrl}
+                          media={welcomeSnap.snapshot}
                           title={previewCreative?.title}
                           body={previewCreative?.body}
                           ctaText={previewCreative?.ctaText}
@@ -521,6 +663,7 @@ export default async function AdminPartnerCampaignsPage({
                             <PartnerAdCreative
                               partnerName={partner.name}
                               imageUrl={previewUrl}
+                              media={welcomeSnap.snapshot}
                               href={null}
                               title={previewCreative?.title}
                               body={previewCreative?.body}

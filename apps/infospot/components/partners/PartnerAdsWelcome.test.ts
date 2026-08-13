@@ -13,6 +13,7 @@ describe("InfoSpot PartnerAdsWelcome regression", () => {
     assert.match(src, /INFOSPOT_HOME_WELCOME/);
     assert.match(src, /frequencyHours=\{24\}/);
     assert.match(src, /Contenido patrocinado/);
+    assert.match(src, /welcomeMedia/);
     assert.doesNotMatch(src, /FOTO_OFFICE/);
   });
 });

@@ -1,4 +1,4 @@
-import { assertValidCtaUrl } from "./assets-mime";
+import { assertValidCtaUrl, detectPartnerFileMime } from "./assets-mime";
 import {
   findBestAssetForChannel,
   filterParticipationAssets,
@@ -31,6 +31,19 @@ import {
   type PartnerActor,
   type PartnerRecord,
 } from "./types";
+import {
+  WELCOME_GRAPHIC_CARRIER_ASSET_TYPES,
+  WELCOME_GRAPHIC_ALLOWED_MIMES,
+  buildWelcomeGraphicMetadata,
+  wrapWelcomeGraphicMetadata,
+  parseWelcomeGraphicMetadata,
+  isWelcomeGraphicAsset,
+  isAnimatedWelcomeMime,
+  slotKeyForWelcomeGraphic,
+  getWelcomeGraphicSlot,
+  type WelcomeGraphicDeviceTarget,
+  type WelcomeGraphicMotionVariant,
+} from "./welcome-graphic-assets";
 
 type AuditFn = (
   actor: PartnerActor,
@@ -629,6 +642,140 @@ export function createPartnerAssetsApi(repo: PartnersRepository, audit: AuditFn)
         includeRejected: true,
       });
       return findBestAssetForChannel(rows, input);
+    },
+
+    async listWelcomeGraphicAssets(actor: PartnerActor, partnerId: string) {
+      assertPartnerCapability(actor, "PARTNER_ASSETS_VIEW");
+      await requirePartner(partnerId);
+      const all = await repo.listBrandAssets(partnerId);
+      return all.filter((a) => isWelcomeGraphicAsset(a));
+    },
+
+    async registerWelcomeGraphicAsset(
+      actor: PartnerActor,
+      input: {
+        partnerId: string;
+        deviceTarget: WelcomeGraphicDeviceTarget;
+        motionVariant: WelcomeGraphicMotionVariant;
+        fileUrl: string;
+        altText: string;
+        mimeType?: string | null;
+        fileExtension?: string | null;
+        fileSize?: number | null;
+        width?: number | null;
+        height?: number | null;
+        originalFilename?: string | null;
+        isDefault?: boolean;
+        buffer?: Uint8Array;
+        staticFallbackAssetId?: string | null;
+      },
+    ): Promise<PartnerBrandAssetRecord> {
+      assertPartnerCapability(actor, "PARTNER_ASSETS_UPLOAD");
+      assertPartnerCapability(actor, "PARTNER_ASSETS_MANAGE_BRAND");
+      await requirePartner(input.partnerId);
+      const mime = (input.mimeType ?? "").toLowerCase().replace("image/jpg", "image/jpeg");
+      if (input.buffer) {
+        const detected = detectPartnerFileMime(input.buffer, input.mimeType ?? undefined);
+        const real = detected.mime.toLowerCase().replace("image/jpg", "image/jpeg");
+        if (
+          !detected.valid ||
+          !(WELCOME_GRAPHIC_ALLOWED_MIMES as readonly string[]).includes(real)
+        ) {
+          throw new PartnersDomainError(
+            "VALIDATION",
+            "Tipo de archivo no permitido. Usá PNG, WebP, JPG o GIF.",
+          );
+        }
+        if (detected.kind === "svg" || real.includes("svg")) {
+          throw new PartnersDomainError(
+            "VALIDATION",
+            "SVG no permitido: el pipeline no sanitiza SVG de forma verificable.",
+          );
+        }
+      } else if (mime && !(WELCOME_GRAPHIC_ALLOWED_MIMES as readonly string[]).includes(mime)) {
+        throw new PartnersDomainError("VALIDATION", "MIME no admitido para gráfica welcome.");
+      }
+      if (mime.includes("svg") || mime.includes("html") || mime.startsWith("video/")) {
+        throw new PartnersDomainError("VALIDATION", "SVG/HTML/video no admitidos.");
+      }
+      const alt = input.altText.trim();
+      if (!alt) {
+        throw new PartnersDomainError("VALIDATION", "Texto alternativo obligatorio.");
+      }
+      const url = input.fileUrl.trim();
+      if (!url) {
+        throw new PartnersDomainError("VALIDATION", "URL pública obligatoria.");
+      }
+      const slot = getWelcomeGraphicSlot(
+        slotKeyForWelcomeGraphic(input.deviceTarget, input.motionVariant),
+      );
+      const animated = isAnimatedWelcomeMime(mime);
+      if (input.motionVariant === "STATIC_FALLBACK" && animated) {
+        throw new PartnersDomainError(
+          "VALIDATION",
+          "El fallback de reduced motion debe ser estático (no GIF).",
+        );
+      }
+      const metadata = wrapWelcomeGraphicMetadata(
+        buildWelcomeGraphicMetadata({
+          deviceTarget: input.deviceTarget,
+          motionVariant: input.motionVariant,
+          animated,
+          staticFallbackAssetId: input.staticFallbackAssetId ?? null,
+          isDefault: input.isDefault !== false,
+        }),
+      );
+      return api.createPartnerAsset(actor, {
+        partnerId: input.partnerId,
+        type: WELCOME_GRAPHIC_CARRIER_ASSET_TYPES[0],
+        name: slot.title,
+        fileUrl: url,
+        mimeType: input.mimeType ?? null,
+        fileExtension: input.fileExtension ?? null,
+        fileSize: input.fileSize ?? null,
+        width: input.width ?? null,
+        height: input.height ?? null,
+        originalFilename: input.originalFilename ?? null,
+        altText: alt,
+        isPrimary: false,
+        status: "ACTIVE",
+        approvalStatus: "PENDING",
+        metadata,
+      });
+    },
+
+    async replaceWelcomeGraphicAsset(
+      actor: PartnerActor,
+      input: {
+        partnerId: string;
+        deviceTarget: WelcomeGraphicDeviceTarget;
+        motionVariant: WelcomeGraphicMotionVariant;
+        fileUrl: string;
+        altText: string;
+        mimeType?: string | null;
+        fileExtension?: string | null;
+        fileSize?: number | null;
+        width?: number | null;
+        height?: number | null;
+        originalFilename?: string | null;
+        buffer?: Uint8Array;
+        staticFallbackAssetId?: string | null;
+      },
+    ): Promise<PartnerBrandAssetRecord> {
+      const all = await api.listWelcomeGraphicAssets(actor, input.partnerId);
+      const current = all.find((a) => {
+        const meta = parseWelcomeGraphicMetadata(a.metadata);
+        return (
+          meta?.deviceTarget === input.deviceTarget &&
+          meta.motionVariant === input.motionVariant &&
+          !a.archivedAt &&
+          a.status !== "ARCHIVED"
+        );
+      });
+      if (current) {
+        await api.archivePartnerAsset(actor, current.id);
+      }
+      return api.registerWelcomeGraphicAsset(actor, { ...input, isDefault: true });
     },
   };
 

@@ -82,5 +82,6 @@ export function toFotorankContestWelcomePublicPayload(
     title: ad.title,
     body: ad.body,
     ctaText: ad.ctaText,
+    welcomeMedia: ad.welcomeMedia ?? null,
   };
 }

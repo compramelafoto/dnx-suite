@@ -18,6 +18,7 @@ import {
   isWelcomeActivationPlacementKey,
   partnerRedirectPath,
   resolveEligibleAds,
+  buildWelcomeResponsiveMediaSnapshot,
   type CampaignGeoAudience,
   type DnxPartnerAdPlacementKey,
   type DnxPartnerApplication,
@@ -26,6 +27,7 @@ import {
   type PartnerCampaignScopeContext,
   type ResolvedAdCreative,
   type ResolveAdsCandidate,
+  type WelcomeGraphicAssetLike,
 } from "@repo/partners";
 
 export type LoadPartnerAdsInput = {
@@ -379,7 +381,53 @@ export async function loadPartnerAdsForPlacement(
         // keep direct href
       }
     }
-    out.push({ ...ad, href });
+
+    let welcomeMedia: ResolvedAdCreative["welcomeMedia"] = null;
+    if (ad.format === "WELCOME_INTERSTITIAL") {
+      try {
+        const brandAssets = await prisma.dnxPartnerAsset.findMany({
+          where: {
+            partnerId: ad.partnerId,
+            archivedAt: null,
+            status: "ACTIVE",
+          },
+          select: {
+            id: true,
+            partnerId: true,
+            type: true,
+            status: true,
+            approvalStatus: true,
+            archivedAt: true,
+            fileUrl: true,
+            mimeType: true,
+            fileSize: true,
+            width: true,
+            height: true,
+            altText: true,
+            isPrimary: true,
+            metadata: true,
+          },
+        });
+        const logo =
+          brandAssets.find(
+            (a) =>
+              a.type === "LOGO_GENERAL" &&
+              a.approvalStatus === "APPROVED" &&
+              a.fileUrl,
+          ) ?? null;
+        const snap = buildWelcomeResponsiveMediaSnapshot({
+          assets: brandAssets as WelcomeGraphicAssetLike[],
+          logoAsset: logo as WelcomeGraphicAssetLike | null,
+          legacyImageUrl: ad.imageUrl,
+          legacyAlt: ad.title,
+        });
+        welcomeMedia = snap.snapshot;
+      } catch {
+        welcomeMedia = null;
+      }
+    }
+
+    out.push({ ...ad, href, welcomeMedia });
   }
   return out;
 }
