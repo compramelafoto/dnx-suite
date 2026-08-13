@@ -26,9 +26,14 @@ function mockPrisma(overrides: Record<string, unknown> = {}) {
           : {
               id: "cr1",
               campaignId: "camp1",
+              startsAt: null,
+              endsAt: null,
               campaign: {
                 id: "camp1",
+                partnerId: "p1",
                 status: "ACTIVE",
+                startsAt: null,
+                endsAt: null,
                 publishTargets: [{ status: "ACTIVE" }],
               },
             },
@@ -43,7 +48,7 @@ function mockPrisma(overrides: Record<string, unknown> = {}) {
 }
 
 describe("ingestPartnerImpression validation", () => {
-  it("tracks valid impression without PII fields", async () => {
+  it("tracks valid impression with outbound without PII fields", async () => {
     const bag: { created?: Record<string, unknown> } = {};
     const result = await ingestPartnerImpression(mockPrisma(bag), {
       trackingKey: "vicario-key",
@@ -59,11 +64,43 @@ describe("ingestPartnerImpression validation", () => {
     assert.ok(bag.created);
     assert.equal(bag.created!.partnerId, "p1");
     assert.equal(bag.created!.campaignId, "camp1");
+    assert.equal(bag.created!.outboundLinkId, "ol1");
     assert.equal(bag.created!.isBot, false);
     assert.equal("ip" in bag.created!, false);
     assert.equal("userAgent" in bag.created!, false);
     assert.equal("userId" in bag.created!, false);
     assert.equal("email" in bag.created!, false);
+  });
+
+  it("tracks viewable impression without outbound link", async () => {
+    const bag: { created?: Record<string, unknown> } = {};
+    const result = await ingestPartnerImpression(mockPrisma(bag), {
+      campaignId: "camp1",
+      creativeId: "cr1",
+      placementKey: "INFOSPOT_HOME_MARQUEE",
+      application: "INFO_SPOT",
+      userAgent: "Mozilla/5.0 (Macintosh) Chrome/120",
+      clientSeed: "anon",
+      viewSessionKey: "camp1:cr1:INFOSPOT_HOME_MARQUEE",
+    });
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.tracked, true);
+    assert.ok(bag.created);
+    assert.equal(bag.created!.outboundLinkId, null);
+    assert.equal(bag.created!.partnerId, "p1");
+    assert.equal(bag.created!.campaignId, "camp1");
+    assert.equal(bag.created!.creativeId, "cr1");
+  });
+
+  it("rejects payload without trackingKey and without campaignId", async () => {
+    const result = await ingestPartnerImpression(mockPrisma(), {
+      creativeId: "cr1",
+      placementKey: "INFOSPOT_HOME_MARQUEE",
+      application: "INFO_SPOT",
+      userAgent: "Mozilla/5.0",
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, "invalid_payload");
   });
 
   it("ignores bots", async () => {
@@ -93,7 +130,7 @@ describe("ingestPartnerImpression validation", () => {
     if (!result.ok) assert.equal(result.reason, "creative_invalid");
   });
 
-  it("rejects wrong application", async () => {
+  it("rejects wrong application on outbound link", async () => {
     const result = await ingestPartnerImpression(
       mockPrisma({
         link: {
@@ -125,9 +162,14 @@ describe("ingestPartnerImpression validation", () => {
         creative: {
           id: "cr1",
           campaignId: "camp1",
+          startsAt: null,
+          endsAt: null,
           campaign: {
             id: "camp1",
+            partnerId: "p1",
             status: "ACTIVE",
+            startsAt: null,
+            endsAt: null,
             publishTargets: [{ status: "PAUSED" }],
           },
         },
@@ -154,5 +196,72 @@ describe("ingestPartnerImpression validation", () => {
     });
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.reason, "invalid_placement");
+  });
+
+  it("rejects FotoOffice", async () => {
+    const result = await ingestPartnerImpression(mockPrisma(), {
+      campaignId: "camp1",
+      creativeId: "cr1",
+      placementKey: "INFOSPOT_HOME_MARQUEE",
+      application: "FOTO_OFFICE" as never,
+      userAgent: "Mozilla/5.0",
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, "foto_office_excluded");
+  });
+
+  it("rejects placement of another application (no outbound)", async () => {
+    const result = await ingestPartnerImpression(mockPrisma(), {
+      campaignId: "camp1",
+      creativeId: "cr1",
+      placementKey: "CLF_LOGO_MARQUEE",
+      application: "INFO_SPOT",
+      userAgent: "Mozilla/5.0",
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, "invalid_placement");
+  });
+
+  it("rejects creative/campaign mismatch without outbound", async () => {
+    const result = await ingestPartnerImpression(mockPrisma({ creative: null }), {
+      campaignId: "other-camp",
+      creativeId: "cr1",
+      placementKey: "INFOSPOT_HOME_MARQUEE",
+      application: "INFO_SPOT",
+      userAgent: "Mozilla/5.0",
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, "creative_invalid");
+  });
+
+  it("rejects out of schedule without outbound", async () => {
+    const past = new Date("2020-01-01T00:00:00.000Z");
+    const result = await ingestPartnerImpression(
+      mockPrisma({
+        creative: {
+          id: "cr1",
+          campaignId: "camp1",
+          startsAt: null,
+          endsAt: past,
+          campaign: {
+            id: "camp1",
+            partnerId: "p1",
+            status: "ACTIVE",
+            startsAt: null,
+            endsAt: null,
+            publishTargets: [{ status: "ACTIVE" }],
+          },
+        },
+      }),
+      {
+        campaignId: "camp1",
+        creativeId: "cr1",
+        placementKey: "INFOSPOT_HOME_MARQUEE",
+        application: "INFO_SPOT",
+        userAgent: "Mozilla/5.0",
+      },
+    );
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, "out_of_schedule");
   });
 });
