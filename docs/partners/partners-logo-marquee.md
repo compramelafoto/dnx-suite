@@ -33,10 +33,10 @@ No implementar campañas multi-sponsor propietarias.
 |-----------|-----|--------|------------|
 | `INFOSPOT_HOME_MARQUEE` | InfoSpot | Montado | Sí |
 | `CLF_LOGO_MARQUEE` | CLF | Montado | Sí |
-| `CLICKATON_HOME_MARQUEE` | Clickatón | Preparado | No |
-| `CLICKATON_EVENT_MARQUEE` | Clickatón | Preparado | No |
-| `FOTORANK_HOME_MARQUEE` | FotoRank | Preparado | No |
-| `FOTORANK_CONTEST_MARQUEE` | FotoRank | Preparado | No |
+| `CLICKATON_HOME_MARQUEE` | Clickatón | Montado | Sí |
+| `CLICKATON_EVENT_MARQUEE` | Clickatón | Montado | Sí |
+| `FOTORANK_HOME_MARQUEE` | FotoRank | Montado | Sí |
+| `FOTORANK_CONTEST_MARQUEE` | FotoRank | Montado | Sí |
 
 `CLF_LOGO_MARQUEE` se muestra en admin como «ComprameLaFoto — Portada — Slider de marcas». No crear `CLF_HOME_MARQUEE` duplicado.
 
@@ -101,17 +101,17 @@ Admin y harness deben pasar `trackingEnabled={false}` de forma explícita (no ba
 
 Excluido de placements, selector, targets, publicación y preview. El enum histórico permanece por compatibilidad.
 
-## Activación futura (no Etapa 10)
+## Activación futura (flags)
 
-1. Montar runtime CK/FR.
-2. Mover keys a `MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS`.
-3. Activar flags/ads por app.
-4. Publicar campañas explícitas (sin auto-cross-post).
-5. No ejecutar `ensureAdPlacementCatalog` solo para “registrar” en Production sin montaje.
+1. Runtime CK/FR ya montado en código.
+2. Keys en `MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS`.
+3. Activar flags por app solo cuando haya campañas publicadas (`FOTORANK_HOME_MARQUEE_ENABLED` / `FOTORANK_CONTEST_MARQUEE_ENABLED`, ausente = OFF).
+4. Publicar campañas explícitas desde DNX Partners (sin auto-cross-post).
+5. No ejecutar `ensureAdPlacementCatalog` solo para “registrar” en Production sin campaña.
 
 ## Limitaciones
 
-- Placements CK/FR siguen preparados y no montados (no publicables).
+- Flags de FotoRank ausentes/OFF ⇒ cero consultas, cero HTML, cero métricas.
 - Schema: `DnxPartnerImpressionEvent.outboundLinkId` es opcional; no se requieren migraciones.
 - No se crean clics ni outbound sintéticos para logos sin destino.
 
@@ -120,5 +120,6 @@ Excluido de placements, selector, targets, publicación y preview. El enum hist�
 - Dominio: `packages/partners/src/marquee-admin.ts`
 - Catálogo: `packages/partners/src/campaigns.ts`
 - UI: `PartnerLogoMarquee.tsx`, `PartnerViewableImpression.tsx`
+- FotoRank: `apps/fotorank/app/lib/fotorank/partners/*marquee*`, `FotorankPartnerLogoMarquee.tsx`
 - Ingest: `packages/db/src/partners-impression-ingest.ts`
 - Doc admin: panel campañas Clickatón (copy + estados Disponible/Próximamente)

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { PublicContestLandingData } from "../../lib/fotorank/publicContestLanding";
 import { parsePrizesRewardsConfig } from "../../lib/fotorank/prizesRewards";
@@ -47,7 +48,14 @@ function phaseTone(phase: ReturnType<typeof getLandingPhase>): StatusTone {
   return "neutral";
 }
 
-export function ContestPublicLanding({ data }: { data: PublicContestLandingData }) {
+export function ContestPublicLanding({
+  data,
+  brandMarquee,
+}: {
+  data: PublicContestLandingData;
+  /** Slider DNX Partners — sibling visual tras sponsors institucionales; no reemplaza sponsorsText. */
+  brandMarquee?: ReactNode;
+}) {
   const { contest, organization: org, judges } = data;
   const isSfef = contest.slug.trim().toLowerCase() === "santa-fe-en-foco";
   const prConfig = parsePrizesRewardsConfig(contest.rulesData);
@@ -401,6 +409,8 @@ export function ContestPublicLanding({ data }: { data: PublicContestLandingData 
           </PageContainer>
         </section>
       ) : null}
+
+      {brandMarquee ?? null}
 
       {judges.length > 0 ? (
         <section className="fr-public-section" id="jurado">

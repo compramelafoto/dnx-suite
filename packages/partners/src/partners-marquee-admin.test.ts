@@ -92,20 +92,21 @@ describe("logo marquee admin UI", () => {
 });
 
 describe("logo marquee validation", () => {
-  it("permite IS/CLF montados; rechaza CK/FR no montados y FotoOffice", () => {
+  it("permite IS/CLF/CK/FR montados; rechaza FotoOffice", () => {
     assert.doesNotThrow(() =>
       assertLogoMarqueePlacementPublishable("INFO_SPOT", "INFOSPOT_HOME_MARQUEE"),
     );
     assert.doesNotThrow(() =>
       assertLogoMarqueePlacementPublishable("COMPRAME_LA_FOTO", "CLF_LOGO_MARQUEE"),
     );
-    assert.throws(
-      () => assertLogoMarqueePlacementPublishable("CLICKATON", "CLICKATON_HOME_MARQUEE"),
-      PartnersDomainError,
+    assert.doesNotThrow(() =>
+      assertLogoMarqueePlacementPublishable("CLICKATON", "CLICKATON_HOME_MARQUEE"),
     );
-    assert.throws(
-      () => assertLogoMarqueePlacementPublishable("FOTO_RANK", "FOTORANK_CONTEST_MARQUEE"),
-      PartnersDomainError,
+    assert.doesNotThrow(() =>
+      assertLogoMarqueePlacementPublishable("FOTO_RANK", "FOTORANK_HOME_MARQUEE"),
+    );
+    assert.doesNotThrow(() =>
+      assertLogoMarqueePlacementPublishable("FOTO_RANK", "FOTORANK_CONTEST_MARQUEE"),
     );
     assert.throws(
       () => assertLogoMarqueePlacementPublishable("FOTO_OFFICE", "INFOSPOT_HOME_MARQUEE"),
@@ -122,6 +123,19 @@ describe("logo marquee validation", () => {
       assertLogoMarqueeScopeConfig({
         placementKey: "INFOSPOT_HOME_MARQUEE",
         scopeKind: "GLOBAL",
+      }),
+    );
+    assert.doesNotThrow(() =>
+      assertLogoMarqueeScopeConfig({
+        placementKey: "FOTORANK_CONTEST_MARQUEE",
+        scopeKind: "GLOBAL",
+      }),
+    );
+    assert.doesNotThrow(() =>
+      assertLogoMarqueeScopeConfig({
+        placementKey: "FOTORANK_CONTEST_MARQUEE",
+        scopeKind: "CONTEST",
+        contextId: "contest_abc",
       }),
     );
     assert.throws(

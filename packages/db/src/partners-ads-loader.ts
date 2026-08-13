@@ -10,6 +10,8 @@ import {
   isClfPartnerAdsEnabled,
   isClfPartnerAlbumWelcomeEnabled,
   isClickatonPartnerWelcomeEnabled,
+  isFotorankContestMarqueeEnabled,
+  isFotorankHomeMarqueeEnabled,
   isFotorankPartnerWelcomeEnabled,
   isInfospotPartnerAdsEnabled,
   isPartnerCampaignEligibleForAlbumContext,
@@ -72,7 +74,18 @@ function isAdsKillSwitchOff(
     return false;
   }
   if (application === "CLICKATON") return !isClickatonPartnerWelcomeEnabled();
-  if (application === "FOTO_RANK") return !isFotorankPartnerWelcomeEnabled();
+  if (application === "FOTO_RANK") {
+    if (isWelcomeActivationPlacementKey(placementKey)) {
+      return !isFotorankPartnerWelcomeEnabled();
+    }
+    if (placementKey === "FOTORANK_HOME_MARQUEE") {
+      return !isFotorankHomeMarqueeEnabled();
+    }
+    if (placementKey === "FOTORANK_CONTEST_MARQUEE") {
+      return !isFotorankContestMarqueeEnabled();
+    }
+    return true;
+  }
   return true;
 }
 
@@ -168,12 +181,15 @@ export async function loadPartnerAdsForPlacement(
 ): Promise<ResolvedAdCreative[]> {
   if (isAdsKillSwitchOff(input.application, input.placementKey)) return [];
 
-  // Clickatón / FotoRank: solo placements welcome.
-  if (
-    (input.application === "CLICKATON" || input.application === "FOTO_RANK") &&
-    !isWelcomeActivationPlacementKey(input.placementKey)
-  ) {
-    return [];
+  // Clickatón: solo welcome en este tip. FotoRank: welcome + marquees montados.
+  if (input.application === "CLICKATON") {
+    if (!isWelcomeActivationPlacementKey(input.placementKey)) return [];
+  } else if (input.application === "FOTO_RANK") {
+    const allowed =
+      isWelcomeActivationPlacementKey(input.placementKey) ||
+      input.placementKey === "FOTORANK_HOME_MARQUEE" ||
+      input.placementKey === "FOTORANK_CONTEST_MARQUEE";
+    if (!allowed) return [];
   }
 
   const catalog = getAdPlacementCatalogEntry(input.application, input.placementKey);
@@ -373,8 +389,10 @@ export async function loadPartnerAdsForPlacement(
     audienceCategories: input.audienceCategories,
     device,
     maxItems:
-      input.application === "CLICKATON" ||
-      input.application === "FOTO_RANK" ||
+      (input.application === "CLICKATON" &&
+        isWelcomeActivationPlacementKey(input.placementKey)) ||
+      (input.application === "FOTO_RANK" &&
+        isWelcomeActivationPlacementKey(input.placementKey)) ||
       input.placementKey === "CLF_ALBUM_WELCOME"
         ? 1
         : Math.max(1, placement.maxItems),

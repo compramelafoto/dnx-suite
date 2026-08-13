@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { PublicHomeContestCard } from "../../lib/fotorank/publicContests";
 import { PhotoBanner } from "../landing/PhotoBanner";
@@ -15,6 +16,8 @@ import type { PublicHeaderProps } from "../public-ui/PublicHeader";
 type Props = {
   contests: PublicHomeContestCard[];
   header: PublicHeaderProps;
+  /** Slider DNX Partners — solo si hay items (flag OFF / vacío = no pasar). */
+  brandMarquee?: ReactNode;
 };
 
 function fmtDeadline(d: Date | null): string | null {
@@ -35,7 +38,7 @@ function statusTone(label: PublicHomeContestCard["statusLabel"]) {
 /**
  * Home pública completa — sistema public-ui (sin componentes landing legacy).
  */
-export function HomeView({ contests, header }: Props) {
+export function HomeView({ contests, header, brandMarquee }: Props) {
   return (
     <PublicShell
       header={{ ...header, variant: "marketing" }}
@@ -159,6 +162,8 @@ export function HomeView({ contests, header }: Props) {
           )}
         </PageContainer>
       </section>
+
+      {brandMarquee ?? null}
 
       {/* Qué es */}
       <section className="fr-public-section" id="que-es" aria-labelledby="home-about-title">

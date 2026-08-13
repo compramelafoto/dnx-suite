@@ -1,7 +1,14 @@
 import { landingSignOutAction } from "./actions/landing-session";
+import { FotorankPartnerLogoMarquee } from "./components/partners/FotorankPartnerLogoMarquee";
 import { HomeView } from "./components/public-home/HomeView";
 import { canAccessFotorankOrganizerDashboard, getAuthUser } from "./lib/auth";
 import { getJudgeAuthUser } from "./lib/judge-auth";
+import {
+  FOTORANK_HOME_MARQUEE_PLACEMENT,
+  FOTORANK_HOME_MARQUEE_TITLE,
+  loadFotorankHomeMarqueeAds,
+  toFotorankMarqueePublicItems,
+} from "./lib/fotorank/partners/home-marquee";
 import { listPublicHomeContests } from "./lib/fotorank/publicContests";
 
 export default async function Home() {
@@ -14,7 +21,11 @@ export default async function Home() {
     judge = null;
   }
 
-  const publicContests = await listPublicHomeContests(6);
+  const [publicContests, homeMarqueeAds] = await Promise.all([
+    listPublicHomeContests(6),
+    loadFotorankHomeMarqueeAds(),
+  ]);
+  const homeMarqueeItems = toFotorankMarqueePublicItems(homeMarqueeAds);
   let hasFotorankAdminSession = false;
   try {
     hasFotorankAdminSession = await canAccessFotorankOrganizerDashboard(admin);
@@ -39,6 +50,17 @@ export default async function Home() {
         panelHref,
         signOutAction: hasSession ? landingSignOutAction : undefined,
       }}
+      brandMarquee={
+        homeMarqueeItems.length > 0 ? (
+          <FotorankPartnerLogoMarquee
+            title={FOTORANK_HOME_MARQUEE_TITLE}
+            titleId="home-brand-marquee-title"
+            placementKey={FOTORANK_HOME_MARQUEE_PLACEMENT}
+            items={homeMarqueeItems}
+            sectionId="marcas"
+          />
+        ) : null
+      }
     />
   );
 }

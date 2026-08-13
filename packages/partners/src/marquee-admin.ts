@@ -32,22 +32,24 @@ export const LOGO_MARQUEE_PLACEMENT_KEYS = [
 
 export type LogoMarqueePlacementKey = (typeof LOGO_MARQUEE_PLACEMENT_KEYS)[number];
 
-/** Runtime público ya montado (InfoSpot home + CLF portada). */
+/**
+ * Runtime público montado:
+ * InfoSpot home, CLF portada, Clickatón home/evento, FotoRank home/concurso.
+ */
 export const MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS = [
   "INFOSPOT_HOME_MARQUEE",
   "CLF_LOGO_MARQUEE",
+  "CLICKATON_HOME_MARQUEE",
+  "CLICKATON_EVENT_MARQUEE",
+  "FOTORANK_HOME_MARQUEE",
+  "FOTORANK_CONTEST_MARQUEE",
 ] as const satisfies readonly LogoMarqueePlacementKey[];
 
 export type MountedLogoMarqueePlacementKey =
   (typeof MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS)[number];
 
 /** En catálogo, sin montaje público — no publicables. */
-export const UNMOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS = [
-  "CLICKATON_HOME_MARQUEE",
-  "CLICKATON_EVENT_MARQUEE",
-  "FOTORANK_HOME_MARQUEE",
-  "FOTORANK_CONTEST_MARQUEE",
-] as const satisfies readonly LogoMarqueePlacementKey[];
+export const UNMOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS = [] as const satisfies readonly LogoMarqueePlacementKey[];
 
 export type MarqueeAdminScopeKind =
   | "GLOBAL"
@@ -95,7 +97,7 @@ const SCOPE_BY_KEY: Record<
   },
   FOTORANK_HOME_MARQUEE: { scopes: ["GLOBAL", "PLATFORM"], contextTypes: null },
   FOTORANK_CONTEST_MARQUEE: {
-    scopes: ["CONTEST"],
+    scopes: ["GLOBAL", "PLATFORM", "CONTEST"],
     contextTypes: ["CONTEST"],
   },
 };
@@ -199,7 +201,7 @@ export function assertLogoMarqueePlacementPublishable(
   if (!isMountedLogoMarqueePlacementKey(placementKey)) {
     throw new PartnersDomainError(
       "VALIDATION",
-      `El placement ${placementKey} aún no tiene runtime montado (Próximamente). Elegí InfoSpot home o CLF portada.`,
+      `El placement ${placementKey} aún no tiene runtime montado (Próximamente).`,
     );
   }
 }
@@ -216,7 +218,7 @@ export function assertLogoMarqueeScopeConfig(input: {
       `Alcance ${input.scopeKind} no válido para ${input.placementKey}.`,
     );
   }
-  const needsId = meta.contextTypes != null;
+  const needsId = input.scopeKind === "CONTEST" || input.scopeKind === "EDITION";
   const id = input.contextId?.trim() ?? "";
   if (needsId && !id) {
     throw new PartnersDomainError(

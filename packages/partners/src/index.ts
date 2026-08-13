@@ -414,6 +414,8 @@ export {
   isClfPartnerAdsEnabled,
   isClickatonPartnerWelcomeEnabled,
   isFotorankPartnerWelcomeEnabled,
+  isFotorankHomeMarqueeEnabled,
+  isFotorankContestMarqueeEnabled,
   isClfPartnerAlbumWelcomeEnabled,
   getAdPlacementCatalogEntry,
 } from "./campaigns";

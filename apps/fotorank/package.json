@@ -72,7 +72,8 @@
     "test:db:environment-guard": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/db/environment-db-guard.selfcheck.ts",
     "ops:sfef-11:fixtures": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/ops-sfef-11-access-fixtures.ts",
     "ops:sfef-11:cleanup": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/ops-sfef-11-cleanup-fixtures.ts",
-    "test:e2e:sfef-11:staging": "playwright test -c playwright.staging.config.ts e2e/santa-fe-11-access-matrix.spec.ts"
+    "test:e2e:sfef-11:staging": "playwright test -c playwright.staging.config.ts e2e/santa-fe-11-access-matrix.spec.ts",
+    "test:partners-marquee": "pnpm --filter @repo/db exec tsx --test --test-reporter=spec ../../apps/fotorank/app/lib/fotorank/partners/fotorank-marquee.selfcheck.test.ts ../../apps/fotorank/app/components/partners/FotorankContestPartnerWelcome.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",
