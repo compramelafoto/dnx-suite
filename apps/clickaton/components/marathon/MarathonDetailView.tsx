@@ -17,6 +17,12 @@ import {
 import { MarathonSponsors } from "@/components/marathon/MarathonSponsors";
 import { MarathonTimelineMilestones } from "@/components/marathon/MarathonTimelineMilestones";
 import { MarathonValidations } from "@/components/marathon/MarathonValidations";
+import { ClickatonPartnerLogoMarquee } from "@/components/partners/ClickatonPartnerLogoMarquee";
+import {
+  CLICKATON_EVENT_MARQUEE_PLACEMENT,
+  CLICKATON_EVENT_MARQUEE_TITLE,
+  type ClickatonMarqueePublicItem,
+} from "@/lib/public/partners-marquee-shared";
 import type { PublicTimelineMilestoneDto } from "@/lib/timeline/types";
 import type { PublicMarathon } from "@/types/marathon";
 import type { PublicMarathonCapabilities } from "@/types/public";
@@ -29,6 +35,8 @@ type MarathonDetailViewProps = {
   timelineMilestones?: PublicTimelineMilestoneDto[] | null;
   timelineServerNow?: string | null;
   shirtMedia?: ShirtOfferMedia[] | null;
+  /** Slider DNX Partners (campañas comerciales). Independiente de MarathonSponsors. */
+  partnerMarqueeItems?: ClickatonMarqueePublicItem[] | null;
 };
 
 export function MarathonDetailView({
@@ -39,6 +47,7 @@ export function MarathonDetailView({
   timelineMilestones = null,
   timelineServerNow = null,
   shirtMedia = null,
+  partnerMarqueeItems = null,
 }: MarathonDetailViewProps) {
   const datedMilestones =
     timelineMilestones?.filter((m) => Boolean(m.startsAt)) ?? [];
@@ -71,6 +80,15 @@ export function MarathonDetailView({
       <MarathonPrizes marathon={marathon} />
       <MarathonJury marathon={marathon} />
       <MarathonSponsors marathon={marathon} />
+      {partnerMarqueeItems && partnerMarqueeItems.length > 0 ? (
+        <ClickatonPartnerLogoMarquee
+          title={CLICKATON_EVENT_MARQUEE_TITLE}
+          titleId="clickaton-event-marquee-title"
+          placementKey={CLICKATON_EVENT_MARQUEE_PLACEMENT}
+          items={partnerMarqueeItems}
+          tone="muted"
+        />
+      ) : null}
       <MarathonOrganizer marathon={marathon} />
       <MarathonResultsPlaceholder marathon={marathon} />
       <MarathonFAQ marathon={marathon} />

@@ -14,6 +14,10 @@ import {
   loadClickatonEventWelcomeAd,
   toClickatonEventWelcomePublicPayload,
 } from "@/lib/public/partners-event-welcome";
+import {
+  loadClickatonEventMarqueeAds,
+  toClickatonEventMarqueePublicItems,
+} from "@/lib/public/partners-event-marquee";
 import { getPublicRegistrationOfferAction } from "@/lib/public-registration/actions/public-registration";
 import { buildPageMetadata } from "@/lib/seo";
 import { getPublicTimelineBySlug } from "@/lib/timeline/public-api";
@@ -73,7 +77,7 @@ export default async function MarathonDetailPage({ params }: PageProps) {
     !visibility.cancelled &&
     !visibility.isDemo;
 
-  const [capabilities, offerResult, timeline, welcomeAd] = await Promise.all([
+  const [capabilities, offerResult, timeline, welcomeAd, marqueeAds] = await Promise.all([
     getPublicMarathonCapabilities(marathon.id),
     getPublicRegistrationOfferAction(slug),
     getPublicTimelineBySlug(slug),
@@ -82,9 +86,15 @@ export default async function MarathonDetailPage({ params }: PageProps) {
       pathname,
       publicLandingAllowed,
     }),
+    loadClickatonEventMarqueeAds({
+      editionId: marathon.id,
+      pathname,
+      publicLandingAllowed,
+    }),
   ]);
   const offer = offerResult.ok ? offerResult.data : null;
   const welcomePayload = welcomeAd ? toClickatonEventWelcomePublicPayload(welcomeAd) : null;
+  const partnerMarqueeItems = toClickatonEventMarqueePublicItems(marqueeAds);
 
   return (
     <>
@@ -102,6 +112,7 @@ export default async function MarathonDetailPage({ params }: PageProps) {
         nativeRegistrationLabel={offer?.available ? offer.label : null}
         timelineMilestones={timeline?.milestones ?? null}
         timelineServerNow={timeline?.serverNow ?? null}
+        partnerMarqueeItems={partnerMarqueeItems}
       />
       <ClickatonEventPartnerWelcome ad={welcomePayload} />
     </>

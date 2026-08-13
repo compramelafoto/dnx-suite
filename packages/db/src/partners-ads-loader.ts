@@ -1,6 +1,6 @@
 /**
  * Loader público de creatives elegibles por placement
- * (InfoSpot / CLF / Clickatón welcome / FotoRank welcome).
+ * (InfoSpot / CLF / Clickatón welcome+marquee / FotoRank welcome).
  * Soft-read. No crea clicks (eso es /r/).
  */
 import type { PrismaClient } from "@prisma/client";
@@ -9,12 +9,15 @@ import {
   getAdPlacementCatalogEntry,
   isClfPartnerAdsEnabled,
   isClfPartnerAlbumWelcomeEnabled,
+  isClickatonEventMarqueeEnabled,
+  isClickatonHomeMarqueeEnabled,
   isClickatonPartnerWelcomeEnabled,
   isFotorankPartnerWelcomeEnabled,
   isInfospotPartnerAdsEnabled,
   isPartnerCampaignEligibleForAlbumContext,
   isPartnerCampaignEligibleForContestContext,
   isPartnerCampaignEligibleForEditionContext,
+  isPartnerCampaignEligibleForScopeContext,
   isWelcomeActivationPlacementKey,
   partnerRedirectPath,
   resolveEligibleAds,
@@ -71,7 +74,18 @@ function isAdsKillSwitchOff(
     }
     return false;
   }
-  if (application === "CLICKATON") return !isClickatonPartnerWelcomeEnabled();
+  if (application === "CLICKATON") {
+    if (isWelcomeActivationPlacementKey(placementKey)) {
+      return !isClickatonPartnerWelcomeEnabled();
+    }
+    if (placementKey === "CLICKATON_HOME_MARQUEE") {
+      return !isClickatonHomeMarqueeEnabled();
+    }
+    if (placementKey === "CLICKATON_EVENT_MARQUEE") {
+      return !isClickatonEventMarqueeEnabled();
+    }
+    return true;
+  }
   if (application === "FOTO_RANK") return !isFotorankPartnerWelcomeEnabled();
   return true;
 }
@@ -121,13 +135,34 @@ function passesScopeFilter(input: {
   const { application, placementKey, editionId, contestId, albumId, participation } = input;
 
   if (application === "CLICKATON") {
+    // Slider portada: solo GLOBAL/PLATFORM explícito (null ≠ global).
+    if (placementKey === "CLICKATON_HOME_MARQUEE") {
+      return isPartnerCampaignEligibleForScopeContext({
+        application: "CLICKATON",
+        scopeKind: "EDITION",
+        scopeId: "__clickaton_home__",
+        participation,
+        treatNullParticipationAsGlobal: false,
+      });
+    }
+    // Slider evento: edición actual + global/platform explícito; rechaza huérfanas.
+    if (placementKey === "CLICKATON_EVENT_MARQUEE") {
+      if (!editionId) return false;
+      return isPartnerCampaignEligibleForScopeContext({
+        application: "CLICKATON",
+        scopeKind: "EDITION",
+        scopeId: editionId,
+        participation,
+        treatNullParticipationAsGlobal: false,
+      });
+    }
     if (editionId) {
       return isPartnerCampaignEligibleForEditionContext({
         editionId,
         participation,
       });
     }
-    // Sin editionId: solo globales históricos (null participation).
+    // Welcome home legacy: solo globales históricos (null participation).
     return participation == null;
   }
 
@@ -168,12 +203,15 @@ export async function loadPartnerAdsForPlacement(
 ): Promise<ResolvedAdCreative[]> {
   if (isAdsKillSwitchOff(input.application, input.placementKey)) return [];
 
-  // Clickatón / FotoRank: solo placements welcome.
-  if (
-    (input.application === "CLICKATON" || input.application === "FOTO_RANK") &&
-    !isWelcomeActivationPlacementKey(input.placementKey)
-  ) {
-    return [];
+  // Clickatón: welcome + marquees montados. FotoRank: solo welcome (marquees aún no).
+  if (input.application === "CLICKATON") {
+    const allowed =
+      isWelcomeActivationPlacementKey(input.placementKey) ||
+      input.placementKey === "CLICKATON_HOME_MARQUEE" ||
+      input.placementKey === "CLICKATON_EVENT_MARQUEE";
+    if (!allowed) return [];
+  } else if (input.application === "FOTO_RANK") {
+    if (!isWelcomeActivationPlacementKey(input.placementKey)) return [];
   }
 
   const catalog = getAdPlacementCatalogEntry(input.application, input.placementKey);
@@ -373,8 +411,9 @@ export async function loadPartnerAdsForPlacement(
     audienceCategories: input.audienceCategories,
     device,
     maxItems:
-      input.application === "CLICKATON" ||
       input.application === "FOTO_RANK" ||
+      (input.application === "CLICKATON" &&
+        isWelcomeActivationPlacementKey(input.placementKey)) ||
       input.placementKey === "CLF_ALBUM_WELCOME"
         ? 1
         : Math.max(1, placement.maxItems),

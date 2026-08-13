@@ -32,10 +32,15 @@ export const LOGO_MARQUEE_PLACEMENT_KEYS = [
 
 export type LogoMarqueePlacementKey = (typeof LOGO_MARQUEE_PLACEMENT_KEYS)[number];
 
-/** Runtime público ya montado (InfoSpot home + CLF portada). */
+/**
+ * Runtime público montado.
+ * Clickatón home/event: montados en Etapa 11 (flags OFF ⇒ sin campañas visibles).
+ */
 export const MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS = [
   "INFOSPOT_HOME_MARQUEE",
   "CLF_LOGO_MARQUEE",
+  "CLICKATON_HOME_MARQUEE",
+  "CLICKATON_EVENT_MARQUEE",
 ] as const satisfies readonly LogoMarqueePlacementKey[];
 
 export type MountedLogoMarqueePlacementKey =
@@ -43,8 +48,6 @@ export type MountedLogoMarqueePlacementKey =
 
 /** En catálogo, sin montaje público — no publicables. */
 export const UNMOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS = [
-  "CLICKATON_HOME_MARQUEE",
-  "CLICKATON_EVENT_MARQUEE",
   "FOTORANK_HOME_MARQUEE",
   "FOTORANK_CONTEST_MARQUEE",
 ] as const satisfies readonly LogoMarqueePlacementKey[];

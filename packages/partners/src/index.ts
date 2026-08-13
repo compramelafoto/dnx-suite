@@ -163,6 +163,8 @@ export {
   isInfospotPartnerAdsEnabled,
   isClfPartnerAdsEnabled,
   isClickatonPartnerWelcomeEnabled,
+  isClickatonHomeMarqueeEnabled,
+  isClickatonEventMarqueeEnabled,
   isFotorankPartnerWelcomeEnabled,
   isClfPartnerAlbumWelcomeEnabled,
   getAdPlacementCatalogEntry,

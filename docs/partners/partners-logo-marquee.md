@@ -33,8 +33,8 @@ No implementar campañas multi-sponsor propietarias.
 |-----------|-----|--------|------------|
 | `INFOSPOT_HOME_MARQUEE` | InfoSpot | Montado | Sí |
 | `CLF_LOGO_MARQUEE` | CLF | Montado | Sí |
-| `CLICKATON_HOME_MARQUEE` | Clickatón | Preparado | No |
-| `CLICKATON_EVENT_MARQUEE` | Clickatón | Preparado | No |
+| `CLICKATON_HOME_MARQUEE` | Clickatón | Montado (Etapa 11) | Sí (runtime); flags OFF por defecto |
+| `CLICKATON_EVENT_MARQUEE` | Clickatón | Montado (Etapa 11) | Sí (runtime); flags OFF por defecto |
 | `FOTORANK_HOME_MARQUEE` | FotoRank | Preparado | No |
 | `FOTORANK_CONTEST_MARQUEE` | FotoRank | Preparado | No |
 
@@ -101,24 +101,42 @@ Admin y harness deben pasar `trackingEnabled={false}` de forma explícita (no ba
 
 Excluido de placements, selector, targets, publicación y preview. El enum histórico permanece por compatibilidad.
 
-## Activación futura (no Etapa 10)
+## Activación Clickatón (Etapa 11)
 
-1. Montar runtime CK/FR.
-2. Mover keys a `MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS`.
+Runtime montado en:
+
+- Portada `/` → `CLICKATON_HOME_MARQUEE` · título «Marcas que nos acompañan»
+- Evento `/maratones/[slug]` → `CLICKATON_EVENT_MARQUEE` · título «Sponsors del evento» (después de `MarathonSponsors` legacy)
+
+Flags independientes (default OFF; no cargar en Vercel en el deploy de montaje):
+
+- `CLICKATON_HOME_MARQUEE_ENABLED`
+- `CLICKATON_EVENT_MARQUEE_ENABLED`
+
+Con flag OFF: cero consultas, cero render, cero métricas. No reutiliza `CLICKATON_PARTNER_WELCOME_ENABLED`.
+
+Legacy intacto: `AlliesLogoMarquee` (`/formar-parte`), `MarathonSponsors` (grid editorial).
+
+## Activación futura FotoRank
+
+1. Montar runtime FR.
+2. Mover keys FR a `MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS`.
 3. Activar flags/ads por app.
 4. Publicar campañas explícitas (sin auto-cross-post).
 5. No ejecutar `ensureAdPlacementCatalog` solo para “registrar” en Production sin montaje.
 
 ## Limitaciones
 
-- Placements CK/FR siguen preparados y no montados (no publicables).
+- Placements FotoRank siguen preparados y no montados (no publicables).
 - Schema: `DnxPartnerImpressionEvent.outboundLinkId` es opcional; no se requieren migraciones.
 - No se crean clics ni outbound sintéticos para logos sin destino.
 
 ## Código
 
 - Dominio: `packages/partners/src/marquee-admin.ts`
-- Catálogo: `packages/partners/src/campaigns.ts`
+- Catálogo / flags: `packages/partners/src/campaigns.ts`
+- Loader: `packages/db/src/partners-ads-loader.ts`
+- Clickatón: `lib/public/partners-home-marquee.ts`, `partners-event-marquee.ts`, `ClickatonPartnerLogoMarquee`
 - UI: `PartnerLogoMarquee.tsx`, `PartnerViewableImpression.tsx`
 - Ingest: `packages/db/src/partners-impression-ingest.ts`
 - Doc admin: panel campañas Clickatón (copy + estados Disponible/Próximamente)

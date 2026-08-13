@@ -92,16 +92,18 @@ describe("logo marquee admin UI", () => {
 });
 
 describe("logo marquee validation", () => {
-  it("permite IS/CLF montados; rechaza CK/FR no montados y FotoOffice", () => {
+  it("permite IS/CLF/CK montados; rechaza FR no montados y FotoOffice", () => {
     assert.doesNotThrow(() =>
       assertLogoMarqueePlacementPublishable("INFO_SPOT", "INFOSPOT_HOME_MARQUEE"),
     );
     assert.doesNotThrow(() =>
       assertLogoMarqueePlacementPublishable("COMPRAME_LA_FOTO", "CLF_LOGO_MARQUEE"),
     );
-    assert.throws(
-      () => assertLogoMarqueePlacementPublishable("CLICKATON", "CLICKATON_HOME_MARQUEE"),
-      PartnersDomainError,
+    assert.doesNotThrow(() =>
+      assertLogoMarqueePlacementPublishable("CLICKATON", "CLICKATON_HOME_MARQUEE"),
+    );
+    assert.doesNotThrow(() =>
+      assertLogoMarqueePlacementPublishable("CLICKATON", "CLICKATON_EVENT_MARQUEE"),
     );
     assert.throws(
       () => assertLogoMarqueePlacementPublishable("FOTO_RANK", "FOTORANK_CONTEST_MARQUEE"),

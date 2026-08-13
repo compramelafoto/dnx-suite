@@ -873,6 +873,21 @@ export function isClickatonPartnerWelcomeEnabled(): boolean {
 }
 
 /**
+ * Slider de marcas — portada Clickatón. Independiente del welcome. Default OFF.
+ * No cargar en Vercel en la etapa de montaje (runtime con flag ausente = OFF).
+ */
+export function isClickatonHomeMarqueeEnabled(): boolean {
+  return envFlagTruthy("CLICKATON_HOME_MARQUEE_ENABLED");
+}
+
+/**
+ * Slider de marcas — landing de evento/maratón. Independiente de home y welcome. Default OFF.
+ */
+export function isClickatonEventMarqueeEnabled(): boolean {
+  return envFlagTruthy("CLICKATON_EVENT_MARQUEE_ENABLED");
+}
+
+/**
  * Activación destacada FotoRank — default OFF.
  * Solo soporte en código; no cargar en Vercel hasta etapa de integración.
  */
