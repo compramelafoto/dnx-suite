@@ -93,6 +93,13 @@ export function AdminNavIcon({ name, className }: Props) {
         </svg>
       );
     case "sponsors":
+    case "sponsorsCampanas":
+    case "sponsorsAssets":
+    case "sponsorsWelcomeGraphics":
+    case "sponsorsMarquee":
+    case "sponsorsAnalytics":
+    case "sponsorsGlobalStatus":
+    case "sponsorsSync":
       return (
         <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>
           <path

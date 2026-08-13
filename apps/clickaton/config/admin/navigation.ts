@@ -12,6 +12,13 @@ export const adminRoutes = {
   promotions: "/admin/promociones",
   social: "/admin/social",
   sponsors: "/admin/sponsors",
+  sponsorsCampanas: "/admin/sponsors/campanas",
+  sponsorsAssets: "/admin/sponsors/assets",
+  sponsorsWelcomeGraphics: "/admin/sponsors/graficas-welcome",
+  sponsorsMarquee: "/admin/sponsors/marquee",
+  sponsorsAnalytics: "/admin/sponsors/analytics",
+  sponsorsGlobalStatus: "/admin/sponsors/estado-global",
+  sponsorsSync: "/admin/sponsors/sincronizacion",
   /** CMS del blog público (`@repo/content`, platform = clickaton). */
   contents: "/admin/contenidos",
   messages: "/admin/mensajes",
@@ -36,6 +43,13 @@ export type AdminNavIcon =
   | "promotions"
   | "social"
   | "sponsors"
+  | "sponsorsCampanas"
+  | "sponsorsAssets"
+  | "sponsorsWelcomeGraphics"
+  | "sponsorsMarquee"
+  | "sponsorsAnalytics"
+  | "sponsorsGlobalStatus"
+  | "sponsorsSync"
   | "contents"
   | "messages"
   | "settings"
@@ -48,6 +62,52 @@ export type AdminNavItem = {
   icon: AdminNavIcon;
   section: "main" | "system";
 };
+
+/** Submódulo DNX Partners dentro del panel administrativo. */
+export const sponsorsModuleNavigation: readonly AdminNavItem[] = [
+  {
+    label: "Sponsors",
+    href: adminRoutes.sponsors,
+    icon: "sponsors",
+    section: "main",
+  },
+  {
+    label: "Campañas",
+    href: adminRoutes.sponsorsCampanas,
+    icon: "sponsorsCampanas",
+    section: "main",
+  },
+  {
+    label: "Assets",
+    href: adminRoutes.sponsorsAssets,
+    icon: "sponsorsAssets",
+    section: "main",
+  },
+  {
+    label: "Gráficas welcome",
+    href: adminRoutes.sponsorsWelcomeGraphics,
+    icon: "sponsorsWelcomeGraphics",
+    section: "main",
+  },
+  {
+    label: "Slider de marcas",
+    href: adminRoutes.sponsorsMarquee,
+    icon: "sponsorsMarquee",
+    section: "main",
+  },
+  {
+    label: "Analytics",
+    href: adminRoutes.sponsorsAnalytics,
+    icon: "sponsorsAnalytics",
+    section: "main",
+  },
+  {
+    label: "Estado global",
+    href: adminRoutes.sponsorsGlobalStatus,
+    icon: "sponsorsGlobalStatus",
+    section: "main",
+  },
+] as const;
 
 export const adminNavigation: readonly AdminNavItem[] = [
   { label: "Inicio", href: adminRoutes.dashboard, icon: "dashboard", section: "main" },
@@ -83,10 +143,11 @@ export const adminNavigation: readonly AdminNavItem[] = [
     icon: "social",
     section: "main",
   },
+  ...sponsorsModuleNavigation,
   {
-    label: "Sponsors y beneficios",
-    href: adminRoutes.sponsors,
-    icon: "sponsors",
+    label: "Sincronización sponsors",
+    href: adminRoutes.sponsorsSync,
+    icon: "sponsorsSync",
     section: "main",
   },
   {
@@ -112,9 +173,21 @@ export const adminNavigation: readonly AdminNavItem[] = [
   },
 ] as const;
 
+const SPONSORS_CRM_EXCLUDED_PREFIXES = [
+  adminRoutes.sponsorsGlobalStatus,
+  adminRoutes.sponsorsSync,
+] as const;
+
 export function isAdminNavActive(pathname: string, href: string): boolean {
   if (href === adminRoutes.dashboard) {
     return pathname === href;
+  }
+  if (href === adminRoutes.sponsors) {
+    if (pathname === href) return true;
+    if (!pathname.startsWith(`${href}/`)) return false;
+    return !SPONSORS_CRM_EXCLUDED_PREFIXES.some((prefix) =>
+      pathname.startsWith(prefix),
+    );
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

@@ -17,7 +17,8 @@
     "./partners-publication-targets": "./src/partners-publication-targets.ts",
     "./partners-impression-ingest": "./src/partners-impression-ingest.ts",
     "./partners-analytics-multi-db": "./src/partners-analytics-multi-db.ts",
-    "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts"
+    "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts",
+    "./partners-global-status-loader": "./src/partners-global-status-loader.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",

@@ -13,10 +13,11 @@ describe("global admin navigation consistency", () => {
     assert.ok(labels.includes("Productos y kits"));
     assert.ok(labels.includes("Códigos promocionales"));
     assert.ok(labels.includes("Publicaciones y comunicaciones"));
-    assert.ok(labels.includes("Sponsors y beneficios"));
+    assert.ok(labels.includes("Sponsors"));
+    assert.ok(labels.includes("Estado global"));
     assert.ok(labels.includes("Banners del inicio"));
     assert.ok(!labels.includes("Dashboard"));
-    assert.ok(!labels.includes("Sponsors"));
+    assert.ok(!labels.includes("Sponsors y beneficios"));
     assert.ok(!labels.includes("Catálogo"));
     assert.ok(!labels.some((label) => /Timeline|Fulfillment|Entries|Sync/i.test(label)));
   });

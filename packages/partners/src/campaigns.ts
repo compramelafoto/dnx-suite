@@ -896,6 +896,21 @@ export function isFotorankPartnerWelcomeEnabled(): boolean {
 }
 
 /**
+ * Slider de marcas FotoRank — portada. Default OFF.
+ * Lectura segura para panel de estado global; no cargar en Vercel en esta etapa.
+ */
+export function isFotorankHomeMarqueeEnabled(): boolean {
+  return envFlagTruthy("FOTORANK_HOME_MARQUEE_ENABLED");
+}
+
+/**
+ * Slider de marcas FotoRank — concurso público. Default OFF.
+ */
+export function isFotorankContestMarqueeEnabled(): boolean {
+  return envFlagTruthy("FOTORANK_CONTEST_MARQUEE_ENABLED");
+}
+
+/**
  * Activación destacada CLF álbum — default OFF.
  * Requiere además `CLF_PARTNER_ADS_ENABLED` en el loader de app (ambos ON).
  */
