@@ -6,19 +6,27 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
 import {
   countWordsFromHtml,
   editorHtmlToMarkdown,
+  EditorialVideo,
   getEditorialExtensions,
   markdownToEditorHtml,
   sanitizePastedHtml,
   type EditorialImageAttrs,
+  type EditorialVideoAttrs,
 } from "@repo/editor";
 import { EditorToolbar } from "@/components/redaccion/visual-editor/editor-toolbar";
 import { InsertImageDialog } from "@/components/redaccion/visual-editor/insert-image-dialog";
+import { InsertVideoDialog } from "@/components/redaccion/visual-editor/insert-video-dialog";
+import {
+  EditorialVideoNodeView,
+  type VideoEditRequest,
+} from "@/components/redaccion/visual-editor/editorial-video-view";
 
 export type EditorialVisualEditorHandle = {
   insertImage: (attrs: EditorialImageAttrs) => void;
@@ -55,8 +63,11 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
     ref,
   ) {
     const [imageOpen, setImageOpen] = useState(false);
+    const [videoOpen, setVideoOpen] = useState(false);
+    const [videoEdit, setVideoEdit] = useState<VideoEditRequest | null>(null);
     const [wordCount, setWordCount] = useState(0);
     const [markdown, setMarkdown] = useState(initialMarkdown);
+    const videoEditHandler = useRef<(request: VideoEditRequest) => void>(() => {});
 
     const initialHtml = useMemo(
       () => markdownToEditorHtml(initialMarkdown),
@@ -74,11 +85,29 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
       [onDirtyChange, onMarkdownChange],
     );
 
+    const extensions = useMemo(
+      () =>
+        getEditorialExtensions({
+          placeholder: "Escribí la historia. El material preparado está a la derecha.",
+          withPlaceholder: true,
+        }).map((ext) => {
+          if (ext.name !== "editorialVideo") return ext;
+          return EditorialVideo.extend({
+            addNodeView() {
+              return ReactNodeViewRenderer((props) => (
+                <EditorialVideoNodeView
+                  {...props}
+                  onRequestEdit={(request) => videoEditHandler.current(request)}
+                />
+              ));
+            },
+          });
+        }),
+      [],
+    );
+
     const editor = useEditor({
-      extensions: getEditorialExtensions({
-        placeholder: "Escribí la historia. El material preparado está a la derecha.",
-        withPlaceholder: true,
-      }),
+      extensions,
       content: initialHtml,
       editorProps: {
         attributes: {
@@ -105,6 +134,13 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
     });
 
     useEffect(() => {
+      videoEditHandler.current = (request) => {
+        setVideoEdit(request);
+        setVideoOpen(true);
+      };
+    }, []);
+
+    useEffect(() => {
       if (!editor) return;
       setWordCount(countWordsFromHtml(editor.getHTML()));
     }, [editor]);
@@ -118,6 +154,22 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
       [editor, onDirtyChange],
     );
 
+    const insertVideo = useCallback(
+      (attrs: EditorialVideoAttrs) => {
+        if (videoEdit) {
+          videoEdit.apply(attrs);
+          setVideoEdit(null);
+          setVideoOpen(false);
+          if (editor) syncFromEditor(editor.getHTML(), true);
+          return;
+        }
+        editor?.chain().focus().setEditorialVideo(attrs).run();
+        setVideoOpen(false);
+        onDirtyChange?.(true);
+      },
+      [editor, onDirtyChange, syncFromEditor, videoEdit],
+    );
+
     const scrollToAsset = useCallback(
       (assetId: string) => {
         if (!editor) return false;
@@ -126,7 +178,6 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
           if (found) return false;
           if (node.type.name === "editorialImage" && node.attrs.assetId === assetId) {
             editor.chain().focus().setNodeSelection(pos).run();
-            // Scroll DOM figure into view
             requestAnimationFrame(() => {
               const el = editor.view.nodeDOM(pos);
               if (el instanceof HTMLElement) {
@@ -181,7 +232,6 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
       [editor, insertImage, scrollToAsset, removeAssetFromText],
     );
 
-    // onCoverImported kept for API compat; local upload dialog may call parent refresh
     void onCoverImported;
     void articleId;
 
@@ -191,10 +241,14 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
         <EditorToolbar
           editor={editor}
           onInsertImage={() => setImageOpen(true)}
+          onInsertVideo={() => {
+            setVideoEdit(null);
+            setVideoOpen(true);
+          }}
         />
         <EditorContent editor={editor} />
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--is-border)]/70 px-4 py-4 text-xs text-[var(--is-muted)] sm:px-6">
-          <p>El material fotográfico se inserta desde la biblioteca.</p>
+          <p>El material fotográfico se inserta desde la biblioteca. Los videos van con Insertar video.</p>
           <p className="tabular-nums">{wordCount} palabras</p>
         </div>
 
@@ -203,6 +257,15 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
           onClose={() => setImageOpen(false)}
           onInsert={insertImage}
           articleId={articleId}
+        />
+        <InsertVideoDialog
+          open={videoOpen}
+          onClose={() => {
+            setVideoOpen(false);
+            setVideoEdit(null);
+          }}
+          onInsert={insertVideo}
+          initial={videoEdit?.attrs ?? null}
         />
       </div>
     );
