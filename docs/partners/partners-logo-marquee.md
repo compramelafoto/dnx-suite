@@ -1,6 +1,6 @@
 # DNX Partners — Slider de marcas (`LOGO_MARQUEE`)
 
-**Etapa 10** — infraestructura transversal. Sin montaje nuevo en Clickatón/FotoRank. Sin deploy. Sin migraciones.
+**Etapa 10 / 10B** — infraestructura transversal + impresiones viewable sin outbound. Sin montaje nuevo en Clickatón/FotoRank. Sin deploy. Sin migraciones.
 
 ## Definición
 
@@ -57,11 +57,38 @@ Solo `APPROVED`, del sponsor, URL segura, alt obligatorio, PNG/WebP/JPG (SVG sol
 - 3+: marquee continuo.
 - Alt obligatorio o fallback `Logo de {name}`.
 
-## Tracking / analytics
+## Tracking / analytics (Etapa 10B)
 
-- Clic: `/r/[trackingKey]` cuando hay outbound.
-- Impresión: viewable ≥50% ≥1s, solo copia canónica (`data-loop-copy=0`).
-- **Gap:** sin outbound `/r/` el logo puede mostrarse (sin enlace falso) pero **no** se registra impresión con la arquitectura actual (`PartnerViewableImpression` exige tracking key en href). No se inventan eventos.
+La **impresión** pertenece a campaign + creative + partner + application + placement + aparición viewable. **No** pertenece necesariamente a un clic ni a un outbound.
+
+| Situación | Impresión | Clic | Enlace |
+|-----------|----------:|-----:|--------|
+| Logo con destino | Sí | Sí | `/r/[trackingKey]` |
+| Logo sin destino | Sí | No | Ninguno (`<div>`, sin `href`) |
+| Copia visual del loop | No | No | Según copia canónica |
+| Logo fuera de viewport | No | No | Según configuración |
+| Preview / fixture (`trackingEnabled={false}`) | No | No | Deshabilitado |
+
+### Viewability
+
+- Umbral: ≥50% visible ≥1s continuo (`PartnerViewableImpression`).
+- Solo copia canónica (`data-loop-copy=0`); copias del loop: `aria-hidden`, sin wrapper de impresión.
+- Dedup cliente: `campaignId:creativeId:placementKey` (memoria + `sessionStorage`).
+- Rate-limit server-side (sin cambiar el modelo histórico con outbound).
+
+### Payload de impresión
+
+- Con outbound: `trackingKey` + `creativeId` + `placementKey` (camino histórico).
+- Sin outbound: `campaignId` + `creativeId` + `placementKey` (sin inventar `trackingKey`).
+- Validación server-side: campaign/creative existentes y relacionados, placement del catálogo de la app, creative `APPROVED`, campaign `ACTIVE`, binding activo, formato compatible, vigencia, `trackingEnabled`, publish target ACTIVE si existe. Rechaza FotoOffice, otra app/placement, payload incompleto.
+
+### Privacidad
+
+Sin IP cruda, UA crudo, email, usuario, participante, comprador ni fingerprinting. Sin cookies nuevas. Soft-fail.
+
+### Preview
+
+Admin y harness deben pasar `trackingEnabled={false}` de forma explícita (no basta con omitir `href`).
 
 ## Convivencia legacy
 
@@ -82,9 +109,16 @@ Excluido de placements, selector, targets, publicación y preview. El enum hist�
 4. Publicar campañas explícitas (sin auto-cross-post).
 5. No ejecutar `ensureAdPlacementCatalog` solo para “registrar” en Production sin montaje.
 
+## Limitaciones
+
+- Placements CK/FR siguen preparados y no montados (no publicables).
+- Schema: `DnxPartnerImpressionEvent.outboundLinkId` es opcional; no se requieren migraciones.
+- No se crean clics ni outbound sintéticos para logos sin destino.
+
 ## Código
 
 - Dominio: `packages/partners/src/marquee-admin.ts`
 - Catálogo: `packages/partners/src/campaigns.ts`
-- UI: `PartnerLogoMarquee.tsx`
+- UI: `PartnerLogoMarquee.tsx`, `PartnerViewableImpression.tsx`
+- Ingest: `packages/db/src/partners-impression-ingest.ts`
 - Doc admin: panel campañas Clickatón (copy + estados Disponible/Próximamente)

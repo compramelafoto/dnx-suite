@@ -79,7 +79,7 @@ export function App() {
         appearDelayMs={0}
         animationVariant={animation}
         disableFrequencyCap
-        // Sin href / creativeId ⇒ no PartnerViewableImpression ni navegación real
+        // Sin creativeId + tracking deshabilitado implícito ⇒ cero métricas / sin navegación
       />
     </div>
   );

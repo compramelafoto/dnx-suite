@@ -38,4 +38,14 @@ const here = dirname(fileURLToPath(import.meta.url));
   assert.match(src, /createPartnersService/);
 }
 
+{
+  const src = readFileSync(
+    join(here, "../app/api/public/partners/impression/route.ts"),
+    "utf8",
+  );
+  assert.match(src, /campaignId/);
+  assert.match(src, /trackingKey/);
+  assert.match(src, /INFO_SPOT/);
+}
+
 console.log("partners-ads-surfaces (infospot): ok");

@@ -31,4 +31,21 @@ const here = dirname(fileURLToPath(import.meta.url));
   assert.match(src, /resolveOutboundRedirect/);
 }
 
+{
+  const home = readFileSync(join(here, "../app/page.tsx"), "utf8");
+  const marquee = readFileSync(
+    join(here, "../components/partners/PartnerLogoMarqueeClient.tsx"),
+    "utf8",
+  );
+  const impression = readFileSync(
+    join(here, "../app/api/public/partners/impression/route.ts"),
+    "utf8",
+  );
+  assert.match(home, /PartnerLogoMarqueeClient/);
+  assert.match(marquee, /CLF_LOGO_MARQUEE/);
+  assert.match(marquee, /PartnerLogoMarquee/);
+  assert.match(impression, /campaignId/);
+  assert.match(impression, /COMPRAME_LA_FOTO/);
+}
+
 console.log("partners-ads-surfaces (clf): ok");

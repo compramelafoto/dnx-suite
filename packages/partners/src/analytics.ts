@@ -268,7 +268,13 @@ export function extractTrackingKeyFromHref(href: string | null | undefined): str
 }
 
 export type ImpressionIngestInput = {
-  trackingKey: string;
+  /**
+   * Opcional. Si viene, se valida el outbound histórico (`/r/[trackingKey]`).
+   * Sin trackingKey, la impresión se resuelve por campaignId + creativeId + placement.
+   */
+  trackingKey?: string | null;
+  /** Obligatorio cuando no hay trackingKey (impresión sin outbound). */
+  campaignId?: string | null;
   creativeId: string;
   placementKey: string;
   application: DnxPartnerApplication;

@@ -90,6 +90,11 @@ export type PartnerWelcomeInterstitialProps = {
   frequencyStore?: PartnerWelcomeFrequencyStore | null;
   /** Callback local de cierre — sin persistencia central. */
   onDismiss?: (event: PartnerWelcomeDismissEvent) => void;
+  /**
+   * Preview / fixtures: `false` → cero impresiones (no depende de que falte href).
+   * Default `true`.
+   */
+  trackingEnabled?: boolean;
 };
 
 /**
@@ -113,6 +118,7 @@ export function PartnerWelcomeInterstitial({
   disableFrequencyCap = false,
   frequencyStore,
   onDismiss,
+  trackingEnabled = true,
 }: PartnerWelcomeInterstitialProps) {
   const titleId = useId();
   const labelId = useId();
@@ -386,12 +392,13 @@ export function PartnerWelcomeInterstitial({
         </h2>
       )}
       <div style={{ paddingTop: "0.5rem" }}>
-        {creativeId && placementKey && href ? (
+        {trackingEnabled && creativeId && placementKey ? (
           <PartnerViewableImpression
             campaignId={campaignId}
             creativeId={creativeId}
             placementKey={placementKey}
-            href={href}
+            href={href ?? null}
+            enabled={trackingEnabled}
           >
             {creative}
           </PartnerViewableImpression>

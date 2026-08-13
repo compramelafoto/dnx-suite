@@ -129,6 +129,7 @@ export function WelcomeInterstitialAdminPreview({
           frequencyHours={24}
           disableFrequencyCap
           frequencyStore={memoryStore}
+          trackingEnabled={false}
           sponsoredLabel="Vista previa · Contenido patrocinado"
           onDismiss={() => setOpen(false)}
         />
