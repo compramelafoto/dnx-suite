@@ -114,16 +114,20 @@ export const CLF_AD_PLACEMENT_KEYS = [
   "CLF_LOGO_MARQUEE",
 ] as const;
 
-/** Superficies Clickatón (activación destacada + futuras). */
+/** Superficies Clickatón (activación destacada + slider de marcas). */
 export const CLICKATON_AD_PLACEMENT_KEYS = [
   "CLICKATON_HOME_WELCOME",
   "CLICKATON_EVENT_WELCOME",
+  "CLICKATON_HOME_MARQUEE",
+  "CLICKATON_EVENT_MARQUEE",
 ] as const;
 
-/** Superficies FotoRank (activación destacada + futuras). */
+/** Superficies FotoRank (activación destacada + slider de marcas). */
 export const FOTORANK_AD_PLACEMENT_KEYS = [
   "FOTORANK_HOME_WELCOME",
   "FOTORANK_CONTEST_WELCOME",
+  "FOTORANK_HOME_MARQUEE",
+  "FOTORANK_CONTEST_MARQUEE",
 ] as const;
 
 export type InfospotAdPlacementKey = (typeof INFOSPOT_AD_PLACEMENT_KEYS)[number];
@@ -212,6 +216,54 @@ export const AD_PLACEMENT_CATALOG: readonly AdPlacementCatalogEntry[] = [
     isActiveDefault: true,
   },
   {
+    application: "CLICKATON",
+    placementKey: "CLICKATON_HOME_MARQUEE",
+    name: "Clickatón — Portada — Slider de marcas",
+    description: "Franja continua de logos patrocinadores dentro de una superficie autorizada.",
+    allowedFormats: ["LOGO", "LOGO_MARQUEE"],
+    deviceSupport: "ALL",
+    maxItems: 12,
+    rotationMode: "MARQUEE",
+    trackingPlacement: "LOGO_MARQUEE",
+    isActiveDefault: true,
+  },
+  {
+    application: "CLICKATON",
+    placementKey: "CLICKATON_EVENT_MARQUEE",
+    name: "Clickatón — Evento — Slider de marcas",
+    description: "Franja continua de logos en ficha de evento/edición. Requiere contexto EDITION/EVENT.",
+    allowedFormats: ["LOGO", "LOGO_MARQUEE"],
+    deviceSupport: "ALL",
+    maxItems: 12,
+    rotationMode: "MARQUEE",
+    trackingPlacement: "LOGO_MARQUEE",
+    isActiveDefault: true,
+  },
+  {
+    application: "FOTO_RANK",
+    placementKey: "FOTORANK_HOME_MARQUEE",
+    name: "FotoRank — Portada — Slider de marcas",
+    description: "Franja continua de logos patrocinadores dentro de una superficie autorizada.",
+    allowedFormats: ["LOGO", "LOGO_MARQUEE"],
+    deviceSupport: "ALL",
+    maxItems: 12,
+    rotationMode: "MARQUEE",
+    trackingPlacement: "LOGO_MARQUEE",
+    isActiveDefault: true,
+  },
+  {
+    application: "FOTO_RANK",
+    placementKey: "FOTORANK_CONTEST_MARQUEE",
+    name: "FotoRank — Concurso — Slider de marcas",
+    description: "Franja continua de logos en concurso público. Requiere contexto CONTEST.",
+    allowedFormats: ["LOGO", "LOGO_MARQUEE"],
+    deviceSupport: "ALL",
+    maxItems: 12,
+    rotationMode: "MARQUEE",
+    trackingPlacement: "LOGO_MARQUEE",
+    isActiveDefault: true,
+  },
+  {
     application: "COMPRAME_LA_FOTO",
     placementKey: "CLF_HOME_WELCOME",
     name: "Activación destacada (home)",
@@ -262,8 +314,8 @@ export const AD_PLACEMENT_CATALOG: readonly AdPlacementCatalogEntry[] = [
   {
     application: "INFO_SPOT",
     placementKey: "INFOSPOT_HOME_MARQUEE",
-    name: "Home marquee logos",
-    description: "Bloque «Nos acompañan».",
+    name: "InfoSpot — Portada — Slider de marcas",
+    description: "Franja continua de logos patrocinadores dentro de una superficie autorizada.",
     allowedFormats: ["LOGO", "LOGO_MARQUEE"],
     deviceSupport: "ALL",
     maxItems: 12,
@@ -418,8 +470,8 @@ export const AD_PLACEMENT_CATALOG: readonly AdPlacementCatalogEntry[] = [
   {
     application: "COMPRAME_LA_FOTO",
     placementKey: "CLF_LOGO_MARQUEE",
-    name: "Logo marquee",
-    description: "Franja de logos partners.",
+    name: "ComprameLaFoto — Portada — Slider de marcas",
+    description: "Franja continua de logos patrocinadores dentro de una superficie autorizada.",
     allowedFormats: ["LOGO", "LOGO_MARQUEE"],
     deviceSupport: "ALL",
     maxItems: 12,
@@ -448,7 +500,7 @@ export const CAMPAIGN_CONTEXT_LABELS: Record<DnxPartnerCampaignContextCategory, 
 
 export const CREATIVE_FORMAT_LABELS: Record<DnxPartnerCreativeFormat, string> = {
   LOGO: "Logo",
-  LOGO_MARQUEE: "Logo marquee",
+  LOGO_MARQUEE: "Slider de marcas",
   BANNER_HORIZONTAL: "Banner horizontal",
   BANNER_COMPACT: "Banner compacto",
   BANNER_MOBILE: "Banner mobile",

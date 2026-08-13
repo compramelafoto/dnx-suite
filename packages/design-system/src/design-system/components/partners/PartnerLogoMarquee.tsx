@@ -22,6 +22,8 @@ export type PartnerLogoMarqueeItem = {
 
 export type PartnerLogoMarqueeDensity = "default" | "featured";
 
+export type PartnerLogoMarqueeMotionMode = "static" | "marquee";
+
 export type PartnerLogoMarqueeProps = {
   items: PartnerLogoMarqueeItem[];
   /** Seconds for one full loop (desktop). Mobile uses a slower variant via CSS. */
@@ -61,6 +63,16 @@ const SLOT_BY_DENSITY: Record<
   },
 };
 
+/**
+ * 1–2 sponsors → fila estática (sin loop agresivo).
+ * 3+ → marquee continuo.
+ */
+export function resolvePartnerLogoMarqueeMotion(
+  itemCount: number,
+): PartnerLogoMarqueeMotionMode {
+  return itemCount >= 3 ? "marquee" : "static";
+}
+
 function slotFontSize(
   density: PartnerLogoMarqueeDensity,
   size: NonNullable<PartnerLogoMarqueeItem["size"]>,
@@ -80,7 +92,7 @@ function DefaultLogoCell({
 }) {
   const size = item.size ?? "sm";
   const slot = SLOT_BY_DENSITY[density][size];
-  const alt = item.alt ?? `Logo de ${item.name}`;
+  const alt = (item.alt?.trim() || `Logo de ${item.name}`).trim();
   const cellStyle: CSSProperties = {
     width: slot.width,
     height: slot.height,
@@ -141,6 +153,8 @@ function DefaultLogoCell({
           cursor: "pointer",
           textDecoration: "none",
           color: "inherit",
+          borderRadius: "0.35rem",
+          outlineOffset: "3px",
         }}
       >
         {inner}
@@ -148,12 +162,14 @@ function DefaultLogoCell({
     );
   }
 
+  // Sin destino: no enlace falso. Impresión viewable requiere /r/ (gap documentado).
   return (
     <div
       style={{
         ...cellStyle,
         cursor: "default",
       }}
+      role="img"
       aria-label={alt}
     >
       {inner}
@@ -162,9 +178,10 @@ function DefaultLogoCell({
 }
 
 /**
- * Continuous horizontal logo marquee (CSS animation).
+ * Continuous horizontal logo marquee (CSS animation) or static row for few logos.
  * Visual array is duplicated for seamless loop; callers must reuse the same href/tracking key.
  * Honors prefers-reduced-motion (static row + optional overflow scroll).
+ * Pause on :hover and :focus-within. Impressions only on canonical loop copy.
  */
 export function PartnerLogoMarquee({
   items,
@@ -174,28 +191,39 @@ export function PartnerLogoMarquee({
   trackClassName,
   itemClassName,
   renderItem,
-  "aria-label": ariaLabel = "Partners",
+  "aria-label": ariaLabel = "Slider de marcas",
 }: PartnerLogoMarqueeProps) {
   if (items.length === 0) return null;
 
-  const loop = [...items, ...items];
+  const motion = resolvePartnerLogoMarqueeMotion(items.length);
+  const animate = motion === "marquee";
+  const loop = animate ? [...items, ...items] : items;
   const styleScope = "dnx-partner-marquee";
   const featured = density === "featured";
 
   return (
     <div
-      className={[styleScope, featured ? `${styleScope}--featured` : "", className]
+      className={[
+        styleScope,
+        featured ? `${styleScope}--featured` : "",
+        animate ? `${styleScope}--animate` : `${styleScope}--static`,
+        className,
+      ]
         .filter(Boolean)
         .join(" ")}
       role="region"
       aria-label={ariaLabel}
       data-density={density}
+      data-motion={motion}
+      data-partner-marquee="1"
     >
       <style>{`
         .${styleScope} {
           position: relative;
           overflow: hidden;
           width: 100%;
+        }
+        .${styleScope}--animate {
           mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
           -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
         }
@@ -204,9 +232,19 @@ export function PartnerLogoMarquee({
           width: max-content;
           align-items: center;
           gap: ${featured ? "4.5rem" : "3rem"};
+        }
+        .${styleScope}--static .${styleScope}__track {
+          width: 100%;
+          max-width: 100%;
+          justify-content: center;
+          flex-wrap: wrap;
+          row-gap: 1.5rem;
+        }
+        .${styleScope}--animate .${styleScope}__track {
           animation: dnx-partner-marquee-x var(--dnx-partner-marquee-duration, 55s) linear infinite;
         }
-        .${styleScope}:hover .${styleScope}__track {
+        .${styleScope}--animate:hover .${styleScope}__track,
+        .${styleScope}--animate:focus-within .${styleScope}__track {
           animation-play-state: paused;
         }
         .${styleScope}__item {
@@ -216,12 +254,16 @@ export function PartnerLogoMarquee({
           justify-content: center;
           padding-inline: ${featured ? "1rem" : "0.5rem"};
         }
+        .${styleScope} a:focus-visible {
+          outline: 2px solid currentColor;
+          outline-offset: 3px;
+        }
         @keyframes dnx-partner-marquee-x {
           from { transform: translateX(0); }
           to { transform: translateX(-50%); }
         }
         @media (max-width: 767px) {
-          .${styleScope}__track {
+          .${styleScope}--animate .${styleScope}__track {
             gap: ${featured ? "3rem" : "2.25rem"};
             animation-duration: calc(var(--dnx-partner-marquee-duration, 55s) * 1.35);
           }
@@ -238,8 +280,11 @@ export function PartnerLogoMarquee({
             -webkit-overflow-scrolling: touch;
           }
           .${styleScope}__track {
-            animation: none;
+            animation: none !important;
             width: max-content;
+            max-width: none;
+            justify-content: flex-start;
+            flex-wrap: nowrap;
             padding-inline: 0.5rem;
           }
           .${styleScope}__track .${styleScope}__item[data-loop-copy="1"] {
@@ -248,66 +293,51 @@ export function PartnerLogoMarquee({
         }
       `}</style>
 
-      <div
+      <ul
         className={[`${styleScope}__track`, trackClassName].filter(Boolean).join(" ")}
         style={
           {
             ["--dnx-partner-marquee-duration" as string]: `${durationSeconds}s`,
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
           } as CSSProperties
         }
-        aria-hidden={false}
       >
         {loop.map((item, index) => {
-          const isCopy = index >= items.length;
+          const isCopy = animate && index >= items.length;
           const cell = renderItem ? (
             renderItem(item, index)
           ) : (
             <DefaultLogoCell item={item} density={density} />
           );
+          // Impresión solo en copia canónica y con tracking /r/ (sin outbound = sin impresión).
           const canTrack =
             !isCopy &&
             Boolean(item.campaignId && item.creativeId && item.placementKey && item.href);
           return (
-            <div
+            <li
               key={`${item.id}-${isCopy ? "copy" : "src"}-${index}`}
               className={[`${styleScope}__item`, itemClassName].filter(Boolean).join(" ")}
               data-loop-copy={isCopy ? "1" : "0"}
               data-partner-id={item.id}
+              aria-hidden={isCopy ? true : undefined}
             >
               {canTrack ? (
                 <PartnerViewableImpression
                   campaignId={item.campaignId!}
                   creativeId={item.creativeId!}
                   placementKey={item.placementKey!}
-                  href={item.href}
-                  enabled={!isCopy}
+                  href={item.href!}
                 >
                   {cell}
                 </PartnerViewableImpression>
               ) : (
                 cell
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
-
-      <ul
-        style={{
-          position: "absolute",
-          width: 1,
-          height: 1,
-          padding: 0,
-          margin: -1,
-          overflow: "hidden",
-          clip: "rect(0, 0, 0, 0)",
-          whiteSpace: "nowrap",
-          border: 0,
-        }}
-      >
-        {items.map((item) => (
-          <li key={`sr-${item.id}`}>{item.name}</li>
-        ))}
       </ul>
     </div>
   );

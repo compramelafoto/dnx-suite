@@ -14,6 +14,8 @@ import {
   DNX_PARTNER_CREATIVE_FORMATS,
   DNX_PARTNER_CREATIVE_STATUSES,
   assertWelcomePlacementPublishable,
+  assertLogoMarqueePlacementPublishable,
+  isLogoMarqueePlacementKey,
   isWelcomeActivationExcludedApplication,
   isWelcomeActivationPlacementKey,
   type DnxPartnerAdPlacementKey,
@@ -250,15 +252,19 @@ export async function bindCampaignPlacementFormAction(formData: FormData): Promi
   }
 
   // Welcome: solo superficies con runtime montado (no HOME CK/FR/CLF).
+  // Slider de marcas: solo IS home / CLF portada (CK/FR marquee = Próximamente).
   try {
     if (isWelcomeActivationPlacementKey(placementKey)) {
       assertWelcomePlacementPublishable(application, placementKey);
+    }
+    if (isLogoMarqueePlacementKey(placementKey)) {
+      assertLogoMarqueePlacementPublishable(application, placementKey);
     }
   } catch (e) {
     redirect(
       campanasPath(
         partnerId,
-        `error=${encodeURIComponent(e instanceof Error ? e.message : "Placement welcome no publicable")}`,
+        `error=${encodeURIComponent(e instanceof Error ? e.message : "Placement no publicable")}`,
       ),
     );
   }

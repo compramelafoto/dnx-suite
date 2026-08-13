@@ -271,6 +271,32 @@ export type {
 } from "./welcome-admin";
 
 export {
+  LOGO_MARQUEE_CREATIVE_FORMAT,
+  MARQUEE_ADMIN_FORMAT_LABEL,
+  MARQUEE_ADMIN_FORMAT_DESCRIPTION,
+  LOGO_MARQUEE_PLACEMENT_KEYS,
+  MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS,
+  UNMOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS,
+  isLogoMarqueePlacementKey,
+  isMountedLogoMarqueePlacementKey,
+  listLogoMarqueePlacementMatrix,
+  listLogoMarqueePlacementsForAdminUi,
+  listSelectableLogoMarqueePlacementsForAdmin,
+  assertLogoMarqueePlacementPublishable,
+  assertLogoMarqueeScopeConfig,
+  assertLogoMarqueeBindingAllowed,
+  marqueeAdminCatalogMeta,
+  getLogoMarqueeCatalogEntry,
+} from "./marquee-admin";
+export type {
+  LogoMarqueePlacementKey,
+  MountedLogoMarqueePlacementKey,
+  MarqueeAdminScopeKind,
+  MarqueeAdminPlacementOption,
+  MarqueePlacementMatrixRow,
+} from "./marquee-admin";
+
+export {
   DNX_PARTNER_PUBLICATION_SYNC_STATUSES,
   DNX_PARTNER_CAMPAIGN_TARGET_STATUSES,
   PARTNER_PUBLICATION_DATABASE_KEYS,

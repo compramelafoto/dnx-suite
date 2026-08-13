@@ -13,8 +13,10 @@ import {
   DNX_PARTNER_CREATIVE_STATUSES,
   getWelcomeRuntimeFlagSnapshot,
   listWelcomePlacementsForAdminUi,
+  listLogoMarqueePlacementsForAdminUi,
   listAdPlacementCatalogForAdminBinding,
   welcomeAdminCatalogMeta,
+  marqueeAdminCatalogMeta,
 } from "@repo/partners";
 import { prisma } from "@repo/db";
 import { PartnerAdCreative } from "@repo/design-system/components/partners";
@@ -144,7 +146,9 @@ export default async function AdminPartnerCampaignsPage({
     (a) => a === "INFO_SPOT" || a === "COMPRAME_LA_FOTO" || a === "CLICKATON" || a === "FOTO_RANK",
   );
   const welcomeMeta = welcomeAdminCatalogMeta();
+  const marqueeMeta = marqueeAdminCatalogMeta();
   const welcomePlacements = listWelcomePlacementsForAdminUi();
+  const marqueePlacements = listLogoMarqueePlacementsForAdminUi();
   const welcomeFlags = getWelcomeRuntimeFlagSnapshot();
   const adPlacementCatalog = listAdPlacementCatalogForAdminBinding().filter(
     (p) => p.application !== "FOTO_OFFICE",
@@ -433,7 +437,9 @@ export default async function AdminPartnerCampaignsPage({
                           <option key={f} value={f}>
                             {f === "WELCOME_INTERSTITIAL"
                               ? `${CREATIVE_FORMAT_LABELS[f]} (activación destacada)`
-                              : CREATIVE_FORMAT_LABELS[f]}
+                              : f === "LOGO_MARQUEE"
+                                ? `${CREATIVE_FORMAT_LABELS[f]} — ${marqueeMeta.formatDescription}`
+                                : CREATIVE_FORMAT_LABELS[f]}
                           </option>
                         ))}
                       </Select>
@@ -613,7 +619,12 @@ export default async function AdminPartnerCampaignsPage({
                       <option value="FOTO_RANK">FotoRank</option>
                     </Select>
                   </Field>
-                  <h3 className="text-lg font-semibold">Placement (catálogo completo IS/CLF)</h3>
+                  <h3 className="text-lg font-semibold">Placement (catálogo ads / slider)</h3>
+                  <p className="text-sm text-ck-text-secondary">
+                    Slider de marcas: {marqueeMeta.formatLabel}. Superficies{" "}
+                    <strong>Disponible</strong> (InfoSpot / CLF) o <strong>Próximamente</strong>{" "}
+                    (Clickatón / FotoRank — no publicables todavía).
+                  </p>
                   <Field id={`place-${campaign.id}`} label="Superficie">
                     <Select name="placementKey" required defaultValue="">
                       <option value="" disabled>
@@ -624,7 +635,23 @@ export default async function AdminPartnerCampaignsPage({
                           (w) =>
                             w.application === p.application && w.placementKey === p.placementKey,
                         );
-                        const disabled = welcomeOpt ? !welcomeOpt.selectable : false;
+                        const marqueeOpt = marqueePlacements.find(
+                          (m) =>
+                            m.application === p.application && m.placementKey === p.placementKey,
+                        );
+                        const disabled = welcomeOpt
+                          ? !welcomeOpt.selectable
+                          : marqueeOpt
+                            ? !marqueeOpt.selectable
+                            : false;
+                        const soon =
+                          marqueeOpt && !marqueeOpt.selectable
+                            ? ` · ${marqueeOpt.availabilityLabel}`
+                            : disabled
+                              ? " · Superficie todavía no habilitada"
+                              : marqueeOpt?.selectable
+                                ? ` · ${marqueeOpt.availabilityLabel}`
+                                : "";
                         return (
                           <option
                             key={`${p.application}:${p.placementKey}`}
@@ -632,7 +659,7 @@ export default async function AdminPartnerCampaignsPage({
                             disabled={disabled}
                           >
                             {APPLICATION_LABELS[p.application]} · {p.name}
-                            {disabled ? " · Superficie todavía no habilitada" : ""}
+                            {soon}
                           </option>
                         );
                       })}

@@ -17,12 +17,23 @@ describe("PartnerViewableImpression", () => {
   });
 });
 
-describe("PartnerLogoMarquee impression dedupe", () => {
-  it("only tracks canonical loop copy 0", () => {
-    const src = readFileSync(join(here, "PartnerLogoMarquee.tsx"), "utf8");
+describe("PartnerLogoMarquee impression dedupe + a11y", () => {
+  const src = readFileSync(join(here, "PartnerLogoMarquee.tsx"), "utf8");
+
+  it("only tracks canonical loop copy; pause hover + focus-within; reduced motion", () => {
     assert.match(src, /data-loop-copy/);
-    assert.match(src, /enabled=\{!isCopy\}/);
+    assert.match(src, /!isCopy/);
     assert.match(src, /PartnerViewableImpression/);
+    assert.match(src, /:focus-within/);
+    assert.match(src, /:hover/);
+    assert.match(src, /prefers-reduced-motion: reduce/);
+    assert.match(src, /resolvePartnerLogoMarqueeMotion/);
+    assert.match(src, /itemCount >= 3/);
+    assert.match(src, /focus-visible/);
+    assert.match(src, /role="region"/);
+    assert.match(src, /<ul/);
+    assert.match(src, /--static/);
+    assert.match(src, /--animate/);
   });
 });
 
