@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  buildWelcomeGraphicProfileView,
   DNX_PARTNER_APPLICATIONS,
   DNX_PARTNER_AUDIENCE_TYPES,
   DNX_PARTNER_BENEFIT_TYPES,
@@ -13,6 +14,7 @@ import {
   isWelcomeActivationExcludedApplication,
 } from "@repo/partners";
 import { RequiresPaymentFields } from "@/components/admin/partners/RequiresPaymentFields";
+import { WelcomeGraphicsProfileSection } from "@/components/admin/partners/WelcomeGraphicsProfileSection";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -50,18 +52,41 @@ export default async function AdminPartnerDetailPage({
   const loaded = await withClickatonDb(async () => {
     const svc = getClickatonPartnersService();
     const partner = await svc.getPartner(actor, partnerId);
-    const [participations, benefits, contacts] = await Promise.all([
-      svc.listParticipations(actor, partnerId),
-      svc.listBenefits(actor, partnerId),
-      svc.listContacts(actor, partnerId),
-    ]);
+    const [participations, benefits, contacts, brandAssets, welcomeGraphics] =
+      await Promise.all([
+        svc.listParticipations(actor, partnerId),
+        svc.listBenefits(actor, partnerId),
+        svc.listContacts(actor, partnerId),
+        svc.listPartnerAssets(actor, partnerId),
+        svc.listWelcomeGraphicAssets(actor, partnerId),
+      ]);
     const contributionsByParticipation = await Promise.all(
       participations.map(async (p) => ({
         participationId: p.id,
         items: await svc.listContributions(actor, p.id),
       })),
     );
-    return { partner, participations, benefits, contacts, contributionsByParticipation };
+    const logoAsset =
+      brandAssets.find(
+        (a) =>
+          a.type === "LOGO_GENERAL" &&
+          a.approvalStatus === "APPROVED" &&
+          !a.archivedAt &&
+          a.status === "ACTIVE" &&
+          a.fileUrl,
+      ) ?? null;
+    const welcomeProfile = buildWelcomeGraphicProfileView({
+      assets: welcomeGraphics,
+      logoAsset,
+    });
+    return {
+      partner,
+      participations,
+      benefits,
+      contacts,
+      contributionsByParticipation,
+      welcomeProfile,
+    };
   });
 
   if (!loaded.ok) {
@@ -79,8 +104,14 @@ export default async function AdminPartnerDetailPage({
     );
   }
 
-  const { partner, participations, benefits, contacts, contributionsByParticipation } =
-    loaded.data;
+  const {
+    partner,
+    participations,
+    benefits,
+    contacts,
+    contributionsByParticipation,
+    welcomeProfile,
+  } = loaded.data;
   if (!partner) notFound();
 
   const contributionMap = new Map(
@@ -91,7 +122,7 @@ export default async function AdminPartnerDetailPage({
     <div className="space-y-10">
       <AdminPageHeader
         title={partner.name}
-        description="Ficha del partner · participaciones, aportes y beneficios. Sin cobros automáticos."
+        description="Ficha del partner · participaciones, aportes, beneficios y biblioteca visual. Sin cobros automáticos."
         breadcrumbs={[
           { label: "Sponsors y beneficios", href: adminRoutes.sponsors },
           { label: partner.name },
@@ -124,6 +155,15 @@ export default async function AdminPartnerDetailPage({
           Guardado correctamente ({sp.ok}).
         </Card>
       ) : null}
+
+      <WelcomeGraphicsProfileSection
+        partnerId={partner.id}
+        partnerName={partner.name}
+        slots={welcomeProfile.slots}
+        effective={welcomeProfile.effective}
+        snapshot={welcomeProfile.snapshot}
+        warningMessages={welcomeProfile.warnings.map((w) => w.message)}
+      />
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-ck-text">Resumen / edición</h2>

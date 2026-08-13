@@ -7,131 +7,48 @@
  */
 import { PartnersDomainError } from "./types";
 import { assertSafePartnerDestinationUrl } from "./tracking";
+import {
+  DEFAULT_WELCOME_GRAPHIC_LIMITS,
+  WELCOME_GRAPHIC_ALLOWED_MIMES,
+  WELCOME_GRAPHIC_CARRIER_ASSET_TYPES,
+  WELCOME_GRAPHIC_CTA_COPY,
+  WELCOME_GRAPHIC_DEVICE_TARGETS,
+  WELCOME_GRAPHIC_MEDIA_MIN_DESKTOP_PX,
+  WELCOME_GRAPHIC_MOTION_VARIANTS,
+  WELCOME_GRAPHIC_PURPOSE,
+  WELCOME_GRAPHIC_SAFE_AREA_COPY,
+  WELCOME_GRAPHIC_SLOTS,
+  WELCOME_PROFILE_SECTION_DESCRIPTION,
+  WELCOME_PROFILE_SECTION_TITLE,
+  type WelcomeGraphicDeviceTarget,
+  type WelcomeGraphicLimits,
+  type WelcomeGraphicMotionVariant,
+  type WelcomeGraphicSlotGuide,
+  type WelcomeGraphicSlotKey,
+} from "./welcome-graphic-constants";
 
-/** Breakpoint canónico DS / Tailwind `md` (PublicMarketingHeader, shells). */
-export const WELCOME_GRAPHIC_MEDIA_MIN_DESKTOP_PX = 768;
-
-export const WELCOME_GRAPHIC_PURPOSE = "WELCOME_GRAPHIC" as const;
-
-export const WELCOME_GRAPHIC_DEVICE_TARGETS = ["DESKTOP", "MOBILE"] as const;
-export type WelcomeGraphicDeviceTarget = (typeof WELCOME_GRAPHIC_DEVICE_TARGETS)[number];
-
-export const WELCOME_GRAPHIC_MOTION_VARIANTS = ["PRIMARY", "STATIC_FALLBACK"] as const;
-export type WelcomeGraphicMotionVariant = (typeof WELCOME_GRAPHIC_MOTION_VARIANTS)[number];
-
-/** Carrier Prisma existente (sin ampliar enum BrandAssetType). */
-export const WELCOME_GRAPHIC_CARRIER_ASSET_TYPES = ["BRAND_PHOTO", "OTHER"] as const;
-
-export const WELCOME_GRAPHIC_ALLOWED_MIMES = [
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "image/webp",
-  "image/gif",
-] as const;
-
-export type WelcomeGraphicLimits = {
-  desktopStaticMaxBytes: number;
-  mobileStaticMaxBytes: number;
-  desktopGifMaxBytes: number;
-  mobileGifMaxBytes: number;
-  desktopMinWidth: number;
-  desktopMinHeight: number;
-  desktopMaxWidth: number;
-  desktopMaxHeight: number;
-  mobileMinWidth: number;
-  mobileMinHeight: number;
-  mobileMaxWidth: number;
-  mobileMaxHeight: number;
+export {
+  DEFAULT_WELCOME_GRAPHIC_LIMITS,
+  WELCOME_GRAPHIC_ALLOWED_MIMES,
+  WELCOME_GRAPHIC_CARRIER_ASSET_TYPES,
+  WELCOME_GRAPHIC_CTA_COPY,
+  WELCOME_GRAPHIC_DEVICE_TARGETS,
+  WELCOME_GRAPHIC_MEDIA_MIN_DESKTOP_PX,
+  WELCOME_GRAPHIC_MOTION_VARIANTS,
+  WELCOME_GRAPHIC_PURPOSE,
+  WELCOME_GRAPHIC_SAFE_AREA_COPY,
+  WELCOME_GRAPHIC_SLOTS,
+  WELCOME_PROFILE_SECTION_DESCRIPTION,
+  WELCOME_PROFILE_SECTION_TITLE,
+};
+export type {
+  WelcomeGraphicDeviceTarget,
+  WelcomeGraphicLimits,
+  WelcomeGraphicMotionVariant,
+  WelcomeGraphicSlotGuide,
+  WelcomeGraphicSlotKey,
 };
 
-export const DEFAULT_WELCOME_GRAPHIC_LIMITS: WelcomeGraphicLimits = {
-  desktopStaticMaxBytes: 2 * 1024 * 1024,
-  mobileStaticMaxBytes: 1 * 1024 * 1024,
-  desktopGifMaxBytes: 1536 * 1024,
-  mobileGifMaxBytes: 768 * 1024,
-  desktopMinWidth: 600,
-  desktopMinHeight: 315,
-  desktopMaxWidth: 2400,
-  desktopMaxHeight: 1350,
-  mobileMinWidth: 600,
-  mobileMinHeight: 600,
-  mobileMaxWidth: 1440,
-  mobileMaxHeight: 2560,
-};
-
-export type WelcomeGraphicSlotKey =
-  | "WELCOME_GRAPHIC_DESKTOP"
-  | "WELCOME_GRAPHIC_MOBILE"
-  | "WELCOME_GRAPHIC_DESKTOP_STATIC_FALLBACK"
-  | "WELCOME_GRAPHIC_MOBILE_STATIC_FALLBACK";
-
-export type WelcomeGraphicSlotGuide = {
-  slotKey: WelcomeGraphicSlotKey;
-  deviceTarget: WelcomeGraphicDeviceTarget;
-  motionVariant: WelcomeGraphicMotionVariant;
-  title: string;
-  shortLabel: string;
-  description: string;
-  recommendation: string;
-  suggestedSize: string;
-  required: boolean;
-};
-
-export const WELCOME_GRAPHIC_SLOTS: readonly WelcomeGraphicSlotGuide[] = [
-  {
-    slotKey: "WELCOME_GRAPHIC_DESKTOP",
-    deviceTarget: "DESKTOP",
-    motionVariant: "PRIMARY",
-    title: "Escritorio",
-    shortLabel: "Desktop",
-    description: "Pieza horizontal que se mostrará en computadoras y pantallas amplias.",
-    recommendation:
-      "Proporción ~16:9 a 1.91:1 · sugerido 1200×630. Evitá botones dibujados y texto pegado a bordes. Reservá aire para la X y el CTA del sistema.",
-    suggestedSize: "1200 × 630 px",
-    required: false,
-  },
-  {
-    slotKey: "WELCOME_GRAPHIC_MOBILE",
-    deviceTarget: "MOBILE",
-    motionVariant: "PRIMARY",
-    title: "Celular",
-    shortLabel: "Mobile",
-    description: "Pieza vertical o adaptada que se mostrará en teléfonos.",
-    recommendation:
-      "Proporción ~4:5 a 9:16 · sugerido 1080×1350 o 1080×1920. Debe caber en el diálogo sin tapar X ni CTA.",
-    suggestedSize: "1080 × 1350 px",
-    required: false,
-  },
-  {
-    slotKey: "WELCOME_GRAPHIC_DESKTOP_STATIC_FALLBACK",
-    deviceTarget: "DESKTOP",
-    motionVariant: "STATIC_FALLBACK",
-    title: "Escritorio · fallback estático",
-    shortLabel: "Desktop estático",
-    description: "Versión estática para reduced motion cuando la pieza desktop es GIF.",
-    recommendation: "PNG/WebP/JPG. Misma composición que el GIF, sin animación.",
-    suggestedSize: "1200 × 630 px",
-    required: false,
-  },
-  {
-    slotKey: "WELCOME_GRAPHIC_MOBILE_STATIC_FALLBACK",
-    deviceTarget: "MOBILE",
-    motionVariant: "STATIC_FALLBACK",
-    title: "Celular · fallback estático",
-    shortLabel: "Mobile estático",
-    description: "Versión estática para reduced motion cuando la pieza mobile es GIF.",
-    recommendation: "PNG/WebP/JPG. Misma composición que el GIF, sin animación.",
-    suggestedSize: "1080 × 1350 px",
-    required: false,
-  },
-] as const;
-
-export const WELCOME_GRAPHIC_SAFE_AREA_COPY =
-  "Evitá texto esencial junto a bordes, no dibujes botones ni CTAs en la imagen, reservá espacio visual para la X, y recordá que el sistema agrega «Contenido patrocinado» y el CTA accesible. Probá ambas vistas antes de aprobar.";
-
-export const WELCOME_GRAPHIC_CTA_COPY =
-  "Evitá incluir botones o llamadas a la acción dentro de la imagen. El sistema agregará el CTA de forma accesible.";
 
 export type WelcomeGraphicMetadataV1 = {
   v: 1;
@@ -808,3 +725,325 @@ export function assertWelcomeGraphicPublishable(input: {
     );
   }
 }
+
+export type WelcomeCampaignCreativeRef = {
+  format: string;
+  deviceTarget: string;
+  status: string;
+  archivedAt?: Date | string | null;
+  assetId: string;
+};
+
+export type WelcomeCampaignSelection = {
+  selectedDesktopId: string | null;
+  selectedMobileId: string | null;
+  forceLogoDesktop: boolean;
+  forceLogoMobile: boolean;
+};
+
+function isLogoType(type: string | undefined): boolean {
+  return Boolean(type?.startsWith("LOGO_") || type === "ISOTYPE" || type === "ICON");
+}
+
+/**
+ * Interpreta creatives WELCOME_INTERSTITIAL:
+ * - asset welcome graphic → selección específica del device
+ * - asset logo → «Usar logo»
+ * - sin creative de device → predeterminadas del sponsor
+ */
+export function inferWelcomeCampaignSelection(input: {
+  creatives: readonly WelcomeCampaignCreativeRef[];
+  assets: readonly WelcomeGraphicAssetLike[];
+  logoAssetId?: string | null;
+}): WelcomeCampaignSelection {
+  const welcome = input.creatives.filter(
+    (c) => c.format === "WELCOME_INTERSTITIAL" && c.status === "APPROVED" && !c.archivedAt,
+  );
+  const byId = new Map(input.assets.map((a) => [a.id, a]));
+
+  const resolveDevice = (
+    device: WelcomeGraphicDeviceTarget,
+  ): { selectedId: string | null; forceLogo: boolean } => {
+    const exact = welcome.find((c) => c.deviceTarget === device);
+    const all = welcome.find((c) => c.deviceTarget === "ALL");
+    const chosen = exact ?? all;
+    if (!chosen) return { selectedId: null, forceLogo: false };
+    const asset = byId.get(chosen.assetId);
+    if (
+      chosen.assetId === input.logoAssetId ||
+      isLogoType(asset?.type) ||
+      (asset && !isWelcomeGraphicAsset(asset) && isLogoType(asset.type))
+    ) {
+      return { selectedId: null, forceLogo: true };
+    }
+    if (asset && isWelcomeGraphicAsset(asset) && isApprovedActive(asset)) {
+      const meta = parseWelcomeGraphicMetadata(asset.metadata);
+      if (meta?.motionVariant === "PRIMARY") {
+        return { selectedId: asset.id, forceLogo: false };
+      }
+    }
+    return { selectedId: null, forceLogo: false };
+  };
+
+  const desktop = resolveDevice("DESKTOP");
+  const mobile = resolveDevice("MOBILE");
+  return {
+    selectedDesktopId: desktop.selectedId,
+    selectedMobileId: mobile.selectedId,
+    forceLogoDesktop: desktop.forceLogo,
+    forceLogoMobile: mobile.forceLogo,
+  };
+}
+
+/** Metadata pública para publicación (solo welcomeGraphic; sin notas ni PII). */
+export function publicWelcomeAssetMetadata(
+  metadata: unknown,
+): { welcomeGraphic: WelcomeGraphicMetadataV1 } | null {
+  const parsed = parseWelcomeGraphicMetadata(metadata);
+  if (!parsed) return null;
+  return wrapWelcomeGraphicMetadata(parsed);
+}
+
+export function publicWelcomeMediaForSnapshot(
+  snapshot: WelcomeResponsiveMediaSnapshot,
+): {
+  imageUrl: string | null;
+  desktop: WelcomeGraphicPieceSnapshot | null;
+  mobile: WelcomeGraphicPieceSnapshot | null;
+  logoFallback: WelcomeGraphicPieceSnapshot | null;
+  mediaMinDesktopPx: number;
+} {
+  return {
+    imageUrl: snapshot.imageUrl,
+    desktop: snapshot.desktop,
+    mobile: snapshot.mobile,
+    logoFallback: snapshot.logoFallback,
+    mediaMinDesktopPx: snapshot.mediaMinDesktopPx,
+  };
+}
+
+export type WelcomeGraphicSlotUiStatus =
+  | "EMPTY"
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "ARCHIVED"
+  | "USES_LOGO"
+  | "USES_OTHER_DEVICE";
+
+export type WelcomeGraphicProfileSlotView = {
+  slotKey: WelcomeGraphicSlotKey;
+  title: string;
+  description: string;
+  recommendation: string;
+  suggestedSize: string;
+  deviceTarget: WelcomeGraphicDeviceTarget;
+  motionVariant: WelcomeGraphicMotionVariant;
+  /** Activo del slot (preferir default aprobado; si no, el más reciente no archivado). */
+  current: WelcomeGraphicAssetLike | null;
+  status: WelcomeGraphicSlotUiStatus;
+  statusLabel: string;
+  history: WelcomeGraphicAssetLike[];
+  isGifWithoutStaticFallback: boolean;
+};
+
+export type WelcomeGraphicEffectiveRow = {
+  deviceLabel: string;
+  device: WelcomeGraphicDeviceTarget;
+  primaryLabel: string;
+  reducedMotionLabel: string;
+  finalFallbackLabel: string;
+};
+
+function slotStatusLabel(status: WelcomeGraphicSlotUiStatus): string {
+  switch (status) {
+    case "EMPTY":
+      return "Sin cargar";
+    case "PENDING":
+      return "Pendiente";
+    case "APPROVED":
+      return "Aprobada";
+    case "REJECTED":
+      return "Rechazada";
+    case "ARCHIVED":
+      return "Archivada";
+    case "USES_LOGO":
+      return "Usará logo";
+    case "USES_OTHER_DEVICE":
+      return "Usará versión del otro dispositivo";
+    default:
+      return status;
+  }
+}
+
+function pickCurrentForSlot(
+  assets: readonly WelcomeGraphicAssetLike[],
+  device: WelcomeGraphicDeviceTarget,
+  motion: WelcomeGraphicMotionVariant,
+): WelcomeGraphicAssetLike | null {
+  const matching = assets.filter((a) => {
+    const m = parseWelcomeGraphicMetadata(a.metadata);
+    return m?.deviceTarget === device && m.motionVariant === motion;
+  });
+  const approvedDefault = matching.find(
+    (a) =>
+      !a.archivedAt &&
+      a.status === "ACTIVE" &&
+      a.approvalStatus === "APPROVED" &&
+      parseWelcomeGraphicMetadata(a.metadata)?.isDefault,
+  );
+  if (approvedDefault) return approvedDefault;
+  const approved = matching.find(
+    (a) => !a.archivedAt && a.status === "ACTIVE" && a.approvalStatus === "APPROVED",
+  );
+  if (approved) return approved;
+  const pending = matching.find(
+    (a) => !a.archivedAt && a.status === "ACTIVE" && a.approvalStatus === "PENDING",
+  );
+  if (pending) return pending;
+  const rejected = matching.find(
+    (a) => !a.archivedAt && a.status === "ACTIVE" && a.approvalStatus === "REJECTED",
+  );
+  return rejected ?? null;
+}
+
+/**
+ * Vista de biblioteca welcome para la ficha del sponsor (sin N+1 de campañas).
+ */
+export function buildWelcomeGraphicProfileView(input: {
+  assets: readonly WelcomeGraphicAssetLike[];
+  logoAsset?: WelcomeGraphicAssetLike | null;
+}): {
+  slots: WelcomeGraphicProfileSlotView[];
+  effective: WelcomeGraphicEffectiveRow[];
+  warnings: WelcomeGraphicIssue[];
+  snapshot: WelcomeResponsiveMediaSnapshot;
+} {
+  const graphics = input.assets.filter((a) => isWelcomeGraphicAsset(a));
+  const snap = buildWelcomeResponsiveMediaSnapshot({
+    assets: graphics,
+    logoAsset: input.logoAsset ?? null,
+  });
+
+  const slots: WelcomeGraphicProfileSlotView[] = WELCOME_GRAPHIC_SLOTS.map((slot) => {
+    const history = graphics
+      .filter((a) => {
+        const m = parseWelcomeGraphicMetadata(a.metadata);
+        return m?.deviceTarget === slot.deviceTarget && m.motionVariant === slot.motionVariant;
+      })
+      .slice(0, 12);
+    const current = pickCurrentForSlot(graphics, slot.deviceTarget, slot.motionVariant);
+    let status: WelcomeGraphicSlotUiStatus = "EMPTY";
+    if (!current) {
+      const piece =
+        slot.deviceTarget === "DESKTOP" ? snap.snapshot.desktop : snap.snapshot.mobile;
+      if (slot.motionVariant === "PRIMARY") {
+        if (piece?.source === "LOGO" || piece?.source === "LEGACY_IMAGE_URL") status = "USES_LOGO";
+        else if (piece?.source === "CROSS_DEVICE") status = "USES_OTHER_DEVICE";
+        else status = "EMPTY";
+      } else {
+        status = "EMPTY";
+      }
+    } else if (current.archivedAt || current.status === "ARCHIVED") {
+      status = "ARCHIVED";
+    } else if (current.approvalStatus === "APPROVED") {
+      status = "APPROVED";
+    } else if (current.approvalStatus === "REJECTED") {
+      status = "REJECTED";
+    } else {
+      status = "PENDING";
+    }
+
+    const meta = current ? parseWelcomeGraphicMetadata(current.metadata) : null;
+    const isGifWithoutStaticFallback = Boolean(
+      meta?.animated &&
+        slot.motionVariant === "PRIMARY" &&
+        !meta.staticFallbackAssetId &&
+        !graphics.some((a) => {
+          const m = parseWelcomeGraphicMetadata(a.metadata);
+          return (
+            m?.deviceTarget === slot.deviceTarget &&
+            m.motionVariant === "STATIC_FALLBACK" &&
+            a.approvalStatus === "APPROVED" &&
+            !a.archivedAt
+          );
+        }),
+    );
+
+    return {
+      slotKey: slot.slotKey,
+      title: slot.title,
+      description: slot.description,
+      recommendation: slot.recommendation,
+      suggestedSize: slot.suggestedSize,
+      deviceTarget: slot.deviceTarget,
+      motionVariant: slot.motionVariant,
+      current,
+      status,
+      statusLabel: slotStatusLabel(status),
+      history,
+      isGifWithoutStaticFallback,
+    };
+  });
+
+  const labelForPiece = (piece: WelcomeGraphicPieceSnapshot | null, device: string) => {
+    if (!piece) return "Sin asset";
+    if (piece.source === "LOGO") return "Logo aprobado";
+    if (piece.source === "CROSS_DEVICE") return `Gráfica del otro dispositivo (${device})`;
+    if (piece.animated) return "Gráfica GIF aprobada";
+    return "Gráfica estática aprobada";
+  };
+
+  const effective: WelcomeGraphicEffectiveRow[] = [
+    {
+      deviceLabel: "Escritorio",
+      device: "DESKTOP",
+      primaryLabel: labelForPiece(snap.snapshot.desktop, "mobile"),
+      reducedMotionLabel: snap.snapshot.desktop?.animated
+        ? snap.snapshot.desktop.reducedMotionFallbackUrl
+          ? "Estática desktop"
+          : snap.snapshot.logoFallback
+            ? "Logo"
+            : "Sin fallback"
+        : "Misma pieza (estática)",
+      finalFallbackLabel: snap.snapshot.logoFallback ? "Logo" : "—",
+    },
+    {
+      deviceLabel: "Celular",
+      device: "MOBILE",
+      primaryLabel: labelForPiece(snap.snapshot.mobile, "desktop"),
+      reducedMotionLabel: snap.snapshot.mobile?.animated
+        ? snap.snapshot.mobile.reducedMotionFallbackUrl
+          ? "Estática mobile"
+          : snap.snapshot.logoFallback
+            ? "Logo"
+            : "Sin fallback"
+        : "Misma pieza (estática)",
+      finalFallbackLabel: snap.snapshot.logoFallback ? "Logo" : "—",
+    },
+  ];
+
+  return {
+    slots,
+    effective,
+    warnings: snap.warnings,
+    snapshot: snap.snapshot,
+  };
+}
+
+/** Unicidad: como máximo una predeterminada activa por device+motion. */
+export function assertCanSetWelcomeGraphicDefault(asset: WelcomeGraphicAssetLike): void {
+  if (!isWelcomeGraphicAsset(asset)) {
+    throw new PartnersDomainError("VALIDATION", "El asset no es una gráfica welcome.");
+  }
+  if (asset.archivedAt || asset.status === "ARCHIVED") {
+    throw new PartnersDomainError("VALIDATION", "No se puede predeterminar un asset archivado.");
+  }
+  if (asset.approvalStatus !== "APPROVED") {
+    throw new PartnersDomainError(
+      "VALIDATION",
+      "Solo assets aprobados pueden ser predeterminados.",
+    );
+  }
+}
+

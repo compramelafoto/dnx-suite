@@ -101,6 +101,24 @@ export type {
   PublicPartnerGroup,
 } from "./institutional";
 
+/** Constantes welcome sin Node APIs (ficha / campañas client). */
+export {
+  WELCOME_GRAPHIC_SLOTS,
+  DEFAULT_WELCOME_GRAPHIC_LIMITS,
+  WELCOME_GRAPHIC_SAFE_AREA_COPY,
+  WELCOME_GRAPHIC_CTA_COPY,
+  WELCOME_PROFILE_SECTION_TITLE,
+  WELCOME_PROFILE_SECTION_DESCRIPTION,
+  WELCOME_GRAPHIC_MEDIA_MIN_DESKTOP_PX,
+  WELCOME_GRAPHIC_ALLOWED_MIMES,
+} from "./welcome-graphic-constants";
+export type {
+  WelcomeGraphicSlotKey,
+  WelcomeGraphicSlotGuide,
+  WelcomeGraphicDeviceTarget,
+  WelcomeGraphicMotionVariant,
+} from "./welcome-graphic-constants";
+
 export {
   PARTNER_VIEWABILITY_MS,
   PARTNER_VIEWABILITY_RATIO,

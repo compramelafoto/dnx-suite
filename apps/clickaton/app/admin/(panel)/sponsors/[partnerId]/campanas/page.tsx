@@ -17,13 +17,10 @@ import {
   listAdPlacementCatalogForAdminBinding,
   welcomeAdminCatalogMeta,
   marqueeAdminCatalogMeta,
-  WELCOME_GRAPHIC_SLOTS,
-  WELCOME_GRAPHIC_SAFE_AREA_COPY,
-  WELCOME_GRAPHIC_CTA_COPY,
-  DEFAULT_WELCOME_GRAPHIC_LIMITS,
   parseWelcomeGraphicMetadata,
   isWelcomeGraphicAsset,
   buildWelcomeResponsiveMediaSnapshot,
+  inferWelcomeCampaignSelection,
 } from "@repo/partners";
 import { prisma } from "@repo/db";
 import { PartnerAdCreative } from "@repo/design-system/components/partners";
@@ -55,11 +52,11 @@ import { listCampaignPublicationUi } from "@/lib/admin/partners/campaign-publica
 import {
   bindWelcomePlacementFormAction,
   approvePartnerAssetFormAction,
-  registerPartnerAssetUrlFormAction,
   validateWelcomeCampaignFormAction,
 } from "@/lib/admin/partners/welcome-admin-mutations";
 import { listWelcomeContextConnectionInfos } from "@repo/db/partners-welcome-context-clients";
 import { WelcomeInterstitialAdminPreview } from "@/components/admin/partners/WelcomeInterstitialAdminPreview";
+import { WelcomeGraphicAssetsPanel } from "@/components/admin/partners/WelcomeGraphicAssetsPanel";
 import { WelcomeScopeLinkForm } from "@/components/admin/partners/WelcomeScopeLinkForm";
 
 const GEO_LABELS: Record<string, string> = {
@@ -250,91 +247,7 @@ export default async function AdminPartnerCampaignsPage({
               ))}
             </ul>
           </div>
-          <form action={registerPartnerAssetUrlFormAction} className="space-y-4 border-t border-ck-border pt-6">
-            <input type="hidden" name="partnerId" value={partner.id} />
-            <h3 className="text-lg font-semibold">Gráfica para ventana destacada</h3>
-            <p className="text-sm text-ck-text-secondary">
-              Escritorio y celular son opcionales e independientes. El sistema usa fallbacks (cruzados →
-              logo). Ambas piezas admiten PNG, WebP, JPG y GIF.
-            </p>
-            <p className="text-xs text-ck-text-secondary">{WELCOME_GRAPHIC_SAFE_AREA_COPY}</p>
-            <p className="text-xs text-ck-text-secondary">{WELCOME_GRAPHIC_CTA_COPY}</p>
-            <p className="text-xs text-ck-text-secondary">
-              Límites: desktop estático {Math.round(DEFAULT_WELCOME_GRAPHIC_LIMITS.desktopStaticMaxBytes / 1024)}{" "}
-              KB · mobile estático {Math.round(DEFAULT_WELCOME_GRAPHIC_LIMITS.mobileStaticMaxBytes / 1024)}{" "}
-              KB · desktop GIF {Math.round(DEFAULT_WELCOME_GRAPHIC_LIMITS.desktopGifMaxBytes / 1024)} KB ·
-              mobile GIF {Math.round(DEFAULT_WELCOME_GRAPHIC_LIMITS.mobileGifMaxBytes / 1024)} KB. Breakpoint
-              desktop ≥768px (DS md).
-            </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field id="welcome-slot" label="Variante" required>
-                <Select name="welcomeSlot" defaultValue="WELCOME_GRAPHIC_DESKTOP" required>
-                  {WELCOME_GRAPHIC_SLOTS.map((s) => (
-                    <option key={s.slotKey} value={s.slotKey}>
-                      {s.title}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field id="asset-mime" label="MIME">
-                <Select name="mimeType" defaultValue="image/png">
-                  <option value="image/png">PNG</option>
-                  <option value="image/webp">WebP</option>
-                  <option value="image/jpeg">JPEG</option>
-                  <option value="image/gif">GIF</option>
-                </Select>
-              </Field>
-              <Field id="asset-url" label="URL de imagen" required>
-                <Input name="fileUrl" placeholder="https://…" required />
-              </Field>
-              <Field id="asset-alt" label="Texto alternativo" required>
-                <Input name="altText" required placeholder="Descripción de la pieza" />
-              </Field>
-            </div>
-            <ul className="grid gap-3 sm:grid-cols-2 text-xs text-ck-text-secondary">
-              {WELCOME_GRAPHIC_SLOTS.map((s) => (
-                <li key={s.slotKey} className="rounded-lg border border-ck-border px-3 py-2">
-                  <span className="font-medium text-ck-text">{s.title}</span>
-                  <p className="mt-1">{s.description}</p>
-                  <p className="mt-1 opacity-80">{s.recommendation}</p>
-                </li>
-              ))}
-            </ul>
-            <Button type="submit">Registrar variante PENDING</Button>
-          </form>
-          {assets.filter((a) => isWelcomeGraphicAsset(a as never)).length > 0 ? (
-            <div className="space-y-3 border-t border-ck-border pt-6">
-              <h3 className="text-lg font-semibold">Variantes welcome del sponsor</h3>
-              <ul className="space-y-2">
-                {assets
-                  .filter((a) => isWelcomeGraphicAsset(a as never))
-                  .map((a) => {
-                    const meta = parseWelcomeGraphicMetadata(a.metadata);
-                    return (
-                      <li
-                        key={a.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ck-border px-3 py-2 text-sm"
-                      >
-                        <span className="text-ck-text-secondary">
-                          {meta?.deviceTarget}/{meta?.motionVariant}
-                          {meta?.animated ? " · GIF" : " · estático"} · {a.approvalStatus} ·{" "}
-                          {a.mimeType || "mime?"} · {a.altText || "sin alt"} · {a.id.slice(0, 8)}
-                        </span>
-                        {a.approvalStatus === "PENDING" ? (
-                          <form action={approvePartnerAssetFormAction}>
-                            <input type="hidden" name="partnerId" value={partner.id} />
-                            <input type="hidden" name="assetId" value={a.id} />
-                            <Button type="submit" variant="secondary">
-                              Aprobar
-                            </Button>
-                          </form>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-              </ul>
-            </div>
-          ) : null}
+          <WelcomeGraphicAssetsPanel partnerId={partner.id} assets={assets} />
           {assets.some((a) => a.approvalStatus === "PENDING" && !isWelcomeGraphicAsset(a as never)) ? (
             <div className="space-y-3 border-t border-ck-border pt-6">
               <h3 className="text-lg font-semibold">Aprobar assets pendientes (otros)</h3>
@@ -429,9 +342,24 @@ export default async function AdminPartnerCampaignsPage({
                   a.status === "ACTIVE" &&
                   !a.archivedAt,
               ) ?? null;
+            const selection = inferWelcomeCampaignSelection({
+              creatives: campaign.creatives.map((c) => ({
+                format: c.format,
+                deviceTarget: c.deviceTarget,
+                status: c.status,
+                archivedAt: c.archivedAt,
+                assetId: c.assetId,
+              })),
+              assets: assets as never,
+              logoAssetId: logoAsset?.id ?? null,
+            });
             const welcomeSnap = buildWelcomeResponsiveMediaSnapshot({
               assets: assets as never,
               logoAsset: logoAsset as never,
+              selectedDesktopId: selection.selectedDesktopId,
+              selectedMobileId: selection.selectedMobileId,
+              forceLogoDesktop: selection.forceLogoDesktop,
+              forceLogoMobile: selection.forceLogoMobile,
               legacyImageUrl: previewUrl,
               legacyAlt: previewCreative?.asset.altText ?? previewCreative?.title,
             });
@@ -527,17 +455,36 @@ export default async function AdminPartnerCampaignsPage({
                   <input type="hidden" name="partnerId" value={partner.id} />
                   <input type="hidden" name="campaignId" value={campaign.id} />
                   <h3 className="text-lg font-semibold">Creative</h3>
+                  <p className="text-sm text-ck-text-secondary">
+                    En WELCOME_INTERSTITIAL: Device DESKTOP/MOBILE + gráfica welcome = pieza específica;
+                    + logo = «Usar logo» en ese dispositivo; ALL sin creative extra = predeterminadas del
+                    sponsor. Se puede combinar gráfica desktop + logo mobile (y viceversa).{" "}
+                    <Link
+                      href={`${adminRoutes.sponsors}/${partner.id}`}
+                      className="font-medium text-[#D4AF37] underline-offset-2 hover:underline"
+                    >
+                      Administrar gráficas del sponsor
+                    </Link>
+                  </p>
                   <div className="grid gap-6 md:grid-cols-2">
                     <Field id={`asset-${campaign.id}`} label="Asset" required>
                       <Select name="assetId" required defaultValue="">
                         <option value="" disabled>
                           Seleccionar…
                         </option>
-                        {assets.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.approvalStatus} · {a.name || a.type} · {a.id.slice(0, 8)}
-                          </option>
-                        ))}
+                        {assets.map((a) => {
+                          const meta = parseWelcomeGraphicMetadata(a.metadata);
+                          const welcomeLabel = meta
+                            ? `Welcome ${meta.deviceTarget} ${meta.motionVariant}${meta.animated ? " GIF" : ""}`
+                            : a.type.startsWith("LOGO_")
+                              ? "Logo (usar logo)"
+                              : a.name || a.type;
+                          return (
+                            <option key={a.id} value={a.id}>
+                              {a.approvalStatus} · {welcomeLabel} · {a.id.slice(0, 8)}
+                            </option>
+                          );
+                        })}
                       </Select>
                     </Field>
                     <Field id={`format-${campaign.id}`} label="Formato">
@@ -557,7 +504,11 @@ export default async function AdminPartnerCampaignsPage({
                       <Select name="deviceTarget" defaultValue="ALL">
                         {DNX_PARTNER_CREATIVE_DEVICE_TARGETS.map((d) => (
                           <option key={d} value={d}>
-                            {d}
+                            {d === "DESKTOP"
+                              ? "DESKTOP — gráfica o logo en escritorio"
+                              : d === "MOBILE"
+                                ? "MOBILE — gráfica o logo en celular"
+                                : "ALL — predeterminada / ambos"}
                           </option>
                         ))}
                       </Select>
@@ -600,6 +551,15 @@ export default async function AdminPartnerCampaignsPage({
                     </ul>
                     {previewUrl || welcomeSnap.snapshot.imageUrl ? (
                       <div className="space-y-6">
+                        {welcomeSnap.warnings.length > 0 ? (
+                          <ul className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">
+                            {welcomeSnap.warnings.map((w) => (
+                              <li key={w.code + w.message}>
+                                {w.severity === "error" ? "Bloqueo" : "Aviso"}: {w.message}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                         <div className="overflow-x-auto rounded-lg border border-ck-border">
                           <table className="min-w-full text-left text-sm">
                             <thead className="border-b border-ck-border text-xs uppercase tracking-wide text-ck-text-secondary">

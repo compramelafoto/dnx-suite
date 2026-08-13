@@ -232,6 +232,13 @@ export {
   buildWelcomeResponsiveMediaSnapshot,
   pickWelcomeRenderUrl,
   assertWelcomeGraphicPublishable,
+  inferWelcomeCampaignSelection,
+  publicWelcomeAssetMetadata,
+  publicWelcomeMediaForSnapshot,
+  buildWelcomeGraphicProfileView,
+  assertCanSetWelcomeGraphicDefault,
+  WELCOME_PROFILE_SECTION_TITLE,
+  WELCOME_PROFILE_SECTION_DESCRIPTION,
 } from "./welcome-graphic-assets";
 export type {
   WelcomeGraphicDeviceTarget,
@@ -244,6 +251,11 @@ export type {
   WelcomeGraphicPieceSnapshot,
   WelcomeResponsiveMediaSnapshot,
   WelcomeGraphicIssue,
+  WelcomeCampaignCreativeRef,
+  WelcomeCampaignSelection,
+  WelcomeGraphicSlotUiStatus,
+  WelcomeGraphicProfileSlotView,
+  WelcomeGraphicEffectiveRow,
 } from "./welcome-graphic-assets";
 export type {
   WelcomeActivationApplication,

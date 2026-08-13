@@ -351,7 +351,7 @@ export function PartnerWelcomeInterstitial({
       body={body}
       ctaText={ctaText}
       openInNewTab
-      reducedMotion={previewReducedMotion ?? reducedMotion}
+      reducedMotion={previewReducedMotion === true}
       forceViewport={previewViewport}
       simulateMediaError={previewSimulateError}
     />

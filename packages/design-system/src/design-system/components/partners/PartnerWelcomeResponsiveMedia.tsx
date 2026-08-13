@@ -24,8 +24,8 @@ export type PartnerWelcomeResponsiveMediaInput = {
 };
 
 /**
- * Media welcome responsiva: `<picture>` + media query del breakpoint DS (768px).
- * Evita hydration mismatch (sin leer window en SSR).
+ * Media welcome responsiva: `<picture>` + media query del breakpoint DS (768px)
+ * y `prefers-reduced-motion` para GIFs (sin leer window en SSR).
  * Una sola imagen accesible.
  */
 export type PartnerWelcomeResponsiveMediaProps = {
@@ -43,40 +43,34 @@ export type PartnerWelcomeResponsiveMediaProps = {
   onVisualFailure?: () => void;
 };
 
-function pieceUrl(
+function pieceSources(
   media: PartnerWelcomeResponsiveMediaInput,
   device: "desktop" | "mobile",
-  reducedMotion: boolean,
   simulateError: PartnerWelcomeResponsiveMediaProps["simulateError"],
-): { url: string | null; alt: string } {
+): { primary: string | null; reduced: string | null; alt: string } {
   const piece = device === "desktop" ? media.desktop : media.mobile;
   const err =
     simulateError === "both" ||
     (device === "desktop" && simulateError === "desktop") ||
     (device === "mobile" && simulateError === "mobile");
+  const logo = media.logoFallback?.imageUrl
+    ? { url: media.logoFallback.imageUrl, alt: media.logoFallback.alt }
+    : null;
   if (err) {
-    if (media.logoFallback?.imageUrl) {
-      return { url: media.logoFallback.imageUrl, alt: media.logoFallback.alt };
-    }
-    return { url: null, alt: "" };
+    return { primary: logo?.url ?? null, reduced: logo?.url ?? null, alt: logo?.alt ?? "" };
   }
   if (!piece) {
-    if (media.logoFallback?.imageUrl) {
-      return { url: media.logoFallback.imageUrl, alt: media.logoFallback.alt };
+    if (logo) return { primary: logo.url, reduced: logo.url, alt: logo.alt };
+    if (media.imageUrl) {
+      return { primary: media.imageUrl, reduced: media.imageUrl, alt: "Contenido patrocinado" };
     }
-    if (media.imageUrl) return { url: media.imageUrl, alt: "Contenido patrocinado" };
-    return { url: null, alt: "" };
+    return { primary: null, reduced: null, alt: "" };
   }
-  if (reducedMotion && piece.animated) {
-    if (piece.reducedMotionFallbackUrl) {
-      return { url: piece.reducedMotionFallbackUrl, alt: piece.alt };
-    }
-    if (media.logoFallback?.imageUrl) {
-      return { url: media.logoFallback.imageUrl, alt: media.logoFallback.alt };
-    }
-    return { url: null, alt: piece.alt };
-  }
-  return { url: piece.imageUrl, alt: piece.alt };
+  const reduced =
+    piece.animated
+      ? piece.reducedMotionFallbackUrl || logo?.url || null
+      : piece.imageUrl;
+  return { primary: piece.imageUrl, reduced, alt: piece.alt };
 }
 
 export function PartnerWelcomeResponsiveMedia({
@@ -125,12 +119,15 @@ export function PartnerWelcomeResponsiveMedia({
     );
   }
 
-  const desktop = pieceUrl(media, "desktop", reducedMotion, simulateError);
-  const mobile = pieceUrl(media, "mobile", reducedMotion, simulateError);
+  const desktop = pieceSources(media, "desktop", simulateError);
+  const mobile = pieceSources(media, "mobile", simulateError);
+
+  const pick = (chosen: { primary: string | null; reduced: string | null; alt: string }) =>
+    reducedMotion ? chosen.reduced || chosen.primary : chosen.primary;
 
   if (forceViewport === "desktop" || forceViewport === "mobile") {
     const chosen = forceViewport === "desktop" ? desktop : mobile;
-    const url = failed ? media.logoFallback?.imageUrl ?? null : chosen.url;
+    const url = failed ? media.logoFallback?.imageUrl ?? null : pick(chosen);
     if (!url) return null;
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -147,23 +144,54 @@ export function PartnerWelcomeResponsiveMedia({
     );
   }
 
-  const desktopSrc = failed ? media.logoFallback?.imageUrl ?? null : desktop.url;
-  const mobileSrc = failed ? media.logoFallback?.imageUrl ?? null : mobile.url;
+  if (failed) {
+    const logoUrl = media.logoFallback?.imageUrl ?? null;
+    if (!logoUrl) return null;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        className={className}
+        src={logoUrl}
+        alt={media.logoFallback?.alt || alt || "Contenido patrocinado"}
+        style={baseStyle}
+        onError={() => {
+          onVisualFailure?.();
+        }}
+      />
+    );
+  }
+
+  const desktopPrimary = reducedMotion ? desktop.reduced || desktop.primary : desktop.primary;
+  const mobilePrimary = reducedMotion ? mobile.reduced || mobile.primary : mobile.primary;
   const fallbackSrc =
-    mobileSrc || desktopSrc || media.logoFallback?.imageUrl || media.imageUrl || null;
+    mobilePrimary || desktopPrimary || media.logoFallback?.imageUrl || media.imageUrl || null;
   if (!fallbackSrc) return null;
 
   const accessibleAlt =
     mobile.alt || desktop.alt || alt?.trim() || "Contenido patrocinado";
 
+  const desktopRm =
+    !reducedMotion && desktop.reduced && desktop.reduced !== desktop.primary ? desktop.reduced : null;
+  const mobileRm =
+    !reducedMotion && mobile.reduced && mobile.reduced !== mobile.primary ? mobile.reduced : null;
+
   return (
     <picture className={className}>
-      {desktopSrc ? (
-        <source media={`(min-width: ${minDesktop}px)`} srcSet={desktopSrc} />
+      {desktopRm ? (
+        <source
+          media={`(prefers-reduced-motion: reduce) and (min-width: ${minDesktop}px)`}
+          srcSet={desktopRm}
+        />
+      ) : null}
+      {mobileRm ? (
+        <source media="(prefers-reduced-motion: reduce)" srcSet={mobileRm} />
+      ) : null}
+      {desktopPrimary ? (
+        <source media={`(min-width: ${minDesktop}px)`} srcSet={desktopPrimary} />
       ) : null}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={mobileSrc || fallbackSrc}
+        src={mobilePrimary || fallbackSrc}
         alt={accessibleAlt}
         style={baseStyle}
         onError={() => {

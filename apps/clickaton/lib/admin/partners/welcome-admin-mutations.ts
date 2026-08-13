@@ -16,6 +16,7 @@ import {
   isWelcomeActivationExcludedApplication,
   validateWelcomeCampaignBeforePublish,
   wrapWelcomeGraphicMetadata,
+  parseWelcomeGraphicMetadata,
   type WelcomeAdminScopeKind,
   type DnxPartnerApplication,
   type DnxPartnerAdPlacementKey,
@@ -88,8 +89,16 @@ export async function registerPartnerAssetUrlFormAction(formData: FormData): Pro
   if (!altText) {
     redirect(campanasPath(partnerId, "error=Texto+alternativo+requerido"));
   }
-  if (/\.svg(\?|$)/i.test(fileUrl)) {
+  if (/\.svg(\?|$)/i.test(fileUrl) || mimeHint.includes("svg")) {
     redirect(campanasPath(partnerId, "error=SVG+no+admitido"));
+  }
+  if (
+    mimeHint.includes("html") ||
+    mimeHint.includes("javascript") ||
+    mimeHint.startsWith("video/") ||
+    /\.(html?|js|exe|mp4|webm|mov)(\?|$)/i.test(fileUrl)
+  ) {
+    redirect(campanasPath(partnerId, "error=Formato+no+admitido"));
   }
 
   let metadata: Record<string, unknown> | undefined;
@@ -103,12 +112,16 @@ export async function registerPartnerAssetUrlFormAction(formData: FormData): Pro
         /\.gif(\?|$)/i.test(fileUrl) ||
         mimeHint === "image/gif";
       if (animated) mimeType = "image/gif";
+      if (slot.motionVariant === "STATIC_FALLBACK" && animated) {
+        redirect(campanasPath(partnerId, "error=Fallback+est%C3%A1tico+no+puede+ser+GIF"));
+      }
       metadata = wrapWelcomeGraphicMetadata(
         buildWelcomeGraphicMetadata({
           deviceTarget: slot.deviceTarget,
           motionVariant: slot.motionVariant,
           animated: slot.motionVariant === "STATIC_FALLBACK" ? false : animated,
-          isDefault: true,
+          // Predeterminada solo desde la ficha (setWelcomeGraphicDefault) tras aprobación.
+          isDefault: false,
         }),
       ) as unknown as Record<string, unknown>;
       name = `${slot.title} · ${altText}`.slice(0, 120);
@@ -118,6 +131,34 @@ export async function registerPartnerAssetUrlFormAction(formData: FormData): Pro
   }
 
   const result = await withClickatonDb(async () => {
+    if (slotKey && metadata) {
+      const existing = await prisma.dnxPartnerAsset.findMany({
+        where: {
+          partnerId,
+          archivedAt: null,
+          type: { in: ["BRAND_PHOTO", "OTHER"] },
+        },
+      });
+      const slot = getWelcomeGraphicSlot(slotKey as WelcomeGraphicSlotKey);
+      for (const row of existing) {
+        const meta = parseWelcomeGraphicMetadata(row.metadata);
+        if (
+          meta?.deviceTarget === slot.deviceTarget &&
+          meta.motionVariant === slot.motionVariant &&
+          !row.archivedAt
+        ) {
+          await prisma.dnxPartnerAsset.update({
+            where: { id: row.id },
+            data: {
+              archivedAt: new Date(),
+              status: "ARCHIVED",
+              isPrimary: false,
+              updatedAt: new Date(),
+            },
+          });
+        }
+      }
+    }
     return prisma.dnxPartnerAsset.create({
       data: {
         id: randomUUID(),
@@ -176,6 +217,36 @@ export async function approvePartnerAssetFormAction(formData: FormData): Promise
   }
   revalidateCampaigns(partnerId);
   redirect(campanasPath(partnerId, "ok=asset-approved"));
+}
+
+/** Archiva una variante welcome (conserva historial; no borra). */
+export async function archivePartnerAssetFormAction(formData: FormData): Promise<void> {
+  await requireClickatonAdmin();
+  const partnerId = formData.get("partnerId")?.toString() ?? "";
+  const assetId = formData.get("assetId")?.toString() ?? "";
+  if (!partnerId || !assetId) {
+    redirect(campanasPath(partnerId || "x", "error=Asset+inv%C3%A1lido"));
+  }
+  const result = await withClickatonDb(async () => {
+    const asset = await prisma.dnxPartnerAsset.findFirst({
+      where: { id: assetId, partnerId, archivedAt: null },
+    });
+    if (!asset) throw new Error("Asset no encontrado para este sponsor");
+    return prisma.dnxPartnerAsset.update({
+      where: { id: assetId },
+      data: {
+        archivedAt: new Date(),
+        status: "ARCHIVED",
+        isPrimary: false,
+        updatedAt: new Date(),
+      },
+    });
+  });
+  if (!result.ok) {
+    redirect(campanasPath(partnerId, `error=${encodeURIComponent(result.message)}`));
+  }
+  revalidateCampaigns(partnerId);
+  redirect(campanasPath(partnerId, "ok=asset-archived"));
 }
 
 /**

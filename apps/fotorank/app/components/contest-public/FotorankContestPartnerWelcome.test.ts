@@ -123,6 +123,7 @@ describe("FotoRank CONTEST welcome wiring", () => {
     assert.match(client, /FOTORANK_CONTEST_WELCOME/);
     assert.match(client, /appearDelayMs=\{FOTORANK_CONTEST_WELCOME_APPEAR_DELAY_MS\}/);
     assert.equal(FOTORANK_CONTEST_WELCOME_APPEAR_DELAY_MS, 1000);
+    assert.match(client, /welcomeMedia/);
     assert.doesNotMatch(client, /server-only|prisma/i);
   });
 

@@ -10,9 +10,15 @@ import {
   computeCampaignPublicationContentHash,
   resolvePublicationDatabaseKey,
   resolvePublicationFreshness,
+  buildWelcomeResponsiveMediaSnapshot,
+  inferWelcomeCampaignSelection,
+  isWelcomeGraphicAsset,
+  publicWelcomeAssetMetadata,
+  publicWelcomeMediaForSnapshot,
   type DnxPartnerApplication,
   type PartnerCampaignPublicationSnapshot,
   type PublishPartnerCampaignResult,
+  type WelcomeGraphicAssetLike,
 } from "@repo/partners";
 import { ensureAdPlacementCatalog } from "@repo/db/partners-ads-loader";
 
@@ -35,9 +41,23 @@ export async function loadCampaignPublicationSnapshot(
   if (!campaign) return null;
 
   const assetIds = [...new Set(campaign.creatives.map((c) => c.assetId))];
-  const assets = await prisma.dnxPartnerAsset.findMany({
-    where: { partnerId: campaign.partnerId, id: { in: assetIds }, archivedAt: null },
-  });
+  const hasWelcome = campaign.creatives.some((c) => c.format === "WELCOME_INTERSTITIAL");
+  const brandPool = hasWelcome
+    ? await prisma.dnxPartnerAsset.findMany({
+        where: { partnerId: campaign.partnerId, archivedAt: null },
+      })
+    : await prisma.dnxPartnerAsset.findMany({
+        where: { partnerId: campaign.partnerId, id: { in: assetIds }, archivedAt: null },
+      });
+  const assets = hasWelcome
+    ? brandPool.filter(
+        (a) =>
+          assetIds.includes(a.id) ||
+          a.type === "LOGO_GENERAL" ||
+          a.type === "LOGO_PRIMARY" ||
+          isWelcomeGraphicAsset(a as WelcomeGraphicAssetLike),
+      )
+    : brandPool;
 
   const trackingPlacements = [
     ...new Set(campaign.placementBindings.map((b) => b.adPlacement.trackingPlacement)),
@@ -151,6 +171,7 @@ export async function loadCampaignPublicationSnapshot(
       approvalStatus: a.approvalStatus,
       altText: a.altText,
       archivedAt: a.archivedAt,
+      metadata: publicWelcomeAssetMetadata(a.metadata),
     })),
     geoTargets: campaign.geoTargets.map((g) => ({
       id: g.id,
@@ -184,6 +205,38 @@ export async function loadCampaignPublicationSnapshot(
       endsAt: o.endsAt,
       archivedAt: o.archivedAt,
     })),
+    welcomeMedia: (() => {
+      if (!hasWelcome) return null;
+      const logo =
+        assets.find(
+          (a) =>
+            (a.type === "LOGO_GENERAL" || a.type === "LOGO_PRIMARY") &&
+            a.approvalStatus === "APPROVED" &&
+            a.fileUrl,
+        ) ?? null;
+      const selection = inferWelcomeCampaignSelection({
+        creatives: campaign.creatives.map((c) => ({
+          format: c.format,
+          deviceTarget: c.deviceTarget,
+          status: c.status,
+          archivedAt: c.archivedAt,
+          assetId: c.assetId,
+        })),
+        assets: assets as WelcomeGraphicAssetLike[],
+        logoAssetId: logo?.id ?? null,
+      });
+      const snap = buildWelcomeResponsiveMediaSnapshot({
+        assets: assets as WelcomeGraphicAssetLike[],
+        logoAsset: logo as WelcomeGraphicAssetLike | null,
+        selectedDesktopId: selection.selectedDesktopId,
+        selectedMobileId: selection.selectedMobileId,
+        forceLogoDesktop: selection.forceLogoDesktop,
+        forceLogoMobile: selection.forceLogoMobile,
+        legacyImageUrl: assets.find((a) => a.id === campaign.creatives[0]?.assetId)?.fileUrl,
+        legacyAlt: campaign.creatives[0]?.title,
+      });
+      return publicWelcomeMediaForSnapshot(snap.snapshot);
+    })(),
   };
 }
 

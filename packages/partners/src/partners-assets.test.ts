@@ -318,6 +318,12 @@ describe("upload security", () => {
     );
 
     assert.equal(detectPartnerFileMime(png).mime, "image/png");
+    const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x00, 0x00]);
+    assert.equal(detectPartnerFileMime(gif).mime, "image/gif");
+    assert.throws(
+      () => assertPartnerUploadAllowed({ buffer: gif, declaredMime: "image/gif" }),
+      (err: unknown) => err instanceof PartnersDomainError,
+    );
   });
 
   it("blocks upload without capability", async () => {

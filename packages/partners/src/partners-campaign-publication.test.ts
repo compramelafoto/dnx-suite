@@ -191,6 +191,35 @@ describe("campaign publication domain", () => {
     assert.notEqual(withPart, otherContext);
   });
 
+  it("welcomeMedia opcional no altera hash de campañas sin welcome; con welcome sí", () => {
+    const a = computeCampaignPublicationContentHash(baseSnapshot());
+    const withNull = baseSnapshot();
+    withNull.welcomeMedia = null;
+    assert.equal(a, computeCampaignPublicationContentHash(withNull));
+    const withMedia = baseSnapshot();
+    withMedia.welcomeMedia = {
+      imageUrl: "https://cdn.example/desk.png",
+      desktop: {
+        imageUrl: "https://cdn.example/desk.png",
+        mimeType: "image/png",
+        width: 1200,
+        height: 630,
+        alt: "Desk",
+        animated: false,
+        reducedMotionFallbackUrl: null,
+        source: "DEFAULT",
+      },
+      mobile: null,
+      logoFallback: null,
+      mediaMinDesktopPx: 768,
+    };
+    assert.notEqual(a, computeCampaignPublicationContentHash(withMedia));
+    const json = JSON.stringify(withMedia.welcomeMedia);
+    assert.equal(json.includes("email"), false);
+    assert.equal(json.includes("taxId"), false);
+    assert.equal(json.includes("notes"), false);
+  });
+
   it("freshness UP_TO_DATE / OUTDATED / FAILED", () => {
     assert.equal(
       resolvePublicationFreshness({

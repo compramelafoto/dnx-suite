@@ -161,6 +161,7 @@ describe("CLF ALBUM welcome wiring", () => {
     assert.match(client, /CLF_ALBUM_WELCOME/);
     assert.match(client, /appearDelayMs=\{CLF_ALBUM_WELCOME_APPEAR_DELAY_MS\}/);
     assert.equal(CLF_ALBUM_WELCOME_APPEAR_DELAY_MS, 1000);
+    assert.match(client, /welcomeMedia/);
     assert.doesNotMatch(client, /server-only|prisma/i);
   });
 

@@ -41,6 +41,8 @@ import {
   isAnimatedWelcomeMime,
   slotKeyForWelcomeGraphic,
   getWelcomeGraphicSlot,
+  validateWelcomeGraphicAsset,
+  assertCanSetWelcomeGraphicDefault,
   type WelcomeGraphicDeviceTarget,
   type WelcomeGraphicMotionVariant,
 } from "./welcome-graphic-assets";
@@ -716,13 +718,46 @@ export function createPartnerAssetsApi(repo: PartnersRepository, audit: AuditFn)
           "El fallback de reduced motion debe ser estático (no GIF).",
         );
       }
+      const issues = validateWelcomeGraphicAsset({
+        asset: {
+          id: "draft",
+          partnerId: input.partnerId,
+          type: WELCOME_GRAPHIC_CARRIER_ASSET_TYPES[0],
+          status: "ACTIVE",
+          approvalStatus: "PENDING",
+          fileUrl: url,
+          mimeType: mime || null,
+          fileSize: input.fileSize ?? (input.buffer ? input.buffer.byteLength : null),
+          width: input.width ?? null,
+          height: input.height ?? null,
+          altText: alt,
+          metadata: wrapWelcomeGraphicMetadata(
+            buildWelcomeGraphicMetadata({
+              deviceTarget: input.deviceTarget,
+              motionVariant: input.motionVariant,
+              animated,
+              staticFallbackAssetId: input.staticFallbackAssetId ?? null,
+              isDefault: input.isDefault !== false,
+            }),
+          ),
+        },
+        expectedPartnerId: input.partnerId,
+        expectedDevice: input.deviceTarget,
+        expectedMotion: input.motionVariant,
+        previewDraft: true,
+      });
+      const blocking = issues.filter((i) => i.severity === "error");
+      if (blocking.length) {
+        throw new PartnersDomainError("VALIDATION", blocking.map((i) => i.message).join(" · "));
+      }
       const metadata = wrapWelcomeGraphicMetadata(
         buildWelcomeGraphicMetadata({
           deviceTarget: input.deviceTarget,
           motionVariant: input.motionVariant,
           animated,
           staticFallbackAssetId: input.staticFallbackAssetId ?? null,
-          isDefault: input.isDefault !== false,
+          // Predeterminada solo tras aprobación explícita (setWelcomeGraphicDefault).
+          isDefault: false,
         }),
       );
       return api.createPartnerAsset(actor, {
@@ -775,7 +810,57 @@ export function createPartnerAssetsApi(repo: PartnersRepository, audit: AuditFn)
       if (current) {
         await api.archivePartnerAsset(actor, current.id);
       }
-      return api.registerWelcomeGraphicAsset(actor, { ...input, isDefault: true });
+      return api.registerWelcomeGraphicAsset(actor, { ...input, isDefault: false });
+    },
+
+    /**
+     * Marca un asset APPROVED como predeterminado único para su device+motion.
+     * No muta creatives/campañas activas.
+     */
+    async setWelcomeGraphicDefault(
+      actor: PartnerActor,
+      input: { partnerId: string; assetId: string },
+    ): Promise<PartnerBrandAssetRecord> {
+      assertPartnerCapability(actor, "PARTNER_ASSETS_MANAGE_BRAND");
+      await requirePartner(input.partnerId);
+      const target = await repo.getBrandAssetById(input.assetId);
+      if (!target || target.partnerId !== input.partnerId) {
+        throw new PartnersDomainError("NOT_FOUND", "Asset no encontrado para este sponsor.");
+      }
+      assertCanSetWelcomeGraphicDefault(target);
+      const meta = parseWelcomeGraphicMetadata(target.metadata)!;
+      const all = await api.listWelcomeGraphicAssets(actor, input.partnerId);
+      for (const a of all) {
+        const m = parseWelcomeGraphicMetadata(a.metadata);
+        if (!m) continue;
+        if (
+          m.deviceTarget === meta.deviceTarget &&
+          m.motionVariant === meta.motionVariant &&
+          m.isDefault &&
+          a.id !== target.id &&
+          !a.archivedAt
+        ) {
+          await repo.updateBrandAsset(a.id, {
+            metadata: wrapWelcomeGraphicMetadata({
+              ...m,
+              isDefault: false,
+            }),
+          });
+        }
+      }
+      const updated = await repo.updateBrandAsset(target.id, {
+        metadata: wrapWelcomeGraphicMetadata({
+          ...meta,
+          isDefault: true,
+        }),
+      });
+      await audit(actor, {
+        partnerId: input.partnerId,
+        entityType: "DnxPartnerAsset",
+        entityId: target.id,
+        action: "asset.welcome_graphic_set_default",
+      });
+      return updated;
     },
   };
 

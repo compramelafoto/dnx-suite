@@ -97,6 +97,7 @@ async function upsertAssets(
         approvalStatus: a.approvalStatus as never,
         altText: a.altText,
         archivedAt: a.archivedAt,
+        metadata: (a.metadata ?? undefined) as never,
         updatedAt: now(),
       },
       update: {
@@ -117,6 +118,7 @@ async function upsertAssets(
         approvalStatus: a.approvalStatus as never,
         altText: a.altText,
         archivedAt: a.archivedAt,
+        metadata: (a.metadata ?? undefined) as never,
         updatedAt: now(),
       },
     });

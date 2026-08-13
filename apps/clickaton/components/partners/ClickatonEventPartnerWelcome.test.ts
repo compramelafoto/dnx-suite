@@ -111,6 +111,7 @@ describe("Clickatón EVENT welcome wiring", () => {
     assert.match(client, /CLICKATON_EVENT_WELCOME/);
     assert.match(client, /appearDelayMs=\{CLICKATON_EVENT_WELCOME_APPEAR_DELAY_MS\}/);
     assert.equal(CLICKATON_EVENT_WELCOME_APPEAR_DELAY_MS, 1000);
+    assert.match(client, /welcomeMedia/);
     assert.doesNotMatch(client, /server-only/);
   });
 
