@@ -13,6 +13,7 @@ import {
 } from "react";
 import { PartnerAdCreative } from "./PartnerAdCreative";
 import { PartnerViewableImpression } from "./PartnerViewableImpression";
+import type { PartnerWelcomeResponsiveMediaInput } from "./PartnerWelcomeResponsiveMedia";
 import {
   markPartnerWelcomeShown,
   readPartnerWelcomeFrequency,
@@ -68,6 +69,8 @@ export type PartnerWelcomeInterstitialProps = {
   campaignId: string;
   partnerName: string;
   imageUrl?: string | null;
+  /** Snapshot responsivo desktop/mobile (prioridad sobre imageUrl). */
+  media?: PartnerWelcomeResponsiveMediaInput | null;
   /** Preferir URL de tracking `/r/...` cuando exista. */
   href?: string | null;
   title?: string | null;
@@ -95,6 +98,12 @@ export type PartnerWelcomeInterstitialProps = {
    * Default `true`.
    */
   trackingEnabled?: boolean;
+  /** Preview: forzar viewport desktop|mobile. */
+  previewViewport?: "desktop" | "mobile" | null;
+  /** Preview: simular error de asset. */
+  previewSimulateError?: "desktop" | "mobile" | "both" | null;
+  /** Preview: forzar reduced motion visual. */
+  previewReducedMotion?: boolean | null;
 };
 
 /**
@@ -105,6 +114,7 @@ export function PartnerWelcomeInterstitial({
   campaignId,
   partnerName,
   imageUrl,
+  media,
   href,
   title,
   body,
@@ -119,6 +129,9 @@ export function PartnerWelcomeInterstitial({
   frequencyStore,
   onDismiss,
   trackingEnabled = true,
+  previewViewport = null,
+  previewSimulateError = null,
+  previewReducedMotion = null,
 }: PartnerWelcomeInterstitialProps) {
   const titleId = useId();
   const labelId = useId();
@@ -332,11 +345,15 @@ export function PartnerWelcomeInterstitial({
       variant="welcome"
       partnerName={partnerName}
       imageUrl={imageUrl}
+      media={media}
       href={href}
       title={title}
       body={body}
       ctaText={ctaText}
       openInNewTab
+      reducedMotion={previewReducedMotion ?? reducedMotion}
+      forceViewport={previewViewport}
+      simulateMediaError={previewSimulateError}
     />
   );
 

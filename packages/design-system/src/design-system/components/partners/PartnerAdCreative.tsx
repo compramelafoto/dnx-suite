@@ -1,7 +1,13 @@
 import type { CSSProperties, ReactNode } from "react";
+import {
+  PartnerWelcomeResponsiveMedia,
+  type PartnerWelcomeResponsiveMediaInput,
+} from "./PartnerWelcomeResponsiveMedia";
 
 export type PartnerAdCreativeProps = {
   imageUrl?: string | null;
+  /** Snapshot responsivo (prioridad sobre imageUrl). */
+  media?: PartnerWelcomeResponsiveMediaInput | null;
   href?: string | null;
   title?: string | null;
   body?: string | null;
@@ -13,6 +19,9 @@ export type PartnerAdCreativeProps = {
   rel?: string;
   /** Forzar pestaña nueva (welcome default true vía caller). */
   openInNewTab?: boolean;
+  reducedMotion?: boolean;
+  forceViewport?: "desktop" | "mobile" | null;
+  simulateMediaError?: "desktop" | "mobile" | "both" | null;
 };
 
 /**
@@ -20,6 +29,7 @@ export type PartnerAdCreativeProps = {
  */
 export function PartnerAdCreative({
   imageUrl,
+  media,
   href,
   title,
   body,
@@ -29,6 +39,9 @@ export function PartnerAdCreative({
   className,
   rel = "noopener noreferrer sponsored",
   openInNewTab,
+  reducedMotion = false,
+  forceViewport = null,
+  simulateMediaError = null,
 }: PartnerAdCreativeProps) {
   const alt = title?.trim() || `Publicidad de ${partnerName}`;
   const shell: CSSProperties =
@@ -57,21 +70,34 @@ export function PartnerAdCreative({
 
   const imgStyle: CSSProperties =
     variant === "welcome"
-      ? { width: "100%", maxWidth: "20rem", maxHeight: "60vh", objectFit: "contain" }
+      ? { width: "100%", maxWidth: "40rem", maxHeight: "min(52vh, 28rem)", objectFit: "contain" }
       : variant === "card"
         ? { width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: "0.5rem" }
         : variant === "compact"
           ? { height: "3.5rem", width: "auto", maxWidth: "12rem", objectFit: "contain" }
           : { width: "100%", maxHeight: "7.5rem", objectFit: "contain" };
 
+  const visual =
+    variant === "welcome" ? (
+      <PartnerWelcomeResponsiveMedia
+        media={media}
+        imageUrl={imageUrl}
+        alt={alt}
+        reducedMotion={reducedMotion}
+        forceViewport={forceViewport}
+        simulateError={simulateMediaError}
+        imgStyle={imgStyle}
+      />
+    ) : imageUrl ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={imageUrl} alt={alt} style={imgStyle} />
+    ) : (
+      <span style={{ fontSize: "0.875rem", opacity: 0.8 }}>{partnerName}</span>
+    );
+
   const inner: ReactNode = (
     <div style={shell} className={className}>
-      {imageUrl ? (
-        // Imagen externa de creative; next/image no aplica en DS compartido.
-        <img src={imageUrl} alt={alt} style={imgStyle} />
-      ) : (
-        <span style={{ fontSize: "0.875rem", opacity: 0.8 }}>{partnerName}</span>
-      )}
+      {visual ?? <span style={{ fontSize: "0.875rem", opacity: 0.8 }}>{partnerName}</span>}
       {(title || body || ctaText) && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {title ? (

@@ -34,3 +34,10 @@ export type {
 
 export { PartnerViewableImpression } from "./PartnerViewableImpression";
 export type { PartnerViewableImpressionProps } from "./PartnerViewableImpression";
+
+export { PartnerWelcomeResponsiveMedia } from "./PartnerWelcomeResponsiveMedia";
+export type {
+  PartnerWelcomeResponsiveMediaProps,
+  PartnerWelcomeResponsiveMediaInput,
+  PartnerWelcomeMediaPiece,
+} from "./PartnerWelcomeResponsiveMedia";

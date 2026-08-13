@@ -90,6 +90,23 @@ describe("PartnerWelcomeInterstitial contracts", () => {
     assert.match(src, /trackingEnabled/);
     assert.match(src, /trackingEnabled && creativeId && placementKey/);
   });
+
+  it("accepts responsive media contract without coupling impression to device", () => {
+    assert.match(src, /media\?:/);
+    assert.match(src, /previewViewport/);
+    assert.match(src, /previewReducedMotion/);
+  });
+});
+
+describe("PartnerWelcomeResponsiveMedia", () => {
+  it("uses picture + DS md breakpoint without window on first paint", () => {
+    const src = readFileSync(join(here, "PartnerWelcomeResponsiveMedia.tsx"), "utf8");
+    assert.match(src, /<picture/);
+    assert.match(src, /min-width: \$\{minDesktop\}px/);
+    assert.match(src, /768/);
+    assert.doesNotMatch(src, /innerWidth/);
+    assert.match(src, /objectFit: "contain"/);
+  });
 });
 
 describe("PartnerAdCreative welcome tracking", () => {
