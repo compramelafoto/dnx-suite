@@ -78,6 +78,7 @@
     "@repo/design-system": "workspace:*",
     "@repo/editor": "workspace:^",
     "@repo/geo": "workspace:*",
+    "@repo/partners": "workspace:*",
     "@repo/editorial-intelligence": "workspace:*",
     "@repo/recommendations": "workspace:*",
     "@repo/notifications": "workspace:*",

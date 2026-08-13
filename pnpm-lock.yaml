@@ -777,6 +777,9 @@ importers:
       '@repo/notifications':
         specifier: workspace:*
         version: link:../../packages/notifications
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../../packages/partners
       '@repo/recommendations':
         specifier: workspace:*
         version: link:../../packages/recommendations
@@ -806,7 +809,7 @@ importers:
         version: 1.9.4
       next:
         specifier: 16.2.1
-        version: 16.2.1(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       papaparse:
         specifier: ^5.5.4
         version: 5.5.4
@@ -1381,8 +1384,6 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
-
-  packages/photo-prompt-library: {}
 
   packages/promotions:
     devDependencies:
@@ -12505,31 +12506,6 @@ snapshots:
       - '@babel/core'
       - babel-plugin-macros
 
-  next@16.2.1(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
-    dependencies:
-      '@next/env': 16.2.1
-      '@swc/helpers': 0.5.15
-      baseline-browser-mapping: 2.10.8
-      caniuse-lite: 1.0.30001780
-      postcss: 8.4.31
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-      styled-jsx: 5.1.6(react@19.2.4)
-    optionalDependencies:
-      '@next/swc-darwin-arm64': 16.2.1
-      '@next/swc-darwin-x64': 16.2.1
-      '@next/swc-linux-arm64-gnu': 16.2.1
-      '@next/swc-linux-arm64-musl': 16.2.1
-      '@next/swc-linux-x64-gnu': 16.2.1
-      '@next/swc-linux-x64-musl': 16.2.1
-      '@next/swc-win32-arm64-msvc': 16.2.1
-      '@next/swc-win32-x64-msvc': 16.2.1
-      '@playwright/test': 1.51.1
-      sharp: 0.34.5
-    transitivePeerDependencies:
-      - '@babel/core'
-      - babel-plugin-macros
-
   next@16.2.4(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       '@next/env': 16.2.4
@@ -12539,7 +12515,7 @@ snapshots:
       postcss: 8.4.31
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-      styled-jsx: 5.1.6(react@19.2.4)
+      styled-jsx: 5.1.6(@babel/core@7.29.0)(react@19.2.4)
     optionalDependencies:
       '@next/swc-darwin-arm64': 16.2.4
       '@next/swc-darwin-x64': 16.2.4
@@ -13742,11 +13718,6 @@ snapshots:
     dependencies:
       client-only: 0.0.1
       react: 19.2.0
-
-  styled-jsx@5.1.6(react@19.2.4):
-    dependencies:
-      client-only: 0.0.1
-      react: 19.2.4
 
   supports-color@7.2.0:
     dependencies:
