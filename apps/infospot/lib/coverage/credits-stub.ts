@@ -17,7 +17,11 @@ export type CreditsPrep = {
 };
 
 export function buildCreditsPrep(input: {
-  photographers: Array<{ clfUserId: number; displayName: string }>;
+  photographers: Array<{
+    clfUserId: number;
+    displayName: string;
+    companyName?: string | null;
+  }>;
   syncStatus: string;
 }): CreditsPrep {
   const reasons: string[] = [];
@@ -29,7 +33,7 @@ export function buildCreditsPrep(input: {
   const credits = input.photographers.map((p) => ({
     clfUserId: p.clfUserId,
     displayName: p.displayName,
-    creditLine: buildClfPhotoCredit(p.displayName),
+    creditLine: buildClfPhotoCredit(p.displayName, p.companyName),
     copyrightLine: buildClfCopyright(p.displayName),
   }));
 

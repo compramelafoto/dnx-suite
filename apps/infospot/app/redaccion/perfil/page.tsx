@@ -5,6 +5,7 @@ import { FlashBanner } from "@/components/redaccion/flash-banner";
 import { RedaccionShell } from "@/components/redaccion/redaccion-shell";
 import { EditorialProfileForm } from "@/components/redaccion/editorial-profile-form";
 import { requireInfoSpotRedaccionAccess } from "@/lib/infospot-access";
+import { splitDisplayName } from "@/lib/display-name";
 
 export const metadata: Metadata = {
   title: "Mi perfil",
@@ -38,6 +39,7 @@ export default async function RedaccionPerfilPage({ searchParams }: Props) {
     },
   });
 
+  const { firstName, lastName } = splitDisplayName(user.name);
   return (
     <RedaccionShell
       title="Mi perfil"
@@ -55,7 +57,8 @@ export default async function RedaccionPerfilPage({ searchParams }: Props) {
       <div className="rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 sm:p-8">
         <EditorialProfileForm
           initialValues={{
-            name: user.name?.trim() || "",
+            firstName,
+            lastName,
             email: user.email,
             bio: user.bio?.trim() || "",
             city: user.city?.trim() || "",

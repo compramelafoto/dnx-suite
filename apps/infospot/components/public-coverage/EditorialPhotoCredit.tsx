@@ -1,6 +1,9 @@
+import { PhotoCreditInner } from "@/components/editorial/PhotoCreditInner";
+
 type Props = {
   credit: string;
   photographerName?: string | null;
+  companyHref?: string | null;
   className?: string;
 };
 
@@ -8,6 +11,7 @@ type Props = {
 export function EditorialPhotoCredit({
   credit,
   photographerName,
+  companyHref,
   className = "",
 }: Props) {
   const text = credit?.trim() || (photographerName ? `Foto: ${photographerName}` : "");
@@ -17,7 +21,7 @@ export function EditorialPhotoCredit({
       className={`text-xs leading-relaxed text-[var(--is-muted)] ${className}`.trim()}
       data-testid="editorial-photo-credit"
     >
-      {text}
+      <PhotoCreditInner credit={text} companyHref={companyHref} />
     </span>
   );
 }

@@ -21,6 +21,7 @@ import {
 } from "@/lib/infospot-access";
 import { revokeAllSessionsForUser } from "@/lib/session-cookie";
 import { getSiteUrl } from "@/lib/settings";
+import { joinDisplayName } from "@/lib/display-name";
 
 export type UsersActionState = { ok: boolean; message: string };
 
@@ -428,20 +429,39 @@ export async function updateInfoSpotMemberAction(
     };
   }
 
-  await prisma.infoSpotUserRole.update({
-    where: { userId },
-    data: {
-      role,
-      status,
-      canPublish: fields.canPublish,
-      publicationPolicy: fields.publicationPolicy,
-      canProvisionClfPhotographerCall:
-        role === "INFOSPOT_DIRECTOR" || fields.canProvisionClfPhotographerCall,
-      canNotifyClfPhotographerCall:
-        role === "INFOSPOT_DIRECTOR" || fields.canNotifyClfPhotographerCall,
-      lastChangedByUserId: access.user.id,
-    },
-  });
+  const firstName = formData.get("firstName")?.toString()?.trim() ?? "";
+  const lastName = formData.get("lastName")?.toString()?.trim() ?? "";
+  if (firstName.length < 1) {
+    return { ok: false, message: "El nombre es obligatorio." };
+  }
+  if (firstName.length > 80) {
+    return { ok: false, message: "El nombre es demasiado largo." };
+  }
+  if (lastName.length > 120) {
+    return { ok: false, message: "El apellido es demasiado largo." };
+  }
+  const displayName = joinDisplayName(firstName, lastName);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { name: displayName },
+    }),
+    prisma.infoSpotUserRole.update({
+      where: { userId },
+      data: {
+        role,
+        status,
+        canPublish: fields.canPublish,
+        publicationPolicy: fields.publicationPolicy,
+        canProvisionClfPhotographerCall:
+          role === "INFOSPOT_DIRECTOR" || fields.canProvisionClfPhotographerCall,
+        canNotifyClfPhotographerCall:
+          role === "INFOSPOT_DIRECTOR" || fields.canNotifyClfPhotographerCall,
+        lastChangedByUserId: access.user.id,
+      },
+    }),
+  ]);
 
   if (status === "DISABLED") {
     await revokeAllSessionsForUser(userId);
@@ -449,11 +469,12 @@ export async function updateInfoSpotMemberAction(
 
   revalidatePath("/admin/usuarios");
   revalidatePath("/admin/aprobaciones");
+  revalidatePath(`/autores/${userId}`);
   revalidatePath("/");
   revalidatePath("/noticias");
   return {
     ok: true,
-    message: `Miembro actualizado (${infoSpotRoleLabel(role)}, ${status}, ${publicationPolicyLabel(fields.publicationPolicy)}) por ${access.user.email}.`,
+    message: `Miembro actualizado (${displayName}, ${infoSpotRoleLabel(role)}, ${status}, ${publicationPolicyLabel(fields.publicationPolicy)}) por ${access.user.email}.`,
   };
 }
 

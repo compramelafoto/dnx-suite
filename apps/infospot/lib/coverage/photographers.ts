@@ -32,6 +32,7 @@ export function mergeCoveragePhotographers(
       displayName: prev.displayName || p.displayName.trim(),
       role: nextRole,
       photoCount: Math.max(prev.photoCount, p.photoCount),
+      companyName: prev.companyName || p.companyName || null,
     });
   }
 
