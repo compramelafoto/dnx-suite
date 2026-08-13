@@ -510,6 +510,7 @@ export {
   buildWelcomeResponsiveMediaSnapshot,
   pickWelcomeRenderUrl,
   assertWelcomeGraphicPublishable,
+  inferWelcomeCampaignSelection,
 } from "./welcome-graphic-assets";
 export type {
   WelcomeGraphicDeviceTarget,

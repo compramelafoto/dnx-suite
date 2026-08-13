@@ -106,6 +106,7 @@ describe("PartnerWelcomeResponsiveMedia", () => {
     assert.match(src, /768/);
     assert.doesNotMatch(src, /innerWidth/);
     assert.match(src, /objectFit: "contain"/);
+    assert.match(src, /prefers-reduced-motion: reduce/);
   });
 });
 

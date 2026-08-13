@@ -104,6 +104,8 @@ export type PartnerPublicationAsset = {
   approvalStatus: string;
   altText: string | null;
   archivedAt: Date | null;
+  /** Solo metadata pública welcomeGraphic (sin notas ni PII). */
+  metadata?: Record<string, unknown> | null;
 };
 
 export type PartnerPublicationCreative = {
@@ -201,6 +203,44 @@ export type PartnerCampaignPublicationSnapshot = {
   contextTargets: DnxPartnerCampaignContextCategory[];
   placementBindings: PartnerPublicationPlacementBinding[];
   outboundLinks: PartnerPublicationOutbound[];
+  /**
+   * Snapshot presentacional welcome (opcional). Prioridad sobre imageUrl legacy.
+   * Sin PII administrativa.
+   */
+  welcomeMedia?: {
+    imageUrl: string | null;
+    desktop: {
+      imageUrl: string;
+      mimeType: string | null;
+      width: number | null;
+      height: number | null;
+      alt: string;
+      animated: boolean;
+      reducedMotionFallbackUrl: string | null;
+      source: string;
+    } | null;
+    mobile: {
+      imageUrl: string;
+      mimeType: string | null;
+      width: number | null;
+      height: number | null;
+      alt: string;
+      animated: boolean;
+      reducedMotionFallbackUrl: string | null;
+      source: string;
+    } | null;
+    logoFallback: {
+      imageUrl: string;
+      mimeType: string | null;
+      width: number | null;
+      height: number | null;
+      alt: string;
+      animated: boolean;
+      reducedMotionFallbackUrl: string | null;
+      source: string;
+    } | null;
+    mediaMinDesktopPx: number;
+  } | null;
 };
 
 export type PublicationFreshness = "UP_TO_DATE" | "OUTDATED" | "FAILED" | "PENDING" | "SYNCING";
@@ -262,6 +302,7 @@ export function computeCampaignPublicationContentHash(
         status: a.status,
         isPrimary: a.isPrimary,
         archivedAt: a.archivedAt?.toISOString() ?? null,
+        ...(a.metadata ? { metadata: a.metadata } : {}),
       }))
       .sort((a, b) => a.id.localeCompare(b.id)),
     geoTargets: snapshot.geoTargets
@@ -299,6 +340,53 @@ export function computeCampaignPublicationContentHash(
           contextId: snapshot.participation.contextId,
         }
       : null,
+    ...(snapshot.welcomeMedia
+      ? {
+          welcomeMedia: {
+            imageUrl: snapshot.welcomeMedia.imageUrl,
+            desktop: snapshot.welcomeMedia.desktop
+              ? {
+                  imageUrl: snapshot.welcomeMedia.desktop.imageUrl,
+                  mimeType: snapshot.welcomeMedia.desktop.mimeType,
+                  width: snapshot.welcomeMedia.desktop.width,
+                  height: snapshot.welcomeMedia.desktop.height,
+                  alt: snapshot.welcomeMedia.desktop.alt,
+                  animated: snapshot.welcomeMedia.desktop.animated,
+                  reducedMotionFallbackUrl:
+                    snapshot.welcomeMedia.desktop.reducedMotionFallbackUrl,
+                  source: snapshot.welcomeMedia.desktop.source,
+                }
+              : null,
+            mobile: snapshot.welcomeMedia.mobile
+              ? {
+                  imageUrl: snapshot.welcomeMedia.mobile.imageUrl,
+                  mimeType: snapshot.welcomeMedia.mobile.mimeType,
+                  width: snapshot.welcomeMedia.mobile.width,
+                  height: snapshot.welcomeMedia.mobile.height,
+                  alt: snapshot.welcomeMedia.mobile.alt,
+                  animated: snapshot.welcomeMedia.mobile.animated,
+                  reducedMotionFallbackUrl:
+                    snapshot.welcomeMedia.mobile.reducedMotionFallbackUrl,
+                  source: snapshot.welcomeMedia.mobile.source,
+                }
+              : null,
+            logoFallback: snapshot.welcomeMedia.logoFallback
+              ? {
+                  imageUrl: snapshot.welcomeMedia.logoFallback.imageUrl,
+                  mimeType: snapshot.welcomeMedia.logoFallback.mimeType,
+                  width: snapshot.welcomeMedia.logoFallback.width,
+                  height: snapshot.welcomeMedia.logoFallback.height,
+                  alt: snapshot.welcomeMedia.logoFallback.alt,
+                  animated: snapshot.welcomeMedia.logoFallback.animated,
+                  reducedMotionFallbackUrl:
+                    snapshot.welcomeMedia.logoFallback.reducedMotionFallbackUrl,
+                  source: snapshot.welcomeMedia.logoFallback.source,
+                }
+              : null,
+            mediaMinDesktopPx: snapshot.welcomeMedia.mediaMinDesktopPx,
+          },
+        }
+      : {}),
   };
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 40);
 }

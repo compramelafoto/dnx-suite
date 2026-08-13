@@ -19,6 +19,7 @@ import {
   partnerRedirectPath,
   resolveEligibleAds,
   buildWelcomeResponsiveMediaSnapshot,
+  inferWelcomeCampaignSelection,
   type CampaignGeoAudience,
   type DnxPartnerAdPlacementKey,
   type DnxPartnerApplication,
@@ -251,6 +252,8 @@ export async function loadPartnerAdsForPlacement(
             include: {
               asset: {
                 select: {
+                  id: true,
+                  type: true,
                   fileUrl: true,
                   storageKey: true,
                   approvalStatus: true,
@@ -270,6 +273,15 @@ export async function loadPartnerAdsForPlacement(
   const editionId = input.editionContextId?.trim() || null;
   const contestId = input.contestContextId?.trim() || null;
   const albumId = input.albumContextId?.trim() || null;
+
+  const welcomeCreativeRefs: Array<{
+    campaignId: string;
+    format: string;
+    deviceTarget: string;
+    status: string;
+    archivedAt: Date | null;
+    assetId: string;
+  }> = [];
 
   const candidates: ResolveAdsCandidate[] = [];
   for (const binding of bindings) {
@@ -299,6 +311,16 @@ export async function loadPartnerAdsForPlacement(
         creative.destinationUrl?.trim() ||
         campaign.destinationUrl?.trim() ||
         null;
+      if (creative.format === "WELCOME_INTERSTITIAL") {
+        welcomeCreativeRefs.push({
+          campaignId: campaign.id,
+          format: creative.format,
+          deviceTarget: creative.deviceTarget,
+          status: creative.status,
+          archivedAt: creative.archivedAt,
+          assetId: creative.assetId,
+        });
+      }
       candidates.push({
         campaignId: campaign.id,
         campaignName: campaign.name,
@@ -411,13 +433,22 @@ export async function loadPartnerAdsForPlacement(
         const logo =
           brandAssets.find(
             (a) =>
-              a.type === "LOGO_GENERAL" &&
+              (a.type === "LOGO_GENERAL" || a.type === "LOGO_PRIMARY") &&
               a.approvalStatus === "APPROVED" &&
               a.fileUrl,
-          ) ?? null;
+          ) ?? brandAssets.find((a) => a.isPrimary && a.approvalStatus === "APPROVED" && a.fileUrl);
+        const selection = inferWelcomeCampaignSelection({
+          creatives: welcomeCreativeRefs.filter((c) => c.campaignId === ad.campaignId),
+          assets: brandAssets as WelcomeGraphicAssetLike[],
+          logoAssetId: logo?.id ?? null,
+        });
         const snap = buildWelcomeResponsiveMediaSnapshot({
           assets: brandAssets as WelcomeGraphicAssetLike[],
           logoAsset: logo as WelcomeGraphicAssetLike | null,
+          selectedDesktopId: selection.selectedDesktopId,
+          selectedMobileId: selection.selectedMobileId,
+          forceLogoDesktop: selection.forceLogoDesktop,
+          forceLogoMobile: selection.forceLogoMobile,
           legacyImageUrl: ad.imageUrl,
           legacyAlt: ad.title,
         });

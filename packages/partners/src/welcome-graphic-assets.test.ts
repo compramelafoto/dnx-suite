@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  assertCanSetWelcomeGraphicDefault,
   buildWelcomeGraphicMetadata,
+  buildWelcomeGraphicProfileView,
   buildWelcomeResponsiveMediaSnapshot,
   isWelcomeGraphicAsset,
   maxBytesForWelcomeGraphic,
@@ -10,6 +12,8 @@ import {
   resolveWelcomeGraphicForDevice,
   validateWelcomeGraphicAsset,
   wrapWelcomeGraphicMetadata,
+  inferWelcomeCampaignSelection,
+  publicWelcomeMediaForSnapshot,
   WELCOME_GRAPHIC_MEDIA_MIN_DESKTOP_PX,
   WELCOME_GRAPHIC_SLOTS,
   type WelcomeGraphicAssetLike,
@@ -191,6 +195,109 @@ describe("welcome graphic resolution", () => {
     assert.equal(forced.piece?.source, "LOGO");
   });
 
+  it("perfil: cuatro slots, estados y predeterminadas sin afirmar pending visible", () => {
+    const pending = asset({
+      id: "pend",
+      device: "DESKTOP",
+      approvalStatus: "PENDING",
+      metadata: wrapWelcomeGraphicMetadata(
+        buildWelcomeGraphicMetadata({
+          deviceTarget: "DESKTOP",
+          isDefault: false,
+        }),
+      ),
+    });
+    const approvedMobile = asset({
+      id: "mob",
+      device: "MOBILE",
+      metadata: wrapWelcomeGraphicMetadata(
+        buildWelcomeGraphicMetadata({
+          deviceTarget: "MOBILE",
+          isDefault: true,
+        }),
+      ),
+    });
+    const logo = asset({
+      id: "logo",
+      type: "LOGO_GENERAL",
+      fileUrl: "https://cdn.example/logo.png",
+    });
+    logo.metadata = null;
+
+    const empty = buildWelcomeGraphicProfileView({ assets: [], logoAsset: logo });
+    assert.equal(empty.slots.length, 4);
+    assert.ok(empty.slots.every((s) => s.slotKey.startsWith("WELCOME_GRAPHIC_")));
+    assert.equal(
+      empty.slots.find((s) => s.slotKey === "WELCOME_GRAPHIC_DESKTOP")?.status,
+      "USES_LOGO",
+    );
+
+    const mixed = buildWelcomeGraphicProfileView({
+      assets: [pending, approvedMobile],
+      logoAsset: logo,
+    });
+    const desk = mixed.slots.find((s) => s.slotKey === "WELCOME_GRAPHIC_DESKTOP")!;
+    const mob = mixed.slots.find((s) => s.slotKey === "WELCOME_GRAPHIC_MOBILE")!;
+    assert.equal(desk.status, "PENDING");
+    assert.equal(desk.statusLabel, "Pendiente");
+    assert.equal(mob.status, "APPROVED");
+    assert.equal(mixed.effective.length, 2);
+    // Snapshot efectivo no usa pending como pieza publicada
+    assert.notEqual(mixed.snapshot.desktop?.imageUrl, pending.fileUrl);
+
+    assert.throws(() => assertCanSetWelcomeGraphicDefault(pending));
+    assert.doesNotThrow(() => assertCanSetWelcomeGraphicDefault(approvedMobile));
+    const archived = asset({
+      id: "arch",
+      device: "DESKTOP",
+      archivedAt: new Date().toISOString(),
+      status: "ARCHIVED",
+    });
+    assert.throws(() => assertCanSetWelcomeGraphicDefault(archived));
+  });
+
+  it("inferWelcomeCampaignSelection: sin creative → defaults; logo → forceLogo", () => {
+    const graphic = asset({ id: "g1", device: "DESKTOP" });
+    const logo = asset({ id: "logo", type: "LOGO_GENERAL" });
+    logo.metadata = null;
+    const none = inferWelcomeCampaignSelection({
+      creatives: [],
+      assets: [graphic, logo],
+      logoAssetId: logo.id,
+    });
+    assert.equal(none.selectedDesktopId, null);
+    assert.equal(none.forceLogoDesktop, false);
+
+    const forced = inferWelcomeCampaignSelection({
+      creatives: [
+        {
+          format: "WELCOME_INTERSTITIAL",
+          deviceTarget: "DESKTOP",
+          status: "APPROVED",
+          assetId: logo.id,
+        },
+      ],
+      assets: [graphic, logo],
+      logoAssetId: logo.id,
+    });
+    assert.equal(forced.forceLogoDesktop, true);
+    assert.equal(forced.selectedDesktopId, null);
+
+    const explicit = inferWelcomeCampaignSelection({
+      creatives: [
+        {
+          format: "WELCOME_INTERSTITIAL",
+          deviceTarget: "DESKTOP",
+          status: "APPROVED",
+          assetId: graphic.id,
+        },
+      ],
+      assets: [graphic, logo],
+      logoAssetId: logo.id,
+    });
+    assert.equal(explicit.selectedDesktopId, graphic.id);
+  });
+
   it("GIF reduced motion usa fallback o logo; sin ambos bloquea", () => {
     const gif = asset({
       id: "gif",
@@ -258,5 +365,93 @@ describe("welcome graphic resolution", () => {
       reducedMotion: true,
     });
     assert.equal(rm.url, "https://cdn.example/static.png");
+  });
+});
+
+describe("welcome campaign selection + snapshot público", () => {
+  it("mezcla gráfica desktop + logo mobile; pending/archivada ignoradas", () => {
+    const desk = asset({ id: "desk", device: "DESKTOP" });
+    const archived = asset({
+      id: "old",
+      device: "DESKTOP",
+      archivedAt: new Date("2020-01-01"),
+    });
+    const pendingMob = asset({ id: "pendm", device: "MOBILE", approvalStatus: "PENDING" });
+    const logo: WelcomeGraphicAssetLike = {
+      id: "logo1",
+      partnerId: "p1",
+      type: "LOGO_GENERAL",
+      status: "ACTIVE",
+      approvalStatus: "APPROVED",
+      fileUrl: "https://cdn.example/logo.png",
+      altText: "Logo",
+      isPrimary: true,
+      metadata: null,
+    };
+    const sel = inferWelcomeCampaignSelection({
+      creatives: [
+        {
+          format: "WELCOME_INTERSTITIAL",
+          deviceTarget: "DESKTOP",
+          status: "APPROVED",
+          assetId: "desk",
+        },
+        {
+          format: "WELCOME_INTERSTITIAL",
+          deviceTarget: "MOBILE",
+          status: "APPROVED",
+          assetId: "logo1",
+        },
+        {
+          format: "WELCOME_INTERSTITIAL",
+          deviceTarget: "DESKTOP",
+          status: "APPROVED",
+          archivedAt: new Date(),
+          assetId: "old",
+        },
+      ],
+      assets: [desk, archived, pendingMob, logo],
+      logoAssetId: "logo1",
+    });
+    assert.equal(sel.selectedDesktopId, "desk");
+    assert.equal(sel.forceLogoMobile, true);
+    assert.equal(sel.forceLogoDesktop, false);
+
+    const snap = buildWelcomeResponsiveMediaSnapshot({
+      assets: [desk, archived, pendingMob, logo],
+      logoAsset: logo,
+      selectedDesktopId: sel.selectedDesktopId,
+      selectedMobileId: sel.selectedMobileId,
+      forceLogoDesktop: sel.forceLogoDesktop,
+      forceLogoMobile: sel.forceLogoMobile,
+    });
+    assert.equal(snap.snapshot.desktop?.source, "SELECTED");
+    assert.equal(snap.snapshot.mobile?.source, "LOGO");
+    assert.equal(snap.canPublish, true);
+    const pub = publicWelcomeMediaForSnapshot(snap.snapshot);
+    assert.equal("notes" in pub, false);
+    assert.equal("email" in pub, false);
+    assert.ok(pub.desktop?.imageUrl);
+    assert.equal(pub.mediaMinDesktopPx, 768);
+  });
+
+  it("archivada no se usa; GIF mobile con fallback; sin fallback bloquea", () => {
+    const gifMob = asset({
+      id: "gifm",
+      device: "MOBILE",
+      animated: true,
+      mimeType: "image/gif",
+    });
+    const blocked = buildWelcomeResponsiveMediaSnapshot({ assets: [gifMob] });
+    assert.equal(blocked.canPublish, false);
+
+    const staticFb = asset({
+      id: "stmob",
+      device: "MOBILE",
+      motion: "STATIC_FALLBACK",
+    });
+    const ok = buildWelcomeResponsiveMediaSnapshot({ assets: [gifMob, staticFb] });
+    assert.equal(ok.snapshot.mobile?.reducedMotionFallbackUrl, staticFb.fileUrl);
+    assert.equal(ok.canPublish, true);
   });
 });

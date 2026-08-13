@@ -1,6 +1,20 @@
-# DNX Partners — Gráficas welcome responsivas (Etapa 10C)
+# DNX Partners — Gráficas welcome responsivas
 
 Sin migración de schema. Las variantes se modelan con assets existentes (`BRAND_PHOTO` / `OTHER` como carrier) + metadata tipada `welcomeGraphic`.
+
+## Administración desde el perfil
+
+Ruta: `/admin/sponsors/[partnerId]` · sección **Gráficas para ventana destacada**.
+
+- Biblioteca visual **del sponsor** (reutilizable entre campañas autorizadas).
+- No hace falta crear una campaña para cargar piezas.
+- Carga por **archivo** (no URL externa en ficha).
+- Cuatro slots: principal desktop, principal mobile, fallback estático desktop, fallback estático mobile.
+- Predeterminadas por `device` + `motion` (`metadata.welcomeGraphic.isDefault`); solo APPROVED / no archivadas; unicidad vía servicio `setWelcomeGraphicDefault`.
+- Reemplazar archiva la pieza activa del slot, crea PENDING nueva; **no** muta creatives de campañas publicadas.
+- Preview con `PartnerWelcomeInterstitial` (tracking OFF, impresión 0, frecuencia 0).
+- GIF: no se descarga en el listado de la ficha hasta preview/interacción.
+- Tener gráfica cargada **no** publica sola: siguen campaña, app, placement, vigencia, flags. FotoOffice excluido.
 
 ## Slots
 
@@ -13,14 +27,14 @@ Sin migración de schema. Las variantes se modelan con assets existentes (`BRAND
 
 Metadata cerrada (`v: 1`, `purpose: WELCOME_GRAPHIC`). No strings arbitrarios.
 
-## Panel
+## Campañas
 
-Sección **Gráfica para ventana destacada** (campañas del sponsor):
+En `/admin/sponsors/[partnerId]/campanas`:
 
-- Escritorio: pieza horizontal para pantallas amplias.
-- Celular: pieza vertical/adaptada.
-- Ambos opcionales; el sistema aplica fallbacks.
-- Área segura + CTA copy (sin botones dibujados).
+- Enlace **Administrar gráficas del sponsor** → ficha.
+- Si no hay gráficas: «No hay gráficas específicas; se utilizará el logo aprobado.»
+- Selector de creative: gráfica aprobada, logo («Usar logo»), o sin creative de device → **predeterminadas** de la ficha (`inferWelcomeCampaignSelection`).
+- Carga rápida por URL (opcional) guarda en la **biblioteca del sponsor**, no como archivo aislado; `isDefault: false` hasta set explícito.
 
 ## Formatos
 
@@ -44,9 +58,13 @@ Dimensiones mín/máx en `DEFAULT_WELCOME_GRAPHIC_LIMITS`.
 
 ## Breakpoint
 
-`WELCOME_GRAPHIC_MEDIA_MIN_DESKTOP_PX = 768` (Tailwind / DS `md`, alineado a `PublicMarketingHeader`).
+`WELCOME_GRAPHIC_MEDIA_MIN_DESKTOP_PX = 768` (Tailwind / DS `md`).
 
-Render: `<picture>` + `source media="(min-width: 768px)"` → el navegador descarga solo la variante aplicable (sin leer `window` en SSR; sin hydration mismatch).
+Render: `<picture>` + `source media="(min-width: 768px)"` + `prefers-reduced-motion: reduce` para GIFs. El navegador descarga solo la variante aplicable (sin leer `window` en SSR; sin hydration mismatch).
+
+## Snapshot de publicación
+
+`PartnerCampaignPublicationSnapshot.welcomeMedia` opcional (prioridad sobre `imageUrl` legacy). Hash incluye URLs/MIME/dims públicas; no PII. Metadata de assets: solo `welcomeGraphic`. Publisher replica `metadata` JSON existente (sin migración).
 
 ## Prioridad
 
@@ -77,28 +95,24 @@ Pending/archivadas nunca como fallback.
 
 `WelcomeResponsiveMediaSnapshot`: `imageUrl` (compat), `desktop`, `mobile`, `logoFallback`, `mediaMinDesktopPx`.
 
-Campos por pieza: URL, MIME, dims, alt, animated, reducedMotionFallbackUrl, source.
-
-`imageUrl` legacy = pieza universal/logo; campos device tienen prioridad cuando existen.
-
 ## Componente
 
 `PartnerWelcomeResponsiveMedia` + `PartnerWelcomeInterstitial` / `PartnerAdCreative` (`media` prop).
 
-- `object-fit: contain`, altura acotada, X/CTA visibles.
-- Una impresión por apertura (sin re-fire por resize/orientación/fallback).
-- Preview: desktop/mobile, reduced motion, simular error, usar logo; tracking OFF.
+Preview: desktop/mobile, reduced motion, simular error; tracking OFF.
 
-## Campaña
+## Aprobación
 
-Creatives con `deviceTarget` DESKTOP/MOBILE/ALL. Tabla de resolución en admin. FotoOffice excluido.
+Flujo existente (`approvePartnerAsset`). Solo APPROVED pueden ser predeterminadas o usarse en publicación efectiva. Piezas PENDING no se afirman visibles.
 
 ## Schema futuro (opcional)
 
-Enum Prisma `WELCOME_GRAPHIC_*` sería aditivo; **no requerido** mientras la metadata tipada sea la fuente de verdad. No ejecutar migraciones en esta etapa.
+Enum Prisma `WELCOME_GRAPHIC_*` sería aditivo; **no requerido**. No ejecutar migraciones en esta etapa.
 
 ## Código
 
-- Dominio: `packages/partners/src/welcome-graphic-assets.ts`
-- UI: `PartnerWelcomeResponsiveMedia.tsx`, preview admin Clickatón
-- Registro: `welcome-admin-mutations.ts` (`welcomeSlot`)
+- Dominio: `packages/partners/src/welcome-graphic-assets.ts` + `welcome-graphic-constants.ts`
+- API: `listWelcomeGraphicAssets`, `registerWelcomeGraphicAsset`, `replaceWelcomeGraphicAsset`, `setWelcomeGraphicDefault`
+- Ficha: `WelcomeGraphicsProfileSection` + `welcome-graphic-profile-mutations.ts`
+- Campañas: `WelcomeGraphicAssetsPanel`
+- Doc UI DS: `PartnerWelcomeInterstitial`
