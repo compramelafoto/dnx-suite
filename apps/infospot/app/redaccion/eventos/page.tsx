@@ -34,7 +34,7 @@ type PageProps = {
 export default async function RedaccionEventosPage({ searchParams }: PageProps) {
   const access = await requireInfoSpotRedaccionAccess();
   const params = await searchParams;
-  const vista = parseRedaccionVista(params.vista);
+  const vista = parseRedaccionVista(params.vista ?? "en-revision");
   const geoFilter = params.geo === "missing";
 
   const canPublish = canPublishInfoSpotEvent(access.subject);
@@ -96,13 +96,13 @@ export default async function RedaccionEventosPage({ searchParams }: PageProps) 
 
       <FlashBanner ok={params.ok} error={params.error} />
 
-      {isDirector && stats.inReview > 0 ? (
+      {stats.inReview > 0 ? (
         <div className="mb-6 rounded-[var(--is-radius-md)] border border-[var(--is-orange-200)] bg-[var(--is-orange-50)] px-4 py-3 text-sm text-[var(--is-orange-900)]">
           Hay{" "}
           <Link href="/redaccion/eventos?vista=en-revision" className="font-semibold underline">
             {stats.inReview} evento{stats.inReview === 1 ? "" : "s"} en revisión
           </Link>
-          .
+          {isDirector ? " (incluye envíos públicos pendientes de moderación)." : "."}
         </div>
       ) : null}
 

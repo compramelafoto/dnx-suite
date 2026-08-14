@@ -111,11 +111,13 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
 
     const insertImage = useCallback(
       (attrs: EditorialImageAttrs) => {
-        editor?.chain().focus().setEditorialImage(attrs).run();
+        if (!editor) return;
+        editor.chain().focus().setEditorialImage(attrs).run();
+        // Forzar sync inmediato: no depender solo de onUpdate (evita autosave sin figura).
+        syncFromEditor(editor.getHTML(), true);
         setImageOpen(false);
-        onDirtyChange?.(true);
       },
-      [editor, onDirtyChange],
+      [editor, syncFromEditor],
     );
 
     const scrollToAsset = useCallback(

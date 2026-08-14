@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -38,10 +38,23 @@ function MapClickHandler({
 
 function MapCenterUpdater({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
+  const prevKey = useRef<string | null>(null);
   const pos = useMemo((): [number, number] => [lat, lng], [lat, lng]);
+
   useEffect(() => {
-    if (lat !== 0 || lng !== 0) map.setView(pos, map.getZoom());
+    if (lat === 0 && lng === 0) return;
+    const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+    const jumped = prevKey.current !== null && prevKey.current !== key;
+    prevKey.current = key;
+    // Al elegir un resultado (salto de coords), acercar; si el usuario mueve el pin, conservar zoom.
+    const nextZoom = jumped ? Math.max(map.getZoom(), 15) : Math.max(map.getZoom(), 4);
+    if (jumped || map.getZoom() < 10) {
+      map.setView(pos, Math.max(nextZoom, 15));
+    } else {
+      map.setView(pos, map.getZoom());
+    }
   }, [map, pos, lat, lng]);
+
   return null;
 }
 
@@ -107,6 +120,7 @@ export default function EventLocationMap({
 
   const lat = Number.isFinite(latitude) ? latitude : 0;
   const lng = Number.isFinite(longitude) ? longitude : 0;
+  const hasValid = lat !== 0 || lng !== 0;
 
   if (!mounted) {
     return (
@@ -125,8 +139,8 @@ export default function EventLocationMap({
       style={{ height }}
     >
       <MapContainer
-        center={lat !== 0 || lng !== 0 ? [lat, lng] : DEFAULT_CENTER}
-        zoom={lat !== 0 || lng !== 0 ? 15 : 4}
+        center={hasValid ? [lat, lng] : DEFAULT_CENTER}
+        zoom={hasValid ? 15 : 4}
         scrollWheelZoom
         style={{ height: "100%", width: "100%" }}
       >

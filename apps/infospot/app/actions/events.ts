@@ -145,7 +145,10 @@ export async function submitPublicEventAction(
   formData: FormData,
 ): Promise<ActionResult> {
   const raw = Object.fromEntries(formData.entries());
-  if (typeof raw.website_url === "string" && raw.website_url.trim().length > 0) {
+  // Honeypot: nombre poco autofillable. Si viene lleno, fingimos éxito sin persistir.
+  const honeypot = raw.company_fax_url ?? raw.website_url;
+  if (typeof honeypot === "string" && honeypot.trim().length > 0) {
+    console.info("[events] public_intake_honeypot_trip");
     return { ok: true, message: "Recibimos tu envío." };
   }
 

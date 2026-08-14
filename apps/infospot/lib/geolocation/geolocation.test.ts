@@ -193,6 +193,55 @@ async function main() {
   setCachedGeocode(key, [{ ok: true }]);
   assert.deepEqual(getCachedGeocode(key), [{ ok: true }]);
 
+  // Nominatim: leisure + city/state + display_name fallback
+  const { normalizeNominatimHit, parseDisplayNameFallback } = await import(
+    "./providers/nominatim"
+  );
+  const autodromo = normalizeNominatimHit({
+    lat: "-32.9037970",
+    lon: "-60.7448324",
+    display_name:
+      "Autódromo Juan Manuel Fangio, Calle 1 (Sur), Palos Verdes, Larrea y Empalme Graneros, Distrito Norte, Rosario, Municipio de Rosario, Gran Rosario, Departamento Rosario, Santa Fe, S2000, Argentina",
+    name: "Autódromo Juan Manuel Fangio",
+    place_id: 1,
+    address: {
+      leisure: "Autódromo Juan Manuel Fangio",
+      road: "Calle 1 (Sur)",
+      suburb: "Palos Verdes",
+      neighbourhood: "Larrea y Empalme Graneros",
+      city: "Rosario",
+      state: "Santa Fe",
+      postcode: "S2000",
+      country: "Argentina",
+      country_code: "ar",
+    },
+  });
+  assert.ok(autodromo);
+  assert.equal(autodromo!.city, "Rosario");
+  assert.equal(autodromo!.province, "Santa Fe");
+  assert.equal(autodromo!.locationName, "Autódromo Juan Manuel Fangio");
+  assert.equal(autodromo!.address, "Calle 1 (Sur)");
+  assert.equal(autodromo!.postalCode, "S2000");
+
+  const onlyDisplay = parseDisplayNameFallback(
+    "Autódromo Juan Manuel Fangio, Calle 1 (Sur), Rosario, Santa Fe, S2000, Argentina",
+  );
+  assert.equal(onlyDisplay.city, "Rosario");
+  assert.equal(onlyDisplay.province, "Santa Fe");
+  assert.equal(onlyDisplay.venueName, "Autódromo Juan Manuel Fangio");
+  assert.equal(onlyDisplay.address, "Calle 1 (Sur)");
+
+  const noAddressDetails = normalizeNominatimHit({
+    lat: "-32.9",
+    lon: "-60.7",
+    display_name: "Club Atlético, Rosario, Santa Fe, Argentina",
+    place_id: 2,
+  });
+  assert.ok(noAddressDetails);
+  assert.equal(noAddressDetails!.city, "Rosario");
+  assert.equal(noAddressDetails!.province, "Santa Fe");
+  assert.equal(noAddressDetails!.locationName, "Club Atlético");
+
   console.log("geolocation tests: ok");
 }
 
