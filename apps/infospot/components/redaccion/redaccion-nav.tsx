@@ -102,6 +102,11 @@ export function RedaccionNav({
     { href: "/admin/eventos", label: "Eventos (admin)", short: "Ev" },
     { href: "/admin/ayuda", label: "Cómo publicar", short: "?" },
     { href: "/admin/configuracion", label: "Configuración", short: "⚙" },
+    {
+      href: "/admin/sponsors-dnx-partners",
+      label: "Sponsors — DNX Partners",
+      short: "Sp",
+    },
   ];
 
   return (

@@ -64,36 +64,27 @@ describe("partner global status contract", () => {
   });
 
   it("placements welcome y marquee clasificados por app", () => {
-    const fr = listPartnerGlobalPlacementsForApp("FOTO_RANK");
+    const is = listPartnerGlobalPlacementsForApp("INFO_SPOT");
     assert.ok(
-      fr.some(
+      is.some(
         (p) =>
-          p.placementKey === "FOTORANK_CONTEST_WELCOME" &&
-          p.formatFamily === "WELCOME_INTERSTITIAL",
-      ),
-    );
-    assert.ok(
-      fr.some(
-        (p) =>
-          p.placementKey === "FOTORANK_HOME_MARQUEE" &&
-          p.formatFamily === "LOGO_MARQUEE" &&
+          p.placementKey === "INFOSPOT_HOME_WELCOME" &&
+          p.formatFamily === "WELCOME_INTERSTITIAL" &&
           p.mounted,
       ),
     );
     assert.ok(
-      fr.some((p) => p.placementKey === "FOTORANK_CONTEST_MARQUEE" && p.mounted),
+      is.some(
+        (p) =>
+          p.placementKey === "INFOSPOT_HOME_MARQUEE" &&
+          p.formatFamily === "LOGO_MARQUEE" &&
+          p.mounted,
+      ),
     );
+    assert.ok(!is.some((p) => String(p.placementKey).includes("FOTOOFFICE")));
 
     const ck = listPartnerGlobalPlacementsForApp("CLICKATON");
     assert.ok(ck.some((p) => p.placementKey === "CLICKATON_EVENT_WELCOME"));
-    assert.ok(
-      ck.some(
-        (p) =>
-          p.placementKey === "CLICKATON_HOME_MARQUEE" &&
-          p.formatFamily === "LOGO_MARQUEE" &&
-          p.mounted,
-      ),
-    );
   });
 
   it("error de consulta ⇒ UNVERIFIABLE; campañas 0 verificadas ≠ fallo", () => {
@@ -190,13 +181,13 @@ describe("partner global status contract", () => {
     assert.match(st.metrics.note ?? "", /plataforma de destino|no verificable/i);
   });
 
-  it("lectura de flags FotoRank desde env mock", () => {
-    const flags = readPartnerGlobalFlagsForApp("FOTO_RANK", {
-      FOTORANK_HOME_MARQUEE_ENABLED: "yes",
+  it("lectura de flags InfoSpot usa solo INFOSPOT_PARTNER_ADS_ENABLED", () => {
+    const flags = readPartnerGlobalFlagsForApp("INFO_SPOT", {
+      INFOSPOT_PARTNER_ADS_ENABLED: "true",
     } as NodeJS.ProcessEnv);
-    const home = flags.find((f) => f.key === "FOTORANK_HOME_MARQUEE_ENABLED")!;
-    assert.equal(home.state, "ON");
-    const welcome = flags.find((f) => f.key === "FOTORANK_PARTNER_WELCOME_ENABLED")!;
-    assert.equal(welcome.state, "NO_CONFIGURADO");
+    assert.ok(flags.every((f) => f.key === "INFOSPOT_PARTNER_ADS_ENABLED"));
+    assert.ok(flags.every((f) => f.state === "ON"));
+    const missing = readPartnerGlobalFlagsForApp("INFO_SPOT", {} as NodeJS.ProcessEnv);
+    assert.ok(missing.every((f) => f.state === "NO_CONFIGURADO"));
   });
 });

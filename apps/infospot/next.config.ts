@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     "@repo/auth-ui",
     "@repo/design-system",
     "@repo/editor",
+    "@repo/partners",
   ],
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   serverExternalPackages: ["sharp"],

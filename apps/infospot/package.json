@@ -9,6 +9,7 @@
     "start": "next start --port 3004",
     "lint": "eslint --max-warnings 0",
     "check-types": "pnpm --filter @repo/db exec prisma generate && next typegen && tsc --noEmit",
+    "test:partners-global-status": "pnpm --filter @repo/db exec tsx --test --test-reporter=spec ../../apps/infospot/lib/partners-global-status.selfcheck.test.ts",
     "test:editorial-workflow": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/editorial-workflow.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/event-editorial-workflow.test.ts",
     "test:video-embed": "pnpm --filter @repo/editor test && pnpm --filter @repo/editor exec tsx ../../apps/infospot/lib/editorial/video-embed-qa-fixture.test.ts",
     "test:etapa-12-editor": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/etapa-12-editor.test.ts",

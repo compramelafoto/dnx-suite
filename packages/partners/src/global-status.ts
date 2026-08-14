@@ -5,18 +5,13 @@
 
 import {
   AD_PLACEMENT_CATALOG,
-  isClickatonEventMarqueeEnabled,
-  isClickatonHomeMarqueeEnabled,
   isClickatonPartnerWelcomeEnabled,
   isClfPartnerAdsEnabled,
   isClfPartnerAlbumWelcomeEnabled,
-  isFotorankContestMarqueeEnabled,
-  isFotorankHomeMarqueeEnabled,
   isFotorankPartnerWelcomeEnabled,
   isInfospotPartnerAdsEnabled,
   type DnxPartnerAdPlacementKey,
 } from "./campaigns";
-import { isLogoMarqueePlacementKey, isMountedLogoMarqueePlacementKey } from "./marquee-admin";
 import { isWelcomeActivationPlacementKey } from "./welcome-activation";
 import { computeCtrPercent } from "./analytics";
 import type { DnxPartnerApplication } from "./types";
@@ -86,23 +81,18 @@ const CENTRAL_ADMIN_ORIGIN_ALLOWLIST = new Set([
   "www.clickaton.com",
 ]);
 
-const FOCUS_PLACEMENT_KEYS: Record<
-  PartnerGlobalStatusApplication,
-  readonly DnxPartnerAdPlacementKey[]
-> = {
-  CLICKATON: [
-    "CLICKATON_EVENT_WELCOME",
-    "CLICKATON_HOME_MARQUEE",
-    "CLICKATON_EVENT_MARQUEE",
-  ],
-  FOTO_RANK: [
-    "FOTORANK_CONTEST_WELCOME",
-    "FOTORANK_HOME_MARQUEE",
-    "FOTORANK_CONTEST_MARQUEE",
-  ],
+/** Placements de foco. Claves de marquee CK/FR pueden no existir en catálogos más antiguos. */
+const FOCUS_PLACEMENT_KEYS: Record<PartnerGlobalStatusApplication, readonly string[]> = {
+  CLICKATON: ["CLICKATON_EVENT_WELCOME", "CLICKATON_HOME_WELCOME"],
+  FOTO_RANK: ["FOTORANK_CONTEST_WELCOME", "FOTORANK_HOME_WELCOME"],
   INFO_SPOT: ["INFOSPOT_HOME_WELCOME", "INFOSPOT_HOME_MARQUEE"],
   COMPRAME_LA_FOTO: ["CLF_ALBUM_WELCOME", "CLF_LOGO_MARQUEE"],
 };
+
+const MOUNTED_MARQUEE_KEYS = new Set([
+  "INFOSPOT_HOME_MARQUEE",
+  "CLF_LOGO_MARQUEE",
+]);
 
 export const FOTO_OFFICE_GLOBAL_STATUS_NOTE =
   "FotoOffice: Excluido de Sponsor Global.";
@@ -292,8 +282,13 @@ function placementFormatFamily(
   placementKey: string,
 ): PartnerGlobalPlacementRow["formatFamily"] {
   if (isWelcomeActivationPlacementKey(placementKey)) return "WELCOME_INTERSTITIAL";
-  if (isLogoMarqueePlacementKey(placementKey)) return "LOGO_MARQUEE";
+  if (placementKey.includes("MARQUEE")) return "LOGO_MARQUEE";
   return "OTHER";
+}
+
+function isMountedPlacement(placementKey: string): boolean {
+  if (isWelcomeActivationPlacementKey(placementKey)) return true;
+  return MOUNTED_MARQUEE_KEYS.has(placementKey);
 }
 
 function flagKeyForPlacement(placementKey: string): string {
@@ -332,9 +327,7 @@ export function listPartnerGlobalPlacementsForApp(
     return {
       placementKey,
       formatFamily,
-      mounted:
-        formatFamily === "WELCOME_INTERSTITIAL" ||
-        isMountedLogoMarqueePlacementKey(placementKey),
+      mounted: isMountedPlacement(placementKey),
       label: entry?.name ?? placementKey,
       flagKey: flagKeyForPlacement(placementKey),
     };
@@ -540,7 +533,7 @@ export function centralPlatformStatusPathForApp(
     case "FOTO_RANK":
       return "/admin/sponsors/estado-global/foto-rank";
     case "INFO_SPOT":
-      return "/admin/sponsors/estado-global/info-spot";
+      return "/admin/sponsors/estado-global/infospot";
     case "COMPRAME_LA_FOTO":
       return "/admin/sponsors/estado-global/comprame-la-foto";
     default:
@@ -675,11 +668,7 @@ export function buildUnverifiablePlatformStatus(
 export function snapshotRuntimeFlagBooleans(): Record<string, boolean> {
   return {
     clickatonWelcome: isClickatonPartnerWelcomeEnabled(),
-    clickatonHomeMarquee: isClickatonHomeMarqueeEnabled(),
-    clickatonEventMarquee: isClickatonEventMarqueeEnabled(),
     fotorankWelcome: isFotorankPartnerWelcomeEnabled(),
-    fotorankHomeMarquee: isFotorankHomeMarqueeEnabled(),
-    fotorankContestMarquee: isFotorankContestMarqueeEnabled(),
     infospotAds: isInfospotPartnerAdsEnabled(),
     clfAds: isClfPartnerAdsEnabled(),
     clfAlbumWelcome: isClfPartnerAlbumWelcomeEnabled(),

@@ -46,6 +46,7 @@ export default async function AdminPage() {
       show: canNotifications,
     },
     { href: "/admin/configuracion", label: "Configuración del medio", show: true },
+    { href: "/admin/sponsors-dnx-partners", label: "Sponsors — DNX Partners", show: true },
     { href: "/admin/lanzamiento", label: "Contenido de lanzamiento", show: true },
     { href: "/admin/ayuda", label: "Cómo publicar una historia", show: true },
     { href: "/redaccion", label: "Volver a redacción", show: true },
