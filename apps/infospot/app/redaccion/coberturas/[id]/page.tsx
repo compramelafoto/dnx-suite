@@ -10,6 +10,7 @@ import {
 } from "@/lib/infospot-access";
 import { buildCoverageSummaryStub, getCoverageById } from "@/lib/coverage";
 import {
+  createArticleFromCoverageFormAction,
   dismissCoverageFormAction,
 } from "@/app/actions/coverage";
 import {
@@ -149,11 +150,20 @@ export default async function CoberturaDetailPage({ params, searchParams }: Prop
             ) : (
               <span className="text-sm text-[var(--is-muted)]">Sin enlace público de compra</span>
             )}
+            <form action={createArticleFromCoverageFormAction}>
+              <input type="hidden" name="coverageId" value={coverage.id} />
+              <button
+                type="submit"
+                className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
+              >
+                Crear nota desde esta galería
+              </button>
+            </form>
             <Link
               href={`/redaccion/asistente?intent=coverage&coverageId=${coverage.id}`}
-              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] bg-[var(--is-accent)] px-4 text-sm font-semibold text-white"
+              className="inline-flex min-h-11 items-center rounded-[var(--is-radius-sm)] border border-[var(--is-border)] px-4 text-sm font-medium"
             >
-              Crear historia
+              Abrir asistente
             </Link>
             <form action={dismissCoverageFormAction}>
               <input type="hidden" name="coverageId" value={coverage.id} />
