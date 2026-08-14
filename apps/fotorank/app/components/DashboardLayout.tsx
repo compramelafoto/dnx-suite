@@ -31,6 +31,7 @@ interface DashboardLayoutProps {
   activeSuiteWorkspaceId: string | null;
   userDisplayName: string;
   userEmail: string;
+  isSuperAdmin?: boolean;
 }
 
 const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
@@ -69,7 +70,15 @@ const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   },
   {
     title: "Configuración",
-    items: [{ label: "Institucional", href: "/dashboard/settings", icon: "settings" }],
+    items: [
+      { label: "Institucional", href: "/dashboard/settings", icon: "settings" },
+      {
+        label: "Sponsors — DNX Partners",
+        href: "/dashboard/sponsors-dnx-partners",
+        icon: "settings",
+        roles: ["super_admin"],
+      },
+    ],
   },
 ];
 
@@ -89,6 +98,7 @@ export function DashboardLayout({
   activeSuiteWorkspaceId,
   userDisplayName,
   userEmail,
+  isSuperAdmin = false,
 }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -112,7 +122,10 @@ export function DashboardLayout({
     });
   }, []);
 
-  const userRoles = useMemo(() => ["admin"], []);
+  const userRoles = useMemo(
+    () => (isSuperAdmin ? ["admin", "super_admin"] : ["admin"]),
+    [isSuperAdmin],
+  );
   const sidebarSections = useMemo(
     () => filterSidebarByRoles(SIDEBAR_SECTIONS, userRoles),
     [userRoles],

@@ -96,6 +96,7 @@ export default async function DashboardLayoutWrapper({
       activeSuiteWorkspaceId={user.currentWorkspaceId}
       userDisplayName={user.name ?? ""}
       userEmail={user.email}
+      isSuperAdmin={isSuperAdmin}
     >
       {userIsFotorankSuperAdmin(user) && actAsOrgName ? (
         <SuperAdminActAsBanner organizationName={actAsOrgName} />

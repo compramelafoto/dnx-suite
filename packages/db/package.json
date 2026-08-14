@@ -13,7 +13,8 @@
     "./clf-event-write": "./src/clf-event-write.ts",
     "./partners-prisma-repository": "./src/partners-prisma-repository.ts",
     "./partners-ads-loader": "./src/partners-ads-loader.ts",
-    "./partners-impression-ingest": "./src/partners-impression-ingest.ts"
+    "./partners-impression-ingest": "./src/partners-impression-ingest.ts",
+    "./partners-global-status-loader": "./src/partners-global-status-loader.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",
