@@ -8,7 +8,13 @@ import type {
   LocationPrecision,
   NormalizedGeocodingResult,
 } from "../types";
+import {
+  cleanMunicipalityLabel,
+  parseDisplayNameFallback,
+} from "../parse-display-name";
 import type { GeocodingProvider } from "./types";
+
+export { parseDisplayNameFallback } from "../parse-display-name";
 
 type NominatimAddress = {
   country_code?: string;
@@ -19,6 +25,8 @@ type NominatimAddress = {
   town?: string;
   village?: string;
   municipality?: string;
+  city_district?: string;
+  county?: string;
   suburb?: string;
   neighbourhood?: string;
   road?: string;
@@ -27,12 +35,20 @@ type NominatimAddress = {
   amenity?: string;
   building?: string;
   tourism?: string;
+  leisure?: string;
+  shop?: string;
+  office?: string;
+  club?: string;
+  craft?: string;
+  historic?: string;
+  name?: string;
 };
 
 type NominatimHit = {
   lat: string;
   lon: string;
   display_name: string;
+  name?: string;
   place_id?: number;
   osm_type?: string;
   osm_id?: number;
@@ -48,7 +64,17 @@ const USER_AGENT =
 function inferPrecision(hit: NominatimHit): LocationPrecision {
   const a = hit.address;
   if (a?.house_number && a?.road) return "ADDRESS";
-  if (a?.amenity || a?.building || a?.tourism) return "VENUE";
+  if (
+    a?.amenity ||
+    a?.building ||
+    a?.tourism ||
+    a?.leisure ||
+    a?.shop ||
+    a?.club ||
+    hit.name
+  ) {
+    return "VENUE";
+  }
   if (a?.neighbourhood || a?.suburb) return "NEIGHBORHOOD";
   if (a?.city || a?.town || a?.village || a?.municipality) return "CITY";
   if (a?.state || a?.province) return "PROVINCE";
@@ -65,13 +91,41 @@ function buildAddressLine(a: NominatimAddress | undefined): string | null {
 
 function cityFromAddress(a: NominatimAddress | undefined): string | null {
   if (!a) return null;
-  return (
+  const raw =
     a.city?.trim() ||
     a.town?.trim() ||
     a.village?.trim() ||
     a.municipality?.trim() ||
-    null
-  );
+    a.city_district?.trim() ||
+    null;
+  if (!raw) return null;
+  const cleaned = cleanMunicipalityLabel(raw);
+  return cleaned || null;
+}
+
+function provinceFromAddress(a: NominatimAddress | undefined): string | null {
+  if (!a) return null;
+  return a.state?.trim() || a.province?.trim() || null;
+}
+
+function venueFromHit(hit: NominatimHit): string | null {
+  const a = hit.address;
+  const fromAddress =
+    a?.amenity?.trim() ||
+    a?.tourism?.trim() ||
+    a?.leisure?.trim() ||
+    a?.building?.trim() ||
+    a?.shop?.trim() ||
+    a?.office?.trim() ||
+    a?.club?.trim() ||
+    a?.craft?.trim() ||
+    a?.historic?.trim() ||
+    a?.name?.trim() ||
+    null;
+  if (fromAddress) return fromAddress;
+  const topName = hit.name?.trim();
+  if (topName) return topName;
+  return null;
 }
 
 export function normalizeNominatimHit(
@@ -90,21 +144,25 @@ export function normalizeNominatimHit(
         ? `osm:${hit.osm_type}/${hit.osm_id}`
         : null;
 
+  const fromDisplay = parseDisplayNameFallback(hit.display_name || "");
+
+  const city = cityFromAddress(a) || fromDisplay.city;
+  const province = provinceFromAddress(a) || fromDisplay.province;
+  const locationName = venueFromHit(hit) || fromDisplay.venueName;
+  const address = buildAddressLine(a) || fromDisplay.address;
+  const postalCode = a?.postcode?.trim() || fromDisplay.postalCode;
+
   return {
     latitude,
     longitude,
     displayName: hit.display_name,
     countryCode: a?.country_code?.toUpperCase() || null,
     countryName: a?.country || null,
-    province: a?.state?.trim() || a?.province?.trim() || null,
-    city: cityFromAddress(a),
-    address: buildAddressLine(a),
-    postalCode: a?.postcode || null,
-    locationName:
-      a?.amenity?.trim() ||
-      a?.tourism?.trim() ||
-      a?.building?.trim() ||
-      null,
+    province,
+    city,
+    address,
+    postalCode,
+    locationName,
     placeId,
     precision: inferPrecision(hit),
     provider: "nominatim",

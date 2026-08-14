@@ -5,6 +5,7 @@ export * from "./distance";
 export * from "./public-location";
 export * from "./publish-rules";
 export * from "./cache";
+export * from "./parse-display-name";
 export {
   searchEventLocations,
   geocodeEventAddress,
@@ -20,3 +21,4 @@ export {
   ManualGeocodingProvider,
   NominatimGeocodingProvider,
 } from "./providers";
+export { normalizeNominatimHit } from "./providers/nominatim";

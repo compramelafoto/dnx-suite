@@ -879,6 +879,16 @@ export function ArticleForm({
                   checklistMissing={checklistMissing}
                   canPublish={canPublish}
                   isDirector={isDirector}
+                  persistenceBlockReason={
+                    saveState === "saving"
+                      ? "Esperá a que termine de guardarse antes de enviar o publicar."
+                      : saveState === "dirty"
+                        ? "Hay cambios sin guardar. Esperá el guardado automático o guardá antes de continuar."
+                        : saveState === "error"
+                          ? saveError ||
+                            "No se pudo guardar. Corregí el error antes de enviar o publicar."
+                          : null
+                  }
                 />
               ) : (
                 <div className="space-y-2">

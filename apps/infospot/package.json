@@ -9,7 +9,7 @@
     "start": "next start --port 3004",
     "lint": "eslint --max-warnings 0",
     "check-types": "pnpm --filter @repo/db exec prisma generate && next typegen && tsc --noEmit",
-    "test:editorial-workflow": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/editorial-workflow.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/event-editorial-workflow.test.ts",
+    "test:editorial-workflow": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/editorial-workflow.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/event-editorial-workflow.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/editorial-persistence.test.ts",
     "test:etapa-12-editor": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/etapa-12-editor.test.ts",
     "test:etapa-13": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/etapa-13-permissions-geo.test.ts",
     "test:content-origin": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/content-origin/content-origin.test.ts",

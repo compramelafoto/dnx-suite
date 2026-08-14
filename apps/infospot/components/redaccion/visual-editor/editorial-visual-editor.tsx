@@ -111,11 +111,13 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
 
     const insertImage = useCallback(
       (attrs: EditorialImageAttrs) => {
-        editor?.chain().focus().setEditorialImage(attrs).run();
+        if (!editor) return;
+        editor.chain().focus().setEditorialImage(attrs).run();
+        // Forzar sync inmediato: no depender solo de onUpdate (evita autosave sin figura).
+        syncFromEditor(editor.getHTML(), true);
         setImageOpen(false);
-        onDirtyChange?.(true);
       },
-      [editor, onDirtyChange],
+      [editor, syncFromEditor],
     );
 
     const scrollToAsset = useCallback(
@@ -126,7 +128,6 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
           if (found) return false;
           if (node.type.name === "editorialImage" && node.attrs.assetId === assetId) {
             editor.chain().focus().setNodeSelection(pos).run();
-            // Scroll DOM figure into view
             requestAnimationFrame(() => {
               const el = editor.view.nodeDOM(pos);
               if (el instanceof HTMLElement) {
@@ -181,7 +182,6 @@ export const EditorialVisualEditor = forwardRef<EditorialVisualEditorHandle, Pro
       [editor, insertImage, scrollToAsset, removeAssetFromText],
     );
 
-    // onCoverImported kept for API compat; local upload dialog may call parent refresh
     void onCoverImported;
     void articleId;
 
