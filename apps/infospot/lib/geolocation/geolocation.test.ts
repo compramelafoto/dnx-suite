@@ -64,6 +64,25 @@ async function main() {
     null,
   );
   assert.equal(
+    validateEventForPublish({
+      ...base,
+      latitude: -32.9,
+      longitude: -60.6,
+      geocodingStatus: "CONFIRMED",
+    }),
+    null,
+    "geocodingStatus CONFIRMED cuenta como georreferenciación aunque falte el timestamp",
+  );
+  assert.ok(
+    validateEventForPublish({
+      ...base,
+      latitude: -32.9,
+      longitude: -60.6,
+      geocodingStatus: "GEOCODED",
+    })?.includes("Georreferenciación"),
+    "GEOCODED sin confirmación sigue bloqueando",
+  );
+  assert.equal(
     isEventLocationPublishReady({
       ...base,
       latitude: -32.9,
