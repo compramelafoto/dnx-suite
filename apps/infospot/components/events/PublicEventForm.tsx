@@ -160,8 +160,14 @@ export function PublicEventForm({ categories, action }: Props) {
           aria-hidden
         >
           <label>
-            Website
-            <input type="text" name="website_url" tabIndex={-1} autoComplete="off" />
+            Company fax
+            <input
+              type="text"
+              name="company_fax_url"
+              tabIndex={-1}
+              autoComplete="off"
+              defaultValue=""
+            />
           </label>
         </div>
 
@@ -253,17 +259,14 @@ export function PublicEventForm({ categories, action }: Props) {
             reverseEndpoint="/api/geocode/reverse"
             disabled={pending || submitted}
             onChange={(patch) => {
-              setLocation((prev) => {
-                const next = { ...prev, ...patch };
-                setValues((v) => ({
-                  ...v,
-                  city: next.city,
-                  province: next.province,
-                  address: next.address,
-                  venueName: next.venueName,
-                }));
-                return next;
-              });
+              setLocation((prev) => ({ ...prev, ...patch }));
+              setValues((v) => ({
+                ...v,
+                ...(patch.city !== undefined ? { city: patch.city } : {}),
+                ...(patch.province !== undefined ? { province: patch.province } : {}),
+                ...(patch.address !== undefined ? { address: patch.address } : {}),
+                ...(patch.venueName !== undefined ? { venueName: patch.venueName } : {}),
+              }));
             }}
           />
         </fieldset>

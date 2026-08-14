@@ -1,9 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { geocodingStatusLabel } from "@/lib/geolocation/publish-rules";
 import type { LocationVisibility } from "@/lib/geolocation/types";
+import { parseDisplayNameFallback } from "@/lib/geolocation/parse-display-name";
 
 const EventLocationMap = dynamic(
   () => import("@/components/geolocation/event-location-map"),
@@ -53,6 +54,44 @@ type Props = {
   disabled?: boolean;
 };
 
+function pickText(
+  ...candidates: Array<string | null | undefined>
+): string | undefined {
+  for (const c of candidates) {
+    const t = c?.trim();
+    if (t) return t;
+  }
+  return undefined;
+}
+
+/** Completa ciudad, provincia, lugar y dirección desde un resultado de geocoding. */
+function fieldsFromSuggestion(
+  s: Suggestion,
+  current: EventLocationPanelValue,
+): Partial<EventLocationPanelValue> {
+  const fromDisplay = parseDisplayNameFallback(s.displayName || "");
+  return {
+    latitude: s.latitude,
+    longitude: s.longitude,
+    city:
+      pickText(s.city, fromDisplay.city, current.city) || "",
+    province:
+      pickText(s.province, fromDisplay.province, current.province) || "",
+    address:
+      pickText(s.address, fromDisplay.address, current.address) || "",
+    venueName:
+      pickText(s.locationName, fromDisplay.venueName, current.venueName) || "",
+    postalCode:
+      pickText(s.postalCode, fromDisplay.postalCode, current.postalCode) || "",
+    countryCode: pickText(s.countryCode, current.countryCode) || "AR",
+    countryName: pickText(s.countryName, current.countryName) || "Argentina",
+    geocodingPlaceId: s.placeId,
+    geocodingProvider: s.provider,
+    geocodingStatus: "GEOCODED",
+    locationConfirmedAt: null,
+  };
+}
+
 export function EventLocationPanel({
   mode,
   value,
@@ -66,6 +105,10 @@ export function EventLocationPanel({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const valueRef = useRef(value);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   const statusLabel = useMemo(
     () => geocodingStatusLabel(value.geocodingStatus as never),
@@ -88,7 +131,7 @@ export function EventLocationPanel({
       setMessage(null);
       try {
         const res = await fetch(
-          `${searchEndpoint}?q=${encodeURIComponent(q)}&city=${encodeURIComponent(value.city || "")}`,
+          `${searchEndpoint}?q=${encodeURIComponent(q)}&city=${encodeURIComponent(valueRef.current.city || "")}`,
           { method: "GET" },
         );
         if (!res.ok) {
@@ -106,35 +149,31 @@ export function EventLocationPanel({
         setSuggestions([]);
       }
     });
-  }, [query, searchEndpoint, value.city]);
+  }, [query, searchEndpoint]);
 
   const applySuggestion = (s: Suggestion) => {
-    onChange({
-      latitude: s.latitude,
-      longitude: s.longitude,
-      city: s.city || value.city,
-      province: s.province || value.province,
-      address: s.address || value.address,
-      venueName: s.locationName || value.venueName,
-      postalCode: s.postalCode || value.postalCode,
-      countryCode: s.countryCode || value.countryCode || "AR",
-      countryName: s.countryName || value.countryName || "Argentina",
-      geocodingPlaceId: s.placeId,
-      geocodingProvider: s.provider,
-      geocodingStatus: "GEOCODED",
-      locationConfirmedAt: null,
-    });
+    const patch = fieldsFromSuggestion(s, valueRef.current);
+    onChange(patch);
+    valueRef.current = { ...valueRef.current, ...patch };
     setSuggestions([]);
-    setMessage("Ubicación encontrada. Confirmala antes de publicar.");
+    setQuery(s.displayName || query);
+    setMessage(
+      patch.city && patch.province
+        ? "Datos completados. Confirmá la ubicación antes de enviar."
+        : "Ubicación encontrada. Completá ciudad y provincia si faltan, y confirmá.",
+    );
   };
 
   const onMarkerMove = (lat: number, lng: number) => {
     onChange({
       latitude: lat,
       longitude: lng,
-      geocodingStatus: value.geocodingStatus === "CONFIRMED" ? "GEOCODED" : value.geocodingStatus || "GEOCODED",
+      geocodingStatus:
+        valueRef.current.geocodingStatus === "CONFIRMED"
+          ? "GEOCODED"
+          : valueRef.current.geocodingStatus || "GEOCODED",
       locationConfirmedAt: null,
-      geocodingProvider: value.geocodingProvider || "manual",
+      geocodingProvider: valueRef.current.geocodingProvider || "manual",
     });
     startTransition(async () => {
       try {
@@ -144,20 +183,14 @@ export function EventLocationPanel({
         const data = (await res.json()) as { result?: Suggestion | null };
         const r = data.result;
         if (!r) return;
-        onChange({
-          latitude: lat,
-          longitude: lng,
-          city: r.city || value.city,
-          province: r.province || value.province,
-          address: r.address || value.address,
-          postalCode: r.postalCode || value.postalCode,
-          countryCode: r.countryCode || value.countryCode,
-          countryName: r.countryName || value.countryName,
-          geocodingPlaceId: r.placeId,
-          geocodingProvider: r.provider,
-          geocodingStatus: "GEOCODED",
-          locationConfirmedAt: null,
-        });
+        const patch = fieldsFromSuggestion(
+          { ...r, latitude: lat, longitude: lng },
+          valueRef.current,
+        );
+        onChange(patch);
+        valueRef.current = { ...valueRef.current, ...patch };
+        if (r.displayName) setQuery(r.displayName);
+        setMessage("Ubicación actualizada desde el mapa.");
       } catch {
         /* reverse opcional */
       }
@@ -237,7 +270,12 @@ export function EventLocationPanel({
                 className="w-full px-4 py-3 text-left text-sm hover:bg-[var(--is-bg)]"
                 onClick={() => applySuggestion(s)}
               >
-                {s.displayName}
+                <span className="block font-medium text-[var(--is-fg)]">
+                  {s.locationName || s.displayName.split(",")[0]}
+                </span>
+                <span className="mt-1 block text-xs text-[var(--is-muted)]">
+                  {[s.city, s.province].filter(Boolean).join(", ") || s.displayName}
+                </span>
               </button>
             </li>
           ))}
@@ -267,6 +305,7 @@ export function EventLocationPanel({
             disabled={disabled}
             onChange={(e) => onChange({ city: e.target.value, locationConfirmedAt: null })}
             className="min-h-11 w-full rounded-xl border border-[var(--is-border)] bg-[var(--is-bg)] px-4 text-sm"
+            placeholder="Ej. Rosario"
           />
         </label>
         <label className="block space-y-2">
@@ -276,6 +315,7 @@ export function EventLocationPanel({
             disabled={disabled}
             onChange={(e) => onChange({ province: e.target.value, locationConfirmedAt: null })}
             className="min-h-11 w-full rounded-xl border border-[var(--is-border)] bg-[var(--is-bg)] px-4 text-sm"
+            placeholder="Ej. Santa Fe"
           />
         </label>
         <label className="block space-y-2 sm:col-span-2">
@@ -285,6 +325,7 @@ export function EventLocationPanel({
             disabled={disabled}
             onChange={(e) => onChange({ venueName: e.target.value })}
             className="min-h-11 w-full rounded-xl border border-[var(--is-border)] bg-[var(--is-bg)] px-4 text-sm"
+            placeholder="Ej. Autódromo Juan Manuel Fangio"
           />
         </label>
         <label className="block space-y-2 sm:col-span-2">
@@ -294,6 +335,7 @@ export function EventLocationPanel({
             disabled={disabled}
             onChange={(e) => onChange({ address: e.target.value, locationConfirmedAt: null })}
             className="min-h-11 w-full rounded-xl border border-[var(--is-border)] bg-[var(--is-bg)] px-4 text-sm"
+            placeholder="Calle y número"
           />
         </label>
         <label className="block space-y-2 sm:col-span-2">

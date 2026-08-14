@@ -162,7 +162,15 @@ export function filterEventsByVista<T extends QueueEventShape>(
 ): T[] {
   switch (vista) {
     case "mi-trabajo":
-      return events.filter((e) => e.authorId === userId && e.status !== "ARCHIVED");
+      // Incluye envíos públicos (sin authorId) en IN_REVIEW para que no “desaparezcan”
+      // del inbox cuando el default era mi-trabajo.
+      return events.filter(
+        (e) =>
+          e.status !== "ARCHIVED" &&
+          (e.authorId === userId ||
+            (e.authorId == null &&
+              (e.status === "IN_REVIEW" || e.status === "READY_TO_PUBLISH"))),
+      );
     case "borradores":
       return events.filter((e) => e.status === "DRAFT" && !hasPending(e));
     case "en-revision":

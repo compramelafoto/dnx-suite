@@ -443,6 +443,7 @@ export async function autosaveArticleDraftAction(
       coverOverridden: true,
       updatedAt: true,
       title: true,
+      content: true,
       geographicScope: true,
       categoryId: true,
     },
@@ -464,12 +465,15 @@ export async function autosaveArticleDraftAction(
     existing.slug ||
     "sin-titulo";
 
+  // Autosave NUNCA cambia el estado editorial: conserva DRAFT / IN_REVIEW / PUBLISHED / etc.
+  // (Bug histórico: forzar DRAFT sacaba notas de la bandeja «En revisión».)
+  const nextStatus = existing.status as ArticleStatus;
+
   const parsed = articleDraftSchema.safeParse({
     ...raw,
     title,
     slug: slugSeed,
-    // Nunca publicar desde autosave
-    status: existing.status === "ARCHIVED" ? "ARCHIVED" : "DRAFT",
+    status: nextStatus,
   });
   if (!parsed.success) {
     return {
@@ -491,13 +495,14 @@ export async function autosaveArticleDraftAction(
     }
   }
 
-  // Si la nota está publicada, el autosave solo actualiza campos sin cambiar status.
-  const keepPublished = existing.status === "PUBLISHED" || existing.status === "UNPUBLISHED";
-  const nextStatus = keepPublished
-    ? (existing.status as ArticleStatus)
-    : existing.status === "ARCHIVED"
-      ? "ARCHIVED"
-      : "DRAFT";
+  // No permitir que un autosave stale con body vacío borre contenido ya persistido.
+  const incomingContent =
+    typeof raw.content === "string" ? raw.content : data.content || "";
+  const preserveContent =
+    !incomingContent.trim() &&
+    Boolean(existing.content?.trim()) &&
+    existing.content.trim().length > 40;
+  const contentToPersist = preserveContent ? existing.content : incomingContent;
 
   const slug = await ensureUniqueSlug(data.slug || slugifyTitle(data.title), articleId);
   const coverChanged = data.coverImageId !== existing.coverImageId;
@@ -524,7 +529,7 @@ export async function autosaveArticleDraftAction(
       title: data.title,
       slug,
       excerpt: data.excerpt || null,
-      content: data.content || "",
+      content: contentToPersist,
       categoryId: nextCategoryId,
       coverImageId: data.coverImageId,
       ...(coverChanged
