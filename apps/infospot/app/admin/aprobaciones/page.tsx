@@ -44,7 +44,7 @@ export default async function AdminAprobacionesPage({
 
   const articles = await prisma.infoSpotArticle.findMany({
     where: {
-      status: "IN_REVIEW",
+      status: { in: ["IN_REVIEW", "READY_TO_PUBLISH"] },
       ...(redactorId && Number.isFinite(redactorId)
         ? { authorId: redactorId }
         : {}),

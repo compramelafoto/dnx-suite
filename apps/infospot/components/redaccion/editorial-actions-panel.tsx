@@ -52,6 +52,8 @@ type SharedProps = {
   checklistMissing?: string[];
   canPublish: boolean;
   isDirector: boolean;
+  /** Bloquea acciones editoriales si hay cambios sin guardar / error de autosave. */
+  persistenceBlockReason?: string | null;
 };
 
 const primaryBtn =
@@ -90,6 +92,7 @@ function EditorialActionsPanelInner({
   checklistMissing = [],
   canPublish,
   isDirector,
+  persistenceBlockReason,
   onRun,
 }: {
   status: string;
@@ -103,6 +106,7 @@ function EditorialActionsPanelInner({
   checklistMissing?: string[];
   canPublish: boolean;
   isDirector: boolean;
+  persistenceBlockReason?: string | null;
   onRun: (action: EditorialAction, opts?: { observation?: string }) => Promise<WorkflowResult>;
 }) {
   const router = useRouter();
@@ -111,6 +115,9 @@ function EditorialActionsPanelInner({
   const [message, setMessage] = useState<string | null>(null);
   const [returnOpen, setReturnOpen] = useState(false);
   const [observation, setObservation] = useState("");
+
+  const blockedByPersistence = Boolean(persistenceBlockReason);
+  const actionsDisabled = pending || blockedByPersistence;
 
   const primary = primaryActionFor(actions, status, isDirector);
   const secondary = actions.filter((a) => {
@@ -124,6 +131,10 @@ function EditorialActionsPanelInner({
   });
 
   function run(action: EditorialAction, confirmText?: string) {
+    if (blockedByPersistence) {
+      setError(persistenceBlockReason || "Guardá los cambios antes de continuar.");
+      return;
+    }
     if (confirmText && !window.confirm(confirmText)) return;
     setError(null);
     setMessage(null);
@@ -139,6 +150,10 @@ function EditorialActionsPanelInner({
   }
 
   function submitReturn() {
+    if (blockedByPersistence) {
+      setError(persistenceBlockReason || "Guardá los cambios antes de continuar.");
+      return;
+    }
     setError(null);
     setMessage(null);
     startTransition(async () => {
@@ -193,6 +208,12 @@ function EditorialActionsPanelInner({
         </div>
       ) : null}
 
+      {persistenceBlockReason ? (
+        <div className="rounded-[var(--is-radius-sm)] border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+          {persistenceBlockReason}
+        </div>
+      ) : null}
+
       {!canPublish ? (
         <p className="text-xs text-[var(--is-muted)]">
           Tu rol no publica directo: al pulsar Publicar el {contentNoun} queda pendiente de
@@ -205,7 +226,7 @@ function EditorialActionsPanelInner({
           <button
             type="button"
             className={primaryBtn}
-            disabled={pending}
+            disabled={actionsDisabled}
             onClick={() =>
               run(
                 primary,
@@ -236,7 +257,7 @@ function EditorialActionsPanelInner({
                 placeholder="Ej: Confirmar el nombre completo del organizador y revisar la portada."
               />
               <div className="flex gap-2">
-                <button type="button" className={secondaryBtn} disabled={pending} onClick={submitReturn}>
+                <button type="button" className={secondaryBtn} disabled={actionsDisabled} onClick={submitReturn}>
                   Confirmar devolución
                 </button>
                 <button
@@ -253,7 +274,7 @@ function EditorialActionsPanelInner({
             <button
               type="button"
               className={secondaryBtn}
-              disabled={pending}
+              disabled={actionsDisabled}
               onClick={() => setReturnOpen(true)}
             >
               Devolver con observación
@@ -268,7 +289,7 @@ function EditorialActionsPanelInner({
               key={action}
               type="button"
               className={secondaryBtn}
-              disabled={pending}
+              disabled={actionsDisabled}
               onClick={() =>
                 run(
                   action,
@@ -303,6 +324,7 @@ export function EditorialActionsPanel({
   checklistMissing = [],
   canPublish,
   isDirector,
+  persistenceBlockReason,
 }: SharedProps & { articleId: string }) {
   const pendingReturn = hasPendingReturn({ status, returnedAt, submittedForReviewAt });
   const actions = availableEditorialActions(subject, status, {
@@ -323,6 +345,7 @@ export function EditorialActionsPanel({
       checklistMissing={checklistMissing}
       canPublish={canPublish}
       isDirector={isDirector}
+      persistenceBlockReason={persistenceBlockReason}
       onRun={async (action, opts) => {
         switch (action) {
           case "SUBMIT_REVIEW":
@@ -355,6 +378,7 @@ export function EventEditorialActionsPanel({
   checklistMissing = [],
   canPublish,
   isDirector,
+  persistenceBlockReason,
 }: SharedProps & { eventId: string; status: EventStatus }) {
   const pendingReturn = hasPendingEventReturn({ status, returnedAt, submittedForReviewAt });
   const actions = availableEventEditorialActions(subject, status, {
@@ -375,6 +399,7 @@ export function EventEditorialActionsPanel({
       checklistMissing={checklistMissing}
       canPublish={canPublish}
       isDirector={isDirector}
+      persistenceBlockReason={persistenceBlockReason}
       onRun={async (action, opts) => {
         switch (action) {
           case "SUBMIT_REVIEW":
