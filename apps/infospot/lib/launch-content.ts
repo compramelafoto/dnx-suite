@@ -89,7 +89,9 @@ export function buildEventPublishChecklist(input: {
     !(input.latitude === 0 && input.longitude === 0) &&
     (input.latitude < -90 || input.latitude > 90 ? false : true) &&
     (input.longitude < -180 || input.longitude > 180 ? false : true);
-  const geoConfirmed = Boolean(input.locationConfirmedAt) && hasGeo;
+  const geoConfirmed =
+    hasGeo &&
+    (Boolean(input.locationConfirmedAt) || input.geocodingStatus === "CONFIRMED");
   return [
     { id: "title", label: "Título", ok: (input.title || "").trim().length >= 3, required: true },
     { id: "summary", label: "Resumen", ok: (input.summary || "").trim().length >= 10, required: false },
