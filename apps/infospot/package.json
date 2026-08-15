@@ -18,6 +18,7 @@
     "test:clf-event-sync": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/clf-event-sync/clf-event-sync.test.ts",
     "test:clf-event-provisioning": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/clf-event-provisioning/clf-event-provisioning.test.ts",
     "test:geolocation": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/geolocation/geolocation.test.ts",
+    "test:sitemap": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/sitemap-database-guard.test.ts",
     "test:distribution": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/distribution/distribution.test.ts",
     "test:coverage": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/coverage/coverage.test.ts",
     "test:editorial-photos": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial-photos/editorial-photos.test.ts",

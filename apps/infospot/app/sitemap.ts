@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@repo/db";
 import { getSiteUrl } from "@/lib/settings";
+import { shouldLoadPublishedSitemapEntries } from "@/lib/sitemap-database-guard";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = getSiteUrl();
@@ -24,6 +25,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: path === "" ? 1 : 0.7,
   }));
 
+  return [...staticRoutes, ...(await loadPublishedSitemapEntries(base))];
+}
+
+/**
+ * Rutas publicadas desde la base. Fail-closed: sin DATABASE_URL, o si Prisma
+ * no alcanza la DB, solo queda el sitemap estático (sin inventar slugs).
+ */
+async function loadPublishedSitemapEntries(
+  base: string,
+): Promise<MetadataRoute.Sitemap> {
+  if (!shouldLoadPublishedSitemapEntries(process.env.DATABASE_URL)) {
+    return [];
+  }
+
   try {
     const [articles, events, categories] = await Promise.all([
       prisma.infoSpotArticle.findMany({
@@ -42,7 +57,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ]);
 
     return [
-      ...staticRoutes,
       ...categories.map((c) => ({
         url: `${base}/categorias/${c.slug}`,
         lastModified: c.updatedAt,
@@ -63,6 +77,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })),
     ];
   } catch {
-    return staticRoutes;
+    return [];
   }
 }
