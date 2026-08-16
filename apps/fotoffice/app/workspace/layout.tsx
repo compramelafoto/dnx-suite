@@ -4,17 +4,8 @@ import { prisma } from "@repo/db";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { hasAppAccess, requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
-
-const NAV = [
-  { href: "/workspace", label: "Inicio", ready: true },
-  { href: "/workspace/clientes", label: "Clientes", ready: false },
-  { href: "/workspace/trabajos", label: "Trabajos / eventos", ready: false },
-  { href: "/workspace/presupuestos", label: "Presupuestos", ready: false },
-  { href: "/workspace/agenda", label: "Agenda", ready: false },
-  { href: "/workspace/finanzas", label: "Finanzas", ready: false },
-  { href: "/workspace/equipo", label: "Equipo", ready: false },
-  { href: "/workspace/configuracion", label: "Configuración", ready: true },
-] as const;
+import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
+import { resolveEnabledNavModules } from "@/lib/modules/nav";
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth();
@@ -58,6 +49,9 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     select: { workspaceId: true, workspace: { select: { name: true } } },
     orderBy: { createdAt: "asc" },
   });
+
+  const enabledModuleKeys = await getEnabledModuleKeysForWorkspace(ensured.workspaceId);
+  const navModules = resolveEnabledNavModules(enabledModuleKeys);
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--fo-bg)]">
@@ -119,30 +113,26 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
 
       <div className="mx-auto max-w-6xl w-full px-4 md:px-6 py-8 flex flex-col lg:flex-row gap-8 lg:gap-10">
         <nav className="lg:w-64 shrink-0 space-y-2" aria-label="Workspace">
-          {NAV.map((item) =>
-            item.ready ? (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="block rounded-xl px-4 py-3 text-sm font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface)] border border-transparent hover:border-[var(--fo-border)]"
-              >
-                {item.label}
-              </Link>
-            ) : (
-              <div
-                key={item.href}
-                className="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-[var(--fo-muted-soft)] border border-dashed border-[var(--fo-border)]"
-              >
-                <span>{item.label}</span>
-                <span className="text-[10px] uppercase tracking-wide">Pronto</span>
-              </div>
-            ),
-          )}
           <Link
-            href="/dashboard"
-            className="block rounded-xl px-4 py-3 text-sm text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
+            href="/workspace"
+            className="block rounded-xl px-4 py-3 text-sm font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface)] border border-transparent hover:border-[var(--fo-border)]"
           >
-            Panel cursos (legacy)
+            Inicio
+          </Link>
+          {navModules.map((m) => (
+            <Link
+              key={m.key}
+              href={m.route}
+              className="block rounded-xl px-4 py-3 text-sm font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface)] border border-transparent hover:border-[var(--fo-border)]"
+            >
+              {m.label}
+            </Link>
+          ))}
+          <Link
+            href="/workspace/configuracion"
+            className="block rounded-xl px-4 py-3 text-sm font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface)] border border-transparent hover:border-[var(--fo-border)]"
+          >
+            Configuración
           </Link>
         </nav>
         <main className="flex-1 min-w-0">{children}</main>
