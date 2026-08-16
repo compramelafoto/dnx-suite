@@ -5,10 +5,11 @@ import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
-import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
+import { listAvailableModuleKeys } from "@/lib/modules/registry";
 
 export type ToggleModuleState = { error: string | null };
-const ALLOWED_MODULE_KEYS = new Set([COURSES_SALES_MODULE_KEY, EVALUACIONES_MODULE_KEY]);
+/** Whitelist derivada del registry: un módulo nuevo con status "AVAILABLE" queda habilitable acá sin tocar este archivo. */
+const ALLOWED_MODULE_KEYS = new Set(listAvailableModuleKeys());
 
 export async function toggleWorkspaceModuleAction(
   _prev: ToggleModuleState | undefined,
