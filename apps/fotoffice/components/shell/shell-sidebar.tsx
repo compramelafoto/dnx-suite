@@ -5,10 +5,14 @@ import { ShellNav } from "./shell-nav";
 export function ShellSidebar({
   coursesEnabled,
   evaluacionesEnabled,
+  membersEnabled,
+  canManageMembers,
   platformAdmin,
 }: {
   coursesEnabled: boolean;
   evaluacionesEnabled: boolean;
+  membersEnabled: boolean;
+  canManageMembers: boolean;
   platformAdmin: boolean;
 }) {
   return (
@@ -28,6 +32,8 @@ export function ShellSidebar({
       <ShellNav
         coursesEnabled={coursesEnabled}
         evaluacionesEnabled={evaluacionesEnabled}
+        membersEnabled={membersEnabled}
+        canManageMembers={canManageMembers}
         platformAdmin={platformAdmin}
       />
       <div className="mt-8 border-t border-[var(--fo-border)] pt-6 space-y-2">
