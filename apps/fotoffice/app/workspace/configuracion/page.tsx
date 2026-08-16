@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { WorkspaceSettingsForm } from "./settings-form";
 
 export default async function WorkspaceSettingsPage() {
@@ -39,7 +40,7 @@ export default async function WorkspaceSettingsPage() {
           country: branding?.country ?? "",
           website: branding?.website ?? "",
           instagram: branding?.instagram ?? "",
-          activityType: branding?.activityType ?? "independent",
+          activityType: normalizeFotofficeOrganizationType(branding?.activityType),
           specialties: branding?.specialties ?? [],
           businessLogoUrl: branding?.logoUrl ?? "",
           displayName: profile?.displayName ?? user.name ?? "",

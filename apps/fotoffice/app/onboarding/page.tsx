@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { OnboardingWizard } from "./onboarding-wizard";
 
 export default async function OnboardingPage() {
@@ -29,7 +30,8 @@ export default async function OnboardingPage() {
         displayName: profile?.displayName ?? user.name ?? "",
         phone: profile?.phone ?? "",
         commercialName: branding?.commercialName ?? "",
-        activityType: branding?.activityType ?? "independent",
+        activityType:
+          normalizeFotofficeOrganizationType(branding?.activityType) || "FREELANCE_PHOTOGRAPHER",
         city: branding?.city ?? "",
         province: branding?.province ?? "",
         country: branding?.country ?? "",

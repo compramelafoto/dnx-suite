@@ -5,13 +5,13 @@ import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import {
-  FOTOFFICE_ACTIVITY_TYPES,
+  FOTOFFICE_ORGANIZATION_TYPE_IDS,
   FOTOFFICE_SPECIALTY_IDS,
 } from "@/lib/onboarding-constants";
 
 export type SettingsState = { error: string | null; ok?: boolean };
 
-const ACTIVITY_IDS: Set<string> = new Set(FOTOFFICE_ACTIVITY_TYPES.map((a) => a.id));
+const ACTIVITY_IDS = FOTOFFICE_ORGANIZATION_TYPE_IDS;
 
 export async function updateWorkspaceSettingsAction(
   _prev: SettingsState | undefined,
@@ -54,7 +54,7 @@ export async function updateWorkspaceSettingsAction(
     .filter((id) => FOTOFFICE_SPECIALTY_IDS.has(id as never));
 
   if (!commercialName) return { error: "El nombre comercial es obligatorio." };
-  if (!ACTIVITY_IDS.has(activityType)) return { error: "Tipo de actividad inválido." };
+  if (!ACTIVITY_IDS.has(activityType)) return { error: "Tipo de organización inválido." };
 
   await prisma.fotofficeWorkspaceBranding.update({
     where: { workspaceId: ensured.workspaceId },

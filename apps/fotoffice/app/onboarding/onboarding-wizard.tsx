@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import {
-  FOTOFFICE_ACTIVITY_TYPES,
+  FOTOFFICE_ORGANIZATION_TYPES,
   FOTOFFICE_SPECIALTIES,
 } from "@/lib/onboarding-constants";
 import {
@@ -112,7 +112,7 @@ export function OnboardingWizard({ initial }: { initial: Initial }) {
                 });
               }}
             >
-              <h2 className="text-lg font-semibold text-[var(--fo-text)]">Empresa fotográfica</h2>
+              <h2 className="text-lg font-semibold text-[var(--fo-text)]">Tu organización</h2>
               <Field
                 label="Nombre comercial"
                 name="commercialName"
@@ -120,16 +120,20 @@ export function OnboardingWizard({ initial }: { initial: Initial }) {
                 required
               />
               <label className="block space-y-3">
-                <span className="text-sm font-semibold text-[var(--fo-text)]">Tipo de actividad</span>
+                <span className="text-sm font-semibold text-[var(--fo-text)]">Tipo de organización</span>
+                <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+                  Esto nos ayuda a adaptar FotoOffice a tu actividad. Después vas a poder elegir
+                  qué módulos querés utilizar.
+                </p>
                 <select
                   name="activityType"
-                  defaultValue={initial.activityType || "independent"}
+                  defaultValue={initial.activityType || "FREELANCE_PHOTOGRAPHER"}
                   className="w-full rounded-xl border border-[var(--fo-border)] bg-[var(--fo-bg)] px-4 py-3 text-sm"
                   required
                 >
-                  {FOTOFFICE_ACTIVITY_TYPES.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label}
+                  {FOTOFFICE_ORGANIZATION_TYPES.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
                     </option>
                   ))}
                 </select>

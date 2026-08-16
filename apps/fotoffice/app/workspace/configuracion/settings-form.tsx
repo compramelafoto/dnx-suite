@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import {
-  FOTOFFICE_ACTIVITY_TYPES,
+  FOTOFFICE_ORGANIZATION_TYPES,
   FOTOFFICE_SPECIALTIES,
 } from "@/lib/onboarding-constants";
 import { updateWorkspaceSettingsAction, type SettingsState } from "./actions";
@@ -38,15 +38,19 @@ export function WorkspaceSettingsForm({ initial }: { initial: Initial }) {
         required
       />
       <label className="block space-y-3">
-        <span className="text-sm font-semibold">Tipo de actividad</span>
+        <span className="text-sm font-semibold">Tipo de organización</span>
+        <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+          Esto nos ayuda a adaptar FotoOffice a tu actividad. Después vas a poder elegir qué
+          módulos querés utilizar.
+        </p>
         <select
           name="activityType"
           defaultValue={initial.activityType}
           className="w-full rounded-xl border border-[var(--fo-border)] bg-[var(--fo-bg)] px-4 py-3 text-sm"
         >
-          {FOTOFFICE_ACTIVITY_TYPES.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.label}
+          {FOTOFFICE_ORGANIZATION_TYPES.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
             </option>
           ))}
         </select>

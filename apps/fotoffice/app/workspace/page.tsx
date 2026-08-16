@@ -24,7 +24,7 @@ export default async function WorkspaceHomePage() {
 
   const pending: string[] = [];
   if (!profile?.displayName) pending.push("Nombre visible");
-  if (!branding?.activityType) pending.push("Tipo de actividad");
+  if (!branding?.activityType) pending.push("Tipo de organización");
   if (!branding?.city) pending.push("Ciudad");
   if (!branding?.specialties?.length) pending.push("Especialidades");
   if (!branding?.logoUrl) pending.push("Logo del negocio");
