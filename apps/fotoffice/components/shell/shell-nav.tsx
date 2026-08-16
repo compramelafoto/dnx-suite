@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   GraduationCap,
+  IdCard,
   Inbox,
   LayoutDashboard,
   LayoutGrid,
   Settings,
   Shield,
+  Tag,
   UserCog,
   Users,
 } from "lucide-react";
@@ -26,10 +28,14 @@ function navClass(active: boolean) {
 export function ShellNav({
   coursesEnabled,
   evaluacionesEnabled,
+  membersEnabled,
+  canManageMembers,
   platformAdmin,
 }: {
   coursesEnabled: boolean;
   evaluacionesEnabled: boolean;
+  membersEnabled: boolean;
+  canManageMembers: boolean;
   platformAdmin: boolean;
 }) {
   const path = usePathname() ?? "";
@@ -46,6 +52,8 @@ export function ShellNav({
   const isTeachers = path.startsWith("/courses/teachers");
   const isLeads = path.startsWith("/courses/leads");
   const isCourseSettings = path.startsWith("/courses/settings");
+  const isMembersMain = path === "/members" || (path.startsWith("/members/") && !path.startsWith("/members/categories"));
+  const isMemberCategories = path.startsWith("/members/categories");
 
   return (
     <nav className="flex flex-col gap-1" aria-label="Principal">
@@ -82,6 +90,20 @@ export function ShellNav({
           <LayoutGrid className="size-4 shrink-0 opacity-80" aria-hidden />
           Evaluaciones
         </Link>
+      ) : null}
+      {membersEnabled ? (
+        <>
+          <Link href="/members" className={navClass(isMembersMain)}>
+            <IdCard className="size-4 shrink-0 opacity-80" aria-hidden />
+            Socios
+          </Link>
+          {canManageMembers ? (
+            <Link href="/members/categories" className={navClass(isMemberCategories)}>
+              <Tag className="size-4 shrink-0 opacity-80" aria-hidden />
+              Categorías de socios
+            </Link>
+          ) : null}
+        </>
       ) : null}
       {platformAdmin ? (
         <>

@@ -2,7 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const DNX_SESSION_COOKIE = "dnx_session";
 
-const PROTECTED_PREFIXES = ["/workspace", "/onboarding", "/dashboard", "/courses", "/evaluaciones", "/admin"];
+const PROTECTED_PREFIXES = [
+  "/workspace",
+  "/onboarding",
+  "/dashboard",
+  "/courses",
+  "/evaluaciones",
+  "/members",
+  "/admin",
+];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -28,6 +36,7 @@ export const config = {
     "/dashboard/:path*",
     "/courses/:path*",
     "/evaluaciones/:path*",
+    "/members/:path*",
     "/admin/:path*",
   ],
 };

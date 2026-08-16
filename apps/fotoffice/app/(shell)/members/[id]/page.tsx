@@ -1,0 +1,160 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getMember } from "@repo/db/fotoffice-members";
+import { requireMembersContext } from "@/lib/members/access";
+import { PageHeader } from "@/components/page-header";
+import { MemberStatusChanger } from "@/components/members/member-status-changer";
+import { MEMBER_STATUS_LABELS } from "@/lib/members/status-labels";
+
+function initials(firstName: string, lastName: string): string {
+  return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "?";
+}
+
+function fmtDate(d: Date | null | undefined): string {
+  if (!d) return "—";
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "UTC" }).format(d);
+}
+
+export default async function MemberDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { workspace, canManage } = await requireMembersContext();
+  const { id } = await params;
+  const member = await getMember(workspace.id, id);
+  if (!member) notFound();
+
+  return (
+    <div className="space-y-10">
+      <PageHeader
+        title={`${member.lastName}, ${member.firstName}`}
+        description={`Socio N° ${member.memberNumber}`}
+        actions={
+          <>
+            <Link href="/members" className="fo-btn fo-btn-secondary text-sm">
+              Volver al padrón
+            </Link>
+            {canManage ? (
+              <Link href={`/members/${member.id}/edit`} className="fo-btn fo-btn-primary text-sm">
+                Editar
+              </Link>
+            ) : null}
+          </>
+        }
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[auto_1fr] lg:items-start">
+        <div
+          className="flex size-20 items-center justify-center rounded-full bg-[var(--fo-accent-muted)] text-2xl font-semibold text-[var(--fo-accent)]"
+          aria-hidden
+        >
+          {initials(member.firstName, member.lastName)}
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-2">
+          <section className="fo-card space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+              Identidad
+            </h2>
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--fo-muted)]">Documento</dt>
+                <dd className="text-[var(--fo-text)] text-right">
+                  {member.documentType || member.documentNumber
+                    ? `${member.documentType ?? ""} ${member.documentNumber ?? ""}`.trim()
+                    : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--fo-muted)]">Fecha de nacimiento</dt>
+                <dd className="text-[var(--fo-text)]">{fmtDate(member.birthDate)}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="fo-card space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+              Contacto
+            </h2>
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--fo-muted)]">Email</dt>
+                <dd className="text-[var(--fo-text)] text-right break-all">{member.email ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--fo-muted)]">Teléfono</dt>
+                <dd className="text-[var(--fo-text)]">{member.phone ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--fo-muted)]">Dirección</dt>
+                <dd className="text-[var(--fo-text)] text-right">
+                  {[member.address, member.city, member.province, member.postalCode]
+                    .filter(Boolean)
+                    .join(", ") || "—"}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="fo-card space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+              Información societaria
+            </h2>
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--fo-muted)]">Número</dt>
+                <dd className="text-[var(--fo-text)] font-mono text-xs">{member.memberNumber}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--fo-muted)]">Categoría</dt>
+                <dd className="text-[var(--fo-text)]">{member.category?.name ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--fo-muted)]">Fecha de ingreso</dt>
+                <dd className="text-[var(--fo-text)]">{fmtDate(member.joinedAt)}</dd>
+              </div>
+              {member.leftAt ? (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[var(--fo-muted)]">Fecha de baja</dt>
+                  <dd className="text-[var(--fo-text)]">{fmtDate(member.leftAt)}</dd>
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <dt className="text-[var(--fo-muted)]">Estado</dt>
+                <dd>
+                  {canManage ? (
+                    <MemberStatusChanger memberId={member.id} status={member.status} />
+                  ) : (
+                    <span className="text-[var(--fo-text)] font-medium">
+                      {MEMBER_STATUS_LABELS[member.status]}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="fo-card space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+              Acceso a FotoOffice
+            </h2>
+            <p className="text-sm text-[var(--fo-text)]">
+              {member.userId ? "Cuenta vinculada" : "Sin cuenta vinculada"}
+            </p>
+            <p className="fo-helper">
+              La invitación para crear o vincular una cuenta todavía no está disponible.
+            </p>
+          </section>
+
+          {member.notes ? (
+            <section className="fo-card space-y-3 sm:col-span-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+                Observaciones
+              </h2>
+              <p className="text-sm text-[var(--fo-text)] whitespace-pre-line leading-relaxed">
+                {member.notes}
+              </p>
+            </section>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
