@@ -5,6 +5,7 @@ import {
   updateCoursesSalesSettingsAction,
   type SettingsFormState,
 } from "@/app/actions/settings";
+import { ImageUploadField } from "@/components/image-upload-field";
 
 const initial: SettingsFormState = { error: null };
 
@@ -62,30 +63,18 @@ export function ModuleSettingsForm({ initialValues }: { initialValues: BrandingI
           <p className="fo-helper">Único en toda la plataforma. Solo minúsculas, números y guiones.</p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2">
-          <div className="fo-field-stack">
-            <label className="fo-label" htmlFor="logoUrl">
-              Logo (URL)
-            </label>
-            <input
-              id="logoUrl"
-              name="logoUrl"
-              type="url"
-              defaultValue={initialValues.logoUrl ?? ""}
-              className="fo-input"
-            />
-          </div>
-          <div className="fo-field-stack">
-            <label className="fo-label" htmlFor="coverImageUrl">
-              Imagen de portada marca (URL)
-            </label>
-            <input
-              id="coverImageUrl"
-              name="coverImageUrl"
-              type="url"
-              defaultValue={initialValues.coverImageUrl ?? ""}
-              className="fo-input"
-            />
-          </div>
+          <ImageUploadField
+            name="logoUrl"
+            presetKey="workspaceLogo"
+            label="Logo"
+            initialUrl={initialValues.logoUrl}
+          />
+          <ImageUploadField
+            name="coverImageUrl"
+            presetKey="workspaceCover"
+            label="Portada"
+            initialUrl={initialValues.coverImageUrl}
+          />
         </div>
       </section>
 
