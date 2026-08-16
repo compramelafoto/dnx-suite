@@ -1,11 +1,15 @@
+import { Fragment } from "react";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { WorkspaceModuleToggle } from "@/components/workspace-module-toggle";
-import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
-import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
+import { listModules } from "@/lib/modules/registry";
 
 export default async function AdminWorkspaceModulesPage() {
+  const availableModules = listModules({ status: "AVAILABLE" });
+  const plannedModules = listModules({ status: "PLANNED" });
+  const availableModuleKeys = availableModules.map((m) => m.key);
+
   type Row = {
     id: string;
     name: string;
@@ -20,8 +24,8 @@ export default async function AdminWorkspaceModulesPage() {
       orderBy: { name: "asc" },
       include: {
         featureModules: {
-            where: { moduleKey: { in: [COURSES_SALES_MODULE_KEY, EVALUACIONES_MODULE_KEY] } },
-            select: { moduleKey: true, enabled: true },
+          where: { moduleKey: { in: availableModuleKeys } },
+          select: { moduleKey: true, enabled: true },
         },
         fotofficeBranding: { select: { publicSlug: true } },
       },
@@ -42,7 +46,7 @@ export default async function AdminWorkspaceModulesPage() {
     <div className="space-y-10">
       <PageHeader
         title="Módulos por workspace"
-        description={`Activá o desactivá los módulos «${COURSES_SALES_MODULE_KEY}» y «${EVALUACIONES_MODULE_KEY}» para cada workspace. Solo SUPER_ADMIN global.`}
+        description="Activá o desactivá los módulos disponibles para cada workspace. Solo SUPER_ADMIN global."
       />
 
       {schemaMissing ? (
@@ -72,59 +76,69 @@ export default async function AdminWorkspaceModulesPage() {
             <tr>
               <th className="px-4 py-3 font-semibold">Workspace</th>
               <th className="px-4 py-3 font-semibold">Slug público</th>
-              <th className="px-4 py-3 font-semibold">Cursos sales</th>
-              <th className="px-4 py-3 font-semibold w-36" />
-              <th className="px-4 py-3 font-semibold">Evaluaciones</th>
-              <th className="px-4 py-3 font-semibold w-36" />
+              {availableModules.map((m) => (
+                <th key={m.key} className="px-4 py-3 font-semibold" colSpan={2} title={m.description}>
+                  {m.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
             {workspaces.map((w) => {
               const enabledByModule = new Map(w.featureModules.map((fm) => [fm.moduleKey, fm.enabled]));
-              const coursesEnabled = enabledByModule.get(COURSES_SALES_MODULE_KEY) === true;
-              const evaluacionesEnabled = enabledByModule.get(EVALUACIONES_MODULE_KEY) === true;
               return (
                 <tr key={w.id} className="hover:bg-[var(--fo-surface-hover)]/60">
                   <td className="px-4 py-3 font-medium text-[var(--fo-text)]">{w.name}</td>
                   <td className="px-4 py-3 text-[var(--fo-muted)] font-mono text-xs">
                     {w.fotofficeBranding?.publicSlug ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-[var(--fo-muted)]">
-                    {coursesEnabled ? (
-                      <span className="text-[var(--fo-success)] font-medium">Activo</span>
-                    ) : (
-                      <span>Inactivo</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <WorkspaceModuleToggle
-                      workspaceId={w.id}
-                      moduleKey={COURSES_SALES_MODULE_KEY}
-                      enabled={coursesEnabled}
-                      disabled={schemaMissing}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-[var(--fo-muted)]">
-                    {evaluacionesEnabled ? (
-                      <span className="text-[var(--fo-success)] font-medium">Activo</span>
-                    ) : (
-                      <span>Inactivo</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <WorkspaceModuleToggle
-                      workspaceId={w.id}
-                      moduleKey={EVALUACIONES_MODULE_KEY}
-                      enabled={evaluacionesEnabled}
-                      disabled={schemaMissing}
-                    />
-                  </td>
+                  {availableModules.map((m) => {
+                    const enabled = enabledByModule.get(m.key) === true;
+                    return (
+                      <Fragment key={m.key}>
+                        <td className="px-4 py-3 text-[var(--fo-muted)]">
+                          {enabled ? (
+                            <span className="text-[var(--fo-success)] font-medium">Activo</span>
+                          ) : (
+                            <span>Inactivo</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <WorkspaceModuleToggle
+                            workspaceId={w.id}
+                            moduleKey={m.key}
+                            enabled={enabled}
+                            disabled={schemaMissing}
+                          />
+                        </td>
+                      </Fragment>
+                    );
+                  })}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {plannedModules.length > 0 ? (
+        <div className="fo-card space-y-2">
+          <h2 className="text-sm font-semibold text-[var(--fo-text)]">
+            Módulos planificados (aún no disponibles)
+          </h2>
+          <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+            Registrados en el catálogo para reservar su clave técnica. No tienen pantalla ni toggle
+            todavía — no aparecen arriba a propósito.
+          </p>
+          <ul className="text-xs text-[var(--fo-muted)] grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
+            {plannedModules.map((m) => (
+              <li key={m.key}>
+                <span className="font-mono">{m.key}</span> — {m.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
