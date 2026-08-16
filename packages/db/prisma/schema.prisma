@@ -119,6 +119,7 @@ model User {
   contactMessages                       ContactMessage[]                       @relation("ContactMessagePhotographer")
   dashboardNotifications                DashboardNotification[]
   fotofficePhotographerProfile          FotofficePhotographerProfile?
+  fotofficeInstitutionalMemberships     Member[]
   clickatonRegistrations                ClickatonRegistration[]                @relation("ClickatonRegistrationParticipant")
   clickatonCheckInsOperated             ClickatonCheckIn[]                     @relation("ClickatonCheckInOperator")
   clickatonCheckInsReversed             ClickatonCheckIn[]                     @relation("ClickatonCheckInReverser")
@@ -6814,6 +6815,8 @@ model Workspace {
   students                    Student[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
+  institutionalMembers        Member[]
+  memberCategories            MemberCategory[]
 }
 
 model WorkspaceFeatureModule {
@@ -6873,6 +6876,108 @@ model FotofficePhotographerProfile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Estado societario. Deliberadamente NO incluye estados de deuda
+/// (el histórico de mayo/2026 tenía OVERDUE/CANCELLED acá, mezclando
+/// "es socio" con "debe dinero" — eso se resuelve en el futuro módulo
+/// `membership-dues`, no acá). Un socio puede estar ACTIVE y tener
+/// cargos vencidos al mismo tiempo.
+/// Sin PENDING a propósito: no existe todavía ningún flujo de
+/// autoregistro/aprobación que lo necesite. Agregarlo después es un
+/// `ALTER TYPE ... ADD VALUE` aditivo y seguro — no hay que anticiparlo.
+enum MemberStatus {
+  ACTIVE
+  SUSPENDED
+  /// Ya no es socio (baja). Se conserva el registro; ver `leftAt`.
+  INACTIVE
+}
+
+/// Categoría de socio, definida libremente por cada Workspace
+/// (ej. "Activo", "Estudiante", "Honorario" en una asociación — pero
+/// el modelo no conoce esos nombres, los define cada institución).
+/// A propósito NO tiene precio/cuota/plantilla de carnet: eso acopla
+/// Members con el futuro módulo de cuotas/credenciales. Tampoco tiene
+/// `metadata` genérica: sin un caso de uso concreto hoy, se prefiere
+/// schema explícito — agregar un campo real es una migración aditiva
+/// simple cuando haga falta.
+model MemberCategory {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  /// Orden de presentación dentro del Workspace (ascendente).
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members   Member[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive])
+  @@index([workspaceId, order])
+}
+
+/// Socio/miembro institucional de un Workspace. Independiente de `User`:
+/// una institución puede tener 300 Member sin que exista una sola cuenta
+/// de FotoOffice — `userId` es un vínculo opcional para cuando (y si) ese
+/// socio decide usar un portal propio. Sin cuotas, pagos ni carnet acá
+/// a propósito (ver justificación de la etapa de dominio base).
+model Member {
+  id          String    @id @default(cuid())
+  workspaceId String
+  /// Número de socio. Único DENTRO del workspace, no globalmente:
+  /// "socio 124 de SFPR" y "socio 124 de otra institución" no colisionan.
+  memberNumber String
+  categoryId   String?
+  firstName    String
+  lastName     String
+  /// DNI/CUIT/pasaporte — el tipo lo define cada institución, no un enum cerrado.
+  documentType String?
+  /// NO único globalmente: dos Workspaces pueden tener socios con el mismo documento.
+  documentNumber String?
+  email          String?
+  phone          String?
+  /// Convención del monorepo para foto de persona (FotofficePhotographerProfile,
+  /// FotorankProfile, FotorankJudgeProfile, BlogAuthor usan el mismo nombre).
+  /// Solo la URL — el upload/storage se resuelve en la etapa de UI, no acá.
+  avatarUrl      String?
+  birthDate      DateTime?
+  address        String?
+  city           String?
+  province       String?
+  postalCode     String?
+  joinedAt       DateTime  @default(now())
+  /// Fecha de baja. Se completa junto con status = INACTIVE; no se borra el registro.
+  leftAt    DateTime?
+  status    MemberStatus @default(ACTIVE)
+  notes     String?
+  /// Vínculo opcional a una cuenta DNX. Un mismo User puede ser Member de
+  /// varios Workspaces distintos (persona socia de dos instituciones),
+  /// pero no puede ser Member dos veces DEL MISMO Workspace — ver
+  /// @@unique([workspaceId, userId]) abajo.
+  userId    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category  MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  /// SetNull, no Cascade: si se borra el User, el registro de socio persiste (era socio antes que usuario).
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, memberNumber])
+  @@unique([workspaceId, email])
+  @@unique([workspaceId, userId])
+  /// Evita duplicar por error el mismo documento dentro de un workspace,
+  /// sin asumir que documentNumber identifica a una persona por sí solo
+  /// (un DNI y un pasaporte pueden coincidir en número por casualidad).
+  @@unique([workspaceId, documentType, documentNumber])
+  @@index([workspaceId, status])
+  @@index([workspaceId, categoryId])
+  @@index([workspaceId, documentNumber])
+  @@index([workspaceId, lastName, firstName])
 }
 
 model CourseSalesWorkspaceSettings {
@@ -8668,12 +8773,15 @@ enum ServiceLeadStatus {
   LOST
 }
 
-enum MemberStatus {
-  ACTIVE
-  OVERDUE
-  SUSPENDED
-  CANCELLED
-}
+/// NOTA (etapa dominio base Members, ver `enum MemberStatus` arriba en el
+/// archivo): el `MemberStatus` histórico que vivía acá (ACTIVE/OVERDUE/
+/// SUSPENDED/CANCELLED) fue reemplazado — mezclaba estado societario con
+/// estado de deuda. La reconciliación del tipo Postgres físico
+/// `"MemberStatus"` (y del resto del dominio Member/MemberCategory) ya fue
+/// aplicada manualmente en staging, validada, y registrada en el historial
+/// de Prisma vía `migrate resolve --applied`. El SQL ejecutado queda
+/// documentado como historial reproducible en
+/// `prisma/migrations/20260815120000_reconcile_member_domain_base/`.
 
 enum MembershipFeeStatus {
   PENDING
