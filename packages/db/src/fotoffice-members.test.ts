@@ -64,6 +64,24 @@ describe("fotoffice-members repository — aislamiento por workspace en código"
     assert.doesNotMatch(type, /\n\s*userId:\s*number/);
   });
 
+  it("bulkCreateMembers usa prisma.$transaction (todo o nada), y setea workspaceId en cada fila", () => {
+    const fn = src.slice(
+      src.indexOf("export function bulkCreateMembers"),
+      src.indexOf("export function listMemberCategories"),
+    );
+    assert.match(fn, /prisma\.\$transaction/);
+    assert.match(fn, /workspaceId,\s*\.\.\.input/);
+  });
+
+  it("listMemberIdentifiersForWorkspace filtra por workspace, no trae datos personales (solo memberNumber/documento)", () => {
+    const fn = src.slice(
+      src.indexOf("export async function listMemberIdentifiersForWorkspace"),
+      src.indexOf("export function listMemberCategories"),
+    );
+    assert.match(fn, /where:\s*\{\s*workspaceId\s*\}/);
+    assert.doesNotMatch(fn, /firstName|lastName|email|phone/);
+  });
+
   it("createMember siempre setea workspaceId en el data", () => {
     const fn = fnBody("function createMember", "export async function updateMember");
     assert.match(fn, /data:\s*\{\s*workspaceId,/);

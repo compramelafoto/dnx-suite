@@ -47,6 +47,9 @@ export default async function MembersPage({
               <Link href="/members/categories" className="fo-btn fo-btn-secondary text-sm">
                 Categorías
               </Link>
+              <Link href="/members/import" className="fo-btn fo-btn-secondary text-sm">
+                Importar socios
+              </Link>
               <Link href="/members/new" className="fo-btn fo-btn-primary text-sm">
                 Nuevo socio
               </Link>

@@ -128,6 +128,21 @@ export function createMember(workspaceId: string, input: CreateMemberInput): Pro
 }
 
 /**
+ * Import masivo: TODO o NADA. `$transaction` con un array de operaciones es
+ * atómico — si cualquier `create` falla (ej. una constraint unique que
+ * escapó a la validación previa por una carrera entre la validación y la
+ * confirmación), Postgres revierte el batch completo, no quedan filas
+ * parciales. No usar el modo callback acá: no hace falta lógica entre
+ * pasos, y el modo array es más simple de razonar para "todo o nada".
+ */
+export function bulkCreateMembers(
+  workspaceId: string,
+  inputs: CreateMemberInput[],
+): Promise<Member[]> {
+  return prisma.$transaction(inputs.map((input) => prisma.member.create({ data: { workspaceId, ...input } })));
+}
+
+/**
  * `updateMany` con `{ id, workspaceId }`: si `memberId` pertenece a otro
  * workspace, matchea 0 filas y no toca nada — nunca `update({ where: { id } })`.
  * Devuelve `null` si no matcheó (no encontrado O de otro workspace, misma respuesta).
@@ -140,6 +155,27 @@ export async function updateMember(
   const result = await prisma.member.updateMany({ where: { id: memberId, workspaceId }, data });
   if (result.count === 0) return null;
   return getMember(workspaceId, memberId);
+}
+
+/**
+ * Solo lo mínimo para chequear duplicados antes de un import masivo — nunca
+ * trae filas completas (ni datos personales) para esto.
+ */
+export async function listMemberIdentifiersForWorkspace(
+  workspaceId: string,
+): Promise<{ memberNumbers: string[]; documents: { documentType: string; documentNumber: string }[] }> {
+  const rows = await prisma.member.findMany({
+    where: { workspaceId },
+    select: { memberNumber: true, documentType: true, documentNumber: true },
+  });
+  return {
+    memberNumbers: rows.map((r) => r.memberNumber),
+    documents: rows
+      .filter((r): r is typeof r & { documentType: string; documentNumber: string } =>
+        Boolean(r.documentType && r.documentNumber),
+      )
+      .map((r) => ({ documentType: r.documentType, documentNumber: r.documentNumber })),
+  };
 }
 
 export function listMemberCategories(

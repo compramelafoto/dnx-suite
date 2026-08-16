@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",
+    "papaparse": "^5.5.4",
     "@repo/auth": "workspace:*",
     "@repo/auth-ui": "workspace:*",
     "@repo/db": "workspace:*",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
+    "@types/papaparse": "^5.5.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
