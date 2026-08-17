@@ -109,14 +109,19 @@ export function resolveAutosaveCoverImageId(
 
 /**
  * Un autosave con cuerpo vacío nunca debe borrar un cuerpo ya persistido:
- * puede ser un payload atrasado o un ciclo de hidratación incompleto.
+ * puede ser un payload atrasado o un ciclo de hidratación incompleto. Un
+ * cuerpo no vacío siempre gana (edición real más reciente). Solo con
+ * `contentCleared` explícito (el redactor vació el editor a propósito, ver
+ * `contentTouchedRef` en article-form.tsx) se permite persistir vacío.
  */
 export function resolveAutosaveContent(
   incomingContent: string,
   existingContent: string | null | undefined,
+  contentCleared = false,
 ): string {
-  const preserve = !incomingContent.trim() && Boolean(existingContent?.trim());
-  return preserve ? (existingContent as string) : incomingContent;
+  if (incomingContent.trim()) return incomingContent;
+  if (contentCleared) return incomingContent;
+  return existingContent?.trim() ? (existingContent as string) : incomingContent;
 }
 
 /** Un categoryId ausente/vacío conserva la categoría ya elegida. */

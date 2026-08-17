@@ -259,6 +259,13 @@ export function ArticleForm({
   const locationClearedRef = useRef(false);
   /** true solo tras «Eliminar portada» — permite persistir coverImageId null. */
   const coverImageClearedRef = useRef(false);
+  /**
+   * true solo si el cuerpo fue tocado por una edición real del editor
+   * (onUpdate de Tiptap, nunca por la hidratación inicial). Sin esto, un
+   * `content` vacío en el primer render (props de servidor incompletas)
+   * sería indistinguible de que el redactor vació el cuerpo a propósito.
+   */
+  const contentTouchedRef = useRef(false);
   const saveStateRef = useRef<SaveState>("idle");
   saveStateRef.current = saveState;
   const [previewPending, setPreviewPending] = useState(false);
@@ -458,6 +465,7 @@ export function ArticleForm({
         slug: (snap.slug || snap.autoSlug || "sin-titulo").trim(),
         excerpt: snap.excerpt,
         content: snap.content,
+        contentCleared: contentTouchedRef.current && !snap.content.trim() ? "1" : undefined,
         categoryId: snap.categoryId || "",
         coverImageId: snap.coverImageId || null,
         coverCredit: snap.coverImageId ? snap.coverCredit : undefined,
@@ -1234,8 +1242,12 @@ export function ArticleForm({
                   return;
                 }
                 setPreviewPending(true);
-                void flushPendingSave().finally(() => {
+                void flushPendingSave().then(() => {
                   setPreviewPending(false);
+                  // Si el guardado terminó en error, no navegar: el contenido
+                  // local queda intacto y el error ya se muestra arriba
+                  // (toolbar de guardado), accionable antes de reintentar.
+                  if (saveStateRef.current === "error") return;
                   router.push(previewHref);
                 });
               }}
@@ -1477,6 +1489,7 @@ export function ArticleForm({
               initialMarkdown={content}
               articleId={initial?.id}
               onMarkdownChange={(md) => {
+                contentTouchedRef.current = true;
                 touchDraft({ content: md });
                 setContent(md);
               }}

@@ -374,6 +374,8 @@ export type AutosaveDraftPayload = {
   coverCaption?: string;
   /** "1" = el redactor quitó la portada a propósito («Eliminar portada»). */
   coverImageCleared?: string | null;
+  /** "1" = el redactor vació el cuerpo a propósito (edición real, no hidratación incompleta). */
+  contentCleared?: string | null;
   seoTitle?: string;
   seoDescription?: string;
   sourceName?: string;
@@ -418,6 +420,20 @@ export async function autosaveArticleDraftAction(
   input: FormData | AutosaveDraftPayload,
 ): Promise<ActionResult> {
   const access = await requireInfoSpotRedaccionAccess();
+  return autosaveArticleDraftActionWithAccess(access, articleId, input);
+}
+
+/**
+ * Lógica de negocio del autosave, separada del chequeo de auth (que usa
+ * `next/headers` y solo funciona dentro de un request real de Next). Permite
+ * testear el contrato del servidor —incluida la concurrencia— contra una DB
+ * real desde un script, inyectando un `access` ya resuelto.
+ */
+export async function autosaveArticleDraftActionWithAccess(
+  access: InfoSpotAccessContext,
+  articleId: string,
+  input: FormData | AutosaveDraftPayload,
+): Promise<ActionResult> {
   const existing = await prisma.infoSpotArticle.findUnique({
     where: { id: articleId },
     select: {
@@ -480,22 +496,24 @@ export async function autosaveArticleDraftAction(
   }
 
   const data = parsed.data;
-  if (data.expectedUpdatedAt) {
-    const expected = new Date(data.expectedUpdatedAt).getTime();
-    const current = existing.updatedAt.getTime();
-    if (!Number.isNaN(expected) && current > expected + 500) {
-      return {
-        ok: false,
-        error: "Hay una versión más nueva. Recargá la página antes de seguir editando.",
-      };
-    }
-  }
+  // Control de concurrencia optimista: `updatedAt` (timestamp(3), coincide
+  // exacto con el ISO string que maneja el cliente) actúa como versión. La
+  // comparación con tolerancia de 500ms que había antes dejaba pasar sin
+  // rechazo cualquier par de requests que terminaran a menos de 500ms uno
+  // del otro — exactamente el caso de dos autosaves compitiendo — y el más
+  // atrasado podía pisar contenido más nuevo. Ahora el WHERE del UPDATE
+  // exige la versión exacta conocida por el cliente (compare-and-swap
+  // atómico a nivel DB, sin ventana entre el check y el write).
+  const expectedUpdatedAtDate = data.expectedUpdatedAt ? new Date(data.expectedUpdatedAt) : null;
+  const hasValidExpectedUpdatedAt =
+    expectedUpdatedAtDate != null && !Number.isNaN(expectedUpdatedAtDate.getTime());
 
   // No permitir que un autosave stale (o de una hidratación incompleta) borre
   // contenido, portada o ubicación ya persistidos. Ausente/vacío != eliminado.
   const incomingContent =
     typeof raw.content === "string" ? raw.content : data.content || "";
-  const contentToPersist = resolveAutosaveContent(incomingContent, existing.content);
+  const contentCleared = raw.contentCleared === "1";
+  const contentToPersist = resolveAutosaveContent(incomingContent, existing.content, contentCleared);
 
   const coverImageCleared = raw.coverImageCleared === "1";
   const nextCoverImageId = resolveAutosaveCoverImageId(
@@ -511,8 +529,15 @@ export async function autosaveArticleDraftAction(
 
   const nextCategoryId = resolveAutosaveCategoryId(data.categoryId, existing.categoryId);
 
-  const article = await prisma.infoSpotArticle.update({
-    where: { id: articleId },
+  const updateResult = await prisma.infoSpotArticle.updateMany({
+    where: {
+      id: articleId,
+      // CAS: solo escribe si `updatedAt` sigue siendo el que el cliente
+      // conocía. Si otro autosave (u otra pestaña) ya avanzó la versión,
+      // el WHERE no matchea nada y count queda en 0 — atómico, sin carrera
+      // entre leer `existing` arriba y escribir acá.
+      ...(hasValidExpectedUpdatedAt ? { updatedAt: expectedUpdatedAtDate as Date } : {}),
+    },
     data: {
       title: data.title,
       slug,
@@ -531,6 +556,23 @@ export async function autosaveArticleDraftAction(
       sourceUrl: data.sourceUrl ?? null,
       status: nextStatus,
     },
+  });
+
+  if (updateResult.count === 0) {
+    const stillExists = await prisma.infoSpotArticle.findUnique({
+      where: { id: articleId },
+      select: { id: true },
+    });
+    if (!stillExists) return { ok: false, error: "Noticia no encontrada." };
+    return {
+      ok: false,
+      error: "Hay una versión más nueva. Recargá la página antes de seguir editando.",
+    };
+  }
+
+  const article = await prisma.infoSpotArticle.findUniqueOrThrow({
+    where: { id: articleId },
+    select: { id: true, updatedAt: true },
   });
 
   if (nextCoverImageId && ("coverCredit" in raw || "coverCaption" in raw)) {

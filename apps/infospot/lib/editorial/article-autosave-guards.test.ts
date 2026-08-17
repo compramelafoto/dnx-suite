@@ -198,4 +198,58 @@ const emptyLocation: ExistingLocationForGuard = {
   assert.equal(present.has("geographicScope"), true);
 }
 
+// --- 14. Contenido: sin señal explícita, vaciar el cuerpo NO se persiste
+// (evita que un payload accidentalmente vacío borre contenido real) ---
+{
+  assert.equal(
+    resolveAutosaveContent("", "Cuerpo persistido con contenido real.", false),
+    "Cuerpo persistido con contenido real.",
+  );
+}
+
+// --- 15. Contenido: con contentCleared explícito, vaciar el cuerpo SÍ se persiste
+// (eliminación deliberada — el redactor lo vació y guardó así a propósito) ---
+{
+  assert.equal(
+    resolveAutosaveContent("", "Cuerpo persistido con contenido real.", true),
+    "",
+  );
+}
+
+// --- 16. Precedencia / payloads contradictorios: un valor nuevo real siempre
+// gana sobre una señal de eliminación desactualizada — nunca se descarta
+// silenciosamente una edición real por una bandera "cleared" residual. ---
+{
+  // Portada nueva + coverImageCleared="1" simultáneos: gana la portada nueva.
+  assert.equal(resolveAutosaveCoverImageId("asset-nuevo", "asset-1", true), "asset-nuevo");
+
+  // Contenido nuevo + contentCleared="1" simultáneos: gana el contenido nuevo.
+  assert.equal(
+    resolveAutosaveContent("Texto nuevo real.", "Texto viejo.", true),
+    "Texto nuevo real.",
+  );
+
+  // Ubicación: locationCleared="1" pero con una ciudad nueva no vacía en el
+  // mismo payload — la ciudad nueva se escribe (progresión coherente:
+  // "empecé de nuevo y ya cargué la ciudad"), los campos que siguen vacíos
+  // quedan nulos porque locationCleared desactiva la preservación.
+  {
+    const raw = {
+      geographicScope: "",
+      countryCode: "AR",
+      countryName: "Argentina",
+      province: "",
+      city: "Funes",
+      placeName: "",
+      address: "",
+      formattedAddress: "",
+      latitude: "",
+      longitude: "",
+    };
+    const present = resolveLocationPresentKeys(raw, fullLocation, true);
+    assert.equal(present.has("city"), true, "la ciudad nueva no debe descartarse");
+    assert.equal(present.has("province"), true, "cleared desactiva la preservación del resto");
+  }
+}
+
 console.log("article-autosave-guards tests: ok");
