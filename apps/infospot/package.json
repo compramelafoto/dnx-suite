@@ -81,6 +81,7 @@
     "@repo/editor": "workspace:^",
     "@repo/geo": "workspace:*",
     "@repo/editorial-intelligence": "workspace:*",
+    "@repo/partners": "workspace:*",
     "@repo/recommendations": "workspace:*",
     "@repo/notifications": "workspace:*",
     "@tiptap/core": "^2.11.5",
