@@ -16,6 +16,12 @@ import { ensureUniqueSlug } from "@/lib/articles";
 import { slugifyTitle } from "@/lib/slug";
 import { encodeGeohash } from "@/lib/geolocation/geohash";
 import { isGeographicScope } from "@/lib/editorial/article-location";
+import {
+  resolveAutosaveCategoryId,
+  resolveAutosaveContent,
+  resolveAutosaveCoverImageId,
+  resolveLocationPresentKeys,
+} from "@/lib/editorial/article-autosave-guards";
 
 export type ActionResult =
   | { ok: true; id?: string; message: string; updatedAt?: string }
@@ -33,19 +39,6 @@ type LocationWriteInput = {
   latitude?: number | null;
   longitude?: number | null;
 };
-
-const LOCATION_RAW_KEYS = [
-  "geographicScope",
-  "countryCode",
-  "countryName",
-  "province",
-  "city",
-  "placeName",
-  "address",
-  "formattedAddress",
-  "latitude",
-  "longitude",
-] as const;
 
 function articleLocationWriteData(
   data: LocationWriteInput,
@@ -379,6 +372,8 @@ export type AutosaveDraftPayload = {
   coverImageId?: string | null;
   coverCredit?: string;
   coverCaption?: string;
+  /** "1" = el redactor quitó la portada a propósito («Eliminar portada»). */
+  coverImageCleared?: string | null;
   seoTitle?: string;
   seoDescription?: string;
   sourceName?: string;
@@ -418,14 +413,6 @@ function normalizeAutosaveRaw(
   return out;
 }
 
-function locationKeysPresentInRaw(raw: Record<string, string>): Set<string> {
-  const present = new Set<string>();
-  for (const key of LOCATION_RAW_KEYS) {
-    if (key in raw) present.add(key);
-  }
-  return present;
-}
-
 export async function autosaveArticleDraftAction(
   articleId: string,
   input: FormData | AutosaveDraftPayload,
@@ -446,6 +433,15 @@ export async function autosaveArticleDraftAction(
       content: true,
       geographicScope: true,
       categoryId: true,
+      countryCode: true,
+      countryName: true,
+      province: true,
+      city: true,
+      placeName: true,
+      address: true,
+      formattedAddress: true,
+      latitude: true,
+      longitude: true,
     },
   });
   if (!existing) return { ok: false, error: "Noticia no encontrada." };
@@ -495,33 +491,25 @@ export async function autosaveArticleDraftAction(
     }
   }
 
-  // No permitir que un autosave stale con body vacío borre contenido ya persistido.
+  // No permitir que un autosave stale (o de una hidratación incompleta) borre
+  // contenido, portada o ubicación ya persistidos. Ausente/vacío != eliminado.
   const incomingContent =
     typeof raw.content === "string" ? raw.content : data.content || "";
-  const preserveContent =
-    !incomingContent.trim() &&
-    Boolean(existing.content?.trim()) &&
-    existing.content.trim().length > 40;
-  const contentToPersist = preserveContent ? existing.content : incomingContent;
+  const contentToPersist = resolveAutosaveContent(incomingContent, existing.content);
+
+  const coverImageCleared = raw.coverImageCleared === "1";
+  const nextCoverImageId = resolveAutosaveCoverImageId(
+    data.coverImageId,
+    existing.coverImageId,
+    coverImageCleared,
+  );
+  const coverChanged = nextCoverImageId !== existing.coverImageId;
 
   const slug = await ensureUniqueSlug(data.slug || slugifyTitle(data.title), articleId);
-  const coverChanged = data.coverImageId !== existing.coverImageId;
-  const locationPresent = locationKeysPresentInRaw(raw);
   const locationCleared = raw.locationCleared === "1";
+  const locationPresent = resolveLocationPresentKeys(raw, existing, locationCleared);
 
-  // No borrar un alcance ya guardado con un autosave stale que manda "".
-  if (
-    locationPresent.has("geographicScope") &&
-    !isGeographicScope(raw.geographicScope) &&
-    !locationCleared &&
-    existing.geographicScope
-  ) {
-    locationPresent.delete("geographicScope");
-  }
-
-  // Un autosave stale con categoryId vacío no debe borrar la categoría ya elegida.
-  const nextCategoryId =
-    data.categoryId || existing.categoryId || null;
+  const nextCategoryId = resolveAutosaveCategoryId(data.categoryId, existing.categoryId);
 
   const article = await prisma.infoSpotArticle.update({
     where: { id: articleId },
@@ -531,9 +519,9 @@ export async function autosaveArticleDraftAction(
       excerpt: data.excerpt || null,
       content: contentToPersist,
       categoryId: nextCategoryId,
-      coverImageId: data.coverImageId,
+      coverImageId: nextCoverImageId,
       ...(coverChanged
-        ? { coverOverridden: Boolean(data.coverImageId) || existing.coverOverridden }
+        ? { coverOverridden: Boolean(nextCoverImageId) || existing.coverOverridden }
         : {}),
       ...articleLocationWriteData(data, locationPresent),
       seoTitle: data.seoTitle ?? null,
@@ -545,8 +533,8 @@ export async function autosaveArticleDraftAction(
     },
   });
 
-  if (data.coverImageId && ("coverCredit" in raw || "coverCaption" in raw)) {
-    await persistCoverAssetMeta(data.coverImageId, articleId, {
+  if (nextCoverImageId && ("coverCredit" in raw || "coverCaption" in raw)) {
+    await persistCoverAssetMeta(nextCoverImageId, articleId, {
       credit: "coverCredit" in raw ? (raw.coverCredit ?? "") : data.coverCredit,
       caption: "coverCaption" in raw ? (raw.coverCaption ?? "") : data.coverCaption,
     });
