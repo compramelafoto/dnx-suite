@@ -460,6 +460,50 @@ async function main() {
     assert.equal(after.clfAlbumId, 999999);
   });
 
+  // --- 10. Bloque de galería conviviendo con imagen suelta y video en el
+  // mismo cuerpo: sobrevive el guardado byte a byte, sin perder ninguno. ---
+  await scenario(
+    "bloque de galería convive con imagen suelta y video existentes, sin pérdidas",
+    async () => {
+      const article = await createFixtureArticle({ suffix: "bloque-galeria", authorId });
+      const richContent = [
+        "Intro con galería.",
+        "",
+        '<figure data-editorial-image="true" data-asset-id="asset-99" data-credit="Foto: Redacción" data-caption="Epígrafe" class="is-editorial-figure"><img src="https://cdn.example/a.jpg" alt="Alt" loading="lazy" decoding="async" /><figcaption class="is-figcaption"><span data-caption="true" class="is-caption">Epígrafe</span><span data-credit-text="true" class="is-credit">Foto: Redacción</span></figcaption></figure>',
+        "",
+        '<figure data-editorial-gallery="true" class="is-editorial-gallery" data-gallery-id="gal-1" data-gallery-title="Cobertura" data-autoplay="true" data-interval-ms="5000" data-loop="true"><ol data-gallery-images="true"><li data-gallery-image="true" data-item-id="a" data-source="INFOSPOT" data-asset-id="asset-1" data-alt="Foto 1"><img src="https://cdn.example/g1.jpg" alt="Foto 1" loading="lazy" decoding="async" draggable="false"/></li><li data-gallery-image="true" data-item-id="b" data-source="CLF" data-photo-id="photo-1" data-alt="Foto 2"><img src="" alt="Foto 2" loading="lazy" decoding="async" draggable="false"/></li></ol></figure>',
+        "",
+        '<figure data-editorial-video="true" data-provider="youtube" data-video-id="dQw4w9WgXcQ" data-url="https://www.youtube.com/watch?v=dQw4w9WgXcQ" class="is-editorial-video"><a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener noreferrer" data-video-fallback="true">Ver video en YouTube</a></figure>',
+        "",
+        "Cierre.",
+      ].join("\n");
+
+      const result = await autosaveArticleDraftActionWithAccess(
+        fakeAccess,
+        article.id,
+        payload({ content: richContent }),
+      );
+      assert.equal(result.ok, true);
+
+      const after = await prisma.infoSpotArticle.findUniqueOrThrow({ where: { id: article.id } });
+      assert.equal(
+        after.content,
+        richContent,
+        "galería + imagen suelta + video deben persistirse byte a byte, ninguno pisa al otro",
+      );
+
+      // Reguardar sin tocar el cuerpo (autosave parcial de otro campo) no debe alterarlo.
+      const second = await autosaveArticleDraftActionWithAccess(
+        fakeAccess,
+        article.id,
+        payload({ content: after.content, expectedUpdatedAt: after.updatedAt.toISOString() }),
+      );
+      assert.equal(second.ok, true);
+      const final = await prisma.infoSpotArticle.findUniqueOrThrow({ where: { id: article.id } });
+      assert.equal(final.content, richContent, "un segundo guardado no debe degradar el bloque de galería");
+    },
+  );
+
   console.log(`\n${passed} escenarios de integración OK contra ${rawUrl.replace(/:\/\/[^@]+@/, "://***@")}`);
 }
 
