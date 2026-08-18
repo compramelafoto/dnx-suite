@@ -6,6 +6,7 @@ import { CategoryBadge } from "@/components/editorial/category-badge";
 import { AuthorByline } from "@/components/editorial/author-byline";
 import { ArticleMetadata } from "@/components/editorial/article-metadata";
 import { EditorialImage } from "@/components/editorial/editorial-image";
+import { PhotoCaptureNotice } from "@/components/editorial-photos/photo-capture-notice";
 import { ShareActions } from "@/components/editorial/share-actions";
 import { RelatedArticles } from "@/components/editorial/related-articles";
 import { AlbumCommerceCta } from "@/components/public/album-commerce-cta";
@@ -91,6 +92,7 @@ export function ArticleView({
   return (
     <>
       <ContentViewTracker kind="ARTICLE_VIEW" articleId={article.id} />
+      <PhotoCaptureNotice />
 
       <ArticleBodyContainer className="pt-10 md:pt-14">
         {badge ? (

@@ -1,19 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+export const PHOTO_PROTECTION_LEGAL_TEXT =
+  "Fotografía protegida por derechos de autor. No está permitida su copia, descarga, " +
+  "reproducción ni utilización sin autorización de su autor o titular. Podés solicitar " +
+  "su licencia o adquirirla mediante ComprameLaFoto.";
+
 type Props = {
-  photographerName: string;
-  credit: string;
+  photographerName?: string | null;
+  credit?: string | null;
   children: ReactNode;
   purchaseHref?: string | null;
   albumHref?: string | null;
+  /** Ej.: para que un carrusel contenedor pause el autoplay mientras se ve el aviso. */
+  onNoticeChange?: (visible: boolean) => void;
 };
 
 /**
- * Protección disuasoria: no draggable, sin menú contextual nativo,
- * aviso con autor + CTA. No afirma imposibilidad de captura.
+ * Protección disuasoria de una fotografía editorial: sin menú contextual
+ * nativo, sin arrastre, sin selección, con aviso legal claro al intentar
+ * copiarla. No afirma ni promete imposibilidad de captura de pantalla —
+ * eso es técnicamente indetectable/inevitable a nivel de página web.
  */
 export function ProtectedEditorialImage({
   photographerName,
@@ -21,19 +30,37 @@ export function ProtectedEditorialImage({
   children,
   purchaseHref,
   albumHref,
+  onNoticeChange,
 }: Props) {
   const [notice, setNotice] = useState(false);
+  const attribution = credit || (photographerName ? `Foto: ${photographerName}` : null);
+  const onNoticeChangeRef = useRef(onNoticeChange);
+  onNoticeChangeRef.current = onNoticeChange;
+
+  function updateNotice(visible: boolean) {
+    setNotice(visible);
+    onNoticeChange?.(visible);
+  }
+
+  // Si el nodo se desmonta (p. ej. el carrusel lo saca de la ventana de
+  // precarga) mientras el aviso estaba abierto, avisar igual que se cerró
+  // — evita que el contenedor quede "pausado" para siempre.
+  useEffect(() => {
+    return () => {
+      if (notice) onNoticeChangeRef.current?.(false);
+    };
+  }, [notice]);
 
   return (
     <div
-      className="relative"
+      className="relative h-full w-full"
       onContextMenu={(e) => {
         e.preventDefault();
-        setNotice(true);
+        updateNotice(true);
       }}
     >
       <div
-        className="select-none"
+        className="h-full w-full select-none"
         draggable={false}
         onDragStart={(e) => e.preventDefault()}
         style={{ WebkitUserDrag: "none" } as React.CSSProperties}
@@ -43,11 +70,14 @@ export function ProtectedEditorialImage({
       {notice ? (
         <div
           role="dialog"
+          aria-modal="false"
+          aria-label="Aviso de protección de fotografía"
           className="absolute inset-x-4 bottom-4 z-10 rounded-[var(--is-radius)] border border-[var(--is-border)] bg-white/95 p-4 text-sm shadow-lg backdrop-blur"
         >
-          <p className="font-medium">Fotografía de {photographerName}.</p>
-          <p className="mt-1 text-[var(--is-muted)]">Disponible en ComprameLaFoto.</p>
-          <p className="mt-1 text-xs text-[var(--is-muted)]">{credit}</p>
+          <p className="font-medium">{PHOTO_PROTECTION_LEGAL_TEXT}</p>
+          {attribution ? (
+            <p className="mt-1 text-xs text-[var(--is-muted)]">{attribution}</p>
+          ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             {purchaseHref ? (
               <a
@@ -55,7 +85,7 @@ export function ProtectedEditorialImage({
                 className="rounded bg-[var(--is-accent)] px-3 py-2 text-xs font-semibold text-white"
                 rel="noopener noreferrer"
               >
-                Ver y comprar esta foto
+                Ver opciones de compra
               </a>
             ) : null}
             {albumHref ? (
@@ -70,9 +100,10 @@ export function ProtectedEditorialImage({
             <button
               type="button"
               className="rounded border border-[var(--is-border)] px-3 py-2 text-xs"
-              onClick={() => setNotice(false)}
+              onClick={() => updateNotice(false)}
+              autoFocus
             >
-              Cerrar
+              Entendido
             </button>
           </div>
         </div>

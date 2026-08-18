@@ -1,5 +1,6 @@
 import { ImageCaption } from "@/components/editorial/ImageCaption";
 import { cx } from "@/components/foundations/cx";
+import { ProtectedEditorialImage } from "@/components/editorial-photos/protected-editorial-image";
 
 type AspectRatio = "hero" | "feature" | "card" | "wide" | "square" | "auto" | string;
 
@@ -59,16 +60,18 @@ export function EditorialImage({
           resolveAspect(resolvedAspect),
         )}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- allow arbitrary editorial sources */}
-        <img
-          src={src}
-          alt={alt || caption || ""}
-          className="h-full w-full object-cover select-none"
-          draggable={false}
-          loading={priority ? "eager" : "lazy"}
-          decoding={priority ? "sync" : "async"}
-          sizes={sizes}
-        />
+        <ProtectedEditorialImage photographerName={photographerName} credit={resolvedCredit}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- allow arbitrary editorial sources */}
+          <img
+            src={src}
+            alt={alt || caption || ""}
+            className="h-full w-full object-cover select-none"
+            draggable={false}
+            loading={priority ? "eager" : "lazy"}
+            decoding={priority ? "sync" : "async"}
+            sizes={sizes}
+          />
+        </ProtectedEditorialImage>
       </div>
       <ImageCaption
         caption={caption}
