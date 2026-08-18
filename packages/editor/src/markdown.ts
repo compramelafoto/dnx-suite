@@ -26,6 +26,16 @@ function createTurndown(): TurndownService {
     },
   });
 
+  service.addRule("editorialVideo", {
+    filter: (node) =>
+      node.nodeName === "FIGURE" &&
+      (node as HTMLElement).getAttribute("data-editorial-video") === "true",
+    replacement: (_content, node) => {
+      const el = node as HTMLElement;
+      return `\n\n${el.outerHTML}\n\n`;
+    },
+  });
+
   service.addRule("strikethrough", {
     filter: ["del", "s"],
     replacement: (content) => content,
