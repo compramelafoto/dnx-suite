@@ -4,6 +4,7 @@ import { prisma } from "@repo/db";
 import { requireAuth, type AuthUser } from "./auth";
 import { COURSES_SALES_MODULE_KEY, FOTOFFICE_WORKSPACE_COOKIE } from "./courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "./evaluaciones/constants";
+import { WEBSITE_MODULE_KEY } from "./website/constants";
 import { isModuleEnabledForWorkspace } from "./modules/gating";
 
 export type ActiveWorkspace = {
@@ -156,4 +157,12 @@ export async function requireEvaluacionesContext(): Promise<{
   workspace: ActiveWorkspace;
 }> {
   return requireModuleContext(EVALUACIONES_MODULE_KEY, "/dashboard?evaluaciones=off");
+}
+
+/** Exige módulo website activo en el workspace actual. */
+export async function requireWebsiteContext(): Promise<{
+  user: AuthUser;
+  workspace: ActiveWorkspace;
+}> {
+  return requireModuleContext(WEBSITE_MODULE_KEY, "/dashboard?website=off");
 }

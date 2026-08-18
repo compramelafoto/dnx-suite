@@ -97,4 +97,44 @@ describe("getEnabledModuleKeysForWorkspace", () => {
     expect(setA.has("courses-sales")).toBe(true);
     expect(setB.has("courses-sales")).toBe(false);
   });
+
+  describe("caso SFPR: courses-sales=false, evaluaciones=false, members=true", () => {
+    it("el set habilitado solo contiene members — Cursos y Evaluaciones deben ocultarse en el nav", async () => {
+      findManyMock.mockResolvedValueOnce([{ moduleKey: "members" }]);
+      const set = await getEnabledModuleKeysForWorkspace("ws-sfpr");
+      expect(set.has("members")).toBe(true);
+      expect(set.has("courses-sales")).toBe(false);
+      expect(set.has("evaluaciones")).toBe(false);
+    });
+
+    it("con TODOS los módulos apagados, el set queda vacío (Configuración no depende de este set)", async () => {
+      findManyMock.mockResolvedValueOnce([]);
+      const set = await getEnabledModuleKeysForWorkspace("ws-sfpr");
+      expect(set.size).toBe(0);
+    });
+  });
+
+  describe("módulo website: independencia de otros módulos", () => {
+    it("website=true con courses-sales/evaluaciones/members=false: solo website queda habilitado", async () => {
+      findManyMock.mockResolvedValueOnce([{ moduleKey: "website" }]);
+      const set = await getEnabledModuleKeysForWorkspace("ws-a");
+      expect(set.has("website")).toBe(true);
+      expect(set.has("courses-sales")).toBe(false);
+      expect(set.has("evaluaciones")).toBe(false);
+      expect(set.has("members")).toBe(false);
+    });
+
+    it("website=false con todo lo demás encendido: los demás módulos no se ven afectados", async () => {
+      findManyMock.mockResolvedValueOnce([
+        { moduleKey: "courses-sales" },
+        { moduleKey: "evaluaciones" },
+        { moduleKey: "members" },
+      ]);
+      const set = await getEnabledModuleKeysForWorkspace("ws-a");
+      expect(set.has("website")).toBe(false);
+      expect(set.has("courses-sales")).toBe(true);
+      expect(set.has("evaluaciones")).toBe(true);
+      expect(set.has("members")).toBe(true);
+    });
+  });
 });

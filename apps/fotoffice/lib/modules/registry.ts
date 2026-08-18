@@ -1,6 +1,7 @@
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -59,6 +60,15 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 20,
     route: "/evaluaciones",
+    status: "AVAILABLE",
+  },
+  {
+    key: WEBSITE_MODULE_KEY,
+    label: "Sitio web",
+    description: "Sitio público del workspace: portada, secciones y datos de publicación.",
+    category: "GENERAL",
+    order: 25,
+    route: "/website",
     status: "AVAILABLE",
   },
 
