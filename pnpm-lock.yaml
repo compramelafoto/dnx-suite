@@ -1201,15 +1201,24 @@ importers:
         specifier: ^7.2.0
         version: 7.2.4
     devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
       '@types/sanitize-html':
         specifier: ^2.16.1
         version: 2.16.1
       '@types/turndown':
         specifier: ^5.0.5
         version: 5.0.6
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
       typescript:
         specifier: 5.9.2
         version: 5.9.2

@@ -23,6 +23,23 @@ type Props = {
     deliverySrc: string | null;
     usageType: string;
   }) => void;
+  /**
+   * Modo galería: selección múltiple por click (toggle), sin exigir alt
+   * text previo — el alt de cada foto se completa después en la lista de
+   * trabajo del bloque de galería. Oculta el selector de "Uso" (siempre
+   * INLINE, igual que una imagen suelta del cuerpo).
+   */
+  multiple?: boolean;
+  /** ids CLF ya agregados a la galería en curso — se muestran marcados. */
+  selectedPhotoIds?: Set<number>;
+  onToggle?: (input: {
+    clfPhotoId: number;
+    photoId: string;
+    deliverySrc: string | null;
+    photographerName: string;
+    usageId: string | null;
+    selected: boolean;
+  }) => void;
 };
 
 /**
@@ -35,6 +52,9 @@ export function ClfEditorialPhotoSelector({
   coverageId,
   defaultUsage = "INLINE",
   onSelected,
+  multiple = false,
+  selectedPhotoIds,
+  onToggle,
 }: Props) {
   const [photos, setPhotos] = useState<PhotoHit[]>([]);
   const [cursor, setCursor] = useState<number | null>(null);
@@ -87,11 +107,25 @@ export function ClfEditorialPhotoSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- carga inicial por álbum
   }, [albumId]);
 
-  const select = (photoId: number) => {
+  const select = (photoId: number, photographerName: string) => {
+    if (multiple && selectedPhotoIds?.has(photoId)) {
+      // Deselección: la lista de trabajo del diálogo decide si limpia el
+      // usage en servidor o lo deja (idempotente, sin costo de mostrarlo).
+      onToggle?.({
+        clfPhotoId: photoId,
+        photoId: "",
+        deliverySrc: null,
+        photographerName,
+        usageId: null,
+        selected: false,
+      });
+      return;
+    }
+
     startTransition(async () => {
       setError(null);
       const trimmedAlt = altText.trim();
-      if (!trimmedAlt) {
+      if (!multiple && !trimmedAlt) {
         setError("Completá la descripción (alt text) antes de seleccionar la foto.");
         return;
       }
@@ -99,11 +133,22 @@ export function ClfEditorialPhotoSelector({
         clfPhotoId: photoId,
         articleId,
         coverageId,
-        usageType: usage,
-        altText: trimmedAlt,
+        usageType: multiple ? "INLINE" : usage,
+        altText: trimmedAlt || undefined,
       });
       if (!result.ok) {
         setError(result.error);
+        return;
+      }
+      if (multiple) {
+        onToggle?.({
+          clfPhotoId: photoId,
+          photoId: result.photoId,
+          deliverySrc: result.deliverySrc,
+          photographerName,
+          usageId: result.usageId,
+          selected: true,
+        });
         return;
       }
       onSelected?.({
@@ -125,35 +170,44 @@ export function ClfEditorialPhotoSelector({
             {albumTitle || "Cobertura fotográfica"} · vistas previas editoriales
           </p>
         </div>
-        <label className="text-sm">
-          Uso{" "}
-          <select
-            className="ml-2 rounded border border-[var(--is-border)] px-2 py-1"
-            value={usage}
-            onChange={(e) => setUsage(e.target.value as typeof usage)}
-          >
-            <option value="COVER">Portada</option>
-            <option value="INLINE">Cuerpo</option>
-            <option value="GALLERY">Galería</option>
-            <option value="FEATURED">Destacada</option>
-          </select>
-        </label>
+        {!multiple ? (
+          <label className="text-sm">
+            Uso{" "}
+            <select
+              className="ml-2 rounded border border-[var(--is-border)] px-2 py-1"
+              value={usage}
+              onChange={(e) => setUsage(e.target.value as typeof usage)}
+            >
+              <option value="COVER">Portada</option>
+              <option value="INLINE">Cuerpo</option>
+              <option value="GALLERY">Galería</option>
+              <option value="FEATURED">Destacada</option>
+            </select>
+          </label>
+        ) : null}
       </div>
 
-      <label className="block text-sm">
-        <span className="font-semibold">Descripción (alt text) *</span>
-        <textarea
-          value={altText}
-          onChange={(e) => setAltText(e.target.value)}
-          rows={2}
-          maxLength={300}
-          placeholder="Describí la foto que vas a seleccionar"
-          className="mt-1 w-full rounded border border-[var(--is-border)] px-3 py-2 text-sm"
-        />
-        <span className="mt-1 block text-xs text-[var(--is-muted)]">
-          Se aplica a la próxima foto que selecciones. Obligatorio para publicar.
-        </span>
-      </label>
+      {!multiple ? (
+        <label className="block text-sm">
+          <span className="font-semibold">Descripción (alt text) *</span>
+          <textarea
+            value={altText}
+            onChange={(e) => setAltText(e.target.value)}
+            rows={2}
+            maxLength={300}
+            placeholder="Describí la foto que vas a seleccionar"
+            className="mt-1 w-full rounded border border-[var(--is-border)] px-3 py-2 text-sm"
+          />
+          <span className="mt-1 block text-xs text-[var(--is-muted)]">
+            Se aplica a la próxima foto que selecciones. Obligatorio para publicar.
+          </span>
+        </label>
+      ) : (
+        <p className="text-xs text-[var(--is-muted)]">
+          Elegí las fotos tocándolas. El texto alternativo de cada una se completa en la lista de
+          abajo antes de insertar la galería.
+        </p>
+      )}
 
       {error ? (
         <p className="text-sm text-red-700" role="alert">
@@ -170,13 +224,17 @@ export function ClfEditorialPhotoSelector({
             albumName: albumTitle,
           });
           if (p.thumbApiPath) preview.previewUrl = p.thumbApiPath;
+          const isSelected = multiple && (selectedPhotoIds?.has(p.id) ?? false);
           return (
             <li key={p.id}>
               <EditorialPhotoThumbnail
                 preview={preview}
                 selectable
-                selectLabel={pending ? "Procesando…" : "Seleccionar"}
-                onSelect={() => select(p.id)}
+                selected={isSelected}
+                selectLabel={
+                  pending ? "Procesando…" : isSelected ? "Agregada ✓ (quitar)" : "Agregar"
+                }
+                onSelect={() => select(p.id, p.photographerName)}
               />
             </li>
           );

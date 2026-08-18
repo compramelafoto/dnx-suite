@@ -5,6 +5,7 @@ import type { Editor } from "@tiptap/react";
 type Props = {
   editor: Editor | null;
   onInsertImage: () => void;
+  onInsertGallery: () => void;
 };
 
 const btn =
@@ -13,7 +14,7 @@ const btn =
 const btnActive =
   "!border-[var(--is-accent)] !bg-[var(--is-accent-soft)] !text-[var(--is-accent-hover)]";
 
-export function EditorToolbar({ editor, onInsertImage }: Props) {
+export function EditorToolbar({ editor, onInsertImage, onInsertGallery }: Props) {
   if (!editor) {
     return (
       <div className="flex min-h-12 items-center border-b border-[var(--is-border)]/70 bg-[var(--is-bg-secondary)]/60 px-3 text-sm text-[var(--is-muted)]">
@@ -134,6 +135,15 @@ export function EditorToolbar({ editor, onInsertImage }: Props) {
         aria-label="Insertar imagen propia"
       >
         Insertar imagen
+      </button>
+      <button
+        type="button"
+        className={`${btn} px-3`}
+        onClick={onInsertGallery}
+        title="Insertar galería (slideshow de varias fotos)"
+        aria-label="Insertar galería"
+      >
+        Insertar galería
       </button>
       <span className="mx-1 h-6 w-px bg-[var(--is-border)]" aria-hidden />
       <button

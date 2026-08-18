@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
   try {
     const uploaded =
-      purpose === "inline"
+      purpose === "inline" || purpose === "gallery"
         ? await uploadInfoSpotEditorialImage(file, articleId)
         : await uploadInfoSpotCover(file);
 
@@ -92,11 +92,13 @@ export async function POST(request: Request) {
         credit,
         photographerName,
         copyrightText,
-        isPermanentEditorialAsset: purpose === "inline",
+        isPermanentEditorialAsset: purpose === "inline" || purpose === "gallery",
         r2Key: uploaded.key.startsWith("infospot/") ? uploaded.key : null,
       },
     });
 
+    // purpose="gallery" no crea InfoSpotArticleAsset(INLINE): la referencia
+    // vive en el propio bloque de galería (data-asset-id), no como figura suelta.
     if (purpose === "inline" && articleId) {
       const maxSort = await prisma.infoSpotArticleAsset.aggregate({
         where: { articleId, usageType: "INLINE" },

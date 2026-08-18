@@ -1,4 +1,18 @@
 export { EditorialImage, type EditorialImageAttrs } from "./editorial-image";
+export {
+  EditorialGallery,
+  isSafeUrl,
+  validateEditorialGallery,
+  EDITORIAL_GALLERY_VERSION,
+  EDITORIAL_GALLERY_MIN_IMAGES,
+  EDITORIAL_GALLERY_MAX_IMAGES,
+  EDITORIAL_GALLERY_DEFAULT_INTERVAL_MS,
+  type EditorialGalleryAttrs,
+  type EditorialGalleryImageAttrs,
+  type EditorialGalleryImageSource,
+  type EditorialGalleryValidationError,
+  type EditorialGalleryValidationResult,
+} from "./editorial-gallery";
 export { getEditorialExtensions, type EditorialExtensionsOptions } from "./extensions";
 export {
   sanitizeEditorialHtml,

@@ -1488,6 +1488,7 @@ export function ArticleForm({
               ref={editorRef}
               initialMarkdown={content}
               articleId={initial?.id}
+              clfAlbumId={clf?.albumId ?? null}
               onMarkdownChange={(md) => {
                 contentTouchedRef.current = true;
                 touchDraft({ content: md });

@@ -1,13 +1,21 @@
-import type { Extensions } from "@tiptap/core";
+import type { AnyExtension, Extensions } from "@tiptap/core";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorialImage } from "./editorial-image";
+import { EditorialGallery } from "./editorial-gallery";
 
 export type EditorialExtensionsOptions = {
   placeholder?: string;
   /** Incluir Placeholder (solo cliente / editor). */
   withPlaceholder?: boolean;
+  /**
+   * Extensión a usar para el nodo `editorialGallery` — permite a la app
+   * (que sí depende de `@tiptap/react`) inyectar una variante con NodeView
+   * interactivo (`.extend({ addNodeView: ... })`) sin acoplar este paquete
+   * headless a React. Por defecto usa `EditorialGallery` sin NodeView.
+   */
+  galleryNode?: AnyExtension;
 };
 
 /**
@@ -31,6 +39,7 @@ export function getEditorialExtensions(options: EditorialExtensionsOptions = {})
       },
     }),
     EditorialImage,
+    options.galleryNode ?? EditorialGallery,
   ];
 
   if (options.withPlaceholder !== false) {

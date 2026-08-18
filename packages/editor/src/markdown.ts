@@ -26,6 +26,17 @@ function createTurndown(): TurndownService {
     },
   });
 
+  // Conservar bloques de galería como HTML (N fotos con metadata estructurada).
+  service.addRule("editorialGalleryFigure", {
+    filter: (node) =>
+      node.nodeName === "FIGURE" &&
+      (node as HTMLElement).getAttribute("data-editorial-gallery") === "true",
+    replacement: (_content, node) => {
+      const el = node as HTMLElement;
+      return `\n\n${el.outerHTML}\n\n`;
+    },
+  });
+
   service.addRule("strikethrough", {
     filter: ["del", "s"],
     replacement: (content) => content,
