@@ -6,6 +6,7 @@ type Props = {
   editor: Editor | null;
   onInsertImage: () => void;
   onInsertGallery: () => void;
+  onInsertVideo: () => void;
 };
 
 const btn =
@@ -14,7 +15,7 @@ const btn =
 const btnActive =
   "!border-[var(--is-accent)] !bg-[var(--is-accent-soft)] !text-[var(--is-accent-hover)]";
 
-export function EditorToolbar({ editor, onInsertImage, onInsertGallery }: Props) {
+export function EditorToolbar({ editor, onInsertImage, onInsertGallery, onInsertVideo }: Props) {
   if (!editor) {
     return (
       <div className="flex min-h-12 items-center border-b border-[var(--is-border)]/70 bg-[var(--is-bg-secondary)]/60 px-3 text-sm text-[var(--is-muted)]">
@@ -144,6 +145,15 @@ export function EditorToolbar({ editor, onInsertImage, onInsertGallery }: Props)
         aria-label="Insertar galería"
       >
         Insertar galería
+      </button>
+      <button
+        type="button"
+        className={`${btn} px-3`}
+        onClick={onInsertVideo}
+        title="Insertar video de YouTube, Vimeo o Instagram"
+        aria-label="Insertar video"
+      >
+        Insertar video
       </button>
       <span className="mx-1 h-6 w-px bg-[var(--is-border)]" aria-hidden />
       <button

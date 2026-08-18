@@ -4,6 +4,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorialImage } from "./editorial-image";
 import { EditorialGallery } from "./editorial-gallery";
+import { EditorialVideo } from "./editorial-video";
 
 export type EditorialExtensionsOptions = {
   placeholder?: string;
@@ -16,10 +17,12 @@ export type EditorialExtensionsOptions = {
    * headless a React. Por defecto usa `EditorialGallery` sin NodeView.
    */
   galleryNode?: AnyExtension;
+  /** Igual criterio que `galleryNode`, para el nodo `editorialVideo`. */
+  videoNode?: AnyExtension;
 };
 
 /**
- * Extensiones TipTap para redacción editorial (sin tablas ni embeds).
+ * Extensiones TipTap para redacción editorial (sin tablas ni HTML arbitrario).
  * H1 excluido: el título de la nota es el único H1 de página.
  */
 export function getEditorialExtensions(options: EditorialExtensionsOptions = {}): Extensions {
@@ -40,6 +43,7 @@ export function getEditorialExtensions(options: EditorialExtensionsOptions = {})
     }),
     EditorialImage,
     options.galleryNode ?? EditorialGallery,
+    options.videoNode ?? EditorialVideo,
   ];
 
   if (options.withPlaceholder !== false) {
