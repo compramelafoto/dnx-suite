@@ -5,6 +5,12 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import type { PublicEditorialPhotoViewModel } from "@/lib/public-coverage";
 import { PublicEditorialPhoto } from "@/components/public-coverage/PublicEditorialPhoto";
+import { EditorialGalleryBlock } from "@/components/editorial/editorial-gallery-block";
+import {
+  extractGalleryImagesFromChildren,
+  parseGalleryFigureAttrs,
+} from "@/lib/editorial-gallery/parse-gallery-figure";
+import { resolveGalleryForRender } from "@/lib/editorial-gallery/resolve-gallery";
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -30,10 +36,63 @@ const sanitizeSchema = {
       "data-asset-id",
       "data-photo-id",
       "data-display",
+      "dataEditorialGallery",
+      "dataGalleryId",
+      "dataGalleryTitle",
+      "dataGalleryCaption",
+      "dataAutoplay",
+      "dataIntervalMs",
+      "dataLoop",
+      "data-editorial-gallery",
+      "data-gallery-id",
+      "data-gallery-title",
+      "data-gallery-caption",
+      "data-autoplay",
+      "data-interval-ms",
+      "data-loop",
     ],
     figcaption: ["className"],
-    span: ["className", "dataCaption", "dataCreditText", "data-caption", "data-credit-text"],
-    img: [...(defaultSchema.attributes?.img || []), "loading", "decoding", "className"],
+    span: [
+      "className",
+      "dataCaption",
+      "dataCreditText",
+      "dataGalleryTitleText",
+      "data-caption",
+      "data-credit-text",
+      "data-gallery-title-text",
+    ],
+    ol: [...(defaultSchema.attributes?.ol || []), "className", "dataGalleryImages", "data-gallery-images"],
+    li: [
+      ...(defaultSchema.attributes?.li || []),
+      "className",
+      "dataGalleryImage",
+      "dataItemId",
+      "dataSource",
+      "dataAssetId",
+      "dataPhotoId",
+      "dataAlt",
+      "dataCaption",
+      "dataCredit",
+      "dataPhotographerName",
+      "dataPhotographerUrl",
+      "dataPurchaseUrl",
+      "dataWidth",
+      "dataHeight",
+      "data-gallery-image",
+      "data-item-id",
+      "data-source",
+      "data-asset-id",
+      "data-photo-id",
+      "data-alt",
+      "data-caption",
+      "data-credit",
+      "data-photographer-name",
+      "data-photographer-url",
+      "data-purchase-url",
+      "data-width",
+      "data-height",
+    ],
+    img: [...(defaultSchema.attributes?.img || []), "loading", "decoding", "className", "draggable"],
     a: [...(defaultSchema.attributes?.a || []), "rel", "target", "className"],
   },
 };
@@ -75,6 +134,19 @@ export function MarkdownBody({ content, photoById }: MarkdownBodyProps) {
       />
     ),
     figure: ({ children, ...props }) => {
+      const isGallery = readDataAttr(
+        props as Record<string, unknown>,
+        "data-editorial-gallery",
+        "dataEditorialGallery",
+      );
+      if (isGallery) {
+        const attrs = parseGalleryFigureAttrs(props as Record<string, unknown>);
+        const rawImages = extractGalleryImagesFromChildren(children);
+        const resolved = resolveGalleryForRender(attrs, rawImages, photoById);
+        if (!resolved) return null;
+        return <EditorialGalleryBlock gallery={resolved} />;
+      }
+
       const photoId = readDataAttr(
         props as Record<string, unknown>,
         "data-photo-id",
