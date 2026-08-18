@@ -9,6 +9,7 @@ const PROTECTED_PREFIXES = [
   "/courses",
   "/evaluaciones",
   "/members",
+  "/website",
   "/admin",
 ];
 
@@ -37,6 +38,7 @@ export const config = {
     "/courses/:path*",
     "/evaluaciones/:path*",
     "/members/:path*",
+    "/website/:path*",
     "/admin/:path*",
   ],
 };

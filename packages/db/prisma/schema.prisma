@@ -265,6 +265,7 @@ model User {
   fotorankRulesVersionsCreated          FotorankContestRulesVersion[]          @relation("FrRulesVersionAuthor")
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
+  appAccessUnified                      WorkspaceAppAccess[]
   fotorankContestConfigurationVersions FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates        FotorankContestRulesTemplate[]
   fotorankContestRulesAuditEvents      FotorankContestRulesAuditEvent[]
@@ -273,6 +274,14 @@ model User {
   fotorankRulesReviewed                FotorankContestRulesVersion[] @relation("FrRulesReviewedBy")
   fotorankRulesApproved                FotorankContestRulesVersion[] @relation("FrRulesApprovedBy")
   fotorankRulesPublished               FotorankContestRulesVersion[] @relation("FrRulesPublishedBy")
+
+  clickatonPromptsAssignedFromLibrary   ClickatonPrompt[]                      @relation("ClickatonPromptLibraryAssigner")
+  photoPromptLibraryItemsCreated        PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemCreator")
+  photoPromptLibraryItemsReviewed       PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemReviewer")
+  photoPromptLibraryItemsApproved       PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemApprover")
+  photoPromptLibraryVersionsCreated     PhotoPromptLibraryVersion[]            @relation("PhotoPromptLibraryVersionCreator")
+  photoPromptLibraryAudits              PhotoPromptLibraryAuditEvent[]         @relation("PhotoPromptLibraryAuditActor")
+  fotorankSocialConnectionsConnected    FotorankSocialConnection[]             @relation("FrSocialConnectionConnectedBy")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -6807,6 +6816,7 @@ model Workspace {
   courseSalesTeachers         CourseSalesTeacher[]
   courseSalesSettings         CourseSalesWorkspaceSettings?
   fotofficeBranding           FotofficeWorkspaceBranding?
+  fotofficeWebsite            FotofficeWorkspaceWebsite?
   fotorankJudgeAccounts       FotorankJudgeAccount[]
   memberships                 Membership[]
   serviceLeadForms            ServiceLeadForm[]
@@ -6815,6 +6825,7 @@ model Workspace {
   students                    Student[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
+  appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
 }
@@ -6862,6 +6873,28 @@ model FotofficeWorkspaceBranding {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Configuración del sitio público del módulo "website" (Sitio web). Los datos de identidad
+/// (nombre, logo, colores, contacto) siguen viviendo en `FotofficeWorkspaceBranding` — este
+/// modelo es solo la estructura propia del sitio (hero, SEO, navegación, bloques) y su estado
+/// de publicación. 1:1 con Workspace, igual que `FotofficeWorkspaceBranding`.
+model FotofficeWorkspaceWebsite {
+  id             String    @id @default(cuid())
+  workspaceId    String    @unique
+  /// null = borrador (no público). Con valor = sitio público habilitado.
+  publishedAt    DateTime?
+  heroTitle      String?
+  heroSubtitle   String?
+  seoTitle       String?
+  seoDescription String?
+  /// Items de navegación pública. Sin renderer todavía — ver `lib/website/blocks.ts`.
+  navJson        Json?
+  /// Bloques de portada (tipo/orden/visibilidad). Sin renderer todavía — ver `lib/website/blocks.ts`.
+  sectionsJson   Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 /// Perfil profesional del fotógrafo (identidad de persona ≠ branding del negocio).
@@ -7387,6 +7420,45 @@ model WorkspaceMembership {
   @@index([userId])
 }
 
+/// Acceso por app dentro de un workspace (con rol específico opcional por app).
+/// Reincorporado: existe en la DB real (14 filas) y lo usa @repo/auth (sessions.ts,
+/// identity.ts) como fallback de resolución de sesión; se había perdido de schema.prisma
+/// por un commit no relacionado (f9ae2bae), sin que la tabla ni su uso dejaran de existir.
+model WorkspaceAppAccess {
+  id          String        @id @default(cuid())
+  userId      Int
+  workspaceId String
+  app         SuiteApp
+  enabled     Boolean       @default(true)
+  appRole     SuiteAppRole?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId, app])
+  @@index([workspaceId, app, enabled])
+  @@index([userId, app])
+}
+
+enum SuiteApp {
+  FOTOFFICE
+  COMPRAMELAFOTO
+  FOTORANK
+}
+
+enum SuiteAppRole {
+  PHOTOGRAPHER
+  LAB
+  CUSTOMER
+  ORGANIZER_ADMIN
+  JURY
+  PARTICIPANT
+  CRM_ADMIN
+  COURSE_MANAGER
+  SALES_ADMIN
+}
+
 model FotorankProfile {
   id          String   @id @default(cuid())
   userId      Int      @unique
@@ -7432,6 +7504,8 @@ model ContestOrganization {
   judgeInvitations             FotorankJudgeInvitation[]
   judgeOrganizationMemberships FotorankJudgeOrganizationMembership[]
 
+  /// ETAPA 17B — conexiones sociales por organización (Instagram, etc.).
+  socialConnections            FotorankSocialConnection[]
   @@index([slug])
   @@index([createdByUserId])
 }
@@ -7524,6 +7598,17 @@ model FotorankContest {
   admissionBatches              FotorankAdmissionBatch[]
   juryEntrySnapshots            FotorankJuryEntrySnapshot[]
 
+  /// Configuración visual de la landing pública (colores, banner override, layout).
+  publicPageVisualJson          Json?
+  /// ETAPA 16A — configuración de jurado competitivo (genérica; reutiliza motor FotorankJury*).
+  juryConfig                     FotorankCompetitionJuryConfig?
+  competitiveEligibilityFreezes  FotorankCompetitiveEligibilityFreeze[]
+  juryActivityHeartbeats         FotorankJuryActivityHeartbeat[]
+  /// ETAPA 16B — finalistas (§8 master rules) y paquete de confirmación previo a voto público.
+  finalistSnapshots              FotorankFinalistSnapshot[]
+  finalistPackages               FotorankFinalistPackage[]
+  /// ETAPA 17A — motor genérico de votación pública (provider-agnostic; TestProvider only).
+  publicVoteRounds               FotorankPublicVoteRound[]
   @@unique([organizationId, slug])
   @@index([organizationId])
   @@index([status])
@@ -7883,6 +7968,7 @@ model FotorankJudgeAccount {
   voteHistoryChanges           FotorankJudgeVoteHistory[]            @relation("FrVoteHistoryActorJudge")
   entryConflicts               FotorankJudgeEntryConflict[]
 
+  juryActivityHeartbeats FotorankJuryActivityHeartbeat[]
   @@index([workspaceId])
   @@index([accountStatus])
   juryEvaluations FotorankJuryEvaluation[]
@@ -8114,6 +8200,8 @@ model FotorankContestEntry {
   judgeConflicts         FotorankJudgeEntryConflict[]
   jurySnapshots          FotorankJuryEntrySnapshot[]
 
+  /// ETAPA 16B — finalistas (§8 master rules).
+  finalistSnapshots      FotorankFinalistSnapshot[]
   @@unique([contestId, entryNumber])
   @@unique([contestId, externalRegistrationId, externalPromptId])
   @@unique([contestId, anonymousJuryCode])
@@ -8494,6 +8582,7 @@ model FotorankAdmissionBatch {
   entries   FotorankContestEntry[]
   snapshots FotorankJuryEntrySnapshot[]
 
+  competitiveEligibilityFreezes FotorankCompetitiveEligibilityFreeze[]
   @@index([contestId, status])
   @@index([editionId])
   juryRubrics         FotorankJuryRubric[]
@@ -8531,6 +8620,8 @@ model FotorankJuryEntrySnapshot {
   entry   FotorankContestEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
   batch   FotorankAdmissionBatch @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
 
+  /// ETAPA 16B — finalistas (§8 master rules).
+  finalistSnapshots FotorankFinalistSnapshot[]
   @@unique([admissionBatchId, entryId])
   @@unique([admissionBatchId, anonymousCode])
   @@index([contestId, admissionBatchId])
@@ -10061,6 +10152,8 @@ model ClickatonEdition {
   photographerRoyalties    ClickatonPhotographerRoyaltyLedger[]
   homeBanners              ClickatonHomeBanner[]
 
+  /// Edición ops/fixture: nunca comercial. Cleanup solo permitido si true.
+  isOpsFixture             Boolean                           @default(false)
   @@index([status])
   @@index([isPublished])
   @@index([registrationEnabled])
@@ -10388,6 +10481,8 @@ model ClickatonTicketTypeItem {
 model ClickatonRegistration {
   id                                 String                               @id @default(cuid())
   editionId                          String
+  /// Marker de inscripción de Modo Test (nunca comercial).
+  isOpsTest                          Boolean                              @default(false)
   venueId                            String?
   /// Nullable hasta pago aprobado / confirmación free: guest no crea User DNX en reserva.
   userId                             Int?
@@ -10516,6 +10611,7 @@ model ClickatonRegistration {
   @@unique([editionId, sequenceNumber])
   @@index([editionId, status])
   @@index([editionId, paymentStatus])
+  @@index([editionId, isOpsTest])
   @@index([userId])
   @@index([email])
   @@index([venueId])
@@ -10681,6 +10777,16 @@ model ClickatonPrompt {
   captureClockToleranceMinutes Int?
   gpsMode            ClickatonPromptGpsMode     @default(OPTIONAL)
   deviceCategoryHint String?
+  /// ETAPA 13 — vínculo opcional a Biblioteca central + snapshot inmutable.
+  libraryItemId      String?
+  libraryVersion     Int?
+  titleSnapshot      String?
+  descriptionSnapshot String?
+  themeSnapshot      String?
+  subthemeSnapshot   String?
+  inspirationSnapshot Json?
+  assignedFromLibraryAt DateTime?
+  assignedFromLibraryByUserId Int?
   createdByUserId    Int?
   releasedAt         DateTime?
   releasedByUserId   Int?
@@ -10689,13 +10795,17 @@ model ClickatonPrompt {
 
   edition       ClickatonEdition       @relation(fields: [editionId], references: [id], onDelete: Cascade)
   timelineEvent ClickatonTimelineEvent? @relation(fields: [timelineEventId], references: [id], onDelete: SetNull)
+  libraryItem   PhotoPromptLibraryItem? @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
   createdBy     User?                  @relation("ClickatonPromptCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   releasedBy    User?                  @relation("ClickatonPromptReleaser", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+  assignedFromLibraryBy User?          @relation("ClickatonPromptLibraryAssigner", fields: [assignedFromLibraryByUserId], references: [id], onDelete: SetNull)
   photoSubmissions ClickatonPhotoSubmission[]
 
   @@unique([editionId, sequence])
   @@index([editionId, status])
   @@index([timelineEventId])
+  @@index([libraryItemId])
+  @@index([editionId, libraryItemId])
 }
 
 enum ClickatonPromptGpsMode {
@@ -10710,6 +10820,20 @@ model ClickatonEditionUploadConfig {
   id                           String   @id @default(cuid())
   editionId                    String   @unique
   uploadsEnabled               Boolean  @default(false)
+  /// SoT assets FotoRank: requiere además env CLICKATON_FOTORANK_CANONICAL_ASSETS=1.
+  /// Default false → edición comercial intacta.
+  canonicalAssetsEnabled       Boolean  @default(false)
+  /// ETAPA 12 — SoT temporal de maratón (reveal global + ventanas independientes).
+  /// Si globalPromptReveal=true, TODAS las consignas se revelan juntas en eventRevealAt.
+  globalPromptReveal           Boolean  @default(true)
+  eventRevealAt                DateTime?
+  /// Horario válido para TOMAR fotografías [start, end).
+  captureWindowStartsAt        DateTime?
+  captureWindowEndsAt          DateTime?
+  /// Horario válido para SUBIR fotografías [start, end). Independiente de captura.
+  uploadWindowStartsAt         DateTime?
+  uploadWindowEndsAt           DateTime?
+  allowReplacement             Boolean  @default(true)
   allowedMimeTypes             Json     @default("[\"image/jpeg\",\"image/png\",\"image/webp\"]")
   maxFileSizeBytes             Int      @default(26214400)
   minWidth                     Int      @default(800)
@@ -12047,6 +12171,7 @@ enum FotorankConfigVersionStatus {
 enum FotorankJuryEvaluationStatus {
   NOT_STARTED
   IN_PROGRESS
+  POSTPONED
   SUBMITTED
   LOCKED
   VOIDED
@@ -12342,6 +12467,12 @@ model FotorankJuryEvaluation {
   expectedVersion            Int                          @default(0)
   engineVersion              String                       @default("clickaton-jury-scoring-v1")
   criteriaSnapshot           Json?
+  /// ETAPA 16A — postergar evaluación ("revisar después").
+  postponedAt                DateTime?
+  /// ETAPA 16A — confirmación de bloque/consigna (grilla final antes de LOCKED).
+  confirmedBlockAt           DateTime?
+  /// ETAPA 16A — tiempo activo acumulado (segundos) para ETA de jurado.
+  activeSecondsAccumulated   Int                          @default(0)
   createdAt                  DateTime                     @default(now())
   updatedAt                  DateTime @updatedAt
 
@@ -12445,6 +12576,16 @@ model FotorankJuryScoringSession {
   evaluations FotorankJuryEvaluation[]
   aggregates FotorankJuryPreliminaryAggregate[]
   resultBatches FotorankResultBatch[]
+  /// ETAPA 16A — recomendación de carga (no bloqueante); default 500 fotos evaluadas/jurado.
+  recommendedMaxEntriesPerJudge    Int                                @default(500)
+  /// ETAPA 16A — Clickatón exige enteros; otros concursos pueden habilitar decimales.
+  scoreIntegerOnly                 Boolean                            @default(true)
+  scoreScaleMin                    Int                                @default(1)
+  scoreScaleMax                    Int                                @default(10)
+  activityHeartbeats FotorankJuryActivityHeartbeat[]
+  /// ETAPA 16B — finalistas (§8 master rules) y paquete de confirmación previo a voto público.
+  finalistSnapshots FotorankFinalistSnapshot[]
+  finalistPackages FotorankFinalistPackage[]
   @@index([admissionBatchId, status])
   @@index([contestId, status])
   @@index([rubricId])
@@ -12506,6 +12647,8 @@ model FotorankResultBatch {
   tieBreakSessions FotorankTieBreakSession[]
   revisions        FotorankResultRevision[]
 
+  /// ETAPA 16B — finalistas empaquetados desde este batch (§8 master rules).
+  finalistSnapshots FotorankFinalistSnapshot[]
   @@index([contestId, status])
   @@index([ruleSetId])
   @@index([scoringSessionId, status])
@@ -13064,6 +13207,22 @@ enum DnxPartnerCapability {
   PARTNER_PAYMENTS_VIEW
   PARTNER_PAYMENTS_MANAGE
   PARTNER_CONTACT_SENSITIVE
+  PARTNER_ASSETS_VIEW
+  PARTNER_ASSETS_UPLOAD
+  PARTNER_ASSETS_UPDATE
+  PARTNER_ASSETS_ARCHIVE
+  PARTNER_ASSETS_APPROVE
+  PARTNER_ASSETS_MANAGE_BRAND
+  PARTNER_ASSETS_MANAGE_PARTICIPATION
+  PARTNER_BENEFITS_VIEW_ELIGIBILITY
+  PARTNER_BENEFITS_SYNC_ACCESS
+  PARTNER_BENEFITS_REVOKE
+  PARTNER_BENEFITS_VIEW_ACCESS
+  PARTNER_BENEFITS_VIEW_SYNC_EVENTS
+  PARTNER_BENEFITS_PROCESS_SYNC_EVENTS
+  PARTNER_BENEFITS_RETRY_SYNC_EVENTS
+  PARTNER_BENEFITS_DISCARD_SYNC_EVENTS
+  PARTNER_BENEFITS_ENABLE_AUTO_SYNC
 }
 
 enum DnxPartnerGrantStatus {
@@ -13719,6 +13878,9 @@ model DnxPartnerAuditEvent {
 enum DnxPartnerBenefitAccessStatus {
   ACTIVE
   REVOKED
+  EXPIRED
+  PENDING_IDENTITY
+  SKIPPED
 }
 
 /// Acceso manual a un beneficio (cortesía / excepción).
@@ -14004,3 +14166,559 @@ model DnxPartnerCampaignPlacement {
   @@unique([campaignId, adPlacementId])
   @@index([adPlacementId, isActive, priority])
 }
+
+// --- Reconciliación de historial: modelos/enums de las migraciones traídas desde
+// release/sponsor-global-fotorank-data (jury/voto público Fotorank + PhotoPrompt Library).
+// Copiados textualmente de esa rama, sin modificar campos/relaciones/índices.
+
+/// ETAPA 16A — Configuración de jurado competitivo por concurso (genérica; no hardcodea Clickatón).
+/// Reutiliza el motor FotorankJury*; no crea tablas paralelas ClickatonJury*.
+model FotorankCompetitionJuryConfig {
+  id                                 String   @id @default(cuid())
+  contestId                          String   @unique
+  /// null = N/A (concursos clásicos sin elegibilidad competitiva por mínimo de obras).
+  minimumValidEntriesForCompetition  Int?
+  requiredEvaluationsPerEntry        Int      @default(3)
+  recommendedMaxEntriesPerJudge      Int      @default(500)
+  evaluationStartsAt                 DateTime?
+  evaluationEndsAt                   DateTime?
+  scoreScaleMin                      Int      @default(1)
+  scoreScaleMax                      Int      @default(10)
+  scoreIntegerOnly                   Boolean  @default(true)
+  finalistsPerUnit                   Int      @default(3)
+  /// DISABLED | JURY_ONLY | JURY_THEN_PUBLIC (§10 master rules).
+  publicVoteMode                     String   @default("DISABLED")
+  /// Override opcional de criterios (snapshot); si null, usar rúbrica activa del concurso.
+  criteriaConfigJson                 Json?
+  yellowLoadThreshold                Int      @default(501)
+  redLoadThreshold                   Int      @default(651)
+  /// ETAPA 16B — preparación de voto público (§9–§10 master rules). Nunca activa comercial/Instagram por sí solo.
+  /// Habilitación explícita; false = no operativo aunque publicVoteMode != DISABLED.
+  publicVoteEnabled                  Boolean  @default(false)
+  /// PROMPT | CATEGORY | ENTRY | ROUND (§10: unidad de votación pública configurable).
+  publicVoteUnit                     String   @default("PROMPT")
+  /// Métrica pública (§9: default Clickatón = Me Gusta).
+  publicVoteMetric                   String   @default("LIKE_COUNT")
+  /// Duración de la ventana de voto público en minutos (§9 default Clickatón: 24 h).
+  publicVoteDurationMinutes          Int      @default(1440)
+  publicVoteStartsAt                 DateTime?
+  publicVoteEndsAt                   DateTime?
+  /// NONE | INSTAGRAM_FUTURE (§9.3: automatización de redes fuera de alcance; NONE = manual/no activado).
+  publicVoteProvider                 String   @default("NONE")
+  /// NOT_CONFIGURED|READY|SCHEDULED|OPEN|CLOSING|PENDING_VERIFICATION|CLOSED|TIEBREAK_REQUIRED|FINALIZED.
+  publicVoteStatus                   String   @default("NOT_CONFIGURED")
+  /// Modo de desempate público (§9.1): PUBLIC_REVOTE / PUBLIC_TIEBREAK; nunca score de jurado.
+  publicTieBreakMode                 String   @default("PUBLIC_REVOTE")
+  /// IANA timezone override para ventanas de voto público. null = usar contest.timezone.
+  timezone                           String?
+  /// ETAPA 17A — política de corte para snapshot final (provider-agnostic).
+  /// LAST_VALID_OBSERVATION_BEFORE_CUTOFF | EXACT_PROVIDER_TIMESTAMP | PROVIDER_FINAL_SNAPSHOT
+  publicVoteCutoffPolicy             String   @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
+  /// CALCULATED | REVIEWED | PUBLISHED — 17A nunca publica comercialmente.
+  resultsPublicationMode             String   @default("CALCULATED")
+  /// Umbral de stale observations (minutos) para alertas de salud del provider.
+  publicVoteStaleThresholdMinutes    Int      @default(30)
+  createdAt                          DateTime @default(now())
+  updatedAt                          DateTime @updatedAt
+
+  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@index([contestId])
+}
+
+/// ETAPA 16A — Congelamiento de elegibilidad competitiva (participante ELEGIBLE/NO ELEGIBLE) por corte de admisión.
+model FotorankCompetitiveEligibilityFreeze {
+  id                     String    @id @default(cuid())
+  contestId              String
+  admissionBatchId       String?
+  /// ELIGIBILITY_DRAFT | ELIGIBILITY_FROZEN
+  status                 String    @default("ELIGIBILITY_DRAFT")
+  configVersion          Int       @default(1)
+  minimumValidEntries    Int
+  totalParticipants      Int
+  eligibleCount          Int
+  notEligibleCount       Int
+  validEntriesCount      Int
+  excludedEntriesCount   Int
+  reasonCodesJson        Json?
+  configSnapshotJson     Json?
+  rosterHash             String?
+  frozenAt               DateTime?
+  frozenByUserId         Int?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  contest      FotorankContest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch FotorankAdmissionBatch? @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
+
+  @@unique([contestId, configVersion])
+  @@index([contestId, status])
+  @@index([admissionBatchId])
+}
+
+/// ETAPA 16B — Sobre de confirmación de finalistas (§8 master rules). Confirmar = inmutable;
+/// habilita preparación de voto público. No activa Instagram ni comercial por sí solo.
+model FotorankFinalistPackage {
+  id                String    @id @default(cuid())
+  contestId         String
+  scoringSessionId  String
+  /// DRAFT|CONFIRMED|INVALIDATED.
+  status            String    @default("DRAFT")
+  positionsCount    Int       @default(0)
+  confirmHash       String?
+  confirmedAt       DateTime?
+  confirmedByUserId Int?
+  readinessJson     Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  contest        FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  scoringSession FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+
+  @@index([contestId, status])
+  @@index([scoringSessionId])
+}
+
+/// ETAPA 16B — Finalistas (§8 master rules): "FINALISTA ≠ ganador definitivo". Ítem inmutable del
+/// paquete que se prepara para votación pública. internalJuryRank es SOLO el orden interno del jurado
+/// dentro de la consigna (1..N); NUNCA es la posición pública definitiva (esa la decide el público, §1/§9).
+model FotorankFinalistSnapshot {
+  id                  String    @id @default(cuid())
+  contestId           String
+  scoringSessionId    String
+  resultBatchId       String?
+  promptExternalId    String
+  promptSequence      Int?
+  entryId             String?
+  juryEntrySnapshotId String
+  /// Código público sin identidad (p. ej. C01-F01). NUNCA nombre/apellido/Instagram.
+  publicCode          String
+  /// Orden interno de jurado dentro de la consigna (1..finalistsPerUnit). No es el lugar definitivo.
+  internalJuryRank    Int
+  aggregateScore      Float?
+  normalizedScore     Float?
+  /// Referencia a derivado social-safe (recorte/marca de agua); NUNCA la key del original.
+  derivativeAssetKey  String?
+  /// PENDING|READY|FAILED (§ public-asset-prep: no publica ni sube a redes).
+  derivativeStatus    String    @default("PENDING")
+  packageHash         String?
+  confirmedAt         DateTime?
+  confirmedByUserId   Int?
+  revokedAt           DateTime?
+  revokeReason        String?
+  /// DRAFT|CONFIRMED|REVOKED. CONFIRMED = inmutable salvo revocación auditada.
+  status              String    @default("DRAFT")
+  metadataJson        Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  contest           FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  scoringSession    FotorankJuryScoringSession  @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+  resultBatch       FotorankResultBatch?        @relation(fields: [resultBatchId], references: [id], onDelete: SetNull)
+  entry             FotorankContestEntry?       @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  juryEntrySnapshot FotorankJuryEntrySnapshot   @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, promptExternalId, publicCode])
+  @@index([contestId, status])
+  @@index([scoringSessionId])
+  @@index([juryEntrySnapshotId])
+  @@index([resultBatchId])
+}
+
+/// ETAPA 16A — Heartbeat de actividad de jurado (tiempo activo / ETA §7.7). No es evaluación de desempeño.
+model FotorankJuryActivityHeartbeat {
+  id                        String   @id @default(cuid())
+  contestId                 String
+  jurorId                   String
+  scoringSessionId          String?
+  lastActiveAt              DateTime
+  activeSecondsAccumulated  Int      @default(0)
+  idleThresholdSeconds      Int      @default(75)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  contest        FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  juror          FotorankJudgeAccount        @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  scoringSession FotorankJuryScoringSession? @relation(fields: [scoringSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([contestId, jurorId])
+  @@index([scoringSessionId])
+}
+
+/// Candidatura congelada al abrir/schedule la ronda (snapshot inmutable mientras OPEN).
+model FotorankPublicVoteCandidate {
+  id                  String   @id @default(cuid())
+  roundId             String
+  finalistSnapshotId  String?
+  publicCode          String
+  entryId             String?
+  sortOrder           Int      @default(0)
+  /// true = participa en ranking; false = excluido auditado (no borrar).
+  active              Boolean  @default(true)
+  metadataJson        Json?
+  createdAt           DateTime @default(now())
+
+  round          FotorankPublicVoteRound           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  observations   FotorankPublicVoteObservation[]
+  finalSnapshots FotorankPublicVoteFinalSnapshot[]
+  publications   FotorankPublicVotePublication[]
+
+  @@unique([roundId, publicCode])
+  @@index([roundId, active])
+  @@index([finalistSnapshotId])
+}
+
+/// Snapshot final inmutable por candidatura/ronda. Base del ranking definitivo.
+model FotorankPublicVoteFinalSnapshot {
+  id                 String   @id @default(cuid())
+  roundId            String
+  candidateId        String
+  publicCode         String
+  finalMetricValue   Float
+  observationId      String?
+  cutoffAt           DateTime
+  providerObservedAt DateTime?
+  finalizedAt        DateTime @default(now())
+  /// 1..N dentro de la unidad. null si TIEBREAK_REQUIRED aún no resuelto.
+  finalPosition      Int?
+  integrityHash      String
+  metadataJson       Json?
+
+  round     FotorankPublicVoteRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate FotorankPublicVoteCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, candidateId])
+  @@unique([roundId, publicCode])
+  @@index([roundId, finalPosition])
+}
+
+/// Observación append-only de métrica (likes pueden bajar). Idempotente por providerEventKey.
+model FotorankPublicVoteObservation {
+  id                      String    @id @default(cuid())
+  roundId                 String
+  candidateId             String
+  metricValue             Float
+  /// Momento reportado por el provider (autoridad de cutoff cuando aplica).
+  providerObservedAt      DateTime
+  /// Timestamp de la métrica en origen si el provider lo expone.
+  providerMetricTimestamp DateTime?
+  ingestedAt              DateTime  @default(now())
+  source                  String    @default("TEST_PROVIDER")
+  /// Clave de idempotencia (event id / hash normalizado).
+  providerEventKey        String
+  rawHash                 String?
+  isDecreasing            Boolean   @default(false)
+  /// true si providerObservedAt > round.endsAt (retenida, no cuenta en snapshot default).
+  isLate                  Boolean   @default(false)
+  metadataJson            Json?
+
+  round     FotorankPublicVoteRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate FotorankPublicVoteCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, providerEventKey])
+  @@index([roundId, candidateId, providerObservedAt])
+  @@index([candidateId, providerObservedAt])
+}
+
+/// ETAPA 17B — Publicación social vinculada a candidatura de voto público.
+model FotorankPublicVotePublication {
+  id                   String    @id @default(cuid())
+  roundId              String
+  candidateId          String
+  socialConnectionId   String?
+  provider             String    @default("INSTAGRAM")
+  externalMediaId      String?
+  externalContainerId  String?
+  permalink            String?
+  publishedAt          DateTime?
+  /// PREPARED | APPROVED_FOR_PUBLICATION | PUBLISHING | PUBLISHED | FAILED
+  publicationStatus    String    @default("PREPARED")
+  /// IMAGE | CAROUSEL | REEL | STORY
+  publicationType      String    @default("IMAGE")
+  captionSnapshot      String?
+  assetSnapshotJson    Json?
+  socialAssetHash      String?
+  idempotencyKey       String    @unique
+  failedReason         String?
+  providerMetadataJson Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  round            FotorankPublicVoteRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate        FotorankPublicVoteCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  socialConnection FotorankSocialConnection?   @relation(fields: [socialConnectionId], references: [id], onDelete: SetNull)
+
+  @@unique([roundId, candidateId])
+  @@index([roundId, publicationStatus])
+  @@index([socialConnectionId])
+}
+
+/// ETAPA 17A — Ronda de votación pública por unidad (PROMPT/CATEGORY/…). Provider-agnostic.
+model FotorankPublicVoteRound {
+  id                     String    @id @default(cuid())
+  contestId              String
+  /// Clave de unidad (p. ej. promptExternalId). Nunca hardcodear 10 consignas.
+  unitKey                String
+  /// PROMPT | CATEGORY | ENTRY | ROUND
+  unitType               String    @default("PROMPT")
+  roundNumber            Int       @default(1)
+  /// NORMAL | TIEBREAK
+  roundType              String    @default("NORMAL")
+  parentRoundId          String?
+  /// DRAFT|READY|SCHEDULED|OPEN|CLOSING|PENDING_FINAL_SNAPSHOT|CLOSED|TIEBREAK_REQUIRED|FINALIZED|CANCELLED|ERROR
+  status                 String    @default("DRAFT")
+  metric                 String    @default("LIKE_COUNT")
+  /// TEST_PROVIDER | NONE | INSTAGRAM | INSTAGRAM_FUTURE (legacy alias)
+  provider               String    @default("TEST_PROVIDER")
+  /// ETAPA 17B — conexión social usada para publicación/métricas (nullable en TEST_PROVIDER).
+  socialConnectionId     String?
+  /// NORMAL | NEAR_CLOSE | FINALIZATION
+  pollingMode            String    @default("NORMAL")
+  /// INCIDENT flag cuando publicación borrada / parcial / token, etc.
+  incidentStatus         String?
+  cutoffPolicy           String    @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
+  startsAt               DateTime
+  endsAt                 DateTime
+  timezone               String?
+  openedAt               DateTime?
+  closedAt               DateTime?
+  finalSnapshotAt        DateTime?
+  cancelledAt            DateTime?
+  cancelReason           String?
+  extendedFromEndsAt     DateTime?
+  configHash             String?
+  candidateSnapshotHash  String?
+  finalSnapshotHash      String?
+  staleThresholdMinutes  Int       @default(30)
+  /// CALCULATED | REVIEWED | PUBLISHED — 17A = CALCULATED máximo.
+  resultsPublicationStatus String  @default("CALCULATED")
+  providerHealth         String    @default("CONNECTED")
+  configVersion          Int       @default(1)
+  metadataJson           Json?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  contest          FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  socialConnection FotorankSocialConnection?    @relation(fields: [socialConnectionId], references: [id], onDelete: SetNull)
+  parentRound      FotorankPublicVoteRound?     @relation("PublicVoteRoundTiebreak", fields: [parentRoundId], references: [id], onDelete: SetNull)
+  childRounds      FotorankPublicVoteRound[]    @relation("PublicVoteRoundTiebreak")
+  candidates       FotorankPublicVoteCandidate[]
+  observations     FotorankPublicVoteObservation[]
+  finalSnapshots   FotorankPublicVoteFinalSnapshot[]
+  publications     FotorankPublicVotePublication[]
+
+  @@unique([contestId, unitKey, roundNumber])
+  @@index([contestId, status])
+  @@index([contestId, unitKey])
+  @@index([parentRoundId])
+  @@index([endsAt, status])
+}
+
+/// ETAPA 17B — Conexión social de organizador (Instagram Graph API).
+model FotorankSocialConnection {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  provider           String    @default("INSTAGRAM")
+  accountId          String
+  accountUsername    String?
+  accountType        String?
+  connectionStatus   String    @default("CONNECTED")
+  permissionsJson    Json?
+  /// Referencia opaca al token (mock:// o vault); nunca plaintext en DB/logs.
+  tokenReference     String
+  tokenExpiresAt     DateTime?
+  connectedAt        DateTime  @default(now())
+  disconnectedAt     DateTime?
+  connectedByUserId  Int?
+  lastValidatedAt    DateTime?
+  health             String    @default("CONNECTED")
+  rateLimitStateJson Json?
+  metadataJson       Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connectedBy  User?                         @relation("FrSocialConnectionConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
+  rounds       FotorankPublicVoteRound[]
+  publications FotorankPublicVotePublication[]
+
+  @@unique([organizationId, provider, accountId])
+  @@index([organizationId, provider])
+  @@index([connectionStatus])
+}
+
+/// Temática administrable (no enum rígido).
+model PhotoPromptTheme {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subthemes PhotoPromptSubtheme[]
+  items     PhotoPromptLibraryItem[]
+
+  @@index([active, sortOrder])
+}
+
+model PhotoPromptSubtheme {
+  id          String   @id @default(cuid())
+  themeId     String
+  name        String
+  slug        String
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  theme PhotoPromptTheme         @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  items PhotoPromptLibraryItem[]
+
+  @@unique([themeId, slug])
+  @@index([themeId, active, sortOrder])
+}
+
+/// Plantilla/contenido reutilizable de consigna fotográfica.
+model PhotoPromptLibraryItem {
+  id                 String                      @id @default(cuid())
+  title              String
+  /// Título normalizado para detección de duplicados.
+  normalizedTitle    String
+  description        String
+  themeId            String
+  subthemeId         String?
+  inspirationType    PhotoPromptInspirationType?
+  inspirationLabel   String?
+  inspirationNotes   String?
+  tags               String[]                    @default([])
+  difficulty         PhotoPromptDifficulty       @default(MEDIUM)
+  language           String                      @default("es")
+  /// Puede realizarse razonablemente desde cualquier lugar del mundo.
+  universal          Boolean                     @default(true)
+  status             PhotoPromptLibraryStatus    @default(DRAFT)
+  createdByUserId    Int?
+  reviewedByUserId   Int?
+  approvedByUserId   Int?
+  submittedForReviewAt DateTime?
+  reviewedAt         DateTime?
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  archivedAt         DateTime?
+  rejectionReason    String?
+  version            Int                         @default(1)
+  /// Origen de seed/import (ej. INITIAL_DNX_PROMPT_LIBRARY_2026).
+  sourceKey          String?
+  metadataJson       Json?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  theme     PhotoPromptTheme              @relation(fields: [themeId], references: [id], onDelete: Restrict)
+  subtheme  PhotoPromptSubtheme?          @relation(fields: [subthemeId], references: [id], onDelete: SetNull)
+  createdBy User?                         @relation("PhotoPromptLibraryItemCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedBy User?                        @relation("PhotoPromptLibraryItemReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  approvedBy User?                        @relation("PhotoPromptLibraryItemApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  versions  PhotoPromptLibraryVersion[]
+  audits    PhotoPromptLibraryAuditEvent[]
+  assignments ClickatonPrompt[]
+
+  @@unique([sourceKey])
+  @@index([status, updatedAt])
+  @@index([themeId, status])
+  @@index([subthemeId])
+  @@index([normalizedTitle])
+  @@index([universal, status])
+  @@index([inspirationType, status])
+  @@index([difficulty, status])
+  @@index([language, status])
+}
+
+model PhotoPromptLibraryVersion {
+  id              String   @id @default(cuid())
+  libraryItemId   String
+  version         Int
+  title           String
+  description     String
+  themeId         String?
+  subthemeId      String?
+  inspirationType PhotoPromptInspirationType?
+  inspirationLabel String?
+  inspirationNotes String?
+  tags            String[] @default([])
+  difficulty      PhotoPromptDifficulty?
+  language        String?
+  universal       Boolean?
+  status          PhotoPromptLibraryStatus?
+  changeSummary   String?
+  snapshotJson    Json?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  libraryItem PhotoPromptLibraryItem @relation(fields: [libraryItemId], references: [id], onDelete: Cascade)
+  createdBy   User?                  @relation("PhotoPromptLibraryVersionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([libraryItemId, version])
+  @@index([libraryItemId, createdAt])
+}
+
+model PhotoPromptLibraryAuditEvent {
+  id            String                        @id @default(cuid())
+  libraryItemId String?
+  editionId     String?
+  actorUserId   Int?
+  action        PhotoPromptLibraryAuditAction
+  comment       String?
+  metadataJson  Json?
+  createdAt     DateTime                      @default(now())
+
+  libraryItem PhotoPromptLibraryItem? @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
+  actor       User?                   @relation("PhotoPromptLibraryAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([libraryItemId, createdAt])
+  @@index([editionId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+}
+
+enum PhotoPromptDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum PhotoPromptInspirationType {
+  DIRECTOR
+  MOVIE
+  GENRE
+  ART_MOVEMENT
+  PHOTOGRAPHER
+  VISUAL_STYLE
+  OTHER
+}
+
+enum PhotoPromptLibraryAuditAction {
+  CREATE
+  UPDATE
+  SUBMIT_REVIEW
+  APPROVE
+  REJECT
+  ARCHIVE
+  RESTORE
+  ASSIGN
+  UNASSIGN
+  REORDER
+  IMPORT
+  DUPLICATE
+}
+
+enum PhotoPromptLibraryStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+

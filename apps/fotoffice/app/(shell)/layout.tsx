@@ -6,7 +6,9 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { canManageMembers } from "@/lib/members/role-policy";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellHeader } from "@/components/shell/shell-header";
@@ -35,8 +37,10 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const coursesOn = enabledModuleKeys.has(COURSES_SALES_MODULE_KEY);
   const evaluacionesOn = enabledModuleKeys.has(EVALUACIONES_MODULE_KEY);
   const membersOn = enabledModuleKeys.has(MEMBERS_MODULE_KEY);
+  const websiteOn = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
   const activeMembership = memberships.find((m) => m.workspaceId === workspace?.id);
   const canManageMembersFlag = canManageMembers(activeMembership?.role);
+  const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeMembership?.role);
   const platformAdmin = await isFotofficePlatformAdmin(user.id);
 
   return (
@@ -45,7 +49,9 @@ export default async function ShellLayout({ children }: { children: React.ReactN
         coursesEnabled={coursesOn}
         evaluacionesEnabled={evaluacionesOn}
         membersEnabled={membersOn}
+        websiteEnabled={websiteOn}
         canManageMembers={canManageMembersFlag}
+        canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
         platformAdmin={platformAdmin}
       />
       <div className="flex-1 flex flex-col min-w-0">

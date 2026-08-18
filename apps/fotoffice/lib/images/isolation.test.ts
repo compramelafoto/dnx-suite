@@ -21,18 +21,25 @@ describe("aislamiento por workspace y ausencia de inputs de URL manual (verifica
     assert.match(src, /basePrefix.*safeScope|safeScope.*prefix/s);
   });
 
-  it("la pantalla Marca pública ya no tiene inputs de tipo texto/url para pegar una URL de logo o portada", () => {
-    const src = readFileSync(join(appRoot, "components/module-settings-form.tsx"), "utf8");
+  it("la pantalla Configuración del Workspace ya no tiene inputs de tipo texto/url para pegar una URL de logo o portada", () => {
+    const src = readFileSync(join(appRoot, "app/workspace/configuracion/settings-form.tsx"), "utf8");
     assert.doesNotMatch(src, /Logo \(URL\)/);
     assert.doesNotMatch(src, /Imagen de portada marca \(URL\)/);
     assert.doesNotMatch(src, /name="logoUrl"\s*\n\s*type="url"/);
     assert.match(src, /ImageUploadField/);
   });
 
-  it("el formulario de Marca pública sigue enviando logoUrl/coverImageUrl (compatibilidad con la Server Action existente, sin cambiar el modelo)", () => {
-    const src = readFileSync(join(appRoot, "components/module-settings-form.tsx"), "utf8");
+  it("el formulario de Configuración del Workspace sigue enviando logoUrl/coverImageUrl (compatibilidad con la Server Action existente, sin cambiar el modelo)", () => {
+    const src = readFileSync(join(appRoot, "app/workspace/configuracion/settings-form.tsx"), "utf8");
     assert.match(src, /name="logoUrl"/);
     assert.match(src, /name="coverImageUrl"/);
+  });
+
+  it("el formulario de Cursos (module-settings-form) ya NO edita branding general: sin logoUrl/coverImageUrl", () => {
+    const src = readFileSync(join(appRoot, "components/module-settings-form.tsx"), "utf8");
+    assert.doesNotMatch(src, /name="logoUrl"/);
+    assert.doesNotMatch(src, /name="coverImageUrl"/);
+    assert.doesNotMatch(src, /ImageUploadField/);
   });
 
   it("subir/reemplazar imágenes exige contexto autorizado (OWNER/ADMIN) antes de tocar storage", () => {

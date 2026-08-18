@@ -47,6 +47,76 @@ export async function createWorkspaceAction(
   }
 }
 
+/**
+ * Entidades que bloquean el hard-delete de un Workspace por razones de pagos,
+ * personas reales o integridad referencial (auditado contra schema.prisma):
+ * - CourseEnrollment: inscripciones con datos de pago (paymentStatus, montos).
+ * - CourseSalesLead / ServiceSalesLead: leads comerciales.
+ * - Member: socios/personas reales de una institución.
+ * - ServiceLeadForm: sin `onDelete` en el schema (RESTRICT por default de
+ *   Postgres) — Workspace.delete() fallaría en la DB si hay filas acá.
+ * No se decide una política de soft-delete/archivado: se bloquea explícitamente
+ * y se informa qué lo bloquea, para que la decisión de negocio quede en manos
+ * de un humano.
+ */
+async function findWorkspaceDeletionBlockers(workspaceId: string): Promise<string[]> {
+  const [enrollments, courseSalesLeads, serviceSalesLeads, members, serviceLeadForms] =
+    await Promise.all([
+      prisma.courseEnrollment.count({ where: { workspaceId } }),
+      prisma.courseSalesLead.count({ where: { workspaceId } }),
+      prisma.serviceSalesLead.count({ where: { workspaceId } }),
+      prisma.member.count({ where: { workspaceId } }),
+      prisma.serviceLeadForm.count({ where: { workspaceId } }),
+    ]);
+  const blockers: string[] = [];
+  if (enrollments > 0) blockers.push(`${enrollments} inscripción(es) a cursos con datos de pago`);
+  if (courseSalesLeads > 0) blockers.push(`${courseSalesLeads} lead(s) de venta de cursos`);
+  if (serviceSalesLeads > 0) blockers.push(`${serviceSalesLeads} lead(s) de servicios`);
+  if (members > 0) blockers.push(`${members} socio(s) registrado(s)`);
+  if (serviceLeadForms > 0) blockers.push(`${serviceLeadForms} formulario(s) de captación`);
+  return blockers;
+}
+
+export async function deleteWorkspaceAction(
+  _prev: SuperAdminActionState | undefined,
+  formData: FormData,
+): Promise<SuperAdminActionState> {
+  try {
+    await assertSuperAdmin();
+    const workspaceId = formData.get("workspaceId")?.toString().trim() ?? "";
+    const confirmSlug = formData.get("confirmSlug")?.toString().trim().toLowerCase() ?? "";
+    if (!workspaceId) return fail("Workspace inválido.");
+
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { id: true, name: true, fotofficeBranding: { select: { publicSlug: true } } },
+    });
+    if (!workspace) return fail("Ese workspace ya no existe.");
+
+    const realSlug = workspace.fotofficeBranding?.publicSlug?.toLowerCase();
+    if (!realSlug || confirmSlug !== realSlug) {
+      return fail("El slug no coincide. No se eliminó nada.");
+    }
+
+    const blockers = await findWorkspaceDeletionBlockers(workspace.id);
+    if (blockers.length > 0) {
+      return fail(
+        `No se puede eliminar: tiene ${blockers.join(", ")}. Esto requiere una decisión de negocio ` +
+          `(archivar/exportar) antes de borrar, no se elimina automáticamente.`,
+      );
+    }
+
+    await prisma.workspace.delete({ where: { id: workspace.id } });
+    revalidatePath("/admin/workspaces");
+    return ok(`Workspace "${workspace.name}" eliminado definitivamente.`);
+  } catch (e) {
+    if (e instanceof Error && e.message === "FORBIDDEN_SUPER_ADMIN") {
+      return fail("No tenés permisos para eliminar workspaces.");
+    }
+    return fail(initialError);
+  }
+}
+
 export async function createOwnerUserAction(
   _prev: SuperAdminActionState | undefined,
   formData: FormData,

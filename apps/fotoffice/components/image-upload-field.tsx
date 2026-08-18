@@ -31,6 +31,7 @@ export function ImageUploadField({
   const [dimensions, setDimensions] = useState<string | null>(null);
   const [sizeLabel, setSizeLabel] = useState<string | null>(null);
   const [aspectWarning, setAspectWarning] = useState<string | null>(null);
+  const [sizeWarning, setSizeWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +61,7 @@ export function ImageUploadField({
     if (!file) return;
     setError(null);
     setAspectWarning(null);
+    setSizeWarning(null);
 
     if (!(preset!.acceptedFormats as readonly string[]).includes(file.type)) {
       setStatus("error");
@@ -82,12 +84,9 @@ export function ImageUploadField({
     }
 
     if (dims.width < preset!.minWidth || dims.height < preset!.minHeight) {
-      setStatus("error");
-      setError(
-        `La imagen es demasiado chica (${dims.width} × ${dims.height} px). Mínimo: ${preset!.minWidth} × ${preset!.minHeight} px.`,
+      setSizeWarning(
+        `La imagen es más chica que lo recomendado (${dims.width} × ${dims.height} px). Recomendado: ${preset!.minWidth} × ${preset!.minHeight} px o más — puede verse pixelada.`,
       );
-      URL.revokeObjectURL(dims.objectUrl);
-      return;
     }
 
     const actualRatio = dims.width / dims.height;
@@ -140,6 +139,7 @@ export function ImageUploadField({
     setDimensions(null);
     setSizeLabel(null);
     setAspectWarning(null);
+    setSizeWarning(null);
     setError(null);
     setStatus("idle");
     if (inputRef.current) inputRef.current.value = "";
@@ -218,6 +218,7 @@ export function ImageUploadField({
       />
 
       {aspectWarning ? <p className="text-xs text-[var(--fo-warning,#a16207)]">{aspectWarning}</p> : null}
+      {sizeWarning ? <p className="text-xs text-[var(--fo-warning,#a16207)]">{sizeWarning}</p> : null}
       {error ? <p className="text-xs text-[var(--fo-danger)]">{error}</p> : null}
     </div>
   );
