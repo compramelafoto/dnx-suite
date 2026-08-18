@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PHOTO_PROTECTION_LEGAL_TEXT } from "./protected-editorial-image";
+import { PHOTO_PROTECTION_LEGAL_TEXT } from "@/lib/editorial-photos/legal-text";
 import {
   INITIAL_CAPTURE_NOTICE_STATE,
+  isAccusatorySignal,
   nextCaptureNoticeState,
   shouldTriggerCaptureNotice,
   type CaptureNoticeState,
@@ -40,13 +41,20 @@ function writeSessionState(state: CaptureNoticeState) {
  * página, nunca una por foto (evita que N fotos protegidas disparen N
  * avisos simultáneos con el mismo PrintScreen).
  *
+ * Deliberadamente NO reacciona a `visibilitychange`: perder el foco de la
+ * pestaña es una señal demasiado débil (cambiar de pestaña, minimizar,
+ * abrir otra app, bloquear el teléfono, atender una llamada, usar un
+ * selector de archivos) y mostrar el aviso legal ahí acusaría en falso al
+ * enorme porcentaje de usuarios que no está intentando nada. El manejo de
+ * pausa/reanudación del autoplay por visibilidad vive en el propio
+ * slideshow (EditorialGalleryBlock), no acá, y nunca muestra este aviso.
+ *
  * Limitación técnica real: ninguna página web puede detectar de forma
  * confiable ni impedir una captura de pantalla del sistema operativo. Esto
- * solo reacciona a señales parciales y visibles para JavaScript (tecla
- * PrintScreen, pérdida de visibilidad de la pestaña) y muestra un aviso
- * disuasorio con cooldown por sesión. No lee el portapapeles, no registra
- * teclas escritas por el usuario, no bloquea DevTools ni atajos de
- * navegación.
+ * solo reacciona a la tecla PrintScreen cuando el navegador realmente
+ * entrega ese evento, y muestra un aviso disuasorio con cooldown por
+ * sesión. No lee el portapapeles, no registra teclas escritas por el
+ * usuario, no bloquea DevTools ni atajos de navegación.
  */
 export function PhotoCaptureNotice() {
   const [visible, setVisible] = useState(false);
@@ -64,16 +72,11 @@ export function PhotoCaptureNotice() {
 
   useEffect(() => {
     function onKeyUp(e: KeyboardEvent) {
-      if (e.key === "PrintScreen") trigger();
-    }
-    function onVisibilityChange() {
-      if (document.visibilityState === "hidden") trigger();
+      if (e.key === "PrintScreen" && isAccusatorySignal("printscreen")) trigger();
     }
     window.addEventListener("keyup", onKeyUp);
-    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("keyup", onKeyUp);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
   }, [trigger]);

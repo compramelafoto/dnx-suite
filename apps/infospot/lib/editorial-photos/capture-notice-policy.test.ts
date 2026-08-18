@@ -8,10 +8,11 @@ import {
   CAPTURE_NOTICE_COOLDOWN_MS,
   CAPTURE_NOTICE_MAX_PER_SESSION,
   INITIAL_CAPTURE_NOTICE_STATE,
+  isAccusatorySignal,
   nextCaptureNoticeState,
   shouldTriggerCaptureNotice,
 } from "./capture-notice-policy";
-import { PHOTO_PROTECTION_LEGAL_TEXT } from "../../components/editorial-photos/protected-editorial-image";
+import { PHOTO_PROTECTION_LEGAL_TEXT } from "./legal-text";
 
 // --- 1. Primer intento (estado inicial) siempre dispara ---
 {
@@ -63,6 +64,29 @@ import { PHOTO_PROTECTION_LEGAL_TEXT } from "../../components/editorial-photos/p
   }
   assert.ok(lower.includes("derechos de autor"));
   assert.ok(lower.includes("compramelafoto"));
+}
+
+// --- 6. visibilitychange nunca acusa: cambiar de pestaña/minimizar/bloquear
+// el teléfono son motivos benignos, no evidencia de captura ---
+{
+  assert.equal(
+    isAccusatorySignal("visibilitychange"),
+    false,
+    "visibilitychange no debe disparar nunca el aviso legal",
+  );
+}
+
+// --- 7. Clic derecho y arrastre sobre una foto protegida sí son señales deliberadas ---
+{
+  assert.equal(isAccusatorySignal("contextmenu"), true);
+  assert.equal(isAccusatorySignal("dragstart"), true);
+}
+
+// --- 8. PrintScreen solo cuenta cuando el navegador realmente entrega el evento
+// (la política en sí no inventa el evento — isAccusatorySignal solo decide si,
+// UNA VEZ recibido el evento real, corresponde mostrar el aviso) ---
+{
+  assert.equal(isAccusatorySignal("printscreen"), true);
 }
 
 console.log("capture-notice-policy.test.ts: OK");

@@ -2,11 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-
-export const PHOTO_PROTECTION_LEGAL_TEXT =
-  "Fotografía protegida por derechos de autor. No está permitida su copia, descarga, " +
-  "reproducción ni utilización sin autorización de su autor o titular. Podés solicitar " +
-  "su licencia o adquirirla mediante ComprameLaFoto.";
+import { isAccusatorySignal } from "@/lib/editorial-photos/capture-notice-policy";
+import { PHOTO_PROTECTION_LEGAL_TEXT } from "@/lib/editorial-photos/legal-text";
 
 type Props = {
   photographerName?: string | null;
@@ -56,13 +53,16 @@ export function ProtectedEditorialImage({
       className="relative h-full w-full"
       onContextMenu={(e) => {
         e.preventDefault();
-        updateNotice(true);
+        if (isAccusatorySignal("contextmenu")) updateNotice(true);
       }}
     >
       <div
         className="h-full w-full select-none"
         draggable={false}
-        onDragStart={(e) => e.preventDefault()}
+        onDragStart={(e) => {
+          e.preventDefault();
+          if (isAccusatorySignal("dragstart")) updateNotice(true);
+        }}
         style={{ WebkitUserDrag: "none" } as React.CSSProperties}
       >
         {children}
