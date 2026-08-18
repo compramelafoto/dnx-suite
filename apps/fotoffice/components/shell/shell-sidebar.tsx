@@ -6,13 +6,17 @@ export function ShellSidebar({
   coursesEnabled,
   evaluacionesEnabled,
   membersEnabled,
+  websiteEnabled,
   canManageMembers,
+  canManageWorkspaceSettings,
   platformAdmin,
 }: {
   coursesEnabled: boolean;
   evaluacionesEnabled: boolean;
   membersEnabled: boolean;
+  websiteEnabled: boolean;
   canManageMembers: boolean;
+  canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
 }) {
   return (
@@ -33,7 +37,9 @@ export function ShellSidebar({
         coursesEnabled={coursesEnabled}
         evaluacionesEnabled={evaluacionesEnabled}
         membersEnabled={membersEnabled}
+        websiteEnabled={websiteEnabled}
         canManageMembers={canManageMembers}
+        canManageWorkspaceSettings={canManageWorkspaceSettings}
         platformAdmin={platformAdmin}
       />
       <div className="mt-8 border-t border-[var(--fo-border)] pt-6 space-y-2">

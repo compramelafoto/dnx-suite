@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2,
+  Globe,
   GraduationCap,
   IdCard,
   Inbox,
@@ -29,17 +30,22 @@ export function ShellNav({
   coursesEnabled,
   evaluacionesEnabled,
   membersEnabled,
+  websiteEnabled,
   canManageMembers,
+  canManageWorkspaceSettings,
   platformAdmin,
 }: {
   coursesEnabled: boolean;
   evaluacionesEnabled: boolean;
   membersEnabled: boolean;
+  websiteEnabled: boolean;
   canManageMembers: boolean;
+  canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
 }) {
   const path = usePathname() ?? "";
 
+  const isWebsite = path === "/website" || path.startsWith("/website/");
   const isCoursesMain =
     path === "/dashboard/courses" ||
     path.startsWith("/dashboard/courses/new") ||
@@ -61,6 +67,15 @@ export function ShellNav({
         <LayoutDashboard className="size-4 shrink-0 opacity-80" aria-hidden />
         Inicio
       </Link>
+      {canManageWorkspaceSettings ? (
+        <Link
+          href="/workspace/configuracion"
+          className={navClass(path.startsWith("/workspace/configuracion"))}
+        >
+          <Settings className="size-4 shrink-0 opacity-80" aria-hidden />
+          Configuración
+        </Link>
+      ) : null}
       {coursesEnabled ? (
         <>
           <Link href="/dashboard/courses" className={navClass(isCoursesMain)}>
@@ -105,6 +120,12 @@ export function ShellNav({
           ) : null}
         </>
       ) : null}
+      {websiteEnabled ? (
+        <Link href="/website" className={navClass(isWebsite)}>
+          <Globe className="size-4 shrink-0 opacity-80" aria-hidden />
+          Sitio web
+        </Link>
+      ) : null}
       {platformAdmin ? (
         <>
           <Link href="/admin" className={navClass(path === "/admin")}>
@@ -122,13 +143,6 @@ export function ShellNav({
           <Link href="/admin/owners" className={navClass(path.startsWith("/admin/owners"))}>
             <UserCog className="size-4 shrink-0 opacity-80" aria-hidden />
             Dueños
-          </Link>
-          <Link
-            href="/admin/workspace-modules"
-            className={navClass(path.startsWith("/admin/workspace-modules"))}
-          >
-            <LayoutGrid className="size-4 shrink-0 opacity-80" aria-hidden />
-            Módulos
           </Link>
           <Link href="/admin/settings" className={navClass(path.startsWith("/admin/settings"))}>
             <Settings className="size-4 shrink-0 opacity-80" aria-hidden />
