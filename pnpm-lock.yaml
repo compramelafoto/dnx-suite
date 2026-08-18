@@ -1204,18 +1204,12 @@ importers:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
-      '@types/node':
-        specifier: ^22.15.3
-        version: 22.20.1
       '@types/sanitize-html':
         specifier: ^2.16.1
         version: 2.16.1
       '@types/turndown':
         specifier: ^5.0.5
         version: 5.0.6
-      tsx:
-        specifier: ^4.21.0
-        version: 4.23.0
       typescript:
         specifier: 5.9.2
         version: 5.9.2
@@ -1393,8 +1387,6 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
-
-  packages/photo-prompt-library: {}
 
   packages/promotions:
     devDependencies:
