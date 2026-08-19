@@ -282,6 +282,7 @@ model User {
   photoPromptLibraryVersionsCreated     PhotoPromptLibraryVersion[]            @relation("PhotoPromptLibraryVersionCreator")
   photoPromptLibraryAudits              PhotoPromptLibraryAuditEvent[]         @relation("PhotoPromptLibraryAuditActor")
   fotorankSocialConnectionsConnected    FotorankSocialConnection[]             @relation("FrSocialConnectionConnectedBy")
+  websiteVersionsPublished              FotofficeWorkspaceWebsiteVersion[]
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -6877,13 +6878,19 @@ model FotofficeWorkspaceBranding {
 
 /// Configuración del sitio público del módulo "website" (Sitio web). Los datos de identidad
 /// (nombre, logo, colores, contacto) siguen viviendo en `FotofficeWorkspaceBranding` — este
-/// modelo es solo la estructura propia del sitio (hero, SEO, navegación, bloques) y su estado
-/// de publicación. 1:1 con Workspace, igual que `FotofficeWorkspaceBranding`.
+/// modelo es el BORRADOR editable del sitio (hero, SEO, navegación, bloques). Nunca es lo que
+/// ve el público directamente: lo público es `publishedVersion` (ver
+/// `FotofficeWorkspaceWebsiteVersion`). 1:1 con Workspace, igual que `FotofficeWorkspaceBranding`.
 model FotofficeWorkspaceWebsite {
   id             String    @id @default(cuid())
   workspaceId    String    @unique
-  /// null = borrador (no público). Con valor = sitio público habilitado.
+  /// Mantenido en sync con publishedVersion.publishedAt (null en ambos = sin versión pública
+  /// activa). publishedVersionId es la fuente de verdad; este campo es una conveniencia de
+  /// lectura rápida sin join.
   publishedAt    DateTime?
+  /// Versión actualmente pública. null = nunca publicado o despublicado — el historial
+  /// completo de versiones NO se borra al despublicar, ver `versions`.
+  publishedVersionId String? @unique
   heroTitle      String?
   heroSubtitle   String?
   seoTitle       String?
@@ -6894,7 +6901,38 @@ model FotofficeWorkspaceWebsite {
   sectionsJson   Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace        Workspace                         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  publishedVersion FotofficeWorkspaceWebsiteVersion?  @relation("WebsitePublishedVersion", fields: [publishedVersionId], references: [id])
+  versions         FotofficeWorkspaceWebsiteVersion[] @relation("WebsiteVersionHistory")
+}
+
+/// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo
+/// contiene contenido del propio sitio (mismo shape que el borrador); NO copia branding general
+/// (nombre/logo/colores/contacto siguen viviendo solo en FotofficeWorkspaceBranding, se leen en
+/// vivo al momento del render, no se congelan por versión) ni ningún dato de otro módulo —
+/// bloques dinámicos (futuro) resuelven sus datos en el momento del render, nunca se copian acá.
+model FotofficeWorkspaceWebsiteVersion {
+  id                String   @id @default(cuid())
+  websiteId         String
+  versionNumber     Int
+  heroTitle         String?
+  heroSubtitle      String?
+  seoTitle          String?
+  seoDescription    String?
+  navJson           Json?
+  sectionsJson      Json?
+  /// Quién ejecutó la publicación. FK interna para auditoría/historial — el User completo
+  /// NUNCA es parte de lo que se expone al sitio público.
+  publishedByUserId Int?
+  publishedAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  website     FotofficeWorkspaceWebsite @relation("WebsiteVersionHistory", fields: [websiteId], references: [id], onDelete: Cascade)
+  publishedBy User?                     @relation(fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  currentFor  FotofficeWorkspaceWebsite? @relation("WebsitePublishedVersion")
+
+  @@unique([websiteId, versionNumber])
+  @@index([websiteId, publishedAt])
 }
 
 /// Perfil profesional del fotógrafo (identidad de persona ≠ branding del negocio).
