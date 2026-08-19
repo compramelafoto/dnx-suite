@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   parseVideoUrl,
   type EditorialVideoAttrs,
@@ -8,6 +8,7 @@ import {
   type VideoWidth,
 } from "@repo/editor";
 import { VideoEmbed } from "@/components/editorial/video-embed";
+import { useDialogFocusTrap } from "@/components/redaccion/use-dialog-focus-trap";
 
 type Props = {
   open: boolean;
@@ -18,6 +19,7 @@ type Props = {
 
 export function InsertVideoDialog({ open, onClose, onInsert, initial }: Props) {
   const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState(initial?.url ?? "");
   const [caption, setCaption] = useState(initial?.caption ?? "");
   const [width, setWidth] = useState<VideoWidth>(initial?.width ?? "full");
@@ -47,6 +49,8 @@ export function InsertVideoDialog({ open, onClose, onInsert, initial }: Props) {
     [url, caption, width, alignment],
   );
 
+  useDialogFocusTrap(open, panelRef);
+
   if (!open) return null;
 
   function submit() {
@@ -69,7 +73,11 @@ export function InsertVideoDialog({ open, onClose, onInsert, initial }: Props) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 shadow-sm">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 shadow-sm"
+      >
         <h2 id={titleId} className="font-[family-name:var(--font-source-serif)] text-xl font-semibold">
           {isEdit ? "Editar video" : "Insertar video"}
         </h2>

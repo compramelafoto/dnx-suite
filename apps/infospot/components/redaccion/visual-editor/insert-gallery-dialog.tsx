@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   EDITORIAL_GALLERY_DEFAULT_INTERVAL_MS,
   EDITORIAL_GALLERY_MAX_IMAGES,
@@ -11,6 +11,7 @@ import {
   type EditorialGalleryValidationResult,
 } from "@repo/editor";
 import { ClfEditorialPhotoSelector } from "@/components/editorial-photos/clf-editorial-photo-selector";
+import { useDialogFocusTrap } from "@/components/redaccion/use-dialog-focus-trap";
 
 type WorkingImage = EditorialGalleryImageAttrs & { clfPhotoId?: number };
 
@@ -64,6 +65,7 @@ export function InsertGalleryDialog({
   initialAttrs,
 }: Props) {
   const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
   const isEdit = Boolean(initialAttrs);
 
   const [tab, setTab] = useState<"infospot" | "clf">("infospot");
@@ -97,6 +99,8 @@ export function InsertGalleryDialog({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  useDialogFocusTrap(open, panelRef);
 
   const selectedClfPhotoIds = useMemo(() => {
     const set = new Set<number>();
@@ -257,7 +261,11 @@ export function InsertGalleryDialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white shadow-sm">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white shadow-sm"
+      >
         <div className="border-b border-[var(--is-border)] px-6 py-4">
           <h2
             id={titleId}

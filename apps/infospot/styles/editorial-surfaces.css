@@ -232,19 +232,21 @@
 }
 
 .is-editorial-toolbar {
+  /* Se apila justo debajo del header de redacción (mismo sticky-top:0):
+     compensar con la altura del chrome para que no se superpongan. */
   position: sticky;
-  top: 0;
-  z-index: 20;
+  top: var(--is-redaccion-chrome-h);
+  z-index: 19;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--is-space-3);
-  min-height: var(--is-redaccion-chrome-h);
+  min-height: 3rem;
   padding-block: var(--is-space-2);
   padding-inline: var(--is-space-4);
   border-bottom: 1px solid color-mix(in oklab, var(--is-border) 70%, transparent);
-  background: color-mix(in oklab, var(--is-bg) 92%, transparent);
+  background: color-mix(in oklab, var(--is-bg) 94%, transparent);
   backdrop-filter: blur(10px);
   transition: border-color var(--is-duration-150) var(--is-ease);
 }
@@ -252,8 +254,6 @@
 @media (min-width: 640px) {
   .is-editorial-toolbar {
     padding-inline: var(--is-space-5);
-    border-radius: var(--is-radius-lg);
-    border: 1px solid color-mix(in oklab, var(--is-border) 70%, transparent);
   }
 }
 

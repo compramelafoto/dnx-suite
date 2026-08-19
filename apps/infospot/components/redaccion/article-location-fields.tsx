@@ -49,6 +49,8 @@ type GeocodeHit = {
 type Props = {
   value: ArticleLocationValue;
   onChange: (next: ArticleLocationValue, meta?: { cleared?: boolean }) => void;
+  /** Sin borde/heading propios: se usa anidado dentro de otra sección (p. ej. el panel lateral). */
+  embedded?: boolean;
 };
 
 const fieldClass = "is-input mt-2";
@@ -82,7 +84,7 @@ function parseCoord(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function ArticleLocationFields({ value, onChange }: Props) {
+export function ArticleLocationFields({ value, onChange, embedded = false }: Props) {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -253,20 +255,28 @@ export function ArticleLocationFields({ value, onChange }: Props) {
   const lngNum = parseCoord(value.longitude);
   const hasCoords = latNum != null && lngNum != null && !(latNum === 0 && lngNum === 0);
 
+  const Wrapper: "div" | "section" = embedded ? "div" : "section";
+
   return (
-    <section
-      className="rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5 space-y-4"
-      aria-labelledby="article-location-title"
+    <Wrapper
+      className={
+        embedded
+          ? "space-y-4"
+          : "rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5 space-y-4"
+      }
+      {...(embedded ? {} : { "aria-labelledby": "article-location-title" })}
     >
-      <div>
-        <h2 id="article-location-title" className="text-base font-semibold tracking-tight">
-          Ubicación y alcance
-        </h2>
-        <p className="mt-1 text-sm leading-relaxed text-[var(--is-muted)]">
-          Independiente de ComprameLaFoto. Sirve para el Home cercano y los listados. No uses
-          «Sin ubicación específica» como atajo para omitir campos.
-        </p>
-      </div>
+      {embedded ? null : (
+        <div>
+          <h2 id="article-location-title" className="text-base font-semibold tracking-tight">
+            Ubicación y alcance
+          </h2>
+          <p className="mt-1 text-sm leading-relaxed text-[var(--is-muted)]">
+            Independiente de ComprameLaFoto. Sirve para el Home cercano y los listados. No uses
+            «Sin ubicación específica» como atajo para omitir campos.
+          </p>
+        </div>
+      )}
 
       {/* geographicScope va en el <select name="…"> visible (evita duplicar name). */}
       <input type="hidden" name="countryCode" value={value.countryCode} />
@@ -527,6 +537,6 @@ export function ArticleLocationFields({ value, onChange }: Props) {
       >
         Limpiar ubicación
       </button>
-    </section>
+    </Wrapper>
   );
 }

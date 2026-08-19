@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { EditorialImageAttrs } from "@repo/editor";
+import { useDialogFocusTrap } from "@/components/redaccion/use-dialog-focus-trap";
 
 type Props = {
   open: boolean;
@@ -12,6 +13,7 @@ type Props = {
 
 export function InsertImageDialog({ open, onClose, onInsert, articleId }: Props) {
   const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [alt, setAlt] = useState("");
   const [caption, setCaption] = useState("");
@@ -38,6 +40,8 @@ export function InsertImageDialog({ open, onClose, onInsert, articleId }: Props)
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  useDialogFocusTrap(open, panelRef);
 
   if (!open) return null;
 
@@ -104,7 +108,11 @@ export function InsertImageDialog({ open, onClose, onInsert, articleId }: Props)
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-lg rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 shadow-sm">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="w-full max-w-lg rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-white p-6 shadow-sm"
+      >
         <h2 id={titleId} className="font-[family-name:var(--font-source-serif)] text-xl font-semibold">
           Insertar imagen en la nota
         </h2>

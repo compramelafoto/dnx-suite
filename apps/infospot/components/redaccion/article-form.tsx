@@ -10,14 +10,17 @@ import {
 } from "@repo/editor";
 import { slugifyTitle } from "@/lib/slug";
 import { toDatetimeLocalValue } from "@/lib/dates";
-import { CoverImageField, type CoverAssetOption } from "@/components/redaccion/cover-image-field";
+import { type CoverAssetOption } from "@/components/redaccion/cover-image-field";
+import { CoverImageModal, CoverSummaryCard } from "@/components/redaccion/cover-image-modal";
 import { CoverFocalEditor } from "@/components/redaccion/cover-focal-editor";
 import {
   ArticleLocationFields,
   defaultArticleLocationValue,
   type ArticleLocationValue,
 } from "@/components/redaccion/article-location-fields";
+import { articleLocationSummary } from "@/lib/editorial/article-location";
 import { PublishChecklist } from "@/components/redaccion/publish-checklist";
+import { StatusBadge } from "@/components/redaccion/status-badge";
 import { EditorialActionsPanel } from "@/components/redaccion/editorial-actions-panel";
 import {
   EditorialVisualEditor,
@@ -227,14 +230,12 @@ export function ArticleForm({
     }
     return fromServer;
   });
-  /** Drawer móvil / tablet: biblioteca, asistente o configuración. */
-  const [sideDrawer, setSideDrawer] = useState<null | "library" | "assistant" | "config">(null);
-  /** Desktop: pestaña del rail derecho. */
-  const [railTab, setRailTab] = useState<"library" | "assistant">("assistant");
+  /** Panel de herramientas (Asistente o Material) como overlay, en cualquier ancho. */
+  const [sideDrawer, setSideDrawer] = useState<null | "library" | "assistant">(null);
   /** Palabras clave de sesión (sin persistencia Prisma todavía). */
   const [sessionTags, setSessionTags] = useState<string[]>([]);
-  /** Desktop: panel de configuración (SEO, publicación). */
-  const [configOpen, setConfigOpen] = useState(false);
+  /** Selector de portada (modal): la biblioteca ya no se despliega inline. */
+  const [coverModalOpen, setCoverModalOpen] = useState(false);
   const [highlightedAssetId, setHighlightedAssetId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -610,16 +611,13 @@ export function ArticleForm({
   }, [mode]);
 
   useEffect(() => {
-    if (!sideDrawer && !configOpen) return;
+    if (!sideDrawer) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setSideDrawer(null);
-        setConfigOpen(false);
-      }
+      if (e.key === "Escape") setSideDrawer(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [sideDrawer, configOpen]);
+  }, [sideDrawer]);
 
   const saveLabel =
     saveState === "saving"
@@ -832,23 +830,28 @@ export function ArticleForm({
   ]);
 
   const navigateToEditorialField = useCallback((target: EditorialFocusTarget) => {
-    if (target.openConfig) {
-      const desktop =
-        typeof window !== "undefined" &&
-        window.matchMedia("(min-width: 1024px)").matches;
-      if (desktop) {
-        setSideDrawer(null);
-        setConfigOpen(true);
-      } else {
-        setConfigOpen(false);
-        setSideDrawer("config");
-      }
-    } else {
-      setConfigOpen(false);
-      setSideDrawer(null);
-    }
+    // El panel lateral ya está montado en el documento (accordions nativos):
+    // focusEditorialTarget abre el <details> ancestro correspondiente solo.
+    setSideDrawer(null);
     focusEditorialTarget(target);
   }, []);
+
+  function removeCover() {
+    coverImageClearedRef.current = true;
+    setCoverImageId("");
+    setCoverCredit("");
+    setCoverCaption("");
+    draftRef.current = { ...draftRef.current, coverImageId: "", coverCredit: "", coverCaption: "" };
+    markDirty();
+  }
+
+  const coverPreviewUrl =
+    assets.find((a) => a.id === coverImageId)?.url ||
+    linkedAssets.find((a) => a.assetId === coverImageId)?.url ||
+    (initial?.coverImageId === coverImageId ? initial?.coverUrl ?? null : null) ||
+    null;
+
+  const locationSummary = articleLocationSummary(location);
 
   const assistantPanel = (
     <EditorialIntelligencePanel
@@ -904,17 +907,74 @@ export function ArticleForm({
     />
   );
 
-  const configPanel = (
-    <div className="space-y-4">
+  const sidebarAccordion = (
+    <div className="space-y-3">
       <input type="hidden" name="status" value={status} />
       <input type="hidden" name="contentTag" value="REAL" />
 
       <EditorConfigAccordion
         sections={[
           {
+            id: "cover",
+            title: "Portada",
+            hint: coverPreviewUrl ? "Seleccionada" : "Sin portada",
+            defaultOpen: true,
+            children: (
+              <div id="cover-section-title">
+                <CoverSummaryCard
+                  previewUrl={coverPreviewUrl}
+                  credit={coverCredit}
+                  caption={coverCaption}
+                  onChange={() => setCoverModalOpen(true)}
+                  onRemove={removeCover}
+                />
+                {coverFocal ? (
+                  <div className="mt-4 border-t border-[var(--is-border)] pt-4">
+                    <CoverFocalEditor
+                      usageId={coverFocal.usageId}
+                      imageSrc={coverFocal.imageSrc}
+                      initialFocalX={coverFocal.focalX}
+                      initialFocalY={coverFocal.focalY}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ),
+          },
+          {
+            id: "location",
+            title: "Ubicación y alcance",
+            hint: locationSummary,
+            children: (
+              <ArticleLocationFields
+                embedded
+                value={location}
+                onChange={(next, meta) => {
+                  if (meta?.cleared) locationClearedRef.current = true;
+                  else if (next.geographicScope) locationClearedRef.current = false;
+                  touchDraft({ location: next });
+                  setLocation(next);
+                  if (initial?.id && typeof window !== "undefined") {
+                    try {
+                      const scopeKey = `infospot.article.scope.${initial.id}`;
+                      if (meta?.cleared || !next.geographicScope) {
+                        sessionStorage.removeItem(scopeKey);
+                      } else {
+                        sessionStorage.setItem(scopeKey, next.geographicScope);
+                      }
+                    } catch {
+                      /* private mode */
+                    }
+                  }
+                  markDirty();
+                }}
+              />
+            ),
+          },
+          {
             id: "publish",
-            title: "Publicación",
-            hint: "Enviar, publicar o devolver — sin salir de la escritura",
+            title: "Revisión y publicación",
+            hint: STATUS_LABELS[status],
             defaultOpen: true,
             children:
               mode === "edit" && initial ? (
@@ -948,29 +1008,6 @@ export function ArticleForm({
                   </p>
                 </div>
               ),
-          },
-          {
-            id: "checklist",
-            title: "Checklist",
-            hint:
-              checklistMissing.length > 0
-                ? `${checklistMissing.length} pendiente${checklistMissing.length === 1 ? "" : "s"}`
-                : "Listo para publicar",
-            children: (
-              <>
-                <PublishChecklist items={checklist} />
-                {figuresMissingCredit.length > 0 || figuresMissingAlt.length > 0 ? (
-                  <div className="rounded-[var(--is-radius-md)] border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-                    {figuresMissingAlt.length > 0 ? (
-                      <p>Hay imágenes sin texto alternativo.</p>
-                    ) : null}
-                    {figuresMissingCredit.length > 0 ? (
-                      <p className="mt-1">Hay imágenes sin crédito: no se puede publicar así.</p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </>
-            ),
           },
           {
             id: "meta",
@@ -1151,7 +1188,6 @@ export function ArticleForm({
 
   function closeDrawers() {
     setSideDrawer(null);
-    setConfigOpen(false);
   }
 
   return (
@@ -1177,59 +1213,22 @@ export function ArticleForm({
       <input type="hidden" name="slug" value={slug || autoSlug} />
 
       <div className="is-editorial-toolbar -mx-4 sm:-mx-0">
-        <div>
-          <p className="is-editorial-eyebrow">Escritura</p>
-          <p
-            className={`mt-1 text-sm transition-colors duration-200 ${
-              saveState === "error"
-                ? "text-red-700"
-                : saveState === "dirty"
-                  ? "text-amber-800"
-                  : saveState === "saved"
-                    ? "text-teal-800"
-                    : "text-[var(--is-muted)]"
-            }`}
-          >
-            {saveLabel}
-            {saveError ? ` — ${saveError}` : null}
-          </p>
-        </div>
+        <p
+          className={`text-sm transition-colors duration-200 ${
+            saveState === "error"
+              ? "text-red-700"
+              : saveState === "dirty"
+                ? "text-amber-800"
+                : saveState === "saved"
+                  ? "text-teal-800"
+                  : "text-[var(--is-muted)]"
+          }`}
+          role="status"
+        >
+          {saveLabel}
+          {saveError ? ` — ${saveError}` : null}
+        </p>
         <div className="flex max-w-full flex-wrap items-center gap-2 overflow-x-hidden">
-          {canUseAiImport ? (
-            <AiImportButton onClick={() => setAiImportOpen(true)} />
-          ) : null}
-          <button
-            type="button"
-            className="is-btn is-btn-secondary lg:hidden"
-            onClick={() => setSideDrawer("assistant")}
-          >
-            Asistente
-          </button>
-          <button
-            type="button"
-            className="is-btn is-btn-secondary lg:hidden"
-            onClick={() => setSideDrawer("library")}
-          >
-            Material
-          </button>
-          <button
-            type="button"
-            className="is-btn is-btn-secondary"
-            onClick={() => {
-              if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
-                setConfigOpen(true);
-              } else {
-                setSideDrawer("config");
-              }
-            }}
-          >
-            Configuración
-            {checklistMissing.length > 0 ? (
-              <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-900">
-                {checklistMissing.length}
-              </span>
-            ) : null}
-          </button>
           {mode === "edit" && initial ? (
             <button
               type="button"
@@ -1273,9 +1272,32 @@ export function ArticleForm({
               subject={subject}
               canPublish={canPublish}
               checklistMissing={checklistMissing}
+              hideStatusPill
             />
           ) : null}
         </div>
+      </div>
+
+      {/* Herramientas auxiliares: acompañan la escritura sin competir con Publicar. */}
+      <div className="-mx-4 flex flex-wrap items-center gap-1 border-b border-[var(--is-border)]/70 px-4 py-2 sm:mx-0 sm:px-1">
+        <span className="is-editorial-section-label mr-1">Herramientas</span>
+        {canUseAiImport ? (
+          <AiImportButton onClick={() => setAiImportOpen(true)} />
+        ) : null}
+        <button
+          type="button"
+          className="is-btn is-btn-secondary !min-h-10 px-3 text-xs"
+          onClick={() => setSideDrawer("assistant")}
+        >
+          Asistente
+        </button>
+        <button
+          type="button"
+          className="is-btn is-btn-secondary !min-h-10 px-3 text-xs"
+          onClick={() => setSideDrawer("library")}
+        >
+          Material
+        </button>
       </div>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -1384,100 +1406,6 @@ export function ArticleForm({
             </p>
           </div>
 
-          <section
-            className="rounded-[var(--is-radius-md)] border border-[var(--is-border)] bg-[var(--is-surface)] p-5"
-            aria-labelledby="cover-section-title"
-          >
-            <h2 id="cover-section-title" className="text-base font-semibold tracking-tight">
-              Imagen de portada
-            </h2>
-            <div className="mt-4">
-              <CoverImageField
-                articleId={initial?.id}
-                initialCoverImageId={coverImageId || null}
-                initialCredit={coverCredit}
-                initialCaption={coverCaption}
-                assets={assets}
-                clfOptions={(() => {
-                  const fromLinks = localLinkedAssets
-                    .filter((a) => Boolean(a.assetId) && Boolean(a.url))
-                    .map((a) => ({
-                      assetId: a.assetId as string,
-                      url: a.url,
-                      thumbnailUrl: a.thumbnailUrl,
-                      credit: a.credit,
-                      photographerName: a.photographerName,
-                      albumTitle: a.albumTitle,
-                      coverageTitle: a.coverageTitle,
-                      caption: a.captionOverride,
-                    }));
-                  if (
-                    initial?.coverImageId &&
-                    initial.coverSourceType === "CLF_PHOTO" &&
-                    initial.coverUrl &&
-                    !fromLinks.some((a) => a.assetId === initial.coverImageId)
-                  ) {
-                    fromLinks.unshift({
-                      assetId: initial.coverImageId,
-                      url: initial.coverUrl,
-                      thumbnailUrl: initial.coverUrl,
-                      credit: initial.coverCredit ?? null,
-                      photographerName: null,
-                      albumTitle: clf?.albumTitle ?? null,
-                      coverageTitle: clf?.albumTitle ?? null,
-                      caption: initial.coverCaption ?? null,
-                    });
-                  }
-                  return fromLinks;
-                })()}
-                onChange={(next) => {
-                  if (!next.id) coverImageClearedRef.current = true;
-                  else coverImageClearedRef.current = false;
-                  setCoverImageId(next.id);
-                  setCoverCredit(next.credit);
-                  setCoverCaption(next.caption);
-                  draftRef.current = {
-                    ...draftRef.current,
-                    coverImageId: next.id,
-                    coverCredit: next.credit,
-                    coverCaption: next.caption,
-                  };
-                  markDirty();
-                }}
-              />
-            </div>
-            {coverFocal ? (
-              <div className="mt-6 border-t border-[var(--is-border)] pt-6">
-                <CoverFocalEditor
-                  usageId={coverFocal.usageId}
-                  imageSrc={coverFocal.imageSrc}
-                  initialFocalX={coverFocal.focalX}
-                  initialFocalY={coverFocal.focalY}
-                />
-              </div>
-            ) : null}
-          </section>
-
-          <ArticleLocationFields
-            value={location}
-            onChange={(next, meta) => {
-              if (meta?.cleared) locationClearedRef.current = true;
-              else if (next.geographicScope) locationClearedRef.current = false;
-              touchDraft({ location: next });
-              setLocation(next);
-              if (initial?.id && typeof window !== "undefined") {
-                try {
-                  const scopeKey = `infospot.article.scope.${initial.id}`;
-                  if (meta?.cleared || !next.geographicScope) sessionStorage.removeItem(scopeKey);
-                  else sessionStorage.setItem(scopeKey, next.geographicScope);
-                } catch {
-                  /* private mode */
-                }
-              }
-              markDirty();
-            }}
-          />
-
           <div id="article-body-editor">
             <p className="mb-3 text-sm leading-relaxed text-[var(--is-muted)]">
               Cuerpo — podés insertar imágenes propias desde la barra del editor o desde la
@@ -1517,40 +1445,23 @@ export function ArticleForm({
           ) : null}
         </div>
 
-        <aside className="hidden lg:block">
-          <div className="is-editorial-rail is-editorial-panel is-editorial-panel--bordered space-y-4">
-            <div className="flex gap-2 px-1 pt-1">
-              <button
-                type="button"
-                className={`min-h-10 flex-1 rounded-full px-3 text-sm font-medium ${
-                  railTab === "assistant"
-                    ? "bg-[var(--is-accent)] text-white"
-                    : "border border-[var(--is-border)]"
-                }`}
-                onClick={() => setRailTab("assistant")}
-              >
-                Asistente
-              </button>
-              <button
-                type="button"
-                className={`min-h-10 flex-1 rounded-full px-3 text-sm font-medium ${
-                  railTab === "library"
-                    ? "bg-[var(--is-accent)] text-white"
-                    : "border border-[var(--is-border)]"
-                }`}
-                onClick={() => setRailTab("library")}
-              >
-                Material
-              </button>
+        <aside className="lg:sticky lg:top-[var(--is-editor-rail-top)] lg:max-h-[var(--is-editor-rail-max-h)] lg:self-start lg:overflow-y-auto lg:overscroll-contain">
+          <div className="is-editorial-panel is-editorial-panel--bordered space-y-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="is-editorial-section-label">Estado de la nota</p>
+              <StatusBadge status={status} pendingReturn={Boolean(latestReturn)} />
             </div>
-            {railTab === "assistant" ? assistantPanel : library}
+
+            <PublishChecklist items={checklist} />
+
+            {sidebarAccordion}
           </div>
         </aside>
       </div>
 
-      {/* Drawer móvil: asistente, biblioteca o configuración */}
+      {/* Panel de herramientas: Asistente o Material, como overlay en cualquier ancho. */}
       {sideDrawer ? (
-        <div className="is-editorial-drawer-overlay lg:hidden">
+        <div className="is-editorial-drawer-overlay">
           <button
             type="button"
             className="absolute inset-0"
@@ -1561,13 +1472,7 @@ export function ArticleForm({
             className="is-editorial-drawer"
             role="dialog"
             aria-modal="true"
-            aria-label={
-              sideDrawer === "library"
-                ? "Material editorial"
-                : sideDrawer === "assistant"
-                  ? "Asistente Editorial"
-                  : "Configuración"
-            }
+            aria-label={sideDrawer === "library" ? "Material editorial" : "Asistente Editorial"}
           >
             <div className="is-editorial-drawer__header">
               <div className="flex flex-wrap gap-2">
@@ -1593,17 +1498,6 @@ export function ArticleForm({
                 >
                   Material
                 </button>
-                <button
-                  type="button"
-                  className={`min-h-10 rounded-full px-3 text-sm font-medium ${
-                    sideDrawer === "config"
-                      ? "bg-[var(--is-accent)] text-white"
-                      : "border border-[var(--is-border)]"
-                  }`}
-                  onClick={() => setSideDrawer("config")}
-                >
-                  Configuración
-                </button>
               </div>
               <button
                 type="button"
@@ -1615,51 +1509,67 @@ export function ArticleForm({
               </button>
             </div>
             <div className="is-editorial-drawer__body">
-              {sideDrawer === "assistant"
-                ? assistantPanel
-                : sideDrawer === "library"
-                  ? library
-                  : configPanel}
+              {sideDrawer === "assistant" ? assistantPanel : library}
             </div>
           </div>
         </div>
       ) : null}
 
-      {/* Drawer desktop: solo configuración */}
-      {configOpen ? (
-        <div className="is-editorial-drawer-overlay hidden lg:block">
-          <button
-            type="button"
-            className="absolute inset-0"
-            aria-label="Cerrar configuración"
-            onClick={closeDrawers}
-          />
-          <div
-            className="is-editorial-drawer"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Configuración editorial"
-          >
-            <div className="is-editorial-drawer__header">
-              <div>
-                <p className="is-editorial-eyebrow">Fuera de la escritura</p>
-                <h2 className="mt-1 is-font-serif text-xl font-semibold">
-                  Configuración
-                </h2>
-              </div>
-              <button
-                type="button"
-                className="is-btn is-btn-icon"
-                onClick={closeDrawers}
-                aria-label="Cerrar"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="is-editorial-drawer__body">{configPanel}</div>
-          </div>
-        </div>
-      ) : null}
+      <CoverImageModal
+        open={coverModalOpen}
+        onClose={() => setCoverModalOpen(false)}
+        articleId={initial?.id}
+        initialCoverImageId={coverImageId || null}
+        initialCredit={coverCredit}
+        initialCaption={coverCaption}
+        assets={assets}
+        clfOptions={(() => {
+          const fromLinks = localLinkedAssets
+            .filter((a) => Boolean(a.assetId) && Boolean(a.url))
+            .map((a) => ({
+              assetId: a.assetId as string,
+              url: a.url,
+              thumbnailUrl: a.thumbnailUrl,
+              credit: a.credit,
+              photographerName: a.photographerName,
+              albumTitle: a.albumTitle,
+              coverageTitle: a.coverageTitle,
+              caption: a.captionOverride,
+            }));
+          if (
+            initial?.coverImageId &&
+            initial.coverSourceType === "CLF_PHOTO" &&
+            initial.coverUrl &&
+            !fromLinks.some((a) => a.assetId === initial.coverImageId)
+          ) {
+            fromLinks.unshift({
+              assetId: initial.coverImageId,
+              url: initial.coverUrl,
+              thumbnailUrl: initial.coverUrl,
+              credit: initial.coverCredit ?? null,
+              photographerName: null,
+              albumTitle: clf?.albumTitle ?? null,
+              coverageTitle: clf?.albumTitle ?? null,
+              caption: initial.coverCaption ?? null,
+            });
+          }
+          return fromLinks;
+        })()}
+        onConfirm={(next) => {
+          if (!next.id) coverImageClearedRef.current = true;
+          else coverImageClearedRef.current = false;
+          setCoverImageId(next.id);
+          setCoverCredit(next.credit);
+          setCoverCaption(next.caption);
+          draftRef.current = {
+            ...draftRef.current,
+            coverImageId: next.id,
+            coverCredit: next.credit,
+            coverCaption: next.caption,
+          };
+          markDirty();
+        }}
+      />
 
       {canUseAiImport ? (
         <AiImportDialog

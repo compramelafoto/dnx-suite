@@ -19,6 +19,8 @@ type Props = {
   subject: InfoSpotPermissionSubject;
   canPublish: boolean;
   checklistMissing?: string[];
+  /** El estado ya se muestra en otra parte del encabezado; no duplicar el pill. */
+  hideStatusPill?: boolean;
 };
 
 /**
@@ -30,6 +32,7 @@ export function ArticlePublishToolbar({
   subject,
   canPublish,
   checklistMissing = [],
+  hideStatusPill = false,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -71,18 +74,20 @@ export function ArticlePublishToolbar({
 
   return (
     <div className="flex max-w-full flex-wrap items-center gap-2">
-      <span
-        className={`inline-flex min-h-11 items-center rounded-full border px-3 text-xs font-semibold ${
-          status === "PUBLISHED"
-            ? "border-teal-300 bg-teal-50 text-teal-900"
-            : status === "UNPUBLISHED"
-              ? "border-amber-300 bg-amber-50 text-amber-950"
-              : "border-[var(--is-border)] bg-[var(--is-bg-muted)] text-[var(--is-text)]"
-        }`}
-        title="Estado de publicación"
-      >
-        {STATUS_LABELS[status] ?? status}
-      </span>
+      {hideStatusPill ? null : (
+        <span
+          className={`inline-flex min-h-11 items-center rounded-full border px-3 text-xs font-semibold ${
+            status === "PUBLISHED"
+              ? "border-teal-300 bg-teal-50 text-teal-900"
+              : status === "UNPUBLISHED"
+                ? "border-amber-300 bg-amber-50 text-amber-950"
+                : "border-[var(--is-border)] bg-[var(--is-bg-muted)] text-[var(--is-text)]"
+          }`}
+          title="Estado de publicación"
+        >
+          {STATUS_LABELS[status] ?? status}
+        </span>
+      )}
 
       {canPublishNow ? (
         <button

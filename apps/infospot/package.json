@@ -11,6 +11,7 @@
     "check-types": "pnpm --filter @repo/db exec prisma generate && next typegen && tsc --noEmit",
     "test:editorial-workflow": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/editorial-workflow.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/event-editorial-workflow.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/editorial-persistence.test.ts",
     "test:article-autosave-guards": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/article-autosave-guards.test.ts",
+    "test:article-location-summary": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/article-location-summary.test.ts",
     "test:article-autosave-integration": "../../packages/db/node_modules/.bin/tsx lib/editorial/article-autosave-integration.test.ts",
     "test:video-embed": "pnpm --filter @repo/db exec tsx ../../packages/editor/src/video-embed.test.ts && pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/video-embed-qa-fixture.test.ts",
     "test:etapa-12-editor": "pnpm --filter @repo/db exec tsx ../../apps/infospot/lib/editorial/etapa-12-editor.test.ts",

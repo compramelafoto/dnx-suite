@@ -64,3 +64,18 @@ export function geographicScopeLabel(
 ): string {
   return geoScopeLabel(scope);
 }
+
+/** Resumen de una línea para el estado cerrado del panel lateral (formulario, valores string). */
+export function articleLocationSummary(value: {
+  geographicScope: GeographicScope | "";
+  city: string;
+  province: string;
+  placeName: string;
+}): string {
+  if (!value.geographicScope) return "Sin definir";
+  if (value.geographicScope === "UNSPECIFIED") return "Sin ubicación específica";
+  const parts = [value.city, value.province].filter((p) => p && p.trim());
+  if (parts.length > 0) return parts.join(", ");
+  if (value.placeName) return value.placeName;
+  return geographicScopeLabel(value.geographicScope);
+}

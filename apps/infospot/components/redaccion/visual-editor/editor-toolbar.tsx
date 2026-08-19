@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 
 type Props = {
@@ -14,6 +15,109 @@ const btn =
 
 const btnActive =
   "!border-[var(--is-accent)] !bg-[var(--is-accent-soft)] !text-[var(--is-accent-hover)]";
+
+function InsertMenu({
+  onInsertImage,
+  onInsertGallery,
+  onInsertVideo,
+}: {
+  onInsertImage: () => void;
+  onInsertGallery: () => void;
+  onInsertVideo: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    itemRefs.current[0]?.focus();
+    function onDocDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const items = itemRefs.current.filter(Boolean) as HTMLButtonElement[];
+        const idx = items.findIndex((el) => el === document.activeElement);
+        const dir = e.key === "ArrowDown" ? 1 : -1;
+        const next = items[(idx + dir + items.length) % items.length];
+        next?.focus();
+      }
+    }
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const items = [
+    { label: "Imagen", title: "Insertar imagen propia en el cuerpo", onSelect: onInsertImage },
+    {
+      label: "Galería",
+      title: "Insertar galería (slideshow de varias fotos)",
+      onSelect: onInsertGallery,
+    },
+    {
+      label: "Video",
+      title: "Insertar video de YouTube, Vimeo o Instagram",
+      onSelect: onInsertVideo,
+    },
+  ];
+
+  return (
+    <div className="relative" ref={rootRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`${btn} px-3 gap-1`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        title="Insertar imagen, galería o video"
+      >
+        Insertar
+        <span aria-hidden className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          aria-label="Insertar contenido"
+          className="absolute left-0 top-full z-20 mt-1 min-w-[10rem] overflow-hidden rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-white py-1 shadow-lg"
+        >
+          {items.map((item, i) => (
+            <button
+              key={item.label}
+              ref={(el) => {
+                itemRefs.current[i] = el;
+              }}
+              type="button"
+              role="menuitem"
+              title={item.title}
+              className="block w-full min-h-10 px-3 text-left text-sm text-[var(--is-text)] hover:bg-[var(--is-bg-secondary)] focus-visible:bg-[var(--is-bg-secondary)] focus-visible:outline-none"
+              onClick={() => {
+                setOpen(false);
+                item.onSelect();
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function EditorToolbar({ editor, onInsertImage, onInsertGallery, onInsertVideo }: Props) {
   if (!editor) {
@@ -128,33 +232,11 @@ export function EditorToolbar({ editor, onInsertImage, onInsertGallery, onInsert
       >
         —
       </button>
-      <button
-        type="button"
-        className={`${btn} px-3`}
-        onClick={onInsertImage}
-        title="Insertar imagen propia en el cuerpo"
-        aria-label="Insertar imagen propia"
-      >
-        Insertar imagen
-      </button>
-      <button
-        type="button"
-        className={`${btn} px-3`}
-        onClick={onInsertGallery}
-        title="Insertar galería (slideshow de varias fotos)"
-        aria-label="Insertar galería"
-      >
-        Insertar galería
-      </button>
-      <button
-        type="button"
-        className={`${btn} px-3`}
-        onClick={onInsertVideo}
-        title="Insertar video de YouTube, Vimeo o Instagram"
-        aria-label="Insertar video"
-      >
-        Insertar video
-      </button>
+      <InsertMenu
+        onInsertImage={onInsertImage}
+        onInsertGallery={onInsertGallery}
+        onInsertVideo={onInsertVideo}
+      />
       <span className="mx-1 h-6 w-px bg-[var(--is-border)]" aria-hidden />
       <button
         type="button"

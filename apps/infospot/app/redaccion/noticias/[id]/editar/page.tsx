@@ -5,6 +5,7 @@ import { updateArticleAndRedirect } from "@/app/actions/articles";
 import { ArticleForm } from "@/components/redaccion/article-form";
 import { FlashBanner } from "@/components/redaccion/flash-banner";
 import { RedaccionShell } from "@/components/redaccion/redaccion-shell";
+import { StatusBadge } from "@/components/redaccion/status-badge";
 import {
   authorDisplayName,
   getArticleByIdForEditor,
@@ -163,11 +164,14 @@ export default async function EditarNoticiaPage({ params, searchParams }: PagePr
     <RedaccionShell
       variant="editor"
       focusActions={
-        <span
-          className="hidden max-w-[14rem] truncate text-sm text-[var(--is-muted)] sm:inline"
-          title={article.title}
-        >
-          {article.title}
+        <span className="hidden min-w-0 items-center gap-2 sm:inline-flex">
+          <span
+            className="max-w-[12rem] truncate text-sm text-[var(--is-muted)]"
+            title={article.title}
+          >
+            {article.title}
+          </span>
+          <StatusBadge status={article.status} pendingReturn={hasPendingReturn(article)} />
         </span>
       }
     >
