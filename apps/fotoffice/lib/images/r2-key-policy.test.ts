@@ -3,9 +3,17 @@ import {
   assertFotofficeDeletableR2Key,
   assertSafeFotofficeR2Key,
   isFotofficeOwnedR2Key,
+  FOTOFFICE_R2_PREFIXES,
 } from "./r2-key-policy";
+import { IMAGE_PRESETS } from "./presets";
 
 describe("r2-key-policy — namespace de FotoOffice dentro del bucket compartido del monorepo", () => {
+  it("todo preset de imagen declarado en IMAGE_PRESETS tiene su prefijo R2 acá — agregar un preset nuevo sin registrar su namespace rompe este test antes que producción (ver uploadFotofficeImage)", () => {
+    for (const key of Object.keys(IMAGE_PRESETS)) {
+      expect(FOTOFFICE_R2_PREFIXES).toHaveProperty(key);
+    }
+  });
+
   it("una key propia de FotoOffice es borrable", () => {
     const key = "fotoffice/workspace-logos/ws_123/abc.png";
     expect(isFotofficeOwnedR2Key(key)).toBe(true);
