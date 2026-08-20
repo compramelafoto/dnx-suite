@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { bulkCreateMembers, listMemberCategories, listMemberIdentifiersForWorkspace } from "@repo/db/fotoffice-members";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { memberValuesToRepositoryInput } from "@/lib/members/schema";
-import { parseAndValidateMemberImport, type ImportRowResult } from "@/lib/members/import/parse";
+import { normalizeEmail, parseAndValidateMemberImport, type ImportRowResult } from "@/lib/members/import/parse";
 import { MEMBER_IMPORT_MAX_ROWS } from "@/lib/members/import/columns";
 
 export type MemberImportValidationState =
@@ -30,7 +30,12 @@ async function loadWorkspaceLookups(workspaceId: string) {
   const existingDocuments = new Set(
     identifiers.documents.map((d) => `${d.documentType.toLowerCase()}::${d.documentNumber.toLowerCase()}`),
   );
-  return { categoriesByName, existingMemberNumbers, existingDocuments };
+  // Normalizados con el MISMO criterio que usa el parser para las filas del CSV, si no
+  // `Socio@X.com` en la base no matchearía `socio@x.com` en el archivo.
+  const existingEmails = new Set(
+    identifiers.emails.map((e) => normalizeEmail(e)).filter((e): e is string => e !== null),
+  );
+  return { categoriesByName, existingMemberNumbers, existingDocuments, existingEmails };
 }
 
 /** PASO "Validar datos": parsea y valida, NO inserta nada en la base. */

@@ -73,13 +73,19 @@ describe("fotoffice-members repository — aislamiento por workspace en código"
     assert.match(fn, /workspaceId,\s*\.\.\.input/);
   });
 
-  it("listMemberIdentifiersForWorkspace filtra por workspace, no trae datos personales (solo memberNumber/documento)", () => {
+  it("listMemberIdentifiersForWorkspace filtra por workspace y trae SOLO identificadores únicos (memberNumber/documento/email)", () => {
     const fn = src.slice(
       src.indexOf("export async function listMemberIdentifiersForWorkspace"),
       src.indexOf("export function listMemberCategories"),
     );
     assert.match(fn, /where:\s*\{\s*workspaceId\s*\}/);
-    assert.doesNotMatch(fn, /firstName|lastName|email|phone/);
+    // `email` se sumó a propósito: es el TERCER identificador con restricción única por
+    // workspace (@@unique([workspaceId, email])), igual que memberNumber y documentType+
+    // documentNumber, y el import necesita los tres para avisar los choques en el preview
+    // en vez de abortar la transacción entera recién al insertar.
+    // El resto de los datos personales sigue prohibido: nombre, apellido y teléfono no son
+    // identificadores únicos y no hacen falta para detectar duplicados.
+    assert.doesNotMatch(fn, /firstName|lastName|phone/);
   });
 
   it("createMember siempre setea workspaceId en el data", () => {

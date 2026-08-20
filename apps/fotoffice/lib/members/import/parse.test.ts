@@ -196,3 +196,167 @@ describe("encabezados y límites", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe("emails duplicados — dentro del archivo", () => {
+  const row = (n: number, email: string, doc = "") =>
+    `${n},Socio${n},Apellido${n},${doc ? "DNI" : ""},${doc},${email},,,,,,,2024-01-15,ACTIVE,Socio activo,`;
+
+  it("dos filas con exactamente el mismo email: ambas quedan en ERROR", () => {
+    const csv = `${HEADER}\n${row(1, "socio@ejemplo.com")}\n${row(2, "socio@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].status).toBe("ERROR");
+    expect(result.rows[1].status).toBe("ERROR");
+    expect(result.rows[0].errors.some((e) => e.includes("repetido en el archivo"))).toBe(true);
+    expect(result.rows[1].errors.some((e) => e.includes("repetido en el archivo"))).toBe(true);
+    expect(result.errorCount).toBe(2);
+  });
+
+  it("mismo email variando mayúsculas: se detecta igual", () => {
+    const csv = `${HEADER}\n${row(1, "SOCIO@EJEMPLO.COM")}\n${row(2, "socio@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].status).toBe("ERROR");
+    expect(result.rows[1].status).toBe("ERROR");
+  });
+
+  it("mismo email con espacios laterales: se detecta igual", () => {
+    const csv = `${HEADER}\n${row(1, " socio@ejemplo.com ")}\n${row(2, "socio@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].status).toBe("ERROR");
+    expect(result.rows[1].status).toBe("ERROR");
+  });
+
+  it("tres filas con el mismo email: las TRES quedan marcadas, no solo las repetidas", () => {
+    const csv = `${HEADER}\n${row(1, "compartido@ejemplo.com")}\n${row(2, "compartido@ejemplo.com")}\n${row(3, "compartido@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows.map((r) => r.status)).toEqual(["ERROR", "ERROR", "ERROR"]);
+    expect(result.errorCount).toBe(3);
+  });
+
+  it("el mensaje nombra las OTRAS filas del conflicto, para poder corregir el CSV", () => {
+    const csv = `${HEADER}\n${row(1, "compartido@ejemplo.com")}\n${row(2, "compartido@ejemplo.com")}\n${row(3, "compartido@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const msg = result.rows[0].errors.find((e) => e.includes("repetido en el archivo"))!;
+    expect(msg).toContain("2, 3");
+    expect(msg).not.toContain(" 1,");
+  });
+
+  it("emails distintos: ninguna fila se marca por email", () => {
+    const csv = `${HEADER}\n${row(1, "uno@ejemplo.com")}\n${row(2, "dos@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows.every((r) => !r.errors.some((e) => e.toLowerCase().includes("email")))).toBe(true);
+    expect(result.errorCount).toBe(0);
+  });
+
+  it("filas SIN email no se consideran duplicadas entre sí", () => {
+    const csv = `${HEADER}\n${row(1, "")}\n${row(2, "")}\n${row(3, "")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.errorCount).toBe(0);
+    expect(result.rows.every((r) => r.status === "WARNING")).toBe(true);
+  });
+
+  it("una fila con email y otras sin email: no hay conflicto", () => {
+    const csv = `${HEADER}\n${row(1, "unico@ejemplo.com")}\n${row(2, "")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.errorCount).toBe(0);
+  });
+});
+
+describe("emails duplicados — contra la base del workspace", () => {
+  const row = (n: number, email: string) =>
+    `${n},Socio${n},Apellido${n},,,${email},,,,,,,2024-01-15,ACTIVE,Socio activo,`;
+
+  it("email que ya existe en ESTE workspace: fila en ERROR", () => {
+    const csv = `${HEADER}\n${row(1, "existente@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(
+      baseParams({ rawCsv: csv, existingEmails: new Set(["existente@ejemplo.com"]) }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].status).toBe("ERROR");
+    expect(result.rows[0].errors.some((e) => e.includes("ya está registrado"))).toBe(true);
+  });
+
+  it("el mensaje NO revela ningún dato personal del socio existente", () => {
+    const csv = `${HEADER}\n${row(1, "existente@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(
+      baseParams({ rawCsv: csv, existingEmails: new Set(["existente@ejemplo.com"]) }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const msg = result.rows[0].errors.find((e) => e.includes("ya está registrado"))!;
+    // Solo dice que está tomado; ni nombre, ni número de socio, ni documento del otro socio.
+    expect(msg).not.toMatch(/socio n|dni|apellido/i);
+  });
+
+  it("comparación normalizada: MAYÚSCULAS del CSV matchean el email guardado", () => {
+    const csv = `${HEADER}\n${row(1, "EXISTENTE@EJEMPLO.COM")}`;
+    const result = parseAndValidateMemberImport(
+      baseParams({ rawCsv: csv, existingEmails: new Set(["existente@ejemplo.com"]) }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].status).toBe("ERROR");
+  });
+
+  it("aislamiento: un email de OTRO workspace no bloquea (el set solo trae los de este)", () => {
+    const csv = `${HEADER}\n${row(1, "otro-workspace@ejemplo.com")}`;
+    // El set representa SOLO los emails del workspace actual; el de otro workspace no está.
+    const result = parseAndValidateMemberImport(
+      baseParams({ rawCsv: csv, existingEmails: new Set(["alguien-de-este-workspace@ejemplo.com"]) }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].errors.some((e) => e.includes("ya está registrado"))).toBe(false);
+    expect(result.errorCount).toBe(0);
+  });
+
+  it("sin existingEmails (llamador que no lo pasa): no rompe, solo no valida contra base", () => {
+    const csv = `${HEADER}\n${row(1, "cualquiera@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.errorCount).toBe(0);
+  });
+
+  it("conflicto de email conviviendo con conflicto de número de socio: se reportan ambos", () => {
+    const csv = `${HEADER}\n${row(1, "existente@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(
+      baseParams({
+        rawCsv: csv,
+        existingEmails: new Set(["existente@ejemplo.com"]),
+        existingMemberNumbers: new Set(["1"]),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].errors.some((e) => e.includes("ya está registrado"))).toBe(true);
+    expect(result.rows[0].errors.some((e) => e.includes("número"))).toBe(true);
+  });
+
+  it("una fila con email en conflicto NUNCA queda resolved: no llega al insert", () => {
+    const csv = `${HEADER}\n${row(1, "existente@ejemplo.com")}\n${row(2, "libre@ejemplo.com")}`;
+    const result = parseAndValidateMemberImport(
+      baseParams({ rawCsv: csv, existingEmails: new Set(["existente@ejemplo.com"]) }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].resolved).toBeUndefined();
+    expect(result.rows[1].resolved).toBeDefined();
+  });
+});

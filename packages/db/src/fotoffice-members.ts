@@ -163,10 +163,14 @@ export async function updateMember(
  */
 export async function listMemberIdentifiersForWorkspace(
   workspaceId: string,
-): Promise<{ memberNumbers: string[]; documents: { documentType: string; documentNumber: string }[] }> {
+): Promise<{
+  memberNumbers: string[];
+  documents: { documentType: string; documentNumber: string }[];
+  emails: string[];
+}> {
   const rows = await prisma.member.findMany({
     where: { workspaceId },
-    select: { memberNumber: true, documentType: true, documentNumber: true },
+    select: { memberNumber: true, documentType: true, documentNumber: true, email: true },
   });
   return {
     memberNumbers: rows.map((r) => r.memberNumber),
@@ -175,6 +179,12 @@ export async function listMemberIdentifiersForWorkspace(
         Boolean(r.documentType && r.documentNumber),
       )
       .map((r) => ({ documentType: r.documentType, documentNumber: r.documentNumber })),
+    /// `email` viaja en la MISMA consulta que ya se hacía: un socio con email choca
+    /// contra `@@unique([workspaceId, email])` al insertar, así que el import necesita
+    /// conocerlos para avisarlo en el preview y no abortar el lote entero al final.
+    emails: rows
+      .map((r) => r.email)
+      .filter((e): e is string => Boolean(e && e.trim())),
   };
 }
 

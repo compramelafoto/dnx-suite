@@ -44,6 +44,18 @@ function normalizeStatus(raw: string): string {
   return STATUS_ALIASES[key] ?? raw.trim();
 }
 
+/**
+ * Normaliza SOLO para comparar: recorta espacios y baja a minúsculas. Nunca reescribe la
+ * dirección que se va a guardar (eso sigue saliendo de `memberSchema`), nunca inventa ni
+ * agrega sufijos. `SOCIO@X.COM`, `socio@x.com` y ` socio@x.com ` son el mismo email.
+ * Un email vacío devuelve null: ausencia de email, no un duplicado — varias filas sin email
+ * no chocan entre sí.
+ */
+export function normalizeEmail(raw: string | null | undefined): string | null {
+  const t = raw?.trim().toLowerCase();
+  return t ? t : null;
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function isValidDateString(s: string): boolean {
@@ -66,6 +78,13 @@ export function parseAndValidateMemberImport(params: {
   categoriesByName: Map<string, string>; // nombre normalizado (trim+lower) -> categoryId
   existingMemberNumbers: Set<string>;
   existingDocuments: Set<string>; // `${documentType}::${documentNumber}` normalizado
+  /**
+   * Emails ya usados en ESTE workspace, normalizados con `normalizeEmail`. El caller los
+   * lee una sola vez (misma consulta que números/documentos), nunca una consulta por fila.
+   * Opcional para no romper llamadores que todavía no lo pasen: sin el set, no se valida
+   * contra la base, pero los duplicados DENTRO del archivo se siguen detectando igual.
+   */
+  existingEmails?: Set<string>;
 }): ImportParseOutcome {
   const parsed = Papa.parse<Record<string, string>>(params.rawCsv, {
     header: true,
@@ -101,6 +120,8 @@ export function parseAndValidateMemberImport(params: {
   const seenMemberNumbers = new Map<string, number[]>(); // memberNumber -> filas donde aparece
   const seenDocuments = new Map<string, number[]>();
   const docKeyByRow = new Map<number, string>(); // rowNumber -> docKey, para la segunda pasada
+  const seenEmails = new Map<string, number[]>(); // email normalizado -> filas donde aparece
+  const emailKeyByRow = new Map<number, string>(); // rowNumber -> email normalizado
 
   const rows: ImportRowResult[] = data.map((raw, idx) => {
     const rowNumber = idx + 1;
@@ -137,6 +158,15 @@ export function parseAndValidateMemberImport(params: {
       list.push(rowNumber);
       seenDocuments.set(docKey, list);
       docKeyByRow.set(rowNumber, docKey);
+    }
+    // Mismo criterio que número y documento. Sin email no se registra nada: dos filas
+    // sin email nunca son "el mismo email".
+    const emailKey = normalizeEmail(email);
+    if (emailKey) {
+      const list = seenEmails.get(emailKey) ?? [];
+      list.push(rowNumber);
+      seenEmails.set(emailKey, list);
+      emailKeyByRow.set(rowNumber, emailKey);
     }
 
     // Categoría: debe existir YA en el workspace — nunca se crea una nueva acá.
@@ -201,6 +231,14 @@ export function parseAndValidateMemberImport(params: {
         errors.push("Ya existe un socio con ese documento en este workspace.");
       }
     }
+    // Contra la base: lookup en memoria sobre un Set ya cargado (una sola consulta para
+    // todo el lote), nunca una consulta por fila. No se revela NINGÚN dato del socio
+    // existente: solo que ese email ya está tomado.
+    if (emailKey && params.existingEmails?.has(emailKey)) {
+      errors.push(
+        "Ese email ya está registrado en otro socio de este workspace. Usá otro email o dejá esta fila sin email.",
+      );
+    }
 
     // Advertencias: campos opcionales vacíos, nunca bloquean.
     if (!email) warnings.push("Sin email.");
@@ -233,6 +271,21 @@ export function parseAndValidateMemberImport(params: {
     if (docKey && (seenDocuments.get(docKey)?.length ?? 0) > 1) {
       row.errors.push("Ese documento está duplicado en el archivo.");
       row.resolved = undefined;
+    }
+    // Se marcan TODAS las filas del grupo, no solo la segunda: FotoOffice no elige por el
+    // administrador cuál de dos personas (ej. un matrimonio con un email compartido) se
+    // queda con la dirección. El mensaje nombra las otras filas para que pueda corregir el
+    // CSV: poner otro email válido, o dejar una de las filas sin email.
+    const emailKey = emailKeyByRow.get(row.rowNumber);
+    if (emailKey) {
+      const rowsWithSameEmail = seenEmails.get(emailKey) ?? [];
+      if (rowsWithSameEmail.length > 1) {
+        const others = rowsWithSameEmail.filter((n) => n !== row.rowNumber);
+        row.errors.push(
+          `Ese email está repetido en el archivo (también en ${others.length === 1 ? "la fila" : "las filas"} ${others.join(", ")}). Cada socio necesita un email distinto, o dejá sin email a los demás.`,
+        );
+        row.resolved = undefined;
+      }
     }
   }
 
