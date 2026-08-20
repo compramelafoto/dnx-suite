@@ -74,6 +74,7 @@ export function ContestPublicLanding({
   partnerGroups?: PublicPartnerGroup[];
 }) {
   const { contest, organization: org, judges } = data;
+  const isSfef = contest.slug.trim().toLowerCase() === "santa-fe-en-foco";
   const prConfig = parsePrizesRewardsConfig(contest.rulesData);
   const publicPrizes = prConfig.prizes.filter((p) => p.visiblePublic);
   const publicRewards = prConfig.rewards.filter((r) => r.visiblePublic);
@@ -87,7 +88,9 @@ export function ContestPublicLanding({
   });
   const cta = phaseCta(phase);
   const finalCta = finalCtaCopy(phase);
-  const heroImage = contest.coverImageUrl ?? org.coverImageUrl ?? null;
+  const sfefBanner = "/contest-assets/santa-fe-en-foco/hero/hero-desktop.jpg";
+  const sfefBannerMobile = "/contest-assets/santa-fe-en-foco/hero/hero-mobile.jpg";
+  const heroImage = contest.coverImageUrl ?? (isSfef ? sfefBanner : org.coverImageUrl) ?? null;
   const inscripcionHref = `/concursos/${contest.slug}/inscripcion`;
   const categoriasCount = contest.categories.length;
   const maxObrasHint =
@@ -114,6 +117,7 @@ export function ContestPublicLanding({
       organizationName={org.name}
       supportEmail={org.contactEmail}
       header={{ variant: "contest", panelHref: "/participaciones" }}
+      className={isSfef ? "fr-public-shell--sfef" : undefined}
     >
       <ContestHero
         title={contest.title}
@@ -121,9 +125,15 @@ export function ContestPublicLanding({
         phaseLabel={PHASE_LABEL[phase]}
         phaseTone={phaseTone(phase)}
         organizerName={org.name}
-        organizerLogoUrl={org.logoUrl}
+        // Branding SFEF (615df551): el banner ya incluye el logo del organizador.
+        organizerLogoUrl={isSfef ? null : org.logoUrl}
+        // Cierre: registrationCloseLabel() de 8ddcbd0b (mismo resultado para
+        // SFEF que el ternario inline de 615df551, sin duplicar la regla).
         deadlineLabel={registrationCloseLabel(contest)}
         heroImageUrl={heroImage}
+        heroImageMobileUrl={isSfef ? sfefBannerMobile : heroImage}
+        layout={isSfef && heroImage ? "stacked" : "overlay"}
+        objectPosition={isSfef ? "78% 45%" : "50% 50%"}
         visibilityNote={
           contest.visibility !== "PUBLIC"
             ? contest.visibility === "UNLISTED"
@@ -231,6 +241,12 @@ export function ContestPublicLanding({
               </h3>
               {org.shortDescription ? (
                 <p className="fr-public-body fr-public-stack-title">{org.shortDescription}</p>
+              ) : null}
+              {contest.slug.trim().toLowerCase() === "santa-fe-en-foco" ? (
+                <p className="fr-public-body fr-public-stack-title text-sm text-[var(--foreground-muted)]">
+                  Organiza la Sociedad de Fotógrafos Profesionales de Rosario, con la Cámara de
+                  Senadores de la Provincia de Santa Fe como entidad organizadora correspondiente.
+                </p>
               ) : null}
               <ul className="fr-public-stack-content space-y-3 text-sm text-[var(--foreground-muted)]">
                 {[org.city, org.country].filter(Boolean).length > 0 ? (

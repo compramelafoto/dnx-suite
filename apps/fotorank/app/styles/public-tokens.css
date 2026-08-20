@@ -90,6 +90,70 @@
   font-family: var(--public-font);
 }
 
+/* Santa Fe en Foco — paleta clara institucional (solo con class en shell) */
+.fr-public-shell--sfef {
+  --background: #f7f4ef;
+  --surface: #ffffff;
+  --surface-secondary: #f0ebe3;
+  --foreground: #12141a;
+  --foreground-muted: #4a5560;
+  --primary: #0b3a6e;
+  --primary-foreground: #ffffff;
+  --primary-hover: #082a52;
+  --accent: #1ba3d9;
+  --focus-ring: #e85a2d;
+  --border: #d9d2c8;
+}
+
+.fr-public-shell--sfef .fr-public-btn--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.fr-public-shell--sfef .fr-public-btn--primary:hover {
+  background: var(--primary-hover);
+}
+
+.fr-public-hero--stacked {
+  display: flex;
+  flex-direction: column;
+}
+
+.fr-public-hero__banner {
+  width: 100%;
+  line-height: 0;
+  overflow: hidden;
+}
+
+.fr-public-hero__media {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(32rem, 70vw);
+  object-fit: cover;
+  aspect-ratio: 16 / 9;
+}
+
+.fr-public-hero__media--mobile {
+  display: block;
+  object-fit: contain;
+  max-height: none;
+  background: var(--background);
+}
+
+.fr-public-hero__media--desktop {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .fr-public-hero__media--desktop {
+    display: block;
+  }
+  .fr-public-hero__media--mobile {
+    display: none;
+  }
+}
+
 .fr-public-shell a:focus-visible,
 .fr-public-shell button:focus-visible,
 .fr-public-shell input:focus-visible,
