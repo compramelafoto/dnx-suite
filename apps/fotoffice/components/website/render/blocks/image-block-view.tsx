@@ -12,7 +12,7 @@ export function ImageBlockView({ config }: { config: ImageBlockConfig }) {
     <section className="px-6 py-10">
       <figure className={WIDTH_CLASS[config.widthPreset]}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={config.imageUrl} alt={config.alt} className="w-full h-auto rounded-2xl object-cover" />
+        <img src={config.imageUrl} alt={config.alt ?? ""} className="w-full h-auto rounded-2xl object-cover" />
         {config.caption ? (
           <figcaption className="mt-2 text-sm text-center opacity-60" style={{ color: "var(--wsite-text)" }}>
             {config.caption}

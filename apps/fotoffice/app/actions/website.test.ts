@@ -5,6 +5,7 @@ const {
   websiteUpsertMock,
   websiteUpdateMock,
   websiteUpdateManyMock,
+  websiteFindUniqueMock,
   versionAggregateMock,
   versionCreateMock,
   brandingUpdateMock,
@@ -13,6 +14,7 @@ const {
   websiteUpsertMock: vi.fn(),
   websiteUpdateMock: vi.fn(),
   websiteUpdateManyMock: vi.fn(),
+  websiteFindUniqueMock: vi.fn(),
   versionAggregateMock: vi.fn(),
   versionCreateMock: vi.fn(),
   brandingUpdateMock: vi.fn(),
@@ -28,7 +30,12 @@ const txDelegates = {
 vi.mock("@repo/db", () => ({
   prisma: {
     workspaceMembership: { findUnique: membershipFindUniqueMock },
-    fotofficeWorkspaceWebsite: { upsert: websiteUpsertMock, update: websiteUpdateMock, updateMany: websiteUpdateManyMock },
+    fotofficeWorkspaceWebsite: {
+      upsert: websiteUpsertMock,
+      update: websiteUpdateMock,
+      updateMany: websiteUpdateManyMock,
+      findUnique: websiteFindUniqueMock,
+    },
     fotofficeWorkspaceBranding: { update: brandingUpdateMock },
     $transaction: vi.fn(async (fn: (tx: typeof txDelegates) => unknown) => fn(txDelegates)),
   },
@@ -64,6 +71,7 @@ const DRAFT_BASE = {
   seoDescription: null,
   navJson: null,
   sectionsJson: null,
+  designPresetsJson: null,
   updatedAt: new Date("2026-08-19T10:00:00.000Z"),
 };
 
@@ -72,6 +80,7 @@ describe("publishWebsiteAction", () => {
     membershipFindUniqueMock.mockReset();
     websiteUpsertMock.mockReset();
     websiteUpdateMock.mockReset();
+    websiteUpdateMock.mockResolvedValue({ updatedAt: new Date("2026-08-19T11:00:00.000Z") });
     versionAggregateMock.mockReset();
     versionCreateMock.mockReset();
   });
@@ -96,6 +105,9 @@ describe("publishWebsiteAction", () => {
       where: { id: "website-a" },
       data: expect.objectContaining({ publishedVersionId: "version-1" }),
     });
+    // El autosave de secciones/diseño comparte esta fila — necesita el updatedAt nuevo para no
+    // reportar un conflicto falso en la próxima edición (ver comentario en WebsitePublishState).
+    expect(result.updatedAt).toBe("2026-08-19T11:00:00.000Z");
   });
 
   it("publicar dos veces crea dos versiones distintas, sin tocar la anterior", async () => {
@@ -145,11 +157,44 @@ describe("publishWebsiteAction", () => {
         "seoDescription",
         "navJson",
         "sectionsJson",
+        "designPresetsJson",
         "publishedByUserId",
         "publishedAt",
       ].sort(),
     );
     expect(dataArg.publishedByUserId).toBe(7);
+  });
+
+  it("el snapshot congela el designPresetsJson del draft tal como estaba al publicar — cambiarlo después no reescribe la Version ya creada", async () => {
+    const designA = { headerPreset: "logo-left", showLoginButton: false, loginButtonLabel: "Iniciar sesión", logoSizePx: 40, typographyPreset: "modern", buttonPreset: "rounded", animationPreset: "none" };
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    websiteUpsertMock.mockResolvedValueOnce({ ...DRAFT_BASE, designPresetsJson: designA });
+    versionAggregateMock.mockResolvedValueOnce({ _max: { versionNumber: null } });
+    versionCreateMock.mockResolvedValueOnce({ id: "version-1" });
+
+    await publishWebsiteAction(undefined, buildFormData());
+
+    expect(versionCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ designPresetsJson: designA }),
+    });
+
+    // El draft cambia a diseño B y se publica de nuevo — Version 1 (ya creada arriba) nunca se
+    // vuelve a tocar; solo se crea una Version 2 nueva con el diseño B.
+    const designB = { ...designA, headerPreset: "centered", typographyPreset: "editorial" };
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    websiteUpsertMock.mockResolvedValueOnce({ ...DRAFT_BASE, designPresetsJson: designB });
+    versionAggregateMock.mockResolvedValueOnce({ _max: { versionNumber: 1 } });
+    versionCreateMock.mockResolvedValueOnce({ id: "version-2" });
+
+    await publishWebsiteAction(undefined, buildFormData());
+
+    expect(versionCreateMock).toHaveBeenCalledTimes(2);
+    expect(versionCreateMock).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ versionNumber: 2, designPresetsJson: designB }),
+    });
+    // La primera llamada (Version 1) sigue en el historial de mocks con designA intacto —
+    // nunca se llamó a un update sobre esa fila para cambiarle el diseño.
+    expect(versionCreateMock.mock.calls[0][0].data.designPresetsJson).toEqual(designA);
   });
 
   it("STAFF no puede publicar", async () => {
@@ -206,18 +251,19 @@ describe("unpublishWebsiteAction", () => {
 
   it("OWNER despublica: limpia publishedVersionId y publishedAt, nada más", async () => {
     membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
-    websiteUpdateMock.mockResolvedValueOnce({});
+    websiteUpdateMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T11:00:00.000Z") });
     const result = await unpublishWebsiteAction(undefined, buildFormData());
     expect(result.error).toBeNull();
     expect(websiteUpdateMock).toHaveBeenCalledWith({
       where: { workspaceId: "ws-a" },
       data: { publishedVersionId: null, publishedAt: null },
     });
+    expect(result.updatedAt).toBe("2026-08-19T11:00:00.000Z");
   });
 
   it("despublicar no borra ninguna versión — el update jamás toca FotofficeWorkspaceWebsiteVersion", async () => {
     membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
-    websiteUpdateMock.mockResolvedValueOnce({});
+    websiteUpdateMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T11:00:00.000Z") });
     await unpublishWebsiteAction(undefined, buildFormData());
     expect(versionCreateMock).not.toHaveBeenCalled();
   });
@@ -242,16 +288,19 @@ describe("saveWebsiteBlocksAction", () => {
   beforeEach(() => {
     membershipFindUniqueMock.mockReset();
     websiteUpdateManyMock.mockReset();
+    websiteFindUniqueMock.mockReset();
   });
 
-  it("OWNER guarda bloques válidos: escribe sectionsJson.pages.home con updateMany guardado por updatedAt", async () => {
+  it("OWNER guarda bloques válidos: escribe sectionsJson.pages.home con updateMany guardado por updatedAt, devuelve el updatedAt fresco", async () => {
     membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
     websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+    websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
     const result = await saveWebsiteBlocksAction(
       undefined,
       buildFormData({ blocksJson: JSON.stringify([VALID_BLOCK]), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
     );
     expect(result.error).toBeNull();
+    expect(result.updatedAt).toBe("2026-08-19T10:00:05.000Z");
     expect(websiteUpdateManyMock).toHaveBeenCalledWith({
       where: { workspaceId: "ws-a", updatedAt: new Date("2026-08-19T10:00:00.000Z") },
       data: { sectionsJson: { pages: { home: [VALID_BLOCK] } } },
@@ -287,17 +336,72 @@ describe("saveWebsiteBlocksAction", () => {
     expect(result.error).toBe("No tenés permiso para editar el sitio web.");
     expect(websiteUpdateManyMock).not.toHaveBeenCalled();
   });
+
+  it("guarda solo designPresetsJson cuando blocksJson no viaja — no pisa sectionsJson por accidente", async () => {
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+    websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
+    const presets = { headerPreset: "centered", showLoginButton: true, loginButtonLabel: "Entrar", logoSizePx: 48, typographyPreset: "editorial", buttonPreset: "pill", animationPreset: "soft" };
+    const result = await saveWebsiteBlocksAction(
+      undefined,
+      buildFormData({ designPresetsJson: JSON.stringify(presets), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
+    );
+    expect(result.error).toBeNull();
+    const dataArg = websiteUpdateManyMock.mock.calls[0][0].data;
+    expect("sectionsJson" in dataArg).toBe(false);
+    expect(dataArg.designPresetsJson).toEqual(presets);
+  });
+
+  it("guarda bloques Y presets juntos en una sola escritura atómica (misma fila, mismo updatedAt)", async () => {
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+    websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
+    const presets = { headerPreset: "minimal", showLoginButton: false, loginButtonLabel: "Iniciar sesión", logoSizePx: 40, typographyPreset: "modern", buttonPreset: "rounded", animationPreset: "none" };
+    await saveWebsiteBlocksAction(
+      undefined,
+      buildFormData({ blocksJson: JSON.stringify([VALID_BLOCK]), designPresetsJson: JSON.stringify(presets), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
+    );
+    expect(websiteUpdateManyMock).toHaveBeenCalledWith({
+      where: { workspaceId: "ws-a", updatedAt: new Date("2026-08-19T10:00:00.000Z") },
+      data: { sectionsJson: { pages: { home: [VALID_BLOCK] } }, designPresetsJson: presets },
+    });
+  });
+
+  it("un campo de preset inválido cae a su default (.catch) en vez de rechazar todo el guardado", async () => {
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+    websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
+    const result = await saveWebsiteBlocksAction(
+      undefined,
+      buildFormData({ designPresetsJson: JSON.stringify({ headerPreset: "no-existe" }), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
+    );
+    expect(result.error).toBeNull();
+    const dataArg = websiteUpdateManyMock.mock.calls[0][0].data;
+    expect(dataArg.designPresetsJson.headerPreset).toBe("logo-left");
+  });
+
+  it("designPresetsJson con JSON directamente corrupto se rechaza sin llegar a la DB", async () => {
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    const result = await saveWebsiteBlocksAction(
+      undefined,
+      buildFormData({ designPresetsJson: "{esto no es json", draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
+    );
+    expect(result.error).toBe("Los presets de diseño enviados no tienen un formato válido.");
+    expect(websiteUpdateManyMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("saveWebsiteSeoAction", () => {
   beforeEach(() => {
     membershipFindUniqueMock.mockReset();
     websiteUpdateManyMock.mockReset();
+    websiteFindUniqueMock.mockReset();
   });
 
   it("OWNER guarda seoTitle/seoDescription en el draft", async () => {
     membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
     websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+    websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
     const result = await saveWebsiteSeoAction(
       undefined,
       buildFormData({ seoTitle: "Mi sitio", seoDescription: "Descripción", draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
@@ -335,6 +439,29 @@ describe("saveWebsiteBrandingColorsAction", () => {
       where: { workspaceId: "ws-a" },
       data: { primaryColor: "#112233", secondaryColor: null, backgroundColor: null, textColor: null, accentColor: null },
     });
+  });
+
+  it("logoUrl solo se incluye en el update cuando el caller lo manda explícitamente", async () => {
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    brandingUpdateMock.mockResolvedValueOnce({});
+    await saveWebsiteBrandingColorsAction(
+      undefined,
+      buildFormData({ primaryColor: "", secondaryColor: "", backgroundColor: "", textColor: "", accentColor: "", logoUrl: "https://r2.example/logo.png" }),
+    );
+    expect(brandingUpdateMock).toHaveBeenCalledWith({
+      where: { workspaceId: "ws-a" },
+      data: expect.objectContaining({ logoUrl: "https://r2.example/logo.png" }),
+    });
+
+    brandingUpdateMock.mockReset();
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    brandingUpdateMock.mockResolvedValueOnce({});
+    await saveWebsiteBrandingColorsAction(
+      undefined,
+      buildFormData({ primaryColor: "", secondaryColor: "", backgroundColor: "", textColor: "", accentColor: "" }),
+    );
+    const dataArg = brandingUpdateMock.mock.calls[0][0].data;
+    expect("logoUrl" in dataArg).toBe(false);
   });
 
   it("rechaza un color que no es hexadecimal válido", async () => {

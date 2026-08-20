@@ -10,6 +10,9 @@ export const FOTOFFICE_R2_PREFIXES = {
   memberAvatar: "fotoffice/member-avatars",
   photographerAvatar: "fotoffice/photographer-avatars",
   courseCover: "fotoffice/course-covers",
+  websiteHeroImage: "fotoffice/website-hero-images",
+  websiteBlockImage: "fotoffice/website-block-images",
+  favicon: "fotoffice/favicons",
 } as const;
 
 export const FOTOFFICE_R2_DELETABLE_PREFIXES = Object.values(FOTOFFICE_R2_PREFIXES).map(

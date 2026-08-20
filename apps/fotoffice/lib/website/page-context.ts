@@ -4,6 +4,7 @@ import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { ensureWebsiteDraft } from "./draft";
 import { computeWebsiteChangeStatus, type WebsiteChangeStatus } from "./change-status";
 import { parseWebsiteSections, type WebsiteSections } from "./blocks";
+import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-presets";
 
 /** Contexto común a las 6 pantallas del CMS (Editor/Diseño/Navegación/SEO/Historial/Preview):
  * workspace activo + permisos + borrador (garantizado existente) + estado de publicación. Se
@@ -35,6 +36,7 @@ export async function loadWebsiteCmsContext() {
       seoDescription: draft.seoDescription,
       navJson: draft.navJson,
       sectionsJson: draft.sectionsJson,
+      designPresetsJson: draft.designPresetsJson,
     },
     publishedVersion: publishedVersion
       ? {
@@ -44,6 +46,7 @@ export async function loadWebsiteCmsContext() {
           seoDescription: publishedVersion.seoDescription,
           navJson: publishedVersion.navJson,
           sectionsJson: publishedVersion.sectionsJson,
+          designPresetsJson: publishedVersion.designPresetsJson,
         }
       : null,
     hasAnyVersionHistory,
@@ -51,6 +54,7 @@ export async function loadWebsiteCmsContext() {
 
   const canEdit = canManageWorkspaceSettings(membership?.role);
   const sections: WebsiteSections = parseWebsiteSections(draft.sectionsJson);
+  const designPresets: WebsiteDesignPresets = parseWebsiteDesignPresets(draft.designPresetsJson);
 
   return {
     workspace,
@@ -59,6 +63,7 @@ export async function loadWebsiteCmsContext() {
     canEdit,
     status,
     sections,
+    designPresets,
     draftUpdatedAtIso: draft.updatedAt.toISOString(),
   };
 }

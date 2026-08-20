@@ -5,7 +5,10 @@ export function CtaBlockView({ config }: { config: CtaBlockConfig }) {
   return (
     <section className="px-6 py-16" style={{ backgroundColor: "var(--wsite-primary)" }}>
       <div className="max-w-2xl mx-auto text-center space-y-4">
-        <h2 className="text-2xl sm:text-3xl font-bold" style={{ color: "#ffffff" }}>
+        <h2
+          className="text-2xl sm:text-3xl"
+          style={{ color: "#ffffff", fontFamily: "var(--wsite-heading-font)", fontWeight: "var(--wsite-heading-weight)", letterSpacing: "var(--wsite-letter-spacing)" }}
+        >
           {config.title || "Título"}
         </h2>
         {config.text ? (
@@ -15,12 +18,14 @@ export function CtaBlockView({ config }: { config: CtaBlockConfig }) {
         ) : null}
         <a
           href={config.buttonUrl || "#"}
-          className="inline-flex mt-2 rounded-full px-6 py-3 text-sm font-semibold"
-          style={
-            solid
-              ? { backgroundColor: "#ffffff", color: "var(--wsite-primary)" }
-              : { border: "2px solid #ffffff", color: "#ffffff" }
-          }
+          className="inline-flex mt-2 text-sm"
+          style={{
+            borderRadius: "var(--wsite-button-radius)",
+            paddingInline: "var(--wsite-button-padding-x)",
+            paddingBlock: "var(--wsite-button-padding-y)",
+            fontWeight: "var(--wsite-button-weight)",
+            ...(solid ? { backgroundColor: "#ffffff", color: "var(--wsite-primary)" } : { border: "2px solid #ffffff", color: "#ffffff" }),
+          }}
         >
           {config.buttonLabel || "Botón"}
         </a>

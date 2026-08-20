@@ -1,20 +1,6 @@
 import type { ComponentType } from "react";
-import { websiteBlockSchema, type WebsiteBlock } from "@/lib/website/blocks";
-import { HeroBlockView } from "./blocks/hero-block-view";
-import { TextBlockView } from "./blocks/text-block-view";
-import { ImageBlockView } from "./blocks/image-block-view";
-import { CtaBlockView } from "./blocks/cta-block-view";
-import { SpacerBlockView } from "./blocks/spacer-block-view";
-
-/** Registro tipo→componente. Agregar un bloque nuevo es agregar una entrada acá, nunca un
- * switch nuevo desperdigado por la app. */
-const BLOCK_VIEWS: { [K in WebsiteBlock["type"]]: ComponentType<{ config: Extract<WebsiteBlock, { type: K }>["config"] }> } = {
-  HERO: HeroBlockView,
-  TEXT: TextBlockView,
-  IMAGE: ImageBlockView,
-  CTA: CtaBlockView,
-  SPACER: SpacerBlockView,
-};
+import { websiteBlockSchema } from "@/lib/website/blocks";
+import { WEBSITE_BLOCK_REGISTRY } from "@/lib/website/block-registry";
 
 /**
  * Despacha un bloque a su componente de renderizado. Fail-safe de forma: si el bloque no
@@ -35,6 +21,6 @@ export function WebsiteBlockRenderer({ block }: { block: unknown }) {
   const validBlock = parsed.data;
   if (!validBlock.visible) return null;
 
-  const View = BLOCK_VIEWS[validBlock.type] as ComponentType<{ config: typeof validBlock.config }>;
-  return <View config={validBlock.config} />;
+  const View = WEBSITE_BLOCK_REGISTRY[validBlock.type].View as ComponentType<{ config: typeof validBlock.config; blockId?: string }>;
+  return <View config={validBlock.config} blockId={validBlock.id} />;
 }

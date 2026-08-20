@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { WEBSITE_BLOCK_DEFINITIONS, WEBSITE_BLOCK_TYPES, type WebsiteBlockType } from "@/lib/website/blocks";
+import { WEBSITE_BLOCK_CATEGORIES, WEBSITE_BLOCK_DEFINITIONS, WEBSITE_BLOCK_TYPES, type WebsiteBlockCategory, type WebsiteBlockType } from "@/lib/website/blocks";
 
-const GROUP_LABELS: Record<string, string> = {
-  CONTENIDO: "Contenido",
+const CATEGORY_LABELS: Record<WebsiteBlockCategory, string> = {
+  BASICAS: "Básicas",
+  INSTITUCION: "Institución",
+  SOCIOS: "Socios",
+  ACTIVIDAD: "Actividad",
+  COMUNICACION: "Comunicación",
+  COMERCIAL: "Comercial / Sponsors",
 };
 
 export function AddBlockPicker({
@@ -20,11 +25,10 @@ export function AddBlockPicker({
     dialogRef.current?.showModal();
   }, []);
 
-  const grouped = WEBSITE_BLOCK_TYPES.reduce<Record<string, WebsiteBlockType[]>>((acc, type) => {
-    const group = WEBSITE_BLOCK_DEFINITIONS[type].group;
-    (acc[group] ??= []).push(type);
-    return acc;
-  }, {});
+  const byCategory = WEBSITE_BLOCK_CATEGORIES.map((category) => ({
+    category,
+    types: WEBSITE_BLOCK_TYPES.filter((type) => WEBSITE_BLOCK_DEFINITIONS[type].category === category),
+  })).filter((g) => g.types.length > 0);
 
   return (
     <dialog
@@ -33,7 +37,7 @@ export function AddBlockPicker({
       onClose={onClose}
       onCancel={onClose}
     >
-      <div className="p-6 space-y-5">
+      <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-[var(--fo-text)]">Agregar sección</h2>
           <button type="button" className="text-sm text-[var(--fo-muted)] hover:text-[var(--fo-text)]" onClick={onClose}>
@@ -41,11 +45,9 @@ export function AddBlockPicker({
           </button>
         </div>
 
-        {Object.entries(grouped).map(([group, types]) => (
-          <div key={group} className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted)]">
-              {GROUP_LABELS[group] ?? group}
-            </p>
+        {byCategory.map(({ category, types }) => (
+          <div key={category} className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted)]">{CATEGORY_LABELS[category]}</p>
             <div className="space-y-2">
               {types.map((type) => {
                 const def = WEBSITE_BLOCK_DEFINITIONS[type];

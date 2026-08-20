@@ -118,6 +118,19 @@ export const IMAGE_PRESETS = {
     acceptedFormats: ["image/jpeg", "image/webp", "image/png"],
     objectFit: "cover",
   },
+  favicon: {
+    key: "favicon",
+    label: "Favicon",
+    widthRecommended: 512,
+    heightRecommended: 512,
+    aspectRatio: { width: 1, height: 1 },
+    aspectRatioTolerance: 0.05,
+    minWidth: 32,
+    minHeight: 32,
+    maxFileSizeBytes: 1 * MB,
+    acceptedFormats: ["image/png", "image/webp"],
+    objectFit: "contain",
+  },
 } as const satisfies Record<string, ImagePreset>;
 
 export type ImagePresetKey = keyof typeof IMAGE_PRESETS;

@@ -6853,6 +6853,8 @@ model FotofficeWorkspaceBranding {
   commercialName        String
   logoUrl               String?
   coverImageUrl         String?
+  /// Identidad general del workspace, no específico del Website — mismo criterio que logoUrl.
+  faviconUrl            String?
   primaryColor          String?
   secondaryColor        String?
   backgroundColor       String?
@@ -6899,6 +6901,10 @@ model FotofficeWorkspaceWebsite {
   navJson        Json?
   /// Bloques de portada (tipo/orden/visibilidad). Sin renderer todavía — ver `lib/website/blocks.ts`.
   sectionsJson   Json?
+  /// Header/tipografía/botones/animación del sitio (ver `lib/website/design-presets.ts`).
+  /// null = defaults. Colores/logo NO están acá — siguen viviendo en FotofficeWorkspaceBranding
+  /// y se leen en vivo, decisión de producto ya tomada, sin cambiar en esta etapa.
+  designPresetsJson Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   workspace        Workspace                         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -6921,6 +6927,10 @@ model FotofficeWorkspaceWebsiteVersion {
   seoDescription    String?
   navJson           Json?
   sectionsJson      Json?
+  /// Congelado al momento de publicar — una versión conserva EXACTAMENTE el diseño que tenía
+  /// cuando se publicó, aunque el draft (`FotofficeWorkspaceWebsite.designPresetsJson`) siga
+  /// cambiando después. Nunca se reescribe una vez creada la fila.
+  designPresetsJson Json?
   /// Quién ejecutó la publicación. FK interna para auditoría/historial — el User completo
   /// NUNCA es parte de lo que se expone al sitio público.
   publishedByUserId Int?

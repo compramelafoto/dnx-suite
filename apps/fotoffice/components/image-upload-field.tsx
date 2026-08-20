@@ -15,6 +15,7 @@ export function ImageUploadField({
   label,
   description,
   initialUrl,
+  onUploaded,
 }: {
   /** Nombre del campo del form que recibe la URL final (ej. "logoUrl"). */
   name: string;
@@ -22,6 +23,10 @@ export function ImageUploadField({
   label: string;
   description?: string;
   initialUrl?: string | null;
+  /** Opcional: además del hidden input (para submits de <form>), notifica la URL subida a un
+   * padre controlado — lo usa el inspector del builder para reflejarla en la preview en vivo
+   * sin esperar a un submit. No cambia el mecanismo de subida. */
+  onUploaded?: (url: string | null) => void;
 }) {
   const preset = getImagePreset(presetKey);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -126,6 +131,7 @@ export function ImageUploadField({
       }
       setUrl(uploadedUrl);
       setStatus("idle");
+      onUploaded?.(uploadedUrl);
     } catch {
       setStatus("error");
       setError("No se pudo subir la imagen. Revisá tu conexión e intentá de nuevo.");
@@ -134,6 +140,7 @@ export function ImageUploadField({
 
   function handleRemove() {
     setUrl(null);
+    onUploaded?.(null);
     setPreviewSrc(null);
     setFilename(null);
     setDimensions(null);
