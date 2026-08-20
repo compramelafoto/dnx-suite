@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMember } from "@repo/db/fotoffice-members";
+import { getMember, listMemberAudits } from "@repo/db/fotoffice-members";
 import { requireMembersContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
 import { MemberStatusChanger } from "@/components/members/member-status-changer";
+import { MemberAuditLog } from "@/components/members/member-audit-log";
 import { MEMBER_STATUS_LABELS } from "@/lib/members/status-labels";
 
 function initials(firstName: string, lastName: string): string {
@@ -20,6 +21,9 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const member = await getMember(workspace.id, id);
   if (!member) notFound();
+
+  // Solo se consulta si el rol puede verlo: STAFF ni siquiera dispara la query.
+  const audits = canManage ? await listMemberAudits(workspace.id, member.id) : [];
 
   return (
     <div className="space-y-10">
@@ -151,6 +155,17 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               <p className="text-sm text-[var(--fo-text)] whitespace-pre-line leading-relaxed">
                 {member.notes}
               </p>
+            </section>
+          ) : null}
+
+          {/* Historial solo para OWNER/ADMIN: incluye motivos de suspensión/baja y quién los
+              decidió. STAFF consulta el padrón pero no la trastienda de las decisiones. */}
+          {canManage ? (
+            <section className="fo-card space-y-4 sm:col-span-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+                Historial
+              </h2>
+              <MemberAuditLog entries={audits} />
             </section>
           ) : null}
         </div>

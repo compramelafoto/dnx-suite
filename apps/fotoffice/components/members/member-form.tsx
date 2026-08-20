@@ -43,6 +43,8 @@ type MemberInitial = {
   province: string | null;
   postalCode: string | null;
   notes: string | null;
+  /// Testigo de concurrencia optimista: el `updatedAt` que el formulario vio al abrirse.
+  updatedAt?: Date | string | null;
 };
 
 export function MemberForm({
@@ -61,6 +63,15 @@ export function MemberForm({
   return (
     <form action={action} className="fo-section-gap max-w-3xl">
       {member ? <input type="hidden" name="id" value={member.id} /> : null}
+      {/* Si otro administrador guarda primero, este valor deja de coincidir y el guardado se
+          aborta en vez de pisar su cambio en silencio. */}
+      {member?.updatedAt ? (
+        <input
+          type="hidden"
+          name="expectedUpdatedAt"
+          value={new Date(member.updatedAt).toISOString()}
+        />
+      ) : null}
 
       <section className="fo-card space-y-6">
         <div className="flex items-start gap-4">

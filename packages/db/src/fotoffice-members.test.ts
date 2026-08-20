@@ -93,11 +93,15 @@ describe("fotoffice-members repository — aislamiento por workspace en código"
     assert.match(fn, /data:\s*\{\s*workspaceId,/);
   });
 
-  it("F/J: updateMember usa updateMany({ id, workspaceId }), NUNCA update({ where: { id } }) — un memberId de otro workspace matchea 0 filas", () => {
-    const fn = fnBody("function updateMember", "export function listMemberCategories");
-    assert.match(fn, /updateMany\(\{\s*where:\s*\{\s*id:\s*memberId,\s*workspaceId\s*\},\s*data\s*\}\)/);
+  it("F/J: updateMember usa updateMany con id + workspaceId (+ updatedAt de concurrencia), NUNCA update({ where: { id } }) — un memberId de otro workspace matchea 0 filas", () => {
+    const fn = fnBody("async function updateMember", "/** Igual que `getMember`");
+    // El aislamiento sigue intacto: id y workspaceId siempre en el where. Se le sumó
+    // `updatedAt` como testigo de concurrencia optimista (ver los tests de MemberAudit).
+    assert.match(fn, /updateMany\(\{\s*where:\s*\{\s*id:\s*memberId,\s*workspaceId,/);
     assert.doesNotMatch(fn, /prisma\.member\.update\(/);
-    assert.match(fn, /if\s*\(result\.count === 0\)\s*return null;/);
+    // El socio inexistente/de otro workspace devuelve null; el conflicto de concurrencia
+    // lanza MemberConcurrencyError. Son casos distintos a propósito.
+    assert.match(fn, /if \(!before\) return null;/);
   });
 
   it("K: listMemberCategories con onlyActive filtra isActive:true en el where", () => {
@@ -128,5 +132,76 @@ describe("fotoffice-members repository — aislamiento por workspace en código"
     for (const [, name, params] of signatures) {
       assert.match(params.trim(), /^workspaceId: string/, `${name} debe recibir workspaceId como primer parámetro`);
     }
+  });
+});
+
+describe("MemberAudit — atomicidad, concurrencia e inmutabilidad", () => {
+  const auditSrc = readFileSync(join(here, "fotoffice-member-audit.ts"), "utf8");
+
+  it("createMember envuelve socio + auditoría en la MISMA transacción", () => {
+    const fn = fnBody("function createMember", "/** Estado inicial del socio");
+    assert.match(fn, /prisma\.\$transaction\(async \(tx\)/);
+    assert.match(fn, /tx\.member\.create/);
+    assert.match(fn, /tx\.memberAudit\.create/);
+  });
+
+  it("updateMember lee el estado anterior DENTRO de la transacción (no antes)", () => {
+    const fn = fnBody("async function updateMember", "/** Igual que `getMember`");
+    assert.match(fn, /prisma\.\$transaction\(async \(tx\)/);
+    assert.match(fn, /tx\.member\.findFirst\(\{ where: \{ id: memberId, workspaceId \} \}\)/);
+  });
+
+  it("CONCURRENCIA: el update exige el updatedAt previo además de id + workspaceId", () => {
+    const fn = fnBody("async function updateMember", "/** Igual que `getMember`");
+    assert.match(fn, /tx\.member\.updateMany/);
+    assert.match(fn, /updatedAt: options\.expectedUpdatedAt \?\? before\.updatedAt/);
+  });
+
+  it("CONCURRENCIA: si no afecta exactamente 1 fila, aborta la transacción entera", () => {
+    const fn = fnBody("async function updateMember", "/** Igual que `getMember`");
+    assert.match(fn, /if \(result\.count !== 1\) throw new MemberConcurrencyError\(\)/);
+    // El throw está ANTES del create de auditoría: un conflicto no deja rastro en el historial.
+    assert.ok(
+      fn.indexOf("throw new MemberConcurrencyError()") < fn.indexOf("tx.memberAudit.create"),
+      "el error de concurrencia debe lanzarse antes de crear la auditoría",
+    );
+  });
+
+  it("una operación que no cambia nada NO crea auditoría", () => {
+    const fn = fnBody("async function updateMember", "/** Igual que `getMember`");
+    assert.match(fn, /if \(!hasChanges\(changes\)\) return getMemberTx/);
+  });
+
+  it("bulkCreateMembers mantiene todo-o-nada y audita cada socio creado", () => {
+    const fn = fnBody("function bulkCreateMembers", "export type MemberAuditRecord");
+    assert.match(fn, /prisma\.\$transaction\(async \(tx\)/);
+    assert.match(fn, /tx\.member\.create/);
+    assert.match(fn, /tx\.memberAudit\.create/);
+    assert.match(fn, /batchId: options\.batchId/);
+  });
+
+  it("listMemberAudits filtra por workspaceId además de memberId (aislamiento)", () => {
+    const start = src.indexOf("export function listMemberAudits");
+    assert.ok(start >= 0, "listMemberAudits debe existir");
+    const fn = src.slice(start);
+    assert.match(fn, /where: \{ workspaceId, memberId \}/);
+    // Tope de filas: nunca una consulta sin límite.
+    assert.match(fn, /take: Math\.min\(/);
+  });
+
+  it("INMUTABILIDAD: no existe ningún update ni delete de memberAudit en el repositorio", () => {
+    assert.doesNotMatch(src, /memberAudit\.(update|updateMany|delete|deleteMany|upsert)/);
+    assert.doesNotMatch(auditSrc, /memberAudit\.(update|updateMany|delete|deleteMany|upsert)/);
+  });
+
+  it("el diff normaliza antes de comparar: null/\"\", espacios, mayúsculas de email y fechas", () => {
+    assert.match(auditSrc, /function normalizeForCompare/);
+    assert.match(auditSrc, /value instanceof Date.*getTime\(\)/s);
+    assert.match(auditSrc, /field === "email" \? trimmed\.toLowerCase\(\)/);
+    assert.match(auditSrc, /if \(trimmed === ""\) return null/);
+  });
+
+  it("el snapshot del actor no guarda tokens ni credenciales", () => {
+    assert.doesNotMatch(auditSrc, /password|token|secret|hash/i);
   });
 });

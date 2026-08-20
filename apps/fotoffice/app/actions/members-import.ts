@@ -1,8 +1,10 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { bulkCreateMembers, listMemberCategories, listMemberIdentifiersForWorkspace } from "@repo/db/fotoffice-members";
 import { requireMembersManageContext } from "@/lib/members/access";
+import { auditActorFrom } from "@/lib/members/audit";
 import { memberValuesToRepositoryInput } from "@/lib/members/schema";
 import { normalizeEmail, parseAndValidateMemberImport, type ImportRowResult } from "@/lib/members/import/parse";
 import { MEMBER_IMPORT_MAX_ROWS } from "@/lib/members/import/columns";
@@ -61,7 +63,7 @@ export type MemberImportConfirmState =
  * ahí inserta, todo dentro de una única transacción atómica.
  */
 export async function confirmMemberImportAction(rawCsv: string): Promise<MemberImportConfirmState> {
-  const { workspace } = await requireMembersManageContext();
+  const { workspace, user } = await requireMembersManageContext();
   if (!rawCsv.trim()) return { ok: false, error: "No hay datos para importar." };
 
   const lookups = await loadWorkspaceLookups(workspace.id);
@@ -74,14 +76,21 @@ export async function confirmMemberImportAction(rawCsv: string): Promise<MemberI
     return { ok: false, error: `El máximo por importación es ${MEMBER_IMPORT_MAX_ROWS} filas.` };
   }
 
-  const inputs = result.rows
-    .filter((r) => r.resolved)
-    .map((r) => memberValuesToRepositoryInput(r.resolved!));
+  // Solo las filas que pasaron la validación. Una fila rechazada no se crea y por lo tanto
+  // tampoco genera auditoría: el historial nunca registra algo que no ocurrió.
+  const importable = result.rows.filter((r) => r.resolved);
+  const inputs = importable.map((r) => memberValuesToRepositoryInput(r.resolved!));
+  const sourceRows = importable.map((r) => r.rowNumber);
 
   if (inputs.length === 0) return { ok: false, error: "No hay filas válidas para importar." };
 
   try {
-    const created = await bulkCreateMembers(workspace.id, inputs);
+    const created = await bulkCreateMembers(workspace.id, inputs, {
+      actor: auditActorFrom(user),
+      // Un id por importación: permite recuperar el lote completo desde el historial.
+      batchId: randomUUID(),
+      sourceRows,
+    });
     revalidatePath("/members");
     return { ok: true, createdCount: created.length };
   } catch {

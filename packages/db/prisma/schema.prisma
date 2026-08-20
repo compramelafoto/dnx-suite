@@ -283,6 +283,7 @@ model User {
   photoPromptLibraryAudits              PhotoPromptLibraryAuditEvent[]         @relation("PhotoPromptLibraryAuditActor")
   fotorankSocialConnectionsConnected    FotorankSocialConnection[]             @relation("FrSocialConnectionConnectedBy")
   websiteVersionsPublished              FotofficeWorkspaceWebsiteVersion[]
+  memberAuditsPerformed                 MemberAudit[]
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -6829,6 +6830,7 @@ model Workspace {
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
+  memberAudits                MemberAudit[]
 }
 
 model WorkspaceFeatureModule {
@@ -7047,6 +7049,9 @@ model Member {
   category  MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   /// SetNull, no Cascade: si se borra el User, el registro de socio persiste (era socio antes que usuario).
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Historial inmutable de operaciones sobre este socio. Restrict del lado de MemberAudit:
+  /// borrar un socio nunca puede llevarse su historial por delante en silencio.
+  audits MemberAudit[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -7059,6 +7064,74 @@ model Member {
   @@index([workspaceId, categoryId])
   @@index([workspaceId, documentNumber])
   @@index([workspaceId, lastName, firstName])
+}
+
+/// Qué se hizo. Enum cerrado a propósito: un string libre deja el historial sin forma y
+/// vuelve imposible filtrar o contar por tipo de operación.
+enum MemberAuditAction {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  IMPORTED
+  /// Reservados: el vínculo socio↔usuario todavía no existe como flujo. El modelo ya los
+  /// contempla para no tener que migrar el enum cuando se implemente.
+  USER_LINKED
+  USER_UNLINKED
+}
+
+/// De dónde vino la operación. `SYSTEM` queda para procesos automáticos futuros
+/// (ej. una baja por falta de pago), que no tienen un administrador humano detrás.
+enum MemberAuditSource {
+  MANUAL
+  CSV_IMPORT
+  SYSTEM
+}
+
+/// Historial INMUTABLE de operaciones administrativas sobre un socio: se escribe una vez y
+/// nunca se edita ni se borra desde la aplicación (no hay update ni delete en el repositorio).
+/// Cada fila se confirma en la MISMA transacción que la operación que la origina — nunca puede
+/// quedar un socio modificado sin su auditoría, ni una auditoría de algo que no ocurrió.
+model MemberAudit {
+  id          String            @id @default(cuid())
+  workspaceId String
+  memberId    String
+  action      MemberAuditAction
+  source      MemberAuditSource
+  /// Quién lo hizo. Nullable solo para `SYSTEM` (procesos sin actor humano).
+  actorUserId Int?
+  /// Snapshot legible del actor AL MOMENTO del evento. Se guarda aparte de la FK a propósito:
+  /// el historial tiene que seguir entendiéndose aunque el administrador cambie de nombre, se
+  /// desactive o su usuario se elimine. Nunca guarda tokens ni credenciales.
+  actorLabel  String?
+  /// Solo los campos con una diferencia REAL: `{ campo: { before, after } }`. Un cambio que
+  /// solo altera el formato (espacios, mayúsculas de email, null vs "") no genera evento.
+  changesJson Json?
+  /// Obligatorio para suspensión y baja (se valida en la capa de acciones, no acá: el enum de
+  /// estados no distingue por sí solo qué transición lo exige).
+  reason      String?
+  /// Agrupa todas las auditorías creadas por un mismo lote de importación.
+  batchId     String?
+  /// Fila del CSV que originó el alta (1-based, sin contar el encabezado). Solo en `IMPORTED`.
+  sourceRow   Int?
+  createdAt   DateTime          @default(now())
+
+  /// Cascade: política general de tenants. En la práctica nunca se dispara con datos reales —
+  /// `deleteWorkspaceAction` ya bloquea el borrado de un workspace que tenga socios, así que un
+  /// workspace borrable no tiene auditorías que borrar.
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Restrict, NO Cascade: el historial no puede desaparecer por borrar el socio. Hoy no existe
+  /// borrado físico de Member; esto lo garantiza a nivel de base si algún día se agrega uno.
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  /// SetNull: borrar el usuario del administrador NO borra lo que hizo. El evento sobrevive y
+  /// sigue siendo legible por `actorLabel`.
+  actorUser User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  /// El índice principal: la ficha del socio lista su historial por fecha descendente.
+  @@index([workspaceId, memberId, createdAt])
+  /// Actividad reciente de todo el padrón.
+  @@index([workspaceId, createdAt])
+  /// Recuperar un lote de importación completo.
+  @@index([batchId])
 }
 
 model CourseSalesWorkspaceSettings {

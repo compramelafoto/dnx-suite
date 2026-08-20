@@ -5,10 +5,12 @@ import { redirect } from "next/navigation";
 import {
   createMember,
   createMemberCategory,
+  MemberConcurrencyError,
   updateMember,
   updateMemberCategory,
 } from "@repo/db/fotoffice-members";
 import { requireMembersManageContext } from "@/lib/members/access";
+import { auditActorFrom, normalizeReason, statusRequiresReason } from "@/lib/members/audit";
 import {
   formToMemberPayload,
   friendlyMemberCategoryError,
@@ -34,7 +36,7 @@ export async function createMemberAction(
   _prev: MemberFormState | undefined,
   formData: FormData,
 ): Promise<MemberFormState> {
-  const { workspace } = await requireMembersManageContext();
+  const { workspace, user } = await requireMembersManageContext();
   const parsed = memberSchema.safeParse(formToMemberPayload(formData));
   if (!parsed.success) {
     return { error: "Revisá los campos marcados.", fieldErrors: issuesToFieldErrors(parsed.error.issues) };
@@ -42,7 +44,11 @@ export async function createMemberAction(
 
   let created;
   try {
-    created = await createMember(workspace.id, memberValuesToRepositoryInput(parsed.data));
+    created = await createMember(
+      workspace.id,
+      memberValuesToRepositoryInput(parsed.data),
+      auditActorFrom(user),
+    );
   } catch (e) {
     return { error: friendlyMemberError(e) };
   }
@@ -55,7 +61,7 @@ export async function updateMemberAction(
   _prev: MemberFormState | undefined,
   formData: FormData,
 ): Promise<MemberFormState> {
-  const { workspace } = await requireMembersManageContext();
+  const { workspace, user } = await requireMembersManageContext();
   const id = formData.get("id")?.toString()?.trim();
   if (!id) return { error: "Socio inválido." };
 
@@ -64,10 +70,22 @@ export async function updateMemberAction(
     return { error: "Revisá los campos marcados.", fieldErrors: issuesToFieldErrors(parsed.error.issues) };
   }
 
+  // Testigo de concurrencia: el `updatedAt` que el formulario vio al abrirse.
+  const expectedRaw = formData.get("expectedUpdatedAt")?.toString()?.trim();
+  const expectedUpdatedAt = expectedRaw ? new Date(expectedRaw) : null;
+
   let updated;
   try {
-    updated = await updateMember(workspace.id, id, memberValuesToRepositoryInput(parsed.data));
+    updated = await updateMember(workspace.id, id, memberValuesToRepositoryInput(parsed.data), {
+      actor: auditActorFrom(user),
+      action: "UPDATED",
+      expectedUpdatedAt:
+        expectedUpdatedAt && !Number.isNaN(expectedUpdatedAt.getTime()) ? expectedUpdatedAt : null,
+    });
   } catch (e) {
+    if (e instanceof MemberConcurrencyError) {
+      return { error: "Otra persona modificó este socio mientras lo editabas. Recargá la ficha e intentá de nuevo." };
+    }
     return { error: friendlyMemberError(e) };
   }
   if (!updated) return { error: "Socio no encontrado." };
@@ -85,16 +103,38 @@ export async function changeMemberStatusAction(
   _prev: ChangeStatusState | undefined,
   formData: FormData,
 ): Promise<ChangeStatusState> {
-  const { workspace } = await requireMembersManageContext();
+  const { workspace, user } = await requireMembersManageContext();
   const id = formData.get("id")?.toString()?.trim();
   const status = formData.get("status")?.toString()?.trim() ?? "";
   if (!id) return { error: "Socio inválido." };
   if (!isMemberStatus(status)) return { error: "Estado inválido." };
 
-  const updated = await updateMember(workspace.id, id, {
-    status,
-    leftAt: status === "INACTIVE" ? new Date() : null,
-  });
+  // Suspender o dar de baja exige justificar: son las operaciones que le sacan derechos al
+  // socio, y el historial no sirve si no dice por qué. Un motivo de solo espacios no cuenta.
+  const reason = normalizeReason(formData.get("reason")?.toString());
+  if (statusRequiresReason(status) && !reason) {
+    return {
+      error:
+        status === "SUSPENDED"
+          ? "Escribí el motivo de la suspensión: queda registrado en el historial del socio."
+          : "Escribí el motivo de la baja: queda registrado en el historial del socio.",
+    };
+  }
+
+  let updated;
+  try {
+    updated = await updateMember(
+      workspace.id,
+      id,
+      { status, leftAt: status === "INACTIVE" ? new Date() : null },
+      { actor: auditActorFrom(user), action: "STATUS_CHANGED", reason },
+    );
+  } catch (e) {
+    if (e instanceof MemberConcurrencyError) {
+      return { error: "Otra persona modificó este socio mientras tanto. Recargá la ficha e intentá de nuevo." };
+    }
+    throw e;
+  }
   if (!updated) return { error: "Socio no encontrado." };
 
   revalidatePath("/members");
