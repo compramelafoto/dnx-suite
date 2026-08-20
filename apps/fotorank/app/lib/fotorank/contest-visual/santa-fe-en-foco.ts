@@ -11,18 +11,18 @@ import type { ContestVisualTheme } from "./types";
 export const SANTA_FE_EN_FOCO_VISUAL_THEME: ContestVisualTheme = {
   ...DEFAULT_CONTEST_VISUAL_THEME,
   id: "santa-fe-en-foco",
-  primaryColor: "#d4af37",
-  primaryForegroundColor: "#0a0a0a",
-  backgroundColor: "#070708",
-  surfaceColor: "#121214",
-  surfaceElevatedColor: "#1c1c20",
-  mutedForegroundColor: "#c9c9cc",
-  borderColor: "#2e2e33",
+  primaryColor: "#0b3a6e",
+  primaryForegroundColor: "#ffffff",
+  backgroundColor: "#f7f4ef",
+  surfaceColor: "#ffffff",
+  surfaceElevatedColor: "#f0ebe3",
+  mutedForegroundColor: "#4a5560",
+  borderColor: "#d9d2c8",
   headingFontPreset: "sans",
   bodyFontPreset: "sans",
   borderRadiusPreset: "soft",
   sectionSpacingPreset: "compact",
-  heroOverlayStrength: "medium",
+  heroOverlayStrength: "none",
   heroDesktopUrl: "",
   heroMobileUrl: "",
   organizerLogoUrl: "",
@@ -31,6 +31,5 @@ export const SANTA_FE_EN_FOCO_VISUAL_THEME: ContestVisualTheme = {
 };
 
 export function isSantaFeEnFocoSlug(slug: string): boolean {
-  const s = slug.trim().toLowerCase();
-  return s === "santa-fe-en-foco" || s.includes("santa-fe");
+  return slug.trim().toLowerCase() === "santa-fe-en-foco";
 }
