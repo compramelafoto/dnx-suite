@@ -1,13 +1,15 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { DNX_AUTH_MESSAGES, verifyUserPassword } from "@repo/auth";
-import { prisma } from "@repo/db";
 import { createAdminSessionForUser } from "../lib/auth";
-import { resolvePostLoginPathForUser } from "../lib/fotorank/access/home-capabilities";
+import { classifyFailure, resolvePostLoginPathForUser } from "../lib/fotorank/access/home-capabilities";
 import { safeNextPath } from "../lib/safe-next-path";
 
 export type LoginFormState = { error: string | null };
+
+const UNAVAILABLE_PATH = "/cuenta/no-disponible";
 
 export async function loginAction(
   _prevState: LoginFormState | undefined,
@@ -41,16 +43,26 @@ export async function loginAction(
     return { error: "No se pudo guardar la sesión." };
   }
 
-  const profile = await prisma.user.findUnique({
-    where: { id: verified.user.id },
-    select: { email: true, globalRole: true },
-  });
-
-  const dest = await resolvePostLoginPathForUser({
-    userId: verified.user.id,
-    email: profile?.email ?? email,
-    globalRole: profile?.globalRole ?? null,
-    next,
-  });
+  // Contraseña validada y sesión ya creada: de acá en más, cualquier falla
+  // NO debe destruir la sesión ni mostrar la pantalla genérica de error. Los
+  // rechazos de las 3 consultas de capacidades ya se resuelven fail-closed
+  // dentro de `resolveHomeCapabilities` (no propagan). Este try/catch es la
+  // red de seguridad para lo que quede FUERA de eso — p. ej. una excepción
+  // inesperada al armar el resultado. `verified.user` ya trae email/globalRole
+  // del mismo query de contraseña — no hace falta una segunda consulta a `User`.
+  let dest: string;
+  try {
+    dest = await resolvePostLoginPathForUser({
+      userId: verified.user.id,
+      email: verified.user.email,
+      globalRole: verified.user.globalRole,
+      next,
+    });
+  } catch (err) {
+    const incidentId = randomUUID();
+    const { category, code } = classifyFailure(err);
+    console.error("FOTORANK_LOGIN_POST_AUTH_FAILURE", { incidentId, category, code });
+    redirect(`${UNAVAILABLE_PATH}?incident=${incidentId}`);
+  }
   redirect(dest);
 }

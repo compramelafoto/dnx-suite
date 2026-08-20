@@ -34,7 +34,27 @@ export default async function MiActividadPage() {
         </p>
       </header>
 
-      {caps.kinds.length === 0 ? (
+      {caps.degraded ? (
+        <section
+          className="fr-recuadro max-w-xl border border-amber-500/40 bg-fr-card"
+          data-testid="mi-actividad-degraded"
+        >
+          <h2 className="text-lg font-semibold tracking-tight">
+            No pudimos confirmar toda tu actividad
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-fr-muted">
+            Algunas secciones pueden faltar por un problema temporal. Lo que sí ves abajo
+            es información confirmada. Podés recargar la página en unos segundos.
+          </p>
+          {caps.incidentId ? (
+            <p className="mt-2 font-mono text-xs text-fr-muted">
+              Código de incidente: {caps.incidentId}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {caps.kinds.length === 0 && !caps.degraded ? (
         <section className="fr-recuadro max-w-xl border border-fr-border bg-fr-card" data-testid="mi-actividad-empty">
           <h2 className="text-xl font-semibold tracking-tight">Todavía no tenés actividad</h2>
           <p className="mt-4 text-sm leading-relaxed text-fr-muted">

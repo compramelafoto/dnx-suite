@@ -15,6 +15,7 @@
     "test:e2e:only": "playwright test",
     "test:e2e:smoke:only": "playwright test --grep @smoke",
     "test:access:home-capabilities": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/access/home-capabilities.selfcheck.ts",
+    "test:access:home-capabilities-failclosed": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/access/home-capabilities.failclosed.selfcheck.ts",
     "ops:grant-super-admin": "pnpm --filter @repo/db exec tsx prisma/scripts/ops-grant-fotorank-super-admin.ts",
     "test:registration:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/registration/registration.selfcheck.ts",
     "test:registration:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/registration/registration.integration.selfcheck.ts",
