@@ -1,5 +1,6 @@
 {
   "installCommand": "cd ../.. && pnpm install",
   "buildCommand": "cd ../.. && pnpm --filter fotoffice build",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "ignoreCommand": "cd ../.. && npx turbo-ignore fotoffice --fallback=HEAD^1"
 }
