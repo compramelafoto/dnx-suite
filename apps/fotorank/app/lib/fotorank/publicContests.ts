@@ -11,7 +11,8 @@ export type PublicHomeContestCard = {
   statusLabel: "Inscripciones abiertas" | "Próximamente" | "Cerrado";
 };
 
-function getStatusLabel(now: Date, startAt: Date | null, deadline: Date | null): PublicHomeContestCard["statusLabel"] {
+/** Exportada para poder testear el filtrado público de la home sin depender de la DB. */
+export function getStatusLabel(now: Date, startAt: Date | null, deadline: Date | null): PublicHomeContestCard["statusLabel"] {
   if (deadline && deadline.getTime() < now.getTime()) return "Cerrado";
   if (startAt && startAt.getTime() > now.getTime()) return "Próximamente";
   return "Inscripciones abiertas";
