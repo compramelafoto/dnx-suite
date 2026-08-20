@@ -1,49 +1,30 @@
-import {
-  Building2,
-  CalendarDays,
-  Camera,
-  ClipboardList,
-  Layers,
-  ListOrdered,
-  Ticket,
-  Trophy,
-  UserRound,
-} from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
-import {
-  Cluster,
-  ContentContainer,
-  ContentToActions,
-  ContestCategoriesSection,
-  ContestFinalCta,
-  ContestGallery,
-  ContestIconLabel,
-  ContestMedia,
-  ContestMediaFigure,
-  ContestPartnersSection,
-  ContestPrizesSection,
-  ContestPublicHeader,
-  ContestShell,
-  ContestStatusPill,
-  PageSection,
-  ReadingContainer,
-  RulesDocument,
-  SectionHeading,
-  Stack,
-  Surface,
-} from "../../components/contest-public";
-import { resolvePublicContestPrizes } from "../../lib/fotorank/contest-public-presentation";
-import {
-  contestThemeToCssVars,
-  hasUsableImageUrl,
-  isSantaFeEnFocoSlug,
-  resolveContestVisualTheme,
-  resolveHeroAsset,
-  usableGallery,
-} from "../../lib/fotorank/contest-visual";
 import type { PublicContestLandingData } from "../../lib/fotorank/publicContestLanding";
+import { parsePrizesRewardsConfig } from "../../lib/fotorank/prizesRewards";
+import {
+  finalCtaCopy,
+  getLandingPhase,
+  PHASE_LABEL,
+  phaseCta,
+} from "../../lib/fotorank/public-ux/contest-landing-phase";
+import {
+  CategoryCard,
+  ContestHero,
+  DateCard,
+  InfoCard,
+  MobileActionBar,
+  Notice,
+  PageContainer,
+  PrimaryButton,
+  PublicSectionHeader,
+  PublicShell,
+  SecondaryButton,
+  StatusBadge,
+} from "../../components/public-ui";
+import { ContestPartnersSection, RulesDocument } from "../../components/contest-public";
 import type { PublicPartnerGroup } from "@repo/partners";
+import { isSantaFeEnFocoSlug } from "../../lib/fotorank/contest-visual/santa-fe-en-foco";
+import type { StatusTone } from "../../lib/fotorank/public-ux/participant-status";
 
 function fmtDate(d: Date | null): string | null {
   if (!d) return null;
@@ -54,90 +35,31 @@ function fmtDate(d: Date | null): string | null {
   }
 }
 
+/**
+ * Preservado de dcdbda7e (producción, 7 ago): SFEF publicó el cierre de
+ * inscripción como "30 de septiembre de 2026" de forma inclusiva, distinto
+ * del valor crudo de `submissionDeadline`/`registrationClosesAt`. No es un
+ * comportamiento del sistema public-ui — es contenido legal específico de
+ * ese concurso que hay que seguir mostrando igual.
+ */
+function registrationCloseLabel(contest: PublicContestLandingData["contest"]): string | null {
+  if (isSantaFeEnFocoSlug(contest.slug)) return "30 de septiembre de 2026";
+  return fmtDate(contest.registrationClosesAt ?? contest.submissionDeadline);
+}
+
 function igHref(raw: string): string {
   const t = raw.trim();
   if (t.startsWith("http")) return t;
-  return `https://instagram.com/${t.replace(/^@/, "")}`;
+  const h = t.replace(/^@/, "");
+  return `https://instagram.com/${h}`;
 }
 
-function orgInitials(name: string): string {
-  const skip = new Set(["de", "del", "la", "las", "los", "y", "e", "the", "of"]);
-  const letters = name
-    .split(/\s+/)
-    .filter((w) => w && !skip.has(w.toLowerCase()))
-    .map((w) => w[0] ?? "")
-    .join("")
-    .slice(0, 3)
-    .toUpperCase();
-  return letters || name.slice(0, 2).toUpperCase();
-}
-
-type LandingPhase = "coming-soon" | "open" | "last-days" | "closed" | "in-evaluation" | "finalized";
-
-function getLandingPhase(data: PublicContestLandingData): LandingPhase {
-  const now = Date.now();
-  const openAt =
-    data.contest.registrationOpensAt?.getTime() ?? data.contest.startAt?.getTime() ?? null;
-  const closeAt =
-    data.contest.registrationClosesAt?.getTime() ??
-    data.contest.submissionDeadline?.getTime() ??
-    null;
-  const judgingStart = data.contest.judgingStartAt?.getTime() ?? null;
-  const results = data.contest.resultsAt?.getTime() ?? null;
-
-  if (data.contest.status === "ARCHIVED") return "finalized";
-  if (data.contest.status === "CLOSED") return "closed";
-  if (results && now >= results) return "finalized";
-  if (judgingStart && now >= judgingStart && (!results || now < results)) return "in-evaluation";
-  if (closeAt && now > closeAt) return "closed";
-  if (openAt && now < openAt) return "coming-soon";
-  if (closeAt) {
-    const daysLeft = Math.ceil((closeAt - now) / (1000 * 60 * 60 * 24));
-    if (daysLeft <= 7) return "last-days";
-  }
-  return "open";
-}
-
-const PHASE_LABEL: Record<LandingPhase, string> = {
-  "coming-soon": "Próximamente",
-  open: "Inscripciones abiertas",
-  "last-days": "Últimos días",
-  closed: "Cerrado",
-  "in-evaluation": "En evaluación",
-  finalized: "Finalizado",
-};
-
-function phaseCta(phase: LandingPhase): { primary: string; enabled: boolean } {
-  if (phase === "closed" || phase === "in-evaluation" || phase === "finalized") {
-    return { primary: "Inscripciones cerradas", enabled: false };
-  }
-  if (phase === "coming-soon") return { primary: "Próximamente", enabled: false };
-  return { primary: "Participar ahora", enabled: true };
-}
-
-function PrimaryCta({
-  href,
-  enabled,
-  label,
-  id,
-}: {
-  href: string;
-  enabled: boolean;
-  label: string;
-  id?: string;
-}) {
-  if (enabled) {
-    return (
-      <Link href={href} id={id} className="fr-btn fr-btn-primary">
-        {label}
-      </Link>
-    );
-  }
-  return (
-    <span className="fr-btn fr-btn-secondary" aria-disabled="true">
-      {label}
-    </span>
-  );
+function phaseTone(phase: ReturnType<typeof getLandingPhase>): StatusTone {
+  if (phase === "open" || phase === "last-days") return "primary";
+  if (phase === "coming-soon") return "neutral";
+  if (phase === "in-evaluation") return "warning";
+  if (phase === "finalized") return "success";
+  return "neutral";
 }
 
 export function ContestPublicLanding({
@@ -145,609 +67,509 @@ export function ContestPublicLanding({
   partnerGroups = [],
 }: {
   data: PublicContestLandingData;
+  /** Preservado de dcdbda7e/c3c5b883: `page.tsx` la pasa como [] hoy (welcome
+   * institucional se renderiza aparte, vía FotorankContestPartnerWelcome, fuera
+   * de este componente) — se mantiene la prop y el render para no romper el tipo
+   * ni el contrato existente si en el futuro sí trae contenido. */
   partnerGroups?: PublicPartnerGroup[];
 }) {
   const { contest, organization: org, judges } = data;
-  const theme = resolveContestVisualTheme(
-    contest.slug,
-    undefined,
-    {
-      coverImageUrl: contest.coverImageUrl,
-      organizerLogoUrl: org.logoUrl,
-      contestTitle: contest.title,
-      organizerName: org.name,
-    },
-  );
-  const cssVars = contestThemeToCssVars(theme);
-  const presentation = theme.presentation;
-
-  const publicPrizes = resolvePublicContestPrizes({
-    contestSlug: contest.slug,
-    rulesData: contest.rulesData,
-    categories: contest.categories.map((c) => ({ id: c.id, name: c.name })),
+  const prConfig = parsePrizesRewardsConfig(contest.rulesData);
+  const publicPrizes = prConfig.prizes.filter((p) => p.visiblePublic);
+  const publicRewards = prConfig.rewards.filter((r) => r.visiblePublic);
+  const hasStructuredPrizes = publicPrizes.length > 0 || publicRewards.length > 0;
+  const phase = getLandingPhase({
+    status: contest.status,
+    startAt: contest.startAt,
+    submissionDeadline: contest.submissionDeadline,
+    judgingStartAt: contest.judgingStartAt,
+    resultsAt: contest.resultsAt,
   });
-  const hasPublicPrizesSection = publicPrizes.length > 0 || Boolean(contest.prizesSummary?.trim());
-  const phase = getLandingPhase(data);
   const cta = phaseCta(phase);
-
-  const heroDesktop = resolveHeroAsset(presentation, "desktop");
-  const heroMobile = resolveHeroAsset(presentation, "mobile");
-  const hasHeroImage = Boolean(heroDesktop || heroMobile);
-  const orgLogo = presentation.identity.organizerLogo;
-  const contestLogo = presentation.identity.contestLogo;
-  const overviewImage = presentation.editorial.overview;
-  const galleryItems = usableGallery(presentation.gallery);
-
+  const finalCta = finalCtaCopy(phase);
+  const heroImage = contest.coverImageUrl ?? org.coverImageUrl ?? null;
   const inscripcionHref = `/concursos/${contest.slug}/inscripcion`;
   const categoriasCount = contest.categories.length;
-  // SFEF: etiquetas canónicas del cronograma público (cierre inclusivo 30/09).
-  // El instante técnico exclusivo permanece 01/10 00:00 America/Argentina/Cordoba.
-  const registrationOpenLabel = isSantaFeEnFocoSlug(contest.slug)
-    ? "1 de agosto de 2026"
-    : fmtDate(contest.registrationOpensAt ?? contest.startAt);
-  const registrationCloseLabel = isSantaFeEnFocoSlug(contest.slug)
-    ? "30 de septiembre de 2026"
-    : fmtDate(contest.registrationClosesAt ?? contest.submissionDeadline);
-  const uploadOpen =
-    contest.submissionOpensAt != null && contest.submissionOpensAt.getTime() <= Date.now();
-  const uploadClosedForUi =
-    !uploadOpen ||
-    (contest.submissionDeadline != null && contest.submissionDeadline.getTime() < Date.now());
-  const isFree = contest.registrationPricingMode === "FREE";
-  const heroDateLabel = registrationCloseLabel
-    ? `Inscripciones hasta el ${registrationCloseLabel}`
-    : registrationOpenLabel
-      ? `Apertura ${registrationOpenLabel}`
+  const maxObrasHint =
+    categoriasCount > 0
+      ? `Hasta ${contest.categories.reduce((s, c) => s + c.maxFiles, 0)} obra(s) en total según los límites por categoría.`
       : null;
 
+  const primaryCta = cta.enabled ? (
+    <PrimaryButton href={inscripcionHref} id="inscribirse" size="lg" data-testid="contest-primary-cta">
+      {cta.primary}
+    </PrimaryButton>
+  ) : (
+    <span
+      className="fr-public-btn fr-public-btn--secondary opacity-70"
+      aria-disabled="true"
+      data-testid="contest-primary-cta"
+    >
+      {cta.primary}
+    </span>
+  );
+
   return (
-    <ContestShell cssVars={cssVars}>
-      <ContestPublicHeader
-        contestTitle={contest.title}
-        contestSlug={contest.slug}
-        inscriptionHref={inscripcionHref}
-        ctaEnabled={cta.enabled}
-        ctaLabel={cta.primary}
+    <PublicShell
+      organizationName={org.name}
+      supportEmail={org.contactEmail}
+      header={{ variant: "contest", panelHref: "/participaciones" }}
+    >
+      <ContestHero
+        title={contest.title}
+        summary={contest.shortDescription}
+        phaseLabel={PHASE_LABEL[phase]}
+        phaseTone={phaseTone(phase)}
+        organizerName={org.name}
+        organizerLogoUrl={org.logoUrl}
+        deadlineLabel={registrationCloseLabel(contest)}
+        heroImageUrl={heroImage}
+        visibilityNote={
+          contest.visibility !== "PUBLIC"
+            ? contest.visibility === "UNLISTED"
+              ? "Solo por enlace"
+              : "Acceso privado"
+            : null
+        }
+        primaryAction={primaryCta}
+        secondaryAction={
+          <SecondaryButton href="#bases" size="lg">
+            Ver bases
+          </SecondaryButton>
+        }
       />
 
-      {/* Hero editorial */}
-      <header
-        className={[
-          "fr-contest-hero fr-contest-hero--editorial",
-          `fr-contest-hero--align-${presentation.hero.textAlignment}`,
-          `fr-contest-hero--pos-${presentation.hero.contentPosition}`,
-          hasHeroImage ? "fr-contest-hero--has-media" : "fr-contest-hero--fallback",
-        ].join(" ")}
+      <nav
+        className="sticky top-[4.5rem] z-20 border-y border-[var(--border)] bg-[rgb(10_10_11_/_0.94)] py-3 backdrop-blur md:top-[5.5rem] lg:top-[6.5rem]"
+        aria-label="Secciones del concurso"
       >
-        {hasHeroImage ? (
-          <>
-            {heroDesktop ? (
-              <ContestMedia
-                asset={heroDesktop}
-                className="fr-contest-hero__media fr-contest-hero__media--desktop"
-                priority
-                sizes="100vw"
-              />
-            ) : null}
-            {heroMobile || heroDesktop ? (
-              <ContestMedia
-                asset={heroMobile ?? heroDesktop}
-                className="fr-contest-hero__media fr-contest-hero__media--mobile"
-                priority
-                sizes="100vw"
-              />
-            ) : null}
-          </>
-        ) : (
-          <div className="fr-contest-hero__fallback" aria-hidden />
-        )}
-        <div className="fr-contest-hero__overlay" aria-hidden />
-        <ContentContainer className="fr-contest-hero__content">
-          <Stack gap="md" className="fr-contest-hero__copy">
-            <Cluster gap="sm">
-              <ContestStatusPill icon={Ticket}>{PHASE_LABEL[phase]}</ContestStatusPill>
-              {isFree ? (
-                <ContestStatusPill tone="muted">Inscripción gratuita</ContestStatusPill>
-              ) : null}
-              {contest.visibility !== "PUBLIC" ? (
-                <ContestStatusPill tone="muted">
-                  {contest.visibility === "UNLISTED" ? "Solo por invitación / link" : "Acceso privado"}
-                </ContestStatusPill>
-              ) : null}
-            </Cluster>
-
-            {contestLogo && hasUsableImageUrl(contestLogo.url) ? (
-              <div className="fr-contest-hero__contest-logo">
-                <ContestMedia asset={contestLogo} className="fr-contest-hero__contest-logo-img" />
-              </div>
-            ) : null}
-
-            <p className="fr-type-eyebrow fr-contest-hero__org-label">Organiza</p>
-            <p className="fr-contest-hero__org-name">{org.name}</p>
-
-            <h1 className="fr-type-display fr-contest-hero__title">{contest.title}</h1>
-
-            {contest.shortDescription ? (
-              <p className="fr-type-body-large fr-contest-hero__lead">{contest.shortDescription}</p>
-            ) : null}
-
-            {heroDateLabel ? <p className="fr-type-caption fr-contest-hero__date">{heroDateLabel}</p> : null}
-
-            <Cluster gap="sm" className="fr-contest-hero__actions">
-              <PrimaryCta
-                href={inscripcionHref}
-                enabled={cta.enabled}
-                label={cta.primary}
-                id="inscribirse"
-              />
-              <a href="#bases" className="fr-btn fr-btn-secondary">
-                Ver bases
+        <PageContainer className="overflow-x-auto">
+          <ul className="flex min-w-max items-center gap-5 text-sm text-[var(--foreground-muted)]">
+            <li>
+              <a href="#sobre" className="hover:text-[var(--primary)]">
+                Información
               </a>
-            </Cluster>
-          </Stack>
-        </ContentContainer>
-      </header>
-
-      {/* Franja información crítica */}
-      <div className="fr-contest-info-strip" aria-label="Información principal">
-        <ContentContainer>
-          <ul className="fr-contest-info-strip__list">
-            <li>
-              <span className="fr-contest-info-strip__label">
-                <ContestIconLabel icon={Ticket}>Estado</ContestIconLabel>
-              </span>
-              <span className="fr-contest-info-strip__value">{PHASE_LABEL[phase]}</span>
             </li>
-            {registrationCloseLabel ? (
+            <li>
+              <a href="#como-participar" className="hover:text-[var(--primary)]">
+                Cómo participar
+              </a>
+            </li>
+            <li>
+              <a href="#categorias" className="hover:text-[var(--primary)]">
+                Categorías
+              </a>
+            </li>
+            <li>
+              <a href="#cronograma" className="hover:text-[var(--primary)]">
+                Fechas
+              </a>
+            </li>
+            {hasStructuredPrizes || contest.prizesSummary ? (
               <li>
-                <span className="fr-contest-info-strip__label">
-                  <ContestIconLabel icon={CalendarDays}>Cierre de inscripción</ContestIconLabel>
-                </span>
-                <span className="fr-contest-info-strip__value">{registrationCloseLabel}</span>
+                <a href="#premios" className="hover:text-[var(--primary)]">
+                  Premios
+                </a>
+              </li>
+            ) : null}
+            {judges.length > 0 ? (
+              <li>
+                <a href="#jurado" className="hover:text-[var(--primary)]">
+                  Jurado
+                </a>
               </li>
             ) : null}
             <li>
-              <span className="fr-contest-info-strip__label">
-                <ContestIconLabel icon={UserRound}>Participación</ContestIconLabel>
-              </span>
-              <span className="fr-contest-info-strip__value">
-                {isFree ? "Gratuita" : "Consultá bases"}
-              </span>
-            </li>
-            <li>
-              <span className="fr-contest-info-strip__label">
-                <ContestIconLabel icon={Layers}>Modalidad</ContestIconLabel>
-              </span>
-              <span className="fr-contest-info-strip__value">
-                {categoriasCount
-                  ? `${categoriasCount} categoría${categoriasCount === 1 ? "" : "s"}`
-                  : "—"}
-              </span>
-            </li>
-            <li>
-              <span className="fr-contest-info-strip__label">
-                <ContestIconLabel icon={Camera}>Carga de fotografías</ContestIconLabel>
-              </span>
-              <span className="fr-contest-info-strip__value">
-                {uploadClosedForUi ? "Aún no habilitada" : "Habilitada"}
-              </span>
+              <a href="#faq" className="hover:text-[var(--primary)]">
+                Preguntas
+              </a>
             </li>
           </ul>
-        </ContentContainer>
-      </div>
-
-      <nav className="fr-contest-anchor-nav" aria-label="Secciones del concurso">
-        <ContentContainer>
-          <ul className="fr-contest-cluster fr-contest-cluster--gap-md fr-contest-cluster--align-center">
-            {(contest.fullDescription || overviewImage) && (
-              <li>
-                <a href="#presentacion">Presentación</a>
-              </li>
-            )}
-            {contest.categories.length > 0 && (
-              <li>
-                <a href="#categorias">Categorías</a>
-              </li>
-            )}
-            <li>
-              <a href="#cronograma">Cronograma</a>
-            </li>
-            <li>
-              <a href="#como-participar">Cómo participar</a>
-            </li>
-            <li>
-              <a href="#organizador">Organización</a>
-            </li>
-            {hasPublicPrizesSection && (
-              <li>
-                <a href="#premios">Premios</a>
-              </li>
-            )}
-            {galleryItems.length > 0 && (
-              <li>
-                <a href="#galeria">Galería</a>
-              </li>
-            )}
-            {judges.length > 0 && (
-              <li>
-                <a href="#jurado">Jurado</a>
-              </li>
-            )}
-            <li>
-              <a href="#bases">Bases</a>
-            </li>
-            <li>
-              <a href="#faq">FAQ</a>
-            </li>
-          </ul>
-        </ContentContainer>
+        </PageContainer>
       </nav>
 
-      {/* Presentación editorial asimétrica */}
-      {contest.fullDescription || overviewImage ? (
-        <PageSection id="presentacion">
-          <ContentContainer>
-            <div
-              className={[
-                "fr-contest-editorial",
-                overviewImage && hasUsableImageUrl(overviewImage.url)
-                  ? "fr-contest-editorial--split"
-                  : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              <div className="fr-contest-editorial__text">
-                <SectionHeading title="El concurso" />
-                {contest.fullDescription ? (
-                  <ReadingContainer>
-                    <div className="fr-type-body whitespace-pre-wrap">{contest.fullDescription}</div>
-                  </ReadingContainer>
-                ) : contest.shortDescription ? (
-                  <p className="fr-type-body-large">{contest.shortDescription}</p>
-                ) : null}
-              </div>
-              {overviewImage && hasUsableImageUrl(overviewImage.url) ? (
-                <div className="fr-contest-editorial__media">
-                  <ContestMediaFigure asset={overviewImage} sizes="(max-width: 768px) 100vw, 48vw" />
+      <section className="fr-public-section">
+        <PageContainer>
+          <PublicSectionHeader title="Información esencial" />
+          <div className="fr-public-stack-content fr-public-card-grid sm:grid-cols-2 lg:grid-cols-3">
+            <InfoCard label="Estado" value={PHASE_LABEL[phase]} accent />
+            <InfoCard
+              label="Inscripción"
+              value="Consultá bases"
+              hint="Si el concurso es gratuito o arancelado figura en las bases publicadas."
+            />
+            <InfoCard label="Categorías" value={categoriasCount ? String(categoriasCount) : "—"} />
+            <DateCard label="Apertura" dateLabel={fmtDate(contest.startAt)} />
+            <DateCard label="Cierre de inscripción" dateLabel={fmtDate(contest.submissionDeadline)} />
+            <DateCard label="Resultados" dateLabel={fmtDate(contest.resultsAt)} />
+          </div>
+        </PageContainer>
+      </section>
+
+      <section className="fr-public-section" id="organizador">
+        <PageContainer>
+          <PublicSectionHeader title="Organización" />
+          <div className="fr-public-card fr-public-stack-content flex flex-col gap-8 md:flex-row md:items-start md:gap-12">
+            <div className="flex shrink-0 justify-center md:w-48">
+              {org.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={org.logoUrl}
+                  alt=""
+                  className="h-24 w-auto max-w-full object-contain md:h-32"
+                />
+              ) : (
+                <div className="flex h-24 w-full max-w-[12rem] items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border)] text-center text-sm text-[var(--foreground-muted)] md:h-32">
+                  {org.name}
                 </div>
-              ) : null}
+              )}
             </div>
-          </ContentContainer>
-        </PageSection>
+            <div className="min-w-0 flex-1">
+              <p className="fr-public-eyebrow">Organiza</p>
+              <h3 className="fr-public-stack-title text-xl font-semibold text-[var(--foreground)]">
+                {org.name}
+              </h3>
+              {org.shortDescription ? (
+                <p className="fr-public-body fr-public-stack-title">{org.shortDescription}</p>
+              ) : null}
+              <ul className="fr-public-stack-content space-y-3 text-sm text-[var(--foreground-muted)]">
+                {[org.city, org.country].filter(Boolean).length > 0 ? (
+                  <li>{[org.city, org.country].filter(Boolean).join(", ")}</li>
+                ) : null}
+                {org.contactEmail ? (
+                  <li>
+                    <a href={`mailto:${org.contactEmail}`} className="text-[var(--primary)] hover:underline">
+                      {org.contactEmail}
+                    </a>
+                  </li>
+                ) : null}
+                {org.website ? (
+                  <li>
+                    <a
+                      href={org.website.startsWith("http") ? org.website : `https://${org.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--primary)] hover:underline"
+                    >
+                      Sitio web
+                    </a>
+                  </li>
+                ) : null}
+                {org.instagram ? (
+                  <li>
+                    <a
+                      href={igHref(org.instagram)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--primary)] hover:underline"
+                    >
+                      Instagram
+                    </a>
+                  </li>
+                ) : null}
+              </ul>
+            </div>
+          </div>
+        </PageContainer>
+      </section>
+
+      {contest.fullDescription ? (
+        <section className="fr-public-section" id="sobre">
+          <PageContainer>
+            <PublicSectionHeader title="Sobre el concurso" />
+            <div className="fr-public-body fr-public-stack-content fr-public-prose max-w-3xl whitespace-pre-wrap">
+              {contest.fullDescription}
+            </div>
+          </PageContainer>
+        </section>
       ) : null}
 
-      <ContestCategoriesSection
-        categories={contest.categories}
-        inscriptionHref={inscripcionHref}
-        inscriptionEnabled={cta.enabled}
-      />
+      <section className="fr-public-section" id="como-participar">
+        <PageContainer>
+          <PublicSectionHeader title="Cómo participar" />
+          <ol className="fr-public-stack-content fr-public-card-grid md:grid-cols-2">
+            {[
+              ["1", "Creá tu cuenta o iniciá sesión en FotoRank."],
+              ["2", "Completá tus datos, categoría y consentimientos."],
+              ["3", "Cuando se habilite, cargá tu fotografía según las bases."],
+              ["4", "Confirmá la presentación antes del cierre."],
+            ].map(([n, text]) => (
+              <li key={n} className="fr-public-card flex items-start gap-5">
+                <span
+                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[var(--primary)] text-sm font-bold text-[var(--primary)]"
+                  aria-hidden
+                >
+                  {n}
+                </span>
+                <p className="fr-public-body text-[var(--foreground)] leading-[var(--public-leading-relaxed)]">{text}</p>
+              </li>
+            ))}
+          </ol>
+          {maxObrasHint ? <p className="fr-public-body fr-public-stack-title max-w-2xl text-sm">{maxObrasHint}</p> : null}
+        </PageContainer>
+      </section>
 
-      <ContestPrizesSection
-        prizes={publicPrizes}
-        summaryFallback={publicPrizes.length === 0 ? contest.prizesSummary : null}
-      />
+      {contest.categories.length > 0 ? (
+        <section className="fr-public-section" id="categorias">
+          <PageContainer>
+            <PublicSectionHeader title="Categorías" />
+            <ul className="fr-public-stack-content fr-public-card-grid md:grid-cols-2">
+              {contest.categories.map((c) => (
+                <li key={c.id}>
+                  <CategoryCard name={c.name} description={c.description} maxFiles={c.maxFiles} />
+                </li>
+              ))}
+            </ul>
+          </PageContainer>
+        </section>
+      ) : null}
 
-      <PageSection id="cronograma">
-        <ContentContainer>
-          <SectionHeading icon={CalendarDays} title="Cronograma" />
-          <ol className="fr-contest-timeline">
-            {(
-              [
-                ["Apertura de inscripción", registrationOpenLabel, Ticket],
-                ["Cierre de inscripción", registrationCloseLabel, CalendarDays],
-                ["Inicio de evaluación", fmtDate(contest.judgingStartAt), ClipboardList],
-                ["Fin de evaluación", fmtDate(contest.judgingEndAt), ListOrdered],
-                ["Resultados", fmtDate(contest.resultsAt), Trophy],
-              ] as const
-            )
+      {hasStructuredPrizes || contest.prizesSummary ? (
+        <section className="fr-public-section" id="premios">
+          <PageContainer>
+            <PublicSectionHeader title="Premios" />
+            {hasStructuredPrizes ? (
+              <div className="fr-public-stack-content fr-public-card-stack">
+                {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0]) ? (
+                  <div className="fr-public-card fr-public-card--accent">
+                    <p className="fr-public-eyebrow">Premio principal</p>
+                    <h3 className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
+                      {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0])?.name}
+                    </h3>
+                    {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0])?.shortDescription ? (
+                      <p className="fr-public-body mt-3">
+                        {(publicPrizes.find((p) => p.isPrimary) ?? publicPrizes[0])?.shortDescription}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="fr-public-card-grid md:grid-cols-2">
+                  {publicPrizes.map((p) => (
+                    <article key={p.id} className="fr-public-card">
+                      <h3 className="text-lg font-semibold text-[var(--foreground)]">{p.name}</h3>
+                      {p.shortDescription ? (
+                        <p className="fr-public-body mt-2 text-sm">{p.shortDescription}</p>
+                      ) : null}
+                      {p.sponsorName ? (
+                        <p className="mt-3 text-xs text-[var(--foreground-muted)]">
+                          Otorgado por {p.sponsorName}
+                        </p>
+                      ) : null}
+                    </article>
+                  ))}
+                  {publicRewards.map((r) => (
+                    <article key={r.id} className="fr-public-card">
+                      <h3 className="text-lg font-semibold text-[var(--foreground)]">{r.name}</h3>
+                      {r.description ? (
+                        <p className="fr-public-body mt-2 text-sm">{r.description}</p>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="fr-public-body fr-public-stack-content fr-public-prose max-w-3xl whitespace-pre-wrap">
+                {contest.prizesSummary}
+              </div>
+            )}
+          </PageContainer>
+        </section>
+      ) : null}
+
+      <section className="fr-public-section" id="cronograma">
+        <PageContainer>
+          <PublicSectionHeader title="Fechas importantes" />
+          <ol className="fr-public-stack-content fr-public-card-stack">
+            {[
+              ["Apertura", fmtDate(contest.startAt)],
+              ["Cierre de inscripción", fmtDate(contest.submissionDeadline)],
+              ["Inicio de evaluación", fmtDate(contest.judgingStartAt)],
+              ["Fin de evaluación", fmtDate(contest.judgingEndAt)],
+              ["Resultados", fmtDate(contest.resultsAt)],
+            ]
               .filter((i) => i[1])
-              .map(([label, value, Icon]) => (
-                <li key={label} className="fr-contest-timeline__item">
-                  <span className="fr-contest-timeline__marker" aria-hidden>
-                    <Icon width={16} height={16} strokeWidth={1.75} />
-                  </span>
-                  <span className="fr-contest-timeline__label">{label}</span>
-                  <span className="fr-contest-timeline__value">{value}</span>
+              .map(([label, value]) => (
+                <li
+                  key={label}
+                  className="fr-public-card flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="font-medium text-[var(--foreground)]">{label}</span>
+                  <span className="text-[var(--foreground-muted)]">{value}</span>
                 </li>
               ))}
           </ol>
-        </ContentContainer>
-      </PageSection>
+        </PageContainer>
+      </section>
 
-      <PageSection id="como-participar">
-        <ContentContainer>
-          <SectionHeading icon={ListOrdered} title="Cómo participar" />
-          <ReadingContainer>
-            <ol className="fr-contest-steps">
-              <li>
-                <span className="fr-contest-steps__icon" aria-hidden>
-                  <Ticket width={16} height={16} strokeWidth={1.75} />
-                </span>
-                <strong>Inscripción.</strong> Creá tu cuenta, elegí categoría y aceptá las bases
-                publicadas antes del cierre.
-              </li>
-              <li>
-                <span className="fr-contest-steps__icon" aria-hidden>
-                  <UserRound width={16} height={16} strokeWidth={1.75} />
-                </span>
-                <strong>Confirmación.</strong> Recibís tu número de inscripción
-                {isFree ? " sin cobro" : ""}.
-              </li>
-              <li>
-                <span className="fr-contest-steps__icon" aria-hidden>
-                  <Camera width={16} height={16} strokeWidth={1.75} />
-                </span>
-                <strong>Carga de fotografías.</strong>{" "}
-                {uploadClosedForUi
-                  ? "Todavía no está habilitada. Cuando la organización abra la ventana, podrás subir tu obra según las bases."
-                  : "Subí tu fotografía respetando formato y tamaño indicados en las bases."}
-              </li>
-              <li>
-                <span className="fr-contest-steps__icon" aria-hidden>
-                  <ClipboardList width={16} height={16} strokeWidth={1.75} />
-                </span>
-                <strong>Evaluación.</strong> El jurado evalúa las obras admitidas en el período
-                previsto.
-              </li>
-              <li>
-                <span className="fr-contest-steps__icon" aria-hidden>
-                  <Trophy width={16} height={16} strokeWidth={1.75} />
-                </span>
-                <strong>Resultados.</strong>{" "}
-                {fmtDate(contest.resultsAt)
-                  ? `Publicación prevista: ${fmtDate(contest.resultsAt)}.`
-                  : "Se comunicarán según el cronograma del concurso."}
-              </li>
-            </ol>
-          </ReadingContainer>
-          <ContentToActions>
-            <PrimaryCta href={inscripcionHref} enabled={cta.enabled} label={cta.primary} />
-          </ContentToActions>
-        </ContentContainer>
-      </PageSection>
-
-      <PageSection id="organizador" tone="muted">
-        <ContentContainer>
-          <SectionHeading icon={Building2} title="Organización" />
-          <div className="fr-contest-org-editorial">
-            <div className="fr-contest-org-editorial__identity">
-              {orgLogo && hasUsableImageUrl(orgLogo.url) ? (
-                <div className="fr-contest-org-editorial__logo">
-                  <ContestMedia asset={orgLogo} />
-                </div>
-              ) : (
-                <div className="fr-contest-org-editorial__mark" aria-hidden>
-                  <span>{orgInitials(org.name)}</span>
-                </div>
-              )}
-              <div>
-                <h3 className="fr-type-h2" style={{ color: "var(--cv-foreground)" }}>
-                  {org.name}
-                </h3>
-                {org.shortDescription ? (
-                  <p className="fr-type-body mt-3">{org.shortDescription}</p>
-                ) : null}
-              </div>
+      {contest.sponsorsText ? (
+        <section className="fr-public-section" id="sponsors">
+          <PageContainer>
+            <PublicSectionHeader title="Sponsors y apoyos" />
+            <div className="fr-public-body fr-public-stack-content fr-public-prose max-w-3xl whitespace-pre-wrap">
+              {contest.sponsorsText}
             </div>
-            {presentation.identity.secondaryLogos.length > 0 ? (
-              <ul className="fr-contest-org-editorial__secondary">
-                {presentation.identity.secondaryLogos
-                  .filter((l) => hasUsableImageUrl(l.url))
-                  .map((logo) => (
-                    <li key={logo.url}>
-                      <ContestMedia asset={logo} className="fr-contest-org-editorial__secondary-img" />
-                    </li>
-                  ))}
-              </ul>
-            ) : null}
-            <ul className="fr-contest-stack fr-contest-stack--xs fr-type-body-small mt-6">
-              {[org.city, org.country].filter(Boolean).length > 0 ? (
-                <li>{[org.city, org.country].filter(Boolean).join(", ")}</li>
-              ) : null}
-              {org.contactEmail ? (
-                <li>
-                  <a href={`mailto:${org.contactEmail}`} className="text-gold hover:text-gold-hover">
-                    {org.contactEmail}
-                  </a>
-                </li>
-              ) : null}
-              {org.website ? (
-                <li>
-                  <a
-                    href={org.website.startsWith("http") ? org.website : `https://${org.website}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gold hover:text-gold-hover"
-                  >
-                    Sitio web
-                  </a>
-                </li>
-              ) : null}
-              {org.instagram ? (
-                <li>
-                  <a
-                    href={igHref(org.instagram)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gold hover:text-gold-hover"
-                  >
-                    Instagram
-                  </a>
-                </li>
-              ) : null}
-            </ul>
-          </div>
-        </ContentContainer>
-      </PageSection>
-
-      <ContestPartnersSection groups={partnerGroups} />
-
-      <ContestGallery items={galleryItems} />
-
-      {contest.sponsorsText && partnerGroups.length === 0 ? (
-        <PageSection id="sponsors">
-          <ContentContainer>
-            <SectionHeading title="Sponsors y apoyos" />
-            <ReadingContainer>
-              <div className="fr-type-body whitespace-pre-wrap">{contest.sponsorsText}</div>
-            </ReadingContainer>
-          </ContentContainer>
-        </PageSection>
+          </PageContainer>
+        </section>
       ) : null}
 
       {judges.length > 0 ? (
-        <PageSection id="jurado">
-          <ContentContainer>
-            <SectionHeading title="Jurado" />
-            <ul className="fr-contest-category-grid fr-contest-judge-grid">
+        <section className="fr-public-section" id="jurado">
+          <PageContainer>
+            <PublicSectionHeader
+              title="Jurado"
+              action={
+                <Link
+                  href={`/concursos/${contest.slug}/jurados`}
+                  className="text-sm font-medium text-[var(--primary)] hover:underline"
+                >
+                  Ver todos
+                </Link>
+              }
+            />
+            <ul className="fr-public-stack-content fr-public-card-grid sm:grid-cols-2 lg:grid-cols-3">
               {judges.map((j) => (
                 <li key={j.publicSlug}>
                   <Link
                     href={`/jurados/publico/${j.publicSlug}`}
-                    className="block h-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cv-focus)]"
+                    className="fr-public-card group block transition-colors hover:border-[var(--primary)]"
                   >
-                    <Surface padding="md" interactive className="h-full text-center">
+                    <div className="flex flex-col items-center text-center">
                       {j.avatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={j.avatarUrl}
                           alt=""
-                          className="mx-auto h-20 w-20 rounded-full border border-[var(--cv-border)] object-cover"
+                          className="h-24 w-24 rounded-full border border-[var(--border)] object-cover"
                         />
                       ) : (
-                        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-[var(--cv-border)] fr-type-caption">
+                        <div className="flex h-24 w-24 items-center justify-center rounded-full border border-dashed border-[var(--border)] text-[var(--foreground-muted)]">
                           {j.firstName[0]}
                           {j.lastName[0]}
                         </div>
                       )}
-                      <h3 className="fr-type-h3 mt-3" style={{ color: "var(--cv-foreground)" }}>
+                      <h3 className="mt-4 text-lg font-semibold text-[var(--foreground)] group-hover:text-[var(--primary)]">
                         {j.firstName} {j.lastName}
                       </h3>
                       {j.shortBio ? (
-                        <p className="fr-type-body-small mt-2 line-clamp-3">{j.shortBio}</p>
-                      ) : null}
-                    </Surface>
+                        <p className="fr-public-body mt-2 line-clamp-3 text-sm">{j.shortBio}</p>
+                      ) : (
+                        <p className="mt-2 text-xs text-[var(--foreground-muted)]">Ver perfil</p>
+                      )}
+                    </div>
                   </Link>
                 </li>
               ))}
             </ul>
-          </ContentContainer>
-        </PageSection>
+          </PageContainer>
+        </section>
       ) : null}
 
-      <PageSection id="bases">
-        <ContentContainer>
-          <SectionHeading
-            title="Bases y condiciones"
-            description="Documento oficial. Se muestra con formato legible."
-          />
+      <section className="fr-public-section" id="bases">
+        <PageContainer>
+          <PublicSectionHeader title="Bases y condiciones" />
           {contest.rulesText ? (
-            <Surface padding="md" className="fr-contest-details">
-              <details>
-                <summary>Ver bases completas</summary>
-                <div className="fr-rules-scroll">
-                  <RulesDocument content={contest.rulesText} />
-                </div>
-              </details>
-            </Surface>
+            <details className="fr-public-card group fr-public-stack-content">
+              <summary className="cursor-pointer text-lg font-medium text-[var(--foreground)]">
+                Ver bases completas
+              </summary>
+              {/* RulesDocument (de dcdbda7e): parser markdown propio para negrita/enlaces/
+                  encabezados del texto legal — preservado en vez de whitespace-pre-wrap crudo. */}
+              <div className="fr-public-body mt-6 max-h-[32rem] overflow-y-auto border-t border-[var(--border)] pt-6 text-sm">
+                <RulesDocument content={contest.rulesText} />
+              </div>
+            </details>
           ) : (
-            <p className="fr-type-body">
-              Las bases estarán publicadas próximamente. Contactá al organizador.
-            </p>
+            <Notice tone="info" className="fr-public-stack-content">
+              Las bases estarán publicadas próximamente. Contactá al organizador si necesitás más
+              información.
+            </Notice>
           )}
-        </ContentContainer>
-      </PageSection>
+        </PageContainer>
+      </section>
 
-      <PageSection id="faq">
-        <ContentContainer>
-          <SectionHeading title="Preguntas frecuentes" />
-          <ReadingContainer>
-            <Stack gap="sm">
-              <FaqItem
-                q="¿Cómo me inscribo?"
-                a="Creá una cuenta en FotoRank, iniciá sesión y usá el botón «Participar ahora»."
-              />
-              <FaqItem
-                q="¿Hay costo de inscripción?"
-                a={
-                  isFree
-                    ? "Este concurso es gratuito: no hay cobro ni redirección a pagos."
-                    : "Si el concurso define arancel, figurará en las bases."
-                }
-              />
-              <FaqItem
-                q="¿Puedo subir fotografías ahora?"
-                a={
-                  uploadClosedForUi
-                    ? "La carga todavía no está habilitada. Tu inscripción puede confirmarse; la carga se abre cuando la organización lo indique."
-                    : "Sí, dentro del período de carga y según las bases."
-                }
-              />
-              <FaqItem
-                q="¿A quién contacto por dudas?"
-                a={
-                  org.contactEmail
-                    ? `Escribí a ${org.contactEmail}.`
-                    : "Usá los canales del organizador indicados en esta página."
-                }
-              />
-            </Stack>
-          </ReadingContainer>
-        </ContentContainer>
-      </PageSection>
+      {/* ContestPartnersSection ya devuelve null si groups está vacío (caso actual). */}
+      <ContestPartnersSection groups={partnerGroups} />
 
-      <ContestFinalCta
-        title={cta.enabled ? "Sumate al concurso" : PHASE_LABEL[phase]}
-        statusLabel={PHASE_LABEL[phase]}
-        statusTone={
-          phase === "open" || phase === "last-days"
-            ? "accent"
-            : phase === "coming-soon"
-              ? "warning"
-              : "muted"
-        }
-        isFree={isFree}
-        ctaEnabled={cta.enabled}
-        ctaLabel={cta.enabled ? cta.primary : "Ver estado"}
-        inscriptionHref={inscripcionHref}
-        uploadClosed={uploadClosedForUi}
-        registrationCloseLabel={registrationCloseLabel}
-      />
+      <section className="fr-public-section" id="faq">
+        <PageContainer>
+          <PublicSectionHeader title="Preguntas frecuentes" />
+          <div className="fr-public-stack-content fr-public-card-stack max-w-3xl">
+            <FaqItem
+              q="¿Cómo me inscribo?"
+              a="Creá una cuenta en FotoRank, iniciá sesión y usá el botón «Inscribirme»."
+            />
+            <FaqItem
+              q="¿Hay costo de inscripción?"
+              a="Si el concurso define arancel, figurará en las bases. Si no se indica, consultá con el organizador."
+            />
+            <FaqItem
+              q="¿Cuándo se conocen los resultados?"
+              a={
+                fmtDate(contest.resultsAt)
+                  ? `Fecha prevista: ${fmtDate(contest.resultsAt)}.`
+                  : "La fecha de resultados se comunica según el cronograma del concurso."
+              }
+            />
+            <FaqItem
+              q="¿A quién contacto por dudas?"
+              a={
+                org.contactEmail
+                  ? `Escribí a ${org.contactEmail}.`
+                  : "Usá los canales del organizador indicados en esta página."
+              }
+            />
+          </div>
+        </PageContainer>
+      </section>
 
-      <footer className="fr-contest-footer">
-        <ContentContainer>
-          <Stack gap="sm" className="items-center text-center">
-            <Link href="/" className="inline-flex opacity-80 hover:opacity-100">
-              <Image
-                src="/fotorank-logo.png"
-                alt="FotoRank"
-                width={120}
-                height={40}
-                className="h-8 w-auto"
-              />
-            </Link>
-            <p className="fr-type-caption">
-              Organiza <strong style={{ color: "var(--cv-foreground)" }}>{org.name}</strong> ·
-              Plataforma{" "}
-              <Link href="/" className="text-gold">
-                FotoRank
-              </Link>
-            </p>
-          </Stack>
-        </ContentContainer>
-      </footer>
-    </ContestShell>
+      <section className="fr-public-section border-b-0" data-testid="contest-final-cta">
+        <PageContainer>
+          <div className="fr-public-card fr-public-card--accent fr-public-cta-band">
+            <StatusBadge label={PHASE_LABEL[phase]} tone={phaseTone(phase)} />
+            <h2 className="fr-public-title text-2xl md:text-3xl">{finalCta.title}</h2>
+            <p className="fr-public-body">{finalCta.body}</p>
+            {registrationCloseLabel(contest) ? (
+              <p className="fr-public-cta-meta">
+                Inscripciones hasta el{" "}
+                <strong className="text-[var(--foreground)]">
+                  {registrationCloseLabel(contest)}
+                </strong>
+              </p>
+            ) : null}
+            <div className="fr-public-cta-actions flex-col sm:flex-row">
+              {cta.enabled ? (
+                <PrimaryButton href={inscripcionHref} size="lg">
+                  {finalCta.action}
+                </PrimaryButton>
+              ) : (
+                <span className="fr-public-btn fr-public-btn--secondary opacity-70" aria-disabled="true">
+                  {finalCta.action}
+                </span>
+              )}
+              <SecondaryButton href="/" size="lg">
+                Conocer FotoRank
+              </SecondaryButton>
+            </div>
+          </div>
+        </PageContainer>
+      </section>
+
+      {cta.enabled ? (
+        <MobileActionBar>
+          <PrimaryButton href={inscripcionHref} className="w-full" size="lg">
+            {cta.primary}
+          </PrimaryButton>
+        </MobileActionBar>
+      ) : null}
+    </PublicShell>
   );
 }
 
 function FaqItem({ q, a }: { q: string; a: string }) {
   return (
-    <Surface padding="md" className="fr-contest-details">
-      <details>
-        <summary>{q}</summary>
-        <p className="fr-type-body-small">{a}</p>
-      </details>
-    </Surface>
+    <details className="fr-public-card">
+      <summary className="cursor-pointer font-medium text-[var(--foreground)]">{q}</summary>
+      <p className="fr-public-body fr-public-stack-title text-sm">{a}</p>
+    </details>
   );
 }
