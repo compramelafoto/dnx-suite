@@ -526,6 +526,9 @@ importers:
       '@repo/auth-ui':
         specifier: workspace:*
         version: link:../../packages/auth-ui
+      '@repo/communications':
+        specifier: workspace:*
+        version: link:../../packages/communications
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
