@@ -5,6 +5,7 @@ import {
   FOTOFFICE_ORGANIZATION_TYPES,
   FOTOFFICE_SPECIALTIES,
 } from "@/lib/onboarding-constants";
+import { EMAIL_SIGNATURE_NOTE_MAX } from "./actions";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { updateWorkspaceSettingsAction, type SettingsState } from "./actions";
 
@@ -19,6 +20,7 @@ type Initial = {
   country: string;
   website: string;
   instagram: string;
+  emailSignatureNote: string;
   activityType: string;
   specialties: string[];
   logoUrl: string | null;
@@ -76,6 +78,21 @@ export function WorkspaceSettingsForm({ initial, canEdit }: { initial: Initial; 
         <Field label="País" name="country" defaultValue={initial.country} />
         <Field label="Sitio web" name="website" defaultValue={initial.website} />
         <Field label="Instagram" name="instagram" defaultValue={initial.instagram} />
+        <label className="block space-y-3">
+          <span className="text-sm font-semibold">Nota institucional del pie de los emails</span>
+          <textarea
+            name="emailSignatureNote"
+            defaultValue={initial.emailSignatureNote}
+            rows={4}
+            maxLength={EMAIL_SIGNATURE_NOTE_MAX}
+            className="w-full rounded-xl border border-[var(--fo-border)] bg-[var(--fo-bg)] px-4 py-3 text-sm"
+          />
+          <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+            Se agrega al final de los emails que envía el workspace: razón social, CUIT,
+            personería o aviso legal. Texto plano — las etiquetas HTML se muestran tal cual.
+            Máximo {EMAIL_SIGNATURE_NOTE_MAX} caracteres.
+          </p>
+        </label>
         <div className="grid gap-6 sm:grid-cols-2">
           <ImageUploadField
             name="logoUrl"

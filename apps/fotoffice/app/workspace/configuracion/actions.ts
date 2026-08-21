@@ -1,5 +1,8 @@
 "use server";
 
+/** Tope de la nota institucional del pie de los emails. Lo comparten acción y formulario. */
+export const EMAIL_SIGNATURE_NOTE_MAX = 1500;
+
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
@@ -48,6 +51,10 @@ export async function updateWorkspaceSettingsAction(
   const country = formData.get("country")?.toString()?.trim() || null;
   const website = formData.get("website")?.toString()?.trim() || null;
   const instagram = formData.get("instagram")?.toString()?.trim() || null;
+  // Texto plano: se recorta el borde pero se preservan los saltos de línea internos.
+  // Las etiquetas que pegue el administrador se guardan como texto — el escapado es del
+  // renderer, no de acá.
+  const emailSignatureNote = formData.get("emailSignatureNote")?.toString()?.trim() || null;
   const activityType = formData.get("activityType")?.toString()?.trim() || "";
   const logoUrl = formData.get("logoUrl")?.toString()?.trim() || null;
   const coverImageUrl = formData.get("coverImageUrl")?.toString()?.trim() || null;
@@ -57,6 +64,11 @@ export async function updateWorkspaceSettingsAction(
     .filter((id) => FOTOFFICE_SPECIALTY_IDS.has(id as never));
 
   if (!commercialName) return { error: "El nombre comercial es obligatorio." };
+  if (emailSignatureNote && emailSignatureNote.length > EMAIL_SIGNATURE_NOTE_MAX) {
+    return {
+      error: `La nota del pie de los emails no puede superar los ${EMAIL_SIGNATURE_NOTE_MAX} caracteres.`,
+    };
+  }
   if (!ACTIVITY_IDS.has(activityType)) return { error: "Tipo de organización inválido." };
   if (publicSlug.length < 2 || publicSlug.length > 80 || !PUBLIC_SLUG_RE.test(publicSlug)) {
     return { error: "Slug público inválido." };
@@ -83,6 +95,7 @@ export async function updateWorkspaceSettingsAction(
       country,
       website,
       instagram,
+      emailSignatureNote,
       activityType,
       specialties,
       logoUrl,

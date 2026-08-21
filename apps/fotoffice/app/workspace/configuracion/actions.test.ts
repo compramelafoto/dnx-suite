@@ -119,3 +119,56 @@ describe("updateWorkspaceSettingsAction", () => {
     expect(featureModuleMock).not.toHaveBeenCalled();
   });
 });
+
+describe("emailSignatureNote — nota institucional del pie de los emails", () => {
+  beforeEach(() => {
+    membershipFindUniqueMock.mockReset();
+    brandingUpdateMock.mockReset();
+    brandingFindUniqueMock.mockReset();
+    workspaceUpdateMock.mockReset();
+    profileUpsertMock.mockReset();
+    brandingFindUniqueMock.mockResolvedValue(null);
+  });
+
+  async function save(note: string) {
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    return updateWorkspaceSettingsAction(undefined, buildFormData({ emailSignatureNote: note }));
+  }
+
+  function savedNote() {
+    return brandingUpdateMock.mock.calls[0]?.[0]?.data?.emailSignatureNote;
+  }
+
+  it("guarda la nota recortada", async () => {
+    const result = await save("  Asociación Civil  ");
+    expect(result.error).toBeNull();
+    expect(savedNote()).toBe("Asociación Civil");
+  });
+
+  it("preserva los saltos de línea", async () => {
+    await save("Asociación Civil\nCUIT 30-11111111-1");
+    expect(savedNote()).toBe("Asociación Civil\nCUIT 30-11111111-1");
+  });
+
+  it("vacío o solo espacios se guarda como null, nunca cadena vacía", async () => {
+    await save("   ");
+    expect(savedNote()).toBeNull();
+  });
+
+  it("rechaza más de 1500 caracteres y no guarda nada", async () => {
+    const result = await save("a".repeat(1501));
+    expect(result.error).toBeTruthy();
+    expect(brandingUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("acepta exactamente 1500 caracteres", async () => {
+    const result = await save("a".repeat(1500));
+    expect(result.error).toBeNull();
+    expect(savedNote()).toHaveLength(1500);
+  });
+
+  it("las etiquetas se guardan como texto: el escapado es del renderer", async () => {
+    await save("<b>Asociación</b>");
+    expect(savedNote()).toBe("<b>Asociación</b>");
+  });
+});
