@@ -4,6 +4,8 @@ import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { WorkspaceSettingsForm } from "./settings-form";
+import { EmailSignaturePreview } from "@/components/communications/email-signature-preview";
+import { toEmailSignatureData } from "@/lib/communications/workspace-signature";
 
 export default async function WorkspaceSettingsPage() {
   const user = await requireAuth();
@@ -13,7 +15,7 @@ export default async function WorkspaceSettingsPage() {
     name: user.name,
   });
 
-  const [branding, profile, membership] = await Promise.all([
+  const [branding, profile, membership, workspace] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: ensured.workspaceId },
     }),
@@ -21,6 +23,10 @@ export default async function WorkspaceSettingsPage() {
     prisma.workspaceMembership.findUnique({
       where: { userId_workspaceId: { userId: user.id, workspaceId: ensured.workspaceId } },
       select: { role: true },
+    }),
+    prisma.workspace.findUnique({
+      where: { id: ensured.workspaceId },
+      select: { name: true },
     }),
   ]);
   const canEdit = canManageWorkspaceSettings(membership?.role);
@@ -64,6 +70,25 @@ export default async function WorkspaceSettingsPage() {
           displayName: profile?.displayName ?? user.name ?? "",
         }}
       />
+      {canEdit ? (
+        <EmailSignaturePreview
+          data={toEmailSignatureData(
+            {
+              commercialName: branding?.commercialName ?? null,
+              logoUrl: branding?.logoUrl ?? null,
+              contactEmail: branding?.contactEmail ?? null,
+              phone: branding?.phone ?? null,
+              whatsapp: branding?.whatsapp ?? null,
+              instagram: branding?.instagram ?? null,
+              website: branding?.website ?? null,
+              city: branding?.city ?? null,
+              accentColor: branding?.accentColor ?? null,
+              emailSignatureNote: branding?.emailSignatureNote ?? null,
+            },
+            workspace?.name ?? "",
+          )}
+        />
+      ) : null}
     </div>
   );
 }
