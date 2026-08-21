@@ -139,6 +139,21 @@ Restricciones **obligatorias**:
 nada sobre Outlook. Los tests verifican estructura (que use tablas, que no haya flex/grid),
 no apariencia.
 
+#### Accesibilidad
+
+Una firma que solo se entiende viendo imágenes y colores deja gente afuera, y además se
+rompe en el escenario más común: imágenes bloqueadas.
+
+- Las tablas usadas **solo para layout** llevan `role="presentation"`, para que un lector
+  de pantalla no las anuncie como tablas de datos.
+- `alt` **útil** en el logo (el nombre de la organización), no `alt=""` ni "logo".
+- Fuentes con **pila de fallback** (`Arial, Helvetica, sans-serif`): las fuentes
+  personalizadas no cargan en la mayoría de los clientes.
+- **Contraste suficiente** entre texto y fondo.
+- Enlaces con **texto entendible**, no "hacé clic acá".
+- **La información esencial no depende del color ni de la imagen**: si el logo no carga y
+  todo se ve en negro sobre blanco, la firma sigue diciendo quién es y cómo contactarlo.
+
 #### Texto plano
 
 No es un descarte del HTML: es una versión propia con la misma información relevante, en
@@ -155,6 +170,22 @@ abren un XSS que **viaja por email** y además se renderiza en el preview dentro
 Todo valor se escapa. **El orden importa**: primero escapar, después convertir saltos de
 línea a `<br>`. Al revés, los `<br>` que genera el sistema quedarían escapados y se verían
 como texto literal.
+
+### Saltos de línea en `emailSignatureNote`
+
+Se almacena como **texto plano**. El tratamiento difiere según la salida:
+
+**Para HTML:**
+1. Escapar primero.
+2. Recién entonces convertir los saltos de línea a `<br>`.
+3. **Nunca interpretar etiquetas ingresadas**: si el administrador escribe `<b>`, se ve
+   `<b>`, no texto en negrita.
+
+**Para texto plano:**
+- Conservar los saltos de línea tal como los escribió el administrador.
+- **Normalizar `CRLF` a `LF`**: un texto pegado desde Windows trae `\r\n` y produce líneas
+  dobles en algunos clientes.
+- Eliminar espacios finales innecesarios al final de cada línea y del bloque.
 
 ### Validación de URLs
 
@@ -185,6 +216,19 @@ los dos mundos. Mapea `FotofficeWorkspaceBranding` → `EmailSignatureData`.
 En esta etapa completa **solo los campos institucionales**. `signerName`, `signerRole` y
 `signerPhotoUrl` quedan sin completar.
 
+### Resolución de `organizationName`
+
+Es el único campo obligatorio, así que **nunca puede quedar vacío, `undefined` ni `null`**.
+El mapper lo resuelve por prioridad, tomando el primero que tenga contenido real
+(tras `trim`):
+
+1. `FotofficeWorkspaceBranding.commercialName` — el nombre comercial.
+2. `Workspace.name` — el nombre real del workspace.
+3. `"FotoOffice"` — último fallback técnico.
+
+El tercer nivel no debería alcanzarse nunca en datos reales; existe para que un branding
+a medio cargar no produzca una firma rota.
+
 **`closingText` se deja sin completar**: el email de cursos ya cierra con "Gracias por
 elegirnos.". Si la firma agregara su propio cierre habría dos. El cierre sigue siendo del
 template; la firma arranca en el bloque institucional.
@@ -208,6 +252,26 @@ Con una aclaración visible:
 > "Esta es la firma institucional. Más adelante podrás seleccionar un firmante personal."
 
 **El preview nunca envía emails.** Renderiza la salida ya escapada, nunca los valores crudos.
+
+### Aislamiento del preview
+
+El preview inyecta HTML generado a partir de datos que escribe un administrador. Aunque el
+renderer escapa, el aislamiento es la segunda barrera: si alguna vez se filtra algo, no
+debe poder tocar la aplicación.
+
+Se muestra dentro de un **`<iframe sandbox>`**, con estas restricciones:
+
+- **Sin `allow-scripts`** — nada se ejecuta.
+- Sin navegación de la ventana principal (no `allow-top-navigation`).
+- Sin formularios (no `allow-forms`).
+- Sin acceso a cookies ni al origen de la app (no `allow-same-origin`).
+
+**No se usa `dangerouslySetInnerHTML` sobre el DOM principal.** El contenido va al `srcdoc`
+del iframe aislado. Usarlo directamente solo sería admisible con sanitización y aislamiento
+demostrables — y acá el iframe ya resuelve el problema sin esa deuda.
+
+**El preview no sustituye las pruebas del HTML final**: que se vea bien en el panel no dice
+nada sobre Outlook.
 
 ## 5. Integración con cursos
 
@@ -253,6 +317,13 @@ El renderer es puro, así que se prueba sin infraestructura. **Ningún test env�
 - Firma agregada una sola vez al email del curso (HTML y texto).
 - Escapado: `<script>` en nombre y nota queda inerte.
 - Estructura de email: usa tablas, no usa flex/grid/`<style>`.
+- `organizationName`: cae a `Workspace.name` si no hay nombre comercial, y a `"FotoOffice"`
+  si tampoco hay; nunca queda vacío, `undefined` ni `null`.
+- Etiquetas ingresadas en la nota (`<b>`, `<img>`) se ven literales, no se interpretan.
+- `CRLF` en la nota se normaliza a `LF` en la versión texto.
+- Espacios finales de línea eliminados en la versión texto.
+- Tablas de layout con `role="presentation"`.
+- Logo con `alt` igual al nombre de la organización, no vacío.
 
 ## Etapa siguiente: firmante personal
 
@@ -274,3 +345,9 @@ Documentado para que la API de hoy no tenga que romperse mañana. **No se implem
 - Envío de invitaciones por email.
 - Campañas.
 - Migración general de todos los emails a `@repo/communications`.
+
+## Nota sobre el historial de este spec
+
+Este documento se commiteó primero solo (`4815959d`), antes de escribir una línea de
+código. **No se pushea de forma independiente**: se integra junto con la implementación
+validada, dentro del flujo productivo de FotoOffice, preservando su autoría e historial.
