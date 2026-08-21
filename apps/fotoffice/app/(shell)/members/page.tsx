@@ -47,6 +47,21 @@ export default async function MembersPage({
               <Link href="/members/categories" className="fo-btn fo-btn-secondary text-sm">
                 Categorías
               </Link>
+              {/* Descargas directas: el permiso se revalida en el servidor, el botón solo
+                  evita ofrecer algo que no se puede hacer. `prefetch={false}` porque son
+                  descargas, no páginas navegables. */}
+              <a href="/api/members/export" className="fo-btn fo-btn-secondary text-sm" download>
+                Exportar padrón completo
+              </a>
+              {hasFilters ? (
+                <a
+                  href={`/api/members/export${buildQuery({ q, status, categoryId }, {})}`}
+                  className="fo-btn fo-btn-secondary text-sm"
+                  download
+                >
+                  Exportar resultados actuales
+                </a>
+              ) : null}
               <Link href="/members/import" className="fo-btn fo-btn-secondary text-sm">
                 Importar socios
               </Link>

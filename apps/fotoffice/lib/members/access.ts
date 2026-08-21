@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
-import { requireAuth, type AuthUser } from "@/lib/auth";
+import { getAuthUser, requireAuth, type AuthUser } from "@/lib/auth";
 import { resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { MEMBERS_MODULE_KEY } from "./constants";
@@ -39,4 +39,32 @@ export async function requireMembersManageContext(): Promise<MembersContext> {
   const ctx = await requireMembersContext();
   if (!ctx.canManage) redirect("/members?forbidden=manage");
   return ctx;
+}
+
+/**
+ * Variante para route handlers (descargas). Devuelve `null` en vez de redirigir: un `redirect`
+ * en una descarga produciría un archivo con el HTML de otra página en vez de un error.
+ *
+ * Toda denegación es indistinguible —sin sesión, sin workspace, módulo apagado o rol STAFF
+ * responden lo mismo— para no filtrar por diferencia de respuestas qué workspaces existen ni
+ * qué módulos tienen habilitados.
+ */
+export async function resolveMembersExportContext(): Promise<MembersContext | null> {
+  const user = await getAuthUser();
+  if (!user) return null;
+
+  const workspace = await resolveActiveWorkspace(user.id);
+  if (!workspace) return null;
+
+  const enabled = await isModuleEnabledForWorkspace(workspace.id, MEMBERS_MODULE_KEY);
+  if (!enabled) return null;
+
+  const membership = await prisma.workspaceMembership.findUnique({
+    where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
+    select: { role: true },
+  });
+  // La exportación masiva se lleva datos personales de todo el padrón: solo OWNER/ADMIN.
+  if (!canManageMembers(membership?.role)) return null;
+
+  return { user, workspace, canManage: true };
 }

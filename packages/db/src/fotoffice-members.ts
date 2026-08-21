@@ -123,6 +123,47 @@ export async function searchMembers(
   return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
+/** Tope duro de filas por exportación: evita que un workspace enorme tumbe el proceso. */
+export const MEMBER_EXPORT_MAX_ROWS = 5000;
+
+/**
+ * Padrón completo (o filtrado) para exportar. Sin paginar, a diferencia de `searchMembers`,
+ * que tope a 100 filas por página — una exportación de 152 socios no puede venir cortada.
+ *
+ * Reusa EXACTAMENTE el mismo `where` que la búsqueda de pantalla, incluido el `workspaceId`
+ * obligatorio: lo que el administrador ve filtrado en la lista es lo que se lleva en el CSV,
+ * y nunca puede alcanzar filas de otro workspace.
+ */
+export function listMembersForExport(
+  workspaceId: string,
+  filters: Omit<MemberSearchFilters, "page" | "pageSize"> = {},
+): Promise<MemberWithCategory[]> {
+  const search = filters.search?.trim();
+  const where: Prisma.MemberWhereInput = {
+    workspaceId,
+    status: filters.status,
+    categoryId: filters.categoryId,
+    ...(search
+      ? {
+          OR: [
+            { firstName: { contains: search, mode: "insensitive" } },
+            { lastName: { contains: search, mode: "insensitive" } },
+            { memberNumber: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+            { documentNumber: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
+  return prisma.member.findMany({
+    where,
+    include: { category: true },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    take: MEMBER_EXPORT_MAX_ROWS,
+  });
+}
+
 export type MemberStatusCounts = { total: number; ACTIVE: number; SUSPENDED: number; INACTIVE: number };
 
 export async function countMembersByStatus(workspaceId: string): Promise<MemberStatusCounts> {
