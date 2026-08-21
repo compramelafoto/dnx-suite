@@ -6876,6 +6876,11 @@ model FotofficeWorkspaceBranding {
   province              String?
   country               String?
   specialties           String[]  @default([])
+  /// Texto libre institucional para el pie de los emails (razón social, CUIT, personería,
+  /// aviso legal). TEXTO PLANO: nunca HTML — se escapa al renderizar. null = no se muestra.
+  /// El resto de la firma (nombre, logo, contacto, redes) sale de los campos de arriba: una
+  /// sola fuente de verdad entre el sitio público y los emails.
+  emailSignatureNote    String?
   /// null = onboarding incompleto; set cuando el fotógrafo termina o saltea
   onboardingCompletedAt DateTime?
   createdAt             DateTime  @default(now())
