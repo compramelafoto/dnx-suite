@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMember, listMemberAudits } from "@repo/db/fotoffice-members";
+import { getMember, listMemberAudits, listMemberInvitations } from "@repo/db/fotoffice-members";
+import { prisma } from "@repo/db";
 import { requireMembersContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
 import { MemberStatusChanger } from "@/components/members/member-status-changer";
 import { MemberAuditLog } from "@/components/members/member-audit-log";
 import { formatDocumentForDisplay } from "@/lib/members/documents";
+import { MemberAccessPanel } from "@/components/members/member-access-panel";
 import { MEMBER_STATUS_LABELS } from "@/lib/members/status-labels";
 
 function initials(firstName: string, lastName: string): string {
@@ -25,6 +27,12 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
 
   // Solo se consulta si el rol puede verlo: STAFF ni siquiera dispara la query.
   const audits = canManage ? await listMemberAudits(workspace.id, member.id) : [];
+  // Solo OWNER/ADMIN gestiona accesos; STAFF ni siquiera dispara estas consultas.
+  const invitations = canManage ? await listMemberInvitations(workspace.id, member.id) : [];
+  const linkedUser =
+    canManage && member.userId
+      ? await prisma.user.findUnique({ where: { id: member.userId }, select: { email: true } })
+      : null;
 
   return (
     <div className="space-y-10">
@@ -138,12 +146,19 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
             <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
               Acceso a FotoOffice
             </h2>
-            <p className="text-sm text-[var(--fo-text)]">
-              {member.userId ? "Cuenta vinculada" : "Sin cuenta vinculada"}
-            </p>
-            <p className="fo-helper">
-              La invitación para crear o vincular una cuenta todavía no está disponible.
-            </p>
+            {canManage ? (
+              <MemberAccessPanel
+                memberId={member.id}
+                memberEmail={member.email}
+                linkedUserEmail={linkedUser?.email ?? null}
+                isLinked={member.userId !== null}
+                invitations={invitations}
+              />
+            ) : (
+              <p className="text-sm text-[var(--fo-text)]">
+                {member.userId ? "Cuenta vinculada" : "Sin cuenta vinculada"}
+              </p>
+            )}
           </section>
 
           {member.notes ? (

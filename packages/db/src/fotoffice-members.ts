@@ -265,6 +265,177 @@ export function bulkCreateMembers(
   });
 }
 
+/** Se lanza cuando el vínculo pedido chocaría con una regla de unicidad o de estado. */
+export class MemberLinkError extends Error {
+  constructor(readonly reason: "ALREADY_LINKED" | "USER_TAKEN" | "NOT_FOUND" | "INVITATION_INVALID") {
+    super(reason);
+    this.name = "MemberLinkError";
+  }
+}
+
+/**
+ * Vincula un socio con un usuario existente. Todo en una transacción, con las mismas garantías
+ * que `updateMember`: control optimista por `updatedAt` y auditoría atómica.
+ *
+ * La unicidad real la sostiene `@@unique([workspaceId, userId])` en la base: aunque dos
+ * administradores confirmen a la vez, Postgres deja pasar solo uno.
+ */
+export async function linkMemberToUser(
+  workspaceId: string,
+  memberId: string,
+  userId: number,
+  options: { actor: MemberAuditActor; reason?: string | null; expectedUpdatedAt?: Date | null },
+): Promise<MemberWithCategory> {
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.member.findFirst({ where: { id: memberId, workspaceId } });
+    if (!before) throw new MemberLinkError("NOT_FOUND");
+    if (before.userId !== null) throw new MemberLinkError("ALREADY_LINKED");
+
+    // Un mismo User no puede ser dos socios del MISMO workspace (sí de otros).
+    const taken = await tx.member.findFirst({
+      where: { workspaceId, userId },
+      select: { id: true },
+    });
+    if (taken) throw new MemberLinkError("USER_TAKEN");
+
+    const result = await tx.member.updateMany({
+      where: { id: memberId, workspaceId, userId: null, updatedAt: options.expectedUpdatedAt ?? before.updatedAt },
+      data: { userId },
+    });
+    if (result.count !== 1) throw new MemberConcurrencyError();
+
+    await tx.memberAudit.create({
+      data: buildMemberAuditData(workspaceId, memberId, {
+        action: "USER_LINKED",
+        source: "MANUAL",
+        actor: options.actor,
+        changes: { userId: { before: null, after: userId } },
+        reason: options.reason ?? null,
+      }),
+    });
+
+    const fresh = await getMemberTx(tx, workspaceId, memberId);
+    if (!fresh) throw new MemberLinkError("NOT_FOUND");
+    return fresh;
+  });
+}
+
+/**
+ * Desvincula. Conserva el `User`, su `WorkspaceMembership` y todo su historial: desvincular es
+ * quitarle el acceso a ESTE socio, no borrar a la persona. Revoca de paso las invitaciones
+ * pendientes, para que un enlace viejo no vuelva a vincularlo por la ventana de atrás.
+ */
+export async function unlinkMemberFromUser(
+  workspaceId: string,
+  memberId: string,
+  options: { actor: MemberAuditActor; reason: string; expectedUpdatedAt?: Date | null },
+): Promise<MemberWithCategory> {
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.member.findFirst({ where: { id: memberId, workspaceId } });
+    if (!before) throw new MemberLinkError("NOT_FOUND");
+    if (before.userId === null) throw new MemberLinkError("NOT_FOUND");
+
+    const previousUserId = before.userId;
+    const result = await tx.member.updateMany({
+      where: { id: memberId, workspaceId, updatedAt: options.expectedUpdatedAt ?? before.updatedAt },
+      data: { userId: null },
+    });
+    if (result.count !== 1) throw new MemberConcurrencyError();
+
+    await tx.memberInvitation.updateMany({
+      where: { workspaceId, memberId, acceptedAt: null, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    await tx.memberAudit.create({
+      data: buildMemberAuditData(workspaceId, memberId, {
+        action: "USER_UNLINKED",
+        source: "MANUAL",
+        actor: options.actor,
+        changes: { userId: { before: previousUserId, after: null } },
+        reason: options.reason,
+      }),
+    });
+
+    const fresh = await getMemberTx(tx, workspaceId, memberId);
+    if (!fresh) throw new MemberLinkError("NOT_FOUND");
+    return fresh;
+  });
+}
+
+export type MemberInvitationRecord = {
+  id: string;
+  email: string;
+  expiresAt: Date;
+  acceptedAt: Date | null;
+  revokedAt: Date | null;
+  createdAt: Date;
+  invitedByUserId: number | null;
+  acceptedByUserId: number | null;
+};
+
+/**
+ * Crea una invitación. Revoca antes cualquier otra pendiente del mismo socio: una sola
+ * invitación activa por socio, para que no queden dos enlaces válidos dando vueltas.
+ */
+export async function createMemberInvitation(
+  workspaceId: string,
+  memberId: string,
+  input: { email: string; tokenHash: string; expiresAt: Date; invitedByUserId: number | null },
+): Promise<MemberInvitationRecord> {
+  return prisma.$transaction(async (tx) => {
+    const member = await tx.member.findFirst({ where: { id: memberId, workspaceId } });
+    if (!member) throw new MemberLinkError("NOT_FOUND");
+    if (member.userId !== null) throw new MemberLinkError("ALREADY_LINKED");
+
+    await tx.memberInvitation.updateMany({
+      where: { workspaceId, memberId, acceptedAt: null, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    return tx.memberInvitation.create({
+      data: {
+        workspaceId,
+        memberId,
+        email: input.email.trim().toLowerCase(),
+        tokenHash: input.tokenHash,
+        expiresAt: input.expiresAt,
+        invitedByUserId: input.invitedByUserId,
+      },
+      select: {
+        id: true, email: true, expiresAt: true, acceptedAt: true,
+        revokedAt: true, createdAt: true, invitedByUserId: true, acceptedByUserId: true,
+      },
+    });
+  });
+}
+
+export function revokeMemberInvitation(
+  workspaceId: string,
+  memberId: string,
+  invitationId: string,
+): Promise<{ count: number }> {
+  return prisma.memberInvitation.updateMany({
+    where: { id: invitationId, workspaceId, memberId, acceptedAt: null, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+}
+
+export function listMemberInvitations(
+  workspaceId: string,
+  memberId: string,
+): Promise<MemberInvitationRecord[]> {
+  return prisma.memberInvitation.findMany({
+    where: { workspaceId, memberId },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true, email: true, expiresAt: true, acceptedAt: true,
+      revokedAt: true, createdAt: true, invitedByUserId: true, acceptedByUserId: true,
+    },
+  });
+}
+
 export type MemberAuditRecord = {
   id: string;
   action: string;

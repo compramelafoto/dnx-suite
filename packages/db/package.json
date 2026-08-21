@@ -18,7 +18,9 @@
     "./partners-impression-ingest": "./src/partners-impression-ingest.ts",
     "./partners-analytics-multi-db": "./src/partners-analytics-multi-db.ts",
     "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts",
-    "./fotoffice-members": "./src/fotoffice-members.ts"
+    "./fotoffice-members": "./src/fotoffice-members.ts",
+    "./fotoffice-user-lookup": "./src/fotoffice-user-lookup.ts",
+    "./fotoffice-member-invitations": "./src/fotoffice-member-invitations.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",

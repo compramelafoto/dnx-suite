@@ -284,6 +284,8 @@ model User {
   fotorankSocialConnectionsConnected    FotorankSocialConnection[]             @relation("FrSocialConnectionConnectedBy")
   websiteVersionsPublished              FotofficeWorkspaceWebsiteVersion[]
   memberAuditsPerformed                 MemberAudit[]
+  memberInvitationsSent                 MemberInvitation[]                     @relation("MemberInvitationInviter")
+  memberInvitationsAccepted             MemberInvitation[]                     @relation("MemberInvitationAcceptor")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -6831,6 +6833,7 @@ model Workspace {
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
   memberAudits                MemberAudit[]
+  memberInvitations           MemberInvitation[]
 }
 
 model WorkspaceFeatureModule {
@@ -7052,6 +7055,8 @@ model Member {
   /// Historial inmutable de operaciones sobre este socio. Restrict del lado de MemberAudit:
   /// borrar un socio nunca puede llevarse su historial por delante en silencio.
   audits MemberAudit[]
+  /// Invitaciones de acceso emitidas para este socio (pendientes, aceptadas o revocadas).
+  invitations MemberInvitation[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -7064,6 +7069,47 @@ model Member {
   @@index([workspaceId, categoryId])
   @@index([workspaceId, documentNumber])
   @@index([workspaceId, lastName, firstName])
+}
+
+/// Invitación para que un socio acceda con su propia cuenta.
+///
+/// Mismo patrón criptográfico que `PasswordResetToken`, ya probado en el monorepo: el token
+/// crudo se muestra UNA vez al administrador y solo se persiste su SHA-256. Si la base se
+/// filtrara, nadie puede reconstruir un enlace válido.
+///
+/// La invitación NO crea cuentas ni contraseñas: al aceptarla, el socio inicia sesión con el
+/// sistema actual (contraseña o Google) y recién ahí se establece el vínculo.
+model MemberInvitation {
+  id          String    @id @default(cuid())
+  workspaceId String
+  memberId    String
+  /// Email invitado, normalizado. La aceptación exige que el email autenticado coincida:
+  /// si no, cualquiera con el enlace podría quedarse con el socio de otra persona.
+  email       String
+  /// SHA-256 del token. El crudo nunca se guarda.
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  /// Uso único: una vez aceptada, el enlace deja de servir.
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  /// Quién invitó. SetNull para que la traza sobreviva al borrado del administrador.
+  invitedByUserId  Int?
+  /// Qué cuenta terminó aceptando. Puede no ser la misma persona que se esperaba.
+  acceptedByUserId Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Restrict, igual que MemberAudit: borrar un socio no puede borrar en silencio la traza
+  /// de a quién se le dio acceso.
+  member     Member    @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  invitedBy  User?     @relation("MemberInvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  acceptedBy User?     @relation("MemberInvitationAcceptor", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  /// Invitaciones de un socio, más reciente primero.
+  @@index([workspaceId, memberId, createdAt])
+  /// Limpieza de vencidas.
+  @@index([expiresAt])
 }
 
 /// Qué se hizo. Enum cerrado a propósito: un string libre deja el historial sin forma y
