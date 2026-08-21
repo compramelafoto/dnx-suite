@@ -5,7 +5,7 @@ import {
   FOTOFFICE_ORGANIZATION_TYPES,
   FOTOFFICE_SPECIALTIES,
 } from "@/lib/onboarding-constants";
-import { EMAIL_SIGNATURE_NOTE_MAX } from "./actions";
+import { EMAIL_SIGNATURE_NOTE_MAX } from "@/lib/communications/constants";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { updateWorkspaceSettingsAction, type SettingsState } from "./actions";
 

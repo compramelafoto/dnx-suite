@@ -1,10 +1,8 @@
 "use server";
 
-/** Tope de la nota institucional del pie de los emails. Lo comparten acción y formulario. */
-export const EMAIL_SIGNATURE_NOTE_MAX = 1500;
-
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
+import { EMAIL_SIGNATURE_NOTE_MAX } from "@/lib/communications/constants";
 import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import {

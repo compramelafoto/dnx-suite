@@ -1,6 +1,7 @@
 import { Prisma, prisma } from "@repo/db";
 import { logCourseEvent } from "./log";
 import { sendEnrollmentApprovedEmail } from "./email";
+import { loadWorkspaceSignature } from "@/lib/communications/load-workspace-signature";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "./availability";
 
 function decimalToNumber(value: Prisma.Decimal) {
@@ -139,8 +140,13 @@ export async function approveCourseEnrollment(args: {
     courseId: enrollment.courseId,
   });
 
+  // Firma institucional del workspace. Si el branding no está cargado, el email sale sin
+  // firma en vez de fallar: confirmar una inscripción no puede depender de esto.
+  const signature = await loadWorkspaceSignature(enrollment.workspaceId);
+
   try {
     const emailResult = await sendEnrollmentApprovedEmail({
+      signature,
       to: enrollment.email,
       studentName: enrollment.name,
       courseTitle: enrollment.course.title,
