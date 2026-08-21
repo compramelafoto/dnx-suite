@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeDocument } from "./documents";
 
 /**
  * `categoryId` es obligatorio a nivel de UI/producto (todo socio nuevo se
@@ -71,8 +72,13 @@ export function formToMemberPayload(formData: FormData) {
   };
 }
 
-/** Convierte los campos de fecha (string del form) a Date para el repository. */
+/**
+ * Convierte los campos de fecha (string del form) a Date para el repository y normaliza el
+ * documento. Se normaliza acá, en el borde de entrada: la base guarda SIEMPRE el formato
+ * canónico (solo dígitos en DNI y CUIT/CUIL), venga como venga desde el formulario o el CSV.
+ */
 export function memberValuesToRepositoryInput(d: MemberFormValues) {
+  const doc = normalizeDocument(d.documentType, d.documentNumber);
   return {
     memberNumber: d.memberNumber,
     categoryId: d.categoryId,
@@ -81,8 +87,10 @@ export function memberValuesToRepositoryInput(d: MemberFormValues) {
     status: d.status,
     joinedAt: dateOrNull(d.joinedAt) ?? new Date(),
     leftAt: dateOrNull(d.leftAt),
-    documentType: d.documentType ?? null,
-    documentNumber: d.documentNumber ?? null,
+    // Ambos salen de la normalización: sin documento quedan en null (nunca ""), y con
+    // documento quedan en su forma canónica.
+    documentType: doc.canonicalType,
+    documentNumber: doc.normalizedNumber,
     email: d.email || null,
     phone: d.phone ?? null,
     birthDate: dateOrNull(d.birthDate),

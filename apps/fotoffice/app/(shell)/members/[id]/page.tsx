@@ -5,6 +5,7 @@ import { requireMembersContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
 import { MemberStatusChanger } from "@/components/members/member-status-changer";
 import { MemberAuditLog } from "@/components/members/member-audit-log";
+import { formatDocumentForDisplay } from "@/lib/members/documents";
 import { MEMBER_STATUS_LABELS } from "@/lib/members/status-labels";
 
 function initials(firstName: string, lastName: string): string {
@@ -61,9 +62,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               <div className="flex justify-between gap-4">
                 <dt className="text-[var(--fo-muted)]">Documento</dt>
                 <dd className="text-[var(--fo-text)] text-right">
-                  {member.documentType || member.documentNumber
-                    ? `${member.documentType ?? ""} ${member.documentNumber ?? ""}`.trim()
-                    : "—"}
+                  {formatDocumentForDisplay(member.documentType, member.documentNumber)}
                 </dd>
               </div>
               <div className="flex justify-between gap-4">

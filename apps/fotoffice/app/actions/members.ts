@@ -5,12 +5,14 @@ import { redirect } from "next/navigation";
 import {
   createMember,
   createMemberCategory,
+  getMember,
   MemberConcurrencyError,
   updateMember,
   updateMemberCategory,
 } from "@repo/db/fotoffice-members";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom, normalizeReason, statusRequiresReason } from "@/lib/members/audit";
+import { documentChanged, normalizeDocument } from "@/lib/members/documents";
 import {
   formToMemberPayload,
   friendlyMemberCategoryError,
@@ -22,6 +24,22 @@ import {
 import { isMemberStatus } from "@/lib/members/status-labels";
 
 export type MemberFormState = { error: string | null; fieldErrors?: Record<string, string> };
+
+/**
+ * Rechaza un documento mal formado. Devuelve el error de campo listo, o null si está bien.
+ * El caller decide CUÁNDO llamarla — en el alta siempre, en la edición solo si el documento
+ * cambió, para no invalidar retroactivamente socios ya cargados.
+ */
+function documentFieldError(
+  values: { documentType?: string | null; documentNumber?: string | null },
+): MemberFormState | null {
+  const doc = normalizeDocument(values.documentType, values.documentNumber);
+  if (doc.validationStatus !== "INVALID") return null;
+  return {
+    error: "Revisá los campos marcados.",
+    fieldErrors: { documentNumber: doc.message ?? "Documento inválido." },
+  };
+}
 
 function issuesToFieldErrors(issues: { path: (string | number)[]; message: string }[]) {
   const fieldErrors: Record<string, string> = {};
@@ -41,6 +59,10 @@ export async function createMemberAction(
   if (!parsed.success) {
     return { error: "Revisá los campos marcados.", fieldErrors: issuesToFieldErrors(parsed.error.issues) };
   }
+
+  // Alta: siempre se valida, todo el documento es entrada nueva.
+  const docError = documentFieldError(parsed.data);
+  if (docError) return docError;
 
   let created;
   try {
@@ -68,6 +90,25 @@ export async function updateMemberAction(
   const parsed = memberSchema.safeParse(formToMemberPayload(formData));
   if (!parsed.success) {
     return { error: "Revisá los campos marcados.", fieldErrors: issuesToFieldErrors(parsed.error.issues) };
+  }
+
+  // Validación NO retroactiva: solo se exige el formato si el documento cambió respecto del
+  // guardado. Así un socio cargado hace años con un formato que hoy no pasaría (el padrón real
+  // tiene uno) se puede seguir editando —teléfono, categoría, domicilio— sin quedar bloqueado
+  // por un dato que nadie tocó.
+  const current = await getMember(workspace.id, id);
+  if (!current) return { error: "Socio no encontrado." };
+
+  if (
+    documentChanged(
+      current.documentType,
+      current.documentNumber,
+      parsed.data.documentType,
+      parsed.data.documentNumber,
+    )
+  ) {
+    const docError = documentFieldError(parsed.data);
+    if (docError) return docError;
   }
 
   // Testigo de concurrencia: el `updatedAt` que el formulario vio al abrirse.

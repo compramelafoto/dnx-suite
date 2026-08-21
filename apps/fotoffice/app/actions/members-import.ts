@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { bulkCreateMembers, listMemberCategories, listMemberIdentifiersForWorkspace } from "@repo/db/fotoffice-members";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom } from "@/lib/members/audit";
+import { documentDedupKey } from "@/lib/members/documents";
 import { memberValuesToRepositoryInput } from "@/lib/members/schema";
 import { normalizeEmail, parseAndValidateMemberImport, type ImportRowResult } from "@/lib/members/import/parse";
 import { MEMBER_IMPORT_MAX_ROWS } from "@/lib/members/import/columns";
@@ -29,8 +30,12 @@ async function loadWorkspaceLookups(workspaceId: string) {
   const categoriesByName = new Map<string, string>();
   for (const c of categories) categoriesByName.set(c.name.trim().toLowerCase(), c.id);
   const existingMemberNumbers = new Set(identifiers.memberNumbers);
+  // Misma clave normalizada que usa el parser para las filas del CSV: si no, un `12.345.678`
+  // del archivo no matchearía el `12345678` ya guardado y entraría como socio duplicado.
   const existingDocuments = new Set(
-    identifiers.documents.map((d) => `${d.documentType.toLowerCase()}::${d.documentNumber.toLowerCase()}`),
+    identifiers.documents
+      .map((d) => documentDedupKey(d.documentType, d.documentNumber))
+      .filter((k): k is string => k !== null),
   );
   // Normalizados con el MISMO criterio que usa el parser para las filas del CSV, si no
   // `Socio@X.com` en la base no matchearía `socio@x.com` en el archivo.

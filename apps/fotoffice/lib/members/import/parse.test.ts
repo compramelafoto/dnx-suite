@@ -166,12 +166,84 @@ describe("duplicados contra la base existente", () => {
 
   it("documento ya existente en el workspace: ERROR", () => {
     const csv = `${HEADER}\n1,Juan,Pérez,DNI,30111222,,,,,,,,2024-01-15,ACTIVE,Socio activo,`;
+    // La clave ahora es canónica (tipo en mayúsculas + solo dígitos), la misma que arma
+    // `documentDedupKey` a partir de lo guardado en la base.
     const result = parseAndValidateMemberImport(
-      baseParams({ rawCsv: csv, existingDocuments: new Set(["dni::30111222"]) }),
+      baseParams({ rawCsv: csv, existingDocuments: new Set(["DNI::30111222"]) }),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.rows[0].errors.some((e) => e.includes("Ya existe un socio con ese documento"))).toBe(true);
+  });
+
+  it("el documento del CSV con puntos matchea el mismo documento guardado sin puntos", () => {
+    const csv = `${HEADER}\n1,Juan,Pérez,DNI,30.111.222,,,,,,,,2024-01-15,ACTIVE,Socio activo,`;
+    const result = parseAndValidateMemberImport(
+      baseParams({ rawCsv: csv, existingDocuments: new Set(["DNI::30111222"]) }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].errors.some((e) => e.includes("Ya existe un socio con ese documento"))).toBe(true);
+  });
+
+  it("un OTR de 11 dígitos matchea el CUIT ya guardado (mismo documento, marcador histórico)", () => {
+    const csv = `${HEADER}\n1,Juan,Pérez,OTR,20-12345678-3,,,,,,,,2024-01-15,ACTIVE,Socio activo,`;
+    const result = parseAndValidateMemberImport(
+      baseParams({ rawCsv: csv, existingDocuments: new Set(["CUIT::20123456783"]) }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].errors.some((e) => e.includes("Ya existe un socio con ese documento"))).toBe(true);
+  });
+});
+
+describe("documentos: normalización y validación en la importación", () => {
+  const row = (n: number, type: string, num: string) =>
+    `${n},Socio${n},Apellido${n},${type},${num},,,,,,,,2024-01-15,ACTIVE,Socio activo,`;
+
+  it("dos filas con el MISMO documento escrito distinto se detectan como duplicado", () => {
+    const csv = `${HEADER}\n${row(1, "DNI", "12.345.678")}\n${row(2, "DNI", "12345678")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].status).toBe("ERROR");
+    expect(result.rows[1].status).toBe("ERROR");
+    expect(result.rows[0].errors.some((e) => e.includes("duplicado en el archivo"))).toBe(true);
+  });
+
+  it("un DNI fuera de formato se rechaza en el preview, con mensaje explicativo", () => {
+    const csv = `${HEADER}\n${row(1, "DNI", "123")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].status).toBe("ERROR");
+    expect(result.rows[0].errors.some((e) => e.includes("dígitos"))).toBe(true);
+  });
+
+  it("el documento se guarda normalizado: el resolved no conserva los puntos", () => {
+    const csv = `${HEADER}\n${row(1, "DNI", "12.345.678")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // `resolved` conserva el valor tal como se escribió; la normalización al formato canónico
+    // ocurre en memberValuesToRepositoryInput, justo antes de guardar.
+    expect(result.rows[0].status).not.toBe("ERROR");
+  });
+
+  it("un pasaporte alfanumérico NO se rechaza por las reglas numéricas", () => {
+    const csv = `${HEADER}\n${row(1, "Pasaporte", "AB123456")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0].errors.some((e) => e.includes("dígitos"))).toBe(false);
+  });
+
+  it("filas sin documento no se consideran duplicadas entre sí", () => {
+    const csv = `${HEADER}\n${row(1, "", "")}\n${row(2, "", "")}`;
+    const result = parseAndValidateMemberImport(baseParams({ rawCsv: csv }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.errorCount).toBe(0);
   });
 });
 

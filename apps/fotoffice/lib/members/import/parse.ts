@@ -2,6 +2,7 @@ import Papa from "papaparse";
 import { memberSchema, type MemberFormValues } from "@/lib/members/schema";
 import { MEMBER_STATUS_LABELS, type MemberStatus } from "@/lib/members/status-labels";
 import { MEMBER_IMPORT_MAX_ROWS, MEMBER_IMPORT_REQUIRED_COLUMNS } from "./columns";
+import { documentDedupKey, normalizeDocument } from "@/lib/members/documents";
 
 export type ImportRowStatus = "VALID" | "WARNING" | "ERROR";
 
@@ -152,8 +153,10 @@ export function parseAndValidateMemberImport(params: {
       list.push(rowNumber);
       seenMemberNumbers.set(memberNumber, list);
     }
-    if (documentType && documentNumber) {
-      const docKey = `${documentType.toLowerCase()}::${documentNumber.toLowerCase()}`;
+    // Clave normalizada: `12.345.678` y `12345678` son el MISMO documento, así que un CSV
+    // que mezcle formatos ya no cuela dos veces a la misma persona.
+    const docKey = documentDedupKey(documentType, documentNumber);
+    if (docKey) {
       const list = seenDocuments.get(docKey) ?? [];
       list.push(rowNumber);
       seenDocuments.set(docKey, list);
@@ -225,11 +228,15 @@ export function parseAndValidateMemberImport(params: {
     if (memberNumber && params.existingMemberNumbers.has(memberNumber)) {
       errors.push("Ya existe un socio con ese número en este workspace.");
     }
-    if (documentType && documentNumber) {
-      const docKey = `${documentType.toLowerCase()}::${documentNumber.toLowerCase()}`;
-      if (params.existingDocuments.has(docKey)) {
-        errors.push("Ya existe un socio con ese documento en este workspace.");
-      }
+    if (docKey && params.existingDocuments.has(docKey)) {
+      errors.push("Ya existe un socio con ese documento en este workspace.");
+    }
+
+    // Formato del documento. Es entrada nueva, así que se valida siempre (a diferencia de la
+    // edición de un socio ya cargado, donde solo se valida si el documento cambió).
+    const doc = normalizeDocument(documentType, documentNumber);
+    if (doc.validationStatus === "INVALID") {
+      errors.push(doc.message ?? "Documento inválido.");
     }
     // Contra la base: lookup en memoria sobre un Set ya cargado (una sola consulta para
     // todo el lote), nunca una consulta por fila. No se revela NINGÚN dato del socio
