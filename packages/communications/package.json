@@ -12,6 +12,7 @@
     "./email/resend-runtime": "./src/email/runtime/runtime.ts",
     "./email/resend-sdk": "./src/email/providers/resend-sdk-adapter.ts",
     "./providers": "./src/providers/index.ts",
+    "./signature": "./src/signature/index.ts",
     "./templates": "./src/templates/index.ts",
     "./events": "./src/events/index.ts",
     "./tracking": "./src/tracking/index.ts",
@@ -29,7 +30,7 @@
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "pnpm exec tsx --test src/architecture.test.ts src/exports.test.ts src/templates/templates.test.ts src/email/runtime/runtime.test.ts src/tracking/resend/webhook.test.ts src/tracking/persistence/persistence.test.ts src/tracking/environment-policy.test.ts",
+    "test": "pnpm exec tsx --test src/architecture.test.ts src/exports.test.ts src/signature/signature.test.ts src/templates/templates.test.ts src/email/runtime/runtime.test.ts src/tracking/resend/webhook.test.ts src/tracking/persistence/persistence.test.ts src/tracking/environment-policy.test.ts",
     "lint": "eslint .",
     "preview:email": "pnpm exec tsx src/scripts/preview-email.ts",
     "smoke:resend": "pnpm exec tsx src/scripts/send-resend-smoke.ts",
