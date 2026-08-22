@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PublicHomeContestCard } from "../../lib/fotorank/publicContests";
+import { PhotoBanner } from "../landing/PhotoBanner";
 import {
   EmptyState,
   PageContainer,
@@ -40,6 +41,14 @@ export function HomeView({ contests, header }: Props) {
       showFooter
       mainClassName="pt-[4.5rem] md:pt-[5.5rem] lg:pt-[6.5rem]"
     >
+      {/**
+       * Franja de fotografías en blanco y negro sobre el hero. El componente ya
+       * existía en el repositorio pero quedó sin montar al migrar la home a
+       * public-ui: no es un rediseño, es el mismo `PhotoBanner` que la home
+       * usaba antes (restaurado en 63e10473, nunca integrado a esta línea).
+       */}
+      <PhotoBanner />
+
       {/* Hero — participante primero */}
       <section className="fr-public-section border-b-0 pb-0" aria-labelledby="home-hero-title">
         <PageContainer className="py-16 md:py-24">
