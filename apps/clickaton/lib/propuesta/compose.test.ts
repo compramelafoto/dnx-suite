@@ -68,6 +68,102 @@ async function logoConParcheTransparente() {
     .toBuffer();
 }
 
+/**
+ * Logo que dispara la rama de colapso de `trimSeguro`: un lienzo grande de
+ * color uniforme con una marca de pocos píxeles centrada. `trim()` recorta
+ * al bounding box de la marca (3×3), muy por debajo del mínimo aceptado, así
+ * que `trimSeguro` debe descartar el recorte y devolver el logo original.
+ */
+async function logoQueColapsa() {
+  const marca = await sharp({
+    create: {
+      width: 3,
+      height: 3,
+      channels: 4,
+      background: { r: 10, g: 10, b: 10, alpha: 1 },
+    },
+  })
+    .png()
+    .toBuffer();
+
+  return sharp({
+    create: {
+      width: 400,
+      height: 200,
+      channels: 4,
+      background: { r: 200, g: 200, b: 200, alpha: 1 },
+    },
+  })
+    .composite([{ input: marca, left: 198, top: 98 }])
+    .png()
+    .toBuffer();
+}
+
+/**
+ * Logo que dispara la rama de excepción de `trimSeguro`: una imagen de
+ * 1×1 píxel. `trim()` lanza porque necesita al menos 3×3 para operar, así
+ * que `trimSeguro` debe atrapar la excepción y devolver el logo original.
+ */
+async function logoDeUnPixel() {
+  return sharp({
+    create: {
+      width: 1,
+      height: 1,
+      channels: 4,
+      background: { r: 50, g: 50, b: 50, alpha: 1 },
+    },
+  })
+    .png()
+    .toBuffer();
+}
+
+/**
+ * Logo que colapsa en un solo eje: un lienzo blanco grande con una franja
+ * negra angosta (200×3). `trim()` recorta al bounding box de la franja
+ * (ancho ≥ 8, alto < 8): sirve para distinguir `&&` (correcto, el guardado
+ * debe activarse porque el alto falla) de `||` (bug, activaría igual porque
+ * el ancho solo ya alcanza). Si el guardado no se activa, la franja
+ * estirada tapa el lugar donde debería verse el blanco del lienzo original.
+ */
+async function logoFranjaColapsante() {
+  const franja = await sharp({
+    create: {
+      width: 200,
+      height: 3,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 1 },
+    },
+  })
+    .png()
+    .toBuffer();
+
+  return sharp({
+    create: {
+      width: 400,
+      height: 200,
+      channels: 4,
+      background: { r: 250, g: 250, b: 250, alpha: 1 },
+    },
+  })
+    .composite([{ input: franja, left: 100, top: 98 }])
+    .png()
+    .toBuffer();
+}
+
+/** Logo sin canal alfa (JPEG): trae su propio fondo. */
+async function logoSinAlfa() {
+  return sharp({
+    create: {
+      width: 100,
+      height: 100,
+      channels: 3,
+      background: { r: 100, g: 120, b: 140 },
+    },
+  })
+    .jpeg()
+    .toBuffer();
+}
+
 async function main() {
   const { composePiece, measureLogo } = await import("./compose");
 
@@ -85,6 +181,10 @@ async function main() {
     conTransparencia.meanLuminance > 0.9,
     "el promedio debe reflejar solo el parche blanco visible, no diluirse con los píxeles transparentes",
   );
+
+  // Un logo sin canal alfa trae su propio fondo.
+  const sinAlfa = await measureLogo(await logoSinAlfa());
+  assert.equal(sinAlfa.hasAlpha, false);
 
   // composePiece devuelve un PNG del tamaño pedido
   const png = await composePiece({
@@ -107,6 +207,57 @@ async function main() {
   const metaMobile = await sharp(mobile).metadata();
   assert.equal(metaMobile.width, 390);
   assert.equal(metaMobile.height, 844);
+
+  // trimSeguro: rama de colapso (trim() devuelve una imagen < 8px de lado).
+  const conColapso = await composePiece({
+    pieceId: "infospot-welcome",
+    logo: await logoQueColapsa(),
+    brandName: "Marca de prueba",
+    viewport: "desktop",
+  });
+  const metaColapso = await sharp(conColapso).metadata();
+  assert.equal(metaColapso.format, "png");
+  assert.equal(metaColapso.width, 1440);
+  assert.equal(metaColapso.height, 900);
+
+  // trimSeguro: el guardado debe activarse aunque un solo eje colapse.
+  // Si "&&" se reemplaza por "||", el guardado no se activa acá (el ancho ya
+  // alcanza los 8px) y la franja recortada, estirada, tapa la zona donde
+  // debería verse el blanco del lienzo original.
+  const conColapsoAsimetrico = await composePiece({
+    pieceId: "infospot-welcome",
+    logo: await logoFranjaColapsante(),
+    brandName: "Marca de prueba",
+    viewport: "desktop",
+  });
+  const { data: pixelesAsimetrico, info: infoAsimetrico } = await sharp(conColapsoAsimetrico)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  // Punto dentro del área donde cae el logo compuesto, pero fuera de la
+  // franja: con el guardado activo debe verse el blanco del lienzo
+  // original; si no se activó, se ve el gris oscuro de la placa.
+  const puntoX = 720;
+  const puntoY = 417;
+  const idxAsimetrico = (puntoY * infoAsimetrico.width + puntoX) * infoAsimetrico.channels;
+  assert.ok(
+    pixelesAsimetrico[idxAsimetrico]! > 200 &&
+      pixelesAsimetrico[idxAsimetrico + 1]! > 200 &&
+      pixelesAsimetrico[idxAsimetrico + 2]! > 200,
+    "el guardado de trimSeguro debe activarse aunque un solo eje del recorte colapse",
+  );
+
+  // trimSeguro: rama de excepción (trim() lanza sobre una imagen de 1×1).
+  const conExcepcion = await composePiece({
+    pieceId: "infospot-welcome",
+    logo: await logoDeUnPixel(),
+    brandName: "Marca de prueba",
+    viewport: "desktop",
+  });
+  const metaExcepcion = await sharp(conExcepcion).metadata();
+  assert.equal(metaExcepcion.format, "png");
+  assert.equal(metaExcepcion.width, 1440);
+  assert.equal(metaExcepcion.height, 900);
 
   // pieza inexistente
   await assert.rejects(
