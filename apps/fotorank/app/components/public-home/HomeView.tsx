@@ -16,14 +16,13 @@ type Props = {
   header: PublicHeaderProps;
 };
 
-function fmtDeadline(d: Date | null): string | null {
-  if (!d) return null;
-  try {
-    return d.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
-  } catch {
-    return null;
-  }
-}
+/**
+ * La fecha ya viene resuelta en `registrationCloseLabel`, con la misma regla de
+ * presentación que usa la landing. Antes se formateaba acá el instante crudo de
+ * `submissionDeadline`, que para Santa Fe en Foco es el cierre EXCLUSIVO
+ * (1-oct 00:00) y mostraba "1 de octubre de 2026" mientras la landing mostraba
+ * "30 de septiembre de 2026" para el mismo concurso.
+ */
 
 function statusTone(label: PublicHomeContestCard["statusLabel"]) {
   if (label === "Inscripciones abiertas") return "primary" as const;
@@ -87,7 +86,7 @@ export function HomeView({ contests, header }: Props) {
           ) : (
             <ul className="fr-public-stack-content fr-public-card-stack" data-testid="home-contests-list">
               {contests.map((c) => {
-                const deadline = fmtDeadline(c.submissionDeadline);
+                const deadline = c.registrationCloseLabel;
                 return (
                   <li key={c.slug}>
                     <Link
@@ -95,6 +94,30 @@ export function HomeView({ contests, header }: Props) {
                       className="fr-public-card group flex flex-col gap-6 transition-colors hover:border-[var(--border-strong)] sm:flex-row sm:items-center sm:justify-between"
                       data-testid="home-contest-card"
                     >
+                      {/**
+                       * Imagen del concurso: viene resuelta del servidor con la
+                       * misma precedencia que la landing (manifiesto curado →
+                       * portada configurada → ninguna). Si no hay, la tarjeta
+                       * queda tipográfica, que es un estado válido y no un error.
+                       *
+                       * `width`/`height` fijan la proporción para que el navegador
+                       * reserve el espacio y no haya salto de layout al cargar.
+                       */}
+                      {c.heroImageUrl ? (
+                        <span className="block shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] sm:order-first">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={c.heroImageUrl}
+                            alt={c.heroImageAlt}
+                            width={320}
+                            height={180}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-32 w-full object-cover sm:h-20 sm:w-36"
+                            data-testid="home-contest-card-image"
+                          />
+                        </span>
+                      ) : null}
                       <div className="min-w-0 flex-1 space-y-3">
                         <StatusBadge
                           label={c.statusLabel}

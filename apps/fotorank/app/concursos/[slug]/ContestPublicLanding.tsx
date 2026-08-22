@@ -23,28 +23,27 @@ import {
 } from "../../components/public-ui";
 import { ContestPartnersSection, RulesDocument } from "../../components/contest-public";
 import type { PublicPartnerGroup } from "@repo/partners";
-import { isSantaFeEnFocoSlug } from "../../lib/fotorank/contest-visual/santa-fe-en-foco";
+import {
+  formatPublicDate,
+  resolveRegistrationCloseLabel,
+} from "../../lib/fotorank/contest-public-presentation";
 import type { StatusTone } from "../../lib/fotorank/public-ux/participant-status";
 
-function fmtDate(d: Date | null): string | null {
-  if (!d) return null;
-  try {
-    return d.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
-  } catch {
-    return null;
-  }
-}
+const fmtDate = formatPublicDate;
 
 /**
- * Preservado de dcdbda7e (producción, 7 ago): SFEF publicó el cierre de
- * inscripción como "30 de septiembre de 2026" de forma inclusiva, distinto
- * del valor crudo de `submissionDeadline`/`registrationClosesAt`. No es un
- * comportamiento del sistema public-ui — es contenido legal específico de
- * ese concurso que hay que seguir mostrando igual.
+ * La regla de presentación del cierre vive ahora en
+ * `contest-public-presentation/registration-close`, compartida con la home.
+ * Estaba duplicada acá y la home formateaba el instante crudo, así que las dos
+ * pantallas mostraban fechas distintas para el mismo concurso (1 de octubre vs
+ * 30 de septiembre). El comportamiento visible de esta landing no cambia.
  */
 function registrationCloseLabel(contest: PublicContestLandingData["contest"]): string | null {
-  if (isSantaFeEnFocoSlug(contest.slug)) return "30 de septiembre de 2026";
-  return fmtDate(contest.registrationClosesAt ?? contest.submissionDeadline);
+  return resolveRegistrationCloseLabel({
+    slug: contest.slug,
+    registrationClosesAt: contest.registrationClosesAt,
+    submissionDeadline: contest.submissionDeadline,
+  });
 }
 
 function igHref(raw: string): string {

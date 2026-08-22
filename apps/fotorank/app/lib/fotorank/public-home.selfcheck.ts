@@ -10,8 +10,8 @@
  *
  * No toca la DB: `getStatusLabel` es pura.
  */
-import assert from "node:assert/strict";
-import { getStatusLabel } from "./publicContests";
+import { resolveRegistrationCloseLabel } from "./contest-public-presentation";
+import { getStatusLabel, toPublicHomeContestCard } from "./publicContests";
 
 const NOW = new Date("2026-08-20T12:00:00.000Z");
 const PAST = new Date("2026-08-01T12:00:00.000Z");
@@ -64,6 +64,169 @@ ok(
 ok(
   getStatusLabel(NOW, PAST, NOW) === "Inscripciones abiertas",
   "deadline == ahora todavía NO está cerrado (cierre inclusivo)",
+);
+
+/* ==========================================================================
+   IMAGEN DE LA TARJETA — precedencia compartida con la landing
+   ==========================================================================
+   La tarjeta mostraba solo texto aunque el concurso tuviera banner curado. La
+   resolución usa `resolveContestVisualTheme`, el mismo resolvedor de la
+   landing, para que la regla no quede duplicada ni dependa de ningún slug
+   escrito en el componente visual.
+   ========================================================================== */
+
+const BASE_CARD = {
+  title: "Concurso de prueba",
+  organizerName: "Organización",
+  coverImageUrl: null as string | null,
+  registrationClosesAt: null as Date | null,
+  submissionDeadline: FUTURE,
+  startAt: PAST,
+  categoriesCount: 4,
+  now: NOW,
+};
+
+// 1) Santa Fe en Foco toma su hero institucional del manifiesto curado.
+const sfef = toPublicHomeContestCard({ ...BASE_CARD, slug: "santa-fe-en-foco", title: "Santa Fe en Foco 2026" });
+ok(
+  sfef.heroImageUrl === "/contest-assets/santa-fe-en-foco/hero/hero-desktop.jpg",
+  "Santa Fe en Foco: la tarjeta usa el hero institucional del manifiesto",
+);
+ok(sfef.heroImageAlt.trim().length > 0, "Santa Fe en Foco: la imagen tiene texto alternativo");
+ok(
+  !/^imagen$/i.test(sfef.heroImageAlt.trim()),
+  "el texto alternativo no es genérico: describe el concurso",
+);
+
+// 2) El manifiesto curado gana sobre una portada configurada en base.
+const sfefConCover = toPublicHomeContestCard({
+  ...BASE_CARD,
+  slug: "santa-fe-en-foco",
+  coverImageUrl: "https://cdn.example/otra-portada.jpg",
+});
+ok(
+  sfefConCover.heroImageUrl === "/contest-assets/santa-fe-en-foco/hero/hero-desktop.jpg",
+  "el asset curado tiene prioridad sobre coverImageUrl",
+);
+
+// 3) Otro concurso con portada configurada usa su propia portada.
+const otro = toPublicHomeContestCard({
+  ...BASE_CARD,
+  slug: "otro-concurso",
+  title: "Otro concurso",
+  coverImageUrl: "https://cdn.example/portada.jpg",
+});
+ok(
+  otro.heroImageUrl === "https://cdn.example/portada.jpg",
+  "concurso con coverImageUrl: la tarjeta usa su portada configurada",
+);
+
+// 4) Sin ninguna imagen se conserva el fallback tipográfico (null, no vacío).
+const sinImagen = toPublicHomeContestCard({ ...BASE_CARD, slug: "concurso-sin-imagen" });
+ok(sinImagen.heroImageUrl === null, "concurso sin imagen: heroImageUrl es null (fallback tipográfico)");
+ok(
+  sinImagen.heroImageAlt.trim().length > 0,
+  "aun sin imagen el alt queda definido (no rompe si más adelante se agrega una)",
+);
+
+// 5) El branding de Santa Fe NO se filtra a otros concursos.
+for (const slug of ["otro-concurso", "santa-fe-en-una-foto", "concurso-sin-imagen"]) {
+  const card = toPublicHomeContestCard({ ...BASE_CARD, slug, coverImageUrl: null });
+  ok(
+    card.heroImageUrl === null || !card.heroImageUrl.includes("santa-fe-en-foco"),
+    `"${slug}" no hereda los assets de Santa Fe en Foco`,
+  );
+}
+
+/* ==========================================================================
+   FECHA DE CIERRE — misma etiqueta pública en home y landing
+   ==========================================================================
+   El instante guardado es EXCLUSIVO (1-oct 00:00 ART) porque así se calcula si
+   la inscripción sigue abierta; lo publicado legalmente es el último día
+   INCLUSIVO (30 de septiembre). La home formateaba el instante crudo y por eso
+   mostraba una fecha distinta de la landing.
+   ========================================================================== */
+
+/** Cierre exclusivo real de SFEF: 1-oct-2026 00:00 ART = 03:00 UTC. */
+const SFEF_CIERRE_EXCLUSIVO = new Date("2026-10-01T03:00:00.000Z");
+
+// 1) Santa Fe en Foco muestra la fecha publicada, no el instante crudo.
+const sfefFecha = toPublicHomeContestCard({
+  ...BASE_CARD,
+  slug: "santa-fe-en-foco",
+  registrationClosesAt: SFEF_CIERRE_EXCLUSIVO,
+  submissionDeadline: SFEF_CIERRE_EXCLUSIVO,
+});
+ok(
+  sfefFecha.registrationCloseLabel === "30 de septiembre de 2026",
+  'la home muestra "30 de septiembre de 2026" (fecha publicada, inclusiva)',
+);
+ok(
+  !String(sfefFecha.registrationCloseLabel).includes("octubre"),
+  "la home ya NO muestra 1 de octubre",
+);
+
+// 2) Home y landing resuelven la MISMA etiqueta: una sola fuente.
+ok(
+  sfefFecha.registrationCloseLabel ===
+    resolveRegistrationCloseLabel({
+      slug: "santa-fe-en-foco",
+      registrationClosesAt: SFEF_CIERRE_EXCLUSIVO,
+      submissionDeadline: SFEF_CIERRE_EXCLUSIVO,
+    }),
+  "home y landing usan la misma función de presentación (sin duplicar la regla)",
+);
+
+// 3) El instante almacenado NO se modifica: se sigue exponiendo crudo.
+ok(
+  sfefFecha.submissionDeadline?.toISOString() === "2026-10-01T03:00:00.000Z",
+  "el instante exclusivo almacenado sigue siendo 1-oct-2026 00:00 ART (sin alterar)",
+);
+
+// 4) El cálculo de estado no cambia: durante todo el 30/09 sigue abierta.
+const during30Sep = new Date("2026-09-30T23:59:00.000Z");
+ok(
+  getStatusLabel(during30Sep, PAST, SFEF_CIERRE_EXCLUSIVO) === "Inscripciones abiertas",
+  "el 30 de septiembre la inscripción sigue abierta (cierre inclusivo preservado)",
+);
+const after = new Date("2026-10-01T04:00:00.000Z");
+ok(
+  getStatusLabel(after, PAST, SFEF_CIERRE_EXCLUSIVO) === "Cerrado",
+  "pasado el instante exclusivo el concurso queda cerrado",
+);
+
+// 5) Otros concursos conservan su fecha normal, sin override.
+const otroFecha = toPublicHomeContestCard({
+  ...BASE_CARD,
+  slug: "otro-concurso",
+  registrationClosesAt: new Date("2026-11-15T03:00:00.000Z"),
+});
+ok(
+  String(otroFecha.registrationCloseLabel).includes("noviembre"),
+  "un concurso sin override muestra su propia fecha formateada",
+);
+ok(
+  otroFecha.registrationCloseLabel !== "30 de septiembre de 2026",
+  "el override de Santa Fe no se aplica a otros concursos",
+);
+
+// 6) Sin fechas no se inventa ninguna etiqueta.
+ok(
+  toPublicHomeContestCard({ ...BASE_CARD, slug: "sin-fechas", submissionDeadline: null })
+    .registrationCloseLabel === null,
+  "sin fechas la etiqueta de cierre es null (no se inventa)",
+);
+
+// 7) `registrationClosesAt` manda sobre `submissionDeadline` cuando existe.
+const conAmbas = toPublicHomeContestCard({
+  ...BASE_CARD,
+  slug: "otro-concurso",
+  registrationClosesAt: new Date("2026-11-15T03:00:00.000Z"),
+  submissionDeadline: new Date("2026-12-20T03:00:00.000Z"),
+});
+ok(
+  String(conAmbas.registrationCloseLabel).includes("noviembre"),
+  "el cierre de inscripción tiene prioridad sobre la fecha de entrega",
 );
 
 console.log("FINAL: PASS");
