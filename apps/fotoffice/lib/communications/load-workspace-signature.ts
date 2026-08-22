@@ -11,6 +11,26 @@ import { toEmailSignatureData } from "./workspace-signature";
 export async function loadWorkspaceSignature(
   workspaceId: string,
 ): Promise<RenderedEmailSignature | null> {
+  return (await loadWorkspaceEmailContext(workspaceId)).signature;
+}
+
+export type WorkspaceEmailContext = {
+  /**
+   * Nombre para mostrar, con la MISMA precedencia que usa la firma: nombre comercial, si no
+   * el del workspace, si no el del producto. Nunca el identificador interno.
+   */
+  organizationName: string;
+  signature: RenderedEmailSignature | null;
+};
+
+/**
+ * Igual que `loadWorkspaceSignature`, pero devuelve además el nombre de la organización.
+ * Lo necesita el asunto del email de prueba, y calcularlo aparte duplicaría la regla de
+ * precedencia que ya vive en `toEmailSignatureData`.
+ */
+export async function loadWorkspaceEmailContext(
+  workspaceId: string,
+): Promise<WorkspaceEmailContext> {
   const [branding, workspace] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId },
@@ -30,7 +50,11 @@ export async function loadWorkspaceSignature(
     prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } }),
   ]);
 
-  if (!branding) return null;
+  const workspaceName = workspace?.name ?? "";
+  if (!branding) {
+    return { organizationName: workspaceName.trim() || "FotoOffice", signature: null };
+  }
 
-  return renderEmailSignature(toEmailSignatureData(branding, workspace?.name ?? ""));
+  const data = toEmailSignatureData(branding, workspaceName);
+  return { organizationName: data.organizationName, signature: renderEmailSignature(data) };
 }
