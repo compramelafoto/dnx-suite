@@ -106,3 +106,10 @@ apps/dnx-sales-assistant/.local/
 # FotoRank private local storage
 apps/fotorank/.data/
 .data/fotorank-private/
+
+# DNX Partners — material de demostración generado
+# Los assets canónicos viven en docs/partners/demo-comercial/assets/ y se copian
+# a las apps con sync-assets.sh. Las capturas se regeneran con capture-demo.mjs.
+apps/*/public/partners-demo/
+docs/partners/visual-validation/demo-comercial/
+docs/partners/visual-validation/harness/public/partners-demo/
