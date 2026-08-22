@@ -5,6 +5,7 @@ import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { WorkspaceSettingsForm } from "./settings-form";
 import { EmailSignaturePreview } from "@/components/communications/email-signature-preview";
+import { TestEmailPanel } from "@/components/communications/test-email-panel";
 import { toEmailSignatureData } from "@/lib/communications/workspace-signature";
 
 export default async function WorkspaceSettingsPage() {
@@ -89,6 +90,8 @@ export default async function WorkspaceSettingsPage() {
           )}
         />
       ) : null}
+      {/* Solo OWNER/ADMIN. La server action vuelve a verificarlo: esto es presentación. */}
+      {canEdit ? <TestEmailPanel /> : null}
     </div>
   );
 }
