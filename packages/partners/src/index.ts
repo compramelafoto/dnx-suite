@@ -739,3 +739,12 @@ export type { ProposalPiece, ProposalPieceKind } from "./proposal-pieces";
 
 export { resolvePlateTreatment } from "./proposal-contrast";
 export type { LogoLuminanceInput, PlateKind, PlateTreatment } from "./proposal-contrast";
+
+export { buildProposalPlan } from "./proposal-plan";
+export type {
+  ProposalLine,
+  ProposalLineKind,
+  ProposalLineSelection,
+  ProposalPlan,
+  ProposalPlanInput,
+} from "./proposal-plan";
