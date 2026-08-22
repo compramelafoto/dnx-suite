@@ -1,0 +1,11 @@
+-- AlterEnum
+ALTER TYPE "MemberAuditAction" ADD VALUE 'INVITE_CREATED';
+ALTER TYPE "MemberAuditAction" ADD VALUE 'INVITE_SENT';
+ALTER TYPE "MemberAuditAction" ADD VALUE 'INVITE_RESENT';
+ALTER TYPE "MemberAuditAction" ADD VALUE 'INVITE_SEND_FAILED';
+ALTER TYPE "MemberAuditAction" ADD VALUE 'INVITE_REVOKED';
+ALTER TYPE "MemberAuditAction" ADD VALUE 'INVITE_ACCEPTED';
+
+-- AlterTable
+ALTER TABLE "MemberInvitation" ADD COLUMN     "sentAt" TIMESTAMP(3),
+ADD COLUMN     "sendFailedAt" TIMESTAMP(3);

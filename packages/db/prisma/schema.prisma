@@ -7097,6 +7097,12 @@ model MemberInvitation {
   /// Uso único: una vez aceptada, el enlace deja de servir.
   acceptedAt  DateTime?
   revokedAt   DateTime?
+  /// Momento en que el proveedor ACEPTÓ el email. Nulo mientras no haya salido: una
+  /// invitación creada no es una invitación enviada, y la UI no puede confundirlas.
+  sentAt      DateTime?
+  /// Momento del último intento fallido de envío. Convive con `sentAt` nulo; que exista
+  /// habilita el reintento desde "Reenviar".
+  sendFailedAt DateTime?
   /// Quién invitó. SetNull para que la traza sobreviva al borrado del administrador.
   invitedByUserId  Int?
   /// Qué cuenta terminó aceptando. Puede no ser la misma persona que se esperaba.
@@ -7124,10 +7130,17 @@ enum MemberAuditAction {
   UPDATED
   STATUS_CHANGED
   IMPORTED
-  /// Reservados: el vínculo socio↔usuario todavía no existe como flujo. El modelo ya los
-  /// contempla para no tener que migrar el enum cuando se implemente.
   USER_LINKED
   USER_UNLINKED
+  /// Ciclo de vida de la invitación de acceso. Creación y envío son eventos SEPARADOS: la
+  /// invitación se crea dentro de una transacción y el email sale después del commit, así que
+  /// una sola acción no podría representar ambos momentos sin mentir sobre uno de los dos.
+  INVITE_CREATED
+  INVITE_SENT
+  INVITE_RESENT
+  INVITE_SEND_FAILED
+  INVITE_REVOKED
+  INVITE_ACCEPTED
 }
 
 /// De dónde vino la operación. `SYSTEM` queda para procesos automáticos futuros

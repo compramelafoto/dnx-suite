@@ -31,11 +31,22 @@ export function invitationTokenMatches(rawToken: string, storedHash: string): bo
   return timingSafeEqual(computed, stored);
 }
 
-/** 7 días. Suficiente para que alguien lo vea sin apuro, corto para que un enlace filtrado caduque. */
-export const INVITATION_TTL_DAYS = 7;
+/** 72 horas. Suficiente para verlo sin apuro, corto para que un enlace filtrado caduque. */
+export const INVITATION_TTL_HOURS = 72;
 
 export function invitationExpiryFrom(now = new Date()): Date {
-  return new Date(now.getTime() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000);
+  return new Date(now.getTime() + INVITATION_TTL_HOURS * 60 * 60 * 1000);
+}
+
+/**
+ * Estados del socio habilitados para emitir o aceptar una invitación.
+ *
+ * Los valores son los tres reales del enum `MemberStatus`: ACTIVE, SUSPENDED e INACTIVE. En
+ * esta etapa solo ACTIVE opera — a alguien suspendido o dado de baja no se le da acceso, y
+ * tampoco puede completar una invitación emitida antes del cambio de estado.
+ */
+export function canMemberUseInvitations(status: "ACTIVE" | "SUSPENDED" | "INACTIVE"): boolean {
+  return status === "ACTIVE";
 }
 
 export type InvitationState = "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
@@ -68,14 +79,36 @@ export const INVITATION_STATE_LABELS: Record<InvitationState, string> = {
   EXPIRED: "Vencida",
 };
 
+export type InvitationUrlResult =
+  | { ok: true; url: string }
+  | { ok: false; reason: "CONFIGURATION_ERROR" };
+
 /**
- * Enlace que el administrador copia y comparte por el medio que quiera (WhatsApp, en persona).
- * FotoOffice no depende hoy de un proveedor de email configurado, así que no se simula un
- * envío que no ocurriría.
+ * Enlace absoluto de la invitación, construido SIEMPRE sobre `APP_URL` del servidor.
+ *
+ * Sin respaldo relativo y sin usar `NEXT_PUBLIC_APP_URL`: una base ausente producía
+ * `/invitacion/<token>`, que dentro de un email no lleva a ninguna parte. Que falte es un
+ * error de configuración y se informa como tal, no se disimula con una URL a medias.
  */
-export function buildInvitationUrl(baseUrl: string, rawToken: string): string {
-  const base = baseUrl.replace(/\/+$/, "");
-  return `${base}/invitacion/${encodeURIComponent(rawToken)}`;
+export function buildInvitationUrl(
+  rawToken: string,
+  env: Record<string, string | undefined> = process.env,
+): InvitationUrlResult {
+  const raw = env.APP_URL?.trim();
+  if (!raw) return { ok: false, reason: "CONFIGURATION_ERROR" };
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return { ok: false, reason: "CONFIGURATION_ERROR" };
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    return { ok: false, reason: "CONFIGURATION_ERROR" };
+  }
+
+  const base = raw.replace(/\/+$/, "");
+  return { ok: true, url: `${base}/invitacion/${encodeURIComponent(rawToken)}` };
 }
 
 /** Comparación de emails para autorizar la aceptación: mismo criterio que el resto del módulo. */

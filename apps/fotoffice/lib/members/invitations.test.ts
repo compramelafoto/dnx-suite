@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildInvitationUrl,
+  canMemberUseInvitations,
   emailsMatch,
   generateInvitationToken,
   hashInvitationToken,
-  INVITATION_TTL_DAYS,
+  INVITATION_TTL_HOURS,
   invitationExpiryFrom,
   invitationState,
   invitationTokenMatches,
@@ -53,10 +54,11 @@ describe("token", () => {
 });
 
 describe("vigencia", () => {
-  it("vence a los 7 días", () => {
+  it("vence a las 72 horas", () => {
     const now = new Date("2026-08-21T10:00:00Z");
     const exp = invitationExpiryFrom(now);
-    expect(exp.getTime() - now.getTime()).toBe(INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000);
+    expect(exp.getTime() - now.getTime()).toBe(INVITATION_TTL_HOURS * 60 * 60 * 1000);
+    expect(INVITATION_TTL_HOURS).toBe(72);
   });
 });
 
@@ -113,20 +115,68 @@ describe("coincidencia de email", () => {
 });
 
 describe("enlace de invitación", () => {
-  it("se arma sobre la base configurada", () => {
-    expect(buildInvitationUrl("https://fotoffice.com", "abc")).toBe("https://fotoffice.com/invitacion/abc");
+  const OK = { APP_URL: "https://fotoffice.com" };
+
+  it("se arma absoluto sobre APP_URL", () => {
+    expect(buildInvitationUrl("abc", OK)).toEqual({
+      ok: true,
+      url: "https://fotoffice.com/invitacion/abc",
+    });
   });
 
   it("no duplica la barra final", () => {
-    expect(buildInvitationUrl("https://fotoffice.com/", "abc")).toBe("https://fotoffice.com/invitacion/abc");
+    expect(buildInvitationUrl("abc", { APP_URL: "https://fotoffice.com/" })).toEqual({
+      ok: true,
+      url: "https://fotoffice.com/invitacion/abc",
+    });
   });
 
   it("el token se escapa dentro de la URL", () => {
-    expect(buildInvitationUrl("https://x.com", "a/b?c")).toBe("https://x.com/invitacion/a%2Fb%3Fc");
+    const r = buildInvitationUrl("a/b?c", OK);
+    expect(r).toEqual({ ok: true, url: "https://fotoffice.com/invitacion/a%2Fb%3Fc" });
   });
 
   it("un token real no necesita escape (base64url ya es seguro)", () => {
     const t = generateInvitationToken();
-    expect(buildInvitationUrl("https://x.com", t)).toBe(`https://x.com/invitacion/${t}`);
+    expect(buildInvitationUrl(t, OK)).toEqual({
+      ok: true,
+      url: `https://fotoffice.com/invitacion/${t}`,
+    });
+  });
+
+  /**
+   * Sin base absoluta el enlace saldría relativo y el email sería inservible. Antes eso pasaba
+   * en silencio: `APP_URL` no existe en producción y la invitación se presentaba como creada.
+   */
+  it.each([
+    ["ausente", {}],
+    ["vacía", { APP_URL: "   " }],
+    ["relativa", { APP_URL: "/fotoffice" }],
+    ["sin esquema", { APP_URL: "fotoffice.com" }],
+    ["con esquema no http", { APP_URL: "javascript:alert(1)" }],
+  ])("APP_URL %s devuelve CONFIGURATION_ERROR, nunca una URL relativa", (_label, env) => {
+    expect(buildInvitationUrl("abc", env)).toEqual({ ok: false, reason: "CONFIGURATION_ERROR" });
+  });
+
+  it("no usa NEXT_PUBLIC_APP_URL como respaldo", () => {
+    expect(buildInvitationUrl("abc", { NEXT_PUBLIC_APP_URL: "https://otro.com" })).toEqual({
+      ok: false,
+      reason: "CONFIGURATION_ERROR",
+    });
+  });
+});
+
+describe("estado del socio habilitado para invitar y aceptar", () => {
+  it("solo ACTIVE", () => {
+    expect(canMemberUseInvitations("ACTIVE")).toBe(true);
+  });
+
+  it.each(["SUSPENDED", "INACTIVE"] as const)("%s queda afuera", (status) => {
+    expect(canMemberUseInvitations(status)).toBe(false);
+  });
+
+  /** Los valores son los tres del enum `MemberStatus`; no se inventan estados nuevos. */
+  it("no acepta un estado que no exista en el enum", () => {
+    expect(canMemberUseInvitations("HABILITADO" as never)).toBe(false);
   });
 });
