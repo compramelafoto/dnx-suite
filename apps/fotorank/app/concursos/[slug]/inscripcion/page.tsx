@@ -22,6 +22,7 @@ import {
   resolveUploadWindow,
 } from "../../../lib/fotorank/participant-experience";
 import { buildUploadRequirementsSummary } from "../../../lib/fotorank/participant-upload";
+import { toStatusBadgeTone } from "../../../lib/fotorank/public-ux/status-tone-bridge";
 import {
   getCurrentPublishedRules,
   getMyContestRegistration,
@@ -108,14 +109,6 @@ export default async function ContestInscriptionPage({ params }: Props) {
         })
       : null;
     const regStatus = presentRegistrationStatus(existing.status);
-    // Mapeo de 98959007: los dos vocabularios de tono no coinciden.
-    // `info` y `locked` no existen en el StatusBadge público.
-    const badgeTone =
-      regStatus.tone === "info"
-        ? ("primary" as const)
-        : regStatus.tone === "locked"
-          ? ("neutral" as const)
-          : regStatus.tone;
 
     return (
       <PublicShell header={shellHeader} showFooter>
@@ -130,7 +123,7 @@ export default async function ContestInscriptionPage({ params }: Props) {
                   <div className="flex flex-col items-stretch gap-3 sm:items-end">
                     <StatusBadge
                       label={regStatus.label}
-                      tone={badgeTone}
+                      tone={toStatusBadgeTone(regStatus.tone)}
                       stateText="Estado de inscripción"
                     />
                     <SecondaryButton href={`/concursos/${slug}`} size="md">

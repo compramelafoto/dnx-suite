@@ -20,6 +20,7 @@
     "test:registration:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/registration/registration.selfcheck.ts",
     "test:registration:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/registration/registration.integration.selfcheck.ts",
     "test:inscription:experience": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/registration/inscription-experience.selfcheck.ts",
+    "test:public-ux:status-tone": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/public-ux/status-tone-bridge.selfcheck.ts",
     "test:entries:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries.selfcheck.ts",
     "test:entries:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries.integration.selfcheck.ts",
     "test:entries:upload-timeout": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/upload-timeout-config.selfcheck.ts",
