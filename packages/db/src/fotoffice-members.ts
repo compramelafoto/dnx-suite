@@ -377,6 +377,8 @@ export type MemberInvitationRecord = {
   expiresAt: Date;
   acceptedAt: Date | null;
   revokedAt: Date | null;
+  sentAt: Date | null;
+  sendFailedAt: Date | null;
   createdAt: Date;
   invitedByUserId: number | null;
   acceptedByUserId: number | null;
@@ -423,7 +425,8 @@ export async function createMemberInvitation(
       },
       select: {
         id: true, email: true, expiresAt: true, acceptedAt: true,
-        revokedAt: true, createdAt: true, invitedByUserId: true, acceptedByUserId: true,
+        revokedAt: true, sentAt: true, sendFailedAt: true,
+        createdAt: true, invitedByUserId: true, acceptedByUserId: true,
       },
     });
 
@@ -516,7 +519,8 @@ export function listMemberInvitations(
     take: 20,
     select: {
       id: true, email: true, expiresAt: true, acceptedAt: true,
-      revokedAt: true, createdAt: true, invitedByUserId: true, acceptedByUserId: true,
+      revokedAt: true, sentAt: true, sendFailedAt: true,
+      createdAt: true, invitedByUserId: true, acceptedByUserId: true,
     },
   });
 }

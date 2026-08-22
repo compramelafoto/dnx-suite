@@ -10,7 +10,12 @@ import {
   unlinkMemberUserAction,
   type MemberAccessState,
 } from "@/app/actions/member-access";
-import { INVITATION_STATE_LABELS, invitationState } from "@/lib/members/invitations";
+import {
+  INVITATION_STATE_LABELS,
+  invitationState,
+  MEMBER_ACCESS_LABELS,
+  memberAccessStatus,
+} from "@/lib/members/invitations";
 
 const initial: MemberAccessState = { error: null };
 
@@ -141,8 +146,59 @@ function LinkExistingUser({ memberId, memberEmail }: { memberId: string; memberE
   );
 }
 
-/** Invitación: genera el enlace para compartir. No se envía email (no hay proveedor configurado). */
-function InviteMember({ memberId, memberEmail }: { memberId: string; memberEmail: string | null }) {
+const DATE_FMT = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" });
+
+/**
+ * Estado de acceso del socio. Se deriva de la última invitación; "pendiente" exige que el
+ * email haya salido de verdad (`sentAt`), no alcanza con haberla creado.
+ */
+function AccessStatus({
+  memberId,
+  userId,
+  latest,
+}: {
+  memberId: string;
+  userId: number | null;
+  latest: MemberInvitationRecord | undefined;
+}) {
+  const status = memberAccessStatus({ userId }, latest ?? null);
+  const problem = status === "SEND_FAILED" || status === "NOT_SENT";
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs">
+        <span className="text-[var(--fo-muted)]">Estado del acceso: </span>
+        <strong className={problem ? "text-[var(--fo-danger,#b91c1c)]" : undefined}>
+          {MEMBER_ACCESS_LABELS[status]}
+        </strong>
+      </p>
+      {latest && status !== "NO_ACCESS" && status !== "ACTIVE_ACCESS" ? (
+        <p className="text-xs text-[var(--fo-muted)]">
+          Para {latest.email}
+          {latest.sentAt ? ` · Enviada el ${DATE_FMT.format(latest.sentAt)}` : ""}
+          {` · Vence el ${DATE_FMT.format(latest.expiresAt)}`}
+        </p>
+      ) : null}
+      {problem ? (
+        <p className="text-xs text-[var(--fo-muted)]">
+          Podés reintentar con «Reenviar invitación»; se emite un enlace nuevo.
+        </p>
+      ) : null}
+      <input type="hidden" value={memberId} readOnly hidden />
+    </div>
+  );
+}
+
+/** Emite la invitación y la envía por email. Sirve también para reenviar: el enlace anterior queda sin efecto. */
+function InviteMember({
+  memberId,
+  memberEmail,
+  isResend,
+}: {
+  memberId: string;
+  memberEmail: string | null;
+  isResend: boolean;
+}) {
   const [state, action, pending] = useActionState(inviteMemberAction, initial);
 
   return (
@@ -150,12 +206,18 @@ function InviteMember({ memberId, memberEmail }: { memberId: string; memberEmail
       <form action={action}>
         <input type="hidden" name="memberId" value={memberId} />
         <button type="submit" className="fo-btn fo-btn-secondary text-xs" disabled={pending}>
-          {pending ? "Generando…" : "Generar invitación de acceso"}
+          {pending
+            ? "Enviando…"
+            : isResend
+              ? "Reenviar invitación"
+              : "Invitar a FotoOffice"}
         </button>
       </form>
       <p className="fo-helper">
         {memberEmail
-          ? `Se le enviará un email a ${memberEmail}. El enlace vence en 72 horas.`
+          ? isResend
+            ? `Se enviará un enlace nuevo a ${memberEmail} y el anterior quedará sin efecto. Vence en 72 horas.`
+            : `Se le enviará un email a ${memberEmail}. El enlace vence en 72 horas.`
           : "Este socio no tiene email: cargale uno propio para poder invitarlo."}
       </p>
       {state.sentTo ? (
@@ -234,7 +296,13 @@ export function MemberAccessPanel({
         <LinkedState memberId={memberId} userEmail={linkedUserEmail} />
       ) : (
         <>
-          <InviteMember memberId={memberId} memberEmail={memberEmail} />
+          {/* En esta rama el socio no está vinculado: `isLinked` ya lo garantiza. */}
+          <AccessStatus memberId={memberId} userId={null} latest={invitations[0]} />
+          <InviteMember
+            memberId={memberId}
+            memberEmail={memberEmail}
+            isResend={invitations.some((inv) => invitationState(inv) !== "ACCEPTED")}
+          />
           <LinkExistingUser memberId={memberId} memberEmail={memberEmail} />
         </>
       )}

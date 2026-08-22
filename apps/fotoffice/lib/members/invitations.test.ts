@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildInvitationUrl,
   canMemberUseInvitations,
+  MEMBER_ACCESS_LABELS,
+  memberAccessStatus,
   emailsMatch,
   generateInvitationToken,
   hashInvitationToken,
@@ -178,5 +180,52 @@ describe("estado del socio habilitado para invitar y aceptar", () => {
   /** Los valores son los tres del enum `MemberStatus`; no se inventan estados nuevos. */
   it("no acepta un estado que no exista en el enum", () => {
     expect(canMemberUseInvitations("HABILITADO" as never)).toBe(false);
+  });
+});
+
+describe("estado de acceso en la ficha", () => {
+  const future = new Date(Date.now() + 60 * 60 * 1000);
+  const past = new Date(Date.now() - 1000);
+  const base = { acceptedAt: null, revokedAt: null, expiresAt: future, sentAt: null, sendFailedAt: null };
+
+  it("un socio vinculado tiene acceso activo, sin importar la invitación", () => {
+    expect(memberAccessStatus({ userId: 9 }, null)).toBe("ACTIVE_ACCESS");
+    expect(memberAccessStatus({ userId: 9 }, { ...base, revokedAt: past })).toBe("ACTIVE_ACCESS");
+  });
+
+  it("sin invitaciones no hay acceso", () => {
+    expect(memberAccessStatus({ userId: null }, null)).toBe("NO_ACCESS");
+  });
+
+  /** El punto: creada no es enviada. */
+  it("creada sin envío NO figura como pendiente", () => {
+    expect(memberAccessStatus({ userId: null }, base)).toBe("NOT_SENT");
+  });
+
+  it("pendiente exige sentAt", () => {
+    expect(memberAccessStatus({ userId: null }, { ...base, sentAt: new Date() })).toBe("PENDING");
+  });
+
+  it("un fallo de envío se muestra como tal", () => {
+    expect(memberAccessStatus({ userId: null }, { ...base, sendFailedAt: new Date() })).toBe(
+      "SEND_FAILED",
+    );
+  });
+
+  it("un reintento exitoso deja de mostrarse como fallo", () => {
+    expect(
+      memberAccessStatus({ userId: null }, { ...base, sentAt: new Date(), sendFailedAt: past }),
+    ).toBe("PENDING");
+  });
+
+  it("vencida y revocada ganan sobre el envío", () => {
+    expect(memberAccessStatus({ userId: null }, { ...base, expiresAt: past, sentAt: new Date() })).toBe("EXPIRED");
+    expect(memberAccessStatus({ userId: null }, { ...base, revokedAt: past, sentAt: new Date() })).toBe("REVOKED");
+  });
+
+  it("hay etiqueta para cada estado", () => {
+    for (const key of Object.keys(MEMBER_ACCESS_LABELS)) {
+      expect(MEMBER_ACCESS_LABELS[key as keyof typeof MEMBER_ACCESS_LABELS]).toBeTruthy();
+    }
   });
 });

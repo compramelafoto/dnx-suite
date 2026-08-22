@@ -117,3 +117,59 @@ export function emailsMatch(a: string | null | undefined, b: string | null | und
   const nb = b?.trim().toLowerCase();
   return Boolean(na && nb && na === nb);
 }
+
+export type MemberAccessStatus =
+  | "NO_ACCESS"
+  | "NOT_SENT"
+  | "SEND_FAILED"
+  | "PENDING"
+  | "EXPIRED"
+  | "REVOKED"
+  | "ACTIVE_ACCESS";
+
+/**
+ * Estado de acceso que ve el administrador en la ficha, derivado de la última invitación.
+ *
+ * "Invitación pendiente" exige `sentAt`: una invitación creada NO es una invitación enviada, y
+ * mostrarla como enviada haría que el administrador espere una respuesta que nunca va a llegar.
+ * Por eso existen `NOT_SENT` y `SEND_FAILED` como estados propios.
+ */
+export function memberAccessStatus(
+  member: { userId: number | null },
+  latest:
+    | {
+        acceptedAt: Date | null;
+        revokedAt: Date | null;
+        expiresAt: Date;
+        sentAt: Date | null;
+        sendFailedAt: Date | null;
+      }
+    | null
+    | undefined,
+  now: Date = new Date(),
+): MemberAccessStatus {
+  if (member.userId !== null) return "ACTIVE_ACCESS";
+  if (!latest) return "NO_ACCESS";
+
+  switch (invitationState(latest, now)) {
+    case "ACCEPTED":
+      return "ACTIVE_ACCESS";
+    case "REVOKED":
+      return "REVOKED";
+    case "EXPIRED":
+      return "EXPIRED";
+    case "PENDING":
+      if (latest.sentAt) return "PENDING";
+      return latest.sendFailedAt ? "SEND_FAILED" : "NOT_SENT";
+  }
+}
+
+export const MEMBER_ACCESS_LABELS: Record<MemberAccessStatus, string> = {
+  NO_ACCESS: "Sin acceso",
+  NOT_SENT: "Creada, sin enviar",
+  SEND_FAILED: "No se pudo enviar",
+  PENDING: "Invitación pendiente",
+  EXPIRED: "Invitación vencida",
+  REVOKED: "Invitación revocada",
+  ACTIVE_ACCESS: "Acceso activo",
+};
