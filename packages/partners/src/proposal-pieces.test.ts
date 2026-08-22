@@ -57,4 +57,30 @@ describe("catálogo de piezas de propuesta", () => {
     assert.equal(getProposalPiece("infospot-welcome")?.kind, "WELCOME");
     assert.equal(getProposalPiece("no-existe"), undefined);
   });
+
+  it("cada pieza conserva sus valores exactos", () => {
+    const esperado: Array<[string, ProposalPieceKind, string, string, string, number]> = [
+      // id, kind, placementKey, platformLabel, background, sortOrder
+      ["infospot-welcome", "WELCOME", "INFOSPOT_HOME_WELCOME", "InfoSpot", "bg-infospot.jpg", 10],
+      ["clickaton-welcome", "WELCOME", "CLICKATON_EVENT_WELCOME", "Clickatón", "bg-clickaton.jpg", 20],
+      ["fotorank-welcome", "WELCOME", "FOTORANK_CONTEST_WELCOME", "FotoRank", "bg-fotorank.jpg", 30],
+      ["clf-welcome", "WELCOME", "CLF_ALBUM_WELCOME", "ComprameLaFoto", "bg-clf.jpg", 40],
+      ["infospot-banner", "BANNER", "INFOSPOT_HOME_TOP", "InfoSpot", "bg-infospot.jpg", 50],
+      ["clf-banner", "BANNER", "CLF_HOME_PROMO", "ComprameLaFoto", "bg-clf.jpg", 60],
+      ["infospot-marquee", "MARQUEE", "INFOSPOT_HOME_MARQUEE", "InfoSpot", "bg-infospot.jpg", 70],
+      ["clickaton-marquee", "MARQUEE", "CLICKATON_HOME_MARQUEE", "Clickatón", "bg-clickaton.jpg", 80],
+      ["clf-marquee", "MARQUEE", "CLF_LOGO_MARQUEE", "ComprameLaFoto", "bg-clf.jpg", 90],
+    ];
+
+    assert.equal(PROPOSAL_PIECES.length, esperado.length);
+    for (const [id, kind, placementKey, platformLabel, background, sortOrder] of esperado) {
+      const pieza = getProposalPiece(id);
+      assert.ok(pieza, `falta la pieza ${id}`);
+      assert.equal(pieza.kind, kind, `${id}: kind`);
+      assert.equal(pieza.placementKey, placementKey, `${id}: placementKey`);
+      assert.equal(pieza.platformLabel, platformLabel, `${id}: platformLabel`);
+      assert.equal(pieza.background, background, `${id}: background`);
+      assert.equal(pieza.sortOrder, sortOrder, `${id}: sortOrder`);
+    }
+  });
 });
