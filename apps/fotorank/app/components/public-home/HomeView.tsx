@@ -49,24 +49,71 @@ export function HomeView({ contests, header }: Props) {
        */}
       <PhotoBanner />
 
-      {/* Hero — participante primero */}
-      <section className="fr-public-section border-b-0 pb-0" aria-labelledby="home-hero-title">
+      {/**
+       * La home se dirige a DOS públicos, no a uno. El hero anterior sólo
+       * hablaba de participar, y dejaba fuera a quien quiere organizar un
+       * concurso — que es la otra mitad del producto y no tiene costo.
+       *
+       * La estructura de dos secciones ("Para organizaciones" / "Para
+       * participantes") es la que ya tenía la home en f020e750; se recupera con
+       * su copy en lugar de redactar uno nuevo. Lo único que se agrega es que
+       * organizar es gratis, que antes no se decía en ningún lado.
+       */}
+
+      {/* Sección 1 — Organizaciones */}
+      <section
+        className="fr-public-section border-b border-[var(--border)] pb-0"
+        aria-labelledby="home-org-title"
+        id="organizar"
+      >
         <PageContainer className="py-16 md:py-24">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="fr-public-eyebrow">Concursos fotográficos</p>
+            <p className="fr-public-eyebrow">Para organizaciones</p>
             <h1
-              id="home-hero-title"
-              className="fr-public-title fr-public-stack-title text-3xl md:text-5xl lg:text-[3.25rem]"
+              id="home-org-title"
+              className="fr-public-title fr-public-stack-title text-balance text-3xl md:text-5xl lg:text-[3.25rem]"
+            >
+              Organizá tu concurso fotográfico gratis, sin desorden ni procesos manuales
+            </h1>
+            <p className="fr-public-body fr-public-stack-title mx-auto max-w-2xl text-balance text-base md:text-lg">
+              Publicar una convocatoria en FotoRank no tiene costo. Cargá categorías, bases y
+              fechas en un solo lugar, ordená las inscripciones y presentá los resultados con
+              claridad institucional.
+            </p>
+            <div className="fr-public-stack-actions flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <PrimaryButton href="/dashboard" size="lg">
+                Organizar un concurso
+              </PrimaryButton>
+              <SecondaryButton href="#que-es" size="lg">
+                Cómo funciona
+              </SecondaryButton>
+            </div>
+          </div>
+        </PageContainer>
+      </section>
+
+      {/* Sección 2 — Participantes */}
+      <section
+        className="fr-public-section border-b-0 pb-0"
+        aria-labelledby="home-participant-title"
+        id="participar"
+      >
+        <PageContainer className="py-16 md:py-24">
+          <div className="mx-auto max-w-3xl text-center">
+            <p className="fr-public-eyebrow">Para fotógrafas y fotógrafos</p>
+            <h2
+              id="home-participant-title"
+              className="fr-public-title fr-public-stack-title text-balance text-3xl md:text-4xl lg:text-5xl"
             >
               Encontrá convocatorias abiertas y presentá tu obra con claridad
-            </h1>
-            <p className="fr-public-body fr-public-stack-title mx-auto max-w-2xl text-base md:text-lg">
-              FotoRank publica concursos de instituciones y organizaciones. Inscribite, seguí tu
-              participación y cargá tu fotografía cuando la convocatoria lo habilite.
+            </h2>
+            <p className="fr-public-body fr-public-stack-title mx-auto max-w-2xl text-balance text-base md:text-lg">
+              Inscribite, seguí el estado de tu participación y cargá tu fotografía cuando la
+              convocatoria lo habilite.
             </p>
             <div className="fr-public-stack-actions flex flex-col items-center justify-center gap-4 sm:flex-row">
               <PrimaryButton href="#concursos" size="lg">
-                Ver concursos
+                Participar de un concurso
               </PrimaryButton>
               <SecondaryButton href="#como-participar" size="lg">
                 Cómo participar
