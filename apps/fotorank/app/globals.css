@@ -57,16 +57,26 @@
   --color-destructive: #fca5a5;
 }
 
-/* No usar padding:0 universal: en Tailwind v4 puede ganar al layer de utilidades y deja inputs/select sin sangría. */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-* {
-  margin: 0;
-}
+/**
+ * Reset universal: lo aporta el Preflight de Tailwind v4, que ya emite
+ * `*,::after,::before,::backdrop{box-sizing:border-box;border:0 solid;margin:0;padding:0}`
+ * DENTRO de `@layer base`.
+ *
+ * Acá había una copia manual de ese mismo reset (`box-sizing` + `margin: 0`)
+ * escrita SIN capa. En la cascada por capas, una regla sin capa gana sobre
+ * cualquier regla dentro de una capa, sin importar la especificidad. Como las
+ * utilidades de Tailwind viven en `@layer utilities`, ese `* { margin: 0 }`
+ * anulaba `mx-auto`, `my-auto` y todas las utilidades `m*`: la clase aparecía
+ * en el HTML y en el CSS, pero el margen calculado quedaba en 0. El síntoma
+ * era el hero del home desplazado 231 px a la izquierda.
+ *
+ * El comentario anterior ya advertía este mismo efecto para `padding` y por eso
+ * no se copiaba `padding: 0`; faltaba aplicar el mismo criterio a `margin`.
+ *
+ * No se reemplaza por una versión en `@layer base` porque sería duplicar
+ * Preflight: el reset ya existe, con el mismo alcance y los mismos valores.
+ * Cubierto por `globals-cascade.selfcheck.ts`.
+ */
 
 html {
   scroll-behavior: smooth;
