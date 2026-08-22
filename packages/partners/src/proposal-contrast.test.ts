@@ -33,4 +33,13 @@ describe("decisión de placa según el logo", () => {
     assert.throws(() => resolvePlateTreatment({ meanLuminance: 1.4, hasAlpha: true }));
     assert.throws(() => resolvePlateTreatment({ meanLuminance: -0.1, hasAlpha: true }));
   });
+
+  it("el umbral está exactamente en 0.62", () => {
+    // Con `>` estricto, el valor del umbral cae del lado claro.
+    assert.equal(resolvePlateTreatment({ meanLuminance: 0.62, hasAlpha: true }).plate, "LIGHT");
+    // Apenas por encima, cambia de lado.
+    assert.equal(resolvePlateTreatment({ meanLuminance: 0.621, hasAlpha: true }).plate, "DARK");
+    // Apenas por debajo, se queda del lado claro.
+    assert.equal(resolvePlateTreatment({ meanLuminance: 0.619, hasAlpha: true }).plate, "LIGHT");
+  });
 });
