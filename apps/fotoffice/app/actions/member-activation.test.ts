@@ -162,7 +162,7 @@ describe("configuración y envío", () => {
     requestPasswordResetMock.mockResolvedValue({
       ok: true,
       created: true,
-      emailResult: { sent: false, skipped: true, reason: "sin proveedor" },
+      emailResult: { sent: false, skipped: false, reason: "el proveedor rechazó" },
     });
     const state = await startPasswordActivationAction(undefined, form());
     expect(state.status).toBe("SEND_FAILED");
@@ -177,5 +177,120 @@ describe("configuración y envío", () => {
     const state = await startPasswordActivationAction(undefined, form());
     expect(state.message).not.toContain("token-crudo");
     expect(state.message).not.toContain("RESEND_API_KEY");
+  });
+});
+
+/**
+ * El transporte de identidad (`packages/auth`) es distinto del transporte compartido de
+ * FotoOffice y tiene su propia forma de informar. Estos casos cubren la traducción: la
+ * pantalla nunca puede decir que envió un email que no salió.
+ */
+describe("desenlaces del transporte de identidad", () => {
+  it("solo un envío aceptado se presenta como enviado", async () => {
+    requestPasswordResetMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      emailResult: { sent: true, skipped: false, messageId: "id" },
+    });
+    expect((await startPasswordActivationAction(undefined, form())).status).toBe(
+      "PASSWORD_EMAIL_SENT",
+    );
+  });
+
+  /** `ok: true` es la respuesta neutra anti-enumeración, no una confirmación de envío. */
+  it("ok:true SIN emailResult no se presenta como éxito", async () => {
+    requestPasswordResetMock.mockResolvedValue({ ok: true, created: false });
+    const state = await startPasswordActivationAction(undefined, form());
+    expect(state.status).toBe("SEND_FAILED");
+  });
+
+  it("configuración faltante se distingue del rechazo del proveedor", async () => {
+    requestPasswordResetMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      emailResult: { sent: false, skipped: true, reason: "RESEND_API_KEY no configurada" },
+    });
+    expect((await startPasswordActivationAction(undefined, form())).status).toBe(
+      "CONFIGURATION_ERROR",
+    );
+
+    requestPasswordResetMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      emailResult: { sent: false, skipped: false, reason: "Resend HTTP 403: domain not verified" },
+    });
+    expect((await startPasswordActivationAction(undefined, form())).status).toBe("SEND_FAILED");
+  });
+
+  it("un error interno tampoco pasa por éxito", async () => {
+    requestPasswordResetMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      emailResult: { sent: false, skipped: false, reason: "socket hang up" },
+    });
+    expect((await startPasswordActivationAction(undefined, form())).status).toBe("SEND_FAILED");
+  });
+
+  /** El `reason` de `packages/auth` incluye hasta 120 caracteres del cuerpo crudo de Resend. */
+  it("nunca propaga el cuerpo crudo del proveedor a la pantalla", async () => {
+    requestPasswordResetMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      emailResult: {
+        sent: false,
+        skipped: false,
+        reason: 'Resend HTTP 403: {"message":"The dnxsuite.com domain is not verified","name":"validation_error"}',
+      },
+    });
+    const state = await startPasswordActivationAction(undefined, form());
+    expect(state.message).not.toContain("dnxsuite.com");
+    expect(state.message).not.toContain("validation_error");
+    expect(state.message).not.toContain("403");
+  });
+
+  it("el enlace de contraseña apunta a FotoOffice, con URL absoluta propia", async () => {
+    await startPasswordActivationAction(undefined, form());
+    const args = requestPasswordResetMock.mock.calls[0]?.[0];
+    expect(args.appBaseUrl).toBe("https://fotoffice.com");
+    expect(args.appLabel).toBe("FotoOffice");
+    expect(args.resetPath).toBe("/recuperar");
+  });
+
+  it("no duplica la generación de tokens de contraseña", async () => {
+    await startPasswordActivationAction(undefined, form());
+    // El único generador es `requestPasswordReset`: la acción no crea PasswordResetToken.
+    expect(requestPasswordResetMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("un fallo deja la cuenta lista para reintentar el envío", async () => {
+    requestPasswordResetMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      emailResult: { sent: false, skipped: false, reason: "caído" },
+    });
+    await startPasswordActivationAction(undefined, form());
+
+    // Segundo intento: el User ya existe sin contraseña y se reutiliza, sin crear otro.
+    userFindUniqueMock.mockResolvedValue({ id: 9, password: null });
+    requestPasswordResetMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      emailResult: { sent: true, skipped: false },
+    });
+    const retry = await startPasswordActivationAction(undefined, form());
+    expect(retry.status).toBe("PASSWORD_EMAIL_SENT");
+    expect(userUpsertMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("un fallo no vincula el socio ni crea membresías", async () => {
+    requestPasswordResetMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      emailResult: { sent: false, skipped: false, reason: "caído" },
+    });
+    await startPasswordActivationAction(undefined, form());
+    // El mock de prisma solo expone `user`: cualquier escritura sobre member o
+    // workspaceMembership habría hecho estallar el test.
+    expect(userUpsertMock.mock.calls[0]?.[0]?.create).not.toHaveProperty("members");
   });
 });

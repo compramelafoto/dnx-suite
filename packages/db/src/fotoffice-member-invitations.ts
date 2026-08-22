@@ -77,6 +77,21 @@ export async function acceptMemberInvitation(
     });
     if (linked.count !== 1) throw new MemberLinkError("ALREADY_LINKED");
 
+    /**
+     * La propiedad del email quedó demostrada: la persona recibió el enlace en esa casilla,
+     * se autenticó con ese mismo email y confirmó explícitamente. Se marca acá y no antes —
+     * crear la cuenta o pedir una contraseña no prueba nada por sí solo.
+     *
+     * `updateMany` con `emailVerifiedAt: null` en el `where`: si ya estaba verificado se
+     * conserva la fecha original, y la escritura alcanza SOLO a este usuario. El email no se
+     * toca. Si la aceptación pierde la concurrencia, la transacción entera se aborta antes de
+     * llegar hasta acá y esto no ocurre.
+     */
+    await tx.user.updateMany({
+      where: { id: userId, emailVerifiedAt: null },
+      data: { emailVerifiedAt: now },
+    });
+
     // Dos eventos, no uno: aceptar la invitación y quedar vinculado son cosas distintas y el
     // historial tiene que poder distinguirlas.
     await tx.memberAudit.create({

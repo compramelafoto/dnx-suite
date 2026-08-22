@@ -10,7 +10,9 @@ import { cookies } from "next/headers";
  *
  * MODELO DE AMENAZA (se guarda el token de invitación en claro dentro de la cookie):
  *
- * - `HttpOnly`: ningún script de la página puede leerla, así que un XSS no se la lleva.
+ * - `HttpOnly`: ningún script puede LEER su valor. Ojo con el alcance de esta garantía: un
+ *   XSS en el mismo origen igual puede disparar pedidos que la lleven adjunta. HttpOnly
+ *   impide exfiltrar el token, no impide usarlo desde la propia página.
  * - `Secure` en producción: no viaja por HTTP en claro.
  * - `SameSite=Lax`: no se manda en pedidos de terceros; un sitio hostil no puede provocarla.
  * - Vive como mucho lo que le queda a la invitación, nunca más.
@@ -18,9 +20,10 @@ import { cookies } from "next/headers";
  * Qué NO cambia el riesgo: el mismo token ya viaja en el enlace del email de invitación, que
  * es el canal más expuesto de los dos. La cookie no agrega una vía de robo nueva.
  *
- * Qué NO alcanza la cookie por sí sola: aceptar. Poseerla solo devuelve a la pantalla de la
- * invitación; la vinculación exige sesión autenticada con el email invitado. Alguien que se
- * quede con la cookie en una computadora compartida ve la pantalla, no obtiene el acceso.
+ * LA DEFENSA DECISIVA NO ES LA COOKIE. Poseerla solo devuelve a la pantalla de la invitación.
+ * Para que alguien quede vinculado hacen falta las cinco cosas juntas: sesión autenticada,
+ * email de esa sesión igual al invitado, token vigente y no revocado, confirmación explícita,
+ * y una aceptación transaccional con guarda de concurrencia. La cookie no reemplaza a ninguna.
  *
  * El valor nunca se escribe en logs, ni se copia a una URL, ni se renderiza en el HTML.
  */

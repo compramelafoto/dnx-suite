@@ -102,7 +102,17 @@ export async function startPasswordActivationAction(
     appLabel: "FotoOffice",
     resetPath: "/recuperar",
   });
-  if (reset.emailResult && !reset.emailResult.sent) return fail("SEND_FAILED");
+
+  // `requestPasswordReset` devuelve `ok: true` incluso cuando NO mandó nada: es su respuesta
+  // neutra anti-enumeración. El único dato confiable es `emailResult`, y su AUSENCIA también
+  // significa que no salió (cuenta bloqueada, por ejemplo). Sin este control, la pantalla
+  // diría "te enviamos un email" sin que exista tal email.
+  if (!reset.emailResult) return fail("SEND_FAILED");
+  if (!reset.emailResult.sent) {
+    // `skipped` marca falta de configuración; el resto es rechazo del proveedor o red caída.
+    // El `reason` NO se propaga: puede traer hasta 120 caracteres del cuerpo crudo de Resend.
+    return fail(reset.emailResult.skipped ? "CONFIGURATION_ERROR" : "SEND_FAILED");
+  }
 
   return { status: "PASSWORD_EMAIL_SENT", message: MESSAGES.PASSWORD_EMAIL_SENT };
 }
