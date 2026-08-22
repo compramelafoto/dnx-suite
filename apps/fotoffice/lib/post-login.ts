@@ -2,6 +2,7 @@ import { prisma } from "@repo/db";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { isFotofficePlatformAdminRole, resolvePlatformRole } from "@/lib/fotoffice-roles";
 import { safeFotofficeNextPath } from "@/lib/google-login";
+import { resolveInvitationContinuityPath } from "@/lib/members/invitation-continuity-resolve";
 import { resolvePortalDestination } from "@/lib/portal/destination";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 
@@ -51,6 +52,11 @@ export async function resolveFotofficePostLoginDestination(params: {
   // socio, y tratarlo como fotógrafo nuevo le fabricaría un workspace en el peor momento.
   const invitationPath = safeInvitationPath(params.next);
   if (invitationPath) return { path: invitationPath, workspaceId: null };
+
+  // Continuidad de una invitación a medio completar: se revisa SOLO acá, ya autenticado, y se
+  // revalida contra la base. No consume la invitación — devuelve a la pantalla donde se acepta.
+  const continuity = await resolveInvitationContinuityPath(user.email);
+  if (continuity) return { path: continuity, workspaceId: null };
 
   // Un socio no tiene panel administrativo ni workspace propio: nunca se llama a `ensure`.
   if (kind === "MEMBER") {

@@ -15,6 +15,10 @@ const { userFindUniqueMock, ensureMock, userKindMock } = vi.hoisted(() => ({
   userKindMock: vi.fn(),
 }));
 
+vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
+  resolveInvitationContinuityPath: vi.fn(async () => null),
+}));
+
 vi.mock("@repo/db", () => ({ prisma: { user: { findUnique: userFindUniqueMock } } }));
 vi.mock("@/lib/ensure-workspace", () => ({ ensureFotofficeWorkspaceForUser: ensureMock }));
 vi.mock("@/lib/portal/user-kind", () => ({ resolveFotofficeUserKind: userKindMock }));

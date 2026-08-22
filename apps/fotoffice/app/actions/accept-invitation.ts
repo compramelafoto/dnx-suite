@@ -7,6 +7,7 @@ import { prisma } from "@repo/db";
 import { getAuthUser } from "@/lib/auth";
 import { auditActorFrom } from "@/lib/members/audit";
 import { canMemberUseInvitations, emailsMatch, invitationState } from "@/lib/members/invitations";
+import { clearInvitationContinuity } from "@/lib/members/invitation-continuity";
 import { resolvePortalDestination } from "@/lib/portal/destination";
 
 export type AcceptInvitationState = { error: string | null };
@@ -63,6 +64,9 @@ export async function acceptInvitationAction(
     }
     return { error: "No pudimos completar la vinculación. Intentá de nuevo." };
   }
+
+  // La continuidad ya cumplió su función: se borra apenas la vinculación quedó firme.
+  await clearInvitationContinuity();
 
   // Al portal del socio, NUNCA a `/workspace`: esa ruta le crearía una institución propia con
   // rol de dueño. El destino está centralizado para poder cambiarlo a `/portal/pagos`.

@@ -1,8 +1,14 @@
 import Link from "next/link";
 import { findInvitationByTokenHash } from "@repo/db/fotoffice-member-invitations";
 import { getAuthUser } from "@/lib/auth";
-import { hashInvitationToken, invitationState, emailsMatch } from "@/lib/members/invitations";
+import {
+  canMemberUseInvitations,
+  emailsMatch,
+  hashInvitationToken,
+  invitationState,
+} from "@/lib/members/invitations";
 import { AcceptInvitationForm } from "@/components/members/accept-invitation-form";
+import { PasswordActivationForm } from "@/components/members/password-activation-form";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +70,16 @@ export default async function AcceptInvitationPage({
     );
   }
 
+  if (!canMemberUseInvitations(invitation.member.status)) {
+    return (
+      <Shell title="Invitación no disponible">
+        <p className="text-sm text-[var(--fo-muted)]">
+          Este enlace ya no está disponible. Consultá con la institución.
+        </p>
+      </Shell>
+    );
+  }
+
   if (invitation.member.userId !== null) {
     return (
       <Shell title="Este socio ya tiene cuenta">
@@ -79,8 +95,9 @@ export default async function AcceptInvitationPage({
 
   const user = await getAuthUser();
 
-  // Sin sesión: se usa el sistema de autenticación existente. No se crea una cuenta acá ni se
-  // piden contraseñas nuevas — FotoOffice no tiene un segundo sistema de usuarios.
+  // Sin sesión, dos caminos sobre el MISMO sistema de identidad: Google, o el flujo de "crear
+  // contraseña" que ya existe. Acá no se pide ni se muestra ninguna contraseña, y abrir el
+  // enlace no vincula nada: eso requiere después sesión con el email invitado.
   if (!user) {
     return (
       <Shell title={`Invitación de ${invitation.workspace.name}`}>
@@ -88,15 +105,16 @@ export default async function AcceptInvitationPage({
           Te invitaron a acceder como socio de <strong>{invitation.workspace.name}</strong>.
         </p>
         <p className="text-sm text-[var(--fo-muted)]">
-          Para continuar, iniciá sesión con <strong>{invitation.email}</strong>. Si todavía no tenés
-          cuenta, podés crearla con Google usando ese mismo email.
+          Para continuar, entrá con <strong>{invitation.email}</strong>. Podés usar tu cuenta de
+          Google con ese mismo email, o crear una contraseña.
         </p>
         <Link
           href={`/login?next=${encodeURIComponent(`/invitacion/${token}`)}`}
           className="fo-btn fo-btn-primary text-sm"
         >
-          Iniciar sesión para continuar
+          Continuar con Google o iniciar sesión
         </Link>
+        <PasswordActivationForm token={token} />
       </Shell>
     );
   }

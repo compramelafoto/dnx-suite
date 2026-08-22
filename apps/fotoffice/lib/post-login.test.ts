@@ -24,6 +24,10 @@ const {
   memberFindFirstMock: vi.fn(async () => null),
 }));
 
+vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
+  resolveInvitationContinuityPath: vi.fn(async () => null),
+}));
+
 vi.mock("@repo/db", () => ({
   prisma: {
     user: { findUnique: userFindUniqueMock },
