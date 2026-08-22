@@ -15,3 +15,25 @@ export const EMAIL_SIGNATURE_NOTE_MAX = 1500;
  * cuando un test reemplazaba el transporte.
  */
 export const DETAIL_MAX = 500;
+
+/**
+ * Parámetros de la herramienta "Enviar email de prueba".
+ *
+ * Viven en este módulo —que no importa Prisma— porque el panel es un componente cliente y
+ * muestra el tope en pantalla. Tomarlos del módulo que hace las consultas arrastraría el
+ * cliente de base de datos al bundle del navegador.
+ */
+
+/** Marca las filas de `SentEmailLog` que pertenecen a esta herramienta. */
+export const TEST_EMAIL_TEMPLATE_KEY = "fotoffice.email-test";
+
+/**
+ * Tres pruebas por persona y por hora. El límite es de esta herramienta, no del envío en
+ * general: las comunicaciones reales no pasan por acá.
+ *
+ * No hay tope por workspace en esta etapa. Agregarlo requeriría poder contar los envíos de
+ * un workspace, y `SentEmailLog` no tiene esa columna; meterla a la fuerza en `templateKey`
+ * o en `error` sería usar campos para lo que no son.
+ */
+export const PER_USER_HOURLY_LIMIT = 3;
+export const RATE_LIMIT_WINDOW_MINUTES = 60;
