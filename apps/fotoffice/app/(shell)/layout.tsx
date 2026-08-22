@@ -12,12 +12,16 @@ import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellHeader } from "@/components/shell/shell-header";
+import { PORTAL_HOME } from "@/lib/portal/destination";
+import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 
 export default async function ShellLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth();
   if (!hasAppAccess(user, "FOTOFFICE")) {
     redirect("/login?forbiddenApp=fotoffice");
   }
+  // Un socio no entra al panel administrativo: su lugar es el portal.
+  if ((await resolveFotofficeUserKind(user.id)) === "MEMBER") redirect(PORTAL_HOME);
   const unifiedMemberships = await prisma.workspaceMembership.findMany({
     where: { userId: user.id },
     include: { workspace: true },

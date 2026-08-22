@@ -6,7 +6,8 @@ import { acceptMemberInvitation } from "@repo/db/fotoffice-member-invitations";
 import { prisma } from "@repo/db";
 import { getAuthUser } from "@/lib/auth";
 import { auditActorFrom } from "@/lib/members/audit";
-import { emailsMatch, invitationState } from "@/lib/members/invitations";
+import { canMemberUseInvitations, emailsMatch, invitationState } from "@/lib/members/invitations";
+import { resolvePortalDestination } from "@/lib/portal/destination";
 
 export type AcceptInvitationState = { error: string | null };
 
@@ -27,10 +28,21 @@ export async function acceptInvitationAction(
 
   const invitation = await prisma.memberInvitation.findUnique({
     where: { id: invitationId },
-    select: { id: true, email: true, expiresAt: true, acceptedAt: true, revokedAt: true },
+    select: {
+      id: true,
+      email: true,
+      expiresAt: true,
+      acceptedAt: true,
+      revokedAt: true,
+      member: { select: { status: true } },
+    },
   });
   if (!invitation) return { error: "La invitación ya no es válida." };
   if (invitationState(invitation) !== "PENDING") return { error: "La invitación ya no es válida." };
+  // El estado del socio se revalida acá: pudo darse de baja después de emitida la invitación.
+  if (!canMemberUseInvitations(invitation.member.status)) {
+    return { error: "La invitación ya no es válida." };
+  }
   // El email de la sesión debe ser el invitado, aunque la pantalla ya lo hubiera chequeado.
   if (!emailsMatch(user.email, invitation.email)) {
     return { error: "Esta invitación fue emitida para otra dirección de email." };
@@ -52,8 +64,9 @@ export async function acceptInvitationAction(
     return { error: "No pudimos completar la vinculación. Intentá de nuevo." };
   }
 
-  // El Portal del Socio todavía no existe: se lo deja donde ya puede operar hoy.
-  redirect("/workspace?vinculado=1");
+  // Al portal del socio, NUNCA a `/workspace`: esa ruta le crearía una institución propia con
+  // rol de dueño. El destino está centralizado para poder cambiarlo a `/portal/pagos`.
+  redirect(resolvePortalDestination(formData.get("next")?.toString()));
 }
 
 /** No exportar helpers no-async desde un archivo "use server": todo export debe ser una acción. */

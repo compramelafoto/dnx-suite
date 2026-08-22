@@ -6,9 +6,16 @@ import { hasAppAccess, requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
+import { PORTAL_HOME } from "@/lib/portal/destination";
+import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth();
+
+  // Frontera con el portal del socio, ANTES de `ensure`: esa función le crearía una
+  // institución propia —con rol de dueño— a quien solo es socio de otra.
+  if ((await resolveFotofficeUserKind(user.id)) === "MEMBER") redirect(PORTAL_HOME);
+
   const ensured = await ensureFotofficeWorkspaceForUser({
     userId: user.id,
     email: user.email,
