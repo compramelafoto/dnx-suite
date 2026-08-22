@@ -1,4 +1,5 @@
 import type { RenderedEmailSignature } from "@repo/communications/signature";
+import { sendTransactionalEmail } from "@/lib/communications/send-email";
 
 /**
  * Arma el cuerpo del email en HTML y texto plano.
@@ -84,33 +85,25 @@ type EnrollmentEmailInput = {
   signature?: RenderedEmailSignature | null;
 };
 
-export async function sendEnrollmentApprovedEmail(input: EnrollmentEmailInput) {
-  const resendApiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.FOTOFFICE_NOTIFICATIONS_FROM?.trim() || "Fotoffice <no-reply@fotoffice.app>";
-  if (!resendApiKey) {
-    return { sent: false, reason: "RESEND_API_KEY ausente" as const };
-  }
+export type EnrollmentEmailResult = { sent: true } | { sent: false; reason: string };
+
+/**
+ * Envía la confirmación de inscripción a través del transporte compartido.
+ *
+ * Ya no arma el request a Resend por su cuenta: eso vive en `lib/communications/send-email`,
+ * junto con la resolución de la configuración. Dos consecuencias buscadas: desapareció el
+ * remitente por defecto `@fotoffice.app` (dominio no verificado, que hacía rebotar el envío)
+ * y desapareció el `throw` con el cuerpo crudo del proveedor, que podía terminar en un log
+ * sin depurar. Cualquier desenlace vuelve como resultado, nunca como excepción.
+ */
+export async function sendEnrollmentApprovedEmail(
+  input: EnrollmentEmailInput,
+): Promise<EnrollmentEmailResult> {
   const signature = input.signature ?? null;
   const { html, text } = buildEnrollmentEmailBody(input, signature);
   const subject = `Inscripción confirmada: ${input.courseTitle}`;
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [input.to],
-      subject,
-      html,
-      text,
-    }),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`No se pudo enviar email de confirmación: ${text}`);
-  }
-  return { sent: true as const };
+  const outcome = await sendTransactionalEmail({ to: input.to, subject, html, text });
+  if (outcome.status === "SENT") return { sent: true };
+  return { sent: false, reason: outcome.detail };
 }
