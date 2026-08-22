@@ -8,6 +8,9 @@ const {
   workspaceCreateMock,
   brandingFindUniqueMock,
   brandingCreateMock,
+  membershipCountMock,
+  legacyCountMock,
+  memberFindFirstMock,
 } = vi.hoisted(() => ({
   userFindUniqueMock: vi.fn(),
   workspaceMembershipFindManyMock: vi.fn(),
@@ -16,13 +19,23 @@ const {
   workspaceCreateMock: vi.fn(),
   brandingFindUniqueMock: vi.fn(),
   brandingCreateMock: vi.fn(),
+  membershipCountMock: vi.fn(async () => 0),
+  legacyCountMock: vi.fn(async () => 0),
+  memberFindFirstMock: vi.fn(async () => null),
 }));
 
 vi.mock("@repo/db", () => ({
   prisma: {
     user: { findUnique: userFindUniqueMock },
-    workspaceMembership: { findMany: workspaceMembershipFindManyMock },
-    membership: { findFirst: membershipFindFirstMock, upsert: membershipUpsertMock },
+    // `resolveFotofficeUserKind` consulta estas tres para decidir si la persona es equipo,
+    // socio o alguien nuevo. Acá siempre da "nuevo/equipo" según las membresías del caso.
+    workspaceMembership: { findMany: workspaceMembershipFindManyMock, count: membershipCountMock },
+    membership: {
+      findFirst: membershipFindFirstMock,
+      upsert: membershipUpsertMock,
+      count: legacyCountMock,
+    },
+    member: { findFirst: memberFindFirstMock },
     workspace: { create: workspaceCreateMock },
     fotofficeWorkspaceBranding: {
       findUnique: brandingFindUniqueMock,
