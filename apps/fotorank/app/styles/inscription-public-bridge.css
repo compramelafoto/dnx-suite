@@ -1,0 +1,361 @@
+/**
+ * IMPL 04 — Puente visual inscripción/upload (ETAPA 10C) → public-ui.
+ * No altera lógica: solo tokens, tipografía, superficies y botones.
+ */
+
+.fr-public-shell .fr-contest-shell {
+  --cv-background: var(--background);
+  --cv-surface: var(--surface);
+  --cv-surface-elevated: var(--surface-secondary);
+  --cv-foreground: var(--foreground);
+  --cv-muted-foreground: var(--foreground-muted);
+  --cv-primary: var(--primary);
+  --cv-primary-foreground: var(--primary-foreground);
+  --cv-secondary: var(--secondary);
+  --cv-border: var(--border);
+  --cv-focus: var(--focus-ring);
+  --cv-radius: var(--radius-lg);
+  --cv-content-to-actions: var(--public-stack-content-to-actions);
+  --cv-heading-font: var(--public-font);
+  --cv-body-font: var(--public-font);
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--public-font);
+}
+
+.fr-public-shell .fr-contest-inscription {
+  padding-block: clamp(2.5rem, 6vw, 4rem);
+}
+
+.fr-public-shell .fr-contest-inscription__inner {
+  max-width: 42rem;
+  padding-inline: 0;
+}
+
+/* Controles 10C dentro del shell público */
+.fr-public-shell .fr-contest-control {
+  min-height: 3rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  padding: 0.875rem 1.25rem;
+  font-family: var(--public-font);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.fr-public-shell .fr-contest-control:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-color: var(--primary);
+}
+
+.fr-public-shell .fr-contest-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-label-to-value);
+}
+
+.fr-public-shell .fr-contest-field + .fr-contest-field,
+.fr-public-shell .fr-contest-stack--md > * + *,
+.fr-public-shell .fr-contest-stack--lg > * + * {
+  margin-top: 0;
+}
+
+.fr-public-shell .fr-contest-stack--md {
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-space-6);
+}
+
+.fr-public-shell .fr-contest-stack--lg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-space-8);
+}
+
+.fr-public-shell .fr-contest-check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem 1rem;
+  align-items: start;
+  padding: var(--public-space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  line-height: var(--public-leading-body);
+  color: var(--foreground);
+}
+
+.fr-public-shell .fr-contest-check input {
+  margin-top: 0.2rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--primary);
+}
+
+.fr-public-shell .fr-contest-alert-error {
+  border: 1px solid rgb(196 92 92 / 0.45);
+  background: var(--danger-soft);
+  color: var(--foreground);
+  border-radius: var(--radius-md);
+  padding: var(--public-space-4) var(--public-space-5);
+  line-height: var(--public-leading-body);
+}
+
+.fr-public-shell .fr-rules-scroll {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  padding: var(--public-card-padding);
+  max-height: 20rem;
+}
+
+/* Botones legacy en inscripción/upload → look public-ui */
+.fr-public-shell .fr-contest-shell .fr-btn,
+.fr-public-shell .fr-upload-wizard .fr-btn,
+.fr-public-shell .fr-upload-modal .fr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-family: var(--public-font);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.fr-public-shell .fr-contest-shell .fr-btn-primary,
+.fr-public-shell .fr-upload-wizard .fr-btn-primary,
+.fr-public-shell .fr-upload-modal .fr-btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.fr-public-shell .fr-contest-shell .fr-btn-secondary,
+.fr-public-shell .fr-upload-wizard .fr-btn-secondary,
+.fr-public-shell .fr-upload-modal .fr-btn-secondary {
+  background: transparent;
+  color: var(--foreground);
+  border-color: var(--border-strong);
+}
+
+.fr-public-shell .fr-contest-shell .fr-btn-ghost,
+.fr-public-shell .fr-upload-wizard .fr-btn-ghost {
+  background: transparent;
+  color: var(--foreground-muted);
+  border-color: transparent;
+}
+
+/* Wizard de carga */
+.fr-public-shell .fr-upload-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-space-8);
+  margin-top: var(--public-stack-block);
+}
+
+.fr-public-shell .fr-upload-wizard__panel,
+.fr-public-shell .fr-upload-wizard__closed {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: var(--public-card-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-card-internal-gap);
+}
+
+@media (min-width: 640px) {
+  .fr-public-shell .fr-upload-wizard__panel,
+  .fr-public-shell .fr-upload-wizard__closed {
+    padding: var(--public-card-padding-lg);
+  }
+}
+
+.fr-public-shell .fr-upload-wizard__title {
+  font-family: var(--public-font);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  line-height: 1.2;
+  font-size: 1.5rem;
+}
+
+.fr-public-shell .fr-upload-wizard__lead,
+.fr-public-shell .fr-upload-wizard__note {
+  color: var(--foreground-muted);
+  line-height: var(--public-leading-body);
+}
+
+.fr-public-shell .fr-upload-wizard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--public-space-3);
+  margin-top: var(--public-space-4);
+  padding-top: var(--public-stack-content-to-actions);
+  border-top: 1px solid var(--border);
+}
+
+.fr-public-shell .fr-upload-wizard__facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-meta-row-gap);
+  margin: 0;
+}
+
+.fr-public-shell .fr-upload-wizard__facts dt {
+  margin: 0;
+  color: var(--foreground-muted);
+  font-size: 0.875rem;
+}
+
+.fr-public-shell .fr-upload-wizard__facts dd {
+  margin: 0.25rem 0 0;
+  color: var(--foreground);
+  line-height: 1.45;
+}
+
+.fr-public-shell .fr-upload-wizard__error {
+  border: 1px solid rgb(196 92 92 / 0.45);
+  background: var(--danger-soft);
+  border-radius: var(--radius-md);
+  padding: var(--public-space-5) var(--public-space-6);
+  color: var(--foreground);
+  line-height: var(--public-leading-body);
+}
+
+.fr-public-shell .fr-upload-wizard__info,
+.fr-public-shell .fr-upload-wizard__alert {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--public-space-5) var(--public-space-6);
+  background: var(--primary-soft);
+  color: var(--foreground);
+  line-height: var(--public-leading-body);
+}
+
+.fr-public-shell .fr-upload-wizard__alert--warning {
+  border-color: rgb(196 146 42 / 0.4);
+  background: var(--warning-soft);
+}
+
+.fr-public-shell .fr-upload-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--public-space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fr-public-shell .fr-upload-stepper__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-secondary);
+  color: var(--foreground-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.fr-public-shell .fr-upload-stepper__item--current {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.fr-public-shell .fr-upload-stepper__item--done {
+  border-color: rgb(61 155 106 / 0.45);
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.fr-public-shell .fr-upload-dropzone {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-secondary);
+  padding: var(--public-space-8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--public-space-4);
+  text-align: center;
+}
+
+.fr-public-shell .fr-upload-modal {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: var(--public-card-padding-lg);
+  color: var(--foreground);
+}
+
+.fr-public-shell .fr-upload-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--public-space-3);
+  margin-top: var(--public-stack-content-to-actions);
+  padding-top: var(--public-space-8);
+  border-top: 1px solid var(--border);
+}
+
+/* Surface 10C → card pública */
+.fr-public-shell .fr-contest-surface {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: var(--public-card-padding);
+}
+
+@media (min-width: 640px) {
+  .fr-public-shell .fr-contest-surface {
+    padding: var(--public-card-padding-lg);
+  }
+}
+
+.fr-public-shell .fr-contest-surface--warning {
+  border-color: rgb(196 146 42 / 0.4);
+  background: var(--warning-soft);
+}
+
+.fr-public-shell .fr-type-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.fr-public-shell .fr-type-h1,
+.fr-public-shell .fr-type-h3 {
+  font-family: var(--public-font);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  line-height: 1.2;
+}
+
+.fr-public-shell .fr-type-body,
+.fr-public-shell .fr-type-body-large,
+.fr-public-shell .fr-type-body-small,
+.fr-public-shell .fr-type-helper,
+.fr-public-shell .fr-type-caption {
+  color: var(--foreground-muted);
+  line-height: var(--public-leading-body);
+}
+
+.fr-public-shell .text-gold {
+  color: var(--primary);
+}
