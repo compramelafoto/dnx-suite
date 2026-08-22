@@ -21,6 +21,7 @@
     "test:registration:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/registration/registration.integration.selfcheck.ts",
     "test:entries:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries.selfcheck.ts",
     "test:entries:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries.integration.selfcheck.ts",
+    "test:entries:upload-timeout": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/upload-timeout-config.selfcheck.ts",
     "test:jury:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/jury.selfcheck.ts",
     "test:jury:scoring": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/scoring.selfcheck.ts",
     "test:jury:santa-fe": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/santa-fe-jury.selfcheck.ts",

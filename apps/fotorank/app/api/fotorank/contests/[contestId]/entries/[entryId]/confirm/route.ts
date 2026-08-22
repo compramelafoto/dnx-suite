@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "../../../../../../../lib/auth";
 import { EntryError, confirmEntry } from "../../../../../../../lib/fotorank/entries";
 
+export const maxDuration = 30;
+
 type Ctx = { params: Promise<{ contestId: string; entryId: string }> };
 
 export async function POST(req: Request, ctx: Ctx) {

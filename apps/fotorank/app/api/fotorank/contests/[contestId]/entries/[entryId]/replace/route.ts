@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "../../../../../../../lib/auth";
 import { EntryError, processUploadedFile } from "../../../../../../../lib/fotorank/entries";
 
+export const maxDuration = 60;
+
 type Ctx = { params: Promise<{ contestId: string; entryId: string }> };
 
 /** Reemplazo = mismo upload con flag replace (nueva versión). */
