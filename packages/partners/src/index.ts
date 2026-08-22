@@ -736,3 +736,6 @@ export type {
 
 export { PROPOSAL_PIECES, getProposalPiece } from "./proposal-pieces";
 export type { ProposalPiece, ProposalPieceKind } from "./proposal-pieces";
+
+export { resolvePlateTreatment } from "./proposal-contrast";
+export type { LogoLuminanceInput, PlateKind, PlateTreatment } from "./proposal-contrast";

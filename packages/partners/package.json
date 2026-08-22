@@ -12,7 +12,7 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "test": "pnpm exec tsx --test src/partners.test.ts src/partners-institutional.test.ts src/partners-assets.test.ts src/partners-eligibility.test.ts src/partners-auto-sync.test.ts src/partners-availability.test.ts src/partners-tracking.test.ts src/partners-visibility.test.ts src/partners-onboarding.test.ts src/partners-public-presentation.test.ts src/partners-campaigns.test.ts src/partners-campaign-publication.test.ts src/partners-welcome-activation.test.ts src/partners-campaign-edition-context.test.ts src/partners-welcome-admin.test.ts src/partners-welcome-admin-e2e.test.ts src/partners-welcome-preflight.test.ts src/partners-marquee-admin.test.ts src/welcome-graphic-assets.test.ts src/analytics.test.ts src/partners-global-status.test.ts src/proposal-pieces.test.ts",
+    "test": "pnpm exec tsx --test src/partners.test.ts src/partners-institutional.test.ts src/partners-assets.test.ts src/partners-eligibility.test.ts src/partners-auto-sync.test.ts src/partners-availability.test.ts src/partners-tracking.test.ts src/partners-visibility.test.ts src/partners-onboarding.test.ts src/partners-public-presentation.test.ts src/partners-campaigns.test.ts src/partners-campaign-publication.test.ts src/partners-welcome-activation.test.ts src/partners-campaign-edition-context.test.ts src/partners-welcome-admin.test.ts src/partners-welcome-admin-e2e.test.ts src/partners-welcome-preflight.test.ts src/partners-marquee-admin.test.ts src/welcome-graphic-assets.test.ts src/analytics.test.ts src/partners-global-status.test.ts src/proposal-pieces.test.ts src/proposal-contrast.test.ts",
     "lint": "eslint ."
   },
   "devDependencies": {
