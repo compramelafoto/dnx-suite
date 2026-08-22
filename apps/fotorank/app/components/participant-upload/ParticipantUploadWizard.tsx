@@ -88,7 +88,9 @@ export function ParticipantUploadWizard({
   const isFixture = mode === "fixture";
   const fileErrorId = useId();
   const [step, setStep] = useState<UploadWizardStepId>("requirements");
-  const [pending, startTransition] = useTransition();
+  // Sólo `pending`: d4f0d4fe dejó de usar startTransition a propósito (ver la
+  // nota en performUploadAndConfirm), pero conservó la desestructuración.
+  const [pending] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [entry, setEntry] = useState<EntryView | null>(null);
@@ -304,6 +306,14 @@ export function ParticipantUploadWizard({
 
   function validateWorkData(): string | null {
     if (!requirements.requiresSantaFeEligibility) return null;
+    /**
+     * Instagram es obligatorio: el servidor rechaza la carga con
+     * INSTAGRAM_REQUIRED. Se valida acá para avisar en el paso de datos y no
+     * después de que el participante haya subido el archivo.
+     */
+    if (!workData.instagramHandle.trim()) {
+      return "Indicá tu usuario de Instagram.";
+    }
     if (!workData.territoryConfirmed || !workData.captureLocality.trim()) {
       return "Confirmá territorio y localidad de captura antes de continuar.";
     }
@@ -634,9 +644,16 @@ export function ParticipantUploadWizard({
         <UploadStepper current={step} />
       </header>
 
+      {/* `admission-public-status`: mismo rol que en EntryUploadPanel — es el
+          mensaje público de admisión (incluye si el reemplazo está habilitado).
+          Se conserva el testid para no romper los e2e que ya lo verifican. */}
       {entry?.admissionPublic?.replacementAllowed ||
       entry?.manualReviewStatus === "REPLACEMENT_REQUESTED" ? (
-        <div className="fr-upload-wizard__alert fr-upload-wizard__alert--warning" role="status">
+        <div
+          className="fr-upload-wizard__alert fr-upload-wizard__alert--warning"
+          role="status"
+          data-testid="admission-public-status"
+        >
           <p className="font-semibold">Requiere corrección</p>
           <p>{entry.publicRejectionReason || entry.admissionPublic?.publicMessage}</p>
         </div>
@@ -851,6 +868,9 @@ export function ParticipantUploadWizard({
 
             {requirements.requiresSantaFeEligibility ? (
               <>
+                {/* Obligatorio: el servidor lo exige con INSTAGRAM_REQUIRED al
+                    procesar la carga. Marcarlo acá evita que el participante
+                    complete todo el asistente y recién falle al final. */}
                 <label className="fr-upload-field">
                   <span>Instagram</span>
                   <input
@@ -859,6 +879,7 @@ export function ParticipantUploadWizard({
                     className="fr-upload-input"
                     placeholder="@tu_usuario"
                     data-testid="entry-instagram"
+                    required
                   />
                 </label>
                 <label className="fr-upload-field">
@@ -1026,7 +1047,10 @@ export function ParticipantUploadWizard({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={previewSrc} alt="" className="fr-upload-preview__img" aria-hidden />
             ) : null}
-            <dl className="fr-upload-wizard__facts">
+            {/* `entry-status-block`: mismo rol que en EntryUploadPanel — es el
+                bloque con el estado de la obra ya cargada. Los pasos son
+                mutuamente excluyentes, así que el testid nunca se duplica. */}
+            <dl className="fr-upload-wizard__facts" data-testid="entry-status-block">
               <div>
                 <dt>Categoría</dt>
                 <dd>{requirements.categoryName}</dd>
@@ -1111,7 +1135,7 @@ export function ParticipantUploadWizard({
           <p className="fr-upload-wizard__lead">
             {info ?? "Tu fotografía fue enviada. Enviar no implica admisión ni aprobación."}
           </p>
-          <dl className="fr-upload-wizard__facts">
+          <dl className="fr-upload-wizard__facts" data-testid="entry-status-block">
             <div>
               <dt>Número de participación</dt>
               <dd className="text-gold font-semibold">{registrationNumber}</dd>
