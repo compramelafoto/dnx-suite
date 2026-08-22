@@ -113,3 +113,6 @@ apps/fotorank/.data/
 apps/*/public/partners-demo/
 docs/partners/visual-validation/demo-comercial/
 docs/partners/visual-validation/harness/public/partners-demo/
+
+# Espacio de trabajo de subagent-driven-development (scratch)
+.superpowers/
