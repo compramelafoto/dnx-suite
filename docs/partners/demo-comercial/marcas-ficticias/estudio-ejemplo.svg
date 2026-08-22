@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" width="480" height="160" role="img" aria-label="Estudio Ejemplo — marca ficticia de demostración">
+  <title>Estudio Ejemplo</title>
+  <desc>Logotipo apaisado de una marca ficticia creada para demostraciones de DNX Partners. No corresponde a ningún estudio real.</desc>
+  <rect width="480" height="160" rx="12" fill="#3D5A3C"/>
+  <g transform="translate(38 34)">
+    <path d="M0 14A14 14 0 0 1 14 0h64l14 14v64a14 14 0 0 1-14 14H14A14 14 0 0 1 0 78z" fill="#C7DEB4"/>
+    <g transform="translate(46 46)" fill="#3D5A3C">
+      <circle cx="0" cy="0" r="27"/>
+    </g>
+    <g transform="translate(46 46)" fill="#C7DEB4">
+      <circle cx="0" cy="0" r="12"/>
+      <path d="M-27 0h10M17 0h10M0 -27v10M0 17v10" stroke="#C7DEB4" stroke-width="4" stroke-linecap="round"/>
+    </g>
+  </g>
+  <text x="160" y="72" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="34" font-weight="700" letter-spacing="0.6" fill="#FFFFFF">ESTUDIO</text>
+  <text x="160" y="106" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="24" font-weight="300" letter-spacing="7.2" fill="#C7DEB4">EJEMPLO</text>
+  <rect x="160" y="118" width="128" height="4" rx="2" fill="#C7DEB4" opacity="0.6"/>
+  <text x="452" y="146" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8" font-weight="600" letter-spacing="1.7" fill="#FFFFFF" opacity="0.55">MARCA DE DEMOSTRACIÓN</text>
+</svg>

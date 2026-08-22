@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img" aria-label="Café Muestra — marca ficticia de demostración">
+  <title>Café Muestra</title>
+  <desc>Logotipo cuadrado de una marca ficticia creada para demostraciones de DNX Partners. No corresponde a ningún comercio real.</desc>
+  <rect width="400" height="400" rx="28" fill="#8C4A2F"/>
+  <g stroke="#F2D9C6" stroke-width="9" fill="none" stroke-linecap="round">
+    <path d="M136 132h108v74a54 54 0 0 1-54 54 54 54 0 0 1-54-54z"/>
+    <path d="M244 152h28a26 26 0 0 1 0 52h-28"/>
+    <path d="M150 104c0-14 10-18 10-30M190 104c0-14 10-18 10-30M230 104c0-14 10-18 10-30"/>
+  </g>
+  <rect x="120" y="286" width="160" height="9" rx="4.5" fill="#F2D9C6"/>
+  <text x="200" y="336" text-anchor="middle" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="34" font-weight="700" letter-spacing="1" fill="#FFFFFF">CAFÉ MUESTRA</text>
+  <text x="200" y="362" text-anchor="middle" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="13" font-weight="400" letter-spacing="4.4" fill="#F2D9C6">TOSTADO DE EJEMPLO</text>
+  <text x="200" y="384" text-anchor="middle" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="600" letter-spacing="1.8" fill="#FFFFFF" opacity="0.55">MARCA DE DEMOSTRACIÓN</text>
+</svg>
