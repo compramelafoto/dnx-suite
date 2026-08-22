@@ -733,3 +733,6 @@ export type {
   PartnerGlobalStatusOverview,
   ComputePartnerPlatformStatusInput,
 } from "./global-status";
+
+export { PROPOSAL_PIECES, getProposalPiece } from "./proposal-pieces";
+export type { ProposalPiece, ProposalPieceKind } from "./proposal-pieces";
