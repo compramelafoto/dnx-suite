@@ -7,6 +7,7 @@ import {
   linkMemberToUser,
   MemberConcurrencyError,
   MemberLinkError,
+  markMemberInvitationDelivery,
   revokeMemberInvitation,
   unlinkMemberFromUser,
 } from "@repo/db/fotoffice-members";
@@ -15,18 +16,22 @@ import { requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom, normalizeReason } from "@/lib/members/audit";
 import {
   buildInvitationUrl,
+  canMemberUseInvitations,
   emailsMatch,
   generateInvitationToken,
   hashInvitationToken,
   invitationExpiryFrom,
 } from "@/lib/members/invitations";
+import { buildInvitationEmailBody } from "@/lib/members/invitation-email";
+import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
+import { sendTransactionalEmail } from "@/lib/communications/send-email";
 
 export type MemberAccessState = {
   error: string | null;
   /** Datos del usuario encontrado, para que el administrador confirme antes de vincular. */
   candidate?: { userId: number; email: string; name: string | null; emailMatchesMember: boolean };
-  /** Enlace de invitación recién generado. Se muestra UNA sola vez: después solo queda el hash. */
-  invitationUrl?: string;
+  /** Dirección a la que salió la invitación, para confirmarlo en pantalla. Nunca el enlace. */
+  sentTo?: string;
   ok?: boolean;
 };
 
@@ -42,6 +47,8 @@ function friendlyLinkError(e: unknown): string {
         return "Esa cuenta ya está vinculada a otro socio de este workspace.";
       case "INVITATION_INVALID":
         return "La invitación ya no es válida.";
+      case "MEMBER_NOT_ACTIVE":
+        return "Solo se puede invitar a un socio activo.";
       default:
         return "Socio no encontrado.";
     }
@@ -138,9 +145,13 @@ export async function linkMemberUserAction(
 }
 
 /**
- * Genera una invitación y devuelve el enlace para copiar. No se envía por email: hoy no hay
- * proveedor configurado en producción, y mostrar "invitación enviada" cuando nada salió sería
- * peor que no ofrecerlo. El administrador lo comparte por el medio que quiera.
+ * Emite la invitación y la envía por email al socio.
+ *
+ * Sirve también para reenviar: crear una invitación nueva revoca la anterior, así que nunca
+ * quedan dos enlaces válidos dando vueltas.
+ *
+ * El token en claro no sale de esta función: viaja dentro del email y en la base solo queda
+ * su hash. La pantalla confirma a qué dirección salió, nunca el enlace.
  */
 export async function inviteMemberAction(
   _prev: MemberAccessState | undefined,
@@ -164,34 +175,78 @@ export async function inviteMemberAction(
     };
   }
 
+  if (!canMemberUseInvitations(member.status)) {
+    return { error: "Solo se puede invitar a un socio activo." };
+  }
+
+  // El enlace se resuelve ANTES de crear nada: si falta `APP_URL`, la invitación no llegaría
+  // a ninguna parte y no tiene sentido dejarla creada.
   const rawToken = generateInvitationToken();
+  const link = buildInvitationUrl(rawToken);
+  if (!link.ok) {
+    return {
+      error:
+        "Falta configuración del sistema para enviar invitaciones. Avisale al equipo técnico.",
+    };
+  }
+
+  const actor = auditActorFrom(actorUser);
+  let created: Awaited<ReturnType<typeof createMemberInvitation>>;
   try {
-    await createMemberInvitation(workspace.id, memberId, {
+    created = await createMemberInvitation(workspace.id, memberId, {
       email,
       tokenHash: hashInvitationToken(rawToken),
       expiresAt: invitationExpiryFrom(),
       invitedByUserId: actorUser.id,
+      actor,
     });
   } catch (e) {
     return { error: friendlyLinkError(e) };
   }
 
-  const baseUrl = process.env.APP_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim() || "";
+  // El envío ocurre DESPUÉS del commit. Si falla, la invitación queda creada pero marcada
+  // como no enviada: nunca se la presenta como enviada, y "Reenviar" la reintenta.
+  const { organizationName, signature } = await loadWorkspaceEmailContext(workspace.id);
+  const body = buildInvitationEmailBody({
+    memberFirstName: member.firstName,
+    institution: organizationName,
+    invitationUrl: link.url,
+    signature,
+  });
+  const outcome = await sendTransactionalEmail({ to: email, ...body });
+
+  await markMemberInvitationDelivery(
+    workspace.id,
+    memberId,
+    created.invitation.id,
+    {
+      sent: outcome.status === "SENT",
+      resend: created.resend,
+      detail: outcome.status === "SENT" ? null : outcome.detail,
+    },
+    actor,
+  );
+
   revalidatePath(`/members/${memberId}`);
-  // Única vez que el token viaja en claro: de acá en más solo existe su hash.
-  return { error: null, ok: true, invitationUrl: buildInvitationUrl(baseUrl, rawToken) };
+  if (outcome.status !== "SENT") {
+    return {
+      error:
+        "La invitación quedó creada pero el email no salió. Probá con «Reenviar»; quedó registrado para revisarlo.",
+    };
+  }
+  return { error: null, ok: true, sentTo: email };
 }
 
 export async function revokeMemberInvitationAction(
   _prev: MemberAccessState | undefined,
   formData: FormData,
 ): Promise<MemberAccessState> {
-  const { workspace } = await requireMembersManageContext();
+  const { workspace, user: actorUser } = await requireMembersManageContext();
   const memberId = formData.get("memberId")?.toString()?.trim();
   const invitationId = formData.get("invitationId")?.toString()?.trim();
   if (!memberId || !invitationId) return { error: "Datos inválidos." };
 
-  const result = await revokeMemberInvitation(workspace.id, memberId, invitationId);
+  const result = await revokeMemberInvitation(workspace.id, memberId, invitationId, auditActorFrom(actorUser));
   if (result.count === 0) return { error: "Esa invitación ya no estaba pendiente." };
 
   revalidatePath(`/members/${memberId}`);

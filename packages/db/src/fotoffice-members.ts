@@ -267,7 +267,15 @@ export function bulkCreateMembers(
 
 /** Se lanza cuando el vínculo pedido chocaría con una regla de unicidad o de estado. */
 export class MemberLinkError extends Error {
-  constructor(readonly reason: "ALREADY_LINKED" | "USER_TAKEN" | "NOT_FOUND" | "INVITATION_INVALID") {
+  constructor(
+    readonly reason:
+      | "ALREADY_LINKED"
+      | "USER_TAKEN"
+      | "NOT_FOUND"
+      | "INVITATION_INVALID"
+      /** El socio no está ACTIVE: no se le emite ni se le acepta una invitación. */
+      | "MEMBER_NOT_ACTIVE",
+  ) {
     super(reason);
     this.name = "MemberLinkError";
   }
@@ -381,19 +389,30 @@ export type MemberInvitationRecord = {
 export async function createMemberInvitation(
   workspaceId: string,
   memberId: string,
-  input: { email: string; tokenHash: string; expiresAt: Date; invitedByUserId: number | null },
-): Promise<MemberInvitationRecord> {
+  input: {
+    email: string;
+    tokenHash: string;
+    expiresAt: Date;
+    invitedByUserId: number | null;
+    actor: MemberAuditActor;
+  },
+): Promise<{ invitation: MemberInvitationRecord; resend: boolean }> {
   return prisma.$transaction(async (tx) => {
     const member = await tx.member.findFirst({ where: { id: memberId, workspaceId } });
     if (!member) throw new MemberLinkError("NOT_FOUND");
     if (member.userId !== null) throw new MemberLinkError("ALREADY_LINKED");
+    // El estado se revalida dentro de la transacción: pudo cambiar entre la pantalla y el clic.
+    if (member.status !== "ACTIVE") throw new MemberLinkError("MEMBER_NOT_ACTIVE");
 
-    await tx.memberInvitation.updateMany({
+    // Revocar las pendientes es lo que hace que "Reenviar" invalide el enlace anterior:
+    // queda una sola invitación activa por socio, con un token nuevo.
+    const superseded = await tx.memberInvitation.updateMany({
       where: { workspaceId, memberId, acceptedAt: null, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    const resend = superseded.count > 0;
 
-    return tx.memberInvitation.create({
+    const invitation = await tx.memberInvitation.create({
       data: {
         workspaceId,
         memberId,
@@ -407,17 +426,83 @@ export async function createMemberInvitation(
         revokedAt: true, createdAt: true, invitedByUserId: true, acceptedByUserId: true,
       },
     });
+
+    // La creación se audita en ESTA transacción; el envío se audita después del commit,
+    // porque son dos momentos distintos y una sola acción no podría representar ambos.
+    await tx.memberAudit.create({
+      data: buildMemberAuditData(workspaceId, memberId, {
+        action: "INVITE_CREATED",
+        source: "MANUAL",
+        actor: input.actor,
+        reason: resend
+          ? "Nueva invitación emitida; la anterior quedó sin efecto"
+          : "Invitación de acceso emitida",
+      }),
+    });
+
+    return { invitation, resend };
   });
 }
 
-export function revokeMemberInvitation(
+export async function revokeMemberInvitation(
   workspaceId: string,
   memberId: string,
   invitationId: string,
+  actor?: MemberAuditActor,
 ): Promise<{ count: number }> {
-  return prisma.memberInvitation.updateMany({
-    where: { id: invitationId, workspaceId, memberId, acceptedAt: null, revokedAt: null },
-    data: { revokedAt: new Date() },
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.memberInvitation.updateMany({
+      where: { id: invitationId, workspaceId, memberId, acceptedAt: null, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    // Solo se audita una revocación que efectivamente ocurrió: revocar algo que ya no estaba
+    // pendiente no es un evento, es un clic tardío.
+    if (result.count === 1 && actor) {
+      await tx.memberAudit.create({
+        data: buildMemberAuditData(workspaceId, memberId, {
+          action: "INVITE_REVOKED",
+          source: "MANUAL",
+          actor,
+          reason: "Invitación revocada por el administrador",
+        }),
+      });
+    }
+    return result;
+  });
+}
+
+/**
+ * Marca el desenlace del envío, que ocurre DESPUÉS del commit de la creación.
+ *
+ * Separado a propósito: una invitación creada no es una invitación enviada. Mientras `sentAt`
+ * sea nulo la UI no puede decir "enviada", y `sendFailedAt` habilita el reintento.
+ */
+export async function markMemberInvitationDelivery(
+  workspaceId: string,
+  memberId: string,
+  invitationId: string,
+  outcome: { sent: boolean; resend: boolean; detail?: string | null },
+  actor: MemberAuditActor,
+): Promise<void> {
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.memberInvitation.updateMany({
+      where: { id: invitationId, workspaceId, memberId },
+      data: outcome.sent ? { sentAt: now, sendFailedAt: null } : { sendFailedAt: now },
+    });
+    await tx.memberAudit.create({
+      data: buildMemberAuditData(workspaceId, memberId, {
+        action: outcome.sent
+          ? outcome.resend
+            ? "INVITE_RESENT"
+            : "INVITE_SENT"
+          : "INVITE_SEND_FAILED",
+        source: "SYSTEM",
+        actor,
+        // El detalle ya viene depurado del transporte. Nunca el token ni el cuerpo del proveedor.
+        reason: outcome.sent ? null : (outcome.detail ?? "No se pudo enviar el email"),
+      }),
+    });
   });
 }
 

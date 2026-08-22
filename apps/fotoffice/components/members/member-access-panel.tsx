@@ -155,22 +155,13 @@ function InviteMember({ memberId, memberEmail }: { memberId: string; memberEmail
       </form>
       <p className="fo-helper">
         {memberEmail
-          ? `Se emitirá para ${memberEmail} y vence en 7 días. Copiá el enlace y compartilo con el socio.`
+          ? `Se le enviará un email a ${memberEmail}. El enlace vence en 72 horas.`
           : "Este socio no tiene email: cargale uno propio para poder invitarlo."}
       </p>
-      {state.invitationUrl ? (
-        <div className="fo-card space-y-2 p-3">
-          <p className="text-xs text-[var(--fo-text)]">
-            Enlace generado. <strong>Copialo ahora</strong>: por seguridad no se vuelve a mostrar.
-          </p>
-          <input
-            readOnly
-            value={state.invitationUrl}
-            onFocus={(e) => e.currentTarget.select()}
-            className="fo-input !min-h-9 !py-1 text-xs w-full"
-            aria-label="Enlace de invitación"
-          />
-        </div>
+      {state.sentTo ? (
+        <p className="text-xs text-[var(--fo-success,#047857)]">
+          Invitación enviada a <strong>{state.sentTo}</strong>.
+        </p>
       ) : null}
       {state.error ? <p className="text-xs text-[var(--fo-danger)]">{state.error}</p> : null}
     </div>

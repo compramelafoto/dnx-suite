@@ -77,6 +77,16 @@ export async function acceptMemberInvitation(
     });
     if (linked.count !== 1) throw new MemberLinkError("ALREADY_LINKED");
 
+    // Dos eventos, no uno: aceptar la invitación y quedar vinculado son cosas distintas y el
+    // historial tiene que poder distinguirlas.
+    await tx.memberAudit.create({
+      data: buildMemberAuditData(inv.workspaceId, inv.memberId, {
+        action: "INVITE_ACCEPTED",
+        source: "SYSTEM",
+        actor,
+        reason: "El socio aceptó la invitación de acceso",
+      }),
+    });
     await tx.memberAudit.create({
       data: buildMemberAuditData(inv.workspaceId, inv.memberId, {
         action: "USER_LINKED",
