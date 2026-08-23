@@ -2294,6 +2294,7 @@ export default function ComprarClient() {
       <PhotoSlideViewer
         photos={slidePhotos}
         initialIndex={slideIndex}
+        protectUnpurchased
         onClose={() => setShowSlide(false)}
         onPhotoSelect={(id) => {
           const index = itemIndexById.get(id);

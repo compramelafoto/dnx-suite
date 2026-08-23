@@ -3066,6 +3066,7 @@ export default function ClientAlbumView({
         <PhotoSlideViewer
           photos={slideViewerPhotoList}
           initialIndex={slideViewerIndex}
+          protectUnpurchased
           onClose={() => setShowSlideViewer(false)}
           onPhotoSelect={canSelectPhotosForPurchase ? toggle : undefined}
           selectionTotalLabel={

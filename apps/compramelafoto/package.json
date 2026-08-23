@@ -8,6 +8,7 @@
     "start": "next start --port 3002",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:scan-protection": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/photo/scan-protection.test.ts components/photo/scan-protected-photo.test.tsx",
     "test:content-reports": "pnpm --filter @repo/payments exec tsx --test ../../apps/compramelafoto/lib/legal/content-reports/content-reports.test.ts ../../apps/compramelafoto/lib/legal/content-reports/footer-links.test.ts",
     "test:template-engine-compat": "pnpm --filter @repo/template-engine exec tsx --test ../../apps/compramelafoto/lib/template-v2/template-engine-compat.test.ts",
     "test:template-v2-api": "pnpm --filter @repo/template-engine exec tsx --tsconfig ../../apps/compramelafoto/tsconfig.json --test ../../apps/compramelafoto/lib/template-v2/__tests__/template-v2-authorization.test.ts ../../apps/compramelafoto/lib/template-v2/__tests__/template-v2-mappers-security.test.ts ../../apps/compramelafoto/lib/template-v2/__tests__/template-v2-services.integration.test.ts ../../apps/compramelafoto/lib/template-v2/__tests__/revision-conflict.test.ts",
