@@ -111,19 +111,45 @@ function marathonSiteBaseUrl(): string {
 const OPEN_EDITION_STATUSES = ["REGISTRATION_OPEN", "REGISTRATION_CLOSED"] as const;
 
 /**
+ * Nombres que delatan una edición de prueba. El otro producto declara la regla
+ * en su propia capa pública ("No copy TEST en superficies públicas"), pero la
+ * marca no siempre viaja en `isOpsFixture`: en la base de Preview hay ediciones
+ * publicadas y con inscripción cuyo único indicio de ser prueba está en el
+ * nombre. Sin esta red, el home de FotoRank publicaría "Clickatón AR2026 —
+ * TEST UX" a cualquier visitante.
+ *
+ * Es un filtro defensivo, no el criterio principal: lo primero que se exige es
+ * `registrationEnabled`.
+ */
+const TEST_EDITION_NAME = /\b(test|testing|piloto|pilot|demo|qa|staging|prueba|fixture|sandbox)\b/i;
+
+/** Excluye ediciones cuyo nombre las identifica como prueba. Exportada para poder probarla. */
+export function looksLikeTestEdition(name: string, slug: string): boolean {
+  return TEST_EDITION_NAME.test(name) || TEST_EDITION_NAME.test(slug.replace(/-/g, " "));
+}
+
+/**
  * Convocatorias de maratón gestionadas fuera de FotoRank.
  *
  * Ambos productos comparten la misma base y el mismo cliente Prisma, así que se
- * leen directamente; no hay API de listado que consumir. Se excluyen las
- * ediciones no publicadas, las de prueba operativa, y las que ya tienen su
- * concurso espejo en FotoRank —esas llegan por la consulta principal y se
- * duplicarían—.
+ * leen directamente; no hay API de listado que consumir.
+ *
+ * El filtro es deliberadamente más estricto que el del otro producto, porque
+ * acá el listado es la puerta de entrada pública de FotoRank y no hay curaduría
+ * previa. Se exige, además de estar publicada y vigente:
+ *
+ *  - `registrationEnabled`: es el kill switch comercial. Una edición sin
+ *    inscripción habilitada no es una convocatoria que se pueda ofrecer.
+ *  - que no sea fixture de operaciones ni tenga nombre de prueba.
+ *  - que no tenga concurso espejo en FotoRank (`fotorankContestId`): esas
+ *    llegan por la consulta principal y se verían dos veces.
  */
 async function listPublicMarathonEditions(now: Date, limit: number): Promise<PublicHomeContestCard[]> {
   const editions = await prisma.clickatonEdition.findMany({
     where: {
       isPublished: true,
       isOpsFixture: false,
+      registrationEnabled: true,
       status: { in: [...OPEN_EDITION_STATUSES] },
       fotorankContestId: null,
     },
@@ -140,7 +166,9 @@ async function listPublicMarathonEditions(now: Date, limit: number): Promise<Pub
     take: limit * 2,
   });
 
-  return editions.map((e) =>
+  return editions
+    .filter((e) => !looksLikeTestEdition(e.name, e.slug))
+    .map((e) =>
     toPublicHomeContestCard({
       slug: e.slug,
       title: e.name,

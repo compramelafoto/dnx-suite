@@ -11,7 +11,12 @@
  * No toca la DB: `getStatusLabel` es pura.
  */
 import { resolveRegistrationCloseLabel } from "./contest-public-presentation";
-import { getStatusLabel, sortHomeCards, toPublicHomeContestCard } from "./publicContests";
+import {
+  getStatusLabel,
+  looksLikeTestEdition,
+  sortHomeCards,
+  toPublicHomeContestCard,
+} from "./publicContests";
 
 const NOW = new Date("2026-08-20T12:00:00.000Z");
 const PAST = new Date("2026-08-01T12:00:00.000Z");
@@ -326,6 +331,51 @@ for (const valor of [null, undefined] as const) {
     mezcla.filter((c) => c.modalityLabel === "Concurso fotográfico").length === 2,
     "los concursos siguen presentes después de ordenar",
   );
+}
+
+/* ==========================================================================
+   EDICIONES DE PRUEBA — no deben llegar al home público
+   ==========================================================================
+   Detectado en Preview: la consulta traía "Clickatón AR2026 — TEST UX" y
+   "Clickatón Piloto TEST 11B", ambas publicadas y con inscripción, y las
+   habría mostrado a cualquier visitante. No estaban marcadas como fixture de
+   operaciones: lo único que las delataba era el nombre.
+   ========================================================================== */
+
+// Casos reales encontrados en la base de Preview.
+for (const [name, slug] of [
+  ["Clickatón AR2026 — TEST UX", "ar2026-commercial-ux-test"],
+  ["Clickatón Piloto TEST 11B", "piloto-test-11b"],
+] as const) {
+  ok(looksLikeTestEdition(name, slug), `"${name}" se detecta como edición de prueba`);
+}
+
+// Otras variantes habituales, por nombre o por slug.
+for (const [name, slug] of [
+  ["Maratón Demo", "maraton-demo"],
+  ["Edición QA", "edicion-qa"],
+  ["Prueba interna", "prueba-interna"],
+  ["Sandbox", "sandbox"],
+  ["Edición normal", "staging-2026"],
+  ["Fixture ops", "fixture-ops"],
+] as const) {
+  ok(looksLikeTestEdition(name, slug), `"${name}" / "${slug}" se detecta como prueba`);
+}
+
+/**
+ * Y lo más importante: una convocatoria real NO puede quedar oculta por este
+ * filtro. Se prueban nombres legítimos, incluidos algunos que contienen
+ * subcadenas de las palabras vetadas ("Protesta" contiene "test").
+ */
+for (const [name, slug] of [
+  ["Clickatón Argentina 2026", "clickaton-argentina-2026"],
+  ["Santa Fe en Foco 2026", "santa-fe-en-foco"],
+  ["Maratón Fotográfica Rosario", "maraton-rosario-2026"],
+  ["Protesta social en imágenes", "protesta-social"],
+  ["Detalles urbanos", "detalles-urbanos"],
+  ["Contestación visual", "contestacion-visual"],
+] as const) {
+  ok(!looksLikeTestEdition(name, slug), `"${name}" NO se confunde con una edición de prueba`);
 }
 
 console.log("FINAL: PASS");
