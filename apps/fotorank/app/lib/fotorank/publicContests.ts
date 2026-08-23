@@ -96,98 +96,6 @@ export function toPublicHomeContestCard(input: {
 }
 
 /**
- * Base pública del sitio de maratones. Se lee del entorno para no fijar el
- * dominio en el código; el valor por defecto es el productivo.
- */
-function marathonSiteBaseUrl(): string {
-  const raw = process.env.CLICKATON_PUBLIC_WEB_BASE_URL?.trim();
-  return (raw || "https://maratonfotografica.com").replace(/\/+$/, "");
-}
-
-/**
- * Estados de una edición externa que corresponden a una convocatoria vigente.
- * El resto (borrador, en curso, finalizada, cancelada) no se publica en la home.
- */
-const OPEN_EDITION_STATUSES = ["REGISTRATION_OPEN", "REGISTRATION_CLOSED"] as const;
-
-/**
- * Nombres que delatan una edición de prueba. El otro producto declara la regla
- * en su propia capa pública ("No copy TEST en superficies públicas"), pero la
- * marca no siempre viaja en `isOpsFixture`: en la base de Preview hay ediciones
- * publicadas y con inscripción cuyo único indicio de ser prueba está en el
- * nombre. Sin esta red, el home de FotoRank publicaría "Clickatón AR2026 —
- * TEST UX" a cualquier visitante.
- *
- * Es un filtro defensivo, no el criterio principal: lo primero que se exige es
- * `registrationEnabled`.
- */
-const TEST_EDITION_NAME = /\b(test|testing|piloto|pilot|demo|qa|staging|prueba|fixture|sandbox)\b/i;
-
-/** Excluye ediciones cuyo nombre las identifica como prueba. Exportada para poder probarla. */
-export function looksLikeTestEdition(name: string, slug: string): boolean {
-  return TEST_EDITION_NAME.test(name) || TEST_EDITION_NAME.test(slug.replace(/-/g, " "));
-}
-
-/**
- * Convocatorias de maratón gestionadas fuera de FotoRank.
- *
- * Ambos productos comparten la misma base y el mismo cliente Prisma, así que se
- * leen directamente; no hay API de listado que consumir.
- *
- * El filtro es deliberadamente más estricto que el del otro producto, porque
- * acá el listado es la puerta de entrada pública de FotoRank y no hay curaduría
- * previa. Se exige, además de estar publicada y vigente:
- *
- *  - `registrationEnabled`: es el kill switch comercial. Una edición sin
- *    inscripción habilitada no es una convocatoria que se pueda ofrecer.
- *  - que no sea fixture de operaciones ni tenga nombre de prueba.
- *  - que no tenga concurso espejo en FotoRank (`fotorankContestId`): esas
- *    llegan por la consulta principal y se verían dos veces.
- */
-async function listPublicMarathonEditions(now: Date, limit: number): Promise<PublicHomeContestCard[]> {
-  const editions = await prisma.clickatonEdition.findMany({
-    where: {
-      isPublished: true,
-      isOpsFixture: false,
-      registrationEnabled: true,
-      status: { in: [...OPEN_EDITION_STATUSES] },
-      fotorankContestId: null,
-    },
-    select: {
-      slug: true,
-      name: true,
-      city: true,
-      provinceOrState: true,
-      coverImageUrl: true,
-      startAt: true,
-      registrationCloseAt: true,
-    },
-    orderBy: [{ registrationCloseAt: "asc" }, { startAt: "asc" }],
-    take: limit * 2,
-  });
-
-  return editions
-    .filter((e) => !looksLikeTestEdition(e.name, e.slug))
-    .map((e) =>
-    toPublicHomeContestCard({
-      slug: e.slug,
-      title: e.name,
-      // Sin organización propia en el modelo: se ubica por sede, que es lo que
-      // distingue una edición de otra.
-      organizerName: [e.city, e.provinceOrState].filter(Boolean).join(", ") || "Maratón fotográfica",
-      coverImageUrl: e.coverImageUrl,
-      registrationClosesAt: e.registrationCloseAt,
-      submissionDeadline: e.registrationCloseAt,
-      startAt: e.startAt,
-      categoriesCount: 0,
-      now,
-      experienceType: "MARATHON",
-      href: `${marathonSiteBaseUrl()}/maratones/${e.slug}`,
-    }),
-  );
-}
-
-/**
  * Ordena por urgencia: primero lo que cierra antes. Las convocatorias sin fecha
  * de cierre van al final, porque no compiten por atención inmediata.
  */
@@ -203,10 +111,17 @@ export function sortHomeCards(cards: PublicHomeContestCard[]): PublicHomeContest
 /**
  * Convocatorias públicas de la home: concursos y maratones en una sola lista.
  *
- * Las dos fuentes se consultan por separado y se unifican en el mismo tipo de
- * tarjeta, para que la home no tenga que saber de dónde vino cada una. Si la
- * consulta de maratones falla, los concursos igual se muestran: un problema en
- * un producto no debe vaciar la home del otro.
+ * Ambos formatos salen de `FotorankContest`. Una maratón es un concurso con
+ * `experienceType = MARATHON`, y se publica desde el panel como cualquier otro;
+ * la tarjeta la etiqueta según ese campo.
+ *
+ * Hubo aquí una segunda consulta que leía las ediciones del producto de
+ * maratones directamente por Prisma. Se quitó: en producción cada aplicación
+ * usa su propia base, así que esa consulta nunca alcanzaba los datos reales, y
+ * en cambio podía traer alguna fila residual de la base de FotoRank y publicar
+ * una convocatoria que no existe. Si algún día hace falta unificar los dos
+ * catálogos, el camino es una API pública de listado en el otro producto, no
+ * una lectura cruzada de base.
  */
 export async function listPublicHomeContests(limit = 6): Promise<PublicHomeContestCard[]> {
   try {
@@ -240,9 +155,7 @@ export async function listPublicHomeContests(limit = 6): Promise<PublicHomeConte
       }),
     );
 
-    const fromMarathons = await listPublicMarathonEditions(now, limit).catch(() => []);
-
-    return sortHomeCards([...fromContests, ...fromMarathons])
+    return sortHomeCards(fromContests)
       .filter((c) => c.statusLabel !== "Cerrado")
       .slice(0, limit);
   } catch {
