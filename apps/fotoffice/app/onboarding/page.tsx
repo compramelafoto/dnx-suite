@@ -2,11 +2,19 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { PORTAL_HOME } from "@/lib/portal/destination";
+import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { OnboardingWizard } from "./onboarding-wizard";
 
 export default async function OnboardingPage() {
   const user = await requireAuth();
+
+  // Mismo guard que /workspace: `ensure` le crearía un workspace a quien solo es socio. Para
+  // crear un negocio a propósito está `createOwnBusinessAction`, que deja a la persona como
+  // equipo y recién entonces la trae acá.
+  if ((await resolveFotofficeUserKind(user.id)) === "MEMBER") redirect(PORTAL_HOME);
+
   const ensured = await ensureFotofficeWorkspaceForUser({
     userId: user.id,
     email: user.email,

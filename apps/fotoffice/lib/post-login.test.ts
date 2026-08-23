@@ -24,6 +24,15 @@ const {
   memberFindFirstMock: vi.fn(async () => null),
 }));
 
+vi.mock("@/lib/portal/profile-choice", () => ({
+  readProfileChoice: vi.fn(async () => null),
+}));
+
+vi.mock("@/lib/portal/profiles", async () => {
+  const actual = await vi.importActual<typeof import("./portal/profiles")>("./portal/profiles");
+  return { ...actual, listUserProfiles: vi.fn(async () => []) };
+});
+
 vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
   resolveInvitationContinuityPath: vi.fn(async () => null),
 }));

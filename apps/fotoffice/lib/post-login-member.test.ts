@@ -9,11 +9,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * iniciara sesión se llevaba una institución vacía de regalo.
  */
 
-const { userFindUniqueMock, ensureMock, userKindMock } = vi.hoisted(() => ({
+const { userFindUniqueMock, ensureMock, userKindMock, listProfilesMock, readChoiceMock } = vi.hoisted(() => ({
   userFindUniqueMock: vi.fn(),
   ensureMock: vi.fn(),
   userKindMock: vi.fn(),
+  listProfilesMock: vi.fn(),
+  readChoiceMock: vi.fn(),
 }));
+
+vi.mock("@/lib/portal/profile-choice", () => ({ readProfileChoice: readChoiceMock }));
+
+vi.mock("@/lib/portal/profiles", async () => {
+  const actual = await vi.importActual<typeof import("./portal/profiles")>("./portal/profiles");
+  return { ...actual, listUserProfiles: listProfilesMock };
+});
 
 vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
   resolveInvitationContinuityPath: vi.fn(async () => null),
@@ -35,6 +44,8 @@ beforeEach(() => {
   });
   ensureMock.mockReset().mockResolvedValue({ workspaceId: "ws-1", onboardingCompleted: true });
   userKindMock.mockReset().mockResolvedValue("TEAM");
+  listProfilesMock.mockReset().mockResolvedValue([]);
+  readChoiceMock.mockReset().mockResolvedValue(null);
 });
 
 describe("socio ya vinculado", () => {
@@ -133,5 +144,62 @@ describe("el equipo administrador conserva su comportamiento", () => {
     const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
     expect(ensureMock).toHaveBeenCalledTimes(1);
     expect(dest.path).toBe("/workspace");
+  });
+});
+
+/**
+ * Una misma persona puede administrar su negocio Y ser socia de una institución. Solo ella
+ * sabe a cuál de las dos viene hoy, así que se le pregunta — una vez, y se recuerda.
+ */
+describe("selector de perfil", () => {
+  const TEAM = { kind: "TEAM", workspaceId: "ws-dnx", workspaceName: "DNX Owner", role: "WORKSPACE_OWNER" };
+  const SOCIO = { kind: "MEMBER", workspaceId: "ws-sfpr", workspaceName: "SFPR", memberId: "m", memberNumber: "556" };
+
+  beforeEach(() => {
+    userKindMock.mockResolvedValue("TEAM");
+    listProfilesMock.mockResolvedValue([TEAM, SOCIO]);
+    readChoiceMock.mockResolvedValue(null);
+  });
+
+  it("con dos perfiles y sin elección previa, pregunta", async () => {
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest.path).toBe("/elegir-perfil");
+    expect(ensureMock).not.toHaveBeenCalled();
+  });
+
+  it("con un solo perfil no pregunta nada", async () => {
+    listProfilesMock.mockResolvedValue([TEAM]);
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest.path).toBe("/workspace");
+  });
+
+  it("respeta la elección guardada: socio va al portal", async () => {
+    readChoiceMock.mockResolvedValue("MEMBER:ws-sfpr");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest.path).toBe("/portal");
+    // Elegir el perfil de socio no debe prepararle un workspace.
+    expect(ensureMock).not.toHaveBeenCalled();
+  });
+
+  it("respeta la elección guardada: equipo va al panel", async () => {
+    readChoiceMock.mockResolvedValue("TEAM:ws-dnx");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest.path).toBe("/workspace");
+  });
+
+  it.each([
+    ["manipulada", "basura"],
+    ["de un perfil ajeno", "TEAM:ws-de-otro"],
+    ["con tipo inventado", "ADMIN:ws-dnx"],
+  ])("una cookie %s se descarta y vuelve a preguntar", async (_label, value) => {
+    readChoiceMock.mockResolvedValue(value);
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest.path).toBe("/elegir-perfil");
+  });
+
+  /** Completar una invitación pendiente manda más que la preferencia guardada. */
+  it("una invitación en curso gana sobre el selector", async () => {
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4, next: "/invitacion/abc" });
+    expect(dest.path).toBe("/invitacion/abc");
   });
 });

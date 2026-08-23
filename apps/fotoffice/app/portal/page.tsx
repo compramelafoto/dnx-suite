@@ -3,6 +3,8 @@ import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
+import { listUserProfiles } from "@/lib/portal/profiles";
+import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,7 @@ export default async function PortalPage() {
     redirect(kind === "TEAM" ? "/workspace" : "/login");
   }
 
+  const profiles = await listUserProfiles(user.id);
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { workspaceId: context.workspace.id },
     select: { commercialName: true, logoUrl: true },
@@ -60,12 +63,40 @@ export default async function PortalPage() {
             no hay nada disponible; cuando lo haya, lo vas a ver en esta pantalla.
           </p>
 
-          <form action="/api/auth/logout" method="post">
-            <button type="submit" className="fo-btn fo-btn-secondary text-sm">
-              Cerrar sesión
-            </button>
-          </form>
+          <div className="flex flex-wrap gap-2">
+            <form action="/api/auth/logout" method="post">
+              <button type="submit" className="fo-btn fo-btn-secondary text-sm">
+                Cerrar sesión
+              </button>
+            </form>
+            {profiles.length > 1 ? (
+              <form action={switchProfileAction}>
+                <button type="submit" className="fo-btn text-sm">
+                  Cambiar de perfil
+                </button>
+              </form>
+            ) : null}
+          </div>
         </section>
+
+        {/*
+          El socio que todavía no tiene negocio se entera acá de que puede usar FotoOffice para
+          administrarlo. La creación es siempre explícita: nunca ocurre por visitar una ruta.
+        */}
+        {!profiles.some((p) => p.kind === "TEAM") ? (
+          <section className="fo-card mt-6 space-y-3 p-5">
+            <h2 className="text-sm font-semibold">¿Tenés tu propio estudio?</h2>
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+              Además de tu acceso como socio, podés usar FotoOffice para administrar tu negocio
+              fotográfico. Se crea aparte de tu ficha de socio y lo manejás vos.
+            </p>
+            <form action={createOwnBusinessAction}>
+              <button type="submit" className="fo-btn fo-btn-secondary text-sm">
+                Crear mi negocio en FotoOffice
+              </button>
+            </form>
+          </section>
+        ) : null}
       </main>
     </div>
   );

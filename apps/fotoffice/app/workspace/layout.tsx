@@ -8,6 +8,8 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { PORTAL_HOME } from "@/lib/portal/destination";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
+import { listUserProfiles } from "@/lib/portal/profiles";
+import { switchProfileAction } from "@/app/actions/profile-choice";
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth();
@@ -56,6 +58,10 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     select: { workspaceId: true, workspace: { select: { name: true } } },
     orderBy: { createdAt: "asc" },
   });
+
+  // Si la cuenta tiene más de un perfil (por ejemplo, dueña de su negocio y socia de una
+  // institución) se ofrece volver al selector sin cerrar sesión.
+  const profiles = await listUserProfiles(user.id);
 
   const enabledModuleKeys = await getEnabledModuleKeysForWorkspace(ensured.workspaceId);
   const navModules = resolveEnabledNavModules(enabledModuleKeys);
@@ -109,6 +115,13 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
             ) : (
               <div className="size-10 rounded-full bg-[var(--fo-border)]" aria-hidden />
             )}
+            {profiles.length > 1 ? (
+              <form action={switchProfileAction}>
+                <button type="submit" className="fo-btn text-sm min-h-10">
+                  Cambiar de perfil
+                </button>
+              </form>
+            ) : null}
             <form action="/api/auth/logout" method="post">
               <button type="submit" className="fo-btn fo-btn-secondary text-sm min-h-10">
                 Cerrar sesión

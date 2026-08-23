@@ -4,6 +4,8 @@ import { isFotofficePlatformAdminRole, resolvePlatformRole } from "@/lib/fotoffi
 import { safeFotofficeNextPath } from "@/lib/google-login";
 import { resolveInvitationContinuityPath } from "@/lib/members/invitation-continuity-resolve";
 import { resolvePortalDestination } from "@/lib/portal/destination";
+import { readProfileChoice } from "@/lib/portal/profile-choice";
+import { findProfileByKey, listUserProfiles, needsProfileChoice } from "@/lib/portal/profiles";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 
 /** Ruta de aceptación de invitación, validada como interna. `/invitacionfalsa` no cuenta. */
@@ -57,6 +59,22 @@ export async function resolveFotofficePostLoginDestination(params: {
   // revalida contra la base. No consume la invitación — devuelve a la pantalla donde se acepta.
   const continuity = await resolveInvitationContinuityPath(user.email);
   if (continuity) return { path: continuity, workspaceId: null };
+
+  /**
+   * Con más de un perfil hay que preguntar: la misma persona puede administrar su negocio y
+   * ser socia de una institución, y solo ella sabe a cuál de las dos viene hoy. Si ya eligió
+   * antes, se respeta esa elección y no se vuelve a preguntar.
+   */
+  const profiles = await listUserProfiles(user.id);
+  if (needsProfileChoice(profiles)) {
+    const chosen = findProfileByKey(profiles, await readProfileChoice());
+    // Sin elección previa —o con una que ya no corresponde— se pregunta de nuevo.
+    if (!chosen) return { path: "/elegir-perfil", workspaceId: null };
+    if (chosen.kind === "MEMBER") {
+      return { path: resolvePortalDestination(params.next), workspaceId: null };
+    }
+    // Perfil de equipo: sigue por el camino normal, que prepara su workspace.
+  }
 
   // Un socio no tiene panel administrativo ni workspace propio: nunca se llama a `ensure`.
   if (kind === "MEMBER") {
