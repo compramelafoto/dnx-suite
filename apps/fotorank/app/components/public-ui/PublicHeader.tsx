@@ -83,7 +83,9 @@ export function PublicHeader({
             alt="FotoRank"
             width={288}
             height={96}
-            className="h-14 w-auto max-w-[min(72vw,12rem)] object-contain object-left sm:h-16 sm:max-w-[14rem] md:h-[4.5rem] md:max-w-[16rem] lg:h-20 lg:max-w-[18rem]"
+            /* Logo x1.5 respecto del tamaño anterior (3.5→5.25, 4→6, 4.5→6.75,
+               5→7.5 rem). Los anchos máximos escalan igual para no recortarlo. */
+            className="h-[5.25rem] w-auto max-w-[min(72vw,18rem)] object-contain object-left sm:h-24 sm:max-w-[21rem] md:h-[6.75rem] md:max-w-[24rem] lg:h-[7.5rem] lg:max-w-[27rem]"
             priority
           />
         </Link>

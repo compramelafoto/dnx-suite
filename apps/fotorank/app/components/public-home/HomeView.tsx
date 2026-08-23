@@ -39,7 +39,9 @@ export function HomeView({ contests, header }: Props) {
     <PublicShell
       header={{ ...header, variant: "marketing" }}
       showFooter
-      mainClassName="pt-[4.5rem] md:pt-[5.5rem] lg:pt-[6.5rem]"
+      /* Compensa la altura del header fijo. Se recalculó al agrandar el logo:
+         alto del logo + el padding vertical del header (py-3, lg:py-4). */
+      mainClassName="pt-[6.75rem] md:pt-[8.25rem] lg:pt-[9.5rem]"
     >
       {/**
        * Franja de fotografías en blanco y negro sobre el hero. El componente ya
