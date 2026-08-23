@@ -11,7 +11,7 @@
  * No toca la DB: `getStatusLabel` es pura.
  */
 import { resolveRegistrationCloseLabel } from "./contest-public-presentation";
-import { getStatusLabel, toPublicHomeContestCard } from "./publicContests";
+import { getStatusLabel, sortHomeCards, toPublicHomeContestCard } from "./publicContests";
 
 const NOW = new Date("2026-08-20T12:00:00.000Z");
 const PAST = new Date("2026-08-01T12:00:00.000Z");
@@ -228,5 +228,104 @@ ok(
   String(conAmbas.registrationCloseLabel).includes("noviembre"),
   "el cierre de inscripción tiene prioridad sobre la fecha de entrega",
 );
+
+/* ==========================================================================
+   MODALIDAD Y DESTINO — concursos y maratones en una sola lista
+   ==========================================================================
+   La home lista dos tipos de convocatoria. El participante tiene que poder
+   distinguirlas de un vistazo, y cada una tiene que llevar a su propio sitio.
+   La resolución vive en esta capa y no en el componente, porque `public-ui`
+   debe permanecer neutro respecto de otros productos (lo verifica
+   public-ui.isolation.test.ts).
+   ========================================================================== */
+
+// 1) Por defecto, una convocatoria es un concurso: nada se vuelve maratón solo.
+const concurso = toPublicHomeContestCard({ ...BASE_CARD, slug: "un-concurso" });
+ok(concurso.modalityLabel === "Concurso fotográfico", "sin dato explícito → se presenta como concurso");
+ok(concurso.href === "/concursos/un-concurso", "un concurso enlaza a su landing dentro de FotoRank");
+ok(concurso.isExternal === false, "un concurso NO es un enlace externo");
+
+// 2) Una maratón publicada como concurso de FotoRank se etiqueta como tal,
+//    pero sigue viviendo dentro de FotoRank.
+const maratonInterna = toPublicHomeContestCard({
+  ...BASE_CARD,
+  slug: "maraton-en-fotorank",
+  experienceType: "MARATHON",
+});
+ok(maratonInterna.modalityLabel === "Maratón fotográfica", "experienceType MARATHON → se presenta como maratón");
+ok(maratonInterna.href === "/concursos/maraton-en-fotorank", "una maratón propia enlaza dentro de FotoRank");
+ok(maratonInterna.isExternal === false, "una maratón propia no es enlace externo");
+
+// 3) Una convocatoria gestionada fuera se etiqueta y enlaza a su sitio.
+const externa = toPublicHomeContestCard({
+  ...BASE_CARD,
+  slug: "edicion-externa",
+  experienceType: "MARATHON",
+  href: "https://ejemplo.test/maratones/edicion-externa",
+});
+ok(externa.modalityLabel === "Maratón fotográfica", "la convocatoria externa se presenta como maratón");
+ok(externa.href === "https://ejemplo.test/maratones/edicion-externa", "conserva el destino externo tal cual");
+ok(externa.isExternal === true, "se marca como externa para abrirla aparte");
+
+// 4) `experienceType` nulo o ausente NO convierte nada en maratón (fail-safe).
+for (const valor of [null, undefined] as const) {
+  ok(
+    toPublicHomeContestCard({ ...BASE_CARD, slug: "x", experienceType: valor }).modalityLabel ===
+      "Concurso fotográfico",
+    `experienceType ${String(valor)} → sigue siendo concurso`,
+  );
+}
+
+// 5) Las dos modalidades conviven ordenadas por urgencia de cierre.
+{
+  const cierraTarde = toPublicHomeContestCard({
+    ...BASE_CARD,
+    slug: "cierra-tarde",
+    title: "Cierra tarde",
+    submissionDeadline: new Date("2026-12-01T03:00:00.000Z"),
+  });
+  const cierraPronto = toPublicHomeContestCard({
+    ...BASE_CARD,
+    slug: "cierra-pronto",
+    title: "Cierra pronto",
+    experienceType: "MARATHON",
+    submissionDeadline: new Date("2026-09-05T03:00:00.000Z"),
+  });
+  const sinFecha = toPublicHomeContestCard({
+    ...BASE_CARD,
+    slug: "sin-fecha",
+    title: "Sin fecha",
+    submissionDeadline: null,
+  });
+
+  const ordenadas = sortHomeCards([sinFecha, cierraTarde, cierraPronto]);
+  ok(ordenadas[0]?.slug === "cierra-pronto", "primero la convocatoria que cierra antes, sin importar la modalidad");
+  ok(ordenadas[1]?.slug === "cierra-tarde", "después la que cierra más tarde");
+  ok(ordenadas[2]?.slug === "sin-fecha", "las convocatorias sin fecha de cierre quedan al final");
+
+  // El orden no puede depender de la modalidad: una maratón puede ir primera.
+  ok(
+    ordenadas[0]?.modalityLabel === "Maratón fotográfica",
+    "una maratón puede encabezar la lista si es la que cierra antes",
+  );
+}
+
+// 6) El listado mezcla ambas modalidades sin perder ninguna.
+{
+  const mezcla = sortHomeCards([
+    toPublicHomeContestCard({ ...BASE_CARD, slug: "c1", title: "C1" }),
+    toPublicHomeContestCard({ ...BASE_CARD, slug: "m1", title: "M1", experienceType: "MARATHON" }),
+    toPublicHomeContestCard({ ...BASE_CARD, slug: "c2", title: "C2" }),
+  ]);
+  ok(mezcla.length === 3, "la lista conserva todas las convocatorias");
+  ok(
+    mezcla.filter((c) => c.modalityLabel === "Maratón fotográfica").length === 1,
+    "la maratón sigue presente después de ordenar",
+  );
+  ok(
+    mezcla.filter((c) => c.modalityLabel === "Concurso fotográfico").length === 2,
+    "los concursos siguen presentes después de ordenar",
+  );
+}
 
 console.log("FINAL: PASS");

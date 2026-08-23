@@ -129,8 +129,8 @@ export function HomeView({ contests, header }: Props) {
           <PublicSectionHeader
             titleId="home-contests-title"
             eyebrow="Convocatorias"
-            title="Concursos disponibles"
-            description="Inscripciones abiertas o próximas. Elegí un concurso para ver bases, categorías y fechas."
+            title="Convocatorias disponibles"
+            description="Concursos y maratones fotográficas con inscripción abierta o próxima. Elegí una convocatoria para ver bases, categorías y fechas."
           />
           {contests.length === 0 ? (
             <EmptyState
@@ -144,11 +144,22 @@ export function HomeView({ contests, header }: Props) {
               {contests.map((c) => {
                 const deadline = c.registrationCloseLabel;
                 return (
-                  <li key={c.slug}>
+                  <li key={`${c.modalityLabel}:${c.slug}`}>
+                    {/**
+                     * El destino y la modalidad vienen resueltos del servidor.
+                     * Las convocatorias que se gestionan fuera de FotoRank
+                     * apuntan a su propio sitio, así que se abren en una pestaña
+                     * nueva y se marcan como enlace externo para lectores de
+                     * pantalla.
+                     */}
                     <Link
-                      href={`/concursos/${c.slug}`}
+                      href={c.href}
+                      {...(c.isExternal
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
                       className="fr-public-card group flex flex-col gap-6 transition-colors hover:border-[var(--border-strong)] sm:flex-row sm:items-center sm:justify-between"
                       data-testid="home-contest-card"
+                      data-modality={c.modalityLabel}
                     >
                       {/**
                        * Imagen del concurso: viene resuelta del servidor con la
@@ -175,11 +186,20 @@ export function HomeView({ contests, header }: Props) {
                         </span>
                       ) : null}
                       <div className="min-w-0 flex-1 space-y-3">
-                        <StatusBadge
-                          label={c.statusLabel}
-                          tone={statusTone(c.statusLabel)}
-                          stateText="Estado"
-                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge
+                            label={c.statusLabel}
+                            tone={statusTone(c.statusLabel)}
+                            stateText="Estado"
+                          />
+                          {/* Formato de la convocatoria: distingue un concurso de una maratón. */}
+                          <span
+                            className="fr-public-eyebrow rounded-full border border-[var(--border)] px-3 py-1 text-[var(--foreground-muted)]"
+                            data-testid="home-contest-card-modality"
+                          >
+                            {c.modalityLabel}
+                          </span>
+                        </div>
                         <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)] group-hover:text-[var(--primary)] md:text-2xl">
                           {c.title}
                         </h3>
