@@ -72,6 +72,3 @@ export async function acceptInvitationAction(
   // rol de dueño. El destino está centralizado para poder cambiarlo a `/portal/pagos`.
   redirect(resolvePortalDestination(formData.get("next")?.toString()));
 }
-
-/** No exportar helpers no-async desde un archivo "use server": todo export debe ser una acción. */
-export type { AcceptInvitationState as AcceptState };
