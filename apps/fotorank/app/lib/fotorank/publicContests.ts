@@ -37,10 +37,30 @@ export type PublicHomeContestCard = {
   isExternal: boolean;
 };
 
-/** Exportada para poder testear el filtrado público de la home sin depender de la DB. */
-export function getStatusLabel(now: Date, startAt: Date | null, deadline: Date | null): PublicHomeContestCard["statusLabel"] {
-  if (deadline && deadline.getTime() < now.getTime()) return "Cerrado";
-  if (startAt && startAt.getTime() > now.getTime()) return "Próximamente";
+/**
+ * Estado público de una convocatoria, según la VENTANA DE INSCRIPCIÓN.
+ *
+ * La etiqueta responde una sola pregunta: ¿se puede anotar hoy?
+ *
+ *   Próximamente          la inscripción todavía no abrió
+ *   Inscripciones abiertas se puede anotar ahora
+ *   Cerrado                la inscripción ya cerró (se oculta de la home)
+ *
+ * Antes esto miraba `startAt`, la fecha en que ocurre el evento, y por eso una
+ * maratón con inscripción abierta pero fecha futura aparecía como
+ * "Próximamente" — decía que no te podías anotar cuando sí podías. Para un
+ * concurso la diferencia rara vez se nota; para una maratón, que se inscribe
+ * semanas antes del día del evento, es un error visible.
+ *
+ * Exportada para poder testear el filtrado público sin depender de la DB.
+ */
+export function getStatusLabel(
+  now: Date,
+  registrationOpensAt: Date | null,
+  registrationClosesAt: Date | null,
+): PublicHomeContestCard["statusLabel"] {
+  if (registrationClosesAt && registrationClosesAt.getTime() < now.getTime()) return "Cerrado";
+  if (registrationOpensAt && registrationOpensAt.getTime() > now.getTime()) return "Próximamente";
   return "Inscripciones abiertas";
 }
 
@@ -58,6 +78,8 @@ export function toPublicHomeContestCard(input: {
   title: string;
   organizerName: string;
   coverImageUrl: string | null;
+  /** Apertura de inscripción. Si falta, se cae a `startAt` como referencia. */
+  registrationOpensAt?: Date | null;
   registrationClosesAt: Date | null;
   submissionDeadline: Date | null;
   startAt: Date | null;
@@ -84,7 +106,16 @@ export function toPublicHomeContestCard(input: {
     submissionDeadline: input.submissionDeadline,
     startAt: input.startAt,
     categoriesCount: input.categoriesCount,
-    statusLabel: getStatusLabel(input.now, input.startAt, input.submissionDeadline),
+    /**
+     * Ventana de inscripción, no fechas del evento. `startAt` sólo se usa como
+     * respaldo cuando la convocatoria no declara cuándo abre la inscripción:
+     * en ese caso, la fecha de comienzo es la mejor referencia disponible.
+     */
+    statusLabel: getStatusLabel(
+      input.now,
+      input.registrationOpensAt ?? input.startAt,
+      input.registrationClosesAt ?? input.submissionDeadline,
+    ),
     heroImageUrl: hero?.url ?? null,
     // El alt del manifiesto es curado; el fallback nombra el concurso, nunca "imagen".
     heroImageAlt: hero?.alt?.trim() || `Imagen de ${input.title}`,
@@ -185,6 +216,7 @@ async function listPublicMarathonEditions(now: Date, limit: number): Promise<Pub
       provinceOrState: true,
       coverImageUrl: true,
       startAt: true,
+      registrationOpenAt: true,
       registrationCloseAt: true,
     },
     orderBy: [{ registrationCloseAt: "asc" }, { startAt: "asc" }],
@@ -200,6 +232,7 @@ async function listPublicMarathonEditions(now: Date, limit: number): Promise<Pub
         // El modelo no tiene organización propia: se ubica por sede.
         organizerName: [e.city, e.provinceOrState].filter(Boolean).join(", ") || "Maratón fotográfica",
         coverImageUrl: e.coverImageUrl,
+        registrationOpensAt: e.registrationOpenAt,
         registrationClosesAt: e.registrationCloseAt,
         submissionDeadline: e.registrationCloseAt,
         startAt: e.startAt,
@@ -248,6 +281,7 @@ export async function listPublicHomeContests(limit = 6): Promise<PublicHomeConte
         title: c.title,
         organizerName: c.organization.name,
         coverImageUrl: c.coverImageUrl,
+        registrationOpensAt: c.registrationOpensAt,
         registrationClosesAt: c.registrationClosesAt,
         submissionDeadline: c.submissionDeadline,
         startAt: c.startAt,

@@ -415,4 +415,76 @@ for (const [name, slug] of [
   ok(sinChoque.length === 2, "sin coincidencias se conservan todas las convocatorias");
 }
 
+/* ==========================================================================
+   ESTADO SEGÚN LA VENTANA DE INSCRIPCIÓN, no la fecha del evento
+   ==========================================================================
+   La etiqueta responde una sola pregunta: ¿se puede anotar hoy? Antes miraba
+   `startAt` —cuándo ocurre el evento— y por eso una maratón con inscripción
+   abierta pero fecha futura decía "Próximamente": afirmaba que no te podías
+   anotar cuando sí podías.
+   ========================================================================== */
+{
+  /** Caso real: Clickatón Primavera 2026, tal como está en la base. */
+  const abreInscripcion = new Date("2026-08-01T00:00:00.000Z");
+  const cierraInscripcion = new Date("2026-09-18T23:59:00.000Z");
+  const diaDelEvento = new Date("2026-09-19T15:00:00.000Z");
+  const hoy = new Date("2026-08-24T17:00:00.000Z");
+
+  const maraton = toPublicHomeContestCard({
+    ...BASE_CARD,
+    slug: "clickaton-primavera",
+    title: "Clickatón Primavera",
+    experienceType: "MARATHON",
+    registrationOpensAt: abreInscripcion,
+    registrationClosesAt: cierraInscripcion,
+    submissionDeadline: cierraInscripcion,
+    startAt: diaDelEvento,
+    now: hoy,
+  });
+  ok(
+    maraton.statusLabel === "Inscripciones abiertas",
+    "inscripción abierta y evento futuro → «Inscripciones abiertas», NO «Próximamente»",
+  );
+
+  // Antes de que abra la inscripción sí corresponde "Próximamente".
+  ok(
+    getStatusLabel(new Date("2026-07-15T00:00:00.000Z"), abreInscripcion, cierraInscripcion) ===
+      "Próximamente",
+    "antes de abrir la inscripción → «Próximamente»",
+  );
+
+  // El mismo día del cierre todavía se puede anotar.
+  ok(
+    getStatusLabel(new Date("2026-09-18T20:00:00.000Z"), abreInscripcion, cierraInscripcion) ===
+      "Inscripciones abiertas",
+    "durante el último día de inscripción → sigue abierta",
+  );
+
+  // Pasado el cierre queda fuera de la home, aunque el evento no haya ocurrido.
+  ok(
+    getStatusLabel(new Date("2026-09-19T00:00:00.000Z"), abreInscripcion, cierraInscripcion) ===
+      "Cerrado",
+    "cerrada la inscripción → «Cerrado», aunque el evento todavía no pasó",
+  );
+
+  /**
+   * Sin fecha de apertura declarada se usa `startAt` como referencia: es el
+   * comportamiento anterior, y se conserva para no alterar convocatorias que
+   * no cargan ventana de inscripción.
+   */
+  const sinApertura = toPublicHomeContestCard({
+    ...BASE_CARD,
+    slug: "sin-apertura",
+    registrationOpensAt: null,
+    startAt: new Date("2026-12-01T00:00:00.000Z"),
+    registrationClosesAt: null,
+    submissionDeadline: new Date("2026-12-20T00:00:00.000Z"),
+    now: hoy,
+  });
+  ok(
+    sinApertura.statusLabel === "Próximamente",
+    "sin fecha de apertura declarada se usa startAt como referencia",
+  );
+}
+
 console.log("FINAL: PASS");
