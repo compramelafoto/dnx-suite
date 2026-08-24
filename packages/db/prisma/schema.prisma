@@ -266,26 +266,26 @@ model User {
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
   appAccessUnified                      WorkspaceAppAccess[]
-  fotorankContestConfigurationVersions FotorankContestConfigurationVersion[]
-  fotorankContestRulesTemplates        FotorankContestRulesTemplate[]
-  fotorankContestRulesAuditEvents      FotorankContestRulesAuditEvent[]
-  fotorankPlatformAuditEvents          FotorankPlatformAuditEvent[]
-  fotorankMinorAuthorizations          FotorankMinorAuthorization[]
-  fotorankRulesReviewed                FotorankContestRulesVersion[] @relation("FrRulesReviewedBy")
-  fotorankRulesApproved                FotorankContestRulesVersion[] @relation("FrRulesApprovedBy")
-  fotorankRulesPublished               FotorankContestRulesVersion[] @relation("FrRulesPublishedBy")
+  fotorankContestConfigurationVersions  FotorankContestConfigurationVersion[]
+  fotorankContestRulesTemplates         FotorankContestRulesTemplate[]
+  fotorankContestRulesAuditEvents       FotorankContestRulesAuditEvent[]
+  fotorankPlatformAuditEvents           FotorankPlatformAuditEvent[]
+  fotorankMinorAuthorizations           FotorankMinorAuthorization[]
+  fotorankRulesReviewed                 FotorankContestRulesVersion[]          @relation("FrRulesReviewedBy")
+  fotorankRulesApproved                 FotorankContestRulesVersion[]          @relation("FrRulesApprovedBy")
+  fotorankRulesPublished                FotorankContestRulesVersion[]          @relation("FrRulesPublishedBy")
 
-  clickatonPromptsAssignedFromLibrary   ClickatonPrompt[]                      @relation("ClickatonPromptLibraryAssigner")
-  photoPromptLibraryItemsCreated        PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemCreator")
-  photoPromptLibraryItemsReviewed       PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemReviewer")
-  photoPromptLibraryItemsApproved       PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemApprover")
-  photoPromptLibraryVersionsCreated     PhotoPromptLibraryVersion[]            @relation("PhotoPromptLibraryVersionCreator")
-  photoPromptLibraryAudits              PhotoPromptLibraryAuditEvent[]         @relation("PhotoPromptLibraryAuditActor")
-  fotorankSocialConnectionsConnected    FotorankSocialConnection[]             @relation("FrSocialConnectionConnectedBy")
-  websiteVersionsPublished              FotofficeWorkspaceWebsiteVersion[]
-  memberAuditsPerformed                 MemberAudit[]
-  memberInvitationsSent                 MemberInvitation[]                     @relation("MemberInvitationInviter")
-  memberInvitationsAccepted             MemberInvitation[]                     @relation("MemberInvitationAcceptor")
+  clickatonPromptsAssignedFromLibrary ClickatonPrompt[]                  @relation("ClickatonPromptLibraryAssigner")
+  photoPromptLibraryItemsCreated      PhotoPromptLibraryItem[]           @relation("PhotoPromptLibraryItemCreator")
+  photoPromptLibraryItemsReviewed     PhotoPromptLibraryItem[]           @relation("PhotoPromptLibraryItemReviewer")
+  photoPromptLibraryItemsApproved     PhotoPromptLibraryItem[]           @relation("PhotoPromptLibraryItemApprover")
+  photoPromptLibraryVersionsCreated   PhotoPromptLibraryVersion[]        @relation("PhotoPromptLibraryVersionCreator")
+  photoPromptLibraryAudits            PhotoPromptLibraryAuditEvent[]     @relation("PhotoPromptLibraryAuditActor")
+  fotorankSocialConnectionsConnected  FotorankSocialConnection[]         @relation("FrSocialConnectionConnectedBy")
+  websiteVersionsPublished            FotofficeWorkspaceWebsiteVersion[]
+  memberAuditsPerformed               MemberAudit[]
+  memberInvitationsSent               MemberInvitation[]                 @relation("MemberInvitationInviter")
+  memberInvitationsAccepted           MemberInvitation[]                 @relation("MemberInvitationAcceptor")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -5703,38 +5703,38 @@ model PrivacyRequest {
 /// No equivale automáticamente a un procedimiento DMCA formal.
 /// [LEGAL_REVIEW] Redacción, plazos, conservación y consecuencias requieren abogado.
 model ContentReport {
-  id                       Int                      @id @default(autoincrement())
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime                 @updatedAt
-  status                   ContentReportStatus      @default(RECEIVED)
-  priority                 ContentReportPriority    @default(NORMAL)
-  contentType              ContentReportContentType
-  contentUrl               String
-  photoId                  Int?
-  albumId                  Int?
-  reportedUserId           Int?
-  reporterName             String
-  reporterEmail            String
-  actingAs                 ContentReportActingAs
-  originalWorkDescription  String
-  claimDescription         String
-  evidenceLinks            String?
-  goodFaithDeclaration     Boolean                  @default(false)
-  truthfulnessDeclaration  Boolean                  @default(false)
-  dataProcessingAccepted   Boolean                  @default(false)
-  resolution               String?
-  internalNotes            String?
-  assignedAdminId          Int?
-  resolvedAt               DateTime?
+  id                      Int                      @id @default(autoincrement())
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  status                  ContentReportStatus      @default(RECEIVED)
+  priority                ContentReportPriority    @default(NORMAL)
+  contentType             ContentReportContentType
+  contentUrl              String
+  photoId                 Int?
+  albumId                 Int?
+  reportedUserId          Int?
+  reporterName            String
+  reporterEmail           String
+  actingAs                ContentReportActingAs
+  originalWorkDescription String
+  claimDescription        String
+  evidenceLinks           String?
+  goodFaithDeclaration    Boolean                  @default(false)
+  truthfulnessDeclaration Boolean                  @default(false)
+  dataProcessingAccepted  Boolean                  @default(false)
+  resolution              String?
+  internalNotes           String?
+  assignedAdminId         Int?
+  resolvedAt              DateTime?
   /// IP minimizada (últimos octetos/hash truncado); no exponer públicamente.
-  reporterIpMinimized      String?
-  reporterUserAgent        String?
-  metadata                 Json?
-  album                    Album?                   @relation(fields: [albumId], references: [id])
-  photo                    Photo?                   @relation(fields: [photoId], references: [id])
-  reportedUser             User?                    @relation("ContentReportReportedUser", fields: [reportedUserId], references: [id])
-  assignedAdmin            User?                    @relation("ContentReportAssignedAdmin", fields: [assignedAdminId], references: [id])
-  events                   ContentReportEvent[]
+  reporterIpMinimized     String?
+  reporterUserAgent       String?
+  metadata                Json?
+  album                   Album?                   @relation(fields: [albumId], references: [id])
+  photo                   Photo?                   @relation(fields: [photoId], references: [id])
+  reportedUser            User?                    @relation("ContentReportReportedUser", fields: [reportedUserId], references: [id])
+  assignedAdmin           User?                    @relation("ContentReportAssignedAdmin", fields: [assignedAdminId], references: [id])
+  events                  ContentReportEvent[]
 
   @@index([status])
   @@index([contentType])
@@ -6834,6 +6834,7 @@ model Workspace {
   memberCategories            MemberCategory[]
   memberAudits                MemberAudit[]
   memberInvitations           MemberInvitation[]
+  moduleFees                  WorkspaceModuleFee[]
 }
 
 model WorkspaceFeatureModule {
@@ -6894,32 +6895,32 @@ model FotofficeWorkspaceBranding {
 /// ve el público directamente: lo público es `publishedVersion` (ver
 /// `FotofficeWorkspaceWebsiteVersion`). 1:1 con Workspace, igual que `FotofficeWorkspaceBranding`.
 model FotofficeWorkspaceWebsite {
-  id             String    @id @default(cuid())
-  workspaceId    String    @unique
+  id                 String                             @id @default(cuid())
+  workspaceId        String                             @unique
   /// Mantenido en sync con publishedVersion.publishedAt (null en ambos = sin versión pública
   /// activa). publishedVersionId es la fuente de verdad; este campo es una conveniencia de
   /// lectura rápida sin join.
-  publishedAt    DateTime?
+  publishedAt        DateTime?
   /// Versión actualmente pública. null = nunca publicado o despublicado — el historial
   /// completo de versiones NO se borra al despublicar, ver `versions`.
-  publishedVersionId String? @unique
-  heroTitle      String?
-  heroSubtitle   String?
-  seoTitle       String?
-  seoDescription String?
+  publishedVersionId String?                            @unique
+  heroTitle          String?
+  heroSubtitle       String?
+  seoTitle           String?
+  seoDescription     String?
   /// Items de navegación pública. Sin renderer todavía — ver `lib/website/blocks.ts`.
-  navJson        Json?
+  navJson            Json?
   /// Bloques de portada (tipo/orden/visibilidad). Sin renderer todavía — ver `lib/website/blocks.ts`.
-  sectionsJson   Json?
+  sectionsJson       Json?
   /// Header/tipografía/botones/animación del sitio (ver `lib/website/design-presets.ts`).
   /// null = defaults. Colores/logo NO están acá — siguen viviendo en FotofficeWorkspaceBranding
   /// y se leen en vivo, decisión de producto ya tomada, sin cambiar en esta etapa.
-  designPresetsJson Json?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  workspace        Workspace                         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  publishedVersion FotofficeWorkspaceWebsiteVersion?  @relation("WebsitePublishedVersion", fields: [publishedVersionId], references: [id])
-  versions         FotofficeWorkspaceWebsiteVersion[] @relation("WebsiteVersionHistory")
+  designPresetsJson  Json?
+  createdAt          DateTime                           @default(now())
+  updatedAt          DateTime                           @updatedAt
+  workspace          Workspace                          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  publishedVersion   FotofficeWorkspaceWebsiteVersion?  @relation("WebsitePublishedVersion", fields: [publishedVersionId], references: [id])
+  versions           FotofficeWorkspaceWebsiteVersion[] @relation("WebsiteVersionHistory")
 }
 
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo
@@ -6947,8 +6948,8 @@ model FotofficeWorkspaceWebsiteVersion {
   publishedAt       DateTime @default(now())
   createdAt         DateTime @default(now())
 
-  website     FotofficeWorkspaceWebsite @relation("WebsiteVersionHistory", fields: [websiteId], references: [id], onDelete: Cascade)
-  publishedBy User?                     @relation(fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  website     FotofficeWorkspaceWebsite  @relation("WebsiteVersionHistory", fields: [websiteId], references: [id], onDelete: Cascade)
+  publishedBy User?                      @relation(fields: [publishedByUserId], references: [id], onDelete: SetNull)
   currentFor  FotofficeWorkspaceWebsite? @relation("WebsitePublishedVersion")
 
   @@unique([websiteId, versionNumber])
@@ -7017,16 +7018,16 @@ model MemberCategory {
 /// socio decide usar un portal propio. Sin cuotas, pagos ni carnet acá
 /// a propósito (ver justificación de la etapa de dominio base).
 model Member {
-  id          String    @id @default(cuid())
-  workspaceId String
+  id             String       @id @default(cuid())
+  workspaceId    String
   /// Número de socio. Único DENTRO del workspace, no globalmente:
   /// "socio 124 de SFPR" y "socio 124 de otra institución" no colisionan.
-  memberNumber String
-  categoryId   String?
-  firstName    String
-  lastName     String
+  memberNumber   String
+  categoryId     String?
+  firstName      String
+  lastName       String
   /// DNI/CUIT/pasaporte — el tipo lo define cada institución, no un enum cerrado.
-  documentType String?
+  documentType   String?
   /// NO único globalmente: dos Workspaces pueden tener socios con el mismo documento.
   documentNumber String?
   email          String?
@@ -7040,26 +7041,26 @@ model Member {
   city           String?
   province       String?
   postalCode     String?
-  joinedAt       DateTime  @default(now())
+  joinedAt       DateTime     @default(now())
   /// Fecha de baja. Se completa junto con status = INACTIVE; no se borra el registro.
-  leftAt    DateTime?
-  status    MemberStatus @default(ACTIVE)
-  notes     String?
+  leftAt         DateTime?
+  status         MemberStatus @default(ACTIVE)
+  notes          String?
   /// Vínculo opcional a una cuenta DNX. Un mismo User puede ser Member de
   /// varios Workspaces distintos (persona socia de dos instituciones),
   /// pero no puede ser Member dos veces DEL MISMO Workspace — ver
   /// @@unique([workspaceId, userId]) abajo.
-  userId    Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  userId         Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  category  MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category    MemberCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   /// SetNull, no Cascade: si se borra el User, el registro de socio persiste (era socio antes que usuario).
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
   /// Historial inmutable de operaciones sobre este socio. Restrict del lado de MemberAudit:
   /// borrar un socio nunca puede llevarse su historial por delante en silencio.
-  audits MemberAudit[]
+  audits      MemberAudit[]
   /// Invitaciones de acceso emitidas para este socio (pendientes, aceptadas o revocadas).
   invitations MemberInvitation[]
 
@@ -7085,30 +7086,30 @@ model Member {
 /// La invitación NO crea cuentas ni contraseñas: al aceptarla, el socio inicia sesión con el
 /// sistema actual (contraseña o Google) y recién ahí se establece el vínculo.
 model MemberInvitation {
-  id          String    @id @default(cuid())
-  workspaceId String
-  memberId    String
+  id               String    @id @default(cuid())
+  workspaceId      String
+  memberId         String
   /// Email invitado, normalizado. La aceptación exige que el email autenticado coincida:
   /// si no, cualquiera con el enlace podría quedarse con el socio de otra persona.
-  email       String
+  email            String
   /// SHA-256 del token. El crudo nunca se guarda.
-  tokenHash   String    @unique
-  expiresAt   DateTime
+  tokenHash        String    @unique
+  expiresAt        DateTime
   /// Uso único: una vez aceptada, el enlace deja de servir.
-  acceptedAt  DateTime?
-  revokedAt   DateTime?
+  acceptedAt       DateTime?
+  revokedAt        DateTime?
   /// Momento en que el proveedor ACEPTÓ el email. Nulo mientras no haya salido: una
   /// invitación creada no es una invitación enviada, y la UI no puede confundirlas.
-  sentAt      DateTime?
+  sentAt           DateTime?
   /// Momento del último intento fallido de envío. Convive con `sentAt` nulo; que exista
   /// habilita el reintento desde "Reenviar".
-  sendFailedAt DateTime?
+  sendFailedAt     DateTime?
   /// Quién invitó. SetNull para que la traza sobreviva al borrado del administrador.
   invitedByUserId  Int?
   /// Qué cuenta terminó aceptando. Puede no ser la misma persona que se esperaba.
   acceptedByUserId Int?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   /// Restrict, igual que MemberAudit: borrar un socio no puede borrar en silencio la traza
@@ -7203,10 +7204,37 @@ model CourseSalesWorkspaceSettings {
   workspaceId        String    @unique
   defaultCurrency    String    @default("ARS")
   enrollmentCtaLabel String?   @default("Quiero inscribirme")
+  /// DEPRECADO — ya no se lee ni se escribe. La comisión vive en `WorkspaceModuleFee`.
+  /// Se conserva la columna hasta verificar la migración en producción: es un campo de
+  /// dinero y borrar una columna no tiene vuelta atrás.
   coursesFeePercent  Decimal   @default(10) @db.Decimal(5, 2)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Comisión que retiene la plataforma, por Workspace y por módulo.
+///
+/// Sin fila para un par (workspace, módulo) rige el default de 5% — ver
+/// `DEFAULT_PLATFORM_FEE_BPS` en apps/fotoffice/lib/platform-fee/fee.ts.
+///
+/// Solo la edita SUPER_ADMIN: el dueño del workspace la ve, no la cambia.
+model WorkspaceModuleFee {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  /// Misma clave que `WorkspaceFeatureModule.moduleKey` y el registry de módulos.
+  moduleKey       String
+  /// Puntos básicos: 500 = 5%. Entero, nunca porcentaje decimal.
+  feeBps          Int
+  /// Quién la fijó por última vez. Para poder explicar un cobro meses después.
+  updatedByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, moduleKey])
+  @@index([workspaceId])
 }
 
 model EvaluationContext {
@@ -7690,7 +7718,8 @@ model ContestOrganization {
   judgeOrganizationMemberships FotorankJudgeOrganizationMembership[]
 
   /// ETAPA 17B — conexiones sociales por organización (Instagram, etc.).
-  socialConnections            FotorankSocialConnection[]
+  socialConnections FotorankSocialConnection[]
+
   @@index([slug])
   @@index([createdByUserId])
 }
@@ -7786,14 +7815,23 @@ model FotorankContest {
   /// Configuración visual de la landing pública (colores, banner override, layout).
   publicPageVisualJson          Json?
   /// ETAPA 16A — configuración de jurado competitivo (genérica; reutiliza motor FotorankJury*).
-  juryConfig                     FotorankCompetitionJuryConfig?
-  competitiveEligibilityFreezes  FotorankCompetitiveEligibilityFreeze[]
-  juryActivityHeartbeats         FotorankJuryActivityHeartbeat[]
+  juryConfig                    FotorankCompetitionJuryConfig?
+  competitiveEligibilityFreezes FotorankCompetitiveEligibilityFreeze[]
+  juryActivityHeartbeats        FotorankJuryActivityHeartbeat[]
   /// ETAPA 16B — finalistas (§8 master rules) y paquete de confirmación previo a voto público.
-  finalistSnapshots              FotorankFinalistSnapshot[]
-  finalistPackages               FotorankFinalistPackage[]
+  finalistSnapshots             FotorankFinalistSnapshot[]
+  finalistPackages              FotorankFinalistPackage[]
   /// ETAPA 17A — motor genérico de votación pública (provider-agnostic; TestProvider only).
-  publicVoteRounds               FotorankPublicVoteRound[]
+  publicVoteRounds              FotorankPublicVoteRound[]
+  configurationVersions         FotorankContestConfigurationVersion[]
+  juryRubrics                   FotorankJuryRubric[]
+  juryScoringSessions           FotorankJuryScoringSession[]
+  juryEvaluations               FotorankJuryEvaluation[]
+  juryAggregates                FotorankJuryPreliminaryAggregate[]
+  resultRuleSets                FotorankResultRuleSet[]
+  resultBatches                 FotorankResultBatch[]
+  tieBreakSessions              FotorankTieBreakSession[]
+
   @@unique([organizationId, slug])
   @@index([organizationId])
   @@index([status])
@@ -7801,14 +7839,6 @@ model FotorankContest {
   @@index([visibility, status, distributionChannel])
   /// Listados públicos Clickatón: channel=clickaton + experienceType=MARATHON.
   @@index([visibility, status, experienceType, distributionChannel])
-  configurationVersions FotorankContestConfigurationVersion[]
-  juryRubrics          FotorankJuryRubric[]
-  juryScoringSessions  FotorankJuryScoringSession[]
-  juryEvaluations      FotorankJuryEvaluation[]
-  juryAggregates       FotorankJuryPreliminaryAggregate[]
-  resultRuleSets       FotorankResultRuleSet[]
-  resultBatches        FotorankResultBatch[]
-  tieBreakSessions     FotorankTieBreakSession[]
 }
 
 /// Roster mínimo de participantes sincronizados (Clickatón postpago). No es obra/entry.
@@ -7871,24 +7901,23 @@ model FotorankContestRulesVersion {
   createdByUser   User                          @relation("FrRulesVersionAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
   registrations   FotorankContestRegistration[]
 
-
-  configurationVersionId                                                   String?
-  configurationHashSnapshot                                                String?
-  contentFormat                                                            String                   @default("markdown")
-  generatedBy                                                              FotorankRulesGeneratedBy @default(MANUAL)
-  generatedAt                                                              DateTime?
-  originalImportedContent                                                  String?
-  structuredImportJson                                                     Json?
-  sectionsChecklistJson                                                    Json?
-  compareSnapshotJson                                                      Json?
-  legalReviewStatus                                                        FotorankLegalReviewStatus @default(NOT_REQUIRED)
-  legalReviewNotes                                                         String?
-  reviewNotes                                                              String?
-  reviewedAt                                                               DateTime?
-  reviewedByUserId                                                         Int?
-  approvedAt                                                               DateTime?
-  approvedByUserId                                                         Int?
-  publishedByUserId                                                        Int?
+  configurationVersionId    String?
+  configurationHashSnapshot String?
+  contentFormat             String                    @default("markdown")
+  generatedBy               FotorankRulesGeneratedBy  @default(MANUAL)
+  generatedAt               DateTime?
+  originalImportedContent   String?
+  structuredImportJson      Json?
+  sectionsChecklistJson     Json?
+  compareSnapshotJson       Json?
+  legalReviewStatus         FotorankLegalReviewStatus @default(NOT_REQUIRED)
+  legalReviewNotes          String?
+  reviewNotes               String?
+  reviewedAt                DateTime?
+  reviewedByUserId          Int?
+  approvedAt                DateTime?
+  approvedByUserId          Int?
+  publishedByUserId         Int?
 
   configurationVersion FotorankContestConfigurationVersion? @relation(fields: [configurationVersionId], references: [id], onDelete: SetNull)
   reviewedByUser       User?                                @relation("FrRulesReviewedBy", fields: [reviewedByUserId], references: [id])
@@ -7902,7 +7931,6 @@ model FotorankContestRulesVersion {
   @@index([createdByUserId])
   @@index([configurationVersionId])
 }
-
 
 /// Inscripción nativa FotoRank (distinta de FotorankContestParticipant = roster sync Clickatón).
 model FotorankContestRegistration {
@@ -7945,16 +7973,15 @@ model FotorankContestRegistration {
   /// Obra del participante (máx. 1 activa por inscripción nativa).
   entry                     FotorankContestEntry?
 
-
-  configurationVersionId                                                   String?
-  configurationHashSnapshot                                                String?
-  rulesContentHashSnapshot                                                 String?
-  licenseAccepted                                                          Boolean                  @default(false)
-  licenseAcceptedAt                                                        DateTime?
-  promotionalOptIn                                                         Boolean                  @default(false)
-  declaredAgeYears                                                         Int?
+  configurationVersionId    String?
+  configurationHashSnapshot String?
+  rulesContentHashSnapshot  String?
+  licenseAccepted           Boolean   @default(false)
+  licenseAcceptedAt         DateTime?
+  promotionalOptIn          Boolean   @default(false)
+  declaredAgeYears          Int?
   /// Respuestas estructuradas de inscripción (p.ej. ARGRA). No exponer en APIs públicas.
-  answersJson                                                              Json?
+  answersJson               Json?
 
   configurationVersion FotorankContestConfigurationVersion? @relation(fields: [configurationVersionId], references: [id], onDelete: SetNull)
   minorAuthorizations  FotorankMinorAuthorization[]
@@ -8154,9 +8181,10 @@ model FotorankJudgeAccount {
   entryConflicts               FotorankJudgeEntryConflict[]
 
   juryActivityHeartbeats FotorankJuryActivityHeartbeat[]
+  juryEvaluations        FotorankJuryEvaluation[]
+
   @@index([workspaceId])
   @@index([accountStatus])
-  juryEvaluations FotorankJuryEvaluation[]
 }
 
 model FotorankJudgeProfile {
@@ -8325,68 +8353,69 @@ model FotorankJudgeAssignment {
 }
 
 model FotorankContestEntry {
-  id                     String                         @id @default(cuid())
-  contestId              String
-  categoryId             String
-  authorUserId           Int?
+  id                               String                            @id @default(cuid())
+  contestId                        String
+  categoryId                       String
+  authorUserId                     Int?
   /// Inscripción nativa (null = obra legacy/admin). Unique: 1 obra por inscripción.
-  registrationId         String?                        @unique
-  status                 FotorankContestEntryStatus     @default(DRAFT)
+  registrationId                   String?                           @unique
+  status                           FotorankContestEntryStatus        @default(DRAFT)
   /// Número anónimo de obra (p. ej. SFE-E-000001). Visible a jurado sin identidad.
-  entryNumber            String?
-  activeAssetId          String?                        @unique
-  submittedAt            DateTime?
-  confirmedAt            DateTime?
-  replacedAt             DateTime?
-  withdrawnAt            DateTime?
-  technicalSummaryStatus FotorankTechnicalSummaryStatus @default(NOT_EVALUATED)
-  manualReviewStatus     FotorankManualReviewStatus     @default(NONE)
-  technicalSummaryJson   Json?
+  entryNumber                      String?
+  activeAssetId                    String?                           @unique
+  submittedAt                      DateTime?
+  confirmedAt                      DateTime?
+  replacedAt                       DateTime?
+  withdrawnAt                      DateTime?
+  technicalSummaryStatus           FotorankTechnicalSummaryStatus    @default(NOT_EVALUATED)
+  manualReviewStatus               FotorankManualReviewStatus        @default(NONE)
+  technicalSummaryJson             Json?
   /// Legacy / admin operativo o preview URL firmada cacheada. Preferir assets privados.
-  imageUrl               String                         @default("")
-  title                  String?
-  description            String?
-  metadataJson           Json?
+  imageUrl                         String                            @default("")
+  title                            String?
+  description                      String?
+  metadataJson                     Json?
   /// Etapa 11 — vínculo Clickatón (soft refs).
-  sourcePlatform         String?
-  externalEditionId      String?
-  externalRegistrationId String?
-  externalPromptId       String?
-  externalParticipantId  String?
-  clickatonParticipantNumber String?
-  captureWindowStartsAtSnapshot DateTime?
-  captureWindowEndsAtSnapshot   DateTime?
-  uploadWindowStartsAtSnapshot  DateTime?
-  uploadWindowEndsAtSnapshot    DateTime?
+  sourcePlatform                   String?
+  externalEditionId                String?
+  externalRegistrationId           String?
+  externalPromptId                 String?
+  externalParticipantId            String?
+  clickatonParticipantNumber       String?
+  captureWindowStartsAtSnapshot    DateTime?
+  captureWindowEndsAtSnapshot      DateTime?
+  uploadWindowStartsAtSnapshot     DateTime?
+  uploadWindowEndsAtSnapshot       DateTime?
   participantDeclarationAcceptedAt DateTime?
   participantDeclarationVersion    String?
   /// Etapa 13 — admisión técnica (null = sistema no aplicado / obra nativa FR).
-  admissionStatus        FotorankTechnicalAdmissionStatus?
-  admissionBatchId       String?
-  anonymousJuryCode      String?
-  appealAllowed          Boolean                        @default(false)
-  appealDeadline         DateTime?
-  appealStatus           String?
-  publicRejectionReason  String?
-  internalRejectionReason String?
-  createdAt              DateTime                       @default(now())
-  updatedAt              DateTime                       @updatedAt
-  author                 User?                          @relation("FrEntryAuthor", fields: [authorUserId], references: [id])
-  category               FotorankContestCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  contest                FotorankContest                @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  registration           FotorankContestRegistration?   @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  activeAsset            FotorankContestEntryAsset?     @relation("FrEntryActiveAsset", fields: [activeAssetId], references: [id], onDelete: SetNull)
-  admissionBatch         FotorankAdmissionBatch?        @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
-  diplomas               FotorankDiplomaIssued[]
-  votes                  FotorankJudgeVote[]
-  assets                 FotorankContestEntryAsset[]    @relation("FrEntryAssets")
-  checks                 FotorankContestEntryCheck[]
-  reviews                FotorankContestEntryReview[]
-  judgeConflicts         FotorankJudgeEntryConflict[]
-  jurySnapshots          FotorankJuryEntrySnapshot[]
+  admissionStatus                  FotorankTechnicalAdmissionStatus?
+  admissionBatchId                 String?
+  anonymousJuryCode                String?
+  appealAllowed                    Boolean                           @default(false)
+  appealDeadline                   DateTime?
+  appealStatus                     String?
+  publicRejectionReason            String?
+  internalRejectionReason          String?
+  createdAt                        DateTime                          @default(now())
+  updatedAt                        DateTime                          @updatedAt
+  author                           User?                             @relation("FrEntryAuthor", fields: [authorUserId], references: [id])
+  category                         FotorankContestCategory           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  contest                          FotorankContest                   @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  registration                     FotorankContestRegistration?      @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  activeAsset                      FotorankContestEntryAsset?        @relation("FrEntryActiveAsset", fields: [activeAssetId], references: [id], onDelete: SetNull)
+  admissionBatch                   FotorankAdmissionBatch?           @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
+  diplomas                         FotorankDiplomaIssued[]
+  votes                            FotorankJudgeVote[]
+  assets                           FotorankContestEntryAsset[]       @relation("FrEntryAssets")
+  checks                           FotorankContestEntryCheck[]
+  reviews                          FotorankContestEntryReview[]
+  judgeConflicts                   FotorankJudgeEntryConflict[]
+  jurySnapshots                    FotorankJuryEntrySnapshot[]
 
   /// ETAPA 16B — finalistas (§8 master rules).
-  finalistSnapshots      FotorankFinalistSnapshot[]
+  finalistSnapshots FotorankFinalistSnapshot[]
+
   @@unique([contestId, entryNumber])
   @@unique([contestId, externalRegistrationId, externalPromptId])
   @@unique([contestId, anonymousJuryCode])
@@ -8768,20 +8797,21 @@ model FotorankAdmissionBatch {
   snapshots FotorankJuryEntrySnapshot[]
 
   competitiveEligibilityFreezes FotorankCompetitiveEligibilityFreeze[]
+  juryRubrics                   FotorankJuryRubric[]
+  juryScoringSessions           FotorankJuryScoringSession[]
+  juryEvaluations               FotorankJuryEvaluation[]
+  juryAggregates                FotorankJuryPreliminaryAggregate[]
+  resultRuleSets                FotorankResultRuleSet[]
+  resultBatches                 FotorankResultBatch[]
+  judgeAssignments              FotorankJudgeAssignment[]
+
   @@index([contestId, status])
   @@index([editionId])
-  juryRubrics         FotorankJuryRubric[]
-  juryScoringSessions FotorankJuryScoringSession[]
-  juryEvaluations     FotorankJuryEvaluation[]
-  juryAggregates      FotorankJuryPreliminaryAggregate[]
-  resultRuleSets      FotorankResultRuleSet[]
-  resultBatches       FotorankResultBatch[]
-  judgeAssignments FotorankJudgeAssignment[]
 }
 
 /// Snapshot inmutable de obra admitida/congelada para jurado.
 model FotorankJuryEntrySnapshot {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   contestId          String
   entryId            String
   admissionBatchId   String
@@ -8794,12 +8824,12 @@ model FotorankJuryEntrySnapshot {
   participantId      String?
   anonymousCode      String
   admittedAt         DateTime?
-  frozenAt           DateTime @default(now())
+  frozenAt           DateTime  @default(now())
   metadataSnapshot   Json?
   validationSnapshot Json?
   rendererVersion    String?
   processingVersion  String?
-  createdAt          DateTime @default(now())
+  createdAt          DateTime  @default(now())
 
   contest FotorankContest        @relation(fields: [contestId], references: [id], onDelete: Cascade)
   entry   FotorankContestEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
@@ -8807,13 +8837,14 @@ model FotorankJuryEntrySnapshot {
 
   /// ETAPA 16B — finalistas (§8 master rules).
   finalistSnapshots FotorankFinalistSnapshot[]
+  juryEvaluations   FotorankJuryEvaluation[]
+  juryAggregates    FotorankJuryPreliminaryAggregate[]
+  resultEntries     FotorankResultEntry[]
+
   @@unique([admissionBatchId, entryId])
   @@unique([admissionBatchId, anonymousCode])
   @@index([contestId, admissionBatchId])
   @@index([entryId])
-  juryEvaluations FotorankJuryEvaluation[]
-  juryAggregates  FotorankJuryPreliminaryAggregate[]
-  resultEntries   FotorankResultEntry[]
 }
 
 enum FotorankTechnicalSummaryStatus {
@@ -9554,22 +9585,22 @@ enum DnxPaymentRefundStatus {
 
 /// Refund durable Orders 1:N (Imp 04). Additive — no legacy rename/delete.
 model DnxPaymentRefund {
-  id                 String                 @id @default(cuid())
-  paymentOrderId     String
-  providerOrderId    String
-  providerRefundId   String?
-  amountMinor        BigInt
-  currency           String
-  status             DnxPaymentRefundStatus @default(REQUESTED)
-  statusDetail       String?
-  idempotencyKey     String
-  payloadHash        String
-  reason             String?
-  environment        DnxPaymentEnvironment
-  provider           DnxPaymentProvider     @default(MERCADOPAGO)
+  id                   String                 @id @default(cuid())
+  paymentOrderId       String
+  providerOrderId      String
+  providerRefundId     String?
+  amountMinor          BigInt
+  currency             String
+  status               DnxPaymentRefundStatus @default(REQUESTED)
+  statusDetail         String?
+  idempotencyKey       String
+  payloadHash          String
+  reason               String?
+  environment          DnxPaymentEnvironment
+  provider             DnxPaymentProvider     @default(MERCADOPAGO)
   rawResponseSanitized Json?
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   allocations DnxPaymentRefundAllocation[]
 
@@ -9581,13 +9612,13 @@ model DnxPaymentRefund {
 
 /// Internal proportional reversal of a refund across original split shares.
 model DnxPaymentRefundAllocation {
-  id              String   @id @default(cuid())
-  refundId        String
-  recipientId     String
-  role            String
-  amountMinor     BigInt
-  currency        String
-  createdAt       DateTime @default(now())
+  id          String   @id @default(cuid())
+  refundId    String
+  recipientId String
+  role        String
+  amountMinor BigInt
+  currency    String
+  createdAt   DateTime @default(now())
 
   refund DnxPaymentRefund @relation(fields: [refundId], references: [id], onDelete: Restrict)
 
@@ -10264,81 +10295,82 @@ enum ClickatonOfflineSyncStatus {
 }
 
 model ClickatonEdition {
-  id                       String                            @id @default(cuid())
-  name                     String
-  slug                     String                            @unique
-  shortDescription         String?
-  description              String?
-  status                   ClickatonEditionStatus            @default(DRAFT)
-  isPublished              Boolean                           @default(false)
+  id                         String                                @id @default(cuid())
+  name                       String
+  slug                       String                                @unique
+  shortDescription           String?
+  description                String?
+  status                     ClickatonEditionStatus                @default(DRAFT)
+  isPublished                Boolean                               @default(false)
   /// Gate explícito de venta. Debe ser true además de ventanas/status para inscribir.
-  registrationEnabled      Boolean                           @default(false)
-  timezone                 String?
-  startAt                  DateTime?
-  endAt                    DateTime?
-  registrationOpenAt       DateTime?
-  registrationCloseAt      DateTime?
-  defaultCapacity          Int?
+  registrationEnabled        Boolean                               @default(false)
+  timezone                   String?
+  startAt                    DateTime?
+  endAt                      DateTime?
+  registrationOpenAt         DateTime?
+  registrationCloseAt        DateTime?
+  defaultCapacity            Int?
   /// Ubicación libre (sede principal / ciudad ancla). Detalle operativo en Venue.
-  location                 String?
-  city                     String?
-  provinceOrState          String?
-  country                  String                            @default("AR")
-  currency                 String                            @default("ARS")
-  fotorankContestId        String?
+  location                   String?
+  city                       String?
+  provinceOrState            String?
+  country                    String                                @default("AR")
+  currency                   String                                @default("ARS")
+  fotorankContestId          String?
   /// Sync postpago Clickatón → FotoRank (Etapa 7). Default OFF.
-  fotoRankSyncEnabled      Boolean                           @default(false)
-  fotoRankSyncMode         ClickatonFotoRankSyncMode         @default(DISABLED)
-  fotoRankValidationStatus ClickatonFotoRankValidationStatus @default(NOT_CONFIGURED)
-  fotoRankLastValidatedAt  DateTime?
-  fotoRankValidationError  String?
+  fotoRankSyncEnabled        Boolean                               @default(false)
+  fotoRankSyncMode           ClickatonFotoRankSyncMode             @default(DISABLED)
+  fotoRankValidationStatus   ClickatonFotoRankValidationStatus     @default(NOT_CONFIGURED)
+  fotoRankLastValidatedAt    DateTime?
+  fotoRankValidationError    String?
   /// Portada horizontal (hero / banner desktop).
-  coverImageUrl            String?
+  coverImageUrl              String?
   /// Portada vertical (stories / mobile banner).
-  coverImageVerticalUrl    String?
+  coverImageVerticalUrl      String?
   /// Prefijo para códigos visibles (ej. COR26).
-  visibleCodePrefix        String?
+  visibleCodePrefix          String?
   /// Config desacoplada de beneficiarios (Etapa 5). Json tipado en app; no tokens.
-  paymentBeneficiaryConfig Json?
+  paymentBeneficiaryConfig   Json?
   /// Contrato de Bases por edición (10F.0). Tipado en `lib/rules-2026` / config argentina-2026.
-  rulesConfig              Json?
-  createdAt                DateTime                          @default(now())
-  updatedAt                DateTime                          @updatedAt
-  venues                   ClickatonVenue[]
-  ticketTypes              ClickatonTicketType[]
-  products                 ClickatonProduct[]
-  registrations            ClickatonRegistration[]
-  capacityHolds            ClickatonCapacityHold[]
-  sequence                 ClickatonEditionSequence?
-  pricePhases              ClickatonRegistrationPricePhase[]
-  financeAudits            ClickatonEditionFinanceAudit[]
-  fotoRankSyncs            ClickatonFotoRankSync[]
-  integrationOutbox        ClickatonIntegrationOutboxEvent[]
-  welcomeCards             DnxWelcomeCard[]
-  participantCards         ClickatonParticipantCard[]
-  mediaAssets              DnxMediaAsset[]
-  timelines                ClickatonEditionTimeline[]
-  prompts                  ClickatonPrompt[]
-  capabilityGrants         ClickatonEditionCapabilityGrant[]
-  uploadConfig             ClickatonEditionUploadConfig?
-  photoSubmissions         ClickatonPhotoSubmission[]
-  accreditationConfig      ClickatonEditionAccreditationConfig?
-  accreditationDevices     ClickatonAccreditationDevice[]
-  accreditationAudits      ClickatonAccreditationAudit[]
+  rulesConfig                Json?
+  createdAt                  DateTime                              @default(now())
+  updatedAt                  DateTime                              @updatedAt
+  venues                     ClickatonVenue[]
+  ticketTypes                ClickatonTicketType[]
+  products                   ClickatonProduct[]
+  registrations              ClickatonRegistration[]
+  capacityHolds              ClickatonCapacityHold[]
+  sequence                   ClickatonEditionSequence?
+  pricePhases                ClickatonRegistrationPricePhase[]
+  financeAudits              ClickatonEditionFinanceAudit[]
+  fotoRankSyncs              ClickatonFotoRankSync[]
+  integrationOutbox          ClickatonIntegrationOutboxEvent[]
+  welcomeCards               DnxWelcomeCard[]
+  participantCards           ClickatonParticipantCard[]
+  mediaAssets                DnxMediaAsset[]
+  timelines                  ClickatonEditionTimeline[]
+  prompts                    ClickatonPrompt[]
+  capabilityGrants           ClickatonEditionCapabilityGrant[]
+  uploadConfig               ClickatonEditionUploadConfig?
+  photoSubmissions           ClickatonPhotoSubmission[]
+  accreditationConfig        ClickatonEditionAccreditationConfig?
+  accreditationDevices       ClickatonAccreditationDevice[]
+  accreditationAudits        ClickatonAccreditationAudit[]
   accreditationOfflineEvents ClickatonAccreditationOfflineEvent[]
-  admissionConfig          ClickatonEditionAdmissionConfig?
-  admissionDecisions       ClickatonTechnicalAdmissionDecision[]
-  admissionAudits          ClickatonAdmissionAudit[]
-  admissionJobs            ClickatonAdmissionJob[]
-  entitlementsSource       ClickatonUserEntitlement[]        @relation("EntitlementSourceEdition")
-  entitlementsTarget       ClickatonUserEntitlement[]        @relation("EntitlementTargetEdition")
-  prizeBundles             ClickatonPrizeBundle[]
-  socialVotingRounds       ClickatonSocialVotingRound[]
-  photographerRoyalties    ClickatonPhotographerRoyaltyLedger[]
-  homeBanners              ClickatonHomeBanner[]
+  admissionConfig            ClickatonEditionAdmissionConfig?
+  admissionDecisions         ClickatonTechnicalAdmissionDecision[]
+  admissionAudits            ClickatonAdmissionAudit[]
+  admissionJobs              ClickatonAdmissionJob[]
+  entitlementsSource         ClickatonUserEntitlement[]            @relation("EntitlementSourceEdition")
+  entitlementsTarget         ClickatonUserEntitlement[]            @relation("EntitlementTargetEdition")
+  prizeBundles               ClickatonPrizeBundle[]
+  socialVotingRounds         ClickatonSocialVotingRound[]
+  photographerRoyalties      ClickatonPhotographerRoyaltyLedger[]
+  homeBanners                ClickatonHomeBanner[]
 
   /// Edición ops/fixture: nunca comercial. Cleanup solo permitido si true.
-  isOpsFixture             Boolean                           @default(false)
+  isOpsFixture Boolean @default(false)
+
   @@index([status])
   @@index([isPublished])
   @@index([registrationEnabled])
@@ -10359,22 +10391,22 @@ enum ClickatonHomeBannerLinkType {
 
 /// Banners del carousel superior del Home (admin organizable).
 model ClickatonHomeBanner {
-  id              String                     @id @default(cuid())
-  title           String
-  eyebrow         String?
-  description     String?
-  ctaLabel        String                     @default("Ver más")
-  linkType        ClickatonHomeBannerLinkType @default(INTERNAL)
+  id               String                      @id @default(cuid())
+  title            String
+  eyebrow          String?
+  description      String?
+  ctaLabel         String                      @default("Ver más")
+  linkType         ClickatonHomeBannerLinkType @default(INTERNAL)
   /// Path interno o URL externa (según linkType). Ignorado si EDITION.
-  href            String?
-  editionId       String?
-  imageUrl        String?
+  href             String?
+  editionId        String?
+  imageUrl         String?
   imageUrlVertical String?
-  sortOrder       Int                        @default(100)
-  isActive        Boolean                    @default(true)
-  publishedAt     DateTime?
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
+  sortOrder        Int                         @default(100)
+  isActive         Boolean                     @default(true)
+  publishedAt      DateTime?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
 
   edition ClickatonEdition? @relation(fields: [editionId], references: [id], onDelete: SetNull)
 
@@ -10385,39 +10417,39 @@ model ClickatonHomeBanner {
 
 /// Config global del carousel de banners del Home (fila única id = "default").
 model ClickatonHomeBannerSettings {
-  id              String   @id @default("default")
+  id                 String   @id @default("default")
   /// Si false, el carousel no avanza solo.
-  autoplayEnabled Boolean  @default(true)
+  autoplayEnabled    Boolean  @default(true)
   /// Tiempo visible de cada slide antes de pasar al siguiente (ms).
-  autoplayMs      Int      @default(2000)
+  autoplayMs         Int      @default(2000)
   /// Duración de la animación de desplazamiento horizontal (ms).
-  transitionMs    Int      @default(700)
+  transitionMs       Int      @default(700)
   /// Banners automáticos (ediciones + novedades): enable/disable + orden.
   /// Shape: { editionsEnabled, newsEnabled, disabledEditionIds, disabledNewsIds, editionOrder, newsOrder }
   systemSlidesConfig Json?
-  updatedAt       DateTime @updatedAt
+  updatedAt          DateTime @updatedAt
 }
 
 /// Fase de precio configurable por edición (early bird / regular / late).
 /// El backend resuelve la fase vigente; el frontend nunca define el monto.
 model ClickatonRegistrationPricePhase {
-  id          String                   @id @default(cuid())
-  editionId   String
-  name        String
-  description String?
+  id            String                    @id @default(cuid())
+  editionId     String
+  name          String
+  description   String?
   /// Precio en minor units (centavos). Nunca Float.
-  amount      Int
-  currency    String                   @default("ARS")
-  startsAt    DateTime
-  endsAt      DateTime
+  amount        Int
+  currency      String                    @default("ARS")
+  startsAt      DateTime
+  endsAt        DateTime
   /// Cupo opcional por fase (null = sin límite propio). Contado sobre CONFIRMED + holds ACTIVE.
-  capacity    Int?
+  capacity      Int?
   /// Menor número = mayor prioridad al resolver empates (no debería haber solapes activos).
-  priority    Int                      @default(100)
-  isActive    Boolean                  @default(true)
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
-  edition     ClickatonEdition         @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  priority      Int                       @default(100)
+  isActive      Boolean                   @default(true)
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  edition       ClickatonEdition          @relation(fields: [editionId], references: [id], onDelete: Restrict)
   /// Beneficios comerciales incluidos solo en esta fase (remera, kit, etc.).
   includedItems ClickatonPricePhaseItem[]
 
@@ -10429,25 +10461,25 @@ model ClickatonRegistrationPricePhase {
 /// Productos incluidos específicamente por fase de precio (fuente de verdad comercial).
 /// Política: no duplicar el mismo productId en ticket base + fase (validado en app).
 model ClickatonPricePhaseItem {
-  id                    String                         @id @default(cuid())
+  id                    String                          @id @default(cuid())
   pricePhaseId          String
   productId             String
-  quantity              Int                            @default(1)
-  requiresVariantChoice Boolean                        @default(false)
-  sortOrder             Int                            @default(100)
-  isIncluded            Boolean                        @default(true)
+  quantity              Int                             @default(1)
+  requiresVariantChoice Boolean                         @default(false)
+  sortOrder             Int                             @default(100)
+  isIncluded            Boolean                         @default(true)
   /// Cupo opcional de unidades de este beneficio en la fase (null = sin límite propio).
   stockLimit            Int?
   /// Cierre temporal del beneficio (independiente de startsAt/endsAt de la fase de precio).
   /// Inclusive; timezone de negocio = America/Argentina/Buenos_Aires.
   benefitDeadlineAt     DateTime?
-  fulfillmentRequired   Boolean                        @default(true)
+  fulfillmentRequired   Boolean                         @default(true)
   displayTitle          String?
   displayDescription    String?
-  createdAt             DateTime                       @default(now())
-  updatedAt             DateTime                       @updatedAt
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
   pricePhase            ClickatonRegistrationPricePhase @relation(fields: [pricePhaseId], references: [id], onDelete: Restrict)
-  product               ClickatonProduct               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product               ClickatonProduct                @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@unique([pricePhaseId, productId])
   @@index([pricePhaseId, sortOrder])
@@ -10524,42 +10556,42 @@ model ClickatonTicketType {
 }
 
 model ClickatonProduct {
-  id          String                    @id @default(cuid())
-  editionId   String
-  name        String
-  description String?
-  code        String
-  isActive    Boolean                   @default(true)
+  id                    String                       @id @default(cuid())
+  editionId             String
+  name                  String
+  description           String?
+  code                  String
+  isActive              Boolean                      @default(true)
   /// Soft refs a DnxMediaAsset (imagen principal / cuadro de talles).
-  primaryImageAssetId String?
-  sizeChartAssetId    String?
+  primaryImageAssetId   String?
+  sizeChartAssetId      String?
   sizeChartDescription  String?
   sizeChartInstructions String?
   /// Preparación tienda pública (mismo producto; storefront aún OFF).
-  isStoreEnabled   Boolean                     @default(false)
-  storeStatus      ClickatonProductStoreStatus @default(DRAFT)
-  storeSlug        String?
-  storeTitle       String?
-  storeDescription String?
+  isStoreEnabled        Boolean                      @default(false)
+  storeStatus           ClickatonProductStoreStatus  @default(DRAFT)
+  storeSlug             String?
+  storeTitle            String?
+  storeDescription      String?
   /// Precio tienda en minor units (independiente del precio de inscripción).
-  storePrice       Int?
-  compareAtPrice   Int?
-  storeCurrency    String                      @default("ARS")
-  taxCategory      String?
-  requiresShipping Boolean                     @default(false)
-  allowPickup      Boolean                     @default(true)
-  weightGrams      Int?
-  storeSortOrder   Int                         @default(100)
-  publishedAt      DateTime?
-  archivedAt       DateTime?
-  createdAt   DateTime                  @default(now())
-  updatedAt   DateTime                  @updatedAt
-  edition     ClickatonEdition          @relation(fields: [editionId], references: [id], onDelete: Restrict)
-  variants    ClickatonProductVariant[]
-  ticketItems ClickatonTicketTypeItem[]
-  pricePhaseItems ClickatonPricePhaseItem[]
-  media       ClickatonProductMedia[]
-  inventoryMovements ClickatonInventoryMovement[]
+  storePrice            Int?
+  compareAtPrice        Int?
+  storeCurrency         String                       @default("ARS")
+  taxCategory           String?
+  requiresShipping      Boolean                      @default(false)
+  allowPickup           Boolean                      @default(true)
+  weightGrams           Int?
+  storeSortOrder        Int                          @default(100)
+  publishedAt           DateTime?
+  archivedAt            DateTime?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  edition               ClickatonEdition             @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  variants              ClickatonProductVariant[]
+  ticketItems           ClickatonTicketTypeItem[]
+  pricePhaseItems       ClickatonPricePhaseItem[]
+  media                 ClickatonProductMedia[]
+  inventoryMovements    ClickatonInventoryMovement[]
 
   @@unique([editionId, code])
   @@unique([editionId, storeSlug])
@@ -10571,23 +10603,23 @@ model ClickatonProduct {
 
 /// Galería / assets descriptivos por producto (reutilizable inscripción + tienda).
 model ClickatonProductMedia {
-  id        String                   @id @default(cuid())
+  id        String                    @id @default(cuid())
   productId String
   /// Soft ref a DnxMediaAsset.id
   assetId   String
   mediaType ClickatonProductMediaType
-  sortOrder Int                      @default(100)
+  sortOrder Int                       @default(100)
   altText   String?
   caption   String?
   /// ACTIVE | HIDDEN
-  status    String                   @default("ACTIVE")
-  createdAt DateTime                 @default(now())
-  updatedAt DateTime                 @updatedAt
-  product   ClickatonProduct         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  status    String                    @default("ACTIVE")
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+  product   ClickatonProduct          @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  @@unique([productId, assetId, mediaType])
   @@index([productId, mediaType, sortOrder])
   @@index([assetId])
-  @@unique([productId, assetId, mediaType])
 }
 
 /// Ledger auditable de stock (fuente única inscripción + tienda).
@@ -10617,21 +10649,21 @@ model ClickatonInventoryMovement {
 }
 
 model ClickatonProductVariant {
-  id                String                      @id @default(cuid())
-  productId         String
-  code              String
-  name              String
-  sku               String
-  stock             Int                         @default(0)
-  reservedStock     Int                         @default(0)
+  id                 String                       @id @default(cuid())
+  productId          String
+  code               String
+  name               String
+  sku                String
+  stock              Int                          @default(0)
+  reservedStock      Int                          @default(0)
   /// Precio override opcional (minor units); null = incluido / precio del ticket.
-  priceAmount       Int?
-  currency          String?
+  priceAmount        Int?
+  currency           String?
   /// Orden visual (menor = primero). Talles XS→XXXL usan 10,20,…
-  sortOrder         Int                         @default(100)
-  isActive          Boolean                     @default(true)
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @updatedAt
+  sortOrder          Int                          @default(100)
+  isActive           Boolean                      @default(true)
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
   product            ClickatonProduct             @relation(fields: [productId], references: [id], onDelete: Restrict)
   ticketItems        ClickatonTicketTypeItem[]
   stockHolds         ClickatonStockHold[]
@@ -10879,23 +10911,23 @@ enum ClickatonPromptReleaseMode {
 }
 
 model ClickatonEditionTimeline {
-  id                 String                  @id @default(cuid())
-  editionId          String
-  version            Int
-  status             ClickatonTimelineStatus @default(DRAFT)
-  timezone           String                  @default("America/Argentina/Cordoba")
-  pauseReason        String?
-  pausedAt           DateTime?
-  createdByUserId    Int?
-  activatedByUserId  Int?
-  activatedAt        DateTime?
-  supersededAt       DateTime?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  id                String                  @id @default(cuid())
+  editionId         String
+  version           Int
+  status            ClickatonTimelineStatus @default(DRAFT)
+  timezone          String                  @default("America/Argentina/Cordoba")
+  pauseReason       String?
+  pausedAt          DateTime?
+  createdByUserId   Int?
+  activatedByUserId Int?
+  activatedAt       DateTime?
+  supersededAt      DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
 
-  edition     ClickatonEdition        @relation(fields: [editionId], references: [id], onDelete: Cascade)
-  createdBy   User?                   @relation("ClickatonTimelineCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  activatedBy User?                   @relation("ClickatonTimelineActivator", fields: [activatedByUserId], references: [id], onDelete: SetNull)
+  edition     ClickatonEdition         @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  createdBy   User?                    @relation("ClickatonTimelineCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  activatedBy User?                    @relation("ClickatonTimelineActivator", fields: [activatedByUserId], references: [id], onDelete: SetNull)
   events      ClickatonTimelineEvent[]
   audits      ClickatonTimelineAudit[]
 
@@ -10904,28 +10936,28 @@ model ClickatonEditionTimeline {
 }
 
 model ClickatonTimelineEvent {
-  id                       String                        @id @default(cuid())
+  id                       String                       @id @default(cuid())
   timelineId               String
   eventType                ClickatonTimelineEventType
   name                     String
   description              String?
   startsAt                 DateTime?
   endsAt                   DateTime?
-  triggerMode              ClickatonTimelineTriggerMode  @default(SCHEDULED)
-  visibilityPolicy         ClickatonTimelineVisibility   @default(PUBLIC_SAFE)
-  status                   ClickatonTimelineEventStatus  @default(SCHEDULED)
-  sequence                 Int                           @default(0)
-  isCritical               Boolean                       @default(false)
+  triggerMode              ClickatonTimelineTriggerMode @default(SCHEDULED)
+  visibilityPolicy         ClickatonTimelineVisibility  @default(PUBLIC_SAFE)
+  status                   ClickatonTimelineEventStatus @default(SCHEDULED)
+  sequence                 Int                          @default(0)
+  isCritical               Boolean                      @default(false)
   metadata                 Json?
   manuallyReleasedAt       DateTime?
   manuallyReleasedByUserId Int?
   cancelledAt              DateTime?
-  createdAt                DateTime                      @default(now())
-  updatedAt                DateTime                      @updatedAt
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
 
-  timeline         ClickatonEditionTimeline @relation(fields: [timelineId], references: [id], onDelete: Cascade)
-  manuallyReleasedBy User?                  @relation("ClickatonTimelineEventReleaser", fields: [manuallyReleasedByUserId], references: [id], onDelete: SetNull)
-  prompts          ClickatonPrompt[]
+  timeline           ClickatonEditionTimeline @relation(fields: [timelineId], references: [id], onDelete: Cascade)
+  manuallyReleasedBy User?                    @relation("ClickatonTimelineEventReleaser", fields: [manuallyReleasedByUserId], references: [id], onDelete: SetNull)
+  prompts            ClickatonPrompt[]
 
   @@index([timelineId, sequence])
   @@index([timelineId, eventType])
@@ -10933,58 +10965,58 @@ model ClickatonTimelineEvent {
 }
 
 model ClickatonPrompt {
-  id                 String                     @id @default(cuid())
-  editionId          String
-  timelineEventId    String?
-  sequence           Int
-  internalName       String
+  id                           String                     @id @default(cuid())
+  editionId                    String
+  timelineEventId              String?
+  sequence                     Int
+  internalName                 String
   /// Contenido secreto — nunca en DTO LOCKED.
-  title              String?
-  instructions       String?
-  shortDescription   String?
-  imageAssetId       String?
-  videoAssetId       String?
-  audioAssetId       String?
-  categoryId         String?
-  captureStartsAt    DateTime?
-  captureEndsAt      DateTime?
-  uploadStartsAt     DateTime?
-  uploadEndsAt       DateTime?
-  releaseMode        ClickatonPromptReleaseMode @default(SCHEDULED)
-  status             ClickatonPromptStatus      @default(DRAFT)
-  contentVersion     Int                        @default(1)
+  title                        String?
+  instructions                 String?
+  shortDescription             String?
+  imageAssetId                 String?
+  videoAssetId                 String?
+  audioAssetId                 String?
+  categoryId                   String?
+  captureStartsAt              DateTime?
+  captureEndsAt                DateTime?
+  uploadStartsAt               DateTime?
+  uploadEndsAt                 DateTime?
+  releaseMode                  ClickatonPromptReleaseMode @default(SCHEDULED)
+  status                       ClickatonPromptStatus      @default(DRAFT)
+  contentVersion               Int                        @default(1)
   /// Reglas de cantidad / reemplazo (Etapa 11).
-  minEntries         Int                        @default(0)
-  maxEntries         Int                        @default(1)
-  allowReplacement   Boolean                    @default(true)
-  replacementDeadline DateTime?
-  required           Boolean                    @default(false)
+  minEntries                   Int                        @default(0)
+  maxEntries                   Int                        @default(1)
+  allowReplacement             Boolean                    @default(true)
+  replacementDeadline          DateTime?
+  required                     Boolean                    @default(false)
   captureClockToleranceMinutes Int?
-  gpsMode            ClickatonPromptGpsMode     @default(OPTIONAL)
-  deviceCategoryHint String?
+  gpsMode                      ClickatonPromptGpsMode     @default(OPTIONAL)
+  deviceCategoryHint           String?
   /// ETAPA 13 — vínculo opcional a Biblioteca central + snapshot inmutable.
-  libraryItemId      String?
-  libraryVersion     Int?
-  titleSnapshot      String?
-  descriptionSnapshot String?
-  themeSnapshot      String?
-  subthemeSnapshot   String?
-  inspirationSnapshot Json?
-  assignedFromLibraryAt DateTime?
-  assignedFromLibraryByUserId Int?
-  createdByUserId    Int?
-  releasedAt         DateTime?
-  releasedByUserId   Int?
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  libraryItemId                String?
+  libraryVersion               Int?
+  titleSnapshot                String?
+  descriptionSnapshot          String?
+  themeSnapshot                String?
+  subthemeSnapshot             String?
+  inspirationSnapshot          Json?
+  assignedFromLibraryAt        DateTime?
+  assignedFromLibraryByUserId  Int?
+  createdByUserId              Int?
+  releasedAt                   DateTime?
+  releasedByUserId             Int?
+  createdAt                    DateTime                   @default(now())
+  updatedAt                    DateTime                   @updatedAt
 
-  edition       ClickatonEdition       @relation(fields: [editionId], references: [id], onDelete: Cascade)
-  timelineEvent ClickatonTimelineEvent? @relation(fields: [timelineEventId], references: [id], onDelete: SetNull)
-  libraryItem   PhotoPromptLibraryItem? @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
-  createdBy     User?                  @relation("ClickatonPromptCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  releasedBy    User?                  @relation("ClickatonPromptReleaser", fields: [releasedByUserId], references: [id], onDelete: SetNull)
-  assignedFromLibraryBy User?          @relation("ClickatonPromptLibraryAssigner", fields: [assignedFromLibraryByUserId], references: [id], onDelete: SetNull)
-  photoSubmissions ClickatonPhotoSubmission[]
+  edition               ClickatonEdition           @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  timelineEvent         ClickatonTimelineEvent?    @relation(fields: [timelineEventId], references: [id], onDelete: SetNull)
+  libraryItem           PhotoPromptLibraryItem?    @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
+  createdBy             User?                      @relation("ClickatonPromptCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  releasedBy            User?                      @relation("ClickatonPromptReleaser", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+  assignedFromLibraryBy User?                      @relation("ClickatonPromptLibraryAssigner", fields: [assignedFromLibraryByUserId], references: [id], onDelete: SetNull)
+  photoSubmissions      ClickatonPhotoSubmission[]
 
   @@unique([editionId, sequence])
   @@index([editionId, status])
@@ -11002,38 +11034,38 @@ enum ClickatonPromptGpsMode {
 
 /// Configuración de uploads por edición (deshabilitada por defecto).
 model ClickatonEditionUploadConfig {
-  id                           String   @id @default(cuid())
-  editionId                    String   @unique
-  uploadsEnabled               Boolean  @default(false)
+  id                              String                 @id @default(cuid())
+  editionId                       String                 @unique
+  uploadsEnabled                  Boolean                @default(false)
   /// SoT assets FotoRank: requiere además env CLICKATON_FOTORANK_CANONICAL_ASSETS=1.
   /// Default false → edición comercial intacta.
-  canonicalAssetsEnabled       Boolean  @default(false)
+  canonicalAssetsEnabled          Boolean                @default(false)
   /// ETAPA 12 — SoT temporal de maratón (reveal global + ventanas independientes).
   /// Si globalPromptReveal=true, TODAS las consignas se revelan juntas en eventRevealAt.
-  globalPromptReveal           Boolean  @default(true)
-  eventRevealAt                DateTime?
+  globalPromptReveal              Boolean                @default(true)
+  eventRevealAt                   DateTime?
   /// Horario válido para TOMAR fotografías [start, end).
-  captureWindowStartsAt        DateTime?
-  captureWindowEndsAt          DateTime?
+  captureWindowStartsAt           DateTime?
+  captureWindowEndsAt             DateTime?
   /// Horario válido para SUBIR fotografías [start, end). Independiente de captura.
-  uploadWindowStartsAt         DateTime?
-  uploadWindowEndsAt           DateTime?
-  allowReplacement             Boolean  @default(true)
-  allowedMimeTypes             Json     @default("[\"image/jpeg\",\"image/png\",\"image/webp\"]")
-  maxFileSizeBytes             Int      @default(26214400)
-  minWidth                     Int      @default(800)
-  minHeight                    Int      @default(600)
-  maxWidth                     Int      @default(12000)
-  maxHeight                    Int      @default(12000)
-  captureClockToleranceMinutes Int      @default(5)
-  defaultGpsMode               ClickatonPromptGpsMode @default(OPTIONAL)
-  allowCrossPromptDuplicate    Boolean  @default(false)
-  blockCrossParticipantDuplicate Boolean @default(false)
+  uploadWindowStartsAt            DateTime?
+  uploadWindowEndsAt              DateTime?
+  allowReplacement                Boolean                @default(true)
+  allowedMimeTypes                Json                   @default("[\"image/jpeg\",\"image/png\",\"image/webp\"]")
+  maxFileSizeBytes                Int                    @default(26214400)
+  minWidth                        Int                    @default(800)
+  minHeight                       Int                    @default(600)
+  maxWidth                        Int                    @default(12000)
+  maxHeight                       Int                    @default(12000)
+  captureClockToleranceMinutes    Int                    @default(5)
+  defaultGpsMode                  ClickatonPromptGpsMode @default(OPTIONAL)
+  allowCrossPromptDuplicate       Boolean                @default(false)
+  blockCrossParticipantDuplicate  Boolean                @default(false)
   /// Enviar a MANUAL_REVIEW si hash coincide entre participantes.
-  reviewCrossParticipantDuplicate Boolean @default(true)
-  rulesDeclarationVersion      String   @default("clickaton-rules-draft-v1")
-  createdAt                    DateTime @default(now())
-  updatedAt                    DateTime @updatedAt
+  reviewCrossParticipantDuplicate Boolean                @default(true)
+  rulesDeclarationVersion         String                 @default("clickaton-rules-draft-v1")
+  createdAt                       DateTime               @default(now())
+  updatedAt                       DateTime               @updatedAt
 
   edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
 }
@@ -11070,44 +11102,44 @@ enum ClickatonPhotoJobStatus {
 
 /// Orquestación Clickatón por inscripción + consigna → entry FotoRank.
 model ClickatonPhotoSubmission {
-  id                     String                         @id @default(cuid())
-  editionId              String
-  registrationId         String
-  promptId               String
-  userId                 Int
-  fotorankContestId      String?
-  fotorankParticipantId  String?
-  fotorankEntryId        String?
-  status                 ClickatonPhotoSubmissionStatus @default(UPLOAD_PENDING)
-  validationResult       ClickatonPhotoValidationResult?
-  sha256                 String?
-  originalStorageKey     String?
-  previewStorageKey      String?
-  captureWindowStartsAt  DateTime?
-  captureWindowEndsAt    DateTime?
-  uploadWindowStartsAt   DateTime?
-  uploadWindowEndsAt     DateTime?
-  captureDateInterpreted DateTime?
-  captureTimezoneAssumed String?
-  captureDeltaMinutes    Int?
-  gpsStatus              String?
-  gpsLatitude            Float?
-  gpsLongitude           Float?
-  exifStatus             String?
-  technicalSummaryJson   Json?
+  id                               String                          @id @default(cuid())
+  editionId                        String
+  registrationId                   String
+  promptId                         String
+  userId                           Int
+  fotorankContestId                String?
+  fotorankParticipantId            String?
+  fotorankEntryId                  String?
+  status                           ClickatonPhotoSubmissionStatus  @default(UPLOAD_PENDING)
+  validationResult                 ClickatonPhotoValidationResult?
+  sha256                           String?
+  originalStorageKey               String?
+  previewStorageKey                String?
+  captureWindowStartsAt            DateTime?
+  captureWindowEndsAt              DateTime?
+  uploadWindowStartsAt             DateTime?
+  uploadWindowEndsAt               DateTime?
+  captureDateInterpreted           DateTime?
+  captureTimezoneAssumed           String?
+  captureDeltaMinutes              Int?
+  gpsStatus                        String?
+  gpsLatitude                      Float?
+  gpsLongitude                     Float?
+  exifStatus                       String?
+  technicalSummaryJson             Json?
   participantDeclarationAcceptedAt DateTime?
   participantDeclarationVersion    String?
-  confirmedAt            DateTime?
-  replacedAt             DateTime?
-  withdrawnAt            DateTime?
-  failureCode            String?
-  failureMessage         String?
-  createdAt              DateTime                       @default(now())
-  updatedAt              DateTime                       @updatedAt
+  confirmedAt                      DateTime?
+  replacedAt                       DateTime?
+  withdrawnAt                      DateTime?
+  failureCode                      String?
+  failureMessage                   String?
+  createdAt                        DateTime                        @default(now())
+  updatedAt                        DateTime                        @updatedAt
 
-  edition      ClickatonEdition            @relation(fields: [editionId], references: [id], onDelete: Cascade)
-  registration ClickatonRegistration      @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  prompt       ClickatonPrompt             @relation(fields: [promptId], references: [id], onDelete: Restrict)
+  edition      ClickatonEdition                @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  registration ClickatonRegistration           @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  prompt       ClickatonPrompt                 @relation(fields: [promptId], references: [id], onDelete: Restrict)
   jobs         ClickatonPhotoSubmissionJob[]
   audits       ClickatonPhotoSubmissionAudit[]
 
@@ -11120,16 +11152,16 @@ model ClickatonPhotoSubmission {
 }
 
 model ClickatonPhotoSubmissionJob {
-  id           String                   @id @default(cuid())
+  id           String                  @id @default(cuid())
   submissionId String
   kind         String
-  status       ClickatonPhotoJobStatus  @default(PENDING)
-  attempts     Int                      @default(0)
+  status       ClickatonPhotoJobStatus @default(PENDING)
+  attempts     Int                     @default(0)
   nextRetryAt  DateTime?
   lastError    String?
   payload      Json?
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
   completedAt  DateTime?
 
   submission ClickatonPhotoSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
@@ -11170,29 +11202,29 @@ model ClickatonEditionAdmissionConfig {
 
 /// Historial de evaluaciones de admisión (append-only lógico; cada reevaluación crea fila).
 model ClickatonTechnicalAdmissionDecision {
-  id                   String                           @id @default(cuid())
-  editionId            String
-  submissionId         String
-  fotorankEntryId      String?
-  admissionBatchId     String?
-  eligible             Boolean                          @default(false)
-  status               FotorankTechnicalAdmissionStatus @default(NOT_EVALUATED)
-  blockingReasons      Json                             @default("[]")
-  warningReasons       Json                             @default("[]")
-  manualReviewReasons  Json                             @default("[]")
-  evaluatedAt          DateTime                         @default(now())
-  evaluatorVersion     String
-  timelineVersion      Int?
-  rulesVersion         String
-  sourceSubmissionId   String
-  sourceEntryId        String?
-  actorUserId          Int?
-  reason               String?
-  publicRejectionReason  String?
+  id                      String                           @id @default(cuid())
+  editionId               String
+  submissionId            String
+  fotorankEntryId         String?
+  admissionBatchId        String?
+  eligible                Boolean                          @default(false)
+  status                  FotorankTechnicalAdmissionStatus @default(NOT_EVALUATED)
+  blockingReasons         Json                             @default("[]")
+  warningReasons          Json                             @default("[]")
+  manualReviewReasons     Json                             @default("[]")
+  evaluatedAt             DateTime                         @default(now())
+  evaluatorVersion        String
+  timelineVersion         Int?
+  rulesVersion            String
+  sourceSubmissionId      String
+  sourceEntryId           String?
+  actorUserId             Int?
+  reason                  String?
+  publicRejectionReason   String?
   internalRejectionReason String?
-  previousDecisionId   String?
-  metadata             Json?
-  createdAt            DateTime                         @default(now())
+  previousDecisionId      String?
+  metadata                Json?
+  createdAt               DateTime                         @default(now())
 
   edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
 
@@ -11203,18 +11235,18 @@ model ClickatonTechnicalAdmissionDecision {
 }
 
 model ClickatonAdmissionAudit {
-  id             String   @id @default(cuid())
-  editionId      String
-  submissionId   String?
-  fotorankEntryId String?
+  id               String   @id @default(cuid())
+  editionId        String
+  submissionId     String?
+  fotorankEntryId  String?
   admissionBatchId String?
-  action         String
-  actorUserId    Int?
-  previousValue  Json?
-  nextValue      Json?
-  reason         String?
-  metadata       Json?
-  createdAt      DateTime @default(now())
+  action           String
+  actorUserId      Int?
+  previousValue    Json?
+  nextValue        Json?
+  reason           String?
+  metadata         Json?
+  createdAt        DateTime @default(now())
 
   edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
 
@@ -11225,18 +11257,18 @@ model ClickatonAdmissionAudit {
 }
 
 model ClickatonAdmissionJob {
-  id           String                  @id @default(cuid())
-  editionId    String
-  kind         String
-  status       ClickatonPhotoJobStatus @default(PENDING)
-  attempts     Int                     @default(0)
-  nextRetryAt  DateTime?
-  lastError    String?
-  payload      Json?
-  requestId    String?                 @unique
-  createdAt    DateTime                @default(now())
-  updatedAt    DateTime                @updatedAt
-  completedAt  DateTime?
+  id          String                  @id @default(cuid())
+  editionId   String
+  kind        String
+  status      ClickatonPhotoJobStatus @default(PENDING)
+  attempts    Int                     @default(0)
+  nextRetryAt DateTime?
+  lastError   String?
+  payload     Json?
+  requestId   String?                 @unique
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  completedAt DateTime?
 
   edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
 
@@ -11245,12 +11277,12 @@ model ClickatonAdmissionJob {
 }
 
 model ClickatonTimelineAudit {
-  id         String   @id @default(cuid())
-  timelineId String
+  id          String   @id @default(cuid())
+  timelineId  String
   actorUserId Int?
-  action     String
-  payload    Json?
-  createdAt  DateTime @default(now())
+  action      String
+  payload     Json?
+  createdAt   DateTime @default(now())
 
   timeline ClickatonEditionTimeline @relation(fields: [timelineId], references: [id], onDelete: Cascade)
   actor    User?                    @relation("ClickatonTimelineAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
@@ -11767,44 +11799,44 @@ enum ClickatonStoreHoldStatus {
 }
 
 model ClickatonStoreOrder {
-  id                        String                       @id @default(cuid())
+  id                            String                       @id @default(cuid())
   /// Identificador público de alta entropía (no secuencial).
-  publicId                  String                       @unique
+  publicId                      String                       @unique
   /// Hash SHA-256 del token de acceso (cookie / enlace).
-  accessTokenHash           String
-  status                    ClickatonStoreOrderStatus    @default(DRAFT)
-  paymentStatus             ClickatonStorePaymentStatus  @default(CREATED)
-  currency                  String                       @default("ARS")
-  subtotalAmount            Int
-  deliveryAmount            Int                          @default(0)
-  totalAmount               Int
-  customerFirstName         String
-  customerLastName          String
-  customerEmail             String
-  customerPhone             String
-  deliveryMethod            ClickatonStoreDeliveryMethod @default(PICKUP)
+  accessTokenHash               String
+  status                        ClickatonStoreOrderStatus    @default(DRAFT)
+  paymentStatus                 ClickatonStorePaymentStatus  @default(CREATED)
+  currency                      String                       @default("ARS")
+  subtotalAmount                Int
+  deliveryAmount                Int                          @default(0)
+  totalAmount                   Int
+  customerFirstName             String
+  customerLastName              String
+  customerEmail                 String
+  customerPhone                 String
+  deliveryMethod                ClickatonStoreDeliveryMethod @default(PICKUP)
   /// JSON tipado en app (punto de retiro / dirección).
-  deliveryData              Json?
-  legalVersion              String
-  legalAcceptedAt           DateTime
-  paymentProvider           String?
+  deliveryData                  Json?
+  legalVersion                  String
+  legalAcceptedAt               DateTime
+  paymentProvider               String?
   /// Soft ref a DnxPaymentOrder.id
-  paymentOrderId            String?
-  paymentExternalReference  String?
-  paymentIdempotencyKey     String?                      @unique
+  paymentOrderId                String?
+  paymentExternalReference      String?
+  paymentIdempotencyKey         String?                      @unique
   /// Idempotencia de creación desde cliente.
-  clientIdempotencyKey      String                       @unique
+  clientIdempotencyKey          String                       @unique
   /// Fingerprint comercial del payload (idempotencia + limpieza de carrito).
-  commercialFingerprint     String
-  holdExpiresAt             DateTime?
+  commercialFingerprint         String
+  holdExpiresAt                 DateTime?
   /// Edición del primer producto (contexto collector / admin).
-  editionId                 String?
+  editionId                     String?
   /// Snapshot financiero inmutable al crear preferencia (collector / sin split complejo).
   financialDistributionSnapshot Json?
-  createdAt                 DateTime                     @default(now())
-  updatedAt                 DateTime                     @updatedAt
-  items                     ClickatonStoreOrderItem[]
-  stockHolds                ClickatonStoreStockHold[]
+  createdAt                     DateTime                     @default(now())
+  updatedAt                     DateTime                     @updatedAt
+  items                         ClickatonStoreOrderItem[]
+  stockHolds                    ClickatonStoreStockHold[]
 
   @@index([status, createdAt])
   @@index([paymentStatus, status])
@@ -11898,36 +11930,36 @@ model ClickatonQrToken {
 }
 
 model ClickatonCheckIn {
-  id               String                         @id @default(cuid())
-  registrationId   String
-  credentialId     String
-  venueId          String?
-  operatorUserId   Int
-  checkedInAt      DateTime                       @default(now())
-  reversedAt       DateTime?
-  reversedByUserId Int?
-  reversalReason   String?
-  source           ClickatonCheckInSource         @default(QR_SCAN)
-  requestId        String?
+  id                      String                               @id @default(cuid())
+  registrationId          String
+  credentialId            String
+  venueId                 String?
+  operatorUserId          Int
+  checkedInAt             DateTime                             @default(now())
+  reversedAt              DateTime?
+  reversedByUserId        Int?
+  reversalReason          String?
+  source                  ClickatonCheckInSource               @default(QR_SCAN)
+  requestId               String?
   /// Etapa 12 — dispositivo / identidad / excepción.
-  deviceId         String?
-  identityStatus   ClickatonAccreditationIdentityStatus @default(NOT_REQUIRED)
-  identityMethod   ClickatonAccreditationIdentityMode?
-  identityNotes    String?
-  exceptionReason  String?
+  deviceId                String?
+  identityStatus          ClickatonAccreditationIdentityStatus @default(NOT_REQUIRED)
+  identityMethod          ClickatonAccreditationIdentityMode?
+  identityNotes           String?
+  exceptionReason         String?
   timelineVersionSnapshot Int?
-  onlineMode       Boolean                        @default(true)
-  checkInLocationLat  Float?
-  checkInLocationLng  Float?
-  notes            String?
-  createdAt        DateTime                       @default(now())
-  updatedAt        DateTime                       @updatedAt
-  registration     ClickatonRegistration          @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  credential       ClickatonParticipantCredential @relation(fields: [credentialId], references: [id], onDelete: Restrict)
-  venue            ClickatonVenue?                @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  operator         User                           @relation("ClickatonCheckInOperator", fields: [operatorUserId], references: [id], onDelete: Restrict)
-  reversedBy       User?                          @relation("ClickatonCheckInReverser", fields: [reversedByUserId], references: [id], onDelete: Restrict)
-  device           ClickatonAccreditationDevice?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  onlineMode              Boolean                              @default(true)
+  checkInLocationLat      Float?
+  checkInLocationLng      Float?
+  notes                   String?
+  createdAt               DateTime                             @default(now())
+  updatedAt               DateTime                             @updatedAt
+  registration            ClickatonRegistration                @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  credential              ClickatonParticipantCredential       @relation(fields: [credentialId], references: [id], onDelete: Restrict)
+  venue                   ClickatonVenue?                      @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  operator                User                                 @relation("ClickatonCheckInOperator", fields: [operatorUserId], references: [id], onDelete: Restrict)
+  reversedBy              User?                                @relation("ClickatonCheckInReverser", fields: [reversedByUserId], references: [id], onDelete: Restrict)
+  device                  ClickatonAccreditationDevice?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@index([registrationId])
   @@index([credentialId])
@@ -11940,40 +11972,40 @@ model ClickatonCheckIn {
 
 /// Configuración de acreditación por edición (deshabilitada por defecto).
 model ClickatonEditionAccreditationConfig {
-  id                    String                              @id @default(cuid())
-  editionId             String                              @unique
-  accreditationEnabled  Boolean                             @default(false)
-  identityMode          ClickatonAccreditationIdentityMode  @default(VISUAL)
-  geofenceMode          ClickatonAccreditationGeofenceMode  @default(OFF)
-  geofenceCenterLat     Float?
-  geofenceCenterLng     Float?
-  geofenceRadiusMeters  Int?
-  geofenceToleranceMeters Int?                              @default(50)
-  allowOfflineEvents     Boolean                             @default(true)
-  shortCodeEnabled      Boolean                             @default(true)
-  createdAt             DateTime                            @default(now())
-  updatedAt             DateTime                            @updatedAt
+  id                      String                             @id @default(cuid())
+  editionId               String                             @unique
+  accreditationEnabled    Boolean                            @default(false)
+  identityMode            ClickatonAccreditationIdentityMode @default(VISUAL)
+  geofenceMode            ClickatonAccreditationGeofenceMode @default(OFF)
+  geofenceCenterLat       Float?
+  geofenceCenterLng       Float?
+  geofenceRadiusMeters    Int?
+  geofenceToleranceMeters Int?                               @default(50)
+  allowOfflineEvents      Boolean                            @default(true)
+  shortCodeEnabled        Boolean                            @default(true)
+  createdAt               DateTime                           @default(now())
+  updatedAt               DateTime                           @updatedAt
 
   edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
 }
 
 model ClickatonAccreditationDevice {
-  id              String                            @id @default(cuid())
+  id              String                             @id @default(cuid())
   editionId       String
   name            String
   /// SHA-256 del device token (nunca plaintext).
-  deviceTokenHash String                            @unique
+  deviceTokenHash String                             @unique
   status          ClickatonAccreditationDeviceStatus @default(ACTIVE)
   assignedUserId  Int?
   lastSeenAt      DateTime?
   lastSyncAt      DateTime?
   createdByUserId Int?
   revokedAt       DateTime?
-  createdAt       DateTime                          @default(now())
-  updatedAt       DateTime                          @updatedAt
+  createdAt       DateTime                           @default(now())
+  updatedAt       DateTime                           @updatedAt
 
-  edition   ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
-  checkIns  ClickatonCheckIn[]
+  edition       ClickatonEdition                     @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  checkIns      ClickatonCheckIn[]
   offlineEvents ClickatonAccreditationOfflineEvent[]
 
   @@index([editionId, status])
@@ -12004,22 +12036,22 @@ model ClickatonAccreditationAudit {
 
 /// Cola offline limitada — backend es fuente de verdad al sincronizar.
 model ClickatonAccreditationOfflineEvent {
-  id               String                   @id @default(cuid())
-  editionId        String
-  deviceId         String?
-  idempotencyKey   String                   @unique
-  qrTokenHashHint  String?
+  id                 String                     @id @default(cuid())
+  editionId          String
+  deviceId           String?
+  idempotencyKey     String                     @unique
+  qrTokenHashHint    String?
   registrationIdHint String?
-  action           String
-  clientOccurredAt DateTime
-  payload          Json?
-  syncStatus       ClickatonOfflineSyncStatus @default(PENDING)
-  syncedAt         DateTime?
-  conflictReason   String?
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  action             String
+  clientOccurredAt   DateTime
+  payload            Json?
+  syncStatus         ClickatonOfflineSyncStatus @default(PENDING)
+  syncedAt           DateTime?
+  conflictReason     String?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
 
-  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  edition ClickatonEdition              @relation(fields: [editionId], references: [id], onDelete: Cascade)
   device  ClickatonAccreditationDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@index([editionId, syncStatus])
@@ -12332,8 +12364,6 @@ model DnxNotificationAttribution {
 
 // =============================================================================
 
-
-
 enum FotorankAwardType {
   FIRST_PLACE
   SECOND_PLACE
@@ -12491,14 +12521,15 @@ model FotorankContestConfigurationVersion {
   allowReplace                  Boolean                         @default(true)
   createdByUserId               Int
   createdAt                     DateTime                        @default(now())
-  updatedAt                     DateTime @updatedAt
+  updatedAt                     DateTime                        @updatedAt
   publishedAt                   DateTime?
   archivedAt                    DateTime?
 
-  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  createdByUser User @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  contest       FotorankContest               @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  createdByUser User                          @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
   rulesVersions FotorankContestRulesVersion[]
   registrations FotorankContestRegistration[]
+
   @@unique([contestId, versionNumber])
   @@index([configurationHash])
   @@index([contestId, status])
@@ -12506,17 +12537,18 @@ model FotorankContestConfigurationVersion {
 }
 
 model FotorankContestRulesAuditEvent {
-  id                          String                      @id @default(cuid())
-  contestId                   String
-  rulesVersionId              String
-  actorUserId                 Int
-  action                      String
-  notes                       String?
-  metadataJson                Json?
-  createdAt                   DateTime                    @default(now())
+  id             String   @id @default(cuid())
+  contestId      String
+  rulesVersionId String
+  actorUserId    Int
+  action         String
+  notes          String?
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
 
   rulesVersion FotorankContestRulesVersion @relation(fields: [rulesVersionId], references: [id], onDelete: Cascade)
-  actorUser User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorUser    User?                       @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
   @@index([actorUserId])
   @@index([contestId, createdAt])
   @@index([rulesVersionId, createdAt])
@@ -12524,16 +12556,16 @@ model FotorankContestRulesAuditEvent {
 
 /// Auditoría de acciones de plataforma / Super Admin (sin alterar membresías).
 model FotorankPlatformAuditEvent {
-  id               String   @id @default(cuid())
-  actorUserId      Int
-  action           String
-  organizationId   String?
-  contestId        String?
-  ip               String?
-  userAgent        String?
-  metadataJson     Json?
-  createdAt        DateTime @default(now())
-  actorUser        User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  actorUserId    Int
+  action         String
+  organizationId String?
+  contestId      String?
+  ip             String?
+  userAgent      String?
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
+  actorUser      User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
 
   @@index([actorUserId, createdAt])
   @@index([organizationId, createdAt])
@@ -12582,93 +12614,97 @@ model FotorankContestRulesTemplate {
   updatedAt         DateTime @updatedAt
 
   createdByUser User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
   @@index([createdByUserId])
   @@index([isActive, category])
 }
 
 model FotorankJuryCriterion {
-  id                         String                       @id @default(cuid())
-  rubricId                   String
-  key                        String
-  name                       String
-  description                String?
-  weight                     Float                        @default(1)
-  minScore                   Float                        @default(1)
-  maxScore                   Float                        @default(10)
-  step                       Float                        @default(1)
-  required                   Boolean                      @default(true)
-  sortOrder                  Int                          @default(100)
-  helpText                   String?
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  rubricId    String
+  key         String
+  name        String
+  description String?
+  weight      Float    @default(1)
+  minScore    Float    @default(1)
+  maxScore    Float    @default(10)
+  step        Float    @default(1)
+  required    Boolean  @default(true)
+  sortOrder   Int      @default(100)
+  helpText    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  rubric FotorankJuryRubric @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  rubric FotorankJuryRubric           @relation(fields: [rubricId], references: [id], onDelete: Cascade)
   scores FotorankJuryCriterionScore[]
+
   @@unique([rubricId, key])
   @@index([rubricId, sortOrder])
 }
 
 model FotorankJuryCriterionScore {
-  id                     String                 @id @default(cuid())
-  evaluationId           String
-  criterionId            String
-  criterionKeySnapshot   String
-  criterionNameSnapshot  String
-  score                  Float
-  weightSnapshot         Float
-  weightedScore          Float
-  comment                String?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  evaluationId          String
+  criterionId           String
+  criterionKeySnapshot  String
+  criterionNameSnapshot String
+  score                 Float
+  weightSnapshot        Float
+  weightedScore         Float
+  comment               String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   evaluation FotorankJuryEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
-  criterion FotorankJuryCriterion @relation(fields: [criterionId], references: [id], onDelete: Restrict)
+  criterion  FotorankJuryCriterion  @relation(fields: [criterionId], references: [id], onDelete: Restrict)
+
   @@unique([evaluationId, criterionId])
   @@index([evaluationId])
 }
 
 model FotorankJuryEvaluation {
-  id                         String                       @id @default(cuid())
-  contestId                  String
-  admissionBatchId           String
-  scoringSessionId           String?
-  juryEntrySnapshotId        String
-  assignmentId               String
-  jurorId                    String
-  rubricId                   String
-  rubricVersion              Int
-  status                     FotorankJuryEvaluationStatus @default(NOT_STARTED)
-  totalScore                 Float?
-  normalizedScore            Float?
-  privateComment             String?
-  participantFeedback        String?
-  startedAt                  DateTime?
-  lastSavedAt                DateTime?
-  submittedAt                DateTime?
-  voidedAt                   DateTime?
-  voidedByUserId             Int?
-  voidReason                 String?
-  idempotencyKey             String?                      @unique
-  expectedVersion            Int                          @default(0)
-  engineVersion              String                       @default("clickaton-jury-scoring-v1")
-  criteriaSnapshot           Json?
+  id                       String                       @id @default(cuid())
+  contestId                String
+  admissionBatchId         String
+  scoringSessionId         String?
+  juryEntrySnapshotId      String
+  assignmentId             String
+  jurorId                  String
+  rubricId                 String
+  rubricVersion            Int
+  status                   FotorankJuryEvaluationStatus @default(NOT_STARTED)
+  totalScore               Float?
+  normalizedScore          Float?
+  privateComment           String?
+  participantFeedback      String?
+  startedAt                DateTime?
+  lastSavedAt              DateTime?
+  submittedAt              DateTime?
+  voidedAt                 DateTime?
+  voidedByUserId           Int?
+  voidReason               String?
+  idempotencyKey           String?                      @unique
+  expectedVersion          Int                          @default(0)
+  engineVersion            String                       @default("clickaton-jury-scoring-v1")
+  criteriaSnapshot         Json?
   /// ETAPA 16A — postergar evaluación ("revisar después").
-  postponedAt                DateTime?
+  postponedAt              DateTime?
   /// ETAPA 16A — confirmación de bloque/consigna (grilla final antes de LOCKED).
-  confirmedBlockAt           DateTime?
+  confirmedBlockAt         DateTime?
   /// ETAPA 16A — tiempo activo acumulado (segundos) para ETA de jurado.
-  activeSecondsAccumulated   Int                          @default(0)
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime @updatedAt
+  activeSecondsAccumulated Int                          @default(0)
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
 
-  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  admissionBatch FotorankAdmissionBatch @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
-  scoringSession FotorankJuryScoringSession? @relation(fields: [scoringSessionId], references: [id], onDelete: SetNull)
-  juryEntrySnapshot FotorankJuryEntrySnapshot @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
-  assignment FotorankJudgeAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  juror FotorankJudgeAccount @relation(fields: [jurorId], references: [id], onDelete: Cascade)
-  rubric FotorankJuryRubric @relation(fields: [rubricId], references: [id], onDelete: Restrict)
-  criterionScores FotorankJuryCriterionScore[]
+  contest           FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch    FotorankAdmissionBatch       @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
+  scoringSession    FotorankJuryScoringSession?  @relation(fields: [scoringSessionId], references: [id], onDelete: SetNull)
+  juryEntrySnapshot FotorankJuryEntrySnapshot    @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+  assignment        FotorankJudgeAssignment      @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  juror             FotorankJudgeAccount         @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  rubric            FotorankJuryRubric           @relation(fields: [rubricId], references: [id], onDelete: Restrict)
+  criterionScores   FotorankJuryCriterionScore[]
+
   @@unique([assignmentId, juryEntrySnapshotId])
   @@index([contestId, status])
   @@index([jurorId, status])
@@ -12677,106 +12713,108 @@ model FotorankJuryEvaluation {
 }
 
 model FotorankJuryPreliminaryAggregate {
-  id                         String                     @id @default(cuid())
-  contestId                  String
-  admissionBatchId           String
-  scoringSessionId           String
-  juryEntrySnapshotId        String
-  anonymousCode              String
-  evaluationCount            Int                        @default(0)
-  averageScore               Float?
-  medianScore                Float?
-  normalizedAverage          Float?
-  minScore                   Float?
-  maxScore                   Float?
-  stdDev                     Float?
-  coverageComplete           Boolean                    @default(false)
-  engineVersion              String                     @default("clickaton-jury-scoring-v1")
-  computedAt                 DateTime                   @default(now())
-  metadata                   Json?
+  id                  String   @id @default(cuid())
+  contestId           String
+  admissionBatchId    String
+  scoringSessionId    String
+  juryEntrySnapshotId String
+  anonymousCode       String
+  evaluationCount     Int      @default(0)
+  averageScore        Float?
+  medianScore         Float?
+  normalizedAverage   Float?
+  minScore            Float?
+  maxScore            Float?
+  stdDev              Float?
+  coverageComplete    Boolean  @default(false)
+  engineVersion       String   @default("clickaton-jury-scoring-v1")
+  computedAt          DateTime @default(now())
+  metadata            Json?
 
-  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  admissionBatch FotorankAdmissionBatch @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
-  scoringSession FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
-  juryEntrySnapshot FotorankJuryEntrySnapshot @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+  contest           FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch    FotorankAdmissionBatch     @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
+  scoringSession    FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+  juryEntrySnapshot FotorankJuryEntrySnapshot  @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+
   @@unique([scoringSessionId, juryEntrySnapshotId], map: "FotorankJuryPreliminaryAggregate_scoringSessionId_juryEntrySnap")
   @@index([anonymousCode])
   @@index([contestId, scoringSessionId])
 }
 
 model FotorankJuryRubric {
-  id                         String                       @id @default(cuid())
-  contestId                  String
-  admissionBatchId           String?
-  version                    Int                          @default(1)
-  name                       String
-  description                String?
-  status                     FotorankJuryRubricStatus     @default(DRAFT)
-  scoringMode                FotorankJuryScoringMode      @default(WEIGHTED_SCORE)
-  minTotal                   Float?
-  maxTotal                   Float?
-  createdByUserId            Int?
-  activatedByUserId          Int?
-  activatedAt                DateTime?
-  criteriaSnapshot           Json?
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime @updatedAt
+  id                String                   @id @default(cuid())
+  contestId         String
+  admissionBatchId  String?
+  version           Int                      @default(1)
+  name              String
+  description       String?
+  status            FotorankJuryRubricStatus @default(DRAFT)
+  scoringMode       FotorankJuryScoringMode  @default(WEIGHTED_SCORE)
+  minTotal          Float?
+  maxTotal          Float?
+  createdByUserId   Int?
+  activatedByUserId Int?
+  activatedAt       DateTime?
+  criteriaSnapshot  Json?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
 
-  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  admissionBatch FotorankAdmissionBatch? @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
-  criteria FotorankJuryCriterion[]
+  contest         FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch  FotorankAdmissionBatch?      @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
+  criteria        FotorankJuryCriterion[]
   scoringSessions FotorankJuryScoringSession[]
-  evaluations FotorankJuryEvaluation[]
+  evaluations     FotorankJuryEvaluation[]
+
   @@unique([contestId, name, version])
   @@index([admissionBatchId])
   @@index([contestId, status])
 }
 
 model FotorankJuryScoringSession {
-  id                               String                             @id @default(cuid())
-  contestId                        String
-  admissionBatchId                 String
-  rubricId                         String
-  status                           FotorankJuryScoringSessionStatus   @default(DRAFT)
-  scoringEnabled                   Boolean                            @default(false)
-  opensAt                          DateTime?
-  closesAt                         DateTime?
-  timelineVersionSnapshot          Int?
-  minimumEvaluationsPerEntry       Int                                @default(1)
-  assignmentsCount                 Int                                @default(0)
-  submittedEvaluationsCount        Int                                @default(0)
-  incompleteEntriesCount           Int                                @default(0)
-  assignmentSeed                   String?
-  openedByUserId                   Int?
-  closedByUserId                   Int?
-  openedAt                         DateTime?
-  closedAt                         DateTime?
-  metadata                         Json?
-  createdAt                        DateTime                           @default(now())
-  updatedAt                        DateTime @updatedAt
+  id                         String                           @id @default(cuid())
+  contestId                  String
+  admissionBatchId           String
+  rubricId                   String
+  status                     FotorankJuryScoringSessionStatus @default(DRAFT)
+  scoringEnabled             Boolean                          @default(false)
+  opensAt                    DateTime?
+  closesAt                   DateTime?
+  timelineVersionSnapshot    Int?
+  minimumEvaluationsPerEntry Int                              @default(1)
+  assignmentsCount           Int                              @default(0)
+  submittedEvaluationsCount  Int                              @default(0)
+  incompleteEntriesCount     Int                              @default(0)
+  assignmentSeed             String?
+  openedByUserId             Int?
+  closedByUserId             Int?
+  openedAt                   DateTime?
+  closedAt                   DateTime?
+  metadata                   Json?
+  createdAt                  DateTime                         @default(now())
+  updatedAt                  DateTime                         @updatedAt
 
-  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  admissionBatch FotorankAdmissionBatch @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
-  rubric FotorankJuryRubric @relation(fields: [rubricId], references: [id], onDelete: Restrict)
-  evaluations FotorankJuryEvaluation[]
-  aggregates FotorankJuryPreliminaryAggregate[]
-  resultBatches FotorankResultBatch[]
+  contest                       FotorankContest                    @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch                FotorankAdmissionBatch             @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
+  rubric                        FotorankJuryRubric                 @relation(fields: [rubricId], references: [id], onDelete: Restrict)
+  evaluations                   FotorankJuryEvaluation[]
+  aggregates                    FotorankJuryPreliminaryAggregate[]
+  resultBatches                 FotorankResultBatch[]
   /// ETAPA 16A — recomendación de carga (no bloqueante); default 500 fotos evaluadas/jurado.
-  recommendedMaxEntriesPerJudge    Int                                @default(500)
+  recommendedMaxEntriesPerJudge Int                                @default(500)
   /// ETAPA 16A — Clickatón exige enteros; otros concursos pueden habilitar decimales.
-  scoreIntegerOnly                 Boolean                            @default(true)
-  scoreScaleMin                    Int                                @default(1)
-  scoreScaleMax                    Int                                @default(10)
-  activityHeartbeats FotorankJuryActivityHeartbeat[]
+  scoreIntegerOnly              Boolean                            @default(true)
+  scoreScaleMin                 Int                                @default(1)
+  scoreScaleMax                 Int                                @default(10)
+  activityHeartbeats            FotorankJuryActivityHeartbeat[]
   /// ETAPA 16B — finalistas (§8 master rules) y paquete de confirmación previo a voto público.
-  finalistSnapshots FotorankFinalistSnapshot[]
-  finalistPackages FotorankFinalistPackage[]
+  finalistSnapshots             FotorankFinalistSnapshot[]
+  finalistPackages              FotorankFinalistPackage[]
+  resultRuleSets                FotorankResultRuleSet[]
+
   @@index([admissionBatchId, status])
   @@index([contestId, status])
   @@index([rubricId])
-  resultRuleSets FotorankResultRuleSet[]
 }
-
 
 model FotorankMinorAuthorization {
   id                     String   @id @default(cuid())
@@ -12798,7 +12836,6 @@ model FotorankMinorAuthorization {
   @@index([contestId])
   @@index([participantUserId])
 }
-
 
 model FotorankResultBatch {
   id                  String                    @id @default(cuid())
@@ -12822,7 +12859,7 @@ model FotorankResultBatch {
   idempotencyKey      String?                   @unique
   metadata            Json?
   createdAt           DateTime                  @default(now())
-  updatedAt           DateTime @updatedAt
+  updatedAt           DateTime                  @updatedAt
 
   contest          FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
   admissionBatch   FotorankAdmissionBatch     @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
@@ -12834,11 +12871,11 @@ model FotorankResultBatch {
 
   /// ETAPA 16B — finalistas empaquetados desde este batch (§8 master rules).
   finalistSnapshots FotorankFinalistSnapshot[]
+
   @@index([contestId, status])
   @@index([ruleSetId])
   @@index([scoringSessionId, status])
 }
-
 
 model FotorankResultEntry {
   id                  String                       @id @default(cuid())
@@ -12862,10 +12899,10 @@ model FotorankResultEntry {
   juryDecisionNote    String?
   flagsJson           Json?
   createdAt           DateTime                     @default(now())
-  updatedAt           DateTime @updatedAt
+  updatedAt           DateTime                     @updatedAt
 
-  resultBatch       FotorankResultBatch        @relation(fields: [resultBatchId], references: [id], onDelete: Cascade)
-  juryEntrySnapshot FotorankJuryEntrySnapshot  @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+  resultBatch       FotorankResultBatch       @relation(fields: [resultBatchId], references: [id], onDelete: Cascade)
+  juryEntrySnapshot FotorankJuryEntrySnapshot @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
   exclusions        FotorankResultExclusion[]
 
   @@unique([resultBatchId, juryEntrySnapshotId, scopeKey], map: "FotorankResultEntry_resultBatchId_juryEntrySnapshotId_scopeKey_")
@@ -12873,7 +12910,6 @@ model FotorankResultEntry {
   @@index([categoryId, promptExternalId])
   @@index([resultBatchId, preliminaryPosition])
 }
-
 
 model FotorankResultExclusion {
   id             String   @id @default(cuid())
@@ -12889,7 +12925,6 @@ model FotorankResultExclusion {
 
   @@index([resultEntryId])
 }
-
 
 model FotorankResultRevision {
   id             String   @id @default(cuid())
@@ -12907,36 +12942,35 @@ model FotorankResultRevision {
   @@index([resultBatchId])
 }
 
-
 model FotorankResultRuleSet {
-  id                         String                          @id @default(cuid())
-  contestId                  String
-  admissionBatchId           String?
-  scoringSessionId           String?
-  version                    Int                             @default(1)
-  name                       String                          @default("Reglas de resultados")
-  status                     FotorankResultRuleSetStatus     @default(DRAFT)
-  aggregationMethod          FotorankResultAggregationMethod @default(WEIGHTED_AVERAGE)
-  tieBreakStrategy           FotorankResultTieBreakStrategy  @default(PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION)
-  minimumValidEvaluations    Int                             @default(1)
-  discardHighestScore        Boolean                         @default(false)
-  discardLowestScore         Boolean                         @default(false)
-  normalizationMode          String                          @default("NORMALIZED_TOTAL")
-  priorityCriterionKey       String?
-  rankingEnabled             Boolean                         @default(false)
-  winnersPerScope            Int                             @default(1)
-  allowMultipleAwards        Boolean                         @default(true)
-  oneAwardPerParticipant     Boolean                         @default(false)
-  incompleteCoveragePolicy   String                          @default("BLOCK_FINALIZE")
-  createdByUserId            Int?
-  activatedByUserId          Int?
-  activatedAt                DateTime?
-  configJson                 Json?
-  createdAt                  DateTime                        @default(now())
-  updatedAt                  DateTime @updatedAt
+  id                       String                          @id @default(cuid())
+  contestId                String
+  admissionBatchId         String?
+  scoringSessionId         String?
+  version                  Int                             @default(1)
+  name                     String                          @default("Reglas de resultados")
+  status                   FotorankResultRuleSetStatus     @default(DRAFT)
+  aggregationMethod        FotorankResultAggregationMethod @default(WEIGHTED_AVERAGE)
+  tieBreakStrategy         FotorankResultTieBreakStrategy  @default(PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION)
+  minimumValidEvaluations  Int                             @default(1)
+  discardHighestScore      Boolean                         @default(false)
+  discardLowestScore       Boolean                         @default(false)
+  normalizationMode        String                          @default("NORMALIZED_TOTAL")
+  priorityCriterionKey     String?
+  rankingEnabled           Boolean                         @default(false)
+  winnersPerScope          Int                             @default(1)
+  allowMultipleAwards      Boolean                         @default(true)
+  oneAwardPerParticipant   Boolean                         @default(false)
+  incompleteCoveragePolicy String                          @default("BLOCK_FINALIZE")
+  createdByUserId          Int?
+  activatedByUserId        Int?
+  activatedAt              DateTime?
+  configJson               Json?
+  createdAt                DateTime                        @default(now())
+  updatedAt                DateTime                        @updatedAt
 
-  contest        FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  admissionBatch FotorankAdmissionBatch?    @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
+  contest        FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch FotorankAdmissionBatch?     @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
   scoringSession FotorankJuryScoringSession? @relation(fields: [scoringSessionId], references: [id])
   batches        FotorankResultBatch[]
 
@@ -12944,7 +12978,6 @@ model FotorankResultRuleSet {
   @@index([contestId, status])
   @@index([scoringSessionId])
 }
-
 
 model FotorankTieBreakSession {
   id              String                        @id @default(cuid())
@@ -12961,7 +12994,7 @@ model FotorankTieBreakSession {
   closedByUserId  Int?
   createdAt       DateTime                      @default(now())
   closedAt        DateTime?
-  updatedAt       DateTime @updatedAt
+  updatedAt       DateTime                      @updatedAt
 
   contest     FotorankContest     @relation(fields: [contestId], references: [id], onDelete: Cascade)
   resultBatch FotorankResultBatch @relation(fields: [resultBatchId], references: [id], onDelete: Cascade)
@@ -12988,27 +13021,27 @@ enum ClickatonEntitlementStatus {
 }
 
 model ClickatonUserEntitlement {
-  id               String                     @id @default(cuid())
-  userId           Int
-  type             ClickatonEntitlementType
-  status           ClickatonEntitlementStatus @default(ACTIVE)
-  sourceEditionId  String?
-  targetEditionId  String?
-  startsAt         DateTime?
-  expiresAt        DateTime?
-  usedAt           DateTime?
-  purchasedAt      DateTime?
+  id                 String                     @id @default(cuid())
+  userId             Int
+  type               ClickatonEntitlementType
+  status             ClickatonEntitlementStatus @default(ACTIVE)
+  sourceEditionId    String?
+  targetEditionId    String?
+  startsAt           DateTime?
+  expiresAt          DateTime?
+  usedAt             DateTime?
+  purchasedAt        DateTime?
   purchasePriceMinor Int?
-  startingEditionId String?
-  totalCredits     Int?
-  consumedCredits  Int                        @default(0)
-  cycleKey         String?
-  metadata         Json?
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
+  startingEditionId  String?
+  totalCredits       Int?
+  consumedCredits    Int                        @default(0)
+  cycleKey           String?
+  metadata           Json?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
 
-  sourceEdition ClickatonEdition? @relation("EntitlementSourceEdition", fields: [sourceEditionId], references: [id], onDelete: SetNull)
-  targetEdition ClickatonEdition? @relation("EntitlementTargetEdition", fields: [targetEditionId], references: [id], onDelete: SetNull)
+  sourceEdition ClickatonEdition?                 @relation("EntitlementSourceEdition", fields: [sourceEditionId], references: [id], onDelete: SetNull)
+  targetEdition ClickatonEdition?                 @relation("EntitlementTargetEdition", fields: [targetEditionId], references: [id], onDelete: SetNull)
   consumptions  ClickatonEntitlementConsumption[]
 
   @@index([userId, type, status])
@@ -13017,13 +13050,13 @@ model ClickatonUserEntitlement {
 }
 
 model ClickatonEntitlementConsumption {
-  id              String   @id @default(cuid())
-  entitlementId   String
-  editionId       String
-  eventType       String
-  idempotencyKey  String
-  consumedAt      DateTime @default(now())
-  metadata        Json?
+  id             String   @id @default(cuid())
+  entitlementId  String
+  editionId      String
+  eventType      String
+  idempotencyKey String
+  consumedAt     DateTime @default(now())
+  metadata       Json?
 
   entitlement ClickatonUserEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
 
@@ -13040,34 +13073,34 @@ enum ClickatonPrizeBundleStatus {
 }
 
 model ClickatonPrizeBundle {
-  id                     String                     @id @default(cuid())
-  editionId              String
-  slot                   Int
-  name                   String
-  description            String?
-  sponsor                String?
-  itemsJson              Json?
-  referentialValueMinor  Int?
-  status                 ClickatonPrizeBundleStatus @default(DRAFT)
-  replacementNotes       String?
-  createdAt              DateTime                   @default(now())
-  updatedAt              DateTime                   @updatedAt
+  id                    String                     @id @default(cuid())
+  editionId             String
+  slot                  Int
+  name                  String
+  description           String?
+  sponsor               String?
+  itemsJson             Json?
+  referentialValueMinor Int?
+  status                ClickatonPrizeBundleStatus @default(DRAFT)
+  replacementNotes      String?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
 
-  edition      ClickatonEdition            @relation(fields: [editionId], references: [id], onDelete: Cascade)
-  assignments  ClickatonPrizeAssignment[]
+  edition     ClickatonEdition           @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  assignments ClickatonPrizeAssignment[]
 
   @@unique([editionId, slot])
   @@index([editionId, status])
 }
 
 model ClickatonPrizeAssignment {
-  id                   String   @id @default(cuid())
+  id                   String    @id @default(cuid())
   editionId            String
   bundleId             String
   winnerRegistrationId String?
   winnerEntryId        String?
   promptId             String?
-  assignedAt           DateTime @default(now())
+  assignedAt           DateTime  @default(now())
   deliveryDueAt        DateTime?
   deliveredAt          DateTime?
   replacedAt           DateTime?
@@ -13091,21 +13124,21 @@ enum ClickatonSocialVotingStatus {
 }
 
 model ClickatonSocialVotingRound {
-  id              String                      @id @default(cuid())
-  editionId       String
-  promptId        String
-  status          ClickatonSocialVotingStatus @default(DRAFT)
-  publishedAt     DateTime?
-  votingClosesAt  DateTime?
+  id               String                      @id @default(cuid())
+  editionId        String
+  promptId         String
+  status           ClickatonSocialVotingStatus @default(DRAFT)
+  publishedAt      DateTime?
+  votingClosesAt   DateTime?
   carouselMediaIds Json?
-  likeCountsJson  Json?
-  winnerEntryId   String?
-  fraudFlagsJson  Json?
-  resolvedAt      DateTime?
-  createdAt       DateTime                    @default(now())
-  updatedAt       DateTime                    @updatedAt
+  likeCountsJson   Json?
+  winnerEntryId    String?
+  fraudFlagsJson   Json?
+  resolvedAt       DateTime?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
 
-  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  edition    ClickatonEdition               @relation(fields: [editionId], references: [id], onDelete: Cascade)
   fraudFlags ClickatonSocialVoteFraudFlag[]
 
   @@unique([editionId, promptId])
@@ -13137,7 +13170,7 @@ enum ClickatonRoyaltyLedgerStatus {
 }
 
 model ClickatonPhotographerRoyaltyLedger {
-  id                    String                      @id @default(cuid())
+  id                    String                       @id @default(cuid())
   editionId             String
   photographerUserId    Int
   productKind           String
@@ -13146,10 +13179,10 @@ model ClickatonPhotographerRoyaltyLedger {
   entryId               String?
   workTitle             String?
   productPaidMinor      Int
-  shippingPaidMinor     Int                         @default(0)
+  shippingPaidMinor     Int                          @default(0)
   royaltyBaseMinor      Int
   royaltyMinor          Int
-  currency              String                      @default("ARS")
+  currency              String                       @default("ARS")
   status                ClickatonRoyaltyLedgerStatus @default(PENDING)
   soldAt                DateTime
   availableAt           DateTime
@@ -13157,8 +13190,8 @@ model ClickatonPhotographerRoyaltyLedger {
   paidAt                DateTime?
   reversedAt            DateTime?
   auditJson             Json?
-  createdAt             DateTime                    @default(now())
-  updatedAt             DateTime                    @updatedAt
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
 
   edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
 
@@ -13207,7 +13240,6 @@ model DnxCommunicationWebhookEvent {
   @@index([provider, normalizedEventType])
   @@index([providerMessageId])
 }
-
 
 // ---------------------------------------------------------------------------
 // DNX Partners — sponsors, aportes y beneficios transversales (Etapa 01)
@@ -13417,45 +13449,45 @@ enum DnxPartnerGrantStatus {
 
 /// Ficha canónica de partner comercial (empresa, marca, institución, persona).
 model DnxPartner {
-  id              String          @id @default(cuid())
-  name            String
-  legalName       String?
-  slug            String          @unique
-  description     String?
-  type            DnxPartnerType  @default(COMPANY)
-  status          DnxPartnerStatus @default(PROSPECT)
-  logoUrl         String?
-  websiteUrl      String?
-  instagram       String?
-  facebookUrl     String?
-  linkedinUrl     String?
-  email           String?
-  phone           String?
-  taxId           String?
-  address         String?
-  city            String?
-  provinceOrState String?
-  country         String?
-  postalCode      String?
-  notes           String?
+  id                  String           @id @default(cuid())
+  name                String
+  legalName           String?
+  slug                String           @unique
+  description         String?
+  type                DnxPartnerType   @default(COMPANY)
+  status              DnxPartnerStatus @default(PROSPECT)
+  logoUrl             String?
+  websiteUrl          String?
+  instagram           String?
+  facebookUrl         String?
+  linkedinUrl         String?
+  email               String?
+  phone               String?
+  taxId               String?
+  address             String?
+  city                String?
+  provinceOrState     String?
+  country             String?
+  postalCode          String?
+  notes               String?
   /// Soft-link opcional a identidad financiera (nunca obligatorio).
   financialIdentityId String?
-  createdByUserId Int?
-  updatedByUserId Int?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  archivedAt      DateTime?
+  createdByUserId     Int?
+  updatedByUserId     Int?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  archivedAt          DateTime?
 
-  contacts               DnxPartnerContact[]
-  participations         DnxPartnerParticipation[]
-  benefits               DnxPartnerBenefit[]
-  auditEvents            DnxPartnerAuditEvent[]
-  outboundLinks          DnxPartnerOutboundLink[]
-  clickEvents            DnxPartnerClickEvent[]
-  impressionEvents       DnxPartnerImpressionEvent[]
-  brandAssets            DnxPartnerAsset[]
-  onboardingInvitations  DnxPartnerOnboardingInvitation[]
-  campaigns              DnxPartnerCampaign[]
+  contacts              DnxPartnerContact[]
+  participations        DnxPartnerParticipation[]
+  benefits              DnxPartnerBenefit[]
+  auditEvents           DnxPartnerAuditEvent[]
+  outboundLinks         DnxPartnerOutboundLink[]
+  clickEvents           DnxPartnerClickEvent[]
+  impressionEvents      DnxPartnerImpressionEvent[]
+  brandAssets           DnxPartnerAsset[]
+  onboardingInvitations DnxPartnerOnboardingInvitation[]
+  campaigns             DnxPartnerCampaign[]
 
   @@index([status, updatedAt])
   @@index([type, status])
@@ -13463,7 +13495,7 @@ model DnxPartner {
 }
 
 model DnxPartnerContact {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   partnerId     String
   firstName     String
   lastName      String?
@@ -13472,12 +13504,12 @@ model DnxPartnerContact {
   phone         String?
   whatsapp      String?
   /// Default false: contacto privado salvo opt-in explícito.
-  emailIsPublic Boolean  @default(false)
-  phoneIsPublic Boolean  @default(false)
-  isPrimary     Boolean  @default(false)
+  emailIsPublic Boolean   @default(false)
+  phoneIsPublic Boolean   @default(false)
+  isPrimary     Boolean   @default(false)
   notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   archivedAt    DateTime?
 
   partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
@@ -13503,11 +13535,11 @@ enum DnxPartnerOnboardingReviewStatus {
 
 /// Invitación pública con token hasheado (nunca plaintext) para completar ficha.
 model DnxPartnerOnboardingInvitation {
-  id               String                              @id @default(cuid())
+  id               String                               @id @default(cuid())
   partnerId        String
   participationId  String?
   /// SHA-256 del token público. El plaintext solo se muestra una vez al crear.
-  tokenHash        String                              @unique
+  tokenHash        String                               @unique
   status           DnxPartnerOnboardingInvitationStatus @default(PENDING)
   reviewStatus     DnxPartnerOnboardingReviewStatus     @default(NONE)
   expiresAt        DateTime
@@ -13520,10 +13552,10 @@ model DnxPartnerOnboardingInvitation {
   createdByUserId  Int?
   reviewedByUserId Int?
   reviewedAt       DateTime?
-  createdAt        DateTime                            @default(now())
-  updatedAt        DateTime                            @updatedAt
+  createdAt        DateTime                             @default(now())
+  updatedAt        DateTime                             @updatedAt
 
-  partner       DnxPartner              @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  partner       DnxPartner               @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   participation DnxPartnerParticipation? @relation(fields: [participationId], references: [id], onDelete: SetNull)
 
   @@index([partnerId, status])
@@ -13533,55 +13565,55 @@ model DnxPartnerOnboardingInvitation {
 }
 
 model DnxPartnerParticipation {
-  id                 String                         @id @default(cuid())
-  partnerId          String
+  id                   String                        @id @default(cuid())
+  partnerId            String
   /// Ref opaca de organización de producto (ContestOrganization, Workspace, etc.).
-  organizationId     String?
-  application        DnxPartnerApplication
-  contextType        DnxPartnerContextType          @default(GLOBAL)
-  contextId          String?
-  participationType  DnxPartnerParticipationType    @default(SPONSOR)
+  organizationId       String?
+  application          DnxPartnerApplication
+  contextType          DnxPartnerContextType         @default(GLOBAL)
+  contextId            String?
+  participationType    DnxPartnerParticipationType   @default(SPONSOR)
   /// Rol institucional contextual (Organizador, Sponsor, Colaborador, …).
-  institutionalRole  DnxPartnerInstitutionalRole    @default(SPONSOR)
+  institutionalRole    DnxPartnerInstitutionalRole   @default(SPONSOR)
   /// Jerarquía visual (tamaño/grupo), independiente del rol.
-  displayTier        DnxPartnerDisplayTier          @default(STANDARD)
+  displayTier          DnxPartnerDisplayTier         @default(STANDARD)
   /// Orden manual dentro del grupo (menor = primero).
-  displayOrder       Int                            @default(100)
+  displayOrder         Int                           @default(100)
   /// Label público opcional (sin HTML). Fallback al label del enum.
-  publicRoleLabel    String?                        @db.VarChar(120)
+  publicRoleLabel      String?                       @db.VarChar(120)
   /// Destino de click de esta participación (prioridad sobre partner.websiteUrl).
-  destinationUrl     String?
+  destinationUrl       String?
   /// Si true y hay destino válido, se genera/usa outbound link trackeable.
-  clickTrackingEnabled Boolean                      @default(true)
+  clickTrackingEnabled Boolean                       @default(true)
   /// Gate de landing: CONFIRMED + PUBLIC (+ logo cuando aplique). Default HIDDEN.
-  publicVisibility   DnxPartnerPublicVisibility     @default(HIDDEN)
-  title              String?
-  description        String?
-  status             DnxPartnerParticipationStatus  @default(DRAFT)
-  startsAt           DateTime?
-  endsAt             DateTime?
+  publicVisibility     DnxPartnerPublicVisibility    @default(HIDDEN)
+  title                String?
+  description          String?
+  status               DnxPartnerParticipationStatus @default(DRAFT)
+  startsAt             DateTime?
+  endsAt               DateTime?
   /// Default false: la participación no implica cobro.
-  requiresPayment    Boolean                        @default(false)
-  paymentMode        DnxPartnerPaymentMode          @default(NONE)
-  paymentAmountMinor Int?
-  paymentCurrency    String?                        @default("ARS")
-  paymentNotes       String?
-  estimatedValueMinor Int?
-  currency           String?                        @default("ARS")
-  notes              String?
-  createdByUserId    Int?
-  updatedByUserId    Int?
-  createdAt          DateTime                       @default(now())
-  updatedAt          DateTime                       @updatedAt
-  archivedAt         DateTime?
+  requiresPayment      Boolean                       @default(false)
+  paymentMode          DnxPartnerPaymentMode         @default(NONE)
+  paymentAmountMinor   Int?
+  paymentCurrency      String?                       @default("ARS")
+  paymentNotes         String?
+  estimatedValueMinor  Int?
+  currency             String?                       @default("ARS")
+  notes                String?
+  createdByUserId      Int?
+  updatedByUserId      Int?
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+  archivedAt           DateTime?
 
-  partner                DnxPartner                         @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-  contributions          DnxPartnerContribution[]
-  benefits               DnxPartnerBenefit[]
-  outboundLinks          DnxPartnerOutboundLink[]
-  materials              DnxPartnerParticipationAsset[]
-  onboardingInvitations  DnxPartnerOnboardingInvitation[]
-  campaigns              DnxPartnerCampaign[]
+  partner               DnxPartner                       @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  contributions         DnxPartnerContribution[]
+  benefits              DnxPartnerBenefit[]
+  outboundLinks         DnxPartnerOutboundLink[]
+  materials             DnxPartnerParticipationAsset[]
+  onboardingInvitations DnxPartnerOnboardingInvitation[]
+  campaigns             DnxPartnerCampaign[]
 
   @@index([partnerId, status])
   @@index([application, status])
@@ -13708,12 +13740,12 @@ enum DnxPartnerStorageProvider {
 
 /// Identidad de marca permanente del partner (logos, isotipo, manual).
 model DnxPartnerAsset {
-  id               String                         @id @default(cuid())
+  id               String                        @id @default(cuid())
   partnerId        String
   type             DnxPartnerBrandAssetType
   name             String
   description      String?
-  storageProvider  DnxPartnerStorageProvider      @default(R2)
+  storageProvider  DnxPartnerStorageProvider     @default(R2)
   storageKey       String?
   fileUrl          String?
   mediaAssetId     String?
@@ -13725,18 +13757,18 @@ model DnxPartnerAsset {
   height           Int?
   durationSeconds  Float?
   aspectRatio      String?
-  backgroundType   DnxPartnerAssetBackground      @default(UNKNOWN)
-  isPrimary        Boolean                        @default(false)
-  status           DnxPartnerAssetStatus          @default(DRAFT)
-  approvalStatus   DnxPartnerAssetApprovalStatus  @default(PENDING)
+  backgroundType   DnxPartnerAssetBackground     @default(UNKNOWN)
+  isPrimary        Boolean                       @default(false)
+  status           DnxPartnerAssetStatus         @default(DRAFT)
+  approvalStatus   DnxPartnerAssetApprovalStatus @default(PENDING)
   altText          String?
   notes            String?
   metadata         Json?
   uploadedById     Int?
   approvedById     Int?
   approvedAt       DateTime?
-  createdAt        DateTime                       @default(now())
-  updatedAt        DateTime                       @updatedAt
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
   archivedAt       DateTime?
 
   partner   DnxPartner                   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
@@ -13751,18 +13783,18 @@ model DnxPartnerAsset {
 
 /// Materiales de una participación concreta (canal/edición/beneficio).
 model DnxPartnerParticipationAsset {
-  id               String                         @id @default(cuid())
+  id               String                        @id @default(cuid())
   participationId  String
   benefitId        String?
   contributionId   String?
   prizeBundleId    String?
-  application      DnxPartnerApplication          @default(CLICKATON)
-  channel          DnxPartnerMaterialChannel      @default(WEB)
-  assetType        DnxPartnerMaterialType         @default(IMAGE)
-  purpose          DnxPartnerMaterialPurpose      @default(SPONSOR_VISIBILITY)
+  application      DnxPartnerApplication         @default(CLICKATON)
+  channel          DnxPartnerMaterialChannel     @default(WEB)
+  assetType        DnxPartnerMaterialType        @default(IMAGE)
+  purpose          DnxPartnerMaterialPurpose     @default(SPONSOR_VISIBILITY)
   name             String
   description      String?
-  storageProvider  DnxPartnerStorageProvider      @default(R2)
+  storageProvider  DnxPartnerStorageProvider     @default(R2)
   storageKey       String?
   fileUrl          String?
   mediaAssetId     String?
@@ -13774,22 +13806,22 @@ model DnxPartnerParticipationAsset {
   height           Int?
   durationSeconds  Float?
   aspectRatio      String?
-  orientation      DnxPartnerAssetOrientation     @default(UNKNOWN)
-  status           DnxPartnerAssetStatus          @default(DRAFT)
-  approvalStatus   DnxPartnerAssetApprovalStatus  @default(PENDING)
+  orientation      DnxPartnerAssetOrientation    @default(UNKNOWN)
+  status           DnxPartnerAssetStatus         @default(DRAFT)
+  approvalStatus   DnxPartnerAssetApprovalStatus @default(PENDING)
   startsAt         DateTime?
   endsAt           DateTime?
   altText          String?
   caption          String?
   ctaText          String?
   ctaUrl           String?
-  sortOrder        Int                            @default(100)
+  sortOrder        Int                           @default(100)
   metadata         Json?
   uploadedById     Int?
   approvedById     Int?
   approvedAt       DateTime?
-  createdAt        DateTime                       @default(now())
-  updatedAt        DateTime                       @updatedAt
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
   archivedAt       DateTime?
 
   participation DnxPartnerParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
@@ -13858,7 +13890,7 @@ model DnxPartnerOutboundLink {
   updatedAt       DateTime                     @updatedAt
   archivedAt      DateTime?
 
-  partner       DnxPartner              @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  partner       DnxPartner               @relation(fields: [partnerId], references: [id], onDelete: Restrict)
   participation DnxPartnerParticipation? @relation(fields: [participationId], references: [id], onDelete: SetNull)
   clickEvents   DnxPartnerClickEvent[]
 
@@ -13870,20 +13902,20 @@ model DnxPartnerOutboundLink {
 
 /// Evento de click outbound. Privacy-first: sin IP, sin UA crudo, sin PII.
 model DnxPartnerClickEvent {
-  id              String                 @id @default(cuid())
+  id              String                @id @default(cuid())
   outboundLinkId  String
   partnerId       String
   participationId String?
   application     DnxPartnerApplication
-  contextType     DnxPartnerContextType  @default(GLOBAL)
+  contextType     DnxPartnerContextType @default(GLOBAL)
   contextId       String?
   assetId         String?
-  placement       DnxPartnerPlacement    @default(LOGO)
-  occurredAt      DateTime               @default(now())
-  referrerHost    String?                @db.VarChar(255)
-  deviceClass     DnxPartnerDeviceClass  @default(OTHER)
-  browserFamily   String?                @db.VarChar(40)
-  countryCode     String?                @db.VarChar(2)
+  placement       DnxPartnerPlacement   @default(LOGO)
+  occurredAt      DateTime              @default(now())
+  referrerHost    String?               @db.VarChar(255)
+  deviceClass     DnxPartnerDeviceClass @default(OTHER)
+  browserFamily   String?               @db.VarChar(40)
+  countryCode     String?               @db.VarChar(2)
   metadata        Json?
 
   outboundLink DnxPartnerOutboundLink @relation(fields: [outboundLinkId], references: [id], onDelete: Cascade)
@@ -13901,24 +13933,24 @@ model DnxPartnerClickEvent {
 /// Impresión publicitaria (viewability). Privacy-first: sin IP, UA crudo, userId ni fingerprint.
 /// Solo Campaign ads en v1 (no participation institucional ORGANIZER/CO_ORGANIZER).
 model DnxPartnerImpressionEvent {
-  id              String                 @id @default(cuid())
-  partnerId       String
-  campaignId      String?
-  creativeId      String?
-  outboundLinkId  String?
-  application     DnxPartnerApplication
-  contextType     DnxPartnerContextType  @default(GLOBAL)
-  contextId       String?
-  placement       DnxPartnerPlacement    @default(LOGO_MARQUEE)
+  id             String                @id @default(cuid())
+  partnerId      String
+  campaignId     String?
+  creativeId     String?
+  outboundLinkId String?
+  application    DnxPartnerApplication
+  contextType    DnxPartnerContextType @default(GLOBAL)
+  contextId      String?
+  placement      DnxPartnerPlacement   @default(LOGO_MARQUEE)
   /// Clave de catálogo (INFOSPOT_HOME_MARQUEE, CLF_LOGO_MARQUEE, …).
-  adPlacementKey  String?                @db.VarChar(80)
-  deviceClass     DnxPartnerDeviceClass  @default(OTHER)
+  adPlacementKey String?               @db.VarChar(80)
+  deviceClass    DnxPartnerDeviceClass @default(OTHER)
   /// CAMPAIGN (v1) | PARTICIPATION (futuro)
-  sourceType      String                 @default("CAMPAIGN") @db.VarChar(24)
-  occurredAt      DateTime               @default(now())
-  isBot           Boolean                @default(false)
+  sourceType     String                @default("CAMPAIGN") @db.VarChar(24)
+  occurredAt     DateTime              @default(now())
+  isBot          Boolean               @default(false)
   /// Metadata mínima sanitizada (p.ej. viewSessionKey hash). Sin PII.
-  metadata        Json?
+  metadata       Json?
 
   partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
 
@@ -13932,28 +13964,28 @@ model DnxPartnerImpressionEvent {
 }
 
 model DnxPartnerContribution {
-  id                   String                       @id @default(cuid())
-  participationId      String
-  type                 DnxPartnerContributionType
-  title                String
-  description          String?
-  quantity             Int?
-  estimatedUnitValueMinor Int?
+  id                       String                       @id @default(cuid())
+  participationId          String
+  type                     DnxPartnerContributionType
+  title                    String
+  description              String?
+  quantity                 Int?
+  estimatedUnitValueMinor  Int?
   estimatedTotalValueMinor Int?
-  currency             String?                      @default("ARS")
-  status               DnxPartnerContributionStatus @default(PENDING)
-  deliveryDate         DateTime?
-  deliveredAt          DateTime?
+  currency                 String?                      @default("ARS")
+  status                   DnxPartnerContributionStatus @default(PENDING)
+  deliveryDate             DateTime?
+  deliveredAt              DateTime?
   /// Soft-link opcional a DnxPromotion.id
-  promotionId          String?
+  promotionId              String?
   /// Soft-link opcional a ClickatonPrizeBundle.id
-  prizeBundleId        String?
-  externalCode         String?
-  notes                String?
-  createdByUserId      Int?
-  updatedByUserId      Int?
-  createdAt            DateTime                     @default(now())
-  updatedAt            DateTime                     @updatedAt
+  prizeBundleId            String?
+  externalCode             String?
+  notes                    String?
+  createdByUserId          Int?
+  updatedByUserId          Int?
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
 
   participation DnxPartnerParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
 
@@ -13963,35 +13995,35 @@ model DnxPartnerContribution {
 }
 
 model DnxPartnerBenefit {
-  id                      String                     @id @default(cuid())
-  partnerId               String
-  participationId         String?
-  title                   String
-  description             String?
-  benefitType             DnxPartnerBenefitType
-  status                  DnxPartnerBenefitStatus    @default(DRAFT)
-  discountPercentage      Int?
-  discountAmountMinor     Int?
-  currency                String?                    @default("ARS")
-  promoCode               String?
+  id                     String                     @id @default(cuid())
+  partnerId              String
+  participationId        String?
+  title                  String
+  description            String?
+  benefitType            DnxPartnerBenefitType
+  status                 DnxPartnerBenefitStatus    @default(DRAFT)
+  discountPercentage     Int?
+  discountAmountMinor    Int?
+  currency               String?                    @default("ARS")
+  promoCode              String?
   /// Soft-link opcional a DnxPromotion.id
-  promotionId             String?
-  redemptionMethod        DnxPartnerRedemptionMethod @default(CONTACT_PARTNER)
-  redemptionInstructions  String?
-  terms                   String?
-  startsAt                DateTime?
-  endsAt                  DateTime?
-  totalRedemptionLimit    Int?
-  perUserRedemptionLimit  Int?
-  isPublic                Boolean                    @default(false)
-  createdByUserId         Int?
-  updatedByUserId         Int?
-  createdAt               DateTime                   @default(now())
-  updatedAt               DateTime                   @updatedAt
-  archivedAt              DateTime?
+  promotionId            String?
+  redemptionMethod       DnxPartnerRedemptionMethod @default(CONTACT_PARTNER)
+  redemptionInstructions String?
+  terms                  String?
+  startsAt               DateTime?
+  endsAt                 DateTime?
+  totalRedemptionLimit   Int?
+  perUserRedemptionLimit Int?
+  isPublic               Boolean                    @default(false)
+  createdByUserId        Int?
+  updatedByUserId        Int?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  archivedAt             DateTime?
 
-  partner       DnxPartner                   @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-  participation DnxPartnerParticipation?     @relation(fields: [participationId], references: [id], onDelete: SetNull)
+  partner       DnxPartner                  @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  participation DnxPartnerParticipation?    @relation(fields: [participationId], references: [id], onDelete: SetNull)
   audiences     DnxPartnerBenefitAudience[]
   manualAccess  DnxPartnerBenefitAccess[]
 
@@ -14023,16 +14055,16 @@ model DnxPartnerBenefitAudience {
 
 /// Grants de capabilities del dominio partners (capa aparte de DnxFinanceGrant).
 model DnxPartnerGrant {
-  id              String                 @id @default(cuid())
+  id              String                @id @default(cuid())
   userId          Int
   capability      DnxPartnerCapability
   /// Scope opcional (productKey / partnerId / application).
   scopeType       String?
   scopeId         String?
-  status          DnxPartnerGrantStatus  @default(ACTIVE)
+  status          DnxPartnerGrantStatus @default(ACTIVE)
   grantedByUserId Int?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
   revokedAt       DateTime?
 
   @@index([userId, status])
@@ -14058,7 +14090,6 @@ model DnxPartnerAuditEvent {
   @@index([entityType, entityId])
   @@index([action, createdAt])
 }
-
 
 enum DnxPartnerBenefitAccessStatus {
   ACTIVE
@@ -14164,34 +14195,34 @@ enum DnxPartnerAdRotationMode {
 
 /// Campaña publicitaria (independiente del rol institucional).
 model DnxPartnerCampaign {
-  id              String                   @id @default(cuid())
+  id              String                     @id @default(cuid())
   partnerId       String
   participationId String?
   name            String
   description     String?
   application     DnxPartnerApplication
-  status          DnxPartnerCampaignStatus @default(DRAFT)
+  status          DnxPartnerCampaignStatus   @default(DRAFT)
   startsAt        DateTime?
   endsAt          DateTime?
-  priority        Int                      @default(100)
+  priority        Int                        @default(100)
   destinationUrl  String?
-  trackingEnabled Boolean                  @default(true)
+  trackingEnabled Boolean                    @default(true)
   geoScope        DnxPartnerCampaignGeoScope @default(GLOBAL)
   createdByUserId Int?
   updatedByUserId Int?
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
   archivedAt      DateTime?
 
-  partner       DnxPartner                      @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-  participation DnxPartnerParticipation?        @relation(fields: [participationId], references: [id], onDelete: SetNull)
-  creatives     DnxPartnerCampaignCreative[]
-  geoTargets    DnxPartnerCampaignGeoTarget[]
-  contextTargets DnxPartnerCampaignContextTarget[]
+  partner           DnxPartner                        @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  participation     DnxPartnerParticipation?          @relation(fields: [participationId], references: [id], onDelete: SetNull)
+  creatives         DnxPartnerCampaignCreative[]
+  geoTargets        DnxPartnerCampaignGeoTarget[]
+  contextTargets    DnxPartnerCampaignContextTarget[]
   placementBindings DnxPartnerCampaignPlacement[]
   /// Apps destino de publicación (aditivo; `application` sigue siendo la app “home”).
-  publishTargets DnxPartnerCampaignTarget[]
-  publicationSyncs DnxPartnerPublicationSync[]
+  publishTargets    DnxPartnerCampaignTarget[]
+  publicationSyncs  DnxPartnerPublicationSync[]
 
   @@index([partnerId, status])
   @@index([application, status])
@@ -14233,21 +14264,21 @@ enum DnxPartnerPublicationSyncStatus {
 
 /// Estado de sync multi-DB por entidad (fuente canónica = admin Clickatón).
 model DnxPartnerPublicationSync {
-  id                String                           @id @default(cuid())
-  entityType        DnxPartnerPublicationEntityType  @default(CAMPAIGN)
+  id                String                          @id @default(cuid())
+  entityType        DnxPartnerPublicationEntityType @default(CAMPAIGN)
   sourceEntityId    String
   campaignId        String?
   targetApplication DnxPartnerApplication
   /// Clave lógica de DB destino (INFOSPOT | CLF), sin secretos.
-  targetDatabaseKey String                           @db.VarChar(40)
-  sourceVersion     String                           @db.VarChar(64)
-  targetVersion     String?                          @db.VarChar(64)
-  status            DnxPartnerPublicationSyncStatus  @default(PENDING)
-  attempts          Int                              @default(0)
+  targetDatabaseKey String                          @db.VarChar(40)
+  sourceVersion     String                          @db.VarChar(64)
+  targetVersion     String?                         @db.VarChar(64)
+  status            DnxPartnerPublicationSyncStatus @default(PENDING)
+  attempts          Int                             @default(0)
   lastSyncedAt      DateTime?
   lastError         String?
-  createdAt         DateTime                         @default(now())
-  updatedAt         DateTime                         @updatedAt
+  createdAt         DateTime                        @default(now())
+  updatedAt         DateTime                        @updatedAt
 
   campaign DnxPartnerCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
@@ -14301,10 +14332,10 @@ model DnxPartnerCampaignGeoTarget {
 }
 
 model DnxPartnerCampaignContextTarget {
-  id         String                           @id @default(cuid())
+  id         String                            @id @default(cuid())
   campaignId String
   category   DnxPartnerCampaignContextCategory
-  createdAt  DateTime                         @default(now())
+  createdAt  DateTime                          @default(now())
 
   campaign DnxPartnerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
@@ -14314,20 +14345,20 @@ model DnxPartnerCampaignContextTarget {
 
 /// Catálogo de superficies publicitarias por aplicación.
 model DnxPartnerAdPlacement {
-  id             String                   @id @default(cuid())
-  application    DnxPartnerApplication
-  placementKey   String                   @db.VarChar(80)
-  name           String
-  description    String?
-  allowedFormats DnxPartnerCreativeFormat[]
-  deviceSupport  DnxPartnerCreativeDeviceTarget @default(ALL)
-  maxItems       Int                      @default(1)
-  rotationMode   DnxPartnerAdRotationMode @default(STATIC)
+  id                String                         @id @default(cuid())
+  application       DnxPartnerApplication
+  placementKey      String                         @db.VarChar(80)
+  name              String
+  description       String?
+  allowedFormats    DnxPartnerCreativeFormat[]
+  deviceSupport     DnxPartnerCreativeDeviceTarget @default(ALL)
+  maxItems          Int                            @default(1)
+  rotationMode      DnxPartnerAdRotationMode       @default(STATIC)
   /// Placement de click tracking asociado (reutiliza DnxPartnerOutboundLink).
-  trackingPlacement DnxPartnerPlacement   @default(BANNER)
-  isActive       Boolean                  @default(true)
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
+  trackingPlacement DnxPartnerPlacement            @default(BANNER)
+  isActive          Boolean                        @default(true)
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
 
   campaignBindings DnxPartnerCampaignPlacement[]
 
@@ -14359,52 +14390,52 @@ model DnxPartnerCampaignPlacement {
 /// ETAPA 16A — Configuración de jurado competitivo por concurso (genérica; no hardcodea Clickatón).
 /// Reutiliza el motor FotorankJury*; no crea tablas paralelas ClickatonJury*.
 model FotorankCompetitionJuryConfig {
-  id                                 String   @id @default(cuid())
-  contestId                          String   @unique
+  id                                String    @id @default(cuid())
+  contestId                         String    @unique
   /// null = N/A (concursos clásicos sin elegibilidad competitiva por mínimo de obras).
-  minimumValidEntriesForCompetition  Int?
-  requiredEvaluationsPerEntry        Int      @default(3)
-  recommendedMaxEntriesPerJudge      Int      @default(500)
-  evaluationStartsAt                 DateTime?
-  evaluationEndsAt                   DateTime?
-  scoreScaleMin                      Int      @default(1)
-  scoreScaleMax                      Int      @default(10)
-  scoreIntegerOnly                   Boolean  @default(true)
-  finalistsPerUnit                   Int      @default(3)
+  minimumValidEntriesForCompetition Int?
+  requiredEvaluationsPerEntry       Int       @default(3)
+  recommendedMaxEntriesPerJudge     Int       @default(500)
+  evaluationStartsAt                DateTime?
+  evaluationEndsAt                  DateTime?
+  scoreScaleMin                     Int       @default(1)
+  scoreScaleMax                     Int       @default(10)
+  scoreIntegerOnly                  Boolean   @default(true)
+  finalistsPerUnit                  Int       @default(3)
   /// DISABLED | JURY_ONLY | JURY_THEN_PUBLIC (§10 master rules).
-  publicVoteMode                     String   @default("DISABLED")
+  publicVoteMode                    String    @default("DISABLED")
   /// Override opcional de criterios (snapshot); si null, usar rúbrica activa del concurso.
-  criteriaConfigJson                 Json?
-  yellowLoadThreshold                Int      @default(501)
-  redLoadThreshold                   Int      @default(651)
+  criteriaConfigJson                Json?
+  yellowLoadThreshold               Int       @default(501)
+  redLoadThreshold                  Int       @default(651)
   /// ETAPA 16B — preparación de voto público (§9–§10 master rules). Nunca activa comercial/Instagram por sí solo.
   /// Habilitación explícita; false = no operativo aunque publicVoteMode != DISABLED.
-  publicVoteEnabled                  Boolean  @default(false)
+  publicVoteEnabled                 Boolean   @default(false)
   /// PROMPT | CATEGORY | ENTRY | ROUND (§10: unidad de votación pública configurable).
-  publicVoteUnit                     String   @default("PROMPT")
+  publicVoteUnit                    String    @default("PROMPT")
   /// Métrica pública (§9: default Clickatón = Me Gusta).
-  publicVoteMetric                   String   @default("LIKE_COUNT")
+  publicVoteMetric                  String    @default("LIKE_COUNT")
   /// Duración de la ventana de voto público en minutos (§9 default Clickatón: 24 h).
-  publicVoteDurationMinutes          Int      @default(1440)
-  publicVoteStartsAt                 DateTime?
-  publicVoteEndsAt                   DateTime?
+  publicVoteDurationMinutes         Int       @default(1440)
+  publicVoteStartsAt                DateTime?
+  publicVoteEndsAt                  DateTime?
   /// NONE | INSTAGRAM_FUTURE (§9.3: automatización de redes fuera de alcance; NONE = manual/no activado).
-  publicVoteProvider                 String   @default("NONE")
+  publicVoteProvider                String    @default("NONE")
   /// NOT_CONFIGURED|READY|SCHEDULED|OPEN|CLOSING|PENDING_VERIFICATION|CLOSED|TIEBREAK_REQUIRED|FINALIZED.
-  publicVoteStatus                   String   @default("NOT_CONFIGURED")
+  publicVoteStatus                  String    @default("NOT_CONFIGURED")
   /// Modo de desempate público (§9.1): PUBLIC_REVOTE / PUBLIC_TIEBREAK; nunca score de jurado.
-  publicTieBreakMode                 String   @default("PUBLIC_REVOTE")
+  publicTieBreakMode                String    @default("PUBLIC_REVOTE")
   /// IANA timezone override para ventanas de voto público. null = usar contest.timezone.
-  timezone                           String?
+  timezone                          String?
   /// ETAPA 17A — política de corte para snapshot final (provider-agnostic).
   /// LAST_VALID_OBSERVATION_BEFORE_CUTOFF | EXACT_PROVIDER_TIMESTAMP | PROVIDER_FINAL_SNAPSHOT
-  publicVoteCutoffPolicy             String   @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
+  publicVoteCutoffPolicy            String    @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
   /// CALCULATED | REVIEWED | PUBLISHED — 17A nunca publica comercialmente.
-  resultsPublicationMode             String   @default("CALCULATED")
+  resultsPublicationMode            String    @default("CALCULATED")
   /// Umbral de stale observations (minutos) para alertas de salud del provider.
-  publicVoteStaleThresholdMinutes    Int      @default(30)
-  createdAt                          DateTime @default(now())
-  updatedAt                          DateTime @updatedAt
+  publicVoteStaleThresholdMinutes   Int       @default(30)
+  createdAt                         DateTime  @default(now())
+  updatedAt                         DateTime  @updatedAt
 
   contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
 
@@ -14413,27 +14444,27 @@ model FotorankCompetitionJuryConfig {
 
 /// ETAPA 16A — Congelamiento de elegibilidad competitiva (participante ELEGIBLE/NO ELEGIBLE) por corte de admisión.
 model FotorankCompetitiveEligibilityFreeze {
-  id                     String    @id @default(cuid())
-  contestId              String
-  admissionBatchId       String?
+  id                   String    @id @default(cuid())
+  contestId            String
+  admissionBatchId     String?
   /// ELIGIBILITY_DRAFT | ELIGIBILITY_FROZEN
-  status                 String    @default("ELIGIBILITY_DRAFT")
-  configVersion          Int       @default(1)
-  minimumValidEntries    Int
-  totalParticipants      Int
-  eligibleCount          Int
-  notEligibleCount       Int
-  validEntriesCount      Int
-  excludedEntriesCount   Int
-  reasonCodesJson        Json?
-  configSnapshotJson     Json?
-  rosterHash             String?
-  frozenAt               DateTime?
-  frozenByUserId         Int?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  status               String    @default("ELIGIBILITY_DRAFT")
+  configVersion        Int       @default(1)
+  minimumValidEntries  Int
+  totalParticipants    Int
+  eligibleCount        Int
+  notEligibleCount     Int
+  validEntriesCount    Int
+  excludedEntriesCount Int
+  reasonCodesJson      Json?
+  configSnapshotJson   Json?
+  rosterHash           String?
+  frozenAt             DateTime?
+  frozenByUserId       Int?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  contest      FotorankContest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  contest        FotorankContest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
   admissionBatch FotorankAdmissionBatch? @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
 
   @@unique([contestId, configVersion])
@@ -14497,11 +14528,11 @@ model FotorankFinalistSnapshot {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  contest           FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  scoringSession    FotorankJuryScoringSession  @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
-  resultBatch       FotorankResultBatch?        @relation(fields: [resultBatchId], references: [id], onDelete: SetNull)
-  entry             FotorankContestEntry?       @relation(fields: [entryId], references: [id], onDelete: SetNull)
-  juryEntrySnapshot FotorankJuryEntrySnapshot   @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+  contest           FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  scoringSession    FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+  resultBatch       FotorankResultBatch?       @relation(fields: [resultBatchId], references: [id], onDelete: SetNull)
+  entry             FotorankContestEntry?      @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  juryEntrySnapshot FotorankJuryEntrySnapshot  @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
 
   @@unique([contestId, promptExternalId, publicCode])
   @@index([contestId, status])
@@ -14512,15 +14543,15 @@ model FotorankFinalistSnapshot {
 
 /// ETAPA 16A — Heartbeat de actividad de jurado (tiempo activo / ETA §7.7). No es evaluación de desempeño.
 model FotorankJuryActivityHeartbeat {
-  id                        String   @id @default(cuid())
-  contestId                 String
-  jurorId                   String
-  scoringSessionId          String?
-  lastActiveAt              DateTime
-  activeSecondsAccumulated  Int      @default(0)
-  idleThresholdSeconds      Int      @default(75)
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  contestId                String
+  jurorId                  String
+  scoringSessionId         String?
+  lastActiveAt             DateTime
+  activeSecondsAccumulated Int      @default(0)
+  idleThresholdSeconds     Int      @default(75)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   contest        FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
   juror          FotorankJudgeAccount        @relation(fields: [jurorId], references: [id], onDelete: Cascade)
@@ -14532,16 +14563,16 @@ model FotorankJuryActivityHeartbeat {
 
 /// Candidatura congelada al abrir/schedule la ronda (snapshot inmutable mientras OPEN).
 model FotorankPublicVoteCandidate {
-  id                  String   @id @default(cuid())
-  roundId             String
-  finalistSnapshotId  String?
-  publicCode          String
-  entryId             String?
-  sortOrder           Int      @default(0)
+  id                 String   @id @default(cuid())
+  roundId            String
+  finalistSnapshotId String?
+  publicCode         String
+  entryId            String?
+  sortOrder          Int      @default(0)
   /// true = participa en ranking; false = excluido auditado (no borrar).
-  active              Boolean  @default(true)
-  metadataJson        Json?
-  createdAt           DateTime @default(now())
+  active             Boolean  @default(true)
+  metadataJson       Json?
+  createdAt          DateTime @default(now())
 
   round          FotorankPublicVoteRound           @relation(fields: [roundId], references: [id], onDelete: Cascade)
   observations   FotorankPublicVoteObservation[]
@@ -14555,7 +14586,7 @@ model FotorankPublicVoteCandidate {
 
 /// Snapshot final inmutable por candidatura/ronda. Base del ranking definitivo.
 model FotorankPublicVoteFinalSnapshot {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   roundId            String
   candidateId        String
   publicCode         String
@@ -14563,7 +14594,7 @@ model FotorankPublicVoteFinalSnapshot {
   observationId      String?
   cutoffAt           DateTime
   providerObservedAt DateTime?
-  finalizedAt        DateTime @default(now())
+  finalizedAt        DateTime  @default(now())
   /// 1..N dentro de la unidad. null si TIEBREAK_REQUIRED aún no resuelto.
   finalPosition      Int?
   integrityHash      String
@@ -14640,53 +14671,53 @@ model FotorankPublicVotePublication {
 
 /// ETAPA 17A — Ronda de votación pública por unidad (PROMPT/CATEGORY/…). Provider-agnostic.
 model FotorankPublicVoteRound {
-  id                     String    @id @default(cuid())
-  contestId              String
+  id                       String    @id @default(cuid())
+  contestId                String
   /// Clave de unidad (p. ej. promptExternalId). Nunca hardcodear 10 consignas.
-  unitKey                String
+  unitKey                  String
   /// PROMPT | CATEGORY | ENTRY | ROUND
-  unitType               String    @default("PROMPT")
-  roundNumber            Int       @default(1)
+  unitType                 String    @default("PROMPT")
+  roundNumber              Int       @default(1)
   /// NORMAL | TIEBREAK
-  roundType              String    @default("NORMAL")
-  parentRoundId          String?
+  roundType                String    @default("NORMAL")
+  parentRoundId            String?
   /// DRAFT|READY|SCHEDULED|OPEN|CLOSING|PENDING_FINAL_SNAPSHOT|CLOSED|TIEBREAK_REQUIRED|FINALIZED|CANCELLED|ERROR
-  status                 String    @default("DRAFT")
-  metric                 String    @default("LIKE_COUNT")
+  status                   String    @default("DRAFT")
+  metric                   String    @default("LIKE_COUNT")
   /// TEST_PROVIDER | NONE | INSTAGRAM | INSTAGRAM_FUTURE (legacy alias)
-  provider               String    @default("TEST_PROVIDER")
+  provider                 String    @default("TEST_PROVIDER")
   /// ETAPA 17B — conexión social usada para publicación/métricas (nullable en TEST_PROVIDER).
-  socialConnectionId     String?
+  socialConnectionId       String?
   /// NORMAL | NEAR_CLOSE | FINALIZATION
-  pollingMode            String    @default("NORMAL")
+  pollingMode              String    @default("NORMAL")
   /// INCIDENT flag cuando publicación borrada / parcial / token, etc.
-  incidentStatus         String?
-  cutoffPolicy           String    @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
-  startsAt               DateTime
-  endsAt                 DateTime
-  timezone               String?
-  openedAt               DateTime?
-  closedAt               DateTime?
-  finalSnapshotAt        DateTime?
-  cancelledAt            DateTime?
-  cancelReason           String?
-  extendedFromEndsAt     DateTime?
-  configHash             String?
-  candidateSnapshotHash  String?
-  finalSnapshotHash      String?
-  staleThresholdMinutes  Int       @default(30)
+  incidentStatus           String?
+  cutoffPolicy             String    @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
+  startsAt                 DateTime
+  endsAt                   DateTime
+  timezone                 String?
+  openedAt                 DateTime?
+  closedAt                 DateTime?
+  finalSnapshotAt          DateTime?
+  cancelledAt              DateTime?
+  cancelReason             String?
+  extendedFromEndsAt       DateTime?
+  configHash               String?
+  candidateSnapshotHash    String?
+  finalSnapshotHash        String?
+  staleThresholdMinutes    Int       @default(30)
   /// CALCULATED | REVIEWED | PUBLISHED — 17A = CALCULATED máximo.
-  resultsPublicationStatus String  @default("CALCULATED")
-  providerHealth         String    @default("CONNECTED")
-  configVersion          Int       @default(1)
-  metadataJson           Json?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  resultsPublicationStatus String    @default("CALCULATED")
+  providerHealth           String    @default("CONNECTED")
+  configVersion            Int       @default(1)
+  metadataJson             Json?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  contest          FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  socialConnection FotorankSocialConnection?    @relation(fields: [socialConnectionId], references: [id], onDelete: SetNull)
-  parentRound      FotorankPublicVoteRound?     @relation("PublicVoteRoundTiebreak", fields: [parentRoundId], references: [id], onDelete: SetNull)
-  childRounds      FotorankPublicVoteRound[]    @relation("PublicVoteRoundTiebreak")
+  contest          FotorankContest                   @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  socialConnection FotorankSocialConnection?         @relation(fields: [socialConnectionId], references: [id], onDelete: SetNull)
+  parentRound      FotorankPublicVoteRound?          @relation("PublicVoteRoundTiebreak", fields: [parentRoundId], references: [id], onDelete: SetNull)
+  childRounds      FotorankPublicVoteRound[]         @relation("PublicVoteRoundTiebreak")
   candidates       FotorankPublicVoteCandidate[]
   observations     FotorankPublicVoteObservation[]
   finalSnapshots   FotorankPublicVoteFinalSnapshot[]
@@ -14722,8 +14753,8 @@ model FotorankSocialConnection {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  organization ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  connectedBy  User?                         @relation("FrSocialConnectionConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
+  organization ContestOrganization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connectedBy  User?                           @relation("FrSocialConnectionConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
   rounds       FotorankPublicVoteRound[]
   publications FotorankPublicVotePublication[]
 
@@ -14769,45 +14800,45 @@ model PhotoPromptSubtheme {
 
 /// Plantilla/contenido reutilizable de consigna fotográfica.
 model PhotoPromptLibraryItem {
-  id                 String                      @id @default(cuid())
-  title              String
+  id                   String                      @id @default(cuid())
+  title                String
   /// Título normalizado para detección de duplicados.
-  normalizedTitle    String
-  description        String
-  themeId            String
-  subthemeId         String?
-  inspirationType    PhotoPromptInspirationType?
-  inspirationLabel   String?
-  inspirationNotes   String?
-  tags               String[]                    @default([])
-  difficulty         PhotoPromptDifficulty       @default(MEDIUM)
-  language           String                      @default("es")
+  normalizedTitle      String
+  description          String
+  themeId              String
+  subthemeId           String?
+  inspirationType      PhotoPromptInspirationType?
+  inspirationLabel     String?
+  inspirationNotes     String?
+  tags                 String[]                    @default([])
+  difficulty           PhotoPromptDifficulty       @default(MEDIUM)
+  language             String                      @default("es")
   /// Puede realizarse razonablemente desde cualquier lugar del mundo.
-  universal          Boolean                     @default(true)
-  status             PhotoPromptLibraryStatus    @default(DRAFT)
-  createdByUserId    Int?
-  reviewedByUserId   Int?
-  approvedByUserId   Int?
+  universal            Boolean                     @default(true)
+  status               PhotoPromptLibraryStatus    @default(DRAFT)
+  createdByUserId      Int?
+  reviewedByUserId     Int?
+  approvedByUserId     Int?
   submittedForReviewAt DateTime?
-  reviewedAt         DateTime?
-  approvedAt         DateTime?
-  rejectedAt         DateTime?
-  archivedAt         DateTime?
-  rejectionReason    String?
-  version            Int                         @default(1)
+  reviewedAt           DateTime?
+  approvedAt           DateTime?
+  rejectedAt           DateTime?
+  archivedAt           DateTime?
+  rejectionReason      String?
+  version              Int                         @default(1)
   /// Origen de seed/import (ej. INITIAL_DNX_PROMPT_LIBRARY_2026).
-  sourceKey          String?
-  metadataJson       Json?
-  createdAt          DateTime                    @default(now())
-  updatedAt          DateTime                    @updatedAt
+  sourceKey            String?
+  metadataJson         Json?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
 
-  theme     PhotoPromptTheme              @relation(fields: [themeId], references: [id], onDelete: Restrict)
-  subtheme  PhotoPromptSubtheme?          @relation(fields: [subthemeId], references: [id], onDelete: SetNull)
-  createdBy User?                         @relation("PhotoPromptLibraryItemCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  reviewedBy User?                        @relation("PhotoPromptLibraryItemReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  approvedBy User?                        @relation("PhotoPromptLibraryItemApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  versions  PhotoPromptLibraryVersion[]
-  audits    PhotoPromptLibraryAuditEvent[]
+  theme       PhotoPromptTheme               @relation(fields: [themeId], references: [id], onDelete: Restrict)
+  subtheme    PhotoPromptSubtheme?           @relation(fields: [subthemeId], references: [id], onDelete: SetNull)
+  createdBy   User?                          @relation("PhotoPromptLibraryItemCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedBy  User?                          @relation("PhotoPromptLibraryItemReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  approvedBy  User?                          @relation("PhotoPromptLibraryItemApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  versions    PhotoPromptLibraryVersion[]
+  audits      PhotoPromptLibraryAuditEvent[]
   assignments ClickatonPrompt[]
 
   @@unique([sourceKey])
@@ -14822,25 +14853,25 @@ model PhotoPromptLibraryItem {
 }
 
 model PhotoPromptLibraryVersion {
-  id              String   @id @default(cuid())
-  libraryItemId   String
-  version         Int
-  title           String
-  description     String
-  themeId         String?
-  subthemeId      String?
-  inspirationType PhotoPromptInspirationType?
+  id               String                      @id @default(cuid())
+  libraryItemId    String
+  version          Int
+  title            String
+  description      String
+  themeId          String?
+  subthemeId       String?
+  inspirationType  PhotoPromptInspirationType?
   inspirationLabel String?
   inspirationNotes String?
-  tags            String[] @default([])
-  difficulty      PhotoPromptDifficulty?
-  language        String?
-  universal       Boolean?
-  status          PhotoPromptLibraryStatus?
-  changeSummary   String?
-  snapshotJson    Json?
-  createdByUserId Int?
-  createdAt       DateTime @default(now())
+  tags             String[]                    @default([])
+  difficulty       PhotoPromptDifficulty?
+  language         String?
+  universal        Boolean?
+  status           PhotoPromptLibraryStatus?
+  changeSummary    String?
+  snapshotJson     Json?
+  createdByUserId  Int?
+  createdAt        DateTime                    @default(now())
 
   libraryItem PhotoPromptLibraryItem @relation(fields: [libraryItemId], references: [id], onDelete: Cascade)
   createdBy   User?                  @relation("PhotoPromptLibraryVersionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -14906,4 +14937,3 @@ enum PhotoPromptLibraryStatus {
   REJECTED
   ARCHIVED
 }
-
