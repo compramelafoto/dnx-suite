@@ -6,6 +6,8 @@ import { WorkspaceModuleToggle } from "@/components/workspace-module-toggle";
 import { DeleteWorkspaceDialog } from "@/components/delete-workspace-dialog";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
 import { listModules } from "@/lib/modules/registry";
+import { getPlatformFeeBpsByModule } from "@/lib/platform-fee/store";
+import { WorkspaceModuleFeeField } from "@/components/platform-fee/module-fee-field";
 
 export default async function SuperAdminWorkspaceDetailPage({
   params,
@@ -20,6 +22,11 @@ export default async function SuperAdminWorkspaceDetailPage({
   if (!workspace) notFound();
 
   const availableModules = listModules({ status: "AVAILABLE" });
+  // Comisión vigente de cada módulo: sin fila propia devuelve el 5% por defecto.
+  const feeByModule = await getPlatformFeeBpsByModule(
+    id,
+    availableModules.map((m) => m.key),
+  );
 
   let enabledByModule = new Map<string, boolean>();
   let schemaMissing = false;
@@ -92,6 +99,13 @@ export default async function SuperAdminWorkspaceDetailPage({
                   moduleKey={m.key}
                   enabled={enabled}
                   disabled={schemaMissing}
+                />
+              </div>
+              <div className="pt-2 border-t border-[var(--fo-border)]">
+                <WorkspaceModuleFeeField
+                  workspaceId={workspace.id}
+                  moduleKey={m.key}
+                  feeBps={feeByModule.get(m.key) ?? 500}
                 />
               </div>
             </div>
