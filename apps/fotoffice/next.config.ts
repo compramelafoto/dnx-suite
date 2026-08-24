@@ -5,7 +5,19 @@ import { fileURLToPath } from "node:url";
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@repo/db", "@repo/auth", "@repo/auth-ui", "@repo/payments"],
+  // @repo/db NO se transpila: se externaliza para conservar el Query Engine de Prisma.
+  // Mismo criterio que apps/clickaton. Transpilarlo funcionaba con Turbopack, pero con
+  // webpack el motor nativo no llega al bundle y toda consulta falla en runtime.
+  transpilePackages: ["@repo/auth", "@repo/auth-ui", "@repo/payments"],
+  serverExternalPackages: ["@prisma/client", "@repo/db"],
+  outputFileTracingRoot: path.join(appDir, "../.."),
+  outputFileTracingIncludes: {
+    "/**": [
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
+      "../../packages/db/prisma/**",
+    ],
+  },
   images: {
     remotePatterns: [{ protocol: "https", hostname: "lh3.googleusercontent.com" }],
   },
