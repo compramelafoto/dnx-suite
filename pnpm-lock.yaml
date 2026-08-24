@@ -535,6 +535,9 @@ importers:
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners
+      '@repo/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
