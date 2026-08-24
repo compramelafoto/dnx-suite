@@ -734,8 +734,13 @@ export type {
   ComputePartnerPlatformStatusInput,
 } from "./global-status";
 
-export { PROPOSAL_PIECES, getProposalPiece } from "./proposal-pieces";
-export type { ProposalPiece, ProposalPieceKind } from "./proposal-pieces";
+export { PROPOSAL_PIECES, getProposalPiece, getProposalPieceLayout } from "./proposal-pieces";
+export type {
+  ProposalPiece,
+  ProposalPieceKind,
+  ProposalPieceLayout,
+  ProposalViewportName,
+} from "./proposal-pieces";
 
 export { resolvePlateTreatment } from "./proposal-contrast";
 export type { LogoLuminanceInput, PlateKind, PlateTreatment } from "./proposal-contrast";

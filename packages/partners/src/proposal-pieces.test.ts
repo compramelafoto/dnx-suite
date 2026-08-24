@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import {
   PROPOSAL_PIECES,
   getProposalPiece,
+  getProposalPieceLayout,
   type ProposalPiece,
+  type ProposalPieceKind,
 } from "./proposal-pieces";
 
 describe("catálogo de piezas de propuesta", () => {
@@ -22,6 +24,54 @@ describe("catálogo de piezas de propuesta", () => {
   it("no repite identificadores", () => {
     const ids = PROPOSAL_PIECES.map((p) => p.id);
     assert.equal(new Set(ids).size, ids.length);
+  });
+
+  describe("geometría de cada formato", () => {
+    const kinds: ProposalPieceKind[] = ["WELCOME", "BANNER", "MARQUEE"];
+    const viewports = ["desktop", "mobile"] as const;
+
+    it("la pieza entra entera en el lienzo", () => {
+      for (const kind of kinds) {
+        for (const viewport of viewports) {
+          const l = getProposalPieceLayout(kind, viewport);
+          const arriba = l.centerYRatio - l.heightRatio / 2;
+          const abajo = l.centerYRatio + l.heightRatio / 2;
+          assert.ok(arriba >= 0, `${kind}/${viewport} se sale por arriba (${arriba})`);
+          assert.ok(abajo <= 1, `${kind}/${viewport} se sale por abajo (${abajo})`);
+          assert.ok(l.widthRatio > 0 && l.widthRatio <= 1, `${kind}/${viewport}: ancho inválido`);
+        }
+      }
+    });
+
+    it("cada formato ocupa un lugar distinto de la página", () => {
+      for (const viewport of viewports) {
+        const firmas = kinds.map((kind) => {
+          const l = getProposalPieceLayout(kind, viewport);
+          return `${l.widthRatio}:${l.heightRatio}:${l.centerYRatio}`;
+        });
+        assert.equal(
+          new Set(firmas).size,
+          kinds.length,
+          `en ${viewport} hay formatos con la misma geometría: se verían iguales`,
+        );
+      }
+    });
+
+    it("solo la franja de logos comparte el espacio con otras marcas", () => {
+      for (const viewport of viewports) {
+        assert.ok(getProposalPieceLayout("MARQUEE", viewport).neighbours > 0);
+        assert.equal(getProposalPieceLayout("WELCOME", viewport).neighbours, 0);
+        assert.equal(getProposalPieceLayout("BANNER", viewport).neighbours, 0);
+      }
+    });
+
+    it("la placa de bienvenida oscurece la página más que las piezas en línea", () => {
+      for (const viewport of viewports) {
+        const welcome = getProposalPieceLayout("WELCOME", viewport).veilOpacity;
+        assert.ok(welcome > getProposalPieceLayout("BANNER", viewport).veilOpacity);
+        assert.ok(welcome > getProposalPieceLayout("MARQUEE", viewport).veilOpacity);
+      }
+    });
   });
 
   it("cada pieza declara un placement montado", () => {

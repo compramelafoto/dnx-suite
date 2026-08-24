@@ -2,6 +2,7 @@
  * Ejecutar: pnpm --filter clickaton exec tsx lib/propuesta/compose.test.ts
  */
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { register } from "node:module";
 import sharp from "sharp";
 
@@ -258,6 +259,37 @@ async function main() {
   assert.equal(metaExcepcion.format, "png");
   assert.equal(metaExcepcion.width, 1440);
   assert.equal(metaExcepcion.height, 900);
+
+  // Cada formato se compone distinto.
+  //
+  // Las tres piezas de InfoSpot comparten el mismo fondo, pero son formatos
+  // publicitarios distintos: una placa centrada, una franja horizontal y un
+  // renglón de logos al pie. No pueden dar la misma imagen.
+  //
+  // Esta prueba existe porque faltaba: `composePiece` usaba la pieza
+  // únicamente para elegir el archivo de fondo, así que las nueve piezas del
+  // catálogo producían cuatro imágenes —una por plataforma— y el vendedor le
+  // mostraba al cliente la misma placa tres veces con distinto epígrafe.
+  const logoCompartido = await logoDePrueba({ r: 30, g: 30, b: 30 });
+  const mismaPlataformaDistintoFormato = [
+    "infospot-welcome",
+    "infospot-banner",
+    "infospot-marquee",
+  ];
+
+  for (const viewport of ["desktop", "mobile"] as const) {
+    const compuestas = await Promise.all(
+      mismaPlataformaDistintoFormato.map((pieceId) =>
+        composePiece({ pieceId, logo: logoCompartido, brandName: "Marca de prueba", viewport }),
+      ),
+    );
+    const huellas = compuestas.map((png) => createHash("sha256").update(png).digest("hex"));
+    assert.equal(
+      new Set(huellas).size,
+      mismaPlataformaDistintoFormato.length,
+      `en ${viewport}, cada formato debe dar una imagen distinta (placa ≠ banner ≠ franja)`,
+    );
+  }
 
   // pieza inexistente
   await assert.rejects(

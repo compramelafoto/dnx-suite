@@ -47,6 +47,7 @@ describe("armado del plan de propuesta", () => {
   it("la etiqueta combina pieza y plataforma", () => {
     const plan = buildProposalPlan(marca);
     const primera = plan.lines[0];
+    assert.ok(primera, "el plan debe tener al menos una línea");
     assert.equal(primera.label, "Placa de bienvenida · InfoSpot");
   });
 
