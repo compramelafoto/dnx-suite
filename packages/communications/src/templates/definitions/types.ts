@@ -1,7 +1,11 @@
 import type { CommunicationBrand } from "../branding/types";
 import type { LocaleBundle } from "../locales/types";
 
-export const COMMUNICATION_TEMPLATE_IDS = ["system.test", "user.welcome"] as const;
+export const COMMUNICATION_TEMPLATE_IDS = [
+  "system.test",
+  "user.welcome",
+  "ops.daily-report",
+] as const;
 
 export type CommunicationTemplateId = (typeof COMMUNICATION_TEMPLATE_IDS)[number];
 
@@ -23,6 +27,22 @@ export type CommunicationTemplatePayloadMap = {
     platformName: string;
     loginUrl?: string;
     supportUrl?: string;
+  };
+  "ops.daily-report": {
+    /** Fecha del día informado, ya formateada para mostrar (DD/MM/AAAA). */
+    reportDate: string;
+    /** Estado del informe en texto: Completo / Parcial / Fallido. */
+    status: string;
+    /** Cantidad de alertas críticas, para el asunto. */
+    criticalCount: number;
+    /** Bloque de alertas ya armado por la app anfitriona. */
+    alertsBlock: string;
+    /** Bloque de números clave ya armado por la app anfitriona. */
+    summaryBlock: string;
+    /** Enlace al panel con el detalle completo. */
+    panelUrl?: string;
+    /** Aviso de secciones que no se pudieron generar. */
+    failedSectionsNote?: string;
   };
 };
 
