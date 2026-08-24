@@ -4,7 +4,7 @@ const MP_AUTH_URL = "https://auth.mercadopago.com/authorization";
 const MP_TOKEN_URL = "https://api.mercadopago.com/oauth/token";
 const MP_USERS_ME = "https://api.mercadopago.com/users/me";
 
-export type ClickatonMpOAuthHttpClient = {
+export type MercadoPagoOAuthHttpClient = {
   exchangeAuthorizationCode(input: {
     clientId: string;
     clientSecret: string;
@@ -38,7 +38,7 @@ export type MercadoPagoOAuthExchangeSanitizedResult = {
 
 export const MercadoPagoOAuthService = {
   async exchangeAuthorizationCode(
-    client: ClickatonMpOAuthHttpClient,
+    client: MercadoPagoOAuthHttpClient,
     input: MercadoPagoOAuthExchangeInput,
   ): Promise<MercadoPagoOAuthExchangeSanitizedResult> {
     const tokens = await client.exchangeAuthorizationCode({
@@ -60,10 +60,10 @@ export const MercadoPagoOAuthService = {
 };
 
 /** In-memory fake for tests — never hits Mercado Pago. */
-export function createFakeClickatonMpOAuthHttpClient(opts?: {
+export function createFakeMercadoPagoOAuthHttpClient(opts?: {
   providerUserId?: string;
   failExchange?: boolean;
-}): ClickatonMpOAuthHttpClient {
+}): MercadoPagoOAuthHttpClient {
   const providerUserId = opts?.providerUserId ?? "99887766";
   return {
     async exchangeAuthorizationCode() {
@@ -88,7 +88,7 @@ export function createFakeClickatonMpOAuthHttpClient(opts?: {
   };
 }
 
-export function buildClickatonMpAuthorizeUrl(input: {
+export function buildMercadoPagoAuthorizeUrl(input: {
   clientId: string;
   redirectUri: string;
   state: string;
@@ -123,9 +123,9 @@ function maskEmail(email: unknown): string | null {
   return `${u.slice(0, 1)}***@${d[0] ?? "*"}***`;
 }
 
-export function createLiveClickatonMpOAuthHttpClient(
+export function createLiveMercadoPagoOAuthHttpClient(
   fetchImpl: typeof fetch = fetch,
-): ClickatonMpOAuthHttpClient {
+): MercadoPagoOAuthHttpClient {
   return {
     async exchangeAuthorizationCode(input) {
       const body: Record<string, string> = {
@@ -195,3 +195,22 @@ export function createLiveClickatonMpOAuthHttpClient(
     },
   };
 }
+
+/**
+ * Alias históricos.
+ *
+ * Este cliente nunca tuvo nada de Clickatón: recibe `clientId`, `redirectUri`, `state` y
+ * `codeChallenge` por parámetro y no lee ninguna configuración propia. Pero su nombre lo
+ * sugería, y eso impedía que otro producto lo usara sin que el código mintiera.
+ *
+ * Se conservan los nombres viejos para no tocar Clickatón, que hoy mueve dinero real.
+ *
+ * @deprecated Usar las versiones sin `Clickaton` en el nombre.
+ */
+export type ClickatonMpOAuthHttpClient = MercadoPagoOAuthHttpClient;
+/** @deprecated Usar `buildMercadoPagoAuthorizeUrl`. */
+export const buildClickatonMpAuthorizeUrl = buildMercadoPagoAuthorizeUrl;
+/** @deprecated Usar `createFakeMercadoPagoOAuthHttpClient`. */
+export const createFakeClickatonMpOAuthHttpClient = createFakeMercadoPagoOAuthHttpClient;
+/** @deprecated Usar `createLiveMercadoPagoOAuthHttpClient`. */
+export const createLiveClickatonMpOAuthHttpClient = createLiveMercadoPagoOAuthHttpClient;
