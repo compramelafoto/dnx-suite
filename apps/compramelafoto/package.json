@@ -22,7 +22,9 @@
     "test:cuantocobro:characterization": "pnpm --filter @repo/cuanto-cobro-core test && ../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.cuantocobro.config.ts lib/cuantocobro/calculate-cuanto-cobro.characterization.test.ts lib/cuantocobro/__fixtures__/adapter-shape-contract.test.ts",
     "test:homologation-mp-split-1n": "pnpm --filter @repo/payments exec tsx --test ../../apps/compramelafoto/lib/homologation/mp-split-1n/homologation-guards.test.ts",
     "admin:ensure-local-homologation-admin": "pnpm --filter @repo/payments exec tsx ../../apps/compramelafoto/scripts/ensure-local-homologation-admin.ts",
-    "prisma:generate": "pnpm --filter @repo/db run db:generate"
+    "prisma:generate": "pnpm --filter @repo/db run db:generate",
+    "report:preview": "pnpm --filter @repo/ops-daily-report exec tsx ../../apps/compramelafoto/scripts/daily-report-preview.ts",
+    "test:daily-report": "pnpm --filter @repo/ops-daily-report exec tsx --tsconfig ../../apps/compramelafoto/tsconfig.json --test ../../apps/compramelafoto/lib/daily-report/prisma-ports.test.ts ../../apps/compramelafoto/lib/daily-report/render-blocks.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.985.0",
@@ -40,6 +42,7 @@
     "@repo/auth": "workspace:*",
     "@repo/auth-guards": "workspace:*",
     "@repo/auth-ui": "workspace:*",
+    "@repo/communications": "workspace:*",
     "@repo/content": "workspace:*",
     "@repo/content-ui": "workspace:*",
     "@repo/cuanto-cobro-core": "workspace:*",
