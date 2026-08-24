@@ -85,7 +85,7 @@ impide que otro producto las use sin que el código mienta.
 - [ ] **Step 1: Correr los tests de Clickatón y anotar el resultado**
 
 ```bash
-cd packages/payments && npx vitest run src/partner-onboarding/
+cd packages/payments && node --import tsx --test 'src/partner-onboarding/**/*.test.ts'
 ```
 
 Anotar cuántos pasan. **Ese número no puede bajar en ningún paso de este plan.**
@@ -145,7 +145,7 @@ describe("nombres neutrales del cliente OAuth", () => {
 - [ ] **Step 3: Correr el test y verificar que falla**
 
 ```bash
-cd packages/payments && npx vitest run src/partner-onboarding/owner-oauth/mp-client-naming.test.ts
+cd packages/payments && node --import tsx --test 'src/partner-onboarding/**/*.test.ts'owner-oauth/mp-client-naming.test.ts
 ```
 
 Esperado: FAIL — `buildMercadoPagoAuthorizeUrl` no existe.
@@ -195,7 +195,7 @@ export const createLiveClickatonMpOAuthHttpClient = createLiveMercadoPagoOAuthHt
 - [ ] **Step 5: Correr el test nuevo y toda la batería de Clickatón**
 
 ```bash
-cd packages/payments && npx vitest run src/partner-onboarding/
+cd packages/payments && node --import tsx --test 'src/partner-onboarding/**/*.test.ts'
 ```
 
 Esperado: PASS, y el total **igual o mayor** al anotado en el Step 1 (sube por los 3 tests nuevos).
@@ -217,126 +217,25 @@ git commit -m "refactor(payments): product-neutral names for the MercadoPago OAu
 
 ---
 
-## Task 2: Parametrizar `originApp` en el store de Prisma
+## Task 2 — DESCARTADA al ejecutar
 
-`prisma-store.ts:139` escribe `originApp: "clickaton"` fijo al guardar la cuenta de pago.
-Es el único valor de producto cableado en toda la capa de guardado.
+**No se hizo, y hacerla habría sido un error.**
 
-**Files:**
-- Modify: `packages/payments/src/partner-onboarding/owner-oauth/prisma-store.ts`
+El plan asumía que `prisma-store.ts` tenía un solo valor de producto cableado
+(`originApp: "clickaton"`). Al ejecutar se vio que `findOwnerPaymentAccount` filtra por
+**dos** cosas de Clickatón: ese `originApp` y `externalReference: CLICKATON_MP_OWNER_DEDICATED_MARKER`.
 
-**Interfaces:**
-- Consumes: nada nuevo
-- Produces: `createPrismaOwnerOAuthStore(prisma, opts?: { originApp?: string })` — `originApp` por defecto `"clickaton"`, para que la llamada actual de Clickatón siga funcionando idéntica.
+Ese store existe para responder "la única cuenta dueña de Clickatón". FotoOffice necesita
+otra pregunta: "la cuenta del workspace X". Son consultas distintas, no la misma con un
+parámetro.
 
-- [ ] **Step 1: Escribir el test que falla**
+Se verificó además que **todo lo que FotoOffice necesita ya es importable** desde
+`@repo/payments` tras la Tarea 1: `generateCodeVerifier`, `codeChallengeS256`,
+`generateOAuthStateToken`, `hashOAuthStateToken`, `encryptPkceVerifier`,
+`buildMercadoPagoAuthorizeUrl` y `createLiveMercadoPagoOAuthHttpClient`.
 
-Crear `packages/payments/src/partner-onboarding/owner-oauth/prisma-store-origin.test.ts`:
-
-```ts
-import { describe, expect, it, vi } from "vitest";
-import { createPrismaOwnerOAuthStore } from "./prisma-store.js";
-
-function fakePrisma() {
-  const upsert = vi.fn(async (args: Record<string, unknown>) => ({
-    id: "acc-1",
-    financialIdentityId: "fi-1",
-    provider: "MERCADOPAGO",
-    environment: "PROD",
-    providerUserId: "mp-1",
-    credentialReference: null,
-    originApp: (args.create as Record<string, unknown>)?.originApp ?? null,
-    externalReference: null,
-    tokenFingerprint: null,
-    capabilities: [],
-    status: "ACTIVE",
-    connectedAt: new Date(),
-    verifiedAt: null,
-    lastHealthCheckAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }));
-  return { prisma: { dnxPaymentAccount: { upsert } }, upsert };
-}
-
-describe("originApp del store", () => {
-  it("sin opción usa clickaton, para no cambiar el comportamiento actual", async () => {
-    const { prisma, upsert } = fakePrisma();
-    const store = createPrismaOwnerOAuthStore(prisma as never);
-    await store.upsertOwnerPaymentAccount({
-      financialIdentityId: "fi-1",
-      provider: "MERCADOPAGO",
-      environment: "PROD",
-      providerUserId: "mp-1",
-      capabilities: ["SPLIT_RECEIVER"],
-      status: "ACTIVE",
-    } as never);
-    expect((upsert.mock.calls[0]?.[0].create as Record<string, unknown>).originApp).toBe("clickaton");
-  });
-
-  it("con opción usa el producto indicado", async () => {
-    const { prisma, upsert } = fakePrisma();
-    const store = createPrismaOwnerOAuthStore(prisma as never, { originApp: "fotoffice" });
-    await store.upsertOwnerPaymentAccount({
-      financialIdentityId: "fi-1",
-      provider: "MERCADOPAGO",
-      environment: "PROD",
-      providerUserId: "mp-1",
-      capabilities: ["SPLIT_RECEIVER"],
-      status: "ACTIVE",
-    } as never);
-    expect((upsert.mock.calls[0]?.[0].create as Record<string, unknown>).originApp).toBe("fotoffice");
-  });
-});
-```
-
-- [ ] **Step 2: Correr el test y verificar que falla**
-
-```bash
-cd packages/payments && npx vitest run src/partner-onboarding/owner-oauth/prisma-store-origin.test.ts
-```
-
-Esperado: FAIL en el segundo caso — devuelve `"clickaton"` porque está cableado.
-
-- [ ] **Step 3: Implementar**
-
-En `prisma-store.ts`, agregar el parámetro opcional a la firma:
-
-```ts
-export function createPrismaOwnerOAuthStore(
-  prisma: OwnerOAuthPrismaDelegate,
-  opts: {
-    /**
-     * Producto que origina la conexión. Default `"clickaton"` para no cambiar el
-     * comportamiento de quien ya llamaba a esta función sin el parámetro.
-     */
-    originApp?: string;
-  } = {},
-): OwnerOAuthStore {
-  const originApp = opts.originApp ?? "clickaton";
-  // … resto igual …
-```
-
-Y en la línea 139, reemplazar el literal por la variable:
-
-```ts
-          originApp,
-```
-
-- [ ] **Step 4: Correr el test y toda la batería**
-
-```bash
-cd packages/payments && npx vitest run src/partner-onboarding/
-```
-
-Esperado: PASS, total igual o mayor al de la Tarea 1.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/payments/src/partner-onboarding/owner-oauth/prisma-store.ts packages/payments/src/partner-onboarding/owner-oauth/prisma-store-origin.test.ts
-git commit -m "refactor(payments): parameterize originApp in the owner OAuth store"
-```
+FotoOffice consultará Prisma con sus propias consultas, por `organizationRef` del
+workspace. Parametrizar un store que nadie iba a usar es generalidad especulativa.
 
 ---
 
