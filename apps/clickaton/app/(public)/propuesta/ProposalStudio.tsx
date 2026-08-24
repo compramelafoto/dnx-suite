@@ -30,6 +30,8 @@ export function ProposalStudio({ pieces }: Props) {
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [armandoPdf, setArmandoPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const urlsRef = useRef<string[]>([]);
   const fieldId = useId();
 
@@ -84,6 +86,38 @@ export function ProposalStudio({ pieces }: Props) {
 
   const preview = previews[cacheKey];
   const piece = pieces.find((p) => p.id === activePiece);
+
+  async function descargarPdf() {
+    if (!logo || !brandName.trim()) return;
+    setPdfError(null);
+    setArmandoPdf(true);
+    try {
+      const form = new FormData();
+      form.set("logo", logo);
+      form.set("brandName", brandName);
+      form.set("industry", industry);
+
+      const res = await fetch("/api/propuesta/pdf", { method: "POST", body: form });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "No se pudo armar el PDF.");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = `propuesta-${brandName.trim().toLowerCase().replace(/\s+/g, "-")}.pdf`;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : "Algo salió mal.");
+    } finally {
+      setArmandoPdf(false);
+    }
+  }
 
   return (
     <div className="mt-10 grid gap-8 lg:grid-cols-[340px_1fr]">
@@ -189,6 +223,25 @@ export function ProposalStudio({ pieces }: Props) {
             <strong>{piece.label} · {piece.platformLabel}.</strong> {piece.location}
           </p>
         ) : null}
+
+        <div className="flex flex-wrap items-center gap-3 border-t border-ck-border pt-4">
+          <button
+            type="button"
+            onClick={() => void descargarPdf()}
+            disabled={!logo || !brandName.trim() || armandoPdf}
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-ck-yellow px-6 text-sm font-semibold text-ck-bg disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {armandoPdf ? "Armando el PDF…" : "Descargar propuesta en PDF"}
+          </button>
+          <span className="ck-body-sm text-ck-text-muted">
+            {!logo
+              ? "Subí un logo para habilitarlo."
+              : !brandName.trim()
+                ? "Escribí el nombre de la marca."
+                : `${pieces.length} espacios, con vista de computadora y celular.`}
+          </span>
+          {pdfError ? <span className="ck-body-sm text-ck-text-muted">{pdfError}</span> : null}
+        </div>
       </div>
     </div>
   );
