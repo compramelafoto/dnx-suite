@@ -5,6 +5,7 @@ import type { WorkspaceCollectionStatus } from "./status";
 const TODOS: WorkspaceCollectionStatus[] = [
   "NOT_CONNECTED",
   "PENDING",
+  "AWAITING_CONSENT",
   "CONNECTED",
   "NEEDS_REAUTH",
   "REVOKED",
@@ -74,4 +75,18 @@ describe("connectErrorMessage", () => {
       expect(msg).not.toMatch(/FOTOFFICE_MP|CLIENT_SECRET|token|productKey/i);
     },
   );
+});
+
+describe("consentimiento de split en la pantalla", () => {
+  /**
+   * Es el caso que motivó todo esto: cuenta vinculada pero sin consentimiento activo.
+   * MercadoPago rechaza la orden, así que el texto no puede sugerir que ya se cobra.
+   */
+  it("AWAITING_CONSENT explica que falta la autorización y no dice que esté conectado", () => {
+    const c = collectionCopy("AWAITING_CONSENT");
+    expect(c.tone).toBe("warn");
+    expect(c.body).toMatch(/autorizaci[óo]n/i);
+    expect(c.body).toMatch(/no se pueden cobrar/i);
+    expect(c.title.toLowerCase()).not.toContain("conectados");
+  });
 });

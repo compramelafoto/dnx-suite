@@ -23,6 +23,13 @@ export function collectionCopy(status: WorkspaceCollectionStatus): CollectionCop
         actionLabel: "Reconectar",
         tone: "ok",
       };
+    case "AWAITING_CONSENT":
+      return {
+        title: "Falta autorizar el cobro dividido",
+        body: "Tu cuenta está vinculada, pero MercadoPago todavía no registró tu autorización para recibir pagos divididos. Hasta que la otorgues no se pueden cobrar cuotas.",
+        actionLabel: "Ver cómo autorizarlo",
+        tone: "warn",
+      };
     case "PENDING":
       return {
         title: "Vinculación incompleta",

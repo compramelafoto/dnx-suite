@@ -1,9 +1,12 @@
 import { prisma } from "@repo/db";
 import { workspaceOrganizationRef } from "./constants";
+import { canChargeWithSplit, getStoredSplitConsent, type SplitConsentState } from "./consent";
 
 export type WorkspaceCollectionStatus =
   | "NOT_CONNECTED"
   | "PENDING"
+  /** Cuenta vinculada, pero MercadoPago todavía no confirmó el consentimiento de split. */
+  | "AWAITING_CONSENT"
   | "CONNECTED"
   | "NEEDS_REAUTH"
   | "REVOKED";
@@ -15,6 +18,10 @@ export type WorkspaceCollectionView = {
   connectedAt: Date | null;
   /** Única fuente para decidir si la institución puede cobrar. */
   canReceiveSplit: boolean;
+  /** Estado del consentimiento de split ante MercadoPago. */
+  consent: SplitConsentState;
+  /** Enlace para otorgar el consentimiento, cuando MercadoPago lo provee. */
+  consentInviteUrl: string | null;
 };
 
 /**
@@ -69,6 +76,8 @@ export async function getWorkspaceCollectionStatus(
     accountLabel: null,
     connectedAt: null,
     canReceiveSplit: false,
+    consent: "NONE",
+    consentInviteUrl: null,
   };
 
   const identity = await prisma.dnxFinancialIdentity.findUnique({
@@ -93,15 +102,26 @@ export async function getWorkspaceCollectionStatus(
   });
   if (!account) return notConnected;
 
-  const status = mapAccountToCollectionStatus({
+  const accountStatus = mapAccountToCollectionStatus({
     status: String(account.status),
     capabilities: (account.capabilities as unknown as string[]) ?? [],
   });
+
+  const consent = await getStoredSplitConsent(workspaceId);
+  const puedeCobrar = accountStatus === "CONNECTED" && canChargeWithSplit(consent.state);
+
+  // Una cuenta técnicamente vinculada pero sin consentimiento activo NO puede cobrar:
+  // MercadoPago rechaza la orden con split. Se muestra como pendiente de consentimiento,
+  // nunca como conectada.
+  const status: WorkspaceCollectionStatus =
+    accountStatus === "CONNECTED" && !puedeCobrar ? "AWAITING_CONSENT" : accountStatus;
 
   return {
     status,
     accountLabel: maskProviderUser(account.providerUserId),
     connectedAt: account.connectedAt,
-    canReceiveSplit: status === "CONNECTED",
+    canReceiveSplit: puedeCobrar,
+    consent: consent.state,
+    consentInviteUrl: consent.inviteUrl,
   };
 }
