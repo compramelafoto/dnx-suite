@@ -1,9 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { prisma } from "@repo/db";
-// Ruta estrecha: el barril raíz de @repo/payments no lo resuelve Turbopack.
-import { createLiveMercadoPagoOAuthHttpClient } from "@repo/payments/mp-oauth/client";
+import {
+  CredentialVault,
+  createLiveMercadoPagoOAuthHttpClient,
+  createPrismaCredentialStore,
+} from "@repo/payments";
 import { readMpConnectConfig } from "./config";
-import { decodeMasterKey, encryptUtf8 } from "./crypto";
 import type { ConnectDeps, ConnectStateRecord } from "./service";
 
 /** Clave maestra para cifrar el verificador PKCE. Misma bóveda que el resto de la plataforma. */
@@ -107,37 +108,26 @@ function createPrismaConnectStore(): ConnectDeps["store"] {
     },
 
     /**
-     * Guarda el token en `DnxEncryptedCredential`, cifrado con la clave maestra de la
-     * bóveda — mismo formato y misma tabla que el resto de la plataforma.
+     * Guarda el token en la bóveda de credenciales de la plataforma: cifrado, en
+     * `DnxEncryptedCredential`, con el mismo formato que el resto del monorepo.
      */
     async saveCredential(record) {
+      const vault = new CredentialVault(createPrismaCredentialStore(prisma as never));
       const now = new Date();
-      const payload = JSON.stringify({
-        accessToken: record.accessToken,
-        refreshToken: record.refreshToken,
-        providerUserId: record.providerUserId,
-        connectedAt: now.toISOString(),
-        origin: "fotoffice_workspace_oauth",
-        expiresAt: record.expiresIn
-          ? new Date(now.getTime() + record.expiresIn * 1000).toISOString()
-          : null,
-      });
-      const parts = encryptUtf8(payload, decodeMasterKey(readMasterKey()));
-
-      const created = await prisma.dnxEncryptedCredential.create({
-        data: {
-          id: `dnxcred_${randomUUID().replace(/-/g, "").slice(0, 20)}`,
-          provider: "MERCADOPAGO",
-          environment: record.environment,
-          purpose: "mp_oauth_tokens",
-          ciphertext: parts.ciphertext,
-          nonce: parts.nonce,
-          authTag: parts.authTag,
-          keyVersion: process.env.DNX_CREDENTIAL_VAULT_KEY_VERSION?.trim() || "v1",
+      const saved = await vault.encryptMercadoPagoCredential({
+        environment: record.environment,
+        payload: {
+          accessToken: record.accessToken,
+          refreshToken: record.refreshToken,
+          providerUserId: record.providerUserId,
+          connectedAt: now.toISOString(),
+          origin: "fotoffice_workspace_oauth",
+          expiresAt: record.expiresIn
+            ? new Date(now.getTime() + record.expiresIn * 1000).toISOString()
+            : null,
         },
-        select: { id: true },
       });
-      return { id: created.id };
+      return { id: saved.id };
     },
 
     async upsertPaymentAccount(account) {

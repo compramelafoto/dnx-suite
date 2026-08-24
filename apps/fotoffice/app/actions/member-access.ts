@@ -14,14 +14,8 @@ import {
 import { findLinkableUserByEmail } from "@repo/db/fotoffice-user-lookup";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom, normalizeReason } from "@/lib/members/audit";
-import {
-  buildInvitationUrl,
-  canMemberUseInvitations,
-  emailsMatch,
-  generateInvitationToken,
-  hashInvitationToken,
-  invitationExpiryFrom,
-} from "@/lib/members/invitations";
+import { generateInvitationToken, hashInvitationToken } from "@/lib/members/invitation-tokens";
+import { buildInvitationUrl, canMemberUseInvitations, emailsMatch, invitationExpiryFrom } from "@/lib/members/invitations";
 import { buildInvitationEmailBody } from "@/lib/members/invitation-email";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";

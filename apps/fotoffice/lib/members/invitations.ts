@@ -1,35 +1,8 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-
 /**
- * Tokens de invitación. Mismo patrón que `PasswordResetToken`, ya probado en el monorepo:
- * el token crudo se muestra UNA sola vez y en la base solo queda su SHA-256.
+ * Estado y presentación de invitaciones de socios. **Sin criptografía**: los tokens viven
+ * en `invitation-tokens.ts`, que es solo de servidor. Este archivo lo importan componentes
+ * cliente, así que todo acá tiene que ser puro.
  */
-
-/** 32 bytes de entropía criptográfica. `base64url` es seguro dentro de una URL sin escapar. */
-export function generateInvitationToken(): string {
-  return randomBytes(32).toString("base64url");
-}
-
-export function hashInvitationToken(rawToken: string): string {
-  return createHash("sha256").update(rawToken).digest("hex");
-}
-
-/**
- * Comparación en tiempo constante. La búsqueda normal es por índice único sobre el hash, pero
- * cuando hay que comparar dos hashes directamente se evita filtrar información por el tiempo
- * de respuesta.
- */
-export function invitationTokenMatches(rawToken: string, storedHash: string): boolean {
-  const computed = Buffer.from(hashInvitationToken(rawToken), "hex");
-  let stored: Buffer;
-  try {
-    stored = Buffer.from(storedHash, "hex");
-  } catch {
-    return false;
-  }
-  if (computed.length !== stored.length) return false;
-  return timingSafeEqual(computed, stored);
-}
 
 /** 72 horas. Suficiente para verlo sin apuro, corto para que un enlace filtrado caduque. */
 export const INVITATION_TTL_HOURS = 72;

@@ -3,11 +3,8 @@
 import { prisma } from "@repo/db";
 import { requestPasswordReset } from "@repo/auth";
 import { findInvitationByTokenHash } from "@repo/db/fotoffice-member-invitations";
-import {
-  canMemberUseInvitations,
-  hashInvitationToken,
-  invitationState,
-} from "@/lib/members/invitations";
+import { hashInvitationToken } from "@/lib/members/invitation-tokens";
+import { canMemberUseInvitations, invitationState } from "@/lib/members/invitations";
 import {
   clearInvitationContinuity,
   setInvitationContinuity,

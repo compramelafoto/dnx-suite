@@ -1,12 +1,8 @@
 import Link from "next/link";
 import { findInvitationByTokenHash } from "@repo/db/fotoffice-member-invitations";
 import { getAuthUser } from "@/lib/auth";
-import {
-  canMemberUseInvitations,
-  emailsMatch,
-  hashInvitationToken,
-  invitationState,
-} from "@/lib/members/invitations";
+import { hashInvitationToken } from "@/lib/members/invitation-tokens";
+import { canMemberUseInvitations, emailsMatch, invitationState } from "@/lib/members/invitations";
 import { AcceptInvitationForm } from "@/components/members/accept-invitation-form";
 import { PasswordActivationForm } from "@/components/members/password-activation-form";
 

@@ -32,9 +32,7 @@
     "./dual-read": "./src/dual-read/index.ts",
     "./edition-checkout": "./src/edition-checkout/index.ts",
     "./frontend": "./src/frontend/index.ts",
-    "./orders-1n-refunds": "./src/application/services/orders-1n-refunds/index.ts",
-    "./mp-oauth/pkce": "./src/partner-onboarding/owner-oauth/pkce.ts",
-    "./mp-oauth/client": "./src/partner-onboarding/owner-oauth/mp-client.ts"
+    "./orders-1n-refunds": "./src/application/services/orders-1n-refunds/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",

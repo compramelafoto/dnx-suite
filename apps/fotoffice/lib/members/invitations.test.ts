@@ -1,18 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildInvitationUrl,
-  canMemberUseInvitations,
-  MEMBER_ACCESS_LABELS,
-  memberAccessStatus,
-  emailsMatch,
-  generateInvitationToken,
-  hashInvitationToken,
-  INVITATION_TTL_HOURS,
-  invitationExpiryFrom,
-  invitationState,
-  invitationTokenMatches,
-  isInvitationUsable,
-} from "./invitations";
+import { generateInvitationToken, hashInvitationToken, invitationTokenMatches } from "./invitation-tokens";
+import { buildInvitationUrl, canMemberUseInvitations, MEMBER_ACCESS_LABELS, memberAccessStatus, emailsMatch, INVITATION_TTL_HOURS, invitationExpiryFrom, invitationState, isInvitationUsable } from "./invitations";
 
 describe("token", () => {
   it("cada token es distinto", () => {
