@@ -22,3 +22,14 @@ export type {
   ReportSection,
   ReportTable,
 } from "./snapshot";
+
+export type {
+  ClfSalesPort,
+  FaceRecognitionPort,
+  FaceRecognitionStats,
+  IncidentsPort,
+  JobHealth,
+  OrderOriginKey,
+  PaidOrderRow,
+  QueueHealth,
+} from "./ports";
