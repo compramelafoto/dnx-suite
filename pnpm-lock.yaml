@@ -192,6 +192,9 @@ importers:
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
+      '@repo/ops-daily-report':
+        specifier: workspace:*
+        version: link:../../packages/ops-daily-report
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners
