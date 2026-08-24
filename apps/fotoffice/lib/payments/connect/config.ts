@@ -17,7 +17,9 @@ export type MpConnectConfig = {
  * opaco que cuesta horas diagnosticar. Por eso se guarda como variable y no se arma
  * concatenando el dominio en tiempo de ejecución.
  */
-export function readMpConnectConfig(env: NodeJS.ProcessEnv = process.env): MpConnectConfig {
+export function readMpConnectConfig(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): MpConnectConfig {
   const read = (key: string): string | null => env[key]?.trim() || null;
 
   const clientId = read(FOTOFFICE_MP_ENV.clientId);

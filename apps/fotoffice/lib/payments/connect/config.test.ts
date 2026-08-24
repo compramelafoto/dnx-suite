@@ -45,7 +45,7 @@ describe("readMpConnectConfig", () => {
   };
 
   it("con todo presente queda configurado", () => {
-    const c = readMpConnectConfig(full as NodeJS.ProcessEnv);
+    const c = readMpConnectConfig(full);
     expect(c.configured).toBe(true);
     expect(c.missing).toEqual([]);
     expect(c.clientId).toBe("cid");
@@ -57,7 +57,7 @@ describe("readMpConnectConfig", () => {
     ["FOTOFFICE_MP_CLIENT_SECRET"],
     ["FOTOFFICE_MP_REDIRECT_URI"],
   ])("sin %s no queda configurado y lo nombra", (key) => {
-    const env = { ...full, [key]: "" } as NodeJS.ProcessEnv;
+    const env = { ...full, [key]: "" };
     const c = readMpConnectConfig(env);
     expect(c.configured).toBe(false);
     expect(c.missing).toContain(key);
@@ -67,12 +67,12 @@ describe("readMpConnectConfig", () => {
     const c = readMpConnectConfig({
       ...full,
       FOTOFFICE_MP_CLIENT_ID: "  cid  ",
-    } as NodeJS.ProcessEnv);
+    });
     expect(c.clientId).toBe("cid");
   });
 
   it("con el entorno vacío nombra las tres variables faltantes", () => {
-    const c = readMpConnectConfig({} as NodeJS.ProcessEnv);
+    const c = readMpConnectConfig({});
     expect(c.missing).toHaveLength(3);
     expect(c.configured).toBe(false);
   });
@@ -82,7 +82,7 @@ describe("readMpConnectConfig", () => {
     const c = readMpConnectConfig({
       CLICKATON_MP_CLIENT_ID: "ajeno",
       CLICKATON_MP_CLIENT_SECRET: "ajeno",
-    } as NodeJS.ProcessEnv);
+    });
     expect(c.configured).toBe(false);
     expect(c.clientId).toBeNull();
   });
