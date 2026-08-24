@@ -12,7 +12,8 @@ const initial: SettingsFormState = { error: null };
 type CoursesSettingsInitial = {
   defaultCurrency: string;
   enrollmentCtaLabel: string | null;
-  coursesFeePercent: string;
+  /** Ya formateada para mostrar. Solo lectura: la fija SUPER_ADMIN. */
+  platformFee: string;
 };
 
 export function ModuleSettingsForm({ initialValues }: { initialValues: CoursesSettingsInitial }) {
@@ -54,21 +55,17 @@ export function ModuleSettingsForm({ initialValues }: { initialValues: CoursesSe
               className="fo-input"
             />
           </div>
+          {/*
+            La comisión se muestra pero NO se edita: la fija DNX por workspace y módulo.
+            Antes era un input y el dueño del workspace podía ponerla en cero.
+          */}
           <div className="fo-field-stack">
-            <label className="fo-label" htmlFor="coursesFeePercent">
-              Fee cursos presenciales (%)
-            </label>
-            <input
-              id="coursesFeePercent"
-              name="coursesFeePercent"
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              defaultValue={initialValues.coursesFeePercent}
-              className="fo-input"
-            />
-            <p className="fo-helper">Mínimo 0, máximo 100. Se descuenta solo en pagos aprobados.</p>
+            <span className="fo-label">Comisión de la plataforma</span>
+            <p className="text-lg font-semibold">{initialValues.platformFee}</p>
+            <p className="fo-helper">
+              Se descuenta del total de cada inscripción. La define DNX; si necesitás
+              revisarla, escribinos.
+            </p>
           </div>
         </div>
       </section>

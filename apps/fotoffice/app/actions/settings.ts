@@ -6,10 +6,14 @@ import { z } from "zod";
 import { requireCoursesSalesContext } from "@/lib/workspace";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 
+/**
+ * La comisión de la plataforma NO está acá a propósito: la fija SUPER_ADMIN en
+ * `WorkspaceModuleFee`. El dueño del workspace la ve en su configuración pero no puede
+ * cambiarla — antes sí podía, y podía ponerla en cero.
+ */
 const coursesSettingsSchema = z.object({
   defaultCurrency: z.string().min(1).max(8),
   enrollmentCtaLabel: z.string().max(120).optional().nullable(),
-  coursesFeePercent: z.coerce.number().min(0).max(100),
 });
 
 function emptyToNull(s: string | undefined): string | null {
@@ -32,16 +36,15 @@ export async function updateCoursesSalesSettingsAction(
     where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
     select: { role: true },
   });
-  const canManageFee =
+  const canManageSettings =
     canManageWorkspaceSettings(membership?.role) || canManageWorkspaceSettings(legacyMembership?.role);
-  if (!canManageFee) {
-    return { error: "Solo owner/admin del workspace puede editar el fee de cursos." };
+  if (!canManageSettings) {
+    return { error: "Solo owner/admin del workspace puede editar la configuración de cursos." };
   }
 
   const raw = {
     defaultCurrency: formData.get("defaultCurrency")?.toString()?.trim() || "ARS",
     enrollmentCtaLabel: emptyToNull(formData.get("enrollmentCtaLabel")?.toString()),
-    coursesFeePercent: formData.get("coursesFeePercent")?.toString() ?? "10",
   };
 
   const parsed = coursesSettingsSchema.safeParse(raw);
@@ -55,13 +58,11 @@ export async function updateCoursesSalesSettingsAction(
     update: {
       defaultCurrency: d.defaultCurrency,
       enrollmentCtaLabel: d.enrollmentCtaLabel ?? "Quiero inscribirme",
-      coursesFeePercent: d.coursesFeePercent,
     },
     create: {
       workspaceId: workspace.id,
       defaultCurrency: d.defaultCurrency,
       enrollmentCtaLabel: d.enrollmentCtaLabel ?? "Quiero inscribirme",
-      coursesFeePercent: d.coursesFeePercent,
     },
   });
 
