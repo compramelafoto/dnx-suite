@@ -20,7 +20,8 @@
     "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts",
     "./fotoffice-members": "./src/fotoffice-members.ts",
     "./fotoffice-user-lookup": "./src/fotoffice-user-lookup.ts",
-    "./fotoffice-member-invitations": "./src/fotoffice-member-invitations.ts"
+    "./fotoffice-member-invitations": "./src/fotoffice-member-invitations.ts",
+    "./clickaton-readonly-client": "./src/clickaton-readonly-client.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",

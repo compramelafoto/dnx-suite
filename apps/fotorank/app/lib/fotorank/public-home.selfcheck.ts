@@ -11,7 +11,13 @@
  * No toca la DB: `getStatusLabel` es pura.
  */
 import { resolveRegistrationCloseLabel } from "./contest-public-presentation";
-import { getStatusLabel, sortHomeCards, toPublicHomeContestCard } from "./publicContests";
+import {
+  dedupeBySlug,
+  getStatusLabel,
+  looksLikeTestEdition,
+  sortHomeCards,
+  toPublicHomeContestCard,
+} from "./publicContests";
 
 const NOW = new Date("2026-08-20T12:00:00.000Z");
 const PAST = new Date("2026-08-01T12:00:00.000Z");
@@ -326,6 +332,87 @@ for (const valor of [null, undefined] as const) {
     mezcla.filter((c) => c.modalityLabel === "Concurso fotográfico").length === 2,
     "los concursos siguen presentes después de ordenar",
   );
+}
+
+/* ==========================================================================
+   EDICIONES DE PRUEBA — no deben llegar al home público
+   ==========================================================================
+   Detectado en Preview: la consulta traía "Clickatón AR2026 — TEST UX" y
+   "Clickatón Piloto TEST 11B", publicadas y con inscripción, y las habría
+   mostrado a cualquier visitante. No estaban marcadas como fixture: lo único
+   que las delataba era el nombre.
+   ========================================================================== */
+
+for (const [name, slug] of [
+  ["Clickatón AR2026 — TEST UX", "ar2026-commercial-ux-test"],
+  ["Clickatón Piloto TEST 11B", "piloto-test-11b"],
+  ["Maratón Demo", "maraton-demo"],
+  ["Edición QA", "edicion-qa"],
+  ["Prueba interna", "prueba-interna"],
+  ["Edición normal", "staging-2026"],
+] as const) {
+  ok(looksLikeTestEdition(name, slug), `"${name}" se detecta como edición de prueba`);
+}
+
+/**
+ * Lo más importante: una convocatoria real NO puede quedar oculta. Se prueban
+ * nombres legítimos, incluidos los que contienen subcadenas de las palabras
+ * vetadas ("Protesta" contiene "test").
+ */
+for (const [name, slug] of [
+  ["Clickatón Argentina 2026", "clickaton-argentina-2026"],
+  ["Clickatón - Día del Fotógrafo Primavera 2026", "clickaton-primavera-2026"],
+  ["Santa Fe en Foco 2026", "santa-fe-en-foco"],
+  ["Protesta social en imágenes", "protesta-social"],
+  ["Detalles urbanos", "detalles-urbanos"],
+  ["Contestación visual", "contestacion-visual"],
+] as const) {
+  ok(!looksLikeTestEdition(name, slug), `"${name}" NO se confunde con una edición de prueba`);
+}
+
+/* ==========================================================================
+   DEDUPLICACIÓN — una convocatoria no puede aparecer dos veces
+   ==========================================================================
+   Una edición puede existir en los dos productos. Si aparece en ambos, manda
+   la publicada en FotoRank: tiene bases, categorías e inscripción propias, y
+   su enlace es interno.
+   ========================================================================== */
+{
+  const enFotoRank = toPublicHomeContestCard({
+    ...BASE_CARD,
+    slug: "clickaton-primavera-2026",
+    title: "Clickatón Primavera",
+    experienceType: "MARATHON",
+  });
+  const externa = toPublicHomeContestCard({
+    ...BASE_CARD,
+    slug: "clickaton-primavera-2026",
+    title: "Clickatón Primavera",
+    experienceType: "MARATHON",
+    href: "https://ejemplo.test/maratones/clickaton-primavera-2026",
+  });
+  const otraExterna = toPublicHomeContestCard({
+    ...BASE_CARD,
+    slug: "solo-externa",
+    title: "Sólo externa",
+    experienceType: "MARATHON",
+    href: "https://ejemplo.test/maratones/solo-externa",
+  });
+
+  const unidas = dedupeBySlug([enFotoRank], [externa, otraExterna]);
+  ok(unidas.length === 2, "una convocatoria presente en ambos orígenes aparece una sola vez");
+  ok(
+    unidas.find((c) => c.slug === "clickaton-primavera-2026")?.isExternal === false,
+    "ante duplicado gana la publicada en FotoRank (enlace interno)",
+  );
+  ok(
+    unidas.some((c) => c.slug === "solo-externa"),
+    "la convocatoria que sólo existe afuera se conserva",
+  );
+
+  // Sin duplicados, no se pierde nada de ninguno de los dos orígenes.
+  const sinChoque = dedupeBySlug([enFotoRank], [otraExterna]);
+  ok(sinChoque.length === 2, "sin coincidencias se conservan todas las convocatorias");
 }
 
 console.log("FINAL: PASS");

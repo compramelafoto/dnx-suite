@@ -1,4 +1,8 @@
 import { prisma } from "@repo/db";
+import {
+  getClickatonReadonlyClient,
+  isClickatonReadonlyAvailable,
+} from "@repo/db/clickaton-readonly-client";
 import { resolveRegistrationCloseLabel } from "./contest-public-presentation";
 import { resolveContestVisualTheme, resolveHeroAsset } from "./contest-visual";
 
@@ -99,6 +103,20 @@ export function toPublicHomeContestCard(input: {
  * Ordena por urgencia: primero lo que cierra antes. Las convocatorias sin fecha
  * de cierre van al final, porque no compiten por atención inmediata.
  */
+/**
+ * Une ambos orígenes evitando que una misma convocatoria aparezca dos veces.
+ *
+ * Gana siempre la publicada en FotoRank: si existe acá, tiene bases,
+ * categorías e inscripción propias, y su enlace es interno.
+ */
+export function dedupeBySlug(
+  preferred: PublicHomeContestCard[],
+  extra: PublicHomeContestCard[],
+): PublicHomeContestCard[] {
+  const seen = new Set(preferred.map((c) => c.slug));
+  return [...preferred, ...extra.filter((c) => !seen.has(c.slug))];
+}
+
 export function sortHomeCards(cards: PublicHomeContestCard[]): PublicHomeContestCard[] {
   return [...cards].sort((a, b) => {
     const at = a.submissionDeadline?.getTime() ?? Number.POSITIVE_INFINITY;
@@ -109,19 +127,104 @@ export function sortHomeCards(cards: PublicHomeContestCard[]): PublicHomeContest
 }
 
 /**
+ * Base pública del sitio de maratones, para enlazar las convocatorias externas.
+ * Se lee del entorno; el valor por defecto es el productivo.
+ */
+function marathonSiteBaseUrl(): string {
+  const raw = process.env.CLICKATON_PUBLIC_WEB_BASE_URL?.trim();
+  return (raw || "https://maratonfotografica.com").replace(/\/+$/, "");
+}
+
+/** Estados de una edición que corresponden a una convocatoria vigente. */
+const OPEN_EDITION_STATUSES = ["REGISTRATION_OPEN", "REGISTRATION_CLOSED"] as const;
+
+/**
+ * Nombres que delatan una edición de prueba.
+ *
+ * El otro producto declara la regla en su capa pública ("No copy TEST en
+ * superficies públicas"), pero no siempre viaja en `isOpsFixture`: hay
+ * ediciones publicadas y con inscripción cuyo único indicio está en el nombre.
+ * Sin esta red, la home publicaría "Clickatón AR2026 — TEST UX".
+ *
+ * Se usa `\b` para no ocultar convocatorias legítimas que contengan estas
+ * subcadenas ("Protesta", "Detalles", "Contestación").
+ */
+const TEST_EDITION_NAME = /\b(test|testing|piloto|pilot|demo|qa|staging|prueba|fixture|sandbox)\b/i;
+
+/** Exportada para poder probarla sin base. */
+export function looksLikeTestEdition(name: string, slug: string): boolean {
+  return TEST_EDITION_NAME.test(name) || TEST_EDITION_NAME.test(slug.replace(/-/g, " "));
+}
+
+/**
+ * Convocatorias de maratón, leídas de la base del otro producto.
+ *
+ * En producción cada aplicación usa su propia base aunque compartan el
+ * `schema.prisma`, así que esto NO puede resolverse con el cliente habitual de
+ * FotoRank: iría a la base equivocada. Se usa una conexión dedicada de solo
+ * lectura (`CLICKATON_READONLY_DATABASE_URL`).
+ *
+ * Si esa conexión no está configurada, la función devuelve una lista vacía y la
+ * home sigue mostrando los concursos: la integración es opcional por diseño.
+ */
+async function listPublicMarathonEditions(now: Date, limit: number): Promise<PublicHomeContestCard[]> {
+  if (!isClickatonReadonlyAvailable()) return [];
+
+  const client = getClickatonReadonlyClient();
+  const editions = await client.clickatonEdition.findMany({
+    where: {
+      isPublished: true,
+      isOpsFixture: false,
+      registrationEnabled: true,
+      status: { in: [...OPEN_EDITION_STATUSES] },
+    },
+    select: {
+      slug: true,
+      name: true,
+      city: true,
+      provinceOrState: true,
+      coverImageUrl: true,
+      startAt: true,
+      registrationCloseAt: true,
+    },
+    orderBy: [{ registrationCloseAt: "asc" }, { startAt: "asc" }],
+    take: limit * 2,
+  });
+
+  return editions
+    .filter((e) => !looksLikeTestEdition(e.name, e.slug))
+    .map((e) =>
+      toPublicHomeContestCard({
+        slug: e.slug,
+        title: e.name,
+        // El modelo no tiene organización propia: se ubica por sede.
+        organizerName: [e.city, e.provinceOrState].filter(Boolean).join(", ") || "Maratón fotográfica",
+        coverImageUrl: e.coverImageUrl,
+        registrationClosesAt: e.registrationCloseAt,
+        submissionDeadline: e.registrationCloseAt,
+        startAt: e.startAt,
+        categoriesCount: 0,
+        now,
+        experienceType: "MARATHON",
+        href: `${marathonSiteBaseUrl()}/maratones/${e.slug}`,
+      }),
+    );
+}
+
+/**
  * Convocatorias públicas de la home: concursos y maratones en una sola lista.
  *
- * Ambos formatos salen de `FotorankContest`. Una maratón es un concurso con
- * `experienceType = MARATHON`, y se publica desde el panel como cualquier otro;
- * la tarjeta la etiqueta según ese campo.
+ * Dos orígenes, una sola tarjeta:
+ *  - `FotorankContest`, donde una maratón es un concurso con
+ *    `experienceType = MARATHON` publicado desde el panel;
+ *  - las ediciones del otro producto, por conexión de solo lectura.
  *
- * Hubo aquí una segunda consulta que leía las ediciones del producto de
- * maratones directamente por Prisma. Se quitó: en producción cada aplicación
- * usa su propia base, así que esa consulta nunca alcanzaba los datos reales, y
- * en cambio podía traer alguna fila residual de la base de FotoRank y publicar
- * una convocatoria que no existe. Si algún día hace falta unificar los dos
- * catálogos, el camino es una API pública de listado en el otro producto, no
- * una lectura cruzada de base.
+ * Se deduplica por slug dando prioridad a lo publicado en FotoRank: si una
+ * edición ya tiene su convocatoria acá, la de FotoRank manda —tiene bases,
+ * categorías e inscripción propias—.
+ *
+ * Si la lectura de maratones falla o no está configurada, los concursos se
+ * muestran igual: un problema en un producto no puede vaciar la home del otro.
  */
 export async function listPublicHomeContests(limit = 6): Promise<PublicHomeContestCard[]> {
   try {
@@ -155,7 +258,9 @@ export async function listPublicHomeContests(limit = 6): Promise<PublicHomeConte
       }),
     );
 
-    return sortHomeCards(fromContests)
+    const fromMarathons = await listPublicMarathonEditions(now, limit).catch(() => []);
+
+    return sortHomeCards(dedupeBySlug(fromContests, fromMarathons))
       .filter((c) => c.statusLabel !== "Cerrado")
       .slice(0, limit);
   } catch {
