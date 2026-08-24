@@ -7,6 +7,8 @@ import { z } from "zod";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
 import { logCourseEvent } from "@/lib/presential-courses/log";
+import { splitByPlatformFee } from "@/lib/platform-fee/fee";
+import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 
 const enrollmentSchema = z.object({
   name: z.string().min(1).max(200),
@@ -79,14 +81,12 @@ export async function createPublicCourseEnrollmentAction(
     return { error: "No hay cupos disponibles para esta edición." };
   }
 
-  const settings = await prisma.courseSalesWorkspaceSettings.findUnique({
-    where: { workspaceId: branding.workspaceId },
-    select: { coursesFeePercent: true },
-  });
-  const feePercent = settings?.coursesFeePercent ?? new Prisma.Decimal(10);
+  // La comisión sale de WorkspaceModuleFee (default 5%), no de coursesFeePercent, que el
+  // dueño del workspace podía editar y quedó deprecado.
+  const feeBps = await getPlatformFeeBps(branding.workspaceId, COURSES_SALES_MODULE_KEY);
   const amount = instance.priceArs;
-  const fee = amount.mul(feePercent).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-  const net = amount.minus(fee).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  const { fee, net } = splitByPlatformFee(amount, feeBps);
+  const feePercent = new Prisma.Decimal(feeBps).div(100);
 
   const enrollment = await prisma.courseEnrollment.create({
     data: {
