@@ -511,6 +511,15 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.972.0
         version: 3.1079.0
+      '@dnd-kit/core':
+        specifier: ^6.3.1
+        version: 6.3.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@dnd-kit/sortable':
+        specifier: ^10.0.0
+        version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
+      '@dnd-kit/utilities':
+        specifier: ^3.2.2
+        version: 3.2.2(react@19.2.4)
       '@repo/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -1354,6 +1363,27 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  packages/ops-daily-report:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
   packages/partners:
     devDependencies:
       '@repo/eslint-config':
@@ -1393,8 +1423,6 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
-
-  packages/photo-prompt-library: {}
 
   packages/promotions:
     devDependencies:
