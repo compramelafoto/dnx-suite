@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { CourseEditorForm } from "@/components/presential-courses/course-editor-form";
 import { CourseInstanceForm } from "@/components/presential-courses/course-instance-form";
+import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { CourseInstanceEditForm } from "@/components/presential-courses/course-instance-edit-form";
 import { formatMoney } from "@/lib/format";
 import {
@@ -59,7 +61,10 @@ export default async function DashboardCourseDetailPage({
 
       <section className="fo-card space-y-6">
         <h2 className="text-lg font-semibold">Ediciones</h2>
-        <CourseInstanceForm courseId={course.id} />
+        <CourseInstanceForm
+          courseId={course.id}
+          platformFeeBps={await getPlatformFeeBps(course.workspaceId, COURSES_SALES_MODULE_KEY)}
+        />
         {instances.length === 0 ? (
           <p className="text-sm text-[var(--fo-muted)]">Este curso todavía no tiene ediciones.</p>
         ) : (

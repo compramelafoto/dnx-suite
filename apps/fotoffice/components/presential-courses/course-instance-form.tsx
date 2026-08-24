@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { PlatformFeeBreakdown } from "@/components/platform-fee/fee-breakdown";
 import {
   createCourseInstanceAction,
   type PresentialCourseActionState,
@@ -8,8 +9,16 @@ import {
 
 const initialState: PresentialCourseActionState = { error: null };
 
-export function CourseInstanceForm({ courseId }: { courseId: string }) {
+export function CourseInstanceForm({
+  courseId,
+  platformFeeBps,
+}: {
+  courseId: string;
+  /** Comisión vigente del módulo de cursos, para el desglose en vivo. */
+  platformFeeBps: number;
+}) {
   const [state, action, pending] = useActionState(createCourseInstanceAction, initialState);
+  const [priceArs, setPriceArs] = useState("");
 
   return (
     <form action={action} className="space-y-4">
@@ -49,7 +58,18 @@ export function CourseInstanceForm({ courseId }: { courseId: string }) {
           <label className="fo-label" htmlFor="priceArs">
             Precio ARS
           </label>
-          <input id="priceArs" name="priceArs" type="number" min={0} step="0.01" className="fo-input" required />
+          <input
+            id="priceArs"
+            name="priceArs"
+            type="number"
+            min={0}
+            step="0.01"
+            className="fo-input"
+            required
+            value={priceArs}
+            onChange={(e) => setPriceArs(e.target.value)}
+          />
+          <PlatformFeeBreakdown amountArs={priceArs} feeBps={platformFeeBps} />
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="capacity">
