@@ -14771,3 +14771,55 @@ enum PhotoPromptLibraryStatus {
   ARCHIVED
 }
 
+
+/// Estado de generación de un informe diario DNX.
+enum DnxDailyReportStatus {
+  COMPLETE
+  PARTIAL
+  FAILED
+}
+
+/// Resultado del envío de un informe diario por un canal.
+enum DnxDailyReportDeliveryStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// Informe Diario DNX — una fila por día calendario argentino.
+model DnxDailyReportSnapshot {
+  id             String                   @id @default(cuid())
+  /// Día informado (YYYY-MM-DD, calendario argentino). Único por día.
+  reportDate     String                   @unique
+  timeZone       String                   @default("America/Argentina/Buenos_Aires")
+  status         DnxDailyReportStatus     @default(COMPLETE)
+  /// Snapshot completo serializado (DailyReportSnapshot de @repo/ops-daily-report).
+  payload        Json
+  generationMs   Int                      @default(0)
+  /// Claves de las secciones que no se pudieron generar.
+  failedSections String[]                 @default([])
+  /// Cantidad de alertas críticas, desnormalizada para el listado del panel.
+  criticalAlerts Int                      @default(0)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  deliveries     DnxDailyReportDelivery[]
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+/// Intento de envío de un informe diario.
+model DnxDailyReportDelivery {
+  id                String                       @id @default(cuid())
+  snapshotId        String
+  channel           String                       @default("email")
+  recipient         String
+  status            DnxDailyReportDeliveryStatus
+  providerMessageId String?
+  error             String?
+  sentAt            DateTime                     @default(now())
+  snapshot          DnxDailyReportSnapshot       @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([status, sentAt])
+}
