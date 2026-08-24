@@ -1,13 +1,17 @@
+// Rutas estrechas a propósito: el barril raíz de @repo/payments arrastra todo el paquete,
+// cuyos imports ESM con extensión .js no resuelve Turbopack. Estos dos módulos no tienen
+// imports internos de valor (pkce solo usa node:crypto; mp-client, solo tipos).
 import {
   codeChallengeS256,
-  decryptPkceVerifier,
-  encryptPkceVerifier,
   generateCodeVerifier,
   generateOAuthStateToken,
   hashOAuthStateToken,
+} from "@repo/payments/mp-oauth/pkce";
+import {
   buildMercadoPagoAuthorizeUrl,
   type MercadoPagoOAuthHttpClient,
-} from "@repo/payments";
+} from "@repo/payments/mp-oauth/client";
+import { decryptPkceVerifier, encryptPkceVerifier } from "./crypto";
 import { FOTOFFICE_PRODUCT_KEY, workspaceOrganizationRef } from "./constants";
 import type { MpConnectConfig } from "./config";
 

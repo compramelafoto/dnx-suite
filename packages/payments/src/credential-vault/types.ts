@@ -18,7 +18,9 @@ export type MercadoPagoCredentialOrigin =
   | "compramelafoto_legacy_user"
   | "compramelafoto_legacy_lab"
   | "clickaton_owner_oauth"
-  | "clickaton_partner_oauth";
+  | "clickaton_partner_oauth"
+  /** Institución que conecta su cuenta desde FotoOffice para cobrar cuotas. */
+  | "fotoffice_workspace_oauth";
 
 export interface MercadoPagoCredentialPayload {
   accessToken: string;
