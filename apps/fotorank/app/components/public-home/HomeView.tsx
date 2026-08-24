@@ -169,8 +169,13 @@ export function HomeView({ contests, header }: Props) {
                        * portada configurada → ninguna). Si no hay, la tarjeta
                        * queda tipográfica, que es un estado válido y no un error.
                        *
-                       * `width`/`height` fijan la proporción para que el navegador
-                       * reserve el espacio y no haya salto de layout al cargar.
+                       * Tamaño: 240×135 en escritorio. La primera versión usaba
+                       * 144×80 y el banner institucional —panorámico, con logos y
+                       * texto— quedaba ilegible: se veía una mancha. A 240 px de
+                       * ancho el contenido se distingue.
+                       *
+                       * `width`/`height` mantienen la relación 16:9 para que el
+                       * navegador reserve el espacio y no haya salto de layout.
                        */}
                       {c.heroImageUrl ? (
                         <span className="block shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] sm:order-first">
@@ -178,11 +183,11 @@ export function HomeView({ contests, header }: Props) {
                           <img
                             src={c.heroImageUrl}
                             alt={c.heroImageAlt}
-                            width={320}
-                            height={180}
+                            width={480}
+                            height={270}
                             loading="lazy"
                             decoding="async"
-                            className="h-32 w-full object-cover sm:h-20 sm:w-36"
+                            className="h-44 w-full object-cover sm:h-[8.4375rem] sm:w-60"
                             data-testid="home-contest-card-image"
                           />
                         </span>
