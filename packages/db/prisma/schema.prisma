@@ -2202,6 +2202,7 @@ model Album {
   termsVersion                    String?
   isPublic                        Boolean                        @default(true)
   allowClientLabSelection         Boolean                        @default(false)
+  scanProtectionEnabled           Boolean                        @default(true)
   expirationExtensionDays         Int                            @default(0)
   expiresAt                       DateTime                       @default(now())
   reactivatedAt                   DateTime?

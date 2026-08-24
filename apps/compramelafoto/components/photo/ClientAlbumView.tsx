@@ -77,6 +77,8 @@ type Album = {
   isHidden?: boolean;
   showComingSoonMessage?: boolean;
   hiddenPhotosEnabled?: boolean;
+  /** Protección visual al ampliar fotos no compradas. Activada salvo que el fotógrafo la apague. */
+  scanProtectionEnabled?: boolean;
   /** Paquete “todas mis fotos” por reconocimiento facial (precio base en centavos; el checkout suma comisión de plataforma como el digital) */
   enableFaceBulkPurchase?: boolean;
   faceBulkPriceCents?: number | null;
@@ -3066,7 +3068,7 @@ export default function ClientAlbumView({
         <PhotoSlideViewer
           photos={slideViewerPhotoList}
           initialIndex={slideViewerIndex}
-          protectUnpurchased
+          protectUnpurchased={album.scanProtectionEnabled !== false}
           onClose={() => setShowSlideViewer(false)}
           onPhotoSelect={canSelectPhotosForPurchase ? toggle : undefined}
           selectionTotalLabel={

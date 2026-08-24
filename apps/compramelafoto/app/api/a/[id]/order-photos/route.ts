@@ -551,6 +551,8 @@ async function buildOrderPhotosResponse(albumId: number, photoIds: number[], deb
     digitalDiscount10Plus: (album as { digitalDiscount10Plus?: number | null }).digitalDiscount10Plus ?? null,
     digitalDiscount20Plus: (album as { digitalDiscount20Plus?: number | null }).digitalDiscount20Plus ?? null,
     allowClientLabSelection: false,
+    scanProtectionEnabled:
+      (album as { scanProtectionEnabled?: boolean }).scanProtectionEnabled !== false,
     extensionPricingActive,
     extensionSurchargePercent:
       extensionPricingActive && extensionSurchargeMode?.kind === "PERCENT_OF_SUBTOTAL"

@@ -29,6 +29,36 @@ describe("shouldApplyScanProtection", () => {
   });
 });
 
+describe("ajuste por álbum", () => {
+  /** Réplica de cómo la vista resuelve el ajuste guardado del álbum. */
+  function desdeAlbum(album: { scanProtectionEnabled?: boolean }) {
+    return shouldApplyScanProtection({
+      enabled: album.scanProtectionEnabled !== false,
+      purchased: false,
+    });
+  }
+
+  it("un álbum sin el ajuste guardado queda protegido (por defecto activa)", () => {
+    assert.equal(desdeAlbum({}), true);
+    assert.equal(desdeAlbum({ scanProtectionEnabled: undefined }), true);
+  });
+
+  it("un álbum con la protección activada queda protegido", () => {
+    assert.equal(desdeAlbum({ scanProtectionEnabled: true }), true);
+  });
+
+  it("el fotógrafo puede desactivarla y el álbum vuelve a verse como antes", () => {
+    assert.equal(desdeAlbum({ scanProtectionEnabled: false }), false);
+  });
+
+  it("aun con la protección activada, una foto comprada nunca se protege", () => {
+    assert.equal(
+      shouldApplyScanProtection({ enabled: true, purchased: true }),
+      false,
+    );
+  });
+});
+
 describe("computeScanDurationMs", () => {
   it("mantiene velocidad constante: una foto más alta tarda más", () => {
     const corta = computeScanDurationMs({ frameHeightPx: 500, bandHeightPx: 44 });

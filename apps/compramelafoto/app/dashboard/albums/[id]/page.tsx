@@ -131,6 +131,7 @@ type Album = {
   hiddenPhotosEnabled?: boolean;
   hiddenSelfieRetentionDays?: number | null;
   showComingSoonMessage?: boolean;
+  scanProtectionEnabled?: boolean;
   preCompraCloseAt?: string | null;
   requireClientApproval?: boolean;
   schoolId?: number | null;
@@ -305,6 +306,7 @@ export default function DashboardAlbumDetailPage() {
   const [hiddenPhotosEnabled, setHiddenPhotosEnabled] = useState(false);
   const [hiddenSelfieRetentionDays, setHiddenSelfieRetentionDays] = useState("");
   const [showComingSoonMessage, setShowComingSoonMessage] = useState(false);
+  const [scanProtectionEnabled, setScanProtectionEnabled] = useState(true);
   const [configSaving, setConfigSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -1047,6 +1049,7 @@ export default function DashboardAlbumDetailPage() {
         data.hiddenSelfieRetentionDays != null ? String(data.hiddenSelfieRetentionDays) : ""
       );
       setShowComingSoonMessage(Boolean(data.showComingSoonMessage));
+      setScanProtectionEnabled(data.scanProtectionEnabled !== false);
       // Establecer shareUrl si no está ya establecido
       if (!shareUrl && data.publicSlug) {
         setShareUrl(`${typeof window !== "undefined" ? window.location.origin : ""}/a/${data.publicSlug}`);
@@ -1797,6 +1800,7 @@ export default function DashboardAlbumDetailPage() {
             ? null
             : parseInt(hiddenSelfieRetentionDays, 10) || null,
         showComingSoonMessage,
+        scanProtectionEnabled,
       };
 
       const res = await fetch(`/api/dashboard/albums/${albumId}`, {
@@ -2141,6 +2145,8 @@ export default function DashboardAlbumDetailPage() {
                 hiddenPhotosEnabled={hiddenPhotosEnabled}
                 hiddenSelfieRetentionDays={hiddenSelfieRetentionDays}
                 showComingSoonMessage={showComingSoonMessage}
+                scanProtectionEnabled={scanProtectionEnabled}
+                onScanProtectionChange={setScanProtectionEnabled}
                 albumMode={albumMode}
                 albumModeSaving={albumModeSaving}
                 saving={configSaving}
