@@ -18,12 +18,19 @@ import {
   createClfMonorepoCollector,
   createClickatonCollector,
   createFaceRecognitionCollector,
+  createFotofficeCollector,
+  createFotorankCollector,
   createIncidentsCollector,
+  createInfoSpotCollector,
   resolveArgentinaDayWindow,
 } from "@repo/ops-daily-report";
 
 import { prisma } from "@/lib/prisma";
+import { createClfLegacyCollector } from "./clf-legacy-collector";
 import { createPrismaClickatonPort } from "./prisma-clickaton-port";
+import { createPrismaFotofficePort } from "./prisma-fotoffice-port";
+import { createPrismaFotorankPort } from "./prisma-fotorank-port";
+import { createPrismaInfoSpotPort } from "./prisma-infospot-port";
 import { createPrismaFaceRecognitionPort } from "./prisma-face-recognition-port";
 import { createPrismaIncidentsPort } from "./prisma-incidents-port";
 import { createPrismaSalesPort } from "./prisma-sales-port";
@@ -50,6 +57,11 @@ function resolveRecipients(): string[] {
     .map((value) => value.trim())
     .filter(Boolean);
   return parsed.length > 0 ? parsed : [DEFAULT_RECIPIENT];
+}
+
+/** URL pública de una app hermana, con respaldo si no está configurada. */
+function resolveAppUrl(envKey: string, fallback: string): string {
+  return (process.env[envKey] || fallback).replace(/\/$/, "");
 }
 
 function resolveClickatonBaseUrl(): string {
@@ -112,8 +124,18 @@ export async function runDailyReport(options: { now: Date }): Promise<RunDailyRe
     now: options.now,
     collectors: [
       createClfMonorepoCollector(createPrismaSalesPort(prisma), window, { adminBaseUrl }),
+      createClfLegacyCollector(window, { adminBaseUrl }),
       createClickatonCollector(createPrismaClickatonPort(prisma), window, {
         adminBaseUrl: clickatonBaseUrl,
+      }),
+      createFotorankCollector(createPrismaFotorankPort(prisma), window, {
+        adminBaseUrl: resolveAppUrl("FOTORANK_PUBLIC_URL", "https://fotorank.dnxsuite.com"),
+      }),
+      createInfoSpotCollector(createPrismaInfoSpotPort(prisma), window, {
+        adminBaseUrl: resolveAppUrl("NEXT_PUBLIC_INFOSPOT_URL", "https://infospot.dnxsuite.com"),
+      }),
+      createFotofficeCollector(createPrismaFotofficePort(prisma), window, {
+        adminBaseUrl: resolveAppUrl("FOTOFFICE_PUBLIC_URL", "https://fotoffice.dnxsuite.com"),
       }),
       createIncidentsCollector(createPrismaIncidentsPort(prisma), window, {
         adminBaseUrl,

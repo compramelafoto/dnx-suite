@@ -18,6 +18,9 @@ import {
   createClfMonorepoCollector,
   createClickatonCollector,
   createFaceRecognitionCollector,
+  createFotofficeCollector,
+  createFotorankCollector,
+  createInfoSpotCollector,
   createIncidentsCollector,
   resolveArgentinaDayWindow,
 } from "@repo/ops-daily-report";
@@ -28,7 +31,11 @@ import {
   renderFailedSectionsNote,
   renderSummaryBlock,
 } from "../lib/daily-report/render-blocks";
+import { createClfLegacyCollector } from "../lib/daily-report/clf-legacy-collector";
 import { createPrismaClickatonPort } from "../lib/daily-report/prisma-clickaton-port";
+import { createPrismaFotofficePort } from "../lib/daily-report/prisma-fotoffice-port";
+import { createPrismaFotorankPort } from "../lib/daily-report/prisma-fotorank-port";
+import { createPrismaInfoSpotPort } from "../lib/daily-report/prisma-infospot-port";
 import { createPrismaFaceRecognitionPort } from "../lib/daily-report/prisma-face-recognition-port";
 import { createPrismaSalesPort } from "../lib/daily-report/prisma-sales-port";
 
@@ -131,7 +138,11 @@ async function main(): Promise<void> {
     now,
     collectors: [
       createClfMonorepoCollector(createPrismaSalesPort(prisma), window, { adminBaseUrl }),
+      createClfLegacyCollector(window, { adminBaseUrl }),
       createClickatonCollector(createPrismaClickatonPort(prisma), window, { adminBaseUrl }),
+      createFotorankCollector(createPrismaFotorankPort(prisma), window, { adminBaseUrl }),
+      createInfoSpotCollector(createPrismaInfoSpotPort(prisma), window, { adminBaseUrl }),
+      createFotofficeCollector(createPrismaFotofficePort(prisma), window, { adminBaseUrl }),
       createIncidentsCollector(createStandaloneIncidentsPort(), window, {
         adminBaseUrl,
         now,
