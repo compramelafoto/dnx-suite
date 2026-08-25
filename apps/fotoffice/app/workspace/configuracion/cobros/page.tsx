@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { SplitConsentPanel } from "@/components/payments/split-consent-panel";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { readMpConnectConfig } from "@/lib/payments/connect/config";
@@ -86,6 +87,17 @@ export default async function CobrosPage({
               </div>
             ) : null}
           </dl>
+        ) : null}
+
+        {/*
+          El consentimiento solo tiene sentido con la cuenta ya vinculada: sin receptor no
+          hay a quién autorizar.
+        */}
+        {canManage && collection.status !== "NOT_CONNECTED" ? (
+          <SplitConsentPanel
+            consent={collection.consent}
+            savedInviteUrl={collection.consentInviteUrl}
+          />
         ) : null}
 
         {!config.configured ? (
