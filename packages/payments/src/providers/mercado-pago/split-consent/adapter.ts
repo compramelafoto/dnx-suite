@@ -11,6 +11,10 @@ import type {
 } from "./contracts.js";
 import { mapMpConsentReceiver, mapMpConsentStatusToDomain } from "./mapper.js";
 import { assertNonEmptyEmails } from "./errors.js";
+import {
+  assertSplitConsentWriteAllowed,
+  isSplitConsentProductionEnabled,
+} from "./production-flag.js";
 import { PaymentProviderValidationError } from "../../../errors/provider-errors.js";
 
 const UUID_V4 =
@@ -45,8 +49,14 @@ export class MercadoPagoSplitConsentAdapter implements SplitConsentProvider {
       inviteUrl?: string;
     }>
   > {
-    if (input.environment !== "sandbox") {
-      throw new PaymentProviderValidationError("Split consent invites are sandbox-only in Etapa 03");
+    const gate = assertSplitConsentWriteAllowed({
+      environment: input.environment,
+      productionEnabled: isSplitConsentProductionEnabled(),
+    });
+    if (!gate.ok) {
+      throw new PaymentProviderValidationError(
+        `Split consent invite not allowed: ${gate.reason}`,
+      );
     }
     assertNonEmptyEmails(input.sellerEmails);
     if (input.sellerEmails.length > this.maxBatchSize) {
@@ -166,8 +176,14 @@ export class MercadoPagoSplitConsentAdapter implements SplitConsentProvider {
     environment: PaymentEnvironment;
     receiverId: string;
   }): Promise<{ status: SplitConsentStatus }> {
-    if (input.environment !== "sandbox") {
-      throw new PaymentProviderValidationError("Split consent cancel is sandbox-only in Etapa 03");
+    const gate = assertSplitConsentWriteAllowed({
+      environment: input.environment,
+      productionEnabled: isSplitConsentProductionEnabled(),
+    });
+    if (!gate.ok) {
+      throw new PaymentProviderValidationError(
+        `Split consent cancel not allowed: ${gate.reason}`,
+      );
     }
 
     const response = await this.http.request<MpSplitConsentPatchResponse>({
