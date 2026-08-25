@@ -1,6 +1,8 @@
 import type { LegacyTemplateV2Payload } from "@repo/template-engine";
 
-export type TemplatePresetProduct = "school" | "clickaton";
+// Debe reflejar el mismo tipo de @repo/template-engine
+// (packages/template-engine/src/presets/clickaton/types.ts).
+export type TemplatePresetProduct = "school" | "clickaton" | "fotorank";
 export type TemplatePresetFormat = "instagram_story" | "print" | "custom";
 export type TemplatePresetStatus = "draft" | "published" | "deprecated";
 
