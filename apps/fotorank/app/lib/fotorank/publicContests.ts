@@ -166,6 +166,24 @@ function marathonSiteBaseUrl(): string {
   return (raw || "https://maratonfotografica.com").replace(/\/+$/, "");
 }
 
+/**
+ * Vuelve absoluta una ruta que el otro producto guarda relativa a SU dominio.
+ *
+ * Las portadas de las ediciones se almacenan como `/api/media/...`, que resuelve
+ * en el sitio de maratones. Servida tal cual desde el home de FotoRank, el
+ * navegador la busca en fotorank.com y devuelve 404: la tarjeta quedaba con el
+ * texto alternativo a la vista en lugar de la imagen.
+ *
+ * Exportada para poder probarla sin base.
+ */
+export function toAbsoluteMarathonUrl(path: string | null | undefined): string | null {
+  const raw = path?.trim();
+  if (!raw) return null;
+  // Ya absoluta (o protocolo relativo): se respeta tal cual.
+  if (/^(https?:)?\/\//i.test(raw)) return raw;
+  return `${marathonSiteBaseUrl()}${raw.startsWith("/") ? "" : "/"}${raw}`;
+}
+
 /** Estados de una edición que corresponden a una convocatoria vigente. */
 const OPEN_EDITION_STATUSES = ["REGISTRATION_OPEN", "REGISTRATION_CLOSED"] as const;
 
@@ -231,7 +249,8 @@ async function listPublicMarathonEditions(now: Date, limit: number): Promise<Pub
         title: e.name,
         // El modelo no tiene organización propia: se ubica por sede.
         organizerName: [e.city, e.provinceOrState].filter(Boolean).join(", ") || "Maratón fotográfica",
-        coverImageUrl: e.coverImageUrl,
+        // La portada vive en el sitio de maratones: hay que absolutizarla.
+        coverImageUrl: toAbsoluteMarathonUrl(e.coverImageUrl),
         registrationOpensAt: e.registrationOpenAt,
         registrationClosesAt: e.registrationCloseAt,
         submissionDeadline: e.registrationCloseAt,

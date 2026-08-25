@@ -13,6 +13,7 @@
 import { resolveRegistrationCloseLabel } from "./contest-public-presentation";
 import {
   dedupeBySlug,
+  toAbsoluteMarathonUrl,
   getStatusLabel,
   looksLikeTestEdition,
   sortHomeCards,
@@ -484,6 +485,46 @@ for (const [name, slug] of [
   ok(
     sinApertura.statusLabel === "Próximamente",
     "sin fecha de apertura declarada se usa startAt como referencia",
+  );
+}
+
+/* ==========================================================================
+   PORTADAS EXTERNAS — rutas relativas al otro dominio
+   ==========================================================================
+   Las ediciones guardan la portada como `/api/media/...`, relativa a SU sitio.
+   Servida tal cual desde FotoRank, el navegador la buscaba en fotorank.com y
+   devolvía 404: la tarjeta mostraba el texto alternativo en vez de la imagen.
+   ========================================================================== */
+{
+  const rutaReal = "/api/media/clickaton/editions/2026-08-01/e67adc73.png";
+  const absoluta = toAbsoluteMarathonUrl(rutaReal);
+  ok(
+    typeof absoluta === "string" && /^https?:\/\//.test(absoluta),
+    "una ruta relativa se convierte en URL absoluta",
+  );
+  ok(
+    String(absoluta).endsWith(rutaReal),
+    "la ruta original se conserva íntegra al absolutizarla",
+  );
+  ok(!String(absoluta).includes("//api/"), "no se duplica la barra al unir dominio y ruta");
+
+  // Una URL ya absoluta no se toca.
+  const yaAbsoluta = "https://cdn.example/portada.png";
+  ok(toAbsoluteMarathonUrl(yaAbsoluta) === yaAbsoluta, "una URL absoluta se respeta sin cambios");
+  ok(
+    toAbsoluteMarathonUrl("//cdn.example/x.png") === "//cdn.example/x.png",
+    "una URL con protocolo relativo se respeta sin cambios",
+  );
+
+  // Vacío y nulo no generan URLs rotas.
+  for (const vacio of [null, undefined, "", "   "] as const) {
+    ok(toAbsoluteMarathonUrl(vacio) === null, `"${String(vacio)}" → null, no una URL inválida`);
+  }
+
+  // Una ruta sin barra inicial también queda bien formada.
+  ok(
+    /^https?:\/\/[^/]+\/media\/x\.png$/.test(String(toAbsoluteMarathonUrl("media/x.png"))),
+    "una ruta sin barra inicial se une correctamente",
   );
 }
 
