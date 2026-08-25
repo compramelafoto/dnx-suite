@@ -184,6 +184,7 @@ const menuGroups: MenuGroup[] = [
   {
     title: "Plataforma",
     items: [
+      { id: "informe-diario", label: "Informe diario", path: "/admin/informe-diario" },
       { id: "salud-plataforma", label: "Salud de la Plataforma", path: "/admin/salud-plataforma" },
       { id: "configuracion", label: "Configuración general", path: "/admin/configuracion" },
       { id: "r2", label: "Almacenamiento R2", path: "/admin/r2" },
