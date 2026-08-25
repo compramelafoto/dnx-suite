@@ -98,16 +98,23 @@ propuestas generadas.
 
 Ver `docs/superpowers/specs/2026-08-22-generador-propuestas-sponsors-design.md`.
 
-### Inventario que el catálogo declara y todavía no existe
+### Inventario que el catálogo vende y todavía no existe
 
-| Pieza | Placement | Estado |
+Las nueve piezas del catálogo corresponden a placements montados. La brecha está
+en otro lado: **FotoRank no tiene inventario global**.
+
+| Placement | Superficie | Estado |
 |---|---|---|
-| Banner de portada · ComprameLaFoto | `CLF_HOME_PROMO` | **Sin montar** |
+| `FOTORANK_CONTEST_WELCOME` | Página de un concurso | Montado |
+| `FOTORANK_HOME_WELCOME` | Portada de FotoRank | **Sin montar** |
+| `FOTORANK_HOME_MARQUEE` | Portada de FotoRank | **Sin montar** |
 
-La prueba «cada pieza declara un placement montado» lo incluye en su lista
-escrita a mano, así que hoy no protege de nada en ese caso. Se resuelve al
-montar el placement.
+Consecuencia comercial: un organizador de FotoRank puede vender su concurso y
+espacios globales de InfoSpot, ComprameLaFoto y Clickatón, pero **no de
+FotoRank**. Un «pack de plataforma FotoRank» no se puede cumplir hasta montar
+esos dos espacios.
 
-Falta además montar el inventario global de FotoRank —placa de bienvenida y
-franja de logos de la portada—, sin el cual un organizador de FotoRank no puede
-vender presencia en la portada de su propia plataforma.
+La app tiene infraestructura de partners acotada al concurso
+(`contest-partners-service.ts`, `contest-welcome.ts`) y una única ruta pública,
+`impression`. Montar la portada requiere un cargador de avisos globales que hoy
+no existe.
