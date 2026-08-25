@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createConnectDeps } from "@/lib/payments/connect/deps";
 import { ConnectError, completeMpConnection } from "@/lib/payments/connect/service";
+import { sanitizeError } from "@/lib/payments/connect/log";
 
 export const dynamic = "force-dynamic";
 
-const SETTINGS_URL = "/configuracion/cobros";
+const SETTINGS_URL = "/workspace/configuracion/cobros";
 
 /**
  * Recibe el retorno de MercadoPago y completa la vinculación.
@@ -34,8 +35,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL(`${SETTINGS_URL}?ok=conectado`, request.url));
   } catch (error) {
     const codeError = error instanceof ConnectError ? error.code : "ERROR";
-    // Nunca se registra el código de autorización ni el state: son secretos de un solo uso.
-    console.error("[fotoffice][mp-connect] callback falló", { code: codeError });
+    // El código de autorización y el state nunca se registran: son secretos de un solo uso.
+    // El detalle del error sí, saneado: sin él no se puede distinguir un rechazo del
+    // proveedor de un bug propio.
+    console.error("[fotoffice][mp-connect] callback falló", {
+      code: codeError,
+      detalle: sanitizeError(error),
+    });
     return NextResponse.redirect(new URL(`${SETTINGS_URL}?error=${codeError}`, request.url));
   }
 }

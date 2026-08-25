@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
@@ -7,6 +8,8 @@ import { WorkspaceSettingsForm } from "./settings-form";
 import { EmailSignaturePreview } from "@/components/communications/email-signature-preview";
 import { TestEmailPanel } from "@/components/communications/test-email-panel";
 import { toEmailSignatureData } from "@/lib/communications/workspace-signature";
+import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
+import { collectionCopy } from "@/lib/payments/connect/messages";
 
 export default async function WorkspaceSettingsPage() {
   const user = await requireAuth();
@@ -31,9 +34,34 @@ export default async function WorkspaceSettingsPage() {
     }),
   ]);
   const canEdit = canManageWorkspaceSettings(membership?.role);
+  // Estado de cobros, para que el acceso diga si hace falta hacer algo.
+  const cobros = await getWorkspaceCollectionStatus(ensured.workspaceId);
+  const cobrosCopy = collectionCopy(cobros.status);
 
   return (
     <div className="space-y-8 max-w-xl">
+      {/*
+        Acceso a Cobros. Va arriba y siempre visible: si la institución no conectó su cuenta
+        no puede cobrar nada, y esa es la primera cosa que necesita resolver.
+      */}
+      <Link
+        href="/workspace/configuracion/cobros"
+        className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+      >
+        <span className="space-y-0.5">
+          <span className="block text-sm font-semibold">Cobros</span>
+          <span
+            className={
+              "block text-xs " +
+              (cobros.canReceiveSplit ? "text-[var(--fo-success)]" : "text-[var(--fo-danger)]")
+            }
+          >
+            {cobrosCopy.title}
+          </span>
+        </span>
+        <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+      </Link>
+
       <div className="space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--fo-text)]">
           Configuración del negocio

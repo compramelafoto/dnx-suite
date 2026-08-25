@@ -3,10 +3,11 @@ import { requireActiveWorkspace } from "@/lib/workspace";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { createConnectDeps } from "@/lib/payments/connect/deps";
 import { ConnectError, startMpConnection } from "@/lib/payments/connect/service";
+import { sanitizeError } from "@/lib/payments/connect/log";
 
 export const dynamic = "force-dynamic";
 
-const SETTINGS_URL = "/configuracion/cobros";
+const SETTINGS_URL = "/workspace/configuracion/cobros";
 
 /**
  * Inicia la vinculación de la cuenta de MercadoPago de la institución.
@@ -36,7 +37,10 @@ export async function GET(request: Request) {
     // Nunca se propaga el detalle al navegador: puede contener nombres de variables de
     // entorno o mensajes del proveedor.
     const code = error instanceof ConnectError ? error.code : "ERROR";
-    console.error("[fotoffice][mp-connect] start falló", { code });
+    console.error("[fotoffice][mp-connect] start falló", {
+      code,
+      detalle: sanitizeError(error),
+    });
     return NextResponse.redirect(new URL(`${SETTINGS_URL}?error=${code}`, request.url));
   }
 }

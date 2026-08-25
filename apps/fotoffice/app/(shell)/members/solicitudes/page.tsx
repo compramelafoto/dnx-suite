@@ -41,7 +41,7 @@ export default async function SolicitudesPage() {
       {!cobros.canReceiveSplit ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
           Todavía no podés cobrar cuotas.{" "}
-          <Link href="/configuracion/cobros" className="underline">
+          <Link href="/workspace/configuracion/cobros" className="underline">
             Conectá tu cuenta de MercadoPago
           </Link>{" "}
           antes de aprobar solicitudes: si no, se generarían cuotas que nadie puede pagar.
