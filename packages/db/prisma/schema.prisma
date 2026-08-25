@@ -251,6 +251,9 @@ model User {
   fotorankContestsCreated               FotorankContest[]                      @relation("FrContestCreator")
   fotorankContestEntriesAuthored        FotorankContestEntry[]                 @relation("FrEntryAuthor")
   fotorankContestParticipants           FotorankContestParticipant[]           @relation("FotorankContestParticipantUser")
+  /// CONCURSOS PRÓXIMOS — interés registrado por el usuario ("Notificarme").
+  fotorankContestInterests              FotorankContestInterest[]              @relation("FrContestInterestUser")
+  fotorankContestInterestAuditEvents    FotorankContestInterestAuditEvent[]    @relation("FrContestInterestAuditActor")
   fotorankContestRegistrations          FotorankContestRegistration[]          @relation("FrContestRegistrationParticipant")
   fotorankDiplomaIssuedCreated          FotorankDiplomaIssued[]                @relation("FrDiplomaIssuedBy")
   fotorankDiplomaTemplatesCreated       FotorankDiplomaTemplate[]              @relation("FrDiplomaTemplateAuthor")
@@ -7673,6 +7676,14 @@ model FotorankContest {
   resultRuleSets       FotorankResultRuleSet[]
   resultBatches        FotorankResultBatch[]
   tieBreakSessions     FotorankTieBreakSession[]
+
+  /// CONCURSOS PRÓXIMOS — registro de interés reutilizable ("Notificarme").
+  interests               FotorankContestInterest[]
+  interestAuditEvents     FotorankContestInterestAuditEvent[]
+  /// CONCURSOS PRÓXIMOS — precios escalonados por fecha y audiencia (config; sin checkout).
+  pricePhases             FotorankContestPricePhase[]
+  /// CONCURSOS PRÓXIMOS — calendario de comunicaciones programadas (no dispara envíos por sí solo).
+  scheduledCommunications FotorankContestScheduledCommunication[]
 }
 
 /// Roster mínimo de participantes sincronizados (Clickatón postpago). No es obra/entry.
@@ -8481,6 +8492,11 @@ enum FotorankMemberStatus {
   REMOVED
 }
 
+/// Ciclo de vida del concurso.
+/// Los 7 primeros valores son los históricos (Clickatón / Santa Fe en Foco): NO cambiar su semántica.
+/// Los valores marcados como "ciclo extendido" se agregaron de forma aditiva para concursos
+/// organizados por FotoRank con fase pública "PRÓXIMAMENTE".
+/// Fuente de verdad de transiciones y capacidades: apps/fotorank/app/lib/fotorank/upcoming/lifecycle.ts
 enum FotorankContestStatus {
   DRAFT
   SETUP_IN_PROGRESS
@@ -8489,6 +8505,22 @@ enum FotorankContestStatus {
   ACTIVE
   CLOSED
   ARCHIVED
+  /// Ciclo extendido — visible públicamente como "Próximamente"; sin pagos ni carga de obras.
+  UPCOMING
+  /// Ciclo extendido — inscripciones habilitadas (pagos solo si DNX Payments está habilitado).
+  REGISTRATION_OPEN
+  /// Ciclo extendido — inscripción y carga cerradas.
+  SUBMISSIONS_CLOSED
+  /// Ciclo extendido — control de admisión.
+  ADMISSION
+  /// Ciclo extendido — evaluación del jurado.
+  JUDGING
+  /// Ciclo extendido — finalistas definidos o publicados.
+  FINALISTS
+  /// Ciclo extendido — concurso finalizado.
+  COMPLETED
+  /// Ciclo extendido — concurso cancelado.
+  CANCELLED
 }
 
 enum FotorankContestVisibility {
@@ -14822,4 +14854,184 @@ model DnxDailyReportDelivery {
 
   @@index([snapshotId])
   @@index([status, sentAt])
+}
+
+// ============================================================================
+// CONCURSOS PRÓXIMOS ("PRÓXIMAMENTE" / "Notificarme")
+// Capacidad genérica reutilizable por cualquier concurso FotoRank.
+// Introducida junto con "El País que Miramos" (primera edición 2026).
+//
+// Alcance deliberado:
+//   - NO implementa checkout ni órdenes. Las fases de precio son configuración.
+//     El precio efectivo lo resuelve el servidor (upcoming/pricing.ts).
+//   - NO dispara envíos. El calendario de comunicaciones es declarativo; el envío
+//     real pasa por FotorankTransactionalEmailOutbox + upcoming/communications.ts.
+// ============================================================================
+
+/// Estado del registro de interés. CANCELLED conserva la fila (auditoría).
+enum FotorankContestInterestStatus {
+  ACTIVE
+  CANCELLED
+  /// El interesado terminó inscribiéndose al concurso.
+  CONVERTED
+}
+
+/// Audiencia habilitada para una fase de precio.
+enum FotorankContestPriceAudience {
+  /// Solo usuarios con interés elegible (registrados antes del corte).
+  INTEREST_EXCLUSIVE
+  /// Cualquier usuario.
+  GENERAL
+}
+
+/// Interés en un concurso próximo. Sin costo y sin obligación de participar.
+/// Restricción única (contestId, userId): "Notificarme" es idempotente.
+model FotorankContestInterest {
+  id                    String                        @id @default(cuid())
+  contestId             String
+  userId                Int
+  status                FotorankContestInterestStatus @default(ACTIVE)
+  /// Momento del primer registro. NO se reescribe al repetir la acción.
+  registeredAt          DateTime                      @default(now())
+  /// Límite para usar el precio promocional. Congelado en el primer registro.
+  benefitDeadlineAt     DateTime?
+  /// True solo si se registró dentro de la ventana de captación del beneficio.
+  benefitEligible       Boolean                       @default(false)
+  /// Origen del registro (p. ej. PUBLIC_CARD, LANDING, ADMIN_IMPORT).
+  source                String                        @default("PUBLIC_CARD")
+  /// Versión exacta del texto de consentimiento aceptado (ver upcoming/consent.ts).
+  consentVersion        String
+  consentAcceptedAt     DateTime
+  /// Consentimiento específico: avisos de ESTE concurso. Requerido para registrar interés.
+  contestSpecificOptIn  Boolean                       @default(true)
+  /// Consentimiento general opcional: novedades de FotoRank. Nunca premarcado.
+  generalOptIn          Boolean                       @default(false)
+  generalOptInAt        DateTime?
+  cancelledAt           DateTime?
+  /// Conversión a participante.
+  convertedAt           DateTime?
+  convertedRegistrationId String?
+  /// Paquete elegido al pagar (p. ej. "3" fotografías). Se completa con DNX Payments.
+  selectedPackageCode   String?
+  utmSource             String?
+  utmMedium             String?
+  utmCampaign           String?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+
+  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  user    User            @relation("FrContestInterestUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, userId])
+  @@index([contestId, status])
+  @@index([contestId, benefitEligible])
+  @@index([userId])
+}
+
+/// Auditoría append-only del registro de interés.
+/// Cancelar o reactivar NO borra estos eventos.
+model FotorankContestInterestAuditEvent {
+  id           String   @id @default(cuid())
+  contestId    String
+  /// Soft ref: la fila de interés puede no existir si se depuró; el evento persiste.
+  interestId   String?
+  /// Autor de la acción. null = sistema.
+  actorUserId  Int?
+  /// REGISTERED | REPEATED | CANCELLED | REACTIVATED | CONVERTED | GENERAL_OPT_IN_CHANGED
+  action       String
+  ip           String?
+  userAgent    String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  contest   FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  actorUser User?           @relation("FrContestInterestAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([contestId, createdAt])
+  @@index([interestId, createdAt])
+  @@index([actorUserId])
+}
+
+/// Fase de precio por fecha y audiencia. Configuración administrativa.
+/// El monto efectivo por cantidad de fotografías vive en FotorankContestPriceTier.
+model FotorankContestPricePhase {
+  id          String                       @id @default(cuid())
+  contestId   String
+  /// Código estable por concurso (p. ej. "interest-exclusive", "octubre").
+  code        String
+  name        String
+  description String?
+  audience    FotorankContestPriceAudience @default(GENERAL)
+  /// Inclusive.
+  startsAt    DateTime
+  /// Inclusive (el instante exacto sigue vigente; 1 ms después vence).
+  endsAt      DateTime
+  currency    String                       @default("ARS")
+  /// Menor número = mayor prioridad al resolver solapes.
+  priority    Int                          @default(100)
+  isActive    Boolean                      @default(true)
+  createdAt   DateTime                     @default(now())
+  updatedAt   DateTime                     @updatedAt
+
+  contest FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  tiers   FotorankContestPriceTier[]
+
+  @@unique([contestId, code])
+  @@index([contestId, isActive])
+  @@index([contestId, startsAt, endsAt])
+}
+
+/// Monto por paquete dentro de una fase. Siempre en minor units enteras (centavos).
+model FotorankContestPriceTier {
+  id           String   @id @default(cuid())
+  pricePhaseId String
+  /// Cantidad de fotografías del paquete.
+  quantity     Int
+  /// Precio en unidades mínimas (centavos). Nunca Float.
+  amountMinor  Int
+  label        String?
+  sortOrder    Int      @default(100)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pricePhase FotorankContestPricePhase @relation(fields: [pricePhaseId], references: [id], onDelete: Cascade)
+
+  @@unique([pricePhaseId, quantity])
+  @@index([pricePhaseId, sortOrder])
+}
+
+/// Comunicación programada del concurso. Declarativa: define QUÉ y CUÁNDO.
+/// No envía por sí sola; el despacho pasa por la política de upcoming/communications.ts.
+model FotorankContestScheduledCommunication {
+  id             String    @id @default(cuid())
+  contestId      String
+  /// Código estable por concurso (idempotencia del seed).
+  code           String
+  /// Tipo del catálogo de eventos (upcoming/communications.ts).
+  eventType      String
+  subject        String
+  /// Objetivo editorial / contenido central en texto plano.
+  bodyOutline    String?
+  /// Wall-clock local del concurso (YYYY-MM-DDTHH:mm:ss), sin zona.
+  scheduledLocal String?
+  /// Instante UTC resuelto desde scheduledLocal + timezone del concurso.
+  scheduledAt    DateTime?
+  /// null = disparada por evento (p. ej. al activar "Notificarme"), no por fecha.
+  isDateDriven   Boolean   @default(true)
+  /// OPERATIONAL = imprescindible para una participación confirmada.
+  /// PROMOTIONAL = requiere consentimiento vigente.
+  category       String    @default("PROMOTIONAL")
+  /// Audiencia declarada: INTEREST_SPECIFIC | GENERAL_OPT_IN | REGISTERED_PARTICIPANTS.
+  audience       String    @default("INTEREST_SPECIFIC")
+  isEnabled      Boolean   @default(true)
+  /// Marca de bloqueo explícito (p. ej. depende de DNX Payments).
+  blockedReason  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, code])
+  @@index([contestId, scheduledAt])
+  @@index([contestId, isEnabled])
 }

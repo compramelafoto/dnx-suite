@@ -9,6 +9,7 @@ import { BenefitsSection } from "./components/landing/BenefitsSection";
 import { ParaQuienEsSection } from "./components/landing/ParaQuienEsSection";
 import { CredibilidadSection } from "./components/landing/CredibilidadSection";
 import { FeaturedContestsSection } from "./components/landing/FeaturedContestsSection";
+import { UpcomingContestsSection } from "./components/contest-upcoming/UpcomingContestsSection";
 import { FinalCTASection } from "./components/landing/FinalCTASection";
 import { Footer } from "./components/landing/Footer";
 import { ReducedMotionWrapper } from "./components/landing/ReducedMotionWrapper";
@@ -34,6 +35,8 @@ export default async function Home() {
           <ParaQuienEsSection />
           <CredibilidadSection />
           <FeaturedContestsSection contests={publicContests} />
+          {/* No renderiza nada si no hay concursos en UPCOMING. */}
+          <UpcomingContestsSection />
           <FinalCTASection />
         </main>
         <Footer />

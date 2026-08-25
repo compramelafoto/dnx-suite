@@ -7,6 +7,10 @@ import {
   toFotorankContestWelcomePublicPayload,
 } from "../../lib/fotorank/partners/contest-welcome";
 import { getPublicContestLandingBySlug } from "../../lib/fotorank/publicContestLanding";
+import { getPublicContestCardBySlug, parseUpcomingConfig } from "../../lib/fotorank/upcoming/service";
+import { getMyContestInterestAction } from "../../actions/contest-interest";
+import { UpcomingContestLanding } from "../../components/contest-upcoming/UpcomingContestLanding";
+import { prisma } from "@repo/db";
 import { ContestPublicLanding } from "./ContestPublicLanding";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -43,7 +47,32 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ContestPublicPage({ params }: Props) {
   const { slug } = await params;
   const data = await getPublicContestLandingBySlug(slug);
-  if (!data) notFound();
+
+  if (!data) {
+    // Un concurso en fase "PRÓXIMAMENTE" todavía no tiene landing de inscripción,
+    // pero sí una página pública de convocatoria con el botón "Notificarme".
+    const card = await getPublicContestCardBySlug(slug);
+    if (card && card.status === "UPCOMING") {
+      const contest = await prisma.fotorankContest.findUnique({
+        where: { id: card.id },
+        select: { rulesData: true },
+      });
+      const config = parseUpcomingConfig(contest?.rulesData ?? null);
+      const interest = await getMyContestInterestAction(card.id);
+      return (
+        <UpcomingContestLanding
+          card={card}
+          interest={
+            interest
+              ? { status: interest.status, benefitEligible: interest.benefitEligible }
+              : null
+          }
+          brief={config.brief ?? null}
+        />
+      );
+    }
+    notFound();
+  }
 
   // getPublicContestLandingBySlug ya exige visibility=PUBLIC + PUBLISHED|ACTIVE.
   const pathname = `/concursos/${data.contest.slug}`;

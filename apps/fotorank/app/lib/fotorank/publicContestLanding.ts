@@ -1,4 +1,4 @@
-import { prisma } from "@repo/db";
+import { prisma, type FotorankContestStatus } from "@repo/db";
 import { mapOrganizationToProfileDTO, type ContestOrganizationProfileDTO } from "./organizationProfile";
 
 const PUBLIC_STATUSES = ["PUBLISHED", "ACTIVE"] as const;
@@ -33,7 +33,8 @@ export type PublicContestLandingData = {
     judgingEndAt: Date | null;
     resultsAt: Date | null;
     categories: Array<{ id: string; name: string; slug: string; description: string | null; maxFiles: number }>;
-    status: "DRAFT" | "SETUP_IN_PROGRESS" | "READY_TO_PUBLISH" | "PUBLISHED" | "ACTIVE" | "CLOSED" | "ARCHIVED";
+    /// Enum completo del ciclo de vida (incluye las fases del ciclo extendido).
+    status: FotorankContestStatus;
     visibility: "PUBLIC" | "UNLISTED" | "PRIVATE";
     registrationPricingMode: "FREE" | "PAID" | "MIXED" | string;
     registrationEnabled: boolean;
