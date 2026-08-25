@@ -203,3 +203,68 @@ test("no avisa de caída cuando la semana previa tampoco tuvo ventas", async () 
     undefined,
   );
 });
+
+// ─── Reutilización para ComprameLaFoto legacy ───
+
+test("el mismo colector sirve para el legacy cambiando identidad de sección", async () => {
+  const collector = createClfMonorepoCollector(
+    stubPort({
+      async paidOrders(range) {
+        if (range.start.getTime() !== WINDOW.current.start.getTime()) return [];
+        return [order({ orderId: 1, totalArs: 7_000 })];
+      },
+    }),
+    WINDOW,
+    {
+      adminBaseUrl: "https://compramelafoto.com",
+      sectionKey: "clf-legacy",
+      sectionTitle: "ComprameLaFoto (legacy)",
+      platform: "clf-legacy",
+    },
+  );
+
+  const result = await collector.run();
+
+  assert.equal(collector.key, "clf-legacy");
+  assert.equal(result.section.key, "clf-legacy");
+  assert.equal(result.section.title, "ComprameLaFoto (legacy)");
+  assert.equal(metricValue(result, "revenueArs"), 7_000);
+});
+
+test("las alertas del legacy se identifican aparte de las del monorepo", async () => {
+  const collector = createClfMonorepoCollector(
+    stubPort({
+      async paidOrders(range) {
+        if (range.start.getTime() === WINDOW.current.start.getTime()) {
+          return [order({ orderId: 1, totalArs: 100 })];
+        }
+        if (range.start.getTime() === WINDOW.trailingSevenDays.start.getTime()) {
+          return Array.from({ length: 7 }, (_, i) => order({ orderId: 10 + i, totalArs: 10_000 }));
+        }
+        return [];
+      },
+    }),
+    WINDOW,
+    {
+      adminBaseUrl: "https://compramelafoto.com",
+      sectionKey: "clf-legacy",
+      sectionTitle: "ComprameLaFoto (legacy)",
+      platform: "clf-legacy",
+    },
+  );
+
+  const result = await collector.run();
+  const alert = result.alerts.find((item) => item.id === "clf-legacy:revenue-drop");
+
+  assert.ok(alert, "la alerta debe llevar la clave del legacy");
+  assert.equal(alert.platform, "clf-legacy");
+});
+
+test("sin opciones de identidad se comporta como el monorepo", async () => {
+  const collector = createClfMonorepoCollector(stubPort(), WINDOW, {
+    adminBaseUrl: "https://compramelafoto.com",
+  });
+
+  assert.equal(collector.key, "clf-monorepo");
+  assert.equal(collector.title, "ComprameLaFoto");
+});

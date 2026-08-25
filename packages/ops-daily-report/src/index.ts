@@ -26,6 +26,12 @@ export { createIncidentsCollector, type IncidentsOptions } from "./collectors/in
 
 export { createClickatonCollector, type ClickatonOptions } from "./collectors/clickaton";
 
+export { createFotorankCollector, type FotorankOptions } from "./collectors/fotorank";
+
+export { createInfoSpotCollector, type InfoSpotOptions } from "./collectors/infospot";
+
+export { createFotofficeCollector, type FotofficeOptions } from "./collectors/fotoffice";
+
 export {
   createFaceRecognitionCollector,
   type FaceRecognitionOptions,

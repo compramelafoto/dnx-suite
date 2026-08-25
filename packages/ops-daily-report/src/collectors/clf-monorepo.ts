@@ -1,12 +1,12 @@
-import type { ReportAlert } from "../contracts/alert";
+import type { PlatformKey, ReportAlert } from "../contracts/alert";
 import { buildMetric } from "../contracts/metric";
 import type { ClfSalesPort, PaidOrderRow } from "../contracts/ports";
 import type { ReportTable } from "../contracts/snapshot";
 import type { Collector, CollectorResult } from "../report/run-collector";
 import type { DateRange, DayWindow } from "../window/day-window";
 
-const SECTION_KEY = "clf-monorepo";
-const SECTION_TITLE = "ComprameLaFoto";
+const DEFAULT_SECTION_KEY = "clf-monorepo";
+const DEFAULT_SECTION_TITLE = "ComprameLaFoto";
 const RANKING_SIZE = 5;
 /** Por debajo de este cociente contra el promedio semanal se avisa. */
 const REVENUE_DROP_THRESHOLD = 0.5;
@@ -14,6 +14,14 @@ const REVENUE_DROP_THRESHOLD = 0.5;
 export type ClfMonorepoOptions = {
   /** Base pública de la app, para armar los enlaces del correo. */
   adminBaseUrl: string;
+  /**
+   * Identidad de la sección. Se parametriza porque ComprameLaFoto tiene dos
+   * instalaciones con el mismo modelo de datos — la del monorepo y la legacy —
+   * y ambas usan este mismo colector contra bases distintas.
+   */
+  sectionKey?: string;
+  sectionTitle?: string;
+  platform?: PlatformKey;
 };
 
 type OrdersSummary = {
@@ -83,9 +91,13 @@ export function createClfMonorepoCollector(
   window: DayWindow,
   options: ClfMonorepoOptions,
 ): Collector {
+  const sectionKey = options.sectionKey ?? DEFAULT_SECTION_KEY;
+  const sectionTitle = options.sectionTitle ?? DEFAULT_SECTION_TITLE;
+  const platform: PlatformKey = options.platform ?? "clf-monorepo";
+
   return {
-    key: SECTION_KEY,
-    title: SECTION_TITLE,
+    key: sectionKey,
+    title: sectionTitle,
     async run(): Promise<CollectorResult> {
       const [currentOrders, previousOrders, trailingOrders] = await Promise.all([
         loadRange(port, window.current),
@@ -119,8 +131,8 @@ export function createClfMonorepoCollector(
 
       if (revenueDropped) {
         alerts.push({
-          id: `${SECTION_KEY}:revenue-drop`,
-          platform: "clf-monorepo",
+          id: `${sectionKey}:revenue-drop`,
+          platform,
           title: "Caída fuerte de facturación",
           detail:
             `Se facturaron ${current.revenueArs} ARS, menos de la mitad del promedio ` +
@@ -137,8 +149,8 @@ export function createClfMonorepoCollector(
       return {
         alerts,
         section: {
-          key: SECTION_KEY,
-          title: SECTION_TITLE,
+          key: sectionKey,
+          title: sectionTitle,
           status: "ok",
           error: null,
           groups: [

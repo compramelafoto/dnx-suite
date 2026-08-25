@@ -105,3 +105,68 @@ export interface ClickatonPort {
   storeOrders(range: DateRange): Promise<ClickatonStoreOrderRow[]>;
   activity(range: DateRange): Promise<ClickatonActivity>;
 }
+
+/** Inscripción a un concurso de FotoRank. Importes ya convertidos a pesos. */
+export type FotorankRegistrationRow = {
+  registrationId: string;
+  contestId: string;
+  contestTitle: string;
+  /** CONFIRMED, PENDING_PAYMENT, DRAFT, CANCELLED, … */
+  status: string;
+  priceArs: number;
+};
+
+export type FotorankActivity = {
+  /** Concursos con inscripción abierta al momento de generar el informe. */
+  activeContests: number;
+  /** Obras enviadas en el rango. */
+  entriesSubmitted: number;
+  entriesByStatus: Record<string, number>;
+  /** Obras esperando revisión manual, sin importar cuándo llegaron. */
+  entriesAwaitingReview: number;
+  /** Votos o evaluaciones de jurado registrados en el rango. */
+  juryVotes: number;
+  activeJudges: number;
+  diplomasIssued: number;
+};
+
+export interface FotorankPort {
+  registrations(range: DateRange): Promise<FotorankRegistrationRow[]>;
+  activity(range: DateRange): Promise<FotorankActivity>;
+}
+
+export type InfoSpotTopArticle = {
+  title: string;
+  views: number;
+};
+
+export type InfoSpotStats = {
+  articlesPublished: number;
+  articlesInReview: number;
+  articleViews: number;
+  topArticles: InfoSpotTopArticle[];
+  newCoverages: number;
+  /** Clics que derivan tráfico a ComprameLaFoto. */
+  clicksToClf: number;
+};
+
+export interface InfoSpotPort {
+  stats(range: DateRange): Promise<InfoSpotStats>;
+}
+
+export type FotofficeStats = {
+  newWorkspaces: number;
+  totalWorkspaces: number;
+  newMembers: number;
+  totalMembers: number;
+  newServiceLeads: number;
+  newCourseLeads: number;
+  /** Consultas todavía sin atender, sin importar cuándo llegaron. */
+  pendingLeads: number;
+  publishedWebsites: number;
+  enabledModules: Record<string, number>;
+};
+
+export interface FotofficePort {
+  stats(range: DateRange): Promise<FotofficeStats>;
+}
