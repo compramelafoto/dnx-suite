@@ -888,11 +888,22 @@ export function isClickatonEventMarqueeEnabled(): boolean {
 }
 
 /**
- * Activación destacada FotoRank — default OFF.
+ * Activación destacada FotoRank — concurso público. Default OFF.
  * Solo soporte en código; no cargar en Vercel hasta etapa de integración.
  */
 export function isFotorankPartnerWelcomeEnabled(): boolean {
   return envFlagTruthy("FOTORANK_PARTNER_WELCOME_ENABLED");
+}
+
+/**
+ * Activación destacada FotoRank — portada. Default OFF.
+ *
+ * Bandera propia, separada de la del concurso: son inventarios de dueños
+ * distintos. El concurso es del organizador; la portada, de la plataforma.
+ * Encender uno no debe encender el otro.
+ */
+export function isFotorankHomeWelcomeEnabled(): boolean {
+  return envFlagTruthy("FOTORANK_HOME_WELCOME_ENABLED");
 }
 
 /**

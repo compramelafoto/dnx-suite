@@ -49,10 +49,11 @@ describe("clickaton marquee flags", () => {
 });
 
 describe("clickaton marquee admin matrix", () => {
-  it("CLICKATON home/event montados; FotoRank aún no", () => {
+  it("CLICKATON home/event y portada FotoRank montados; concurso FotoRank aún no", () => {
     assert.ok(MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS.includes("CLICKATON_HOME_MARQUEE"));
     assert.ok(MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS.includes("CLICKATON_EVENT_MARQUEE"));
-    assert.ok(UNMOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS.includes("FOTORANK_HOME_MARQUEE"));
+    assert.ok(MOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS.includes("FOTORANK_HOME_MARQUEE"));
+    assert.ok(UNMOUNTED_LOGO_MARQUEE_PLACEMENT_KEYS.includes("FOTORANK_CONTEST_MARQUEE"));
     const ui = listLogoMarqueePlacementsForAdminUi();
     const home = ui.find((p) => p.placementKey === "CLICKATON_HOME_MARQUEE")!;
     const event = ui.find((p) => p.placementKey === "CLICKATON_EVENT_MARQUEE")!;

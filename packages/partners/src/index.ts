@@ -166,6 +166,7 @@ export {
   isClickatonHomeMarqueeEnabled,
   isClickatonEventMarqueeEnabled,
   isFotorankPartnerWelcomeEnabled,
+  isFotorankHomeWelcomeEnabled,
   isFotorankHomeMarqueeEnabled,
   isFotorankContestMarqueeEnabled,
   isClfPartnerAlbumWelcomeEnabled,

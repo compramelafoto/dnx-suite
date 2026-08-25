@@ -38,11 +38,15 @@ import {
   type WelcomeAssetPublishCheckInput,
 } from "./welcome-asset-context";
 
-/** Placements con runtime público ya montado (Etapas 3–5 + InfoSpot). */
+/**
+ * Placements con runtime público ya montado (Etapas 3–5 + InfoSpot).
+ * FotoRank home: montado para que la plataforma tenga inventario global vendible.
+ */
 export const MOUNTED_WELCOME_PLACEMENT_KEYS = [
   "INFOSPOT_HOME_WELCOME",
   "CLICKATON_EVENT_WELCOME",
   "FOTORANK_CONTEST_WELCOME",
+  "FOTORANK_HOME_WELCOME",
   "CLF_ALBUM_WELCOME",
 ] as const satisfies readonly WelcomeActivationPlacementKey[];
 
@@ -51,7 +55,6 @@ export type MountedWelcomePlacementKey = (typeof MOUNTED_WELCOME_PLACEMENT_KEYS)
 /** Placements en catálogo técnico pero sin montaje público aún. */
 export const UNMOUNTED_WELCOME_PLACEMENT_KEYS = [
   "CLICKATON_HOME_WELCOME",
-  "FOTORANK_HOME_WELCOME",
   "CLF_HOME_WELCOME",
 ] as const satisfies readonly WelcomeActivationPlacementKey[];
 

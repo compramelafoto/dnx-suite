@@ -41,7 +41,12 @@ describe("welcome admin catalog", () => {
     }
     const selectable = listSelectableWelcomePlacementsForAdmin();
     assert.ok(selectable.every((p) => p.selectable));
-    assert.ok(!selectable.some((p) => p.placementKey.includes("HOME_WELCOME") && p.application !== "INFO_SPOT"));
+    // Ninguna superficie sin runtime público puede quedar seleccionable, por
+    // más que esté en el catálogo técnico.
+    const seleccionables = new Set(selectable.map((p) => p.placementKey));
+    for (const key of UNMOUNTED_WELCOME_PLACEMENT_KEYS) {
+      assert.ok(!seleccionables.has(key), `${key} no tiene runtime y no debe ofrecerse`);
+    }
   });
 
   it("meta de formato visible", () => {
