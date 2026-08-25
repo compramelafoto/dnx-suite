@@ -6835,6 +6835,11 @@ model Workspace {
   memberAudits                MemberAudit[]
   memberInvitations           MemberInvitation[]
   moduleFees                  WorkspaceModuleFee[]
+  membershipApplications      MembershipApplication[]
+  membershipDuesSettings      MembershipDuesSettings?
+  membershipFeeValues         MembershipFeeValue[]
+  membershipCharges           MembershipCharge[]
+  membershipPayments          MembershipPayment[]
 }
 
 model WorkspaceFeatureModule {
@@ -7004,8 +7009,18 @@ model MemberCategory {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  /// Otorga derecho a voto en asamblea. Lo define el estatuto de cada institución.
+  grantsVote     Boolean @default(false)
+  /// Habilita a integrar la comisión directiva.
+  eligibleForBoard Boolean @default(false)
+  /// Si genera cuota. Un honorario, por ejemplo, no genera.
+  generatesDues  Boolean @default(true)
+  /// La Secretaría debe confirmar que corresponde (p. ej. condición de estudiante).
+  requiresConfirmation Boolean @default(false)
+
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members   Member[]
+  duesPrices MembershipFeeValue[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, isActive])
@@ -7058,9 +7073,22 @@ model Member {
   category  MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   /// SetNull, no Cascade: si se borra el User, el registro de socio persiste (era socio antes que usuario).
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Escala de cuota. Ortogonal a la categoría: un estudiante y un profesional pueden ser
+  /// ambos socios activos con los mismos derechos y diferir solo en cuánto pagan.
+  feeScale        MemberFeeScale @default(PLENA)
+  /// Monto propio para quien aporta libremente (colaborador). Nunca por debajo del piso.
+  ownDuesAmount   Decimal?       @db.Decimal(12, 2)
+  /// Motivo de la baja. Distingue deuda de sanción y de renuncia, que tienen efectos
+  /// distintos sobre la deuda y sobre el reingreso.
+  leftReason      MemberLeftReason?
+  /// Institución donde estudia o estudió, declarada al asociarse.
+  originInstitution String?
+
   /// Historial inmutable de operaciones sobre este socio. Restrict del lado de MemberAudit:
   /// borrar un socio nunca puede llevarse su historial por delante en silencio.
   audits MemberAudit[]
+  charges MembershipCharge[]
+  payments MembershipPayment[]
   /// Invitaciones de acceso emitidas para este socio (pendientes, aceptadas o revocadas).
   invitations MemberInvitation[]
 
@@ -7085,6 +7113,228 @@ model Member {
 ///
 /// La invitación NO crea cuentas ni contraseñas: al aceptarla, el socio inicia sesión con el
 /// sistema actual (contraseña o Google) y recién ahí se establece el vínculo.
+enum MemberFeeScale {
+  PLENA
+  REDUCIDA
+  EXENTA
+}
+
+enum MemberLeftReason {
+  DEUDA
+  SANCION
+  RENUNCIA
+}
+
+enum MembershipApplicationStatus {
+  PENDIENTE
+  RECHAZADA
+  APROBADA_IMPAGA
+  VENCIDA
+  COMPLETADA
+}
+
+enum MembershipChargeConcept {
+  INGRESO
+  MENSUAL
+  EXTRAORDINARIA
+  OTRO
+}
+
+enum MembershipPaymentStatus {
+  PENDIENTE
+  ACREDITADO
+  RECHAZADO
+  DEVUELTO
+}
+
+/// Solicitud de asociación. Vive aparte de `Member`: una solicitud rechazada no debe
+/// consumir un número de socio ni ensuciar el padrón.
+model MembershipApplication {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  firstName      String
+  lastName       String
+  documentType   String?
+  documentNumber String?
+  taxId          String?
+  birthDate      DateTime?
+  email          String
+  phone          String?
+  /// Domicilio de notificaciones. Sin él no se puede cursar una intimación, y sin
+  /// intimación la baja por deuda es nula.
+  noticeAddress  String?
+  city           String?
+  province       String?
+  postalCode     String?
+
+  categoryId        String?
+  declaredFeeScale  MemberFeeScale @default(PLENA)
+  ownDuesAmount     Decimal?       @db.Decimal(12, 2)
+  originInstitution String?
+  avatarUrl         String?
+  /// Socio que presenta al aspirante, si el estatuto lo exige.
+  presenterMemberId String?
+
+  status       MembershipApplicationStatus @default(PENDIENTE)
+  /// Motivo del rechazo. Obligatorio al rechazar; se le comunica a la persona.
+  rejectionReason String?
+  resolvedByUserId Int?
+  resolvedAt       DateTime?
+  /// Socio creado al aprobar.
+  memberId         String?  @unique
+  /// A partir de acá la solicitud vence si no se pagó.
+  expiresAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, email])
+  @@index([workspaceId, createdAt])
+}
+
+/// Configuración de cuotas de una institución.
+model MembershipDuesSettings {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  /// Día en que se generan los cargos del mes.
+  generationDay Int @default(1)
+  /// Día de vencimiento. Para la SFPR es el 10.
+  dueDay        Int @default(10)
+  /// Días de gracia antes de que corran intereses.
+  graceDays     Int @default(5)
+  /// Cuotas que se cobran al ingresar.
+  initialDuesCount Int @default(3)
+  /// Si se asocia antes del vencimiento, el mes en curso cuenta como la primera.
+  countJoinMonthIfBeforeDueDay Boolean @default(true)
+  /// Día del mes en que se envía el recordatorio previo.
+  reminderDay   Int @default(5)
+  /// Piso del aporte libre, como múltiplo del valor de referencia.
+  collaboratorFloorMultiple Decimal @default(1) @db.Decimal(6, 2)
+
+  /// Tasa mensual de interés. Arranca en 0 hasta que Fiscalía apruebe el Reglamento.
+  monthlyInterestRate Decimal @default(0) @db.Decimal(6, 4)
+  /// Umbrales de mora, estatutarios.
+  consecutiveUnpaidThreshold Int @default(3)
+  alternateUnpaidThreshold   Int @default(5)
+  alternateWindowMonths      Int @default(24)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Valor de referencia de la cuota, con vigencia.
+///
+/// Cada cargo guarda con qué valor se generó: una cuota de marzo impaga en octubre se
+/// cobra al valor de marzo. Nunca se reajusta hacia atrás.
+model MembershipFeeValue {
+  id          String @id @default(cuid())
+  workspaceId String
+  /// Null = valor general de la institución. Con categoría = precio propio de esa categoría.
+  categoryId  String?
+
+  amountArs    Decimal   @db.Decimal(12, 2)
+  validFrom    DateTime
+  validUntil   DateTime?
+  /// Acta de comisión directiva que lo resolvió.
+  boardMinutesRef String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category  MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  charges   MembershipCharge[]
+
+  @@index([workspaceId, validFrom])
+  @@index([workspaceId, categoryId])
+}
+
+/// Un cargo: la cuota que un socio debe.
+///
+/// Se guardan como registros reales desde el alta para que el módulo de cuotas mensuales
+/// no se los vuelva a cobrar cuando empiece a devengar.
+model MembershipCharge {
+  id          String @id @default(cuid())
+  workspaceId String
+  memberId    String
+
+  concept MembershipChargeConcept @default(MENSUAL)
+  /// `YYYY-MM`. El mes que la cuota cubre.
+  period  String
+  amountArs Decimal  @db.Decimal(12, 2)
+  /// Saldo pendiente. Cero = cancelado.
+  balanceArs Decimal @db.Decimal(12, 2)
+  dueDate   DateTime
+  feeValueId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member              @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  feeValue  MembershipFeeValue? @relation(fields: [feeValueId], references: [id], onDelete: SetNull)
+  allocations MembershipAllocation[]
+
+  /// Un socio no puede tener dos cargos del mismo concepto para el mismo período.
+  @@unique([memberId, concept, period])
+  @@index([workspaceId, dueDate])
+  @@index([memberId, dueDate])
+}
+
+/// Un pago recibido.
+model MembershipPayment {
+  id          String @id @default(cuid())
+  workspaceId String
+  memberId    String
+
+  amountArs Decimal @db.Decimal(12, 2)
+  /// Comisión que retuvo la plataforma en esta operación.
+  platformFeeArs Decimal @db.Decimal(12, 2) @default(0)
+  netAmountArs   Decimal @db.Decimal(12, 2) @default(0)
+  status    MembershipPaymentStatus @default(PENDIENTE)
+  method    String?
+  /// Identificador del pago en el proveedor. Único: es lo que hace idempotente al webhook.
+  providerPaymentRef String? @unique
+  /// Orden del proveedor que originó el pago.
+  providerOrderRef   String?
+  paidAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  allocations MembershipAllocation[]
+
+  @@index([workspaceId, status])
+  @@index([memberId, createdAt])
+}
+
+/// Imputación de un pago a un cargo, con capital e interés separados.
+model MembershipAllocation {
+  id        String @id @default(cuid())
+  paymentId String
+  chargeId  String
+
+  principalArs Decimal @db.Decimal(12, 2)
+  interestArs  Decimal @db.Decimal(12, 2) @default(0)
+
+  createdAt DateTime @default(now())
+
+  payment MembershipPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  charge  MembershipCharge  @relation(fields: [chargeId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, chargeId])
+  @@index([chargeId])
+}
+
 model MemberInvitation {
   id          String    @id @default(cuid())
   workspaceId String
