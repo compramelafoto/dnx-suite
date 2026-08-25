@@ -576,6 +576,7 @@ export function ParticipantUploadWizard({
 
   const openLabel = formatParticipantDate(requirements.uploadWindow.opensAt, {
     includeTime: true,
+    timeZone: requirements.timezone,
   });
 
   const previewSrc = previewObjectUrl ?? entry?.previewUrl ?? null;
@@ -729,7 +730,10 @@ export function ParticipantUploadWizard({
               <div>
                 <dt>Cierre de carga</dt>
                 <dd>
-                  {formatParticipantDate(requirements.uploadWindow.closesAt, { includeTime: true })}
+                  {formatParticipantDate(requirements.uploadWindow.closesAt, {
+                    includeTime: true,
+                    timeZone: requirements.timezone,
+                  })}
                 </dd>
               </div>
             ) : null}

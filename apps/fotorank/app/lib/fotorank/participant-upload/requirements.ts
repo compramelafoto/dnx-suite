@@ -72,6 +72,9 @@ export function buildUploadRequirementsSummary(input: {
         : captureStart
           ? `Desde ${captureStart}`
           : null,
+    // Se propaga para que el cliente formatee en la hora del concurso y no en
+    // la del navegador (ver nota en UploadRequirementsSummary.timezone).
+    timezone: input.timezone ?? null,
   };
 }
 

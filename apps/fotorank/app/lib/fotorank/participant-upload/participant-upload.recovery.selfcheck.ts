@@ -15,10 +15,9 @@
  *
  * Todo es lógica pura: no toca red, ni base, ni sube archivos.
  */
-import assert from "node:assert/strict";
 import { formatBytes, formatDimensions } from "./format";
 import { translateUploadError } from "./error-messages";
-import { canStartUpload, fixtureOpenUploadWindow } from "./requirements";
+import { buildUploadRequirementsSummary, canStartUpload, fixtureOpenUploadWindow } from "./requirements";
 
 function ok(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -102,5 +101,43 @@ ok(
   canStartUpload({ ...baseOk, admissionStatus: "FROZEN_FOR_JURY" }).allowed === false,
   "obra FROZEN_FOR_JURY → NO permite cargar ni reemplazar",
 );
+
+/* ---------- 4) Zona horaria: evita romper la hidratación ---------- */
+/**
+ * Detectado en QA sobre producción: el wizard mostraba el cierre de carga con
+ * hora pero sin zona horaria. `Intl.DateTimeFormat` cae entonces en la zona del
+ * entorno —UTC en el servidor, la del participante en el navegador—, los dos
+ * textos difieren y React aborta la hidratación (error #418). Además la hora
+ * mostrada no era la del concurso.
+ *
+ * El resumen debe transportar la zona para que el componente formatee con ella.
+ */
+{
+  const conZona = buildUploadRequirementsSummary({
+    contestSlug: "santa-fe-en-foco",
+    categoryName: "Fotógrafo Profesional",
+    categorySlug: "fotografo-profesional",
+    maxFiles: 1,
+    uploadPolicyJson: null,
+    uploadWindow: fixtureOpenUploadWindow(),
+    basesHref: "/concursos/santa-fe-en-foco#bases",
+    timezone: "America/Argentina/Buenos_Aires",
+  });
+  ok(
+    conZona.timezone === "America/Argentina/Buenos_Aires",
+    "el resumen transporta la zona horaria del concurso",
+  );
+
+  const sinZona = buildUploadRequirementsSummary({
+    contestSlug: "otro-concurso",
+    categoryName: "General",
+    categorySlug: "general",
+    maxFiles: 1,
+    uploadPolicyJson: null,
+    uploadWindow: fixtureOpenUploadWindow(),
+    basesHref: "/concursos/otro#bases",
+  });
+  ok(sinZona.timezone === null, "sin zona declarada queda null, no undefined");
+}
 
 console.log("FINAL: PASS");

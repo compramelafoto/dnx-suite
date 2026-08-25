@@ -78,6 +78,15 @@ export type UploadRequirementsSummary = {
   policy: UploadPolicy;
   requiresSantaFeEligibility: boolean;
   capturePeriodLabel: string | null;
+  /**
+   * Zona horaria del concurso, para formatear fechas con hora.
+   *
+   * Sin esto, `Intl.DateTimeFormat` usa la zona del entorno: el servidor
+   * renderiza en UTC y el navegador del participante en su hora local. Los dos
+   * textos difieren y React aborta la hidratación (error #418), además de
+   * mostrar una hora que no es la del concurso.
+   */
+  timezone: string | null;
 };
 
 export type PublicUploadFileStatus =
