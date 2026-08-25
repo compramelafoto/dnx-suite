@@ -7,11 +7,17 @@ import {
 import { readMpConnectConfig } from "./config";
 import type { ConnectDeps, ConnectStateRecord } from "./service";
 
-/** Clave maestra para cifrar el verificador PKCE. Misma bóveda que el resto de la plataforma. */
+/**
+ * Clave maestra para cifrar el verificador PKCE.
+ *
+ * Es **la misma variable que usa la bóveda de credenciales** de `@repo/payments`
+ * (`loadCredentialVaultKeyConfig`), a propósito: dos claves distintas para el mismo flujo
+ * serían dos cosas que rotar y dos formas de perder acceso a lo cifrado.
+ */
 function readMasterKey(): string {
-  const key = process.env.DNX_CREDENTIAL_VAULT_MASTER_KEY?.trim();
+  const key = process.env.DNX_FINANCIAL_CREDENTIAL_MASTER_KEY?.trim();
   if (!key) {
-    throw new Error("DNX_CREDENTIAL_VAULT_MASTER_KEY no está configurada.");
+    throw new Error("DNX_FINANCIAL_CREDENTIAL_MASTER_KEY no está configurada.");
   }
   return key;
 }
