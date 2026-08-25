@@ -373,12 +373,28 @@ legacy.
 
 Una sola arquitectura, conectada por partes, para que recibas algo real pronto.
 
-| Etapa | Contenido | Resultado para vos |
+| Etapa | Contenido | Estado |
 |---|---|---|
-| 1 | Paquete, contratos, ventana horaria, tablas, cron, plantilla, envío + ComprameLaFoto monorepo + incidentes + reconocimiento facial | Ya recibís un informe real todas las noches |
-| 2 | Panel web `/admin/informe-diario` + Clickatón | Podés navegar el detalle y ver Clickatón |
-| 3 | ComprameLaFoto legacy + FotoRank | Cobertura de las plataformas restantes con ventas |
-| 4 | InfoSpot + FotOffice + ajuste fino de umbrales | Informe completo |
+| 1 | Paquete, contratos, ventana horaria, tablas, cron, plantilla, envío + ComprameLaFoto monorepo + incidentes + reconocimiento facial | **Hecha** (2026-08-24) |
+| 2 | Panel web `/admin/informe-diario` + Clickatón | **Hecha** (2026-08-25) |
+| 3 | ComprameLaFoto legacy + FotoRank | Pendiente |
+| 4 | InfoSpot + FotOffice + ajuste fino de umbrales | Pendiente |
+
+### Lo verificado en la Etapa 2
+
+- **Ranking de ediciones de Clickatón** probado contra la base real con datos
+  sembrados y revertidos: 4 accesos contados, la inscripción de modo test
+  excluida, $23.000 bien convertidos desde centavos, y el orden correcto por
+  cantidad de accesos.
+- **Unidad de importes**: Clickatón guarda centavos reales; ComprameLaFoto
+  guarda pesos enteros pese al nombre `totalCents`. La diferencia está fijada
+  por test para que nadie las mezcle.
+- **Panel**: ciclo completo de guardar, releer y listar verificado; regenerar el
+  mismo día no duplica la fila. El build de producción genera ambas rutas.
+- **Hallazgo colateral**: el build de ComprameLaFoto estaba roto antes de este
+  trabajo, porque `lib/template-v2/presets/types.ts` no incluía `"fotorank"`,
+  valor que el paquete `@repo/template-engine` sí tiene. Se corrigió en un
+  commit aparte porque bloqueaba cualquier despliegue.
 
 ---
 
