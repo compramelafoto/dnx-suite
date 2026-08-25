@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@repo/db";
 import { workspaceOrganizationRef } from "./constants";
 import { normalizeConsentStatus, recordSplitConsent, type SplitConsentState } from "./consent";
+import { sanitizeError } from "./log";
 
 /** Access token de la aplicación de FotoOffice. La invitación la envía la plataforma. */
 export const PLATFORM_TOKEN_ENV = "FOTOFFICE_MP_ACCESS_TOKEN" as const;
@@ -72,8 +73,13 @@ export async function requestSplitConsent(
       sellerEmails: [email],
       idempotencyKey: randomUUID(),
     });
-  } catch {
-    // El detalle ya se registra en la ruta; acá se devuelve algo que una persona entienda.
+  } catch (error) {
+    // Se registra ACÁ, donde ocurre: el catch de la acción no ve este error porque no
+    // escapa de esta función. Sin esto, un rechazo del proveedor es indistinguible de un
+    // bug propio y no queda rastro de por qué falló.
+    console.error("[fotoffice][split-consent] invite rechazado", {
+      detalle: sanitizeError(error),
+    });
     return { ok: false, error: "MercadoPago no aceptó la solicitud. Probá de nuevo." };
   }
 
@@ -126,7 +132,10 @@ export async function refreshSplitConsent(
   let consent: Awaited<ReturnType<ConsentProviderPort["getConsent"]>>;
   try {
     consent = await deps.provider.getConsent(account.providerUserId);
-  } catch {
+  } catch (error) {
+    console.error("[fotoffice][split-consent] consulta rechazada", {
+      detalle: sanitizeError(error),
+    });
     return { ok: false, error: "No pudimos consultar a MercadoPago. Probá de nuevo." };
   }
 
