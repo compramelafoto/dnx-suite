@@ -16,12 +16,14 @@ import {
 import {
   buildDailyReport,
   createClfMonorepoCollector,
+  createClickatonCollector,
   createFaceRecognitionCollector,
   createIncidentsCollector,
   resolveArgentinaDayWindow,
 } from "@repo/ops-daily-report";
 
 import { prisma } from "@/lib/prisma";
+import { createPrismaClickatonPort } from "./prisma-clickaton-port";
 import { createPrismaFaceRecognitionPort } from "./prisma-face-recognition-port";
 import { createPrismaIncidentsPort } from "./prisma-incidents-port";
 import { createPrismaSalesPort } from "./prisma-sales-port";
@@ -48,6 +50,14 @@ function resolveRecipients(): string[] {
     .map((value) => value.trim())
     .filter(Boolean);
   return parsed.length > 0 ? parsed : [DEFAULT_RECIPIENT];
+}
+
+function resolveClickatonBaseUrl(): string {
+  return (
+    process.env.CLICKATON_PUBLIC_URL ||
+    process.env.CLICKATON_PUBLIC_WEB_BASE_URL ||
+    "https://clickaton.com"
+  ).replace(/\/$/, "");
 }
 
 function resolveBaseUrl(): string {
@@ -95,12 +105,16 @@ export type RunDailyReportResult = {
 export async function runDailyReport(options: { now: Date }): Promise<RunDailyReportResult> {
   const window = resolveArgentinaDayWindow(options.now);
   const adminBaseUrl = resolveBaseUrl();
+  const clickatonBaseUrl = resolveClickatonBaseUrl();
 
   const snapshot = await buildDailyReport({
     window,
     now: options.now,
     collectors: [
       createClfMonorepoCollector(createPrismaSalesPort(prisma), window, { adminBaseUrl }),
+      createClickatonCollector(createPrismaClickatonPort(prisma), window, {
+        adminBaseUrl: clickatonBaseUrl,
+      }),
       createIncidentsCollector(createPrismaIncidentsPort(prisma), window, {
         adminBaseUrl,
         now: options.now,

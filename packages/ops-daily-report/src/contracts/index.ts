@@ -25,6 +25,10 @@ export type {
 
 export type {
   ClfSalesPort,
+  ClickatonActivity,
+  ClickatonPort,
+  ClickatonRegistrationRow,
+  ClickatonStoreOrderRow,
   FaceRecognitionPort,
   FaceRecognitionStats,
   IncidentsPort,

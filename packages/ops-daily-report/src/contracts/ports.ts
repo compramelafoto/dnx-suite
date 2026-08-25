@@ -65,3 +65,43 @@ export type FaceRecognitionStats = {
 export interface FaceRecognitionPort {
   stats(range: DateRange): Promise<FaceRecognitionStats>;
 }
+
+/**
+ * Inscripción de Clickatón, ya normalizada.
+ *
+ * OJO: al revés que ComprameLaFoto, en Clickatón los importes de la base SÍ
+ * están en centavos ("minor units"). El adaptador los convierte a pesos antes
+ * de llegar acá, así el colector trabaja siempre con la misma unidad.
+ */
+export type ClickatonRegistrationRow = {
+  registrationId: string;
+  editionId: string;
+  editionName: string;
+  ticketTypeName: string;
+  /** CONFIRMED, PENDING_PAYMENT, EXPIRED, CANCELLED, … */
+  status: string;
+  paymentStatus: string;
+  totalArs: number;
+};
+
+export type ClickatonStoreOrderRow = {
+  orderId: string;
+  editionId: string | null;
+  editionName: string | null;
+  totalArs: number;
+  items: Array<{ productName: string; quantity: number; subtotalArs: number }>;
+};
+
+export type ClickatonActivity = {
+  photoSubmissions: number;
+  photoSubmissionsByStatus: Record<string, number>;
+  checkIns: number;
+};
+
+export interface ClickatonPort {
+  /** Inscripciones creadas en el rango, excluyendo las de modo test. */
+  registrations(range: DateRange): Promise<ClickatonRegistrationRow[]>;
+  /** Pedidos de tienda pagados en el rango. */
+  storeOrders(range: DateRange): Promise<ClickatonStoreOrderRow[]>;
+  activity(range: DateRange): Promise<ClickatonActivity>;
+}

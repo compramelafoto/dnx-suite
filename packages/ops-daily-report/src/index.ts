@@ -24,6 +24,8 @@ export { createClfMonorepoCollector, type ClfMonorepoOptions } from "./collector
 
 export { createIncidentsCollector, type IncidentsOptions } from "./collectors/incidents";
 
+export { createClickatonCollector, type ClickatonOptions } from "./collectors/clickaton";
+
 export {
   createFaceRecognitionCollector,
   type FaceRecognitionOptions,

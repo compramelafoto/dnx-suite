@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { minorUnitsToArs } from "./prisma-clickaton-port";
 import { toPaidOrderRow } from "./prisma-sales-port";
 
 test("totalCents se lee como pesos enteros, no como centavos", () => {
@@ -97,4 +98,33 @@ test("un origen desconocido se normaliza a checkout estándar", () => {
   });
 
   assert.equal(row.origin, "STANDARD_CHECKOUT");
+});
+
+// ─── Clickatón: los importes de la base SÍ están en centavos ───
+
+test("los importes de Clickatón se convierten de centavos a pesos", () => {
+  assert.equal(minorUnitsToArs(1_500_000), 15_000);
+});
+
+test("no confunde la unidad de Clickatón con la de ComprameLaFoto", () => {
+  // En CLF, 25000 en base son $25.000. En Clickatón, 25000 son $250.
+  const clfArs = toPaidOrderRow({
+    id: 1,
+    totalCents: 25_000,
+    origin: "STANDARD_CHECKOUT",
+    album: {
+      id: 1,
+      title: "A",
+      user: { id: 1, name: "X", email: "x@example.com" },
+    },
+    items: [],
+  }).totalArs;
+
+  assert.equal(clfArs, 25_000);
+  assert.equal(minorUnitsToArs(25_000), 250);
+});
+
+test("redondea al peso los centavos sueltos", () => {
+  assert.equal(minorUnitsToArs(1_050), 11);
+  assert.equal(minorUnitsToArs(0), 0);
 });

@@ -16,6 +16,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   buildDailyReport,
   createClfMonorepoCollector,
+  createClickatonCollector,
   createFaceRecognitionCollector,
   createIncidentsCollector,
   resolveArgentinaDayWindow,
@@ -27,6 +28,7 @@ import {
   renderFailedSectionsNote,
   renderSummaryBlock,
 } from "../lib/daily-report/render-blocks";
+import { createPrismaClickatonPort } from "../lib/daily-report/prisma-clickaton-port";
 import { createPrismaFaceRecognitionPort } from "../lib/daily-report/prisma-face-recognition-port";
 import { createPrismaSalesPort } from "../lib/daily-report/prisma-sales-port";
 
@@ -129,6 +131,7 @@ async function main(): Promise<void> {
     now,
     collectors: [
       createClfMonorepoCollector(createPrismaSalesPort(prisma), window, { adminBaseUrl }),
+      createClickatonCollector(createPrismaClickatonPort(prisma), window, { adminBaseUrl }),
       createIncidentsCollector(createStandaloneIncidentsPort(), window, {
         adminBaseUrl,
         now,
