@@ -1,0 +1,223 @@
+"use client";
+
+import { useActionState, useState } from "react";
+import {
+  submitApplicationAction,
+  type ApplicationFormState,
+} from "@/app/actions/membership-applications";
+
+const initial: ApplicationFormState = { error: null, ok: null };
+
+type Condicion = "PLENA" | "REDUCIDA" | "COLABORADOR";
+
+export function MembershipApplicationForm({
+  workspaceSlug,
+  institutionName,
+  monthlyAmountLabel,
+  initialDuesCount,
+}: {
+  workspaceSlug: string;
+  institutionName: string;
+  /** Cuota mensual plena, ya formateada. */
+  monthlyAmountLabel: string | null;
+  initialDuesCount: number;
+}) {
+  const action = submitApplicationAction.bind(null, workspaceSlug);
+  const [state, submit, pending] = useActionState(action, initial);
+  const [condicion, setCondicion] = useState<Condicion>("PLENA");
+
+  if (state.ok) {
+    return (
+      <div className="fo-card space-y-2 p-6">
+        <h2 className="text-lg font-semibold">Solicitud enviada</h2>
+        <p className="text-sm text-[var(--fo-muted)] leading-relaxed">{state.ok}</p>
+      </div>
+    );
+  }
+
+  return (
+    <form action={submit} className="space-y-6">
+      {/* La escala se declara con las palabras de la persona; el sistema la traduce. */}
+      <input
+        type="hidden"
+        name="declaredFeeScale"
+        value={condicion === "REDUCIDA" ? "REDUCIDA" : "PLENA"}
+      />
+
+      <section className="fo-card space-y-4 p-5">
+        <h2 className="text-sm font-semibold">¿Quién sos?</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="firstName">
+              Nombre
+            </label>
+            <input id="firstName" name="firstName" className="fo-input" required maxLength={120} />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="lastName">
+              Apellido
+            </label>
+            <input id="lastName" name="lastName" className="fo-input" required maxLength={120} />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="documentNumber">
+              Documento
+            </label>
+            <input id="documentNumber" name="documentNumber" className="fo-input" maxLength={32} />
+            <input type="hidden" name="documentType" value="DNI" />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="taxId">
+              CUIT <span className="text-[var(--fo-muted-soft)]">(opcional)</span>
+            </label>
+            <input id="taxId" name="taxId" className="fo-input" maxLength={24} />
+          </div>
+        </div>
+      </section>
+
+      <section className="fo-card space-y-4 p-5">
+        <h2 className="text-sm font-semibold">¿Cómo te ubicamos?</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="email">
+              Email
+            </label>
+            <input id="email" name="email" type="email" className="fo-input" required />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="phone">
+              Teléfono
+            </label>
+            <input id="phone" name="phone" className="fo-input" maxLength={40} />
+          </div>
+          <div className="fo-field-stack sm:col-span-2">
+            <label className="fo-label" htmlFor="noticeAddress">
+              Domicilio
+            </label>
+            <input
+              id="noticeAddress"
+              name="noticeAddress"
+              className="fo-input"
+              required
+              maxLength={240}
+            />
+            <p className="fo-helper">
+              Es el domicilio donde la institución te va a enviar las comunicaciones formales.
+            </p>
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="city">
+              Ciudad
+            </label>
+            <input id="city" name="city" className="fo-input" maxLength={120} />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="province">
+              Provincia
+            </label>
+            <input id="province" name="province" className="fo-input" maxLength={120} />
+          </div>
+        </div>
+      </section>
+
+      <section className="fo-card space-y-4 p-5">
+        <h2 className="text-sm font-semibold">¿Qué sos?</h2>
+        <div className="space-y-2">
+          {(
+            [
+              ["PLENA", "Profesional en ejercicio", "Cuota plena. Vota y puede integrar la comisión directiva."],
+              ["REDUCIDA", "Estudiante", "Paga el 50%. Sujeto a que la Secretaría confirme tu condición."],
+              ["COLABORADOR", "Aficionado", "Aporte libre, con un mínimo. No vota."],
+            ] as const
+          ).map(([value, title, desc]) => (
+            <label
+              key={value}
+              className={
+                "flex cursor-pointer gap-3 rounded-lg border p-3 " +
+                (condicion === value
+                  ? "border-[var(--fo-accent,#1d4ed8)]"
+                  : "border-[var(--fo-border)]")
+              }
+            >
+              <input
+                type="radio"
+                name="condicion"
+                value={value}
+                checked={condicion === value}
+                onChange={() => setCondicion(value)}
+                className="mt-1"
+              />
+              <span>
+                <span className="block text-sm font-medium">{title}</span>
+                <span className="block text-xs text-[var(--fo-muted)]">{desc}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {condicion === "REDUCIDA" ? (
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="originInstitution">
+              ¿De qué institución sos estudiante?
+            </label>
+            <input
+              id="originInstitution"
+              name="originInstitution"
+              className="fo-input"
+              required
+              maxLength={200}
+            />
+            <p className="fo-helper">
+              ⚠️ La cuota reducida queda sujeta a que la Secretaría confirme tu condición de
+              estudiante. Si no se confirma, se te va a cobrar la cuota plena.
+            </p>
+          </div>
+        ) : null}
+
+        {condicion === "COLABORADOR" ? (
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="ownDuesAmount">
+              ¿Con cuánto querés aportar por mes?
+            </label>
+            <input
+              id="ownDuesAmount"
+              name="ownDuesAmount"
+              inputMode="decimal"
+              className="fo-input"
+              required
+            />
+            {monthlyAmountLabel ? (
+              <p className="fo-helper">El mínimo es {monthlyAmountLabel} por mes.</p>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      {monthlyAmountLabel ? (
+        <section className="fo-card space-y-1 p-5">
+          <h2 className="text-sm font-semibold">Qué se paga al ingresar</h2>
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+            Al aprobarse tu solicitud vas a pagar <strong>{initialDuesCount} cuotas</strong> por
+            adelantado. Después seguís mes a mes, con vencimiento el día 10.
+          </p>
+          <p className="text-xs text-[var(--fo-muted)]">
+            La cuota plena de {institutionName} es de {monthlyAmountLabel} por mes.
+          </p>
+        </section>
+      ) : null}
+
+      {state.error ? (
+        <p className="text-sm text-[var(--fo-danger)]" role="alert">
+          {state.error}
+        </p>
+      ) : null}
+
+      <button type="submit" disabled={pending} className="fo-btn fo-btn-primary">
+        {pending ? "Enviando…" : "Enviar solicitud"}
+      </button>
+      <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+        Enviar la solicitud no te asocia todavía: la Secretaría la revisa y te avisa por email.
+      </p>
+    </form>
+  );
+}
