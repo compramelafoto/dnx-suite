@@ -98,23 +98,30 @@ propuestas generadas.
 
 Ver `docs/superpowers/specs/2026-08-22-generador-propuestas-sponsors-design.md`.
 
-### Inventario que el catálogo vende y todavía no existe
+### Inventario disponible
 
-Las nueve piezas del catálogo corresponden a placements montados. La brecha está
-en otro lado: **FotoRank no tiene inventario global**.
+Las nueve piezas del catálogo corresponden a placements montados. FotoRank tenía
+una brecha —no había inventario global de plataforma— y quedó cubierta:
 
-| Placement | Superficie | Estado |
-|---|---|---|
-| `FOTORANK_CONTEST_WELCOME` | Página de un concurso | Montado |
-| `FOTORANK_HOME_WELCOME` | Portada de FotoRank | **Sin montar** |
-| `FOTORANK_HOME_MARQUEE` | Portada de FotoRank | **Sin montar** |
+| Placement | Superficie | Dueño | Estado |
+|---|---|---|---|
+| `FOTORANK_CONTEST_WELCOME` | Página de un concurso | Organizador | Montado |
+| `FOTORANK_HOME_WELCOME` | Portada | Plataforma | Montado |
+| `FOTORANK_HOME_MARQUEE` | Portada | Plataforma | Montado |
+| `FOTORANK_CONTEST_MARQUEE` | Página de un concurso | Organizador | Sin montar |
 
-Consecuencia comercial: un organizador de FotoRank puede vender su concurso y
-espacios globales de InfoSpot, ComprameLaFoto y Clickatón, pero **no de
-FotoRank**. Un «pack de plataforma FotoRank» no se puede cumplir hasta montar
-esos dos espacios.
+Los cargadores de portada **no llevan `contestContextId`**: solo alcance GLOBAL
+o PLATFORM explícito. Es lo que impide que el sponsor de un concurso aparezca en
+la portada sin haberla contratado.
 
-La app tiene infraestructura de partners acotada al concurso
-(`contest-partners-service.ts`, `contest-welcome.ts`) y una única ruta pública,
-`impression`. Montar la portada requiere un cargador de avisos globales que hoy
-no existe.
+Cada superficie tiene su propia bandera, y las de portada están separadas de la
+de concurso porque son inventarios de dueños distintos:
+
+| Bandera | Superficie |
+|---|---|
+| `FOTORANK_PARTNER_WELCOME_ENABLED` | Placa de concurso |
+| `FOTORANK_HOME_WELCOME_ENABLED` | Placa de portada |
+| `FOTORANK_HOME_MARQUEE_ENABLED` | Franja de portada |
+
+Todas en OFF por defecto: sin configurarlas, la portada no cambia y no se
+consulta DNX Partners.
