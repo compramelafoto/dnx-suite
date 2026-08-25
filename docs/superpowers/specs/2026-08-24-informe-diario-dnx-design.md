@@ -377,8 +377,25 @@ Una sola arquitectura, conectada por partes, para que recibas algo real pronto.
 |---|---|---|
 | 1 | Paquete, contratos, ventana horaria, tablas, cron, plantilla, envío + ComprameLaFoto monorepo + incidentes + reconocimiento facial | **Hecha** (2026-08-24) |
 | 2 | Panel web `/admin/informe-diario` + Clickatón | **Hecha** (2026-08-25) |
-| 3 | ComprameLaFoto legacy + FotoRank | Pendiente |
-| 4 | InfoSpot + FotOffice + ajuste fino de umbrales | Pendiente |
+| 3 | ComprameLaFoto legacy + FotoRank | **Hecha** (2026-08-25) |
+| 4 | InfoSpot + FotOffice | **Hecha** (2026-08-25) |
+
+### Lo verificado en las Etapas 3 y 4
+
+Corriendo las seis plataformas contra la base real:
+
+- **FotoRank** devolvió datos verdaderos: 2 concursos activos y el ranking
+  encabezado por "Santa Fe en Foco" con 2 inscripciones. Las inscripciones
+  gratuitas suman al conteo sin sumar facturación, como corresponde.
+- **FotOffice** devolvió 7 espacios, 152 socios, 1 sitio publicado y el uso real
+  de cada módulo. Detectó 1 consulta sin responder y emitió la alerta.
+- **ComprameLaFoto legacy** falló de forma controlada al no estar configurada
+  `CLF_READONLY_DATABASE_URL`: el informe salió igual, marcado como **parcial**,
+  con la sección señalada y el motivo exacto. Es la prueba de que la tolerancia
+  a fallos hace lo que promete.
+- El colector de ventas quedó **parametrizado** en vez de duplicado: la misma
+  lógica sirve al monorepo y al legacy, cambiando solo la base y la identidad
+  de la sección.
 
 ### Lo verificado en la Etapa 2
 
