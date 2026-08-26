@@ -13,6 +13,7 @@ import {
   Settings,
   Shield,
   Tag,
+  Wallet,
   UserCog,
   Users,
 } from "lucide-react";
@@ -113,10 +114,16 @@ export function ShellNav({
             Socios
           </Link>
           {canManageMembers ? (
-            <Link href="/members/categories" className={navClass(isMemberCategories)}>
-              <Tag className="size-4 shrink-0 opacity-80" aria-hidden />
-              Categorías de socios
-            </Link>
+            <>
+              <Link href="/members/cuotas" className={navClass(path.startsWith("/members/cuotas"))}>
+                <Wallet className="size-4 shrink-0 opacity-80" aria-hidden />
+                Cuotas
+              </Link>
+              <Link href="/members/categories" className={navClass(isMemberCategories)}>
+                <Tag className="size-4 shrink-0 opacity-80" aria-hidden />
+                Categorías de socios
+              </Link>
+            </>
           ) : null}
         </>
       ) : null}
