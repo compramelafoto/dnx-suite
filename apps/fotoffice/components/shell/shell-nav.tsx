@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   Settings,
   Shield,
+  CreditCard,
   Tag,
   Wallet,
   UserCog,
@@ -118,6 +119,10 @@ export function ShellNav({
               <Link href="/members/cuotas" className={navClass(path.startsWith("/members/cuotas"))}>
                 <Wallet className="size-4 shrink-0 opacity-80" aria-hidden />
                 Cuotas
+              </Link>
+              <Link href="/members/carnets" className={navClass(path.startsWith("/members/carnets"))}>
+                <CreditCard className="size-4 shrink-0 opacity-80" aria-hidden />
+                Carnets
               </Link>
               <Link href="/members/categories" className={navClass(isMemberCategories)}>
                 <Tag className="size-4 shrink-0 opacity-80" aria-hidden />

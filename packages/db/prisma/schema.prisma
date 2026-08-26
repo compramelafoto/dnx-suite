@@ -284,6 +284,7 @@ model User {
   fotorankSocialConnectionsConnected    FotorankSocialConnection[]             @relation("FrSocialConnectionConnectedBy")
   websiteVersionsPublished              FotofficeWorkspaceWebsiteVersion[]
   memberAuditsPerformed                 MemberAudit[]
+  memberCardOperatorGrants              MemberCardOperator[]
   memberInvitationsSent                 MemberInvitation[]                     @relation("MemberInvitationInviter")
   memberInvitationsAccepted             MemberInvitation[]                     @relation("MemberInvitationAcceptor")
 }
@@ -6841,6 +6842,7 @@ model Workspace {
   membershipCharges           MembershipCharge[]
   membershipPayments          MembershipPayment[]
   memberCards                 MemberCard[]
+  memberCardOperators         MemberCardOperator[]
 }
 
 model WorkspaceFeatureModule {
@@ -7386,15 +7388,95 @@ model MemberCard {
   /// cuotas, no por uno paralelo.
   printOrderChargeId String?
 
+  /// Estado actual del recorrido físico. Solo aplica a `format = PRINTED`; el carnet digital
+  /// no se imprime ni se entrega. Se guarda además del historial para poder filtrar sin
+  /// recorrerlo entero.
+  fulfillmentState   MemberCardFulfillmentState?
+  fulfillmentUpdatedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  member    Member    @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member            @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  events    MemberCardEvent[]
 
   @@unique([workspaceId, cardNumber])
   @@index([memberId, issuedAt])
   @@index([workspaceId, validUntil])
+  @@index([workspaceId, fulfillmentState])
+}
+
+/// Recorrido de un carnet físico, desde que se pide hasta que llega al socio.
+enum MemberCardFulfillmentState {
+  PENDIENTE_PAGO
+  EN_COLA
+  IMPRESO
+  LISTO_PARA_RETIRAR
+  ENVIADO
+  ENTREGADO
+  ANULADO
+}
+
+/// Cada paso del recorrido de un carnet, con quién lo hizo y cuándo.
+///
+/// El estado actual también vive en `MemberCard.fulfillmentState` para poder filtrar sin
+/// recorrer el historial, pero **la verdad de qué pasó está acá**: sin esto se sabría en qué
+/// punto está un carnet y no cómo llegó, que es justamente lo que hace falta cuando alguien
+/// pregunta por qué el suyo todavía no está.
+model MemberCardEvent {
+  id     String @id @default(cuid())
+  cardId String
+
+  fromState MemberCardFulfillmentState?
+  toState   MemberCardFulfillmentState
+
+  /// Quién lo hizo. Nulo cuando lo movió el sistema (por ejemplo, al acreditarse el pago).
+  actorUserId Int?
+  /// Nombre legible del actor AL MOMENTO del evento. Se guarda aparte de la referencia, con
+  /// el mismo criterio que `MemberAudit`: la historia tiene que seguir entendiéndose aunque
+  /// esa persona cambie de nombre, se desactive o su usuario se elimine.
+  actorLabel  String?
+  /// Obligatoria al anular y al despachar: son los dos pasos por los que después preguntan.
+  note        String?
+
+  /// Si se le avisó al socio y cómo salió. El envío ocurre DESPUÉS de confirmar el cambio de
+  /// estado —el carnet se imprimió, eso ya es cierto— así que un aviso que no sale no puede
+  /// deshacer el paso. Queda registrado para que la Secretaría lo vea y reintente.
+  noticeSentAt DateTime?
+  noticeError  String?
+
+  createdAt DateTime @default(now())
+
+  card MemberCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, createdAt])
+}
+
+/// Quién puede operar los carnets de un workspace, además del dueño.
+///
+/// El dueño y los administradores pueden todo sin necesidad de figurar acá. Esta tabla
+/// existe para el caso que lo motivó: el impresor entra al sistema, marca los carnets como
+/// impresos, y no puede hacer nada más.
+model MemberCardOperator {
+  id          String @id @default(cuid())
+  workspaceId String
+  userId      Int
+
+  /// Mandar a imprimir y marcar como impreso.
+  canProduce Boolean @default(false)
+  /// Marcar listo para retirar, despachar y confirmar la entrega.
+  canDeliver Boolean @default(false)
+
+  grantedByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
 }
 
 model MemberInvitation {
