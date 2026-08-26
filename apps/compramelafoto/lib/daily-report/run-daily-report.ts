@@ -37,8 +37,10 @@ import { createPrismaSalesPort } from "./prisma-sales-port";
 import {
   formatReportDate,
   renderAlertsBlock,
+  renderAlertsHtml,
   renderFailedSectionsNote,
   renderSummaryBlock,
+  renderSummaryHtml,
 } from "./render-blocks";
 
 const STATUS_LABELS = {
@@ -163,6 +165,8 @@ export async function runDailyReport(options: { now: Date }): Promise<RunDailyRe
       criticalCount: criticalAlerts,
       alertsBlock: renderAlertsBlock(snapshot.alerts),
       summaryBlock: renderSummaryBlock(snapshot.sections),
+      alertsHtml: renderAlertsHtml(snapshot.alerts),
+      summaryHtml: renderSummaryHtml(snapshot.sections),
       panelUrl: `${adminBaseUrl}/admin/informe-diario`,
       ...(failedSectionsNote ? { failedSectionsNote } : {}),
     },
