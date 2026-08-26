@@ -15,6 +15,7 @@
  *
  * Todo es lógica pura: no toca red, ni base, ni sube archivos.
  */
+import { formatParticipantDate } from "../participant-experience/dates";
 import { formatBytes, formatDimensions } from "./format";
 import { translateUploadError } from "./error-messages";
 import { buildUploadRequirementsSummary, canStartUpload, fixtureOpenUploadWindow } from "./requirements";
@@ -138,6 +139,40 @@ ok(
     basesHref: "/concursos/otro#bases",
   });
   ok(sinZona.timezone === null, "sin zona declarada queda null, no undefined");
+}
+
+/* ---------- 5) Hora en 24 h: medianoche no se confunde con mediodía ---------- */
+/**
+ * Un cierre a las 00:00 se mostraba como "12:00 a. m.", que se lee fácilmente
+ * como mediodía: el participante creería tener doce horas más de plazo. Con
+ * reloj de 24 h medianoche y mediodía son textos distintos, y ya no dependen de
+ * que alguien note el sufijo "a. m." / "p. m.".
+ */
+{
+  const TZ = "America/Argentina/Buenos_Aires";
+  const medianoche = formatParticipantDate(new Date("2026-10-01T03:00:00.000Z"), {
+    includeTime: true,
+    timeZone: TZ,
+  });
+  const mediodia = formatParticipantDate(new Date("2026-10-01T15:00:00.000Z"), {
+    includeTime: true,
+    timeZone: TZ,
+  });
+
+  ok(String(medianoche).includes("00:00"), "medianoche se muestra como 00:00");
+  ok(String(mediodia).includes("12:00"), "mediodía se muestra como 12:00");
+  ok(medianoche !== mediodia, "medianoche y mediodía NO producen el mismo texto");
+  ok(
+    !/a\.\s?m\.|p\.\s?m\./i.test(String(medianoche)),
+    "el plazo no depende del sufijo a. m. / p. m.",
+  );
+
+  // Sin hora, el formato de fecha no cambia.
+  ok(
+    String(formatParticipantDate(new Date("2026-10-01T03:00:00.000Z"), { timeZone: TZ })) ===
+      "1 de octubre de 2026",
+    "sin includeTime la fecha sigue igual que antes",
+  );
 }
 
 console.log("FINAL: PASS");
