@@ -1,12 +1,12 @@
-import { CLICKATON_MEMBER_STORY_V1 } from "@/lib/template-v2/presets/clickaton/clickaton-member-story-v1";
-import { CLICKATON_WELCOME_STORY_V1 } from "@/lib/template-v2/presets/clickaton/clickaton-welcome-story-v1";
+import { CLICKATON_MEMBER_STORY_V1 } from "../presets/clickaton/clickaton-member-story-v1";
+import { CLICKATON_WELCOME_STORY_V1 } from "../presets/clickaton/clickaton-welcome-story-v1";
 import type {
   TemplatePresetFormat,
   TemplatePresetProduct,
   TemplatePresetStatus,
   TemplateV2Preset,
-} from "@/lib/template-v2/presets/types";
-import { parseTemplateV2EditorPayload } from "@/lib/template-v2/validate-save-payload";
+} from "../presets/types";
+import { parseTemplateV2EditorPayload } from "../validate-save-payload";
 
 const PRESETS: TemplateV2Preset[] = [
   CLICKATON_WELCOME_STORY_V1,

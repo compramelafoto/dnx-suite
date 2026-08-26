@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { forkVersionMetaJsonFromCatalog } from "@/lib/template-v2/fork-template-v2-meta";
+import { forkVersionMetaJsonFromCatalog } from "../fork-template-v2-meta";
 
 type DuplicateSourceVersionShape = {
   canvasJson?: unknown;

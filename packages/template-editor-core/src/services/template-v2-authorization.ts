@@ -1,10 +1,11 @@
 import type { Role } from "@prisma/client";
 import { Role as RoleEnum } from "@prisma/client";
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
+import { TemplateV2DomainError } from "./template-v2-errors";
 
 export type TemplateV2AuthUser = {
   id: number;
-  role: Role;
+  /** Rol de la app hospedadora; `isTemplateV2DesignerRole` lo interpreta. */
+  role: Role | string;
 };
 
 export type TemplateV2AccessRow = {
@@ -24,11 +25,11 @@ const DESIGNER_ROLES: Role[] = [
   RoleEnum.ADMIN,
 ];
 
-export function isTemplateV2DesignerRole(role: Role): boolean {
-  return DESIGNER_ROLES.includes(role);
+export function isTemplateV2DesignerRole(role: Role | string): boolean {
+  return (DESIGNER_ROLES as string[]).includes(role);
 }
 
-export function isAdminRole(role: Role): boolean {
+export function isAdminRole(role: Role | string): boolean {
   return role === RoleEnum.ADMIN;
 }
 

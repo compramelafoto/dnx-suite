@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { clampBlockPosition } from "@/lib/template-v2/clamp-block-position";
+import { clampBlockPosition } from "@repo/template-editor-core";
 import {
   buildPasteStyleUpdate,
   canPasteStyle,
@@ -9,12 +9,12 @@ import {
   extractBlockStyle,
   getCopiedBlockStyle,
   setCopiedBlockStyle,
-} from "@/lib/template-v2/block-style-clipboard";
-import { swapLayerTowardBackForPage, swapLayerTowardFrontForPage } from "@/lib/template-v2/layer-order";
+} from "@repo/template-editor-core";
+import { swapLayerTowardBackForPage, swapLayerTowardFrontForPage } from "@repo/template-editor-core";
 import {
   TEMPLATE_V2_RESET_WORK_SCROLL_EVENT,
   type TemplateEditorCanvasTool,
-} from "@/lib/template-v2/editor-canvas-tool";
+} from "@repo/template-editor-core";
 import {
   duplicateBlock,
   getPrimarySelectedBlockId,
@@ -32,7 +32,7 @@ import {
   type TemplateV2ClipboardSnapshot,
   type TemplateV2EditorDispatch,
   type TemplateV2EditorState,
-} from "@/lib/template-v2/editor-store";
+} from "@repo/template-editor-core";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return false;

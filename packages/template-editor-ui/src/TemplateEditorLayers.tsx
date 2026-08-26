@@ -8,7 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { getBlockDisplayName, getBlockTypeLabelEs } from "@/lib/template-v2/block-display-name";
+import { getBlockDisplayName, getBlockTypeLabelEs } from "@repo/template-editor-core";
 import {
   buildPasteStyleUpdate,
   canPasteStyle,
@@ -17,9 +17,9 @@ import {
   getCopiedBlockStyleSnapshot,
   setCopiedBlockStyle,
   subscribeCopiedBlockStyle,
-} from "@/lib/template-v2/block-style-clipboard";
-import type { TemplateV2Block } from "@/lib/template-v2/render-core";
-import type { TemplateV2EditorDispatch, TemplateV2EditorState } from "@/lib/template-v2/editor-store";
+} from "@repo/template-editor-core";
+import type { TemplateV2Block } from "@repo/template-editor-core";
+import type { TemplateV2EditorDispatch, TemplateV2EditorState } from "@repo/template-editor-core";
 import {
   duplicateBlock,
   getPrimarySelectedBlockId,
@@ -29,9 +29,9 @@ import {
   setSelectedBlockIds,
   toggleBlockInSelection,
   updateBlock,
-} from "@/lib/template-v2/editor-store";
-import { reorderLayersByPanelIndexForPage, sortBlocksByZIndexDesc } from "@/lib/template-v2/layer-order";
-import { cn } from "@/lib/utils";
+} from "@repo/template-editor-core";
+import { reorderLayersByPanelIndexForPage, sortBlocksByZIndexDesc } from "@repo/template-editor-core";
+import { cn } from "./primitives/cn";
 
 const layerActionBtnClass =
   "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#94a3b8] transition-colors hover:bg-[#f3f4f6] hover:text-[#374151] disabled:pointer-events-none disabled:opacity-30";

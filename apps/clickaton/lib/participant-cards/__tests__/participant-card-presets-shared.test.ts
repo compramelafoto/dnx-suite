@@ -5,8 +5,11 @@ import {
   CLICKATON_WELCOME_STORY_V1,
   CLICKATON_MEMBER_STORY_V1,
 } from "@repo/template-engine/clickaton-presets";
-import { CLICKATON_WELCOME_STORY_V1 as CLF_WELCOME } from "../../../../compramelafoto/lib/template-v2/presets/clickaton/clickaton-welcome-story-v1";
-import { CLICKATON_MEMBER_STORY_V1 as CLF_MEMBER } from "../../../../compramelafoto/lib/template-v2/presets/clickaton/clickaton-member-story-v1";
+// Los presets del editor viven ahora en @repo/template-editor-core, no dentro de ComprameLaFoto.
+import {
+  CLICKATON_WELCOME_STORY_V1 as CLF_WELCOME,
+  CLICKATON_MEMBER_STORY_V1 as CLF_MEMBER,
+} from "@repo/template-editor-core/presets/clickaton";
 
 const CASES = [
   {

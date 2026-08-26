@@ -1,10 +1,10 @@
-import { getBlockDisplayName } from "@/lib/template-v2/block-display-name";
-import { clampBlockPosition } from "@/lib/template-v2/clamp-block-position";
+import { getBlockDisplayName } from "./block-display-name";
+import { clampBlockPosition } from "./clamp-block-position";
 import type {
   TemplateV2Block,
   TemplateV2BlockLayout,
   TemplateV2Canvas,
-} from "@/lib/template-v2/render-core";
+} from "./render-core";
 
 export type TemplateV2EditorLoadStatus = "idle" | "loading" | "ready" | "error";
 export type TemplateV2EditorSaveStatus = "idle" | "saving" | "saved" | "error";
@@ -476,6 +476,7 @@ function coreTemplateV2EditorReducer(
       /** order[i] = índice de página *antes* del reorden, ahora visible en la ranura i. */
       const order = Array.from({ length: n }, (_, i) => i);
       const [moved] = order.splice(fromIndex, 1);
+      if (moved === undefined) return state;
       order.splice(toIndex, 0, moved);
 
       const blocks = state.blocks.map((b) => {
@@ -947,7 +948,7 @@ export function setVariableBindings(variableBindings: TemplateV2VariableBinding[
 export function getPrimarySelectedBlockId(state: TemplateV2EditorState): string | null {
   for (let i = state.selectedBlockIds.length - 1; i >= 0; i--) {
     const id = state.selectedBlockIds[i];
-    if (state.blocks.some((b) => b.id === id)) return id;
+    if (id && state.blocks.some((b) => b.id === id)) return id;
   }
   return null;
 }

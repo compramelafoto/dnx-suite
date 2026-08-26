@@ -1,4 +1,4 @@
-import type { TemplateV2Block } from "@/lib/template-v2/render-core";
+import type { TemplateV2Block } from "./render-core";
 
 function configJsonEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
   try {

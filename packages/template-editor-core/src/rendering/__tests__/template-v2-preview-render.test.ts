@@ -4,8 +4,8 @@ import type { ResolvedTemplateDocument } from "@repo/template-engine";
 import {
   createSchoolTemplateEngineRegistry,
   resolveSchoolTemplateDocument,
-} from "@/lib/template-v2/template-engine-compat";
-import { legacyPayloadToCore } from "@/lib/template-v2/services/template-v2-mappers";
+} from "../../template-engine-compat";
+import { legacyPayloadToCore } from "../../services/template-v2-mappers";
 import { createTemplatePreviewExampleData } from "../create-template-preview-example-data";
 import { renderTemplatePreviewPng } from "../template-v2-preview-renderer";
 import {

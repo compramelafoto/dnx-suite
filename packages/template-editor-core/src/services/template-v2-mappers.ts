@@ -6,9 +6,9 @@ import {
   type TemplateDocument,
   type BridgeWarning,
 } from "@repo/template-engine";
-import type { TemplateV2SavePayloadCore } from "@/lib/template-v2/validate-save-payload";
-import { TEMPLATE_V2_LIMITS, assertSafeAssetUrl } from "@/lib/template-v2/services/template-v2-limits";
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
+import type { TemplateV2SavePayloadCore } from "../validate-save-payload";
+import { TEMPLATE_V2_LIMITS, assertSafeAssetUrl } from "./template-v2-limits";
+import { TemplateV2DomainError } from "./template-v2-errors";
 
 export type DbBlockRow = {
   id: string;

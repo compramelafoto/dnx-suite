@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import Button from "@/components/ui/Button";
-import type { TemplateV2Canvas } from "@/lib/template-v2/render-core";
+import Button from "./primitives/Button";
+import type { TemplateV2Canvas } from "@repo/template-editor-core";
 import {
   formatDimForUnit,
   parseDimInput,
   pxFromUnit,
   type CanvasDimUnit,
   TEMPLATE_V2_EXPORT_DPI,
-} from "@/lib/template-v2/canvas-print-units";
-import { cn } from "@/lib/utils";
+} from "@repo/template-editor-core";
+import { cn } from "./primitives/cn";
 
 type Props = {
   open: boolean;

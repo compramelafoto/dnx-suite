@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { buildEditorGoogleFontsStylesheetHrefs } from "@/lib/template-v2/editor-font-catalog";
+import { buildEditorGoogleFontsStylesheetHrefs } from "@repo/template-editor-core";
 
 const BUNDLE_ID = "template-v2-editor-google-fonts-0";
 

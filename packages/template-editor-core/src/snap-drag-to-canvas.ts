@@ -1,5 +1,5 @@
-import { clampBlockPosition } from "@/lib/template-v2/clamp-block-position";
-import type { TemplateV2Block } from "@/lib/template-v2/render-core";
+import { clampBlockPosition } from "./clamp-block-position";
+import type { TemplateV2Block } from "./render-core";
 
 /**
  * Distancia máxima (px en espacio de lienzo) para activar snap al arrastrar.

@@ -1,16 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Button from "@/components/ui/Button";
-import { FieldLabel, InspectorPanel } from "@/components/template-v2/inspector/InspectorPanel";
+import Button from "../primitives/Button";
+import { FieldLabel, InspectorPanel } from "../inspector/InspectorPanel";
 import {
   setVariableBindings,
   type TemplateV2EditorDispatch,
   type TemplateV2VariableBinding,
-} from "@/lib/template-v2/editor-store";
-import { uploadTemplateVersionImage } from "@/lib/template-v2/upload-template-version-image";
-import { getTemplateV2VariableByKey } from "@/lib/template-v2/variable-catalog";
-import { cn } from "@/lib/utils";
+} from "@repo/template-editor-core";
+import { requestTemplateVersionImageUpload } from "@repo/template-editor-core";
+import { getTemplateV2VariableByKey } from "@repo/template-editor-core";
+import { cn } from "../primitives/cn";
 
 const SCHOOL_LOGO_VARIABLE_KEY = "branding.schoolLogoUrl";
 
@@ -62,7 +62,7 @@ export function ImageBlockUploadSection({
     setError(null);
     setUploading(true);
     try {
-      const url = await uploadTemplateVersionImage(templateId, versionId, file);
+      const url = await requestTemplateVersionImageUpload(templateId, versionId, file);
       updateConfig({ src: url, source: { ...sourceObj, variableKey: "" } });
       dispatch(setVariableBindings(stripSrcBindingsForBlock(variableBindings, blockId)));
     } catch (err) {

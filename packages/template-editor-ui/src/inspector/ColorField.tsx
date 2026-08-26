@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "../primitives/cn";
 
 function normalizeHex(raw: string): string {
   const s = raw.trim();

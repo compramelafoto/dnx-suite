@@ -9,10 +9,10 @@ import {
   updateBlock,
   type TemplateV2EditorDispatch,
   type TemplateV2EditorState,
-} from "@/lib/template-v2/editor-store";
-import { asObject, normalizeBlockConfig, type TemplateV2Block } from "@/lib/template-v2/render-core";
-import { uploadTemplateVersionImage } from "@/lib/template-v2/upload-template-version-image";
-import { TemplateBlockSafeAreaAlignmentStrip } from "@/components/template-v2/TemplateBlockSafeAreaAlignmentStrip";
+} from "@repo/template-editor-core";
+import { asObject, normalizeBlockConfig, type TemplateV2Block } from "@repo/template-editor-core";
+import { requestTemplateVersionImageUpload } from "@repo/template-editor-core";
+import { TemplateBlockSafeAreaAlignmentStrip } from "./TemplateBlockSafeAreaAlignmentStrip";
 
 type Props = {
   state: TemplateV2EditorState;
@@ -56,7 +56,7 @@ export function TemplateBlockContextToolbar({ state, dispatch, templateId, versi
     e.target.value = "";
     if (!file) return;
     setImageUploading(true);
-    void uploadTemplateVersionImage(templateId, versionId, file)
+    void requestTemplateVersionImageUpload(templateId, versionId, file)
       .then((url) => {
         const cfg = normalizeBlockConfig("IMAGE", selectedBlock.configJson);
         const source = asObject(cfg.source);

@@ -1,15 +1,15 @@
 "use client";
 
-import { alignLayoutToSafeArea } from "@/lib/template-v2/align-layout-to-safe-area";
-import type { CanvasQuickAlignment } from "@/lib/template-v2/align-block-to-canvas";
+import { alignLayoutToSafeArea } from "@repo/template-editor-core";
+import type { CanvasQuickAlignment } from "@repo/template-editor-core";
 import {
   getPrimarySelectedBlockId,
   updateBlock,
   type TemplateV2EditorDispatch,
   type TemplateV2EditorState,
-} from "@/lib/template-v2/editor-store";
-import { AlignmentGlyph } from "@/components/template-v2/alignment-glyph";
-import { cn } from "@/lib/utils";
+} from "@repo/template-editor-core";
+import { AlignmentGlyph } from "./alignment-glyph";
+import { cn } from "./primitives/cn";
 
 const alignBtnClass =
   "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#e8eaed] bg-white text-[#3c4043] shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-colors hover:border-[#c27b3d]/50 hover:bg-[#fffaf6] hover:text-[#9a5f2e] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[#e8eaed] disabled:hover:bg-white disabled:hover:text-[#3c4043]";

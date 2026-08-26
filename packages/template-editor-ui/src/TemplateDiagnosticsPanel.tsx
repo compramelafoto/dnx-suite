@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo } from "react";
-import { getBlockDisplayName, getBlockTypeLabelEs } from "@/lib/template-v2/block-display-name";
+import { getBlockDisplayName, getBlockTypeLabelEs } from "@repo/template-editor-core";
 import {
   applyDiagnosticQuickFix,
   getDiagnosticQuickFixLabel,
-} from "@/lib/template-v2/diagnostic-quick-fixes";
-import { collectTemplateDiagnostics } from "@/lib/template-v2/template-diagnostics";
-import { selectBlock, type TemplateV2EditorDispatch } from "@/lib/template-v2/editor-store";
-import type { TemplateV2Block, TemplateV2Canvas } from "@/lib/template-v2/render-core";
+} from "@repo/template-editor-core";
+import { collectTemplateDiagnostics } from "@repo/template-editor-core";
+import { selectBlock, type TemplateV2EditorDispatch } from "@repo/template-editor-core";
+import type { TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
 
 type Props = {
   blocks: TemplateV2Block[];

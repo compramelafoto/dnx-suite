@@ -1,4 +1,4 @@
-import type { TemplateV2Canvas } from "@/lib/template-v2/render-core";
+import type { TemplateV2Canvas } from "./render-core";
 
 /** Centro del lienzo en coordenadas de canvas (px). Útil para guías fijas de referencia. */
 export function getCanvasCenterPoint(canvas: Pick<TemplateV2Canvas, "width" | "height">): { cx: number; cy: number } {

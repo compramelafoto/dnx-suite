@@ -1,7 +1,7 @@
 "use client";
 
-import AppModal from "@/components/ui/AppModal";
-import Button from "@/components/ui/Button";
+import AppModal from "./primitives/AppModal";
+import Button from "./primitives/Button";
 
 type Props = {
   open: boolean;

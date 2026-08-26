@@ -3,7 +3,7 @@ import {
   getTextVisualConfig,
   normalizeBlockConfig,
   type TemplateV2BlockType,
-} from "@/lib/template-v2/render-core";
+} from "./render-core";
 
 const MIN_PX = 24;
 

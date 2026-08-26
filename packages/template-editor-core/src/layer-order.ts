@@ -1,4 +1,4 @@
-import type { TemplateV2Block } from "@/lib/template-v2/render-core";
+import type { TemplateV2Block } from "./render-core";
 
 /** Orden de panel: arriba = al frente del lienzo (zIndex mayor). */
 export function sortBlocksByZIndexDesc(blocks: TemplateV2Block[]): TemplateV2Block[] {
@@ -27,7 +27,10 @@ export function swapLayerTowardFront(blocks: TemplateV2Block[], blockId: string)
   const sorted = sortBlocksByZIndexDesc(blocks);
   const i = sorted.findIndex((b) => b.id === blockId);
   if (i <= 0) return blocks;
-  return swapZIndexBetween(blocks, sorted[i].id, sorted[i - 1].id);
+  const current = sorted[i];
+  const previous = sorted[i - 1];
+  if (!current || !previous) return blocks;
+  return swapZIndexBetween(blocks, current.id, previous.id);
 }
 
 /** Bajar: un paso hacia atrás (intercambia zIndex con la capa inmediatamente inferior en el panel). */
@@ -35,7 +38,10 @@ export function swapLayerTowardBack(blocks: TemplateV2Block[], blockId: string):
   const sorted = sortBlocksByZIndexDesc(blocks);
   const i = sorted.findIndex((b) => b.id === blockId);
   if (i < 0 || i >= sorted.length - 1) return blocks;
-  return swapZIndexBetween(blocks, sorted[i].id, sorted[i + 1].id);
+  const current = sorted[i];
+  const next = sorted[i + 1];
+  if (!current || !next) return blocks;
+  return swapZIndexBetween(blocks, current.id, next.id);
 }
 
 function mergeBlockUpdates(base: TemplateV2Block[], updatedSubset: TemplateV2Block[]): TemplateV2Block[] {
@@ -66,6 +72,7 @@ export function reorderLayersByPanelIndex(blocks: TemplateV2Block[], fromIndex: 
   if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return blocks;
   const reordered = [...sorted];
   const [moved] = reordered.splice(fromIndex, 1);
+  if (!moved) return blocks;
   reordered.splice(toIndex, 0, moved);
   const n = reordered.length;
   const idToZ = new Map(reordered.map((b, i) => [b.id, n - 1 - i]));
@@ -90,6 +97,7 @@ export function reorderLayersByPanelIndexForPage(
   if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return blocks;
   const reordered = [...sorted];
   const [moved] = reordered.splice(fromIndex, 1);
+  if (!moved) return blocks;
   reordered.splice(toIndex, 0, moved);
   const n = reordered.length;
   const idToZ = new Map(reordered.map((b, i) => [b.id, n - 1 - i]));

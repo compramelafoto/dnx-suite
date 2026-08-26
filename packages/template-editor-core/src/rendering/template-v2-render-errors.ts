@@ -1,4 +1,4 @@
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
+import { TemplateV2DomainError } from "../services/template-v2-errors";
 import {
   previewInvalid as sharedPreviewInvalid,
   previewLimitExceeded as sharedPreviewLimitExceeded,

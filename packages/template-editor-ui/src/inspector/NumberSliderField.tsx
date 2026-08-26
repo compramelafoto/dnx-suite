@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "../primitives/cn";
 
 const rangeClass =
   "h-1.5 w-full min-w-0 cursor-pointer accent-[#c27b3d] disabled:cursor-not-allowed disabled:opacity-40";

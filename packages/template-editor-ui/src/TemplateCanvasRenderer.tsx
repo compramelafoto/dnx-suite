@@ -5,8 +5,8 @@ import {
   toRenderableBlocks,
   type TemplateV2Block,
   type TemplateV2Canvas,
-} from "@/lib/template-v2/render-core";
-import { resolveBracePlaceholdersInText } from "@/lib/template-v2/resolve-text-brace-variables";
+} from "@repo/template-editor-core";
+import { resolveBracePlaceholdersInText } from "@repo/template-editor-core";
 
 type TemplateCanvasRendererProps = {
   canvas: TemplateV2Canvas;

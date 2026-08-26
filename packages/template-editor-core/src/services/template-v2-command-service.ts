@@ -1,28 +1,28 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Prisma TemplateV2 client tipado parcial / sin relations */
 import { randomUUID } from "node:crypto";
-import { prisma } from "@/lib/prisma";
+import { templateV2Db } from "./template-v2-runtime";
 import {
   assertCanClone,
   requireTemplateV2WriteAccess,
   type TemplateV2AuthUser,
-} from "@/lib/template-v2/services/template-v2-authorization";
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
+} from "./template-v2-authorization";
+import { TemplateV2DomainError } from "./template-v2-errors";
 import {
   assertLegacyPayloadLimits,
   legacyPayloadToCore,
-} from "@/lib/template-v2/services/template-v2-mappers";
-import { sanitizeTemplateName } from "@/lib/template-v2/services/template-v2-limits";
+} from "./template-v2-mappers";
+import { sanitizeTemplateName } from "./template-v2-limits";
 import {
   parseTemplateV2EditorPayload,
   type TemplateV2SavePayloadCore,
-} from "@/lib/template-v2/validate-save-payload";
-import { normalizeBlockConfig } from "@/lib/template-v2/render-core";
-import { duplicateTemplateV2InsideTransaction } from "@/lib/template-v2/duplicate-template-v2-in-transaction";
-import { loadTemplateV2DuplicateGraph } from "@/lib/template-v2/load-template-v2-duplicate-graph";
-import { createTemplateV2VersionFromEditorPayload } from "@/lib/template-v2/create-version-from-editor-payload";
-import { validateLegacyTemplatePayload } from "@/lib/template-v2/services/template-v2-validation-service";
-import { generateR2Key, getR2PublicUrl, uploadToR2 } from "@/lib/r2-client";
-import { TEMPLATE_V2_LIMITS } from "@/lib/template-v2/services/template-v2-limits";
+} from "../validate-save-payload";
+import { normalizeBlockConfig } from "../render-core";
+import { duplicateTemplateV2InsideTransaction } from "./duplicate-template-v2-in-transaction";
+import { loadTemplateV2DuplicateGraph } from "../load-template-v2-duplicate-graph";
+import { createTemplateV2VersionFromEditorPayload } from "./create-version-from-editor-payload";
+import { validateLegacyTemplatePayload } from "./template-v2-validation-service";
+import { getTemplateV2Runtime } from "./template-v2-runtime";
+import { TEMPLATE_V2_LIMITS } from "./template-v2-limits";
 
 const DEFAULT_CANVAS = {
   width: 1200,
@@ -47,6 +47,11 @@ export async function createTemplateV2(args: {
   name?: string;
   description?: string;
   payload?: unknown;
+  /**
+   * Producto de la plantilla ("school" | "clickaton"). Define qué variables
+   * ofrece el editor. La app hospedadora lo fija al crear.
+   */
+  product?: string;
 }) {
   const name = sanitizeTemplateName(args.name, "Nueva plantilla");
   let savePayload: TemplateV2SavePayloadCore | null = null;
@@ -71,7 +76,10 @@ export async function createTemplateV2(args: {
   }
 
   const canvas = savePayload?.canvas ?? DEFAULT_CANVAS;
-  const meta = savePayload?.meta ?? { templatePageCount: 1 };
+  const baseMeta = savePayload?.meta ?? { templatePageCount: 1 };
+  const meta = args.product
+    ? { ...(baseMeta as Record<string, unknown>), product: args.product }
+    : baseMeta;
   const blocks = savePayload?.blocks ?? [
     {
       id: randomUUID(),
@@ -98,7 +106,7 @@ export async function createTemplateV2(args: {
   ];
   const bindings = savePayload?.variableBindings ?? [];
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await (templateV2Db() as any).$transaction(async (tx: any) => {
     const db = tx as any;
     const template = await db.templateV2.create({
       data: {
@@ -204,7 +212,7 @@ export async function saveTemplateV2Version(args: {
       ? (args.body as any).revision
       : null;
 
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
     select: { id: true, ownerUserId: true, status: true, name: true },
@@ -243,7 +251,7 @@ export async function saveTemplateV2Version(args: {
   const nextRevision = version.revision + 1;
   const payload = parsed.data;
 
-  await prisma.$transaction(async (tx) => {
+  await (templateV2Db() as any).$transaction(async (tx: any) => {
     const t = tx as any;
     await t.templateV2VariableBinding.deleteMany({
       where: { templateVersionId: args.versionId },
@@ -326,7 +334,7 @@ export async function patchTemplateV2(args: {
     expectedUpdatedAt?: string;
   };
 }) {
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
     select: {
@@ -397,7 +405,7 @@ export async function duplicateTemplateV2(args: {
   templateId: string;
   name?: string;
 }) {
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
     select: { id: true, ownerUserId: true, status: true, name: true },
@@ -418,7 +426,7 @@ export async function duplicateTemplateV2(args: {
       ? sanitizeTemplateName(args.name)
       : `${template!.name} — copia`;
 
-  const created = await prisma.$transaction(async (tx) =>
+  const created = await (templateV2Db() as any).$transaction(async (tx: any) =>
     duplicateTemplateV2InsideTransaction(tx as any, {
       source,
       newOwnerUserId: args.user.id,
@@ -448,7 +456,7 @@ export async function deleteTemplateV2(args: {
   user: TemplateV2AuthUser;
   templateId: string;
 }) {
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
     select: { id: true, ownerUserId: true, status: true },
@@ -478,7 +486,7 @@ export async function deleteTemplateV2(args: {
   });
   const versionIds = versions.map((v: { id: string }) => v.id);
 
-  await prisma.$transaction(async (tx) => {
+  await (templateV2Db() as any).$transaction(async (tx: any) => {
     const t = tx as any;
     if (versionIds.length > 0) {
       await t.templateV2VariableBinding.deleteMany({
@@ -525,7 +533,7 @@ export async function saveAsNewVersion(args: {
   }
   assertLegacyPayloadLimits(parsed.data);
 
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
     select: { id: true, ownerUserId: true, status: true },
@@ -538,7 +546,7 @@ export async function saveAsNewVersion(args: {
   });
   assertNotPublishedLocked(publication);
 
-  const created = await prisma.$transaction(async (tx) =>
+  const created = await (templateV2Db() as any).$transaction(async (tx: any) =>
     createTemplateV2VersionFromEditorPayload(tx as any, {
       templateId: args.templateId,
       branchFromVersionId,
@@ -554,7 +562,7 @@ export async function submitTemplateForReview(args: {
   user: TemplateV2AuthUser;
   templateId: string;
 }) {
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
     select: { id: true, ownerUserId: true, status: true },
@@ -580,7 +588,7 @@ export async function uploadTemplateVersionImage(args: {
   versionId: string;
   file: File;
 }) {
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
     select: { id: true, ownerUserId: true, status: true },
@@ -627,28 +635,24 @@ export async function uploadTemplateVersionImage(args: {
         : contentType.includes("gif")
           ? "gif"
           : "jpg";
-  const key = generateR2Key(
-    `block_${randomUUID()}.${ext}`,
-    `template-v2/${args.user.id}/${args.templateId}/${args.versionId}`
-  );
   const buffer = Buffer.from(await args.file.arrayBuffer());
-  await uploadToR2(buffer, key, contentType, {
-    type: "template_v2_image",
+  const uploaded = await getTemplateV2Runtime().uploadImage({
+    body: buffer,
+    contentType,
+    extension: ext,
     templateId: args.templateId,
     versionId: args.versionId,
-    userId: String(args.user.id),
   });
 
   await db.templateV2Asset.create({
     data: {
       templateVersionId: args.versionId,
       kind: "IMAGE",
-      storageKey: key,
+      storageKey: uploaded.key,
       mimeType: contentType,
       metaJson: { originalName: args.file.name?.slice(0, 200) ?? null },
     },
   });
 
-  const url = getR2PublicUrl(key);
-  return { ok: true as const, url };
+  return { ok: true as const, url: uploaded.url };
 }

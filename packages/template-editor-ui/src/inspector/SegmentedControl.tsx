@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "../primitives/cn";
 
 export type SegmentOption<T extends string> = { value: T; label: string };
 

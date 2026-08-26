@@ -1,5 +1,5 @@
-import { TEMPLATE_V2_VARIABLE_MAP, type TemplateV2VariableDefinition } from "@/lib/template-v2/variable-catalog";
-import { getVariableGroupsForProduct } from "@/lib/template-v2/variable-catalog-product";
+import { TEMPLATE_V2_VARIABLE_MAP, type TemplateV2VariableDefinition } from "./variable-catalog";
+import { getVariableGroupsForProduct } from "./variable-catalog-product";
 
 /**
  * Contenido entre llaves: `{clave}`.

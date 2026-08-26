@@ -4,11 +4,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveTemplateDocument } from "@repo/template-engine";
 import { createClickatonTemplateExampleData } from "@repo/template-engine/clickaton";
-import { legacyPayloadToCore } from "@/lib/template-v2/services/template-v2-mappers";
-import { getTemplatePreset } from "@/lib/template-v2/presets/registry";
-import { renderTemplatePreviewPng } from "@/lib/template-v2/rendering/template-v2-preview-renderer";
-import { closeTemplatePreviewBrowser } from "@/lib/template-v2/rendering/template-v2-browser-manager";
-import { resolveTemplateVariablePlugin } from "@/lib/template-v2/resolve-template-product";
+import { legacyPayloadToCore } from "../../services/template-v2-mappers";
+import { getTemplatePreset } from "../../presets/registry";
+import { renderTemplatePreviewPng } from "../../rendering/template-v2-preview-renderer";
+import { closeTemplatePreviewBrowser } from "../../rendering/template-v2-browser-manager";
+import { resolveTemplateVariablePlugin } from "../../resolve-template-product";
 
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const OUT = join(

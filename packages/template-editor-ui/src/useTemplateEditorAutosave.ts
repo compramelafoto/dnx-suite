@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import type { TemplateV2EditorState } from "@/lib/template-v2/editor-store";
+import type { TemplateV2EditorState } from "@repo/template-editor-core";
 
 /**
  * Tiempo de inactividad antes de disparar el guardado automático (ms).

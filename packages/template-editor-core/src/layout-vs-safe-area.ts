@@ -1,4 +1,4 @@
-import type { SafeAreaRectPx } from "@/lib/template-v2/get-safe-area-rect";
+import type { SafeAreaRectPx } from "./get-safe-area-rect";
 
 /** Comparación del rectángulo de layout (eje alineado) con la zona segura. Sin rotación. */
 export type LayoutSafeAreaStatus = "inside" | "partial" | "outside";

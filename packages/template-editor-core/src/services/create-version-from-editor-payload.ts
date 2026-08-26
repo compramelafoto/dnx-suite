@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { TemplateV2SavePayloadCore } from "@/lib/template-v2/validate-save-payload";
-import { normalizeBlockConfig } from "@/lib/template-v2/render-core";
+import type { TemplateV2SavePayloadCore } from "../validate-save-payload";
+import { normalizeBlockConfig } from "../render-core";
 
 export type CreateTemplateV2VersionFromPayloadResult = {
   newVersionId: string;

@@ -1,4 +1,4 @@
-import { clampBlockPosition } from "@/lib/template-v2/clamp-block-position";
+import { clampBlockPosition } from "./clamp-block-position";
 
 /** Alineación del rectángulo del bloque (x,y,w,h) respecto del borde del lienzo, en coordenadas del editor. */
 export type CanvasQuickAlignment = "left" | "center-x" | "right" | "top" | "center-y" | "bottom";

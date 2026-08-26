@@ -1,23 +1,35 @@
-import { NextResponse } from "next/server";
-import { Role } from "@prisma/client";
-import { requireAuth } from "@/lib/auth";
 import {
   isTemplateV2DesignerRole,
   type TemplateV2AuthUser,
-} from "@/lib/template-v2/services/template-v2-authorization";
-import { toErrorResponse, TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
-import { assertPayloadSize } from "@/lib/template-v2/services/template-v2-limits";
+} from "./template-v2-authorization";
+import { toErrorResponse, TemplateV2DomainError } from "./template-v2-errors";
+import { assertPayloadSize } from "./template-v2-limits";
+import { getTemplateV2Runtime } from "./template-v2-runtime";
 
-const DESIGNER_ROLES = [Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER, Role.ADMIN];
-
+/**
+ * Usuario habilitado a diseñar. La sesión y la política las aporta la app
+ * hospedadora: en ComprameLaFoto son los roles de fotógrafo/admin; en Clickatón,
+ * los admins del evento.
+ */
 export async function requireTemplateV2ApiUser(): Promise<TemplateV2AuthUser> {
-  const { error, user } = await requireAuth(DESIGNER_ROLES);
-  if (error || !user) {
-    throw new TemplateV2DomainError("TEMPLATE_UNAUTHORIZED", error || "No autenticado", 401);
+  const runtime = getTemplateV2Runtime();
+
+  let user;
+  try {
+    user = await runtime.requireUser();
+  } catch (err) {
+    throw new TemplateV2DomainError(
+      "TEMPLATE_UNAUTHORIZED",
+      err instanceof Error ? err.message : "No autenticado",
+      401
+    );
   }
-  if (!isTemplateV2DesignerRole(user.role)) {
+
+  const canDesign = runtime.policy?.canDesign ?? ((u) => isTemplateV2DesignerRole(u.role));
+  if (!canDesign(user)) {
     throw new TemplateV2DomainError("TEMPLATE_FORBIDDEN", "Sin permisos", 403);
   }
+
   return { id: user.id, role: user.role };
 }
 
@@ -32,11 +44,19 @@ export async function readJsonWithLimit(req: Request): Promise<unknown> {
   }
 }
 
-export function jsonOk(data: Record<string, unknown>, status = 200) {
-  return NextResponse.json({ ok: true, ...data }, { status });
+/** `Response` estándar en vez de `NextResponse`: el paquete no depende de Next. */
+function json(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
 }
 
-export function jsonError(err: unknown) {
+export function jsonOk(data: Record<string, unknown>, status = 200): Response {
+  return json({ ok: true, ...data }, status);
+}
+
+export function jsonError(err: unknown): Response {
   const { status, body } = toErrorResponse(err);
-  return NextResponse.json(body, { status });
+  return json(body, status);
 }

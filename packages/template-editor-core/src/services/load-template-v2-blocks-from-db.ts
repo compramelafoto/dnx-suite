@@ -60,7 +60,7 @@ export async function loadTemplateV2BlocksForVersion(
       orderBy,
       select: selectWithPage,
     });
-    return rows.map((b) => ({
+    return rows.map((b: TemplateV2BlockRowFromDb) => ({
       ...b,
       pageIndex: typeof b.pageIndex === "number" ? b.pageIndex : 0,
     }));
@@ -74,7 +74,7 @@ export async function loadTemplateV2BlocksForVersion(
       orderBy,
       select: TEMPLATE_V2_BLOCK_SELECT_BASE,
     });
-    return rows.map((b) => ({
+    return rows.map((b: Omit<TemplateV2BlockRowFromDb, "pageIndex">) => ({
       ...b,
       pageIndex: 0,
     }));

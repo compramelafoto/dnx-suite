@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { Role } from "@prisma/client";
 import { runTemplateV2Preview } from "../template-v2-preview-service";
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
+import { TemplateV2DomainError } from "../../services/template-v2-errors";
 import { closeTemplatePreviewBrowser } from "../template-v2-browser-manager";
 
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -44,7 +44,7 @@ describe("template-v2 preview service", () => {
     await assert.rejects(
       () =>
         runTemplateV2Preview({
-          user: { id: "u1", role: Role.PHOTOGRAPHER },
+          user: { id: 1, role: Role.PHOTOGRAPHER },
           body: { draft: draftValid, output: { format: "jpeg" as "png" } },
         }),
       (err: unknown) =>
@@ -56,7 +56,7 @@ describe("template-v2 preview service", () => {
     await assert.rejects(
       () =>
         runTemplateV2Preview({
-          user: { id: "u1", role: Role.PHOTOGRAPHER },
+          user: { id: 1, role: Role.PHOTOGRAPHER },
           body: { draft: { blocks: [] } },
         }),
       (err: unknown) =>
@@ -69,7 +69,7 @@ describe("template-v2 preview service", () => {
     await assert.rejects(
       () =>
         runTemplateV2Preview({
-          user: { id: "u1", role: Role.PHOTOGRAPHER },
+          user: { id: 1, role: Role.PHOTOGRAPHER },
           body: {
             draft: {
               ...draftValid,
@@ -105,7 +105,7 @@ describe("template-v2 preview service", () => {
     await assert.rejects(
       () =>
         runTemplateV2Preview({
-          user: { id: "u1", role: Role.PHOTOGRAPHER },
+          user: { id: 1, role: Role.PHOTOGRAPHER },
           body: {
             draft: {
               ...draftValid,
@@ -123,7 +123,7 @@ describe("template-v2 preview service", () => {
 
   it("draft válido genera PNG real", async () => {
     const result = await runTemplateV2Preview({
-      user: { id: "u1", role: Role.PHOTOGRAPHER },
+      user: { id: 1, role: Role.PHOTOGRAPHER },
       body: { draft: draftValid, output: { format: "png" } },
     });
     assert.equal(result.mimeType, "image/png");
@@ -136,7 +136,7 @@ describe("template-v2 preview service", () => {
     await assert.rejects(
       () =>
         runTemplateV2Preview({
-          user: { id: "u1", role: Role.PHOTOGRAPHER },
+          user: { id: 1, role: Role.PHOTOGRAPHER },
           body: {
             draft: {
               ...draftValid,

@@ -31,6 +31,8 @@ import { EmptyStateBlock, HelperLine, PrBadge, SectionIntro, StatMiniCard } from
 type Cat = { id: string; name: string };
 
 export type PremiosRecompensasModuleProps = {
+  /** Necesario para descargar la placa de agradecimiento del sponsor. */
+  contestId?: string;
   contestTitle: string;
   categories: Cat[];
   cfg: PrizesRewardsConfig;
@@ -111,6 +113,7 @@ function moduleStatusLabel(cfg: PrizesRewardsConfig): { label: string; tone: "go
 }
 
 export function PremiosRecompensasModule({
+  contestId,
   contestTitle,
   categories,
   cfg,
@@ -423,7 +426,7 @@ export function PremiosRecompensasModule({
           <div className="space-y-8">
             <SectionIntro
               title="Sponsors vinculados"
-              description="Resumen automático a partir de premios y recompensas con sponsor cargado. Así ves quién aporta qué sin duplicar datos."
+              description="Resumen automático a partir de premios y recompensas con sponsor cargado. Así ves quién aporta qué sin duplicar datos. La placa de agradecimiento se genera con los datos ya guardados."
             />
             {sponsors.length === 0 ? (
               <EmptyStateBlock
@@ -455,6 +458,16 @@ export function PremiosRecompensasModule({
                           <p className="text-xs leading-relaxed text-fr-muted">
                             <span className="font-medium text-fr-primary">Recompensas:</span> {s.rewards.join(" · ")}
                           </p>
+                        ) : null}
+                        {contestId ? (
+                          <a
+                            href={`/api/fotorank/contests/${contestId}/sponsors/thankyou-card?sponsor=${encodeURIComponent(s.name)}&disposition=attachment`}
+                            className="inline-flex items-center gap-1 text-sm text-gold hover:text-gold-hover"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Placa de agradecimiento <Sparkles className="size-3.5" />
+                          </a>
                         ) : null}
                       </div>
                     </div>

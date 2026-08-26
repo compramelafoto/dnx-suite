@@ -1,11 +1,11 @@
-import { getSafeAreaRectPx } from "@/lib/template-v2/get-safe-area-rect";
-import { getLayoutSafeAreaStatus } from "@/lib/template-v2/layout-vs-safe-area";
+import { getSafeAreaRectPx } from "./get-safe-area-rect";
+import { getLayoutSafeAreaStatus } from "./layout-vs-safe-area";
 import {
   asObject,
   normalizeBlockConfig,
   type TemplateV2Block,
   type TemplateV2Canvas,
-} from "@/lib/template-v2/render-core";
+} from "./render-core";
 
 export type TemplateDiagnosticIssue = {
   blockId: string;

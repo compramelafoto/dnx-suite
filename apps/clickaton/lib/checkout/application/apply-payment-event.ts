@@ -278,6 +278,17 @@ export function createApplyPaymentEventUseCase(deps: {
           // soft-fail: el cron reintenta desde el outbox y PAID permanece confirmado
         }
 
+        // Placas de participante V2 (welcome + member). Soft-fail: si el render
+        // no está disponible, el cron /api/cron/participant-cards reintenta.
+        try {
+          const { enqueueParticipantCardsAfterPaid } = await import(
+            "@/lib/participant-cards/participant-card-autogenerate"
+          );
+          enqueueParticipantCardsAfterPaid({ registrationId: confirmed.id });
+        } catch {
+          // soft-fail: PAID permanece confirmado
+        }
+
         // Etapa 9: solicitud editorial de publicación. Nunca publica automáticamente.
         try {
           const { enqueueWelcomePublishAfterPaid } = await import(

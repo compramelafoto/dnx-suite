@@ -1,21 +1,21 @@
 import type { LegacyTemplateV2Payload } from "@repo/template-engine";
 import { resolveTemplateDocument } from "@repo/template-engine";
-import { legacyPayloadToCore } from "@/lib/template-v2/services/template-v2-mappers";
-import { validateLegacyTemplatePayload } from "@/lib/template-v2/services/template-v2-validation-service";
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
-import type { TemplateV2AuthUser } from "@/lib/template-v2/services/template-v2-authorization";
-import { getTemplateV2Detail } from "@/lib/template-v2/services/template-v2-query-service";
-import { renderTemplatePreviewPng } from "@/lib/template-v2/rendering/template-v2-preview-renderer";
+import { legacyPayloadToCore } from "../services/template-v2-mappers";
+import { validateLegacyTemplatePayload } from "../services/template-v2-validation-service";
+import { TemplateV2DomainError } from "../services/template-v2-errors";
+import type { TemplateV2AuthUser } from "../services/template-v2-authorization";
+import { getTemplateV2Detail } from "../services/template-v2-query-service";
+import { renderTemplatePreviewPng } from "../rendering/template-v2-preview-renderer";
 import {
   previewInvalid,
-} from "@/lib/template-v2/rendering/template-v2-render-errors";
-import { clampPreviewScale } from "@/lib/template-v2/rendering/template-v2-render-limits";
-import { parseTemplateV2EditorPayload } from "@/lib/template-v2/validate-save-payload";
+} from "../rendering/template-v2-render-errors";
+import { clampPreviewScale } from "../rendering/template-v2-render-limits";
+import { parseTemplateV2EditorPayload } from "../validate-save-payload";
 import {
   createExampleDataForProduct,
   resolveTemplateProduct,
   resolveTemplateVariablePlugin,
-} from "@/lib/template-v2/resolve-template-product";
+} from "../resolve-template-product";
 
 export type TemplatePreviewRequest = {
   templateId?: string;

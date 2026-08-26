@@ -1,4 +1,4 @@
-import type { CanvasQuickAlignment } from "@/lib/template-v2/align-block-to-canvas";
+import type { CanvasQuickAlignment } from "@repo/template-editor-core";
 
 /** Icono de alineación respecto del marco (zona segura / lienzo en otras pantallas). */
 export function AlignmentGlyph({ kind, className }: { kind: CanvasQuickAlignment; className?: string }) {

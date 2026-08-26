@@ -1,6 +1,6 @@
-import { clampBlockPosition } from "@/lib/template-v2/clamp-block-position";
-import type { CanvasQuickAlignment } from "@/lib/template-v2/align-block-to-canvas";
-import type { TemplateV2Block } from "@/lib/template-v2/render-core";
+import { clampBlockPosition } from "./clamp-block-position";
+import type { CanvasQuickAlignment } from "./align-block-to-canvas";
+import type { TemplateV2Block } from "./render-core";
 
 /** Bounding box del conjunto (ejes alineados al layout; sin rotación). */
 export type SelectionAxisBounds = {

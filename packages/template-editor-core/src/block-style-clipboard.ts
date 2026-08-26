@@ -4,7 +4,7 @@ import {
   type TemplateV2Block,
   type TemplateV2BlockLayout,
   type TemplateV2BlockType,
-} from "@/lib/template-v2/render-core";
+} from "./render-core";
 
 /**
  * Portapapeles de **solo estilo** (independiente de copiar/pegar bloque completo).

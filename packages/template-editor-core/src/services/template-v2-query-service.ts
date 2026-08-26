@@ -1,18 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Prisma TemplateV2 client tipado parcial / sin relations */
-import { prisma } from "@/lib/prisma";
+import { templateV2Db } from "./template-v2-runtime";
 import {
   requireTemplateV2ReadAccess,
   type TemplateV2AuthUser,
-} from "@/lib/template-v2/services/template-v2-authorization";
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
+} from "./template-v2-authorization";
+import { TemplateV2DomainError } from "./template-v2-errors";
 import {
   canvasFromJson,
   editorPayloadFromLegacy,
   legacyPayloadToCore,
   versionRowsToLegacyPayload,
   type TemplateSummary,
-} from "@/lib/template-v2/services/template-v2-mappers";
-import { loadTemplateV2BlocksForVersion } from "@/lib/template-v2/load-template-v2-blocks-from-db";
+} from "./template-v2-mappers";
+import { loadTemplateV2BlocksForVersion } from "./load-template-v2-blocks-from-db";
 import { TEMPLATE_SCHEMA_VERSION } from "@repo/template-engine";
 
 const ALLOWED_SORT = new Set(["updatedAt", "createdAt", "name"] as const);
@@ -56,7 +56,7 @@ export async function listTemplateV2Summaries(
   const scope = query.scope ?? "mine";
 
   const where: Record<string, unknown> = {};
-  const db = prisma as any;
+  const db = templateV2Db() as any;
 
   if (scope === "mine") {
     where.ownerUserId = user.id;
@@ -182,7 +182,7 @@ export async function getTemplateV2Detail(
   templateId: string,
   options?: { includeLegacy?: boolean; versionId?: string }
 ) {
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: templateId },
     select: {
@@ -223,7 +223,7 @@ export async function getTemplateV2Detail(
   }
 
   const [blocks, bindings] = await Promise.all([
-    loadTemplateV2BlocksForVersion(prisma, version.id),
+    loadTemplateV2BlocksForVersion(templateV2Db() as never, version.id),
     db.templateV2VariableBinding.findMany({ where: { templateVersionId: version.id } }),
   ]);
 
@@ -289,7 +289,7 @@ export async function loadEditorVersion(
 }
 
 export async function listTemplateVersions(user: TemplateV2AuthUser, templateId: string) {
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: templateId },
     select: { id: true, ownerUserId: true, status: true, currentVersionId: true },
@@ -321,7 +321,7 @@ export async function listTemplateVersions(user: TemplateV2AuthUser, templateId:
 }
 
 export async function listPublicTemplates() {
-  const db = prisma as any;
+  const db = templateV2Db() as any;
   const pubs = await db.templateV2Publication.findMany({
     where: { visibility: "PUBLIC", reviewStatus: "APPROVED" },
     select: { templateId: true },

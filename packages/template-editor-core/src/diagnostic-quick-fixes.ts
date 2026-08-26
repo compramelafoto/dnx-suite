@@ -1,7 +1,7 @@
-import { clampBlockPosition } from "@/lib/template-v2/clamp-block-position";
-import { getSafeAreaRectPx } from "@/lib/template-v2/get-safe-area-rect";
-import { selectBlock, updateBlock, type TemplateV2EditorDispatch } from "@/lib/template-v2/editor-store";
-import type { TemplateV2Block, TemplateV2Canvas } from "@/lib/template-v2/render-core";
+import { clampBlockPosition } from "./clamp-block-position";
+import { getSafeAreaRectPx } from "./get-safe-area-rect";
+import { selectBlock, updateBlock, type TemplateV2EditorDispatch } from "./editor-store";
+import type { TemplateV2Block, TemplateV2Canvas } from "./render-core";
 
 const MIN_DIM = 24;
 

@@ -2,7 +2,7 @@ import {
   getAllowedVariableKeysForProduct,
   isVariableUsableInForProduct,
   resolveTemplateProduct,
-} from "@/lib/template-v2/resolve-template-product";
+} from "./resolve-template-product";
 
 export type TemplateV2SaveBlockType =
   | "BACKGROUND"

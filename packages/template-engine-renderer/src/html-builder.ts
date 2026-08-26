@@ -21,6 +21,15 @@ export type PreviewHtmlBuildResult = {
   blockCount: number;
 };
 
+/**
+ * Los stacks tipográficos incluyen comillas dobles (`"Barlow Condensed", ...`).
+ * Sin escapar, cierran el atributo `style` y el navegador descarta todas las
+ * declaraciones posteriores (color incluido) — el texto quedaba invisible.
+ */
+function styleAttr(...parts: string[]): string {
+  return escapeHtml(parts.filter(Boolean).join(";"));
+}
+
 function asConfig(block: { config?: unknown }): Record<string, unknown> {
   if (!block.config || typeof block.config !== "object" || Array.isArray(block.config)) {
     return {};
@@ -46,7 +55,7 @@ function renderBlockHtml(
         asset.src.length > 0
           ? backgroundImageStyle(asset.src, cfg.fit)
           : `background-color:${color};`;
-      return `<div class="block" data-block-id="${idAttr}" data-type="BACKGROUND" style="${style};${bg}"></div>`;
+      return `<div class="block" data-block-id="${idAttr}" data-type="BACKGROUND" style="${styleAttr(style, bg)}"></div>`;
     }
     case "SHAPE": {
       const variant = String(cfg.variant ?? "rectangle");
@@ -61,7 +70,7 @@ function renderBlockHtml(
             ? `border-radius:${radius}px;`
             : "";
       const border = sw > 0 ? `border:${sw}px solid ${stroke};` : "";
-      return `<div class="block block-shape" data-block-id="${idAttr}" data-type="SHAPE" style="${style};background:${fill};${border}${round}"></div>`;
+      return `<div class="block block-shape" data-block-id="${idAttr}" data-type="SHAPE" style="${styleAttr(style, `background:${fill}`, border, round)}"></div>`;
     }
     case "TEXT":
     case "VARIABLE_TEXT": {
@@ -82,7 +91,7 @@ function renderBlockHtml(
         return "";
       }
       const ty = typographyStyle(cfg);
-      return `<div class="block block-text" data-block-id="${idAttr}" data-type="${block.type}" style="${style};${ty}">${escapeHtml(content)}</div>`;
+      return `<div class="block block-text" data-block-id="${idAttr}" data-type="${block.type}" style="${styleAttr(style, ty)}">${escapeHtml(content)}</div>`;
     }
     case "IMAGE":
     case "PHOTO": {
@@ -101,11 +110,11 @@ function renderBlockHtml(
       });
       if (asset.warning) warnings.push(`${block.id}:${asset.warning}`);
       if (!asset.src) {
-        return `<div class="block" data-block-id="${idAttr}" data-type="${block.type}" style="${style};background:#f1f5f9;"></div>`;
+        return `<div class="block" data-block-id="${idAttr}" data-type="${block.type}" style="${styleAttr(style, "background:#f1f5f9")}"></div>`;
       }
       const mask = imageMaskStyle(cfg.maskShape, cfg.borderRadius);
       const fit = objectFitStyle(cfg.fit);
-      return `<div class="block" data-block-id="${idAttr}" data-type="${block.type}" style="${style}"><img class="block-img" alt="" src="${escapeHtml(asset.src)}" style="${fit}${mask}" /></div>`;
+      return `<div class="block" data-block-id="${idAttr}" data-type="${block.type}" style="${styleAttr(style)}"><img class="block-img" alt="" src="${escapeHtml(asset.src)}" style="${styleAttr(fit, mask)}" /></div>`;
     }
     default:
       return "";
@@ -136,7 +145,7 @@ export function buildTemplatePreviewHtml(
 
   const stageBg =
     document.background?.color != null
-      ? `background-color:${sanitizeCssColor(document.background.color, "#ffffff")};`
+      ? `background-color:${sanitizeCssColor(document.background.color, "#ffffff")}`
       : "";
 
   const bodyBlocks = blocks.map((b) => renderBlockHtml(b, warnings)).join("\n");
@@ -158,7 +167,7 @@ ${css}
 </style>
 </head>
 <body>
-<div id="stage" style="${stageBg}">
+<div id="stage" style="${styleAttr(stageBg)}">
 ${bodyBlocks}
 </div>
 </body>

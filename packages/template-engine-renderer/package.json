@@ -11,7 +11,7 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test src/render-limits.test.ts",
+    "test": "tsx --test src/render-limits.test.ts src/html-builder.test.ts src/remote-image.test.ts src/sponsor-card.test.ts",
     "lint": "eslint ."
   },
   "dependencies": {

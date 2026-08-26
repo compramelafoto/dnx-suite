@@ -8,12 +8,12 @@ import {
 import {
   resolveTemplateProduct,
   resolveTemplateVariablePlugin,
-} from "@/lib/template-v2/resolve-template-product";
+} from "../resolve-template-product";
 import {
   assertLegacyPayloadLimits,
   legacyPayloadToCore,
-} from "@/lib/template-v2/services/template-v2-mappers";
-import { TEMPLATE_V2_LIMITS } from "@/lib/template-v2/services/template-v2-limits";
+} from "./template-v2-mappers";
+import { TEMPLATE_V2_LIMITS } from "./template-v2-limits";
 
 export type TemplateValidationIssue = {
   code: string;

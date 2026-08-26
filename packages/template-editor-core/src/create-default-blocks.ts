@@ -1,4 +1,4 @@
-import type { TemplateV2Block, TemplateV2Canvas } from "@/lib/template-v2/render-core";
+import type { TemplateV2Block, TemplateV2Canvas } from "./render-core";
 
 function newBlockId(): string {
   try {

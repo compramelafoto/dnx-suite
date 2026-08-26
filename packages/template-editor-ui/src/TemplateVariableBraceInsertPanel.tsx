@@ -5,11 +5,11 @@ import {
   getTemplateTextEditingBlockId,
   insertTextIntoActiveTemplateEditor,
   subscribeTemplateTextEditing,
-} from "@/lib/template-v2/text-edit-bridge";
-import { braceSnippetForCatalogKey } from "@/lib/template-v2/resolve-text-brace-variables";
-import { getTextVariableGroupsForProduct } from "@/lib/template-v2/variable-catalog-product";
-import type { TemplateProductId } from "@/lib/template-v2/resolve-template-product";
-import { cn } from "@/lib/utils";
+} from "@repo/template-editor-core";
+import { braceSnippetForCatalogKey } from "@repo/template-editor-core";
+import { getTextVariableGroupsForProduct } from "@repo/template-editor-core";
+import type { TemplateProductId } from "@repo/template-editor-core";
+import { cn } from "./primitives/cn";
 
 type Props = {
   selectedBlockId: string | null;

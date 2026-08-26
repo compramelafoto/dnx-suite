@@ -116,6 +116,12 @@ export {
 export type { NormalizeInstagramResult } from "./plugins/clickaton";
 
 export {
+  sponsorTemplateVariablesPlugin,
+  SPONSOR_TEMPLATE_ALIASES,
+  SPONSOR_TEMPLATE_VARIABLE_DEFINITIONS,
+} from "./plugins/sponsor";
+
+export {
   fromLegacyTemplateV2,
   toLegacyTemplateV2,
   type LegacyTemplateV2Payload,

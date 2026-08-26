@@ -1,6 +1,9 @@
-import { randomUUID } from "node:crypto";
+/**
+ * `crypto.randomUUID()` global en vez de `node:crypto`: este módulo lo importa
+ * también el lienzo, que corre en el navegador.
+ */
 import type { LegacyTemplateV2Payload } from "@repo/template-engine";
-import type { TemplateV2Preset } from "@/lib/template-v2/presets/types";
+import type { TemplateV2Preset } from "../presets/types";
 
 export function layout(
   x: number,
@@ -34,7 +37,7 @@ export function instantiatePresetPayload(
 ): LegacyTemplateV2Payload {
   const idMap = new Map<string, string>();
   const blocks = preset.payload.blocks.map((b) => {
-    const newId = randomUUID();
+    const newId = crypto.randomUUID();
     idMap.set(b.id, newId);
     return {
       ...b,
@@ -45,7 +48,7 @@ export function instantiatePresetPayload(
   });
   const variableBindings = (preset.payload.variableBindings ?? []).map((vb) => ({
     ...vb,
-    id: randomUUID(),
+    id: crypto.randomUUID(),
     blockId: idMap.get(vb.blockId) ?? vb.blockId,
   }));
   return {

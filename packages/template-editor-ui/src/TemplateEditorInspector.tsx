@@ -1,36 +1,36 @@
 "use client";
 
 import { useMemo } from "react";
-import { ColorField } from "@/components/template-v2/inspector/ColorField";
-import { ImageBlockUploadSection } from "@/components/template-v2/inspector/ImageBlockUploadSection";
-import { FieldLabel, InspectorPanel } from "@/components/template-v2/inspector/InspectorPanel";
-import { NumberSliderField } from "@/components/template-v2/inspector/NumberSliderField";
-import { SegmentedControl } from "@/components/template-v2/inspector/SegmentedControl";
-import type { CanvasQuickAlignment } from "@/lib/template-v2/align-block-to-canvas";
+import { ColorField } from "./inspector/ColorField";
+import { ImageBlockUploadSection } from "./inspector/ImageBlockUploadSection";
+import { FieldLabel, InspectorPanel } from "./inspector/InspectorPanel";
+import { NumberSliderField } from "./inspector/NumberSliderField";
+import { SegmentedControl } from "./inspector/SegmentedControl";
+import type { CanvasQuickAlignment } from "@repo/template-editor-core";
 import {
   alignBlocksToSelectionBounds,
   anySelectedBlockLocked,
   distributeBlocksInSelection,
   type DistributeAxis,
-} from "@/lib/template-v2/align-selection-bounds";
-import { areTemplateV2BlockArraysEquivalent } from "@/lib/template-v2/block-arrays-equivalent";
-import { getSafeAreaRectPx } from "@/lib/template-v2/get-safe-area-rect";
-import { getLayoutSafeAreaStatus } from "@/lib/template-v2/layout-vs-safe-area";
-import type { TemplateV2Block, TemplateV2Canvas } from "@/lib/template-v2/render-core";
+} from "@repo/template-editor-core";
+import { areTemplateV2BlockArraysEquivalent } from "@repo/template-editor-core";
+import { getSafeAreaRectPx } from "@repo/template-editor-core";
+import { getLayoutSafeAreaStatus } from "@repo/template-editor-core";
+import type { TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
 import {
   getTextVariableGroupsForProduct,
   getVariableByKeyForProduct,
-} from "@/lib/template-v2/variable-catalog-product";
-import type { TemplateProductId } from "@/lib/template-v2/resolve-template-product";
+} from "@repo/template-editor-core";
+import type { TemplateProductId } from "@repo/template-editor-core";
 import {
   setBlocks,
   setCanvas,
   type TemplateV2EditorDispatch,
   type TemplateV2VariableBinding,
-} from "@/lib/template-v2/editor-store";
-import { AlignmentGlyph } from "@/components/template-v2/alignment-glyph";
-import { TemplateVariableBraceInsertPanel } from "@/components/template-v2/TemplateVariableBraceInsertPanel";
-import { cn } from "@/lib/utils";
+} from "@repo/template-editor-core";
+import { AlignmentGlyph } from "./alignment-glyph";
+import { TemplateVariableBraceInsertPanel } from "./TemplateVariableBraceInsertPanel";
+import { cn } from "./primitives/cn";
 
 type Props = {
   selectedBlock: TemplateV2Block | null;

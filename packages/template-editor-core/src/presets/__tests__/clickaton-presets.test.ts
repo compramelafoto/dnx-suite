@@ -4,10 +4,10 @@ import {
   getTemplatePreset,
   listTemplatePresets,
   validateTemplatePreset,
-} from "@/lib/template-v2/presets/registry";
-import { instantiatePresetPayload } from "@/lib/template-v2/presets/preset-helpers";
-import { validateLegacyTemplatePayload } from "@/lib/template-v2/services/template-v2-validation-service";
-import { parseTemplateV2EditorPayload } from "@/lib/template-v2/validate-save-payload";
+} from "../../presets/registry";
+import { instantiatePresetPayload } from "../../presets/preset-helpers";
+import { validateLegacyTemplatePayload } from "../../services/template-v2-validation-service";
+import { parseTemplateV2EditorPayload } from "../../validate-save-payload";
 
 describe("clickaton presets", () => {
   it("lista y obtiene presets Clickatón", () => {

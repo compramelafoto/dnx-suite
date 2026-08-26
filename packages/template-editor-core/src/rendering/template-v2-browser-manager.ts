@@ -10,7 +10,7 @@ import {
   type PreviewCaptureInput,
   type PreviewCaptureResult,
 } from "@repo/template-engine-renderer";
-import { mapTemplateRenderError } from "@/lib/template-v2/rendering/template-v2-render-errors";
+import { mapTemplateRenderError } from "../rendering/template-v2-render-errors";
 
 export type { PreviewCaptureInput, PreviewCaptureResult };
 export { __previewActiveRendersForTests };

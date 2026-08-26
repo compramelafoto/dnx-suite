@@ -5,8 +5,8 @@ import {
   schoolTemplateVariablesPlugin,
   type TemplateVariableRegistry,
 } from "@repo/template-engine";
-import { createTemplatePreviewExampleData } from "@/lib/template-v2/rendering/create-template-preview-example-data";
-import { createSchoolTemplateEngineRegistry } from "@/lib/template-v2/template-engine-compat";
+import { createTemplatePreviewExampleData } from "./rendering/create-template-preview-example-data";
+import { createSchoolTemplateEngineRegistry } from "./template-engine-compat";
 
 export type TemplateProductId = "school" | "clickaton";
 

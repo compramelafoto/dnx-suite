@@ -13,11 +13,11 @@ import {
   type SVGProps,
 } from "react";
 import { useRouter } from "next/navigation";
-import Card from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
-import { TemplateEditorCanvas } from "@/components/template-v2/TemplateEditorCanvas";
-import { TemplateEditorInspector } from "@/components/template-v2/TemplateEditorInspector";
-import { TemplateEditorLayers } from "@/components/template-v2/TemplateEditorLayers";
+import Card from "./primitives/Card";
+import Button from "./primitives/Button";
+import { TemplateEditorCanvas } from "./TemplateEditorCanvas";
+import { TemplateEditorInspector } from "./TemplateEditorInspector";
+import { TemplateEditorLayers } from "./TemplateEditorLayers";
 import {
   TEMPLATE_V2_EDITOR_INITIAL_STATE,
   addBlock,
@@ -42,35 +42,35 @@ import {
   undo,
   type InitializeEditorInput,
   type TemplateV2VariableBinding,
-} from "@/lib/template-v2/editor-store";
-import { useTemplateEditorHotkeys } from "@/components/template-v2/useTemplateEditorHotkeys";
+} from "@repo/template-editor-core";
+import { useTemplateEditorHotkeys } from "./useTemplateEditorHotkeys";
 import {
   TEMPLATE_V2_AUTOSAVE_DEBOUNCE_MS,
   useTemplateEditorAutosave,
-} from "@/components/template-v2/useTemplateEditorAutosave";
+} from "./useTemplateEditorAutosave";
 import {
   createDefaultBackgroundBlock,
   createDefaultImageBlock,
   createDefaultSchoolLogoImageBlock,
   createDefaultShapeBlock,
   createDefaultVariableTextBlock,
-} from "@/lib/template-v2/create-default-blocks";
-import { asObject } from "@/lib/template-v2/render-core";
-import { uploadTemplateVersionImage } from "@/lib/template-v2/upload-template-version-image";
-import { TemplateBlockContextToolbar } from "@/components/template-v2/TemplateBlockContextToolbar";
-import { GoogleFontsLoader } from "@/components/template-v2/GoogleFontsLoader";
-import { TemplateTextFormatToolbar } from "@/components/template-v2/TemplateTextFormatToolbar";
-import { TemplateDiagnosticsPanel } from "@/components/template-v2/TemplateDiagnosticsPanel";
-import { TemplateVersionList } from "@/components/template-v2/TemplateVersionList";
-import type { TemplateEditorCanvasTool } from "@/lib/template-v2/editor-canvas-tool";
-import { cn } from "@/lib/utils";
-import { CanvasSizeModal } from "@/components/template-v2/CanvasSizeModal";
-import { TemplateEditorExitModal } from "@/components/template-v2/TemplateEditorExitModal";
-import { getCopiedBlockStyleSnapshot, subscribeCopiedBlockStyle } from "@/lib/template-v2/block-style-clipboard";
+} from "@repo/template-editor-core";
+import { asObject } from "@repo/template-editor-core";
+import { requestTemplateVersionImageUpload } from "@repo/template-editor-core";
+import { TemplateBlockContextToolbar } from "./TemplateBlockContextToolbar";
+import { GoogleFontsLoader } from "./GoogleFontsLoader";
+import { TemplateTextFormatToolbar } from "./TemplateTextFormatToolbar";
+import { TemplateDiagnosticsPanel } from "./TemplateDiagnosticsPanel";
+import { TemplateVersionList } from "./TemplateVersionList";
+import type { TemplateEditorCanvasTool } from "@repo/template-editor-core";
+import { cn } from "./primitives/cn";
+import { CanvasSizeModal } from "./CanvasSizeModal";
+import { TemplateEditorExitModal } from "./TemplateEditorExitModal";
+import { getCopiedBlockStyleSnapshot, subscribeCopiedBlockStyle } from "@repo/template-editor-core";
 import {
   isRevisionConflictResponse,
   TEMPLATE_V2_REVISION_CONFLICT_MESSAGE,
-} from "@/lib/template-v2/revision-conflict";
+} from "@repo/template-editor-core";
 
 const TEMPLATE_V2_EDITOR_LIST_PATH = "/fotografo/diseno/plantillas/v2";
 
@@ -513,7 +513,7 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
     setBackgroundUploadError(null);
     setBackgroundUploading(true);
     try {
-      const url = await uploadTemplateVersionImage(templateId, versionId, file);
+      const url = await requestTemplateVersionImageUpload(templateId, versionId, file);
       const ap = state.activePageIndex ?? 0;
       const existing = state.blocks.find((b) => b.type === "BACKGROUND" && (b.pageIndex ?? 0) === ap);
       if (existing) {

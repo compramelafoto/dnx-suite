@@ -1,4 +1,4 @@
-import type { TemplateV2Block, TemplateV2BlockType } from "@/lib/template-v2/render-core";
+import type { TemplateV2Block, TemplateV2BlockType } from "./render-core";
 
 /**
  * Nombre por defecto cuando `name` está vacío (capas, listas, placeholder del inspector).

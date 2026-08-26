@@ -9,8 +9,8 @@ import {
   type TemplateV2VariableGroup,
   type TemplateV2VariableUsableIn,
   type TemplateV2VariableValueType,
-} from "@/lib/template-v2/variable-catalog";
-import type { TemplateProductId } from "@/lib/template-v2/resolve-template-product";
+} from "./variable-catalog";
+import type { TemplateProductId } from "./resolve-template-product";
 
 function mapValueType(
   t: TemplateVariableDefinition["valueType"]

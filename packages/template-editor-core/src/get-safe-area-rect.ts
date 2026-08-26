@@ -1,4 +1,4 @@
-import type { TemplateV2Canvas } from "@/lib/template-v2/render-core";
+import type { TemplateV2Canvas } from "./render-core";
 
 export type SafeAreaRectPx = { x: number; y: number; width: number; height: number };
 

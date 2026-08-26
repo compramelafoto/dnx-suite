@@ -10,19 +10,19 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { flushSync } from "react-dom";
-import { TemplateCanvasRenderer } from "@/components/template-v2/TemplateCanvasRenderer";
-import { getCanvasCenterPoint } from "@/lib/template-v2/get-canvas-center-axes";
-import { getSafeAreaRectPx } from "@/lib/template-v2/get-safe-area-rect";
-import { getLayoutSafeAreaStatus, type LayoutSafeAreaStatus } from "@/lib/template-v2/layout-vs-safe-area";
-import { buildDiagnosticHighlightMap, collectTemplateDiagnostics } from "@/lib/template-v2/template-diagnostics";
+import { TemplateCanvasRenderer } from "./TemplateCanvasRenderer";
+import { getCanvasCenterPoint } from "@repo/template-editor-core";
+import { getSafeAreaRectPx } from "@repo/template-editor-core";
+import { getLayoutSafeAreaStatus, type LayoutSafeAreaStatus } from "@repo/template-editor-core";
+import { buildDiagnosticHighlightMap, collectTemplateDiagnostics } from "@repo/template-editor-core";
 import {
   getTextVisualConfig,
   normalizeBlockConfig,
-} from "@/lib/template-v2/render-core";
-import type { TemplateV2Block } from "@/lib/template-v2/render-core";
-import { measureTextBlockBoundsPx } from "@/lib/template-v2/measure-text-block-bounds";
-import { snapDragPosition } from "@/lib/template-v2/snap-drag-to-canvas";
-import { normalizeRotationDeg, unwrapAngleDeltaRad } from "@/lib/template-v2/rotation-math";
+} from "@repo/template-editor-core";
+import type { TemplateV2Block } from "@repo/template-editor-core";
+import { measureTextBlockBoundsPx } from "@repo/template-editor-core";
+import { snapDragPosition } from "@repo/template-editor-core";
+import { normalizeRotationDeg, unwrapAngleDeltaRad } from "@repo/template-editor-core";
 import {
   addBlock,
   commitHistoryCheckpoint,
@@ -37,19 +37,19 @@ import {
   updateBlock,
   type TemplateV2EditorDispatch,
   type TemplateV2EditorState,
-} from "@/lib/template-v2/editor-store";
-import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES } from "@/lib/template-v2/editor-mock-variables";
+} from "@repo/template-editor-core";
+import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES } from "@repo/template-editor-core";
 import {
   notifyTemplateTextEditingBlockId,
   registerTemplateTextInsert,
-} from "@/lib/template-v2/text-edit-bridge";
-import { createAreaTextBlockInRect, createPointTextBlockAt } from "@/lib/template-v2/create-default-blocks";
-import { computeResizeRect } from "@/lib/template-v2/resize-block-from-handle";
+} from "@repo/template-editor-core";
+import { createAreaTextBlockInRect, createPointTextBlockAt } from "@repo/template-editor-core";
+import { computeResizeRect } from "@repo/template-editor-core";
 import {
   TEMPLATE_V2_RESET_WORK_SCROLL_EVENT,
   type TemplateEditorCanvasTool,
-} from "@/lib/template-v2/editor-canvas-tool";
-import { cn } from "@/lib/utils";
+} from "@repo/template-editor-core";
+import { cn } from "./primitives/cn";
 
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return false;

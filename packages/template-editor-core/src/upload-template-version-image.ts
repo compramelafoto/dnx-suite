@@ -1,8 +1,11 @@
 /**
  * Sube un archivo a la versión del template y devuelve la URL pública.
  * Usado por el inspector de imagen y la toolbar contextual.
+ *
+ * Corre en el navegador: llama a la ruta HTTP. No confundir con
+ * `uploadTemplateVersionImage` de los servicios, que corre en el servidor.
  */
-export async function uploadTemplateVersionImage(
+export async function requestTemplateVersionImageUpload(
   templateId: string,
   versionId: string,
   file: File

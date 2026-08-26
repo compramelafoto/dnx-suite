@@ -1,4 +1,4 @@
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
+import { TemplateV2DomainError } from "./template-v2-errors";
 
 /** Límites de seguridad para payloads Template V2 (P0-03). */
 export const TEMPLATE_V2_LIMITS = {

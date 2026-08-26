@@ -19,7 +19,8 @@
     "./partners-analytics-multi-db": "./src/partners-analytics-multi-db.ts",
     "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts",
     "./fotoffice-members": "./src/fotoffice-members.ts",
-    "./daily-report-repository": "./src/daily-report-repository.ts"
+    "./daily-report-repository": "./src/daily-report-repository.ts",
+    "./template-v2-repository": "./src/template-v2-repository.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",
@@ -51,7 +52,8 @@
     "staging:identity-cutover": "tsx scripts/staging-identity-cutover.mts",
     "communications:db:identity": "tsx scripts/communications-db-identity.mts",
     "test:communications-identity": "tsx --test scripts/communications-db-identity.test.ts",
-    "test:daily-report": "tsx --test src/daily-report-repository.test.ts"
+    "test:daily-report": "tsx --test src/daily-report-repository.test.ts",
+    "test:template-v2-repository": "tsx --test src/template-v2-repository.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

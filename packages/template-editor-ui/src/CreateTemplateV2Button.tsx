@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Button from "@/components/ui/Button";
+import Button from "./primitives/Button";
 
 type CreateResponse = {
   ok: boolean;

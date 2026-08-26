@@ -1,7 +1,7 @@
-import type { CanvasQuickAlignment } from "@/lib/template-v2/align-block-to-canvas";
-import { clampBlockPosition } from "@/lib/template-v2/clamp-block-position";
-import { getSafeAreaRectPx } from "@/lib/template-v2/get-safe-area-rect";
-import type { TemplateV2Canvas } from "@/lib/template-v2/render-core";
+import type { CanvasQuickAlignment } from "./align-block-to-canvas";
+import { clampBlockPosition } from "./clamp-block-position";
+import { getSafeAreaRectPx } from "./get-safe-area-rect";
+import type { TemplateV2Canvas } from "./render-core";
 
 type LayoutBox = {
   x: number;

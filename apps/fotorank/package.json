@@ -73,7 +73,9 @@
     "test:contest-public-presentation:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/contest-public-presentation/contest-public-presentation.selfcheck.ts",
     "test:participant-experience:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/participant-experience/participant-experience.selfcheck.ts",
     "test:participant-upload:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/participant-upload/participant-upload.selfcheck.ts",
-    "validate:santa-fe-visual-assets": "node ./scripts/validate-santa-fe-visual-assets.mjs"
+    "validate:santa-fe-visual-assets": "node ./scripts/validate-santa-fe-visual-assets.mjs",
+    "build:card-logo": "tsx scripts/build-card-logo.ts",
+    "selfcheck:sponsor-card": "tsx scripts/sponsor-thankyou-card.selfcheck.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",
@@ -105,6 +107,8 @@
     "@repo/design-system": "workspace:*",
     "@repo/partners": "workspace:*",
     "@repo/payments": "workspace:*",
+    "@repo/template-engine": "workspace:*",
+    "@repo/template-engine-renderer": "workspace:*",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",
     "exifr": "^7.1.3",
