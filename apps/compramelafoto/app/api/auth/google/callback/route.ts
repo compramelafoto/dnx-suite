@@ -8,35 +8,45 @@ import { hashToken } from "@/lib/token-hash";
 import { sendEmail } from "@/emails/send";
 import { buildVerifyEmail } from "@/emails/templates/auth";
 import { getPostLoginDestination } from "@/lib/auth/post-login-destination";
+import { decodeGoogleOAuthState } from "@/lib/auth/google-oauth-state";
+import { tryCreateReferralAttributionOnSignup } from "@/lib/referral/referral-signup-attribution";
+import { inferReferralProgramForReferredUserRole } from "@/lib/referral/referral-program";
+import {
+  appendClearReferralCookies,
+  getReferralCodeFromRequest,
+  getReferralMetaFromRequest,
+} from "@/lib/referral-cookie-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * Callback de Google OAuth
- * Recibe el c?digo de autorizaci?n y crea/inicia sesi?n del usuario
+ * Recibe el código de autorización y crea/inicia sesión del usuario
  */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get("code");
     const error = searchParams.get("error");
-    const rawState = searchParams.get("state") || "PHOTOGRAPHER";
+    const statePayload = decodeGoogleOAuthState(searchParams.get("state"));
+    const state = statePayload.role || "PHOTOGRAPHER";
     const origin = new URL(req.url).origin;
     const baseUrl = origin || process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-    const isCuantoCobroFlow = rawState.startsWith("CC:");
-    const cuantoCobroRedirect = isCuantoCobroFlow ? rawState.slice(3) : null;
-    const state = isCuantoCobroFlow ? "PHOTOGRAPHER" : rawState;
+    const cuantoCobroRedirect = statePayload.redirect?.startsWith("/")
+      ? statePayload.redirect
+      : null;
+    const isCuantoCobroFlow = !!cuantoCobroRedirect;
 
     const isAuto = state === "AUTO";
 
-    // Determinar el rol y la p?gina de redirecci?n seg?n el state
+    // Determinar el rol y la página de redirección según el state
     let role: "PHOTOGRAPHER" | "CUSTOMER" | "LAB" | "ORGANIZER" = "PHOTOGRAPHER";
     let loginPath = isAuto ? "/login" : "/fotografo/login";
     let redirectPath = "/fotografo/dashboard";
 
-    if (isCuantoCobroFlow && cuantoCobroRedirect?.startsWith("/")) {
+    if (isCuantoCobroFlow && cuantoCobroRedirect) {
       loginPath = "/cuantocobro/login";
       redirectPath = cuantoCobroRedirect;
       role = "PHOTOGRAPHER";
@@ -242,7 +252,31 @@ export async function GET(req: Request) {
           meta: { userId: user.id },
         });
       } catch (emailErr) {
-        console.error("GOOGLE CALLBACK: error enviando verificaci?n", emailErr);
+        console.error("GOOGLE CALLBACK: error enviando verificación", emailErr);
+      }
+
+      // Atribución de referido: state OAuth gana; si no, cookie clf_ref (middleware).
+      if (user.role === Role.PHOTOGRAPHER || user.role === Role.ORGANIZER) {
+        const refFromCookie = getReferralCodeFromRequest(req);
+        const metaFromCookie = getReferralMetaFromRequest(req);
+        const refCode = (statePayload.ref || refFromCookie || "").trim();
+        const sourceTypeRaw =
+          statePayload.sourceType || metaFromCookie?.sourceType || undefined;
+        const sourceEntityRaw =
+          statePayload.sourceEntityId ?? metaFromCookie?.sourceEntityId ?? undefined;
+
+        if (refCode) {
+          await tryCreateReferralAttributionOnSignup({
+            referredUserId: user.id,
+            referredUserEmail: user.email,
+            referredUserMpUserId: user.mpUserId,
+            referralProgram: inferReferralProgramForReferredUserRole(user.role),
+            refCode,
+            sourceTypeRaw,
+            sourceEntityRaw,
+            logContext: "GOOGLE CALLBACK",
+          });
+        }
       }
     }
 
@@ -280,14 +314,14 @@ export async function GET(req: Request) {
       redirectPath = resolveRedirectPath(user.role);
     }
 
-    if (isCuantoCobroFlow && cuantoCobroRedirect?.startsWith("/")) {
+    if (isCuantoCobroFlow && cuantoCobroRedirect) {
       redirectPath = cuantoCobroRedirect;
     }
 
     const redirectUrl = new URL(`${baseUrl}${redirectPath}`);
     redirectUrl.searchParams.set("user", JSON.stringify(userData));
 
-    // 5. Redirigir y poner la cookie EN LA MISMA respuesta (cr?tico para que el navegador la reciba)
+    // 5. Redirigir y poner la cookie EN LA MISMA respuesta (crítico para que el navegador la reciba)
     const authUser = {
       id: user.id,
       email: user.email,
@@ -304,6 +338,9 @@ export async function GET(req: Request) {
       return NextResponse.redirect(
         `${baseUrl}${loginPath}?error=${encodeURIComponent("No se pudo crear la sesión")}`,
       );
+    }
+    if (isNewUser) {
+      appendClearReferralCookies(response.headers);
     }
     return response;
   } catch (err: any) {

@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { buildGoogleAuthUrl } from "@/lib/auth/build-google-auth-url";
+import {
+  clearReferralCookies,
+  getReferralCookie,
+  getReferralMetaCookie,
+} from "@/lib/referral-cookie";
 
 export default function RegistroOrganizadorPage() {
   const router = useRouter();
@@ -12,6 +18,27 @@ export default function RegistroOrganizadorPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refCode, setRefCode] = useState<string | null>(null);
+  const [trainingMeta, setTrainingMeta] = useState<{
+    sourceType: string;
+    sourceEntityId: number;
+  } | null>(null);
+
+  useEffect(() => {
+    setRefCode(getReferralCookie());
+    setTrainingMeta(getReferralMetaCookie());
+  }, []);
+
+  const googleHref = useMemo(
+    () =>
+      buildGoogleAuthUrl({
+        role: "ORGANIZER",
+        ref: refCode,
+        sourceType: trainingMeta?.sourceType,
+        sourceEntityId: trainingMeta?.sourceEntityId,
+      }),
+    [refCode, trainingMeta]
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,10 +60,19 @@ export default function RegistroOrganizadorPage() {
           email: email.trim().toLowerCase(),
           password,
           marketingOptIn: true,
+          ...(refCode ? { ref: refCode } : {}),
+          ...(trainingMeta
+            ? {
+                sourceType: trainingMeta.sourceType,
+                sourceEntityId: trainingMeta.sourceEntityId,
+              }
+            : {}),
         }),
       });
       const registerData = await registerRes.json().catch(() => ({}));
       if (!registerRes.ok) throw new Error(registerData?.error || "No se pudo crear la cuenta");
+
+      clearReferralCookies();
 
       const loginRes = await fetch("/api/auth/login", {
         method: "POST",
@@ -147,8 +183,8 @@ export default function RegistroOrganizadorPage() {
                 <div className="h-px flex-1 bg-[#e5e7eb]" />
               </div>
 
-              <Link
-                href="/api/auth/google?role=ORGANIZER"
+              <a
+                href={googleHref}
                 className="clf-btn clf-btn--outline clf-btn--block"
               >
                 <svg
@@ -174,7 +210,7 @@ export default function RegistroOrganizadorPage() {
                   />
                 </svg>
                 Continuar con Google
-              </Link>
+              </a>
 
               <p className="mt-4 text-center text-xs text-[#6b7280]">
                 Al registrarte aceptás la{" "}
