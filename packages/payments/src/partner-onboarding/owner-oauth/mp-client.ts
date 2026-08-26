@@ -12,6 +12,19 @@ export type MercadoPagoOAuthHttpClient = {
     redirectUri: string;
     codeVerifier?: string | null;
   }): Promise<MpTokenExchangeResult>;
+  /**
+   * Canjea un refresh token por uno nuevo. Opcional a propósito: las implementaciones de
+   * prueba que ya existen no lo tienen, y volverlo obligatorio las rompería sin motivo.
+   *
+   * Devuelve la misma forma que el canje inicial, incluido un refresh token nuevo:
+   * MercadoPago rota el refresh token en cada uso, así que quedarse con el viejo deja la
+   * cuenta sin poder renovar la próxima vez.
+   */
+  refreshAccessToken?(input: {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+  }): Promise<MpTokenExchangeResult>;
   fetchAuthorizedUser(accessToken: string): Promise<MpUserLookupResult>;
 };
 
@@ -162,6 +175,39 @@ export function createLiveMercadoPagoOAuthHttpClient(
       if (!providerUserId) {
         throw new Error("mp_token_missing_user_id");
       }
+      return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token ?? null,
+        expiresIn: typeof data.expires_in === "number" ? data.expires_in : null,
+        providerUserId,
+        scope: data.scope ?? null,
+      };
+    },
+    async refreshAccessToken(input) {
+      const response = await fetchImpl(MP_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          client_id: input.clientId,
+          client_secret: input.clientSecret,
+          refresh_token: input.refreshToken,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+        user_id?: number | string;
+        scope?: string;
+        error?: string;
+        message?: string;
+      };
+      if (!response.ok || !data.access_token) {
+        throw new Error(data.error || data.message || "mp_token_refresh_failed");
+      }
+      const providerUserId =
+        data.user_id !== undefined && data.user_id !== null ? String(data.user_id) : "";
       return {
         accessToken: data.access_token,
         refreshToken: data.refresh_token ?? null,

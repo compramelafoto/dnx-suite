@@ -10,6 +10,7 @@ import {
   createMercadoPagoProviderConfig,
   type MercadoPagoProviderConfig,
 } from "../client/mercado-pago-environment";
+import { PaymentProviderValidationError } from "../../../errors/provider-errors.js";
 import { mapMercadoPagoPaymentStatusToNormalized } from "./map-status";
 import {
   assertNoSecretLeak,
@@ -39,6 +40,17 @@ export type CreateCheckoutProPreferenceInput = {
   metadata?: Record<string, string>;
   /** Token OAuth del collector beneficiario (N=1). No se persiste. */
   accessTokenOverride?: string;
+  /**
+   * Comisión que retiene la plataforma, en minor units.
+   *
+   * Es el modelo de **dos vías**: el collector cobra y la plataforma retiene su parte en la
+   * misma operación. Sin esto la plataforma no cobra nada. Se omite del cuerpo si es cero.
+   */
+  marketplaceFeeMinor?: number;
+  /** Identificador del ítem. Por omisión, el de Clickatón, que fue el primer consumidor. */
+  itemId?: string;
+  /** Qué producto originó el cobro. Queda en los metadatos de MercadoPago. */
+  sourceApp?: string;
 };
 
 export type CreateCheckoutProPreferenceResult = {
@@ -223,10 +235,23 @@ export class MercadoPagoCheckoutProTestAdapter {
     }
 
     const unit = minorToUnitAmount(input.amountMinor, input.currency);
+    const feeMinor = input.marketplaceFeeMinor ?? 0;
+    if (feeMinor < 0 || !Number.isInteger(feeMinor)) {
+      throw new PaymentProviderValidationError(
+        "marketplaceFeeMinor must be a non-negative integer",
+      );
+    }
+    if (feeMinor >= input.amountMinor) {
+      // Una comisión que se come el total dejaría al collector en cero o en negativo.
+      // MercadoPago lo rechazaría igual; fallar acá da un mensaje entendible.
+      throw new PaymentProviderValidationError(
+        "marketplaceFeeMinor must be smaller than the amount",
+      );
+    }
     const body = {
       items: [
         {
-          id: "clickaton-registration",
+          id: input.itemId ?? "clickaton-registration",
           title: input.description.slice(0, 120),
           description: input.description.slice(0, 250),
           quantity: 1,
@@ -234,6 +259,9 @@ export class MercadoPagoCheckoutProTestAdapter {
           unit_price: unit,
         },
       ],
+      ...(feeMinor > 0
+        ? { marketplace_fee: minorToUnitAmount(feeMinor, input.currency) }
+        : {}),
       external_reference: input.externalReference,
       notification_url: input.notificationUrl,
       back_urls: {
@@ -243,7 +271,7 @@ export class MercadoPagoCheckoutProTestAdapter {
       },
       auto_return: "approved" as const,
       metadata: {
-        source_app: "CLICKATON",
+        source_app: input.sourceApp ?? "CLICKATON",
         ...(input.metadata ?? {}),
       },
       ...(input.payerEmail
