@@ -1,4 +1,4 @@
-import { TemplateEditorShell } from "@/components/template-v2/TemplateEditorShell";
+import { TemplateEditorShell } from "@repo/template-editor-ui";
 
 type Props = {
   params: Promise<{ templateId: string; versionId: string }>;

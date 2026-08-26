@@ -18,6 +18,16 @@ export function formatParticipantDate(
   if (options?.includeTime) {
     fmt.hour = "2-digit";
     fmt.minute = "2-digit";
+    /**
+     * Reloj de 24 h en los plazos para participantes.
+     *
+     * Con el formato por defecto, un cierre a medianoche se muestra como
+     * "12:00 a. m.", que buena parte de los participantes lee como mediodía —
+     * y creería tener doce horas más de las que tiene. "00:00" no admite esa
+     * lectura. No cambia el instante ni el cálculo de si el plazo está abierto:
+     * es sólo cómo se escribe la hora.
+     */
+    fmt.hourCycle = "h23";
   }
   if (options?.timeZone) {
     fmt.timeZone = options.timeZone;

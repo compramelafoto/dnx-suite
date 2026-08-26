@@ -1,6 +1,6 @@
 import type { LegacyTemplateV2Payload } from "../../bridge";
 
-export type TemplatePresetProduct = "school" | "clickaton";
+export type TemplatePresetProduct = "school" | "clickaton" | "fotorank";
 export type TemplatePresetFormat = "instagram_story" | "print" | "custom";
 export type TemplatePresetStatus = "draft" | "published" | "deprecated";
 

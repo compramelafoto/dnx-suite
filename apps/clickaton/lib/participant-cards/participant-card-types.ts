@@ -19,7 +19,9 @@ export type ParticipantCardWarningCode =
   | "CONSENT_MISSING"
   | "PHOTO_PLACEHOLDER"
   | "EVENT_DATE_MISSING"
-  | "INSTAGRAM_MISSING";
+  | "INSTAGRAM_MISSING"
+  /** Se pidió una plantilla del editor visual pero se usó el diseño oficial. */
+  | "TEMPLATE_FALLBACK";
 
 export type ParticipantCardWarning = {
   code: ParticipantCardWarningCode;

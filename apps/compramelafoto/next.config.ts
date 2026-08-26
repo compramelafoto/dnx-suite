@@ -77,6 +77,8 @@ const nextConfig: NextConfig = {
     "@repo/payments",
     "@repo/design-system",
     "@repo/cuanto-cobro-core",
+    "@repo/template-editor-core",
+    "@repo/template-editor-ui",
     "@mercadopago/sdk-react",
   ],
   serverExternalPackages: ["sharp", "sanitize-html"],

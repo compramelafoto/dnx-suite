@@ -66,3 +66,19 @@ export type {
   TemplatePreviewRenderOptions,
   TemplatePreviewRenderResult,
 } from "./preview-renderer";
+
+export {
+  renderSponsorThankYouCardPng,
+  resolveSponsorThankYouDocument,
+  buildSponsorThankYouTemplateData,
+} from "./sponsor-card";
+export type {
+  SponsorThankYouCardData,
+  SponsorThankYouCardResult,
+} from "./sponsor-card";
+
+export { fetchImageAsDataUrl, toAbsoluteAssetUrl } from "./remote-image";
+export type {
+  FetchImageAsDataUrlOptions,
+  FetchImageAsDataUrlResult,
+} from "./remote-image";

@@ -1,9 +1,9 @@
-import { jsonError } from "@/lib/template-v2/services/template-v2-http";
-import { listPublicTemplates } from "@/lib/template-v2/services/template-v2-query-service";
+import { jsonError } from "@/lib/template-v2/server";
+import { listPublicTemplates } from "@/lib/template-v2/server";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
+import { TemplateV2DomainError } from "@/lib/template-v2/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

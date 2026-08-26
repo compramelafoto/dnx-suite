@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Role } from "@/lib/prisma";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { CreateTemplateV2Button } from "@/components/template-v2/CreateTemplateV2Button";
+import { CreateTemplateV2Button } from "@repo/template-editor-ui";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 

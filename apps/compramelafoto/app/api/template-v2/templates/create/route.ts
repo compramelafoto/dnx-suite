@@ -3,11 +3,11 @@ import {
   jsonOk,
   readJsonWithLimit,
   requireTemplateV2ApiUser,
-} from "@/lib/template-v2/services/template-v2-http";
-import { createTemplateV2 } from "@/lib/template-v2/services/template-v2-command-service";
-import { getTemplatePreset } from "@/lib/template-v2/presets/registry";
-import { instantiatePresetPayload } from "@/lib/template-v2/presets/preset-helpers";
-import { TemplateV2DomainError } from "@/lib/template-v2/services/template-v2-errors";
+} from "@/lib/template-v2/server";
+import { createTemplateV2 } from "@/lib/template-v2/server";
+import { getTemplatePreset } from "@/lib/template-v2/server";
+import { instantiatePresetPayload } from "@/lib/template-v2/server";
+import { TemplateV2DomainError } from "@/lib/template-v2/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

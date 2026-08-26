@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
-import { CreateTemplateV2Button } from "@/components/template-v2/CreateTemplateV2Button";
+import { CreateTemplateV2Button } from "@repo/template-editor-ui";
 
 type TemplatePublication = {
   reviewStatus: string;

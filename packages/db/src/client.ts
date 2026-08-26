@@ -170,6 +170,14 @@ export {
   InfoSpotClfCallDesiredStatus,
 } from "@prisma/client";
 
+/** Ciclo de vida del concurso FotoRank (incluye las fases del ciclo extendido). */
+export {
+  FotorankContestStatus,
+  FotorankContestVisibility,
+  FotorankContestInterestStatus,
+  FotorankContestPriceAudience,
+} from "@prisma/client";
+
 
 
 /** Fotorank judge enums (schema gap — valores alineados a migraciones baseline). */

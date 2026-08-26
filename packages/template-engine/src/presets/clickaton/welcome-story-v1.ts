@@ -150,6 +150,24 @@ export const CLICKATON_WELCOME_STORY_V1: ClickatonTemplatePreset = {
         },
       },
       {
+        id: "welcome-message",
+        type: "VARIABLE_TEXT",
+        pageIndex: 0,
+        name: "Mensaje",
+        layout: layout(96, 1300, 888, 160, 34),
+        configJson: {
+          variableKey: "card.message",
+          fallback:
+            "Una comunidad que recorre,\ncrea y muestra la ciudad\ndesde nuevas miradas.",
+          fontFamily: "DM Sans",
+          fontSize: 30,
+          fontWeight: 400,
+          textAlign: "CENTER",
+          color: "#FFFFFF",
+          lineHeight: 1.4,
+        },
+      },
+      {
         id: "welcome-edition",
         type: "TEXT",
         pageIndex: 0,
@@ -211,6 +229,11 @@ export const CLICKATON_WELCOME_STORY_V1: ClickatonTemplatePreset = {
         blockId: "welcome-photo",
         targetPath: "source.variableKey",
         variableKey: "participant.photoUrl",
+      },
+      {
+        blockId: "welcome-message",
+        targetPath: "variableKey",
+        variableKey: "card.message",
       },
       {
         blockId: "welcome-logo",

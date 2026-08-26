@@ -14,6 +14,7 @@ import {
 import { evaluateAdmissionAutoMatrix } from "../admission/auto-matrix";
 import { ADMISSION_RULES_VERSION } from "../admission/types";
 import { EntryError } from "./errors";
+import { canCreateEntry } from "./entry-quota";
 import { buildChecklist, CHECKLIST_RULE_VERSION, entryStatusFromSummary, summarizeChecklist } from "./checklist";
 import { generateEntryDerivatives, readImageDimensions } from "./derivatives";
 import { assessDeviceCompatibility, extractEntryExif } from "./exif";
@@ -121,7 +122,11 @@ async function findDuplicate(input: {
 }
 
 /**
- * Obtiene o crea la obra (1 por inscripción).
+ * Obtiene o crea una obra de la inscripción.
+ *
+ * El cupo lo define el concurso (`maxEntriesPerRegistration`) y, si hubo pago
+ * por paquete, `purchasedEntriesCount`. Con el default de 1 obra el
+ * comportamiento es idéntico al anterior: devuelve la obra existente.
  */
 export async function ensureEntryForRegistration(input: {
   contestId: string;
@@ -141,11 +146,30 @@ export async function ensureEntryForRegistration(input: {
     throw new EntryError("REGISTRATION_NOT_CONFIRMED", "La inscripción debe estar confirmada.", 403);
   }
 
-  const existing = await prisma.fotorankContestEntry.findUnique({
+  const existing = await prisma.fotorankContestEntry.findMany({
     where: { registrationId: reg.id },
     select: { id: true },
+    orderBy: { createdAt: "asc" },
   });
-  if (existing) return { entryId: existing.id, created: false };
+
+  const contest = await prisma.fotorankContest.findUnique({
+    where: { id: reg.contestId },
+    select: { uploadPolicyJson: true },
+  });
+  const quota = canCreateEntry({
+    policyMaxEntries: parseUploadPolicy(contest?.uploadPolicyJson).maxEntriesPerRegistration,
+    purchasedEntriesCount: reg.purchasedEntriesCount,
+    currentEntryCount: existing.length,
+  });
+
+  if (!quota.allowed) {
+    // Sin cupo para una obra más. Con límite 1 esto reproduce el comportamiento
+    // histórico: se devuelve la obra ya existente en lugar de fallar.
+    if (existing.length > 0) {
+      return { entryId: existing[0]!.id, created: false };
+    }
+    throw new EntryError("ENTRY_QUOTA_EXCEEDED", quota.message, 409);
+  }
 
   const created = await prisma.fotorankContestEntry.create({
     data: {
@@ -890,8 +914,9 @@ export async function getMyEntry(contestId: string, participantUserId: number) {
     where: { contestId_participantUserId: { contestId, participantUserId } },
   });
   if (!reg) return null;
-  const entry = await prisma.fotorankContestEntry.findUnique({
+  const entry = await prisma.fotorankContestEntry.findFirst({
     where: { registrationId: reg.id },
+    orderBy: { createdAt: "asc" },
     include: {
       checks: { orderBy: { checkGroup: "asc" } },
       assets: {
@@ -928,7 +953,7 @@ export async function listContestEntriesForOrganizer(input: {
     include: {
       participant: { select: { id: true, name: true, email: true } },
       category: { select: { name: true } },
-      entry: {
+      entries: {
         include: {
           checks: { select: { status: true } },
         },
@@ -938,7 +963,11 @@ export async function listContestEntriesForOrganizer(input: {
   });
 
   return registrations.map((r) => {
-    const checks = r.entry?.checks ?? [];
+    // Las columnas de obra describen la primera obra de la inscripción, que en
+    // concursos de una sola obra es la única. `entriesCount` expone el resto.
+    const entry = r.entries[0] ?? null;
+    // Los contadores agregan los checks de TODAS las obras de la inscripción.
+    const checks = r.entries.flatMap((e) => e.checks);
     return {
       registrationId: r.id,
       registrationNumber: r.registrationNumber,
@@ -946,12 +975,13 @@ export async function listContestEntriesForOrganizer(input: {
       participantName: r.participant.name,
       participantEmail: r.participant.email,
       categoryName: r.category.name,
-      entryId: r.entry?.id ?? null,
-      entryStatus: r.entry?.status ?? null,
-      entryNumber: r.entry?.entryNumber ?? null,
-      technicalSummaryStatus: r.entry?.technicalSummaryStatus ?? null,
-      submittedAt: r.entry?.submittedAt ?? null,
-      confirmedAt: r.entry?.confirmedAt ?? null,
+      entryId: entry?.id ?? null,
+      entryStatus: entry?.status ?? null,
+      entryNumber: entry?.entryNumber ?? null,
+      technicalSummaryStatus: entry?.technicalSummaryStatus ?? null,
+      submittedAt: entry?.submittedAt ?? null,
+      confirmedAt: entry?.confirmedAt ?? null,
+      entriesCount: r.entries.length,
       warnings: checks.filter((c) => c.status === "WARNING").length,
       failures: checks.filter((c) => c.status === "FAIL").length,
       requiresReview: checks.filter((c) => c.status === "REQUIRES_REVIEW").length,

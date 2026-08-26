@@ -12,6 +12,7 @@ export const adminRoutes = {
   promotions: "/admin/promociones",
   social: "/admin/social",
   sponsors: "/admin/sponsors",
+  templates: "/admin/plantillas",
   /** CMS del blog público (`@repo/content`, platform = clickaton). */
   contents: "/admin/contenidos",
   messages: "/admin/mensajes",
@@ -52,6 +53,7 @@ export type AdminNavItem = {
 export const adminNavigation: readonly AdminNavItem[] = [
   { label: "Inicio", href: adminRoutes.dashboard, icon: "dashboard", section: "main" },
   { label: "Ediciones", href: adminRoutes.editions, icon: "editions", section: "main" },
+  { label: "Plantillas", href: adminRoutes.templates, icon: "sponsors", section: "main" },
   {
     label: "Banners del inicio",
     href: adminRoutes.homeBanners,

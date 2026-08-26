@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   DNX_PARTNER_APPLICATIONS,
+  DNX_PARTNER_ASSET_BACKGROUNDS,
   DNX_PARTNER_AUDIENCE_TYPES,
   DNX_PARTNER_BENEFIT_TYPES,
   DNX_PARTNER_CONTEXT_TYPES,
@@ -33,6 +34,16 @@ import {
   createParticipationFormAction,
   updatePartnerFormAction,
 } from "@/lib/admin/partners/mutations";
+import {
+  deletePartnerLogoFormAction,
+  uploadPartnerLogoFormAction,
+} from "@/lib/admin/partners/partner-logo-mutations";
+import {
+  PARTNER_LOGO_BACKGROUND_LABELS,
+  PARTNER_LOGO_TYPE_LABELS,
+  PARTNER_LOGO_UPLOAD_TYPES,
+  type PartnerLogoUploadType,
+} from "@/lib/admin/partners/partner-logo-types";
 import { getClickatonPartnersService, toPartnerActor } from "@/lib/admin/partners/runtime";
 
 export default async function AdminPartnerDetailPage({
@@ -55,13 +66,21 @@ export default async function AdminPartnerDetailPage({
       svc.listBenefits(actor, partnerId),
       svc.listContacts(actor, partnerId),
     ]);
+    const brandAssets = await svc.listPartnerAssets(actor, partnerId);
     const contributionsByParticipation = await Promise.all(
       participations.map(async (p) => ({
         participationId: p.id,
         items: await svc.listContributions(actor, p.id),
       })),
     );
-    return { partner, participations, benefits, contacts, contributionsByParticipation };
+    return {
+      partner,
+      participations,
+      benefits,
+      contacts,
+      brandAssets,
+      contributionsByParticipation,
+    };
   });
 
   if (!loaded.ok) {
@@ -79,13 +98,32 @@ export default async function AdminPartnerDetailPage({
     );
   }
 
-  const { partner, participations, benefits, contacts, contributionsByParticipation } =
+  const { partner, participations, benefits, contacts, brandAssets, contributionsByParticipation } =
     loaded.data;
   if (!partner) notFound();
 
   const contributionMap = new Map(
     contributionsByParticipation.map((c) => [c.participationId, c.items]),
   );
+
+  // Sólo los logos vigentes; los archivados quedan en la DB pero fuera del panel.
+  const logos = brandAssets
+    .filter(
+      (a) =>
+        a.archivedAt == null &&
+        a.status !== "ARCHIVED" &&
+        (PARTNER_LOGO_UPLOAD_TYPES as readonly string[]).includes(a.type),
+    )
+    .map((a) => ({
+      id: a.id,
+      type: a.type,
+      backgroundType: a.backgroundType,
+      isPrimary: a.isPrimary,
+      width: a.width,
+      height: a.height,
+      altText: a.altText,
+      url: a.fileUrl?.trim() || (a.storageKey ? `/api/media/${a.storageKey}` : null),
+    }));
 
   return (
     <div className="space-y-10">
@@ -184,6 +222,101 @@ export default async function AdminPartnerDetailPage({
               <Textarea name="notes" rows={3} defaultValue={partner.notes ?? ""} />
             </Field>
             <Button type="submit">Guardar cambios</Button>
+          </form>
+        </Card>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold text-ck-text">Logos de marca</h2>
+        <Card variant="outlined" className="space-y-5 p-5">
+          <p className="text-sm text-ck-text-muted">
+            Los logos se guardan en R2 y quedan disponibles para las placas de
+            agradecimiento y las piezas públicas. PNG, JPG o WebP, hasta 5 MB. Para
+            la placa conviene el logo pensado para fondo claro.
+          </p>
+
+          {logos.length === 0 ? (
+            <p className="text-sm text-ck-text-muted">Sin logos cargados todavía.</p>
+          ) : (
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {logos.map((asset) => (
+                <li
+                  key={asset.id}
+                  className="flex items-start gap-4 rounded-lg border border-ck-border p-4"
+                >
+                  {asset.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={asset.url}
+                      alt={asset.altText ?? ""}
+                      className="h-16 w-16 rounded bg-white object-contain p-1"
+                    />
+                  ) : null}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-sm font-medium text-ck-text">
+                      {PARTNER_LOGO_TYPE_LABELS[asset.type as PartnerLogoUploadType] ??
+                        asset.type}
+                    </p>
+                    <p className="text-xs text-ck-text-muted">
+                      {PARTNER_LOGO_BACKGROUND_LABELS[asset.backgroundType]}
+                      {asset.width && asset.height ? ` · ${asset.width}×${asset.height}` : ""}
+                      {asset.isPrimary ? " · principal" : ""}
+                    </p>
+                    <form action={deletePartnerLogoFormAction}>
+                      <input type="hidden" name="partnerId" value={partner.id} />
+                      <input type="hidden" name="assetId" value={asset.id} />
+                      <button
+                        type="submit"
+                        className="text-xs text-ck-text-secondary underline-offset-2 hover:underline"
+                      >
+                        Archivar
+                      </button>
+                    </form>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form action={uploadPartnerLogoFormAction} className="space-y-4 border-t border-ck-border pt-5">
+            <input type="hidden" name="partnerId" value={partner.id} />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field id="file" label="Archivo del logo">
+                <input
+                  type="file"
+                  name="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  required
+                  className="block w-full text-sm text-ck-text-secondary"
+                />
+              </Field>
+              <Field id="type" label="Tipo">
+                <Select name="type" defaultValue="LOGO_GENERAL">
+                  {PARTNER_LOGO_UPLOAD_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {PARTNER_LOGO_TYPE_LABELS[t]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field id="backgroundType" label="Pensado para">
+                <Select name="backgroundType" defaultValue="TRANSPARENT">
+                  {DNX_PARTNER_ASSET_BACKGROUNDS.map((b) => (
+                    <option key={b} value={b}>
+                      {PARTNER_LOGO_BACKGROUND_LABELS[b]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field id="altText" label="Texto alternativo">
+                <Input name="altText" placeholder={`Logo de ${partner.name}`} />
+              </Field>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-ck-text-secondary">
+              <input type="checkbox" name="isPrimary" />
+              Marcar como logo principal
+            </label>
+            <Button type="submit">Subir logo</Button>
           </form>
         </Card>
       </section>
