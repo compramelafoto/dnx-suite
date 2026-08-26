@@ -1158,6 +1158,55 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  packages/design-studio:
+    dependencies:
+      '@fontsource/cinzel':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource/dm-sans':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource/great-vibes':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource/inter':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource/merriweather':
+        specifier: ^5.2.11
+        version: 5.2.11
+      '@fontsource/playfair-display':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@pdf-lib/fontkit':
+        specifier: ^1.1.1
+        version: 1.1.1
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
+      pdf-to-png-converter:
+        specifier: ^3.14.0
+        version: 3.14.0
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      '@types/qrcode':
+        specifier: ^1.5.6
+        version: 1.5.6
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
   packages/design-system:
     dependencies:
       lucide-react:
@@ -1411,6 +1460,8 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
+
+  packages/photo-prompt-library: {}
 
   packages/promotions:
     devDependencies:
