@@ -1,0 +1,72 @@
+{
+  "deploymentId": "dpl_3mvpY1bQ8jiq9dLqhDbaLbt659GR",
+  "alias": "https://clickaton-staging.vercel.app",
+  "checkedAt": "2026-08-03",
+  "/": {
+    "status": 200,
+    "antesInHtml": false,
+    "ahoraInHtml": false,
+    "p25": true,
+    "p35": false,
+    "footerAbiertas": true,
+    "verMaratones": true,
+    "sinInsc": false,
+    "prodHost": false
+  },
+  "/maratones": {
+    "status": 200,
+    "antesInHtml": false,
+    "ahoraInHtml": false,
+    "p25": true,
+    "p35": false,
+    "footerAbiertas": true,
+    "verMaratones": true,
+    "sinInsc": false,
+    "prodHost": false
+  },
+  "/maratones/ar2026-commercial-ux-test": {
+    "status": 200,
+    "antesInHtml": false,
+    "ahoraInHtml": false,
+    "p25": true,
+    "p35": false,
+    "footerAbiertas": true,
+    "verMaratones": true,
+    "sinInsc": false,
+    "prodHost": false
+  },
+  "/maratones/ar2026-commercial-ux-test/inscripcion": {
+    "status": 200,
+    "antesInHtml": true,
+    "ahoraInHtml": true,
+    "p25": true,
+    "p35": true,
+    "footerAbiertas": true,
+    "verMaratones": true,
+    "sinInsc": false,
+    "prodHost": false
+  },
+  "/robots.txt": {
+    "status": 200,
+    "body": "User-Agent: *\nDisallow: /\n\n"
+  },
+  "/sitemap.xml": {
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n</urlset>\n"
+  },
+  "/ruta-inexistente-imp08-xyz": {
+    "status": 404,
+    "antesInHtml": false,
+    "ahoraInHtml": false,
+    "p25": false,
+    "p35": false,
+    "footerAbiertas": false,
+    "verMaratones": false,
+    "sinInsc": false,
+    "prodHost": false
+  },
+  "/api/public/health/db": {
+    "status": 200,
+    "body": "{\"ok\":true,\"source\":\"prisma\",\"databaseHostHint\":\"ep-round-fog-a4xgibtv-pooler\",\"hasDirectUrl\":true,\"publishedEditions\":13}"
+  }
+}

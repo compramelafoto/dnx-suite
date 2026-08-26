@@ -138,8 +138,25 @@ motivos, en orden de importancia:
    contenido real: un token corto entra en 29 módulos por lado y una URL con parámetros necesita
    37. En los mismos 26 mm eso es la diferencia entre 0,70 mm y 0,58 mm por módulo.
 
-El token se guarda **hasheado**, como una contraseña. Quien tenga acceso a la base no puede
-fabricar carnets válidos a partir de ella.
+### Corrección: hasheado no alcanza
+
+La primera versión de esta spec decía "se guarda hasheado, como una contraseña". **Está mal, y
+se descubrió al construirlo:** una contraseña nunca se muestra de vuelta, y un código QR sí. Con
+solo el hash, el socio no podría ver su propio carnet digital.
+
+Lo que se hace:
+
+| Dato | Para qué |
+|---|---|
+| **Hash** (SHA-256), con índice único | Buscar al escanear: una lectura directa, sin descifrar nada |
+| **Token cifrado** con la clave maestra de la plataforma | Mostrarle al socio su propio QR |
+
+Cifrado y no en claro por un motivo concreto: un volcado de la base, por sí solo, entregaría los
+enlaces de verificación de **todo el padrón**, y cada uno revela nombre, foto y número de socio.
+Con el token cifrado hace falta además la clave maestra, que no vive en la base.
+
+Se usa la misma clave que la bóveda de credenciales: dos claves distintas serían dos cosas que
+rotar y dos formas de perder acceso a lo cifrado.
 
 ## 7. Emisión
 

@@ -119,3 +119,9 @@ ALTER TABLE "MemberCardEvent" ADD COLUMN "noticeError" TEXT;
 -- Nombre del actor al momento del evento, con el mismo criterio que MemberAudit: la historia
 -- tiene que seguir entendiéndose aunque esa persona cambie de nombre o se elimine.
 ALTER TABLE "MemberCardEvent" ADD COLUMN "actorLabel" TEXT;
+
+-- El token, además de hasheado para buscar, se guarda cifrado para poder mostrarle al socio
+-- su propio QR. Una contraseña nunca se muestra de vuelta; un código QR sí.
+ALTER TABLE "MemberCard" ADD COLUMN "tokenCiphertext" TEXT;
+ALTER TABLE "MemberCard" ADD COLUMN "tokenNonce" TEXT;
+ALTER TABLE "MemberCard" ADD COLUMN "tokenAuthTag" TEXT;

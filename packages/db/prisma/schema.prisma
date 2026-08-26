@@ -7364,9 +7364,18 @@ model MemberCard {
   /// `C-2026-0412`. Identifica una EMISIÓN, no a la persona: es lo que permite invalidar un
   /// carnet perdido sin tocar el número de socio, que es vitalicio.
   cardNumber String
-  /// SHA-256 del token del QR. El token nunca se guarda en claro: quien acceda a la base no
-  /// puede fabricar carnets válidos a partir de ella.
+  /// SHA-256 del token del QR. Es por donde se busca al escanear: una lectura directa por
+  /// índice único, sin descifrar nada.
   tokenHash  String @unique
+  /// El token cifrado con la clave maestra de la plataforma.
+  ///
+  /// Cifrado y no en claro: un volcado de la base, por sí solo, no entrega los enlaces de
+  /// verificación de todo el padrón —que revelarían nombre, foto y número de cada socio—.
+  /// Y cifrado en vez de solo hasheado porque el socio tiene que poder VER su propio QR:
+  /// una contraseña nunca se muestra de vuelta, un código QR sí.
+  tokenCiphertext String?
+  tokenNonce      String?
+  tokenAuthTag    String?
 
   format    MemberCardFormat @default(DIGITAL)
   issuedAt  DateTime         @default(now())
