@@ -9,6 +9,14 @@
 **Refunds:** [mp-split-1n-refunds.md](./mp-split-1n-refunds.md)  
 **Evidencia sandbox:** [mp-split-1n-sandbox-evidence.md](./mp-split-1n-sandbox-evidence.md)
 
+> **NOTA (2026-08-26) — secciones superadas.** Este documento es la foto de la ETAPA 01.
+> Las secciones **ORDERS API** y **ANTIFRAUDE / INTANGIBLES** quedaron desactualizadas:
+> `items[]`, `statement_descriptor` y los refunds **sí** están implementados y enviados hoy.
+> Además, Mercado Pago indicó revisar las señales antifraude de la industria
+> **«Aplicaciones y plataformas online»**, no «Otros intangibles».
+> El estado vigente y el gap analysis actualizado están en
+> [mp-split-1n-mercadopago-confirmations.md](./mp-split-1n-mercadopago-confirmations.md).
+
 ---
 
 ## Veredicto ejecutivo

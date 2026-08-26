@@ -168,3 +168,41 @@ describe("observeOrdersWebhook", () => {
     assert.ok(result.mismatches.some((m) => m.code === "STATUS_MISMATCH"));
   });
 });
+
+describe("GET Order como fuente de verdad", () => {
+  /**
+   * Sin callback de GET Order el estado real nunca se consulta. Eso NO debe
+   * verse como un procesamiento limpio: si pasara desapercibido, una corrida de
+   * evidencia registraría "processed, 0 mismatches" sin haber validado nada.
+   */
+  it("marca GET_ORDER_NOT_CONFIGURED cuando falta el callback", async () => {
+    const persistence = createInMemoryDnxPaymentsPersistence();
+    const secret = "test-orders-webhook-secret";
+    const dataId = "ORDTST01NOGETCONFIG0000000000001";
+    const signed = signMercadoPagoTestWebhook({ secret, dataId });
+
+    const result = await observeOrdersWebhook({
+      headers: {
+        "x-signature": signed.signatureHeader,
+        "x-request-id": signed.requestId,
+      },
+      rawBody: buildOrdersWebhookFixtureBody({
+        providerOrderId: dataId,
+        liveMode: false,
+      }),
+      webhookSecret: secret,
+      persistence,
+      allowCliBypass: true,
+      environment: "sandbox",
+      // fetchCanonicalOrder ausente a propósito
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.canonical, null);
+    assert.ok(
+      result.alerts.includes("GET_ORDER_NOT_CONFIGURED"),
+      "debe alertar que no se consultó el estado real",
+    );
+  });
+});
