@@ -479,27 +479,97 @@ fue socio, su número y su deuda congelada. Aprobar corre **una transacción, to
 crea el socio con su número, la foto pasa a ser su perfil, y genera los tres cargos de
 concepto `INGRESO`. Rechazar exige motivo.
 
-### Task 6 — Pantalla de pago *(requiere credenciales y consentimiento)*
+## Cambio de mecanismo: 26 de agosto de 2026
 
-Un email con **un solo botón** que autentica y deja a la persona parada en el pago, con el
-monto ya calculado. Del email al pago: dos clics.
+Las tareas 6 a 8 estaban escritas para **split 1:N**, que quedó bloqueado esperando que
+MercadoPago habilite la aplicación. Daniel decidió avanzar **sin 1:N**, con el modelo de
+**dos vías** (`marketplace_fee`), que es el que ComprameLafoto ya usa en producción.
 
-### Task 7 — La orden con split *(requiere credenciales y consentimiento)*
+### Qué cambia con dos vías
 
-Con `MercadoPagoOrdersAdapter.createSplitOrder` y `buildSplitEntriesFromDistribution` de
-`@repo/payments`. La comisión sale de `getPlatformFeeBps`. **Se rechaza crear la orden si
-`canReceiveSplit` es false**: MercadoPago la rechazaría igual, y fallar temprano da un
-mensaje entendible en vez de un error del proveedor.
+| | Split 1:N | Dos vías (lo que se hace) |
+|---|---|---|
+| Quién cobra | La plataforma | **La institución** |
+| Cómo cobra DNX | Un receptor más en el reparto | `marketplace_fee` retenido de la operación |
+| Consentimiento del receptor | Obligatorio | **No existe**: el cobrador es el receptor |
+| Habilitación de la aplicación | Obligatoria | **No hace falta** |
+| Partes posibles | N | Exactamente 2 |
+| Credenciales | De la plataforma | **De la institución**, por OAuth |
 
-### Task 8 — Webhook y activación *(requiere credenciales y consentimiento)*
+Lo que **no** cambia: la comisión sigue saliendo de `getPlatformFeeBps`, el dinero sigue
+yendo a la cuenta de la institución, y la pantalla de Cobros sigue diciendo la verdad.
 
-Con `parseMercadoPagoOrdersWebhook` y `mapMercadoPagoOrderStatus`. Idempotente por
-identificador de proveedor con restricción única. Cubre los casos de la spec §8: webhook
-duplicado, pago pendiente en efectivo —que **congela** el plazo de 30 días—, y contracargo,
-que devuelve las cuotas a impagas sin expulsar a nadie.
+Lo que se pierde: no se puede repartir a tres partes en la misma operación. Hoy no hace falta
+—son la institución y DNX—, y cuando haga falta, el consentimiento y el 1:N ya están escritos.
 
-Y una tarea programada que **concilia** los pagos pendientes contra MercadoPago, porque los
-webhooks se pierden.
+**Una consecuencia contable que conviene tener presente:** en dos vías la operación es de la
+institución y DNX solo retiene comisión. Es lo contrario de 1:N, donde el comercio de la
+transacción habría sido DNX. Para la SFPR esto es más simple, no menos.
+
+---
+
+### Task 6 — El estado de cobro deja de exigir consentimiento
+
+`mapAccountToCollectionStatus` hoy exige la capacidad `SPLIT_RECEIVER` para dar por conectada
+una cuenta. En dos vías esa capacidad no interviene: exigirla dejaría a la SFPR en "pendiente"
+para siempre, con la cuenta perfectamente vinculada.
+
+- Un modo explícito de cobro, `TWO_WAY | SPLIT_1N`, que decide qué se exige.
+- Con `TWO_WAY`, una cuenta `ACTIVE` está **conectada**.
+- El panel de consentimiento **desaparece** de la pantalla de Cobros mientras el modo sea
+  `TWO_WAY`. No se borra el código: el 1:N vuelve cuando MercadoPago habilite.
+- Los textos de `collectionCopy` dejan de hablar de "cobro dividido".
+
+Verificable: con una cuenta ACTIVE sin ningún consentimiento, la pantalla dice "conectados".
+
+### Task 7 — Leer el token de la institución
+
+Para cobrar en nombre de la SFPR hace falta su token, que la vinculación ya guardó cifrado.
+
+- `resolveWorkspaceCollector(workspaceId)` → `{ accessToken, providerUserId }` o un error
+  entendible.
+- **Refresca el token si venció**, con el `refreshToken` que ya se guarda, y persiste el
+  nuevo. Sin esto los cobros se caen solos a los seis meses.
+- Nunca registra el token. `sanitizeError` ya enmascara `APP_USR-*`.
+
+### Task 8 — Elegir qué cuotas se pagan
+
+Función pura, sin base de datos: recibe los cargos abiertos de un socio y devuelve qué se
+va a pagar y por cuánto.
+
+- Se imputa **de la más vieja a la más nueva**. Pagar la de agosto dejando junio impaga
+  ensucia el cálculo de mora.
+- El socio puede pagar todo o solo lo más viejo; no puede elegir saltear.
+- El total se calcula con `balanceArs`, no con `amountArs`: un cargo pagado a medias debe
+  cobrar el saldo.
+
+### Task 9 — Crear la preferencia con `marketplace_fee`
+
+- `marketplace_fee` sale de `getPlatformFeeBps` sobre el total, con la misma aritmética de
+  `splitByPlatformFee` — el neto por resta, nunca multiplicando por el complemento.
+- `external_reference` identifica la intención de pago, no un cargo: un pago puede cubrir
+  tres cuotas.
+- `notification_url` apunta al webhook de FotoOffice.
+- **Se rechaza crear la preferencia si la cuenta no está conectada**, con un mensaje que
+  diga qué falta.
+
+### Task 10 — Pantalla del socio
+
+Ver lo que debe y pagarlo. Del correo al pago, dos clics.
+
+### Task 11 — Webhook, acreditación e imputación
+
+- Idempotente por `providerPaymentRef`, que ya tiene restricción única.
+- Acreditado: se imputa a los cargos elegidos, de más viejo a más nuevo, bajando
+  `balanceArs`. La imputación va en `MembershipAllocation`.
+- Pendiente en efectivo: **congela** el plazo de 30 días, no lo consume.
+- Contracargo: devuelve las cuotas a impagas **sin expulsar a nadie**.
+- Todo en una transacción: un pago acreditado a medias es peor que uno no acreditado.
+
+### Task 12 — Conciliación
+
+Una tarea programada que consulta a MercadoPago los pagos que quedaron pendientes, porque
+los webhooks se pierden. Es la misma contingencia que ya dio PASS en sandbox para 1:N.
 
 ---
 
