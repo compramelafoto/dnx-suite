@@ -21,13 +21,18 @@ type Data = CommunicationTemplatePayloadMap["ops.daily-report"];
 function buildContent(input: TemplateRenderContext<Data>): string {
   const { data, brand, copy, allowHttp } = input;
 
+  // Si la app mandó los bloques ya maquetados, se usan tal cual: el texto plano
+  // con sangrías queda ilegible en los clientes de correo, que lo comprimen.
+  const alerts = data.alertsHtml ?? EmailInfoBox(data.alertsBlock, brand);
+  const summary = data.summaryHtml ?? EmailInfoBox(data.summaryBlock, brand);
+
   const parts = [
     EmailHeading(copy.opsDailyReport.heading, brand),
     EmailParagraph(copy.opsDailyReport.intro(data.reportDate), brand),
     EmailHeading(copy.opsDailyReport.alertsTitle, brand),
-    EmailInfoBox(data.alertsBlock, brand),
+    alerts,
     EmailHeading(copy.opsDailyReport.summaryTitle, brand),
-    EmailInfoBox(data.summaryBlock, brand),
+    summary,
   ];
 
   if (data.failedSectionsNote) {
@@ -60,6 +65,8 @@ export const opsDailyReportTemplate: CommunicationTemplateDefinition<"ops.daily-
     const alertsBlock = requireStringField(record, "alertsBlock", errors);
     const summaryBlock = requireStringField(record, "summaryBlock", errors);
     const panelUrl = optionalStringField(record, "panelUrl", errors);
+    const alertsHtml = optionalStringField(record, "alertsHtml", errors);
+    const summaryHtml = optionalStringField(record, "summaryHtml", errors);
     const failedSectionsNote = optionalStringField(record, "failedSectionsNote", errors);
 
     const rawCount = record.criticalCount;
@@ -90,6 +97,8 @@ export const opsDailyReportTemplate: CommunicationTemplateDefinition<"ops.daily-
         criticalCount,
         alertsBlock,
         summaryBlock,
+        ...(alertsHtml ? { alertsHtml } : {}),
+        ...(summaryHtml ? { summaryHtml } : {}),
         ...(panelUrl ? { panelUrl } : {}),
         ...(failedSectionsNote ? { failedSectionsNote } : {}),
       },

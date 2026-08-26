@@ -31,12 +31,15 @@ export function createClfLegacyCollector(
 
       if (!connection.configured) {
         throw new Error(
-          "CLF_READONLY_DATABASE_URL no está configurada: no se puede leer la base legacy.",
+          "Falta la conexión de solo lectura a la base del ComprameLaFoto viejo. " +
+            "Hay que cargar la variable CLF_READONLY_DATABASE_URL en Vercel, en el proyecto " +
+            "compramelafoto-dnxsuite, ambiente Production. Sin eso no se pueden leer sus ventas.",
         );
       }
       if (connection.isBlockedStagingEmptyHost) {
         throw new Error(
-          `La conexión legacy apunta a un host bloqueado (${connection.reason ?? "staging"}).`,
+          "La conexión al ComprameLaFoto viejo apunta a la base de staging, que está vacía. " +
+            `Hay que apuntarla a la base real de producción (motivo: ${connection.reason ?? "host de staging"}).`,
         );
       }
 
