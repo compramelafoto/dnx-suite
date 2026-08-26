@@ -235,7 +235,12 @@ export async function renderDiplomaPdf(input: RenderDiplomaInput): Promise<Buffe
         const keys = [keyN, keyB, keyI, keyBi] as const;
         for (let i = 0; i < 4; i++) {
           const bytes = readDiplomaPdfFontBytes(id, slots[i]!);
-          diplomaFontCache.set(keys[i]!, await doc.embedFont(bytes));
+          // `subset: true` NO es una optimización de tamaño: es lo que hace que los acentos
+          // se vean. @fontsource distribuye WOFF, que es un contenedor comprimido; sin
+          // subconjunto pdf-lib escribe esos bytes tal cual dentro del PDF etiquetados como
+          // TrueType, y los lectores los reparan a medias. Un diploma a nombre de "Ramón
+          // Muñoz García" salía "Ram□n Mu□oz Garc□a".
+          diplomaFontCache.set(keys[i]!, await doc.embedFont(bytes, { subset: true }));
         }
       } catch {
         diplomaFontCache.set(keyN, helveticaFallback.normal);
