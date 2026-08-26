@@ -553,15 +553,35 @@ for (const [name, slug] of [
   // Se ignoran los comentarios: explican justamente este defecto y lo nombran.
   const codigo = fuente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
-  const cierreCrudo = /label="Cierre de inscripción"[^/]*?fmtDate\(/;
-  ok(
-    !cierreCrudo.test(codigo),
-    'la tarjeta "Cierre de inscripción" NO formatea la fecha en crudo',
-  );
-  ok(
-    /label="Cierre de inscripción"[^/]*?registrationCloseLabel\(/.test(codigo),
-    'la tarjeta "Cierre de inscripción" usa la etiqueta centralizada',
-  );
+/**
+   * Se buscan TODAS las apariciones de la etiqueta, no una forma sintáctica
+   * concreta. La primera versión de este assert sólo miraba el atributo JSX
+   * (`label="Cierre de inscripción"`) y se le escapó una segunda aparición en
+   * el cronograma, escrita como tupla de array — el defecto seguía visible en
+   * producción con el test en verde.
+   */
+  const apariciones = [...codigo.matchAll(/"Cierre de inscripción"/g)];
+  ok(apariciones.length >= 2, "se encontraron las apariciones esperadas de la etiqueta");
+
+  for (const m of apariciones) {
+    /**
+     * Sólo el valor que acompaña a ESTA etiqueta: se corta en el fin del
+     * elemento (`]` de la tupla o `/>` del JSX). Una ventana de longitud fija
+     * se desbordaba a la fila siguiente del cronograma —"Inicio de evaluación",
+     * que legítimamente usa `fmtDate`— y marcaba un fallo inexistente.
+     */
+    const resto = codigo.slice(m.index);
+    const fin = resto.search(/\]|\/>/);
+    const despues = fin === -1 ? resto.slice(0, 120) : resto.slice(0, fin);
+    ok(
+      !/fmtDate\(/.test(despues),
+      `"Cierre de inscripción" NO formatea la fecha en crudo (posición ${m.index})`,
+    );
+    ok(
+      /registrationCloseLabel\(/.test(despues),
+      `"Cierre de inscripción" usa la etiqueta centralizada (posición ${m.index})`,
+    );
+  }
 }
 
 console.log("FINAL: PASS");

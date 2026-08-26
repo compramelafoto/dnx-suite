@@ -405,7 +405,10 @@ export function ContestPublicLanding({
           <ol className="fr-public-stack-content fr-public-card-stack">
             {[
               ["Apertura", fmtDate(contest.startAt)],
-              ["Cierre de inscripción", fmtDate(contest.submissionDeadline)],
+              // Misma etiqueta centralizada que el hero, el CTA y la tarjeta de
+              // "Información esencial": el cronograma también mostraba acá el
+              // instante crudo y contradecía al resto de la página.
+              ["Cierre de inscripción", registrationCloseLabel(contest)],
               ["Inicio de evaluación", fmtDate(contest.judgingStartAt)],
               ["Fin de evaluación", fmtDate(contest.judgingEndAt)],
               ["Resultados", fmtDate(contest.resultsAt)],
