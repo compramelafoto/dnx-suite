@@ -49,7 +49,7 @@ export default function EventGallerySearchSection({ eventId }: { eventId: number
   }, [eventId]);
 
   async function handleSearchText() {
-    if (searchText.trim().length < 3) return;
+    if (searchText.trim().length < 1) return;
     setSearchLoading(true);
     setSearchError(null);
     try {
@@ -125,12 +125,12 @@ export default function EventGallerySearchSection({ eventId }: { eventId: number
                       value={searchText}
                       onChange={(e) => setSearchText(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && searchText.trim().length >= 3 && !searchLoading) {
+                        if (e.key === "Enter" && searchText.trim().length >= 1 && !searchLoading) {
                           handleSearchText();
                           setShowOcrModal(false);
                         }
                       }}
-                      placeholder="Ej: apellido, patente, dorsal..."
+                      placeholder="Ej: 5, 33, apellido, patente, dorsal..."
                       className="w-full border border-[#e5e7eb] rounded-md pl-9 pr-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-offset-0"
                     />
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af] text-lg">
@@ -143,7 +143,7 @@ export default function EventGallerySearchSection({ eventId }: { eventId: number
                       handleSearchText();
                       setShowOcrModal(false);
                     }}
-                    disabled={searchLoading || searchText.trim().length < 3}
+                    disabled={searchLoading || searchText.trim().length < 1}
                     className="px-6 py-3"
                   >
                     {searchLoading ? "Buscando..." : "Buscar"}

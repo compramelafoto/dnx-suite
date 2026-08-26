@@ -9,6 +9,7 @@ export * from "./design-system/tokens/index";
 export * from "./design-system/themes/index";
 export * from "./design-system/components/ui/index";
 export * from "./design-system/components/patterns/index";
+export * from "./design-system/components/partners/index";
 export * from "./design-system/components/sidebar/index";
 export * from "./design-system/utils/index";
 export * from "./design-system/icons/index";

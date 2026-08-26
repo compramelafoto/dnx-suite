@@ -14,6 +14,7 @@ import {
   DNX_PARTNER_STATUSES,
   DNX_PARTNER_TYPES,
   PartnersDomainError,
+  isWelcomeActivationExcludedApplication,
   type DnxPartnerApplication,
   type DnxPartnerAudienceType,
   type DnxPartnerBenefitType,
@@ -134,16 +135,22 @@ export async function createParticipationFormAction(formData: FormData): Promise
   const actor = toPartnerActor(user);
   const partnerId = formData.get("partnerId")?.toString() ?? "";
   const requiresPayment = formData.get("requiresPayment") === "true";
+  const application = asEnum(
+    formData.get("application")?.toString() ?? "CLICKATON",
+    DNX_PARTNER_APPLICATIONS,
+    "CLICKATON",
+  ) as DnxPartnerApplication;
+  if (isWelcomeActivationExcludedApplication(application)) {
+    redirect(
+      `${adminRoutes.sponsors}/${partnerId}?error=${encodeURIComponent("FotoOffice está excluido de DNX Partners welcome / ads.")}`,
+    );
+  }
   try {
     const result = await withClickatonDb(async () => {
       const svc = getClickatonPartnersService();
       return svc.createParticipation(actor, {
         partnerId,
-        application: asEnum(
-          formData.get("application")?.toString() ?? "CLICKATON",
-          DNX_PARTNER_APPLICATIONS,
-          "CLICKATON",
-        ) as DnxPartnerApplication,
+        application,
         organizationId: formData.get("organizationId")?.toString()?.trim() || null,
         contextType: asEnum(
           formData.get("contextType")?.toString() ?? "GLOBAL",

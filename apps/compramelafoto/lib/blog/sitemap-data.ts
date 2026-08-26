@@ -1,4 +1,5 @@
-import { BlogPostStatus } from "@prisma/client";
+import { getContentSitemapEntries } from "@repo/content";
+import { CLF_CONTENT_PLATFORM } from "@/lib/blog/content-platform";
 import { prisma } from "@/lib/prisma";
 
 /** Rutas estáticas públicas relevantes para SEO. */
@@ -14,47 +15,8 @@ export const PUBLIC_STATIC_SITEMAP_PATHS = [
 ] as const;
 
 export async function getBlogSitemapEntries() {
-  const [posts, categories, tags] = await Promise.all([
-    prisma.blogPost.findMany({
-      where: {
-        status: BlogPostStatus.PUBLISHED,
-        noIndex: false,
-      },
-      select: {
-        slug: true,
-        updatedAt: true,
-        publishedAt: true,
-        lastReviewedAt: true,
-      },
-      orderBy: { publishedAt: "desc" },
-    }),
-    prisma.blogCategory.findMany({
-      where: {
-        posts: {
-          some: {
-            status: BlogPostStatus.PUBLISHED,
-            noIndex: false,
-          },
-        },
-      },
-      select: { slug: true, updatedAt: true },
-      orderBy: { sortOrder: "asc" },
-    }),
-    prisma.blogTag.findMany({
-      where: {
-        posts: {
-          some: {
-            post: {
-              status: BlogPostStatus.PUBLISHED,
-              noIndex: false,
-            },
-          },
-        },
-      },
-      select: { slug: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
-
-  return { posts, categories, tags };
+  return getContentSitemapEntries({
+    prisma,
+    platform: CLF_CONTENT_PLATFORM,
+  });
 }

@@ -14,7 +14,7 @@ import { cookies } from "next/headers";
 import { Prisma, Role } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import { listActivePacksForPublicCatalog } from "@/lib/preventa-canjeable/pack-service";
-import { canOpenAlbumGallery } from "@/lib/album-helpers";
+import { canOpenAlbumGallery, isAlbumPubliclyAccessible } from "@/lib/album-helpers";
 import { HIDDEN_ALBUM_GRANT_COOKIE } from "@/lib/hidden-album-audit";
 import { filterPublicAlbumPhotosForHiddenVisitor } from "@/lib/hidden-album/filter-public-album-photos";
 import { evaluateAlbumSalesReadiness, isAlbumSinglesPurchaseReady } from "@/lib/albums/album-sales-readiness";
@@ -31,6 +31,7 @@ import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import ClientAlbumView from "@/components/photo/ClientAlbumView";
 import PhotographerHeader from "@/components/photographer/PhotographerHeader";
 import PhotographerFooter from "@/components/photographer/PhotographerFooter";
+import { ClfAlbumPartnerWelcome } from "@/components/partners/ClfAlbumPartnerWelcome";
 import PreventaPage from "@/app/album/[slug]/preventa/PreventaPage";
 import AlbumNotifyForm from "./AlbumNotifyForm";
 import {
@@ -45,7 +46,36 @@ import {
   type PublicGalleryFolderFilter,
 } from "@/lib/events/event-public-gallery-folder-filter";
 import { EventFolderScope } from "@/lib/prisma";
+import {
+  loadClfAlbumWelcomeAd,
+  toClfAlbumWelcomePublicPayload,
+} from "@/lib/public/partners-album-welcome";
+import type { ClfAlbumWelcomePublicPayload } from "@/lib/public/partners-album-welcome-shared";
 
+async function resolveClfAlbumWelcomePayload(input: {
+  albumId: number;
+  publicSlug: string | null;
+  isPublic?: boolean | null;
+  isHidden?: boolean | null;
+  isTest?: boolean | null;
+  isAccessBlocked?: boolean;
+}): Promise<ClfAlbumWelcomePublicPayload | null> {
+  const pathname = `/album/${input.publicSlug ?? input.albumId}`;
+  const publicAlbumAllowed =
+    isAlbumPubliclyAccessible({
+      isPublic: input.isPublic,
+      isHidden: input.isHidden,
+    }) &&
+    !Boolean(input.isTest) &&
+    !Boolean(input.isAccessBlocked);
+
+  const ad = await loadClfAlbumWelcomeAd({
+    albumId: String(input.albumId),
+    pathname,
+    publicAlbumAllowed,
+  });
+  return ad ? toClfAlbumWelcomePublicPayload(ad) : null;
+}
 export async function generateMetadata({
   params,
 }: {
@@ -302,12 +332,36 @@ export default async function AlbumPublicPage({
 
   // A) Sin fotos + preventa en catálogo → UI de compra preventa (cliente vive en esta URL).
   if (!hasPhotos && hasActivePreventaCatalogPacks) {
-    return <PreventaPage testClientPreview={testGate.isTestPreview} />;
+    const welcomePayload = await resolveClfAlbumWelcomePayload({
+      albumId: album.id,
+      publicSlug: album.publicSlug,
+      isPublic: album.isPublic,
+      isHidden: album.isHidden,
+      isTest: Boolean((album as { isTest?: boolean }).isTest),
+    });
+    return (
+      <>
+        <PreventaPage testClientPreview={testGate.isTestPreview} />
+        <ClfAlbumPartnerWelcome ad={welcomePayload} />
+      </>
+    );
   }
 
   // Sin fotos, sin preventa y sin videos públicos → aviso “pronto”.
   if (!hasPhotos && !hasActivePreventaCatalogPacks && !hasPublicReadyVideos) {
-    return <ComingSoonEmptyState albumId={album.id} />;
+    const welcomePayload = await resolveClfAlbumWelcomePayload({
+      albumId: album.id,
+      publicSlug: album.publicSlug,
+      isPublic: album.isPublic,
+      isHidden: album.isHidden,
+      isTest: Boolean((album as { isTest?: boolean }).isTest),
+    });
+    return (
+      <>
+        <ComingSoonEmptyState albumId={album.id} />
+        <ClfAlbumPartnerWelcome ad={welcomePayload} />
+      </>
+    );
   }
 
   const isOwner = authUser?.id === album.userId;
@@ -534,6 +588,15 @@ export default async function AlbumPublicPage({
       ).videos
     : [];
 
+  const welcomePayload = await resolveClfAlbumWelcomePayload({
+    albumId: album.id,
+    publicSlug: album.publicSlug,
+    isPublic: album.isPublic,
+    isHidden: album.isHidden,
+    isTest: Boolean((album as { isTest?: boolean }).isTest),
+    isAccessBlocked,
+  });
+
   // B) Con fotos y/o videos READY: galería pública tras `canAccess`.
   return (
     <>
@@ -609,6 +672,7 @@ export default async function AlbumPublicPage({
         </Suspense>
       </ProtectedAlbumWrapper>
       {photographer ? <PhotographerFooter photographer={photographer} /> : null}
+      <ClfAlbumPartnerWelcome ad={welcomePayload} />
     </>
   );
 }

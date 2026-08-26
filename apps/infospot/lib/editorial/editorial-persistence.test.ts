@@ -128,6 +128,33 @@ assert.equal(initialEventStatusForOrigin("REDACCION"), "DRAFT");
   }
 }
 
+// --- 5. Figura + video sobreviven roundtrip y sanitizado ---
+{
+  const md = [
+    "Intro.",
+    "",
+    '<figure data-editorial-image="true" data-asset-id="asset-99" data-credit="Foto: Redacción" data-caption="Epígrafe" class="is-editorial-figure"><img src="https://cdn.example/a.jpg" alt="Alt" loading="lazy" decoding="async" /><figcaption class="is-figcaption"><span data-caption="true" class="is-caption">Epígrafe</span><span data-credit-text="true" class="is-credit">Foto: Redacción</span></figcaption></figure>',
+    "",
+    '<figure data-editorial-video="true" data-provider="youtube" data-video-id="dQw4w9WgXcQ" data-url="https://www.youtube.com/watch?v=dQw4w9WgXcQ" data-width="100" data-alignment="center" data-variant="standard" class="is-editorial-video"><a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener noreferrer" data-video-fallback="true">Ver video en YouTube</a></figure>',
+    "",
+    "Cierre.",
+  ].join("\n");
+
+  const html = markdownToEditorHtml(md);
+  assert.match(html, /data-editorial-image/);
+  assert.match(html, /asset-99/);
+  assert.match(html, /data-editorial-video/);
+
+  const safe = sanitizeEditorialHtml(html);
+  assert.match(safe, /data-asset-id="asset-99"/);
+  assert.doesNotMatch(safe, /blob:/);
+
+  const back = editorHtmlToMarkdown(safe);
+  assert.match(back, /data-editorial-image/);
+  assert.match(back, /data-editorial-video/);
+  assert.match(back, /asset-99/);
+}
+
 // --- 6. blob: se elimina al sanitizar ---
 {
   const dirty =

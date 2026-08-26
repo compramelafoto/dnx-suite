@@ -867,9 +867,27 @@ export async function sendJudgeInvitation(input: {
       eventType: "JUDGE_INVITATION_SENT",
       entityType: "FotorankJudgeInvitation",
       entityId: invitation.id,
-      payloadJson: { email: invitation.email, expiresAt: invitation.expiresAt.toISOString() },
+      // sin token / sin PII extra
+      payloadJson: {
+        emailDomain: invitation.email.split("@")[1] ?? null,
+        expiresAt: invitation.expiresAt.toISOString(),
+      },
     },
   });
+
+  // Intent durable (sin email real si el outbox no tiene proveedor).
+  try {
+    const { enqueueJuryNotificationIntent } = await import(
+      "../lib/fotorank/jury/notification-intents"
+    );
+    await enqueueJuryNotificationIntent({
+      contestId: input.contestId,
+      kind: "JURY_INVITATION",
+      metadata: { invitationId: invitation.id, channel: "secure_panel_link" },
+    });
+  } catch {
+    // no bloquear invitación
+  }
 
   revalidatePath("/jurados/invitaciones");
   logInvitationBaseUrlMisconfigurationIfNeeded("sendJudgeInvitation");

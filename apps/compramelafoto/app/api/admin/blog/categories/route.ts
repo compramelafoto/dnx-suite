@@ -4,6 +4,7 @@ import {
   handleBlogPrismaError,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { CLF_CONTENT_PLATFORM, clfPlatformWhere } from "@/lib/blog/content-platform";
 import {
   formatBlogValidationError,
   parseBlogCategoryCreate,
@@ -17,6 +18,7 @@ export async function GET() {
   if (auth.response) return auth.response;
 
   const categories = await prisma.blogCategory.findMany({
+    where: clfPlatformWhere,
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
       _count: { select: { posts: true } },
@@ -41,7 +43,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const category = await prisma.blogCategory.create({
-      data: parsed.data,
+      data: {
+        ...parsed.data,
+        platform: CLF_CONTENT_PLATFORM,
+      },
     });
     return NextResponse.json({ category }, { status: 201 });
   } catch (err) {

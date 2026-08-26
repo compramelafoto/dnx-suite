@@ -1,4 +1,3 @@
-// @ts-nocheck — P0 jury/scoring models not in deployed Prisma client yet
 import { randomBytes } from "node:crypto";
 import { prisma } from "@repo/db";
 import { JuryError } from "./errors";
@@ -8,6 +7,7 @@ import {
   JURY_SCORING_ENGINE_VERSION,
   type CriterionScoreInput,
 } from "./scoring-engine";
+import { hasAcceptedJuryTerms } from "./jury-terms";
 
 function newId() {
   return `je${randomBytes(12).toString("hex")}`;
@@ -89,6 +89,20 @@ export async function upsertJuryEvaluation(input: {
   }
   if (session.admissionBatch.status !== "FROZEN") {
     throw new JuryError("BATCH_NOT_FROZEN", "El lote de admisión no está congelado.", 403);
+  }
+
+  if (access.contest.slug === "santa-fe-en-foco" && input.submit) {
+    const okTerms = await hasAcceptedJuryTerms({
+      judgeAccountId: input.judgeAccountId,
+      contestId: input.contestId,
+    });
+    if (!okTerms) {
+      throw new JuryError(
+        "TERMS_REQUIRED",
+        "Debés aceptar los términos de jurado antes de enviar.",
+        403,
+      );
+    }
   }
 
   const now = new Date();
@@ -315,4 +329,111 @@ export async function voidJuryEvaluation(input: {
     payload: { reason: input.reason },
   });
   return updated;
+}
+
+/**
+ * Abstención controlada del jurado: no cuenta como score (VOIDED + prefijo ABSTAIN).
+ * Requiere razón. Idempotente si ya abstuvo.
+ */
+export async function abstainJuryEvaluation(input: {
+  judgeAccountId: string;
+  contestId: string;
+  snapshotId: string;
+  reason: string;
+  reasonCode?:
+    | "CONFLICT"
+    | "TECHNICAL_COMPETENCE"
+    | "DISPLAY_ISSUE"
+    | "SENSITIVE_CONTENT"
+    | "OTHER";
+}) {
+  if (!input.reason.trim()) {
+    throw new JuryError("REASON_REQUIRED", "La abstención requiere motivo.", 400);
+  }
+  const access = await assertJudgeContestAccess({
+    judgeAccountId: input.judgeAccountId,
+    contestId: input.contestId,
+  });
+  const session = await loadOpenSession(input.contestId);
+  if (!session) {
+    throw new JuryError("SESSION_CLOSED", "No hay sesión OPEN.", 403);
+  }
+  const snapshot = await prisma.fotorankJuryEntrySnapshot.findFirst({
+    where: {
+      id: input.snapshotId,
+      contestId: input.contestId,
+      admissionBatchId: session.admissionBatchId,
+    },
+  });
+  if (!snapshot) throw new JuryError("SNAPSHOT_NOT_FOUND", "Snapshot no encontrado.", 404);
+  if (!access.categoryIds.includes(snapshot.categoryId)) {
+    throw new JuryError("CATEGORY_NOT_ASSIGNED", "Categoría no asignada.", 403);
+  }
+  const assignment = access.assignments.find((a) => a.categoryId === snapshot.categoryId);
+  if (!assignment) throw new JuryError("NOT_ASSIGNED", "Sin asignación.", 403);
+
+  const existing = await prisma.fotorankJuryEvaluation.findUnique({
+    where: {
+      assignmentId_juryEntrySnapshotId: {
+        assignmentId: assignment.id,
+        juryEntrySnapshotId: snapshot.id,
+      },
+    },
+  });
+  if (existing?.status === "SUBMITTED" || existing?.status === "LOCKED") {
+    throw new JuryError("EVALUATION_LOCKED", "Ya enviada; no se puede abstener.", 409);
+  }
+  const voidReason = `ABSTAIN:${input.reasonCode ?? "OTHER"}:${input.reason.trim()}`.slice(0, 500);
+  if (existing?.status === "VOIDED" && existing.voidReason?.startsWith("ABSTAIN:")) {
+    return { evaluation: existing, idempotent: true as const };
+  }
+
+  const evaluation = existing
+    ? await prisma.fotorankJuryEvaluation.update({
+        where: { id: existing.id },
+        data: {
+          status: "VOIDED",
+          voidedAt: new Date(),
+          voidReason,
+          totalScore: null,
+          normalizedScore: null,
+        },
+      })
+    : await prisma.fotorankJuryEvaluation.create({
+        data: {
+          id: newId(),
+          contestId: input.contestId,
+          scoringSessionId: session.id,
+          admissionBatchId: session.admissionBatchId,
+          juryEntrySnapshotId: snapshot.id,
+          assignmentId: assignment.id,
+          jurorId: input.judgeAccountId,
+          rubricId: session.rubricId,
+          rubricVersion: session.rubric.version,
+          status: "VOIDED",
+          voidedAt: new Date(),
+          voidReason,
+          startedAt: new Date(),
+          engineVersion: JURY_SCORING_ENGINE_VERSION,
+        },
+      });
+
+  const contestRow = await prisma.fotorankContest.findUniqueOrThrow({
+    where: { id: input.contestId },
+    select: { organizationId: true },
+  });
+  await writeAudit({
+    organizationId: contestRow.organizationId,
+    contestId: input.contestId,
+    actorJudgeId: input.judgeAccountId,
+    eventType: "JURY_EVALUATION_ABSTAINED",
+    entityType: "FotorankJuryEvaluation",
+    entityId: evaluation.id,
+    payload: {
+      reasonCode: input.reasonCode ?? "OTHER",
+      snapshotId: snapshot.id,
+      anonymousCode: snapshot.anonymousCode,
+    },
+  });
+  return { evaluation, idempotent: false as const };
 }

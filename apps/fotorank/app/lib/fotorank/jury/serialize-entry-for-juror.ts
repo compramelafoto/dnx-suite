@@ -8,7 +8,13 @@ export const JURY_FORBIDDEN_FIELD_NAMES = [
   "authorUserId",
   "registrationId",
   "email",
-  "name",
+  // "name" no está en la lista: la rúbrica expone `criteria[].name` (etiqueta del criterio).
+  // Identidad del participante viaja como participantName / authorName / etc. (bloqueados abajo).
+  "participantName",
+  "authorName",
+  "fullName",
+  "firstName",
+  "lastName",
   "phone",
   "instagram",
   "rulesAcceptanceIp",

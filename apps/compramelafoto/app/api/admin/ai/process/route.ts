@@ -26,7 +26,10 @@ export async function POST(req: Request) {
     const url = new URL(req.url);
     const debug = url.searchParams.get("debug") === "1";
     const includeOcr = resolveIncludeOcrFromRequest(url);
-    return runAnalysisPipeline({ includeOcr, debug, source: "admin" });
+    const albumIdRaw = url.searchParams.get("albumId");
+    const albumIdParsed = albumIdRaw ? Number(albumIdRaw) : NaN;
+    const albumId = Number.isFinite(albumIdParsed) ? albumIdParsed : undefined;
+    return runAnalysisPipeline({ includeOcr, debug, source: "admin", albumId });
   } catch (error: any) {
     console.error("Error en process:", error);
     return NextResponse.json(

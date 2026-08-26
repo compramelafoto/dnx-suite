@@ -85,6 +85,7 @@ type AlbumPricing = {
   digitalDiscount10Plus?: number | null;
   digitalDiscount20Plus?: number | null;
   allowClientLabSelection?: boolean | null;
+  scanProtectionEnabled?: boolean | null;
   extensionPricingActive?: boolean;
   extensionSurchargePercent?: number;
   extensionBaseEndsAt?: string | null;
@@ -2294,6 +2295,7 @@ export default function ComprarClient() {
       <PhotoSlideViewer
         photos={slidePhotos}
         initialIndex={slideIndex}
+        protectUnpurchased={albumPricing?.scanProtectionEnabled !== false}
         onClose={() => setShowSlide(false)}
         onPhotoSelect={(id) => {
           const index = itemIndexById.get(id);

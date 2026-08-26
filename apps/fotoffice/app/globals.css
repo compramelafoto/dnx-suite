@@ -243,6 +243,17 @@ select.fo-input {
   background: var(--fo-accent-muted);
 }
 
+/** Variante destructiva primaria (p. ej. confirmar eliminación definitiva) */
+.fo-btn-danger {
+  background: var(--fo-danger);
+  color: #ffffff;
+  box-shadow: var(--fo-shadow-xs);
+}
+
+.fo-btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
 /** Variante destructiva secundaria (p. ej. desactivar módulo) */
 .fo-btn-danger-outline {
   background: var(--fo-bg-elevated);
@@ -253,4 +264,39 @@ select.fo-input {
 .fo-btn-danger-outline:hover:not(:disabled) {
   background: var(--fo-danger-soft);
   border-color: var(--fo-danger);
+}
+
+/* Animaciones de aparición del sitio público/preview del Website Builder — ver
+   lib/website/design-presets.ts (animationPreset). Nunca permanentes, nunca scroll-hijacking:
+   una única transición al montar cada bloque. Desactivadas por completo si el sistema operativo
+   pide menos movimiento. */
+@media (prefers-reduced-motion: no-preference) {
+  .wsite-anim-soft {
+    animation: wsite-fade-up 0.5s ease-out both;
+  }
+  .wsite-anim-dynamic {
+    animation: wsite-fade-up-dynamic 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+@keyframes wsite-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wsite-fade-up-dynamic {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }

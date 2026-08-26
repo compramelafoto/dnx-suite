@@ -17,6 +17,10 @@ import { getAuthUser } from "@/lib/auth";
 import { listActivePublicProfiles } from "@/lib/dnx-user-profiles";
 import { resolveHomeExperience } from "@/lib/home-experience";
 import { readPreferredHomeModeFromCookie } from "@/app/actions/home-experience";
+import { loadInfospotAds } from "@/lib/partners-ads";
+import { PartnerAdsSlot } from "@/components/partners/PartnerAdsSlot";
+import { PartnerAdsWelcome } from "@/components/partners/PartnerAdsWelcome";
+import { PartnerLogoMarquee } from "@repo/design-system/components/partners";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +121,17 @@ export default async function HomePage({ searchParams }: Props) {
   const banners = core.banner;
   const nearEvents = nearby.length > 0 ? nearby : upcomingFallback;
 
+  const audience = near
+    ? { countryCode: "AR" as const }
+    : { countryCode: "AR" as const };
+
+  const [welcomeAds, homeTopAds, homeInlineAds, marqueeAds] = await Promise.all([
+    loadInfospotAds("INFOSPOT_HOME_WELCOME", { audience }),
+    loadInfospotAds("INFOSPOT_HOME_TOP", { audience }),
+    loadInfospotAds("INFOSPOT_HOME_INLINE", { audience }),
+    loadInfospotAds("INFOSPOT_HOME_MARQUEE", { audience }),
+  ]);
+
   /** Evitar duplicar hero / destacados en el feed unificado. */
   const feedExcludeContentKeys = [
     ...banners.map((b) => `${b.kind === "event" ? "event" : "article"}:${b.id}`),
@@ -125,22 +140,49 @@ export default async function HomePage({ searchParams }: Props) {
   ].filter((k): k is string => Boolean(k));
 
   return (
-    <HomeAdaptiveSections
-      experience={experience}
-      banners={banners}
-      home={home}
-      featured={core.featured}
-      upcoming={core.upcoming}
-      photographerCalls={core.photographerCalls}
-      coverages={core.coverages}
-      nearEvents={nearEvents}
-      hasUserLocation={Boolean(near)}
-      feedItems={feed.items}
-      feedNextCursor={feed.nextCursor}
-      feedHasMore={feed.hasMore}
-      feedExcludeContentKeys={feedExcludeContentKeys}
-      nearbyUpcoming={nearbyUpcoming}
-      nearbyCalls={nearbyCalls}
-    />
+    <>
+      <PartnerAdsWelcome ad={welcomeAds[0] ?? null} />
+      <PartnerAdsSlot ads={homeTopAds} variant="banner" label="Publicidad" />
+      <HomeAdaptiveSections
+        experience={experience}
+        banners={banners}
+        home={home}
+        featured={core.featured}
+        upcoming={core.upcoming}
+        photographerCalls={core.photographerCalls}
+        coverages={core.coverages}
+        nearEvents={nearEvents}
+        hasUserLocation={Boolean(near)}
+        feedItems={feed.items}
+        feedNextCursor={feed.nextCursor}
+        feedHasMore={feed.hasMore}
+        feedExcludeContentKeys={feedExcludeContentKeys}
+        nearbyUpcoming={nearbyUpcoming}
+        nearbyCalls={nearbyCalls}
+      />
+      <PartnerAdsSlot
+        ads={homeInlineAds}
+        variant="card"
+        label="Publicidad"
+        placementKey="INFOSPOT_HOME_INLINE"
+      />
+      {marqueeAds.length > 0 ? (
+        <section aria-label="Nos acompañan" className="space-y-6 py-10">
+          <h2 className="text-center text-lg font-semibold tracking-tight">Nos acompañan</h2>
+          <PartnerLogoMarquee
+            aria-label="Sponsors"
+            items={marqueeAds.map((ad) => ({
+              id: ad.creativeId,
+              name: ad.partnerName,
+              logoUrl: ad.imageUrl ?? null,
+              href: ad.href ?? null,
+              campaignId: ad.campaignId,
+              creativeId: ad.creativeId,
+              placementKey: "INFOSPOT_HOME_MARQUEE",
+            }))}
+          />
+        </section>
+      ) : null}
+    </>
   );
 }

@@ -5,6 +5,8 @@
 
 import { PrismaClient } from "@prisma/client";
 
+import { CLF_CONTENT_PLATFORM } from "../lib/blog/content-platform";
+
 const prisma = new PrismaClient();
 
 function slugFromName(name: string): string {
@@ -90,14 +92,14 @@ const AUTHORS = [
 async function seedCategories() {
   for (const category of CATEGORIES) {
     await prisma.blogCategory.upsert({
-      where: { slug: category.slug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: category.slug } },
       update: {
         name: category.name,
         description: category.description,
         sortOrder: category.sortOrder,
         isFeatured: category.isFeatured,
       },
-      create: category,
+      create: { ...category, platform: CLF_CONTENT_PLATFORM },
     });
     console.log(`  ✓ Categoría: ${category.name}`);
   }
@@ -107,9 +109,9 @@ async function seedTags() {
   for (const name of TAGS) {
     const slug = slugFromName(name);
     await prisma.blogTag.upsert({
-      where: { slug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug } },
       update: { name },
-      create: { name, slug },
+      create: { platform: CLF_CONTENT_PLATFORM, name, slug },
     });
     console.log(`  ✓ Tag: ${name}`);
   }
@@ -118,7 +120,7 @@ async function seedTags() {
 async function seedAuthors() {
   for (const author of AUTHORS) {
     await prisma.blogAuthor.upsert({
-      where: { slug: author.slug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: author.slug } },
       update: {
         name: author.name,
         role: author.role,
@@ -126,6 +128,7 @@ async function seedAuthors() {
         isActive: true,
       },
       create: {
+        platform: CLF_CONTENT_PLATFORM,
         name: author.name,
         slug: author.slug,
         role: author.role,

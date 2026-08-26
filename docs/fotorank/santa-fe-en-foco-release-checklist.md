@@ -4,7 +4,8 @@
 **RC:** `FOTORANK-SFEF-2026-RC1`  
 **Entorno:** Postgres local `fotorank_staging_2026`  
 **Producción:** no tocada  
-**Resultado:** **NO-GO** (bases productivas + ops pendientes)
+**Resultado:** **NO-GO** (bases productivas + ops pendientes)  
+**ETAPA 09 (2026-08-04):** **BLOCKED — LEGAL TEXTS NOT AUTHORIZED FOR PUBLIC REGISTRATION** — ver `santa-fe-en-foco-etapa09-registration-opening.md`. Production intacta (`dpl_525VUHaEaz9ANgbFBQnMe9oryZyg`). Sin promote / sin seed prod / sin textos BORRADOR publicados.
 
 Estados: `PASS` · `FAIL` · `BLOCKED` · `PENDING HUMAN CONFIRMATION` · `NOT RUN`
 

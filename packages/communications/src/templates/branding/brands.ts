@@ -11,8 +11,9 @@ import type { CommunicationBrand } from "./types";
 export const DNX_BRAND: CommunicationBrand = {
   id: "dnx",
   displayName: "DNX Suite",
-  websiteUrl: "https://example.com",
-  supportEmail: "support@example.com",
+  // Sin sitio ni soporte a propósito: esta marca se usa para comunicaciones
+  // internas de plataforma, donde esos enlaces no aplican. Antes apuntaban a
+  // example.com y se veían en el pie de los correos reales.
   primaryColor: "#d4af37",
   accentColor: "#e5c04a",
   backgroundColor: "#050505",

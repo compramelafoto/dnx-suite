@@ -14,19 +14,51 @@ const prisma = new PrismaClient();
 
 const SLUG = "santa-fe-en-foco";
 const ORG_SLUG = "santa-fe-en-foco-org";
-const CATEGORY_SLUG = "santa-fe-en-foco";
-const CATEGORY_CELULAR = "celular";
-const CATEGORY_CAMARA = "camara";
 
-const RULES_PLACEHOLDER = `BORRADOR — REEMPLAZAR POR BASES OFICIALES ANTES DE PRODUCCIÓN
+/** Categorías oficiales ETAPA 05 — participación abierta; sin residencia. */
+const OFFICIAL_CATEGORIES = [
+  {
+    slug: "fotografo-profesional",
+    name: "Fotógrafo Profesional",
+    sortOrder: 1,
+    description:
+      "Para personas que participan como fotógrafos profesionales. La fotografía debe haber sido realizada con una cámara fotográfica. No se admiten fotografías tomadas con teléfono celular.",
+  },
+  {
+    slug: "fotografo-amateur",
+    name: "Fotógrafo Amateur",
+    sortOrder: 2,
+    description:
+      "Para fotógrafos aficionados. Se admiten fotografías realizadas con teléfono celular o cámara fotográfica.",
+  },
+  {
+    slug: "reportero-grafico",
+    name: "Reportero Gráfico",
+    sortOrder: 3,
+    description:
+      "Para reporteros gráficos. Es obligatorio ingresar un número de socio de ARGRA, sujeto a verificación por la organización. PENDING_INSTITUTIONAL_APPROVAL / LEGAL REVIEW REQUIRED.",
+  },
+  {
+    slug: "fotografia-aerea",
+    name: "Fotografía Aérea",
+    sortOrder: 4,
+    description:
+      "Para fotografías realizadas con dron. La organización podrá solicitar información técnica o documentación adicional. LEGAL REVIEW REQUIRED.",
+  },
+] as const;
 
-Santa Fe en Foco — bases provisorias para pruebas de inscripción.
+/** Slugs legacy a desactivar (no borrar filas). */
+const LEGACY_CATEGORY_SLUGS = ["santa-fe-en-foco", "celular", "camara"] as const;
 
-1. Modalidad gratuita.
-2. Una inscripción por persona.
-3. Una categoría.
-4. Una fotografía JPG/JPEG por participante (máximo 1; reemplazo permitido hasta el cierre de carga).
-5. EXIF recomendado pero no obligatorio (la ausencia no implica rechazo automático).
+const RULES_PLACEHOLDER = `BORRADOR — LEGAL REVIEW REQUIRED — NO PUBLICAR
+
+Santa Fe en Foco — bases provisorias para pruebas de inscripción (staging).
+
+1. Modalidad gratuita. Participación abierta: no se exige residencia en la Provincia de Santa Fe.
+2. La fotografía debe haberse tomado en la Provincia de Santa Fe y durante el período oficial.
+3. Una inscripción por persona; una categoría; una fotografía JPG/JPEG.
+4. Categorías: Fotógrafo Profesional, Fotógrafo Amateur, Reportero Gráfico (ARGRA), Fotografía Aérea (dron).
+5. EXIF recomendado; ausencia de fecha/GPS no implica rechazo automático (revisión manual).
 6. El participante acepta estas bases al inscribirse.
 
 Este texto NO es válido para producción.`;
@@ -122,7 +154,8 @@ async function main() {
       timezone: "America/Argentina/Cordoba",
       allowRegistrationCancellation: true,
       uploadPolicyJson,
-      shortDescription: "Concurso fotográfico gratuito — seed local/staging (P0-01/P0-06).",
+      shortDescription:
+        "Participación abierta. Fotografía tomada en la Provincia de Santa Fe — seed local/staging ETAPA 05.",
       rulesText: RULES_PLACEHOLDER,
     },
     create: {
@@ -144,38 +177,14 @@ async function main() {
       timezone: "America/Argentina/Cordoba",
       allowRegistrationCancellation: true,
       uploadPolicyJson,
-      shortDescription: "Concurso fotográfico gratuito — seed local/staging (P0-01/P0-06).",
+      shortDescription:
+        "Participación abierta. Fotografía tomada en la Provincia de Santa Fe — seed local/staging ETAPA 05.",
       rulesText: RULES_PLACEHOLDER,
       createdByUserId: admin.id,
     },
   });
 
-  // Categoría legacy (compat landing) + dos categorías operativas P0-07
-  await prisma.fotorankContestCategory.upsert({
-    where: {
-      contestId_slug: { contestId: contest.id, slug: CATEGORY_SLUG },
-    },
-    update: {
-      name: "Santa Fe en Foco",
-      maxFiles: 1,
-      status: "ACTIVE",
-      sortOrder: 0,
-    },
-    create: {
-      contestId: contest.id,
-      name: "Santa Fe en Foco",
-      slug: CATEGORY_SLUG,
-      maxFiles: 1,
-      status: "ACTIVE",
-      sortOrder: 0,
-      description: "Categoría general (compat).",
-    },
-  });
-
-  for (const cat of [
-    { slug: CATEGORY_CELULAR, name: "Celular", sortOrder: 1, description: "Fotografía con dispositivo móvil." },
-    { slug: CATEGORY_CAMARA, name: "Cámara", sortOrder: 2, description: "Fotografía con cámara tradicional." },
-  ]) {
+  for (const cat of OFFICIAL_CATEGORIES) {
     await prisma.fotorankContestCategory.upsert({
       where: { contestId_slug: { contestId: contest.id, slug: cat.slug } },
       update: {
@@ -194,6 +203,14 @@ async function main() {
         sortOrder: cat.sortOrder,
         description: cat.description,
       },
+    });
+  }
+
+  // Desactivar categorías legacy sin borrar filas (pueden tener obras de fixtures).
+  for (const legacySlug of LEGACY_CATEGORY_SLUGS) {
+    await prisma.fotorankContestCategory.updateMany({
+      where: { contestId: contest.id, slug: legacySlug },
+      data: { status: "ARCHIVED" },
     });
   }
 
@@ -232,7 +249,9 @@ async function main() {
   console.log("[seed-santa-fe-en-foco] OK");
   console.log(`  org: ${org.slug} (${org.id})`);
   console.log(`  contest: /concursos/${contest.slug} (${contest.id})`);
-  console.log(`  FREE · fee 0 bps · categorías: general + celular + camara · maxFiles=1`);
+  console.log(
+    `  FREE · fee 0 bps · categorías: profesional/amateur/reportero/aerea · maxFiles=1 · residencia NO requerida`,
+  );
   console.log(`  registrationOpensAt: ${opens.toISOString()}`);
   console.log(`  Fixtures jurado/obras: correr apps/fotorank/scripts/seed-santa-fe-p0-07-jury-fixtures.ts`);
 }

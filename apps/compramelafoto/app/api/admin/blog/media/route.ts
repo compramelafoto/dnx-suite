@@ -4,6 +4,7 @@ import {
   handleBlogPrismaError,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { CLF_CONTENT_PLATFORM, clfPlatformWhere } from "@/lib/blog/content-platform";
 import { uploadBlogImage } from "@/lib/blog/blog-image-upload";
 
 export const runtime = "nodejs";
@@ -27,13 +28,14 @@ export async function GET(req: NextRequest) {
   const where =
     q.length > 0
       ? {
+          ...clfPlatformWhere,
           OR: [
             { filename: { contains: q, mode: "insensitive" as const } },
             { title: { contains: q, mode: "insensitive" as const } },
             { altText: { contains: q, mode: "insensitive" as const } },
           ],
         }
-      : undefined;
+      : { ...clfPlatformWhere };
 
   const media = await prisma.blogMedia.findMany({
     where,
@@ -62,6 +64,7 @@ export async function POST(req: NextRequest) {
 
     const media = await prisma.blogMedia.create({
       data: {
+        platform: CLF_CONTENT_PLATFORM,
         filename: uploaded.filename,
         url: uploaded.url,
         r2Key: uploaded.r2Key,

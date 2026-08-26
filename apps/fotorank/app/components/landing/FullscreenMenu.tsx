@@ -6,10 +6,11 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { landingSignOutAction } from "../../actions/landing-session";
 
-/** `openLoginModal`: landing sin sesión. `signOut`: cierra admin y/o jurado. */
+/** `signOut`: cierra admin y/o jurado. Login va directo a `/login` (sin elección de rol). */
 export type MenuLink = {
   label: string;
   href?: string;
+  /** @deprecated ETAPA 09B — usar href=/login */
   openLoginModal?: boolean;
   signOut?: boolean;
 };
@@ -26,7 +27,7 @@ export function getLandingMenuLinks(hasSession: boolean): MenuLink[] {
     ...landingNavAnchors,
     hasSession
       ? { label: "Cerrar sesión", signOut: true }
-      : { label: "Iniciar sesión", openLoginModal: true },
+      : { label: "Iniciar sesión", href: "/login" },
   ];
 }
 

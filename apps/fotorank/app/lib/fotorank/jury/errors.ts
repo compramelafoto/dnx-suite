@@ -34,7 +34,11 @@ export type JuryErrorCode =
   | "OUT_OF_RANGE"
   | "STEP"
   | "INVALID_SCORE"
-  | "WEIGHT_SUM";
+  | "WEIGHT_SUM"
+  | "TERMS_REQUIRED"
+  | "NO_ASSIGNMENT"
+  | "REASSIGN_TARGET_INVALID"
+  | "JUDGE_REVOKED";
 
 export class JuryError extends Error {
   readonly code: JuryErrorCode;

@@ -29,7 +29,7 @@
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "pnpm exec tsx --test src/architecture.test.ts src/exports.test.ts src/templates/templates.test.ts src/email/runtime/runtime.test.ts src/tracking/resend/webhook.test.ts src/tracking/persistence/persistence.test.ts src/tracking/environment-policy.test.ts",
+    "test": "pnpm exec tsx --test src/architecture.test.ts src/exports.test.ts src/templates/templates.test.ts src/email/runtime/runtime.test.ts src/tracking/resend/webhook.test.ts src/tracking/persistence/persistence.test.ts src/tracking/environment-policy.test.ts src/templates/ops-daily-report.test.ts",
     "lint": "eslint .",
     "preview:email": "pnpm exec tsx src/scripts/preview-email.ts",
     "smoke:resend": "pnpm exec tsx src/scripts/send-resend-smoke.ts",

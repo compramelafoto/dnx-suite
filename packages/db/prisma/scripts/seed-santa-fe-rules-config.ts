@@ -5,12 +5,12 @@
  *   pnpm --filter @repo/db exec tsx prisma/scripts/seed-santa-fe-rules-config.ts
  */
 import { prisma } from "../../src/client.js";
+import { buildSantaFeEnFoco2026Configuration } from "../../../../apps/fotorank/app/lib/fotorank/rules-config/santa-fe-en-foco-2026.ts";
 import {
-  buildSantaFeEnFoco2026Configuration,
   saveDraftConfiguration,
   publishConfigurationVersion,
   ensureSystemProvincialTemplate,
-} from "../../../../apps/fotorank/app/lib/fotorank/rules-config/index.ts";
+} from "../../../../apps/fotorank/app/lib/fotorank/rules-config/service.ts";
 
 async function main() {
   if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {

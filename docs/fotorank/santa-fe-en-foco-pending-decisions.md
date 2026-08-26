@@ -27,7 +27,8 @@ Bases: representación textual asociada a configuración publicada.
 | 1 inscripción / 1 categoría / 1 foto | CONFIRMED | | P0-09A/B | No |
 | Edad mínima | CONFIRMED | 16 años | P0-09B | No |
 | Menores 16–17 | CONFIRMED | Autorización padre/madre/tutor obligatoria antes de confirmar | P0-09B | No |
-| Residencia | CONFIRMED | Provincia de Santa Fe | P0-09A/B | No |
+| Residencia del participante | CONFIRMED BY ORGANIZER (ETAPA 05) | **No requerida** — participación abierta | ETAPA 05 | No |
+| Territorio de la fotografía | CONFIRMED BY ORGANIZER (ETAPA 05) | Provincia de Santa Fe (declaración + revisión) | ETAPA 05 | No |
 
 ## Categorías / archivo / metadata / edición / IA
 
@@ -66,7 +67,7 @@ Bases: representación textual asociada a configuración publicada.
 
 | Decisión | Estado | Bloquea |
 |----------|--------|---------|
-| R2 staging real | BLOCKED | **Sí** |
+| R2 staging real | DONE (ETAPA 04C/04D) | No (staging) |
 | Email staging | BLOCKED | **Sí** GO estricto |
 
 ### Bloqueadores apertura

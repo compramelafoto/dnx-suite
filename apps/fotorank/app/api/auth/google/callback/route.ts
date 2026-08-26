@@ -5,6 +5,7 @@ import {
   resolveOrCreateUser,
 } from "@repo/auth";
 import { attachAdminSessionCookieToResponse } from "../../../../lib/auth";
+import { resolvePostLoginPathForUser } from "../../../../lib/fotorank/access/home-capabilities";
 import {
   parseFotorankGoogleOAuthState,
   resolveBaseUrl,
@@ -150,17 +151,18 @@ export async function GET(req: Request) {
       );
     }
 
-    await prisma.user.update({
+    const dbUser = await prisma.user.update({
       where: { id: resolved.userId },
       data: { lastLoginAt: new Date() },
+      select: { id: true, email: true, globalRole: true },
     });
 
-    const isOrganizer =
-      resolved.suiteRole === "ORGANIZER" ||
-      resolved.suiteRole === "SUPER_ADMIN" ||
-      resolved.suiteRole === "ADMIN";
-    const fallback = isOrganizer ? "/dashboard" : "/participaciones";
-    const destPath = parsedState.next ?? fallback;
+    const destPath = await resolvePostLoginPathForUser({
+      userId: dbUser.id,
+      email: dbUser.email,
+      globalRole: dbUser.globalRole,
+      next: parsedState.next,
+    });
     const dest = new URL(destPath, baseUrl).toString();
     const response = NextResponse.redirect(dest);
     await attachAdminSessionCookieToResponse(response, resolved.userId);

@@ -9,6 +9,11 @@ import {
 } from "../constants";
 import { EditionFinanceError } from "../domain/errors";
 import { evaluateCommercialFinanceGate, type GateMode } from "../domain/gate";
+import { logFinanceOps } from "../domain/finance-ops-log";
+import {
+  resolvePublishedVersionForCharges,
+  shouldFreezeParticipantAccountForDraft,
+} from "../domain/resolve-published-for-charges";
 import { buildOrderFinanceSnapshot } from "../domain/snapshot";
 import { bpsToPercent } from "../domain/rounding";
 import type {
@@ -198,14 +203,66 @@ export async function resolveActiveEditionDistribution(
   editionId: string,
 ): Promise<EditionFinancialDistributionView | null> {
   const agreement = await getAgreement(editionId);
-  if (!agreement || agreement.status !== "ACTIVE" || !agreement.currentVersionId) {
+  const versions = agreement
+    ? await prisma.dnxDistributionVersion.findMany({
+        where: { agreementId: agreement.id },
+        orderBy: { versionNumber: "desc" },
+      })
+    : [];
+  const currentVersion = agreement?.currentVersionId
+    ? (versions.find((v) => v.id === agreement.currentVersionId) ??
+      (await prisma.dnxDistributionVersion.findUnique({
+        where: { id: agreement.currentVersionId },
+      })))
+    : null;
+
+  const picked = resolvePublishedVersionForCharges({
+    agreement,
+    currentVersion,
+    versions,
+  });
+
+  if (!picked.ok) {
+    logFinanceOps({
+      event: "finance_active_distribution_missing",
+      editionId,
+      agreementId: agreement?.id ?? null,
+      agreementStatus: agreement?.status ?? null,
+      distributionVersionId: currentVersion?.id ?? null,
+      distributionVersionNumber: currentVersion?.versionNumber ?? null,
+      versionStatus: currentVersion?.status ?? null,
+      reason: picked.reason,
+    });
     return null;
   }
-  const version = await prisma.dnxDistributionVersion.findUnique({
-    where: { id: agreement.currentVersionId },
+
+  logFinanceOps({
+    event: "finance_active_distribution_resolved",
+    editionId,
+    agreementId: agreement!.id,
+    agreementStatus: agreement!.status,
+    distributionVersionId: picked.version.id,
+    distributionVersionNumber: picked.version.versionNumber,
+    versionStatus: picked.version.status,
+    reason: picked.reason,
+    meta: { usedFallback: picked.usedFallback },
   });
-  if (!version || version.status !== "PUBLISHED") return null;
-  return mapVersionView(editionId, agreement, version);
+
+  return mapVersionView(editionId, agreement!, picked.version);
+}
+
+async function participantUsedByPublishedVersion(
+  publishedVersionId: string,
+  participantId: string,
+): Promise<boolean> {
+  const rule = await prisma.dnxDistributionRule.findFirst({
+    where: {
+      distributionVersionId: publishedVersionId,
+      agreementParticipantId: participantId,
+    },
+    select: { id: true },
+  });
+  return Boolean(rule);
 }
 
 export async function createEditionDraftDistribution(
@@ -319,10 +376,47 @@ export async function createEditionDraftDistribution(
         acceptedAt: new Date(),
       },
       update: {
-        paymentAccountId: row.paymentConnectionId,
+        // Borrador: no pisar cuenta de participantes usados por la PUBLISHED vigente.
         status: "ACCEPTED",
       },
     });
+
+    const publishedId =
+      agreement.status === "ACTIVE" && agreement.currentVersionId
+        ? agreement.currentVersionId
+        : null;
+    const publishedVersion =
+      publishedId != null
+        ? await prisma.dnxDistributionVersion.findUnique({ where: { id: publishedId } })
+        : null;
+    const freeze = shouldFreezeParticipantAccountForDraft({
+      writingVersionStatus: "DRAFT",
+      publishedVersionId: publishedId,
+      publishedVersionStatus: publishedVersion?.status ?? null,
+      participantUsedByPublished: publishedId
+        ? await participantUsedByPublishedVersion(publishedId, participant.id)
+        : false,
+    });
+
+    if (!freeze) {
+      await prisma.dnxAgreementParticipant.update({
+        where: { id: participant.id },
+        data: { paymentAccountId: row.paymentConnectionId },
+      });
+    } else if (participant.paymentAccountId !== row.paymentConnectionId) {
+      logFinanceOps({
+        event: "finance_draft_account_mutation_skipped",
+        editionId: input.editionId,
+        agreementId: agreement.id,
+        distributionVersionId: version.id,
+        reason: "protect_published_participant_account",
+        meta: {
+          participantId: participant.id,
+          requestedPaymentAccountId: row.paymentConnectionId,
+          keptPaymentAccountId: participant.paymentAccountId,
+        },
+      });
+    }
 
     await prisma.dnxDistributionRule.create({
       data: {
@@ -389,6 +483,15 @@ export async function updateDraftAllocations(
 
   const previous = await mapVersionView(input.editionId, agreement, version);
 
+  const publishedId =
+    agreement.status === "ACTIVE" && agreement.currentVersionId
+      ? agreement.currentVersionId
+      : null;
+  const publishedVersion =
+    publishedId != null
+      ? await prisma.dnxDistributionVersion.findUnique({ where: { id: publishedId } })
+      : null;
+
   await prisma.$transaction(async (tx) => {
     await tx.dnxDistributionRule.deleteMany({
       where: { distributionVersionId: version.id },
@@ -441,10 +544,48 @@ export async function updateDraftAllocations(
           acceptedAt: new Date(),
         },
         update: {
-          paymentAccountId: row.paymentConnectionId,
           status: "ACCEPTED",
         },
       });
+
+      let usedByPublished = false;
+      if (publishedId) {
+        const rule = await tx.dnxDistributionRule.findFirst({
+          where: {
+            distributionVersionId: publishedId,
+            agreementParticipantId: participant.id,
+          },
+          select: { id: true },
+        });
+        usedByPublished = Boolean(rule);
+      }
+      const freeze = shouldFreezeParticipantAccountForDraft({
+        writingVersionStatus: "DRAFT",
+        publishedVersionId: publishedId,
+        publishedVersionStatus: publishedVersion?.status ?? null,
+        participantUsedByPublished: usedByPublished,
+      });
+
+      if (!freeze) {
+        await tx.dnxAgreementParticipant.update({
+          where: { id: participant.id },
+          data: { paymentAccountId: row.paymentConnectionId },
+        });
+      } else if (participant.paymentAccountId !== row.paymentConnectionId) {
+        logFinanceOps({
+          event: "finance_draft_account_mutation_skipped",
+          editionId: input.editionId,
+          agreementId: agreement.id,
+          distributionVersionId: version.id,
+          reason: "protect_published_participant_account",
+          meta: {
+            participantId: participant.id,
+            requestedPaymentAccountId: row.paymentConnectionId,
+            keptPaymentAccountId: participant.paymentAccountId,
+          },
+        });
+      }
+
       await tx.dnxDistributionRule.create({
         data: {
           distributionVersionId: version.id,
@@ -564,13 +705,27 @@ export async function evaluateEditionFinanceGate(input: {
   hasActivePricePhase?: boolean;
 }) {
   const distribution = await resolveActiveEditionDistribution(input.editionId);
-  return evaluateCommercialFinanceGate({
+  const result = evaluateCommercialFinanceGate({
     mode: input.mode,
     distribution,
     dnxPaymentsReady: input.dnxPaymentsReady,
     webhookConfigured: input.webhookConfigured,
     hasActivePricePhase: input.hasActivePricePhase,
   });
+  logFinanceOps({
+    event: "finance_gate_evaluated",
+    editionId: input.editionId,
+    agreementId: distribution?.id ?? null,
+    distributionVersionId: distribution?.versionId ?? null,
+    distributionVersionNumber: distribution?.version ?? null,
+    versionStatus: distribution?.versionStatus ?? null,
+    agreementStatus: distribution?.agreementStatus ?? null,
+    ok: result.ok,
+    mode: result.mode,
+    blockers: result.blockers,
+    reason: result.ok ? "gate_ok" : "gate_blocked",
+  });
+  return result;
 }
 
 export async function attachFinanceSnapshotToRegistration(input: {
@@ -587,11 +742,27 @@ export async function attachFinanceSnapshotToRegistration(input: {
     select: { financialDistributionSnapshot: true },
   });
   if (existing?.financialDistributionSnapshot) {
-    return existing.financialDistributionSnapshot as unknown as OrderFinanceSnapshot;
+    const snap = existing.financialDistributionSnapshot as unknown as OrderFinanceSnapshot;
+    logFinanceOps({
+      event: "finance_snapshot_attached",
+      editionId: input.editionId,
+      registrationId: input.registrationId,
+      agreementId: snap.agreementId ?? snap.distributionId,
+      distributionVersionId: snap.distributionVersionId,
+      distributionVersionNumber: snap.distributionVersionNumber ?? snap.distributionVersion,
+      reason: "reuse_existing_snapshot",
+    });
+    return snap;
   }
 
   const distribution = await resolveActiveEditionDistribution(input.editionId);
   if (!distribution) {
+    logFinanceOps({
+      event: "finance_snapshot_blocked",
+      editionId: input.editionId,
+      registrationId: input.registrationId,
+      reason: "NO_ACTIVE_DISTRIBUTION",
+    });
     throw new EditionFinanceError(
       "NO_ACTIVE_DISTRIBUTION",
       "No hay distribución ACTIVE para la orden.",
@@ -614,6 +785,21 @@ export async function attachFinanceSnapshotToRegistration(input: {
       financialDistributionVersionId: snapshot.distributionVersionId,
       financialDistributionVersionNumber: snapshot.distributionVersion,
       financialDistributionSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  logFinanceOps({
+    event: "finance_snapshot_attached",
+    editionId: input.editionId,
+    registrationId: input.registrationId,
+    agreementId: snapshot.agreementId,
+    distributionVersionId: snapshot.distributionVersionId,
+    distributionVersionNumber: snapshot.distributionVersionNumber,
+    versionStatus: distribution.versionStatus,
+    reason: "attached_from_published",
+    meta: {
+      collectorPaymentAccountId: snapshot.allocations[0]?.paymentAccountId ?? null,
+      allocationCount: snapshot.allocations.length,
     },
   });
 

@@ -20,10 +20,30 @@ export type UploadPolicy = {
   allowEditedFiles: boolean;
   maxEntriesPerRegistration: number;
   allowReplaceUntilSubmissionClose: boolean;
+  /** Ventana de captura (DateTimeOriginal), no de carga. */
+  captureWindowStartsAt?: Date | null;
+  captureWindowEndsExclusiveAt?: Date | null;
+  /**
+   * Override explícito de ventana pública de carga.
+   * `undefined` = no forzar; `true`/`false` = abrir/cerrar.
+   */
+  publicUploadOpen?: boolean;
   /** Si true, el concurso no debe publicarse en producción sin revisión. */
   draftConfig: boolean;
   notes?: string;
 };
+
+/**
+ * Lee el flag `publicUploadOpen` del JSON de política.
+ * `null` = ausente (no fuerza); `true`/`false` = override explícito.
+ */
+export function isPublicUploadOpenFlag(raw: unknown): boolean | null {
+  if (!raw || typeof raw !== "object") return null;
+  const v = (raw as { publicUploadOpen?: unknown }).publicUploadOpen;
+  if (v === true) return true;
+  if (v === false) return false;
+  return null;
+}
 
 /** Defaults temporales Santa Fe en Foco — NO definitivos legales. */
 export const SANTA_FE_EN_FOCO_UPLOAD_POLICY_DRAFT: UploadPolicy = {
@@ -51,6 +71,8 @@ export function parseUploadPolicy(raw: unknown): UploadPolicy {
   }
   const o = raw as Partial<UploadPolicy>;
   const base = { ...SANTA_FE_EN_FOCO_UPLOAD_POLICY_DRAFT };
+  const startsRaw = (o as { captureWindowStartsAt?: unknown }).captureWindowStartsAt;
+  const endsRaw = (o as { captureWindowEndsExclusiveAt?: unknown }).captureWindowEndsExclusiveAt;
   return {
     ...base,
     ...o,
@@ -60,6 +82,12 @@ export function parseUploadPolicy(raw: unknown): UploadPolicy {
     allowedExtensions: Array.isArray(o.allowedExtensions)
       ? o.allowedExtensions.map((e) => String(e).toLowerCase().replace(/^\./, ""))
       : base.allowedExtensions,
+    captureWindowStartsAt: startsRaw ? new Date(String(startsRaw)) : (base.captureWindowStartsAt ?? null),
+    captureWindowEndsExclusiveAt: endsRaw
+      ? new Date(String(endsRaw))
+      : (base.captureWindowEndsExclusiveAt ?? null),
+    publicUploadOpen:
+      typeof o.publicUploadOpen === "boolean" ? o.publicUploadOpen : base.publicUploadOpen,
     draftConfig: o.draftConfig ?? base.draftConfig,
   };
 }

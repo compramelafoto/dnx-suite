@@ -16,8 +16,11 @@ export default async function ParticipantLayout({ children }: { children: React.
           <Link href="/" className="font-semibold tracking-tight text-fr-primary hover:text-gold">
             FotoRank
           </Link>
-          <div className="flex items-center gap-4 text-sm text-fr-muted">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-fr-muted">
             <span className="hidden sm:inline">{user.email}</span>
+            <Link href="/mi-actividad" className="hover:text-gold">
+              Mi actividad
+            </Link>
             <Link href="/participaciones" className="text-gold hover:text-gold-hover">
               Mis participaciones
             </Link>

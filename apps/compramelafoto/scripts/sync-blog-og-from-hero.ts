@@ -4,12 +4,15 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+
+import { CLF_CONTENT_PLATFORM } from "../lib/blog/content-platform";
 import { syncBlogPostImageFields } from "@/lib/blog/blog-post-images";
 
 const prisma = new PrismaClient();
 
 async function main() {
   const posts = await prisma.blogPost.findMany({
+    where: { platform: CLF_CONTENT_PLATFORM },
     select: { id: true, slug: true, heroImageUrl: true, ogImageUrl: true },
   });
 
@@ -19,8 +22,8 @@ async function main() {
     if (images.ogImageUrl === post.ogImageUrl && images.heroImageUrl === post.heroImageUrl) {
       continue;
     }
-    await prisma.blogPost.update({
-      where: { id: post.id },
+    await prisma.blogPost.updateMany({
+      where: { id: post.id, platform: CLF_CONTENT_PLATFORM },
       data: { ogImageUrl: images.ogImageUrl },
     });
     updated++;

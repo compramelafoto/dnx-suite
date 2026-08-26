@@ -214,10 +214,10 @@ export function compareRulesTextWithConfiguration(
   }
 
   // Jurado
-  if (mentions(t, [/m[aá]ximo\s+5|hasta\s+5\s+jur/i])) {
+  if (mentions(t, [/m[aá]ximo\s+12|hasta\s+doce|hasta\s+12\s+jur|hasta\s+12\s+\(/i])) {
     items.push({
       key: "jury_max",
-      status: config.jury.maxJudges === 5 ? "MATCH" : "CONFLICT",
+      status: config.jury.maxJudges === 12 ? "MATCH" : "CONFLICT",
       severity: "INFO",
       expected: String(config.jury.maxJudges),
     });

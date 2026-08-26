@@ -12,7 +12,14 @@ export type EntryErrorCode =
   | "WITHDRAW_NOT_ALLOWED"
   | "CONTEST_NOT_FOUND"
   | "ALREADY_CONFIRMED"
-  | "NOT_READY";
+  | "NOT_READY"
+  | "DEVICE_NOT_ELIGIBLE"
+  | "TERRITORY_REQUIRED"
+  | "ARGRA_REQUIRED"
+  | "INSTAGRAM_REQUIRED"
+  | "DECLARATIONS_REQUIRED"
+  | "FROZEN"
+  | "RULES_VERSION_MISMATCH";
 
 export class EntryError extends Error {
   readonly code: EntryErrorCode;

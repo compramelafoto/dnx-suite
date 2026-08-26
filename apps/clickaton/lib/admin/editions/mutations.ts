@@ -80,11 +80,13 @@ export async function updateEditionAction(
     const { evaluateEditionFinanceGate } = await import(
       "@/lib/admin/edition-finance/infrastructure/prisma-edition-finance"
     );
+    const { isClickatonDnxCheckoutEnabled } = await import(
+      "@repo/payments/clickaton-checkout"
+    );
     const gate = await evaluateEditionFinanceGate({
       editionId,
       mode: process.env.NODE_ENV === "production" ? "LIVE" : "TEST",
-      dnxPaymentsReady:
-        process.env.DNX_CLICKATON_DNX_PAYMENTS_CHECKOUT_ENABLED === "true",
+      dnxPaymentsReady: isClickatonDnxCheckoutEnabled(process.env),
       webhookConfigured: Boolean(
         process.env.CLICKATON_DNX_PAYMENTS_WEBHOOK_SECRET ||
           process.env.DNX_PAYMENTS_WEBHOOK_SECRET,

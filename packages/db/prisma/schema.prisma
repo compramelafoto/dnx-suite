@@ -119,6 +119,7 @@ model User {
   contactMessages                       ContactMessage[]                       @relation("ContactMessagePhotographer")
   dashboardNotifications                DashboardNotification[]
   fotofficePhotographerProfile          FotofficePhotographerProfile?
+  fotofficeInstitutionalMemberships     Member[]
   clickatonRegistrations                ClickatonRegistration[]                @relation("ClickatonRegistrationParticipant")
   clickatonCheckInsOperated             ClickatonCheckIn[]                     @relation("ClickatonCheckInOperator")
   clickatonCheckInsReversed             ClickatonCheckIn[]                     @relation("ClickatonCheckInReverser")
@@ -181,6 +182,9 @@ model User {
   schoolOrganizerInvitationsSent        SchoolOrganizerInvitation[]            @relation("SchoolOrganizerInvitationInvitedBy")
   removalRequestsDecided                RemovalRequest[]                       @relation("RemovalRequestDecider")
   removalRequests                       RemovalRequest[]
+  contentReportsReported                ContentReport[]                        @relation("ContentReportReportedUser")
+  contentReportsAssigned                ContentReport[]                        @relation("ContentReportAssignedAdmin")
+  contentReportEvents                   ContentReportEvent[]                   @relation("ContentReportEventActor")
   schoolOrganizerMemberships            SchoolOrganizer[]
   schools                               School[]                               @relation("SchoolOwner")
   schoolLeadsReferred                   SchoolLead[]                           @relation("SchoolLeadReferredBy")
@@ -261,13 +265,24 @@ model User {
   fotorankRulesVersionsCreated          FotorankContestRulesVersion[]          @relation("FrRulesVersionAuthor")
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
+  appAccessUnified                      WorkspaceAppAccess[]
   fotorankContestConfigurationVersions FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates        FotorankContestRulesTemplate[]
   fotorankContestRulesAuditEvents      FotorankContestRulesAuditEvent[]
+  fotorankPlatformAuditEvents          FotorankPlatformAuditEvent[]
   fotorankMinorAuthorizations          FotorankMinorAuthorization[]
   fotorankRulesReviewed                FotorankContestRulesVersion[] @relation("FrRulesReviewedBy")
   fotorankRulesApproved                FotorankContestRulesVersion[] @relation("FrRulesApprovedBy")
   fotorankRulesPublished               FotorankContestRulesVersion[] @relation("FrRulesPublishedBy")
+
+  clickatonPromptsAssignedFromLibrary   ClickatonPrompt[]                      @relation("ClickatonPromptLibraryAssigner")
+  photoPromptLibraryItemsCreated        PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemCreator")
+  photoPromptLibraryItemsReviewed       PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemReviewer")
+  photoPromptLibraryItemsApproved       PhotoPromptLibraryItem[]               @relation("PhotoPromptLibraryItemApprover")
+  photoPromptLibraryVersionsCreated     PhotoPromptLibraryVersion[]            @relation("PhotoPromptLibraryVersionCreator")
+  photoPromptLibraryAudits              PhotoPromptLibraryAuditEvent[]         @relation("PhotoPromptLibraryAuditActor")
+  fotorankSocialConnectionsConnected    FotorankSocialConnection[]             @relation("FrSocialConnectionConnectedBy")
+  websiteVersionsPublished              FotofficeWorkspaceWebsiteVersion[]
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -683,23 +698,28 @@ model BlogCategory {
   id          Int        @id @default(autoincrement())
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  platform    String
   name        String
-  slug        String     @unique
+  slug        String
   description String?
   sortOrder   Int        @default(0)
   isFeatured  Boolean    @default(false)
   posts       BlogPost[]
 
-  @@index([sortOrder])
+  @@unique([platform, slug])
+  @@index([platform, sortOrder])
 }
 
 /// *
 /// * Blog — tags transversales
 model BlogTag {
-  id    Int           @id @default(autoincrement())
-  name  String
-  slug  String        @unique
-  posts BlogPostTag[]
+  id       Int           @id @default(autoincrement())
+  platform String
+  name     String
+  slug     String
+  posts    BlogPostTag[]
+
+  @@unique([platform, slug])
 }
 
 /// *
@@ -708,8 +728,9 @@ model BlogAuthor {
   id        Int        @id @default(autoincrement())
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+  platform  String
   name      String
-  slug      String     @unique
+  slug      String
   bio       String?
   avatarUrl String?
   role      String?
@@ -718,7 +739,8 @@ model BlogAuthor {
   user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
   posts     BlogPost[]
 
-  @@index([isActive])
+  @@unique([platform, slug])
+  @@index([platform, isActive])
 }
 
 /// *
@@ -726,6 +748,7 @@ model BlogAuthor {
 model BlogMedia {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
+  platform  String
   title     String?
   altText   String?
   caption   String?
@@ -735,7 +758,7 @@ model BlogMedia {
   mimeType  String
   sizeBytes Int
 
-  @@index([createdAt])
+  @@index([platform, createdAt])
 }
 
 /// *
@@ -744,8 +767,9 @@ model BlogPost {
   id             Int            @id @default(autoincrement())
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  platform       String
   title          String
-  slug           String         @unique
+  slug           String
   excerpt        String?
   contentJson    Json
   contentHtml    String         @db.Text
@@ -771,10 +795,11 @@ model BlogPost {
   tags           BlogPostTag[]
   views          BlogPostView[]
 
-  @@index([status, publishedAt])
-  @@index([status, isFeatured])
-  @@index([categoryId])
-  @@index([type])
+  @@unique([platform, slug])
+  @@index([platform, status, publishedAt])
+  @@index([platform, status, isFeatured])
+  @@index([platform, categoryId])
+  @@index([platform, type])
 }
 
 /// *
@@ -2177,6 +2202,7 @@ model Album {
   termsVersion                    String?
   isPublic                        Boolean                        @default(true)
   allowClientLabSelection         Boolean                        @default(false)
+  scanProtectionEnabled           Boolean                        @default(true)
   expirationExtensionDays         Int                            @default(0)
   expiresAt                       DateTime                       @default(now())
   reactivatedAt                   DateTime?
@@ -2283,6 +2309,7 @@ model Album {
   organizerFeaturedGalleries      OrganizerFeaturedGallery[]
   redemptionSessions              RedemptionSession[]
   removalRequests                 RemovalRequest[]
+  contentReports                  ContentReport[]
   studentRosterImportBatches      StudentRosterImportBatch[]
   subjects                        Subject[]
   templates                       Template[]
@@ -3071,6 +3098,7 @@ model Photo {
   photoClaims              PhotoClaim[]
   photoFaces               PhotoFace[]
   removalRequests          RemovalRequest[]
+  contentReports           ContentReport[]
   albumPackSelectionPhotos AlbumPackSelectionPhoto[]
   selectionPhotos          SelectionPhoto[]
   exifMetadata             PhotoExifMetadata?
@@ -5669,6 +5697,73 @@ model PrivacyRequest {
   @@index([createdAt])
 }
 
+/// Denuncia pública de contenido (propiedad intelectual / infracción presunta).
+/// No equivale automáticamente a un procedimiento DMCA formal.
+/// [LEGAL_REVIEW] Redacción, plazos, conservación y consecuencias requieren abogado.
+model ContentReport {
+  id                       Int                      @id @default(autoincrement())
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  status                   ContentReportStatus      @default(RECEIVED)
+  priority                 ContentReportPriority    @default(NORMAL)
+  contentType              ContentReportContentType
+  contentUrl               String
+  photoId                  Int?
+  albumId                  Int?
+  reportedUserId           Int?
+  reporterName             String
+  reporterEmail            String
+  actingAs                 ContentReportActingAs
+  originalWorkDescription  String
+  claimDescription         String
+  evidenceLinks            String?
+  goodFaithDeclaration     Boolean                  @default(false)
+  truthfulnessDeclaration  Boolean                  @default(false)
+  dataProcessingAccepted   Boolean                  @default(false)
+  resolution               String?
+  internalNotes            String?
+  assignedAdminId          Int?
+  resolvedAt               DateTime?
+  /// IP minimizada (últimos octetos/hash truncado); no exponer públicamente.
+  reporterIpMinimized      String?
+  reporterUserAgent        String?
+  metadata                 Json?
+  album                    Album?                   @relation(fields: [albumId], references: [id])
+  photo                    Photo?                   @relation(fields: [photoId], references: [id])
+  reportedUser             User?                    @relation("ContentReportReportedUser", fields: [reportedUserId], references: [id])
+  assignedAdmin            User?                    @relation("ContentReportAssignedAdmin", fields: [assignedAdminId], references: [id])
+  events                   ContentReportEvent[]
+
+  @@index([status])
+  @@index([contentType])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([reportedUserId])
+  @@index([assignedAdminId])
+  @@index([photoId])
+  @@index([albumId])
+  @@index([reporterEmail])
+}
+
+model ContentReportEvent {
+  id         Int                  @id @default(autoincrement())
+  reportId   Int
+  createdAt  DateTime             @default(now())
+  actorId    Int?
+  actorRole  String?
+  action     String
+  fromStatus ContentReportStatus?
+  toStatus   ContentReportStatus?
+  reason     String?
+  metadata   Json?
+  report     ContentReport        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor      User?                @relation("ContentReportEventActor", fields: [actorId], references: [id])
+
+  @@index([reportId])
+  @@index([createdAt])
+  @@index([action])
+}
+
 /// Auditoría de eventos de privacidad (consentimientos facial, etc.)
 model PrivacyEvent {
   id        Int      @id @default(autoincrement())
@@ -6621,6 +6716,38 @@ enum PrivacyRequestStatus {
   REJECTED
 }
 
+/// Denuncias de contenido / propiedad intelectual (procedimiento interno de plataforma).
+/// TEXTOS Y ALCANCE LEGAL: pendientes de revisión por abogado argentino especializado.
+enum ContentReportStatus {
+  RECEIVED
+  UNDER_REVIEW
+  NEEDS_INFORMATION
+  CONTENT_TEMPORARILY_HIDDEN
+  REJECTED
+  RESTORED
+  REMOVED
+  CLOSED
+}
+
+enum ContentReportContentType {
+  PHOTO
+  ALBUM
+  OTHER_URL
+}
+
+enum ContentReportPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ContentReportActingAs {
+  COPYRIGHT_OWNER
+  AUTHORIZED_AGENT
+  OTHER_INTERESTED_PARTY
+}
+
 enum CommunityProfileType {
   PHOTOGRAPHER_SERVICE
   EVENT_VENDOR
@@ -6691,6 +6818,7 @@ model Workspace {
   courseSalesTeachers         CourseSalesTeacher[]
   courseSalesSettings         CourseSalesWorkspaceSettings?
   fotofficeBranding           FotofficeWorkspaceBranding?
+  fotofficeWebsite            FotofficeWorkspaceWebsite?
   fotorankJudgeAccounts       FotorankJudgeAccount[]
   memberships                 Membership[]
   serviceLeadForms            ServiceLeadForm[]
@@ -6699,6 +6827,9 @@ model Workspace {
   students                    Student[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
+  appAccessUnified            WorkspaceAppAccess[]
+  institutionalMembers        Member[]
+  memberCategories            MemberCategory[]
 }
 
 model WorkspaceFeatureModule {
@@ -6723,6 +6854,8 @@ model FotofficeWorkspaceBranding {
   commercialName        String
   logoUrl               String?
   coverImageUrl         String?
+  /// Identidad general del workspace, no específico del Website — mismo criterio que logoUrl.
+  faviconUrl            String?
   primaryColor          String?
   secondaryColor        String?
   backgroundColor       String?
@@ -6746,6 +6879,73 @@ model FotofficeWorkspaceBranding {
   workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
+/// Configuración del sitio público del módulo "website" (Sitio web). Los datos de identidad
+/// (nombre, logo, colores, contacto) siguen viviendo en `FotofficeWorkspaceBranding` — este
+/// modelo es el BORRADOR editable del sitio (hero, SEO, navegación, bloques). Nunca es lo que
+/// ve el público directamente: lo público es `publishedVersion` (ver
+/// `FotofficeWorkspaceWebsiteVersion`). 1:1 con Workspace, igual que `FotofficeWorkspaceBranding`.
+model FotofficeWorkspaceWebsite {
+  id             String    @id @default(cuid())
+  workspaceId    String    @unique
+  /// Mantenido en sync con publishedVersion.publishedAt (null en ambos = sin versión pública
+  /// activa). publishedVersionId es la fuente de verdad; este campo es una conveniencia de
+  /// lectura rápida sin join.
+  publishedAt    DateTime?
+  /// Versión actualmente pública. null = nunca publicado o despublicado — el historial
+  /// completo de versiones NO se borra al despublicar, ver `versions`.
+  publishedVersionId String? @unique
+  heroTitle      String?
+  heroSubtitle   String?
+  seoTitle       String?
+  seoDescription String?
+  /// Items de navegación pública. Sin renderer todavía — ver `lib/website/blocks.ts`.
+  navJson        Json?
+  /// Bloques de portada (tipo/orden/visibilidad). Sin renderer todavía — ver `lib/website/blocks.ts`.
+  sectionsJson   Json?
+  /// Header/tipografía/botones/animación del sitio (ver `lib/website/design-presets.ts`).
+  /// null = defaults. Colores/logo NO están acá — siguen viviendo en FotofficeWorkspaceBranding
+  /// y se leen en vivo, decisión de producto ya tomada, sin cambiar en esta etapa.
+  designPresetsJson Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  workspace        Workspace                         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  publishedVersion FotofficeWorkspaceWebsiteVersion?  @relation("WebsitePublishedVersion", fields: [publishedVersionId], references: [id])
+  versions         FotofficeWorkspaceWebsiteVersion[] @relation("WebsiteVersionHistory")
+}
+
+/// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo
+/// contiene contenido del propio sitio (mismo shape que el borrador); NO copia branding general
+/// (nombre/logo/colores/contacto siguen viviendo solo en FotofficeWorkspaceBranding, se leen en
+/// vivo al momento del render, no se congelan por versión) ni ningún dato de otro módulo —
+/// bloques dinámicos (futuro) resuelven sus datos en el momento del render, nunca se copian acá.
+model FotofficeWorkspaceWebsiteVersion {
+  id                String   @id @default(cuid())
+  websiteId         String
+  versionNumber     Int
+  heroTitle         String?
+  heroSubtitle      String?
+  seoTitle          String?
+  seoDescription    String?
+  navJson           Json?
+  sectionsJson      Json?
+  /// Congelado al momento de publicar — una versión conserva EXACTAMENTE el diseño que tenía
+  /// cuando se publicó, aunque el draft (`FotofficeWorkspaceWebsite.designPresetsJson`) siga
+  /// cambiando después. Nunca se reescribe una vez creada la fila.
+  designPresetsJson Json?
+  /// Quién ejecutó la publicación. FK interna para auditoría/historial — el User completo
+  /// NUNCA es parte de lo que se expone al sitio público.
+  publishedByUserId Int?
+  publishedAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  website     FotofficeWorkspaceWebsite @relation("WebsiteVersionHistory", fields: [websiteId], references: [id], onDelete: Cascade)
+  publishedBy User?                     @relation(fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  currentFor  FotofficeWorkspaceWebsite? @relation("WebsitePublishedVersion")
+
+  @@unique([websiteId, versionNumber])
+  @@index([websiteId, publishedAt])
+}
+
 /// Perfil profesional del fotógrafo (identidad de persona ≠ branding del negocio).
 model FotofficePhotographerProfile {
   id          String   @id @default(cuid())
@@ -6758,6 +6958,108 @@ model FotofficePhotographerProfile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Estado societario. Deliberadamente NO incluye estados de deuda
+/// (el histórico de mayo/2026 tenía OVERDUE/CANCELLED acá, mezclando
+/// "es socio" con "debe dinero" — eso se resuelve en el futuro módulo
+/// `membership-dues`, no acá). Un socio puede estar ACTIVE y tener
+/// cargos vencidos al mismo tiempo.
+/// Sin PENDING a propósito: no existe todavía ningún flujo de
+/// autoregistro/aprobación que lo necesite. Agregarlo después es un
+/// `ALTER TYPE ... ADD VALUE` aditivo y seguro — no hay que anticiparlo.
+enum MemberStatus {
+  ACTIVE
+  SUSPENDED
+  /// Ya no es socio (baja). Se conserva el registro; ver `leftAt`.
+  INACTIVE
+}
+
+/// Categoría de socio, definida libremente por cada Workspace
+/// (ej. "Activo", "Estudiante", "Honorario" en una asociación — pero
+/// el modelo no conoce esos nombres, los define cada institución).
+/// A propósito NO tiene precio/cuota/plantilla de carnet: eso acopla
+/// Members con el futuro módulo de cuotas/credenciales. Tampoco tiene
+/// `metadata` genérica: sin un caso de uso concreto hoy, se prefiere
+/// schema explícito — agregar un campo real es una migración aditiva
+/// simple cuando haga falta.
+model MemberCategory {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  /// Orden de presentación dentro del Workspace (ascendente).
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members   Member[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive])
+  @@index([workspaceId, order])
+}
+
+/// Socio/miembro institucional de un Workspace. Independiente de `User`:
+/// una institución puede tener 300 Member sin que exista una sola cuenta
+/// de FotoOffice — `userId` es un vínculo opcional para cuando (y si) ese
+/// socio decide usar un portal propio. Sin cuotas, pagos ni carnet acá
+/// a propósito (ver justificación de la etapa de dominio base).
+model Member {
+  id          String    @id @default(cuid())
+  workspaceId String
+  /// Número de socio. Único DENTRO del workspace, no globalmente:
+  /// "socio 124 de SFPR" y "socio 124 de otra institución" no colisionan.
+  memberNumber String
+  categoryId   String?
+  firstName    String
+  lastName     String
+  /// DNI/CUIT/pasaporte — el tipo lo define cada institución, no un enum cerrado.
+  documentType String?
+  /// NO único globalmente: dos Workspaces pueden tener socios con el mismo documento.
+  documentNumber String?
+  email          String?
+  phone          String?
+  /// Convención del monorepo para foto de persona (FotofficePhotographerProfile,
+  /// FotorankProfile, FotorankJudgeProfile, BlogAuthor usan el mismo nombre).
+  /// Solo la URL — el upload/storage se resuelve en la etapa de UI, no acá.
+  avatarUrl      String?
+  birthDate      DateTime?
+  address        String?
+  city           String?
+  province       String?
+  postalCode     String?
+  joinedAt       DateTime  @default(now())
+  /// Fecha de baja. Se completa junto con status = INACTIVE; no se borra el registro.
+  leftAt    DateTime?
+  status    MemberStatus @default(ACTIVE)
+  notes     String?
+  /// Vínculo opcional a una cuenta DNX. Un mismo User puede ser Member de
+  /// varios Workspaces distintos (persona socia de dos instituciones),
+  /// pero no puede ser Member dos veces DEL MISMO Workspace — ver
+  /// @@unique([workspaceId, userId]) abajo.
+  userId    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category  MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  /// SetNull, no Cascade: si se borra el User, el registro de socio persiste (era socio antes que usuario).
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, memberNumber])
+  @@unique([workspaceId, email])
+  @@unique([workspaceId, userId])
+  /// Evita duplicar por error el mismo documento dentro de un workspace,
+  /// sin asumir que documentNumber identifica a una persona por sí solo
+  /// (un DNI y un pasaporte pueden coincidir en número por casualidad).
+  @@unique([workspaceId, documentType, documentNumber])
+  @@index([workspaceId, status])
+  @@index([workspaceId, categoryId])
+  @@index([workspaceId, documentNumber])
+  @@index([workspaceId, lastName, firstName])
 }
 
 model CourseSalesWorkspaceSettings {
@@ -7167,6 +7469,45 @@ model WorkspaceMembership {
   @@index([userId])
 }
 
+/// Acceso por app dentro de un workspace (con rol específico opcional por app).
+/// Reincorporado: existe en la DB real (14 filas) y lo usa @repo/auth (sessions.ts,
+/// identity.ts) como fallback de resolución de sesión; se había perdido de schema.prisma
+/// por un commit no relacionado (f9ae2bae), sin que la tabla ni su uso dejaran de existir.
+model WorkspaceAppAccess {
+  id          String        @id @default(cuid())
+  userId      Int
+  workspaceId String
+  app         SuiteApp
+  enabled     Boolean       @default(true)
+  appRole     SuiteAppRole?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId, app])
+  @@index([workspaceId, app, enabled])
+  @@index([userId, app])
+}
+
+enum SuiteApp {
+  FOTOFFICE
+  COMPRAMELAFOTO
+  FOTORANK
+}
+
+enum SuiteAppRole {
+  PHOTOGRAPHER
+  LAB
+  CUSTOMER
+  ORGANIZER_ADMIN
+  JURY
+  PARTICIPANT
+  CRM_ADMIN
+  COURSE_MANAGER
+  SALES_ADMIN
+}
+
 model FotorankProfile {
   id          String   @id @default(cuid())
   userId      Int      @unique
@@ -7212,6 +7553,8 @@ model ContestOrganization {
   judgeInvitations             FotorankJudgeInvitation[]
   judgeOrganizationMemberships FotorankJudgeOrganizationMembership[]
 
+  /// ETAPA 17B — conexiones sociales por organización (Instagram, etc.).
+  socialConnections            FotorankSocialConnection[]
   @@index([slug])
   @@index([createdByUserId])
 }
@@ -7304,6 +7647,17 @@ model FotorankContest {
   admissionBatches              FotorankAdmissionBatch[]
   juryEntrySnapshots            FotorankJuryEntrySnapshot[]
 
+  /// Configuración visual de la landing pública (colores, banner override, layout).
+  publicPageVisualJson          Json?
+  /// ETAPA 16A — configuración de jurado competitivo (genérica; reutiliza motor FotorankJury*).
+  juryConfig                     FotorankCompetitionJuryConfig?
+  competitiveEligibilityFreezes  FotorankCompetitiveEligibilityFreeze[]
+  juryActivityHeartbeats         FotorankJuryActivityHeartbeat[]
+  /// ETAPA 16B — finalistas (§8 master rules) y paquete de confirmación previo a voto público.
+  finalistSnapshots              FotorankFinalistSnapshot[]
+  finalistPackages               FotorankFinalistPackage[]
+  /// ETAPA 17A — motor genérico de votación pública (provider-agnostic; TestProvider only).
+  publicVoteRounds               FotorankPublicVoteRound[]
   @@unique([organizationId, slug])
   @@index([organizationId])
   @@index([status])
@@ -7463,6 +7817,8 @@ model FotorankContestRegistration {
   licenseAcceptedAt                                                        DateTime?
   promotionalOptIn                                                         Boolean                  @default(false)
   declaredAgeYears                                                         Int?
+  /// Respuestas estructuradas de inscripción (p.ej. ARGRA). No exponer en APIs públicas.
+  answersJson                                                              Json?
 
   configurationVersion FotorankContestConfigurationVersion? @relation(fields: [configurationVersionId], references: [id], onDelete: SetNull)
   minorAuthorizations  FotorankMinorAuthorization[]
@@ -7661,6 +8017,7 @@ model FotorankJudgeAccount {
   voteHistoryChanges           FotorankJudgeVoteHistory[]            @relation("FrVoteHistoryActorJudge")
   entryConflicts               FotorankJudgeEntryConflict[]
 
+  juryActivityHeartbeats FotorankJuryActivityHeartbeat[]
   @@index([workspaceId])
   @@index([accountStatus])
   juryEvaluations FotorankJuryEvaluation[]
@@ -7892,6 +8249,8 @@ model FotorankContestEntry {
   judgeConflicts         FotorankJudgeEntryConflict[]
   jurySnapshots          FotorankJuryEntrySnapshot[]
 
+  /// ETAPA 16B — finalistas (§8 master rules).
+  finalistSnapshots      FotorankFinalistSnapshot[]
   @@unique([contestId, entryNumber])
   @@unique([contestId, externalRegistrationId, externalPromptId])
   @@unique([contestId, anonymousJuryCode])
@@ -8272,6 +8631,7 @@ model FotorankAdmissionBatch {
   entries   FotorankContestEntry[]
   snapshots FotorankJuryEntrySnapshot[]
 
+  competitiveEligibilityFreezes FotorankCompetitiveEligibilityFreeze[]
   @@index([contestId, status])
   @@index([editionId])
   juryRubrics         FotorankJuryRubric[]
@@ -8309,6 +8669,8 @@ model FotorankJuryEntrySnapshot {
   entry   FotorankContestEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
   batch   FotorankAdmissionBatch @relation(fields: [admissionBatchId], references: [id], onDelete: Cascade)
 
+  /// ETAPA 16B — finalistas (§8 master rules).
+  finalistSnapshots FotorankFinalistSnapshot[]
   @@unique([admissionBatchId, entryId])
   @@unique([admissionBatchId, anonymousCode])
   @@index([contestId, admissionBatchId])
@@ -8551,12 +8913,15 @@ enum ServiceLeadStatus {
   LOST
 }
 
-enum MemberStatus {
-  ACTIVE
-  OVERDUE
-  SUSPENDED
-  CANCELLED
-}
+/// NOTA (etapa dominio base Members, ver `enum MemberStatus` arriba en el
+/// archivo): el `MemberStatus` histórico que vivía acá (ACTIVE/OVERDUE/
+/// SUSPENDED/CANCELLED) fue reemplazado — mezclaba estado societario con
+/// estado de deuda. La reconciliación del tipo Postgres físico
+/// `"MemberStatus"` (y del resto del dominio Member/MemberCategory) ya fue
+/// aplicada manualmente en staging, validada, y registrada en el historial
+/// de Prisma vía `migrate resolve --applied`. El SQL ejecutado queda
+/// documentado como historial reproducible en
+/// `prisma/migrations/20260815120000_reconcile_member_domain_base/`.
 
 enum MembershipFeeStatus {
   PENDING
@@ -9836,6 +10201,8 @@ model ClickatonEdition {
   photographerRoyalties    ClickatonPhotographerRoyaltyLedger[]
   homeBanners              ClickatonHomeBanner[]
 
+  /// Edición ops/fixture: nunca comercial. Cleanup solo permitido si true.
+  isOpsFixture             Boolean                           @default(false)
   @@index([status])
   @@index([isPublished])
   @@index([registrationEnabled])
@@ -10163,6 +10530,8 @@ model ClickatonTicketTypeItem {
 model ClickatonRegistration {
   id                                 String                               @id @default(cuid())
   editionId                          String
+  /// Marker de inscripción de Modo Test (nunca comercial).
+  isOpsTest                          Boolean                              @default(false)
   venueId                            String?
   /// Nullable hasta pago aprobado / confirmación free: guest no crea User DNX en reserva.
   userId                             Int?
@@ -10202,6 +10571,12 @@ model ClickatonRegistration {
   confirmedAt                        DateTime?
   cancelledAt                        DateTime?
   refundedAt                         DateTime?
+  /// Importe acumulado reembolsado en minor units (espejo financiero; no borra totalAmount).
+  refundedAmountMinor                Int?
+  /// Soft ref al payment id de Mercado Pago (Checkout Pro / Payments API).
+  providerPaymentId                  String?
+  /// Último refund id de Mercado Pago observado (idempotencia / auditoría).
+  lastProviderRefundId               String?
   /// Soft refs a DNX Payments (sin FK rígida; Orders evolucionan aparte).
   paymentOrderId                     String?
   paymentProvider                    String?
@@ -10285,6 +10660,7 @@ model ClickatonRegistration {
   @@unique([editionId, sequenceNumber])
   @@index([editionId, status])
   @@index([editionId, paymentStatus])
+  @@index([editionId, isOpsTest])
   @@index([userId])
   @@index([email])
   @@index([venueId])
@@ -10292,6 +10668,7 @@ model ClickatonRegistration {
   @@index([holdExpiresAt])
   @@index([paymentOrderId])
   @@index([paymentIdempotencyKey])
+  @@index([providerPaymentId])
   @@index([financialAgreementId])
   @@index([financialDistributionVersionId])
   @@index([fotoRankSyncStatus])
@@ -10449,6 +10826,16 @@ model ClickatonPrompt {
   captureClockToleranceMinutes Int?
   gpsMode            ClickatonPromptGpsMode     @default(OPTIONAL)
   deviceCategoryHint String?
+  /// ETAPA 13 — vínculo opcional a Biblioteca central + snapshot inmutable.
+  libraryItemId      String?
+  libraryVersion     Int?
+  titleSnapshot      String?
+  descriptionSnapshot String?
+  themeSnapshot      String?
+  subthemeSnapshot   String?
+  inspirationSnapshot Json?
+  assignedFromLibraryAt DateTime?
+  assignedFromLibraryByUserId Int?
   createdByUserId    Int?
   releasedAt         DateTime?
   releasedByUserId   Int?
@@ -10457,13 +10844,17 @@ model ClickatonPrompt {
 
   edition       ClickatonEdition       @relation(fields: [editionId], references: [id], onDelete: Cascade)
   timelineEvent ClickatonTimelineEvent? @relation(fields: [timelineEventId], references: [id], onDelete: SetNull)
+  libraryItem   PhotoPromptLibraryItem? @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
   createdBy     User?                  @relation("ClickatonPromptCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   releasedBy    User?                  @relation("ClickatonPromptReleaser", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+  assignedFromLibraryBy User?          @relation("ClickatonPromptLibraryAssigner", fields: [assignedFromLibraryByUserId], references: [id], onDelete: SetNull)
   photoSubmissions ClickatonPhotoSubmission[]
 
   @@unique([editionId, sequence])
   @@index([editionId, status])
   @@index([timelineEventId])
+  @@index([libraryItemId])
+  @@index([editionId, libraryItemId])
 }
 
 enum ClickatonPromptGpsMode {
@@ -10478,6 +10869,20 @@ model ClickatonEditionUploadConfig {
   id                           String   @id @default(cuid())
   editionId                    String   @unique
   uploadsEnabled               Boolean  @default(false)
+  /// SoT assets FotoRank: requiere además env CLICKATON_FOTORANK_CANONICAL_ASSETS=1.
+  /// Default false → edición comercial intacta.
+  canonicalAssetsEnabled       Boolean  @default(false)
+  /// ETAPA 12 — SoT temporal de maratón (reveal global + ventanas independientes).
+  /// Si globalPromptReveal=true, TODAS las consignas se revelan juntas en eventRevealAt.
+  globalPromptReveal           Boolean  @default(true)
+  eventRevealAt                DateTime?
+  /// Horario válido para TOMAR fotografías [start, end).
+  captureWindowStartsAt        DateTime?
+  captureWindowEndsAt          DateTime?
+  /// Horario válido para SUBIR fotografías [start, end). Independiente de captura.
+  uploadWindowStartsAt         DateTime?
+  uploadWindowEndsAt           DateTime?
+  allowReplacement             Boolean  @default(true)
   allowedMimeTypes             Json     @default("[\"image/jpeg\",\"image/png\",\"image/webp\"]")
   maxFileSizeBytes             Int      @default(26214400)
   minWidth                     Int      @default(800)
@@ -11815,6 +12220,7 @@ enum FotorankConfigVersionStatus {
 enum FotorankJuryEvaluationStatus {
   NOT_STARTED
   IN_PROGRESS
+  POSTPONED
   SUBMITTED
   LOCKED
   VOIDED
@@ -11980,6 +12386,52 @@ model FotorankContestRulesAuditEvent {
   @@index([rulesVersionId, createdAt])
 }
 
+/// Auditoría de acciones de plataforma / Super Admin (sin alterar membresías).
+model FotorankPlatformAuditEvent {
+  id               String   @id @default(cuid())
+  actorUserId      Int
+  action           String
+  organizationId   String?
+  contestId        String?
+  ip               String?
+  userAgent        String?
+  metadataJson     Json?
+  createdAt        DateTime @default(now())
+  actorUser        User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([actorUserId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([contestId, createdAt])
+  @@index([action, createdAt])
+}
+
+/// Outbox transaccional FotoRank (ETAPA 10C) — idempotencia por clave única.
+/// status: CREATED | QUEUED | PROCESSING | SENT | FAILED | RETRYABLE | DEAD
+model FotorankTransactionalEmailOutbox {
+  id                String    @id @default(cuid())
+  idempotencyKey    String    @unique
+  kind              String
+  status            String    @default("CREATED")
+  contestId         String?
+  entryId           String?
+  registrationId    String?
+  toUserId          Int?
+  provider          String?
+  providerMessageId String?
+  attemptCount      Int       @default(0)
+  lastError         String?
+  payloadJson       Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  queuedAt          DateTime?
+  sentAt            DateTime?
+  failedAt          DateTime?
+
+  @@index([entryId, kind])
+  @@index([status, createdAt])
+  @@index([contestId, createdAt])
+}
+
 model FotorankContestRulesTemplate {
   id                String   @id @default(cuid())
   name              String
@@ -12064,6 +12516,12 @@ model FotorankJuryEvaluation {
   expectedVersion            Int                          @default(0)
   engineVersion              String                       @default("clickaton-jury-scoring-v1")
   criteriaSnapshot           Json?
+  /// ETAPA 16A — postergar evaluación ("revisar después").
+  postponedAt                DateTime?
+  /// ETAPA 16A — confirmación de bloque/consigna (grilla final antes de LOCKED).
+  confirmedBlockAt           DateTime?
+  /// ETAPA 16A — tiempo activo acumulado (segundos) para ETA de jurado.
+  activeSecondsAccumulated   Int                          @default(0)
   createdAt                  DateTime                     @default(now())
   updatedAt                  DateTime @updatedAt
 
@@ -12167,6 +12625,16 @@ model FotorankJuryScoringSession {
   evaluations FotorankJuryEvaluation[]
   aggregates FotorankJuryPreliminaryAggregate[]
   resultBatches FotorankResultBatch[]
+  /// ETAPA 16A — recomendación de carga (no bloqueante); default 500 fotos evaluadas/jurado.
+  recommendedMaxEntriesPerJudge    Int                                @default(500)
+  /// ETAPA 16A — Clickatón exige enteros; otros concursos pueden habilitar decimales.
+  scoreIntegerOnly                 Boolean                            @default(true)
+  scoreScaleMin                    Int                                @default(1)
+  scoreScaleMax                    Int                                @default(10)
+  activityHeartbeats FotorankJuryActivityHeartbeat[]
+  /// ETAPA 16B — finalistas (§8 master rules) y paquete de confirmación previo a voto público.
+  finalistSnapshots FotorankFinalistSnapshot[]
+  finalistPackages FotorankFinalistPackage[]
   @@index([admissionBatchId, status])
   @@index([contestId, status])
   @@index([rubricId])
@@ -12228,6 +12696,8 @@ model FotorankResultBatch {
   tieBreakSessions FotorankTieBreakSession[]
   revisions        FotorankResultRevision[]
 
+  /// ETAPA 16B — finalistas empaquetados desde este batch (§8 master rules).
+  finalistSnapshots FotorankFinalistSnapshot[]
   @@index([contestId, status])
   @@index([ruleSetId])
   @@index([scoringSessionId, status])
@@ -12663,6 +13133,28 @@ enum DnxPartnerParticipationType {
   OTHER
 }
 
+/// Rol institucional de la participación (no es global en DnxPartner).
+/// Independiente del aporte (contribution type) y del tipo legacy participationType.
+enum DnxPartnerInstitutionalRole {
+  ORGANIZER
+  CO_ORGANIZER
+  INSTITUTIONAL_SPONSOR
+  MAIN_SPONSOR
+  SPONSOR
+  COLLABORATOR
+  STRATEGIC_PARTNER
+  MEDIA_PARTNER
+  SUPPLIER
+}
+
+/// Jerarquía visual / agrupación de presentación.
+enum DnxPartnerDisplayTier {
+  INSTITUTIONAL
+  MAIN
+  STANDARD
+  SUPPORTING
+}
+
 enum DnxPartnerParticipationStatus {
   DRAFT
   PROPOSED
@@ -12764,6 +13256,22 @@ enum DnxPartnerCapability {
   PARTNER_PAYMENTS_VIEW
   PARTNER_PAYMENTS_MANAGE
   PARTNER_CONTACT_SENSITIVE
+  PARTNER_ASSETS_VIEW
+  PARTNER_ASSETS_UPLOAD
+  PARTNER_ASSETS_UPDATE
+  PARTNER_ASSETS_ARCHIVE
+  PARTNER_ASSETS_APPROVE
+  PARTNER_ASSETS_MANAGE_BRAND
+  PARTNER_ASSETS_MANAGE_PARTICIPATION
+  PARTNER_BENEFITS_VIEW_ELIGIBILITY
+  PARTNER_BENEFITS_SYNC_ACCESS
+  PARTNER_BENEFITS_REVOKE
+  PARTNER_BENEFITS_VIEW_ACCESS
+  PARTNER_BENEFITS_VIEW_SYNC_EVENTS
+  PARTNER_BENEFITS_PROCESS_SYNC_EVENTS
+  PARTNER_BENEFITS_RETRY_SYNC_EVENTS
+  PARTNER_BENEFITS_DISCARD_SYNC_EVENTS
+  PARTNER_BENEFITS_ENABLE_AUTO_SYNC
 }
 
 enum DnxPartnerGrantStatus {
@@ -12783,9 +13291,16 @@ model DnxPartner {
   logoUrl         String?
   websiteUrl      String?
   instagram       String?
+  facebookUrl     String?
+  linkedinUrl     String?
   email           String?
   phone           String?
   taxId           String?
+  address         String?
+  city            String?
+  provinceOrState String?
+  country         String?
+  postalCode      String?
   notes           String?
   /// Soft-link opcional a identidad financiera (nunca obligatorio).
   financialIdentityId String?
@@ -12795,10 +13310,16 @@ model DnxPartner {
   updatedAt       DateTime        @updatedAt
   archivedAt      DateTime?
 
-  contacts        DnxPartnerContact[]
-  participations  DnxPartnerParticipation[]
-  benefits        DnxPartnerBenefit[]
-  auditEvents     DnxPartnerAuditEvent[]
+  contacts               DnxPartnerContact[]
+  participations         DnxPartnerParticipation[]
+  benefits               DnxPartnerBenefit[]
+  auditEvents            DnxPartnerAuditEvent[]
+  outboundLinks          DnxPartnerOutboundLink[]
+  clickEvents            DnxPartnerClickEvent[]
+  impressionEvents       DnxPartnerImpressionEvent[]
+  brandAssets            DnxPartnerAsset[]
+  onboardingInvitations  DnxPartnerOnboardingInvitation[]
+  campaigns              DnxPartnerCampaign[]
 
   @@index([status, updatedAt])
   @@index([type, status])
@@ -12806,23 +13327,73 @@ model DnxPartner {
 }
 
 model DnxPartnerContact {
-  id          String   @id @default(cuid())
-  partnerId   String
-  firstName   String
-  lastName    String?
-  roleTitle   String?
-  email       String?
-  phone       String?
-  whatsapp    String?
-  isPrimary   Boolean  @default(false)
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  archivedAt  DateTime?
+  id            String   @id @default(cuid())
+  partnerId     String
+  firstName     String
+  lastName      String?
+  roleTitle     String?
+  email         String?
+  phone         String?
+  whatsapp      String?
+  /// Default false: contacto privado salvo opt-in explícito.
+  emailIsPublic Boolean  @default(false)
+  phoneIsPublic Boolean  @default(false)
+  isPrimary     Boolean  @default(false)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  archivedAt    DateTime?
 
   partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([partnerId, isPrimary])
+}
+
+enum DnxPartnerOnboardingInvitationStatus {
+  PENDING
+  OPENED
+  SUBMITTED
+  EXPIRED
+  REVOKED
+}
+
+enum DnxPartnerOnboardingReviewStatus {
+  NONE
+  PENDING_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+}
+
+/// Invitación pública con token hasheado (nunca plaintext) para completar ficha.
+model DnxPartnerOnboardingInvitation {
+  id               String                              @id @default(cuid())
+  partnerId        String
+  participationId  String?
+  /// SHA-256 del token público. El plaintext solo se muestra una vez al crear.
+  tokenHash        String                              @unique
+  status           DnxPartnerOnboardingInvitationStatus @default(PENDING)
+  reviewStatus     DnxPartnerOnboardingReviewStatus     @default(NONE)
+  expiresAt        DateTime
+  openedAt         DateTime?
+  submittedAt      DateTime?
+  revokedAt        DateTime?
+  reviewNotes      String?
+  draftJson        Json?
+  submissionJson   Json?
+  createdByUserId  Int?
+  reviewedByUserId Int?
+  reviewedAt       DateTime?
+  createdAt        DateTime                            @default(now())
+  updatedAt        DateTime                            @updatedAt
+
+  partner       DnxPartner              @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  participation DnxPartnerParticipation? @relation(fields: [participationId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId, status])
+  @@index([participationId])
+  @@index([expiresAt])
+  @@index([reviewStatus])
 }
 
 model DnxPartnerParticipation {
@@ -12834,6 +13405,20 @@ model DnxPartnerParticipation {
   contextType        DnxPartnerContextType          @default(GLOBAL)
   contextId          String?
   participationType  DnxPartnerParticipationType    @default(SPONSOR)
+  /// Rol institucional contextual (Organizador, Sponsor, Colaborador, …).
+  institutionalRole  DnxPartnerInstitutionalRole    @default(SPONSOR)
+  /// Jerarquía visual (tamaño/grupo), independiente del rol.
+  displayTier        DnxPartnerDisplayTier          @default(STANDARD)
+  /// Orden manual dentro del grupo (menor = primero).
+  displayOrder       Int                            @default(100)
+  /// Label público opcional (sin HTML). Fallback al label del enum.
+  publicRoleLabel    String?                        @db.VarChar(120)
+  /// Destino de click de esta participación (prioridad sobre partner.websiteUrl).
+  destinationUrl     String?
+  /// Si true y hay destino válido, se genera/usa outbound link trackeable.
+  clickTrackingEnabled Boolean                      @default(true)
+  /// Gate de landing: CONFIRMED + PUBLIC (+ logo cuando aplique). Default HIDDEN.
+  publicVisibility   DnxPartnerPublicVisibility     @default(HIDDEN)
   title              String?
   description        String?
   status             DnxPartnerParticipationStatus  @default(DRAFT)
@@ -12854,14 +13439,360 @@ model DnxPartnerParticipation {
   updatedAt          DateTime                       @updatedAt
   archivedAt         DateTime?
 
-  partner       DnxPartner                 @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-  contributions DnxPartnerContribution[]
-  benefits      DnxPartnerBenefit[]
+  partner                DnxPartner                         @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  contributions          DnxPartnerContribution[]
+  benefits               DnxPartnerBenefit[]
+  outboundLinks          DnxPartnerOutboundLink[]
+  materials              DnxPartnerParticipationAsset[]
+  onboardingInvitations  DnxPartnerOnboardingInvitation[]
+  campaigns              DnxPartnerCampaign[]
 
   @@index([partnerId, status])
   @@index([application, status])
   @@index([contextType, contextId])
   @@index([organizationId])
+  @@index([publicVisibility])
+  @@index([application, contextType, contextId, publicVisibility, status])
+  @@index([application, contextType, contextId, institutionalRole, displayOrder], map: "DnxPartnerParticipation_context_role_order_idx")
+}
+
+enum DnxPartnerPublicVisibility {
+  HIDDEN
+  PUBLIC
+}
+
+enum DnxPartnerBrandAssetType {
+  LOGO_GENERAL
+  LOGO_PRIMARY
+  LOGO_HORIZONTAL
+  LOGO_VERTICAL
+  LOGO_LIGHT
+  LOGO_DARK
+  LOGO_MONOCHROME
+  ISOTYPE
+  ICON
+  BRAND_GUIDELINES
+  BRAND_PHOTO
+  DOCUMENT
+  OTHER
+}
+
+enum DnxPartnerAssetBackground {
+  TRANSPARENT
+  LIGHT
+  DARK
+  COLOR
+  UNKNOWN
+}
+
+enum DnxPartnerAssetStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum DnxPartnerAssetApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum DnxPartnerMaterialChannel {
+  WEB
+  MOBILE
+  INSTAGRAM_POST
+  INSTAGRAM_STORY
+  INSTAGRAM_REEL
+  FACEBOOK_POST
+  FACEBOOK_STORY
+  LINKEDIN_POST
+  EMAIL
+  NEWSLETTER
+  PUSH_NOTIFICATION
+  DIGITAL_SCREEN
+  PRINT
+  CREDENTIAL
+  EVENT_SIGNAGE
+  STORE
+  OTHER
+}
+
+enum DnxPartnerMaterialType {
+  LOGO
+  IMAGE
+  VIDEO
+  BANNER
+  COVER
+  THUMBNAIL
+  POST
+  STORY
+  REEL
+  FLYER
+  COUPON
+  VOUCHER
+  PRODUCT_IMAGE
+  PRIZE_IMAGE
+  BENEFIT_IMAGE
+  DOCUMENT
+  AUDIO
+  OTHER
+}
+
+enum DnxPartnerMaterialPurpose {
+  BRANDING
+  SPONSOR_VISIBILITY
+  BENEFIT_PROMOTION
+  PRIZE_PROMOTION
+  EVENT_PROMOTION
+  SOCIAL_PUBLICATION
+  EMAIL_CONTENT
+  WEBSITE_CONTENT
+  PRINT_CONTENT
+  INTERNAL_REFERENCE
+  OTHER
+}
+
+enum DnxPartnerAssetOrientation {
+  SQUARE
+  PORTRAIT
+  LANDSCAPE
+  VERTICAL
+  HORIZONTAL
+  FREE
+  UNKNOWN
+}
+
+enum DnxPartnerStorageProvider {
+  R2
+  LOCAL
+  INLINE
+  EXTERNAL
+}
+
+/// Identidad de marca permanente del partner (logos, isotipo, manual).
+model DnxPartnerAsset {
+  id               String                         @id @default(cuid())
+  partnerId        String
+  type             DnxPartnerBrandAssetType
+  name             String
+  description      String?
+  storageProvider  DnxPartnerStorageProvider      @default(R2)
+  storageKey       String?
+  fileUrl          String?
+  mediaAssetId     String?
+  originalFilename String?
+  mimeType         String?
+  fileExtension    String?
+  fileSize         Int?
+  width            Int?
+  height           Int?
+  durationSeconds  Float?
+  aspectRatio      String?
+  backgroundType   DnxPartnerAssetBackground      @default(UNKNOWN)
+  isPrimary        Boolean                        @default(false)
+  status           DnxPartnerAssetStatus          @default(DRAFT)
+  approvalStatus   DnxPartnerAssetApprovalStatus  @default(PENDING)
+  altText          String?
+  notes            String?
+  metadata         Json?
+  uploadedById     Int?
+  approvedById     Int?
+  approvedAt       DateTime?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+  archivedAt       DateTime?
+
+  partner   DnxPartner                   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  creatives DnxPartnerCampaignCreative[]
+
+  @@index([partnerId, type])
+  @@index([partnerId, status, approvalStatus])
+  @@index([partnerId, isPrimary])
+  @@index([status, approvalStatus])
+  @@index([archivedAt])
+}
+
+/// Materiales de una participación concreta (canal/edición/beneficio).
+model DnxPartnerParticipationAsset {
+  id               String                         @id @default(cuid())
+  participationId  String
+  benefitId        String?
+  contributionId   String?
+  prizeBundleId    String?
+  application      DnxPartnerApplication          @default(CLICKATON)
+  channel          DnxPartnerMaterialChannel      @default(WEB)
+  assetType        DnxPartnerMaterialType         @default(IMAGE)
+  purpose          DnxPartnerMaterialPurpose      @default(SPONSOR_VISIBILITY)
+  name             String
+  description      String?
+  storageProvider  DnxPartnerStorageProvider      @default(R2)
+  storageKey       String?
+  fileUrl          String?
+  mediaAssetId     String?
+  originalFilename String?
+  mimeType         String?
+  fileExtension    String?
+  fileSize         Int?
+  width            Int?
+  height           Int?
+  durationSeconds  Float?
+  aspectRatio      String?
+  orientation      DnxPartnerAssetOrientation     @default(UNKNOWN)
+  status           DnxPartnerAssetStatus          @default(DRAFT)
+  approvalStatus   DnxPartnerAssetApprovalStatus  @default(PENDING)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  altText          String?
+  caption          String?
+  ctaText          String?
+  ctaUrl           String?
+  sortOrder        Int                            @default(100)
+  metadata         Json?
+  uploadedById     Int?
+  approvedById     Int?
+  approvedAt       DateTime?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+  archivedAt       DateTime?
+
+  participation DnxPartnerParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@index([participationId, status])
+  @@index([application, channel])
+  @@index([approvalStatus, status])
+  @@index([archivedAt])
+}
+
+enum DnxPartnerOutboundLinkStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum DnxPartnerPlacement {
+  LOGO
+  PARTNER_NAME
+  SPONSOR_SECTION
+  ORGANIZER_SECTION
+  PRIZE
+  BENEFIT
+  CTA
+  ASSET
+  BANNER
+  ARTICLE
+  OTHER
+  /// Ads / campañas (aditivo).
+  WELCOME
+  HOME_INLINE
+  GALLERY_INLINE
+  PHOTO_DETAIL
+  EVENT_PAGE
+  CARD_PROMO
+  LOGO_MARQUEE
+}
+
+enum DnxPartnerDeviceClass {
+  MOBILE
+  TABLET
+  DESKTOP
+  OTHER
+}
+
+/// Enlace outbound trackeable (logo/CTA/asset). Una sola entidad multiplataforma.
+model DnxPartnerOutboundLink {
+  id              String                       @id @default(cuid())
+  trackingKey     String                       @unique @db.VarChar(80)
+  partnerId       String
+  participationId String?
+  application     DnxPartnerApplication
+  contextType     DnxPartnerContextType        @default(GLOBAL)
+  contextId       String?
+  assetId         String?
+  placement       DnxPartnerPlacement          @default(LOGO)
+  destinationUrl  String
+  utmSource       String?                      @db.VarChar(80)
+  utmMedium       String?                      @db.VarChar(80)
+  utmCampaign     String?                      @db.VarChar(160)
+  utmContent      String?                      @db.VarChar(160)
+  status          DnxPartnerOutboundLinkStatus @default(ACTIVE)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  archivedAt      DateTime?
+
+  partner       DnxPartner              @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  participation DnxPartnerParticipation? @relation(fields: [participationId], references: [id], onDelete: SetNull)
+  clickEvents   DnxPartnerClickEvent[]
+
+  @@index([partnerId])
+  @@index([participationId])
+  @@index([application, contextId])
+  @@index([status])
+}
+
+/// Evento de click outbound. Privacy-first: sin IP, sin UA crudo, sin PII.
+model DnxPartnerClickEvent {
+  id              String                 @id @default(cuid())
+  outboundLinkId  String
+  partnerId       String
+  participationId String?
+  application     DnxPartnerApplication
+  contextType     DnxPartnerContextType  @default(GLOBAL)
+  contextId       String?
+  assetId         String?
+  placement       DnxPartnerPlacement    @default(LOGO)
+  occurredAt      DateTime               @default(now())
+  referrerHost    String?                @db.VarChar(255)
+  deviceClass     DnxPartnerDeviceClass  @default(OTHER)
+  browserFamily   String?                @db.VarChar(40)
+  countryCode     String?                @db.VarChar(2)
+  metadata        Json?
+
+  outboundLink DnxPartnerOutboundLink @relation(fields: [outboundLinkId], references: [id], onDelete: Cascade)
+  partner      DnxPartner             @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  @@index([outboundLinkId])
+  @@index([partnerId])
+  @@index([participationId])
+  @@index([application])
+  @@index([contextId])
+  @@index([occurredAt])
+  @@index([partnerId, occurredAt])
+}
+
+/// Impresión publicitaria (viewability). Privacy-first: sin IP, UA crudo, userId ni fingerprint.
+/// Solo Campaign ads en v1 (no participation institucional ORGANIZER/CO_ORGANIZER).
+model DnxPartnerImpressionEvent {
+  id              String                 @id @default(cuid())
+  partnerId       String
+  campaignId      String?
+  creativeId      String?
+  outboundLinkId  String?
+  application     DnxPartnerApplication
+  contextType     DnxPartnerContextType  @default(GLOBAL)
+  contextId       String?
+  placement       DnxPartnerPlacement    @default(LOGO_MARQUEE)
+  /// Clave de catálogo (INFOSPOT_HOME_MARQUEE, CLF_LOGO_MARQUEE, …).
+  adPlacementKey  String?                @db.VarChar(80)
+  deviceClass     DnxPartnerDeviceClass  @default(OTHER)
+  /// CAMPAIGN (v1) | PARTICIPATION (futuro)
+  sourceType      String                 @default("CAMPAIGN") @db.VarChar(24)
+  occurredAt      DateTime               @default(now())
+  isBot           Boolean                @default(false)
+  /// Metadata mínima sanitizada (p.ej. viewSessionKey hash). Sin PII.
+  metadata        Json?
+
+  partner DnxPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  @@index([partnerId, occurredAt])
+  @@index([campaignId, occurredAt])
+  @@index([application, occurredAt])
+  @@index([creativeId, occurredAt])
+  @@index([placement, occurredAt])
+  @@index([occurredAt])
+  @@index([adPlacementKey, occurredAt])
 }
 
 model DnxPartnerContribution {
@@ -12996,6 +13927,9 @@ model DnxPartnerAuditEvent {
 enum DnxPartnerBenefitAccessStatus {
   ACTIVE
   REVOKED
+  EXPIRED
+  PENDING_IDENTITY
+  SKIPPED
 }
 
 /// Acceso manual a un beneficio (cortesía / excepción).
@@ -13017,4 +13951,875 @@ model DnxPartnerBenefitAccess {
   @@unique([benefitId, userId])
   @@index([userId, status])
   @@index([benefitId, status])
+}
+
+// ——— DNX Partners: campañas publicitarias (ETAPA 08) ———
+
+enum DnxPartnerCampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum DnxPartnerCampaignGeoScope {
+  GLOBAL
+  COUNTRY
+  PROVINCE
+  CITY
+  MULTI_CITY
+}
+
+enum DnxPartnerCampaignContextCategory {
+  PHOTOGRAPHY
+  SPORTS
+  NATURE
+  TOURISM
+  CULTURE
+  EDUCATION
+  SCHOOL
+  SOCIAL_EVENT
+  WEDDING
+  XV
+  NIGHTLIFE
+  NEWS
+  EVENT
+  OTHER
+}
+
+enum DnxPartnerCreativeFormat {
+  LOGO
+  LOGO_MARQUEE
+  BANNER_HORIZONTAL
+  BANNER_COMPACT
+  BANNER_MOBILE
+  CARD_PROMO
+  SQUARE
+  STORY_VERTICAL
+  VIDEO_HORIZONTAL
+  VIDEO_VERTICAL
+  WELCOME_INTERSTITIAL
+  ARTICLE_INLINE
+  GALLERY_INLINE
+}
+
+enum DnxPartnerCreativeDeviceTarget {
+  ALL
+  DESKTOP
+  MOBILE
+  TABLET
+}
+
+enum DnxPartnerCreativeStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PAUSED
+  ARCHIVED
+}
+
+enum DnxPartnerAdRotationMode {
+  STATIC
+  RANDOM
+  ROUND_ROBIN
+  MARQUEE
+}
+
+/// Campaña publicitaria (independiente del rol institucional).
+model DnxPartnerCampaign {
+  id              String                   @id @default(cuid())
+  partnerId       String
+  participationId String?
+  name            String
+  description     String?
+  application     DnxPartnerApplication
+  status          DnxPartnerCampaignStatus @default(DRAFT)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  priority        Int                      @default(100)
+  destinationUrl  String?
+  trackingEnabled Boolean                  @default(true)
+  geoScope        DnxPartnerCampaignGeoScope @default(GLOBAL)
+  createdByUserId Int?
+  updatedByUserId Int?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  archivedAt      DateTime?
+
+  partner       DnxPartner                      @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  participation DnxPartnerParticipation?        @relation(fields: [participationId], references: [id], onDelete: SetNull)
+  creatives     DnxPartnerCampaignCreative[]
+  geoTargets    DnxPartnerCampaignGeoTarget[]
+  contextTargets DnxPartnerCampaignContextTarget[]
+  placementBindings DnxPartnerCampaignPlacement[]
+  /// Apps destino de publicación (aditivo; `application` sigue siendo la app “home”).
+  publishTargets DnxPartnerCampaignTarget[]
+  publicationSyncs DnxPartnerPublicationSync[]
+
+  @@index([partnerId, status])
+  @@index([application, status])
+  @@index([participationId])
+  @@index([status, startsAt, endsAt])
+  @@index([archivedAt])
+}
+
+enum DnxPartnerCampaignTargetStatus {
+  ACTIVE
+  PAUSED
+}
+
+/// Destino multi-app de una campaña (no reemplaza `application` singular).
+model DnxPartnerCampaignTarget {
+  id          String                         @id @default(cuid())
+  campaignId  String
+  application DnxPartnerApplication
+  status      DnxPartnerCampaignTargetStatus @default(ACTIVE)
+  createdAt   DateTime                       @default(now())
+  updatedAt   DateTime                       @updatedAt
+
+  campaign DnxPartnerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, application])
+  @@index([application, status])
+}
+
+enum DnxPartnerPublicationEntityType {
+  CAMPAIGN
+}
+
+enum DnxPartnerPublicationSyncStatus {
+  PENDING
+  SYNCING
+  SYNCED
+  FAILED
+}
+
+/// Estado de sync multi-DB por entidad (fuente canónica = admin Clickatón).
+model DnxPartnerPublicationSync {
+  id                String                           @id @default(cuid())
+  entityType        DnxPartnerPublicationEntityType  @default(CAMPAIGN)
+  sourceEntityId    String
+  campaignId        String?
+  targetApplication DnxPartnerApplication
+  /// Clave lógica de DB destino (INFOSPOT | CLF), sin secretos.
+  targetDatabaseKey String                           @db.VarChar(40)
+  sourceVersion     String                           @db.VarChar(64)
+  targetVersion     String?                          @db.VarChar(64)
+  status            DnxPartnerPublicationSyncStatus  @default(PENDING)
+  attempts          Int                              @default(0)
+  lastSyncedAt      DateTime?
+  lastError         String?
+  createdAt         DateTime                         @default(now())
+  updatedAt         DateTime                         @updatedAt
+
+  campaign DnxPartnerCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@unique([entityType, sourceEntityId, targetApplication])
+  @@index([status, updatedAt])
+  @@index([targetApplication, status])
+  @@index([campaignId])
+}
+
+model DnxPartnerCampaignCreative {
+  id             String                         @id @default(cuid())
+  campaignId     String
+  assetId        String
+  format         DnxPartnerCreativeFormat
+  deviceTarget   DnxPartnerCreativeDeviceTarget @default(ALL)
+  title          String?
+  body           String?
+  ctaText        String?
+  destinationUrl String?
+  status         DnxPartnerCreativeStatus       @default(DRAFT)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  sortOrder      Int                            @default(100)
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+  archivedAt     DateTime?
+
+  campaign DnxPartnerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  asset    DnxPartnerAsset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([campaignId, status])
+  @@index([assetId])
+  @@index([format, deviceTarget])
+  @@index([archivedAt])
+}
+
+model DnxPartnerCampaignGeoTarget {
+  id          String   @id @default(cuid())
+  campaignId  String
+  countryCode String?  @db.VarChar(2)
+  province    String?  @db.VarChar(120)
+  city        String?  @db.VarChar(120)
+  /// true = include, false = exclude
+  include     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  campaign DnxPartnerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([countryCode, province, city])
+}
+
+model DnxPartnerCampaignContextTarget {
+  id         String                           @id @default(cuid())
+  campaignId String
+  category   DnxPartnerCampaignContextCategory
+  createdAt  DateTime                         @default(now())
+
+  campaign DnxPartnerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, category])
+  @@index([category])
+}
+
+/// Catálogo de superficies publicitarias por aplicación.
+model DnxPartnerAdPlacement {
+  id             String                   @id @default(cuid())
+  application    DnxPartnerApplication
+  placementKey   String                   @db.VarChar(80)
+  name           String
+  description    String?
+  allowedFormats DnxPartnerCreativeFormat[]
+  deviceSupport  DnxPartnerCreativeDeviceTarget @default(ALL)
+  maxItems       Int                      @default(1)
+  rotationMode   DnxPartnerAdRotationMode @default(STATIC)
+  /// Placement de click tracking asociado (reutiliza DnxPartnerOutboundLink).
+  trackingPlacement DnxPartnerPlacement   @default(BANNER)
+  isActive       Boolean                  @default(true)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  campaignBindings DnxPartnerCampaignPlacement[]
+
+  @@unique([application, placementKey])
+  @@index([application, isActive])
+}
+
+/// Binding campaña ↔ superficie (prioridad por slot).
+model DnxPartnerCampaignPlacement {
+  id            String   @id @default(cuid())
+  campaignId    String
+  adPlacementId String
+  priority      Int      @default(100)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  campaign    DnxPartnerCampaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adPlacement DnxPartnerAdPlacement @relation(fields: [adPlacementId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, adPlacementId])
+  @@index([adPlacementId, isActive, priority])
+}
+
+// --- Reconciliación de historial: modelos/enums de las migraciones traídas desde
+// release/sponsor-global-fotorank-data (jury/voto público Fotorank + PhotoPrompt Library).
+// Copiados textualmente de esa rama, sin modificar campos/relaciones/índices.
+
+/// ETAPA 16A — Configuración de jurado competitivo por concurso (genérica; no hardcodea Clickatón).
+/// Reutiliza el motor FotorankJury*; no crea tablas paralelas ClickatonJury*.
+model FotorankCompetitionJuryConfig {
+  id                                 String   @id @default(cuid())
+  contestId                          String   @unique
+  /// null = N/A (concursos clásicos sin elegibilidad competitiva por mínimo de obras).
+  minimumValidEntriesForCompetition  Int?
+  requiredEvaluationsPerEntry        Int      @default(3)
+  recommendedMaxEntriesPerJudge      Int      @default(500)
+  evaluationStartsAt                 DateTime?
+  evaluationEndsAt                   DateTime?
+  scoreScaleMin                      Int      @default(1)
+  scoreScaleMax                      Int      @default(10)
+  scoreIntegerOnly                   Boolean  @default(true)
+  finalistsPerUnit                   Int      @default(3)
+  /// DISABLED | JURY_ONLY | JURY_THEN_PUBLIC (§10 master rules).
+  publicVoteMode                     String   @default("DISABLED")
+  /// Override opcional de criterios (snapshot); si null, usar rúbrica activa del concurso.
+  criteriaConfigJson                 Json?
+  yellowLoadThreshold                Int      @default(501)
+  redLoadThreshold                   Int      @default(651)
+  /// ETAPA 16B — preparación de voto público (§9–§10 master rules). Nunca activa comercial/Instagram por sí solo.
+  /// Habilitación explícita; false = no operativo aunque publicVoteMode != DISABLED.
+  publicVoteEnabled                  Boolean  @default(false)
+  /// PROMPT | CATEGORY | ENTRY | ROUND (§10: unidad de votación pública configurable).
+  publicVoteUnit                     String   @default("PROMPT")
+  /// Métrica pública (§9: default Clickatón = Me Gusta).
+  publicVoteMetric                   String   @default("LIKE_COUNT")
+  /// Duración de la ventana de voto público en minutos (§9 default Clickatón: 24 h).
+  publicVoteDurationMinutes          Int      @default(1440)
+  publicVoteStartsAt                 DateTime?
+  publicVoteEndsAt                   DateTime?
+  /// NONE | INSTAGRAM_FUTURE (§9.3: automatización de redes fuera de alcance; NONE = manual/no activado).
+  publicVoteProvider                 String   @default("NONE")
+  /// NOT_CONFIGURED|READY|SCHEDULED|OPEN|CLOSING|PENDING_VERIFICATION|CLOSED|TIEBREAK_REQUIRED|FINALIZED.
+  publicVoteStatus                   String   @default("NOT_CONFIGURED")
+  /// Modo de desempate público (§9.1): PUBLIC_REVOTE / PUBLIC_TIEBREAK; nunca score de jurado.
+  publicTieBreakMode                 String   @default("PUBLIC_REVOTE")
+  /// IANA timezone override para ventanas de voto público. null = usar contest.timezone.
+  timezone                           String?
+  /// ETAPA 17A — política de corte para snapshot final (provider-agnostic).
+  /// LAST_VALID_OBSERVATION_BEFORE_CUTOFF | EXACT_PROVIDER_TIMESTAMP | PROVIDER_FINAL_SNAPSHOT
+  publicVoteCutoffPolicy             String   @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
+  /// CALCULATED | REVIEWED | PUBLISHED — 17A nunca publica comercialmente.
+  resultsPublicationMode             String   @default("CALCULATED")
+  /// Umbral de stale observations (minutos) para alertas de salud del provider.
+  publicVoteStaleThresholdMinutes    Int      @default(30)
+  createdAt                          DateTime @default(now())
+  updatedAt                          DateTime @updatedAt
+
+  contest FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@index([contestId])
+}
+
+/// ETAPA 16A — Congelamiento de elegibilidad competitiva (participante ELEGIBLE/NO ELEGIBLE) por corte de admisión.
+model FotorankCompetitiveEligibilityFreeze {
+  id                     String    @id @default(cuid())
+  contestId              String
+  admissionBatchId       String?
+  /// ELIGIBILITY_DRAFT | ELIGIBILITY_FROZEN
+  status                 String    @default("ELIGIBILITY_DRAFT")
+  configVersion          Int       @default(1)
+  minimumValidEntries    Int
+  totalParticipants      Int
+  eligibleCount          Int
+  notEligibleCount       Int
+  validEntriesCount      Int
+  excludedEntriesCount   Int
+  reasonCodesJson        Json?
+  configSnapshotJson     Json?
+  rosterHash             String?
+  frozenAt               DateTime?
+  frozenByUserId         Int?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  contest      FotorankContest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  admissionBatch FotorankAdmissionBatch? @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
+
+  @@unique([contestId, configVersion])
+  @@index([contestId, status])
+  @@index([admissionBatchId])
+}
+
+/// ETAPA 16B — Sobre de confirmación de finalistas (§8 master rules). Confirmar = inmutable;
+/// habilita preparación de voto público. No activa Instagram ni comercial por sí solo.
+model FotorankFinalistPackage {
+  id                String    @id @default(cuid())
+  contestId         String
+  scoringSessionId  String
+  /// DRAFT|CONFIRMED|INVALIDATED.
+  status            String    @default("DRAFT")
+  positionsCount    Int       @default(0)
+  confirmHash       String?
+  confirmedAt       DateTime?
+  confirmedByUserId Int?
+  readinessJson     Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  contest        FotorankContest            @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  scoringSession FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+
+  @@index([contestId, status])
+  @@index([scoringSessionId])
+}
+
+/// ETAPA 16B — Finalistas (§8 master rules): "FINALISTA ≠ ganador definitivo". Ítem inmutable del
+/// paquete que se prepara para votación pública. internalJuryRank es SOLO el orden interno del jurado
+/// dentro de la consigna (1..N); NUNCA es la posición pública definitiva (esa la decide el público, §1/§9).
+model FotorankFinalistSnapshot {
+  id                  String    @id @default(cuid())
+  contestId           String
+  scoringSessionId    String
+  resultBatchId       String?
+  promptExternalId    String
+  promptSequence      Int?
+  entryId             String?
+  juryEntrySnapshotId String
+  /// Código público sin identidad (p. ej. C01-F01). NUNCA nombre/apellido/Instagram.
+  publicCode          String
+  /// Orden interno de jurado dentro de la consigna (1..finalistsPerUnit). No es el lugar definitivo.
+  internalJuryRank    Int
+  aggregateScore      Float?
+  normalizedScore     Float?
+  /// Referencia a derivado social-safe (recorte/marca de agua); NUNCA la key del original.
+  derivativeAssetKey  String?
+  /// PENDING|READY|FAILED (§ public-asset-prep: no publica ni sube a redes).
+  derivativeStatus    String    @default("PENDING")
+  packageHash         String?
+  confirmedAt         DateTime?
+  confirmedByUserId   Int?
+  revokedAt           DateTime?
+  revokeReason        String?
+  /// DRAFT|CONFIRMED|REVOKED. CONFIRMED = inmutable salvo revocación auditada.
+  status              String    @default("DRAFT")
+  metadataJson        Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  contest           FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  scoringSession    FotorankJuryScoringSession  @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+  resultBatch       FotorankResultBatch?        @relation(fields: [resultBatchId], references: [id], onDelete: SetNull)
+  entry             FotorankContestEntry?       @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  juryEntrySnapshot FotorankJuryEntrySnapshot   @relation(fields: [juryEntrySnapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, promptExternalId, publicCode])
+  @@index([contestId, status])
+  @@index([scoringSessionId])
+  @@index([juryEntrySnapshotId])
+  @@index([resultBatchId])
+}
+
+/// ETAPA 16A — Heartbeat de actividad de jurado (tiempo activo / ETA §7.7). No es evaluación de desempeño.
+model FotorankJuryActivityHeartbeat {
+  id                        String   @id @default(cuid())
+  contestId                 String
+  jurorId                   String
+  scoringSessionId          String?
+  lastActiveAt              DateTime
+  activeSecondsAccumulated  Int      @default(0)
+  idleThresholdSeconds      Int      @default(75)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  contest        FotorankContest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  juror          FotorankJudgeAccount        @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  scoringSession FotorankJuryScoringSession? @relation(fields: [scoringSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([contestId, jurorId])
+  @@index([scoringSessionId])
+}
+
+/// Candidatura congelada al abrir/schedule la ronda (snapshot inmutable mientras OPEN).
+model FotorankPublicVoteCandidate {
+  id                  String   @id @default(cuid())
+  roundId             String
+  finalistSnapshotId  String?
+  publicCode          String
+  entryId             String?
+  sortOrder           Int      @default(0)
+  /// true = participa en ranking; false = excluido auditado (no borrar).
+  active              Boolean  @default(true)
+  metadataJson        Json?
+  createdAt           DateTime @default(now())
+
+  round          FotorankPublicVoteRound           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  observations   FotorankPublicVoteObservation[]
+  finalSnapshots FotorankPublicVoteFinalSnapshot[]
+  publications   FotorankPublicVotePublication[]
+
+  @@unique([roundId, publicCode])
+  @@index([roundId, active])
+  @@index([finalistSnapshotId])
+}
+
+/// Snapshot final inmutable por candidatura/ronda. Base del ranking definitivo.
+model FotorankPublicVoteFinalSnapshot {
+  id                 String   @id @default(cuid())
+  roundId            String
+  candidateId        String
+  publicCode         String
+  finalMetricValue   Float
+  observationId      String?
+  cutoffAt           DateTime
+  providerObservedAt DateTime?
+  finalizedAt        DateTime @default(now())
+  /// 1..N dentro de la unidad. null si TIEBREAK_REQUIRED aún no resuelto.
+  finalPosition      Int?
+  integrityHash      String
+  metadataJson       Json?
+
+  round     FotorankPublicVoteRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate FotorankPublicVoteCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, candidateId])
+  @@unique([roundId, publicCode])
+  @@index([roundId, finalPosition])
+}
+
+/// Observación append-only de métrica (likes pueden bajar). Idempotente por providerEventKey.
+model FotorankPublicVoteObservation {
+  id                      String    @id @default(cuid())
+  roundId                 String
+  candidateId             String
+  metricValue             Float
+  /// Momento reportado por el provider (autoridad de cutoff cuando aplica).
+  providerObservedAt      DateTime
+  /// Timestamp de la métrica en origen si el provider lo expone.
+  providerMetricTimestamp DateTime?
+  ingestedAt              DateTime  @default(now())
+  source                  String    @default("TEST_PROVIDER")
+  /// Clave de idempotencia (event id / hash normalizado).
+  providerEventKey        String
+  rawHash                 String?
+  isDecreasing            Boolean   @default(false)
+  /// true si providerObservedAt > round.endsAt (retenida, no cuenta en snapshot default).
+  isLate                  Boolean   @default(false)
+  metadataJson            Json?
+
+  round     FotorankPublicVoteRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate FotorankPublicVoteCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, providerEventKey])
+  @@index([roundId, candidateId, providerObservedAt])
+  @@index([candidateId, providerObservedAt])
+}
+
+/// ETAPA 17B — Publicación social vinculada a candidatura de voto público.
+model FotorankPublicVotePublication {
+  id                   String    @id @default(cuid())
+  roundId              String
+  candidateId          String
+  socialConnectionId   String?
+  provider             String    @default("INSTAGRAM")
+  externalMediaId      String?
+  externalContainerId  String?
+  permalink            String?
+  publishedAt          DateTime?
+  /// PREPARED | APPROVED_FOR_PUBLICATION | PUBLISHING | PUBLISHED | FAILED
+  publicationStatus    String    @default("PREPARED")
+  /// IMAGE | CAROUSEL | REEL | STORY
+  publicationType      String    @default("IMAGE")
+  captionSnapshot      String?
+  assetSnapshotJson    Json?
+  socialAssetHash      String?
+  idempotencyKey       String    @unique
+  failedReason         String?
+  providerMetadataJson Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  round            FotorankPublicVoteRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate        FotorankPublicVoteCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  socialConnection FotorankSocialConnection?   @relation(fields: [socialConnectionId], references: [id], onDelete: SetNull)
+
+  @@unique([roundId, candidateId])
+  @@index([roundId, publicationStatus])
+  @@index([socialConnectionId])
+}
+
+/// ETAPA 17A — Ronda de votación pública por unidad (PROMPT/CATEGORY/…). Provider-agnostic.
+model FotorankPublicVoteRound {
+  id                     String    @id @default(cuid())
+  contestId              String
+  /// Clave de unidad (p. ej. promptExternalId). Nunca hardcodear 10 consignas.
+  unitKey                String
+  /// PROMPT | CATEGORY | ENTRY | ROUND
+  unitType               String    @default("PROMPT")
+  roundNumber            Int       @default(1)
+  /// NORMAL | TIEBREAK
+  roundType              String    @default("NORMAL")
+  parentRoundId          String?
+  /// DRAFT|READY|SCHEDULED|OPEN|CLOSING|PENDING_FINAL_SNAPSHOT|CLOSED|TIEBREAK_REQUIRED|FINALIZED|CANCELLED|ERROR
+  status                 String    @default("DRAFT")
+  metric                 String    @default("LIKE_COUNT")
+  /// TEST_PROVIDER | NONE | INSTAGRAM | INSTAGRAM_FUTURE (legacy alias)
+  provider               String    @default("TEST_PROVIDER")
+  /// ETAPA 17B — conexión social usada para publicación/métricas (nullable en TEST_PROVIDER).
+  socialConnectionId     String?
+  /// NORMAL | NEAR_CLOSE | FINALIZATION
+  pollingMode            String    @default("NORMAL")
+  /// INCIDENT flag cuando publicación borrada / parcial / token, etc.
+  incidentStatus         String?
+  cutoffPolicy           String    @default("LAST_VALID_OBSERVATION_BEFORE_CUTOFF")
+  startsAt               DateTime
+  endsAt                 DateTime
+  timezone               String?
+  openedAt               DateTime?
+  closedAt               DateTime?
+  finalSnapshotAt        DateTime?
+  cancelledAt            DateTime?
+  cancelReason           String?
+  extendedFromEndsAt     DateTime?
+  configHash             String?
+  candidateSnapshotHash  String?
+  finalSnapshotHash      String?
+  staleThresholdMinutes  Int       @default(30)
+  /// CALCULATED | REVIEWED | PUBLISHED — 17A = CALCULATED máximo.
+  resultsPublicationStatus String  @default("CALCULATED")
+  providerHealth         String    @default("CONNECTED")
+  configVersion          Int       @default(1)
+  metadataJson           Json?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  contest          FotorankContest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  socialConnection FotorankSocialConnection?    @relation(fields: [socialConnectionId], references: [id], onDelete: SetNull)
+  parentRound      FotorankPublicVoteRound?     @relation("PublicVoteRoundTiebreak", fields: [parentRoundId], references: [id], onDelete: SetNull)
+  childRounds      FotorankPublicVoteRound[]    @relation("PublicVoteRoundTiebreak")
+  candidates       FotorankPublicVoteCandidate[]
+  observations     FotorankPublicVoteObservation[]
+  finalSnapshots   FotorankPublicVoteFinalSnapshot[]
+  publications     FotorankPublicVotePublication[]
+
+  @@unique([contestId, unitKey, roundNumber])
+  @@index([contestId, status])
+  @@index([contestId, unitKey])
+  @@index([parentRoundId])
+  @@index([endsAt, status])
+}
+
+/// ETAPA 17B — Conexión social de organizador (Instagram Graph API).
+model FotorankSocialConnection {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  provider           String    @default("INSTAGRAM")
+  accountId          String
+  accountUsername    String?
+  accountType        String?
+  connectionStatus   String    @default("CONNECTED")
+  permissionsJson    Json?
+  /// Referencia opaca al token (mock:// o vault); nunca plaintext en DB/logs.
+  tokenReference     String
+  tokenExpiresAt     DateTime?
+  connectedAt        DateTime  @default(now())
+  disconnectedAt     DateTime?
+  connectedByUserId  Int?
+  lastValidatedAt    DateTime?
+  health             String    @default("CONNECTED")
+  rateLimitStateJson Json?
+  metadataJson       Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization ContestOrganization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connectedBy  User?                         @relation("FrSocialConnectionConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
+  rounds       FotorankPublicVoteRound[]
+  publications FotorankPublicVotePublication[]
+
+  @@unique([organizationId, provider, accountId])
+  @@index([organizationId, provider])
+  @@index([connectionStatus])
+}
+
+/// Temática administrable (no enum rígido).
+model PhotoPromptTheme {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subthemes PhotoPromptSubtheme[]
+  items     PhotoPromptLibraryItem[]
+
+  @@index([active, sortOrder])
+}
+
+model PhotoPromptSubtheme {
+  id          String   @id @default(cuid())
+  themeId     String
+  name        String
+  slug        String
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  theme PhotoPromptTheme         @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  items PhotoPromptLibraryItem[]
+
+  @@unique([themeId, slug])
+  @@index([themeId, active, sortOrder])
+}
+
+/// Plantilla/contenido reutilizable de consigna fotográfica.
+model PhotoPromptLibraryItem {
+  id                 String                      @id @default(cuid())
+  title              String
+  /// Título normalizado para detección de duplicados.
+  normalizedTitle    String
+  description        String
+  themeId            String
+  subthemeId         String?
+  inspirationType    PhotoPromptInspirationType?
+  inspirationLabel   String?
+  inspirationNotes   String?
+  tags               String[]                    @default([])
+  difficulty         PhotoPromptDifficulty       @default(MEDIUM)
+  language           String                      @default("es")
+  /// Puede realizarse razonablemente desde cualquier lugar del mundo.
+  universal          Boolean                     @default(true)
+  status             PhotoPromptLibraryStatus    @default(DRAFT)
+  createdByUserId    Int?
+  reviewedByUserId   Int?
+  approvedByUserId   Int?
+  submittedForReviewAt DateTime?
+  reviewedAt         DateTime?
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  archivedAt         DateTime?
+  rejectionReason    String?
+  version            Int                         @default(1)
+  /// Origen de seed/import (ej. INITIAL_DNX_PROMPT_LIBRARY_2026).
+  sourceKey          String?
+  metadataJson       Json?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  theme     PhotoPromptTheme              @relation(fields: [themeId], references: [id], onDelete: Restrict)
+  subtheme  PhotoPromptSubtheme?          @relation(fields: [subthemeId], references: [id], onDelete: SetNull)
+  createdBy User?                         @relation("PhotoPromptLibraryItemCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedBy User?                        @relation("PhotoPromptLibraryItemReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  approvedBy User?                        @relation("PhotoPromptLibraryItemApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  versions  PhotoPromptLibraryVersion[]
+  audits    PhotoPromptLibraryAuditEvent[]
+  assignments ClickatonPrompt[]
+
+  @@unique([sourceKey])
+  @@index([status, updatedAt])
+  @@index([themeId, status])
+  @@index([subthemeId])
+  @@index([normalizedTitle])
+  @@index([universal, status])
+  @@index([inspirationType, status])
+  @@index([difficulty, status])
+  @@index([language, status])
+}
+
+model PhotoPromptLibraryVersion {
+  id              String   @id @default(cuid())
+  libraryItemId   String
+  version         Int
+  title           String
+  description     String
+  themeId         String?
+  subthemeId      String?
+  inspirationType PhotoPromptInspirationType?
+  inspirationLabel String?
+  inspirationNotes String?
+  tags            String[] @default([])
+  difficulty      PhotoPromptDifficulty?
+  language        String?
+  universal       Boolean?
+  status          PhotoPromptLibraryStatus?
+  changeSummary   String?
+  snapshotJson    Json?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  libraryItem PhotoPromptLibraryItem @relation(fields: [libraryItemId], references: [id], onDelete: Cascade)
+  createdBy   User?                  @relation("PhotoPromptLibraryVersionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([libraryItemId, version])
+  @@index([libraryItemId, createdAt])
+}
+
+model PhotoPromptLibraryAuditEvent {
+  id            String                        @id @default(cuid())
+  libraryItemId String?
+  editionId     String?
+  actorUserId   Int?
+  action        PhotoPromptLibraryAuditAction
+  comment       String?
+  metadataJson  Json?
+  createdAt     DateTime                      @default(now())
+
+  libraryItem PhotoPromptLibraryItem? @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
+  actor       User?                   @relation("PhotoPromptLibraryAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([libraryItemId, createdAt])
+  @@index([editionId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+}
+
+enum PhotoPromptDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum PhotoPromptInspirationType {
+  DIRECTOR
+  MOVIE
+  GENRE
+  ART_MOVEMENT
+  PHOTOGRAPHER
+  VISUAL_STYLE
+  OTHER
+}
+
+enum PhotoPromptLibraryAuditAction {
+  CREATE
+  UPDATE
+  SUBMIT_REVIEW
+  APPROVE
+  REJECT
+  ARCHIVE
+  RESTORE
+  ASSIGN
+  UNASSIGN
+  REORDER
+  IMPORT
+  DUPLICATE
+}
+
+enum PhotoPromptLibraryStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+
+/// Estado de generación de un informe diario DNX.
+enum DnxDailyReportStatus {
+  COMPLETE
+  PARTIAL
+  FAILED
+}
+
+/// Resultado del envío de un informe diario por un canal.
+enum DnxDailyReportDeliveryStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// Informe Diario DNX — una fila por día calendario argentino.
+model DnxDailyReportSnapshot {
+  id             String                   @id @default(cuid())
+  /// Día informado (YYYY-MM-DD, calendario argentino). Único por día.
+  reportDate     String                   @unique
+  timeZone       String                   @default("America/Argentina/Buenos_Aires")
+  status         DnxDailyReportStatus     @default(COMPLETE)
+  /// Snapshot completo serializado (DailyReportSnapshot de @repo/ops-daily-report).
+  payload        Json
+  generationMs   Int                      @default(0)
+  /// Claves de las secciones que no se pudieron generar.
+  failedSections String[]                 @default([])
+  /// Cantidad de alertas críticas, desnormalizada para el listado del panel.
+  criticalAlerts Int                      @default(0)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  deliveries     DnxDailyReportDelivery[]
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+/// Intento de envío de un informe diario.
+model DnxDailyReportDelivery {
+  id                String                       @id @default(cuid())
+  snapshotId        String
+  channel           String                       @default("email")
+  recipient         String
+  status            DnxDailyReportDeliveryStatus
+  providerMessageId String?
+  error             String?
+  sentAt            DateTime                     @default(now())
+  snapshot          DnxDailyReportSnapshot       @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([status, sentAt])
 }

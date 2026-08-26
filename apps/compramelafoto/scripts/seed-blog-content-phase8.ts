@@ -7,6 +7,8 @@
  */
 
 import { BlogPostStatus, PrismaClient } from "@prisma/client";
+
+import { CLF_CONTENT_PLATFORM } from "../lib/blog/content-platform";
 import { PHASE7_ALL_ARTICLES, PHASE7_ARTICLE_COUNT } from "@/data/blog/phase7";
 import { listPhase8ContentSlugs } from "@/data/blog/phase8/generate";
 import { preparePhase8Article } from "@/data/blog/phase8/prepare-phase8";
@@ -29,7 +31,7 @@ async function seedPhase8Articles() {
 
   for (const draft of PHASE7_ALL_ARTICLES) {
     const existing = await prisma.blogPost.findUnique({
-      where: { slug: draft.slug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.slug } },
       select: { id: true, status: true },
     });
 
@@ -42,7 +44,7 @@ async function seedPhase8Articles() {
     const prepared = await preparePhase8Article(draft);
 
     await prisma.blogPost.update({
-      where: { slug: draft.slug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.slug } },
       data: {
         title: prepared.title,
         excerpt: prepared.excerpt,

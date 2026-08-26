@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const appDir = path.dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = path.join(appDir, "../..");
 
 // vercel.live siempre permitido (Vercel lo inyecta en previews; en prod no se carga)
 // Card Payment Brick (homologation) — official MP origins only (no wildcards).
@@ -61,8 +66,11 @@ const nextConfig: NextConfig = {
   experimental: {
     cpus: 1,
   },
+  // Evita que un pnpm-lock.yaml fuera del monorepo hijackee la resolución de @prisma/client.
+  outputFileTracingRoot: monorepoRoot,
   transpilePackages: [
     "@repo/db",
+    "@repo/partners",
     "@repo/auth",
     "@repo/auth-ui",
     "@repo/auth-guards",

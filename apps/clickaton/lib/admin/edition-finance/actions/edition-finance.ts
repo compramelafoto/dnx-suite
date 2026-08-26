@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { isClickatonDnxCheckoutEnabled } from "@repo/payments/clickaton-checkout";
 import { EditionFinanceError } from "../domain/errors";
 import {
   activateEditionDistribution,
@@ -49,8 +50,7 @@ export async function getEditionFinancePageData(editionId: string) {
     evaluateEditionFinanceGate({
       editionId,
       mode: process.env.NODE_ENV === "production" ? "LIVE" : "TEST",
-      dnxPaymentsReady:
-        process.env.DNX_CLICKATON_DNX_PAYMENTS_CHECKOUT_ENABLED === "true",
+      dnxPaymentsReady: isClickatonDnxCheckoutEnabled(process.env),
       webhookConfigured: Boolean(
         process.env.CLICKATON_DNX_PAYMENTS_WEBHOOK_SECRET ||
           process.env.DNX_PAYMENTS_WEBHOOK_SECRET,
@@ -64,6 +64,7 @@ export async function getEditionFinancePageData(editionId: string) {
     process.env.CLICKATON_DNX_PAYMENTS_PROVIDER ?? "manual"
   ).toLowerCase();
   const allocs = active?.allocations ?? [];
+  const hasActiveAllocations = allocs.length > 0;
   const readiness = {
     distributionStatus: active ? ("ACTIVE" as const) : ("DRAFT_OR_NONE" as const),
     sumOk: active
@@ -73,16 +74,21 @@ export async function getEditionFinancePageData(editionId: string) {
       allocs.length === 0
         ? "—"
         : allocs.map((a) => `${a.beneficiaryDisplayName} ${a.shareValue}%`).join(" · "),
-    paymentAccountConnected: allocs.every(
-      (a) => a.paymentConnectionId && a.paymentConnection?.status === "ACTIVE",
-    ),
-    oauthLikelyValid: allocs.every((a) => a.paymentConnection?.canReceivePayments),
+    paymentAccountConnected:
+      hasActiveAllocations &&
+      allocs.every(
+        (a) => a.paymentConnectionId && a.paymentConnection?.status === "ACTIVE",
+      ),
+    oauthLikelyValid:
+      hasActiveAllocations &&
+      allocs.every((a) => a.paymentConnection?.canReceivePayments),
     accountMode:
       [...new Set(allocs.map((a) => a.paymentConnection?.environment).filter(Boolean))].join(
         ",",
       ) || "—",
     checkoutAllocationsReady: Boolean(
       active &&
+        hasActiveAllocations &&
         allocs.every((a) => a.paymentConnectionId) &&
         allocs.reduce((s, a) => s + a.shareBps, 0) === 10_000,
     ),

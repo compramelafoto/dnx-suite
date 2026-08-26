@@ -1,6 +1,6 @@
 import { LandingHeader } from "./components/landing/LandingHeader";
 import { PhotoBanner } from "./components/landing/PhotoBanner";
-import { getAuthUser, hasAppAccess } from "./lib/auth";
+import { canAccessFotorankOrganizerDashboard, getAuthUser } from "./lib/auth";
 import { getJudgeAuthUser } from "./lib/judge-auth";
 import { HeroSection } from "./components/landing/HeroSection";
 import { ProblemSection } from "./components/landing/ProblemSection";
@@ -17,7 +17,7 @@ import { listPublicHomeContests } from "./lib/fotorank/publicContests";
 export default async function Home() {
   const [admin, judge] = await Promise.all([getAuthUser(), getJudgeAuthUser()]);
   const publicContests = await listPublicHomeContests(6);
-  const hasFotorankAdminSession = hasAppAccess(admin, "FOTORANK");
+  const hasFotorankAdminSession = await canAccessFotorankOrganizerDashboard(admin);
 
   return (
     <ReducedMotionWrapper>

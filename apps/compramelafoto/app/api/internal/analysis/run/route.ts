@@ -60,7 +60,15 @@ async function runAnalysis(req: Request) {
     const url = new URL(req.url);
     const debug = url.searchParams.get("debug") === "1";
     const includeOcr = resolveIncludeOcrFromRequest(url);
-    const response = await runAnalysisPipeline({ includeOcr, debug, source: "cron" });
+    const albumIdRaw = url.searchParams.get("albumId");
+    const albumIdParsed = albumIdRaw ? Number(albumIdRaw) : NaN;
+    const albumId = Number.isFinite(albumIdParsed) ? albumIdParsed : undefined;
+    const response = await runAnalysisPipeline({
+      includeOcr,
+      debug,
+      source: "cron",
+      albumId,
+    });
 
     if (response instanceof NextResponse) {
       const body = await response.clone().json().catch(() => ({}));

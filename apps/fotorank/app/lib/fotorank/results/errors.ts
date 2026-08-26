@@ -12,6 +12,8 @@ export type ResultErrorCode =
   | "REASON_REQUIRED"
   | "IDENTITY_FORBIDDEN"
   | "PUBLICATION_BLOCKED"
+  | "PUBLICATION_HASH_MISMATCH"
+  | "CONFIRMATION_REQUIRED"
   | "IDEMPOTENT_REPLAY";
 
 export class ResultError extends Error {

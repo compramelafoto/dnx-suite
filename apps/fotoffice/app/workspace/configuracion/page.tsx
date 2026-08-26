@@ -1,6 +1,8 @@
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { WorkspaceSettingsForm } from "./settings-form";
 
 export default async function WorkspaceSettingsPage() {
@@ -11,12 +13,17 @@ export default async function WorkspaceSettingsPage() {
     name: user.name,
   });
 
-  const [branding, profile] = await Promise.all([
+  const [branding, profile, membership] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: ensured.workspaceId },
     }),
     prisma.fotofficePhotographerProfile.findUnique({ where: { userId: user.id } }),
+    prisma.workspaceMembership.findUnique({
+      where: { userId_workspaceId: { userId: user.id, workspaceId: ensured.workspaceId } },
+      select: { role: true },
+    }),
   ]);
+  const canEdit = canManageWorkspaceSettings(membership?.role);
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -26,22 +33,33 @@ export default async function WorkspaceSettingsPage() {
         </h1>
         <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
           El logo de FotOffice es la marca del producto. Acá editás los datos de{" "}
-          <strong className="font-medium text-[var(--fo-text)]">tu</strong> negocio.
+          <strong className="font-medium text-[var(--fo-text)]">tu</strong> negocio — nombre, slug
+          público, logo, portada, contacto y ubicación. Estos datos son del workspace y se usan en
+          todos sus módulos, no solo en Cursos.
         </p>
+        {!canEdit ? (
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed" role="status">
+            Tenés acceso de solo lectura a esta pantalla.
+          </p>
+        ) : null}
       </div>
       <WorkspaceSettingsForm
+        canEdit={canEdit}
         initial={{
           commercialName: branding?.commercialName ?? "",
+          publicSlug: branding?.publicSlug ?? "",
           contactEmail: branding?.contactEmail ?? user.email,
           phone: branding?.phone ?? profile?.phone ?? "",
+          whatsapp: branding?.whatsapp ?? "",
           city: branding?.city ?? "",
           province: branding?.province ?? "",
           country: branding?.country ?? "",
           website: branding?.website ?? "",
           instagram: branding?.instagram ?? "",
-          activityType: branding?.activityType ?? "independent",
+          activityType: normalizeFotofficeOrganizationType(branding?.activityType),
           specialties: branding?.specialties ?? [],
-          businessLogoUrl: branding?.logoUrl ?? "",
+          logoUrl: branding?.logoUrl ?? null,
+          coverImageUrl: branding?.coverImageUrl ?? null,
           displayName: profile?.displayName ?? user.name ?? "",
         }}
       />

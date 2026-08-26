@@ -6,7 +6,7 @@ import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import {
-  FOTOFFICE_ACTIVITY_TYPES,
+  FOTOFFICE_ORGANIZATION_TYPE_IDS,
   FOTOFFICE_SPECIALTY_IDS,
 } from "@/lib/onboarding-constants";
 import { cookies } from "next/headers";
@@ -14,7 +14,7 @@ import { FOTOFFICE_WORKSPACE_COOKIE } from "@/lib/courses-sales/constants";
 
 export type OnboardingState = { error: string | null; ok?: boolean };
 
-const ACTIVITY_IDS: Set<string> = new Set(FOTOFFICE_ACTIVITY_TYPES.map((a) => a.id));
+const ACTIVITY_IDS = FOTOFFICE_ORGANIZATION_TYPE_IDS;
 
 async function requireOwnedWorkspace(userId: number, email: string, name: string | null) {
   const ensured = await ensureFotofficeWorkspaceForUser({ userId, email, name });
@@ -94,7 +94,7 @@ export async function saveOnboardingBusinessAction(
 
   if (!commercialName) return { error: "El nombre comercial es obligatorio." };
   if (!ACTIVITY_IDS.has(activityType)) {
-    return { error: "Elegí un tipo de actividad válido." };
+    return { error: "Elegí un tipo de organización válido." };
   }
 
   await prisma.fotofficeWorkspaceBranding.update({

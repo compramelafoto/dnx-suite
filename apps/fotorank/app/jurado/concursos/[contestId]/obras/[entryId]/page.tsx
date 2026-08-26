@@ -27,7 +27,8 @@ export default async function JuryEntryDetailPage({ params }: Props) {
         err.code === "NOT_ASSIGNED" ||
         err.code === "ENTRY_NOT_CONFIRMABLE" ||
         err.code === "ENTRY_NOT_FROZEN" ||
-        err.code === "SNAPSHOT_MISSING")
+        err.code === "SNAPSHOT_MISSING" ||
+        err.code === "PREVIEW_MISSING")
     ) {
       redirect(`/jurado/concursos/${contestId}`);
     }
@@ -83,6 +84,7 @@ export default async function JuryEntryDetailPage({ params }: Props) {
         {entry.rubric && entry.snapshotId ? (
           <JuryEvaluationForm
             contestId={contestId}
+            entryId={entryId}
             snapshotId={entry.snapshotId}
             rubric={entry.rubric}
             initialScores={entry.evaluation?.scores ?? {}}

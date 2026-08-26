@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
+import { resolveEnabledNavModules } from "@/lib/modules/nav";
 
 export default async function WorkspaceHomePage() {
   const user = await requireAuth();
@@ -11,16 +13,18 @@ export default async function WorkspaceHomePage() {
     name: user.name,
   });
 
-  const [branding, profile] = await Promise.all([
+  const [branding, profile, enabledModuleKeys] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: ensured.workspaceId },
     }),
     prisma.fotofficePhotographerProfile.findUnique({ where: { userId: user.id } }),
+    getEnabledModuleKeysForWorkspace(ensured.workspaceId),
   ]);
+  const modules = resolveEnabledNavModules(enabledModuleKeys);
 
   const pending: string[] = [];
   if (!profile?.displayName) pending.push("Nombre visible");
-  if (!branding?.activityType) pending.push("Tipo de actividad");
+  if (!branding?.activityType) pending.push("Tipo de organización");
   if (!branding?.city) pending.push("Ciudad");
   if (!branding?.specialties?.length) pending.push("Especialidades");
   if (!branding?.logoUrl) pending.push("Logo del negocio");
@@ -66,6 +70,24 @@ export default async function WorkspaceHomePage() {
       </section>
 
       <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-[var(--fo-text)]">Módulos</h2>
+        {modules.length > 0 ? (
+          <div className="grid sm:grid-cols-2 gap-4">
+            {modules.map((m) => (
+              <Link key={m.key} href={m.route} className="fo-card hover:border-[var(--fo-accent)]/40">
+                <p className="font-medium text-[var(--fo-text)]">{m.label}</p>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+            Todavía no tenés módulos habilitados en este workspace. Pedí a un administrador de
+            plataforma que active alguno.
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-4">
         <h2 className="text-lg font-semibold text-[var(--fo-text)]">Accesos rápidos</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <Link href="/workspace/configuracion" className="fo-card hover:border-[var(--fo-accent)]/40">
@@ -74,12 +96,6 @@ export default async function WorkspaceHomePage() {
               Nombre, contacto, ubicación y especialidades.
             </p>
           </Link>
-          <div className="fo-card border-dashed opacity-80">
-            <p className="font-medium text-[var(--fo-text)]">Nuevo trabajo</p>
-            <p className="text-sm text-[var(--fo-muted)] mt-2 leading-relaxed">
-              Módulo aún no implementado.
-            </p>
-          </div>
         </div>
       </section>
     </div>

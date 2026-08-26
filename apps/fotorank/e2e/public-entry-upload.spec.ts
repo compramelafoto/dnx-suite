@@ -49,6 +49,15 @@ test.describe("Carga de obra Santa Fe en Foco @smoke", () => {
       (await page.getByTestId("inscription-form").getAttribute("data-contest-id").catch(() => null)) ??
       (await page.locator("[data-contest-id]").first().getAttribute("data-contest-id").catch(() => null));
 
+    // ETAPA 05 — declaraciones de elegibilidad (territorio / período / dispositivo)
+    const locality = page.getByTestId("entry-capture-locality");
+    if (await locality.isVisible().catch(() => false)) {
+      await locality.fill("Rosario");
+      await page.getByTestId("entry-territory-confirm").check();
+      await page.getByTestId("entry-period-confirm").check();
+      await page.getByTestId("entry-device-kind").selectOption("SMARTPHONE");
+    }
+
     // Subida vía UI si hay input
     const input = page.getByTestId("entry-file-input");
     await input.setInputFiles({

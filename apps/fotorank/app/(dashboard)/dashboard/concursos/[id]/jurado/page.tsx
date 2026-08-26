@@ -5,13 +5,19 @@ import { PageContainer } from "../../../../../components/PageContainer";
 import { requireAuth } from "../../../../../lib/auth";
 import { RegistrationError, assertOrganizerCanAccessContest } from "../../../../../lib/fotorank/registration";
 import { getContestOperationalMetrics } from "../../../../../lib/fotorank/metrics/contest-metrics";
+import { ScoringSessionPanel } from "./ScoringSessionPanel";
+import { ConflictReassignPanel } from "./ConflictReassignPanel";
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ closeError?: string }>;
+};
 
-export default async function ContestJuradoOpsPage({ params }: Props) {
+export default async function ContestJuradoOpsPage({ params, searchParams }: Props) {
   const user = await requireAuth();
   const { id: contestId } = await params;
+  const sp = (await searchParams) ?? {};
 
   try {
     await assertOrganizerCanAccessContest(contestId, user.id);
@@ -23,7 +29,7 @@ export default async function ContestJuradoOpsPage({ params }: Props) {
 
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: contestId },
-    select: { title: true },
+    select: { title: true, slug: true },
   });
   if (!contest) notFound();
 
@@ -33,7 +39,32 @@ export default async function ContestJuradoOpsPage({ params }: Props) {
     where: { contestId, status: "FROZEN" },
     orderBy: { frozenAt: "desc" },
     take: 5,
+    select: { id: true, frozenAt: true, frozenEntries: true },
   });
+
+  const scoringSession = await prisma.fotorankJuryScoringSession.findFirst({
+    where: {
+      contestId,
+      status: { in: ["DRAFT", "READY", "OPEN", "PAUSED", "REVIEW_REQUIRED", "CLOSED", "LOCKED"] },
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      rubric: { include: { criteria: { select: { id: true } } } },
+    },
+  });
+  const ruleSet = scoringSession
+    ? await prisma.fotorankResultRuleSet.findFirst({
+        where: { contestId, scoringSessionId: scoringSession.id },
+        orderBy: { version: "desc" },
+        select: { id: true },
+      })
+    : null;
+  const resultBatch = await prisma.fotorankResultBatch.findFirst({
+    where: { contestId, status: { notIn: ["CANCELLED"] } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+
   const assignments = await prisma.fotorankJudgeAssignment.findMany({
     where: { contestId },
     include: {
@@ -73,6 +104,16 @@ export default async function ContestJuradoOpsPage({ params }: Props) {
   });
   const catCount = new Map(confirmedByCategory.map((c) => [c.categoryId, c._count._all]));
 
+  const backupJudges = assignments
+    .filter((a) => a.assignmentStatus === "ACCEPTED" || a.assignmentType === "BACKUP")
+    .map((a) => ({
+      id: a.judgeAccountId,
+      label: a.judgeAccount.profile
+        ? `${a.judgeAccount.profile.firstName} ${a.judgeAccount.profile.lastName}`.trim()
+        : a.judgeAccount.email,
+    }));
+  const uniqueBackups = [...new Map(backupJudges.map((j) => [j.id, j])).values()];
+
   return (
     <PageContainer
       title={`Jurado: ${contest.title}`}
@@ -84,6 +125,16 @@ export default async function ContestJuradoOpsPage({ params }: Props) {
         </Link>
       </div>
 
+      {sp.closeError ? (
+        <p
+          className="mb-8 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-4 text-sm text-amber-100"
+          data-testid="scoring-close-error"
+        >
+          Cierre bloqueado: {sp.closeError}. Completá cobertura y resolvé conflictos antes de
+          cerrar (sin force).
+        </p>
+      ) : null}
+
       <div className="mb-8 flex flex-wrap gap-3">
         <Link href="/jurados/invitaciones" className="fr-btn fr-btn-secondary min-h-11 px-5 text-sm">
           Gestionar invitaciones
@@ -91,21 +142,51 @@ export default async function ContestJuradoOpsPage({ params }: Props) {
         <Link href="/jurados/asignaciones" className="fr-btn fr-btn-secondary min-h-11 px-5 text-sm">
           Asignaciones
         </Link>
+        <Link
+          href={`/dashboard/concursos/${contestId}/resultados`}
+          className="fr-btn fr-btn-secondary min-h-11 px-5 text-sm"
+        >
+          Ranking privado
+        </Link>
+        <Link
+          href={`/dashboard/concursos/${contestId}/admision`}
+          className="fr-btn fr-btn-secondary min-h-11 px-5 text-sm"
+        >
+          Admisión / freeze
+        </Link>
       </div>
 
-      <section className="fr-recuadro mb-10 space-y-4 border border-fr-border bg-fr-card">
-        <h2 className="text-lg font-semibold">Sesión de scoring (Etapa 14)</h2>
-        <p className="text-sm text-fr-muted">
-          Solo consume batch FROZEN. LIVE deshabilitado por defecto (`scoringEnabled=false` hasta
-          abrir). No publica ranking.
-        </p>
-        <p className="text-sm">
-          Sesión: motor de scoring pendiente de schema en este deploy.
-          {frozenBatches[0]
-            ? ` Batch FROZEN disponible: ${frozenBatches[0].id.slice(0, 8)}…`
-            : " No hay batch FROZEN todavía."}
-        </p>
-      </section>
+      <ScoringSessionPanel
+        contestId={contestId}
+        frozenBatches={frozenBatches}
+        session={
+          scoringSession
+            ? {
+                id: scoringSession.id,
+                status: scoringSession.status,
+                scoringEnabled: scoringSession.scoringEnabled,
+                minimumEvaluationsPerEntry: scoringSession.minimumEvaluationsPerEntry,
+                admissionBatchId: scoringSession.admissionBatchId,
+                rubricId: scoringSession.rubricId,
+                openedAt: scoringSession.openedAt,
+                closedAt: scoringSession.closedAt,
+              }
+            : null
+        }
+        rubric={
+          scoringSession?.rubric
+            ? {
+                id: scoringSession.rubric.id,
+                name: scoringSession.rubric.name,
+                status: scoringSession.rubric.status,
+                version: scoringSession.rubric.version,
+                criteriaCount: scoringSession.rubric.criteria.length,
+              }
+            : null
+        }
+        resultBatchId={resultBatch?.id ?? null}
+        ruleSetId={ruleSet?.id ?? null}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -187,18 +268,18 @@ export default async function ContestJuradoOpsPage({ params }: Props) {
 
       <section className="fr-recuadro mt-10 border border-fr-border bg-fr-card space-y-4">
         <h2 className="text-lg font-semibold">Conflictos declarados</h2>
-        <ul className="space-y-3 text-sm">
-          {conflicts.map((c) => (
-            <li key={c.id}>
-              Obra {c.entry.entryNumber ?? "—"} ·{" "}
-              {c.judgeAccount.profile
-                ? `${c.judgeAccount.profile.firstName} ${c.judgeAccount.profile.lastName}`
-                : c.judgeAccount.email}{" "}
-              · {c.reasonCode}
-            </li>
-          ))}
-          {conflicts.length === 0 ? <li className="text-fr-muted">Sin conflictos activos.</li> : null}
-        </ul>
+        <ConflictReassignPanel
+          contestId={contestId}
+          conflicts={conflicts.map((c) => ({
+            id: c.id,
+            entryLabel: c.entry.entryNumber ?? c.id.slice(0, 8),
+            judgeLabel: c.judgeAccount.profile
+              ? `${c.judgeAccount.profile.firstName} ${c.judgeAccount.profile.lastName}`.trim()
+              : "jurado",
+            reasonCode: c.reasonCode,
+          }))}
+          backupJudges={uniqueBackups}
+        />
       </section>
     </PageContainer>
   );

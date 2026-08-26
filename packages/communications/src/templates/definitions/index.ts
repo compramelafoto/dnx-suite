@@ -14,12 +14,15 @@ export {
 
 export { systemTestTemplate } from "./system-test";
 export { userWelcomeTemplate } from "./user-welcome";
+export { opsDailyReportTemplate } from "./ops-daily-report";
 
 import { systemTestTemplate } from "./system-test";
 import { userWelcomeTemplate } from "./user-welcome";
+import { opsDailyReportTemplate } from "./ops-daily-report";
 import type { AnyCommunicationTemplateDefinition } from "./types";
 
 export const DEFAULT_TEMPLATES: AnyCommunicationTemplateDefinition[] = [
   systemTestTemplate as unknown as AnyCommunicationTemplateDefinition,
   userWelcomeTemplate as unknown as AnyCommunicationTemplateDefinition,
+  opsDailyReportTemplate as unknown as AnyCommunicationTemplateDefinition,
 ];

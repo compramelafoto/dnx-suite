@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
+import { buildContentCanonicalUrl, buildContentOpenGraph } from "@repo/content";
 import { getBlogDefaultCoverImageUrl } from "@/lib/blog/blog-default-cover";
 import { resolveBlogPostShareImageUrl } from "@/lib/blog/blog-post-images";
 import {
   getBlogCategoryUrl,
   getBlogHomeUrl,
-  getBlogPostUrl,
   getBlogSiteUrl,
   getBlogTagUrl,
 } from "@/lib/blog/blog-site-url";
@@ -32,18 +32,21 @@ export function buildBlogHomeMetadata(): Metadata {
     "Artículos sobre fotografía escolar, deportiva, negocio fotográfico y novedades de ComprameLaFoto.";
   const url = getBlogHomeUrl();
   const image = defaultOgImage();
+  const og = buildContentOpenGraph({
+    siteName: SITE_NAME,
+    title,
+    description,
+    url,
+    imageUrl: image,
+    type: "website",
+  });
 
   return {
     title,
     description,
     alternates: { canonical: url },
     openGraph: {
-      title,
-      description,
-      url,
-      siteName: SITE_NAME,
-      locale: "es_AR",
-      type: "website",
+      ...og,
       images: [{ url: image, width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT, alt: SITE_NAME }],
     },
     twitter: {
@@ -74,7 +77,12 @@ export function buildBlogArticleMetadata(post: ArticleMetadataInput): Metadata {
   const seoHeadline = post.seoTitle?.trim() || post.title;
   const title = `${seoHeadline} | ${SITE_NAME}`;
   const description = post.seoDescription?.trim() || post.excerpt?.trim() || undefined;
-  const canonical = post.canonicalUrl?.trim() || getBlogPostUrl(post.slug);
+  const canonical =
+    post.canonicalUrl?.trim() ||
+    buildContentCanonicalUrl({
+      baseUrl: getBlogSiteUrl(),
+      path: `/blog/${encodeURIComponent(post.slug)}`,
+    });
   const image = resolveBlogPostShareImageUrl({
     slug: post.slug,
     heroImageUrl: post.heroImageUrl,

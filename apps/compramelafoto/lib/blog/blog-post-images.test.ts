@@ -20,11 +20,14 @@ describe("resolveBlogPostThumbnailUrl", () => {
 describe("resolveBlogPostShareImageUrl", () => {
   it("usa el proxy del sitio para servir la misma imagen que el artículo", () => {
     const updatedAt = "2026-06-01T12:00:00.000Z";
-    const url = resolveBlogPostShareImageUrl({
-      slug: "mi-articulo",
-      heroImageUrl: "https://cdn.example.com/blog/hero/abc.jpg",
-      updatedAt,
-    });
+    const url = resolveBlogPostShareImageUrl(
+      {
+        slug: "mi-articulo",
+        heroImageUrl: "https://cdn.example.com/blog/hero/abc.jpg",
+        updatedAt,
+      },
+      { siteUrl: "https://compramelafoto.com" }
+    );
     const v = String(new Date(updatedAt).getTime());
     assert.equal(url, `https://compramelafoto.com/api/blog/og-image/mi-articulo?v=${v}`);
   });

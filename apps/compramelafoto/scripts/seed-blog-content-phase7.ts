@@ -7,6 +7,8 @@
  */
 
 import { BlogPostStatus, PrismaClient } from "@prisma/client";
+
+import { CLF_CONTENT_PLATFORM } from "../lib/blog/content-platform";
 import {
   PHASE7_ALL_ARTICLES,
   PHASE7_ARTICLE_COUNT,
@@ -31,14 +33,14 @@ async function seedCategories() {
   console.log("Categorías Fase 7:");
   for (const category of PHASE7_CATEGORIES) {
     await prisma.blogCategory.upsert({
-      where: { slug: category.slug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: category.slug } },
       update: {
         name: category.name,
         description: category.description,
         sortOrder: category.sortOrder,
         isFeatured: category.isFeatured ?? false,
       },
-      create: category,
+      create: { ...category, platform: CLF_CONTENT_PLATFORM },
     });
     console.log(`  ✓ ${category.name} (${category.slug})`);
   }
@@ -49,9 +51,9 @@ async function seedTags() {
   for (const name of PHASE7_TAGS) {
     const slug = slugFromName(name);
     await prisma.blogTag.upsert({
-      where: { slug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug } },
       update: { name },
-      create: { name, slug },
+      create: { platform: CLF_CONTENT_PLATFORM, name, slug },
     });
     console.log(`  ✓ ${name}`);
   }
@@ -59,19 +61,26 @@ async function seedTags() {
 
 async function resolveAuthorId(): Promise<number | null> {
   const author =
-    (await prisma.blogAuthor.findUnique({ where: { slug: "equipo-compramelafoto" } })) ??
-    (await prisma.blogAuthor.findFirst({ where: { isActive: true }, orderBy: { id: "asc" } }));
+    (await prisma.blogAuthor.findUnique({ where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: "equipo-compramelafoto" } } })) ??
+    (await prisma.blogAuthor.findFirst({
+      where: { platform: CLF_CONTENT_PLATFORM, isActive: true },
+      orderBy: { id: "asc" },
+    }));
   return author?.id ?? null;
 }
 
 async function seedArticles() {
   const authorId = await resolveAuthorId();
   const categories = await prisma.blogCategory.findMany({
+    where: { platform: CLF_CONTENT_PLATFORM },
     select: { id: true, slug: true },
   });
   const categoryBySlug = new Map(categories.map((c) => [c.slug, c.id]));
 
-  const tags = await prisma.blogTag.findMany({ select: { id: true, slug: true, name: true } });
+  const tags = await prisma.blogTag.findMany({
+    where: { platform: CLF_CONTENT_PLATFORM },
+    select: { id: true, slug: true, name: true },
+  });
   const tagByName = new Map(tags.map((t) => [t.name, t.id]));
 
   console.log(`\nArtículos borrador (${PHASE7_ARTICLE_COUNT} definidos):`);
@@ -91,12 +100,12 @@ async function seedArticles() {
       .filter((id): id is number => id != null);
 
     const existing = await prisma.blogPost.findUnique({
-      where: { slug: draft.slug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.slug } },
       select: { id: true },
     });
 
     const post = await prisma.blogPost.upsert({
-      where: { slug: draft.slug },
+      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.slug } },
       update: {
         title: prepared.title,
         excerpt: prepared.excerpt,
@@ -115,6 +124,7 @@ async function seedArticles() {
         ogImageUrl: null,
       },
       create: {
+        platform: CLF_CONTENT_PLATFORM,
         title: prepared.title,
         slug: prepared.slug,
         excerpt: prepared.excerpt,

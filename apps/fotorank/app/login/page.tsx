@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthUser } from "../lib/auth";
+import { resolvePostLoginPathForUser } from "../lib/fotorank/access/home-capabilities";
 import { safeNextPath } from "../lib/safe-next-path";
 import { LoginForm } from "./LoginForm";
 
@@ -9,7 +10,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const sp = await searchParams;
   const next = safeNextPath(typeof sp.next === "string" ? sp.next : null);
   const user = await getAuthUser();
-  if (user) redirect(next ?? "/dashboard");
+  if (user) {
+    redirect(
+      await resolvePostLoginPathForUser({
+        userId: user.id,
+        email: user.email,
+        globalRole: user.globalRole,
+        next,
+      }),
+    );
+  }
 
   const oauthError = typeof sp.error === "string" && sp.error.trim() ? sp.error.trim() : null;
   const isParticipantReturn = Boolean(next?.includes("/inscripcion"));

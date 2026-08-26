@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role, SchoolOrganizerStatus } from "@prisma/client";
 import { logAdminAction, getRequestMetadata } from "@/lib/admin/audit";
-import { hashPassword } from "@repo/auth";
 
 const APP_URL = process.env.APP_URL || "https://www.compramelafoto.com";
 const REFERRAL_SIGNUP_PATH = "/land";
@@ -186,8 +185,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const bcrypt = await import("bcryptjs").then((m) => m.default);
     const temporaryPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-6);
-    const passwordHash = hashPassword(temporaryPassword);
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
 
     const user = await prisma.user.create({
       data: {

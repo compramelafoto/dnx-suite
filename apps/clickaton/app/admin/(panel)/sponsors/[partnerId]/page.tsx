@@ -10,6 +10,7 @@ import {
   DNX_PARTNER_REDEMPTION_METHODS,
   DNX_PARTNER_STATUSES,
   DNX_PARTNER_TYPES,
+  isWelcomeActivationExcludedApplication,
 } from "@repo/partners";
 import { RequiresPaymentFields } from "@/components/admin/partners/RequiresPaymentFields";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
@@ -96,12 +97,20 @@ export default async function AdminPartnerDetailPage({
           { label: partner.name },
         ]}
         actions={
-          <form action={archivePartnerFormAction}>
-            <input type="hidden" name="partnerId" value={partner.id} />
-            <Button type="submit" variant="secondary">
-              Archivar
+          <div className="flex flex-wrap gap-3">
+            <Button href={`${adminRoutes.sponsors}/${partner.id}/analytics`} variant="secondary">
+              Analytics
             </Button>
-          </form>
+            <Button href={`${adminRoutes.sponsors}/${partner.id}/campanas`} variant="secondary">
+              Campañas
+            </Button>
+            <form action={archivePartnerFormAction}>
+              <input type="hidden" name="partnerId" value={partner.id} />
+              <Button type="submit" variant="secondary">
+                Archivar
+              </Button>
+            </form>
+          </div>
         }
       />
 
@@ -230,7 +239,9 @@ export default async function AdminPartnerDetailPage({
             <div className="grid gap-4 md:grid-cols-2">
               <Field id="application" label="Aplicación">
                 <Select name="application" defaultValue="CLICKATON">
-                  {DNX_PARTNER_APPLICATIONS.map((a) => (
+                  {DNX_PARTNER_APPLICATIONS.filter(
+                    (a) => !isWelcomeActivationExcludedApplication(a),
+                  ).map((a) => (
                     <option key={a} value={a}>
                       {a}
                     </option>

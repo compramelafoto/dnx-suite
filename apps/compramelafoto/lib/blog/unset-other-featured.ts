@@ -1,25 +1,25 @@
 import type { PrismaClient } from "@prisma/client";
+import {
+  ensureSingleFeaturedPost,
+  unsetOtherFeaturedPosts,
+} from "@repo/content";
+import { CLF_CONTENT_PLATFORM } from "@/lib/blog/content-platform";
 
 type PrismaLike = Pick<PrismaClient, "blogPost">;
 
 /**
- * Garantiza un solo artículo destacado activo.
- * Desmarca `isFeatured` en todos los demás posts publicados.
+ * Garantiza un solo artículo destacado activo (por plataforma CLF).
+ * Desmarca `isFeatured` en todos los demás posts de la misma plataforma.
  */
 export async function unsetOtherFeaturedBlogPosts(
   prisma: PrismaLike,
   featuredPostId: number
 ): Promise<number> {
-  const result = await prisma.blogPost.updateMany({
-    where: {
-      id: { not: featuredPostId },
-      isFeatured: true,
-    },
-    data: {
-      isFeatured: false,
-    },
+  return unsetOtherFeaturedPosts({
+    prisma,
+    platform: CLF_CONTENT_PLATFORM,
+    featuredPostId,
   });
-  return result.count;
 }
 
 /**
@@ -31,6 +31,10 @@ export async function ensureSingleFeaturedBlogPost(
   postId: number,
   isFeatured: boolean
 ): Promise<void> {
-  if (!isFeatured) return;
-  await unsetOtherFeaturedBlogPosts(prisma, postId);
+  return ensureSingleFeaturedPost({
+    prisma,
+    platform: CLF_CONTENT_PLATFORM,
+    postId,
+    isFeatured,
+  });
 }

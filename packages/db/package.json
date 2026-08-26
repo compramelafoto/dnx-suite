@@ -10,7 +10,16 @@
     "./client": "./src/client.ts",
     "./permissions": "./src/infospot-permissions.ts",
     "./clf-album-availability": "./src/clf-album-availability.ts",
-    "./clf-event-write": "./src/clf-event-write.ts"
+    "./clf-event-write": "./src/clf-event-write.ts",
+    "./partners-prisma-repository": "./src/partners-prisma-repository.ts",
+    "./partners-ads-loader": "./src/partners-ads-loader.ts",
+    "./partners-campaign-publisher": "./src/partners-campaign-publisher.ts",
+    "./partners-publication-targets": "./src/partners-publication-targets.ts",
+    "./partners-impression-ingest": "./src/partners-impression-ingest.ts",
+    "./partners-analytics-multi-db": "./src/partners-analytics-multi-db.ts",
+    "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts",
+    "./fotoffice-members": "./src/fotoffice-members.ts",
+    "./daily-report-repository": "./src/daily-report-repository.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",
@@ -29,8 +38,11 @@
     "db:seed:infospot-events": "tsx prisma/scripts/seed-infospot-demo-events.ts",
     "db:seed:infospot-launch-drafts": "tsx prisma/scripts/seed-infospot-launch-drafts.ts",
     "db:seed:santa-fe-en-foco": "tsx prisma/scripts/seed-santa-fe-en-foco.ts",
+    "db:seed:santa-fe-en-foco-production": "tsx prisma/scripts/seed-santa-fe-en-foco-production.ts",
     "db:seed:santa-fe-rules-config": "tsx prisma/scripts/seed-santa-fe-rules-config.ts",
     "test:clf-availability": "tsx src/clf-album-availability.test.ts",
+    "test:partners-analytics": "tsx --test src/partners-analytics.test.ts",
+    "test:welcome-context": "tsx --test src/partners-welcome-context-clients.test.ts",
     "db:studio": "prisma studio",
     "audit:migration-state": "tsx scripts/audit-migration-state.mts",
     "audit:schema-baseline": "tsx scripts/verify-schema-baseline.mts",
@@ -38,13 +50,16 @@
     "audit:clickaton-registration-schema": "tsx scripts/audit-clickaton-registration-schema.mts",
     "staging:identity-cutover": "tsx scripts/staging-identity-cutover.mts",
     "communications:db:identity": "tsx scripts/communications-db-identity.mts",
-    "test:communications-identity": "tsx --test scripts/communications-db-identity.test.ts"
+    "test:communications-identity": "tsx --test scripts/communications-db-identity.test.ts",
+    "test:daily-report": "tsx --test src/daily-report-repository.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.9.0"
+    "@prisma/client": "^6.9.0",
+    "@repo/ops-daily-report": "workspace:*",
+    "@repo/partners": "workspace:*"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

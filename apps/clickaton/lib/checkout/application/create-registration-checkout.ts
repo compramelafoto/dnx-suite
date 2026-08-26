@@ -195,11 +195,29 @@ export function createRegistrationCheckoutUseCase(deps: {
       } catch (error) {
         if (error instanceof CheckoutError) throw error;
         if (requiresEditionFinance) {
+          const financeCode =
+            error &&
+            typeof error === "object" &&
+            "code" in error &&
+            typeof (error as { code: unknown }).code === "string"
+              ? (error as { code: string }).code
+              : null;
+          log?.({
+            event: "finance_snapshot_failed",
+            registrationId: registration.id,
+            meta: {
+              financeCode: financeCode ?? "unknown",
+              reason: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+            },
+          });
           throw new CheckoutError(
             "CHECKOUT_NOT_AVAILABLE",
-            error instanceof Error
-              ? error.message.slice(0, 160)
-              : "No se pudo resolver la distribuci?n financiera.",
+            financeCode === "NO_ACTIVE_DISTRIBUTION"
+              ? "Todavía no se pueden cobrar inscripciones para esta edición. Probá más tarde o contactá a la organización."
+              : error instanceof Error
+                ? error.message.slice(0, 160)
+                : "No se pudo resolver la distribución financiera.",
+            financeCode ? { financeCode } : undefined,
           );
         }
         log?.({

@@ -35,9 +35,18 @@ importers:
       '@repo/communications':
         specifier: workspace:*
         version: link:../../packages/communications
+      '@repo/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@repo/content-ui':
+        specifier: workspace:*
+        version: link:../../packages/content-ui
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/design-system':
+        specifier: workspace:*
+        version: link:../../packages/design-system
       '@repo/media-composition':
         specifier: workspace:*
         version: link:../../packages/media-composition
@@ -165,6 +174,15 @@ importers:
       '@repo/auth-ui':
         specifier: workspace:*
         version: link:../../packages/auth-ui
+      '@repo/communications':
+        specifier: workspace:*
+        version: link:../../packages/communications
+      '@repo/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@repo/content-ui':
+        specifier: workspace:*
+        version: link:../../packages/content-ui
       '@repo/cuanto-cobro-core':
         specifier: workspace:*
         version: link:../../packages/cuanto-cobro-core
@@ -177,6 +195,12 @@ importers:
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
+      '@repo/ops-daily-report':
+        specifier: workspace:*
+        version: link:../../packages/ops-daily-report
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../../packages/partners
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
@@ -490,6 +514,18 @@ importers:
 
   apps/fotoffice:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.972.0
+        version: 3.1079.0
+      '@dnd-kit/core':
+        specifier: ^6.3.1
+        version: 6.3.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@dnd-kit/sortable':
+        specifier: ^10.0.0
+        version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
+      '@dnd-kit/utilities':
+        specifier: ^3.2.2
+        version: 3.2.2(react@19.2.4)
       '@repo/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -499,6 +535,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../../packages/partners
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -508,6 +547,9 @@ importers:
       next:
         specifier: 16.2.1
         version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      papaparse:
+        specifier: ^5.5.4
+        version: 5.5.4
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -527,6 +569,9 @@ importers:
       '@types/node':
         specifier: ^20
         version: 20.19.37
+      '@types/papaparse':
+        specifier: ^5.5.2
+        version: 5.5.2
       '@types/react':
         specifier: ^19
         version: 19.2.2
@@ -632,6 +677,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../../packages/partners
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -753,6 +801,9 @@ importers:
       '@repo/notifications':
         specifier: workspace:*
         version: link:../../packages/notifications
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../../packages/partners
       '@repo/recommendations':
         specifier: workspace:*
         version: link:../../packages/recommendations
@@ -960,6 +1011,110 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  packages/content:
+    dependencies:
+      '@prisma/client':
+        specifier: ^6.19.2
+        version: 6.19.2(prisma@6.19.2(typescript@5.9.2))(typescript@5.9.2)
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../db
+      '@tiptap/core':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/pm@2.27.2)
+      '@tiptap/extension-image':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
+      '@tiptap/extension-link':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2)
+      '@tiptap/extension-table':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2)
+      '@tiptap/extension-table-cell':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
+      '@tiptap/extension-table-header':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
+      '@tiptap/extension-table-row':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
+      '@tiptap/extension-youtube':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
+      '@tiptap/html':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2)
+      '@tiptap/starter-kit':
+        specifier: ^2.11.5
+        version: 2.27.2
+      sanitize-html:
+        specifier: ^2.17.4
+        version: 2.17.5
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      '@types/sanitize-html':
+        specifier: ^2.16.1
+        version: 2.16.1
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/content-ui:
+    dependencies:
+      '@repo/content':
+        specifier: workspace:*
+        version: link:../content
+      '@tiptap/core':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/pm@2.27.2)
+      '@tiptap/react':
+        specifier: ^2.11.5
+        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      '@types/react':
+        specifier: 19.2.2
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: 19.2.2
+        version: 19.2.2(@types/react@19.2.2)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.4(react@19.2.4)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
   packages/cuanto-cobro-core:
     devDependencies:
       '@repo/eslint-config':
@@ -986,6 +1141,12 @@ importers:
       '@prisma/client':
         specifier: ^6.9.0
         version: 6.19.2(prisma@6.19.2(typescript@5.9.2))(typescript@5.9.2)
+      '@repo/ops-daily-report':
+        specifier: workspace:*
+        version: link:../ops-daily-report
+      '@repo/partners':
+        specifier: workspace:*
+        version: link:../partners
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
@@ -1185,6 +1346,27 @@ importers:
       '@repo/geo':
         specifier: workspace:*
         version: link:../geo
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/ops-daily-report:
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*

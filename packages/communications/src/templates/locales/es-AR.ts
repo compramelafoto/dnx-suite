@@ -28,4 +28,18 @@ export const localeEsAR: LocaleBundle = {
     defaultCta: "Ingresar",
     supportCta: "Contactar soporte",
   },
+  opsDailyReport: {
+    subject: (reportDate) => `Informe DNX — ${reportDate}`,
+    subjectWithAlerts: (reportDate, criticalCount) =>
+      `Informe DNX — ${reportDate} — ${criticalCount} ${
+        criticalCount === 1 ? "alerta crítica" : "alertas críticas"
+      }`,
+    heading: "Informe diario de la suite",
+    intro: (reportDate) =>
+      `Resumen de la actividad del ${reportDate} en todas las plataformas.`,
+    alertsTitle: "Requiere tu atención",
+    summaryTitle: "Números del día",
+    defaultCta: "Ver el informe completo",
+    statusLabel: (status) => `Estado del informe: ${status}`,
+  },
 };

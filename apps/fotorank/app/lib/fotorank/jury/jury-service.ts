@@ -1,4 +1,3 @@
-// @ts-nocheck — P0 jury/scoring models not in deployed Prisma client yet
 import { prisma } from "@repo/db";
 import { getContestEntryStorage } from "../storage/provider";
 import { assertJudgeContestAccess, assertJuryEntryAccess } from "./jury-access";
@@ -191,7 +190,12 @@ export async function getAnonymousEntryDetailForJuror(input: {
   }
 
   const storage = getContestEntryStorage();
-  const previewUrl = await storage.getSignedUrl(juryPreview.storageKey, "read", PREVIEW_TTL_SEC);
+  let previewUrl: string | null = null;
+  try {
+    previewUrl = await storage.getSignedUrl(juryPreview.storageKey, "read", PREVIEW_TTL_SEC);
+  } catch {
+    previewUrl = null;
+  }
   const warningCount = entry.checks.filter(
     (c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW",
   ).length;

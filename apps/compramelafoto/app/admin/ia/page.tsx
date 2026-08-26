@@ -415,8 +415,50 @@ export default function AdminIAPage() {
     }
   }
 
-      async function handleSkipPending() {
-    if (!confirm(`¿Marcar TODAS las fotos pendientes como excluidas?\n\nEsto marcará TODAS las fotos pendientes (${stats?.pendingJobs || 0} fotos) como excluidas del procesamiento automático.\n\nEstas fotos no se procesarán automáticamente en el futuro, pero las nuevas fotos que subas se procesarán normalmente.`)) {
+  async function handleSuspendOldPending() {
+    if (
+      !confirm(
+        "¿Suspender el análisis de fotos subidas hace más de 7 días?\n\nSolo quedarán en cola las fotos de los últimos 7 días. Las antiguas se marcan como suspendidas (no se borran) para no atrasar el pipeline."
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch("/api/admin/ai/suspend-old-pending?days=7", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage({
+          type: "success",
+          text: `Se suspendieron ${data.suspended || 0} fotos antiguas (>${data.days || 7} días). La cola queda priorizada a lo reciente.`,
+        });
+        await loadStatus();
+        await loadErrorDiagnostics();
+      } else {
+        setMessage({
+          type: "error",
+          text: data.error || "Error al suspender pendientes antiguas",
+        });
+      }
+    } catch (err: any) {
+      setMessage({ type: "error", text: err?.message || "Error de conexión" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSkipPending() {
+    if (
+      !confirm(
+        `¿Marcar TODAS las fotos pendientes como excluidas?\n\nEsto marcará TODAS las fotos pendientes (${stats?.pendingJobs || 0} fotos) como excluidas del procesamiento automático.\n\nEstas fotos no se procesarán automáticamente en el futuro, pero las nuevas fotos que subas se procesarán normalmente.`
+      )
+    ) {
       return;
     }
 
@@ -432,14 +474,19 @@ export default function AdminIAPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setMessage({ 
-          type: "success", 
-          text: data.message || `Se marcaron ${data.skipped || 0} fotos pendientes como excluidas` 
+        setMessage({
+          type: "success",
+          text:
+            data.message ||
+            `Se marcaron ${data.skipped || 0} fotos pendientes como excluidas`,
         });
         await loadStatus();
         await loadErrorDiagnostics();
       } else {
-        setMessage({ type: "error", text: data.error || "Error al marcar fotos pendientes" });
+        setMessage({
+          type: "error",
+          text: data.error || "Error al marcar fotos pendientes",
+        });
       }
     } catch (err: any) {
       setMessage({ type: "error", text: err?.message || "Error de conexión" });
@@ -640,6 +687,27 @@ export default function AdminIAPage() {
                 className="w-full md:w-auto bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300"
               >
                 {loading ? "Desbloqueando..." : "🔓 Desbloquear Jobs Trabados"}
+              </Button>
+            </div>
+          )}
+
+          {stats && stats.pendingJobs > 0 && (
+            <div className="border-t pt-4">
+              <h3 className="text-md font-medium text-gray-900 mb-2">
+                ⏱️ Priorizar últimos 7 días
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Suspende el análisis de fotos subidas hace más de 7 días para no atrasar la cola.
+                Solo quedan activas las recientes. Las suspendidas no se borran; se pueden reprocesar
+                por álbum después.
+              </p>
+              <Button
+                variant="secondary"
+                onClick={handleSuspendOldPending}
+                disabled={loading || processing}
+                className="w-full md:w-auto bg-orange-50 hover:bg-orange-100 text-orange-800 border-orange-300"
+              >
+                {loading ? "Suspendiendo..." : "⏱️ Suspender pendientes de más de 7 días"}
               </Button>
             </div>
           )}

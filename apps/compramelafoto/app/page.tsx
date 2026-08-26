@@ -9,6 +9,8 @@ import Card from "@/components/ui/Card";
 import RecommendLabModal from "@/components/RecommendLabModal";
 import FaqSection from "@/components/FaqSection";
 import HomeBanner from "@/components/HomeBanner";
+import { PartnerHomePromoClient } from "@/components/partners/PartnerHomePromoClient";
+import { PartnerLogoMarqueeClient } from "@/components/partners/PartnerLogoMarqueeClient";
 import { GateVisibilityProvider } from "@/contexts/GateVisibilityContext";
 import ScreenshotProtection from "@/components/photo/ScreenshotProtection";
 import GalleryMediaTypeBadges from "@/components/gallery/GalleryMediaTypeBadges";
@@ -195,6 +197,8 @@ export default function HomePage() {
       <div data-protected-album="true">
         <ScreenshotProtection />
         <HomeBanner />
+        <PartnerHomePromoClient />
+        <PartnerLogoMarqueeClient />
 
       {/* Hero Section - como antes: logo y opciones arriba vienen del Header */}
       <section className="relative overflow-hidden bg-[#f7f5f2]">

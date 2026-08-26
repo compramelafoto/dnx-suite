@@ -10,6 +10,7 @@ import {
   parseRouteId,
   requireBlogAdmin,
 } from "@/lib/blog/admin-route-utils";
+import { clfPlatformWhere } from "@/lib/blog/content-platform";
 import { mapPostResponse, postInclude } from "@/lib/blog/post-queries";
 
 export const runtime = "nodejs";
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   const q = (searchParams.get("q") || "").trim();
   const featured = searchParams.get("featured");
 
-  const where: Prisma.BlogPostWhereInput = {};
+  const where: Prisma.BlogPostWhereInput = { ...clfPlatformWhere };
   if (status) where.status = status;
   if (type) where.type = type;
   if (categoryId) where.categoryId = categoryId;

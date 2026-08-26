@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   extractEditorialFigures,
   findFiguresMissingAlt,
@@ -173,6 +174,7 @@ export function ArticleForm({
 }: ArticleFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const editorRef = useRef<EditorialVisualEditorHandle>(null);
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
@@ -255,8 +257,18 @@ export function ArticleForm({
   const pendingDirtyRef = useRef(false);
   /** true solo tras «Limpiar ubicación» — permite persistir geographicScope null. */
   const locationClearedRef = useRef(false);
+  /** true solo tras «Eliminar portada» — permite persistir coverImageId null. */
+  const coverImageClearedRef = useRef(false);
+  /**
+   * true solo si el cuerpo fue tocado por una edición real del editor
+   * (onUpdate de Tiptap, nunca por la hidratación inicial). Sin esto, un
+   * `content` vacío en el primer render (props de servidor incompletas)
+   * sería indistinguible de que el redactor vació el cuerpo a propósito.
+   */
+  const contentTouchedRef = useRef(false);
   const saveStateRef = useRef<SaveState>("idle");
   saveStateRef.current = saveState;
+  const [previewPending, setPreviewPending] = useState(false);
 
   const autoSlug = useMemo(() => slugifyTitle(title), [title]);
 
@@ -453,11 +465,13 @@ export function ArticleForm({
         slug: (snap.slug || snap.autoSlug || "sin-titulo").trim(),
         excerpt: snap.excerpt,
         content: snap.content,
+        contentCleared: contentTouchedRef.current && !snap.content.trim() ? "1" : undefined,
         categoryId: snap.categoryId || "",
         coverImageId: snap.coverImageId || null,
         coverCredit: snap.coverImageId ? snap.coverCredit : undefined,
         // Enviar siempre el pie si hay portada (también vacío → opcional en schema).
         coverCaption: snap.coverImageId ? snap.coverCaption : undefined,
+        coverImageCleared: coverImageClearedRef.current ? "1" : undefined,
         seoTitle: snap.seoTitle || undefined,
         seoDescription: snap.seoDescription || undefined,
         sourceName: snap.sourceName || undefined,
@@ -479,6 +493,9 @@ export function ArticleForm({
       });
       if (result.ok && snap.location.geographicScope) {
         locationClearedRef.current = false;
+      }
+      if (result.ok && snap.coverImageId) {
+        coverImageClearedRef.current = false;
       }
       if (!result.ok) {
         nextState = "error";
@@ -559,6 +576,38 @@ export function ArticleForm({
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [mode, runAutosave]);
+
+  // Espera cualquier guardado sin terminar (en curso o debounced pendiente) y
+  // dispara uno si quedó "dirty". Se usa antes de navegar a Vista previa: una
+  // navegación SPA (Link) desmonta este componente y el efecto de debounce
+  // de abajo cancela el setTimeout pendiente en su cleanup — sin este flush
+  // explícito, la última edición sin guardar nunca llega al servidor.
+  const flushPendingSave = useCallback(async () => {
+    if (mode !== "edit" || !initial?.id) return;
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
+    let guard = 0;
+    while (savingLock.current && guard < 100) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      guard += 1;
+    }
+    if (saveStateRef.current === "dirty" || saveStateRef.current === "error") {
+      await runAutosave();
+    }
+  }, [initial?.id, mode, runAutosave]);
+
+  // Red de seguridad para cualquier otro desmontaje (navegar a otra sección,
+  // cerrar un drawer que desmonta el árbol, etc.): mejor esfuerzo, sin esperar
+  // la respuesta porque un cleanup síncrono no puede hacer await.
+  useEffect(() => {
+    if (mode !== "edit") return;
+    return () => {
+      void flushPendingSave();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   useEffect(() => {
     if (!sideDrawer && !configOpen) return;
@@ -1182,12 +1231,29 @@ export function ArticleForm({
             ) : null}
           </button>
           {mode === "edit" && initial ? (
-            <Link
-              href={`/redaccion/noticias/${initial.id}/preview`}
-              className="is-btn is-btn-secondary"
+            <button
+              type="button"
+              className="is-btn is-btn-secondary disabled:opacity-60"
+              disabled={previewPending}
+              onClick={() => {
+                const previewHref = `/redaccion/noticias/${initial.id}/preview`;
+                if (saveState === "idle" || saveState === "saved") {
+                  router.push(previewHref);
+                  return;
+                }
+                setPreviewPending(true);
+                void flushPendingSave().then(() => {
+                  setPreviewPending(false);
+                  // Si el guardado terminó en error, no navegar: el contenido
+                  // local queda intacto y el error ya se muestra arriba
+                  // (toolbar de guardado), accionable antes de reintentar.
+                  if (saveStateRef.current === "error") return;
+                  router.push(previewHref);
+                });
+              }}
             >
-              Vista previa
-            </Link>
+              {previewPending ? "Guardando…" : "Vista previa"}
+            </button>
           ) : null}
           <button
             type="submit"
@@ -1365,6 +1431,8 @@ export function ArticleForm({
                   return fromLinks;
                 })()}
                 onChange={(next) => {
+                  if (!next.id) coverImageClearedRef.current = true;
+                  else coverImageClearedRef.current = false;
                   setCoverImageId(next.id);
                   setCoverCredit(next.credit);
                   setCoverCaption(next.caption);
@@ -1421,6 +1489,7 @@ export function ArticleForm({
               initialMarkdown={content}
               articleId={initial?.id}
               onMarkdownChange={(md) => {
+                contentTouchedRef.current = true;
                 touchDraft({ content: md });
                 setContent(md);
               }}

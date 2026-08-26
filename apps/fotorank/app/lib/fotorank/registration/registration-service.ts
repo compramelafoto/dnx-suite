@@ -1,6 +1,15 @@
 import { prisma, type Prisma } from "@repo/db";
 import { frLog } from "../observability/structured-log";
 import { enqueueTransactionalEmail } from "../notifications/outbox";
+import {
+  assertOpenParticipation,
+  categoryRequiresArgra,
+  normalizeArgraMembershipNumber,
+  redactArgraForLog,
+  validateArgraMembershipNumber,
+  type RegistrationAnswers,
+} from "../eligibility";
+import type { ContestRulesConfiguration } from "../rules-config/types";
 import { RegistrationError } from "./errors";
 import { resolveFinancePolicy } from "./finance";
 import { buildRegistrationNumber } from "./registration-number";
@@ -24,6 +33,8 @@ export type CreateRegistrationInput = {
   } | null;
   /** Opcional; nunca sustituye aceptación de bases/licencia. */
   promotionalOptIn?: boolean;
+  /** Número de socio ARGRA (obligatorio solo si la categoría lo exige). */
+  argraMembershipNumber?: string | null;
   rulesAcceptanceIp?: string | null;
   rulesAcceptanceUserAgent?: string | null;
   now?: Date;
@@ -205,6 +216,43 @@ export async function createContestRegistration(input: CreateRegistrationInput):
     );
   }
 
+  // Participación abierta: residencia del participante nunca bloquea (aunque el texto viejo diga lo contrario).
+  void assertOpenParticipation();
+
+  const publishedCfgRow = await prisma.fotorankContestConfigurationVersion.findFirst({
+    where: { contestId: contest.id, status: "PUBLISHED" },
+    orderBy: { versionNumber: "desc" },
+    select: { configurationJson: true },
+  });
+  const publishedCfg = publishedCfgRow?.configurationJson as ContestRulesConfiguration | null;
+  const cfgCategory = publishedCfg?.categories?.find((c) => c.slug === category.slug);
+  const requiresArgra =
+    cfgCategory?.membershipRestriction === "ARGRA" || categoryRequiresArgra(category.slug);
+
+  let answersJson: RegistrationAnswers = {
+    openParticipationAcknowledged: true,
+    argraVerificationStatus: "NOT_REQUIRED",
+  };
+  if (requiresArgra) {
+    const argraCheck = validateArgraMembershipNumber(input.argraMembershipNumber);
+    if (argraCheck.decision === "NOT_ELIGIBLE") {
+      throw new RegistrationError("ARGRA_REQUIRED", argraCheck.publicMessage, 400);
+    }
+    const normalized = normalizeArgraMembershipNumber(input.argraMembershipNumber);
+    answersJson = {
+      openParticipationAcknowledged: true,
+      argraMembershipNumber: normalized,
+      argraVerificationStatus: "PENDING_VERIFICATION",
+      argraDeclaredOwn: true,
+    };
+    frLog("registration.created", {
+      contestId: contest.id,
+      categorySlug: category.slug,
+      argraPresent: true,
+      argraRedacted: redactArgraForLog(normalized),
+    });
+  }
+
   const currentRules = await getCurrentPublishedRules(contest.id);
   if (!currentRules) {
     throw new RegistrationError(
@@ -319,6 +367,7 @@ export async function createContestRegistration(input: CreateRegistrationInput):
           financialPolicySnapshot: finance.policySnapshot,
           paymentOrderId: null,
           categoryLockedAt: now,
+          answersJson: answersJson as Prisma.InputJsonValue,
         },
         include: registrationInclude,
       });
@@ -482,12 +531,13 @@ export async function countConfirmedRegistrations(contestId: string): Promise<nu
 }
 
 /**
- * Verifica que un organizador pertenece a la org del concurso (protección cross-contest).
+ * Verifica acceso organizador al concurso.
+ * Super Admin (`User.globalRole` / role legado) entra sin membresía de org.
  */
 export async function assertOrganizerCanAccessContest(
   contestId: string,
   userId: number,
-): Promise<{ organizationId: string }> {
+): Promise<{ organizationId: string; viaSuperAdmin?: boolean }> {
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: contestId },
     select: { organizationId: true },
@@ -495,6 +545,26 @@ export async function assertOrganizerCanAccessContest(
   if (!contest) {
     throw new RegistrationError("CONTEST_NOT_FOUND", "Concurso no encontrado.", 404);
   }
+
+  const actor = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { globalRole: true, role: true },
+  });
+  if (actor?.globalRole === "SUPER_ADMIN" || actor?.role === "SUPER_ADMIN") {
+    try {
+      const { recordPlatformAudit } = await import("../access/super-admin");
+      await recordPlatformAudit({
+        actorUserId: userId,
+        action: "SUPER_ADMIN_CONTEST_ACCESS",
+        organizationId: contest.organizationId,
+        contestId,
+      });
+    } catch {
+      // no bloquear acceso por fallo de auditoría
+    }
+    return { organizationId: contest.organizationId, viaSuperAdmin: true };
+  }
+
   const member = await prisma.contestOrganizationMember.findFirst({
     where: {
       organizationId: contest.organizationId,

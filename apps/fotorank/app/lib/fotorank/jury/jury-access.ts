@@ -119,6 +119,7 @@ export async function assertJuryEntryAccess(input: {
 
   const juryPreview =
     entry.assets.find((a) => a.kind === "JURY_PREVIEW") ??
+    entry.assets.find((a) => a.kind === "THUMBNAIL") ??
     (snapshot?.juryAssetId
       ? await prisma.fotorankContestEntryAsset.findUnique({ where: { id: snapshot.juryAssetId } })
       : null);
