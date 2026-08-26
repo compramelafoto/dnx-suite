@@ -5,6 +5,7 @@
  *   pnpm --filter @repo/design-studio exec tsx src/emitir-ejemplo.ts <directorio-salida>
  */
 import { readFileSync } from "node:fs";
+import { deflateSync } from "node:zlib";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { emitDesign } from "./export/emit";
@@ -20,8 +21,59 @@ const documento = JSON.parse(
   ),
 ) as unknown;
 
-const foto = new Uint8Array(readFileSync("/tmp/foto-ejemplo.png"));
-const recursos: ResourceResolver = { read: async () => foto };
+const recursos: ResourceResolver = { read: async () => retratoDePrueba() };
+
+/**
+ * Un PNG de degradado, generado acá para que el script no dependa de ningún archivo suelto.
+ * Ocupa el lugar del retrato del socio.
+ */
+function retratoDePrueba(): Uint8Array {
+  const ANCHO = 300;
+  const ALTO = 400;
+  const crudo = Buffer.alloc((ANCHO * 3 + 1) * ALTO);
+  let p = 0;
+  for (let y = 0; y < ALTO; y++) {
+    crudo[p++] = 0; // filtro de la fila
+    for (let x = 0; x < ANCHO; x++) {
+      const t = (x / ANCHO + y / ALTO) / 2;
+      crudo[p++] = Math.round(40 + t * 120);
+      crudo[p++] = Math.round(90 + t * 110);
+      crudo[p++] = Math.round(90 + t * 100);
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(ANCHO, 0);
+  ihdr.writeUInt32BE(ALTO, 4);
+  ihdr[8] = 8; // bits por canal
+  ihdr[9] = 2; // color verdadero, sin alfa
+  return new Uint8Array(
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      trozoPng("IHDR", ihdr),
+      trozoPng("IDAT", deflateSync(crudo)),
+      trozoPng("IEND", Buffer.alloc(0)),
+    ]),
+  );
+}
+
+function trozoPng(tipo: string, datos: Buffer): Buffer {
+  const largo = Buffer.alloc(4);
+  largo.writeUInt32BE(datos.length);
+  const cuerpo = Buffer.concat([Buffer.from(tipo, "ascii"), datos]);
+  const suma = Buffer.alloc(4);
+  suma.writeUInt32BE(crc32(cuerpo));
+  return Buffer.concat([largo, cuerpo, suma]);
+}
+
+function crc32(buf: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of buf) {
+    let c = (crc ^ byte) & 0xff;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    crc = c ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
 
 const contrato: VariableContract = {
   variables: [
