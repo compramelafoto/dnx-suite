@@ -1,7 +1,19 @@
 @import "tailwindcss";
+@import "./styles/public-tokens.css";
+/* Inscripción / concurso público (ETAPA 10C): define .fr-contest-* y .fr-upload-*,
+   que son las clases que usa el wizard de carga. */
+@import "./styles/contest-public.css";
+/* Puente visual inscripción/upload → public-ui. Re-tematiza las clases de
+   arriba con los tokens públicos; debe ir DESPUÉS para poder sobreescribirlas. */
+@import "./styles/inscription-public-bridge.css";
 
 /* ==========================================================================
    FOTORANK — Sistema de diseño premium 2026
+   ==========================================================================
+   LEGACY: clases `fr-*` / tokens `@theme` gold/fr-* — dashboard + superficies
+   aún no migradas. Experiencia pública/participante nueva: `public-tokens.css`
+   + `app/components/public-ui/` (prefijo `.fr-public-*`).
+   Inscripción Santa Fe: `contest-public.css` + `inscription-public-bridge.css`.
    ========================================================================== */
 
 @theme {
@@ -45,16 +57,26 @@
   --color-destructive: #fca5a5;
 }
 
-/* No usar padding:0 universal: en Tailwind v4 puede ganar al layer de utilidades y deja inputs/select sin sangría. */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-* {
-  margin: 0;
-}
+/**
+ * Reset universal: lo aporta el Preflight de Tailwind v4, que ya emite
+ * `*,::after,::before,::backdrop{box-sizing:border-box;border:0 solid;margin:0;padding:0}`
+ * DENTRO de `@layer base`.
+ *
+ * Acá había una copia manual de ese mismo reset (`box-sizing` + `margin: 0`)
+ * escrita SIN capa. En la cascada por capas, una regla sin capa gana sobre
+ * cualquier regla dentro de una capa, sin importar la especificidad. Como las
+ * utilidades de Tailwind viven en `@layer utilities`, ese `* { margin: 0 }`
+ * anulaba `mx-auto`, `my-auto` y todas las utilidades `m*`: la clase aparecía
+ * en el HTML y en el CSS, pero el margen calculado quedaba en 0. El síntoma
+ * era el hero del home desplazado 231 px a la izquierda.
+ *
+ * El comentario anterior ya advertía este mismo efecto para `padding` y por eso
+ * no se copiaba `padding: 0`; faltaba aplicar el mismo criterio a `margin`.
+ *
+ * No se reemplaza por una versión en `@layer base` porque sería duplicar
+ * Preflight: el reset ya existe, con el mismo alcance y los mismos valores.
+ * Cubierto por `globals-cascade.selfcheck.ts`.
+ */
 
 html {
   scroll-behavior: smooth;
@@ -4118,3 +4140,109 @@ html:has(.fr-contest-shell) {
   font-size: 0.8rem;
 }
 
+
+/* ---------------------------------------------------------------------------
+   Tarjeta de concurso próximo ("PRÓXIMAMENTE" / "Notificarme")
+   Hereda el contrato visual del concurso (--cv-*) igual que el resto de las
+   superficies públicas, para no quedar fuera del sistema.
+   --------------------------------------------------------------------------- */
+
+.fr-contest-upcoming-card {
+  width: 100%;
+  max-width: 34rem;
+  overflow: hidden;
+}
+
+.fr-contest-upcoming-card--mobile {
+  max-width: 22rem;
+}
+
+.fr-contest-upcoming-card__media {
+  position: relative;
+  aspect-ratio: 1200 / 630;
+  overflow: hidden;
+  border-radius: calc(var(--cv-radius, 0.5rem) - 0.125rem);
+  background-color: var(--cv-surface, var(--color-fr-card));
+  border: 1px solid var(--cv-border, var(--color-fr-border));
+}
+
+.fr-contest-upcoming-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.fr-contest-upcoming-card__media-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 100%;
+  padding: 1rem;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.fr-contest-upcoming-card__title {
+  color: var(--cv-text-strong, var(--color-fr-primary));
+  text-wrap: balance;
+}
+
+.fr-contest-upcoming-card__tagline {
+  color: var(--cv-accent, var(--color-gold));
+}
+
+/* Botón "Notificarme" y su modal de consentimiento. */
+.fr-contest-notify { display: flex; flex-direction: column; gap: 0.75rem; }
+.fr-contest-notify__cta { width: 100%; justify-content: center; }
+.fr-contest-notify__ok { color: var(--cv-accent, var(--color-gold)); font-size: 0.9375rem; }
+
+.fr-contest-notify__cancel {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  color: var(--color-fr-muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.fr-contest-notify__cancel:hover { color: var(--color-fr-primary); }
+.fr-contest-notify__cancel:disabled { opacity: 0.5; cursor: default; }
+
+.fr-contest-notify__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background-color: rgb(0 0 0 / 0.8);
+}
+
+.fr-contest-notify__dialog {
+  width: 100%;
+  max-width: 32rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.75rem;
+  background-color: var(--cv-surface-elevated, var(--color-fr-card));
+  border: 1px solid var(--cv-border, var(--color-fr-border));
+  border-radius: var(--cv-radius, 0.5rem);
+}
+
+.fr-contest-notify__consents {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--cv-border, var(--color-fr-border));
+}
+
+.fr-contest-notify__optin { display: flex; align-items: flex-start; gap: 0.75rem; }
+.fr-contest-notify__optin input { margin-top: 0.15rem; }
+.fr-contest-notify__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; padding-top: 0.25rem; }

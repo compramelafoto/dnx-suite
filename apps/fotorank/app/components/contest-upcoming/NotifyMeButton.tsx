@@ -110,43 +110,43 @@ export function NotifyMeButton({
 
   if (isRegistered) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-gold" data-testid="interest-registered">
+      <div className="fr-contest-notify">
+        <p className="fr-contest-notify__ok" data-testid="interest-registered">
           Ya estás en la lista. Te avisaremos cuando abra el concurso.
         </p>
-        {feedback ? <p className="text-sm text-[#a1a1a1]">{feedback}</p> : null}
+        {feedback ? <p className="fr-type-body-small">{feedback}</p> : null}
         <button
           type="button"
           onClick={handleCancel}
           disabled={pending}
-          className="text-xs underline underline-offset-4 text-[#a1a1a1] hover:text-fr-primary disabled:opacity-50"
+          className="fr-contest-notify__cancel"
           data-testid="cancel-interest"
         >
           Cancelar los avisos de este concurso
         </button>
-        {error ? <p className="text-sm text-[#e07a7a]">{error}</p> : null}
+        {error ? <p className="fr-type-error">{error}</p> : null}
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="fr-contest-notify">
       <button
         type="button"
         onClick={handleOpen}
         disabled={pending}
         data-testid="notify-me-button"
-        className="w-full rounded-sm bg-gold px-6 py-3 text-sm font-semibold uppercase tracking-wider text-black transition hover:opacity-90 disabled:opacity-50"
+        className="fr-btn fr-btn-primary fr-contest-notify__cta"
       >
         Notificarme
       </button>
 
       {feedback ? (
-        <p className="text-sm text-[#a1a1a1]" data-testid="interest-feedback">
+        <p className="fr-type-body-small" data-testid="interest-feedback">
           {feedback}
         </p>
       ) : null}
-      {error ? <p className="text-sm text-[#e07a7a]">{error}</p> : null}
+      {error ? <p className="fr-type-error">{error}</p> : null}
 
       {open ? (
         <div
@@ -154,23 +154,23 @@ export function NotifyMeButton({
           aria-modal="true"
           aria-label={renderModalTitle(contestTitle)}
           data-testid="notify-me-modal"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          className="fr-contest-notify__backdrop"
         >
-          <div className="w-full max-w-lg space-y-6 border border-fr-border bg-fr-card p-7">
-            <h4 className="font-sans text-xl font-semibold text-fr-primary">
+          <div className="fr-contest-notify__dialog">
+            <h4 className="fr-type-h">
               {renderModalTitle(contestTitle)}
             </h4>
 
-            <p className="text-sm leading-relaxed text-[#a1a1a1]">{INTEREST_MODAL_COPY.body}</p>
+            <p className="fr-type-body">{INTEREST_MODAL_COPY.body}</p>
 
-            <div className="space-y-4 border-t border-fr-border pt-5">
+            <div className="fr-contest-notify__consents">
               {/* Consentimiento específico: informado y obligatorio, implícito en el botón. */}
-              <p className="text-xs leading-relaxed text-[#8a8a8a]">
+              <p className="fr-type-caption">
                 {renderConsentText("CONTEST_SPECIFIC", contestTitle)}
               </p>
 
               {/* Consentimiento general: opcional, independiente y sin premarcar. */}
-              <label className="flex items-start gap-3 text-xs leading-relaxed text-[#8a8a8a]">
+              <label className="fr-contest-notify__optin fr-type-caption">
                 <input
                   type="checkbox"
                   checked={generalOptIn}
@@ -182,15 +182,15 @@ export function NotifyMeButton({
               </label>
             </div>
 
-            {error ? <p className="text-sm text-[#e07a7a]">{error}</p> : null}
+            {error ? <p className="fr-type-error">{error}</p> : null}
 
-            <div className="flex flex-wrap gap-3 pt-2">
+            <div className="fr-contest-notify__actions">
               <button
                 type="button"
                 onClick={handleConfirm}
                 disabled={pending}
                 data-testid="confirm-interest"
-                className="rounded-sm bg-gold px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-50"
+                className="fr-btn fr-btn-primary"
               >
                 {pending ? "Registrando…" : INTEREST_MODAL_COPY.confirmLabel}
               </button>
@@ -198,7 +198,7 @@ export function NotifyMeButton({
                 type="button"
                 onClick={() => setOpen(false)}
                 disabled={pending}
-                className="rounded-sm border border-fr-border px-5 py-2.5 text-sm text-[#a1a1a1] disabled:opacity-50"
+                className="fr-btn fr-btn-secondary"
               >
                 {INTEREST_MODAL_COPY.cancelLabel}
               </button>

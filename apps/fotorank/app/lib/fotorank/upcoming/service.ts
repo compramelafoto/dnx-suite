@@ -145,6 +145,7 @@ export type UpcomingContestCard = {
   badge: string;
   contestType: string | null;
   organizerName: string;
+  organizerLogoUrl: string | null;
   coverImageUrl: string | null;
   status: string;
   showNotifyButton: boolean;
@@ -159,7 +160,7 @@ function toCard(contest: {
   coverImageUrl: string | null;
   status: string;
   rulesData: Prisma.JsonValue | null;
-  organization: { name: string };
+  organization: { name: string; logoUrl: string | null };
 }): UpcomingContestCard {
   const config = parseUpcomingConfig(contest.rulesData);
   return {
@@ -171,6 +172,7 @@ function toCard(contest: {
     badge: config.cardBadge ?? "PRÓXIMAMENTE",
     contestType: config.contestType ?? null,
     organizerName: contest.organization.name,
+    organizerLogoUrl: contest.organization.logoUrl,
     coverImageUrl: contest.coverImageUrl,
     status: contest.status,
     showNotifyButton: acceptsInterestRegistration(contest.status),
@@ -186,7 +188,7 @@ const CARD_SELECT = {
   coverImageUrl: true,
   status: true,
   rulesData: true,
-  organization: { select: { name: true } },
+  organization: { select: { name: true, logoUrl: true } },
 } as const;
 
 /**

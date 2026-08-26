@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#12161d"/><stop offset="42%" stop-color="#1b222c"/>
+      <stop offset="76%" stop-color="#2a2119"/><stop offset="100%" stop-color="#0d0f13"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.78" cy="0.40" r="0.44">
+      <stop offset="0%" stop-color="#f0c264" stop-opacity="0.42"/>
+      <stop offset="55%" stop-color="#e8b44a" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#e8b44a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rFar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#39424f"/><stop offset="100%" stop-color="#232a34"/>
+    </linearGradient>
+    <linearGradient id="rMid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#232a35"/><stop offset="100%" stop-color="#161b23"/>
+    </linearGradient>
+    <linearGradient id="rNear" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#11151b"/><stop offset="100%" stop-color="#080a0d"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#08090c" stop-opacity="0.93"/>
+      <stop offset="48%" stop-color="#08090c" stop-opacity="0.72"/>
+      <stop offset="100%" stop-color="#08090c" stop-opacity="0.18"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="#08090c"/>
+  <rect width="1200" height="630" fill="url(#sky)"/>
+  <rect width="1200" height="630" fill="url(#sun)"/>
+  <circle cx="936" cy="252" r="62" fill="#f0c264" opacity="0.34"/>
+  <circle cx="936" cy="252" r="38" fill="#f7d489" opacity="0.5"/>
+  <path d="M0 330 L150 250 L266 306 L400 226 L540 320 L676 262 L830 344 L980 280 L1200 348 L1200 630 L0 630 Z" fill="url(#rFar)" opacity="0.95"/>
+  <path d="M0 404 L160 342 L318 404 L470 336 L628 414 L790 352 L960 424 L1200 372 L1200 630 L0 630 Z" fill="url(#rMid)"/>
+  <path d="M0 486 L212 434 L392 490 L586 430 L780 496 L962 448 L1200 492 L1200 630 L0 630 Z" fill="url(#rNear)"/>
+  <g opacity="0.5" fill="#e9edf5">
+    <circle cx="196" cy="86" r="1.6"/><circle cx="352" cy="52" r="1.2"/><circle cx="520" cy="104" r="1.4"/>
+    <circle cx="700" cy="64" r="1.2"/><circle cx="1076" cy="96" r="1.5"/><circle cx="1132" cy="42" r="1.2"/>
+  </g>
+  <rect width="1200" height="630" fill="url(#scrim)"/>
+  <rect x="30" y="30" width="1140" height="570" fill="none" stroke="#c9a227" stroke-opacity="0.28" stroke-width="1.5"/>
+
+  <g transform="translate(84 108)">
+    <rect x="0" y="-2" width="44" height="2.5" fill="#c9a227"/>
+    <text x="60" y="6" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="16"
+          letter-spacing="4.5" fill="#c9a227" font-weight="600">CONCURSO NACIONAL DE FOTOGRAFÍA</text>
+  </g>
+
+  <g transform="translate(84 236)">
+    <text x="0" y="0"  font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="80" font-weight="700" fill="#f6f7f9" letter-spacing="-2">EL PAÍS QUE</text>
+    <text x="0" y="82" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="80" font-weight="700" fill="#c9a227" letter-spacing="-2">MIRAMOS</text>
+  </g>
+
+  <g transform="translate(84 398)">
+    <rect x="0" y="0" width="3.5" height="72" fill="#c9a227"/>
+    <text x="26" y="30" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14"
+          letter-spacing="4" fill="#8d93a0" font-weight="600">GRAN PREMIO</text>
+    <text x="26" y="66" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="34"
+          font-weight="600" fill="#f6f7f9">Ganá una cámara mirrorless</text>
+  </g>
+
+  <g transform="translate(84 516)">
+    <line x1="0" y1="0" x2="700" y2="0" stroke="#c9a227" stroke-opacity="0.22" stroke-width="1"/>
+    <text x="0" y="34" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" letter-spacing="3" fill="#8d93a0" font-weight="600">INSCRIPCIONES</text>
+    <text x="0" y="62" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" fill="#f6f7f9" font-weight="500">21 de septiembre</text>
+    <text x="262" y="34" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" letter-spacing="3" fill="#8d93a0" font-weight="600">CIERRE</text>
+    <text x="262" y="62" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" fill="#f6f7f9" font-weight="500">5 de diciembre</text>
+    <text x="500" y="34" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" letter-spacing="3" fill="#8d93a0" font-weight="600">PARTICIPAN</text>
+    <text x="500" y="62" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" fill="#f6f7f9" font-weight="500">Todo el país</text>
+  </g>
+
+  <text x="1116" y="574" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="16" letter-spacing="4" fill="#c9a227" font-weight="600">FOTORANK</text>
+</svg>

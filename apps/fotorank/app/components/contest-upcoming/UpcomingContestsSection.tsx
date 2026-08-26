@@ -3,9 +3,14 @@
  *
  * Si no hay ninguno en UPCOMING no renderiza nada: un concurso en borrador
  * jamás llega hasta acá.
+ *
+ * Usa el sistema `public-ui` (mismo ritmo y contenedor que el resto de la home)
+ * en lugar del chrome `fr-section`/`fr-container` heredado, para que la sección
+ * no quede fuera de la estética pública.
  */
 import { listPublicUpcomingContests } from "../../lib/fotorank/upcoming/service";
 import { getMyContestInterestAction } from "../../actions/contest-interest";
+import { PageContainer, PublicSectionHeader } from "../public-ui";
 import { UpcomingContestCard } from "./UpcomingContestCard";
 
 export async function UpcomingContestsSection() {
@@ -20,12 +25,19 @@ export async function UpcomingContestsSection() {
   );
 
   return (
-    <section id="proximamente" className="fr-section border-t border-[#1a1a1a]">
-      <div className="fr-container mx-auto w-full">
-        <h2 className="mb-10 text-center font-sans text-2xl font-semibold tracking-tight text-fr-primary md:text-3xl">
-          Próximos concursos
-        </h2>
-        <div className="flex flex-wrap justify-center gap-8">
+    <section
+      id="proximamente"
+      className="fr-public-section"
+      aria-labelledby="home-upcoming-title"
+    >
+      <PageContainer>
+        <PublicSectionHeader
+          titleId="home-upcoming-title"
+          eyebrow="Agenda"
+          title="Próximos concursos"
+          description="Convocatorias que todavía no abrieron la inscripción. Podés pedir que te avisemos cuando se habiliten."
+        />
+        <div className="fr-public-stack-content flex flex-wrap justify-center gap-8">
           {withInterest.map(({ card, interest }) => (
             <UpcomingContestCard
               key={card.id}
@@ -38,7 +50,7 @@ export async function UpcomingContestsSection() {
             />
           ))}
         </div>
-      </div>
+      </PageContainer>
     </section>
   );
 }

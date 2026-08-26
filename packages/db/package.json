@@ -20,7 +20,8 @@
     "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts",
     "./fotoffice-members": "./src/fotoffice-members.ts",
     "./daily-report-repository": "./src/daily-report-repository.ts",
-    "./template-v2-repository": "./src/template-v2-repository.ts"
+    "./template-v2-repository": "./src/template-v2-repository.ts",
+    "./clickaton-readonly-client": "./src/clickaton-readonly-client.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",

@@ -1,0 +1,585 @@
+/**
+ * FotoRank — Public participant design tokens (ETAPA 01)
+ *
+ * Identidad propia: fotografía / concursos / instituciones.
+ * Estructura semántica inspirada en patrones de producto (shell + estados),
+ * con marca FotoRank (dorado institucional) y tipografía DM Sans.
+ *
+ * Prefijo de utilidades: `.fr-public-*`
+ * Tokens semánticos: `--background`, `--surface`, `--primary`, …
+ */
+
+:root {
+  /*
+   * Identidad pública FotoRank (ETAPA 01 — IMPL 02)
+   * Base editorial fotográfica: neutros fríos, tipografía clara, acento limitado.
+   * El dorado #c4a35a se conserva solo como acento de marca (wordmark/isologo real),
+   * no como relleno dominante ni estilo “lujo genérico”.
+   */
+  --background: #141414;
+  --surface: #1c1c1c;
+  --surface-secondary: #242424;
+  --foreground: #f4f4f5;
+  --foreground-muted: #a1a1aa;
+  --border: rgb(255 255 255 / 0.12);
+  --primary: #c4a35a;
+  --primary-hover: #d4b56e;
+  --primary-foreground: #141414;
+  --secondary: #2a2a2a;
+  --success: #3d9b6a;
+  --warning: #c4922a;
+  --danger: #c45c5c;
+  --focus-ring: #c4a35a;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-md: 0 6px 20px rgb(0 0 0 / 0.28);
+  --container-width: 80rem;
+
+  /* Soft status fills — neutros, sin glow */
+  --success-soft: rgb(61 155 106 / 0.12);
+  --warning-soft: rgb(196 146 42 / 0.12);
+  --danger-soft: rgb(196 92 92 / 0.12);
+  --primary-soft: rgb(196 163 90 / 0.1);
+  --border-strong: rgb(255 255 255 / 0.2);
+
+  /*
+   * Rhythm — mismo contrato estructural que Clickatón (stack semántico),
+   * con valores FotoRank. Nunca apretar título→caja ni copy→acciones.
+   *
+   * title → subtitle/description: 20px
+   * subtitle/title → contenido (cards/listas): 40px
+   * bloque → bloque: 40px
+   * contenido → acciones: 48px
+   * entre cards: 24px (móvil) / 32px (desktop)
+   */
+  --public-space-3: 0.75rem;
+  --public-space-4: 1rem;
+  --public-space-5: 1.25rem;
+  --public-space-6: 1.5rem;
+  --public-space-8: 2rem;
+  --public-space-10: 2.5rem;
+  --public-space-12: 3rem;
+  --public-space-16: 4rem;
+
+  --public-gutter: clamp(1rem, 4vw, 2rem);
+  --public-section-y: clamp(4.5rem, 10vw, 8rem);
+  --public-stack-title-to-subtitle: var(--public-space-5);
+  --public-stack-subtitle-to-content: var(--public-space-10);
+  --public-stack-block: var(--public-space-10);
+  --public-stack-content-to-actions: var(--public-space-12);
+  /* aliases usados en utilidades / componentes */
+  --public-stack-title: var(--public-stack-title-to-subtitle);
+  --public-stack-content: var(--public-stack-subtitle-to-content);
+  --public-content-actions: var(--public-stack-content-to-actions);
+  --public-card-gap: var(--public-space-6);
+  --public-card-gap-lg: var(--public-space-8);
+  --public-label-control: var(--public-space-8);
+  /**
+   * Aliases de superficie consumidos por `inscription-public-bridge.css` (sin
+   * fallback: si faltan, esas 12 reglas de padding/gap quedan inválidas y el
+   * formulario pierde el espaciado interno). Valores idénticos a los de la
+   * rama donde se escribió el puente.
+   */
+  --public-card-padding: var(--public-space-6);
+  --public-card-padding-lg: var(--public-space-8);
+  --public-card-internal-gap: var(--public-space-6);
+  --public-label-to-value: var(--public-space-3);
+  --public-meta-row-gap: var(--public-space-5);
+  --public-leading-body: 1.7;
+  --public-leading-relaxed: 1.8;
+
+  /* Typography — DM Sans (sin display caps de otras marcas) */
+  --public-font: var(--font-sans), "DM Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Shell root for migrated public / participant surfaces */
+.fr-public-shell {
+  min-height: 100dvh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--public-font);
+}
+
+/* Santa Fe en Foco — paleta clara institucional (solo con class en shell) */
+.fr-public-shell--sfef {
+  --background: #f7f4ef;
+  --surface: #ffffff;
+  --surface-secondary: #f0ebe3;
+  --foreground: #12141a;
+  --foreground-muted: #4a5560;
+  --primary: #0b3a6e;
+  --primary-foreground: #ffffff;
+  --primary-hover: #082a52;
+  --accent: #1ba3d9;
+  --focus-ring: #e85a2d;
+  --border: #d9d2c8;
+}
+
+.fr-public-shell--sfef .fr-public-btn--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.fr-public-shell--sfef .fr-public-btn--primary:hover {
+  background: var(--primary-hover);
+}
+
+.fr-public-hero--stacked {
+  display: flex;
+  flex-direction: column;
+}
+
+.fr-public-hero__banner {
+  width: 100%;
+  line-height: 0;
+  overflow: hidden;
+}
+
+.fr-public-hero__media {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(32rem, 70vw);
+  object-fit: cover;
+  aspect-ratio: 16 / 9;
+}
+
+.fr-public-hero__media--mobile {
+  display: block;
+  object-fit: contain;
+  max-height: none;
+  background: var(--background);
+}
+
+.fr-public-hero__media--desktop {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .fr-public-hero__media--desktop {
+    display: block;
+  }
+  .fr-public-hero__media--mobile {
+    display: none;
+  }
+}
+
+.fr-public-shell a:focus-visible,
+.fr-public-shell button:focus-visible,
+.fr-public-shell input:focus-visible,
+.fr-public-shell select:focus-visible,
+.fr-public-shell textarea:focus-visible,
+.fr-public-shell summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.fr-public-container {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--container-width);
+  margin-inline: auto;
+  padding-inline: var(--public-gutter);
+}
+
+.fr-public-container--narrow {
+  max-width: 42rem;
+}
+
+.fr-public-container--readable {
+  max-width: 48rem;
+}
+
+.fr-public-section {
+  padding-block: var(--public-section-y);
+  border-bottom: 1px solid var(--border);
+}
+
+.fr-public-section:last-child {
+  border-bottom: none;
+}
+
+.fr-public-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.fr-public-title {
+  font-family: var(--public-font);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+.fr-public-body {
+  font-size: 1rem;
+  line-height: var(--public-leading-body);
+  color: var(--foreground-muted);
+}
+
+.fr-public-body + .fr-public-body,
+.fr-public-prose > * + * {
+  margin-top: var(--public-stack-title-to-subtitle);
+}
+
+/* Stack utilities — espejo de ck-stack-* */
+.fr-public-stack-title {
+  margin-top: var(--public-stack-title-to-subtitle);
+}
+
+.fr-public-stack-content {
+  margin-top: var(--public-stack-subtitle-to-content);
+}
+
+.fr-public-stack-block {
+  margin-top: var(--public-stack-block);
+}
+
+.fr-public-stack-actions {
+  margin-top: var(--public-stack-content-to-actions);
+}
+
+.fr-public-card-grid {
+  display: grid;
+  gap: var(--public-card-gap);
+}
+
+@media (min-width: 768px) {
+  .fr-public-card-grid {
+    gap: var(--public-card-gap-lg);
+  }
+}
+
+.fr-public-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--public-card-gap);
+}
+
+@media (min-width: 768px) {
+  .fr-public-card-stack {
+    gap: var(--public-card-gap-lg);
+  }
+}
+
+.fr-public-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (min-width: 640px) {
+  .fr-public-card {
+    padding: 2rem;
+  }
+}
+
+/* CTA / bandas finales: ritmo interno obligatorio */
+.fr-public-cta-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.fr-public-cta-band .fr-public-title {
+  margin-top: var(--public-stack-title-to-subtitle);
+}
+
+.fr-public-cta-band .fr-public-body {
+  margin-top: var(--public-stack-title-to-subtitle);
+  max-width: 36rem;
+  line-height: var(--public-leading-relaxed);
+}
+
+.fr-public-cta-band .fr-public-cta-meta {
+  margin-top: var(--public-space-5);
+  font-size: 0.875rem;
+  line-height: var(--public-leading-body);
+  color: var(--foreground-muted);
+}
+
+.fr-public-cta-band .fr-public-cta-actions {
+  margin-top: var(--public-stack-content-to-actions);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--public-space-4);
+}
+
+.fr-public-card--accent {
+  border-color: var(--border-strong);
+  background: var(--surface-secondary);
+}
+
+.fr-public-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-family: var(--public-font);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease,
+    opacity 160ms ease;
+  cursor: pointer;
+}
+
+.fr-public-btn:disabled,
+.fr-public-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.fr-public-btn--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.fr-public-btn--primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.fr-public-btn--secondary {
+  background: transparent;
+  color: var(--foreground);
+  border-color: var(--border-strong);
+}
+
+.fr-public-btn--secondary:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.fr-public-btn--ghost {
+  background: transparent;
+  color: var(--foreground-muted);
+  border-color: transparent;
+}
+
+.fr-public-btn--ghost:hover {
+  color: var(--primary);
+}
+
+.fr-public-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--foreground-muted);
+  background: var(--surface-secondary);
+}
+
+.fr-public-badge--success {
+  color: var(--success);
+  border-color: rgb(74 222 128 / 0.35);
+  background: var(--success-soft);
+}
+
+.fr-public-badge--warning {
+  color: var(--warning);
+  border-color: rgb(251 191 36 / 0.35);
+  background: var(--warning-soft);
+}
+
+.fr-public-badge--danger {
+  color: var(--danger);
+  border-color: rgb(248 113 113 / 0.35);
+  background: var(--danger-soft);
+}
+
+.fr-public-badge--primary {
+  color: var(--primary);
+  border-color: rgb(212 175 55 / 0.4);
+  background: var(--primary-soft);
+}
+
+.fr-public-notice {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+}
+
+.fr-public-notice--info {
+  border-color: rgb(212 175 55 / 0.3);
+  background: var(--primary-soft);
+}
+
+.fr-public-notice--warning {
+  border-color: rgb(251 191 36 / 0.35);
+  background: var(--warning-soft);
+}
+
+.fr-public-notice--danger {
+  border-color: rgb(248 113 113 / 0.35);
+  background: var(--danger-soft);
+}
+
+.fr-public-notice--success {
+  border-color: rgb(74 222 128 / 0.35);
+  background: var(--success-soft);
+}
+
+.fr-public-field label,
+.fr-public-field .fr-public-field__label {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.fr-public-field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.fr-public-field select,
+.fr-public-field textarea {
+  display: block;
+  width: 100%;
+  margin-top: var(--public-label-control);
+  min-height: 3rem;
+  padding: 0.875rem 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.fr-public-field input:disabled,
+.fr-public-field select:disabled,
+.fr-public-field textarea:disabled {
+  opacity: 0.55;
+}
+
+.fr-public-field__helper {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--foreground-muted);
+}
+
+.fr-public-field__error {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--danger);
+}
+
+.fr-public-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: var(--public-content-actions);
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+
+.fr-public-mobile-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  border-top: 1px solid var(--border);
+  background: rgb(10 10 11 / 0.94);
+  backdrop-filter: blur(12px);
+  padding: 0.75rem var(--public-gutter);
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .fr-public-mobile-bar {
+    display: none;
+  }
+}
+
+.fr-public-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.fr-public-checklist__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem 1rem;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 1rem 1.25rem;
+}
+
+.fr-public-checklist__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--foreground-muted);
+}
+
+.fr-public-checklist__item[data-state="done"] .fr-public-checklist__mark {
+  border-color: rgb(74 222 128 / 0.45);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.fr-public-checklist__item[data-state="attention"] .fr-public-checklist__mark {
+  border-color: rgb(251 191 36 / 0.45);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.fr-public-checklist__item[data-state="blocked"] .fr-public-checklist__mark {
+  border-color: rgb(248 113 113 / 0.4);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.fr-public-checklist__item[data-state="upcoming"] {
+  opacity: 0.72;
+}
+
+.fr-public-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

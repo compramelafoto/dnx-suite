@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FotorankContestPartnerWelcome } from "../../components/contest-public/FotorankContestPartnerWelcome";
 import { resolveContestVisualTheme } from "../../lib/fotorank/contest-visual";
+import { isSantaFeEnFocoSlug } from "../../lib/fotorank/contest-visual/santa-fe-en-foco";
 import {
   loadFotorankContestWelcomeAd,
   toFotorankContestWelcomePublicPayload,
@@ -28,17 +29,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
   const social = theme.presentation.social;
 
+  /**
+   * Imagen para compartir: el manifiesto (`social`) es la fuente primaria, pero
+   * hoy SFEF tiene `social.file = null`, así que sin fallback quedaría sin OG.
+   * 615df551 resolvía eso apuntando al banner del hero; se conserva ese fallback
+   * detrás del sistema de assets en vez de reemplazarlo.
+   */
+  const ogImage =
+    social?.url ??
+    data.contest.coverImageUrl ??
+    (isSantaFeEnFocoSlug(slug) ? "/contest-assets/santa-fe-en-foco/hero/hero-desktop.jpg" : null);
+  const ogAlt = social?.alt ?? data.contest.title;
+
   return {
     title: `${data.contest.title} · ${data.organization.name}`,
     description: data.contest.shortDescription ?? data.organization.shortDescription ?? undefined,
-    ...(social
+    // canonical: preservado de 615df551 (mejora SEO, no específica de SFEF).
+    alternates: {
+      canonical: `https://fotorank.com/concursos/${slug}`,
+    },
+    ...(ogImage
       ? {
-          openGraph: {
-            images: [{ url: social.url, alt: social.alt }],
-          },
-          twitter: {
-            images: [social.url],
-          },
+          openGraph: { images: [{ url: ogImage, alt: ogAlt }] },
+          twitter: { images: [ogImage] },
         }
       : {}),
   };
@@ -55,10 +68,25 @@ export default async function ContestPublicPage({ params }: Props) {
     if (card && card.status === "UPCOMING") {
       const contest = await prisma.fotorankContest.findUnique({
         where: { id: card.id },
-        select: { rulesData: true },
+        select: { rulesData: true, registrationOpensAt: true, timezone: true, prizesSummary: true },
       });
       const config = parseUpcomingConfig(contest?.rulesData ?? null);
       const interest = await getMyContestInterestAction(card.id);
+
+      const tz = contest?.timezone ?? "America/Argentina/Buenos_Aires";
+      const fmt = (d: Date | null | undefined) =>
+        d
+          ? d.toLocaleDateString("es-AR", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+              timeZone: tz,
+            })
+          : null;
+      const cutoff = config.interestBenefitCutoffAt
+        ? new Date(config.interestBenefitCutoffAt)
+        : null;
+
       return (
         <UpcomingContestLanding
           card={card}
@@ -68,6 +96,14 @@ export default async function ContestPublicPage({ params }: Props) {
               : null
           }
           brief={config.brief ?? null}
+          opensAtLabel={fmt(contest?.registrationOpensAt)}
+          benefitCutoffLabel={fmt(cutoff)}
+          prizeLabel={
+            // La franja de datos necesita una etiqueta corta, no el párrafo completo.
+            contest?.prizesSummary?.trim()
+              ? contest.prizesSummary.trim().split(/[.,]/)[0]!.slice(0, 60)
+              : null
+          }
         />
       );
     }
