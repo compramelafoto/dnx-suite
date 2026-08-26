@@ -4,6 +4,7 @@ import { allocatePayment } from "./allocate";
 import { decimalArsToMinor, minorToDecimalString } from "./money";
 import type { OpenCharge } from "./select-charges";
 import { outcomeForProviderStatus, shouldApply, type StoredPaymentStatus } from "./payment-outcome";
+import { releasePaidPrintOrders } from "@/lib/carnet/print-order";
 
 export type CreditResult =
   | { ok: true; applied: boolean; motivo: string }
@@ -112,6 +113,18 @@ export async function creditMembershipPayment(input: {
       },
     });
   });
+
+  // Fuera de la transacción a propósito: si el pago se imputó, eso ya es cierto, y no poder
+  // mover una tarjeta a la cola de impresión no puede deshacerlo. La conciliación vuelve a
+  // pasar por acá si quedó a medias.
+  try {
+    await releasePaidPrintOrders(intento.memberId);
+  } catch (error) {
+    console.error("[fotoffice][cuotas] no se pudo liberar la tarjeta impresa", {
+      paymentId: intento.id,
+      detalle: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   return { ok: true, applied: true, motivo: "pago acreditado" };
 }

@@ -4,6 +4,10 @@ import QRCode from "qrcode";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { loadMyCard } from "@/lib/carnet/my-card";
+import { getActiveFeeValue } from "@/lib/membership/settings";
+import { prisma } from "@repo/db";
+import { decimalArsToMinor } from "@/lib/membership/money";
+import { RequestPrintedCard } from "./request-printed";
 import { stateLabel } from "@/lib/carnet/fulfillment";
 import { formatMinorArs } from "@/lib/membership/money";
 
@@ -45,6 +49,15 @@ export default async function MiCarnetPage() {
       </main>
     );
   }
+
+  // El precio de la tarjeta es el valor de una cuota. Se resuelve acá para poder mostrarlo
+  // en el botón: pedirle a alguien que confirme un gasto sin decirle cuánto es no está bien.
+  const socio = await prisma.member.findUnique({
+    where: { id: context.member.id },
+    select: { categoryId: true },
+  });
+  const valor = await getActiveFeeValue(context.workspace.id, socio?.categoryId ?? null, new Date());
+  const precioMinor = valor ? decimalArsToMinor(valor.amountArs) : 0;
 
   const qr = carnet.verificationUrl
     ? await QRCode.toDataURL(carnet.verificationUrl, { margin: 1, width: 512 })
@@ -113,6 +126,17 @@ export default async function MiCarnetPage() {
           </dl>
         </div>
       </div>
+
+      {carnet.printedState ? null : precioMinor > 0 ? (
+        <section className="fo-card space-y-2 p-5">
+          <h2 className="text-sm font-semibold">¿Querés la tarjeta impresa?</h2>
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+            El carnet digital lo tenés siempre. La tarjeta física es opcional y cuesta el valor
+            de una cuota. Se agrega a tus cuotas y se paga junto con ellas.
+          </p>
+          <RequestPrintedCard priceLabel={formatMinorArs(precioMinor)} />
+        </section>
+      ) : null}
 
       {!carnet.enabled && carnet.disabledReason ? (
         <section className="fo-card space-y-3 p-5">

@@ -42,13 +42,40 @@ const nextConfig: NextConfig = {
   },
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
   // Mismo criterio que apps/clickaton, que consume el mismo paquete.
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),
       ".js": [".ts", ".tsx", ".js"],
       ".mjs": [".mts", ".mjs"],
     };
+
+    if (isServer) {
+      // `serverExternalPackages` no alcanza acá: el import dinámico de pdf-to-png-converter
+      // vive DENTRO de @repo/design-studio, que sí se transpila, así que webpack lo resuelve
+      // y termina intentando empaquetar el binario nativo de skia. Externalizarlo a mano es
+      // lo que lo deja fuera del grafo.
+      //
+      // FotoOffice NO rasteriza: el carnet solo pide PDF (ver lib/carnet/render.ts). Esto
+      // existe para que el código del módulo de diseño no rompa la compilación, no para
+      // habilitar el rasterizado. Si alguna vez hace falta, hay que resolver además que el
+      // binario nativo llegue al paquete desplegado, que es de otra plataforma.
+      const externals = Array.isArray(config.externals) ? config.externals : [config.externals];
+      config.externals = [
+        ...externals.filter(Boolean),
+        ({ request }: { request?: string }, callback: (err?: unknown, result?: string) => void) => {
+          if (
+            request === "pdf-to-png-converter" ||
+            request === "@napi-rs/canvas" ||
+            request?.startsWith("@napi-rs/canvas-")
+          ) {
+            return callback(undefined, `commonjs ${request}`);
+          }
+          return callback();
+        },
+      ];
+    }
+
     return config;
   },
   turbopack: {

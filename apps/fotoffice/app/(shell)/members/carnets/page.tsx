@@ -142,7 +142,24 @@ export default async function CarnetsPage({
                   </p>
                 ) : null}
 
-                <AdvanceForm cardId={carnet.id} options={[...opciones]} />
+                <div className="flex flex-wrap items-start gap-3">
+                  <AdvanceForm cardId={carnet.id} options={[...opciones]} />
+                  {/*
+                    El PDF se genera al pedirlo, no al crear el carnet: entre que el socio lo
+                    pide y alguien lo imprime la plantilla puede cambiar, y tiene que salir
+                    con la vigente al momento de imprimir.
+                  */}
+                  {capabilities.includes("PRODUCIR") && carnet.state !== "PENDIENTE_PAGO" ? (
+                    <a
+                      href={`/api/members/carnets/${carnet.id}/pdf`}
+                      className="fo-btn text-xs"
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      Descargar PDF
+                    </a>
+                  ) : null}
+                </div>
               </li>
             );
           })}
