@@ -1,7 +1,17 @@
 # Concursos próximos en FotoRank y plan de integración con DNX Payments (split 1:N)
 
-Estado: **borrador técnico**. La integración de pagos está **diferida**: hoy no
-existe checkout, ni órdenes, ni cobro para concursos organizados por FotoRank.
+Estado: **borrador técnico**. Ningún cobro está habilitado todavía.
+
+> **Actualización 2026-08-26 — alcance de este documento.**
+> "El País que Miramos" **no usa Split 1:N**: el organizador y quien cobra son la
+> misma cuenta, así que no hay nada que repartir. Ese concurso va por
+> **Checkout Pro sin split** (`apps/fotorank/app/lib/fotorank/checkout/`), y la
+> homologación de Split 1:N **dejó de bloquearlo**.
+>
+> Lo que sigue aplica a concursos que sí reparten el cobro entre varios
+> receivers — hoy, el caso de Clickatón. El modelo de cobro de cada concurso se
+> declara en `ContestPaymentModel` (`DIRECT` | `SPLIT_1N`) y determina qué exige
+> el gate de apertura de inscripciones.
 
 Este documento describe (1) qué quedó implementado y (2) exactamente qué falta
 para conectar DNX Payments con distribución 1:N sin rediseñar el concurso.

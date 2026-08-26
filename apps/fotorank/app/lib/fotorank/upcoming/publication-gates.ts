@@ -12,6 +12,14 @@
 
 import type { ContestLifecyclePhase } from "./lifecycle";
 
+/**
+ * Modelo de cobro del concurso.
+ *
+ * DIRECT es el caso de "El País que Miramos": organizador y receptor son la
+ * misma cuenta, así que no hay nada que distribuir y no interviene Split 1:N.
+ */
+export type ContestPaymentModel = "DIRECT" | "SPLIT_1N";
+
 export type GateRequirement = {
   key: string;
   label: string;
@@ -62,7 +70,17 @@ export type ContestGateSnapshot = {
 
   // Comercial
   pricePhasesConfigured: boolean;
+  /**
+   * Modelo de cobro del concurso.
+   *  - DIRECT: una sola cuenta cobra (organizador = receptor). Checkout Pro, sin split.
+   *  - SPLIT_1N: el cobro se reparte entre varios receivers. Exige DNX Payments.
+   */
+  paymentModel: ContestPaymentModel;
+  /** Checkout configurado y operativo (aplica a DIRECT). */
+  checkoutConfigured: boolean;
+  /** DNX Payments habilitado (aplica sólo a SPLIT_1N). */
   dnxPaymentsEnabled: boolean;
+  /** Configuración de distribución validada (aplica sólo a SPLIT_1N). */
   dnxSplitConfigValidated: boolean;
   cancellationAndRefundPolicyDefined: boolean;
   purchaseTestApproved: boolean;
@@ -244,17 +262,31 @@ export function evaluateRegistrationOpenGate(
       label: "Precios confirmados",
       satisfied: snapshot.pricePhasesConfigured,
     },
-    {
-      key: "payments",
-      label: "DNX Payments habilitado",
-      satisfied: snapshot.dnxPaymentsEnabled,
-      hint: "Integración diferida a una etapa posterior.",
-    },
-    {
-      key: "split",
-      label: "Configuración split 1:N validada",
-      satisfied: snapshot.dnxSplitConfigValidated,
-    },
+    // El modelo de cobro define qué se exige. Un concurso donde organizador y
+    // receptor son la misma cuenta no reparte nada: exigirle una configuración
+    // de split 1:N sería un bloqueo sin sentido.
+    ...(snapshot.paymentModel === "SPLIT_1N"
+      ? [
+          {
+            key: "payments",
+            label: "DNX Payments habilitado",
+            satisfied: snapshot.dnxPaymentsEnabled,
+            hint: "Requiere la homologación de Split 1:N.",
+          },
+          {
+            key: "split",
+            label: "Configuración split 1:N validada",
+            satisfied: snapshot.dnxSplitConfigValidated,
+          },
+        ]
+      : [
+          {
+            key: "checkout",
+            label: "Checkout configurado",
+            satisfied: snapshot.checkoutConfigured,
+            hint: "Cobro directo a una única cuenta: no requiere split 1:N.",
+          },
+        ]),
     {
       key: "refundPolicy",
       label: "Política de cancelación y reembolso",

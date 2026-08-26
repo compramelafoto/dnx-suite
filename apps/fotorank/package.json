@@ -49,6 +49,7 @@
     "test:timezone:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/timezone/contest-windows.selfcheck.ts",
     "test:upcoming:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/upcoming/upcoming.selfcheck.ts",
     "test:upcoming:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/upcoming/upcoming.integration.selfcheck.ts",
+    "test:checkout:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/checkout/checkout.selfcheck.ts",
     "test:seed:isolation": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/seed-el-pais-que-miramos.isolation.selfcheck.ts",
     "db:seed:el-pais-que-miramos": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/seed-el-pais-que-miramos.ts",
     "db:seed:el-pais-que-miramos:dry-run": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/seed-el-pais-que-miramos.ts --dry-run",

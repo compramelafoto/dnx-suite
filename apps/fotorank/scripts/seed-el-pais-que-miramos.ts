@@ -93,6 +93,9 @@ function buildUpcomingConfig(): UpcomingConfig {
     juryPositions: JURY_POSITIONS.map((j) => ({ ...j, confirmed: false })),
     evaluationCriteria: EVALUATION_CRITERIA.map((c) => ({ ...c })),
     cancellationAndRefundPolicyDefined: false,
+    // Cobro directo: organizador y receptor son la misma cuenta, así que este
+    // concurso no usa Split 1:N ni depende de su homologación.
+    paymentModel: "DIRECT",
     dnxSplitConfigValidated: false,
     purchaseTestApproved: false,
     photoEnablementTestApproved: false,
@@ -106,7 +109,7 @@ function buildUpcomingConfig(): UpcomingConfig {
       "BASES PENDIENTES DE REVISIÓN LEGAL",
       "DATOS LEGALES DEL ORGANIZADOR PENDIENTES",
       "IMÁGENES PENDIENTES DE CARGA",
-      "DNX PAYMENTS NO INTEGRADO",
+      "CHECKOUT NO CONFIGURADO (cobro directo, sin split 1:N)",
     ],
   };
 }

@@ -636,6 +636,9 @@ const draftSnapshot: ContestGateSnapshot = {
   judgesConfirmed: false,
   prize: PRIZE_SNAPSHOT,
   pricePhasesConfigured: true,
+  // El concurso cobra a una sola cuenta: no reparte con nadie.
+  paymentModel: "DIRECT",
+  checkoutConfigured: false,
   dnxPaymentsEnabled: false,
   dnxSplitConfigValidated: false,
   cancellationAndRefundPolicyDefined: false,
@@ -667,11 +670,37 @@ for (const label of [
   "Jurados confirmados",
   "Premio confirmado",
   "Modelo de cámara confirmado",
-  "DNX Payments habilitado",
-  "Configuración split 1:N validada",
+  "Checkout configurado",
 ]) {
   assert.ok(openGate.missing.includes(label), `debe faltar: ${label}`);
 }
+
+// Con cobro directo NO se exige nada de Split 1:N: sería un bloqueo sin sentido
+// para un concurso donde organizador y receptor son la misma cuenta.
+const directLabels = openGate.requirements.map((r) => r.label);
+assert.equal(directLabels.includes("DNX Payments habilitado"), false);
+assert.equal(directLabels.includes("Configuración split 1:N validada"), false);
+assert.equal(directLabels.includes("Checkout configurado"), true);
+
+// Un concurso que sí reparte con terceros vuelve a exigir Split 1:N.
+const splitGate = evaluateRegistrationOpenGate({
+  ...draftSnapshot,
+  paymentModel: "SPLIT_1N",
+});
+const splitLabels = splitGate.requirements.map((r) => r.label);
+assert.equal(splitLabels.includes("DNX Payments habilitado"), true);
+assert.equal(splitLabels.includes("Configuración split 1:N validada"), true);
+assert.equal(splitLabels.includes("Checkout configurado"), false);
+assert.equal(splitGate.passed, false);
+
+// Con el checkout configurado, ese requisito deja de faltar…
+const withCheckout = evaluateRegistrationOpenGate({
+  ...draftSnapshot,
+  checkoutConfigured: true,
+});
+assert.equal(withCheckout.missing.includes("Checkout configurado"), false);
+// …pero el resto de los bloqueos sigue en pie.
+assert.equal(withCheckout.passed, false);
 
 // El premio no está confirmado y se listan los campos faltantes.
 assert.equal(isPrizeConfirmed(PRIZE_SNAPSHOT), false);

@@ -1,6 +1,11 @@
 /**
  * Puntos de integración con DNX Payments (split 1:N) — DIFERIDO.
  *
+ * ALCANCE (2026-08-26): este módulo aplica a concursos que REPARTEN el cobro
+ * entre varios receivers. "El País que Miramos" NO es ese caso: cobra a una
+ * única cuenta (organizador = receptor) y va por `lib/fotorank/checkout`
+ * (Checkout Pro, sin split). Ver `publication-gates.ContestPaymentModel`.
+ *
  * Este archivo NO cobra, NO crea órdenes y NO habla con ningún proveedor.
  * Define el contrato mínimo que la etapa posterior deberá implementar y deja
  * el resto del sistema preparado para conectarlo sin rediseñar el concurso.

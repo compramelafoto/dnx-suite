@@ -28,10 +28,12 @@ import { resolvePrice, type PricePhase, type PriceResolution } from "./pricing";
 import {
   evaluateGateForTarget,
   type ContestGateSnapshot,
+  type ContestPaymentModel,
   type GateReport,
   type PrizeGateSnapshot,
 } from "./publication-gates";
 import { isDnxPaymentsEnabled } from "./payments-integration";
+import { checkConfigReadiness } from "../checkout/config";
 import { contentHasLegalPlaceholder } from "./contests/el-pais-que-miramos/rules-draft";
 
 // ---------------------------------------------------------------------------
@@ -70,6 +72,8 @@ export type UpcomingConfig = {
   juryPositions?: Array<{ code: string; label: string; profile: string; confirmed?: boolean }>;
   evaluationCriteria?: Array<{ code: string; label: string; weightPercent: number }>;
   cancellationAndRefundPolicyDefined?: boolean;
+  /** Modelo de cobro. Por defecto DIRECT (una sola cuenta cobra). */
+  paymentModel?: ContestPaymentModel;
   dnxSplitConfigValidated?: boolean;
   purchaseTestApproved?: boolean;
   photoEnablementTestApproved?: boolean;
@@ -751,6 +755,10 @@ export async function buildGateSnapshot(input: {
     judgesConfirmed: Boolean(config.judgesConfirmed),
     prize: resolvePrizeSnapshot(config),
     pricePhasesConfigured: contest.pricePhases.length > 0,
+    // Cobro directo por defecto: sólo un concurso que reparta con terceros
+    // necesita el modelo SPLIT_1N.
+    paymentModel: config.paymentModel ?? "DIRECT",
+    checkoutConfigured: checkConfigReadiness().ready,
     dnxPaymentsEnabled: isDnxPaymentsEnabled(),
     dnxSplitConfigValidated: Boolean(config.dnxSplitConfigValidated),
     cancellationAndRefundPolicyDefined: Boolean(config.cancellationAndRefundPolicyDefined),
