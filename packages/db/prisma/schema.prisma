@@ -7817,8 +7817,10 @@ model FotorankContestRegistration {
   category                  FotorankContestCategory                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   rulesVersion              FotorankContestRulesVersion              @relation(fields: [rulesVersionId], references: [id], onDelete: Restrict)
   entryAssets               FotorankContestEntryAsset[]
-  /// Obra del participante (máx. 1 activa por inscripción nativa).
-  entry                     FotorankContestEntry?
+  /// Obras del participante. El cupo lo define la política del concurso
+  /// (`maxEntriesPerRegistration`) y, si hubo pago por paquete, `purchasedEntriesCount`.
+  /// Concursos con política de 1 obra siguen comportándose exactamente igual.
+  entries                   FotorankContestEntry[]
 
 
   configurationVersionId                                                   String?
@@ -7830,6 +7832,10 @@ model FotorankContestRegistration {
   declaredAgeYears                                                         Int?
   /// Respuestas estructuradas de inscripción (p.ej. ARGRA). No exponer en APIs públicas.
   answersJson                                                              Json?
+  /// Obras habilitadas por el paquete pagado (1, 2, 3…).
+  /// null = el pago no define cupo; manda la política del concurso.
+  /// Las inscripciones existentes quedan en null y no cambian de comportamiento.
+  purchasedEntriesCount                                                    Int?
 
   configurationVersion FotorankContestConfigurationVersion? @relation(fields: [configurationVersionId], references: [id], onDelete: SetNull)
   minorAuthorizations  FotorankMinorAuthorization[]
@@ -8205,7 +8211,12 @@ model FotorankContestEntry {
   categoryId             String
   authorUserId           Int?
   /// Inscripción nativa (null = obra legacy/admin). Unique: 1 obra por inscripción.
-  registrationId         String?                        @unique
+  /// Cupo de obras por inscripción: lo define `maxEntriesPerRegistration` de la
+  /// política del concurso (uploadPolicyJson) y, si hubo pago por paquete,
+  /// `FotorankContestRegistration.purchasedEntriesCount`.
+  /// Antes era @unique (una obra por inscripción). Los concursos existentes
+  /// conservan el límite de 1 por su política: ninguno cambia de comportamiento.
+  registrationId         String?
   status                 FotorankContestEntryStatus     @default(DRAFT)
   /// Número anónimo de obra (p. ej. SFE-E-000001). Visible a jurado sin identidad.
   entryNumber            String?
@@ -8265,6 +8276,7 @@ model FotorankContestEntry {
   @@unique([contestId, entryNumber])
   @@unique([contestId, externalRegistrationId, externalPromptId])
   @@unique([contestId, anonymousJuryCode])
+  @@index([registrationId])
   @@index([contestId, categoryId])
   @@index([contestId, status])
   @@index([contestId, admissionStatus])
