@@ -62,6 +62,12 @@ export default async function CarnetsPage({
         description="En qué punto está cada carnet impreso y quién lo movió."
       />
 
+      {capabilities.includes("ADMINISTRAR") ? (
+        <Link href="/members/carnets/permisos" className="fo-btn text-xs inline-flex">
+          Permisos de carnets
+        </Link>
+      ) : null}
+
       <nav className="flex flex-wrap gap-1.5">
         <Link
           href="/members/carnets"
