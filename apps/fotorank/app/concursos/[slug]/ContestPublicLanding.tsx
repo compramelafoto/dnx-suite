@@ -209,7 +209,15 @@ export function ContestPublicLanding({
             />
             <InfoCard label="Categorías" value={categoriasCount ? String(categoriasCount) : "—"} />
             <DateCard label="Apertura" dateLabel={fmtDate(contest.startAt)} />
-            <DateCard label="Cierre de inscripción" dateLabel={fmtDate(contest.submissionDeadline)} />
+            {/**
+             * Usa la MISMA etiqueta que el hero y el CTA final. Antes formateaba
+             * `submissionDeadline` en crudo y esta tarjeta mostraba "1 de octubre
+             * de 2026" mientras el hero decía "30 de septiembre de 2026" para el
+             * mismo concurso: dos fechas de cierre contradictorias en la misma
+             * página. El motivo está documentado en `registration-close.ts` (el
+             * instante se guarda exclusivo, se publica el último día inclusivo).
+             */}
+            <DateCard label="Cierre de inscripción" dateLabel={registrationCloseLabel(contest)} />
             <DateCard label="Resultados" dateLabel={fmtDate(contest.resultsAt)} />
           </div>
         </PageContainer>

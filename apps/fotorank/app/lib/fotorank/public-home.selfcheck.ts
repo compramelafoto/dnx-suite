@@ -10,6 +10,9 @@
  *
  * No toca la DB: `getStatusLabel` es pura.
  */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { resolveRegistrationCloseLabel } from "./contest-public-presentation";
 import {
   dedupeBySlug,
@@ -525,6 +528,39 @@ for (const [name, slug] of [
   ok(
     /^https?:\/\/[^/]+\/media\/x\.png$/.test(String(toAbsoluteMarathonUrl("media/x.png"))),
     "una ruta sin barra inicial se une correctamente",
+  );
+}
+
+/* ---------- La landing no puede volver a formatear el cierre en crudo ---------- */
+/**
+ * Detectado en QA sobre producción: la tarjeta "Cierre de inscripción" de
+ * "Información esencial" formateaba `contest.submissionDeadline` directamente,
+ * así que la misma página mostraba "30 de septiembre de 2026" en el hero y
+ * "1 de octubre de 2026" en la tarjeta. Centralizar la regla no alcanzó: el
+ * componente seguía teniendo a mano un formateador crudo.
+ *
+ * Se inspecciona el archivo fuente porque el defecto no está en la lógica
+ * —`resolveRegistrationCloseLabel` siempre estuvo bien— sino en cuál de las dos
+ * funciones llama el componente. Ningún test de unidad sobre la lógica lo
+ * habría detectado.
+ */
+{
+  const fuente = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../concursos/[slug]/ContestPublicLanding.tsx"),
+    "utf8",
+  );
+
+  // Se ignoran los comentarios: explican justamente este defecto y lo nombran.
+  const codigo = fuente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  const cierreCrudo = /label="Cierre de inscripción"[^/]*?fmtDate\(/;
+  ok(
+    !cierreCrudo.test(codigo),
+    'la tarjeta "Cierre de inscripción" NO formatea la fecha en crudo',
+  );
+  ok(
+    /label="Cierre de inscripción"[^/]*?registrationCloseLabel\(/.test(codigo),
+    'la tarjeta "Cierre de inscripción" usa la etiqueta centralizada',
   );
 }
 
