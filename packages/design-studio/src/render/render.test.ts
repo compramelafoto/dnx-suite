@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { inflateSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { readDesignDocument } from "../document/migrate";
 import { renderPdf } from "./pdf";
@@ -152,20 +153,61 @@ test("el SVG escapa los caracteres que romperian el XML", async () => {
   assert.doesNotMatch(svg, /Ana&Co/);
 });
 
-test("no incrusta un WOFF crudo dentro del PDF", async () => {
+/**
+ * Descomprime cada flujo del PDF y devuelve los primeros bytes de cada uno. Es la única
+ * forma de mirar la tipografía realmente incrustada: el flujo va comprimido, así que buscar
+ * la firma "wOFF" sobre el archivo crudo no encuentra nada ni cuando el problema está.
+ */
+function firmasDeLosFlujos(pdf: Uint8Array): string[] {
+  const crudo = Buffer.from(pdf);
+  const firmas: string[] = [];
+  let desde = 0;
+  for (;;) {
+    const inicio = crudo.indexOf("stream", desde);
+    if (inicio === -1) break;
+    // "stream" también aparece dentro de "endstream": saltearlo o el recorrido se
+    // desalinea y no encuentra ningún flujo.
+    if (crudo.subarray(inicio - 3, inicio).toString("latin1") === "end") {
+      desde = inicio + 6;
+      continue;
+    }
+    let p = inicio + "stream".length;
+    if (crudo[p] === 0x0d) p++;
+    if (crudo[p] === 0x0a) p++;
+    const fin = crudo.indexOf("endstream", p);
+    if (fin === -1) break;
+    try {
+      const datos = inflateSync(crudo.subarray(p, fin));
+      firmas.push(datos.subarray(0, 4).toString("latin1"));
+    } catch {
+      // Flujo sin comprimir o con otro filtro: no es una tipografía incrustada por pdf-lib.
+    }
+    desde = fin + 1;
+  }
+  return firmas;
+}
+
+test("la tipografia incrustada es un SFNT valido y no un WOFF", async () => {
+  // Este es el defecto que se vio en el primer carnet emitido: "Escane[] este c[]digo".
   // @fontsource distribuye WOFF, que es un contenedor comprimido. Si se incrusta tal cual,
-  // los lectores lo reparan a medias: las letras básicas salen y las acentuadas quedan en
-  // cuadraditos. La firma "wOFF" dentro del PDF es la señal de que eso volvió a pasar.
+  // el lector lo repara a medias y las letras acentuadas quedan en cuadraditos.
   const r = await renderPdf(documentoCarnet(), resueltas, {
     includeBleed: false,
     resources: recursos,
   });
   assert.equal(r.ok, true);
   if (!r.ok) return;
+  const firmas = firmasDeLosFlujos(r.value);
+  assert.ok(firmas.length > 0, "no se pudo descomprimir ningún flujo del PDF");
   assert.equal(
-    Buffer.from(r.value).includes("wOFF"),
+    firmas.includes("wOFF"),
     false,
     "hay una tipografía WOFF sin convertir dentro del PDF: los acentos van a salir mal",
   );
+  // Y que efectivamente haya una tipografía: si no hubiera ninguna, la comprobación de
+  // arriba pasaría por vacía.
+  const sfnt = firmas.filter((f) => f === "\u0000\u0001\u0000\u0000" || f === "true" || f === "OTTO");
+  assert.ok(sfnt.length > 0, `no se encontró ninguna tipografía SFNT; firmas: ${firmas.join(", ")}`);
 });
+
 
