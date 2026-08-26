@@ -151,3 +151,21 @@ test("el SVG escapa los caracteres que romperian el XML", async () => {
   assert.match(svg, /&lt;x&gt;/);
   assert.doesNotMatch(svg, /Ana&Co/);
 });
+
+test("no incrusta un WOFF crudo dentro del PDF", async () => {
+  // @fontsource distribuye WOFF, que es un contenedor comprimido. Si se incrusta tal cual,
+  // los lectores lo reparan a medias: las letras básicas salen y las acentuadas quedan en
+  // cuadraditos. La firma "wOFF" dentro del PDF es la señal de que eso volvió a pasar.
+  const r = await renderPdf(documentoCarnet(), resueltas, {
+    includeBleed: false,
+    resources: recursos,
+  });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(
+    Buffer.from(r.value).includes("wOFF"),
+    false,
+    "hay una tipografía WOFF sin convertir dentro del PDF: los acentos van a salir mal",
+  );
+});
+

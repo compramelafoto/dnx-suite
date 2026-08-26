@@ -19,10 +19,14 @@ function clave(fontId: FontId, slot: FontSlot): string {
  * fuentes. Medir con una tipografía y dibujar con otra es la forma clásica de que un texto
  * entre en la vista previa y desborde en el archivo final.
  *
- * `subset: false` a propósito: el subconjunto depende de los caracteres presentes, así que
- * dos emisiones con nombres distintos producirían estructuras distintas. Con la fuente
- * entera, el archivo es función de la plantilla y de los datos, que es lo que la
- * reproducción necesita.
+ * `subset: true` NO es una optimización de tamaño: es lo que hace que los acentos se vean.
+ * @fontsource distribuye WOFF, que es un contenedor comprimido. Sin subconjunto, pdf-lib
+ * escribe esos bytes tal cual dentro del PDF etiquetados como TrueType, y los lectores los
+ * reparan a medias: las letras básicas salen y las acentuadas quedan en cuadraditos. Con
+ * subconjunto, fontkit genera un SFNT válido y "código" se imprime como corresponde.
+ *
+ * La reproducción no sufre: el subconjunto es determinista para los mismos datos, que es
+ * exactamente el caso que hay que poder repetir.
  */
 export async function createPdfFontSet(
   refs: Array<{ fontId: FontId; slot: FontSlot }>,
@@ -37,7 +41,7 @@ export async function createPdfFontSet(
     if (vistos.has(k)) continue;
     vistos.add(k);
     const bytes = await readFontBytes(ref.fontId, ref.slot);
-    fuentes.set(k, await doc.embedFont(bytes, { subset: false }));
+    fuentes.set(k, await doc.embedFont(bytes, { subset: true }));
   }
 
   function get(fontId: FontId, slot: FontSlot): PDFFont {

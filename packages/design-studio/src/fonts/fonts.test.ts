@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FONT_CATALOG, FONT_IDS, isFontId, slotFor } from "./catalog";
+import fontkit from "@pdf-lib/fontkit";
 import { readFontBytes } from "./load";
 
 test("el catalogo declara los cuatro archivos de cada fuente", () => {
@@ -38,4 +39,41 @@ test("lee los bytes reales de cada archivo del catalogo", async () => {
 
 test("una fuente fuera del catalogo falla con un mensaje entendible", async () => {
   await assert.rejects(() => readFontBytes("comicSans" as never, "normal"), /comicSans/);
+});
+
+/**
+ * Los caracteres que una institución argentina va a escribir sin pensarlo. Si a una fuente
+ * del catálogo le falta uno, el carnet sale con un cuadradito y nadie se entera hasta que
+ * está impreso.
+ */
+const CASTELLANO = "áéíóúüñÁÉÍÓÚÜÑ¿¡°ºª";
+
+test("cada tipografia del catalogo tiene los glifos del castellano", async () => {
+  for (const id of FONT_IDS) {
+    for (const slot of ["normal", "bold", "italic", "boldItalic"] as const) {
+      const fuente = fontkit.create(Buffer.from(await readFontBytes(id, slot)));
+      for (const caracter of CASTELLANO) {
+        const punto = caracter.codePointAt(0);
+        if (punto === undefined) continue;
+        // El glifo 0 es `.notdef`: el cuadradito. No alcanza con medir el ancho, porque
+        // `.notdef` tiene ancho propio y una comprobación de "ancho mayor que cero" pasaría
+        // igual.
+        const glifo = fuente.glyphForCodePoint(punto);
+        assert.notEqual(
+          glifo.id,
+          0,
+          `${id} (${slot}) no tiene glifo para "${caracter}" (U+${punto.toString(16).toUpperCase()})`,
+        );
+      }
+    }
+  }
+});
+
+test("un caracter fuera del subconjunto latino cae en .notdef, como se espera", () => {
+  // Verifica que la comprobación de arriba realmente distingue: si `glyphForCodePoint`
+  // devolviera algo distinto de 0 para cualquier cosa, aquella prueba no probaría nada.
+  return readFontBytes("dmSans", "normal").then((bytes) => {
+    const fuente = fontkit.create(Buffer.from(bytes));
+    assert.equal(fuente.glyphForCodePoint(0x6f22).id, 0, "esperaba .notdef para un ideograma");
+  });
 });
