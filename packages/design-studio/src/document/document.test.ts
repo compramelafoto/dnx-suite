@@ -136,3 +136,72 @@ test("acumula todos los errores, no solo el primero", () => {
   if (r.ok) return;
   assert.ok(r.errors.length >= 2, `esperaba varios errores, hubo ${r.errors.length}`);
 });
+
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { migrateDesignDocument, readDesignDocument, type DocumentMigration } from "./migrate";
+
+const fixtureV1 = JSON.parse(
+  readFileSync(fileURLToPath(new URL("./__fixtures__/carnet-v1.json", import.meta.url)), "utf8"),
+) as unknown;
+
+test("el documento historico congelado sigue leyendose", () => {
+  const r = readDesignDocument(fixtureV1);
+  assert.equal(r.ok, true, r.ok ? "" : r.errors.join(" | "));
+  if (!r.ok) return;
+  assert.equal(r.value.sides.length, 2);
+  assert.equal(r.value.sides[0]?.blocks.length, 6);
+  assert.equal(r.value.sides[1]?.blocks.length, 4);
+});
+
+test("encadena migraciones sucesivas hasta la version actual", () => {
+  const migraciones: Record<number, DocumentMigration> = {
+    // 0 → 1: la cara única pasa a ser un arreglo de caras
+    0: (doc) => ({
+      schemaVersion: 1,
+      metadata: doc.metadata,
+      format: doc.format,
+      sides: [{ id: "unica", name: "Única", background: "#ffffff", blocks: doc.blocks }],
+    }),
+  };
+  const viejo = {
+    schemaVersion: 0,
+    metadata: { name: "Viejo" },
+    format: { medium: "SCREEN", width: 1080, height: 1080 },
+    blocks: [
+      {
+        id: "t",
+        type: "text",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 20,
+        fontId: "dmSans",
+        fontSize: 24,
+        color: "#000000",
+        content: "Hola",
+      },
+    ],
+  };
+  const r = readDesignDocument(viejo, migraciones);
+  assert.equal(r.ok, true, r.ok ? "" : r.errors.join(" | "));
+  if (!r.ok) return;
+  assert.equal(r.value.schemaVersion, 1);
+  assert.equal(r.value.sides.length, 1);
+});
+
+test("rechaza un documento de una version futura sin intentar interpretarlo", () => {
+  const futuro = { schemaVersion: 99, metadata: { name: "Futuro" }, format: {}, sides: [] };
+  const r = readDesignDocument(futuro);
+  assert.equal(r.ok, false);
+  if (r.ok) return;
+  assert.match(r.errors.join(" "), /más nueva|mas nueva|99/);
+});
+
+test("rechaza una version vieja para la que no hay migracion escrita", () => {
+  const huerfano = { schemaVersion: 0, metadata: { name: "Huérfano" }, format: {}, sides: [] };
+  const r = migrateDesignDocument(huerfano, {});
+  assert.equal(r.ok, false);
+  if (r.ok) return;
+  assert.match(r.errors.join(" "), /0/);
+});
