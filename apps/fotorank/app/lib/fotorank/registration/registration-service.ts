@@ -35,6 +35,18 @@ export type CreateRegistrationInput = {
   promotionalOptIn?: boolean;
   /** Número de socio ARGRA (obligatorio solo si la categoría lo exige). */
   argraMembershipNumber?: string | null;
+  /**
+   * Precio del paquete ya resuelto por el servidor, en minor units.
+   * Se usa en concursos con precios escalonados por fecha y paquete, donde el
+   * importe no sale de `contest.registrationPriceAmountMinor`.
+   * null/undefined = usar el precio del concurso (comportamiento histórico).
+   */
+  priceOverrideMinor?: number | null;
+  /**
+   * Obras que habilita el paquete comprado.
+   * null/undefined = el pago no define cupo; manda la política del concurso.
+   */
+  purchasedEntriesCount?: number | null;
   rulesAcceptanceIp?: string | null;
   rulesAcceptanceUserAgent?: string | null;
   now?: Date;
@@ -283,7 +295,8 @@ export async function createContestRegistration(input: CreateRegistrationInput):
   const finance = resolveFinancePolicy(
     {
       paymentMode: contest.registrationPricingMode,
-      registrationPriceAmountMinor: contest.registrationPriceAmountMinor,
+      registrationPriceAmountMinor:
+        input.priceOverrideMinor ?? contest.registrationPriceAmountMinor,
       currency: contest.registrationCurrency,
       contestPlatformFeeBps: contest.platformFeeBps,
       organizationPlatformFeeBps: contest.organization.platformFeeBps,
@@ -366,6 +379,7 @@ export async function createContestRegistration(input: CreateRegistrationInput):
           feeSourceSnapshot: finance.feeSource,
           financialPolicySnapshot: finance.policySnapshot,
           paymentOrderId: null,
+          purchasedEntriesCount: input.purchasedEntriesCount ?? null,
           categoryLockedAt: now,
           answersJson: answersJson as Prisma.InputJsonValue,
         },

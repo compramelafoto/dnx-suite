@@ -104,6 +104,7 @@
     "@repo/db": "workspace:*",
     "@repo/design-system": "workspace:*",
     "@repo/partners": "workspace:*",
+    "@repo/payments": "workspace:*",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",
     "exifr": "^7.1.3",
