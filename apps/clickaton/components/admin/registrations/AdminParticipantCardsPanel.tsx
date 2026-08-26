@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 
 type Props = {
@@ -18,6 +18,10 @@ type Props = {
 };
 
 type CardKind = "welcome" | "member";
+
+function titleFor(kind: CardKind): string {
+  return kind === "welcome" ? "Bienvenida" : "Soy parte de Clickatón";
+}
 
 export function AdminParticipantCardsPanel({
   registrationId,
@@ -37,17 +41,20 @@ export function AdminParticipantCardsPanel({
   const [previewTitle, setPreviewTitle] = useState("");
   const [diag, setDiag] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
 
-  const revoke = useCallback(() => {
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
-    setPreviewUrl(null);
-  }, []);
+  /**
+   * El blob anterior se libera en la limpieza de este efecto, no al crear el nuevo.
+   *
+   * Liberarlo antes dejaba al <img> apuntando un instante a una URL ya muerta —React todavía
+   * no había cambiado el `src`— y el navegador mostraba el ícono de imagen rota. Acá React
+   * garantiza que la limpieza corre DESPUÉS de pintar el nuevo valor.
+   */
+  useEffect(() => {
+    if (!previewUrl) return;
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
-  useEffect(() => () => revoke(), [revoke]);
+  const revoke = useCallback(() => setPreviewUrl(null), []);
 
   function formatDiagnostic(body: Record<string, unknown>) {
     const sourceSummary = body.sourceSummary as
@@ -126,13 +133,8 @@ export function AdminParticipantCardsPanel({
         return;
       }
 
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-      const url = URL.createObjectURL(blob);
-      objectUrlRef.current = url;
-      setPreviewUrl(url);
-      setPreviewTitle(
-        kind === "welcome" ? "Bienvenida" : "Soy parte de Clickatón"
-      );
+      setPreviewUrl(URL.createObjectURL(blob));
+      setPreviewTitle(titleFor(kind));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de generación");
     } finally {
@@ -181,6 +183,26 @@ export function AdminParticipantCardsPanel({
       }
 
       setDiag(JSON.stringify(results, null, 2));
+
+      // Se vuelve a traer la imagen para mostrar la placa NUEVA.
+      //
+      // Antes la regeneración solo pedía el diagnóstico en JSON y dejaba la vista previa
+      // anterior en pantalla: se regeneraba, se veía la misma imagen de siempre, y no había
+      // forma de saber si había cambiado algo. Cuando se regeneran las dos, se muestra la
+      // primera; la otra se ve con su botón de vista previa.
+      const aMostrar = kinds[0];
+      if (aMostrar) {
+        const res = await fetch(
+          `/api/admin/registrations/${registrationId}/cards/${aMostrar}?mode=preview&disposition=inline`,
+          { credentials: "same-origin" }
+        );
+        if (res.ok) {
+          setPreviewUrl(URL.createObjectURL(await res.blob()));
+          setPreviewTitle(titleFor(aMostrar));
+        }
+        // Si la imagen no vuelve, la regeneración igual ocurrió: el diagnóstico ya está en
+        // pantalla y hacerla fallar entera seria mentir sobre lo que pasó.
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de regeneración");
     } finally {
