@@ -4,7 +4,10 @@ import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { listUserProfiles } from "@/lib/portal/profiles";
+import Link from "next/link";
 import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
+import { loadMemberAccount } from "@/lib/membership/account";
+import { formatMinorArs } from "@/lib/membership/money";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +17,8 @@ export const dynamic = "force-dynamic";
  * Destino real de quien activa su acceso, y frontera con el panel administrativo: acá se
  * entra por tener ficha de socio propia, no por un rol de equipo.
  *
- * A propósito NO muestra módulos: hoy no hay pagos, comprobantes ni beneficios. Anunciarlos
- * sería prometer algo que no existe; el mensaje dice lo que es cierto y nada más.
+ * Muestra las cuotas cuando hay algo que decir. El resto de los módulos —comprobantes,
+ * beneficios— sigue sin anunciarse: prometer algo que no existe es peor que no mencionarlo.
  */
 export default async function PortalPage() {
   const user = await requireAuth();
@@ -34,6 +37,7 @@ export default async function PortalPage() {
     select: { commercialName: true, logoUrl: true },
   });
   const institution = branding?.commercialName?.trim() || context.workspace.name;
+  const account = await loadMemberAccount(context.member.id);
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
@@ -58,10 +62,36 @@ export default async function PortalPage() {
             <p className="text-sm text-[var(--fo-text)]">Tu acceso está activo.</p>
           </div>
 
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            Acá vas a encontrar los servicios que {institution} habilite para sus socios. Todavía
-            no hay nada disponible; cuando lo haya, lo vas a ver en esta pantalla.
-          </p>
+          {account.charges.length > 0 ? (
+            <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-sm font-medium">Cuotas pendientes</p>
+                <p className="text-lg font-semibold tabular-nums">
+                  {formatMinorArs(account.totalDueMinor)}
+                </p>
+              </div>
+              {account.overdueCount > 0 ? (
+                <p className="text-xs text-[var(--fo-danger)]">
+                  {account.overdueCount === 1
+                    ? "Tenés 1 cuota vencida."
+                    : `Tenés ${account.overdueCount} cuotas vencidas.`}
+                </p>
+              ) : null}
+              <Link href="/portal/cuotas" className="fo-btn fo-btn-primary inline-flex text-sm">
+                Ver y pagar
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
+              <p className="text-sm font-medium text-[var(--fo-success)]">Estás al día</p>
+              <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+                No tenés cuotas pendientes con {institution}.
+              </p>
+              <Link href="/portal/cuotas" className="text-xs text-[var(--fo-muted)] hover:underline">
+                Ver el detalle
+              </Link>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <form action="/api/auth/logout" method="post">

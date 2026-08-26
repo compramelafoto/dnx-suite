@@ -62,3 +62,28 @@ export function splitByPlatformFee(total: Prisma.Decimal, feeBps: number): FeeSp
     .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
   return { total, fee, net: total.minus(fee), feeBps: bps };
 }
+
+/** Reparto en centavos enteros, para lo que no pasa por `Decimal`. */
+export type MinorFeeSplit = {
+  totalMinor: number;
+  feeMinor: number;
+  netMinor: number;
+  feeBps: number;
+};
+
+/**
+ * Misma aritmética que `splitByPlatformFee`, sobre centavos enteros.
+ *
+ * El neto sale **por resta**, nunca multiplicando por el complemento: si se calcularan por
+ * separado, el redondeo de cada uno haría que la suma no diera el total, y un centavo perdido
+ * en cada cobro es una diferencia que aparece en la conciliación y nadie sabe explicar.
+ */
+export function splitMinorByPlatformFee(totalMinor: number, feeBps: number): MinorFeeSplit {
+  const bps = resolvePlatformFeeBps(feeBps);
+  if (!Number.isInteger(totalMinor) || totalMinor < 0) {
+    return { totalMinor: 0, feeMinor: 0, netMinor: 0, feeBps: bps };
+  }
+  // Redondeo a la mitad hacia arriba, igual que la versión con Decimal.
+  const feeMinor = Math.floor((totalMinor * bps) / MAX_PLATFORM_FEE_BPS + 0.5);
+  return { totalMinor, feeMinor, netMinor: totalMinor - feeMinor, feeBps: bps };
+}

@@ -6,8 +6,7 @@ import {
   formatFeeBpsAsPercent,
   isValidFeeBps,
   resolvePlatformFeeBps,
-  splitByPlatformFee,
-} from "./fee";
+  splitByPlatformFee, splitMinorByPlatformFee } from "./fee";
 
 const money = (v: string) => new Prisma.Decimal(v);
 
@@ -106,5 +105,38 @@ describe("splitByPlatformFee", () => {
     const r = splitByPlatformFee(money("10000"), -5);
     expect(r.feeBps).toBe(500);
     expect(r.fee.toFixed(2)).toBe("500.00");
+  });
+});
+
+describe("splitMinorByPlatformFee", () => {
+  it("el 5% de $47.000 son $2.350", () => {
+    const r = splitMinorByPlatformFee(4700000, 500);
+    expect(r.feeMinor).toBe(235000);
+    expect(r.netMinor).toBe(4465000);
+  });
+
+  it("la comisión y el neto siempre suman el total", () => {
+    for (const total of [1, 7, 99, 100, 4700000, 123456789, 999999999]) {
+      for (const bps of [0, 1, 250, 500, 1234, 9999, 10000]) {
+        const r = splitMinorByPlatformFee(total, bps);
+        expect(r.feeMinor + r.netMinor).toBe(total);
+        expect(r.feeMinor).toBeGreaterThanOrEqual(0);
+        expect(r.netMinor).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it("sin comisión, el neto es el total", () => {
+    expect(splitMinorByPlatformFee(4700000, 0)).toMatchObject({ feeMinor: 0, netMinor: 4700000 });
+  });
+
+  it("un total inválido no inventa importes", () => {
+    expect(splitMinorByPlatformFee(-1, 500).totalMinor).toBe(0);
+    expect(splitMinorByPlatformFee(10.5, 500).totalMinor).toBe(0);
+  });
+
+  it("redondea a la mitad hacia arriba, igual que la versión con Decimal", () => {
+    // 5% de 10 centavos = 0,5 centavos → 1
+    expect(splitMinorByPlatformFee(10, 500).feeMinor).toBe(1);
   });
 });
