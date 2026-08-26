@@ -12,6 +12,7 @@ import {
 } from "@/lib/carnet/fulfillment";
 import { canViewCards, resolveCardCapabilities } from "@/lib/carnet/operators";
 import { AdvanceForm } from "./advance-form";
+import { IssueButton } from "./issue-button";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +64,12 @@ export default async function CarnetsPage({
       />
 
       {capabilities.includes("ADMINISTRAR") ? (
-        <Link href="/members/carnets/permisos" className="fo-btn text-xs inline-flex">
-          Permisos de carnets
-        </Link>
+        <div className="flex flex-wrap items-start gap-3">
+          <Link href="/members/carnets/permisos" className="fo-btn text-xs inline-flex">
+            Permisos de carnets
+          </Link>
+          <IssueButton />
+        </div>
       ) : null}
 
       <nav className="flex flex-wrap gap-1.5">

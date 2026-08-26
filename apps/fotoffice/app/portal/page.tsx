@@ -62,6 +62,16 @@ export default async function PortalPage() {
             <p className="text-sm text-[var(--fo-text)]">Tu acceso está activo.</p>
           </div>
 
+          <Link
+            href="/portal/carnet"
+            className="block space-y-1 rounded-lg border border-[var(--fo-border)] p-4 hover:border-[var(--fo-text)]"
+          >
+            <p className="text-sm font-medium">Tu carnet de socio</p>
+            <p className="text-xs text-[var(--fo-muted)]">
+              Mostralo para que verifiquen tu condición de socio.
+            </p>
+          </Link>
+
           {account.charges.length > 0 ? (
             <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
               <div className="flex items-baseline justify-between gap-3">
