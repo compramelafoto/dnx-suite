@@ -532,6 +532,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/design-studio':
+        specifier: workspace:*
+        version: link:../../packages/design-studio
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners

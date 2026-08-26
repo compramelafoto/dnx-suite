@@ -19,6 +19,7 @@
     "@repo/auth-ui": "workspace:*",
     "@repo/communications": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/design-studio": "workspace:*",
     "@repo/partners": "workspace:*",
     "@repo/payments": "workspace:*",
     "bcryptjs": "^3.0.3",

@@ -128,3 +128,40 @@ test("la misma emision repetida da los mismos checksums", async () => {
   if (!a.ok || !b.ok) return;
   assert.equal(a.files[0]?.checksum, b.files[0]?.checksum);
 });
+
+import * as barril from "../index";
+
+test("el barril expone lo que un producto necesita", () => {
+  assert.equal(typeof barril.emitDesign, "function");
+  assert.equal(typeof barril.readDesignDocument, "function");
+  assert.equal(typeof barril.validateForPublish, "function");
+  assert.equal(typeof barril.evaluateQrLegibility, "function");
+  assert.equal(typeof barril.RENDERER_VERSION, "string");
+  assert.equal(barril.DESIGN_SCHEMA_VERSION, 1);
+  assert.ok(barril.FONT_CATALOG.dmSans);
+});
+
+test("de documento crudo a carnet impreso, en un solo paso", async () => {
+  const r = await barril.emitDesign({
+    document: documentoCrudo,
+    contract: contrato,
+    values: datos,
+    formats: ["PDF", "PNG_PER_SIDE", "SVG_PER_SIDE"],
+    includeBleed: true,
+    pngDpi: 300,
+    resources: recursos,
+    fileBaseName: "carnet-sfpr-128",
+  });
+  assert.equal(r.ok, true, r.ok ? "" : r.errors.join(" | "));
+  if (!r.ok) return;
+  assert.equal(r.files.length, 5);
+
+  const pdf = r.files.find((f) => f.name.endsWith(".pdf"));
+  assert.ok(pdf);
+  // Tarjeta de 85,6 × 54 mm con 3 mm de sangrado por lado = 91,6 × 60 mm = 259,6 × 170,1 pt.
+  const texto = Buffer.from(pdf!.bytes).toString("latin1");
+  assert.match(texto, /259\.6\d* 170\.0\d*/);
+
+  const pngFrente = r.files.find((f) => f.name.endsWith("-frente.png"));
+  assert.ok(pngFrente && pngFrente.bytes.byteLength > 10000);
+});
