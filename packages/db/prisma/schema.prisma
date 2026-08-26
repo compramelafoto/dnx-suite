@@ -6840,6 +6840,7 @@ model Workspace {
   membershipFeeValues         MembershipFeeValue[]
   membershipCharges           MembershipCharge[]
   membershipPayments          MembershipPayment[]
+  memberCards                 MemberCard[]
 }
 
 model WorkspaceFeatureModule {
@@ -7091,6 +7092,7 @@ model Member {
   payments MembershipPayment[]
   /// Invitaciones de acceso emitidas para este socio (pendientes, aceptadas o revocadas).
   invitations MemberInvitation[]
+  cards       MemberCard[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -7333,6 +7335,66 @@ model MembershipAllocation {
 
   @@unique([paymentId, chargeId])
   @@index([chargeId])
+}
+
+/// Formato de un carnet de socio.
+/// `DIGITAL` lo tienen todos y se renueva solo; `PRINTED` se pide y se paga.
+/// Son registros separados porque tienen ciclos de vida distintos.
+enum MemberCardFormat {
+  DIGITAL
+  PRINTED
+}
+
+/// Carnet de socio.
+///
+/// A propósito NO tiene un campo `habilitado`: eso se calcula en cada consulta a partir de
+/// la condición del socio, la vigencia, la revocación y la mora. Guardarlo volvería a
+/// mezclar condición institucional con situación financiera, que es exactamente lo que el
+/// dominio de Members ya corrigió (ver `enum MemberStatus`).
+///
+/// Un carnet emitido nunca se modifica. Corregir un nombre mal escrito es revocar este y
+/// emitir otro, y las dos cosas quedan registradas.
+model MemberCard {
+  id          String @id @default(cuid())
+  workspaceId String
+  memberId    String
+
+  /// `C-2026-0412`. Identifica una EMISIÓN, no a la persona: es lo que permite invalidar un
+  /// carnet perdido sin tocar el número de socio, que es vitalicio.
+  cardNumber String
+  /// SHA-256 del token del QR. El token nunca se guarda en claro: quien acceda a la base no
+  /// puede fabricar carnets válidos a partir de ella.
+  tokenHash  String @unique
+
+  format    MemberCardFormat @default(DIGITAL)
+  issuedAt  DateTime         @default(now())
+  validUntil DateTime
+
+  revokedAt       DateTime?
+  revokedReason   String?
+  revokedByUserId Int?
+
+  /// Con qué se dibujó. Permite reproducir la pieza tal como salió.
+  /// `designTemplateVersionId` queda nulo hasta que exista la persistencia de plantillas.
+  designTemplateVersionId String?
+  rendererVersion         String?
+  designSchemaVersion     Int?
+  /// Archivos emitidos con su checksum: `[{ name, contentType, checksum, url }]`.
+  files                   Json?
+
+  /// El cargo por la tarjeta impresa, cuando se pagó. Entra por el mismo circuito que las
+  /// cuotas, no por uno paralelo.
+  printOrderChargeId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, cardNumber])
+  @@index([memberId, issuedAt])
+  @@index([workspaceId, validUntil])
 }
 
 model MemberInvitation {
