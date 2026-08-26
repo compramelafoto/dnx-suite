@@ -53,7 +53,7 @@ export default async function WorkspaceSettingsPage() {
           <span
             className={
               "block text-xs " +
-              (cobros.canReceiveSplit ? "text-[var(--fo-success)]" : "text-[var(--fo-danger)]")
+              (cobros.canCharge ? "text-[var(--fo-success)]" : "text-[var(--fo-danger)]")
             }
           >
             {cobrosCopy.title}

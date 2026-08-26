@@ -1,3 +1,4 @@
+import type { CollectionMode } from "./mode";
 import type { WorkspaceCollectionStatus } from "./status";
 
 export type CollectionCopy = {
@@ -13,8 +14,14 @@ export type CollectionCopy = {
  *
  * Función pura para poder probar que cada estado dice lo que corresponde — sobre todo que
  * ninguno afirme que se puede cobrar cuando no se puede.
+ *
+ * El modo importa porque en dos vías no existe el cobro dividido: hablarle a la institución
+ * de una autorización que no tiene que dar la manda a buscar algo que no está.
  */
-export function collectionCopy(status: WorkspaceCollectionStatus): CollectionCopy {
+export function collectionCopy(
+  status: WorkspaceCollectionStatus,
+  mode: CollectionMode = "TWO_WAY",
+): CollectionCopy {
   switch (status) {
     case "CONNECTED":
       return {
@@ -33,7 +40,10 @@ export function collectionCopy(status: WorkspaceCollectionStatus): CollectionCop
     case "PENDING":
       return {
         title: "Vinculación incompleta",
-        body: "Tu cuenta está vinculada pero todavía no quedó habilitada para recibir pagos divididos. Volvé a conectarla para terminar.",
+        body:
+          mode === "SPLIT_1N"
+            ? "Tu cuenta está vinculada pero todavía no quedó habilitada para recibir pagos divididos. Volvé a conectarla para terminar."
+            : "Tu cuenta está vinculada pero MercadoPago todavía no la dio por activa. Volvé a conectarla para terminar.",
         actionLabel: "Terminar de conectar",
         tone: "warn",
       };

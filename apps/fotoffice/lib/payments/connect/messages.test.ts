@@ -90,3 +90,23 @@ describe("consentimiento de split en la pantalla", () => {
     expect(c.title.toLowerCase()).not.toContain("conectados");
   });
 });
+
+describe("collectionCopy según el modo de cobro", () => {
+  it("en dos vías no le habla a la institución de pagos divididos", () => {
+    for (const estado of TODOS) {
+      const c = collectionCopy(estado, "TWO_WAY");
+      // AWAITING_CONSENT no es alcanzable en dos vías, así que se lo excluye: su texto
+      // habla de la autorización a propósito.
+      if (estado === "AWAITING_CONSENT") continue;
+      expect(`${c.title} ${c.body}`).not.toMatch(/dividid/i);
+    }
+  });
+
+  it("en 1:N sí explica que falta la habilitación para pagos divididos", () => {
+    expect(collectionCopy("PENDING", "SPLIT_1N").body).toMatch(/dividid/i);
+  });
+
+  it("dos vías es el modo por omisión", () => {
+    expect(collectionCopy("PENDING")).toEqual(collectionCopy("PENDING", "TWO_WAY"));
+  });
+});

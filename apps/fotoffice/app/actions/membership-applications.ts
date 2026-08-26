@@ -43,7 +43,7 @@ export async function submitApplicationAction(
   // Si la institución no puede cobrar, el formulario no debería estar publicado. Se
   // verifica igual acá: esconder un formulario no es un control.
   const cobros = await getWorkspaceCollectionStatus(branding.workspaceId);
-  if (!cobros.canReceiveSplit) {
+  if (!cobros.canCharge) {
     return fail("Las inscripciones no están abiertas en este momento.");
   }
 

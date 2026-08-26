@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { workspaceOrganizationRef } from "./constants";
 import { canChargeWithSplit, getStoredSplitConsent, type SplitConsentState } from "./consent";
+import { readCollectionMode, requiresSplitConsent, type CollectionMode } from "./mode";
 
 export type WorkspaceCollectionStatus =
   | "NOT_CONNECTED"
@@ -17,8 +18,10 @@ export type WorkspaceCollectionView = {
   accountLabel: string | null;
   connectedAt: Date | null;
   /** Única fuente para decidir si la institución puede cobrar. */
-  canReceiveSplit: boolean;
-  /** Estado del consentimiento de split ante MercadoPago. */
+  canCharge: boolean;
+  /** Cómo se cobra. Decide qué se le exige a la cuenta y qué se le muestra a la institución. */
+  mode: CollectionMode;
+  /** Estado del consentimiento de split. Siempre `NONE` en dos vías: ahí no existe. */
   consent: SplitConsentState;
   /** Enlace para otorgar el consentimiento, cuando MercadoPago lo provee. */
   consentInviteUrl: string | null;
@@ -27,19 +30,25 @@ export type WorkspaceCollectionView = {
 /**
  * Traduce el estado técnico de la cuenta al estado que se le muestra a la institución.
  *
- * Una cuenta `ACTIVE` sin `SPLIT_RECEIVER` NO es "conectada": se vinculó, pero no puede
- * recibir su parte de un cobro. Mostrarla como conectada haría que la institución creyera
- * que ya puede cobrar cuotas cuando todavía no.
+ * Qué se le exige depende del modo de cobro:
+ *
+ * - En **1:N** una cuenta `ACTIVE` sin `SPLIT_RECEIVER` NO es "conectada": se vinculó, pero
+ *   no puede recibir su parte. Mostrarla como conectada haría creer que ya se puede cobrar.
+ * - En **dos vías** esa capacidad no interviene, porque no hay reparto: la institución cobra
+ *   con sus propias credenciales. Exigirla dejaría a una cuenta perfectamente vinculada en
+ *   "pendiente" para siempre.
  *
  * Ante un estado desconocido se devuelve `PENDING`, nunca `CONNECTED`: si no entendemos
  * en qué situación está la cuenta, no podemos afirmar que se puede cobrar con ella.
  */
 export function mapAccountToCollectionStatus(
   account: { status: string; capabilities: string[] } | null,
+  mode: CollectionMode = "TWO_WAY",
 ): WorkspaceCollectionStatus {
   if (!account) return "NOT_CONNECTED";
   switch (account.status) {
     case "ACTIVE":
+      if (mode === "TWO_WAY") return "CONNECTED";
       return account.capabilities.includes("SPLIT_RECEIVER") ? "CONNECTED" : "PENDING";
     case "PENDING":
       return "PENDING";
@@ -71,11 +80,13 @@ function maskProviderUser(providerUserId: string | null): string | null {
 export async function getWorkspaceCollectionStatus(
   workspaceId: string,
 ): Promise<WorkspaceCollectionView> {
+  const mode = readCollectionMode();
   const notConnected: WorkspaceCollectionView = {
     status: "NOT_CONNECTED",
     accountLabel: null,
     connectedAt: null,
-    canReceiveSplit: false,
+    canCharge: false,
+    mode,
     consent: "NONE",
     consentInviteUrl: null,
   };
@@ -102,10 +113,31 @@ export async function getWorkspaceCollectionStatus(
   });
   if (!account) return notConnected;
 
-  const accountStatus = mapAccountToCollectionStatus({
-    status: String(account.status),
-    capabilities: (account.capabilities as unknown as string[]) ?? [],
-  });
+  const accountStatus = mapAccountToCollectionStatus(
+    {
+      status: String(account.status),
+      capabilities: (account.capabilities as unknown as string[]) ?? [],
+    },
+    mode,
+  );
+
+  const base = {
+    accountLabel: maskProviderUser(account.providerUserId),
+    connectedAt: account.connectedAt,
+    mode,
+  };
+
+  if (!requiresSplitConsent(mode)) {
+    // Dos vías: no se consulta el consentimiento porque no interviene. Preguntarlo daría un
+    // "NONE" que la pantalla podría malinterpretar como algo que falta hacer.
+    return {
+      ...base,
+      status: accountStatus,
+      canCharge: accountStatus === "CONNECTED",
+      consent: "NONE",
+      consentInviteUrl: null,
+    };
+  }
 
   const consent = await getStoredSplitConsent(workspaceId);
   const puedeCobrar = accountStatus === "CONNECTED" && canChargeWithSplit(consent.state);
@@ -117,10 +149,9 @@ export async function getWorkspaceCollectionStatus(
     accountStatus === "CONNECTED" && !puedeCobrar ? "AWAITING_CONSENT" : accountStatus;
 
   return {
+    ...base,
     status,
-    accountLabel: maskProviderUser(account.providerUserId),
-    connectedAt: account.connectedAt,
-    canReceiveSplit: puedeCobrar,
+    canCharge: puedeCobrar,
     consent: consent.state,
     consentInviteUrl: consent.inviteUrl,
   };

@@ -40,7 +40,7 @@ export default async function AsociarsePage({ params }: Props) {
   const institutionName = branding.commercialName?.trim() || workspace?.name || "la institución";
 
   // Sin cobros conectados o sin valor de cuota, aprobar generaría cuotas impagables.
-  const abierto = cobros.canReceiveSplit && Boolean(valorCuota);
+  const abierto = cobros.canCharge && Boolean(valorCuota);
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">

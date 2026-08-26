@@ -35,7 +35,7 @@ export default async function CobrosPage({
     getPlatformFeeBpsByModule(workspace.id, [MEMBERS_MODULE_KEY]),
   ]);
 
-  const copy = collectionCopy(collection.status);
+  const copy = collectionCopy(collection.status, collection.mode);
   const errorMessage = connectErrorMessage(params.error ?? null);
   const config = readMpConnectConfig();
   const feeBps = feeByModule.get(MEMBERS_MODULE_KEY) ?? 500;
@@ -90,10 +90,11 @@ export default async function CobrosPage({
         ) : null}
 
         {/*
-          El consentimiento solo tiene sentido con la cuenta ya vinculada: sin receptor no
-          hay a quién autorizar.
+          El consentimiento solo existe en el cobro dividido 1:N, y solo tiene sentido con la
+          cuenta ya vinculada: sin receptor no hay a quién autorizar. En dos vías el que cobra
+          es el que recibe, así que el panel no se muestra.
         */}
-        {canManage && collection.status !== "NOT_CONNECTED" ? (
+        {collection.mode === "SPLIT_1N" && canManage && collection.status !== "NOT_CONNECTED" ? (
           <SplitConsentPanel
             consent={collection.consent}
             savedInviteUrl={collection.consentInviteUrl}

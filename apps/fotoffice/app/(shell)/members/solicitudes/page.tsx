@@ -38,7 +38,7 @@ export default async function SolicitudesPage() {
       />
 
       {/* Dos condiciones sin las cuales aprobar no sirve de nada: se avisan antes, no al fallar. */}
-      {!cobros.canReceiveSplit ? (
+      {!cobros.canCharge ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
           Todavía no podés cobrar cuotas.{" "}
           <Link href="/workspace/configuracion/cobros" className="underline">
