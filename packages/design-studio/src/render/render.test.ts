@@ -100,3 +100,54 @@ test("dos renders del mismo documento con los mismos datos dan el mismo archivo"
   if (!a.ok || !b.ok) return;
   assert.deepEqual(Buffer.from(a.value), Buffer.from(b.value), "el render no es reproducible");
 });
+
+import { pdfToPng } from "./png";
+import { renderSvgPages } from "./svg";
+
+test("rasteriza la primera cara del PDF a PNG", async () => {
+  const pdf = await renderPdf(documentoCarnet(), resueltas, {
+    includeBleed: false,
+    resources: recursos,
+  });
+  assert.equal(pdf.ok, true);
+  if (!pdf.ok) return;
+  const png = await pdfToPng(pdf.value, { dpi: 300, pageIndex: 0 });
+  assert.equal(png.ok, true, png.ok ? "" : png.errors.join(" | "));
+  if (!png.ok) return;
+  assert.deepEqual(Array.from(png.value.slice(0, 4)), [0x89, 0x50, 0x4e, 0x47]);
+  assert.ok(png.value.byteLength > 2000);
+});
+
+test("pedir una cara que no existe falla con un mensaje claro", async () => {
+  const pdf = await renderPdf(documentoCarnet(), resueltas, {
+    includeBleed: false,
+    resources: recursos,
+  });
+  assert.equal(pdf.ok, true);
+  if (!pdf.ok) return;
+  const png = await pdfToPng(pdf.value, { dpi: 300, pageIndex: 7 });
+  assert.equal(png.ok, false);
+});
+
+test("produce un SVG por cara con el texto ya interpolado", async () => {
+  const r = await renderSvgPages(documentoCarnet(), resueltas);
+  assert.equal(r.ok, true, r.ok ? "" : r.errors.join(" | "));
+  if (!r.ok) return;
+  assert.equal(r.value.length, 2);
+  assert.match(r.value[0] ?? "", /^<svg /);
+  assert.match(r.value[0] ?? "", /Daniel Cuart/);
+  assert.match(r.value[0] ?? "", /font-family/);
+});
+
+test("el SVG escapa los caracteres que romperian el XML", async () => {
+  // Se comprueban los caracteres uno por uno y no la cadena entera: el corte de líneas puede
+  // repartirlos en dos <text>, y eso no tiene nada de malo.
+  const conAmpersand = { ...resueltas, values: { ...resueltas.values, fullName: "Ana&Co <x>" } };
+  const r = await renderSvgPages(documentoCarnet(), conAmpersand);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  const svg = r.value[0] ?? "";
+  assert.match(svg, /Ana&amp;Co/);
+  assert.match(svg, /&lt;x&gt;/);
+  assert.doesNotMatch(svg, /Ana&Co/);
+});
