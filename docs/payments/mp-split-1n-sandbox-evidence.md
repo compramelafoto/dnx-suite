@@ -306,6 +306,62 @@ fee_allocation · seller_primary · taxes_withholdings · settlements_payouts ·
 
 ---
 
+# LIVE ORDER WEBHOOK EVIDENCE
+
+**Fecha:** 2026-08-26
+**Clasificación de la entrega:** **NO DELIVERY YET** — ni `HTTP_DELIVERED_FROM_MP` ni replay.
+Procedimiento completo: [mp-split-1n-webhook-order-live-test.md](./mp-split-1n-webhook-order-live-test.md)
+
+## Preflight del endpoint — PASS
+
+| Campo | Valor |
+| --- | --- |
+| Environment | sandbox / staging |
+| Public endpoint | `https://clickaton-staging.vercel.app/api/webhooks/dnx-payments` |
+| Proyecto Vercel | `clickaton-staging` (`READY`, healthy, dominio verificado) |
+| Proyecto productivo (excluido) | `clickaton-dnxsuite` / `maratonfotografica.com` — **no tocado** |
+| HTTPS válido | PASS |
+| `GET` | `405 METHOD_NOT_ALLOWED` — PASS |
+| `POST` sin firma | `400 WEBHOOK_UNSIGNED` — PASS |
+| `POST type=payment` firma inválida | `401 WEBHOOK_INVALID_SIGNATURE` — PASS (ruta legacy intacta) |
+| `POST type=order` firma inválida | `200 ORDERS_OBSERVE_FLAG_OFF` — **flag OFF** |
+| Production writes | `productionWritesAllowed: false` · `productionGuardActive: true` — BLOCKED |
+
+Las sondas usaron firmas deliberadamente inválidas. No simulan a Mercado Pago:
+sólo ejercitan rutas de rechazo. Ninguna produjo escritura ni efecto de negocio.
+
+## Estado de la prueba live
+
+| Ítem | Resultado |
+| --- | --- |
+| Topic configurado en MP | **PENDING** — paso humano en el panel |
+| MP app label | no demostrable todavía (sin entrega) |
+| Order sandbox de la prueba | **NOT CREATED** — gated hasta confirmar el registro |
+| HTTP delivered from MP | **NO** |
+| Signature valid | n/a |
+| `data.id` capturado | n/a |
+| GET Order llamado | n/a |
+| Reconcile | n/a |
+| Business effect | **ninguno** |
+| Duplicate delivery | **NOT OBSERVED** (dedupe cubierto por tests unitarios: PASS) |
+
+## GET Order contingency
+
+**PASS** según la evidencia previa de sandbox (Imp 05 / Imp 06 / Brick CLF).
+**No re-ejecutada hoy:** las Orders sandbox registradas en artefactos locales pertenecen
+a la cuenta collector de Comprame la Foto y devuelven `Order not found` con el owner
+configurado en el MCP. Crear una Order nueva está gated hasta confirmar el registro del
+webhook, así que no se creó ninguna.
+
+## Correcciones aplicadas en esta etapa
+
+1. El webhook `order` ya no puede producir un efecto de negocio sin GET Order,
+   tampoco en el reintento duplicado.
+2. El secreto de firma de Mercado Pago (`MERCADOPAGO_WEBHOOK_SECRET`) quedó separado
+   del HMAC interno DNX (`DNX_PAYMENTS_WEBHOOK_SECRET`).
+
+---
+
 ## TECHNICAL HOMOLOGATION READINESS
 
 **READY FOR MP REVIEW WITH EXTERNAL QUESTIONS**

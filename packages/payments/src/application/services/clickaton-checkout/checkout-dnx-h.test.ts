@@ -163,6 +163,78 @@ describe("10D3I-H fulfill from orders observe", () => {
     }
   });
 
+  /**
+   * Confirmación Mercado Pago: el webhook `order` es sólo disparador; el estado
+   * real sale de GET /v1/orders/{id}. Un reintento duplicado corta en observe
+   * antes del GET, así que no puede producir efectos de negocio por sí solo.
+   */
+  it("no fulfilla un reintento duplicado sin GET Order disponible", async () => {
+    const persistence = createInMemoryDnxPaymentsPersistence();
+    const service = createClickatonCheckoutService(persistence);
+    const result = await fulfillRegistrationFromOrdersObserve({
+      observe: {
+        ok: true,
+        outcome: "duplicate",
+        eventId: "evt_dup_1",
+        providerOrderId: "ORDTST01TEST",
+        providerOrderIdPrefix: "ORDTST01TE…",
+        liveMode: false,
+        inboxId: "inbox_dup_1",
+        canonical: null,
+        snapshot: null,
+        mismatches: [],
+        alerts: [],
+        deliveryClass: "HTTP_DELIVERED_FROM_MP",
+      },
+      persistence,
+      applyNormalizedEvent: (e) => service.applyNormalizedEvent(e),
+      checkoutFlagEnabled: true,
+    });
+    assert.equal(result.fulfilled, false);
+    if (!result.fulfilled) assert.equal(result.reason, "CANONICAL_REQUIRED");
+  });
+
+  it("decide con el GET Order, no con el payload del webhook duplicado", async () => {
+    const persistence = createInMemoryDnxPaymentsPersistence();
+    const service = createClickatonCheckoutService(persistence);
+    let getCalls = 0;
+    const result = await fulfillRegistrationFromOrdersObserve({
+      observe: {
+        ok: true,
+        outcome: "duplicate",
+        eventId: "evt_dup_2",
+        providerOrderId: "ORDTST01TEST",
+        providerOrderIdPrefix: "ORDTST01TE…",
+        liveMode: false,
+        inboxId: "inbox_dup_2",
+        canonical: null,
+        snapshot: null,
+        mismatches: [],
+        alerts: [],
+        deliveryClass: "HTTP_DELIVERED_FROM_MP",
+      },
+      persistence,
+      applyNormalizedEvent: (e) => service.applyNormalizedEvent(e),
+      checkoutFlagEnabled: true,
+      fetchCanonicalOrder: async (providerOrderId) => {
+        getCalls += 1;
+        return {
+          providerOrderId,
+          status: "OPEN",
+          statusDetail: "waiting_payment",
+          externalReference: "clickaton:registration:reg_test",
+          totalMinor: "10000",
+          currency: "ARS",
+          splitAmounts: [],
+          paymentCount: 0,
+        };
+      },
+    });
+    assert.equal(getCalls, 1);
+    assert.equal(result.fulfilled, false);
+    if (!result.fulfilled) assert.equal(result.reason, "STATUS_NOT_ACCREDITED");
+  });
+
   it("accepts hyphenated Orders external reference prefix", async () => {
     assert.equal(
       "clickaton-registration-reg_abc".startsWith("clickaton-registration-"),

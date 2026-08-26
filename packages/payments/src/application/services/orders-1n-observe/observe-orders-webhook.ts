@@ -208,6 +208,16 @@ export async function observeOrdersWebhook(
   let canonical: CanonicalOrderView | null = null;
   const mismatches = [];
 
+  /**
+   * GET Order es la fuente de verdad (confirmado por Mercado Pago). Si no hay
+   * callback configurado, el estado real NUNCA se consultó: eso no es un
+   * procesamiento limpio y no debe verse como tal en contadores ni auditoría.
+   */
+  if (!input.fetchCanonicalOrder) {
+    bumpAlert(counters, "GET_ORDER_NOT_CONFIGURED");
+    alerts.push("GET_ORDER_NOT_CONFIGURED");
+  }
+
   if (input.fetchCanonicalOrder) {
     try {
       const fetched = await input.fetchCanonicalOrder(parsed.notification.dataId);
@@ -288,8 +298,9 @@ export async function observeOrdersWebhook(
     provider: "mercadopago",
     environment: env,
     correlationId: eventId.slice(0, 64),
-    result: mismatches.length ? "FAILED" : "SUCCEEDED",
-    errorCode: mismatches[0]?.code,
+    result:
+      mismatches.length || !input.fetchCanonicalOrder ? "FAILED" : "SUCCEEDED",
+    errorCode: mismatches[0]?.code ?? (input.fetchCanonicalOrder ? undefined : "GET_ORDER_NOT_CONFIGURED"),
     metadata: {
       status: canonical?.status ?? null,
       statusDetail: canonical?.statusDetail ?? null,
@@ -298,6 +309,7 @@ export async function observeOrdersWebhook(
       snapshotIdPrefix: snapshot?.idPrefix ?? null,
       snapshotIntact: snapshot?.intact ?? null,
       mismatchCount: mismatches.length,
+      getOrderCalled: Boolean(input.fetchCanonicalOrder),
       deliveryClass: input.deliveryClass ?? "HTTP_DELIVERED_FROM_MP",
     },
     createdAt: processedAt,

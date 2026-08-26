@@ -10,7 +10,9 @@
 **Production writes:** **BLOCKED** (`DNX_MP_ORDERS_1N_PRODUCTION_ENABLED` ≠ true)
 
 Evidencia detallada: [mp-split-1n-sandbox-evidence.md](./mp-split-1n-sandbox-evidence.md)  
-Checklist final: [mp-split-1n-homologation-checklist-final.md](./mp-split-1n-homologation-checklist-final.md)
+Checklist final: [mp-split-1n-homologation-checklist-final.md](./mp-split-1n-homologation-checklist-final.md)  
+**Definiciones oficiales de MP (2026-08-26):** [mp-split-1n-mercadopago-confirmations.md](./mp-split-1n-mercadopago-confirmations.md)  
+Prueba live del webhook `order`: [mp-split-1n-webhook-order-live-test.md](./mp-split-1n-webhook-order-live-test.md)
 
 ---
 
@@ -98,7 +100,7 @@ Sandbox: partners A/B ACTIVE reales (prefijos sanitizados en evidencia).
 | Total refund (Order dedicada) | PASS REAL (Imp 06 case B) |
 | Idempotency refund retry | PASS REAL (`sameProviderRefundId`) |
 | Multi-partner refund | PASS REAL (Imp 06 case multi) |
-| Webhook live | **PENDING** — WEBHOOK CONFIGURATION EXTERNAL STEP REQUIRED |
+| Webhook live | **PENDING** — endpoint público de staging verificado; falta el registro en el panel de MP (paso externo) |
 | GET contingency | PASS |
 
 Artefactos locales (gitignored): `.local/audit-imp05/`, `.local/audit-imp06/`, `.local/audit-clf-brick/`.
@@ -136,11 +138,15 @@ Artefactos locales (gitignored): `.local/audit-imp05/`, `.local/audit-imp06/`, `
 
 | Pieza | Estado |
 | --- | --- |
+| **Tópico Orders** | **`order`** — confirmado por MP (2026-08-26). `payment` queda para Checkout Pro / arquitectura anterior. |
+| **Fuente de verdad** | **GET `/v1/orders/{id}`** — confirmado por MP. El webhook es sólo disparador de notificación, nunca decide. |
 | Endpoint | `POST /api/webhooks/dnx-payments` (Clickatón) |
 | Firma | HMAC DNX / headers MP `x-signature` |
 | Observe flag | `DNX_MP_ORDERS_1N_WEBHOOK_OBSERVE_ENABLED` |
-| Staging URL pública | requiere configuración externa / registro en MP |
-| Observación live Imp 06 | **WEBHOOK NOT OBSERVED** |
+| Staging URL pública | **`https://clickaton-staging.vercel.app/api/webhooks/dnx-payments`** — preflight PASS 2026-08-26 (HTTPS, sólo POST, rechaza unsigned, verifica firma) |
+| Registro en panel MP con tópico `order` | **PENDING EXTERNAL CONFIG** (paso humano) |
+| Secreto de firma MP | `MERCADOPAGO_WEBHOOK_SECRET`, separado del HMAC interno DNX (2026-08-26) |
+| Observación live | **WEBHOOK NOT OBSERVED** |
 | Contingencia | **GET Order = PASS** |
 
 ---
@@ -155,6 +161,7 @@ Artefactos locales (gitignored): `.local/audit-imp05/`, `.local/audit-imp06/`, `
 | **SANDBOX OBSERVATION** | En Orders Split 1:N, `additional_info.items` fue **rechazado** (`unsupported_properties` / additionalProperties). |
 | **CURRENT IMPLEMENTATION** | `items[]` **top-level** + `transactions.payments` obligatorio; sin `additional_info.items`. |
 | **QUESTION FOR MP** | Confirmar ubicación/formato correcto de información antifraude de items en Orders API Split 1:N (MLA / intangibles). |
+| **RESPUESTA MP (2026-08-26)** | **RESUELTO.** `items[]` va en el nivel superior del body; `additional_info.items` está **deprecado** para Orders API. Nuestra implementación top-level es correcta. `category_id: "others"` es válido; `virtual_goods` es **sugerido** (no obligatorio) para fotografías digitales. Ver [confirmaciones de MP](./mp-split-1n-mercadopago-confirmations.md). |
 
 Otros hallazgos sandbox:
 
@@ -169,9 +176,10 @@ Otros hallazgos sandbox:
 
 #### A. INTEGRATION QUESTIONS
 
-1. Ubicación/formato correcto de información de items para intangibles (ver §10).  
-2. Comportamiento esperado de webhooks Orders / refunds y registro de URL.  
-3. ¿Existe breakdown de receivers en refund response? (nosotros no lo observamos).
+1. ~~Ubicación/formato correcto de información de items para intangibles (ver §10).~~ **RESPONDIDA 2026-08-26** — `items[]` top-level; `additional_info.items` deprecado.  
+2. ~~Comportamiento esperado de webhooks Orders~~ **RESPONDIDA 2026-08-26** — tópico `order`; el webhook no es fuente de verdad; el flujo correcto es webhook → `data.id` → GET Order → decisión. Sigue pendiente el registro de la URL pública (paso externo).  
+3. ¿Existe breakdown de receivers en refund response? (nosotros no lo observamos).  
+4. **ABIERTA** — ¿Una única aplicación habilitada para Split (1 a N) puede representar a DNX Payments para varios productos? MP está consultando internamente. `integrator_id` mencionado como posible agrupador: **NO adoptado** hasta confirmación formal.
 
 #### B. SETTLEMENT / BUSINESS QUESTIONS
 
