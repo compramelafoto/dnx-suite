@@ -82,3 +82,29 @@ El motivo real queda registrado, saneado, con estos prefijos:
 Los tokens y códigos de autorización se enmascaran antes de registrarse. Un mensaje genérico
 sin detalle vuelve indistinguible un rechazo del proveedor de un error propio: eso ya costó
 dos vueltas en esta integración.
+
+## Actualización: 26 de agosto de 2026 — en suspenso
+
+Se frena a la espera de la respuesta del área técnica de MercadoPago.
+
+**La dirección que se perfila:** usar **una sola aplicación para toda DNX Suite**, la de
+ComprameLafoto, que ya está habilitada para split, en vez de pedir una habilitación por
+producto.
+
+Conviene tener presente lo que eso implica antes de ejecutarlo:
+
+| Consecuencia | Detalle |
+|---|---|
+| Las credenciales pasan a ser compartidas | `FOTOFFICE_MP_CLIENT_ID` y compañía dejarían de tener sentido como variables por producto; serían de la plataforma |
+| Un receptor consiente una vez para todo | El consentimiento es por aplicación, así que un fotógrafo que ya consintió en ComprameLafoto no vuelve a consentir en FotoOffice |
+| Una revocación afecta a todos | Si MercadoPago suspende esa aplicación, se cae el cobro de toda la suite, no de un producto |
+| La URL de redirección se comparte | La app tiene una lista de redirecciones; cada producto necesita la suya declarada ahí |
+| La trazabilidad hay que sostenerla nosotros | Con una sola aplicación, distinguir qué cobro es de qué producto depende de nuestros propios identificadores (`organizationRef`, referencias externas), no del proveedor |
+
+Nada de esto lo vuelve mala idea —de hecho evita repetir el trámite por cada producto nuevo—,
+pero el aislamiento entre productos deja de venir dado por MercadoPago y pasa a ser
+responsabilidad del código.
+
+**Mientras tanto no se toca nada.** El código que hay funciona con la aplicación de FotoOffice
+en cuanto la habiliten; si se decide consolidar, el cambio es de configuración más una
+revisión de `workspaceOrganizationRef` para que siga distinguiendo productos.
