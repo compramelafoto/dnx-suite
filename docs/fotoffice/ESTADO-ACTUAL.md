@@ -1,6 +1,6 @@
 # FotoOffice — Estado real verificado
 
-**Fecha de la auditoría:** 2026-08-27
+**Fecha de la auditoría:** 2026-08-27 (actualizado esa misma tarde con la verificación de producción)
 **Método:** inspección de solo lectura del repositorio `dnx-suite` con `git` (ramas, commits, árbol de archivos, esquema Prisma y migraciones).
 **Autor:** Claude Code.
 
@@ -12,31 +12,62 @@
 
 Esta auditoría cubre **únicamente el código del repositorio**.
 
-**No fue verificado:**
+**Verificado en la actualización del 2026-08-27 (tarde):** el deployment productivo de Vercel y las rutas que responde `fotoffice.com`. Ver la sección 1.
 
-- Qué versión está publicada hoy en producción.
-- El estado real de la base de datos (los 152 socios y demás conteos del documento de contexto siguen sin confirmar).
-- El estado de Vercel, Resend, dominios y variables de entorno.
-- Si los tests efectivamente pasan (no se ejecutaron).
+**Sigue sin verificar:**
 
-Por lo tanto este documento dice **qué está construido**, no **qué está publicado ni funcionando**.
+- El estado real de la base de datos (los 152 socios y demás conteos del documento de contexto).
+- Resend y las variables de entorno.
 
 ## 1. Hallazgo principal
 
-El trabajo de FotoOffice está **completo en buena medida pero sin integrar**. Vive en una sola rama larga que nunca se fusionó a `main`.
+**Producción corre desde una rama de trabajo, no desde `main`.**
+
+`fotoffice.com` sirve hoy el código de `feat/socios-alta-cobros`. No es que el trabajo haya quedado sin publicar: **está publicado y funcionando**. Lo que no ocurrió es el regreso a `main`.
+
+### Evidencia
+
+El deployment productivo `dpl_A9EGEsv5GusWMnUtDTYtzLL9mfFi`, creado el 2026-08-27 a las 04:38, tiene entre sus alias:
+
+```
+https://fotoffice-dnxsuite-git-feat-soc-99e0a0-compramelafotos-projects.vercel.app
+```
+
+Ese alias identifica la rama de origen. Además responde rutas que **solo existen en esa rama** y no en `main`:
+
+| Ruta en `fotoffice.com` | Respuesta |
+|---|---|
+| `/portal/carnet` | 200 |
+| `/portal/cuotas` | 200 |
+| `/members/carnets` | 200 |
+| `/invitacion/xxx` | 200 |
+| `/portal` | 200 |
+| `/no-existe-xyz` (control) | 404 |
+
+El 404 del control confirma que los 200 anteriores son reales y no una respuesta genérica.
+
+### Dominios servidos por ese deployment
+
+`fotoffice.com`, `www.fotoffice.com`, `fotoffice.com.ar`, `www.fotoffice.com.ar` y `fotoffice-dnxsuite.vercel.app`.
+
+### La rama
 
 | Dato | Valor |
 |---|---|
-| Rama con el trabajo de FotoOffice | `feat/socios-alta-cobros` |
-| Último commit de esa rama | `59ccf582` — 2026-08-26 23:29 |
-| Commits que esa rama tiene y `main` no | **120** |
+| Rama publicada | `feat/socios-alta-cobros` |
+| Último commit | `59ccf582` — 2026-08-26 23:29 |
+| Commits que tiene y `main` no | **120** |
 | De esos, que tocan `apps/fotoffice` | **71** |
-| Commits que `main` tiene y esa rama no | 53 |
+| Commits que `main` tiene y ella no | 53 |
 | HEAD de `main` | `d573a39b` — 2026-08-26 20:45 |
 
-### Riesgo
+### El riesgo real
 
-Cada día que pasa, `main` y la rama se separan más y reintegrar el trabajo se vuelve más difícil y más riesgoso. Es el problema más urgente del proyecto, por encima de cualquier módulo pendiente.
+No es que el trabajo se pierda: está publicado. **El riesgo es un rollback accidental.**
+
+`main` no contiene el portal del socio, ni las cuotas, ni los carnets. Si alguien publica FotoOffice desde `main` —creyendo razonablemente que es la rama buena— **produciría un retroceso de semanas en producción**, dejando a los socios sin portal, sin carnet y sin pago de cuotas.
+
+Mientras `main` y producción no coincidan, la rama principal del repositorio es una trampa.
 
 ## 2. Contradicciones con el documento de contexto
 
@@ -142,11 +173,27 @@ Ese trabajo no está guardado en ninguna rama. Debe decidirse si se conserva o s
 
 En orden de urgencia:
 
-1. **Resolver los 131 archivos sin commitear.** Conservarlos o descartarlos, con decisión explícita de Daniel.
-2. **Verificar producción y base de datos.** Requiere autorización: qué está publicado en `fotoffice.com` y si los conteos del documento de contexto siguen vigentes.
-3. **Definir cómo integrar `feat/socios-alta-cobros` a `main`.** Es el riesgo más alto del proyecto.
-4. **Ejecutar los tests** para saber si las 98 suites de FotoOffice efectivamente pasan.
-5. Recién después, retomar módulos pendientes (reservas, sorteos, tesorería, gobierno).
+1. ~~Resolver los archivos sin commitear.~~ **Hecho** el 2026-08-27: commit `257abb1a`, subido a GitHub.
+2. **Integrar `feat/socios-alta-cobros` a `main`.** Es lo más urgente que queda. Hasta que ocurra, `main` no refleja lo que está publicado y cualquier despliegue desde ahí es un rollback.
+3. **Correr las verificaciones sobre esa rama.** Las que se corrieron el 2026-08-27 fueron sobre `feat/fotorank-el-pais-que-miramos`, donde FotoOffice es la versión vieja: 230 tests en 31 archivos. Esa rama tiene 98 archivos de test que siguen sin ejecutarse.
+4. **Verificar la base de datos de producción.** Confirmar los conteos del documento de contexto.
+5. **Definir una rama de producción estable** en Vercel, para no depender de ramas de trabajo.
+6. Recién después, retomar módulos pendientes (reservas, sorteos, tesorería, gobierno).
+
+### Verificaciones corridas el 2026-08-27
+
+Sobre `feat/fotorank-el-pais-que-miramos`, tras el commit `257abb1a`:
+
+| Verificación | Resultado |
+|---|---|
+| `prisma validate` | Válido |
+| Tests de FotoOffice | 230/230 en 31 archivos |
+| Test de separación de secretos de webhook (Clickaton) | 3/3 |
+| Build de FotoOffice | `exit 0` |
+| Build de FotoRank | `exit 0` |
+| Typecheck del monorepo | Falla en `dnx-sales-assistant`, **preexistente desde el 2026-07-19** |
+
+Dos cosas detectadas y corregidas: faltaba correr `pnpm install` (había dependencias declaradas y no instaladas en `packages/editor`), y el build de FotoRank registra que la tabla `FotorankContestMediaAsset` no existe todavía. Esa migración (`20260827000000`) es aditiva y segura, pero **debe aplicarse a mano**: en este proyecto ningún build ejecuta `prisma migrate deploy`.
 
 ## 9. Cómo mantener este documento
 
