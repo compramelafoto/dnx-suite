@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { emitDesign, type ResourceResolver } from "@repo/design-studio";
 import { CARNET_VARIABLE_CONTRACT, carnetDesignDocument } from "./template";
+import { findCarnetTemplate } from "./template-store";
 import { openCardToken } from "./token-vault";
 
 /**
@@ -88,8 +89,13 @@ export async function renderPrintedCard(input: {
     select: { commercialName: true },
   });
 
+  // La institución puede haber editado su carnet en el módulo de diseño. Si todavía no lo
+  // hizo, se usa el diseño de fábrica: nadie se queda sin poder imprimir por no haber pasado
+  // por el editor.
+  const plantilla = await findCarnetTemplate(card.workspace.id);
+
   const salida = await emitDesign({
-    document: carnetDesignDocument(),
+    document: plantilla?.document ?? carnetDesignDocument(),
     contract: CARNET_VARIABLE_CONTRACT,
     values: {
       institutionName: branding?.commercialName?.trim() || card.workspace.name,
@@ -114,10 +120,13 @@ export async function renderPrintedCard(input: {
 
   if (!salida.ok) return { ok: false, errors: salida.errors };
 
-  // Se registra con qué se dibujó, para poder reproducir la pieza tal como salió.
+  // Se registra con qué se dibujó, para poder reproducir la pieza tal como salió. Incluye la
+  // versión de la plantilla: si mañana alguien la edita, esta tarjeta sigue sabiendo con cuál
+  // se imprimió.
   await prisma.memberCard.update({
     where: { id: input.cardId },
     data: {
+      designTemplateVersionId: plantilla?.versionId ?? null,
       rendererVersion: salida.rendererVersion,
       designSchemaVersion: salida.schemaVersion,
       files: salida.files.map((f) => ({

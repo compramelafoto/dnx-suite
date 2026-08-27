@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { loadMyCard } from "@/lib/carnet/my-card";
+import { MemberPhotoUpload } from "@/components/portal/member-photo-upload";
 import { getActiveFeeValue } from "@/lib/membership/settings";
 import { prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
@@ -33,6 +34,13 @@ export default async function MiCarnetPage() {
   const base = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").trim();
   const carnet = await loadMyCard(context.member.id, base);
 
+  // La foto se puede cargar aunque todavía no haya carnet: es lo que se le prometió al
+  // asociarse — "podés ir teniéndola lista".
+  const ficha = await prisma.member.findUnique({
+    where: { id: context.member.id },
+    select: { avatarUrl: true },
+  });
+
   if (!carnet) {
     return (
       <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5 py-12">
@@ -45,6 +53,10 @@ export default async function MiCarnetPage() {
           <Link href="/portal" className="text-xs text-[var(--fo-muted)] hover:underline">
             ← Volver
           </Link>
+        </div>
+
+        <div className="mt-6">
+          <MemberPhotoUpload currentUrl={ficha?.avatarUrl ?? null} />
         </div>
       </main>
     );
@@ -149,6 +161,8 @@ export default async function MiCarnetPage() {
           ) : null}
         </section>
       ) : null}
+
+      <MemberPhotoUpload currentUrl={ficha?.avatarUrl ?? null} />
     </main>
   );
 }

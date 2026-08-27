@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { CreateTemplateV2Button } from "@repo/template-editor-ui";
+import { CreateCarnetTemplate } from "@/components/members/create-carnet-template";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
 // El import registra el runtime del editor: base, sesión y almacenamiento de esta app.
@@ -90,12 +91,13 @@ export default async function PlantillasPage() {
           </p>
         </section>
       ) : templates.length === 0 ? (
-        <section className="fo-card space-y-2 p-8">
+        <section className="fo-card space-y-3 p-8">
           <p className="text-sm">Todavía no hay plantillas.</p>
           <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
-            Creá la primera y diseñala en el lienzo: fondo, foto del socio, textos con variables
-            y el logo de la institución.
+            El carnet ya tiene un diseño de fábrica. Traelo acá y vas a poder cambiarle los
+            colores, la tipografía y la disposición sin tocar código.
           </p>
+          <CreateCarnetTemplate />
         </section>
       ) : (
         <section className="fo-card overflow-x-auto p-0">
