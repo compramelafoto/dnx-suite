@@ -6,6 +6,8 @@ import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { loadDuesOverview } from "@/lib/membership/dues-overview";
 import { formatMinorArs } from "@/lib/membership/money";
+import { periodOf } from "@/lib/membership/monthly-plan";
+import { GenerateDuesButton } from "./generate-button";
 
 export const dynamic = "force-dynamic";
 
@@ -59,9 +61,17 @@ export default async function CuotasPage() {
         description="Quién debe, qué entró y cuánto se cobró."
       />
 
-      <Link href="/members/cuotas/configuracion" className="fo-btn text-xs inline-flex">
-        Configuración de cuotas
-      </Link>
+      <div className="fo-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold">Generar cuotas</h2>
+        <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+          Crea la cuota del mes para cada socio activo, según su categoría y su escala.
+          Correrlo de nuevo no duplica nada.
+        </p>
+        <GenerateDuesButton defaultPeriod={periodOf(new Date())} />
+        <Link href="/members/cuotas/configuracion" className="text-xs text-[var(--fo-muted)] hover:underline">
+          Valores y calendario →
+        </Link>
+      </div>
 
       {!cobros.canCharge ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">

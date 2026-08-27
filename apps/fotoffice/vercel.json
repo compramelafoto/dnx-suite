@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/conciliar-cuotas",
       "schedule": "17 * * * *"
+    },
+    {
+      "path": "/api/cron/generar-cuotas",
+      "schedule": "0 6 * * *"
     }
   ]
 }
