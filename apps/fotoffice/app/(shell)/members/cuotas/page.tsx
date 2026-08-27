@@ -59,6 +59,10 @@ export default async function CuotasPage() {
         description="Quién debe, qué entró y cuánto se cobró."
       />
 
+      <Link href="/members/cuotas/configuracion" className="fo-btn text-xs inline-flex">
+        Configuración de cuotas
+      </Link>
+
       {!cobros.canCharge ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
           El cobro en línea no está habilitado, así que los socios no pueden pagar desde el

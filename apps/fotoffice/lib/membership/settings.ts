@@ -12,7 +12,11 @@ export const DEFAULT_DUES_SETTINGS = {
 } as const;
 
 export type DuesSettings = {
+  /** Día del mes en que se genera la cuota. */
+  generationDay: number;
   dueDay: number;
+  graceDays: number;
+  reminderDay: number;
   initialDuesCount: number;
   countJoinMonthIfBeforeDueDay: boolean;
   collaboratorFloorMultiple: number;
@@ -28,7 +32,10 @@ export async function getDuesSettings(workspaceId: string): Promise<DuesSettings
   const row = await prisma.membershipDuesSettings.findUnique({
     where: { workspaceId },
     select: {
+      generationDay: true,
       dueDay: true,
+      graceDays: true,
+      reminderDay: true,
       initialDuesCount: true,
       countJoinMonthIfBeforeDueDay: true,
       collaboratorFloorMultiple: true,
@@ -37,7 +44,10 @@ export async function getDuesSettings(workspaceId: string): Promise<DuesSettings
 
   if (!row) {
     return {
+      generationDay: DEFAULT_DUES_SETTINGS.generationDay,
       dueDay: DEFAULT_DUES_SETTINGS.dueDay,
+      graceDays: DEFAULT_DUES_SETTINGS.graceDays,
+      reminderDay: DEFAULT_DUES_SETTINGS.reminderDay,
       initialDuesCount: DEFAULT_DUES_SETTINGS.initialDuesCount,
       countJoinMonthIfBeforeDueDay: DEFAULT_DUES_SETTINGS.countJoinMonthIfBeforeDueDay,
       collaboratorFloorMultiple: DEFAULT_DUES_SETTINGS.collaboratorFloorMultiple,
@@ -45,7 +55,10 @@ export async function getDuesSettings(workspaceId: string): Promise<DuesSettings
   }
 
   return {
+    generationDay: row.generationDay,
     dueDay: row.dueDay,
+    graceDays: row.graceDays,
+    reminderDay: row.reminderDay,
     initialDuesCount: row.initialDuesCount,
     countJoinMonthIfBeforeDueDay: row.countJoinMonthIfBeforeDueDay,
     collaboratorFloorMultiple: Number(row.collaboratorFloorMultiple),
