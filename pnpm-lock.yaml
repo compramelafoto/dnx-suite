@@ -559,6 +559,18 @@ importers:
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
+      '@repo/template-editor-core':
+        specifier: workspace:*
+        version: link:../../packages/template-editor-core
+      '@repo/template-editor-ui':
+        specifier: workspace:*
+        version: link:../../packages/template-editor-ui
+      '@repo/template-engine':
+        specifier: workspace:*
+        version: link:../../packages/template-engine
+      '@repo/template-engine-renderer':
+        specifier: workspace:*
+        version: link:../../packages/template-engine-renderer
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3

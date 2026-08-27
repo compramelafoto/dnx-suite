@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
     // Binario nativo del rasterizado de PDF: si webpack intenta empaquetarlo, falla el build.
     "pdf-to-png-converter",
     "@napi-rs/canvas",
+    // El renderer de plantillas levanta un navegador para la vista previa. Playwright trae
+    // assets HTML que webpack no sabe empaquetar, y no hace falta: corre siempre en el servidor.
+    "playwright",
+    "playwright-core",
   ],
   outputFileTracingRoot: path.join(appDir, "../.."),
   outputFileTracingIncludes: {
@@ -67,7 +71,14 @@ const nextConfig: NextConfig = {
           if (
             request === "pdf-to-png-converter" ||
             request === "@napi-rs/canvas" ||
-            request?.startsWith("@napi-rs/canvas-")
+            request?.startsWith("@napi-rs/canvas-") ||
+            // Mismo caso: el import de Playwright vive DENTRO de
+            // @repo/template-engine-renderer, que se transpila. Playwright trae assets HTML
+            // del inspector que webpack no sabe leer, y no hace falta empaquetarlos: la vista
+            // previa de plantillas corre siempre en el servidor.
+            request === "playwright" ||
+            request === "playwright-core" ||
+            request?.startsWith("playwright-core/")
           ) {
             return callback(undefined, `commonjs ${request}`);
           }

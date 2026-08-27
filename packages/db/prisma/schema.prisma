@@ -4127,6 +4127,15 @@ model AlbumPackSelectionPhoto {
 model TemplateV2 {
   id               String           @id @default(cuid())
   ownerUserId      Int
+  /// Institución dueña de la plantilla, cuando la plantilla pertenece a una y no a una persona.
+  ///
+  /// En ComprameLaFoto y Clickatón diseña un individuo y alcanza con `ownerUserId`. En
+  /// FotoOffice la plantilla es de la institución: si quedara atada a quien la creó, el día que
+  /// esa persona deja la comisión directiva la institución perdería su propio carnet.
+  ///
+  /// Nullable a propósito: las plantillas existentes no pertenecen a ningún workspace y siguen
+  /// funcionando igual.
+  workspaceId      String?
   name             String
   description      String?
   status           TemplateV2Status @default(DRAFT)
@@ -4136,6 +4145,7 @@ model TemplateV2 {
   albumPacksDesign AlbumPack[]      @relation("AlbumPackDesignTemplateV2")
 
   @@index([ownerUserId])
+  @@index([workspaceId])
   @@index([status])
 }
 

@@ -13,6 +13,7 @@ export const FOTOFFICE_R2_PREFIXES = {
   websiteHeroImage: "fotoffice/website-hero-images",
   websiteBlockImage: "fotoffice/website-block-images",
   favicon: "fotoffice/favicons",
+  templateImage: "fotoffice/template-images",
 } as const;
 
 export const FOTOFFICE_R2_DELETABLE_PREFIXES = Object.values(FOTOFFICE_R2_PREFIXES).map(
