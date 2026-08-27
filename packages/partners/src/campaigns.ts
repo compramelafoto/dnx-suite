@@ -126,15 +126,26 @@ export const FOTORANK_AD_PLACEMENT_KEYS = [
   "FOTORANK_CONTEST_WELCOME",
 ] as const;
 
+/** Superficies FotoOffice (declaradas; el subproyecto 2 del portal las monta). */
+export const FOTOFFICE_AD_PLACEMENT_KEYS = [
+  "FOTOFFICE_PORTAL_BANNER",
+  "FOTOFFICE_BENEFITS_MARQUEE",
+  "FOTOFFICE_BENEFIT_CARD",
+  "FOTOFFICE_RAFFLE_SPONSOR",
+  "FOTOFFICE_PUBLIC_MARQUEE",
+] as const;
+
 export type InfospotAdPlacementKey = (typeof INFOSPOT_AD_PLACEMENT_KEYS)[number];
 export type ClfAdPlacementKey = (typeof CLF_AD_PLACEMENT_KEYS)[number];
 export type ClickatonAdPlacementKey = (typeof CLICKATON_AD_PLACEMENT_KEYS)[number];
 export type FotorankAdPlacementKey = (typeof FOTORANK_AD_PLACEMENT_KEYS)[number];
+export type FotofficeAdPlacementKey = (typeof FOTOFFICE_AD_PLACEMENT_KEYS)[number];
 export type DnxPartnerAdPlacementKey =
   | InfospotAdPlacementKey
   | ClfAdPlacementKey
   | ClickatonAdPlacementKey
-  | FotorankAdPlacementKey;
+  | FotorankAdPlacementKey
+  | FotofficeAdPlacementKey;
 
 export type AdPlacementCatalogEntry = {
   application: DnxPartnerApplication;
@@ -426,6 +437,67 @@ export const AD_PLACEMENT_CATALOG: readonly AdPlacementCatalogEntry[] = [
     rotationMode: "MARQUEE",
     trackingPlacement: "LOGO_MARQUEE",
     isActiveDefault: true,
+  },
+  {
+    application: "FOTO_OFFICE",
+    placementKey: "FOTOFFICE_PORTAL_BANNER",
+    name: "Banner del portal del socio",
+    description:
+      "Banner dentro del portal, no modal: FotoOffice está excluido de activaciones destacadas.",
+    allowedFormats: ["BANNER_HORIZONTAL", "BANNER_COMPACT", "BANNER_MOBILE", "CARD_PROMO"],
+    deviceSupport: "ALL",
+    maxItems: 1,
+    rotationMode: "ROUND_ROBIN",
+    trackingPlacement: "BANNER",
+    isActiveDefault: false,
+  },
+  {
+    application: "FOTO_OFFICE",
+    placementKey: "FOTOFFICE_BENEFITS_MARQUEE",
+    name: "Franja de logos (beneficios)",
+    description: "Aliados que dan beneficios a los socios. Espacio de canje, no de venta.",
+    allowedFormats: ["LOGO", "LOGO_MARQUEE"],
+    deviceSupport: "ALL",
+    maxItems: 12,
+    rotationMode: "MARQUEE",
+    trackingPlacement: "LOGO_MARQUEE",
+    isActiveDefault: false,
+  },
+  {
+    application: "FOTO_OFFICE",
+    placementKey: "FOTOFFICE_BENEFIT_CARD",
+    name: "Ficha del beneficio",
+    description: "Logo, descuento y cómo se usa, dentro del listado de beneficios.",
+    allowedFormats: ["CARD_PROMO", "LOGO", "SQUARE"],
+    deviceSupport: "ALL",
+    maxItems: 1,
+    rotationMode: "STATIC",
+    trackingPlacement: "BENEFIT",
+    isActiveDefault: false,
+  },
+  {
+    application: "FOTO_OFFICE",
+    placementKey: "FOTOFFICE_RAFFLE_SPONSOR",
+    name: "Auspicio del sorteo mensual",
+    description: "Quien pone el premio o paga el auspicio. Admite las dos vías.",
+    allowedFormats: ["LOGO", "CARD_PROMO", "SQUARE"],
+    deviceSupport: "ALL",
+    maxItems: 3,
+    rotationMode: "STATIC",
+    trackingPlacement: "SPONSOR_SECTION",
+    isActiveDefault: false,
+  },
+  {
+    application: "FOTO_OFFICE",
+    placementKey: "FOTOFFICE_PUBLIC_MARQUEE",
+    name: "Franja de logos (sitio público)",
+    description: "Portada pública del workspace. La ve cualquiera, no solo los socios.",
+    allowedFormats: ["LOGO", "LOGO_MARQUEE"],
+    deviceSupport: "ALL",
+    maxItems: 12,
+    rotationMode: "MARQUEE",
+    trackingPlacement: "LOGO_MARQUEE",
+    isActiveDefault: false,
   },
 ] as const;
 

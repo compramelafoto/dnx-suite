@@ -9,6 +9,8 @@ import {
   matchesCampaignGeo,
   matchesCreativeDevice,
   resolveEligibleAds,
+  AD_PLACEMENT_CATALOG,
+  FOTOFFICE_AD_PLACEMENT_KEYS,
   type ResolveAdsCandidate,
 } from "./campaigns";
 
@@ -211,5 +213,36 @@ describe("kill switches default OFF", () => {
     else process.env.INFOSPOT_PARTNER_ADS_ENABLED = prevI;
     if (prevC === undefined) delete process.env.CLF_PARTNER_ADS_ENABLED;
     else process.env.CLF_PARTNER_ADS_ENABLED = prevC;
+  });
+});
+
+describe("espacios de FotoOffice en el catálogo", () => {
+  it("declara las cinco claves del workspace", () => {
+    assert.deepEqual([...FOTOFFICE_AD_PLACEMENT_KEYS], [
+      "FOTOFFICE_PORTAL_BANNER",
+      "FOTOFFICE_BENEFITS_MARQUEE",
+      "FOTOFFICE_BENEFIT_CARD",
+      "FOTOFFICE_RAFFLE_SPONSOR",
+      "FOTOFFICE_PUBLIC_MARQUEE",
+    ]);
+  });
+
+  it("cada clave tiene su entrada en el catálogo, bajo FOTO_OFFICE", () => {
+    for (const key of FOTOFFICE_AD_PLACEMENT_KEYS) {
+      const entry = AD_PLACEMENT_CATALOG.find((e) => e.placementKey === key);
+      assert.ok(entry, `falta la entrada de ${key}`);
+      assert.equal(entry.application, "FOTO_OFFICE");
+    }
+  });
+
+  it("ninguno viene encendido por defecto", () => {
+    for (const key of FOTOFFICE_AD_PLACEMENT_KEYS) {
+      const entry = AD_PLACEMENT_CATALOG.find((e) => e.placementKey === key);
+      assert.equal(entry?.isActiveDefault, false);
+    }
+  });
+
+  it("el catálogo pasa a tener veintiocho espacios", () => {
+    assert.equal(AD_PLACEMENT_CATALOG.length, 28);
   });
 });

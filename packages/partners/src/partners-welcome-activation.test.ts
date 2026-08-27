@@ -61,10 +61,20 @@ describe("welcome activation catalog", () => {
     const admin = listAdPlacementCatalogForAdminBinding();
     assert.ok(admin.length > 0);
     assert.ok(admin.every((e) => e.application !== "FOTO_OFFICE"));
-    assert.equal(
-      AD_PLACEMENT_CATALOG.some((e) => e.application === "FOTO_OFFICE"),
-      false,
-    );
+    // FotoOffice ya tiene inventario propio (banner del portal, franjas de logos,
+    // ficha de beneficio, auspicio del sorteo). Nada de eso es activación
+    // destacada: la exclusión se verifica por formato y por allowlist, que es la
+    // regla real, en vez de exigir que el catálogo no lo mencione.
+    const fotoffice = AD_PLACEMENT_CATALOG.filter((e) => e.application === "FOTO_OFFICE");
+    assert.ok(fotoffice.length > 0, "FotoOffice debería tener inventario declarado");
+    for (const e of fotoffice) {
+      assert.equal(
+        e.allowedFormats.includes(WELCOME_ACTIVATION_CREATIVE_FORMAT),
+        false,
+        `${e.placementKey} admite interstitial y no debería`,
+      );
+      assert.equal(isWelcomeActivationPlacementKey(e.placementKey), false);
+    }
   });
 });
 
