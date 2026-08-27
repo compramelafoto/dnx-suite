@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildProposalPdf } from "@/lib/propuesta/pdf";
+import { buildProposalPdf, ProposalWithoutSpacesError } from "@/lib/propuesta/pdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,6 +80,9 @@ export async function POST(request: Request) {
       },
     });
   } catch (err) {
+    if (err instanceof ProposalWithoutSpacesError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     console.error("[propuesta.pdf]", err);
     return NextResponse.json(
       { error: "No se pudo armar el PDF. Probá con otro archivo." },

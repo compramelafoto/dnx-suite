@@ -62,6 +62,7 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
   // Clickatón — el equipo organiza sus propias maratones.
   CLICKATON_HOME_WELCOME: PLATFORM_PUBLIC,
   CLICKATON_EVENT_WELCOME: { ...PLATFORM_PUBLIC, audience: "EVENT_PARTICIPANTS" },
+  CLICKATON_HOME_MARQUEE: { ...PLATFORM_PUBLIC, mounted: false },
 
   // FotoRank — la portada es de la plataforma; el concurso, del organizador.
   FOTORANK_HOME_WELCOME: PLATFORM_PUBLIC,

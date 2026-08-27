@@ -18,6 +18,7 @@ no se escribe a mano.
 | Clave | Nombre | Dueño | Audiencia | Acceso | Estado |
 |---|---|---|---|---|---|
 | `CLICKATON_EVENT_WELCOME` | Activación destacada (evento/maratón) | PLATFORM | EVENT_PARTICIPANTS | SALE | Montado |
+| `CLICKATON_HOME_MARQUEE` | Franja de logos (home) | PLATFORM | ALL_USERS | SALE | Declarado |
 | `CLICKATON_HOME_WELCOME` | Activación destacada (home) | PLATFORM | ALL_USERS | SALE | Montado |
 | `CLF_ALBUM_WELCOME` | Activación destacada (álbum) | PLATFORM | EVENT_PARTICIPANTS | SALE | Montado |
 | `CLF_CHECKOUT_SUPPORTING` | Checkout supporting | PLATFORM | PRODUCT_PURCHASERS | SALE | Declarado |
@@ -51,7 +52,9 @@ no se escribe a mano.
 Once espacios del catálogo no tienen una sola referencia en el código que los
 renderice —los tres de artículo de InfoSpot, el flotante, la galería y la página
 de evento; y de ComprameLaFoto la galería, el detalle de foto, la página de
-evento y el checkout— y los cinco de FotoOffice todavía no existen.
+evento y el checkout—. A eso se suman los cinco de FotoOffice y la franja de
+logos de la portada de Clickatón, construida en la rama de marquee y todavía sin
+llegar a `main`: diecisiete declarados contra doce montados.
 
 No se borran: varios son intención real de producto. Quedan marcados para que
 `listSellableSpaces` no los ofrezca, que es lo que impide prometerle a una marca
@@ -70,6 +73,12 @@ que entra a pagar la cuota no se lo recibe con un interstitial.
 listSellableSpaces({ owner: "ORGANIZER", application: "FOTO_RANK" })
 // → solo FOTORANK_CONTEST_WELCOME. La portada es de la plataforma.
 ```
+
+El generador de propuestas consume esto: `buildProposalPlan` recibe quién vende y
+arma el dossier solo con lo que esa persona puede ofrecer. Hoy DNX obtiene 7 de
+las 9 piezas —la del concurso es del organizador y la franja de Clickatón todavía
+no está montada—, un organizador de FotoRank obtiene 1, y un workspace de
+FotoOffice ninguna.
 
 ## Diseño
 

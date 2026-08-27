@@ -1,9 +1,13 @@
 # Generador de propuestas — etapas 1 y 2
 
 Pantalla en `/propuesta` (Clickatón, puerto 3005) donde un vendedor sube el logo
-de un cliente potencial y obtiene, al instante, las nueve piezas publicitarias
-compuestas sobre las pantallas reales de las cuatro plataformas, más un dossier
-en PDF para mandarle a la marca.
+de un cliente potencial y obtiene, al instante, las piezas publicitarias
+compuestas sobre las pantallas reales de las plataformas, más un dossier en PDF
+para mandarle a la marca.
+
+**Las piezas salen del mapa de inventario, no de una lista fija.** La pantalla le
+pregunta a `listSellableSpaces` qué espacios puede ofrecer quien está vendiendo y
+arma la propuesta solo con esos. Ver [inventario.md](../inventario.md).
 
 **No usa base de datos.** Nada se guarda: se sube, se compone y se devuelve.
 En producción la pantalla y las tres rutas responden 404.
@@ -17,7 +21,7 @@ pnpm --filter clickaton dev
 
 1. Subir el logo del cliente (PNG, JPG, WEBP o SVG, hasta 5 MB).
 2. Escribir el nombre de la marca y el rubro.
-3. Recorrer las nueve piezas y alternar entre escritorio y celular.
+3. Recorrer las piezas disponibles y alternar entre escritorio y celular.
 4. Descargar el PDF.
 
 ## Cómo está armado
@@ -70,7 +74,8 @@ placa clara, oscura o ninguna.
 
 ## El dossier
 
-Trece páginas para una propuesta completa:
+Una portada, una presentación, una página por pieza, un resumen y una
+contratapa. Con el inventario de hoy y DNX como vendedor son once páginas:
 
 ```
 Portada       logo del cliente, marca, rubro y fecha
@@ -88,6 +93,15 @@ sin reescribir el armado.
 
 Sin precios: `unitPriceMinor` queda en nulo por decisión comercial. El dossier
 presenta el valor y el número se conversa aparte.
+
+## Quién vende
+
+`PROPOSAL_SELLER`, en `apps/clickaton/lib/propuesta/seller.ts`, hoy está fijo en
+`{ owner: "PLATFORM" }`: Clickatón es el equipo de DNX vendiendo la red. Cuando la
+herramienta la usen organizadores o workspaces, eso sale de la sesión.
+
+Si el vendedor no tiene ningún espacio montado, la pantalla lo dice y no ofrece
+el PDF; la ruta responde 409. Nadie manda un dossier vacío por accidente.
 
 ## Qué falta
 

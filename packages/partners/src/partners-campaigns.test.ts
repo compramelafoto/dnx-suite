@@ -242,7 +242,7 @@ describe("espacios de FotoOffice en el catálogo", () => {
     }
   });
 
-  it("el catálogo pasa a tener veintiocho espacios", () => {
-    assert.equal(AD_PLACEMENT_CATALOG.length, 28);
+  it("el catálogo pasa a tener veintinueve espacios", () => {
+    assert.equal(AD_PLACEMENT_CATALOG.length, 29);
   });
 });

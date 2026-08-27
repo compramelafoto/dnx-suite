@@ -5,14 +5,20 @@
  * captura de la página pública, servida desde `public/propuesta/backgrounds/`.
  */
 
+import type { DnxPartnerAdPlacementKey } from "./campaigns";
+
 export type ProposalPieceKind = "WELCOME" | "BANNER" | "MARQUEE";
 
 export type ProposalPiece = {
   /** Identificador estable, usado en URLs y nombres de archivo. */
   id: string;
   kind: ProposalPieceKind;
-  /** Placement del catálogo de DNX Partners al que corresponde. */
-  placementKey: string;
+  /**
+   * Placement del catálogo de DNX Partners al que corresponde.
+   * Tipado fuerte a propósito: una pieza que apunte a un espacio inexistente
+   * no compila, en vez de llegar callada al PDF de un cliente.
+   */
+  placementKey: DnxPartnerAdPlacementKey;
   /** Nombre de la plataforma, para mostrar. */
   platformLabel: string;
   /** Nombre de la pieza, para mostrar. */

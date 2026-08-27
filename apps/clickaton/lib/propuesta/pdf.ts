@@ -14,6 +14,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import sharp from "sharp";
 import { buildProposalPlan, resolvePlateTreatment, type ProposalLine } from "@repo/partners";
 import { composePiece, measureLogo } from "./compose";
+import { PROPOSAL_SELLER } from "./seller";
 
 /** A4 vertical, en puntos. El dossier es vertical por pedido comercial. */
 const PAGE = { width: 595.28, height: 841.89 };
@@ -29,6 +30,14 @@ const RULE = rgb(0.85, 0.85, 0.84);
 const VIOLET = rgb(0.424, 0.325, 1);
 
 type Fonts = { regular: PDFFont; bold: PDFFont };
+
+/** No hay un solo espacio que este vendedor pueda ofrecer. */
+export class ProposalWithoutSpacesError extends Error {
+  constructor() {
+    super("Este vendedor todavía no tiene espacios montados para ofrecer.");
+    this.name = "ProposalWithoutSpacesError";
+  }
+}
 
 export type BuildProposalPdfInput = {
   brandName: string;
@@ -260,8 +269,13 @@ export async function buildProposalPdf(input: BuildProposalPdfInput): Promise<Ui
     brandName: input.brandName,
     industry: input.industry ?? null,
     plate,
+    seller: PROPOSAL_SELLER,
     excludePieceIds: input.excludePieceIds,
   });
+
+  if (plan.lines.length === 0) {
+    throw new ProposalWithoutSpacesError();
+  }
 
   const doc = await PDFDocument.create();
   doc.setTitle(`Propuesta comercial · ${plan.brandName}`);

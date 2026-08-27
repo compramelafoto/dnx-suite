@@ -7,7 +7,9 @@
  */
 
 import { PROPOSAL_PIECES } from "./proposal-pieces";
+import type { DnxPartnerAdPlacementKey } from "./campaigns";
 import type { PlateTreatment } from "./proposal-contrast";
+import { listSellableSpaces, type SellerScope } from "./inventory";
 import { PartnersDomainError } from "./types";
 
 export type ProposalLineKind =
@@ -21,7 +23,7 @@ export type ProposalLineSelection = "INCLUDED" | "OPTIONAL" | "EXCLUDED";
 export type ProposalLine = {
   pieceId: string;
   kind: ProposalLineKind;
-  placementKey: string;
+  placementKey: DnxPartnerAdPlacementKey;
   label: string;
   location: string;
   background: string;
@@ -37,6 +39,11 @@ export type ProposalPlanInput = {
   brandName: string;
   industry?: string | null;
   plate: PlateTreatment;
+  /**
+   * Quién arma la propuesta. Define qué espacios puede ofrecer: nadie vende un
+   * lugar que no es suyo, y lo no montado queda afuera.
+   */
+  seller: SellerScope;
   /** Piezas que no van en esta propuesta. */
   excludePieceIds?: readonly string[];
 };
@@ -58,7 +65,12 @@ export function buildProposalPlan(input: ProposalPlanInput): ProposalPlan {
   }
 
   const excluded = new Set(input.excludePieceIds ?? []);
-  const lines = PROPOSAL_PIECES.filter((p) => !excluded.has(p.id))
+  const vendibles = new Set(
+    listSellableSpaces(input.seller).map((space) => space.placementKey),
+  );
+  const lines = PROPOSAL_PIECES.filter(
+    (p) => !excluded.has(p.id) && vendibles.has(p.placementKey),
+  )
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((p): ProposalLine => ({

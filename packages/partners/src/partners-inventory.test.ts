@@ -19,10 +19,10 @@ describe("mapa de inventario", () => {
     }
   });
 
-  it("hay doce espacios montados y dieciséis sin montar", () => {
+  it("hay doce espacios montados y diecisiete sin montar", () => {
     const montados = DNX_INVENTORY.filter((e) => e.mounted);
     assert.equal(montados.length, 12);
-    assert.equal(DNX_INVENTORY.length - montados.length, 16);
+    assert.equal(DNX_INVENTORY.length - montados.length, 17);
   });
 
   it("el concurso de FotoRank es del organizador y la portada de la plataforma", () => {

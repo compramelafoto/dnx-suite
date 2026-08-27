@@ -118,6 +118,7 @@ export const CLF_AD_PLACEMENT_KEYS = [
 export const CLICKATON_AD_PLACEMENT_KEYS = [
   "CLICKATON_HOME_WELCOME",
   "CLICKATON_EVENT_WELCOME",
+  "CLICKATON_HOME_MARQUEE",
 ] as const;
 
 /** Superficies FotoRank (activación destacada + futuras). */
@@ -492,6 +493,19 @@ export const AD_PLACEMENT_CATALOG: readonly AdPlacementCatalogEntry[] = [
     placementKey: "FOTOFFICE_PUBLIC_MARQUEE",
     name: "Franja de logos (sitio público)",
     description: "Portada pública del workspace. La ve cualquiera, no solo los socios.",
+    allowedFormats: ["LOGO", "LOGO_MARQUEE"],
+    deviceSupport: "ALL",
+    maxItems: 12,
+    rotationMode: "MARQUEE",
+    trackingPlacement: "LOGO_MARQUEE",
+    isActiveDefault: false,
+  },
+  {
+    application: "CLICKATON",
+    placementKey: "CLICKATON_HOME_MARQUEE",
+    name: "Franja de logos (home)",
+    description:
+      "Construida en la rama de marquee, todavía no en main. Declarada, sin montar.",
     allowedFormats: ["LOGO", "LOGO_MARQUEE"],
     deviceSupport: "ALL",
     maxItems: 12,

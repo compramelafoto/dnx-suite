@@ -2,17 +2,23 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildProposalPlan } from "./proposal-plan";
 import { getProposalPiece } from "./proposal-pieces";
+import { listSellableSpaces } from "./inventory";
 
 const marca = {
   brandName: "Óptica Demostración",
   industry: "Salud visual",
   plate: { plate: "LIGHT" as const, reason: "El logo es oscuro." },
+  seller: { owner: "PLATFORM" as const },
 };
 
 describe("armado del plan de propuesta", () => {
-  it("genera una línea por cada pieza del catálogo", () => {
+  it("genera una línea por cada pieza que el vendedor puede ofrecer", () => {
     const plan = buildProposalPlan(marca);
-    assert.equal(plan.lines.length, 9);
+    // DNX vende 7 de las 9 piezas: la del concurso es del organizador y la
+    // franja de Clickatón está declarada pero todavía no montada.
+    assert.equal(plan.lines.length, 7);
+    assert.ok(plan.lines.every((l) => l.pieceId !== "fotorank-welcome"));
+    assert.ok(plan.lines.every((l) => l.pieceId !== "clickaton-marquee"));
   });
 
   it("todas las líneas nacen incluidas, con cantidad uno y sin precio", () => {
@@ -30,15 +36,15 @@ describe("armado del plan de propuesta", () => {
     const plan = buildProposalPlan(marca);
     assert.deepEqual(
       plan.lines.map((l) => l.pieceId),
+      // Sin fotorank-welcome (es del organizador) ni clickaton-marquee
+      // (declarado y todavía sin montar), pero conservando el orden del catálogo.
       [
         "infospot-welcome",
         "clickaton-welcome",
-        "fotorank-welcome",
         "clf-welcome",
         "infospot-banner",
         "clf-banner",
         "infospot-marquee",
-        "clickaton-marquee",
         "clf-marquee",
       ],
     );
@@ -81,7 +87,7 @@ describe("armado del plan de propuesta", () => {
 
   it("permite excluir piezas por id", () => {
     const plan = buildProposalPlan({ ...marca, excludePieceIds: ["clf-banner"] });
-    assert.equal(plan.lines.length, 8);
+    assert.equal(plan.lines.length, 6);
     assert.ok(!plan.lines.some((l) => l.pieceId === "clf-banner"));
   });
 
@@ -95,6 +101,36 @@ describe("armado del plan de propuesta", () => {
       assert.equal(line.background, pieza.background, `${line.pieceId}: background`);
       assert.equal(line.label, `${pieza.label} · ${pieza.platformLabel}`, `${line.pieceId}: label`);
       assert.equal(line.sortOrder, pieza.sortOrder, `${line.pieceId}: sortOrder`);
+    }
+  });
+});
+
+describe("el plan respeta quién vende", () => {
+  it("un organizador de FotoRank solo recibe la placa de su concurso", () => {
+    const plan = buildProposalPlan({
+      ...marca,
+      seller: { owner: "ORGANIZER", application: "FOTO_RANK" },
+    });
+    assert.deepEqual(
+      plan.lines.map((l) => l.pieceId),
+      ["fotorank-welcome"],
+    );
+  });
+
+  it("un workspace de FotoOffice todavía no tiene nada que ofrecer", () => {
+    const plan = buildProposalPlan({ ...marca, seller: { owner: "WORKSPACE" } });
+    assert.deepEqual(plan.lines, []);
+  });
+
+  it("nunca ofrece un espacio que el vendedor no puede vender", () => {
+    for (const owner of ["PLATFORM", "ORGANIZER", "WORKSPACE"] as const) {
+      const plan = buildProposalPlan({ ...marca, seller: { owner } });
+      const vendibles = new Set(
+        listSellableSpaces({ owner }).map((s) => s.placementKey),
+      );
+      for (const line of plan.lines) {
+        assert.ok(vendibles.has(line.placementKey), `${line.placementKey} no es vendible`);
+      }
     }
   });
 });
