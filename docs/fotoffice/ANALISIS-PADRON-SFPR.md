@@ -137,11 +137,40 @@ Concretamente:
 5. **Desactivar la baja automática por deuda** hasta que los datos sean confiables. Que la
    Comisión decida caso por caso.
 
-### Antes de importar, decisiones pendientes
+### Decisiones tomadas por Daniel el 2026-08-27
 
-1. Qué se hace con los **47 socios sin suscripción**: si vuelven a facturarse o siguen
-   congelados.
-2. Si los **47 inactivos** se importan como `INACTIVE` con su deuda, o quedan fuera.
-3. Qué se hace con el **socio 713**, activo e inactivo a la vez.
-4. Qué se hace con el **crédito a favor** del socio 617.
+**1 · Los exentos son Honorarios.** Los 8 socios con suscripción en $0 pasan a la categoría
+`Honorario`, cuya cuota es $0. Ninguno tiene deuda.
+
+**2 · Baja para quienes deben más de 5 cuotas.** Son **45 socios**, que se llevan **$3.088.000**
+de deuda. Es una medida transitoria —"hay que organizarlos"— y por lo tanto reversible.
+
+Verificación previa: **los 45 tienen suscripción cargada**, así que su cantidad de cuotas
+adeudadas es un dato real y no el valor por defecto que afecta a los 47 sin suscripción.
+Nadie queda dado de baja por un número inventado.
+
+Resultado sobre el padrón:
+
+| | Antes | Después |
+|---|---:|---:|
+| Activos | 145 | **100** (incluye 8 honorarios) |
+| Inactivos | 47 | **92** |
+| Deuda en el padrón activo | $4.972.500 | **$1.831.500** |
+
+Los 92 que quedan activos y no son honorarios deben entre 0 y 5 cuotas: 12 están al día, y el
+grupo más numeroso son los 51 con 3 cuotas.
+
+**3 · Plazo.** El sistema debe estar operativo para el vencimiento de septiembre.
+
+**4 · Fee de la plataforma.** El porcentaje se define en la configuración del super admin. En
+cada módulo, el owner elige si el fee **sale del total cobrado** o **se adiciona** al precio.
+Queda como configuración pendiente, a resolver cuando se retome el tema de pagos de cuotas.
+
+### Decisiones que siguen pendientes
+
+1. Qué se hace con los **47 socios sin suscripción** cargada: si vuelven a facturarse o siguen
+   congelados. De ellos, 34 tienen exactamente $15.000 de deuda vieja.
+2. Si los **inactivos se importan** a FotoOffice con su deuda, o quedan fuera del sistema.
+3. Qué se hace con el **socio 713**, que figura como activo e inactivo a la vez.
+4. Qué se hace con el **crédito a favor de $37.000** del socio 617.
 5. Las dos filas **sin número de socio**.
