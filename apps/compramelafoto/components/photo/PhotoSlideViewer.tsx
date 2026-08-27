@@ -3,11 +3,17 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import Image from "next/image";
 
+import CopyrightNotice from "./CopyrightNotice";
+import ScanProtectedPhoto from "./ScanProtectedPhoto";
+import { shouldApplyScanProtection } from "@/lib/photo/scan-protection";
+
 interface Photo {
   id: string;
   src: string;
   alt: string;
   selected?: boolean;
+  /** El cliente ya compró esta foto: se muestra sin la ventana de escaneo. */
+  purchased?: boolean;
 }
 
 interface PhotoSlideViewerProps {
@@ -23,6 +29,14 @@ interface PhotoSlideViewerProps {
   minZoom?: number;
   maxZoom?: number;
   zoomStep?: number;
+  /**
+   * Activa la protección visual (foto desenfocada + franja nítida móvil) sobre
+   * las fotos no compradas. Solo para vistas de cliente: los paneles internos
+   * de fotógrafo, laboratorio e impresión no la usan.
+   */
+  protectUnpurchased?: boolean;
+  /** Texto de la marca de agua que viaja dentro de la franja. */
+  watermarkLabel?: string;
 }
 
 const HISTORY_STATE_KEY = "photoSlideViewer";
@@ -156,6 +170,8 @@ export default function PhotoSlideViewer({
   minZoom = 1,
   maxZoom = 3,
   zoomStep = 0.25,
+  protectUnpurchased = false,
+  watermarkLabel,
 }: PhotoSlideViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [imageLoading, setImageLoading] = useState(true);
@@ -323,6 +339,11 @@ export default function PhotoSlideViewer({
 
   const currentPhoto = photos[currentIndex];
   if (!currentPhoto) return null;
+
+  const scanProtected = shouldApplyScanProtection({
+    enabled: protectUnpurchased,
+    purchased: currentPhoto.purchased,
+  });
 
   return (
     <div
@@ -550,6 +571,12 @@ export default function PhotoSlideViewer({
           <DesktopKeyboardHints showSelect={Boolean(onPhotoSelect)} showDelete={Boolean(onDelete)} />
         </div>
 
+        {scanProtected ? (
+          <div className="mb-2 flex w-full shrink-0 justify-center px-4">
+            <CopyrightNotice variant="compact" />
+          </div>
+        ) : null}
+
         <div className="relative flex w-full flex-1 items-center justify-center">
         {photos.length > 1 && (
           <button
@@ -580,26 +607,49 @@ export default function PhotoSlideViewer({
             </div>
           )}
           <div className="relative flex w-full max-h-[calc(100dvh-11rem)] items-center justify-center overflow-auto sm:max-h-[calc(100vh-200px)]">
-            <img
-              ref={imageRef}
-              key={currentPhoto.id}
-              src={currentPhoto.src}
-              alt={currentPhoto.alt}
-              draggable={false}
-              onDragStart={(e) => e.preventDefault()}
-              className={`h-auto w-full transition-opacity duration-300 ${
-                imageLoading ? "opacity-0" : "opacity-100"
-              }`}
-              style={{
-                maxWidth: "100%",
-                height: "auto",
-                maxHeight: "calc(100dvh - 11rem)",
-                objectFit: "contain",
-                transform: `scale(${zoom})`,
-                transition: "transform 150ms ease",
-              }}
-              onLoad={() => setImageLoading(false)}
-            />
+            {scanProtected ? (
+              <ScanProtectedPhoto
+                key={currentPhoto.id}
+                src={currentPhoto.src}
+                alt={currentPhoto.alt}
+                watermarkLabel={watermarkLabel}
+                imageClassName={`h-auto w-full transition-opacity duration-300 ${
+                  imageLoading ? "opacity-0" : "opacity-100"
+                }`}
+                imageStyle={{
+                  maxWidth: "100%",
+                  height: "auto",
+                  maxHeight: "calc(100dvh - 11rem)",
+                  objectFit: "contain",
+                }}
+                frameStyle={{
+                  transform: `scale(${zoom})`,
+                  transition: "transform 150ms ease",
+                }}
+                onLoad={() => setImageLoading(false)}
+              />
+            ) : (
+              <img
+                ref={imageRef}
+                key={currentPhoto.id}
+                src={currentPhoto.src}
+                alt={currentPhoto.alt}
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
+                className={`h-auto w-full transition-opacity duration-300 ${
+                  imageLoading ? "opacity-0" : "opacity-100"
+                }`}
+                style={{
+                  maxWidth: "100%",
+                  height: "auto",
+                  maxHeight: "calc(100dvh - 11rem)",
+                  objectFit: "contain",
+                  transform: `scale(${zoom})`,
+                  transition: "transform 150ms ease",
+                }}
+                onLoad={() => setImageLoading(false)}
+              />
+            )}
           </div>
         </div>
 

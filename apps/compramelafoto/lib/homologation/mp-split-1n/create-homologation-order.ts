@@ -103,7 +103,7 @@ export async function createClfMpSplit1nHomologationOrder(
   });
   const allocSum = distribution.entries.reduce(
     (s, e) => s + e.amount.amountMinor,
-    0n,
+    BigInt(0),
   );
   const splitSumValid = allocSum === input.scenario.totalMinor;
 

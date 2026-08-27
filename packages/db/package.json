@@ -20,7 +20,10 @@
     "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts",
     "./fotoffice-members": "./src/fotoffice-members.ts",
     "./fotoffice-user-lookup": "./src/fotoffice-user-lookup.ts",
-    "./fotoffice-member-invitations": "./src/fotoffice-member-invitations.ts"
+    "./fotoffice-member-invitations": "./src/fotoffice-member-invitations.ts",
+    "./daily-report-repository": "./src/daily-report-repository.ts",
+    "./template-v2-repository": "./src/template-v2-repository.ts",
+    "./clickaton-readonly-client": "./src/clickaton-readonly-client.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",
@@ -51,13 +54,16 @@
     "audit:clickaton-registration-schema": "tsx scripts/audit-clickaton-registration-schema.mts",
     "staging:identity-cutover": "tsx scripts/staging-identity-cutover.mts",
     "communications:db:identity": "tsx scripts/communications-db-identity.mts",
-    "test:communications-identity": "tsx --test scripts/communications-db-identity.test.ts"
+    "test:communications-identity": "tsx --test scripts/communications-db-identity.test.ts",
+    "test:daily-report": "tsx --test src/daily-report-repository.test.ts",
+    "test:template-v2-repository": "tsx --test src/template-v2-repository.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",
+    "@repo/ops-daily-report": "workspace:*",
     "@repo/partners": "workspace:*"
   },
   "devDependencies": {

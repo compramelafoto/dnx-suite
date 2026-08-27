@@ -37,4 +37,14 @@ export type LocaleBundle = {
     defaultCta: string;
     supportCta: string;
   };
+  opsDailyReport: {
+    subject: (reportDate: string) => string;
+    subjectWithAlerts: (reportDate: string, criticalCount: number) => string;
+    heading: string;
+    intro: (reportDate: string) => string;
+    alertsTitle: string;
+    summaryTitle: string;
+    defaultCta: string;
+    statusLabel: (status: string) => string;
+  };
 };

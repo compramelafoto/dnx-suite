@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { duplicateTemplateV2InsideTransaction } from "@/lib/template-v2/duplicate-template-v2-in-transaction";
-import { loadTemplateV2DuplicateGraph } from "@/lib/template-v2/load-template-v2-duplicate-graph";
+import { duplicateTemplateV2InsideTransaction } from "@/lib/template-v2/server";
+import { loadTemplateV2DuplicateGraph } from "@/lib/template-v2/server";
 
 /**
  * Para packs/album del fotógrafo: enlaza SIEMPRE un `templateV2Id` perteneciente al dueño del álbum.

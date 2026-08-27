@@ -1,7 +1,11 @@
 import type { CommunicationBrand } from "../branding/types";
 import type { LocaleBundle } from "../locales/types";
 
-export const COMMUNICATION_TEMPLATE_IDS = ["system.test", "user.welcome"] as const;
+export const COMMUNICATION_TEMPLATE_IDS = [
+  "system.test",
+  "user.welcome",
+  "ops.daily-report",
+] as const;
 
 export type CommunicationTemplateId = (typeof COMMUNICATION_TEMPLATE_IDS)[number];
 
@@ -23,6 +27,31 @@ export type CommunicationTemplatePayloadMap = {
     platformName: string;
     loginUrl?: string;
     supportUrl?: string;
+  };
+  "ops.daily-report": {
+    /** Fecha del día informado, ya formateada para mostrar (DD/MM/AAAA). */
+    reportDate: string;
+    /** Estado del informe en texto: Completo / Parcial / Fallido. */
+    status: string;
+    /** Cantidad de alertas críticas, para el asunto. */
+    criticalCount: number;
+    /** Bloque de alertas en texto plano (versión para lectores sin HTML). */
+    alertsBlock: string;
+    /** Bloque de números clave en texto plano. */
+    summaryBlock: string;
+    /**
+     * Mismos bloques ya maquetados en HTML por la app anfitriona.
+     *
+     * Se insertan sin escapar: la app es responsable de escapar los datos que
+     * vienen de la base. Si no se envían, el HTML cae al texto plano dentro de
+     * un bloque preformateado.
+     */
+    alertsHtml?: string;
+    summaryHtml?: string;
+    /** Enlace al panel con el detalle completo. */
+    panelUrl?: string;
+    /** Aviso de secciones que no se pudieron generar. */
+    failedSectionsNote?: string;
   };
 };
 

@@ -19,14 +19,14 @@ const SCENARIOS: Record<HomologationScenarioId, HomologationScenario> = {
     id: "OWNER_PLUS_1",
     label: "Owner + 1 partner",
     partnerCount: 1,
-    totalMinor: 10_000n, // $100.00
+    totalMinor: BigInt(10_000), // $100.00
     currency: "ARS",
   },
   OWNER_PLUS_2: {
     id: "OWNER_PLUS_2",
     label: "Owner + 2 partners",
     partnerCount: 2,
-    totalMinor: 15_000n, // $150.00
+    totalMinor: BigInt(15_000), // $150.00
     currency: "ARS",
   },
 };

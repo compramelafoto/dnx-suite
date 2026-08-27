@@ -103,6 +103,7 @@ export function PremiosRecompensasModalContent({ contest, onSuccess, onCancel, r
       </section>
 
       <PremiosRecompensasModule
+        contestId={contest.id}
         contestTitle={contest.title}
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}
         cfg={cfg}

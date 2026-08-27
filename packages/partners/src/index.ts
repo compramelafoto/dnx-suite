@@ -614,3 +614,6 @@ export type {
   PartnerAnalyticsReport,
   ImpressionIngestInput,
 } from "./analytics";
+
+export { resolveSponsorCardLogoCandidates } from "./sponsor-card-logo";
+export type { SponsorCardLogoCandidate } from "./sponsor-card-logo";

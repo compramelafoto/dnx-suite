@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { isUsableContestAssetAlt } from "./alt";
 import {
   contestAssetPublicUrl,
@@ -17,28 +18,59 @@ import {
   buildSantaFeEnFocoPresentation,
 } from "./santa-fe-en-foco-assets";
 
-/** apps/fotorank/public/contest-assets/{slug} (cwd = monorepo o app). */
-function resolveAssetsRoot(): string {
-  const candidates = [
-    path.resolve(process.cwd(), "apps/fotorank/public/contest-assets", SANTA_FE_EN_FOCO_ASSETS_SLUG),
-    path.resolve(process.cwd(), "public/contest-assets", SANTA_FE_EN_FOCO_ASSETS_SLUG),
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
-  }
-  return candidates[0]!;
-}
+/**
+ * apps/fotorank/public/contest-assets/{slug}, resuelto desde la ubicación de
+ * ESTE archivo y no desde `process.cwd()`: el runner lo ejecuta con cwd en
+ * `packages/db`, donde ninguno de los candidatos relativos existía. Mientras el
+ * manifiesto no tenía assets conectados el bucle final iteraba cero veces y el
+ * error quedaba oculto; al conectarse el hero pasó a importar de verdad.
+ */
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const publicRoot = path.join(
+  HERE,
+  "../../../../public/contest-assets",
+  SANTA_FE_EN_FOCO_ASSETS_SLUG,
+);
 
-const publicRoot = resolveAssetsRoot();
+/**
+ * Manifiesto desconectado: todo `file: null`.
+ *
+ * Antes esto se probaba sobre el manifiesto real de Santa Fe en Foco, que en
+ * ese momento no tenía ningún asset conectado. Cuando `fa4ae164` conectó los
+ * JPG del hero —un cambio funcional legítimo, que arregla la regresión de
+ * `615df551`, cuando el header desapareció en producción— estos asserts
+ * empezaron a fallar sin que hubiera nada roto.
+ *
+ * La intención original que sí importa conservar es "un asset sin material
+ * resuelve a null, no a una URL rota". Eso ahora se verifica contra un
+ * manifiesto explícitamente vacío, así el test comprueba el comportamiento del
+ * resolver y no una foto del contenido del manifiesto en una fecha dada.
+ */
+const DISCONNECTED = {
+  ...SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST,
+  hero: {
+    ...SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST.hero,
+    desktop: { ...SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST.hero.desktop, file: null },
+    mobile: { ...SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST.hero.mobile, file: null },
+  },
+};
 
-/* Manifiesto vacío / desconectado */
-const empty = buildSantaFeEnFocoPresentation();
+const empty = resolveLocalAssetsManifest(DISCONNECTED);
 assert.equal(empty.hero.desktop, null);
 assert.equal(empty.hero.mobile, null);
 assert.equal(empty.identity.organizerLogo, null);
 assert.equal(empty.gallery.length, 0);
 assert.equal(empty.social, null);
-assert.equal(listConnectedRelativePaths(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST).length, 0);
+assert.equal(listConnectedRelativePaths(DISCONNECTED).length, 0);
+
+/**
+ * Y el contrapunto: el manifiesto REAL sí tiene el hero conectado. Si alguien
+ * lo vuelve a dejar en `null`, el header de SFEF desaparece de producción —
+ * exactamente lo que pasó en `615df551`.
+ */
+const real = buildSantaFeEnFocoPresentation({ fileExists: () => true });
+assert.ok(real.hero.desktop, "el manifiesto real de SFEF mantiene el hero desktop conectado");
+assert.ok(real.hero.mobile, "el manifiesto real de SFEF mantiene el hero mobile conectado");
 
 /* Alt */
 assert.equal(isUsableContestAssetAlt("imagen"), false);
@@ -73,7 +105,15 @@ const desktopOnly = resolveLocalAssetsManifest(
 );
 assert.ok(desktopOnly.hero.desktop);
 assert.equal(desktopOnly.hero.mobile, null);
-assert.equal(desktopOnly.hero.desktop?.focalPointY, 42);
+/**
+ * El focal point del manifiesto se propaga y NO se pierde contra el default 50.
+ * Se compara contra el manifiesto y no contra un número literal: antes estaba
+ * fijado a 42 y quedó desactualizado en cuanto se reencuadró el hero real.
+ */
+assert.equal(
+  desktopOnly.hero.desktop?.focalPointY,
+  SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST.hero.desktop.focalPointY,
+);
 
 /* Hero desktop + mobile */
 const both = resolveLocalAssetsManifest(
@@ -100,7 +140,7 @@ assert.equal(
 );
 
 /* Galería vacía vs con imágenes + orden */
-const galEmpty = resolveLocalAssetsManifest(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST);
+const galEmpty = resolveLocalAssetsManifest(DISCONNECTED);
 assert.equal(galEmpty.gallery.length, 0);
 
 const galManifest = withLocalAssetOverrides(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST, {
@@ -150,8 +190,14 @@ const withSocial = resolveLocalAssetsManifest(
 );
 assert.ok(withSocial.social?.url.includes("social-cover.webp"));
 
-/* Archivos conectados en disco deben existir (hoy: ninguno) */
-for (const relative of listConnectedRelativePaths(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST)) {
+/**
+ * Todo archivo conectado en el manifiesto debe existir en disco. Hoy son los
+ * dos JPG del hero: si el manifiesto apuntara a un archivo que no llegó a la
+ * rama desplegada, el hero quedaría en 404 en producción.
+ */
+const conectados = listConnectedRelativePaths(SANTA_FE_EN_FOCO_LOCAL_ASSETS_MANIFEST);
+assert.ok(conectados.length > 0, "el manifiesto real debe tener al menos un asset conectado");
+for (const relative of conectados) {
   const abs = path.join(publicRoot, relative);
   assert.ok(fs.existsSync(abs), `manifiesto apunta a archivo inexistente: ${relative}`);
 }

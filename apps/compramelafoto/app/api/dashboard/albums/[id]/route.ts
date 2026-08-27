@@ -538,6 +538,7 @@ export async function PATCH(
       digitalWithPrintDiscountPercent,
       termsAccepted,
       showComingSoonMessage,
+      scanProtectionEnabled,
       isPublic,
       hiddenPhotosEnabled,
       hiddenSelfieRetentionDays,
@@ -717,6 +718,11 @@ export async function PATCH(
     }
     if (isPublic !== undefined) {
       (updateData as { isPublic?: boolean }).isPublic = Boolean(isPublic);
+    }
+
+    if (scanProtectionEnabled !== undefined) {
+      (updateData as { scanProtectionEnabled?: boolean }).scanProtectionEnabled =
+        Boolean(scanProtectionEnabled);
     }
 
     if (hiddenPhotosEnabled !== undefined) {

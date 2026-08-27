@@ -247,6 +247,7 @@ export default function EventGalleryGrid({ photos }: { photos: EventGalleryPhoto
         <PhotoSlideViewer
           photos={viewerPhotos}
           initialIndex={viewerIndex}
+          protectUnpurchased
           onClose={() => setShowViewer(false)}
           onPhotoSelect={toggleSelection}
         />

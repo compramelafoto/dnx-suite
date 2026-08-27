@@ -51,6 +51,10 @@ apps/fotorank/public/uploads/judges/*
 apps/fotorank/public/uploads/diplomas/*
 !apps/fotorank/public/uploads/diplomas/.gitkeep
 
+# FotoOffice image uploads — fallback local cuando R2 no está configurado
+# (ver lib/images/upload.ts). Son datos subidos por el usuario, nunca código.
+apps/fotoffice/public/uploads/
+
 # Playwright
 playwright-report/
 test-results/

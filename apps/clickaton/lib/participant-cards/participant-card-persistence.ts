@@ -42,6 +42,7 @@ import {
   ClickatonCardError,
 } from "./participant-card-errors";
 import { checkParticipantCardRateLimit } from "./participant-card-rate-limit";
+import { resolveParticipantCardTemplate } from "./participant-card-template-source";
 import {
   getClickatonParticipantCardPreset,
   normalizeParticipantCardType,
@@ -681,6 +682,7 @@ async function prepareGenerationContext(
   eligibility: ParticipantCardEligibility;
   templateData: Record<string, unknown>;
   preset: ReturnType<typeof getClickatonParticipantCardPreset>;
+  templateOrigin: "preset" | "template_v2";
   renderHash: string;
   dbCardType: "WELCOME" | "MEMBER";
   photoContentHash: string | null;
@@ -734,7 +736,16 @@ async function prepareGenerationContext(
     photoDataUrl: effectivePhoto ?? CLICKATON_FIXTURE_PHOTO_DATA_URL,
   });
 
-  const preset = structuredClone(getClickatonParticipantCardPreset(cardType));
+  // La edición puede tener asignada una plantilla del editor visual; si no la
+  // tiene, o no es utilizable, se cae al preset oficial del código.
+  const template = await resolveParticipantCardTemplate({
+    cardType,
+    editionId: registration.editionId,
+  });
+  for (const warning of template.warnings) {
+    eligibility.warnings.push({ code: "TEMPLATE_FALLBACK", message: warning });
+  }
+  const preset = structuredClone(template.preset);
   const photoContentHash = await deps.loadPhotoContentHash(
     registration.profilePhotoAssetId
   );
@@ -756,6 +767,7 @@ async function prepareGenerationContext(
     eligibility,
     templateData,
     preset,
+    templateOrigin: template.origin,
     renderHash,
     dbCardType: toDbCardType(cardType),
     photoContentHash,

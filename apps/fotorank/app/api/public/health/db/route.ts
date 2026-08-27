@@ -7,6 +7,62 @@ function databaseHostHint(): string | null {
   return hostMatch?.[1] ?? null;
 }
 
+/**
+ * Diagnóstico de la conexión de solo lectura hacia la base de maratones.
+ *
+ * Existe porque, cuando una convocatoria no aparece en la home, desde afuera no
+ * hay forma de distinguir entre "la variable no está configurada", "apunta a la
+ * base equivocada" y "la edición no pasa los filtros". Devuelve conteos por
+ * cada condición para poder señalar exactamente cuál falla.
+ *
+ * No expone la URL ni el host: sólo si está configurada y qué ve.
+ */
+async function clickatonReadonlyDiagnostics() {
+  try {
+    const mod = await import("@repo/db/clickaton-readonly-client");
+    if (!mod.isClickatonReadonlyAvailable()) {
+      const info = mod.getClickatonReadonlyConnectionInfo();
+      return { configured: false, reason: info.reason ?? "no configurada" };
+    }
+
+    const client = mod.getClickatonReadonlyClient();
+    const [total, published, enabled, openStatus, listable] = await Promise.all([
+      client.clickatonEdition.count(),
+      client.clickatonEdition.count({ where: { isPublished: true } }),
+      client.clickatonEdition.count({ where: { isPublished: true, registrationEnabled: true } }),
+      client.clickatonEdition.count({
+        where: {
+          isPublished: true,
+          registrationEnabled: true,
+          status: { in: ["REGISTRATION_OPEN", "REGISTRATION_CLOSED"] },
+        },
+      }),
+      client.clickatonEdition.count({
+        where: {
+          isPublished: true,
+          registrationEnabled: true,
+          isOpsFixture: false,
+          status: { in: ["REGISTRATION_OPEN", "REGISTRATION_CLOSED"] },
+        },
+      }),
+    ]);
+
+    return {
+      configured: true,
+      editions: total,
+      published,
+      alsoRegistrationEnabled: enabled,
+      alsoOpenStatus: openStatus,
+      passingAllFilters: listable,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      error: (error instanceof Error ? error.message : String(error)).slice(0, 160),
+    };
+  }
+}
+
 /** Health Staging — host sanitizado + conteos mínimos (sin secretos). */
 export async function GET() {
   const hint = databaseHostHint();
@@ -43,6 +99,7 @@ export async function GET() {
       users,
       fotorankContests: contests,
       clickatonEditions: editions,
+      clickatonReadonly: await clickatonReadonlyDiagnostics(),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

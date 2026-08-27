@@ -5,23 +5,16 @@ import {
   formatParticipantNumber,
   normalizeInstagramHandle,
 } from "@repo/template-engine";
+import { CLICKATON_CARD_LOGO_DATA_URL } from "./participant-card-branding-logo";
 import type { ParticipantCardRegistrationSnapshot } from "./participant-card-types";
 
-const BRAND_LOGO_PATH = "/brand/downloads/logos/clickaton-principal-v3-color.png";
-
-function resolveAppBaseUrl(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_CLICKATON_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    "";
-  return raw.replace(/\/$/, "");
-}
-
+/**
+ * El render corre sobre `about:blank` (Playwright `setContent`) o en el worker
+ * remoto, así que una ruta `/brand/...` no resuelve contra ningún origen.
+ * Siempre se embebe el logo como data URL.
+ */
 function resolveBrandingLogoUrl(): string {
-  const base = resolveAppBaseUrl();
-  if (base) return `${base}${BRAND_LOGO_PATH}`;
-  return BRAND_LOGO_PATH;
+  return CLICKATON_CARD_LOGO_DATA_URL;
 }
 
 function formatEditionDate(

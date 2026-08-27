@@ -17,6 +17,9 @@ function base(partial: Partial<HomeCapabilities>): HomeCapabilities {
     organizerContests: [],
     juryContests: [],
     kinds: [],
+    degraded: false,
+    failedParts: [],
+    incidentId: null,
     ...partial,
   };
 }
@@ -88,6 +91,19 @@ function main() {
   assert(
     resolvePostLoginPath(base({ kinds: [] })) === "/mi-actividad",
     "usuario sin permisos → /mi-actividad",
+  );
+
+  assert(
+    resolvePostLoginPath(
+      base({
+        kinds: ["participant"],
+        hasParticipations: true,
+        degraded: true,
+        failedParts: ["judgeAccount"],
+        incidentId: "test-incident",
+      }),
+    ) === "/mi-actividad",
+    "degraded (aunque haya una sola capacidad confirmada) → siempre /mi-actividad, nunca el panel directo",
   );
 
   console.log("FINAL: PASS");

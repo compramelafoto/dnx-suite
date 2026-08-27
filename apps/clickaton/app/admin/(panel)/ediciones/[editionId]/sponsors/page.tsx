@@ -190,12 +190,22 @@ export default async function EditionSponsorsPage({ params, searchParams }: Prop
                       {formatRange(row.participation.startsAt, row.participation.endsAt)}
                     </td>
                     <td className="px-6 py-4">
-                      <Link
-                        href={`${base}/${row.participation.id}`}
-                        className="text-ck-accent underline-offset-2 hover:underline"
-                      >
-                        Ver detalle
-                      </Link>
+                      <div className="flex flex-col gap-1">
+                        <Link
+                          href={`${base}/${row.participation.id}`}
+                          className="text-ck-accent underline-offset-2 hover:underline"
+                        >
+                          Ver detalle
+                        </Link>
+                        <a
+                          href={`/api/admin/sponsors/${row.participation.partnerId}/thankyou-card?editionId=${editionId}&disposition=attachment&name=${encodeURIComponent(row.partnerName)}`}
+                          className="text-ck-text-secondary underline-offset-2 hover:underline"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Placa de agradecimiento
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 ))}

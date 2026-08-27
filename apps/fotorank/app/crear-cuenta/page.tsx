@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageContainer, PublicShell } from "../components/public-ui";
 import { getAuthUser } from "../lib/auth";
 import { safeNextPath } from "../lib/safe-next-path";
 import { RegisterForm } from "./RegisterForm";
@@ -11,5 +12,11 @@ export default async function CrearCuentaPage({ searchParams }: Props) {
   const user = await getAuthUser();
   if (user) redirect(next ?? "/participaciones");
 
-  return <RegisterForm nextPath={next} />;
+  return (
+    <PublicShell header={{ variant: "marketing", hasSession: false }} showFooter>
+      <PageContainer width="narrow" className="py-12 md:py-16">
+        <RegisterForm nextPath={next} />
+      </PageContainer>
+    </PublicShell>
+  );
 }

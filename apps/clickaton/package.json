@@ -49,6 +49,7 @@
     "smoke:dnx-payments-test": "tsx scripts/dnx-payments-test-smoke.ts",
     "test:smoke-db-classify": "tsx --test scripts/classify-smoke-database-url.test.ts",
     "test:card-brick": "tsx --test lib/checkout/card-brick-enabled.test.ts lib/checkout/card-payment-guards.test.ts",
+    "test:webhook-secrets": "tsx --test lib/checkout/infrastructure/webhook-secrets.test.ts",
     "test:public-ux": "tsx --test lib/public-ux/status-presentation.test.ts lib/public-ux/checkout-copy.test.ts",
     "test:public-store": "tsx --test lib/public-store/*.test.ts lib/public-store/cart/*.test.ts lib/public-store/checkout/*.test.ts",
     "test:admin-ux": "tsx --test lib/admin-registration/ui/admin-status-presentation.test.ts",
@@ -96,7 +97,9 @@
     "test:e2e:clickaton-participant-cards": "playwright test e2e/participant-cards.spec.ts e2e/admin-participant-cards.spec.ts e2e/participant-cards-staging-matrix.spec.ts",
     "test:e2e:clickaton-participant-cards:persistence": "playwright test e2e/participant-cards-persistence.spec.ts",
     "e2e:clickaton-participant-cards:setup": "tsx scripts/e2e-clickaton-participant-cards-setup.ts",
-    "e2e:clickaton-participant-cards:cleanup": "tsx scripts/e2e-clickaton-participant-cards-cleanup.ts"
+    "e2e:clickaton-participant-cards:cleanup": "tsx scripts/e2e-clickaton-participant-cards-cleanup.ts",
+    "selfcheck:sponsor-card": "tsx scripts/sponsor-thankyou-card.selfcheck.ts",
+    "test:partner-logos": "tsx --test lib/admin/partners/partner-logo-storage.test.ts lib/content/public-media-keys.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",
@@ -113,6 +116,8 @@
     "@repo/payments": "workspace:*",
     "@repo/promotions": "workspace:*",
     "@repo/social-publisher": "workspace:*",
+    "@repo/template-editor-core": "workspace:*",
+    "@repo/template-editor-ui": "workspace:*",
     "@repo/template-engine": "workspace:*",
     "@repo/template-engine-renderer": "workspace:*",
     "exifr": "^7.1.3",

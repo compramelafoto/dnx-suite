@@ -33,6 +33,11 @@ export const routes = {
       diplomas: (id: string) => `/dashboard/concursos/${id}/diplomas`,
       premios: (id: string) => `/dashboard/concursos/${id}/premios`,
       comercializacion: (id: string) => `/dashboard/concursos/${id}/comercializacion`,
+      /** Preview administrativo del concurso próximo. */
+      proximamente: (id: string) => `/dashboard/concursos/${id}/proximamente`,
+      /** Panel de interesados ("Notificarme"). */
+      interesados: (id: string) => `/dashboard/concursos/${id}/interesados`,
+      interesadosCsv: (id: string) => `/api/fotorank/contests/${id}/interesados.csv`,
     },
   },
 } as const;
