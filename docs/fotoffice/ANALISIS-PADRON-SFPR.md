@@ -239,3 +239,66 @@ Proyección para el 2026-09-01:
 4. Las dos filas **sin número de socio**.
 5. Los **47 socios sin suscripción**: 34 quedaron con cargo de apertura por su deuda vieja de
    $15.000, pero habría que definir si vuelven a facturarse mes a mes.
+
+---
+
+# Corrección de la antigüedad — 2026-08-27
+
+Daniel aportó el listado de cuándo cada socio completó el formulario de inscripción, con la
+indicación de no asignar fecha a quien no la tuviera y de ignorar la columna de tipo de socio.
+
+## El problema que apareció al cruzarlo
+
+El `joinedAt` migrado no era confiable, pero **tampoco lo era el listado por sí solo**.
+
+- **80 socios** tenían en la base un valor por defecto de la importación (fechas de 2025).
+- **10 socios** tenían fechas imposibles: el socio 476 figuraba asociándose en 1972 habiendo
+  nacido en 1967, es decir a los 5 años.
+- Pero **44 socios tenían en la base fechas más antiguas y perfectamente creíbles**, verificadas
+  contra su fecha de nacimiento.
+
+El listado registra **cuándo alguien llenó un formulario**, no cuándo entró a la Sociedad. La
+mayoría de sus fechas son de una campaña de registro de 2020. Aplicarlo a ciegas le habría
+dicho al socio 255 —nacido en 1947, con alta en 1972— que tiene 6 años de antigüedad en vez
+de 54.
+
+Eso importa más que un dato mal: es lo que el portal le muestra a cada persona sobre su propia
+pertenencia, y no hay forma de que lo corrija por su cuenta.
+
+## La regla aplicada
+
+**Se toma la fecha más antigua de las dos, pero la de la base solo gana si es creíble**: que el
+socio tuviera al menos 15 años al asociarse y que la fecha no esté en el futuro.
+
+| | Socios |
+|---|---:|
+| Corregidos con el listado | **92** |
+| — porque la base tenía el default de importación | 80 |
+| — porque la fecha de la base era imposible | 10 |
+| — porque no había fecha de nacimiento para verificarla | 2 |
+| Conservan su fecha de la base, más antigua y creíble | **44** |
+| Sin fecha en el listado: **no se les asignó ninguna** | **6** (23, 27, 40, 45, 46, 592) |
+
+Aplicado con `packages/db/scripts/sfpr-corregir-antiguedad.mts`, en una transacción, con
+auditoría por lote `sfpr-antiguedad-2026-08-27`: 92 registros, reversible en bloque.
+
+## Resultado
+
+| Antigüedad | Socios activos |
+|---|---:|
+| Más de 15 años | 14 |
+| 6 a 15 años | 12 |
+| 3 a 6 años | 28 |
+| 1 a 3 años | 26 |
+| Menos de 1 año | 27 |
+
+Los más antiguos: socio 45 con 62 años (alta 1964), socio 255 con 54, socio 536 con 40. El
+socio 45 es justamente uno de los seis que el listado no cubre, así que conservó su fecha
+original sin tocarse.
+
+## Para revisar
+
+Los **44 socios que conservaron la fecha de la base** merecen una mirada de la Secretaría: son
+creíbles según la edad, pero nadie confirmó que sean correctas. Están listadas en
+`packages/db/scripts/data/sfpr-plan-antiguedad-2026-08-27.json`, bajo `conserva`, junto a la
+fecha que decía el listado.

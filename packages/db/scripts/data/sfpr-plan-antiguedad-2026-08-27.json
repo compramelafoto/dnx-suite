@@ -1,0 +1,786 @@
+{
+ "cambios": [
+  {
+   "socio": "650",
+   "de": "2025-09-29",
+   "a": "2023-07-24",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "651",
+   "de": "2025-09-29",
+   "a": "2023-10-06",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "648",
+   "de": "2025-09-29",
+   "a": "2023-05-23",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "649",
+   "de": "2025-09-29",
+   "a": "2023-06-06",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "652",
+   "de": "2025-09-29",
+   "a": "2023-10-04",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "658",
+   "de": "2022-05-03",
+   "a": "2023-12-14",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "656",
+   "de": "2008-08-08",
+   "a": "2023-10-26",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "662",
+   "de": "2025-09-29",
+   "a": "2024-04-11",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "663",
+   "de": "2025-09-29",
+   "a": "2024-04-22",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "661",
+   "de": "2025-09-29",
+   "a": "2024-03-14",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "664",
+   "de": "2025-09-29",
+   "a": "2024-04-26",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "665",
+   "de": "2024-01-01",
+   "a": "2024-05-21",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "671",
+   "de": "2025-09-29",
+   "a": "2024-06-12",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "722",
+   "de": "2026-01-08",
+   "a": "2026-01-06",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "678",
+   "de": "2025-09-29",
+   "a": "2024-07-30",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "679",
+   "de": "2025-09-29",
+   "a": "2024-08-05",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "682",
+   "de": "2025-09-29",
+   "a": "2024-08-16",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "723",
+   "de": "2000-12-18",
+   "a": "2026-01-27",
+   "motivo": "base sin fecha de nacimiento"
+  },
+  {
+   "socio": "683",
+   "de": "2025-09-29",
+   "a": "2024-09-12",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "721",
+   "de": "1999-01-08",
+   "a": "2025-12-07",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "725",
+   "de": "2026-04-30",
+   "a": "2026-04-10",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "724",
+   "de": "1991-09-19",
+   "a": "2026-03-27",
+   "motivo": "base sin fecha de nacimiento"
+  },
+  {
+   "socio": "727",
+   "de": "2024-11-09",
+   "a": "2024-09-19",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "686",
+   "de": "2025-09-29",
+   "a": "2025-01-28",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "687",
+   "de": "2025-04-07",
+   "a": "2025-03-14",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "692",
+   "de": "2025-09-29",
+   "a": "2025-07-02",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "693",
+   "de": "2025-08-22",
+   "a": "2025-08-16",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "726",
+   "de": "2026-04-30",
+   "a": "2026-04-27",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "691",
+   "de": "2013-08-13",
+   "a": "2025-06-17",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "697",
+   "de": "2025-09-01",
+   "a": "2025-08-31",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "694",
+   "de": "2025-09-29",
+   "a": "2025-08-22",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "700",
+   "de": "2025-09-29",
+   "a": "2025-09-02",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "701",
+   "de": "2025-09-29",
+   "a": "2025-09-02",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "705",
+   "de": "2025-09-29",
+   "a": "2025-09-03",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "703",
+   "de": "2025-09-29",
+   "a": "2025-09-03",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "709",
+   "de": "2025-09-29",
+   "a": "2025-09-08",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "707",
+   "de": "2025-09-29",
+   "a": "2025-09-04",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "710",
+   "de": "2025-09-29",
+   "a": "2025-09-09",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "719",
+   "de": "2025-10-30",
+   "a": "2025-10-29",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "335",
+   "de": "2025-09-29",
+   "a": "2020-07-13",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "462",
+   "de": "2025-09-29",
+   "a": "2020-08-30",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "509",
+   "de": "2025-09-29",
+   "a": "2020-09-01",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "559",
+   "de": "2025-09-29",
+   "a": "2020-07-15",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "569",
+   "de": "2025-09-29",
+   "a": "2020-08-26",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "715",
+   "de": "2025-10-16",
+   "a": "2025-10-15",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "598",
+   "de": "2025-09-29",
+   "a": "2021-04-06",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "604",
+   "de": "2025-09-29",
+   "a": "2021-09-07",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "611",
+   "de": "2025-09-29",
+   "a": "2021-11-29",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "605",
+   "de": "2021-11-03",
+   "a": "2021-10-03",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "607",
+   "de": "2025-09-29",
+   "a": "2021-11-03",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "613",
+   "de": "2017-02-04",
+   "a": "2022-05-03",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "617",
+   "de": "2025-09-29",
+   "a": "2022-08-29",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "621",
+   "de": "2025-09-29",
+   "a": "2022-08-31",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "626",
+   "de": "2025-09-29",
+   "a": "2022-09-01",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "717",
+   "de": "2025-10-28",
+   "a": "2025-10-27",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "627",
+   "de": "2025-09-29",
+   "a": "2022-11-09",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "624",
+   "de": "2025-09-29",
+   "a": "2022-10-18",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "630",
+   "de": "2025-09-29",
+   "a": "2023-02-23",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "631",
+   "de": "2025-09-29",
+   "a": "2023-02-16",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "629",
+   "de": "2023-02-23",
+   "a": "2022-11-09",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "632",
+   "de": "2025-09-29",
+   "a": "2023-02-16",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "639",
+   "de": "2023-03-08",
+   "a": "2023-02-24",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "636",
+   "de": "2025-09-29",
+   "a": "2023-02-26",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "647",
+   "de": "2023-05-03",
+   "a": "2023-04-04",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "644",
+   "de": "2025-09-29",
+   "a": "2023-03-31",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "645",
+   "de": "2025-09-29",
+   "a": "2023-04-21",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "684",
+   "de": "1992-01-05",
+   "a": "2024-11-21",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "553",
+   "de": "2025-09-29",
+   "a": "2021-03-02",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "476",
+   "de": "1972-02-02",
+   "a": "2020-10-28",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "518",
+   "de": "2025-09-29",
+   "a": "2015-06-13",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "534",
+   "de": "2025-09-29",
+   "a": "2020-08-31",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "540",
+   "de": "2025-09-29",
+   "a": "2021-01-25",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "541",
+   "de": "1998-01-01",
+   "a": "2020-08-02",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "560",
+   "de": "2025-09-29",
+   "a": "2020-07-15",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "567",
+   "de": "2025-09-29",
+   "a": "2020-08-05",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "575",
+   "de": "1992-04-02",
+   "a": "2020-09-22",
+   "motivo": "base implausible"
+  },
+  {
+   "socio": "581",
+   "de": "2020-12-01",
+   "a": "2020-11-02",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "584",
+   "de": "2025-09-29",
+   "a": "2020-12-01",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "585",
+   "de": "2025-09-29",
+   "a": "2021-01-11",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "589",
+   "de": "2025-09-29",
+   "a": "2021-02-19",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "590",
+   "de": "2025-09-29",
+   "a": "2021-02-23",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "593",
+   "de": "2025-09-29",
+   "a": "2021-03-03",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "594",
+   "de": "2025-09-29",
+   "a": "2021-02-26",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "600",
+   "de": "2025-09-29",
+   "a": "2021-07-13",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "601",
+   "de": "2025-09-29",
+   "a": "2021-07-27",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "602",
+   "de": "2025-09-29",
+   "a": "2021-08-06",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "616",
+   "de": "2022-08-29",
+   "a": "2022-08-26",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "634",
+   "de": "2025-09-29",
+   "a": "2023-02-24",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "642",
+   "de": "2025-09-29",
+   "a": "2023-02-26",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "674",
+   "de": "2025-09-29",
+   "a": "2024-06-12",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "676",
+   "de": "2025-09-29",
+   "a": "2024-07-05",
+   "motivo": "base más nueva (default de importación)"
+  },
+  {
+   "socio": "713",
+   "de": "2025-09-29",
+   "a": "2025-09-21",
+   "motivo": "base más nueva (default de importación)"
+  }
+ ],
+ "conserva": [
+  {
+   "socio": "654",
+   "joinedAt": "2023-09-01",
+   "listado": "2023-10-25"
+  },
+  {
+   "socio": "659",
+   "joinedAt": "2019-10-25",
+   "listado": "2023-12-22"
+  },
+  {
+   "socio": "667",
+   "joinedAt": "2003-12-06",
+   "listado": "2024-05-24"
+  },
+  {
+   "socio": "668",
+   "joinedAt": "2015-04-01",
+   "listado": "2024-05-27"
+  },
+  {
+   "socio": "669",
+   "joinedAt": "2023-12-20",
+   "listado": "2024-05-29"
+  },
+  {
+   "socio": "677",
+   "joinedAt": "2003-03-03",
+   "listado": "2024-07-31"
+  },
+  {
+   "socio": "696",
+   "joinedAt": "2025-01-01",
+   "listado": "2025-08-31"
+  },
+  {
+   "socio": "699",
+   "joinedAt": "2024-05-09",
+   "listado": "2025-09-01"
+  },
+  {
+   "socio": "711",
+   "joinedAt": "1998-10-14",
+   "listado": "2025-09-11"
+  },
+  {
+   "socio": "332",
+   "joinedAt": "1996-03-03",
+   "listado": "2020-08-13"
+  },
+  {
+   "socio": "536",
+   "joinedAt": "1985-10-17",
+   "listado": "2020-10-01"
+  },
+  {
+   "socio": "537",
+   "joinedAt": "1987-09-21",
+   "listado": "2020-08-30"
+  },
+  {
+   "socio": "558",
+   "joinedAt": "2015-06-10",
+   "listado": "2020-07-15"
+  },
+  {
+   "socio": "565",
+   "joinedAt": "2018-10-01",
+   "listado": "2020-08-03"
+  },
+  {
+   "socio": "580",
+   "joinedAt": "2003-03-03",
+   "listado": "2020-11-03"
+  },
+  {
+   "socio": "587",
+   "joinedAt": "2001-02-01",
+   "listado": "2021-01-28"
+  },
+  {
+   "socio": "614",
+   "joinedAt": "2004-09-01",
+   "listado": "2022-06-03"
+  },
+  {
+   "socio": "615",
+   "joinedAt": "2020-06-20",
+   "listado": "2022-08-19"
+  },
+  {
+   "socio": "619",
+   "joinedAt": "2019-03-04",
+   "listado": "2022-08-12"
+  },
+  {
+   "socio": "623",
+   "joinedAt": "2022-06-01",
+   "listado": "2022-10-16"
+  },
+  {
+   "socio": "620",
+   "joinedAt": "2009-01-01",
+   "listado": "2022-08-16"
+  },
+  {
+   "socio": "625",
+   "joinedAt": "2012-10-10",
+   "listado": "2022-09-19"
+  },
+  {
+   "socio": "638",
+   "joinedAt": "2023-02-24",
+   "listado": "2023-03-01"
+  },
+  {
+   "socio": "643",
+   "joinedAt": "2013-06-01",
+   "listado": "2023-02-17"
+  },
+  {
+   "socio": "646",
+   "joinedAt": "2018-04-01",
+   "listado": "2023-05-08"
+  },
+  {
+   "socio": "556",
+   "joinedAt": "2006-07-20",
+   "listado": "2020-07-12"
+  },
+  {
+   "socio": "255",
+   "joinedAt": "1972-03-01",
+   "listado": "2020-07-18"
+  },
+  {
+   "socio": "417",
+   "joinedAt": "2009-03-09",
+   "listado": "2020-07-18"
+  },
+  {
+   "socio": "521",
+   "joinedAt": "2012-03-10",
+   "listado": "2020-08-14"
+  },
+  {
+   "socio": "547",
+   "joinedAt": "2012-03-01",
+   "listado": "2020-08-05"
+  },
+  {
+   "socio": "562",
+   "joinedAt": "2020-02-01",
+   "listado": "2020-07-22"
+  },
+  {
+   "socio": "563",
+   "joinedAt": "2016-06-01",
+   "listado": "2020-07-29"
+  },
+  {
+   "socio": "566",
+   "joinedAt": "2009-03-03",
+   "listado": "2020-08-04"
+  },
+  {
+   "socio": "570",
+   "joinedAt": "2017-08-01",
+   "listado": "2020-08-28"
+  },
+  {
+   "socio": "572",
+   "joinedAt": "2010-08-01",
+   "listado": "2020-09-20"
+  },
+  {
+   "socio": "573",
+   "joinedAt": "2014-06-10",
+   "listado": "2020-09-20"
+  },
+  {
+   "socio": "578",
+   "joinedAt": "2018-04-01",
+   "listado": "2020-10-22"
+  },
+  {
+   "socio": "588",
+   "joinedAt": "2002-02-17",
+   "listado": "2021-02-10"
+  },
+  {
+   "socio": "595",
+   "joinedAt": "2010-01-01",
+   "listado": "2021-02-26"
+  },
+  {
+   "socio": "597",
+   "joinedAt": "2014-12-01",
+   "listado": "2021-03-22"
+  },
+  {
+   "socio": "666",
+   "joinedAt": "2001-05-24",
+   "listado": "2024-05-23"
+  },
+  {
+   "socio": "681",
+   "joinedAt": "2005-09-01",
+   "listado": "2024-08-19"
+  },
+  {
+   "socio": "695",
+   "joinedAt": "2012-09-21",
+   "listado": "2025-08-25"
+  },
+  {
+   "socio": "720",
+   "joinedAt": "2025-11-01",
+   "listado": "2025-11-07"
+  }
+ ],
+ "sinFechaEnListado": [
+  "23",
+  "27",
+  "40",
+  "45",
+  "46",
+  "592"
+ ]
+}
