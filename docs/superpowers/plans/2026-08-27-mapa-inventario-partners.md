@@ -2,6 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Desvío aplicado en la Task 1:** el espacio del portal es un banner, no una
+> placa modal. FotoOffice está excluido de activaciones destacadas. Ver el spec.
+
 **Goal:** Que el código pueda responder "¿qué espacios publicitarios puede ofrecer este vendedor?", con el dueño, la audiencia, si está montado y si se paga o se canjea.
 
 **Architecture:** El catálogo técnico `AD_PLACEMENT_CATALOG` (`packages/partners/src/campaigns.ts`) sigue siendo la única lista de espacios y suma los cinco de FotoOffice. Un archivo nuevo, `packages/partners/src/inventory.ts`, lo decora con cuatro columnas comerciales tomadas de una tabla de consulta tipada como `Record<DnxPartnerAdPlacementKey, …>`, lo que hace que agregar un espacio sin decidir quién lo vende no compile. Sobre eso se apoya una sola función, `listSellableSpaces`.
@@ -54,7 +57,7 @@ Agregar al final de `packages/partners/src/partners-campaigns.test.ts`:
 describe("espacios de FotoOffice en el catálogo", () => {
   it("declara las cinco claves del workspace", () => {
     assert.deepEqual([...FOTOFFICE_AD_PLACEMENT_KEYS], [
-      "FOTOFFICE_PORTAL_WELCOME",
+      "FOTOFFICE_PORTAL_BANNER",
       "FOTOFFICE_BENEFITS_MARQUEE",
       "FOTOFFICE_BENEFIT_CARD",
       "FOTOFFICE_RAFFLE_SPONSOR",
@@ -97,7 +100,7 @@ En `packages/partners/src/campaigns.ts`, después de `FOTORANK_AD_PLACEMENT_KEYS
 ```ts
 /** Superficies FotoOffice (declaradas; el subproyecto 2 del portal las monta). */
 export const FOTOFFICE_AD_PLACEMENT_KEYS = [
-  "FOTOFFICE_PORTAL_WELCOME",
+  "FOTOFFICE_PORTAL_BANNER",
   "FOTOFFICE_BENEFITS_MARQUEE",
   "FOTOFFICE_BENEFIT_CARD",
   "FOTOFFICE_RAFFLE_SPONSOR",
@@ -127,7 +130,7 @@ Agregar las cinco entradas al final de `AD_PLACEMENT_CATALOG`:
 ```ts
   {
     application: "FOTO_OFFICE",
-    placementKey: "FOTOFFICE_PORTAL_WELCOME",
+    placementKey: "FOTOFFICE_PORTAL_BANNER",
     name: "Activación destacada (portal del socio)",
     description: "Placa al entrar al portal. Declarada: el portal todavía no la monta.",
     allowedFormats: ["WELCOME_INTERSTITIAL", "STORY_VERTICAL", "SQUARE"],
@@ -305,7 +308,7 @@ describe("listSellableSpaces", () => {
       includeUnmounted: true,
     }).map((e) => e.placementKey);
     assert.deepEqual(venta.sort(), [
-      "FOTOFFICE_PORTAL_WELCOME",
+      "FOTOFFICE_PORTAL_BANNER",
       "FOTOFFICE_PUBLIC_MARQUEE",
       "FOTOFFICE_RAFFLE_SPONSOR",
     ].sort());
@@ -434,7 +437,7 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
   },
 
   // FotoOffice — la institución consigue sus propios sponsors. Nada montado.
-  FOTOFFICE_PORTAL_WELCOME: {
+  FOTOFFICE_PORTAL_BANNER: {
     owner: "WORKSPACE",
     audience: "MEMBERSHIP_HOLDERS",
     mounted: false,

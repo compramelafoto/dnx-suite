@@ -164,11 +164,23 @@ socio, que todavía no empezó.
 
 | Clave | Dónde | Audiencia | Acceso |
 |---|---|---|---|
-| `FOTOFFICE_PORTAL_WELCOME` | Placa al entrar al portal del socio | `MEMBERSHIP_HOLDERS` | `SALE` |
+| `FOTOFFICE_PORTAL_BANNER` | Banner dentro del portal del socio | `MEMBERSHIP_HOLDERS` | `SALE` |
 | `FOTOFFICE_BENEFITS_MARQUEE` | Franja de logos en la pantalla de beneficios | `MEMBERSHIP_HOLDERS` | `EXCHANGE` |
 | `FOTOFFICE_BENEFIT_CARD` | La ficha del beneficio: logo, descuento y cómo se usa | `MEMBERSHIP_HOLDERS` | `EXCHANGE` |
 | `FOTOFFICE_RAFFLE_SPONSOR` | Auspicio del sorteo mensual | `MEMBERSHIP_HOLDERS` | `BOTH` |
 | `FOTOFFICE_PUBLIC_MARQUEE` | Franja en el sitio público del workspace | `ALL_USERS` | `SALE` |
+
+**Corregido durante la implementación (2026-08-27).** El espacio del portal era
+una placa modal, y FotoOffice está excluido a propósito de las activaciones
+destacadas: `WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS`, en `welcome-activation.ts`,
+lo bloquea como target, publicación, placement y opción de admin. La razón es
+sana —al socio que entra a pagar la cuota no se lo recibe con un interstitial—,
+así que el espacio pasó a ser un banner dentro de la página.
+
+Como efecto, la prueba que exigía que `AD_PLACEMENT_CATALOG` **no mencionara**
+FotoOffice dejó de servir: ahora verifica lo que importa de verdad, que ningún
+espacio de FotoOffice admita `WELCOME_INTERSTITIAL` ni figure en la allowlist de
+activaciones destacadas.
 
 El del sorteo es `BOTH` a propósito: un aliado puede poner el premio en lugar de
 pagar. El roadmap del portal lo dice — *«sin sponsors no hay qué sortear»*.
@@ -182,7 +194,7 @@ para `trackingPlacement`, así que **no hace falta tocar el esquema**:
 
 | Clave | `trackingPlacement` |
 |---|---|
-| `FOTOFFICE_PORTAL_WELCOME` | `WELCOME` |
+| `FOTOFFICE_PORTAL_BANNER` | `BANNER` |
 | `FOTOFFICE_BENEFITS_MARQUEE` | `LOGO_MARQUEE` |
 | `FOTOFFICE_BENEFIT_CARD` | `BENEFIT` |
 | `FOTOFFICE_RAFFLE_SPONSOR` | `SPONSOR_SECTION` |
