@@ -9,6 +9,11 @@ import { MemberAuditLog } from "@/components/members/member-audit-log";
 import { formatDocumentForDisplay } from "@/lib/members/documents";
 import { MemberAccessPanel } from "@/components/members/member-access-panel";
 import { MEMBER_STATUS_LABELS } from "@/lib/members/status-labels";
+import { ManualPaymentForm } from "@/components/members/manual-payment-form";
+import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { getPlatformFeeBps } from "@/lib/platform-fee/store";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { formatFeeBpsAsPercent } from "@/lib/platform-fee/fee";
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "?";
@@ -20,7 +25,7 @@ function fmtDate(d: Date | null | undefined): string {
 }
 
 export default async function MemberDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { workspace, canManage } = await requireMembersContext();
+  const { workspace, canManage, user } = await requireMembersContext();
   const { id } = await params;
   const member = await getMember(workspace.id, id);
   if (!member) notFound();
@@ -33,6 +38,13 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
     canManage && member.userId
       ? await prisma.user.findUnique({ where: { id: member.userId }, select: { email: true } })
       : null;
+
+  // Registrar un cobro es una atribución de quien maneja la plata, no de quien consulta el
+  // padrón: se resuelve con el mismo permiso que gobierna los cobros del workspace.
+  const puedeCobrar = await canManageWorkspaceCollection(user.id, workspace.id);
+  const feePercent = puedeCobrar
+    ? formatFeeBpsAsPercent(await getPlatformFeeBps(workspace.id, MEMBERS_MODULE_KEY))
+    : "";
 
   return (
     <div className="space-y-10">
@@ -160,6 +172,21 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               </p>
             )}
           </section>
+
+          {puedeCobrar ? (
+            <section className="fo-card space-y-4 sm:col-span-2">
+              <div className="space-y-1">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+                  Registrar un pago cobrado en mano
+                </h2>
+                <p className="text-xs text-[var(--fo-muted)]">
+                  Para lo que se cobró en efectivo o por transferencia. Lo que entra por Mercado
+                  Pago se acredita solo.
+                </p>
+              </div>
+              <ManualPaymentForm memberId={member.id} feePercent={feePercent} />
+            </section>
+          ) : null}
 
           {member.notes ? (
             <section className="fo-card space-y-3 sm:col-span-2">

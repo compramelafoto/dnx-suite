@@ -12,6 +12,8 @@ import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { splitMinorByPlatformFee } from "@/lib/platform-fee/fee";
+import { withholdingForPayment } from "@/lib/platform-fee/debt";
+import { pendingFeeDebtMinor } from "@/lib/platform-fee/ledger";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 
 export type StartDuesPaymentResult =
@@ -62,7 +64,17 @@ export async function startDuesPaymentAction(formData: FormData): Promise<StartD
   }
 
   const feeBps = await getPlatformFeeBps(context.workspace.id, MEMBERS_MODULE_KEY);
-  const reparto = splitMinorByPlatformFee(seleccion.selection.totalMinor, feeBps);
+  const propio = splitMinorByPlatformFee(seleccion.selection.totalMinor, feeBps);
+
+  // Además de su propia comisión, este pago cobra la que quedó a deber por los cobros en
+  // efectivo o por transferencia: son los únicos que pasan por Mercado Pago, así que son la
+  // única vía de retención. Ver lib/platform-fee/debt.ts.
+  const deudaPendiente = await pendingFeeDebtMinor(context.workspace.id);
+  const reparto = withholdingForPayment({
+    paymentMinor: seleccion.selection.totalMinor,
+    ownFeeMinor: propio.feeMinor,
+    pendingDebtMinor: deudaPendiente,
+  });
 
   // La intención de pago se guarda ANTES de ir a MercadoPago: si el socio paga y el webhook
   // llega, tiene que haber contra qué acreditarlo. Sin esto un pago acreditado no tendría
@@ -72,7 +84,7 @@ export async function startDuesPaymentAction(formData: FormData): Promise<StartD
       workspaceId: context.workspace.id,
       memberId: context.member.id,
       amountArs: minorToDecimalString(seleccion.selection.totalMinor),
-      platformFeeArs: minorToDecimalString(reparto.feeMinor),
+      platformFeeArs: minorToDecimalString(reparto.withholdMinor),
       netAmountArs: minorToDecimalString(reparto.netMinor),
       status: "PENDIENTE",
       method: "MERCADOPAGO",
@@ -99,7 +111,7 @@ export async function startDuesPaymentAction(formData: FormData): Promise<StartD
       failureUrl: `${base}/portal/cuotas?pago=error`,
       notificationUrl: `${base}/api/payments/mp/webhook`,
       accessTokenOverride: collector.collector.accessToken,
-      marketplaceFeeMinor: reparto.feeMinor,
+      marketplaceFeeMinor: reparto.withholdMinor,
       itemId: `cuota-${context.member.memberNumber}`,
       sourceApp: "FOTOFFICE",
       metadata: {

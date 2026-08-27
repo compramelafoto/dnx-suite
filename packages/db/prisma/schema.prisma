@@ -289,6 +289,7 @@ model User {
   fotorankSocialConnectionsConnected  FotorankSocialConnection[]         @relation("FrSocialConnectionConnectedBy")
   websiteVersionsPublished            FotofficeWorkspaceWebsiteVersion[]
   memberAuditsPerformed               MemberAudit[]
+  workspaceFeeLedgerEntries           WorkspaceFeeLedgerEntry[]
   memberCardOperatorGrants            MemberCardOperator[]
   memberInvitationsSent               MemberInvitation[]                 @relation("MemberInvitationInviter")
   memberInvitationsAccepted           MemberInvitation[]                 @relation("MemberInvitationAcceptor")
@@ -6842,6 +6843,7 @@ model Workspace {
   memberAudits                MemberAudit[]
   memberInvitations           MemberInvitation[]
   moduleFees                  WorkspaceModuleFee[]
+  feeLedger                   WorkspaceFeeLedgerEntry[]
   membershipApplications      MembershipApplication[]
   membershipDuesSettings      MembershipDuesSettings?
   membershipFeeValues         MembershipFeeValue[]
@@ -7287,10 +7289,11 @@ model MembershipCharge {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace   Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  member      Member                 @relation(fields: [memberId], references: [id], onDelete: Restrict)
-  feeValue    MembershipFeeValue?    @relation(fields: [feeValueId], references: [id], onDelete: SetNull)
+  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member      Member                    @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  feeValue    MembershipFeeValue?       @relation(fields: [feeValueId], references: [id], onDelete: SetNull)
   allocations MembershipAllocation[]
+  feeLedger   WorkspaceFeeLedgerEntry[]
 
   /// Un socio no puede tener dos cargos del mismo concepto para el mismo período.
   @@unique([memberId, concept, period])
@@ -7319,9 +7322,10 @@ model MembershipPayment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace   Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  member      Member                 @relation(fields: [memberId], references: [id], onDelete: Restrict)
-  allocations MembershipAllocation[]
+  workspace                 Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member                    Member                    @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  allocations               MembershipAllocation[]
+  workspaceFeeLedgerEntries WorkspaceFeeLedgerEntry[]
 
   @@index([workspaceId, status])
   @@index([memberId, createdAt])
@@ -15708,13 +15712,57 @@ model FotorankContestMediaAsset {
   contest    FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
   uploadedBy User?           @relation("FotorankContestMediaUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
   deletedBy  User?           @relation("FotorankContestMediaDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
-
-  @@index([contestId, kind, isActive])
-  @@index([contestId, uploadedAt])
-  @@index([uploadedByUserId])
   /// La unicidad de "una sola imagen activa por concurso y tipo" la impone un
   /// índice parcial (`WHERE "isActive"`) creado en la migración SQL. Prisma no
   /// sabe declarar índices parciales, así que no figura acá: no lo agregues
   /// como @@unique normal, rompería el historial (sólo puede haber una fila
   /// inactiva por tipo, y el historial necesita varias).
+
+  @@index([contestId, kind, isActive])
+  @@index([contestId, uploadedAt])
+  @@index([uploadedByUserId])
+}
+
+/// Cómo afecta cada asiento a la deuda de la institución con la plataforma.
+enum WorkspaceFeeLedgerKind {
+  /// Comisión que quedó a deber porque el pago no pasó por Mercado Pago.
+  DEVENGADO
+  /// Deuda cancelada reteniéndola de un pago que sí pasó por Mercado Pago.
+  RETENIDO
+  /// Deuda dada por saldada por el Super Admin, fuera del circuito de pagos.
+  SALDADO_MANUAL
+  /// Reverso de una retención cuyo pago terminó reembolsado.
+  REVERSADO
+}
+
+/// Libro de la comisión que la institución le debe a la plataforma.
+///
+/// El dinero de las cuotas nunca pasa por DNX: Mercado Pago retiene la comisión en la misma
+/// operación. Un pago en efectivo o por transferencia no pasa por ahí, así que esa comisión
+/// queda a deber y se cobra de los siguientes pagos que sí entren por Mercado Pago.
+///
+/// Es un libro, no un saldo: son dos partes las que tienen que poder reconstruir cómo se llegó
+/// al número. Un único campo con el total no permitiría explicar de dónde salió.
+model WorkspaceFeeLedgerEntry {
+  id                  String                 @id @default(cuid())
+  workspaceId         String
+  kind                WorkspaceFeeLedgerKind
+  /// Firmado: positivo aumenta la deuda de la institución, negativo la reduce. El saldo es la
+  /// suma de la columna, sin necesidad de interpretar el tipo de asiento.
+  amountArs           Decimal                @db.Decimal(12, 2)
+  /// Pago que originó el asiento: el manual que lo devengó, o el de Mercado Pago que lo cobró.
+  membershipPaymentId String?
+  /// Por qué. Obligatorio de hecho para los saldos manuales, que no tienen pago que los explique.
+  note                String?
+  actorUserId         Int?
+  createdAt           DateTime               @default(now())
+
+  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  payment            MembershipPayment? @relation(fields: [membershipPaymentId], references: [id], onDelete: SetNull)
+  actorUser          User?              @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  membershipCharge   MembershipCharge?  @relation(fields: [membershipChargeId], references: [id])
+  membershipChargeId String?
+
+  @@index([workspaceId, createdAt])
+  @@index([membershipPaymentId])
 }

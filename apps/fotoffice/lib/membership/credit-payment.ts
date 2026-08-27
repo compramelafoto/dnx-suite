@@ -5,6 +5,10 @@ import { decimalArsToMinor, minorToDecimalString } from "./money";
 import type { OpenCharge } from "./select-charges";
 import { outcomeForProviderStatus, shouldApply, type StoredPaymentStatus } from "./payment-outcome";
 import { releasePaidPrintOrders } from "@/lib/carnet/print-order";
+import { getPlatformFeeBps } from "@/lib/platform-fee/store";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { splitMinorByPlatformFee } from "@/lib/platform-fee/fee";
+import { pendingFeeDebtMinor, recordDischarge, recordReversal } from "@/lib/platform-fee/ledger";
 
 export type CreditResult =
   | { ok: true; applied: boolean; motivo: string }
@@ -30,7 +34,14 @@ export async function creditMembershipPayment(input: {
 
   const intento = await prisma.membershipPayment.findUnique({
     where: { id: input.paymentId },
-    select: { id: true, memberId: true, status: true, amountArs: true },
+    select: {
+      id: true,
+      memberId: true,
+      status: true,
+      amountArs: true,
+      workspaceId: true,
+      platformFeeArs: true,
+    },
   });
   if (!intento) {
     return { ok: false, motivo: "no existe la intención de pago" };
@@ -63,6 +74,23 @@ export async function creditMembershipPayment(input: {
         });
       }
       await tx.membershipAllocation.deleteMany({ where: { paymentId: intento.id } });
+
+      // La comisión ajena que este pago había cancelado vuelve a quedar pendiente: se retuvo
+      // sobre plata que volvió al socio. Sin esto la deuda desaparecería sin haberse cobrado.
+      const retenido = await tx.workspaceFeeLedgerEntry.aggregate({
+        where: { membershipPaymentId: intento.id, kind: "RETENIDO" },
+        _sum: { amountArs: true },
+      });
+      const aDevolver = retenido._sum.amountArs
+        ? Math.abs(decimalArsToMinor(retenido._sum.amountArs))
+        : 0;
+      await recordReversal(tx, {
+        workspaceId: intento.workspaceId,
+        membershipPaymentId: intento.id,
+        amountMinor: aDevolver,
+        note: "Pago reembolsado: la comisión arrastrada vuelve a quedar pendiente",
+      });
+
       await tx.membershipPayment.update({
         where: { id: intento.id },
         data: { status: "RECHAZADO", paidAt: null },
@@ -111,6 +139,25 @@ export async function creditMembershipPayment(input: {
         providerPaymentRef: input.providerPaymentRef,
         paidAt: input.paidAt,
       },
+    });
+
+    // De lo retenido, una parte es la comisión de este pago y el resto canceló deuda dejada por
+    // cobros en efectivo o transferencia. Solo esa segunda parte se asienta en el libro.
+    const feeBps = await getPlatformFeeBps(intento.workspaceId, MEMBERS_MODULE_KEY);
+    const propioMinor = splitMinorByPlatformFee(
+      decimalArsToMinor(intento.amountArs),
+      feeBps,
+    ).feeMinor;
+    const retenidoMinor = decimalArsToMinor(intento.platformFeeArs);
+    // Se acota contra la deuda de este instante: entre que se armó el checkout y llegó el aviso
+    // otro pago pudo haberla cancelado, y el libro no puede quedar en negativo.
+    const pendiente = await pendingFeeDebtMinor(intento.workspaceId, tx);
+    const aCancelar = Math.max(0, Math.min(retenidoMinor - propioMinor, pendiente));
+    await recordDischarge(tx, {
+      workspaceId: intento.workspaceId,
+      membershipPaymentId: intento.id,
+      amountMinor: aCancelar,
+      note: "Comisión arrastrada, cobrada de este pago",
     });
   });
 
