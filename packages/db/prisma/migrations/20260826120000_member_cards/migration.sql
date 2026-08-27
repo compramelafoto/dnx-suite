@@ -1,3 +1,37 @@
+-- ---------------------------------------------------------------------------
+-- Antes que nada: liberar el nombre.
+--
+-- En la base ya existe una tabla "MemberCard" de un intento de carnets de mayo de 2026
+-- (migración 20260501152000_add_member_cards). Guarda configuración de PLANTILLA —logo,
+-- colores, qué mostrar—, no carnets emitidos, y no está en el esquema de Prisma actual:
+-- quedó huérfana cuando aquel modelo se sacó.
+--
+-- Se RENOMBRA en vez de borrarse. Está vacía y nadie la usa, pero renombrar es reversible y
+-- borrar no. Si se confirma que no hace falta, se elimina en una migración aparte y a
+-- conciencia.
+--
+-- El bloque es condicional para que esta migración también corra en una base limpia, donde
+-- esa tabla nunca existió.
+-- ---------------------------------------------------------------------------
+
+DO $$
+BEGIN
+  IF to_regclass('public."MemberCard"') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'MemberCard' AND column_name = 'tokenHash'
+     )
+  THEN
+    ALTER TABLE public."MemberCard" RENAME TO "MemberCard_legacy_20260501";
+    ALTER TABLE public."MemberCard_legacy_20260501"
+      RENAME CONSTRAINT "MemberCard_pkey" TO "MemberCard_legacy_20260501_pkey";
+    ALTER TABLE public."MemberCard_legacy_20260501"
+      RENAME CONSTRAINT "MemberCard_workspaceId_fkey" TO "MemberCard_legacy_20260501_workspaceId_fkey";
+    ALTER INDEX public."MemberCard_workspaceId_key"
+      RENAME TO "MemberCard_legacy_20260501_workspaceId_key";
+  END IF;
+END $$;
+
 -- Carnet de socio.
 --
 -- No hay columna "habilitado" a propósito: se calcula en cada consulta a partir de la
