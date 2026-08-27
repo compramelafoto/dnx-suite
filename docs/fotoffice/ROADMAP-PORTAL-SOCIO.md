@@ -27,6 +27,21 @@ Cada uno con su propio ciclo de diseño, plan e implementación.
 
 ### 1 · Portal del socio: identidad, cuenta y carnet
 
+**En curso.** Estado al 2026-08-27:
+
+| Paso | Estado |
+|---|---|
+| Importar el padrón real con su deuda | ✅ Hecho — ver [ANALISIS-PADRON-SFPR.md](ANALISIS-PADRON-SFPR.md) |
+| Escala histórica de la cuota | ✅ Cargada |
+| Exentos a categoría Honorario | ✅ 8 socios |
+| Baja transitoria por deuda | ✅ 45 socios |
+| Generación automática de septiembre | ✅ Verificada: cron, secreto y proyección de 99 cuotas |
+| Identidad del socio en la portada | ✅ Número, categoría y antigüedad |
+| Estado de cuenta con datos reales | ✅ Ya no miente: la deuda es la verdadera |
+| Emitir los carnets | ⏳ Pendiente — 0 emitidos, falta definir el diseño |
+| Cargar los emails faltantes | ⏳ Pendiente — 11 de los 107 activos no tienen |
+| Referido con mes bonificado | ⏳ Pendiente |
+
 Casi todo existe; falta ponerlo en marcha y rediseñar cómo se presenta.
 
 - Datos del socio: número, antigüedad, categoría, escala de cuota.
