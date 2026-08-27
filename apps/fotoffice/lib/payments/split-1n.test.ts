@@ -10,9 +10,16 @@ import {
 
 const APP_ROOT = path.resolve(__dirname, "../..");
 
-/** Símbolos que sólo aparecen si FotOffice empieza a consumir Split (1 a N). */
+/**
+ * Símbolos que sólo aparecen si FotOffice empieza a consumir Split (1 a N).
+ *
+ * `@repo/payments` estuvo en esta lista mientras FotOffice no cobraba nada: entonces
+ * cualquier import del paquete delataba el consumo de Split. Dejó de servir como señal
+ * cuando entraron las cuotas de socios, que usan Checkout Pro con `marketplace_fee` y
+ * el consentimiento OAuth del cobrador — modelo marketplace clásico, no Orders API.
+ * Lo que se vigila ahora son los símbolos propios de Split (1 a N).
+ */
 const FORBIDDEN_SPLIT_SYMBOLS = [
-  "@repo/payments",
   "buildMercadoPagoSplitOrderRequest",
   "createSplitPaymentOrder",
   "observeOrdersWebhook",
@@ -52,12 +59,23 @@ describe("FotOffice — Split de Pagos (1 a N) desactivado", () => {
     if (!guard.ok) expect(guard.reason).toBe("SPLIT_1N_DISABLED_FOR_FOTOFFICE");
   });
 
-  it("la app no declara @repo/payments como dependencia", () => {
-    const pkg = JSON.parse(
-      readFileSync(path.join(APP_ROOT, "package.json"), "utf8"),
-    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
-    expect(pkg.dependencies?.["@repo/payments"]).toBeUndefined();
-    expect(pkg.devDependencies?.["@repo/payments"]).toBeUndefined();
+  it("si la app usa @repo/payments, no importa nada de Split (1 a N)", () => {
+    const files = [
+      ...collectSourceFiles(path.join(APP_ROOT, "app")),
+      ...collectSourceFiles(path.join(APP_ROOT, "lib")),
+    ].filter((file) => path.dirname(file) !== __dirname);
+
+    const splitImports: string[] = [];
+    for (const file of files) {
+      const source = readFileSync(file, "utf8");
+      if (!source.includes("@repo/payments")) continue;
+      for (const symbol of FORBIDDEN_SPLIT_SYMBOLS) {
+        if (source.includes(symbol)) {
+          splitImports.push(`${path.relative(APP_ROOT, file)} → ${symbol}`);
+        }
+      }
+    }
+    expect(splitImports).toEqual([]);
   });
 
   it("ningún archivo de FotOffice referencia Split (1 a N) ni Orders API", () => {
