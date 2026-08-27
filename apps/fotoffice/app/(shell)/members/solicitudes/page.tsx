@@ -7,6 +7,9 @@ import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { listPendingApplications } from "@/lib/membership/inbox";
 import { getActiveFeeValue } from "@/lib/membership/settings";
+import { prisma } from "@repo/db";
+import { appUrl } from "@/lib/app-url";
+import { ApplicationFormShare } from "@/components/membership/application-form-share";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +27,23 @@ export default async function SolicitudesPage() {
   const puedeResolver = await canManageWorkspaceCollection(user.id, workspace.id);
   if (!puedeResolver) redirect("/members");
 
-  const [items, cobros, valorCuota] = await Promise.all([
+  const [items, cobros, valorCuota, branding] = await Promise.all([
     listPendingApplications(workspace.id),
     getWorkspaceCollectionStatus(workspace.id),
     getActiveFeeValue(workspace.id, null, new Date()),
+    prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { publicSlug: true },
+    }),
   ]);
+
+  // Solo se ofrece compartir si el formulario efectivamente abre. Repartir un enlace que
+  // recibe a la gente con "las inscripciones no están abiertas" es peor que no repartirlo.
+  const base = appUrl();
+  const publicUrl =
+    branding?.publicSlug && base && cobros.canCharge && valorCuota
+      ? `${base}/w/${branding.publicSlug}/asociarse`
+      : null;
 
   return (
     <div className="space-y-8">
@@ -36,6 +51,8 @@ export default async function SolicitudesPage() {
         title="Solicitudes de asociación"
         description="Revisá y resolvé los pedidos de ingreso. Al aprobar se crea el socio y se generan sus cuotas de ingreso."
       />
+
+      {publicUrl ? <ApplicationFormShare publicUrl={publicUrl} /> : null}
 
       {/* Dos condiciones sin las cuales aprobar no sirve de nada: se avisan antes, no al fallar. */}
       {!cobros.canCharge ? (

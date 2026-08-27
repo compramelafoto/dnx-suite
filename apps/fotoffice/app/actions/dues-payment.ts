@@ -12,6 +12,7 @@ import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { splitMinorByPlatformFee } from "@/lib/platform-fee/fee";
+import { appUrl } from "@/lib/app-url";
 import { withholdingForPayment } from "@/lib/platform-fee/debt";
 import { pendingFeeDebtMinor } from "@/lib/platform-fee/ledger";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -19,10 +20,6 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 export type StartDuesPaymentResult =
   | { ok: true; checkoutUrl: string }
   | { ok: false; error: string };
-
-function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").replace(/\/+$/, "");
-}
 
 /**
  * Arranca el pago de cuotas del socio que tiene la sesión abierta.
