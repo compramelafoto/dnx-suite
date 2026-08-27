@@ -200,13 +200,39 @@ Ese trabajo no está guardado en ninguna rama. Debe decidirse si se conserva o s
 
 El único fallo del typecheck viene de `packages/cuanto-cobro-core`, donde se quitaron las extensiones `.js` para que Turbopack resolviera los módulos. Es una decisión previa, no una regresión.
 
+### Integración de FotoRank — `c2b46b30`
+
+Los 2 commits de `feat/fotorank-el-pais-que-miramos` también entraron. El conflicto estaba en `apps/infospot/lib/markdown.tsx`, donde el **bloque de galería** (línea de socios) y el **video incrustado** (línea de FotoRank) son funciones distintas sobre el mismo archivo. Se resolvió con **unión, no elección**: imports de las dos, atributos del sanitizador de las dos —incluido el fallback de video en los enlaces— y una lógica de render que evalúa galería, después video y por último la foto.
+
+Un primer intento se abortó a propósito antes de entender bien el archivo. Se retomó con el análisis hecho y verificando con typecheck, tests y build de InfoSpot.
+
+### El guard de Split 1:N — `85bd8cb0`
+
+La integración hizo fallar 2 tests de `apps/fotoffice/lib/payments/split-1n.test.ts`. El test se escribió cuando FotOffice no cobraba nada, y usaba "cualquier import de `@repo/payments`" como señal de consumo de Split (1 a N). Esa señal dejó de servir al entrar las cuotas de socios.
+
+Se verificó archivo por archivo: **cero referencias** a `buildMercadoPagoSplitOrderRequest`, `createSplitPaymentOrder`, `observeOrdersWebhook`, `parseMercadoPagoOrdersNotification`, `split_rules`, `receiver_type` o las banderas `DNX_MP_ORDERS_1N`, en los 10 archivos que sí usan `@repo/payments`.
+
+Esos 10 archivos usan Checkout Pro con `marketplace_fee` y el consentimiento OAuth del cobrador: modelo marketplace clásico, no Orders API. **La decisión no cambió** — Split (1 a N) sigue desactivado a la espera de Mercado Pago, con `FOTOFFICE_SPLIT_1N_ENABLED` en `false` y el guard fallando cerrado. Lo que cambió es qué mira el test.
+
+### Estado final de `main` — `85bd8cb0`
+
+| Verificación | Resultado |
+|---|---|
+| Tests de FotoOffice | **1.209 / 1.209** en 99 archivos |
+| Build de FotoOffice | `exit 0` |
+| Build de InfoSpot | `exit 0` |
+| Build de FotoRank | `exit 0` |
+| `prisma validate` | Válido |
+| Typecheck del monorepo | 20 de 25. Falla `dnx-sales-assistant`, preexistente desde el 2026-07-19 |
+
+`main` contiene ahora todo: lo que sirve producción, el trabajo rescatado y la documentación.
+
 ### Lo que queda
 
-1. **Fusionar `integration/socios-main` a `main`.** Con eso la rama principal deja de ser una trampa. Es una decisión, no un trámite: cambia lo que cualquiera desplegaría desde `main`.
-2. **Apuntar la producción de Vercel a `main`** una vez que refleje lo publicado, para no depender de ramas de trabajo.
-3. **Integrar `feat/fotorank-el-pais-que-miramos`.** Sus 2 commits chocan con la integración en `apps/infospot/lib/markdown.tsx`: el bloque de galería (socios) y el video incrustado (FotoRank) son funciones distintas sobre el mismo archivo y necesitan unirse a mano, no elegir un lado. Se intentó y se abortó a propósito: conviene hacerlo con quien conozca el editor de video. El trabajo está a salvo y subido en su rama.
-4. **Verificar la base de datos de producción.** Los conteos del documento de contexto siguen sin confirmar.
-5. Recién después, retomar módulos pendientes (reservas, sorteos, tesorería, gobierno).
+1. **Definir la estrategia de despliegue.** Producción de FotoOffice se publica hoy desde ramas de trabajo, a mano: los últimos deployments salieron de `feat/socios-alta-cobros` y antes de una rama `release/…`. Ahora que `main` refleja lo publicado, conviene decidir si pasa a ser la rama de producción. **Esto no se hizo**: cambiarlo dispara un despliegue real y es una decisión operativa, no de orden del repositorio.
+2. **Aplicar la migración `20260827000000_fotorank_contest_media_assets`.** Es aditiva y segura —solo crea un enum y una tabla, sin filas—, pero en este proyecto ningún build ejecuta `prisma migrate deploy`. Hasta que se aplique, el build de FotoRank registra que la tabla no existe.
+3. **Verificar la base de datos de producción.** Los conteos del documento de contexto siguen sin confirmar.
+4. Recién después, retomar módulos pendientes (reservas, sorteos, tesorería, gobierno).
 
 ## 9. Cómo mantener este documento
 
