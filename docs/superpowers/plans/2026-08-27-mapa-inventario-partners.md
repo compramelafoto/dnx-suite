@@ -131,13 +131,14 @@ Agregar las cinco entradas al final de `AD_PLACEMENT_CATALOG`:
   {
     application: "FOTO_OFFICE",
     placementKey: "FOTOFFICE_PORTAL_BANNER",
-    name: "Activación destacada (portal del socio)",
-    description: "Placa al entrar al portal. Declarada: el portal todavía no la monta.",
-    allowedFormats: ["WELCOME_INTERSTITIAL", "STORY_VERTICAL", "SQUARE"],
+    name: "Banner del portal del socio",
+    description:
+      "Banner dentro del portal, no modal: FotoOffice está excluido de activaciones destacadas.",
+    allowedFormats: ["BANNER_HORIZONTAL", "BANNER_COMPACT", "BANNER_MOBILE", "CARD_PROMO"],
     deviceSupport: "ALL",
     maxItems: 1,
-    rotationMode: "STATIC",
-    trackingPlacement: "WELCOME",
+    rotationMode: "ROUND_ROBIN",
+    trackingPlacement: "BANNER",
     isActiveDefault: false,
   },
   {
