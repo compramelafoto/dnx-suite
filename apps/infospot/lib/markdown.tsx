@@ -3,8 +3,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import { resolveEditorialVideo } from "@repo/editor";
 import type { PublicEditorialPhotoViewModel } from "@/lib/public-coverage";
 import { PublicEditorialPhoto } from "@/components/public-coverage/PublicEditorialPhoto";
+import { VideoEmbed } from "@/components/editorial/video-embed";
+import { VideoEmbedFallback } from "@/components/editorial/video-embed-fallback";
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -19,22 +22,36 @@ const sanitizeSchema = {
     figure: [
       "className",
       "dataEditorialImage",
+      "dataEditorialVideo",
       "dataCredit",
       "dataCaption",
       "dataAssetId",
       "dataPhotoId",
       "dataDisplay",
+      "dataProvider",
+      "dataVideoId",
+      "dataUrl",
+      "dataWidth",
+      "dataAlignment",
+      "dataVariant",
       "data-editorial-image",
+      "data-editorial-video",
       "data-credit",
       "data-caption",
       "data-asset-id",
       "data-photo-id",
       "data-display",
+      "data-provider",
+      "data-video-id",
+      "data-url",
+      "data-width",
+      "data-alignment",
+      "data-variant",
     ],
     figcaption: ["className"],
     span: ["className", "dataCaption", "dataCreditText", "data-caption", "data-credit-text"],
     img: [...(defaultSchema.attributes?.img || []), "loading", "decoding", "className"],
-    a: [...(defaultSchema.attributes?.a || []), "rel", "target", "className"],
+    a: [...(defaultSchema.attributes?.a || []), "rel", "target", "className", "dataVideoFallback", "data-video-fallback"],
   },
 };
 
@@ -75,16 +92,33 @@ export function MarkdownBody({ content, photoById }: MarkdownBodyProps) {
       />
     ),
     figure: ({ children, ...props }) => {
-      const photoId = readDataAttr(
-        props as Record<string, unknown>,
-        "data-photo-id",
-        "dataPhotoId",
-      );
-      const display = readDataAttr(
-        props as Record<string, unknown>,
-        "data-display",
-        "dataDisplay",
-      );
+      const record = props as Record<string, unknown>;
+      const isVideo =
+        readDataAttr(record, "data-editorial-video", "dataEditorialVideo") === "true";
+
+      if (isVideo) {
+        const resolved = resolveEditorialVideo({
+          provider: readDataAttr(record, "data-provider", "dataProvider"),
+          videoId: readDataAttr(record, "data-video-id", "dataVideoId"),
+          url: readDataAttr(record, "data-url", "dataUrl"),
+          caption: readDataAttr(record, "data-caption", "dataCaption"),
+          width: readDataAttr(record, "data-width", "dataWidth"),
+          alignment: readDataAttr(record, "data-alignment", "dataAlignment"),
+          variant: readDataAttr(record, "data-variant", "dataVariant"),
+        });
+        if (!resolved.ok) {
+          return (
+            <VideoEmbedFallback
+              url={readDataAttr(record, "data-url", "dataUrl")}
+              caption={readDataAttr(record, "data-caption", "dataCaption") ?? undefined}
+            />
+          );
+        }
+        return <VideoEmbed video={resolved.value} />;
+      }
+
+      const photoId = readDataAttr(record, "data-photo-id", "dataPhotoId");
+      const display = readDataAttr(record, "data-display", "dataDisplay");
 
       if (photoId && photoById?.[photoId]) {
         const photo = photoById[photoId];

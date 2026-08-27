@@ -77,7 +77,7 @@ export function HomeLatestCoverages({ coverages, articles }: Props) {
             Últimas coberturas
           </h2>
         </div>
-        <Link href="/noticias" className="is-btn is-btn-ghost min-h-11 self-start">
+        <Link href="/" className="is-btn is-btn-ghost min-h-11 self-start">
           Ver más coberturas
         </Link>
       </div>

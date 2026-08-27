@@ -1,0 +1,31 @@
+{
+  "mcpServers": {
+    "DNX MCP": {
+      "command": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/services/dnx-mcp/node_modules/.bin/tsx",
+      "args": [
+        "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/services/dnx-mcp/src/index.ts"
+      ],
+      "cwd": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/services/dnx-mcp",
+      "env": {
+        "NODE_ENV": "development",
+        "LOG_LEVEL": "info",
+        "DNX_MCP_RELOAD_TOKEN": "4"
+      }
+    },
+    "playwright": {
+      "command": "/Users/danielcuart/.nvm/versions/node/v24.12.0/bin/npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--viewport-size",
+        "1280x720",
+        "--output-dir",
+        "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/packages/e2e/artifacts/mcp",
+        "--caps",
+        "vision"
+      ],
+      "env": {
+        "PATH": "/Users/danielcuart/.nvm/versions/node/v24.12.0/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
+    }
+  }
+}

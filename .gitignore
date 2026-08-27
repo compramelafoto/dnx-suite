@@ -110,3 +110,8 @@ apps/dnx-sales-assistant/.local/
 # FotoRank private local storage
 apps/fotorank/.data/
 .data/fotorank-private/
+
+# Artefactos de sesiones de prueba MCP (se regeneran, no versionar)
+packages/e2e/artifacts/
+# Datos locales de base de datos
+packages/db/.data/

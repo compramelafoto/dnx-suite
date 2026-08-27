@@ -51,7 +51,7 @@ export function HomeCoverageBlock({ imageArticle }: Props) {
           de lo que pasa cerca tuyo.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/noticias" className="is-btn is-btn-primary min-h-11">
+          <Link href="/" className="is-btn is-btn-primary min-h-11">
             Ver coberturas
           </Link>
           <Link href="/quienes-somos" className="is-btn is-btn-secondary min-h-11">

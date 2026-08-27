@@ -7,7 +7,11 @@ import assert from "node:assert/strict";
 import {
   buildEditorialPhotoCredit,
   buildEditorialPhotoCopyright,
+  parseEditorialPhotoCredit,
+  resolvePhotographerCompanyHref,
+  resolvePhotographerCredit,
 } from "./credit";
+import { splitDisplayName, joinDisplayName } from "../display-name";
 import {
   evaluateEditorialPhotosForPublish,
 } from "./checklist";
@@ -39,6 +43,52 @@ async function main() {
     const credit = buildEditorialPhotoCredit({ photographerName: "Juan Pérez" });
     assert.equal(credit, "Foto: Juan Pérez / ComprameLaFoto");
     assert.ok(buildEditorialPhotoCopyright("Juan").includes("Juan"));
+
+    const withCompany = buildEditorialPhotoCredit({
+      photographerName: "Juan Pérez",
+      companyName: "Estudio Norte",
+    });
+    assert.equal(withCompany, "Foto: Juan Pérez - /Estudio Norte");
+    const parsed = parseEditorialPhotoCredit(withCompany);
+    assert.equal(parsed.companyName, "Estudio Norte");
+    assert.equal(parsed.beforeCompany, "Foto: Juan Pérez - /");
+
+    assert.equal(
+      resolvePhotographerCompanyHref({ instagram: "@estudio.norte" }),
+      "https://instagram.com/estudio.norte",
+    );
+    assert.equal(
+      resolvePhotographerCompanyHref({
+        instagram: "https://www.instagram.com/estudio.norte/",
+        website: "https://estudio.example",
+      }),
+      "https://www.instagram.com/estudio.norte/",
+    );
+    assert.equal(
+      resolvePhotographerCompanyHref({ website: "estudio.example" }),
+      "https://estudio.example/",
+    );
+    assert.equal(
+      resolvePhotographerCompanyHref({ instagram: "javascript:alert(1)" }),
+      null,
+    );
+
+    const resolved = resolvePhotographerCredit({
+      id: 1,
+      name: "Juan Pérez",
+      email: "juan@example.com",
+      companyName: "Estudio Norte",
+      instagram: "@estudio.norte",
+      website: "https://estudio.example",
+    });
+    assert.equal(resolved.credit, "Foto: Juan Pérez - /Estudio Norte");
+    assert.equal(resolved.companyHref, "https://instagram.com/estudio.norte");
+
+    assert.deepEqual(splitDisplayName("Ayelén Fernandez Landeira"), {
+      firstName: "Ayelén",
+      lastName: "Fernandez Landeira",
+    });
+    assert.equal(joinDisplayName("Ayelén", "Fernandez Landeira"), "Ayelén Fernandez Landeira");
   }
 
   // Comercial mapping

@@ -7,6 +7,7 @@ import {
   requireInfoSpotAdminAccess,
 } from "@/lib/infospot-access";
 import { formatDateTimeEs } from "@/lib/dates";
+import { splitDisplayName } from "@/lib/display-name";
 import { redirect } from "next/navigation";
 import { AddMemberPanel } from "./add-member-panel";
 import { MemberCard, type MemberCardData } from "./member-card";
@@ -104,9 +105,12 @@ export default async function AdminUsuariosPage({
       m.role === "INFOSPOT_REDACTOR" &&
       m.status === "ACTIVE" &&
       synced.publicationPolicy === "REQUIRES_APPROVAL";
+    const { firstName, lastName } = splitDisplayName(m.user.name);
     return {
       userId: m.userId,
       name: m.user.name?.trim() || m.user.email,
+      firstName,
+      lastName,
       email: m.user.email,
       avatarUrl: m.user.logoUrl?.trim() || null,
       role: m.role,

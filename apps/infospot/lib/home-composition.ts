@@ -54,7 +54,7 @@ export function composeHomeEditorial(input: {
       latest: [],
       categoryBlocks: [],
       coverageImageArticle: null,
-      actualidadLinks: [{ href: "/noticias", label: "Últimas noticias" }],
+      actualidadLinks: [{ href: "/", label: "Últimas noticias" }],
     };
   }
 
@@ -99,7 +99,7 @@ export function composeHomeEditorial(input: {
     [featured, ...secondary, ...latest].find((a) => a?.coverImage?.url) ?? null;
 
   const actualidadLinks = [
-    { href: "/noticias", label: "Últimas noticias" },
+    { href: "/", label: "Últimas noticias" },
     ...categoryBlocks.slice(0, 4).map((c) => ({
       href: `/categorias/${c.slug}`,
       label: c.name,

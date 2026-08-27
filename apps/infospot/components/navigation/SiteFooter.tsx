@@ -65,7 +65,7 @@ export async function SiteFooter() {
               </li>
             ))}
             <li>
-              <Link href="/noticias" className="hover:text-[var(--is-accent)]">
+              <Link href="/" className="hover:text-[var(--is-accent)]">
                 Todas las noticias
               </Link>
             </li>

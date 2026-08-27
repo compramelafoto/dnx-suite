@@ -1,0 +1,19 @@
+{
+  "source": "DnxPartner synced in CLF production (read-only)",
+  "note": "Only partner with APPROVED brand asset in partners ads data. CDN /api/media path currently 404; visual uses official Vicario website logo matching the same brand.",
+  "sponsors": [
+    {
+      "id": "cmsip1cf1001eits37kqtkyx6",
+      "slug": "grupovicario",
+      "name": "Vicario",
+      "websiteUrl": "https://vicariodigital.com",
+      "campaignName": "Vicario — Nos acompañan",
+      "assetId": "cmsjp9crm0055la04zfemjcwq",
+      "storageKey": "clickaton/partners/cmsip1cf1001eits37kqtkyx6/brand/2026-08-08/5d67c4f4-86dd-4aaa-9b75-c113c9a9378a.png",
+      "localImage": "/sponsors/vicario.png",
+      "title": "Vicario",
+      "body": "Nos acompañan en la fotografía y la cultura.",
+      "ctaText": "Conocer la marca"
+    }
+  ]
+}

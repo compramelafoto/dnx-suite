@@ -89,7 +89,7 @@ async function main() {
   }
 
   for (const shot of FINAL) {
-    const url = `${HARNESS}/?platform=${shot.platform}&animation=${shot.animation}`;
+    const url = `${HARNESS}/?platform=${shot.platform}&animation=${shot.animation}&sponsor=grupovicario`;
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
     await page.waitForSelector('[role="dialog"]', { timeout: 10000 });

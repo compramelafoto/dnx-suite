@@ -1,5 +1,6 @@
 import { PartnerWelcomeInterstitial } from "@repo/design-system/components/partners";
 import type { CSSProperties } from "react";
+import { resolveVisualSponsor } from "./sponsors";
 
 type Platform = "clickaton" | "fotorank" | "infospot" | "clf";
 
@@ -10,6 +11,7 @@ const animation = (params.get("animation") || "fade") as
   | "slide-left"
   | "slide-right"
   | "slide-up";
+const sponsor = resolveVisualSponsor(params.get("sponsor"));
 
 const BACKGROUNDS: Record<Platform, { label: string; file: string; tint: string }> = {
   clickaton: {
@@ -40,7 +42,7 @@ const shell: CSSProperties = {
   backgroundImage: `${BACKGROUNDS[platform].tint}, url(${BACKGROUNDS[platform].file})`,
   backgroundSize: "cover",
   backgroundPosition: "center",
-  fontFamily: 'DM Sans, system-ui, sans-serif',
+  fontFamily: "DM Sans, system-ui, sans-serif",
 };
 
 const badge: CSSProperties = {
@@ -57,23 +59,23 @@ const badge: CSSProperties = {
 };
 
 /**
- * Harness local-only: componente real, tracking OFF (sin href/creativeId),
- * frequency cap deshabilitado, delay 0 para captura estable.
+ * Harness local-only: componente real (panel ~2×), tracking OFF,
+ * sponsor real (DB Partners) + logo local.
  */
 export function App() {
   const bg = BACKGROUNDS[platform];
   return (
     <div style={shell} data-visual-harness="sponsor-welcome" data-platform={platform}>
       <div style={badge} data-harness-badge="true">
-        FIXTURE LOCAL · {bg.label} · tracking OFF · no campaña real
+        FIXTURE LOCAL · {sponsor.name} · {bg.label} · tracking OFF · no campaña welcome
       </div>
       <PartnerWelcomeInterstitial
-        campaignId={`synthetic-visual-${platform}`}
-        partnerName="Sponsor de ejemplo"
-        imageUrl="/sponsor-ejemplo.svg"
-        title="Sponsor de ejemplo"
-        body="Acompañando la fotografía y la cultura."
-        ctaText="Conocer la marca"
+        campaignId={`visual-db-${sponsor.slug}-${platform}`}
+        partnerName={sponsor.name}
+        imageUrl={sponsor.localImage}
+        title={sponsor.title}
+        body={sponsor.body}
+        ctaText={sponsor.ctaText}
         sponsoredLabel="Contenido patrocinado"
         placementKey={`VISUAL_${platform.toUpperCase()}_WELCOME`}
         appearDelayMs={0}

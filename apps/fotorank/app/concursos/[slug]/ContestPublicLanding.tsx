@@ -64,8 +64,14 @@ function phaseTone(phase: ReturnType<typeof getLandingPhase>): StatusTone {
 export function ContestPublicLanding({
   data,
   partnerGroups = [],
+  managedBanner = null,
 }: {
   data: PublicContestLandingData;
+  /**
+   * Banner cargado desde el administrador. Gana sobre `coverImageUrl` y sobre
+   * el archivo fijado en código: es la decisión más reciente y más deliberada.
+   */
+  managedBanner?: { url: string; alt: string; focalPointX?: number; focalPointY?: number } | null;
   /** Preservado de dcdbda7e/c3c5b883: `page.tsx` la pasa como [] hoy (welcome
    * institucional se renderiza aparte, vía FotorankContestPartnerWelcome, fuera
    * de este componente) — se mantiene la prop y el render para no romper el tipo
@@ -89,7 +95,8 @@ export function ContestPublicLanding({
   const finalCta = finalCtaCopy(phase);
   const sfefBanner = "/contest-assets/santa-fe-en-foco/hero/hero-desktop.jpg";
   const sfefBannerMobile = "/contest-assets/santa-fe-en-foco/hero/hero-mobile.jpg";
-  const heroImage = contest.coverImageUrl ?? (isSfef ? sfefBanner : org.coverImageUrl) ?? null;
+  const heroImage =
+    managedBanner?.url ?? contest.coverImageUrl ?? (isSfef ? sfefBanner : org.coverImageUrl) ?? null;
   const inscripcionHref = `/concursos/${contest.slug}/inscripcion`;
   const categoriasCount = contest.categories.length;
   const maxObrasHint =
@@ -130,9 +137,15 @@ export function ContestPublicLanding({
         // SFEF que el ternario inline de 615df551, sin duplicar la regla).
         deadlineLabel={registrationCloseLabel(contest)}
         heroImageUrl={heroImage}
-        heroImageMobileUrl={isSfef ? sfefBannerMobile : heroImage}
+        heroImageMobileUrl={managedBanner ? heroImage : isSfef ? sfefBannerMobile : heroImage}
         layout={isSfef && heroImage ? "stacked" : "overlay"}
-        objectPosition={isSfef ? "78% 45%" : "50% 50%"}
+        objectPosition={
+          managedBanner
+            ? `${managedBanner.focalPointX ?? 50}% ${managedBanner.focalPointY ?? 50}%`
+            : isSfef
+              ? "78% 45%"
+              : "50% 50%"
+        }
         visibilityNote={
           contest.visibility !== "PUBLIC"
             ? contest.visibility === "UNLISTED"

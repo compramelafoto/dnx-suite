@@ -23,7 +23,7 @@ export function HomeLatestNews({ articles }: Props) {
         title="Últimas noticias"
         eyebrow="Redacción"
         description="Lo que la mesa de edición eligió para esta jornada."
-        actionHref="/noticias"
+        actionHref="/"
         actionLabel="Ver todas"
       />
 

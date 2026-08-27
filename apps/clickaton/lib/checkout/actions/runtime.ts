@@ -225,6 +225,12 @@ function paymentsG(): PaymentsG {
 
 function buildPaymentsClient(): DnxPaymentsClient {
   const webhookSecret = process.env.DNX_PAYMENTS_WEBHOOK_SECRET ?? "dev-only-webhook-secret";
+  /**
+   * Secreto de firma de Mercado Pago (`x-signature`): lo genera MP en su panel
+   * al registrar la URL de notificaciones. Va separado del HMAC interno DNX.
+   * Ausente ⇒ se usa el interno (comportamiento actual, sin romper nada).
+   */
+  const mercadoPagoWebhookSecret = readOptionalEnv("MERCADOPAGO_WEBHOOK_SECRET");
   const checkoutBaseUrl =
     process.env.CLICKATON_FAKE_CHECKOUT_BASE_URL ?? "https://payments.test/checkout";
   const publicUrl = readOptionalEnv("CLICKATON_PUBLIC_URL");
@@ -253,6 +259,7 @@ function buildPaymentsClient(): DnxPaymentsClient {
     return createDurableDnxPaymentsClient({
       persistence: createInMemoryDnxPaymentsPersistence(),
       webhookSecret,
+      ...(mercadoPagoWebhookSecret ? { mercadoPagoWebhookSecret } : {}),
       checkoutBaseUrl,
       notificationUrl: webhookPublic,
       providerBridge,
@@ -267,6 +274,7 @@ function buildPaymentsClient(): DnxPaymentsClient {
       prisma as unknown as DnxPaymentsPrismaDelegates,
     ),
     webhookSecret,
+    ...(mercadoPagoWebhookSecret ? { mercadoPagoWebhookSecret } : {}),
     checkoutBaseUrl,
     notificationUrl: webhookPublic,
     providerBridge,

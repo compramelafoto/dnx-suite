@@ -15,8 +15,9 @@ import {
 } from "../editorial-photo-processing";
 import { linkArticleToOrigin, normalizeClfExternalIdentity } from "../content-origin";
 import {
-  buildEditorialPhotoCopyright,
-  buildEditorialPhotoCredit,
+  isLegacyAutoPhotoCredit,
+  photographerCreditUserSelect,
+  resolvePhotographerCredit,
 } from "./credit";
 import {
   mapClfAvailabilityToEditorialCommercial,
@@ -75,7 +76,7 @@ export async function selectEditorialPhoto(input: {
       thumbWatermarkedKey: true,
       previewWatermarkedKey: true,
       userId: true,
-      uploadedBy: { select: { id: true, name: true, email: true } },
+      uploadedBy: { select: photographerCreditUserSelect },
       album: {
         select: {
           id: true,
@@ -88,7 +89,7 @@ export async function selectEditorialPhoto(input: {
           expirationExtensionDays: true,
           cleanupStatus: true,
           eventId: true,
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: photographerCreditUserSelect },
         },
       },
     },
@@ -100,10 +101,14 @@ export async function selectEditorialPhoto(input: {
   }
 
   const photographer = photo.uploadedBy ?? photo.album.user;
-  const photographerName = photographer.name?.trim() || photographer.email;
+  const resolvedCredit = resolvePhotographerCredit(photographer);
+  const photographerName = resolvedCredit.photographerName;
   if (!photographerName) {
     return { ok: false, error: "La fotografía no tiene autor identificado." };
   }
+  const credit = resolvedCredit.credit;
+  const copyrightText = resolvedCredit.copyrightText;
+  const photographerProfileUrl = resolvedCredit.companyHref;
 
   const commercial = resolveEditorialCommercialFromAlbum({
     publicSlug: photo.album.publicSlug,
@@ -132,8 +137,6 @@ export async function selectEditorialPhoto(input: {
         "Esta foto solo tiene preview con marca de agua. No se puede publicar hasta que exista el original en CLF.",
     };
   }
-  const credit = buildEditorialPhotoCredit({ photographerName });
-  const copyrightText = buildEditorialPhotoCopyright(photographerName);
   const externalId = String(photo.id);
 
   // InfoSpotEvent id (cuid) if we have coverage/article linkage — soft clf event id stored separately
@@ -177,7 +180,7 @@ export async function selectEditorialPhoto(input: {
         photographerExternalId: photographer.id ? String(photographer.id) : null,
         photographerUserId: photographer.id,
         photographerName,
-        photographerProfileUrl: null,
+        photographerProfileUrl,
         albumUrl: commercial.albumUrl,
         purchaseUrl: commercial.purchaseUrl,
         commercialStatus: commercial.status,
@@ -201,12 +204,16 @@ export async function selectEditorialPhoto(input: {
         photographerName,
         photographerUserId: photographer.id,
         photographerExternalId: String(photographer.id),
+        photographerProfileUrl,
         albumUrl: commercial.albumUrl,
         purchaseUrl: commercial.purchaseUrl,
         commercialStatus: commercial.status,
         // Siempre refrescar a original limpio (sin watermark).
         sourceStorageKey: sourceKey,
-        credit: existing.credit || credit,
+        credit:
+          !existing.credit || isLegacyAutoPhotoCredit(existing.credit, photographerName)
+            ? credit
+            : existing.credit,
         copyrightText: existing.copyrightText || copyrightText,
         lastSyncedAt: new Date(),
         ...(sourceChanged

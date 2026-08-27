@@ -7,8 +7,8 @@ Frequency cap: **deshabilitado** solo en harness (`disableFrequencyCap`)
 Campañas reales: **ninguna**  
 Flags productivos welcome: **no activados**
 
-> Estas capturas NO representan una campaña publicada. Usan un **sponsor sintético** (“Sponsor de ejemplo”) y fondos tomados de páginas públicas con flags OFF.  
-> Pack compartible: [`sponsor-global-validacion-visual.zip`](./sponsor-global-validacion-visual.zip) (`desktop/`, `mobile/`, `README.md`).
+> Estas capturas NO representan una campaña welcome publicada. Usan el sponsor real **Vicario** (único con asset APPROVED en el snapshot Partners/CLF) y fondos públicos con flags OFF.  
+> Panel welcome ~**2×** (`56rem` / imagen `40rem`). Pack: [`sponsor-global-validacion-visual.zip`](./sponsor-global-validacion-visual.zip).
 
 ## Método
 
@@ -36,12 +36,12 @@ El harness es **solo local** (`127.0.0.1:5199`). No se desplegó.
 | 3b | [`03b-infospot-home-sponsor-welcome-mobile.png`](./03b-infospot-home-sponsor-welcome-mobile.png) | 390×844 |
 | 4b | [`04b-clf-album-sponsor-welcome-mobile.png`](./04b-clf-album-sponsor-welcome-mobile.png) | 390×844 |
 
-## Sponsor sintético
+## Sponsor (DB Partners)
 
-- Nombre: Sponsor de ejemplo  
-- Asset: `sponsor-ejemplo.svg` + `harness/public/sponsor-ejemplo.svg`  
-- **Sin CTA interno** en el SVG (Etapa 8B): el único CTA es el de `PartnerWelcomeInterstitial`  
-- **No** incorporado a DNX Partners Production  
+- **Vicario** (`cmsip1cf1001eits37kqtkyx6`) — único partner con `DnxPartnerAsset` APPROVED en el snapshot de ads (CLF prod, solo lectura)
+- Logo local: `harness/public/sponsors/vicario.png` (CDN `/api/media/clickaton/...` responde 404; se usó logo oficial de vicariodigital.com)
+- CTA único: el de `PartnerWelcomeInterstitial`
+- Sin campaña welcome activa / sin tracking en harness
 
 ## Fondos de referencia
 

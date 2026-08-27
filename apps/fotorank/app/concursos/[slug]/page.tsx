@@ -8,6 +8,7 @@ import {
   toFotorankContestWelcomePublicPayload,
 } from "../../lib/fotorank/partners/contest-welcome";
 import { getPublicContestLandingBySlug } from "../../lib/fotorank/publicContestLanding";
+import { resolveManagedContestMedia } from "../../lib/fotorank/contest-media";
 import { getPublicContestCardBySlug, parseUpcomingConfig } from "../../lib/fotorank/upcoming/service";
 import { getMyContestInterestAction } from "../../actions/contest-interest";
 import { UpcomingContestLanding } from "../../components/contest-upcoming/UpcomingContestLanding";
@@ -21,11 +22,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const data = await getPublicContestLandingBySlug(slug);
   if (!data) return { title: "Concurso | FotoRank" };
 
+  /**
+   * Imágenes cargadas desde el administrador. En absoluto porque las redes no
+   * resuelven rutas relativas al generar la vista previa del enlace.
+   */
+  const managed = await resolveManagedContestMedia(data.contest.id, { absolute: true });
+
   const theme = resolveContestVisualTheme(slug, undefined, {
     coverImageUrl: data.contest.coverImageUrl,
     organizerLogoUrl: data.organization.logoUrl,
     contestTitle: data.contest.title,
     organizerName: data.organization.name,
+    managed,
   });
   const social = theme.presentation.social;
 
@@ -87,9 +95,13 @@ export default async function ContestPublicPage({ params }: Props) {
         ? new Date(config.interestBenefitCutoffAt)
         : null;
 
+      /** Imágenes cargadas desde el administrador para este concurso próximo. */
+      const upcomingManaged = await resolveManagedContestMedia(card.id);
+
       return (
         <UpcomingContestLanding
           card={card}
+          managed={upcomingManaged}
           interest={
             interest
               ? { status: interest.status, benefitEligible: interest.benefitEligible }
@@ -119,10 +131,20 @@ export default async function ContestPublicPage({ params }: Props) {
   });
   const welcomePayload = welcomeAd ? toFotorankContestWelcomePublicPayload(welcomeAd) : null;
 
+  /**
+   * Banner cargado desde el administrador. Relativo: lo consume el navegador de
+   * quien visita, no una red social, así que no hace falta URL absoluta.
+   */
+  const landingManaged = await resolveManagedContestMedia(data.contest.id);
+
   // Partners institucionales: partnerGroups=[] intacto (no activar ContestPartnersSection).
   return (
     <>
-      <ContestPublicLanding data={data} partnerGroups={[]} />
+      <ContestPublicLanding
+        data={data}
+        partnerGroups={[]}
+        managedBanner={landingManaged.banner ?? null}
+      />
       <FotorankContestPartnerWelcome ad={welcomePayload} />
     </>
   );

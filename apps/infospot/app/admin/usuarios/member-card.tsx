@@ -29,6 +29,8 @@ export type MemberCardData = {
   lastChangedByLabel: string;
   lastAccessLabel: string;
   needsReview: boolean;
+  firstName: string;
+  lastName: string;
 };
 
 function RoleBadge({ role }: { role: string }) {
@@ -167,6 +169,29 @@ export function MemberCard({ member }: { member: MemberCardData }) {
       <form action={updateAction} className="mt-8 space-y-6 border-t border-[var(--is-border)] pt-8">
         <input type="hidden" name="userId" value={member.userId} />
         <div className="grid gap-6 sm:grid-cols-3">
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--is-muted)]">
+              Nombre
+            </label>
+            <input
+              name="firstName"
+              defaultValue={member.firstName}
+              required
+              maxLength={80}
+              className="min-h-11 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg)] px-3 text-sm"
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--is-muted)]">
+              Apellido
+            </label>
+            <input
+              name="lastName"
+              defaultValue={member.lastName}
+              maxLength={120}
+              className="min-h-11 w-full rounded-[var(--is-radius-sm)] border border-[var(--is-border)] bg-[var(--is-bg)] px-3 text-sm"
+            />
+          </div>
           <div className="space-y-2">
             <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--is-muted)]">
               Rol
@@ -368,6 +393,8 @@ export function MemberCard({ member }: { member: MemberCardData }) {
           onConfirm={updateAction}
           hiddenFields={{
             userId: String(member.userId),
+            firstName: member.firstName,
+            lastName: member.lastName,
             role: member.role,
             status: "DISABLED",
             publicationPolicy: member.publicationPolicy,
