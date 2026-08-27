@@ -72,6 +72,12 @@ export function MembershipApplicationForm({
             </label>
             <input id="taxId" name="taxId" className="fo-input" maxLength={24} />
           </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="birthDate">
+              Fecha de nacimiento <span className="text-[var(--fo-muted-soft)]">(opcional)</span>
+            </label>
+            <input id="birthDate" name="birthDate" type="date" className="fo-input" />
+          </div>
         </div>
       </section>
 
@@ -117,6 +123,12 @@ export function MembershipApplicationForm({
             </label>
             <input id="province" name="province" className="fo-input" maxLength={120} />
           </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="postalCode">
+              Código postal
+            </label>
+            <input id="postalCode" name="postalCode" className="fo-input" maxLength={20} />
+          </div>
         </div>
       </section>
 
@@ -126,7 +138,7 @@ export function MembershipApplicationForm({
           {(
             [
               ["PLENA", "Profesional en ejercicio", "Cuota plena. Vota y puede integrar la comisión directiva."],
-              ["REDUCIDA", "Estudiante", "Paga el 50%. Sujeto a que la Secretaría confirme tu condición."],
+              ["REDUCIDA", "Estudiante", "Cuota con descuento, según el convenio vigente con tu institución. La Secretaría verifica tu condición antes de aplicarlo."],
               ["COLABORADOR", "Aficionado", "Aporte libre, con un mínimo. No vota."],
             ] as const
           ).map(([value, title, desc]) => (
@@ -166,6 +178,7 @@ export function MembershipApplicationForm({
               className="fo-input"
               required
               maxLength={200}
+              placeholder="Escuela, terciario o universidad"
             />
             <p className="fo-helper">
               ⚠️ La cuota reducida queda sujeta a que la Secretaría confirme tu condición de
@@ -205,6 +218,40 @@ export function MembershipApplicationForm({
           </p>
         </section>
       ) : null}
+
+      {/*
+        Se pregunta acá y no después porque es una decisión de plata: quien se asocia tiene que
+        poder sumar lo que va a pagar antes de enviar, no enterarse por una pantalla posterior.
+        La foto no se pide en este formulario. El formulario es público y abrir la subida de
+        archivos a internet solo para esto no compensa: se sube desde el portal, ya como socio.
+      */}
+      <section className="fo-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold">La credencial de socio</h2>
+        <label className="flex items-start gap-3 text-sm leading-relaxed">
+          <input
+            type="checkbox"
+            name="wantsPrintedCard"
+            className="mt-1 h-4 w-4 shrink-0"
+          />
+          <span>
+            Quiero también la <strong>credencial impresa</strong>
+            {monthlyAmountLabel ? (
+              <>
+                , que cuesta <strong>{monthlyAmountLabel}</strong> por única vez
+              </>
+            ) : null}
+            .
+          </span>
+        </label>
+        <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+          La credencial digital la tenés siempre, sin costo, en tu portal de socio. La impresa es
+          opcional.
+        </p>
+        <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+          Cuando seas socio te vamos a pedir, desde el portal, una <strong>foto carnet</strong>:
+          4×4 cm, fondo blanco, de frente y sin anteojos oscuros. Podés ir teniéndola lista.
+        </p>
+      </section>
 
       {state.error ? (
         <p className="text-sm text-[var(--fo-danger)]" role="alert">

@@ -7187,6 +7187,10 @@ model MembershipApplication {
   avatarUrl         String?
   /// Socio que presenta al aspirante, si el estatuto lo exige.
   presenterMemberId String?
+  /// Si al asociarse pidió también la credencial impresa. La foto no se pide en el formulario:
+  /// se sube desde el portal cuando ya es socio, porque el formulario es público y abrir la
+  /// subida de archivos a internet para eso no compensa.
+  wantsPrintedCard  Boolean        @default(false)
 
   status           MembershipApplicationStatus @default(PENDIENTE)
   /// Motivo del rechazo. Obligatorio al rechazar; se le comunica a la persona.

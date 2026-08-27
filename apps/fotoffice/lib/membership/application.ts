@@ -44,8 +44,32 @@ const schema = z
       .nullable()
       .refine((v) => !v || /^\d+([.,]\d{1,2})?$/.test(v), "El monto no parece válido.")
       .refine((v) => !v || Number(v.replace(",", ".")) > 0, "El monto debe ser mayor a cero."),
+    /**
+     * Fecha de nacimiento. Opcional: no todo el mundo la tiene a mano al asociarse y no vale
+     * la pena perder una solicitud por eso. Se validan los extremos porque el padrón migrado
+     * ya trajo fechas imposibles —alguien asociándose a los 5 años— y conviene cortarlas acá.
+     */
+    birthDate: z
+      .string()
+      .trim()
+      .optional()
+      .nullable()
+      .refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), "La fecha de nacimiento no es válida.")
+      .refine((v) => {
+        if (!v) return true;
+        const d = new Date(`${v}T00:00:00.000Z`);
+        if (Number.isNaN(d.getTime())) return false;
+        const anio = d.getUTCFullYear();
+        return anio >= 1900 && d.getTime() <= Date.now();
+      }, "Revisá la fecha de nacimiento."),
     avatarUrl: texto(600).optional().nullable(),
     presenterMemberId: texto(64).optional().nullable(),
+    /** Un checkbox llega como "on"; desde código puede llegar como booleano. */
+    wantsPrintedCard: z
+      .union([z.boolean(), z.string()])
+      .optional()
+      .nullable()
+      .transform((v) => v === true || v === "on" || v === "true"),
   })
   .refine(
     (d) => d.declaredFeeScale !== "REDUCIDA" || Boolean(d.originInstitution?.trim()),
@@ -67,8 +91,10 @@ export type ParsedApplication = {
   declaredFeeScale: (typeof DECLARABLE_SCALES)[number];
   originInstitution: string | null;
   ownDuesAmount: Prisma.Decimal | null;
+  birthDate: Date | null;
   avatarUrl: string | null;
   presenterMemberId: string | null;
+  wantsPrintedCard: boolean;
 };
 
 export type ParseResult =
@@ -117,8 +143,10 @@ export function parseApplication(raw: unknown): ParseResult {
       ownDuesAmount: d.ownDuesAmount
         ? new Prisma.Decimal(d.ownDuesAmount.replace(",", "."))
         : null,
+      birthDate: d.birthDate ? new Date(`${d.birthDate}T00:00:00.000Z`) : null,
       avatarUrl: nulo(d.avatarUrl),
       presenterMemberId: nulo(d.presenterMemberId),
+      wantsPrintedCard: d.wantsPrintedCard,
     },
   };
 }

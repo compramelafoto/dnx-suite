@@ -102,3 +102,53 @@ describe("parseApplication", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+describe("parseApplication — fecha de nacimiento", () => {
+  it("la acepta y la deja como fecha", () => {
+    const r = parseApplication({ ...valida, birthDate: "1985-11-16" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.birthDate?.toISOString().slice(0, 10)).toBe("1985-11-16");
+  });
+
+  it("es opcional: sin ella la solicitud sigue siendo válida", () => {
+    const r = parseApplication(valida);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.birthDate).toBeNull();
+  });
+
+  it("rechaza una fecha futura", () => {
+    const r = parseApplication({ ...valida, birthDate: "2999-01-01" });
+    expect(r.ok).toBe(false);
+  });
+
+  /** El padrón migrado ya trajo fechas imposibles: conviene cortarlas en la puerta. */
+  it("rechaza una fecha absurda por lo vieja", () => {
+    const r = parseApplication({ ...valida, birthDate: "1850-01-01" });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rechaza un texto que no es una fecha", () => {
+    const r = parseApplication({ ...valida, birthDate: "el año pasado" });
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe("parseApplication — credencial impresa", () => {
+  it("por omisión no la pide", () => {
+    const r = parseApplication(valida);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.wantsPrintedCard).toBe(false);
+  });
+
+  it("la marca cuando el formulario la manda tildada", () => {
+    const r = parseApplication({ ...valida, wantsPrintedCard: "on" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.wantsPrintedCard).toBe(true);
+  });
+
+  it("acepta también un booleano", () => {
+    const r = parseApplication({ ...valida, wantsPrintedCard: true });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.wantsPrintedCard).toBe(true);
+  });
+});
