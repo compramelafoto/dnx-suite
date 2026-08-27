@@ -258,8 +258,19 @@ export function MembershipApplicationForm({
         {quiereCarnet ? (
           <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
             <p className="text-sm font-medium">La foto que vas a necesitar</p>
+            <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+              Es un <strong>archivo digital</strong> que vas a subir desde el portal. No hace
+              falta imprimirla ni llevarla en papel: la credencial se imprime acá.
+            </p>
             <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--fo-muted)] leading-relaxed">
-              <li>Tamaño <strong>4×4 cm</strong>, formato carnet.</li>
+              <li>
+                <strong>Cuadrada</strong>, relación 1:1 — el equivalente digital del 4×4 cm.
+              </li>
+              <li>
+                <strong>800 × 800 píxeles o más.</strong> El mínimo para que imprima bien es
+                472 × 472, que es 4×4 cm a 300 DPI.
+              </li>
+              <li>JPG, PNG o WebP, hasta 3 MB.</li>
               <li><strong>Fondo blanco</strong>, liso y sin sombras.</li>
               <li>De frente, con la cara descubierta y centrada.</li>
               <li>Sin anteojos oscuros, sin gorra y sin filtros.</li>

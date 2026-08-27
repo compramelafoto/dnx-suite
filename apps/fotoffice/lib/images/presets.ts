@@ -60,8 +60,13 @@ export const IMAGE_PRESETS = {
     heightRecommended: 800,
     aspectRatio: { width: 1, height: 1 },
     aspectRatioTolerance: 0.15,
-    minWidth: 200,
-    minHeight: 200,
+    /**
+     * 472 px es 4×4 cm a 300 DPI: el mínimo para que la credencial impresa no salga pixelada.
+     * Es más exigente que un avatar de pantalla a propósito — esta foto termina impresa, y una
+     * imagen que se ve bien en el perfil puede salir borrosa en la tarjeta.
+     */
+    minWidth: 472,
+    minHeight: 472,
     maxFileSizeBytes: 3 * MB,
     acceptedFormats: ["image/jpeg", "image/png", "image/webp"],
     objectFit: "cover",
