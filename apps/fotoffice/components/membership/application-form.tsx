@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { PhotoGuide } from "./photo-guide";
 import {
   submitApplicationAction,
   type ApplicationFormState,
@@ -262,6 +263,8 @@ export function MembershipApplicationForm({
               Es un <strong>archivo digital</strong> que vas a subir desde el portal. No hace
               falta imprimirla ni llevarla en papel: la credencial se imprime acá.
             </p>
+            <PhotoGuide />
+
             <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--fo-muted)] leading-relaxed">
               <li>
                 <strong>Cuadrada</strong>, relación 1:1 — el equivalente digital del 4×4 cm.
