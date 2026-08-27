@@ -102,22 +102,63 @@ explícitamente en segunda etapa.
 
 No son un subproyecto: atraviesan a los demás y conviene decidirlas una sola vez.
 
-### Google Contacts
+### Google Contacts — alcance acotado por decisión
 
-Cada socio nuevo debe agendarse **automáticamente** en los contactos de
-`sfprosario@gmail.com`, con número de socio, nombre, apellido, email, teléfono, domicilio y
-el resto de su información, y **mantenerse sincronizado** ante cada cambio.
+Cada socio nuevo se agenda **automáticamente** en los contactos de `sfprosario@gmail.com`, y
+se mantiene sincronizado ante cada cambio.
+
+**Solo nombre, apellido, teléfono y número de socio.** No se sincronizan documento, domicilio
+ni otros datos sensibles.
+
+**Por qué:** esa cuenta vive en el teléfono de la Sociedad, que usa la secretaría. El objetivo
+es que cuando un socio escriba al WhatsApp de la SFPR, quien atienda sepa de inmediato con
+quién habla. Para eso alcanza el nombre y el teléfono; volcar el padrón entero a una casilla
+de Gmail agregaría riesgo sin agregar utilidad.
 
 ### Google Calendar
 
 La agenda de reservas debe estar asociada al calendario de la Sociedad.
 
+## Sorteos: la transparencia no la da la animación
+
+Registrado para cuando se diseñe el módulo.
+
+Si el servidor elige al ganador y después se muestra una ruleta que "cae" en ese nombre, eso
+es una animación, no una prueba. Un socio desconfiado no tiene cómo verificar que no se eligió
+a dedo.
+
+Para que sea auditable, el resultado tiene que poder **comprobarse después**: se publica antes
+del sorteo una huella del número secreto que se usará, y se revela ese número al terminar.
+Cualquiera recalcula y confirma que el ganador salió de ahí. La ruleta sigue, pero como puesta
+en escena de algo que además se puede verificar.
+
+La diferencia práctica: en un caso el socio tiene que confiar en la Comisión; en el otro no
+hace falta que confíe.
+
+## Configuración de cobro ya cargada
+
+Verificado en producción el 2026-08-27. Resuelve pendientes que el documento de contexto daba
+por abiertos.
+
+| Definición | Valor |
+|---|---|
+| Cuota Profesional | $8.000 — la pagan los 152 socios |
+| Cuota Estudiante | $4.000 — sin socios asignados |
+| Cuota Aficionado | $8.000 — sin socios asignados |
+| Honorario | Sin valor cargado: exento |
+| Generación | Día 1 de cada mes |
+| Vencimiento | Día 10 |
+| Gracia | 5 días |
+| **"Cuota al día"** | **Hasta el día 15 inclusive** |
+| Interés por mora | 0% |
+| Cuotas al asociarse | 3 |
+| Baja por deuda | 3 consecutivas, o 5 alternadas en 24 meses |
+
 ## Pendientes de decisión
 
-1. Quién carga el contenido institucional, y con qué frecuencia. Sin esto, la vida
+1. **Desde qué mes se generan las cuotas.** Nunca se generó ninguna. Generar retroactivo crea
+   deuda real para 152 personas.
+2. Quién carga el contenido institucional, y con qué frecuencia. Sin esto, la vida
    institucional no es sostenible.
-2. Qué significa exactamente "cuota al día": si hay período de gracia y desde cuándo cuenta.
-   Habilita sorteos y beneficios, así que no es un detalle.
-3. Si las 4 categorías de socio (Estudiante, Profesional, Aficionado, Honorario) se aplican
-   de verdad: hoy los 152 son `Profesional`.
+3. Si las 4 categorías se aplican de verdad: hoy los 152 son `Profesional`.
 4. Qué se hace con los 6 workspaces de prueba. Daniel indicó que podrían eliminarse.
