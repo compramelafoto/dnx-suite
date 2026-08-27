@@ -297,3 +297,55 @@ FotoOffice está **construido, publicado y probado, pero sin usar**. La distanci
 ## 9. Cómo mantener este documento
 
 Debe actualizarse cada vez que se verifique el estado real, no cada vez que se converse sobre el proyecto. Si una fila queda sin confirmar, marcarla como `SIN VERIFICAR` en lugar de suponer.
+
+---
+
+# La causa raíz: producción está desacoplada de git — 2026-08-27
+
+## Qué se observó
+
+Al publicar el portal mejorado, empujar la rama generó un **Preview**, no un despliegue de
+producción. Revisando los últimos ocho deployments:
+
+| Push | Resultado |
+|---|---|
+| A `main` (varios el mismo día) | preview |
+| A `feat/socios-alta-cobros` | preview |
+| El único de producción | promovido **a mano** con `vercel promote` |
+
+**Ninguna de las dos ramas está configurada como rama de producción en Vercel.** Todo push
+genera un preview, y producción solo ocurre cuando alguien promueve explícitamente.
+
+## Por qué importa
+
+Esto explica el problema que abrió toda la revisión: `main` llegó a estar 122 commits atrás de
+lo que estaba publicado, y nadie lo notó.
+
+Con producción desacoplada de git, **publicar no deja rastro en el repositorio**. No hay forma
+de mirar una rama y saber qué está en el aire, ni de que el equipo se entere de que alguien
+publicó. Cada despliegue depende de que una persona se acuerde de promover, desde la rama
+correcta, en el momento correcto.
+
+Los tres síntomas que encontramos son consecuencia de esto, no causas independientes:
+
+1. `main` sin el portal del socio ni las cuotas ni los carnets.
+2. Producción corriendo desde una rama de trabajo.
+3. Una rama `release/…` abandonada que el documento de contexto daba por productiva.
+
+## La corrección
+
+Configurar `main` como **Production Branch** en Vercel: panel del proyecto
+`fotoffice-dnxsuite` → Settings → Git → Production Branch.
+
+**No se puede hacer desde el CLI.** `vercel project` solo ofrece `add`, `inspect`, `list` y
+`checks`; `vercel git` solo conecta o desconecta el repositorio. Es una configuración del panel
+web y la tiene que hacer alguien con acceso.
+
+Una vez hecho, `git push origin main` publica, y la rama principal vuelve a ser la fuente de
+verdad de lo que está en el aire. Hasta entonces, cada publicación necesita un
+`vercel promote` manual.
+
+## Estado al momento de escribir esto
+
+`fotoffice.com` sirve el deployment `ke6tgwldh`, promovido manualmente, con el contenido de
+`main`. Los cinco dominios responden y las rutas del socio dan 200.
