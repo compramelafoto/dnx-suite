@@ -234,6 +234,66 @@ Esos 10 archivos usan Checkout Pro con `marketplace_fee` y el consentimiento OAu
 3. **Verificar la base de datos de producción.** Los conteos del documento de contexto siguen sin confirmar.
 4. Recién después, retomar módulos pendientes (reservas, sorteos, tesorería, gobierno).
 
+## 8.bis Base de datos de producción — verificada el 2026-08-27
+
+Consulta de solo lectura sobre la base de Neon de producción. Solo agregados: no se leyeron datos personales.
+
+**Nota:** `packages/db/.env` y `.vercel/.env.production.local` apuntan a la **misma base**. Desarrollar en local implica estar conectado a producción.
+
+### Workspaces
+
+Siete workspaces, uno solo con datos reales:
+
+| Workspace | Socios |
+|---|---:|
+| **SFPR** | **152** |
+| DNX Owner, DNX Estudio, Workspace Demo, QA FotoOffice Smoke, CK11D Jury WS, Sociedad de Fotógrafos | 0 cada uno |
+
+Daniel confirmó que el único válido es el de `sfprosario@gmail.com`; el resto son de prueba y podrían eliminarse. **No se eliminó ninguno**: es una decisión aparte.
+
+### El padrón
+
+Los 152 socios del documento de contexto **se confirman**.
+
+| Dimensión | Resultado |
+|---|---|
+| Estado | 152 `ACTIVE`. Ninguno suspendido ni dado de baja |
+| Escala de cuota | 152 `PLENA`. Ninguno reducido ni exento |
+| Categoría | 152 `Profesional`, aunque hay 4 definidas (Estudiante, Profesional, Aficionado, Honorario) |
+| Con email cargado | 136 de 152. **16 sin email** |
+| Con acceso al portal | **1** de 152 |
+
+### Deuda: cero, pero no por estar al día
+
+| | |
+|---|---:|
+| Cuotas generadas | **0** |
+| Pagos registrados | **0** |
+| Deuda total | **$0** |
+| Carnets emitidos | **0** |
+
+La deuda es cero porque **nunca se emitió una cuota**, no porque los socios hayan pagado. El cobro está configurado —existe la configuración del workspace y 3 valores de cuota cargados— pero nunca se corrió la generación.
+
+### La primera invitación real: se hizo, y funcionó
+
+El documento de contexto la daba como pendiente. La auditoría muestra que se completó:
+
+| Auditoría | Veces |
+|---|---:|
+| `INVITE_CREATED` | 1 |
+| `INVITE_RESENT` | 1 |
+| `INVITE_ACCEPTED` | 1 |
+| `USER_LINKED` | 1 |
+| `UPDATED` | 1 |
+
+Dos invitaciones en total: una aceptada, una revocada, ninguna con fallo de envío. La cadena `CREATED → RESENT → ACCEPTED → USER_LINKED` cerró correctamente, y coincide con el único socio que tiene acceso al portal.
+
+**La Etapa 3 del plan está cumplida.** El recorrido completo —invitación, creación de contraseña, login, regreso, aceptación y vinculación— funciona en producción con un socio real.
+
+### Conclusión
+
+FotoOffice está **construido, publicado y probado, pero sin usar**. La distancia que queda no es de programación: es de puesta en marcha. Cargar los 16 emails faltantes, revisar si las 4 categorías deben aplicarse de verdad, generar la primera camada de cuotas e invitar al resto del padrón.
+
 ## 9. Cómo mantener este documento
 
 Debe actualizarse cada vez que se verifique el estado real, no cada vez que se converse sobre el proyecto. Si una fila queda sin confirmar, marcarla como `SIN VERIFICAR` en lugar de suponer.
