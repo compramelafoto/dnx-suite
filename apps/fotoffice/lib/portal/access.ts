@@ -14,7 +14,16 @@ import { prisma } from "@repo/db";
  */
 
 export type PortalContext = {
-  member: { id: string; firstName: string; lastName: string; memberNumber: string };
+  member: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    memberNumber: string;
+    /** Desde cuándo pertenece. Migrado de otro sistema: puede venir con fechas raras. */
+    joinedAt: Date;
+    /** Nombre de la categoría, o `null` si la ficha no tiene una asignada. */
+    categoryName: string | null;
+  };
   workspace: { id: string; name: string };
 };
 
@@ -26,6 +35,8 @@ export async function loadPortalContext(userId: number): Promise<PortalContext |
       firstName: true,
       lastName: true,
       memberNumber: true,
+      joinedAt: true,
+      category: { select: { name: true } },
       workspace: { select: { id: true, name: true } },
     },
     // Determinista si alguien es socio de más de una institución. El selector de institución
@@ -40,6 +51,8 @@ export async function loadPortalContext(userId: number): Promise<PortalContext |
       firstName: member.firstName,
       lastName: member.lastName,
       memberNumber: member.memberNumber,
+      joinedAt: member.joinedAt,
+      categoryName: member.category?.name ?? null,
     },
     workspace: member.workspace,
   };

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
 import { loadMemberAccount } from "@/lib/membership/account";
 import { formatMinorArs } from "@/lib/membership/money";
+import { describeSeniority } from "@/lib/portal/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function PortalPage() {
   });
   const institution = branding?.commercialName?.trim() || context.workspace.name;
   const account = await loadMemberAccount(context.member.id);
+  const antiguedad = describeSeniority(context.member.joinedAt, new Date());
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
@@ -55,11 +57,33 @@ export default async function PortalPage() {
             <p className="text-sm font-semibold">{institution}</p>
           </div>
 
-          <div className="space-y-2">
+          {/*
+            Identidad antes que trámite. El socio abre el portal y lo primero que ve es que la
+            institución sabe quién es: su número, su categoría y desde cuándo pertenece. Son
+            datos que ya existen en la ficha, así que nunca quedan desactualizados.
+          */}
+          <div className="space-y-3">
             <h1 className="text-xl font-semibold tracking-tight">
               Hola, {context.member.firstName}
             </h1>
-            <p className="text-sm text-[var(--fo-text)]">Tu acceso está activo.</p>
+            <div className="rounded-lg border border-[var(--fo-border)] px-4 py-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <p className="text-sm font-medium">
+                  Socio N° <span className="tabular-nums">{context.member.memberNumber}</span>
+                </p>
+                {context.member.categoryName ? (
+                  <p className="text-xs text-[var(--fo-muted)]">{context.member.categoryName}</p>
+                ) : null}
+              </div>
+              {antiguedad.desde ? (
+                <p className="mt-1 text-xs text-[var(--fo-muted)]">
+                  Desde {antiguedad.desde}
+                  {antiguedad.anios
+                    ? ` · ${antiguedad.anios} ${antiguedad.anios === 1 ? "año" : "años"} en la institución`
+                    : ""}
+                </p>
+              ) : null}
+            </div>
           </div>
 
           <Link
