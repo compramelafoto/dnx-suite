@@ -23,7 +23,7 @@ export default async function AsociarsePage({ params }: Props) {
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
-    select: { workspaceId: true, commercialName: true },
+    select: { workspaceId: true, commercialName: true, logoUrl: true },
   });
   if (!branding) notFound();
 
@@ -45,13 +45,28 @@ export default async function AsociarsePage({ params }: Props) {
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
       <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Asociarse a {institutionName}
-          </h1>
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            Completá tus datos y la Secretaría va a revisar tu solicitud.
-          </p>
+        <header className="flex items-start justify-between gap-6">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Asociarse a {institutionName}
+            </h1>
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+              Completá tus datos y la Secretaría va a revisar tu solicitud.
+            </p>
+          </div>
+          {/*
+            El logo confirma que la persona está en el lugar correcto. Va acá y no en el
+            encabezado del texto porque el enlace se reparte por WhatsApp y redes, y quien
+            llega no necesariamente sabe qué es FotoOffice.
+          */}
+          {branding.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2
+            <img
+              src={branding.logoUrl}
+              alt={`Logo de ${institutionName}`}
+              className="h-16 w-16 shrink-0 rounded-lg object-contain sm:h-20 sm:w-20"
+            />
+          ) : null}
         </header>
 
         {abierto ? (
