@@ -216,3 +216,42 @@ momento en que empiezan a existir las cuotas y, por lo tanto, los pagos.
 
 **Además hay que definir** —ya anotado como pendiente— si el fee sale del total cobrado o se
 adiciona al precio. Esa elección es por módulo y la hace el owner.
+
+### La contabilidad del fee cuando el pago no pasa por Mercado Pago
+
+**Por qué hace falta.** Hoy la plata nunca pasa por DNX: el socio paga a la cuenta de Mercado
+Pago de la institución y MP retiene la comisión de la plataforma en la misma operación, con
+`marketplace_fee`. Un pago en efectivo o por transferencia no pasa por MP, así que **no hay de
+dónde retener**. Hoy no existe ningún modelo de fee adeudado.
+
+**Cómo funciona.** Cada pago manual sobre una cuota que devenga fee genera una **deuda de la
+institución con la plataforma**. Esa deuda se salda tomándola de los siguientes pagos que sí
+entren por Mercado Pago, sumándola a la retención de esa operación.
+
+**Decisiones tomadas por Daniel el 2026-08-27:**
+
+1. **Se retiene todo lo que entre, hasta saldar.** Sin tope por pago. Un pago puede quedar casi
+   íntegro para la plataforma si la deuda acumulada es grande.
+2. **El Super Admin puede saldar la deuda manualmente**, con constancia de quién y cuándo, para
+   los casos en que la institución deje de recibir pagos por Mercado Pago y el saldo quede
+   parado.
+
+**Contrapartida obligatoria de la decisión 1.** Retener el máximo posible sin explicarlo hace
+que un cobro parezca un error contable. La regla se mantiene, pero **el desglose tiene que ser
+visible** en cada pago: cuánto es el fee de esa cuota y cuánto es deuda arrastrada, con el
+detalle de qué pagos manuales la originaron. Sin eso, el primer tesorero que lo vea va a pensar
+que el sistema le robó.
+
+**Lo que falta definir:**
+
+- Qué pasa si un pago de Mercado Pago que saldó deuda **se reembolsa**: la deuda tiene que
+  volver a quedar pendiente, y hay que decidir si se reintenta sobre el siguiente pago.
+- El límite técnico de `marketplace_fee` en Mercado Pago. Hay que verificar contra su API si
+  admite una retención igual al total de la operación, o si exige dejar un remanente.
+- Cómo se cruza con la regla de que el fee rige desde las cuotas de septiembre: un pago manual
+  sobre el cargo de apertura o sobre una cuota anterior **no debería devengar deuda de fee**.
+
+**Modelo de datos.** Hace falta un libro de fee por workspace, con un registro por cada
+devengamiento —qué pago manual lo originó— y por cada cancelación —qué pago de Mercado Pago o
+qué saldo manual la aplicó—. Un solo campo de saldo no alcanza: esto es plata entre dos partes
+y las dos tienen que poder reconstruir cómo se llegó al número.
