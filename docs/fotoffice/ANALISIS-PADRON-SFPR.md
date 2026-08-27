@@ -174,3 +174,68 @@ Queda como configuración pendiente, a resolver cuando se retome el tema de pago
 3. Qué se hace con el **socio 713**, que figura como activo e inactivo a la vez.
 4. Qué se hace con el **crédito a favor de $37.000** del socio 617.
 5. Las dos filas **sin número de socio**.
+
+---
+
+# Importación ejecutada — 2026-08-27
+
+Aplicada con `packages/db/scripts/sfpr-import-padron.mts --execute` sobre la base de
+producción, en una sola transacción. Lote de auditoría: `sfpr-import-2026-08-27`.
+
+## Resultado verificado
+
+| | Antes | Después |
+|---|---:|---:|
+| Socios `ACTIVE` | 152 | **107** |
+| Socios `INACTIVE` | 0 | **45** |
+| Categoría Profesional | 152 | 144 |
+| Categoría Honorario | 0 | **8** |
+| Valores de cuota | 3 | **5** |
+| Cargos de deuda | 0 | **80** |
+| Deuda registrada | $0 | **$1.868.500** |
+
+Auditoría del lote: 80 `IMPORTED`, 45 `STATUS_CHANGED`, 8 `UPDATED`. Los 133 socios tocados
+quedan trazados y el lote se puede revertir en bloque.
+
+## Escala de cuota vigente
+
+| Categoría | Monto | Desde | Hasta |
+|---|---:|---|---|
+| Profesional | $5.000 | 2025-10-01 | 2026-02-28 |
+| Profesional | $8.000 | 2026-03-01 | vigente |
+| Honorario | $0 | 2025-10-01 | vigente |
+| Estudiante | $4.000 | 2026-08-27 | vigente |
+| Aficionado | $8.000 | 2026-08-27 | vigente |
+
+Se eliminó un valor duplicado de Profesional ($8.000 desde 2026-08-27) que quedaba solapado
+con el de marzo y que no referenciaba ningún cargo.
+
+## Septiembre está listo para generarse solo
+
+Verificado en el código y en la configuración de producción:
+
+- **El cron existe**: `/api/cron/generar-cuotas`, declarado en `apps/fotoffice/vercel.json`,
+  corre todos los días a las 06:00 UTC.
+- Cada institución decide su día: la SFPR tiene `generationDay = 1`, así que dispara el 1.
+- **`CRON_SECRET` está configurado** en Production. Sin él la tarea respondería 401 y las
+  cuotas no se generarían, en silencio.
+- La generación es **idempotente** y **excluye a los `INACTIVE`**, así que los 45 dados de baja
+  no reciben cuota.
+- Una cuota en cero no se emite: los 8 honorarios se saltean como exentos, sin ensuciar el
+  cálculo de mora.
+
+Proyección para el 2026-09-01:
+
+| Categoría | Socios | Cuota | Total |
+|---|---:|---:|---:|
+| Profesional | 99 | $8.000 | **$792.000** |
+| Honorario | 8 | $0 | se saltea |
+
+## Lo que sigue pendiente
+
+1. Los **47 socios inactivos** del sistema anterior no se importaron ($723.300).
+2. El **crédito a favor de $37.000** del socio 617 no se cargó.
+3. El **socio 713** figura como activo e inactivo en el origen.
+4. Las dos filas **sin número de socio**.
+5. Los **47 socios sin suscripción**: 34 quedaron con cargo de apertura por su deuda vieja de
+   $15.000, pero habría que definir si vuelven a facturarse mes a mes.
