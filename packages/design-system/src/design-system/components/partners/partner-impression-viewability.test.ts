@@ -55,7 +55,7 @@ describe("PartnerWelcomeInterstitial contracts", () => {
     assert.match(src, /PartnerViewableImpression/);
     assert.match(src, /openInNewTab/);
     assert.match(src, /safe-area-inset/);
-    assert.match(src, /maxHeight: "min\(85dvh/);
+    assert.match(src, /maxHeight: "min\(90dvh/);
   });
 });
 

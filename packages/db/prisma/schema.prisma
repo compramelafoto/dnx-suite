@@ -253,6 +253,8 @@ model User {
   fotorankContestParticipants           FotorankContestParticipant[]           @relation("FotorankContestParticipantUser")
   /// CONCURSOS PRÓXIMOS — interés registrado por el usuario ("Notificarme").
   fotorankContestInterests              FotorankContestInterest[]              @relation("FrContestInterestUser")
+  fotorankContestMediaUploaded          FotorankContestMediaAsset[]            @relation("FotorankContestMediaUploadedBy")
+  fotorankContestMediaDeleted           FotorankContestMediaAsset[]            @relation("FotorankContestMediaDeletedBy")
   fotorankContestInterestAuditEvents    FotorankContestInterestAuditEvent[]    @relation("FrContestInterestAuditActor")
   fotorankContestRegistrations          FotorankContestRegistration[]          @relation("FrContestRegistrationParticipant")
   fotorankDiplomaIssuedCreated          FotorankDiplomaIssued[]                @relation("FrDiplomaIssuedBy")
@@ -8215,6 +8217,7 @@ model FotorankContest {
   registrations                 FotorankContestRegistration[]
   rulesVersions                 FotorankContestRulesVersion[]
   entryAssets                   FotorankContestEntryAsset[]
+  mediaAssets                   FotorankContestMediaAsset[]
   judgeEntryConflicts           FotorankJudgeEntryConflict[]
   admissionBatches              FotorankAdmissionBatch[]
   juryEntrySnapshots            FotorankJuryEntrySnapshot[]
@@ -15640,4 +15643,78 @@ model FotorankContestScheduledCommunication {
   @@unique([contestId, code])
   @@index([contestId, scheduledAt])
   @@index([contestId, isEnabled])
+}
+
+/// Enum de las imágenes de presentación de un concurso, cargadas desde el
+/// administrador. No confundir con `FotorankEntryAssetKind`, que describe las
+/// obras de las personas participantes.
+enum FotorankContestMediaKind {
+  /// Banner horizontal principal de la landing (16:9, recomendado 1920×1080).
+  BANNER
+  /// Imagen de la tarjeta en el listado de convocatorias (16:9, más liviana).
+  CARD
+  /// Imagen para compartir en redes / Open Graph.
+  SOCIAL
+}
+
+/// Imagen de presentación de un concurso, cargada y reemplazable desde el
+/// administrador sin tocar código ni desplegar.
+///
+/// Por qué existe: hasta ahora las imágenes de un concurso vivían en
+/// `public/contest-assets/{slug}/` declaradas en un manifiesto TypeScript
+/// (`santa-fe-en-foco-assets.ts`), así que cambiar una foto exigía un commit y
+/// un despliegue. Esta tabla mueve esa decisión al administrador.
+///
+/// Los bytes NO viven acá: se guardan en el storage privado que ya usa FotoRank
+/// para las obras (local o R2 según entorno) y esta fila conserva la referencia,
+/// las dimensiones y la autoría del cambio.
+///
+/// Historial: las filas no se pisan. Al reemplazar una imagen la anterior queda
+/// con `isActive = false` y `replacedAt` cargado, de modo que siempre se puede
+/// responder quién cambió qué y cuándo.
+model FotorankContestMediaAsset {
+  id               String                   @id @default(cuid())
+  contestId        String
+  kind             FotorankContestMediaKind
+  storageProvider  String                   @default("local_private")
+  storageBucket    String?
+  /// Key privada: fotorank/contests/{contestId}/media/{kind}/{assetId}.{ext}
+  storageKey       String
+  mimeType         String
+  extension        String
+  originalFileName String?
+  fileSizeBytes    Int
+  width            Int
+  height           Int
+  /// Huella del archivo procesado. Permite detectar recargas idénticas.
+  sha256           String?
+  /// Texto alternativo accesible. Obligatorio: sin alt la imagen no se publica.
+  altText          String
+  /// Punto focal en porcentaje (0-100). Alimenta `object-position` en el front,
+  /// que es la herramienta de reposicionamiento que la landing ya usaba.
+  focalPointX      Int                      @default(50)
+  focalPointY      Int                      @default(50)
+  /// Sólo una fila activa por (contestId, kind).
+  isActive         Boolean                  @default(true)
+  uploadedByUserId Int?
+  uploadedAt       DateTime                 @default(now())
+  replacedAt       DateTime?
+  deletedAt        DateTime?
+  deletedByUserId  Int?
+  metadataJson     Json?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  contest    FotorankContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  uploadedBy User?           @relation("FotorankContestMediaUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  deletedBy  User?           @relation("FotorankContestMediaDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([contestId, kind, isActive])
+  @@index([contestId, uploadedAt])
+  @@index([uploadedByUserId])
+  /// La unicidad de "una sola imagen activa por concurso y tipo" la impone un
+  /// índice parcial (`WHERE "isActive"`) creado en la migración SQL. Prisma no
+  /// sabe declarar índices parciales, así que no figura acá: no lo agregues
+  /// como @@unique normal, rompería el historial (sólo puede haber una fila
+  /// inactiva por tipo, y el historial necesita varias).
 }

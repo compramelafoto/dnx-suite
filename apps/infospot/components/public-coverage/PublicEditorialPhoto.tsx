@@ -153,6 +153,7 @@ export function PublicEditorialPhoto({
           <EditorialPhotoCredit
             credit={photo.credit}
             photographerName={photo.photographerName}
+            companyHref={photo.photographerProfileHref}
           />
           {ctaHref && photo.canShowPurchaseCta ? (
             <a
@@ -193,6 +194,7 @@ export function PublicEditorialPhoto({
               <EditorialPhotoCredit
                 credit={photo.credit}
                 photographerName={photo.photographerName}
+                companyHref={photo.photographerProfileHref}
                 className="!text-white/80"
               />
               {ctaHref ? (

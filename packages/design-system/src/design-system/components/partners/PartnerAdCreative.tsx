@@ -36,7 +36,7 @@ export function PartnerAdCreative({
       ? {
           display: "flex",
           flexDirection: "column",
-          gap: "1.25rem",
+          gap: "1.75rem",
           alignItems: "center",
           textAlign: "center",
         }
@@ -57,12 +57,18 @@ export function PartnerAdCreative({
 
   const imgStyle: CSSProperties =
     variant === "welcome"
-      ? { width: "100%", maxWidth: "20rem", maxHeight: "60vh", objectFit: "contain" }
+      ? { width: "100%", maxWidth: "40rem", maxHeight: "70vh", objectFit: "contain" }
       : variant === "card"
         ? { width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: "0.5rem" }
         : variant === "compact"
           ? { height: "3.5rem", width: "auto", maxWidth: "12rem", objectFit: "contain" }
           : { width: "100%", maxHeight: "7.5rem", objectFit: "contain" };
+
+  const isWelcome = variant === "welcome";
+  const copyGap = isWelcome ? "0.75rem" : "0.5rem";
+  const titleSize = isWelcome ? "1.5rem" : "1rem";
+  const bodySize = isWelcome ? "1.125rem" : "0.875rem";
+  const ctaSize = isWelcome ? "1.125rem" : "0.875rem";
 
   const inner: ReactNode = (
     <div style={shell} className={className}>
@@ -70,15 +76,17 @@ export function PartnerAdCreative({
         // Imagen externa de creative; next/image no aplica en DS compartido.
         <img src={imageUrl} alt={alt} style={imgStyle} />
       ) : (
-        <span style={{ fontSize: "0.875rem", opacity: 0.8 }}>{partnerName}</span>
+        <span style={{ fontSize: isWelcome ? "1.125rem" : "0.875rem", opacity: 0.8 }}>
+          {partnerName}
+        </span>
       )}
       {(title || body || ctaText) && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: copyGap }}>
           {title ? (
-            <p style={{ margin: 0, fontWeight: 600, fontSize: "1rem" }}>{title}</p>
+            <p style={{ margin: 0, fontWeight: 600, fontSize: titleSize }}>{title}</p>
           ) : null}
           {body ? (
-            <p style={{ margin: 0, fontSize: "0.875rem", lineHeight: 1.5, opacity: 0.85 }}>
+            <p style={{ margin: 0, fontSize: bodySize, lineHeight: 1.55, opacity: 0.85 }}>
               {body}
             </p>
           ) : null}
@@ -86,8 +94,8 @@ export function PartnerAdCreative({
             <span
               style={{
                 display: "inline-flex",
-                marginTop: "0.25rem",
-                fontSize: "0.875rem",
+                marginTop: "0.35rem",
+                fontSize: ctaSize,
                 fontWeight: 600,
                 textDecoration: "underline",
               }}

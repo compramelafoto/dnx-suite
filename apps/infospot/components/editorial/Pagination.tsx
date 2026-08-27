@@ -11,7 +11,7 @@ type Props = {
 export function Pagination({
   page,
   hasNext,
-  basePath = "/noticias",
+  basePath = "/",
   className,
 }: Props) {
   if (page <= 1 && !hasNext) return null;

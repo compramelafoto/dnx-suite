@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import { resolveEditorialVideo } from "@repo/editor";
 import type { PublicEditorialPhotoViewModel } from "@/lib/public-coverage";
 import { PublicEditorialPhoto } from "@/components/public-coverage/PublicEditorialPhoto";
 import { EditorialGalleryBlock } from "@/components/editorial/editorial-gallery-block";
@@ -11,6 +12,8 @@ import {
   parseGalleryFigureAttrs,
 } from "@/lib/editorial-gallery/parse-gallery-figure";
 import { resolveGalleryForRender } from "@/lib/editorial-gallery/resolve-gallery";
+import { VideoEmbed } from "@/components/editorial/video-embed";
+import { VideoEmbedFallback } from "@/components/editorial/video-embed-fallback";
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -25,17 +28,31 @@ const sanitizeSchema = {
     figure: [
       "className",
       "dataEditorialImage",
+      "dataEditorialVideo",
       "dataCredit",
       "dataCaption",
       "dataAssetId",
       "dataPhotoId",
       "dataDisplay",
+      "dataProvider",
+      "dataVideoId",
+      "dataUrl",
+      "dataWidth",
+      "dataAlignment",
+      "dataVariant",
       "data-editorial-image",
+      "data-editorial-video",
       "data-credit",
       "data-caption",
       "data-asset-id",
       "data-photo-id",
       "data-display",
+      "data-provider",
+      "data-video-id",
+      "data-url",
+      "data-width",
+      "data-alignment",
+      "data-variant",
       "dataEditorialGallery",
       "dataGalleryId",
       "dataGalleryTitle",
@@ -93,7 +110,14 @@ const sanitizeSchema = {
       "data-height",
     ],
     img: [...(defaultSchema.attributes?.img || []), "loading", "decoding", "className", "draggable"],
-    a: [...(defaultSchema.attributes?.a || []), "rel", "target", "className"],
+    a: [
+      ...(defaultSchema.attributes?.a || []),
+      "rel",
+      "target",
+      "className",
+      "dataVideoFallback",
+      "data-video-fallback",
+    ],
   },
 };
 
@@ -134,29 +158,46 @@ export function MarkdownBody({ content, photoById }: MarkdownBodyProps) {
       />
     ),
     figure: ({ children, ...props }) => {
+      const record = props as Record<string, unknown>;
+
       const isGallery = readDataAttr(
-        props as Record<string, unknown>,
+        record,
         "data-editorial-gallery",
         "dataEditorialGallery",
       );
       if (isGallery) {
-        const attrs = parseGalleryFigureAttrs(props as Record<string, unknown>);
+        const attrs = parseGalleryFigureAttrs(record);
         const rawImages = extractGalleryImagesFromChildren(children);
-        const resolved = resolveGalleryForRender(attrs, rawImages, photoById);
-        if (!resolved) return null;
-        return <EditorialGalleryBlock gallery={resolved} />;
+        const gallery = resolveGalleryForRender(attrs, rawImages, photoById);
+        if (!gallery) return null;
+        return <EditorialGalleryBlock gallery={gallery} />;
       }
 
-      const photoId = readDataAttr(
-        props as Record<string, unknown>,
-        "data-photo-id",
-        "dataPhotoId",
-      );
-      const display = readDataAttr(
-        props as Record<string, unknown>,
-        "data-display",
-        "dataDisplay",
-      );
+      const isVideo =
+        readDataAttr(record, "data-editorial-video", "dataEditorialVideo") === "true";
+      if (isVideo) {
+        const video = resolveEditorialVideo({
+          provider: readDataAttr(record, "data-provider", "dataProvider"),
+          videoId: readDataAttr(record, "data-video-id", "dataVideoId"),
+          url: readDataAttr(record, "data-url", "dataUrl"),
+          caption: readDataAttr(record, "data-caption", "dataCaption"),
+          width: readDataAttr(record, "data-width", "dataWidth"),
+          alignment: readDataAttr(record, "data-alignment", "dataAlignment"),
+          variant: readDataAttr(record, "data-variant", "dataVariant"),
+        });
+        if (!video.ok) {
+          return (
+            <VideoEmbedFallback
+              url={readDataAttr(record, "data-url", "dataUrl")}
+              caption={readDataAttr(record, "data-caption", "dataCaption") ?? undefined}
+            />
+          );
+        }
+        return <VideoEmbed video={video.value} />;
+      }
+
+      const photoId = readDataAttr(record, "data-photo-id", "dataPhotoId");
+      const display = readDataAttr(record, "data-display", "dataDisplay");
 
       if (photoId && photoById?.[photoId]) {
         const photo = photoById[photoId];

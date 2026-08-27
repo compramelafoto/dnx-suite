@@ -278,13 +278,14 @@ export function PartnerWelcomeInterstitial({
 
   const panelStyle: CSSProperties = {
     position: "relative",
-    width: "min(100%, 28rem)",
-    maxHeight: "min(85dvh, 40rem)",
+    // ~2× respecto al tamaño previo (28rem / 40rem) para lectura y logo más presentes
+    width: "min(100%, 56rem)",
+    maxHeight: "min(90dvh, 80rem)",
     overflow: "auto",
     background: "#fff",
     color: "#111",
-    borderRadius: "0.75rem",
-    padding: "1.5rem",
+    borderRadius: "1rem",
+    padding: "2.5rem",
     boxSizing: "border-box",
     animation: `${motionName} ${reducedMotion ? "1ms" : "220ms"} ease-out`,
   };
@@ -340,8 +341,8 @@ export function PartnerWelcomeInterstitial({
         id={labelId}
         style={{
           margin: 0,
-          marginBottom: "0.75rem",
-          fontSize: "0.75rem",
+          marginBottom: "1rem",
+          fontSize: "0.875rem",
           letterSpacing: "0.04em",
           textTransform: "uppercase",
           color: "#666",

@@ -5,7 +5,6 @@ import { getSiteUrl } from "@/lib/settings";
 function staticSitemap(base: string): MetadataRoute.Sitemap {
   return [
     "",
-    "/noticias",
     "/eventos",
     "/publicar-evento",
     "/quienes-somos",

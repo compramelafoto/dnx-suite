@@ -106,7 +106,9 @@ export function SiteHeader({
   secondaryLinks = [],
 }: Props) {
   const [scrolled, setScrolled] = useState(false);
-  const mobileLinks: NavLink[] = [{ href: "/", label: "Inicio" }, ...links];
+  const mobileLinks: NavLink[] = links.some((l) => l.href === "/")
+    ? links
+    : [{ href: "/", label: "Inicio" }, ...links];
 
   useEffect(() => {
     // Solo cambia fondo/sombra — nunca la altura. Histeresis evita parpadeo.

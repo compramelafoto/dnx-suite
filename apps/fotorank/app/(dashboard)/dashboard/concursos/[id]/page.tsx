@@ -24,8 +24,14 @@ export default async function ContestDetailPage({ params }: PageProps) {
       title={contest.title}
       description={contest.shortDescription ?? "Centro de configuración del concurso."}
     >
-      {/* Accesos de la capacidad "concurso próximo". */}
       <div className="mb-8 flex flex-wrap gap-3">
+        <Link
+          href={routes.dashboard.concursos.imagenes(id)}
+          className="fr-btn fr-btn-secondary inline-flex w-fit"
+        >
+          Imágenes del concurso
+        </Link>
+        {/* Accesos de la capacidad "concurso próximo". */}
         <Link
           href={routes.dashboard.concursos.proximamente(id)}
           className="fr-btn fr-btn-secondary inline-flex w-fit"

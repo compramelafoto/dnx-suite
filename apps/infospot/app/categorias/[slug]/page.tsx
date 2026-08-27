@@ -35,7 +35,7 @@ export default async function CategoriaPage({ params }: PageProps) {
     <Section spacing="lg">
       <EditorialContainer>
         <nav aria-label="Migas" className="is-meta mb-6 flex flex-wrap gap-2">
-          <Link href="/noticias" className="hover:text-[var(--is-accent)]">
+          <Link href="/" className="hover:text-[var(--is-accent)]">
             Noticias
           </Link>
           <span aria-hidden>/</span>
@@ -64,7 +64,7 @@ export default async function CategoriaPage({ params }: PageProps) {
             <EmptyState
               title={`Todavía no hay notas en ${category.name}`}
               description="Cuando se publiquen coberturas de esta categoría, van a aparecer acá."
-              actionHref="/noticias"
+              actionHref="/"
               actionLabel="Ver todas las noticias"
             />
           </div>

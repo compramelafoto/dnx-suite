@@ -30,7 +30,7 @@ export function RelatedArticles({
         ))}
       </div>
       <p className="mt-8">
-        <Link href="/noticias" className="is-btn is-btn-ghost">
+        <Link href="/" className="is-btn is-btn-ghost">
           Ver todas las noticias
         </Link>
       </p>

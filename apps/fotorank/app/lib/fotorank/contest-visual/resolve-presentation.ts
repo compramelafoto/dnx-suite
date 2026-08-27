@@ -43,15 +43,40 @@ export function mergePresentation(
   };
 }
 
+/**
+ * Imagen cargada desde el administrador para este concurso.
+ * Ver `lib/fotorank/contest-media`.
+ */
+export type ManagedContestMedia = {
+  url: string;
+  alt: string;
+  focalPointX?: number;
+  focalPointY?: number;
+};
+
 export type PresentationRuntimeOverride = {
   coverImageUrl?: string | null;
   organizerLogoUrl?: string | null;
   contestTitle?: string;
   organizerName?: string;
+  /**
+   * Imágenes cargadas a mano desde el administrador.
+   *
+   * A diferencia de `coverImageUrl`, que sólo rellena huecos, estas GANAN sobre
+   * el manifiesto del preset: si alguien se tomó el trabajo de subir un banner
+   * para el concurso, esa decisión es más reciente y más deliberada que la del
+   * archivo que quedó fijado en el código.
+   */
+  managed?: {
+    banner?: ManagedContestMedia | null;
+    card?: ManagedContestMedia | null;
+    social?: ManagedContestMedia | null;
+  } | null;
 };
 
 /**
  * Completa la presentación con URLs runtime (DB) sin pisar assets ya configurados en preset.
+ * Excepción: `runtime.managed` sí pisa, por lo explicado en el tipo.
  */
 export function applyRuntimeMedia(
   presentation: ContestVisualPresentation,
@@ -64,17 +89,33 @@ export function applyRuntimeMedia(
   });
   const orgLogo = mediaFromUrl(runtime.organizerLogoUrl, `Logo de ${org}`);
 
+  const managedBanner = managedToAsset(runtime.managed?.banner);
+  const managedSocial = managedToAsset(runtime.managed?.social);
+
   return {
     ...presentation,
     hero: {
       ...presentation.hero,
-      desktop: presentation.hero.desktop ?? cover,
-      mobile: presentation.hero.mobile ?? cover,
+      /* El banner cargado a mano gana; el `cover` de la fila sigue siendo el último recurso. */
+      desktop: managedBanner ?? presentation.hero.desktop ?? cover,
+      mobile: managedBanner ?? presentation.hero.mobile ?? cover,
     },
     identity: {
       ...presentation.identity,
       organizerLogo: presentation.identity.organizerLogo ?? orgLogo,
     },
+    social: managedSocial ?? presentation.social,
+  };
+}
+
+function managedToAsset(media: ManagedContestMedia | null | undefined): ContestMediaAsset | null {
+  if (!media || !hasUsableImageUrl(media.url)) return null;
+  return {
+    url: media.url.trim(),
+    alt: media.alt,
+    focalPointX: media.focalPointX ?? 50,
+    focalPointY: media.focalPointY ?? 50,
+    orientation: "landscape",
   };
 }
 

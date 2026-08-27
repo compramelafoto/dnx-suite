@@ -11,6 +11,7 @@ type Props = {
   credit?: string | null;
   photographerName?: string | null;
   copyrightText?: string | null;
+  companyHref?: string | null;
   priority?: boolean;
   aspectRatio?: AspectRatio;
   /** @deprecated Preferir aspectRatio */
@@ -41,6 +42,7 @@ export function EditorialImage({
   credit,
   photographerName,
   copyrightText,
+  companyHref,
   priority = false,
   aspectRatio,
   aspect,
@@ -77,6 +79,7 @@ export function EditorialImage({
         caption={caption}
         credit={resolvedCredit}
         copyrightText={copyrightText}
+        companyHref={companyHref}
       />
     </figure>
   );

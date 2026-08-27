@@ -10,6 +10,13 @@ function displayName(user: { name: string | null; email: string } | null | undef
   return user.name?.trim() || user.email;
 }
 
+const photographerUserSelect = {
+  id: true,
+  name: true,
+  email: true,
+  companyName: true,
+} as const;
+
 /**
  * Lista álbumes públicos candidatos (read-only CLF).
  * Excluye test / sin fotos / soft-deleted.
@@ -49,12 +56,12 @@ export async function listPublicClfAlbumsForCoverage(options?: {
       cleanupStatus: true,
       coverThumbnailKey: true,
       userId: true,
-      user: { select: { id: true, name: true, email: true } },
+      user: { select: photographerUserSelect },
       event: { select: { id: true, title: true } },
       collaborators: {
         select: {
           userId: true,
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: photographerUserSelect },
         },
         take: 20,
       },
@@ -67,7 +74,7 @@ export async function listPublicClfAlbumsForCoverage(options?: {
         where: { isRemoved: false, storageDeletedAt: null },
         select: {
           userId: true,
-          uploadedBy: { select: { id: true, name: true, email: true } },
+          uploadedBy: { select: photographerUserSelect },
         },
         take: 200,
       },
@@ -81,6 +88,7 @@ export async function listPublicClfAlbumsForCoverage(options?: {
       displayName: displayName(row.user),
       role: "PRIMARY",
       photoCount: row._count.photos,
+      companyName: row.user.companyName?.trim() || null,
     });
     for (const c of row.collaborators) {
       photographers.push({
@@ -88,9 +96,10 @@ export async function listPublicClfAlbumsForCoverage(options?: {
         displayName: displayName(c.user),
         role: "COLLABORATOR",
         photoCount: 0,
+        companyName: c.user.companyName?.trim() || null,
       });
     }
-    const uploadCounts = new Map<number, { user: { id: number; name: string | null; email: string }; count: number }>();
+    const uploadCounts = new Map<number, { user: { id: number; name: string | null; email: string; companyName: string | null }; count: number }>();
     for (const ph of row.photos) {
       const u = ph.uploadedBy;
       if (!u || u.id === row.userId) continue;
@@ -104,6 +113,7 @@ export async function listPublicClfAlbumsForCoverage(options?: {
         displayName: displayName(v.user),
         role: "CONTRIBUTOR",
         photoCount: v.count,
+        companyName: v.user.companyName?.trim() || null,
       });
     }
 
@@ -159,11 +169,11 @@ export async function getClfAlbumSnapshotById(
       cleanupStatus: true,
       coverThumbnailKey: true,
       userId: true,
-      user: { select: { id: true, name: true, email: true } },
+      user: { select: photographerUserSelect },
       event: { select: { id: true, title: true } },
       collaborators: {
         select: {
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: photographerUserSelect },
         },
         take: 20,
       },
@@ -182,12 +192,14 @@ export async function getClfAlbumSnapshotById(
       displayName: displayName(row.user),
       role: "PRIMARY",
       photoCount: row._count.photos,
+      companyName: row.user.companyName?.trim() || null,
     },
     ...row.collaborators.map((c) => ({
       clfUserId: c.user.id,
       displayName: displayName(c.user),
       role: "COLLABORATOR" as const,
       photoCount: 0,
+      companyName: c.user.companyName?.trim() || null,
     })),
   ];
 

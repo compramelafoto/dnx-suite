@@ -42,6 +42,15 @@ export type UpcomingContestLandingProps = {
   benefitCutoffLabel?: string | null;
   /** Premio resumido, si ya puede anunciarse. */
   prizeLabel?: string | null;
+  /**
+   * Imágenes cargadas desde el administrador. Ganan sobre el manifiesto en
+   * código: ver `lib/fotorank/contest-media`.
+   */
+  managed?: {
+    banner?: { url: string; alt: string; focalPointX?: number; focalPointY?: number } | null;
+    card?: { url: string; alt: string; focalPointX?: number; focalPointY?: number } | null;
+    social?: { url: string; alt: string; focalPointX?: number; focalPointY?: number } | null;
+  } | null;
   previewMode?: boolean;
 };
 
@@ -52,6 +61,7 @@ export function UpcomingContestLanding({
   opensAtLabel,
   benefitCutoffLabel,
   prizeLabel,
+  managed = null,
   previewMode = false,
 }: UpcomingContestLandingProps) {
   const theme = resolveContestVisualTheme(card.slug, undefined, {
@@ -59,6 +69,7 @@ export function UpcomingContestLanding({
     organizerLogoUrl: card.organizerLogoUrl,
     contestTitle: card.title,
     organizerName: card.organizerName,
+    managed,
   });
   const cssVars = contestThemeToCssVars(theme);
   const presentation = theme.presentation;

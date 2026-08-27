@@ -3,7 +3,11 @@ import { prisma } from "@repo/db";
 import { getClfReadonlyClient } from "@/lib/clf-readonly-db";
 import { isR2Configured, uploadToR2 } from "@/lib/r2-client";
 import { readR2ObjectBuffer, resolveClfPhotoSourceKey } from "@/lib/r2-read";
-import { buildClfCopyright, buildClfPhotoCredit } from "@/lib/clf-credit";
+import {
+  isLegacyAutoPhotoCredit,
+  photographerCreditUserSelect,
+  resolvePhotographerCredit,
+} from "@/lib/editorial-photos/credit";
 
 export type ImportUsage = "COVER" | "INLINE" | "GALLERY";
 
@@ -62,13 +66,13 @@ export async function importClfPhotoToArticle(options: {
       thumbWatermarkedKey: true,
       previewWatermarkedKey: true,
       userId: true,
-      uploadedBy: { select: { id: true, name: true, email: true } },
+      uploadedBy: { select: photographerCreditUserSelect },
       album: {
         select: {
           id: true,
           eventId: true,
           deletedAt: true,
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: photographerCreditUserSelect },
         },
       },
     },
@@ -94,7 +98,8 @@ export async function importClfPhotoToArticle(options: {
   }
 
   const photographer = photo.uploadedBy ?? photo.album.user;
-  const photographerName = photographer.name?.trim() || photographer.email;
+  const resolvedCredit = resolvePhotographerCredit(photographer);
+  const photographerName = resolvedCredit.photographerName;
   if (!photographerName && !options.allowMissingPhotographer) {
     throw new Error(
       "La fotografía no tiene autor identificado. Solo un DIRECTOR puede resolverlo.",
@@ -142,8 +147,8 @@ export async function importClfPhotoToArticle(options: {
       }),
     ]);
 
-    const credit = buildClfPhotoCredit(photographerName);
-    const copyrightText = buildClfCopyright(photographerName);
+    const credit = resolvedCredit.credit;
+    const copyrightText = resolvedCredit.copyrightText;
 
     try {
       asset = await prisma.infoSpotEditorialAsset.create({
@@ -174,6 +179,21 @@ export async function importClfPhotoToArticle(options: {
     asset = await prisma.infoSpotEditorialAsset.update({
       where: { id: asset.id },
       data: { isPermanentEditorialAsset: true },
+    });
+  }
+
+  const resolvedName = photographerName || "Fotógrafo";
+  if (
+    asset &&
+    (!asset.credit || isLegacyAutoPhotoCredit(asset.credit, resolvedName))
+  ) {
+    asset = await prisma.infoSpotEditorialAsset.update({
+      where: { id: asset.id },
+      data: {
+        credit: resolvedCredit.credit,
+        photographerName: resolvedName,
+        copyrightText: asset.copyrightText || resolvedCredit.copyrightText,
+      },
     });
   }
 

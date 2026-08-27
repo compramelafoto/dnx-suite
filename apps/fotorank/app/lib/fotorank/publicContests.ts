@@ -5,6 +5,7 @@ import {
 } from "@repo/db/clickaton-readonly-client";
 import { resolveRegistrationCloseLabel } from "./contest-public-presentation";
 import { resolveContestVisualTheme, resolveHeroAsset } from "./contest-visual";
+import { resolveManagedContestMediaBatch } from "./contest-media/presentation-bridge";
 
 export type PublicHomeContestCard = {
   slug: string;
@@ -89,11 +90,26 @@ export function toPublicHomeContestCard(input: {
   experienceType?: "CONTEST" | "MARATHON" | null;
   /** Sólo para convocatorias que viven fuera de FotoRank. */
   href?: string;
+  /**
+   * Imágenes cargadas desde el administrador. Ganan sobre el manifiesto en
+   * código y sobre `coverImageUrl`. Ver `lib/fotorank/contest-media`.
+   */
+  managed?: {
+    banner?: { url: string; alt: string; focalPointX?: number; focalPointY?: number } | null;
+    card?: { url: string; alt: string; focalPointX?: number; focalPointY?: number } | null;
+    social?: { url: string; alt: string; focalPointX?: number; focalPointY?: number } | null;
+  } | null;
 }): PublicHomeContestCard {
   const theme = resolveContestVisualTheme(input.slug, undefined, {
     coverImageUrl: input.coverImageUrl,
     contestTitle: input.title,
     organizerName: input.organizerName,
+    /**
+     * En el listado la imagen que manda es la de tarjeta, más liviana. Si no se
+     * cargó una específica, `resolveManagedContestMedia` ya la resolvió al
+     * banner, así que acá no hace falta repetir ese respaldo.
+     */
+    managed: input.managed ? { ...input.managed, banner: input.managed.card ?? input.managed.banner } : null,
   });
   const hero = resolveHeroAsset(theme.presentation, "desktop");
   const isMarathon = input.experienceType === "MARATHON";
@@ -294,12 +310,21 @@ export async function listPublicHomeContests(limit = 6): Promise<PublicHomeConte
       take: limit * 2,
     });
 
+    /**
+     * Imágenes cargadas desde el administrador, en una sola consulta para todas
+     * las convocatorias del listado en lugar de una por concurso.
+     */
+    const managedByContest = await resolveManagedContestMediaBatch(
+      contests.map((c) => c.id),
+    ).catch(() => new Map());
+
     const fromContests = contests.map((c) =>
       toPublicHomeContestCard({
         slug: c.slug,
         title: c.title,
         organizerName: c.organization.name,
         coverImageUrl: c.coverImageUrl,
+        managed: managedByContest.get(c.id) ?? null,
         registrationOpensAt: c.registrationOpensAt,
         registrationClosesAt: c.registrationClosesAt,
         submissionDeadline: c.submissionDeadline,

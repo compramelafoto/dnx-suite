@@ -25,7 +25,8 @@ function SubmitButton() {
 }
 
 export type EditorialProfileValues = {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   bio: string;
   city: string;
@@ -72,7 +73,7 @@ export function EditorialProfileForm({
   }
 
   const avatarInitial = (
-    initialValues.name.trim()[0] ||
+    initialValues.firstName.trim()[0] ||
     initialValues.email[0] ||
     "?"
   ).toUpperCase();
@@ -127,17 +128,31 @@ export function EditorialProfileForm({
       </section>
 
       <section className="grid gap-8 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <label htmlFor="name" className="text-sm font-semibold text-[var(--is-text)]">
-            Nombre público
+        <div>
+          <label htmlFor="firstName" className="text-sm font-semibold text-[var(--is-text)]">
+            Nombre
           </label>
           <input
-            id="name"
-            name="name"
+            id="firstName"
+            name="firstName"
             required
-            defaultValue={initialValues.name}
+            defaultValue={initialValues.firstName}
             className={fieldClass}
-            placeholder="Cómo querés firmar las notas"
+            placeholder="Nombre"
+            maxLength={80}
+          />
+        </div>
+        <div>
+          <label htmlFor="lastName" className="text-sm font-semibold text-[var(--is-text)]">
+            Apellido
+          </label>
+          <input
+            id="lastName"
+            name="lastName"
+            defaultValue={initialValues.lastName}
+            className={fieldClass}
+            placeholder="Apellido"
+            maxLength={120}
           />
         </div>
 

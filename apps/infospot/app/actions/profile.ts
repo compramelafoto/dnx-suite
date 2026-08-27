@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@repo/db";
 import { requireInfoSpotRedaccionAccess } from "@/lib/infospot-access";
+import { joinDisplayName } from "@/lib/display-name";
 
 const optionalText = (max: number) =>
   z
@@ -30,7 +31,13 @@ const optionalHandleOrUrl = z
   .transform((v) => (v && v.length > 0 ? v : null));
 
 const profileSchema = z.object({
-  name: z.string().trim().min(2, "El nombre es obligatorio").max(120),
+  firstName: z.string().trim().min(1, "El nombre es obligatorio").max(80),
+  lastName: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((v) => v ?? ""),
   bio: optionalText(600),
   city: optionalText(120),
   province: optionalText(120),
@@ -51,7 +58,8 @@ export async function updateMyEditorialProfileAction(
   const access = await requireInfoSpotRedaccionAccess();
 
   const parsed = profileSchema.safeParse({
-    name: formData.get("name"),
+    firstName: formData.get("firstName"),
+    lastName: formData.get("lastName")?.toString() ?? "",
     bio: formData.get("bio")?.toString() ?? "",
     city: formData.get("city")?.toString() ?? "",
     province: formData.get("province")?.toString() ?? "",
@@ -71,7 +79,7 @@ export async function updateMyEditorialProfileAction(
     await prisma.user.update({
       where: { id: access.user.id },
       data: {
-        name: parsed.data.name,
+        name: joinDisplayName(parsed.data.firstName, parsed.data.lastName),
         bio: parsed.data.bio,
         city: parsed.data.city,
         province: parsed.data.province,
@@ -92,6 +100,7 @@ export async function updateMyEditorialProfileAction(
   revalidatePath("/redaccion");
   revalidatePath("/redaccion/perfil");
   revalidatePath(`/autores/${access.user.id}`);
+  revalidatePath("/");
   revalidatePath("/noticias");
   redirect("/redaccion/perfil?ok=1");
 }

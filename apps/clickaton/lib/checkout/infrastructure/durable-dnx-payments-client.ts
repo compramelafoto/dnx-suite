@@ -74,7 +74,16 @@ function safeEqualHex(a: string, b: string): boolean {
  */
 export function createDurableDnxPaymentsClient(deps: {
   persistence: DnxPaymentsPersistence;
+  /** HMAC interno DNX (`x-dnx-payments-signature`). Lo elegimos nosotros. */
   webhookSecret: string;
+  /**
+   * Secreto de firma de Mercado Pago (`x-signature`). Lo genera Mercado Pago en
+   * su panel al registrar la URL de notificaciones — no es nuestro para elegir.
+   * Debe estar separado de `webhookSecret`: si se comparten, el secreto de MP
+   * pasa a habilitar también la ruta interna de eventos ya normalizados.
+   * Ausente ⇒ cae a `webhookSecret` (compatibilidad con la configuración actual).
+   */
+  mercadoPagoWebhookSecret?: string;
   checkoutBaseUrl?: string;
   notificationUrl?: string;
   providerBridge?: ClickatonCheckoutProviderBridge;
@@ -117,6 +126,10 @@ export function createDurableDnxPaymentsClient(deps: {
     | { ok: false; code: string }
   >;
 } {
+  // Firma de Mercado Pago: secreto dedicado si existe; si no, el actual.
+  const mpWebhookSecret =
+    deps.mercadoPagoWebhookSecret?.trim() || deps.webhookSecret;
+
   const service = createClickatonCheckoutService(deps.persistence, {
     ...(deps.providerBridge ? { providerBridge: deps.providerBridge } : {}),
     ...(deps.buildOperationalSnapshot
@@ -308,7 +321,7 @@ export function createDurableDnxPaymentsClient(deps: {
           rawBody: input.rawBody,
           queryDataId: input.queryDataId,
           queryType: input.queryType,
-          webhookSecret: deps.webhookSecret,
+          webhookSecret: mpWebhookSecret,
           persistence: deps.persistence,
           fetchCanonicalOrder: deps.fetchOrdersCanonical,
           allowCliBypass: false,
@@ -325,6 +338,8 @@ export function createDurableDnxPaymentsClient(deps: {
           applyNormalizedEvent: (e) => service.applyNormalizedEvent(e),
           checkoutFlagEnabled: isClickatonDnxCheckoutEnabled(),
           environment: "sandbox",
+          // GET Order = fuente de verdad también en el reintento duplicado.
+          fetchCanonicalOrder: deps.fetchOrdersCanonical,
         });
 
         if (fulfillment.fulfilled) {
@@ -373,7 +388,7 @@ export function createDurableDnxPaymentsClient(deps: {
         signatureHeader,
         requestIdHeader,
         dataId: parsed.notification.dataId,
-        secret: deps.webhookSecret,
+        secret: mpWebhookSecret,
       });
       if (!verified.ok) {
         if (verified.reason === "missing_data_id") {

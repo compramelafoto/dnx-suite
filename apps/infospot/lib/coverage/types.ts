@@ -26,6 +26,7 @@ export type CoveragePhotographerInput = {
   displayName: string;
   role: "PRIMARY" | "COLLABORATOR" | "CONTRIBUTOR";
   photoCount: number;
+  companyName?: string | null;
 };
 
 export type CoverageSyncResult = {
