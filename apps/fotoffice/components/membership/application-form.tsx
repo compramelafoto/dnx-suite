@@ -24,6 +24,7 @@ export function MembershipApplicationForm({
 }) {
   const action = submitApplicationAction.bind(null, workspaceSlug);
   const [state, submit, pending] = useActionState(action, initial);
+  const [quiereCarnet, setQuiereCarnet] = useState(false);
   const [condicion, setCondicion] = useState<Condicion>("PLENA");
 
   if (state.ok) {
@@ -231,6 +232,8 @@ export function MembershipApplicationForm({
           <input
             type="checkbox"
             name="wantsPrintedCard"
+            checked={quiereCarnet}
+            onChange={(e) => setQuiereCarnet(e.target.checked)}
             className="mt-1 h-4 w-4 shrink-0"
           />
           <span>
@@ -247,10 +250,27 @@ export function MembershipApplicationForm({
           La credencial digital la tenés siempre, sin costo, en tu portal de socio. La impresa es
           opcional.
         </p>
-        <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
-          Cuando seas socio te vamos a pedir, desde el portal, una <strong>foto carnet</strong>:
-          4×4 cm, fondo blanco, de frente y sin anteojos oscuros. Podés ir teniéndola lista.
-        </p>
+
+        {/*
+          Las instrucciones aparecen recién al pedir la credencial: a quien no la quiere, un
+          instructivo de foto carnet solo le agrega ruido a un formulario que ya es largo.
+        */}
+        {quiereCarnet ? (
+          <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
+            <p className="text-sm font-medium">La foto que vas a necesitar</p>
+            <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--fo-muted)] leading-relaxed">
+              <li>Tamaño <strong>4×4 cm</strong>, formato carnet.</li>
+              <li><strong>Fondo blanco</strong>, liso y sin sombras.</li>
+              <li>De frente, con la cara descubierta y centrada.</li>
+              <li>Sin anteojos oscuros, sin gorra y sin filtros.</li>
+              <li>Buena luz, sin reflejos y bien enfocada.</li>
+            </ul>
+            <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+              <strong>No la subas ahora.</strong> Una vez que la Secretaría apruebe tu solicitud
+              vas a poder cargarla desde tu portal de socio. Podés ir teniéndola lista.
+            </p>
+          </div>
+        ) : null}
       </section>
 
       {state.error ? (
