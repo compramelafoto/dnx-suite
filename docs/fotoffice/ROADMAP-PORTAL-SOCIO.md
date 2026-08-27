@@ -255,3 +255,58 @@ que el sistema le robó.
 devengamiento —qué pago manual lo originó— y por cada cancelación —qué pago de Mercado Pago o
 qué saldo manual la aplicó—. Un solo campo de saldo no alcanza: esto es plata entre dos partes
 y las dos tienen que poder reconstruir cómo se llegó al número.
+
+## El formulario de asociación: por qué estaba cerrado
+
+Al revisarlo el 2026-08-27, `https://fotoffice.com/w/sfpr/asociarse` respondía que las
+inscripciones no estaban abiertas.
+
+**No era un error.** El guard es deliberado y está en el origen: el formulario no se publica si
+la institución no puede cobrar. Si estuviera abierto sin cobros conectados, la persona
+completaría todo, la Secretaría aprobaría, y recién ahí se descubriría que nadie puede pagar.
+
+Se exigen dos condiciones. La cuenta de Mercado Pago estaba **conectada y activa** desde el
+2026-08-25, en modo de dos vías, que no pide consentimiento. Lo que faltaba era la otra:
+
+**No existía un valor de cuota general.** Los cinco valores cargados eran todos por categoría
+—Profesional, Estudiante, Aficionado, Honorario—, y quien se asocia **todavía no tiene
+categoría**, así que la página busca la cuota de referencia de la institución y no encontraba
+ninguna.
+
+Se cargó ese valor general: **$8.000 desde el 2026-03-01**, el mismo que Profesional. No afecta
+a nadie más, porque las cuatro categorías tienen su propio valor y ese tiene prioridad. Con eso
+el formulario abrió.
+
+### Compartirlo
+
+La bandeja de solicitudes ofrece ahora tres formas de repartirlo: el enlace suelto, un botón en
+HTML para pegar en el sitio de la institución, y el formulario incrustado. El bloque solo
+aparece si el formulario efectivamente abre: repartir un enlace que recibe a la gente con "las
+inscripciones no están abiertas" es peor que no repartirlo.
+
+## El diseñador de plantillas del carnet
+
+Hoy la plantilla del carnet **vive en el código**, en `apps/fotoffice/lib/carnet/template.ts`.
+El propio archivo lo explica: está ahí porque la persistencia de plantillas del módulo de
+diseño "todavía no existe", y anticipa que cuando exista pasará a ser una plantilla de sistema
+que cada institución duplica y edita.
+
+**Esa persistencia sí existe.** El monorepo ya tiene todo lo necesario:
+
+| Pieza | Estado |
+|---|---|
+| `@repo/design-studio` | **FotoOffice ya depende de él** — de ahí sale el contrato de variables del carnet |
+| `@repo/template-editor-ui` | Editor visual, **usado por Clickaton y ComprameLaFoto** |
+| `@repo/template-editor-core` | Lógica del editor |
+| `@repo/template-engine` y `-renderer` | Motor de render |
+| `TemplateV2`, `TemplateV2Version`, `TemplateV2Block`, `SystemCatalogTemplate` | Modelos ya en la base |
+| Pantallas `/admin/plantillas` en Clickaton | Referencia de cómo se arma |
+
+Daniel señaló que el caso es análogo al de las inscripciones de Clickaton, y lo es: mismo
+problema —una pieza gráfica con datos variables que cada organización quiere ajustar— y misma
+solución.
+
+**No hay que construir un diseñador: hay que conectar el carnet al que ya existe.** El trabajo
+es mover la plantilla de código a `TemplateV2` como plantilla de sistema, agregar las
+dependencias del editor a FotoOffice y montar la pantalla. El comentario del código ya lo
+adelanta: *"la migración va a ser mover el JSON, no rehacerlo"*.
