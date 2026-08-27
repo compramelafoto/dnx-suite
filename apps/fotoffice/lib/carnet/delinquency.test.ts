@@ -98,3 +98,39 @@ describe("computeDelinquency", () => {
     expect(computeDelinquency([]).delinquent).toBe(false);
   });
 });
+
+describe("inscripción pendiente", () => {
+  const ingreso = (period: string, balanceMinor: number): DuesCharge => ({
+    concept: "INGRESO",
+    period,
+    balanceMinor,
+  });
+
+  /**
+   * El socio recién asociado no está en mora: no debe nada atrasado, todavía no pagó su
+   * ingreso. Son dos situaciones distintas y el carnet las tiene que nombrar distinto.
+   */
+  it("con ingreso impago no está habilitado, pero tampoco en mora", () => {
+    const r = computeDelinquency([ingreso("2026-09", 400000), ingreso("2026-10", 400000)]);
+    expect(r.pendingEntry).toBe(true);
+    expect(r.delinquent).toBe(false);
+  });
+
+  it("pagada la inscripción, deja de estar pendiente", () => {
+    const r = computeDelinquency([ingreso("2026-09", 0), ingreso("2026-10", 0)]);
+    expect(r.pendingEntry).toBe(false);
+  });
+
+  /** Pagar una de las tres no alcanza: la inscripción es un solo pago. */
+  it("con una sola cuota de ingreso saldada sigue pendiente", () => {
+    const r = computeDelinquency([ingreso("2026-09", 0), ingreso("2026-10", 400000)]);
+    expect(r.pendingEntry).toBe(true);
+  });
+
+  it("un socio sin cuotas de ingreso nunca queda pendiente por eso", () => {
+    const r = computeDelinquency([
+      { concept: "MENSUAL", period: "2026-09", balanceMinor: 800000 },
+    ]);
+    expect(r.pendingEntry).toBe(false);
+  });
+});

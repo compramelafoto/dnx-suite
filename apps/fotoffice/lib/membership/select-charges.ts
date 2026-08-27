@@ -59,6 +59,32 @@ export function selectChargesToPay(
   }
 
   const ordenados = sortOldestFirst(conSaldo);
+
+  /*
+   * La inscripción es un solo pago, no un plan.
+   *
+   * Al asociarse se generan las cuotas de ingreso juntas —tres, en la SFPR— y se cobran de una
+   * sola vez. Dejar pagar una sola convertiría el ingreso en un plan de cuotas que nadie
+   * acordó, y dejaría al socio a mitad de camino: ni afuera ni habilitado.
+   *
+   * Mientras quede ingreso impago, la selección es todo el ingreso y nada más: no se mezcla
+   * con las mensuales, que son otra conversación.
+   */
+  const ingreso = ordenados.filter((c) => c.concept === "INGRESO");
+  if (ingreso.length > 0) {
+    const totalIngreso = ingreso.reduce((suma, c) => suma + c.balanceMinor, 0);
+    const primeroIngreso = ingreso[0]!;
+    return {
+      ok: true,
+      selection: {
+        chargeIds: ingreso.map((c) => c.id),
+        totalMinor: totalIngreso,
+        oldestPeriod: primeroIngreso.period,
+        remaining: ordenados.length - ingreso.length,
+      },
+    };
+  }
+
   const pedidas = opciones.howMany ?? "ALL";
 
   if (pedidas !== "ALL") {

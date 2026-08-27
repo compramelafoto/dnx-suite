@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
+import { findClaimableMembership } from "@/lib/portal/claim";
 import { listUserProfiles } from "@/lib/portal/profiles";
 import { chooseProfileAction, createOwnBusinessAction } from "@/app/actions/profile-choice";
 
@@ -17,6 +18,13 @@ export const dynamic = "force-dynamic";
  */
 export default async function ChooseProfilePage() {
   const user = await requireAuth();
+
+  // Quien ya figura en un padrón con este mismo email no es alguien que recién llega: se le
+  // ofrece reconocer su ficha antes de proponerle crear un negocio propio.
+  if (await findClaimableMembership({ userId: user.id, email: user.email })) {
+    redirect("/soy-socio");
+  }
+
   const profiles = await listUserProfiles(user.id);
 
   // Con un solo perfil no hay nada que elegir: se lo manda directo.

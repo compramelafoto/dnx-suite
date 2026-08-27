@@ -28,6 +28,15 @@ export type Delinquency = {
   /** La racha que llega hasta el período más reciente. */
   currentConsecutive: number;
   delinquent: boolean;
+  /**
+   * Tiene cuotas de ingreso sin pagar.
+   *
+   * No es mora: el socio recién asociado no debe nada atrasado, todavía no pagó su
+   * inscripción. Se distingue porque el carnet tiene que decir cosas distintas — "regularizá
+   * tu deuda" y "completá tu inscripción" no son el mismo mensaje ni le caben a la misma
+   * persona.
+   */
+  pendingEntry: boolean;
 };
 
 export type DelinquencyThresholds = {
@@ -42,8 +51,12 @@ export function computeDelinquency(
   const maxConsecutive = umbrales.maxConsecutive ?? DEFAULT_MAX_CONSECUTIVE;
   const maxAlternating = umbrales.maxAlternating ?? DEFAULT_MAX_ALTERNATING;
 
+  // El ingreso se paga entero o no se pagó: una de las tres saldadas no habilita a nadie.
+  const pendingEntry = charges.some((c) => c.concept === "INGRESO" && c.balanceMinor > 0);
+
   // Solo las mensuales integran la racha. Las de ingreso no: el socio recién asociado tiene
-  // tres cargos abiertos por definición, y contarlas lo dejaría en mora el primer día.
+  // tres cargos abiertos por definición, y contarlas lo dejaría en mora el primer día. Su
+  // situación se informa aparte, con `pendingEntry`.
   const mensuales = charges
     .filter((c) => c.concept === "MENSUAL")
     .sort((a, b) => a.period.localeCompare(b.period));
@@ -71,5 +84,6 @@ export function computeDelinquency(
     longestConsecutive,
     currentConsecutive,
     delinquent: longestConsecutive >= maxConsecutive || unpaidTotal >= maxAlternating,
+    pendingEntry,
   };
 }

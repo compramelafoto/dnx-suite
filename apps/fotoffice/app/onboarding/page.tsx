@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
+import { findClaimableMembership } from "@/lib/portal/claim";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { PORTAL_HOME } from "@/lib/portal/destination";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
@@ -14,6 +15,13 @@ export default async function OnboardingPage() {
   // crear un negocio a propósito está `createOwnBusinessAction`, que deja a la persona como
   // equipo y recién entonces la trae acá.
   if ((await resolveFotofficeUserKind(user.id)) === "MEMBER") redirect(PORTAL_HOME);
+
+  // Quien ya figura en un padrón con este mismo email no es alguien que recién llega: se le
+  // ofrece reconocer su ficha antes de proponerle crear un negocio propio.
+  if (await findClaimableMembership({ userId: user.id, email: user.email })) {
+    redirect("/soy-socio");
+  }
+
 
   const ensured = await ensureFotofficeWorkspaceForUser({
     userId: user.id,

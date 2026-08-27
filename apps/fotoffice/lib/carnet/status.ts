@@ -32,6 +32,8 @@ export type DisabledReason =
   | "SUSPENDED"
   | "CARD_REVOKED"
   | "CARD_EXPIRED"
+  /** Todavía no pagó su inscripción. No es mora: está entrando. */
+  | "PENDING_ENTRY"
   | "DELINQUENT";
 
 export type CardStatus = {
@@ -52,6 +54,10 @@ export function computeCardStatus(facts: CardFacts): CardStatus {
   else if (facts.memberStatus === "SUSPENDED") reason = "SUSPENDED";
   else if (revoked) reason = "CARD_REVOKED";
   else if (expired) reason = "CARD_EXPIRED";
+  // La inscripción impaga va antes que la mora: quien todavía no completó su ingreso no está
+  // atrasado, está entrando. Decirle "regularizá tu deuda" sería tratarlo de deudor el primer
+  // día, y encima no le explicaría qué tiene que hacer.
+  else if (facts.delinquency.pendingEntry) reason = "PENDING_ENTRY";
   else if (facts.delinquency.delinquent) reason = "DELINQUENT";
 
   return { enabled: reason === null, reason, expired, revoked };
@@ -68,6 +74,8 @@ export function explainDisabled(reason: DisabledReason): string {
       return "Este carnet fue dado de baja. Pedí uno nuevo a la Secretaría.";
     case "CARD_EXPIRED":
       return "Este carnet venció. Se renueva solo; si no aparece uno nuevo, avisale a la Secretaría.";
+    case "PENDING_ENTRY":
+      return "Te falta pagar la inscripción. Se abona de una sola vez y con eso quedás habilitado.";
     case "DELINQUENT":
       return "Tenés cuotas impagas que superan lo que permite el estatuto. Regularizá para volver a estar habilitado.";
   }

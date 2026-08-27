@@ -90,3 +90,67 @@ describe("selectChargesToPay", () => {
     expect(r.selection.chargeIds).toEqual(["ing"]);
   });
 });
+
+describe("selectChargesToPay — cuotas de ingreso", () => {
+  const ingreso = (period: string, id: string): OpenCharge => ({
+    id,
+    concept: "INGRESO",
+    period,
+    dueDate: new Date(`${period}-10T00:00:00Z`),
+    balanceMinor: 4_000_00,
+  });
+
+  /**
+   * La inscripción es un solo pago. Dejar pagar una de las tres convertiría el ingreso en un
+   * plan de cuotas que nadie acordó, y el socio quedaría a mitad de camino: ni afuera ni
+   * habilitado.
+   */
+  it("con cuotas de ingreso impagas se cobran las tres juntas, aunque pidan una", () => {
+    const r = selectChargesToPay(
+      [ingreso("2026-09", "a"), ingreso("2026-10", "b"), ingreso("2026-11", "c")],
+      { howMany: 1 },
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.selection.chargeIds).toHaveLength(3);
+      expect(r.selection.totalMinor).toBe(12_000_00);
+    }
+  });
+
+  it("pedir ALL sobre ingreso da lo mismo: las tres", () => {
+    const r = selectChargesToPay([ingreso("2026-09", "a"), ingreso("2026-10", "b")], {
+      howMany: "ALL",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.selection.chargeIds).toHaveLength(2);
+  });
+
+  /** Saldada la inscripción, las mensuales vuelven a poder pagarse de a una. */
+  it("sin ingreso impago, las mensuales se siguen eligiendo por cantidad", () => {
+    const mensual = (period: string, id: string): OpenCharge => ({
+      id,
+      concept: "MENSUAL",
+      period,
+      dueDate: new Date(`${period}-10T00:00:00Z`),
+      balanceMinor: 8_000_00,
+    });
+    const r = selectChargesToPay([mensual("2026-09", "a"), mensual("2026-10", "b")], {
+      howMany: 1,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.selection.chargeIds).toEqual(["a"]);
+  });
+
+  /** Si quedó saldo de ingreso, arrastra también las mensuales: primero se cierra el ingreso. */
+  it("el ingreso impago manda aunque haya mensuales más nuevas", () => {
+    const r = selectChargesToPay(
+      [
+        ingreso("2026-09", "a"),
+        { id: "m", concept: "MENSUAL", period: "2026-12", dueDate: new Date("2026-12-10T00:00:00Z"), balanceMinor: 8_000_00 },
+      ],
+      { howMany: 1 },
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.selection.chargeIds).toEqual(["a"]);
+  });
+});
