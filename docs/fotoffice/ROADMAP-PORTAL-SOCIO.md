@@ -177,3 +177,42 @@ por abiertos.
    institucional no es sostenible.
 3. Si las 4 categorías se aplican de verdad: hoy los 152 son `Profesional`.
 4. Qué se hace con los 6 workspaces de prueba. Daniel indicó que podrían eliminarse.
+
+## Pendiente: carga manual de pagos y cuándo se cobra el fee
+
+Planteado por Daniel el 2026-08-27.
+
+**Qué falta.** El owner y quienes en el futuro ocupen Tesorería o Secretaría tienen que poder
+registrar pagos a mano: hoy solo se acreditan los de Mercado Pago, por webhook. En el historial
+del último año, **44 de 333 pagos fueron en efectivo o por transferencia** — un 13% que hoy no
+se podría registrar.
+
+Esto no es futuro: desde que existan cuotas generadas, alguien va a pagar en efectivo en la
+sede, y sin dónde anotarlo el portal le va a seguir mostrando una deuda que ya saldó. Es peor
+que no tener sistema.
+
+**Lo que ya existe.** El modelo `MembershipPayment` contempla todo: `method` para distinguir
+efectivo de transferencia, y `platformFeeArs` y `netAmountArs` para el fee. La lógica de
+comisión también está, en puntos básicos (500 = 5%), con su validación. Falta la pantalla y la
+regla.
+
+**La regla del fee, según Daniel:** se cobra a partir de las cuotas que se abonen desde
+septiembre. Los pagos previos a septiembre no pagan fee.
+
+**Una distinción que conviene resolver antes de implementarlo.** "A partir de septiembre" puede
+leerse de dos maneras, y no dan lo mismo:
+
+1. Por **fecha de pago**: todo lo que se cobre desde el 1 de septiembre paga fee, incluso si
+   salda una cuota vieja o el cargo de apertura.
+2. Por **período de la cuota**: solo las cuotas de septiembre en adelante pagan fee, sin
+   importar cuándo se paguen.
+
+La segunda parece más justa: los $1.868.500 de deuda importada vienen del sistema anterior y
+cobrarles comisión sería cobrar por trabajo que FotoOffice no hizo. Con la primera lectura, un
+socio que regulariza en octubre pagaría fee sobre once meses de deuda vieja.
+
+**Cuándo conviene hacerlo:** antes del 1 de septiembre, junto con la generación. Es el mismo
+momento en que empiezan a existir las cuotas y, por lo tanto, los pagos.
+
+**Además hay que definir** —ya anotado como pendiente— si el fee sale del total cobrado o se
+adiciona al precio. Esa elección es por módulo y la hace el owner.
