@@ -631,3 +631,23 @@ export type {
   DnxInventorySpace,
   SellerScope,
 } from "./inventory";
+
+export { PROPOSAL_PIECES, getProposalPiece, getProposalPieceLayout } from "./proposal-pieces";
+export type {
+  ProposalPiece,
+  ProposalPieceKind,
+  ProposalPieceLayout,
+  ProposalViewportName,
+} from "./proposal-pieces";
+
+export { resolvePlateTreatment } from "./proposal-contrast";
+export type { LogoLuminanceInput, PlateKind, PlateTreatment } from "./proposal-contrast";
+
+export { buildProposalPlan } from "./proposal-plan";
+export type {
+  ProposalLine,
+  ProposalLineKind,
+  ProposalLineSelection,
+  ProposalPlan,
+  ProposalPlanInput,
+} from "./proposal-plan";
