@@ -149,6 +149,7 @@ export {
   CLF_AD_PLACEMENT_KEYS,
   CLICKATON_AD_PLACEMENT_KEYS,
   FOTORANK_AD_PLACEMENT_KEYS,
+  FOTOFFICE_AD_PLACEMENT_KEYS,
   AD_PLACEMENT_CATALOG,
   CAMPAIGN_CONTEXT_LABELS,
   CREATIVE_FORMAT_LABELS,
@@ -617,3 +618,16 @@ export type {
 
 export { resolveSponsorCardLogoCandidates } from "./sponsor-card-logo";
 export type { SponsorCardLogoCandidate } from "./sponsor-card-logo";
+
+export {
+  DNX_INVENTORY,
+  DNX_INVENTORY_OWNERS,
+  DNX_INVENTORY_ACCESS_MODES,
+  listSellableSpaces,
+} from "./inventory";
+export type {
+  DnxInventoryOwner,
+  DnxInventoryAccess,
+  DnxInventorySpace,
+  SellerScope,
+} from "./inventory";
