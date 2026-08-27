@@ -310,3 +310,64 @@ solución.
 es mover la plantilla de código a `TemplateV2` como plantilla de sistema, agregar las
 dependencias del editor a FotoOffice y montar la pantalla. El comentario del código ya lo
 adelanta: *"la migración va a ser mover el JSON, no rehacerlo"*.
+
+## El módulo de diseño — habilitado el 2026-08-27
+
+### Lo que se encontró
+
+La primera lectura fue optimista: "el editor existe, hay que conectarlo". El código sí estaba
+—`@repo/template-editor-ui` lo usan Clickatón y ComprameLaFoto—, pero **las tablas nunca se
+crearon en esta base de datos**. Una migración de julio lo dice explícitamente:
+
+> Intentionally skips TemplateV2* tables (absent on staging)
+
+Por eso Clickatón envuelve sus consultas en un manejador de "migración pendiente": **su editor
+tampoco funcionaba contra producción**. El subsistema estaba escrito y desplegado, pero sin
+dónde guardar nada.
+
+### Lo que se hizo
+
+**Las tablas.** 5 enums y 6 tablas —`TemplateV2`, `Version`, `Block`, `Asset`,
+`VariableBinding`, `Publication`— con sus índices. La base pasó de 409 a 415 tablas y los datos
+de la SFPR quedaron intactos: 152 socios, $1.868.500.
+
+Se extrajeron del diff completo entre el esquema y la base, que resultó ser de **2.478 líneas**:
+a esta base le faltan muchos subsistemas además de este. Aplicarlo entero habría sido temerario,
+así que se tomaron solo las 26 sentencias del editor.
+
+**El vínculo con la institución.** `TemplateV2` se acotaba por `ownerUserId`. En Clickatón y
+ComprameLaFoto está bien, porque diseña una persona. Acá no: si la plantilla queda atada a quien
+la creó, **el día que esa persona deja la comisión directiva la institución pierde su carnet**.
+Se agregó un `workspaceId` nullable, y el editor comprueba que la plantilla sea del workspace
+activo antes de abrirla.
+
+**El hospedaje en FotoOffice.** Runtime propio —base, sesión y almacenamiento—, las 13 rutas
+HTTP y las pantallas `/plantillas` y `/plantillas/[templateId]/[versionId]`. Diseñar es
+atribución de `OWNER` y `ADMIN`: `STAFF` administra el día a día, no la identidad visual.
+
+**Dos ajustes de compilación.** Playwright se externaliza a mano, porque su import vive dentro
+de `@repo/template-engine-renderer`, que sí se transpila — el mismo caso que ya estaba resuelto
+para el rasterizador de PDF. Y se sumaron las dependencias de tipos que faltaban.
+
+### El plan mayor
+
+Este módulo es la base de un diseñador único para todo el ecosistema. El orden previsto:
+
+1. **Carnet de socio** de FotOffice — el caso que motivó habilitarlo.
+2. **Placas de redes** y las piezas de Clickatón, que ya tienen su editor apuntando acá.
+3. **Diplomas** de FotoRank, hoy con su propio modelo (`FotorankDiplomaTemplate`), a migrar.
+
+La idea es que quien diseña aprenda una sola herramienta, y que una mejora en el editor sirva a
+las tres. Hoy conviven `CardTemplate`, `Template`, `TemplateSlot` y `FotorankDiplomaTemplate`
+como modelos separados: la unificación es lo que justifica el módulo.
+
+### Lo que falta para cerrar el carnet
+
+1. **Migrar la plantilla del carnet** de `lib/carnet/template.ts` a una plantilla de sistema en
+   `TemplateV2`, que cada institución duplique y edite. El comentario del código ya lo anticipa:
+   *"la migración va a ser mover el JSON, no rehacerlo"*.
+2. **Que el renderizador lea de la base** en vez de la constante, conservando la versión con la
+   que se emitió cada carnet: la plantilla puede cambiar entre que el socio la pide y alguien la
+   imprime.
+3. **La pantalla del portal** para que el socio suba su foto, con el preset `memberAvatar` ya
+   ajustado a 472×472.
