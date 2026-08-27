@@ -1,0 +1,759 @@
+{
+ "generado": "2026-08-27",
+ "fuente": [
+  "SUBSCRIBERS_SFPR_27082026.xlsx",
+  "(INACTIVOS).xlsx",
+  "Reporte_Imputacion_Pagos"
+ ],
+ "escalaCuota": [
+  {
+   "categoria": "Profesional",
+   "montoArs": 5000,
+   "vigenteDesde": "2025-10-01",
+   "vigenteHasta": "2026-02-28"
+  },
+  {
+   "categoria": "Profesional",
+   "montoArs": 8000,
+   "vigenteDesde": "2026-03-01",
+   "vigenteHasta": null
+  },
+  {
+   "categoria": "Honorario",
+   "montoArs": 0,
+   "vigenteDesde": "2025-10-01",
+   "vigenteHasta": null
+  }
+ ],
+ "honorarios": [
+  {
+   "socio": "23",
+   "saldo": 0.0
+  },
+  {
+   "socio": "27",
+   "saldo": 0.0
+  },
+  {
+   "socio": "40",
+   "saldo": 0.0
+  },
+  {
+   "socio": "45",
+   "saldo": 0.0
+  },
+  {
+   "socio": "46",
+   "saldo": 0.0
+  },
+  {
+   "socio": "255",
+   "saldo": 0.0
+  },
+  {
+   "socio": "417",
+   "saldo": 0.0
+  },
+  {
+   "socio": "553",
+   "saldo": 0.0
+  }
+ ],
+ "bajas": [
+  {
+   "socio": "476",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "518",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "521",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "534",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "540",
+   "cuotas": 10.0,
+   "saldo": 68000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "541",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "547",
+   "cuotas": 8.0,
+   "saldo": 58000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "560",
+   "cuotas": 8.0,
+   "saldo": 58000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "562",
+   "cuotas": 7.0,
+   "saldo": 53000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "563",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "566",
+   "cuotas": 11.0,
+   "saldo": 109000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "567",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "570",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "572",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "573",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "575",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "578",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "581",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "584",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "585",
+   "cuotas": 11.0,
+   "saldo": 118000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "588",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "589",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "590",
+   "cuotas": 8.0,
+   "saldo": 58000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "592",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "593",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "594",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "595",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "597",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "600",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "601",
+   "cuotas": 8.0,
+   "saldo": 58000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "602",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "603",
+   "cuotas": 11.0,
+   "saldo": 73000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "616",
+   "cuotas": 7.0,
+   "saldo": 53000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "634",
+   "cuotas": 8.0,
+   "saldo": 58000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "642",
+   "cuotas": 7.0,
+   "saldo": 50000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "666",
+   "cuotas": 10.0,
+   "saldo": 68000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "674",
+   "cuotas": 10.0,
+   "saldo": 68000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "676",
+   "cuotas": 9.0,
+   "saldo": 63000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "681",
+   "cuotas": 9.0,
+   "saldo": 63000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "695",
+   "cuotas": 8.0,
+   "saldo": 58000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "698",
+   "cuotas": 8.0,
+   "saldo": 58000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "713",
+   "cuotas": 7.0,
+   "saldo": 53000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "714",
+   "cuotas": 8.0,
+   "saldo": 58000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "718",
+   "cuotas": 7.0,
+   "saldo": 53000.0,
+   "motivo": "DEUDA"
+  },
+  {
+   "socio": "720",
+   "cuotas": 7.0,
+   "saldo": 53000.0,
+   "motivo": "DEUDA"
+  }
+ ],
+ "cargoApertura": [
+  {
+   "socio": "335",
+   "montoArs": 16000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "462",
+   "montoArs": 8000.0,
+   "cuotas": 1.0
+  },
+  {
+   "socio": "509",
+   "montoArs": 40000.0,
+   "cuotas": 5.0
+  },
+  {
+   "socio": "536",
+   "montoArs": 16000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "537",
+   "montoArs": 32000.0,
+   "cuotas": 4.0
+  },
+  {
+   "socio": "556",
+   "montoArs": 32000.0,
+   "cuotas": 4.0
+  },
+  {
+   "socio": "558",
+   "montoArs": 32000.0,
+   "cuotas": 4.0
+  },
+  {
+   "socio": "559",
+   "montoArs": 32000.0,
+   "cuotas": 4.0
+  },
+  {
+   "socio": "569",
+   "montoArs": 30000.0,
+   "cuotas": 4.0
+  },
+  {
+   "socio": "587",
+   "montoArs": 16000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "598",
+   "montoArs": 23000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "604",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "605",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "607",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "611",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "613",
+   "montoArs": 60000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "615",
+   "montoArs": 24000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "619",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "620",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "621",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "623",
+   "montoArs": 8000.0,
+   "cuotas": 1.0
+  },
+  {
+   "socio": "624",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "625",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "626",
+   "montoArs": 8000.0,
+   "cuotas": 1.0
+  },
+  {
+   "socio": "627",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "629",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "630",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "631",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "632",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "636",
+   "montoArs": 16000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "638",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "639",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "643",
+   "montoArs": 60000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "644",
+   "montoArs": 16000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "645",
+   "montoArs": 60000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "646",
+   "montoArs": 48000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "647",
+   "montoArs": 60000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "649",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "650",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "651",
+   "montoArs": 24000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "652",
+   "montoArs": 54000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "654",
+   "montoArs": 54000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "656",
+   "montoArs": 54000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "658",
+   "montoArs": 8000.0,
+   "cuotas": 1.0
+  },
+  {
+   "socio": "659",
+   "montoArs": 40500.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "662",
+   "montoArs": 46500.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "663",
+   "montoArs": 16000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "664",
+   "montoArs": 32000.0,
+   "cuotas": 4.0
+  },
+  {
+   "socio": "665",
+   "montoArs": 38000.0,
+   "cuotas": 5.0
+  },
+  {
+   "socio": "667",
+   "montoArs": 13000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "668",
+   "montoArs": 43500.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "669",
+   "montoArs": 35000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "671",
+   "montoArs": 40000.0,
+   "cuotas": 5.0
+  },
+  {
+   "socio": "677",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "678",
+   "montoArs": 32000.0,
+   "cuotas": 4.0
+  },
+  {
+   "socio": "679",
+   "montoArs": 16000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "682",
+   "montoArs": 31000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "684",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "686",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "687",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "691",
+   "montoArs": 16000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "692",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "693",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "694",
+   "montoArs": 16000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "696",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "697",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "699",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "700",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "701",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "703",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "705",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "709",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "710",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "711",
+   "montoArs": 15000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "717",
+   "montoArs": 24000.0,
+   "cuotas": 3.0
+  },
+  {
+   "socio": "719",
+   "montoArs": 8000.0,
+   "cuotas": 1.0
+  },
+  {
+   "socio": "721",
+   "montoArs": 8000.0,
+   "cuotas": 1.0
+  },
+  {
+   "socio": "723",
+   "montoArs": 32000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "724",
+   "montoArs": 32000.0,
+   "cuotas": 2.0
+  },
+  {
+   "socio": "726",
+   "montoArs": 8000.0,
+   "cuotas": 1.0
+  }
+ ],
+ "sinAccion": [
+  "332",
+  "565",
+  "580",
+  "614",
+  "648",
+  "661",
+  "683",
+  "707",
+  "715",
+  "722",
+  "725"
+ ],
+ "avisos": [
+  "Fila sin número de socio en la hoja Listado de activos",
+  "Socio 617 tiene crédito a favor de $37,000 — no se carga cargo, requiere decisión",
+  "El socio 713 figura como activo y como inactivo en las planillas de origen"
+ ],
+ "inactivosNoImportados": {
+  "cantidad": 47,
+  "deuda": 723300.0,
+  "nota": "No se importan. Decisión pendiente."
+ }
+}
