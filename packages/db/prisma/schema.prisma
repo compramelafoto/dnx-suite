@@ -14094,6 +14094,10 @@ model DnxPartnerParticipation {
   estimatedValueMinor  Int?
   currency             String?                       @default("ARS")
   notes                String?
+  /// Quién vendió esta participación. Null = la vendió DNX directo.
+  /// Ref opaca al workspace u organización vendedora, igual que `organizationId`.
+  /// Es lo que permite facturarle el fee al vendedor y saber de quién es la marca.
+  soldByOrganizationId String?
   createdByUserId      Int?
   updatedByUserId      Int?
   createdAt            DateTime                      @default(now())
@@ -14115,6 +14119,7 @@ model DnxPartnerParticipation {
   @@index([publicVisibility])
   @@index([application, contextType, contextId, publicVisibility, status])
   @@index([application, contextType, contextId, institutionalRole, displayOrder], map: "DnxPartnerParticipation_context_role_order_idx")
+  @@index([soldByOrganizationId, status])
 }
 
 enum DnxPartnerPublicVisibility {
