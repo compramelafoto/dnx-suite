@@ -35,6 +35,21 @@ export type ProposalLine = {
   sortOrder: number;
 };
 
+/** Si un espacio tiene lugar en el período que se está vendiendo. */
+export type ProposalSpaceAvailability = {
+  available: boolean;
+  /** Cuándo se libera, si no hay lugar. */
+  nextFreeAt: Date | null;
+};
+
+/** Una pieza que el vendedor puede ofrecer pero que hoy no tiene lugar. */
+export type ProposalUnavailableLine = {
+  pieceId: string;
+  placementKey: DnxPartnerAdPlacementKey;
+  label: string;
+  nextFreeAt: Date | null;
+};
+
 export type ProposalPlanInput = {
   brandName: string;
   industry?: string | null;
@@ -44,6 +59,13 @@ export type ProposalPlanInput = {
    * lugar que no es suyo, y lo no montado queda afuera.
    */
   seller: SellerScope;
+  /**
+   * Disponibilidad por espacio, en el período que se vende. Ausente significa
+   * que no se filtra por cupo: es el comportamiento de siempre.
+   */
+  availability?: Readonly<
+    Partial<Record<DnxPartnerAdPlacementKey, ProposalSpaceAvailability>>
+  >;
   /** Piezas que no van en esta propuesta. */
   excludePieceIds?: readonly string[];
 };
@@ -53,6 +75,12 @@ export type ProposalPlan = {
   industry: string | null;
   plate: PlateTreatment;
   lines: ProposalLine[];
+  /**
+   * Piezas que el vendedor podía ofrecer y quedaron afuera por falta de lugar,
+   * con la fecha en que se liberan. Es información de venta además de un dato
+   * técnico: «se libera el 1 de marzo, ¿te lo reservo?».
+   */
+  unavailable: ProposalUnavailableLine[];
 };
 
 export function buildProposalPlan(input: ProposalPlanInput): ProposalPlan {
@@ -68,9 +96,17 @@ export function buildProposalPlan(input: ProposalPlanInput): ProposalPlan {
   const vendibles = new Set(
     listSellableSpaces(input.seller).map((space) => space.placementKey),
   );
-  const lines = PROPOSAL_PIECES.filter(
+  const ofrecibles = PROPOSAL_PIECES.filter(
     (p) => !excluded.has(p.id) && vendibles.has(p.placementKey),
-  )
+  );
+
+  const sinLugar = input.availability
+    ? ofrecibles.filter((p) => input.availability?.[p.placementKey]?.available === false)
+    : [];
+  const sinLugarIds = new Set(sinLugar.map((p) => p.id));
+
+  const lines = ofrecibles
+    .filter((p) => !sinLugarIds.has(p.id))
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((p): ProposalLine => ({
@@ -92,5 +128,14 @@ export function buildProposalPlan(input: ProposalPlanInput): ProposalPlan {
     industry: input.industry?.trim() || null,
     plate: input.plate,
     lines,
+    unavailable: sinLugar
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((p) => ({
+        pieceId: p.id,
+        placementKey: p.placementKey,
+        label: `${p.label} · ${p.platformLabel}`,
+        nextFreeAt: input.availability?.[p.placementKey]?.nextFreeAt ?? null,
+      })),
   };
 }

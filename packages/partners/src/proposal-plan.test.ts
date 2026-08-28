@@ -134,3 +134,60 @@ describe("el plan respeta quién vende", () => {
     }
   });
 });
+
+describe("el plan respeta el cupo", () => {
+  it("sin datos de disponibilidad, no filtra por cupo", () => {
+    const plan = buildProposalPlan(marca);
+    assert.equal(plan.lines.length, 7);
+    assert.deepEqual(plan.unavailable, []);
+  });
+
+  it("un espacio sin lugar no entra en la propuesta", () => {
+    const plan = buildProposalPlan({
+      ...marca,
+      availability: {
+        INFOSPOT_HOME_TOP: { available: false, nextFreeAt: new Date("2027-03-01T00:00:00Z") },
+      },
+    });
+    assert.ok(plan.lines.every((l) => l.pieceId !== "infospot-banner"));
+    assert.equal(plan.lines.length, 6);
+  });
+
+  it("dice desde cuándo se libera, que también es información de venta", () => {
+    const plan = buildProposalPlan({
+      ...marca,
+      availability: {
+        INFOSPOT_HOME_TOP: { available: false, nextFreeAt: new Date("2027-03-01T00:00:00Z") },
+      },
+    });
+    assert.deepEqual(plan.unavailable, [
+      {
+        pieceId: "infospot-banner",
+        placementKey: "INFOSPOT_HOME_TOP",
+        label: "Banner horizontal · InfoSpot",
+        nextFreeAt: new Date("2027-03-01T00:00:00Z"),
+      },
+    ]);
+  });
+
+  it("un espacio con lugar entra normalmente", () => {
+    const plan = buildProposalPlan({
+      ...marca,
+      availability: { INFOSPOT_HOME_TOP: { available: true, nextFreeAt: null } },
+    });
+    assert.ok(plan.lines.some((l) => l.pieceId === "infospot-banner"));
+    assert.deepEqual(plan.unavailable, []);
+  });
+
+  it("lo que el vendedor no puede vender no aparece como sin lugar", () => {
+    const plan = buildProposalPlan({
+      ...marca,
+      seller: { owner: "ORGANIZER", application: "FOTO_RANK" },
+      availability: {
+        INFOSPOT_HOME_TOP: { available: false, nextFreeAt: null },
+      },
+    });
+    assert.deepEqual(plan.lines.map((l) => l.pieceId), ["fotorank-welcome"]);
+    assert.deepEqual(plan.unavailable, []);
+  });
+});

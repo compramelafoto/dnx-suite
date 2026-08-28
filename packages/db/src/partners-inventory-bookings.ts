@@ -17,6 +17,7 @@ import {
   type InventoryAvailability,
   type InventoryBooking,
   type InventoryRange,
+  type ProposalSpaceAvailability,
 } from "@repo/partners";
 import { prisma } from "./client.js";
 
@@ -247,4 +248,59 @@ export async function expireInventoryReservations(now: Date): Promise<number> {
     data: { status: "CANCELLED" },
   });
   return count;
+}
+
+/**
+ * La disponibilidad de varios espacios de una sola vez, con la forma que espera
+ * `buildProposalPlan`.
+ *
+ * Es el puente entre la ocupación guardada y el generador de propuestas: con
+ * esto, un espacio sin lugar deja de ofrecerse y la propuesta muestra desde
+ * cuándo se libera.
+ */
+export async function getProposalSpacesAvailability(input: {
+  placementKeys: readonly DnxPartnerAdPlacementKey[];
+  contextId?: string | null;
+  range: InventoryRange;
+  now: Date;
+  capacityByPlacement?: Partial<Record<DnxPartnerAdPlacementKey, number>>;
+}): Promise<Partial<Record<DnxPartnerAdPlacementKey, ProposalSpaceAvailability>>> {
+  const claves = [...new Set(input.placementKeys)];
+
+  const rows = await prisma.dnxPartnerInventoryBooking.findMany({
+    where: {
+      placementKey: { in: claves },
+      contextId: input.contextId ?? null,
+      status: { in: ["RESERVED", "SOLD"] },
+      startsAt: { lt: input.range.endsAt },
+      endsAt: { gt: input.range.startsAt },
+    },
+    select: {
+      placementKey: true,
+      contextId: true,
+      slotIndex: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      reservationExpiresAt: true,
+    },
+  });
+  const bookings = rows as InventoryBooking[];
+
+  const salida: Partial<Record<DnxPartnerAdPlacementKey, ProposalSpaceAvailability>> = {};
+  for (const placementKey of claves) {
+    const disponibilidad = resolveInventoryAvailability({
+      placementKey,
+      contextId: input.contextId ?? null,
+      range: input.range,
+      bookings,
+      now: input.now,
+      capacity: input.capacityByPlacement?.[placementKey],
+    });
+    salida[placementKey] = {
+      available: disponibilidad.slotIndex !== null,
+      nextFreeAt: disponibilidad.nextFreeAt,
+    };
+  }
+  return salida;
 }

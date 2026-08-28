@@ -134,3 +134,23 @@ dos vendedores confirmen el último lugar a la vez, cosa que un control en la
 aplicación no puede garantizar.
 
 Diseño: `docs/superpowers/specs/2026-08-27-cupo-y-reserva-de-inventario-design.md`.
+
+### Cómo llega el cupo a la propuesta
+
+`getProposalSpacesAvailability` (en `@repo/db/partners-inventory-bookings`)
+devuelve, para un período, qué espacios tienen lugar. `buildProposalPlan` recibe
+ese mapa y deja afuera los que no: quedan listados en `plan.unavailable` con la
+fecha en que se liberan.
+
+Sin ese mapa el generador no filtra por cupo, que es el comportamiento de
+siempre. **Lo que falta para encenderlo es que la propuesta tenga un período**:
+hoy no lo pide, y elegir uno por defecto es una decisión comercial —los packs de
+plataforma se venden por mes, los de evento por edición—, no algo que convenga
+inventar en el código.
+
+### La tarea de vencimiento
+
+`GET /api/cron/expire-inventory-reservations` en Clickatón, cada hora, con el
+mismo esquema de autenticación que los demás crons: `Bearer CRON_SECRET` o el
+header de Vercel. Cancela las reservas vencidas para liberar el lugar ante la
+restricción de la base, que no sabe qué hora es.

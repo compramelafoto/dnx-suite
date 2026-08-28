@@ -647,6 +647,8 @@ export type {
   ProposalLineSelection,
   ProposalPlan,
   ProposalPlanInput,
+  ProposalSpaceAvailability,
+  ProposalUnavailableLine,
 } from "./proposal-plan";
 
 export {

@@ -26,6 +26,10 @@
     {
       "path": "/api/cron/payments-reconciliation",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/expire-inventory-reservations",
+      "schedule": "0 * * * *"
     }
   ]
 }
