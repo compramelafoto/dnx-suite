@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { hasAppAccess, requireAuth } from "@/lib/auth";
@@ -11,7 +12,9 @@ import { canManageMembers } from "@/lib/members/role-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { ShellSidebar } from "@/components/shell/shell-sidebar";
+import { ShellFrame } from "@/components/shell/shell-frame";
 import { ShellHeader } from "@/components/shell/shell-header";
+import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
 import { PORTAL_HOME } from "@/lib/portal/destination";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 
@@ -47,18 +50,27 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeMembership?.role);
   const platformAdmin = await isFotofficePlatformAdmin(user.id);
 
+  // Se lee acá, en el servidor, para que el menú ya salga oculto en el primer pintado:
+  // decidirlo en el navegador lo mostraría y lo escondería en cada carga de página.
+  const navHidden =
+    parseShellNavPreference((await cookies()).get(SHELL_NAV_COOKIE)?.value) === "hidden";
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[var(--fo-bg)]">
-      <ShellSidebar
-        coursesEnabled={coursesOn}
-        evaluacionesEnabled={evaluacionesOn}
-        membersEnabled={membersOn}
-        websiteEnabled={websiteOn}
-        canManageMembers={canManageMembersFlag}
-        canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
-        platformAdmin={platformAdmin}
-      />
-      <div className="flex-1 flex flex-col min-w-0">
+    <ShellFrame
+      navHidden={navHidden}
+      sidebar={
+        <ShellSidebar
+          workspaceName={workspace?.name ?? null}
+          coursesEnabled={coursesOn}
+          evaluacionesEnabled={evaluacionesOn}
+          membersEnabled={membersOn}
+          websiteEnabled={websiteOn}
+          canManageMembers={canManageMembersFlag}
+          canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
+          platformAdmin={platformAdmin}
+        />
+      }
+      header={
         <ShellHeader
           userName={user.name}
           userEmail={user.email}
@@ -70,8 +82,9 @@ export default async function ShellLayout({ children }: { children: React.ReactN
           }))}
           activeWorkspaceId={workspace?.id ?? null}
         />
-        <main className="flex-1 p-6 md:p-10 max-w-6xl w-full mx-auto">{children}</main>
-      </div>
-    </div>
+      }
+    >
+      {children}
+    </ShellFrame>
   );
 }

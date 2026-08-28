@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   CalendarClock,
+  ClipboardCheck,
   CreditCard,
+  FileText,
   Palette,
   Globe,
   GraduationCap,
-  IdCard,
   Inbox,
   LayoutDashboard,
   LayoutGrid,
@@ -22,6 +23,7 @@ import {
   Wallet2,
 } from "lucide-react";
 import type { ComponentType } from "react";
+import { useShellNav } from "./shell-frame";
 
 /**
  * Menú principal.
@@ -30,8 +32,17 @@ import type { ComponentType } from "react";
  * nivel: "Config. del módulo" al lado de "Socios" no decía de qué módulo era, y lo último
  * que se agregaba quedaba abajo de todo sin que nadie lo encontrara.
  *
- * Cada grupo aparece solo si el módulo está activo y la persona tiene permiso. Un grupo con
- * un solo elemento no lleva encabezado: sería un título para nada.
+ * Cada grupo aparece solo si el módulo está activo y la persona tiene permiso.
+ *
+ * Toda sección con nombre lleva su encabezado, incluso con un solo elemento. La regla
+ * anterior —"un grupo de uno no lleva título"— producía el defecto contrario: "Sitio web"
+ * quedaba suelto debajo de "Valores y calendario" y se leía como parte de Socios. Un ítem
+ * sin encabezado se lee siempre como parte de la sección de arriba.
+ *
+ * El orden de las secciones y de sus ítems está fijado en
+ * `docs/fotoffice/ARQUITECTURA-NAVEGACION.md`, junto con el lugar reservado para los módulos
+ * que todavía no existen. Un módulo planificado NO se agrega acá hasta tener pantalla real:
+ * el menú no promete.
  */
 
 type Item = {
@@ -63,10 +74,13 @@ function Section({
   title,
   items,
   path,
+  onNavigate,
 }: {
   title: string | null;
   items: Item[];
   path: string;
+  /** En el teléfono el menú tapa el contenido: elegir una opción tiene que cerrarlo. */
+  onNavigate: () => void;
 }) {
   if (items.length === 0) return null;
   return (
@@ -79,7 +93,12 @@ function Section({
       {items.map((item) => {
         const Icon = item.icon;
         return (
-          <Link key={item.href} href={item.href} className={itemClass(item.isActive(path))}>
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            className={itemClass(item.isActive(path))}
+          >
             <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
             {item.label}
           </Link>
@@ -107,6 +126,7 @@ export function ShellNav({
   platformAdmin: boolean;
 }) {
   const path = usePathname() ?? "";
+  const { closeDrawer } = useShellNav();
 
   // El padrón se marca actual solo en sus propias pantallas: si abarcara todo /members,
   // quedaría iluminado mientras mirás Cuotas y no sabrías dónde estás parado.
@@ -185,8 +205,58 @@ export function ShellNav({
         { href: "/dashboard/sales", label: "Ventas", icon: LayoutGrid, isActive: under("/dashboard/sales") },
         { href: "/courses/teachers", label: "Docentes", icon: Users, isActive: under("/courses/teachers") },
         { href: "/courses/leads", label: "Inscripciones", icon: Inbox, isActive: under("/courses/leads") },
-        { href: "/courses/settings", label: "Configuración", icon: Settings, isActive: under("/courses/settings") },
       ]
+    : [];
+
+  // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
+  // Tiene su propia llave, así que puede estar encendido sin cursos — en ese caso la sección
+  // "Cursos" muestra solo este ítem, que sigue siendo cierto.
+  const cursosItems: Item[] = [
+    ...cursos,
+    ...(evaluacionesEnabled
+      ? [
+          {
+            href: "/evaluaciones",
+            label: "Evaluaciones",
+            icon: ClipboardCheck,
+            isActive: under("/evaluaciones"),
+          },
+        ]
+      : []),
+    ...(coursesEnabled
+      ? [
+          {
+            href: "/courses/settings",
+            label: "Configuración",
+            icon: Settings,
+            isActive: under("/courses/settings"),
+          },
+        ]
+      : []),
+  ];
+
+  // Formularios compartibles para juntar contactos. Vivían escritos aparte, debajo del menú y
+  // con otro estilo: se veían como un apéndice y no como un módulo más.
+  // Deuda registrada: no tiene llave de módulo, así que no se puede apagar por organización.
+  const captacion: Item[] = [
+    {
+      href: "/dashboard/service-leads/forms",
+      label: "Formularios",
+      icon: FileText,
+      isActive: under("/dashboard/service-leads/forms"),
+    },
+    {
+      href: "/dashboard/service-leads",
+      label: "Leads",
+      icon: Inbox,
+      isActive: exact("/dashboard/service-leads"),
+    },
+  ];
+
+  // Presencia pública: hoy un solo ítem, y aun así con encabezado propio. Es donde aterrizan
+  // el blog, los portfolios y las redes cuando existan.
+  const presencia: Item[] = websiteEnabled
+    ? [{ href: "/website", label: "Sitio web", icon: Globe, isActive: under("/website") }]
     : [];
 
   const institucion: Item[] = canManageWorkspaceSettings
@@ -215,30 +285,22 @@ export function ShellNav({
       ]
     : [];
 
-  const otros: Item[] = [
-    ...(evaluacionesEnabled
-      ? [{ href: "/evaluaciones", label: "Evaluaciones", icon: LayoutGrid, isActive: under("/evaluaciones") }]
-      : []),
-    ...(websiteEnabled
-      ? [{ href: "/website", label: "Sitio web", icon: Globe, isActive: under("/website") }]
-      : []),
-  ];
-
   return (
     <nav className="flex flex-col gap-0.5" aria-label="Principal">
       <Section
         title={null}
         path={path}
+        onNavigate={closeDrawer}
         items={[
           { href: "/dashboard", label: "Inicio", icon: LayoutDashboard, isActive: exact("/dashboard") },
         ]}
       />
-      <Section title="Socios" items={socios} path={path} />
-      <Section title="Cursos" items={cursos} path={path} />
-      {/* Evaluaciones y Sitio web son módulos de un solo elemento: un encabezado sobraría. */}
-      <Section title={otros.length > 1 ? "Módulos" : null} items={otros} path={path} />
-      <Section title="Institución" items={institucion} path={path} />
-      <Section title="Plataforma" items={plataforma} path={path} />
+      <Section title="Socios" items={socios} path={path} onNavigate={closeDrawer} />
+      <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
+      <Section title="Captación" items={captacion} path={path} onNavigate={closeDrawer} />
+      <Section title="Presencia pública" items={presencia} path={path} onNavigate={closeDrawer} />
+      <Section title="Institución" items={institucion} path={path} onNavigate={closeDrawer} />
+      <Section title="Plataforma" items={plataforma} path={path} onNavigate={closeDrawer} />
     </nav>
   );
 }
