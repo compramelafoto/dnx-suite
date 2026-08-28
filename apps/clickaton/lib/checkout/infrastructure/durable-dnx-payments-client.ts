@@ -338,8 +338,14 @@ export function createDurableDnxPaymentsClient(deps: {
           applyNormalizedEvent: (e) => service.applyNormalizedEvent(e),
           checkoutFlagEnabled: isClickatonDnxCheckoutEnabled(),
           environment: "sandbox",
-          // GET Order = fuente de verdad también en el reintento duplicado.
-          fetchCanonicalOrder: deps.fetchOrdersCanonical,
+          // Pendiente: que el GET Order sea fuente de verdad también en el
+          // reintento duplicado. `fulfillRegistrationFromOrdersObserve` todavía
+          // no acepta un `fetchCanonicalOrder`; hoy, cuando falta el canonical,
+          // cae al provider order guardado. Para completarlo hay que sumarlo a
+          // `FulfillFromOrdersObserveInput` y usarlo en la rama `if (!canonical)`
+          // de `packages/payments/src/application/services/clickaton-checkout/
+          // fulfill-from-orders-observe.ts`. Se pasaba como propiedad y rompía
+          // el build de producción.
         });
 
         if (fulfillment.fulfilled) {
