@@ -249,7 +249,8 @@ export function MembershipApplicationForm({
         </label>
         <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
           La credencial digital la tenés siempre, sin costo, en tu portal de socio. La impresa es
-          opcional.
+          opcional y <strong>no se paga ahora</strong>: primero subís tu foto desde el portal y
+          recién ahí la pedís y la abonás.
         </p>
 
         {/*

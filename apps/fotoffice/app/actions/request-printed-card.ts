@@ -7,15 +7,20 @@ import { requestPrintedCard } from "@/lib/carnet/print-order";
 import { formatMinorArs } from "@/lib/membership/money";
 
 export type RequestPrintedCardResult =
-  | { ok: true; message: string }
+  | { ok: true; message: string; payPath: string }
   | { ok: false; error: string };
 
 /**
  * El socio pide su tarjeta impresa.
  *
- * Genera el cargo por el valor de una cuota. No cobra acá: el cargo aparece en «Tus cuotas»
- * y se paga con el resto, por el mismo circuito. Un pago aparte sería otra conciliación y
- * otro lugar donde perder plata.
+ * Genera el cargo por el valor de una cuota. No se abre un cobro aparte: el cargo entra al
+ * mismo circuito de cuotas, con el mismo checkout y el mismo webhook. Un segundo canal sería
+ * otra conciliación y otro lugar donde perder plata.
+ *
+ * Pero tampoco se lo deja esperando. La idea de "se paga junto con tus cuotas" se cae para
+ * quien acaba de pagar la inscripción: no le queda ninguna cuota con la cual juntarlo, y la
+ * tarjeta quedaría sin imprimir hasta el mes siguiente. Por eso se devuelve el destino de
+ * pago y la pantalla lo ofrece ahí mismo.
  */
 export async function requestPrintedCardAction(): Promise<RequestPrintedCardResult> {
   const user = await requireAuth();
@@ -32,6 +37,7 @@ export async function requestPrintedCardAction(): Promise<RequestPrintedCardResu
   revalidatePath("/portal/cuotas");
   return {
     ok: true,
-    message: `Listo. Se agregó un cargo de ${formatMinorArs(r.amountMinor)} a tus cuotas. Cuando lo pagues, la tarjeta entra en la cola de impresión.`,
+    message: `Listo. Se agregó un cargo de ${formatMinorArs(r.amountMinor)}. Cuando lo pagues, la tarjeta entra en la cola de impresión.`,
+    payPath: "/portal/cuotas",
   };
 }
