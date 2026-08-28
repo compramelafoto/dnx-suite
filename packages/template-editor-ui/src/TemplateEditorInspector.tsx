@@ -333,6 +333,78 @@ export function TemplateEditorInspector({
         </InspectorPanel>
       )}
 
+      {selectedBlock.type === "QR" && (
+        <InspectorPanel title="Código QR">
+          <div>
+            <FieldLabel>Qué codifica</FieldLabel>
+            <select
+              className={selectBase}
+              value={cfg.mode === "FIXED" ? "FIXED" : "VARIABLE"}
+              onChange={(e) => updateConfig({ mode: e.target.value })}
+            >
+              <option value="VARIABLE">Un dato de cada persona</option>
+              <option value="FIXED">Una dirección fija</option>
+            </select>
+            <p className="mt-1 text-[11px] leading-snug text-[#6b7280]">
+              {cfg.mode === "FIXED"
+                ? "El mismo código en todas las piezas. Sirve para llevar al sitio de la institución."
+                : "Cambia con cada pieza. Es lo que hace que el carnet verifique a ese socio y no a otro."}
+            </p>
+          </div>
+
+          {cfg.mode === "FIXED" ? (
+            <div>
+              <FieldLabel>Dirección</FieldLabel>
+              <input
+                className={selectBase}
+                type="url"
+                inputMode="url"
+                placeholder="https://…"
+                value={String(cfg.value ?? "")}
+                onChange={(e) => updateConfig({ value: e.target.value })}
+              />
+            </div>
+          ) : (
+            <div>
+              <FieldLabel>Dato a codificar</FieldLabel>
+              <select
+                className={selectBase}
+                value={String(cfg.variableKey ?? "")}
+                onChange={(e) => updateConfig({ variableKey: e.target.value })}
+              >
+                <option value="">— Elegir dato —</option>
+                {TEXT_VARIABLE_GROUPS.map((group) => (
+                  <optgroup key={group.id} label={group.label}>
+                    {group.variables.map((v) => (
+                      <option key={v.key} value={v.key}>
+                        {v.label} · {v.key}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <FieldLabel>Corrección de errores</FieldLabel>
+            <select
+              className={selectBase}
+              value={String(cfg.errorCorrection ?? "M")}
+              onChange={(e) => updateConfig({ errorCorrection: e.target.value })}
+            >
+              <option value="L">Baja — código más chico</option>
+              <option value="M">Media — la habitual</option>
+              <option value="Q">Alta</option>
+              <option value="H">Máxima — tolera desgaste y manchas</option>
+            </select>
+            <p className="mt-1 text-[11px] leading-snug text-[#6b7280]">
+              Más corrección aguanta una tarjeta rayada, pero hace el dibujo más denso.
+            </p>
+          </div>
+        </InspectorPanel>
+      )}
+
       {selectedBlock.type === "IMAGE" && (
         <>
           <ImageBlockUploadSection

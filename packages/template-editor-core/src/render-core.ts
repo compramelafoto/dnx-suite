@@ -156,14 +156,23 @@ export function normalizeBlockConfig(type: TemplateV2BlockType, input: unknown):
 
   if (type === "QR") {
     /*
-     * El QR se dibuja a partir de una variable, no de un texto fijo: lo que se codifica
-     * cambia por socio. `variableKey` dice de dónde sale el valor.
+     * El QR codifica una de dos cosas, y quien diseña elige cuál:
+     *
+     * - `VARIABLE`: el valor sale de un dato del destinatario y cambia con cada pieza. Es el
+     *   caso del carnet, donde cada socio lleva su propia URL de verificación.
+     * - `FIXED`: una dirección escrita a mano, igual para todos. Sirve para mandar al sitio de
+     *   la institución, a un formulario o a donde el owner quiera.
      *
      * `errorCorrection` en M y una zona quieta de 4 módulos son los valores que ya usa el
      * carnet: menos margen y el lector falla contra un fondo claro.
      */
+    const modoCrudo = typeof cfg.mode === "string" ? cfg.mode : "VARIABLE";
+    const mode = modoCrudo === "FIXED" ? "FIXED" : "VARIABLE";
     const ec = typeof cfg.errorCorrection === "string" ? cfg.errorCorrection : "M";
     return {
+      mode,
+      /** Solo se usa con `mode: "FIXED"`. */
+      value: typeof cfg.value === "string" ? cfg.value : "",
       variableKey: typeof cfg.variableKey === "string" ? cfg.variableKey : "",
       errorCorrection: ["L", "M", "Q", "H"].includes(ec) ? ec : "M",
       quietZoneModules:

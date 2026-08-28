@@ -22,9 +22,17 @@ export function QrBlockRenderer({
   layoutWidth: number;
   layoutHeight: number;
 }) {
+  const mode = config.mode === "FIXED" ? "FIXED" : "VARIABLE";
   const variableKey = typeof config.variableKey === "string" ? config.variableKey : "";
-  const valor = variableKey ? resolvedVariables?.[variableKey] : undefined;
-  const texto = typeof valor === "string" ? valor.trim() : "";
+  const fijo = typeof config.value === "string" ? config.value.trim() : "";
+
+  const valorVariable = variableKey ? resolvedVariables?.[variableKey] : undefined;
+  const texto =
+    mode === "FIXED"
+      ? fijo
+      : typeof valorVariable === "string"
+        ? valorVariable.trim()
+        : "";
 
   const foreground = typeof config.foreground === "string" ? config.foreground : "#000000";
   const background = typeof config.background === "string" ? config.background : "#ffffff";
@@ -67,7 +75,11 @@ export function QrBlockRenderer({
         style={{ borderColor: "#94a3b8", background }}
       >
         <span className="px-2 text-[10px] leading-tight text-slate-500">
-          {variableKey ? "Sin valor todavía" : "Elegí qué dato codificar"}
+          {mode === "FIXED"
+            ? "Escribí la dirección"
+            : variableKey
+              ? "Sin valor todavía"
+              : "Elegí qué dato codificar"}
         </span>
       </div>
     );

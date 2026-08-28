@@ -252,7 +252,11 @@ export function createDefaultQrBlock(
       visible: true,
     },
     configJson: {
+      // Arranca en variable: el caso que motivó el bloque es la credencial, donde cada
+      // persona lleva su propio código. Quien quiera uno fijo lo cambia en el inspector.
+      mode: "VARIABLE",
       variableKey: "",
+      value: "",
       errorCorrection: "M",
       quietZoneModules: 4,
       foreground: "#000000",
