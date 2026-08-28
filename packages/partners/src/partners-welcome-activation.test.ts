@@ -19,7 +19,6 @@ import {
   PARTNER_PUBLICATION_DATABASE_KEYS,
   resolvePublicationDatabaseKey,
 } from "./index";
-import { PartnersDomainError } from "./types";
 
 describe("welcome activation catalog", () => {
   it("incluye placements autorizados y conserva INFOSPOT_HOME_WELCOME", () => {
