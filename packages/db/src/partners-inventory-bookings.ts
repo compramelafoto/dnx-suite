@@ -304,3 +304,36 @@ export async function getProposalSpacesAvailability(input: {
   }
   return salida;
 }
+
+/** Listado para el panel: las ocupaciones más próximas a vencer primero. */
+export async function listInventoryBookings(input?: {
+  status?: readonly ("DRAFT" | "RESERVED" | "SOLD" | "CANCELLED")[];
+  placementKey?: string;
+  limit?: number;
+}) {
+  return prisma.dnxPartnerInventoryBooking.findMany({
+    where: {
+      status: { in: [...(input?.status ?? (["RESERVED", "SOLD"] as const))] },
+      ...(input?.placementKey ? { placementKey: input.placementKey } : {}),
+    },
+    orderBy: [{ endsAt: "asc" }, { placementKey: "asc" }, { slotIndex: "asc" }],
+    take: input?.limit ?? 200,
+    select: {
+      id: true,
+      placementKey: true,
+      contextId: true,
+      slotIndex: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      reservationExpiresAt: true,
+      reservationExtensionCount: true,
+      soldByOrganizationId: true,
+      partner: { select: { id: true, name: true } },
+    },
+  });
+}
+
+export type InventoryBookingRow = Awaited<
+  ReturnType<typeof listInventoryBookings>
+>[number];
