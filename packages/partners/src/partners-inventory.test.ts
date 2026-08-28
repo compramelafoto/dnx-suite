@@ -19,10 +19,10 @@ describe("mapa de inventario", () => {
     }
   });
 
-  it("hay doce espacios montados y dieciocho sin montar", () => {
+  it("hay nueve espacios montados y veintiuno sin montar", () => {
     const montados = DNX_INVENTORY.filter((e) => e.mounted);
-    assert.equal(montados.length, 12);
-    assert.equal(DNX_INVENTORY.length - montados.length, 18);
+    assert.equal(montados.length, 9);
+    assert.equal(DNX_INVENTORY.length - montados.length, 21);
   });
 
   it("el concurso de FotoRank es del organizador y la portada de la plataforma", () => {
@@ -46,7 +46,7 @@ describe("listSellableSpaces", () => {
 
   it("DNX ve toda la red montada y nada de otros dueños", () => {
     const espacios = listSellableSpaces({ owner: "PLATFORM" });
-    assert.equal(espacios.length, 11);
+    assert.equal(espacios.length, 8);
     assert.ok(espacios.every((e) => e.owner === "PLATFORM"));
     assert.ok(espacios.every((e) => e.mounted));
   });
@@ -97,5 +97,15 @@ describe("listSellableSpaces", () => {
     const espacios = listSellableSpaces({ owner: "PLATFORM", application: "INFO_SPOT" });
     assert.ok(espacios.length > 0);
     assert.ok(espacios.every((e) => e.application === "INFO_SPOT"));
+  });
+});
+
+describe("el montaje coincide con la fuente de verdad de las placas", () => {
+  it("ninguna placa listada como no montada figura como montada en el mapa", async () => {
+    const { UNMOUNTED_WELCOME_PLACEMENT_KEYS } = await import("./welcome-admin");
+    for (const key of UNMOUNTED_WELCOME_PLACEMENT_KEYS) {
+      const espacio = DNX_INVENTORY.find((e) => e.placementKey === key);
+      assert.equal(espacio?.mounted, false, `${key} está marcado montado y no lo está`);
+    }
   });
 });

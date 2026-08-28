@@ -19,14 +19,14 @@ no se escribe a mano.
 |---|---|---|---|---|---|
 | `CLICKATON_EVENT_WELCOME` | Activación destacada (evento/maratón) | PLATFORM | EVENT_PARTICIPANTS | SALE | Montado |
 | `CLICKATON_HOME_MARQUEE` | Franja de logos (home) | PLATFORM | ALL_USERS | SALE | Declarado |
-| `CLICKATON_HOME_WELCOME` | Activación destacada (home) | PLATFORM | ALL_USERS | SALE | Montado |
+| `CLICKATON_HOME_WELCOME` | Activación destacada (home) | PLATFORM | ALL_USERS | SALE | Declarado |
 | `CLF_ALBUM_WELCOME` | Activación destacada (álbum) | PLATFORM | EVENT_PARTICIPANTS | SALE | Montado |
 | `CLF_CHECKOUT_SUPPORTING` | Checkout supporting | PLATFORM | PRODUCT_PURCHASERS | SALE | Declarado |
 | `CLF_EVENT_PAGE` | Página evento/álbum | PLATFORM | EVENT_PARTICIPANTS | SALE | Declarado |
 | `CLF_GALLERY_INLINE` | Galería inline | PLATFORM | EVENT_PARTICIPANTS | SALE | Declarado |
 | `CLF_GALLERY_TOP` | Galería top | PLATFORM | EVENT_PARTICIPANTS | SALE | Declarado |
 | `CLF_HOME_PROMO` | Home promo | PLATFORM | ALL_USERS | SALE | Montado |
-| `CLF_HOME_WELCOME` | Activación destacada (home) | PLATFORM | ALL_USERS | SALE | Montado |
+| `CLF_HOME_WELCOME` | Activación destacada (home) | PLATFORM | ALL_USERS | SALE | Declarado |
 | `CLF_LOGO_MARQUEE` | Logo marquee | PLATFORM | ALL_USERS | SALE | Montado |
 | `CLF_PHOTO_DETAIL_BELOW` | Detalle foto | PLATFORM | EVENT_PARTICIPANTS | SALE | Declarado |
 | `FOTOFFICE_BENEFIT_CARD` | Ficha del beneficio | WORKSPACE | MEMBERSHIP_HOLDERS | EXCHANGE | Declarado |
@@ -36,7 +36,7 @@ no se escribe a mano.
 | `FOTOFFICE_PUBLIC_MARQUEE` | Franja de logos (sitio público) | WORKSPACE | ALL_USERS | SALE | Declarado |
 | `FOTOFFICE_RAFFLE_SPONSOR` | Auspicio del sorteo mensual | WORKSPACE | MEMBERSHIP_HOLDERS | BOTH | Declarado |
 | `FOTORANK_CONTEST_WELCOME` | Activación destacada (concurso) | ORGANIZER | EVENT_PARTICIPANTS | SALE | Montado |
-| `FOTORANK_HOME_WELCOME` | Activación destacada (home) | PLATFORM | ALL_USERS | SALE | Montado |
+| `FOTORANK_HOME_WELCOME` | Activación destacada (home) | PLATFORM | ALL_USERS | SALE | Declarado |
 | `INFOSPOT_ARTICLE_BOTTOM` | Artículo bottom | PLATFORM | ALL_USERS | SALE | Declarado |
 | `INFOSPOT_ARTICLE_INLINE` | Artículo inline | PLATFORM | ALL_USERS | SALE | Declarado |
 | `INFOSPOT_ARTICLE_TOP` | Artículo top | PLATFORM | ALL_USERS | SALE | Declarado |
@@ -50,12 +50,17 @@ no se escribe a mano.
 
 ## Los declarados y no montados
 
-Once espacios del catálogo no tienen una sola referencia en el código que los
-renderice —los tres de artículo de InfoSpot, el flotante, la galería y la página
-de evento; y de ComprameLaFoto la galería, el detalle de foto, la página de
-evento y el checkout—. A eso se suman los seis de FotoOffice y la franja de
-logos de la portada de Clickatón, construida en la rama de marquee y todavía sin
-llegar a `main`: dieciocho declarados contra doce montados.
+**Veintiuno declarados contra nueve montados.** Montado significa que una app lo
+renderiza: figurar en una lista de configuración de `@repo/partners` no cuenta.
+
+Sin montar quedan los tres espacios de artículo de InfoSpot, el flotante, la
+galería y la página de evento; de ComprameLaFoto la galería, el detalle de foto,
+la página de evento y el checkout; las tres placas de bienvenida de portada
+—Clickatón, FotoRank y ComprameLaFoto—, que `UNMOUNTED_WELCOME_PLACEMENT_KEYS`
+en `welcome-admin.ts` ya declaraba sin montar; la franja de logos de la portada
+de Clickatón; y los seis de FotoOffice.
+
+Una prueba compara el mapa contra esa lista, para que no vuelvan a divergir.
 
 No se borran: varios son intención real de producto. Quedan marcados para que
 `listSellableSpaces` no los ofrezca, que es lo que impide prometerle a una marca

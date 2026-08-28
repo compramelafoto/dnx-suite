@@ -30,7 +30,13 @@ export type DnxInventoryAccess = (typeof DNX_INVENTORY_ACCESS_MODES)[number];
 type CommercialRow = {
   owner: DnxInventoryOwner;
   audience: DnxPartnerAudienceType;
-  /** true solo si hay código que lo renderiza hoy. Auditado el 2026-08-27. */
+  /**
+   * true solo si una app lo renderiza hoy.
+   *
+   * El criterio es estricto a propósito: figurar en una lista de configuración
+   * de `@repo/partners` no cuenta. `UNMOUNTED_WELCOME_PLACEMENT_KEYS`, en
+   * `welcome-admin.ts`, es la fuente para las placas de bienvenida.
+   */
   mounted: boolean;
   access: DnxInventoryAccess;
 };
@@ -60,12 +66,12 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
   },
 
   // Clickatón — el equipo organiza sus propias maratones.
-  CLICKATON_HOME_WELCOME: PLATFORM_PUBLIC,
+  CLICKATON_HOME_WELCOME: { ...PLATFORM_PUBLIC, mounted: false },
   CLICKATON_EVENT_WELCOME: { ...PLATFORM_PUBLIC, audience: "EVENT_PARTICIPANTS" },
   CLICKATON_HOME_MARQUEE: { ...PLATFORM_PUBLIC, mounted: false },
 
   // FotoRank — la portada es de la plataforma; el concurso, del organizador.
-  FOTORANK_HOME_WELCOME: PLATFORM_PUBLIC,
+  FOTORANK_HOME_WELCOME: { ...PLATFORM_PUBLIC, mounted: false },
   FOTORANK_CONTEST_WELCOME: {
     owner: "ORGANIZER",
     audience: "EVENT_PARTICIPANTS",
@@ -74,7 +80,7 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
   },
 
   // ComprameLaFoto — hoy no hay vendedor intermedio.
-  CLF_HOME_WELCOME: PLATFORM_PUBLIC,
+  CLF_HOME_WELCOME: { ...PLATFORM_PUBLIC, mounted: false },
   CLF_HOME_PROMO: PLATFORM_PUBLIC,
   CLF_LOGO_MARQUEE: PLATFORM_PUBLIC,
   CLF_ALBUM_WELCOME: { ...PLATFORM_PUBLIC, audience: "EVENT_PARTICIPANTS" },
