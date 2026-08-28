@@ -20,7 +20,6 @@ import {
   WELCOME_ACTIVATION_PLACEMENT_KEYS,
   assertWelcomeActivationPlacement,
   assertWelcomeActivationTargetAllowed,
-  isWelcomeActivationExcludedApplication,
   isWelcomeActivationPlacementKey,
   type WelcomeActivationApplication,
   type WelcomeActivationPlacementKey,
@@ -86,7 +85,6 @@ export function listWelcomePlacementsForAdminUi(): WelcomeAdminPlacementOption[]
   const out: WelcomeAdminPlacementOption[] = [];
   for (const entry of AD_PLACEMENT_CATALOG) {
     if (!isWelcomeActivationPlacementKey(entry.placementKey)) continue;
-    if (isWelcomeActivationExcludedApplication(entry.application)) continue;
     const mounted = isMountedWelcomePlacementKey(entry.placementKey);
     out.push({
       application: entry.application as WelcomeActivationApplication,
@@ -386,15 +384,6 @@ export function validateWelcomeCampaignBeforePublish(
   input: WelcomeAdminPrePublishInput,
 ): WelcomeAdminPrePublishIssue[] {
   const issues: WelcomeAdminPrePublishIssue[] = [];
-
-  if (isWelcomeActivationExcludedApplication(input.application)) {
-    issues.push({
-      code: "FOTO_OFFICE",
-      message: "FotoOffice está excluido de activaciones destacadas.",
-      severity: "error",
-    });
-    return issues;
-  }
 
   try {
     assertWelcomeActivationTargetAllowed(input.application);

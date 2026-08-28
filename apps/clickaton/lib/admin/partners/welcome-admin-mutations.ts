@@ -10,7 +10,6 @@ import {
   assertWelcomePlacementPublishable,
   contextTypeForWelcomeScope,
   isMountedWelcomePlacementKey,
-  isWelcomeActivationExcludedApplication,
   validateWelcomeCampaignBeforePublish,
   type WelcomeAdminScopeKind,
   type DnxPartnerApplication,
@@ -172,10 +171,6 @@ export async function linkWelcomeParticipationFormAction(formData: FormData): Pr
         where: { id: campaignId, partnerId },
       });
       if (!campaign) throw new Error("Campaña no encontrada");
-      if (isWelcomeActivationExcludedApplication(campaign.application)) {
-        throw new Error("FotoOffice excluido");
-      }
-
       assertWelcomeAdminScopeConfig({
         scopeKind,
         application: campaign.application,

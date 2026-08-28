@@ -16,11 +16,16 @@ import {
 import { PartnersDomainError } from "./types";
 
 describe("welcome admin catalog", () => {
-  it("solo plataformas autorizadas; FotoOffice ausente", () => {
+  it("solo plataformas autorizadas, FotoOffice incluida", () => {
     const all = listWelcomePlacementsForAdminUi();
-    assert.ok(all.every((p) => (p.application as string) !== "FOTO_OFFICE"));
     const apps = new Set(all.map((p) => p.application));
-    for (const a of ["CLICKATON", "FOTO_RANK", "INFO_SPOT", "COMPRAME_LA_FOTO"] as const) {
+    for (const a of [
+      "CLICKATON",
+      "FOTO_RANK",
+      "INFO_SPOT",
+      "COMPRAME_LA_FOTO",
+      "FOTO_OFFICE",
+    ] as const) {
       assert.ok(apps.has(a), a);
     }
   });
@@ -188,7 +193,7 @@ describe("welcome admin publishability", () => {
     assert.ok(!issues.some((i) => i.severity === "error"));
   });
 
-  it("FotoOffice y URL insegura son error", () => {
+  it("URL insegura es error, y la ventana de FotoOffice sin montar también", () => {
     const fo = validateWelcomeCampaignBeforePublish({
       partnerStatus: "ACTIVE",
       campaignStatus: "ACTIVE",
@@ -200,7 +205,10 @@ describe("welcome admin publishability", () => {
       scopeKind: "GLOBAL",
       participation: null,
     });
-    assert.ok(fo.some((i) => i.code === "FOTO_OFFICE"));
+    // Ya no hay un código FOTO_OFFICE: la campaña falla por lo que de verdad
+    // le falta —creative aprobado, destino seguro, superficie montada—.
+    assert.ok(fo.length > 0);
+    assert.ok(fo.every((i) => i.code !== "FOTO_OFFICE"));
 
     const bad = validateWelcomeCampaignBeforePublish({
       partnerStatus: "ACTIVE",

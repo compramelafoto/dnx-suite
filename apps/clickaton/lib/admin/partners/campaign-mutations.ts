@@ -14,7 +14,6 @@ import {
   DNX_PARTNER_CREATIVE_FORMATS,
   DNX_PARTNER_CREATIVE_STATUSES,
   assertWelcomePlacementPublishable,
-  isWelcomeActivationExcludedApplication,
   isWelcomeActivationPlacementKey,
   type DnxPartnerAdPlacementKey,
   type DnxPartnerApplication,
@@ -239,15 +238,6 @@ export async function bindCampaignPlacementFormAction(formData: FormData): Promi
     DNX_PARTNER_APPLICATIONS,
     "CLICKATON",
   ) as DnxPartnerApplication;
-
-  if (isWelcomeActivationExcludedApplication(application)) {
-    redirect(
-      campanasPath(
-        partnerId,
-        `error=${encodeURIComponent("FotoOffice está excluido de placements publicitarios.")}`,
-      ),
-    );
-  }
 
   // Welcome: solo superficies con runtime montado (no HOME CK/FR/CLF).
   try {

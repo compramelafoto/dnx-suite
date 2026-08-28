@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import {
   AD_PLACEMENT_CATALOG,
   WELCOME_ACTIVATION_CREATIVE_FORMAT,
-  WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS,
   WELCOME_ACTIVATION_PLACEMENT_KEYS,
   assertSafeCampaignDestination,
   assertWelcomeActivationTargetAllowed,
@@ -13,7 +12,6 @@ import {
   isInfospotPartnerAdsEnabled,
   isClfPartnerAdsEnabled,
   isClfPartnerAlbumWelcomeEnabled,
-  isWelcomeActivationExcludedApplication,
   isWelcomeActivationPlacementKey,
   listAdPlacementCatalogForAdminBinding,
   listWelcomeActivationCatalogEntries,
@@ -47,53 +45,76 @@ describe("welcome activation catalog", () => {
     }
   });
 
-  it("welcome usa WELCOME_INTERSTITIAL y nunca FotoOffice", () => {
+  it("toda superficie de bienvenida admite el formato canónico", () => {
     for (const e of listWelcomeActivationCatalogEntries()) {
       assert.ok(e.allowedFormats.includes(WELCOME_ACTIVATION_CREATIVE_FORMAT));
-      assert.notEqual(e.application, "FOTO_OFFICE");
       assert.ok(isWelcomeActivationPlacementKey(e.placementKey));
     }
-    assert.ok(isWelcomeActivationExcludedApplication("FOTO_OFFICE"));
-    assert.deepEqual([...WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS], ["FOTO_OFFICE"]);
   });
 
-  it("admin binding excluye FotoOffice y no inventa placements FO", () => {
+  it("el admin binding ya incluye FotoOffice, con una sola superficie de bienvenida", () => {
     const admin = listAdPlacementCatalogForAdminBinding();
-    assert.ok(admin.length > 0);
-    assert.ok(admin.every((e) => e.application !== "FOTO_OFFICE"));
-    // FotoOffice ya tiene inventario propio (banner del portal, franjas de logos,
-    // ficha de beneficio, auspicio del sorteo). Nada de eso es activación
-    // destacada: la exclusión se verifica por formato y por allowlist, que es la
-    // regla real, en vez de exigir que el catálogo no lo mencione.
+    assert.ok(admin.some((e) => e.placementKey === "FOTOFFICE_PORTAL_WELCOME"));
+
+    // De todo el inventario de FotoOffice, solo la ventana del portal es
+    // activación destacada. El resto —sponsors, slideshow, ficha, sorteo,
+    // franja pública— no admite el formato ni entra en la allowlist.
     const fotoffice = AD_PLACEMENT_CATALOG.filter((e) => e.application === "FOTO_OFFICE");
-    assert.ok(fotoffice.length > 0, "FotoOffice debería tener inventario declarado");
+    assert.equal(fotoffice.length, 6);
+    const bienvenida = fotoffice.filter((e) =>
+      isWelcomeActivationPlacementKey(e.placementKey),
+    );
+    assert.deepEqual(
+      bienvenida.map((e) => e.placementKey),
+      ["FOTOFFICE_PORTAL_WELCOME"],
+    );
     for (const e of fotoffice) {
+      if (e.placementKey === "FOTOFFICE_PORTAL_WELCOME") continue;
       assert.equal(
         e.allowedFormats.includes(WELCOME_ACTIVATION_CREATIVE_FORMAT),
         false,
         `${e.placementKey} admite interstitial y no debería`,
       );
-      assert.equal(isWelcomeActivationPlacementKey(e.placementKey), false);
     }
   });
 });
 
-describe("welcome FotoOffice exclusion", () => {
-  it("rechaza target y mount", () => {
-    assert.throws(
-      () => assertWelcomeActivationTargetAllowed("FOTO_OFFICE"),
-      (err: unknown) => err instanceof PartnersDomainError,
-    );
-    const mount = canMountPartnerWelcomeActivation({
-      application: "FOTO_OFFICE",
-      placementKey: "INFOSPOT_HOME_WELCOME",
-      pathname: "/",
-    });
-    assert.equal(mount.ok, false);
-    if (!mount.ok) assert.equal(mount.reason, "foto_office_excluded");
+describe("ventana de bienvenida en el portal del socio", () => {
+  it("FotoOffice ya es un destino autorizado", () => {
+    assert.doesNotThrow(() => assertWelcomeActivationTargetAllowed("FOTO_OFFICE"));
   });
 
-  it("no publica a FotoOffice", () => {
+  it("se monta en la portada del portal", () => {
+    const mount = canMountPartnerWelcomeActivation({
+      application: "FOTO_OFFICE",
+      placementKey: "FOTOFFICE_PORTAL_WELCOME",
+      pathname: "/portal",
+    });
+    assert.equal(mount.ok, true);
+  });
+
+  it("nunca interrumpe al socio que entra a pagar la cuota", () => {
+    const mount = canMountPartnerWelcomeActivation({
+      application: "FOTO_OFFICE",
+      placementKey: "FOTOFFICE_PORTAL_WELCOME",
+      pathname: "/portal/cuotas",
+    });
+    assert.equal(mount.ok, false);
+    if (!mount.ok) assert.equal(mount.reason, "critical_path");
+  });
+
+  it("tampoco en el carnet ni en el alta pública", () => {
+    for (const pathname of ["/portal/carnet", "/w/sfpr/asociarse"]) {
+      const mount = canMountPartnerWelcomeActivation({
+        application: "FOTO_OFFICE",
+        placementKey: "FOTOFFICE_PORTAL_WELCOME",
+        pathname,
+      });
+      assert.equal(mount.ok, false, `${pathname} no debería montar`);
+    }
+  });
+
+  it("todavía no se publica a FotoOffice: sus superficies no están construidas", () => {
     assert.equal(resolvePublicationDatabaseKey("FOTO_OFFICE"), null);
     assert.ok(!(PARTNER_PUBLICATION_DATABASE_KEYS as readonly string[]).includes("FOTO_OFFICE"));
   });

@@ -217,10 +217,11 @@ describe("kill switches default OFF", () => {
 });
 
 describe("espacios de FotoOffice en el catálogo", () => {
-  it("declara las cinco claves del workspace", () => {
+  it("declara las seis claves del workspace", () => {
     assert.deepEqual([...FOTOFFICE_AD_PLACEMENT_KEYS], [
-      "FOTOFFICE_PORTAL_BANNER",
-      "FOTOFFICE_BENEFITS_MARQUEE",
+      "FOTOFFICE_PORTAL_WELCOME",
+      "FOTOFFICE_PORTAL_SPONSORS",
+      "FOTOFFICE_PORTAL_MARQUEE",
       "FOTOFFICE_BENEFIT_CARD",
       "FOTOFFICE_RAFFLE_SPONSOR",
       "FOTOFFICE_PUBLIC_MARQUEE",
@@ -242,7 +243,7 @@ describe("espacios de FotoOffice en el catálogo", () => {
     }
   });
 
-  it("el catálogo pasa a tener veintinueve espacios", () => {
-    assert.equal(AD_PLACEMENT_CATALOG.length, 29);
+  it("el catálogo pasa a tener treinta espacios", () => {
+    assert.equal(AD_PLACEMENT_CATALOG.length, 30);
   });
 });

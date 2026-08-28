@@ -158,29 +158,35 @@ Todos los espacios existentes son `SALE`. El canje aparece recién con FotoOffic
 
 ## Espacios nuevos de FotoOffice
 
-Cinco, todos con dueño `WORKSPACE` y `mounted: false`. Se declaran para que se
+Seis, todos con dueño `WORKSPACE` y `mounted: false`. Se declaran para que se
 vea qué se va a poder vender; construirlos es el subproyecto 2 del portal del
 socio, que todavía no empezó.
 
 | Clave | Dónde | Audiencia | Acceso |
 |---|---|---|---|
-| `FOTOFFICE_PORTAL_BANNER` | Banner dentro del portal del socio | `MEMBERSHIP_HOLDERS` | `SALE` |
-| `FOTOFFICE_BENEFITS_MARQUEE` | Franja de logos en la pantalla de beneficios | `MEMBERSHIP_HOLDERS` | `EXCHANGE` |
+| `FOTOFFICE_PORTAL_WELCOME` | Ventana al abrir el portal del socio | `MEMBERSHIP_HOLDERS` | `BOTH` |
+| `FOTOFFICE_PORTAL_SPONSORS` | Sponsors y alianzas, dentro del portal | `MEMBERSHIP_HOLDERS` | `BOTH` |
+| `FOTOFFICE_PORTAL_MARQUEE` | Slideshow de logos aliados, al pie del portal | `MEMBERSHIP_HOLDERS` | `EXCHANGE` |
 | `FOTOFFICE_BENEFIT_CARD` | La ficha del beneficio: logo, descuento y cómo se usa | `MEMBERSHIP_HOLDERS` | `EXCHANGE` |
 | `FOTOFFICE_RAFFLE_SPONSOR` | Auspicio del sorteo mensual | `MEMBERSHIP_HOLDERS` | `BOTH` |
 | `FOTOFFICE_PUBLIC_MARQUEE` | Franja en el sitio público del workspace | `ALL_USERS` | `SALE` |
 
-**Corregido durante la implementación (2026-08-27).** El espacio del portal era
-una placa modal, y FotoOffice está excluido a propósito de las activaciones
-destacadas: `WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS`, en `welcome-activation.ts`,
-lo bloquea como target, publicación, placement y opción de admin. La razón es
-sana —al socio que entra a pagar la cuota no se lo recibe con un interstitial—,
-así que el espacio pasó a ser un banner dentro de la página.
+**Revisado dos veces el 2026-08-27.** El espacio del portal empezó siendo una
+placa modal; se convirtió en banner al chocar con la exclusión de FotoOffice de
+las activaciones destacadas; y volvió a ser una ventana cuando Daniel definió el
+inventario del workspace: cuando el socio abre su dashboard puede aparecer una
+ventana con publicidad, además del espacio de sponsors y del slideshow al pie.
 
-Como efecto, la prueba que exigía que `AD_PLACEMENT_CATALOG` **no mencionara**
-FotoOffice dejó de servir: ahora verifica lo que importa de verdad, que ningún
-espacio de FotoOffice admita `WELCOME_INTERSTITIAL` ni figure en la allowlist de
-activaciones destacadas.
+Por esa decisión **se levantó la exclusión completa**:
+`WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS` y sus cuatro consumidores en el admin
+de Clickatón dejaron de existir, y `FOTO_OFFICE` entró a
+`WELCOME_ACTIVATION_APPLICATIONS`. La protección quedó donde corresponde —en las
+rutas—: la ventana solo puede montarse en `/portal`, y `/portal/cuotas` está en
+los caminos críticos, así que al socio que entra a pagar la cuota no lo
+interrumpe nada.
+
+Publicar a FotoOffice sigue siendo imposible: no tiene clave de base de
+publicación y sus superficies no están construidas. Declarar no es montar.
 
 El del sorteo es `BOTH` a propósito: un aliado puede poner el premio en lugar de
 pagar. El roadmap del portal lo dice — *«sin sponsors no hay qué sortear»*.
@@ -194,8 +200,9 @@ para `trackingPlacement`, así que **no hace falta tocar el esquema**:
 
 | Clave | `trackingPlacement` |
 |---|---|
-| `FOTOFFICE_PORTAL_BANNER` | `BANNER` |
-| `FOTOFFICE_BENEFITS_MARQUEE` | `LOGO_MARQUEE` |
+| `FOTOFFICE_PORTAL_WELCOME` | `WELCOME` |
+| `FOTOFFICE_PORTAL_SPONSORS` | `SPONSOR_SECTION` |
+| `FOTOFFICE_PORTAL_MARQUEE` | `LOGO_MARQUEE` |
 | `FOTOFFICE_BENEFIT_CARD` | `BENEFIT` |
 | `FOTOFFICE_RAFFLE_SPONSOR` | `SPONSOR_SECTION` |
 | `FOTOFFICE_PUBLIC_MARQUEE` | `LOGO_MARQUEE` |

@@ -190,7 +190,6 @@ export type {
 
 export {
   WELCOME_ACTIVATION_APPLICATIONS,
-  WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS,
   WELCOME_ACTIVATION_CREATIVE_FORMAT,
   WELCOME_ACTIVATION_PLACEMENT_KEYS,
   WELCOME_ACTIVATION_DEFAULT_FREQUENCY_HOURS,
@@ -198,7 +197,6 @@ export {
   PARTNER_WELCOME_CRITICAL_PATH_PATTERNS,
   PARTNER_WELCOME_PLACEMENT_PATH_ALLOWLIST,
   isWelcomeActivationApplication,
-  isWelcomeActivationExcludedApplication,
   isWelcomeActivationPlacementKey,
   listWelcomeActivationCatalogEntries,
   listAdPlacementCatalogForAdminBinding,
@@ -211,7 +209,6 @@ export {
 } from "./welcome-activation";
 export type {
   WelcomeActivationApplication,
-  WelcomeActivationExcludedApplication,
   WelcomeActivationPlacementKey,
   WelcomeActivationAnimationVariant,
   WelcomeActivationAnimationChoice,

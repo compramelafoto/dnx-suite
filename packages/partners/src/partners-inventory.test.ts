@@ -19,10 +19,10 @@ describe("mapa de inventario", () => {
     }
   });
 
-  it("hay doce espacios montados y diecisiete sin montar", () => {
+  it("hay doce espacios montados y dieciocho sin montar", () => {
     const montados = DNX_INVENTORY.filter((e) => e.mounted);
     assert.equal(montados.length, 12);
-    assert.equal(DNX_INVENTORY.length - montados.length, 17);
+    assert.equal(DNX_INVENTORY.length - montados.length, 18);
   });
 
   it("el concurso de FotoRank es del organizador y la portada de la plataforma", () => {
@@ -54,7 +54,7 @@ describe("listSellableSpaces", () => {
   it("un workspace no ve nada montado todavía, pero sí lo declarado", () => {
     assert.deepEqual(listSellableSpaces({ owner: "WORKSPACE" }), []);
     const declarados = listSellableSpaces({ owner: "WORKSPACE", includeUnmounted: true });
-    assert.equal(declarados.length, 5);
+    assert.equal(declarados.length, 6);
     assert.ok(declarados.every((e) => e.application === "FOTO_OFFICE"));
   });
 
@@ -67,9 +67,13 @@ describe("listSellableSpaces", () => {
       .map((e) => e.placementKey)
       .sort();
     assert.deepEqual(canje, [
-      "FOTOFFICE_BENEFITS_MARQUEE",
+      "FOTOFFICE_PORTAL_MARQUEE",
       "FOTOFFICE_BENEFIT_CARD",
       "FOTOFFICE_RAFFLE_SPONSOR",
+      // Los `BOTH` entran siempre: adentro del workspace un aliado puede
+      // acceder dando descuentos en vez de plata.
+      "FOTOFFICE_PORTAL_WELCOME",
+      "FOTOFFICE_PORTAL_SPONSORS",
     ].sort());
   });
 
@@ -82,9 +86,10 @@ describe("listSellableSpaces", () => {
       .map((e) => e.placementKey)
       .sort();
     assert.deepEqual(venta, [
-      "FOTOFFICE_PORTAL_BANNER",
       "FOTOFFICE_PUBLIC_MARQUEE",
       "FOTOFFICE_RAFFLE_SPONSOR",
+      "FOTOFFICE_PORTAL_WELCOME",
+      "FOTOFFICE_PORTAL_SPONSORS",
     ].sort());
   });
 

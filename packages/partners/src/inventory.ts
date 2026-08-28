@@ -105,13 +105,19 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
   },
 
   // FotoOffice — la institución consigue sus propios sponsors. Nada montado.
-  FOTOFFICE_PORTAL_BANNER: {
+  FOTOFFICE_PORTAL_WELCOME: {
     owner: "WORKSPACE",
     audience: "MEMBERSHIP_HOLDERS",
     mounted: false,
-    access: "SALE",
+    access: "BOTH",
   },
-  FOTOFFICE_BENEFITS_MARQUEE: {
+  FOTOFFICE_PORTAL_SPONSORS: {
+    owner: "WORKSPACE",
+    audience: "MEMBERSHIP_HOLDERS",
+    mounted: false,
+    access: "BOTH",
+  },
+  FOTOFFICE_PORTAL_MARQUEE: {
     owner: "WORKSPACE",
     audience: "MEMBERSHIP_HOLDERS",
     mounted: false,
