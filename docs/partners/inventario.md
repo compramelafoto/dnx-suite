@@ -110,3 +110,27 @@ FotoOffice ninguna.
 ## Diseño
 
 `docs/superpowers/specs/2026-08-27-mapa-inventario-partners-design.md`
+
+## Cupo y reserva
+
+`packages/partners/src/inventory-booking.ts` calcula si un espacio está libre en
+un período. La tabla `DnxPartnerInventoryBooking` guarda las ocupaciones.
+
+| Estado | ¿Ocupa? | Cuándo |
+|---|---|---|
+| `DRAFT` | No | La propuesta se está armando |
+| `RESERVED` | Sí, hasta vencer | Se envió y espera respuesta. 10 días corridos |
+| `SOLD` | Sí, hasta la fecha de fin | El acuerdo está cerrado |
+| `CANCELLED` | No | |
+
+La vigencia es obligatoria: «vendido» sin fecha de fin bloquea para siempre, y es
+lo que impediría el sponsor mensual.
+
+El cupo se cuenta numerando el lugar. Cada ocupación toma un `slotIndex`, y una
+restricción de exclusión en Postgres impide que dos compartan el mismo lugar en
+períodos que se pisan. Es lo que hace que una franja de doce logos admita doce
+ocupaciones simultáneas y una placa de bienvenida solo una — y lo que evita que
+dos vendedores confirmen el último lugar a la vez, cosa que un control en la
+aplicación no puede garantizar.
+
+Diseño: `docs/superpowers/specs/2026-08-27-cupo-y-reserva-de-inventario-design.md`.

@@ -13981,6 +13981,7 @@ model DnxPartner {
   brandAssets           DnxPartnerAsset[]
   onboardingInvitations DnxPartnerOnboardingInvitation[]
   campaigns             DnxPartnerCampaign[]
+  inventoryBookings     DnxPartnerInventoryBooking[]
 
   @@index([status, updatedAt])
   @@index([type, status])
@@ -14104,13 +14105,14 @@ model DnxPartnerParticipation {
   updatedAt            DateTime                      @updatedAt
   archivedAt           DateTime?
 
-  partner               DnxPartner                       @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-  contributions         DnxPartnerContribution[]
-  benefits              DnxPartnerBenefit[]
-  outboundLinks         DnxPartnerOutboundLink[]
-  materials             DnxPartnerParticipationAsset[]
-  onboardingInvitations DnxPartnerOnboardingInvitation[]
-  campaigns             DnxPartnerCampaign[]
+  partner                     DnxPartner                       @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  contributions               DnxPartnerContribution[]
+  benefits                    DnxPartnerBenefit[]
+  outboundLinks               DnxPartnerOutboundLink[]
+  materials                   DnxPartnerParticipationAsset[]
+  onboardingInvitations       DnxPartnerOnboardingInvitation[]
+  campaigns                   DnxPartnerCampaign[]
+  inventoryBookings           DnxPartnerInventoryBooking[]
 
   @@index([partnerId, status])
   @@index([application, status])
@@ -14120,6 +14122,59 @@ model DnxPartnerParticipation {
   @@index([application, contextType, contextId, publicVisibility, status])
   @@index([application, contextType, contextId, institutionalRole, displayOrder], map: "DnxPartnerParticipation_context_role_order_idx")
   @@index([soldByOrganizationId, status])
+}
+
+/// Estado de ocupación de un lugar de inventario publicitario.
+/// DRAFT no ocupa: la propuesta se está armando.
+enum DnxPartnerBookingStatus {
+  DRAFT
+  RESERVED
+  SOLD
+  CANCELLED
+}
+
+/// Ocupación de un lugar de inventario publicitario, en un período.
+///
+/// El doble booking lo impide una restricción de exclusión creada en SQL crudo
+/// dentro de la migración —Prisma no sabe expresarlas—: dos ocupaciones no
+/// pueden compartir el mismo `slotIndex` de un mismo espacio y contexto en
+/// períodos que se pisen, mientras estén RESERVED o SOLD.
+model DnxPartnerInventoryBooking {
+  id                          String                  @id @default(cuid())
+  /// Clave del catálogo técnico (`AD_PLACEMENT_CATALOG`).
+  placementKey                String
+  contextType                 DnxPartnerContextType   @default(GLOBAL)
+  /// La edición, el concurso o el álbum. Nulo en los espacios globales.
+  contextId                   String?
+  partnerId                   String
+  /// Se llena cuando el acuerdo está cerrado.
+  participationId             String?
+  /// Qué lugar del cupo ocupa, desde 0. Menor que el `maxItems` del catálogo.
+  slotIndex                   Int                     @default(0)
+  status                      DnxPartnerBookingStatus @default(DRAFT)
+  /// Obligatorias: sin fecha de fin, el espacio quedaría bloqueado para siempre.
+  startsAt                    DateTime
+  endsAt                      DateTime
+  /// Solo con RESERVED. Vencida, el dominio deja de contarla como ocupada.
+  reservationExpiresAt        DateTime?
+  reservationExtensionCount   Int                     @default(0)
+  reservationExtendedAt       DateTime?
+  reservationExtendedByUserId Int?
+  /// Quién originó la venta. Nulo = DNX directo.
+  soldByOrganizationId        String?
+  notes                       String?
+  createdByUserId             Int?
+  updatedByUserId             Int?
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
+
+  partner       DnxPartner               @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  participation DnxPartnerParticipation? @relation(fields: [participationId], references: [id], onDelete: SetNull)
+
+  @@index([placementKey, contextId, status])
+  @@index([partnerId, status])
+  @@index([soldByOrganizationId, status])
+  @@index([status, endsAt])
 }
 
 enum DnxPartnerPublicVisibility {

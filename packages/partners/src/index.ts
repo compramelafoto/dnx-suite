@@ -648,3 +648,21 @@ export type {
   ProposalPlan,
   ProposalPlanInput,
 } from "./proposal-plan";
+
+export {
+  RESERVATION_DAYS,
+  DNX_PARTNER_BOOKING_STATUSES,
+  BOOKING_OCCUPYING_STATUSES,
+  bookingFreesAt,
+  isBookingOccupying,
+  rangesOverlap,
+  reservationExpiryFrom,
+  resolveInventoryAvailability,
+  resolveInventoryCapacity,
+} from "./inventory-booking";
+export type {
+  DnxPartnerBookingStatus,
+  InventoryAvailability,
+  InventoryBooking,
+  InventoryRange,
+} from "./inventory-booking";
