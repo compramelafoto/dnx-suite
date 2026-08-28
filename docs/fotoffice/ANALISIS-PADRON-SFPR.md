@@ -302,3 +302,62 @@ Los **44 socios que conservaron la fecha de la base** merecen una mirada de la S
 creíbles según la edad, pero nadie confirmó que sean correctas. Están listadas en
 `packages/db/scripts/data/sfpr-plan-antiguedad-2026-08-27.json`, bajo `conserva`, junto a la
 fecha que decía el listado.
+
+---
+
+# La regla del descuento — 2026-08-27
+
+## El problema
+
+Al asignarles categoría a los dos socios nuevos apareció una inconsistencia: **el descuento de
+estudiante estaba expresado dos veces**.
+
+1. La categoría `Estudiante` tenía valor propio de $4.000.
+2. La escala `REDUCIDA` multiplica por 0,5.
+
+Aplicadas juntas, un estudiante pagaría **$2.000**: la rebaja dos veces. Hasta ese momento no
+se notaba porque los socios nuevos habían quedado **sin categoría**, así que la referencia era
+la cuota general de $8.000 y la escala la bajaba a $4.000 — correcto por accidente.
+
+El comentario de `amounts.ts` ya decía cuál era la intención:
+
+> la escala vive en el socio y no en la categoría — un estudiante que se recibe cambia de
+> escala sin tocar nada de padrón ni de voto
+
+## La regla, decidida por Daniel
+
+**La categoría define derechos y voto. La escala define cuánto se paga.**
+
+Ninguna categoría lleva un descuento en su valor: el valor de referencia es el general de la
+institución y la escala del socio lo ajusta. Así, el día que un estudiante se recibe se le
+cambia la escala y listo, sin moverlo de categoría ni tocarle sus derechos.
+
+## Lo aplicado
+
+| Acción | Alcance |
+|---|---|
+| Categoría `Estudiante` para los socios 734 y 735 | 2 socios |
+| Se elimina el valor propio de la categoría `Estudiante` ($4.000) | — |
+| Los 8 honorarios pasan de escala `PLENA` a `EXENTA` | 8 socios |
+
+**Por qué lo de los honorarios.** Su exención venía *solamente* del valor $0 de su categoría, y
+su escala era `PLENA`. Aplicar la regla nueva sin corregir eso los habría dejado pagando $8.000.
+Ahora la exención vive donde corresponde, en la escala, y no depende de un valor de categoría.
+
+## Resultado, verificado antes y después
+
+| Categoría | Escala | Socios | Cuota |
+|---|---|---:|---:|
+| Profesional | `PLENA` | 99 | $8.000 |
+| Estudiante | `REDUCIDA` | 2 | $4.000 |
+| Honorario | `EXENTA` | 8 | $0 |
+| | | **109** | **$800.000/mes** |
+
+Nadie cambió lo que paga. Lo que cambió es de dónde sale el número.
+
+## Para quien siga
+
+`pickCategoryForScale` asigna la categoría automáticamente al aprobar una solicitud. **Esa
+correspondencia solo es correcta mientras ninguna categoría tenga valor propio con descuento.**
+Si alguna vez se carga uno, la rebaja vuelve a duplicarse y no hay nada en el código que lo
+impida: la comprobación es esta regla, no una validación.
