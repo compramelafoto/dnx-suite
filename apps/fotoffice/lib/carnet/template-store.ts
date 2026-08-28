@@ -1,6 +1,12 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { randomUUID } from "node:crypto";
+import { prisma, Prisma } from "@repo/db";
 import { CARNET_TEMPLATE_KEY, carnetDesignDocument } from "./template";
+import {
+  documentoAEditor,
+  editorADocumento,
+  type VariableSintetica,
+} from "./bridge";
 
 /**
  * La plantilla del carnet, guardada en el módulo de diseño.
@@ -20,11 +26,22 @@ function esCarnet(meta: unknown): boolean {
   return (meta as { templateKey?: unknown }).templateKey === CARNET_TEMPLATE_KEY;
 }
 
+/** Distingue una plantilla sembrada antes del puente de una del editor. */
+function esDocumentoDeImpresion(canvasJson: unknown): boolean {
+  if (!canvasJson || typeof canvasJson !== "object" || Array.isArray(canvasJson)) return false;
+  const c = canvasJson as Record<string, unknown>;
+  return Array.isArray(c.sides) && typeof c.format === "object";
+}
+
 export type CarnetTemplate = {
   templateId: string;
   versionId: string;
-  /** El documento con el que dibujar. */
+  /** El documento con el que dibujar, ya traducido desde el modelo del editor. */
   document: unknown;
+  /** Variables que inventó el puente y que la emisión tiene que recibir (QR de URL fija). */
+  variablesSinteticas: VariableSintetica[];
+  /** Lo que no se pudo traducir del diseño. */
+  avisos: string[];
 };
 
 /**
@@ -47,7 +64,67 @@ export async function findCarnetTemplate(workspaceId: string): Promise<CarnetTem
   });
   if (!version || !esCarnet(version.metaJson)) return null;
 
-  return { templateId: template.id, versionId: version.id, document: version.canvasJson };
+  /*
+   * Plantillas sembradas antes del puente: `canvasJson` guardaba el documento de impresión
+   * entero, y no había filas de bloques. Se reconoce por tener `sides`, que el lienzo del
+   * editor no tiene. Se devuelve tal cual —ya es un documento válido— en vez de migrarla:
+   * una migración de datos acá arriesga el diseño de una institución para no ganar nada,
+   * porque la próxima vez que alguien la edite se guardará en el formato nuevo.
+   */
+  if (esDocumentoDeImpresion(version.canvasJson)) {
+    return {
+      templateId: template.id,
+      versionId: version.id,
+      document: version.canvasJson,
+      variablesSinteticas: [],
+      avisos: [],
+    };
+  }
+
+  // Los bloques no viven en `canvasJson` —ahí solo está el tamaño del lienzo—, sino en su
+  // propia tabla. Leer únicamente el canvas devolvía un diseño sin ningún bloque, que es
+  // como imprimir una tarjeta en blanco.
+  const bloques = await prisma.templateV2Block.findMany({
+    where: { templateVersionId: version.id },
+    orderBy: [{ pageIndex: "asc" }, { zIndex: "asc" }],
+  });
+
+  const canvas = version.canvasJson as Record<string, unknown> | null;
+  const puente = editorADocumento({
+    canvas: {
+      width: typeof canvas?.width === "number" ? canvas.width : 1011,
+      height: typeof canvas?.height === "number" ? canvas.height : 638,
+      background: typeof canvas?.background === "string" ? canvas.background : null,
+      dpi: typeof canvas?.dpi === "number" ? canvas.dpi : null,
+      bleedMm: typeof canvas?.bleedMm === "number" ? canvas.bleedMm : null,
+      safeAreaMm: typeof canvas?.safeAreaMm === "number" ? canvas.safeAreaMm : null,
+    },
+    blocks: bloques.map((b) => ({
+      id: b.id,
+      type: b.type,
+      name: b.name,
+      pageIndex: b.pageIndex,
+      x: b.x,
+      y: b.y,
+      width: b.width,
+      height: b.height,
+      rotation: b.rotation,
+      zIndex: b.zIndex,
+      opacity: b.opacity,
+      locked: b.locked,
+      visible: b.visible,
+      configJson: b.configJson,
+    })),
+    nombre: CARNET_NAME,
+  });
+
+  return {
+    templateId: template.id,
+    versionId: version.id,
+    document: puente.document,
+    variablesSinteticas: puente.variablesSinteticas,
+    avisos: puente.avisos,
+  };
 }
 
 export type CreateCarnetResult =
@@ -87,15 +164,41 @@ export async function createCarnetTemplate(input: {
         select: { id: true },
       });
 
+      // El diseño de fábrica se guarda traducido al modelo del editor. Guardarlo como
+      // documento de impresión haría que el editor lo abriera en blanco: no entiende ese
+      // formato, y quien fuera a retocar el carnet perdería el diseño de vista.
+      const semilla = documentoAEditor(carnetDesignDocument());
+
       const version = await tx.templateV2Version.create({
         data: {
           templateId: template.id,
           versionNumber: 1,
-          canvasJson: carnetDesignDocument() as object,
+          canvasJson: semilla.canvas as object,
           metaJson: { templateKey: CARNET_TEMPLATE_KEY, product: "fotoffice", origin: "system" },
           createdByUserId: input.userId,
         },
         select: { id: true },
+      });
+
+      await tx.templateV2Block.createMany({
+        // Los ids de bloque son explícitos en este modelo: la base no los genera.
+        data: semilla.blocks.map((b) => ({
+          id: randomUUID(),
+          templateVersionId: version.id,
+          pageIndex: b.pageIndex,
+          type: b.type as Prisma.TemplateV2BlockCreateManyInput["type"],
+          name: b.name,
+          x: b.x,
+          y: b.y,
+          width: b.width,
+          height: b.height,
+          rotation: b.rotation,
+          zIndex: b.zIndex,
+          opacity: b.opacity,
+          locked: b.locked,
+          visible: b.visible,
+          configJson: b.configJson as object,
+        })),
       });
 
       await tx.templateV2.update({

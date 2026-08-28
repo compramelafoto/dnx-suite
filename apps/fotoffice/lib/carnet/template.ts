@@ -80,6 +80,81 @@ export const CARNET_VARIABLE_CONTRACT: VariableContract = {
       required: true,
       sampleValue: "https://fotoffice.com/c/AB12CD34EF56GH78",
     },
+    /*
+     * Desde acá, las que existen para el diseñador de plantillas.
+     *
+     * El diseño de fábrica no las usa, pero quien arma su propia plantilla puede arrastrar
+     * cualquiera de ellas al lienzo. Todas opcionales: un socio puede no tener teléfono, y un
+     * carnet no debe dejar de imprimirse por eso. Las que el diseño no menciona simplemente
+     * no se dibujan.
+     *
+     * El catálogo que ve el diseñador vive en `variable-catalog-fotoffice.ts` y usa estas
+     * mismas claves. Si se agrega una allá sin agregarla acá, el diseño la ofrece y la
+     * emisión la rechaza.
+     */
+    {
+      key: "firstName",
+      type: "text",
+      label: "Nombre",
+      required: false,
+      sampleValue: "Daniel",
+      maxLength: 24,
+    },
+    {
+      key: "lastName",
+      type: "text",
+      label: "Apellido",
+      required: false,
+      sampleValue: "Cuart",
+      maxLength: 24,
+    },
+    {
+      key: "documentNumber",
+      type: "text",
+      label: "Documento",
+      required: false,
+      sampleValue: "28.114.507",
+      maxLength: 16,
+    },
+    {
+      key: "joinedAt",
+      type: "date",
+      label: "Socio desde",
+      required: false,
+      sampleValue: "2014-03-15",
+      dateFormat: "es-AR-short",
+    },
+    {
+      key: "email",
+      type: "text",
+      label: "Email",
+      required: false,
+      sampleValue: "socio@example.com",
+      maxLength: 40,
+    },
+    {
+      key: "phone",
+      type: "text",
+      label: "Teléfono",
+      required: false,
+      sampleValue: "+54 341 555-0142",
+      maxLength: 24,
+    },
+    {
+      key: "city",
+      type: "text",
+      label: "Ciudad",
+      required: false,
+      sampleValue: "Rosario",
+      maxLength: 24,
+    },
+    {
+      key: "institutionLogo",
+      type: "image",
+      label: "Logo de la institución",
+      required: false,
+      sampleValue: "instituciones/ejemplo/logo.png",
+    },
   ],
 };
 

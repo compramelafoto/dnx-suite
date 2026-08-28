@@ -64,6 +64,11 @@ export async function renderPrintedCard(input: {
           lastName: true,
           memberNumber: true,
           avatarUrl: true,
+          documentNumber: true,
+          joinedAt: true,
+          email: true,
+          phone: true,
+          city: true,
           category: { select: { name: true } },
         },
       },
@@ -86,7 +91,7 @@ export async function renderPrintedCard(input: {
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { workspaceId: card.workspace.id },
-    select: { commercialName: true },
+    select: { commercialName: true, logoUrl: true },
   });
 
   // La institución puede haber editado su carnet en el módulo de diseño. Si todavía no lo
@@ -94,9 +99,30 @@ export async function renderPrintedCard(input: {
   // por el editor.
   const plantilla = await findCarnetTemplate(card.workspace.id);
 
+  /*
+   * Un QR de dirección fija no sale de ningún dato del socio: el puente le inventa una
+   * variable y entrega su valor. Se suman acá, al contrato y a los valores, porque la
+   * emisión rechaza cualquier marcador que el contrato no declare.
+   */
+  const sinteticas = plantilla?.variablesSinteticas ?? [];
+  const contract = sinteticas.length
+    ? {
+        variables: [
+          ...CARNET_VARIABLE_CONTRACT.variables,
+          ...sinteticas.map((v) => ({
+            key: v.key,
+            type: "qrPayload" as const,
+            label: v.label,
+            required: true,
+            sampleValue: v.value,
+          })),
+        ],
+      }
+    : CARNET_VARIABLE_CONTRACT;
+
   const salida = await emitDesign({
     document: plantilla?.document ?? carnetDesignDocument(),
-    contract: CARNET_VARIABLE_CONTRACT,
+    contract,
     values: {
       institutionName: branding?.commercialName?.trim() || card.workspace.name,
       fullName: `${card.member.firstName} ${card.member.lastName}`.trim(),
@@ -106,6 +132,17 @@ export async function renderPrintedCard(input: {
       validUntil: card.validUntil,
       photo: card.member.avatarUrl,
       verificationUrl: `${input.baseUrl.replace(/\/+$/, "")}/c/${token}`,
+      // Las que existen para quien diseña su propia plantilla. El diseño de fábrica no las
+      // usa; si alguien las arrastra al lienzo, tienen que tener valor.
+      firstName: card.member.firstName,
+      lastName: card.member.lastName,
+      documentNumber: card.member.documentNumber,
+      joinedAt: card.member.joinedAt,
+      email: card.member.email,
+      phone: card.member.phone,
+      city: card.member.city,
+      institutionLogo: branding?.logoUrl ?? null,
+      ...Object.fromEntries(sinteticas.map((v) => [v.key, v.value])),
     },
     // Solo PDF, a propósito. El PNG del módulo se obtiene rasterizando el PDF con un binario
     // nativo (@napi-rs/canvas), que es específico de plataforma: al construir en Mac se

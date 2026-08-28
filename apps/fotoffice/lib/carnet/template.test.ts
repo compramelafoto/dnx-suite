@@ -64,3 +64,20 @@ describe("addMonthsUtc", () => {
     expect(addMonthsUtc(d, 24).toISOString()).toBe("2028-08-26T23:30:00.000Z");
   });
 });
+
+describe("el catálogo del diseñador y el contrato de emisión", () => {
+  it("toda variable que el diseñador ofrece se puede emitir", async () => {
+    const { FOTOFFICE_VARIABLE_GROUPS } = await import(
+      "@repo/template-editor-core"
+    );
+    const emitibles = new Set(CARNET_VARIABLE_CONTRACT.variables.map((v) => v.key));
+    for (const grupo of FOTOFFICE_VARIABLE_GROUPS) {
+      for (const v of grupo.variables) {
+        expect(
+          emitibles.has(v.key),
+          `"${v.key}" se ofrece al diseñar pero el contrato de emisión no la declara`,
+        ).toBe(true);
+      }
+    }
+  });
+});
