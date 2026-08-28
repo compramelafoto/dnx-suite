@@ -13,7 +13,6 @@ import {
   WELCOME_FLAG_OFF_PUBLISH_WARNING,
   type WelcomeAdminPrePublishInput,
 } from "./welcome-admin";
-import { isWelcomeActivationExcludedApplication } from "./welcome-activation";
 import {
   computeCampaignPublicationContentHash,
   resolvePublicationDatabaseKey,
@@ -138,15 +137,19 @@ describe("welcome admin E2E sintético (memoria)", () => {
     assert.ok(!issues.some((i) => i.severity === "error"), JSON.stringify(issues));
   });
 
-  it("rechaza HOME no montados y FotoOffice", () => {
+  it("rechaza publicar en superficies que no están montadas", () => {
     assert.throws(() =>
       assertWelcomePlacementPublishable("CLICKATON", "CLICKATON_HOME_WELCOME"),
     );
-    assert.ok(isWelcomeActivationExcludedApplication("FOTO_OFFICE"));
+    // FotoOffice ya es destino autorizado, pero su ventana del portal todavía
+    // no está construida: publicar ahí sigue siendo imposible.
+    assert.throws(() =>
+      assertWelcomePlacementPublishable("FOTO_OFFICE", "FOTOFFICE_PORTAL_WELCOME"),
+    );
     const fo = validateWelcomeCampaignBeforePublish(
       baseInput({
         application: "FOTO_OFFICE",
-        placementKeys: [],
+        placementKeys: ["FOTOFFICE_PORTAL_WELCOME"],
         scopeKind: "GLOBAL",
         participation: null,
         hasApprovedCreative: false,
@@ -154,7 +157,7 @@ describe("welcome admin E2E sintético (memoria)", () => {
         destinationUrl: null,
       }),
     );
-    assert.ok(fo.some((i) => i.code === "FOTO_OFFICE"));
+    assert.ok(fo.length > 0, "publicar sin creative aprobado debe fallar");
   });
 
   it("snapshot mínimo de publicación no incluye PII ni FO", () => {

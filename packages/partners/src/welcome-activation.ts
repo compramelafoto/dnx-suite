@@ -18,19 +18,11 @@ export const WELCOME_ACTIVATION_APPLICATIONS = [
   "FOTO_RANK",
   "INFO_SPOT",
   "COMPRAME_LA_FOTO",
+  "FOTO_OFFICE",
 ] as const;
 
 export type WelcomeActivationApplication =
   (typeof WELCOME_ACTIVATION_APPLICATIONS)[number];
-
-/**
- * Exclusión explícita (el enum `FOTO_OFFICE` permanece por compatibilidad histórica).
- * Nunca target, publish, placement ni opción admin de activaciones destacadas.
- */
-export const WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS = ["FOTO_OFFICE"] as const;
-
-export type WelcomeActivationExcludedApplication =
-  (typeof WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS)[number];
 
 /** Formato canónico — no crear equivalentes. */
 export const WELCOME_ACTIVATION_CREATIVE_FORMAT: DnxPartnerCreativeFormat =
@@ -45,6 +37,7 @@ export const WELCOME_ACTIVATION_PLACEMENT_KEYS = [
   "FOTORANK_CONTEST_WELCOME",
   "CLF_HOME_WELCOME",
   "CLF_ALBUM_WELCOME",
+  "FOTOFFICE_PORTAL_WELCOME",
 ] as const satisfies readonly DnxPartnerAdPlacementKey[];
 
 export type WelcomeActivationPlacementKey =
@@ -85,14 +78,6 @@ export function isWelcomeActivationApplication(
   return (WELCOME_ACTIVATION_APPLICATIONS as readonly string[]).includes(application);
 }
 
-export function isWelcomeActivationExcludedApplication(
-  application: DnxPartnerApplication | string,
-): application is WelcomeActivationExcludedApplication {
-  return (WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS as readonly string[]).includes(
-    application,
-  );
-}
-
 export function isWelcomeActivationPlacementKey(
   key: string,
 ): key is WelcomeActivationPlacementKey {
@@ -106,26 +91,18 @@ export function listWelcomeActivationCatalogEntries(): AdPlacementCatalogEntry[]
 }
 
 /**
- * Catálogo admin / binding: apps autorizadas, nunca FotoOffice.
+ * Catálogo admin / binding: solo apps autorizadas.
  * Incluye placements no-welcome de IS/CLF para no romper campañas actuales.
  */
 export function listAdPlacementCatalogForAdminBinding(): AdPlacementCatalogEntry[] {
-  return AD_PLACEMENT_CATALOG.filter(
-    (e) =>
-      isWelcomeActivationApplication(e.application) &&
-      !isWelcomeActivationExcludedApplication(e.application),
+  return AD_PLACEMENT_CATALOG.filter((e) =>
+    isWelcomeActivationApplication(e.application),
   );
 }
 
 export function assertWelcomeActivationTargetAllowed(
   application: DnxPartnerApplication | string,
 ): asserts application is WelcomeActivationApplication {
-  if (isWelcomeActivationExcludedApplication(application)) {
-    throw new PartnersDomainError(
-      "VALIDATION",
-      "FotoOffice está excluido de activaciones destacadas de sponsors.",
-    );
-  }
   if (!isWelcomeActivationApplication(application)) {
     throw new PartnersDomainError(
       "VALIDATION",
@@ -242,6 +219,22 @@ export const PARTNER_WELCOME_CRITICAL_PATH_PATTERNS: Record<
     /\/confirmacion(\/|$)/i,
     /\/imprimir\/(resumen|confirmacion)(\/|$)/i,
   ],
+  FOTO_OFFICE: [
+    /^\/admin(\/|$)/i,
+    /^\/api(\/|$)/i,
+    /^\/login(\/|$)/i,
+    /^\/auth(\/|$)/i,
+    /^\/onboarding(\/|$)/i,
+    /^\/invitacion(\/|$)/i,
+    /^\/recuperar(\/|$)/i,
+    /^\/workspace(\/|$)/i,
+    /^\/dashboard(\/|$)/i,
+    /^\/w\/[^/]+\/asociarse(\/|$)/i,
+    // El socio entra a pagar la cuota: ahí no se lo interrumpe con nada.
+    /^\/portal\/cuotas(\/|$)/i,
+    /\/pago(\/|$)/i,
+    /\/confirmacion(\/|$)/i,
+  ],
 };
 
 /**
@@ -260,6 +253,8 @@ export const PARTNER_WELCOME_PLACEMENT_PATH_ALLOWLIST: Record<
   CLF_HOME_WELCOME: [/^\/$/],
   /** Solo álbum público canónico — no /g (galería evento), /e (evento) ni /a (legacy redirect). */
   CLF_ALBUM_WELCOME: [/^\/album\/[^/]+$/i],
+  /** Solo la portada del portal del socio. Ni cuotas ni carnet. */
+  FOTOFFICE_PORTAL_WELCOME: [/^\/portal$/i],
 };
 
 export function isPartnerWelcomeCriticalPath(
@@ -293,9 +288,6 @@ export function canMountPartnerWelcomeActivation(input: {
   placementKey: string;
   pathname: string;
 }): CanMountPartnerWelcomeResult {
-  if (isWelcomeActivationExcludedApplication(input.application)) {
-    return { ok: false, reason: "foto_office_excluded" };
-  }
   if (!isWelcomeActivationApplication(input.application)) {
     return { ok: false, reason: "application_not_allowed" };
   }

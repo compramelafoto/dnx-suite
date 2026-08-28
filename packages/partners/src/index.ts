@@ -149,6 +149,7 @@ export {
   CLF_AD_PLACEMENT_KEYS,
   CLICKATON_AD_PLACEMENT_KEYS,
   FOTORANK_AD_PLACEMENT_KEYS,
+  FOTOFFICE_AD_PLACEMENT_KEYS,
   AD_PLACEMENT_CATALOG,
   CAMPAIGN_CONTEXT_LABELS,
   CREATIVE_FORMAT_LABELS,
@@ -189,7 +190,6 @@ export type {
 
 export {
   WELCOME_ACTIVATION_APPLICATIONS,
-  WELCOME_ACTIVATION_EXCLUDED_APPLICATIONS,
   WELCOME_ACTIVATION_CREATIVE_FORMAT,
   WELCOME_ACTIVATION_PLACEMENT_KEYS,
   WELCOME_ACTIVATION_DEFAULT_FREQUENCY_HOURS,
@@ -197,7 +197,6 @@ export {
   PARTNER_WELCOME_CRITICAL_PATH_PATTERNS,
   PARTNER_WELCOME_PLACEMENT_PATH_ALLOWLIST,
   isWelcomeActivationApplication,
-  isWelcomeActivationExcludedApplication,
   isWelcomeActivationPlacementKey,
   listWelcomeActivationCatalogEntries,
   listAdPlacementCatalogForAdminBinding,
@@ -210,7 +209,6 @@ export {
 } from "./welcome-activation";
 export type {
   WelcomeActivationApplication,
-  WelcomeActivationExcludedApplication,
   WelcomeActivationPlacementKey,
   WelcomeActivationAnimationVariant,
   WelcomeActivationAnimationChoice,
@@ -617,3 +615,57 @@ export type {
 
 export { resolveSponsorCardLogoCandidates } from "./sponsor-card-logo";
 export type { SponsorCardLogoCandidate } from "./sponsor-card-logo";
+
+export {
+  DNX_INVENTORY,
+  DNX_INVENTORY_OWNERS,
+  DNX_INVENTORY_ACCESS_MODES,
+  listSellableSpaces,
+} from "./inventory";
+export type {
+  DnxInventoryOwner,
+  DnxInventoryAccess,
+  DnxInventorySpace,
+  SellerScope,
+} from "./inventory";
+
+export { PROPOSAL_PIECES, getProposalPiece, getProposalPieceLayout } from "./proposal-pieces";
+export type {
+  ProposalPiece,
+  ProposalPieceKind,
+  ProposalPieceLayout,
+  ProposalViewportName,
+} from "./proposal-pieces";
+
+export { resolvePlateTreatment } from "./proposal-contrast";
+export type { LogoLuminanceInput, PlateKind, PlateTreatment } from "./proposal-contrast";
+
+export { buildProposalPlan } from "./proposal-plan";
+export type {
+  ProposalLine,
+  ProposalLineKind,
+  ProposalLineSelection,
+  ProposalPlan,
+  ProposalPlanInput,
+  ProposalSpaceAvailability,
+  ProposalUnavailableLine,
+} from "./proposal-plan";
+
+export {
+  RESERVATION_DAYS,
+  DNX_PARTNER_BOOKING_STATUSES,
+  BOOKING_OCCUPYING_STATUSES,
+  bookingFreesAt,
+  defaultProposalPeriod,
+  isBookingOccupying,
+  rangesOverlap,
+  reservationExpiryFrom,
+  resolveInventoryAvailability,
+  resolveInventoryCapacity,
+} from "./inventory-booking";
+export type {
+  DnxPartnerBookingStatus,
+  InventoryAvailability,
+  InventoryBooking,
+  InventoryRange,
+} from "./inventory-booking";
