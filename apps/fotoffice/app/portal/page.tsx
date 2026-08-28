@@ -105,7 +105,7 @@ export default async function PortalPage() {
             </p>
             <p className="text-xs text-[var(--fo-muted)]">
               {impresa.pedida && impresa.faltaFoto
-                ? "Pediste la credencial impresa. Sin tu foto no la podemos emitir."
+                ? "Ya pagaste tu credencial impresa. Sin tu foto no la podemos emitir."
                 : "Mostralo para que verifiquen tu condición de socio."}
             </p>
           </Link>

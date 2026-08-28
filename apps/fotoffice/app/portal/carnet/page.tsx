@@ -63,10 +63,13 @@ export default async function MiCarnetPage() {
         <div className="mt-6 space-y-6">
       {impresa.pedida && impresa.faltaFoto && !impresa.yaEnCurso ? (
         <section className="fo-card space-y-2 border-[var(--fo-accent)]/40 p-5">
-          <p className="text-sm font-medium">Pediste la credencial impresa</p>
+          <p className="text-sm font-medium">
+            {impresa.pagada ? "Tu credencial impresa está paga" : "Pediste la credencial impresa"}
+          </p>
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            Para emitirla necesitamos tu foto. Subila acá abajo y con eso queda lista para
-            pedirla.
+            {impresa.pagada
+              ? "Solo falta tu foto. Apenas la subas entra en la cola de impresión, sin ningún paso más."
+              : "Para emitirla necesitamos tu foto. Subila acá abajo."}
           </p>
         </section>
       ) : null}
@@ -179,10 +182,13 @@ export default async function MiCarnetPage() {
 
       {impresa.pedida && impresa.faltaFoto && !impresa.yaEnCurso ? (
         <section className="fo-card space-y-2 border-[var(--fo-accent)]/40 p-5">
-          <p className="text-sm font-medium">Pediste la credencial impresa</p>
+          <p className="text-sm font-medium">
+            {impresa.pagada ? "Tu credencial impresa está paga" : "Pediste la credencial impresa"}
+          </p>
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            Para emitirla necesitamos tu foto. Subila acá abajo y con eso queda lista para
-            pedirla.
+            {impresa.pagada
+              ? "Solo falta tu foto. Apenas la subas entra en la cola de impresión, sin ningún paso más."
+              : "Para emitirla necesitamos tu foto. Subila acá abajo."}
           </p>
         </section>
       ) : null}

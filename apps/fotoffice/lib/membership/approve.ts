@@ -36,6 +36,8 @@ export type ApprovalInput = {
     province: string | null;
     postalCode: string | null;
     categoryId: string | null;
+    /** Si además pidió la credencial impresa al asociarse. */
+    wantsPrintedCard?: boolean;
     status: string;
   };
   settings: {
@@ -72,15 +74,7 @@ export type ApprovalPlan = {
     originInstitution: string | null;
     joinedAt: Date;
   };
-  charges: Array<{
-    workspaceId: string;
-    concept: "INGRESO";
-    period: string;
-    amountArs: Prisma.Decimal;
-    balanceArs: Prisma.Decimal;
-    dueDate: Date;
-    feeValueId: string | null;
-  }>;
+  charges: ApprovalCharge[];
   totalArs: Prisma.Decimal;
   applicationUpdate: {
     status: "APROBADA_IMPAGA";
@@ -100,6 +94,25 @@ export type ApprovalPlan = {
  * El número calculado no garantiza unicidad por sí solo: la restricción
  * `[workspaceId, memberNumber]` es el árbitro real ante dos aprobaciones simultáneas.
  */
+/**
+ * Período con el que se marca el cargo de la credencial impresa.
+ *
+ * No es un mes: es una etiqueta. La clave única del cargo es (socio, concepto, período), así
+ * que usar un nombre en vez de una fecha garantiza uno solo por socio y se lee sin adivinar.
+ */
+export const PRINTED_CARD_PERIOD = "TARJETA";
+
+export type ApprovalCharge = {
+  workspaceId: string;
+  /** `INGRESO` para las cuotas del alta; `OTRO` para la credencial impresa. */
+  concept: "INGRESO" | "OTRO";
+  period: string;
+  amountArs: Prisma.Decimal;
+  balanceArs: Prisma.Decimal;
+  dueDate: Date;
+  feeValueId: string | null;
+};
+
 export function buildApproval(input: ApprovalInput): ApprovalPlan {
   if (input.application.status !== "PENDIENTE") {
     // Aprobar dos veces la misma solicitud crearía dos socios para la misma persona.
@@ -129,7 +142,7 @@ export function buildApproval(input: ApprovalInput): ApprovalPlan {
     countJoinMonthIfBeforeDueDay: input.settings.countJoinMonthIfBeforeDueDay,
   });
 
-  const charges = periods.map((p) => ({
+  const charges: ApprovalCharge[] = periods.map((p) => ({
     workspaceId: input.application.workspaceId,
     concept: "INGRESO" as const,
     period: p.period,
@@ -139,6 +152,29 @@ export function buildApproval(input: ApprovalInput): ApprovalPlan {
     dueDate: p.dueDate,
     feeValueId: input.feeValueId,
   }));
+
+  /*
+   * La credencial impresa se cobra con la inscripción, en el mismo pago.
+   *
+   * Se cobra el valor de referencia sin aplicar la escala: la tarjeta es un objeto físico y
+   * cuesta lo mismo para todos. Un estudiante paga media cuota, pero el plástico vale lo que
+   * vale.
+   *
+   * La tarjeta no se emite acá: para emitirla hace falta la foto, y la foto se sube después.
+   * Queda pagada y esperando — el portal se lo recuerda hasta que la suba.
+   */
+  if (input.application.wantsPrintedCard) {
+    const primera = periods[0];
+    charges.push({
+      workspaceId: input.application.workspaceId,
+      concept: "OTRO" as const,
+      period: PRINTED_CARD_PERIOD,
+      amountArs: input.referenceAmount,
+      balanceArs: input.referenceAmount,
+      dueDate: primera ? primera.dueDate : input.now,
+      feeValueId: input.feeValueId,
+    });
+  }
 
   return {
     member: {
@@ -164,7 +200,9 @@ export function buildApproval(input: ApprovalInput): ApprovalPlan {
       joinedAt: input.now,
     },
     charges,
-    totalArs: initialChargeTotal(monthly, periods.length),
+    // Suma de todo lo que se cobra al ingresar: las cuotas iniciales y, si la pidió, la
+    // credencial impresa. Antes contaba solo las cuotas y el total quedaba corto.
+    totalArs: charges.reduce((t, c) => t.add(c.amountArs), new Prisma.Decimal(0)),
     applicationUpdate: {
       status: "APROBADA_IMPAGA",
       expiresAt: new Date(

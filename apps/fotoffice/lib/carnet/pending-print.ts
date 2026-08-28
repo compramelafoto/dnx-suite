@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { PRINTED_CARD_PERIOD } from "@/lib/membership/approve";
 
 /**
  * ¿Este socio pidió la credencial impresa al asociarse y todavía no la tiene?
@@ -13,7 +14,13 @@ import { prisma } from "@repo/db";
  */
 export type PendingPrint =
   | { pedida: false }
-  | { pedida: true; faltaFoto: boolean; yaEnCurso: boolean };
+  | {
+      pedida: true;
+      faltaFoto: boolean;
+      yaEnCurso: boolean;
+      /** Ya la pagó con la inscripción: solo falta la foto para emitirla. */
+      pagada: boolean;
+    };
 
 export async function pendingPrintedCard(memberId: string): Promise<PendingPrint> {
   const solicitud = await prisma.membershipApplication.findFirst({
@@ -22,7 +29,7 @@ export async function pendingPrintedCard(memberId: string): Promise<PendingPrint
   });
   if (!solicitud) return { pedida: false };
 
-  const [socio, enCurso] = await Promise.all([
+  const [socio, enCurso, cargo] = await Promise.all([
     prisma.member.findUnique({ where: { id: memberId }, select: { avatarUrl: true } }),
     prisma.memberCard.findFirst({
       where: {
@@ -33,11 +40,17 @@ export async function pendingPrintedCard(memberId: string): Promise<PendingPrint
       },
       select: { id: true },
     }),
+    prisma.membershipCharge.findFirst({
+      where: { memberId, concept: "OTRO", period: PRINTED_CARD_PERIOD },
+      select: { balanceArs: true },
+    }),
   ]);
 
   return {
     pedida: true,
     faltaFoto: !socio?.avatarUrl,
     yaEnCurso: Boolean(enCurso),
+    // Cargo saldado: la pagó junto con la inscripción y solo falta la foto.
+    pagada: Boolean(cargo && Number(cargo.balanceArs) <= 0),
   };
 }

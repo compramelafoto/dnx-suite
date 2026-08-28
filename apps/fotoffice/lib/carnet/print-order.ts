@@ -29,6 +29,13 @@ export async function requestPrintedCard(input: {
   workspaceId: string;
   memberId: string;
   now?: Date;
+  /**
+   * Cargo ya existente al que enganchar la tarjeta, en vez de crear uno.
+   *
+   * Lo usa quien pagó la credencial junto con su inscripción: el cargo nació con el alta y la
+   * tarjeta se emite recién cuando llega la foto. Sin esto se le cobraría dos veces.
+   */
+  existingChargeId?: string;
 }): Promise<PrintOrderResult> {
   const ahora = input.now ?? new Date();
 
@@ -99,19 +106,21 @@ export async function requestPrintedCard(input: {
       // El cargo, la tarjeta y su primer evento se crean JUNTOS. Una tarjeta sin cargo sería
       // una que nadie va a pagar; un cargo sin tarjeta, plata cobrada sin nada que entregar.
       const cardId = await prisma.$transaction(async (tx) => {
-        const cargo = await tx.membershipCharge.create({
-          data: {
-            workspaceId: input.workspaceId,
-            memberId: input.memberId,
-            concept: "OTRO",
-            period,
-            amountArs: minorToDecimalString(amountMinor),
-            balanceArs: minorToDecimalString(amountMinor),
-            dueDate,
-            feeValueId: valor.id,
-          },
-          select: { id: true },
-        });
+        const cargo = input.existingChargeId
+          ? { id: input.existingChargeId }
+          : await tx.membershipCharge.create({
+              data: {
+                workspaceId: input.workspaceId,
+                memberId: input.memberId,
+                concept: "OTRO",
+                period,
+                amountArs: minorToDecimalString(amountMinor),
+                balanceArs: minorToDecimalString(amountMinor),
+                dueDate,
+                feeValueId: valor.id,
+              },
+              select: { id: true },
+            });
 
         const card = await tx.memberCard.create({
           data: {

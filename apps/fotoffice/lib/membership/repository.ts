@@ -75,6 +75,7 @@ export async function approveApplication(input: {
         ...application,
         categoryId,
         declaredFeeScale: application.declaredFeeScale as FeeScale,
+        wantsPrintedCard: Boolean(application.wantsPrintedCard),
       },
       settings,
       referenceAmount: feeValue.amountArs,

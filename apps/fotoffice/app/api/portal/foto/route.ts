@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { IMAGE_PRESETS } from "@/lib/images/presets";
 import { uploadFotofficeImage } from "@/lib/images/upload";
+import { issuePrepaidPrintedCard } from "@/lib/carnet/prepaid-card";
 
 export const runtime = "nodejs";
 
@@ -55,6 +56,23 @@ export async function POST(request: Request) {
     where: { id: context.member.id },
     data: { avatarUrl: result.url },
   });
+
+  // La foto era lo único que faltaba. Si ya pagó la credencial impresa con su inscripción, se
+  // emite ahora: hacerlo esperar un paso más sería pedirle que confirme algo que ya pagó.
+  //
+  // Fuera del camino crítico: la foto quedó guardada y eso ya es cierto. Si la emisión falla,
+  // se registra y se resuelve aparte, sin perder la foto.
+  try {
+    await issuePrepaidPrintedCard({
+      workspaceId: context.workspace.id,
+      memberId: context.member.id,
+    });
+  } catch (error) {
+    console.error("[fotoffice][carnet] no se pudo emitir la tarjeta prepaga", {
+      memberId: context.member.id,
+      detalle: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   return NextResponse.json({ url: result.url });
 }
