@@ -28,7 +28,7 @@ export async function createCarnetTemplateAction(): Promise<CarnetTemplateState>
   const r = await createCarnetTemplate({ workspaceId: workspace.id, userId: user.id });
   if (!r.ok) return { error: r.error, ok: null };
 
-  revalidatePath("/plantillas");
+  revalidatePath("/members/disenador");
   return {
     error: null,
     ok: r.created

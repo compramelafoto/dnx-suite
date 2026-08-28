@@ -7,7 +7,8 @@ export type LegacyTemplateV2BlockType =
   | "TEXT"
   | "VARIABLE_TEXT"
   | "IMAGE"
-  | "SHAPE";
+  | "SHAPE"
+  | "QR";
 
 export type LegacyTemplateV2Payload = {
   canvas: {

@@ -6,6 +6,7 @@ import type { TemplateV2Block, TemplateV2BlockType } from "./render-core";
 const DEFAULT_LABEL_BY_TYPE: Record<TemplateV2BlockType, string> = {
   TEXT: "Texto",
   VARIABLE_TEXT: "Variable",
+  QR: "Código QR",
   SHAPE: "Forma",
   IMAGE: "Imagen",
   BACKGROUND: "Fondo",

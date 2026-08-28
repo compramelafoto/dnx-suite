@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@repo/template-editor-core": "workspace:*",
-    "lucide-react": "^0.544.0"
+    "lucide-react": "^0.544.0",
+    "qrcode": "^1.5.4"
   },
   "peerDependencies": {
     "next": ">=15",
@@ -26,6 +27,7 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9.39.1",

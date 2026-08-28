@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarClock,
   CreditCard,
+  Palette,
   Globe,
   GraduationCap,
   IdCard,
@@ -121,6 +122,7 @@ export function ShellNav({
               !p.startsWith("/members/categories") &&
               !p.startsWith("/members/cuotas") &&
               !p.startsWith("/members/carnets") &&
+              !p.startsWith("/members/disenador") &&
               !p.startsWith("/members/solicitudes") &&
               !p.startsWith("/members/import")),
         },
@@ -144,6 +146,12 @@ export function ShellNav({
                 label: "Carnets",
                 icon: CreditCard,
                 isActive: under("/members/carnets"),
+              },
+              {
+                href: "/members/disenador",
+                label: "Diseñador",
+                icon: Palette,
+                isActive: under("/members/disenador"),
               },
               {
                 href: "/members/categories",

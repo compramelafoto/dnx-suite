@@ -222,6 +222,45 @@ export function createDefaultVariableTextBlock(
   };
 }
 
+/**
+ * Bloque de código QR.
+ *
+ * Nace cuadrado y se mantiene así: un QR estirado deja de leerse. La variable arranca vacía
+ * porque quién la elige es quien diseña — el catálogo del producto dice cuáles hay.
+ */
+export function createDefaultQrBlock(
+  canvas: TemplateV2Canvas,
+  blocks: TemplateV2Block[],
+  pageIndex = 0
+): TemplateV2Block {
+  const lado = 240;
+  const { x, y, zIndex } = placeBlock({ canvas, blocks, width: lado, height: lado });
+  return {
+    id: newBlockId(),
+    type: "QR",
+    pageIndex,
+    name: "Código QR",
+    layout: {
+      x,
+      y,
+      width: lado,
+      height: lado,
+      rotation: 0,
+      zIndex,
+      opacity: 1,
+      locked: false,
+      visible: true,
+    },
+    configJson: {
+      variableKey: "",
+      errorCorrection: "M",
+      quietZoneModules: 4,
+      foreground: "#000000",
+      background: "#ffffff",
+    },
+  };
+}
+
 export function createDefaultShapeBlock(
   canvas: TemplateV2Canvas,
   blocks: TemplateV2Block[],

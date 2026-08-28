@@ -9,6 +9,7 @@ const KNOWN_TYPES = new Set<string>([
   "VARIABLE_TEXT",
   "IMAGE",
   "SHAPE",
+  "QR",
 ]);
 
 function asObject(value: unknown): Record<string, unknown> {

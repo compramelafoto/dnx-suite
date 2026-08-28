@@ -126,7 +126,7 @@ export default async function PlantillasPage() {
                   <td className="px-5 py-3">
                     {t.currentVersionId ? (
                       <Link
-                        href={`/plantillas/${t.id}/${t.currentVersionId}`}
+                        href={`/members/disenador/${t.id}/${t.currentVersionId}`}
                         className="underline underline-offset-2"
                       >
                         Abrir editor

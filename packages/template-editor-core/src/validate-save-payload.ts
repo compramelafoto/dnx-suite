@@ -10,7 +10,8 @@ export type TemplateV2SaveBlockType =
   | "TEXT"
   | "VARIABLE_TEXT"
   | "IMAGE"
-  | "SHAPE";
+  | "SHAPE"
+  | "QR";
 
 export type TemplateV2SavePayloadCore = {
   canvas: {
@@ -58,6 +59,7 @@ const ALLOWED_BLOCK_TYPES: Set<string> = new Set([
   "VARIABLE_TEXT",
   "IMAGE",
   "SHAPE",
+  "QR",
 ]);
 
 const ALLOWED_TARGET_PATHS: Record<TemplateV2SaveBlockType, Set<string>> = {
@@ -67,6 +69,8 @@ const ALLOWED_TARGET_PATHS: Record<TemplateV2SaveBlockType, Set<string>> = {
   VARIABLE_TEXT: new Set(["variableKey", "fallback", "content"]),
   IMAGE: new Set(["source.variableKey", "source.src", "src"]),
   SHAPE: new Set(),
+  // Lo que se codifica sale de una variable: es el único campo que el editor deja apuntar.
+  QR: new Set(["variableKey"]),
 };
 
 function isFiniteNumber(value: unknown): value is number {

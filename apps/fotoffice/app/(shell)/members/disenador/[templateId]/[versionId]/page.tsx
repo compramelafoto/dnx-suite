@@ -30,7 +30,7 @@ export default async function PlantillaEditorPage({ params }: Props) {
     where: { id: templateId, workspaceId: workspace.id },
     select: { id: true },
   });
-  if (!template) redirect("/plantillas");
+  if (!template) redirect("/members/disenador");
 
   return <TemplateEditorShell templateId={templateId} versionId={versionId} />;
 }

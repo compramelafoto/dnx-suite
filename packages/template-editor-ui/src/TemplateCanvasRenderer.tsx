@@ -1,3 +1,4 @@
+import { QrBlockRenderer } from "./QrBlockRenderer";
 import React from "react";
 import {
   getResolvedVariableText,
@@ -439,6 +440,14 @@ export function TemplateCanvasRenderer({
               />
             ) : null}
             {block.type === "SHAPE" ? <ShapeBlockRenderer config={block.configJson} /> : null}
+            {block.type === "QR" ? (
+              <QrBlockRenderer
+                config={block.configJson}
+                resolvedVariables={resolvedVariables}
+                layoutWidth={block.layout.width}
+                layoutHeight={block.layout.height}
+              />
+            ) : null}
             {block.type === "BACKGROUND" ? <BackgroundLegacyRenderer config={block.configJson} /> : null}
             {block.type === "PHOTO" ? (
               <PhotoLegacyRenderer layoutWidth={block.layout.width} layoutHeight={block.layout.height} />

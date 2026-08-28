@@ -53,6 +53,7 @@ import {
   createDefaultImageBlock,
   createDefaultSchoolLogoImageBlock,
   createDefaultShapeBlock,
+  createDefaultQrBlock,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -479,6 +480,12 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
     const ap = state.activePageIndex ?? 0;
     const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
     dispatch(addBlock(createDefaultShapeBlock(state.canvas, onPage, ap)));
+  }
+  function handleAddQr() {
+    setCanvasTool("select");
+    const ap = state.activePageIndex ?? 0;
+    const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
+    dispatch(addBlock(createDefaultQrBlock(state.canvas, onPage, ap)));
   }
   function handleAddImage() {
     setCanvasTool("select");
@@ -1436,6 +1443,14 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
               <EditorToolButton label="Forma" onClick={handleAddShape}>
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+              </EditorToolButton>
+              <EditorToolButton label="Código QR" onClick={handleAddQr}>
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <path d="M14 14h3v3h-3zM19 14h2M14 19h3M19 19h2" strokeLinecap="round" />
                 </svg>
               </EditorToolButton>
               <EditorToolButton label="Imagen" onClick={handleAddImage}>

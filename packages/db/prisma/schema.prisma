@@ -6282,6 +6282,9 @@ enum TemplateV2BlockType {
   VARIABLE_TEXT
   IMAGE
   SHAPE
+  /// Código QR generado a partir de una variable. Lo necesitan las credenciales, las entradas
+  /// y los diplomas: todo lo que se verifica escaneando.
+  QR
 }
 
 enum TemplateV2AssetKind {

@@ -4,7 +4,8 @@ export type TemplateV2BlockType =
   | "TEXT"
   | "VARIABLE_TEXT"
   | "IMAGE"
-  | "SHAPE";
+  | "SHAPE"
+  | "QR";
 
 export type TemplateV2Canvas = {
   width: number;
@@ -150,6 +151,25 @@ export function normalizeBlockConfig(type: TemplateV2BlockType, input: unknown):
       stroke: typeof cfg.stroke === "string" ? cfg.stroke : "#94a3b8",
       strokeWidth: typeof cfg.strokeWidth === "number" ? cfg.strokeWidth : 0,
       radius: typeof cfg.radius === "number" ? cfg.radius : 0,
+    };
+  }
+
+  if (type === "QR") {
+    /*
+     * El QR se dibuja a partir de una variable, no de un texto fijo: lo que se codifica
+     * cambia por socio. `variableKey` dice de dónde sale el valor.
+     *
+     * `errorCorrection` en M y una zona quieta de 4 módulos son los valores que ya usa el
+     * carnet: menos margen y el lector falla contra un fondo claro.
+     */
+    const ec = typeof cfg.errorCorrection === "string" ? cfg.errorCorrection : "M";
+    return {
+      variableKey: typeof cfg.variableKey === "string" ? cfg.variableKey : "",
+      errorCorrection: ["L", "M", "Q", "H"].includes(ec) ? ec : "M",
+      quietZoneModules:
+        typeof cfg.quietZoneModules === "number" ? cfg.quietZoneModules : 4,
+      foreground: typeof cfg.foreground === "string" ? cfg.foreground : "#000000",
+      background: typeof cfg.background === "string" ? cfg.background : "#ffffff",
     };
   }
 

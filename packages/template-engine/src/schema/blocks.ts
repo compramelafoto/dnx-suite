@@ -11,6 +11,8 @@ export const TEMPLATE_BLOCK_TYPES = [
   "VARIABLE_TEXT",
   "IMAGE",
   "SHAPE",
+  /** Código QR a partir de una variable: credenciales, entradas, diplomas. */
+  "QR",
 ] as const;
 
 export type TemplateBlockType = (typeof TEMPLATE_BLOCK_TYPES)[number];
