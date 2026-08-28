@@ -92,7 +92,7 @@ export default async function MiCarnetPage() {
 
   const socio = await prisma.member.findUnique({
     where: { id: context.member.id },
-    select: { categoryId: true },
+    select: { categoryId: true, avatarUrl: true },
   });
   const valor = await getActiveFeeValue(context.workspace.id, socio?.categoryId ?? null, new Date());
   const precioMinor = valor ? decimalArsToMinor(valor.amountArs) : 0;
@@ -175,7 +175,17 @@ export default async function MiCarnetPage() {
               ? "El carnet digital lo tenés siempre. La tarjeta física es opcional y cuesta el valor de una cuota."
               : "Si cambiaste de categoría, actualizaste tus datos, se te venció o la perdiste, podés pedir una nueva. Cada tarjeta se cobra aparte, como la primera."}
           </p>
-          <RequestPrintedCard priceLabel={formatMinorArs(precioMinor)} />
+          {/*
+            Sin foto el pedido falla, así que no se ofrece el botón: mandarlo a apretar algo
+            que va a dar error es hacerle perder un paso y confundirlo sobre qué le falta.
+          */}
+          {socio?.avatarUrl ? (
+            <RequestPrintedCard priceLabel={formatMinorArs(precioMinor)} />
+          ) : (
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+              Primero subí tu foto, acá abajo. Con eso vas a poder pedirla.
+            </p>
+          )}
         </section>
       ) : null}
 
