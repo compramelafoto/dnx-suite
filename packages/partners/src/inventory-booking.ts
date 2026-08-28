@@ -156,3 +156,38 @@ export function resolveInventoryAvailability(input: {
 
   return { capacity, taken: capacity - free, free, slotIndex, nextFreeAt };
 }
+
+/**
+ * Suma meses cuidando el desborde de día.
+ *
+ * El 31 de enero más un mes es el 28 de febrero, no el 3 de marzo. Sin este
+ * cuidado, una propuesta armada a fin de mes vendería días que nadie pidió.
+ */
+function addMonths(date: Date, months: number): Date {
+  const y = date.getUTCFullYear();
+  const m = date.getUTCMonth();
+  const d = date.getUTCDate();
+  const ultimoDiaDelDestino = new Date(Date.UTC(y, m + months + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(
+      y,
+      m + months,
+      Math.min(d, ultimoDiaDelDestino),
+      date.getUTCHours(),
+      date.getUTCMinutes(),
+      date.getUTCSeconds(),
+      date.getUTCMilliseconds(),
+    ),
+  );
+}
+
+/**
+ * El período que cubre una propuesta.
+ *
+ * La unidad es el mes: los espacios globales de plataforma son presencia
+ * continua y se renuevan. Siempre queda expresado como fecha de inicio y de fin,
+ * porque es lo que la ocupación necesita para no bloquear un lugar para siempre.
+ */
+export function defaultProposalPeriod(from: Date, months = 1): InventoryRange {
+  return { startsAt: from, endsAt: addMonths(from, months) };
+}

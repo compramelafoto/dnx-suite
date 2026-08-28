@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { PROPOSAL_PIECES, listSellableSpaces } from "@repo/partners";
+import { PROPOSAL_PIECES, defaultProposalPeriod, listSellableSpaces } from "@repo/partners";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
 import { SectionHeader } from "@/components/layout/SectionHeader";
@@ -32,6 +32,10 @@ export default function ProposalPage() {
   );
   const pieces = PROPOSAL_PIECES.filter((p) => vendibles.has(p.placementKey));
 
+  // Un mes desde hoy. El vendedor lo cambia; siempre queda como inicio y fin.
+  const periodo = defaultProposalPeriod(new Date());
+  const comoTexto = (d: Date) => d.toISOString().slice(0, 10);
+
   if (pieces.length === 0) {
     return (
       <Section aria-labelledby="propuesta-title">
@@ -57,6 +61,10 @@ export default function ProposalPage() {
           titleId="propuesta-title"
         />
         <ProposalStudio
+          defaultPeriod={{
+            startsAt: comoTexto(periodo.startsAt),
+            endsAt: comoTexto(periodo.endsAt),
+          }}
           pieces={pieces.map((p) => ({
             id: p.id,
             label: p.label,

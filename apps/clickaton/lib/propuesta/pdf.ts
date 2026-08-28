@@ -12,7 +12,13 @@ import "server-only";
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import sharp from "sharp";
-import { buildProposalPlan, resolvePlateTreatment, type ProposalLine } from "@repo/partners";
+import {
+  buildProposalPlan,
+  resolvePlateTreatment,
+  type InventoryRange,
+  type ProposalLine,
+  type ProposalSpaceAvailability,
+} from "@repo/partners";
 import { composePiece, measureLogo } from "./compose";
 import { PROPOSAL_SELLER } from "./seller";
 
@@ -47,6 +53,10 @@ export type BuildProposalPdfInput = {
   excludePieceIds?: readonly string[];
   /** Fecha del documento. Se inyecta para que el resultado sea reproducible. */
   issuedAt: Date;
+  /** Desde cuándo y hasta cuándo se vende. */
+  period?: InventoryRange;
+  /** Qué espacios tienen lugar en ese período. */
+  availability?: Readonly<Record<string, ProposalSpaceAvailability>>;
 };
 
 /** Parte el texto en renglones que entran en el ancho dado. */
@@ -270,6 +280,8 @@ export async function buildProposalPdf(input: BuildProposalPdfInput): Promise<Ui
     industry: input.industry ?? null,
     plate,
     seller: PROPOSAL_SELLER,
+    period: input.period,
+    availability: input.availability,
     excludePieceIds: input.excludePieceIds,
   });
 
@@ -308,7 +320,7 @@ export async function buildProposalPdf(input: BuildProposalPdfInput): Promise<Ui
   }
 
   drawSummary(doc, fonts, incluidas);
-  drawBackCover(doc, fonts, plan.brandName, formatearFecha(input.issuedAt));
+  drawBackCover(doc, fonts, plan.brandName, formatearFecha(input.issuedAt), plan.period);
 
   return doc.save();
 }
@@ -444,7 +456,13 @@ function drawSummary(doc: PDFDocument, fonts: Fonts, lines: ProposalLine[]) {
 }
 
 /** Contratapa: cierre y validez. */
-function drawBackCover(doc: PDFDocument, fonts: Fonts, brandName: string, fecha: string) {
+function drawBackCover(
+  doc: PDFDocument,
+  fonts: Fonts,
+  brandName: string,
+  fecha: string,
+  period: InventoryRange | null,
+) {
   const page = doc.addPage([PAGE.width, PAGE.height]);
   page.drawRectangle({ x: 0, y: 0, width: PAGE.width, height: PAGE.height, color: INK });
 
@@ -458,9 +476,13 @@ function drawBackCover(doc: PDFDocument, fonts: Fonts, brandName: string, fecha:
     color: PAPER,
   });
 
+  const vigencia = period
+    ? ` La vigencia va del ${formatearFecha(period.startsAt)} al ${formatearFecha(period.endsAt)}.`
+    : "";
+
   drawParagraph(
     page,
-    `Esta propuesta se armó para ${brandName}. Los espacios se reservan por orden de confirmación y la disponibilidad se verifica al cerrar el acuerdo.`,
+    `Esta propuesta se armó para ${brandName}.${vigencia} Los espacios se reservan por orden de confirmación y la disponibilidad se verifica al cerrar el acuerdo.`,
     {
       x: MARGIN,
       y: PAGE.height / 2 - 44,

@@ -11,7 +11,14 @@ type PieceSummary = {
   location: string;
 };
 
-type Props = { pieces: PieceSummary[] };
+type Props = {
+  pieces: PieceSummary[];
+  /**
+   * Período por defecto, en `AAAA-MM-DD`. Viene del servidor a propósito:
+   * calcularlo en el cliente desincronizaría la hidratación.
+   */
+  defaultPeriod: { startsAt: string; endsAt: string };
+};
 
 type Viewport = "desktop" | "mobile";
 
@@ -21,10 +28,12 @@ type Viewport = "desktop" | "mobile";
  * Cada pieza se pide al servidor cuando hace falta y se guarda en memoria, así
  * cambiar de pieza o de vista no vuelve a componer lo mismo.
  */
-export function ProposalStudio({ pieces }: Props) {
+export function ProposalStudio({ pieces, defaultPeriod }: Props) {
   const [logo, setLogo] = useState<File | null>(null);
   const [brandName, setBrandName] = useState("");
   const [industry, setIndustry] = useState("");
+  const [startsAt, setStartsAt] = useState(defaultPeriod.startsAt);
+  const [endsAt, setEndsAt] = useState(defaultPeriod.endsAt);
   const [viewport, setViewport] = useState<Viewport>("desktop");
   const [activePiece, setActivePiece] = useState(pieces[0]?.id ?? "");
   const [previews, setPreviews] = useState<Record<string, string>>({});
@@ -96,6 +105,8 @@ export function ProposalStudio({ pieces }: Props) {
       form.set("logo", logo);
       form.set("brandName", brandName);
       form.set("industry", industry);
+      form.set("startsAt", startsAt);
+      form.set("endsAt", endsAt);
 
       const res = await fetch("/api/propuesta/pdf", { method: "POST", body: form });
       if (!res.ok) {
@@ -151,6 +162,22 @@ export function ProposalStudio({ pieces }: Props) {
             onChange={(e) => setIndustry(e.target.value)}
             placeholder="Gastronomía, indumentaria…"
           />
+        </Field>
+
+        <Field
+          id={`${fieldId}-desde`}
+          label="Vigencia desde"
+          hint="Por defecto, un mes. La disponibilidad se calcula sobre este período."
+        >
+          <Input
+            type="date"
+            value={startsAt}
+            onChange={(e) => setStartsAt(e.target.value)}
+          />
+        </Field>
+
+        <Field id={`${fieldId}-hasta`} label="Vigencia hasta">
+          <Input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
         </Field>
 
         <div className="flex flex-col gap-2">

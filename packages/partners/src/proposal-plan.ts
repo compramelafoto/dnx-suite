@@ -10,6 +10,7 @@ import { PROPOSAL_PIECES } from "./proposal-pieces";
 import type { DnxPartnerAdPlacementKey } from "./campaigns";
 import type { PlateTreatment } from "./proposal-contrast";
 import { listSellableSpaces, type SellerScope } from "./inventory";
+import type { InventoryRange } from "./inventory-booking";
 import { PartnersDomainError } from "./types";
 
 export type ProposalLineKind =
@@ -60,6 +61,11 @@ export type ProposalPlanInput = {
    */
   seller: SellerScope;
   /**
+   * Desde cuándo y hasta cuándo se vende. Siempre fecha de inicio y de fin: es
+   * lo que la ocupación necesita para no bloquear un lugar para siempre.
+   */
+  period?: InventoryRange;
+  /**
    * Disponibilidad por espacio, en el período que se vende. Ausente significa
    * que no se filtra por cupo: es el comportamiento de siempre.
    */
@@ -74,6 +80,7 @@ export type ProposalPlan = {
   brandName: string;
   industry: string | null;
   plate: PlateTreatment;
+  period: InventoryRange | null;
   lines: ProposalLine[];
   /**
    * Piezas que el vendedor podía ofrecer y quedaron afuera por falta de lugar,
@@ -127,6 +134,7 @@ export function buildProposalPlan(input: ProposalPlanInput): ProposalPlan {
     brandName,
     industry: input.industry?.trim() || null,
     plate: input.plate,
+    period: input.period ?? null,
     lines,
     unavailable: sinLugar
       .slice()

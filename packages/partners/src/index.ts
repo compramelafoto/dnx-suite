@@ -656,6 +656,7 @@ export {
   DNX_PARTNER_BOOKING_STATUSES,
   BOOKING_OCCUPYING_STATUSES,
   bookingFreesAt,
+  defaultProposalPeriod,
   isBookingOccupying,
   rangesOverlap,
   reservationExpiryFrom,

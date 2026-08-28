@@ -142,11 +142,25 @@ devuelve, para un período, qué espacios tienen lugar. `buildProposalPlan` reci
 ese mapa y deja afuera los que no: quedan listados en `plan.unavailable` con la
 fecha en que se liberan.
 
-Sin ese mapa el generador no filtra por cupo, que es el comportamiento de
-siempre. **Lo que falta para encenderlo es que la propuesta tenga un período**:
-hoy no lo pide, y elegir uno por defecto es una decisión comercial —los packs de
-plataforma se venden por mes, los de evento por edición—, no algo que convenga
-inventar en el código.
+El filtro ya está encendido. **La propuesta lleva un período, siempre expresado
+como fecha de inicio y de fin**, porque es lo que la ocupación necesita para no
+bloquear un lugar para siempre. Por defecto es **un mes** desde el día que se
+arma, y el vendedor lo cambia desde la pantalla.
+
+`defaultProposalPeriod` cuida el desborde de día: el 31 de enero más un mes es el
+28 de febrero, no el 3 de marzo. Sin eso, una propuesta armada a fin de mes
+vendería días que nadie pidió.
+
+La vigencia aparece en la contratapa del dossier.
+
+Si la consulta de cupo falla —por ejemplo porque la migración todavía no se
+aplicó— la propuesta sale sin filtrar, como salía antes. Un generador que anda no
+se rompe por una tabla que todavía no existe.
+
+**Queda una arista:** la pantalla muestra la vista previa de todas las piezas que
+el vendedor puede ofrecer, incluidas las que no tienen lugar en el período
+elegido. El PDF sí las excluye. Marcarlas en la pantalla necesita consultar la
+disponibilidad cada vez que se cambian las fechas, o sea un endpoint más.
 
 ### La tarea de vencimiento
 

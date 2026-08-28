@@ -7,6 +7,7 @@ import {
   rangesOverlap,
   reservationExpiryFrom,
   resolveInventoryAvailability,
+  defaultProposalPeriod,
   resolveInventoryCapacity,
   type InventoryBooking,
 } from "./inventory-booking";
@@ -201,5 +202,38 @@ describe("disponibilidad", () => {
     });
     assert.equal(a.capacity, 3);
     assert.equal(a.slotIndex, 1);
+  });
+});
+
+describe("período de una propuesta", () => {
+  it("por defecto es un mes desde la fecha dada", () => {
+    const p = defaultProposalPeriod(d("2026-03-10T00:00:00Z"));
+    assert.deepEqual(p.startsAt, d("2026-03-10T00:00:00Z"));
+    assert.deepEqual(p.endsAt, d("2026-04-10T00:00:00Z"));
+  });
+
+  it("se puede pedir más de un mes", () => {
+    const p = defaultProposalPeriod(d("2026-03-10T00:00:00Z"), 3);
+    assert.deepEqual(p.endsAt, d("2026-06-10T00:00:00Z"));
+  });
+
+  it("el 31 de enero cae al último día de febrero, no se desborda a marzo", () => {
+    const p = defaultProposalPeriod(d("2026-01-31T00:00:00Z"));
+    assert.deepEqual(p.endsAt, d("2026-02-28T00:00:00Z"));
+  });
+
+  it("respeta los años bisiestos", () => {
+    const p = defaultProposalPeriod(d("2028-01-31T00:00:00Z"));
+    assert.deepEqual(p.endsAt, d("2028-02-29T00:00:00Z"));
+  });
+
+  it("cruza el fin de año", () => {
+    const p = defaultProposalPeriod(d("2026-12-15T00:00:00Z"));
+    assert.deepEqual(p.endsAt, d("2027-01-15T00:00:00Z"));
+  });
+
+  it("conserva la hora del día", () => {
+    const p = defaultProposalPeriod(d("2026-03-10T15:30:00Z"));
+    assert.deepEqual(p.endsAt, d("2026-04-10T15:30:00Z"));
   });
 });

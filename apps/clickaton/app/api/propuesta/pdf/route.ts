@@ -1,5 +1,45 @@
 import { NextResponse } from "next/server";
 import { buildProposalPdf, ProposalWithoutSpacesError } from "@/lib/propuesta/pdf";
+import { PROPOSAL_SELLER } from "@/lib/propuesta/seller";
+import {
+  defaultProposalPeriod,
+  listSellableSpaces,
+  type InventoryRange,
+  type ProposalSpaceAvailability,
+} from "@repo/partners";
+import { getProposalSpacesAvailability } from "@repo/db/partners-inventory-bookings";
+
+/** Lee una fecha `AAAA-MM-DD` del formulario. */
+function leerFecha(valor: FormDataEntryValue | null): Date | null {
+  const texto = String(valor ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return null;
+  const fecha = new Date(`${texto}T00:00:00.000Z`);
+  return Number.isNaN(fecha.getTime()) ? null : fecha;
+}
+
+/**
+ * Qué espacios tienen lugar en el período.
+ *
+ * Si la consulta falla —típicamente porque la migración del inventario todavía
+ * no se aplicó— la propuesta sale sin filtrar por cupo, que es como salía antes.
+ * Un generador que anda no se rompe por una tabla que todavía no existe.
+ */
+async function disponibilidadONada(
+  period: InventoryRange,
+  now: Date,
+): Promise<Readonly<Record<string, ProposalSpaceAvailability>> | undefined> {
+  try {
+    const claves = listSellableSpaces(PROPOSAL_SELLER).map((espacio) => espacio.placementKey);
+    return (await getProposalSpacesAvailability({
+      placementKeys: claves,
+      range: period,
+      now,
+    })) as Record<string, ProposalSpaceAvailability>;
+  } catch (err) {
+    console.warn("[propuesta.pdf] sin datos de cupo, la propuesta sale sin filtrar", err);
+    return undefined;
+  }
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,13 +103,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Falta el nombre de la marca." }, { status: 400 });
   }
 
+  const issuedAt = new Date();
+  const desde = leerFecha(form.get("startsAt"));
+  const hasta = leerFecha(form.get("endsAt"));
+  const period =
+    desde && hasta && hasta.getTime() > desde.getTime()
+      ? { startsAt: desde, endsAt: hasta }
+      : defaultProposalPeriod(issuedAt);
+
   try {
     const pdf = await buildProposalPdf({
       brandName,
       industry: industry || null,
       logo: Buffer.from(await archivo.arrayBuffer()),
       excludePieceIds: excluidas,
-      issuedAt: new Date(),
+      issuedAt,
+      period,
+      availability: await disponibilidadONada(period, issuedAt),
     });
 
     return new NextResponse(new Uint8Array(pdf), {
