@@ -9,6 +9,7 @@ import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/prof
 import { loadMemberAccount } from "@/lib/membership/account";
 import { formatMinorArs } from "@/lib/membership/money";
 import { describeSeniority } from "@/lib/portal/identity";
+import { pendingPrintedCard } from "@/lib/carnet/pending-print";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,10 @@ export default async function PortalPage() {
   const institution = branding?.commercialName?.trim() || context.workspace.name;
   const account = await loadMemberAccount(context.member.id);
   const antiguedad = describeSeniority(context.member.joinedAt, new Date());
+
+  // Un pendiente que el socio no ve es un pendiente que no existe: la subida de la foto vive
+  // en la pantalla del carnet y nadie llegaba sola hasta ahí.
+  const impresa = await pendingPrintedCard(context.member.id);
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
@@ -88,11 +93,20 @@ export default async function PortalPage() {
 
           <Link
             href="/portal/carnet"
-            className="block space-y-1 rounded-lg border border-[var(--fo-border)] p-4 hover:border-[var(--fo-text)]"
+            className={
+              "block space-y-1 rounded-lg border p-4 " +
+              (impresa.pedida && impresa.faltaFoto
+                ? "border-[var(--fo-accent)] hover:border-[var(--fo-text)]"
+                : "border-[var(--fo-border)] hover:border-[var(--fo-text)]")
+            }
           >
-            <p className="text-sm font-medium">Tu carnet de socio</p>
+            <p className="text-sm font-medium">
+              {impresa.pedida && impresa.faltaFoto ? "Te falta subir tu foto" : "Tu carnet de socio"}
+            </p>
             <p className="text-xs text-[var(--fo-muted)]">
-              Mostralo para que verifiquen tu condición de socio.
+              {impresa.pedida && impresa.faltaFoto
+                ? "Pediste la credencial impresa. Sin tu foto no la podemos emitir."
+                : "Mostralo para que verifiquen tu condición de socio."}
             </p>
           </Link>
 

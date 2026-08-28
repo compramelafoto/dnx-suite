@@ -8,6 +8,7 @@ const H = vi.hoisted(() => ({
   chargeCreateMany: vi.fn(),
   settingsFindUnique: vi.fn(),
   feeFindFirst: vi.fn(),
+  categoryFindMany: vi.fn(),
   transaction: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ vi.mock("@repo/db", async () => {
       member: { findMany: H.memberFindMany },
       membershipDuesSettings: { findUnique: H.settingsFindUnique },
       membershipFeeValue: { findFirst: H.feeFindFirst },
+      memberCategory: { findMany: H.categoryFindMany },
       $transaction: H.transaction.mockImplementation(async (fn: (t: unknown) => unknown) => fn(tx)),
     },
   };
@@ -64,6 +66,10 @@ beforeEach(() => {
   H.chargeCreateMany.mockReset().mockResolvedValue({ count: 3 });
   H.settingsFindUnique.mockReset().mockResolvedValue(null);
   H.feeFindFirst.mockReset().mockResolvedValue({ id: "fv-1", amountArs: new Prisma.Decimal("10000") });
+  H.categoryFindMany.mockReset().mockResolvedValue([
+    { id: "cat-prof", name: "Profesional" },
+    { id: "cat-est", name: "Estudiante" },
+  ]);
   H.transaction.mockClear();
 });
 

@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import { buildApproval, ApprovalError, type ApprovalPlan } from "./approve";
+import { pickCategoryForScale } from "./category-for-scale";
 import { getActiveFeeValue, getDuesSettings } from "./settings";
 import type { FeeScale } from "./amounts";
 
@@ -41,7 +42,18 @@ export async function approveApplication(input: {
   }
 
   const settings = await getDuesSettings(input.workspaceId);
-  const feeValue = await getActiveFeeValue(input.workspaceId, application.categoryId, now);
+
+  // El formulario público pregunta la condición, no la categoría del padrón. Se resuelve acá
+  // por convención de nombre; si la institución no tiene una que coincida, queda sin asignar y
+  // la Secretaría la elige, que es preferible a ponerle una que signifique otra cosa.
+  const categorias = await prisma.memberCategory.findMany({
+    where: { workspaceId: input.workspaceId },
+    select: { id: true, name: true },
+  });
+  const categoryId =
+    application.categoryId ??
+    pickCategoryForScale(application.declaredFeeScale as FeeScale, categorias);
+  const feeValue = await getActiveFeeValue(input.workspaceId, categoryId, now);
   if (!feeValue) {
     throw new ApprovalError(
       "SIN_VALOR_DE_CUOTA",
@@ -61,6 +73,7 @@ export async function approveApplication(input: {
     const plan: ApprovalPlan = buildApproval({
       application: {
         ...application,
+        categoryId,
         declaredFeeScale: application.declaredFeeScale as FeeScale,
       },
       settings,

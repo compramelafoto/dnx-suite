@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { loadMyCard } from "@/lib/carnet/my-card";
 import { MemberPhotoUpload } from "@/components/portal/member-photo-upload";
+import { pendingPrintedCard } from "@/lib/carnet/pending-print";
 import { getActiveFeeValue } from "@/lib/membership/settings";
 import { prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
@@ -41,6 +42,10 @@ export default async function MiCarnetPage() {
     select: { avatarUrl: true },
   });
 
+  // Quien marcó "quiero la credencial impresa" al asociarse tiene que enterarse de qué le
+  // falta. Hasta ahora marcaba la casilla y no volvía a saber nada del asunto.
+  const impresa = await pendingPrintedCard(context.member.id);
+
   if (!carnet) {
     return (
       <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5 py-12">
@@ -55,7 +60,16 @@ export default async function MiCarnetPage() {
           </Link>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6 space-y-6">
+      {impresa.pedida && impresa.faltaFoto && !impresa.yaEnCurso ? (
+        <section className="fo-card space-y-2 border-[var(--fo-accent)]/40 p-5">
+          <p className="text-sm font-medium">Pediste la credencial impresa</p>
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+            Para emitirla necesitamos tu foto. Subila acá abajo y con eso queda lista para
+            pedirla.
+          </p>
+        </section>
+      ) : null}
           <MemberPhotoUpload currentUrl={ficha?.avatarUrl ?? null} />
         </div>
       </main>
@@ -159,6 +173,17 @@ export default async function MiCarnetPage() {
               Regularizar · {formatMinorArs(carnet.totalDueMinor)}
             </Link>
           ) : null}
+        </section>
+      ) : null}
+
+
+      {impresa.pedida && impresa.faltaFoto && !impresa.yaEnCurso ? (
+        <section className="fo-card space-y-2 border-[var(--fo-accent)]/40 p-5">
+          <p className="text-sm font-medium">Pediste la credencial impresa</p>
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+            Para emitirla necesitamos tu foto. Subila acá abajo y con eso queda lista para
+            pedirla.
+          </p>
         </section>
       ) : null}
 
