@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { findClaimableMembership } from "@/lib/portal/claim";
 import { isFotofficePlatformAdminRole, resolvePlatformRole } from "@/lib/fotoffice-roles";
 import { safeFotofficeNextPath } from "@/lib/google-login";
 import { resolveInvitationContinuityPath } from "@/lib/members/invitation-continuity-resolve";
@@ -79,6 +80,21 @@ export async function resolveFotofficePostLoginDestination(params: {
   // Un socio no tiene panel administrativo ni workspace propio: nunca se llama a `ensure`.
   if (kind === "MEMBER") {
     return { path: resolvePortalDestination(params.next), workspaceId: null };
+  }
+
+  /*
+   * Antes de crearle un negocio a nadie, mirar si no es un socio todavía sin vincular.
+   *
+   * `kind` responde por el vínculo `Member.userId`, que solo existe después de aceptar la
+   * invitación. En la ventana entre que la Secretaría aprueba y el socio acepta, la misma
+   * persona figura como "usuaria nueva" — y le creábamos un workspace propio con ella de
+   * dueña. Le pasó a una socia real: entró a ver su cuota y se encontró administrando un
+   * negocio que nunca pidió, sin su pago a la vista.
+   *
+   * Coincidir el email habilita a preguntar, no a vincular: la pantalla pide confirmación.
+   */
+  if (await findClaimableMembership({ userId: user.id, email: user.email })) {
+    return { path: "/soy-socio", workspaceId: null };
   }
 
   const ensured = await ensureFotofficeWorkspaceForUser({

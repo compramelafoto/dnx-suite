@@ -30,6 +30,7 @@ vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
 
 vi.mock("@repo/db", () => ({ prisma: { user: { findUnique: userFindUniqueMock } } }));
 vi.mock("@/lib/ensure-workspace", () => ({ ensureFotofficeWorkspaceForUser: ensureMock }));
+vi.mock("@/lib/portal/claim", () => ({ findClaimableMembership: async () => null }));
 vi.mock("@/lib/portal/user-kind", () => ({ resolveFotofficeUserKind: userKindMock }));
 
 const { resolveFotofficePostLoginDestination } = await import("./post-login");
