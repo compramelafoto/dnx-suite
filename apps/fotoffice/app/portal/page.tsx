@@ -46,6 +46,19 @@ export default async function PortalPage() {
   // en la pantalla del carnet y nadie llegaba sola hasta ahí.
   const impresa = await pendingPrintedCard(context.member.id);
 
+  // Los 152 socios del padrón migrado llegan sin ninguno de estos datos: nunca hubo un
+  // formulario donde cargarlos. El aviso está para eso, y desaparece solo cuando ya cargó algo.
+  const perfil = await prisma.member.findUnique({
+    where: { id: context.member.id },
+    select: { businessName: true, bio: true, specialties: true, instagram: true, website: true },
+  });
+  const perfilVacio =
+    !perfil?.businessName &&
+    !perfil?.bio &&
+    !perfil?.instagram &&
+    !perfil?.website &&
+    (perfil?.specialties.length ?? 0) === 0;
+
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
       <main className="mx-auto max-w-lg px-4 py-16">
@@ -142,6 +155,9 @@ export default async function PortalPage() {
           )}
 
           <div className="flex flex-wrap gap-2">
+            <Link href="/portal/perfil" className="fo-btn fo-btn-secondary text-sm">
+              Mi perfil profesional
+            </Link>
             <form action="/api/auth/logout" method="post">
               <button type="submit" className="fo-btn fo-btn-secondary text-sm">
                 Cerrar sesión
@@ -156,6 +172,19 @@ export default async function PortalPage() {
             ) : null}
           </div>
         </section>
+
+        {perfilVacio ? (
+          <section className="fo-card mt-6 space-y-3 p-5">
+            <h2 className="text-sm font-semibold">Completá tu perfil profesional</h2>
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+              Contanos a qué te dedicás y dónde se ve tu trabajo. Es lo que {institution} usa
+              para recomendarte y difundir lo que hacés. Se publica solo si lo autorizás.
+            </p>
+            <Link href="/portal/perfil" className="fo-btn fo-btn-primary text-sm">
+              Completar mi perfil
+            </Link>
+          </section>
+        ) : null}
 
         {/*
           El socio que todavía no tiene negocio se entera acá de que puede usar FotoOffice para

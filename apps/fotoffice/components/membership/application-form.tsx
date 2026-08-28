@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { PhotoGuide } from "./photo-guide";
+import { ProfessionalPresenceFields } from "./professional-presence-fields";
 import {
   submitApplicationAction,
   type ApplicationFormState,
@@ -207,6 +208,8 @@ export function MembershipApplicationForm({
           </div>
         ) : null}
       </section>
+
+      <ProfessionalPresenceFields institutionName={institutionName} />
 
       {monthlyAmountLabel ? (
         <section className="fo-card space-y-1 p-5">

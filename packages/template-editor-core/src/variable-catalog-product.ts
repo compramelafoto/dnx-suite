@@ -10,6 +10,7 @@ import {
   type TemplateV2VariableUsableIn,
   type TemplateV2VariableValueType,
 } from "./variable-catalog";
+import { FOTOFFICE_VARIABLE_GROUPS } from "./variable-catalog-fotoffice";
 import type { TemplateProductId } from "./resolve-template-product";
 
 function mapValueType(
@@ -40,6 +41,7 @@ function toEditorDef(def: TemplateVariableDefinition): TemplateV2VariableDefinit
 export function getVariableGroupsForProduct(
   product: TemplateProductId | "unknown"
 ): TemplateV2VariableGroup[] {
+  if (product === "fotoffice") return FOTOFFICE_VARIABLE_GROUPS;
   if (product === "clickaton") {
     const byGroup = new Map<string, TemplateV2VariableGroup>();
     for (const def of clickatonTemplateVariablesPlugin.definitions) {
@@ -62,10 +64,10 @@ export function getVariableGroupsForProduct(
 export function getTextVariableGroupsForProduct(
   product: TemplateProductId | "unknown"
 ): TemplateV2VariableGroup[] {
-  if (product !== "clickaton") {
+  if (product !== "clickaton" && product !== "fotoffice") {
     return getTemplateV2VariableGroupsForTextBlocks();
   }
-  return getVariableGroupsForProduct("clickaton")
+  return getVariableGroupsForProduct(product)
     .map((g) => ({
       ...g,
       variables: g.variables.filter((v) => v.usableIn.includes("TEXT")),

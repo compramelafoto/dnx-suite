@@ -16,6 +16,17 @@ export type InboxItem = {
   noticeAddress: string | null;
   city: string | null;
   phone: string | null;
+  /** Presencia profesional declarada. La Secretaría la ve antes de aprobar. */
+  businessName: string | null;
+  bio: string | null;
+  specialties: string[];
+  website: string | null;
+  instagram: string | null;
+  tiktok: string | null;
+  facebook: string | null;
+  youtube: string | null;
+  linkedin: string | null;
+  directoryOptIn: boolean;
   createdAt: Date;
   notices: ApplicationNotice[];
 };
@@ -94,6 +105,16 @@ export async function listPendingApplications(workspaceId: string): Promise<Inbo
       id: s.id,
       fullName: `${s.firstName} ${s.lastName}`.trim(),
       email: s.email,
+      businessName: s.businessName,
+      bio: s.bio,
+      specialties: s.specialties,
+      website: s.website,
+      instagram: s.instagram,
+      tiktok: s.tiktok,
+      facebook: s.facebook,
+      youtube: s.youtube,
+      linkedin: s.linkedin,
+      directoryOptIn: s.directoryOptIn,
       declaredFeeScale: s.declaredFeeScale,
       categoryName: cat?.name ?? null,
       originInstitution: s.originInstitution,

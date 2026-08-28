@@ -7090,6 +7090,28 @@ model Member {
   /// pero no puede ser Member dos veces DEL MISMO Workspace — ver
   /// @@unique([workspaceId, userId]) abajo.
   userId         Int?
+
+  /// --- Presencia profesional ---
+  /// Se pide desde el alta: pedirla después implica volver a contactar a cada socio uno por uno.
+  /// Nombre del estudio o marca, si trabaja con uno distinto de su nombre.
+  businessName   String?
+  /// Rubros en los que trabaja. Vocabulario cerrado, validado en lib/membership/specialties.ts.
+  specialties    String[]  @default([])
+  /// Presentación breve, en palabras del socio.
+  bio            String?
+  website        String?
+  /// Instagram y TikTok se guardan como usuario, sin arroba. Facebook, YouTube y LinkedIn como
+  /// dirección completa: en esas tres el perfil tiene varias formas válidas. Ver lib/membership/social.ts.
+  instagram      String?
+  tiktok         String?
+  facebook       String?
+  youtube        String?
+  linkedin       String?
+  /// Consentimiento explícito para publicar estos datos en la web pública de la institución.
+  /// Arranca en false a propósito: publicar los datos de alguien requiere que lo haya pedido,
+  /// no que no se haya opuesto.
+  directoryOptIn Boolean   @default(false)
+
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -7204,6 +7226,28 @@ model MembershipApplication {
   /// se sube desde el portal cuando ya es socio, porque el formulario es público y abrir la
   /// subida de archivos a internet para eso no compensa.
   wantsPrintedCard  Boolean        @default(false)
+
+  /// --- Presencia profesional ---
+  /// Se pide desde el alta: pedirla después implica volver a contactar a cada socio uno por uno.
+  /// Nombre del estudio o marca, si trabaja con uno distinto de su nombre.
+  businessName   String?
+  /// Rubros en los que trabaja. Vocabulario cerrado, validado en lib/membership/specialties.ts.
+  specialties    String[]  @default([])
+  /// Presentación breve, en palabras del socio.
+  bio            String?
+  website        String?
+  /// Instagram y TikTok se guardan como usuario, sin arroba. Facebook, YouTube y LinkedIn como
+  /// dirección completa: en esas tres el perfil tiene varias formas válidas. Ver lib/membership/social.ts.
+  instagram      String?
+  tiktok         String?
+  facebook       String?
+  youtube        String?
+  linkedin       String?
+  /// Consentimiento explícito para publicar estos datos en la web pública de la institución.
+  /// Arranca en false a propósito: publicar los datos de alguien requiere que lo haya pedido,
+  /// no que no se haya opuesto.
+  directoryOptIn Boolean   @default(false)
+
 
   status           MembershipApplicationStatus @default(PENDIENTE)
   /// Motivo del rechazo. Obligatorio al rechazar; se le comunica a la persona.

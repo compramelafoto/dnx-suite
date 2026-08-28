@@ -38,6 +38,17 @@ export type ApprovalInput = {
     categoryId: string | null;
     /** Si además pidió la credencial impresa al asociarse. */
     wantsPrintedCard?: boolean;
+    /** Presencia profesional declarada al asociarse. */
+    businessName?: string | null;
+    bio?: string | null;
+    specialties?: readonly string[];
+    website?: string | null;
+    instagram?: string | null;
+    tiktok?: string | null;
+    facebook?: string | null;
+    youtube?: string | null;
+    linkedin?: string | null;
+    directoryOptIn?: boolean;
     status: string;
   };
   settings: {
@@ -73,6 +84,16 @@ export type ApprovalPlan = {
     ownDuesAmount: Prisma.Decimal | null;
     originInstitution: string | null;
     joinedAt: Date;
+    businessName: string | null;
+    bio: string | null;
+    specialties: string[];
+    website: string | null;
+    instagram: string | null;
+    tiktok: string | null;
+    facebook: string | null;
+    youtube: string | null;
+    linkedin: string | null;
+    directoryOptIn: boolean;
   };
   charges: ApprovalCharge[];
   totalArs: Prisma.Decimal;
@@ -198,6 +219,18 @@ export function buildApproval(input: ApprovalInput): ApprovalPlan {
       ownDuesAmount: input.application.ownDuesAmount,
       originInstitution: input.application.originInstitution,
       joinedAt: input.now,
+      // La presencia profesional declarada al asociarse pasa al socio. Si no se copiara acá,
+      // el dato quedaría enterrado en la solicitud y el socio aparecería sin redes.
+      businessName: input.application.businessName ?? null,
+      bio: input.application.bio ?? null,
+      specialties: [...(input.application.specialties ?? [])],
+      website: input.application.website ?? null,
+      instagram: input.application.instagram ?? null,
+      tiktok: input.application.tiktok ?? null,
+      facebook: input.application.facebook ?? null,
+      youtube: input.application.youtube ?? null,
+      linkedin: input.application.linkedin ?? null,
+      directoryOptIn: Boolean(input.application.directoryOptIn),
     },
     charges,
     // Suma de todo lo que se cobra al ingresar: las cuotas iniciales y, si la pidió, la

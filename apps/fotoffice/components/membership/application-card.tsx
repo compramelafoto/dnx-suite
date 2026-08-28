@@ -7,6 +7,7 @@ import {
   type ApplicationFormState,
 } from "@/app/actions/membership-applications";
 import type { InboxItem } from "@/lib/membership/inbox";
+import { ProfessionalPresenceSummary } from "./professional-presence-summary";
 
 const initial: ApplicationFormState = { error: null, ok: null };
 
@@ -93,6 +94,8 @@ export function ApplicationCard({ item }: { item: InboxItem }) {
           <dd>{item.createdAt.toLocaleDateString("es-AR")}</dd>
         </div>
       </dl>
+
+      <ProfessionalPresenceSummary data={item} showConsent />
 
       {state.error ? (
         <p className="text-xs text-[var(--fo-danger)]" role="alert">

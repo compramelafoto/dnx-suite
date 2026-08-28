@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Núcleo del editor Template V2 — geometría, diagnósticos, catálogo de variables, presets y render HTML. Sin React, sin Prisma, sin Next.",
+  "description": "N\u00facleo del editor Template V2 \u2014 geometr\u00eda, diagn\u00f3sticos, cat\u00e1logo de variables, presets y render HTML. Sin React, sin Prisma, sin Next.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -16,7 +16,7 @@
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
-    "test": "tsx --test src/__tests__/browser-safe-barrel.test.ts src/__tests__/template-v2-authorization.test.ts src/__tests__/template-v2-mappers-security.test.ts src/__tests__/template-v2-services.integration.test.ts src/__tests__/revision-conflict.test.ts src/template-engine-compat.test.ts src/presets/__tests__/clickaton-presets.test.ts src/rendering/__tests__/template-v2-preview-unit.test.ts src/rendering/__tests__/template-v2-preview-service.test.ts",
+    "test": "tsx --test src/__tests__/browser-safe-barrel.test.ts src/__tests__/template-v2-authorization.test.ts src/__tests__/template-v2-mappers-security.test.ts src/__tests__/template-v2-services.integration.test.ts src/__tests__/revision-conflict.test.ts src/template-engine-compat.test.ts src/presets/__tests__/clickaton-presets.test.ts src/rendering/__tests__/template-v2-preview-unit.test.ts src/rendering/__tests__/template-v2-preview-service.test.ts src/__tests__/fotoffice-variable-catalog.test.ts",
     "test:render": "tsx --test src/presets/__tests__/clickaton-presets-render.test.ts src/rendering/__tests__/template-v2-preview-render.test.ts"
   },
   "dependencies": {

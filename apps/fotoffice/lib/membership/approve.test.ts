@@ -142,3 +142,56 @@ describe("buildApproval", () => {
     expect(r.totalArs.toFixed(2)).toBe("0.00");
   });
 });
+
+describe("presencia profesional", () => {
+  const conRedes = {
+    ...base,
+    application: {
+      ...solicitud,
+      businessName: "Estudio Ana",
+      bio: "Fotógrafa social desde 2010.",
+      specialties: ["SOCIAL", "CASAMIENTOS"],
+      website: "https://estudioana.com.ar/",
+      instagram: "estudioana",
+      tiktok: null,
+      facebook: "https://facebook.com/estudioana",
+      youtube: null,
+      linkedin: null,
+      directoryOptIn: true,
+    },
+  };
+
+  it("lo declarado al asociarse queda en el socio, no solo en la solicitud", () => {
+    const m = buildApproval(conRedes).member;
+    expect(m.businessName).toBe("Estudio Ana");
+    expect(m.bio).toBe("Fotógrafa social desde 2010.");
+    expect(m.specialties).toEqual(["SOCIAL", "CASAMIENTOS"]);
+    expect(m.website).toBe("https://estudioana.com.ar/");
+    expect(m.instagram).toBe("estudioana");
+    expect(m.facebook).toBe("https://facebook.com/estudioana");
+    expect(m.directoryOptIn).toBe(true);
+  });
+
+  it("una solicitud sin redes no rompe la aprobación", () => {
+    const m = buildApproval(base).member;
+    expect(m.instagram).toBeNull();
+    expect(m.specialties).toEqual([]);
+    expect(m.directoryOptIn).toBe(false);
+  });
+
+  it("no publica en el directorio a quien no lo pidió", () => {
+    const m = buildApproval({
+      ...conRedes,
+      application: { ...conRedes.application, directoryOptIn: false },
+    }).member;
+    expect(m.directoryOptIn).toBe(false);
+    // Los datos igual se guardan: el consentimiento decide si se muestran, no si se piden.
+    expect(m.instagram).toBe("estudioana");
+  });
+
+  it("las especialidades del socio no comparten el array con la solicitud", () => {
+    const m = buildApproval(conRedes).member;
+    m.specialties.push("OTRO");
+    expect(conRedes.application.specialties).toEqual(["SOCIAL", "CASAMIENTOS"]);
+  });
+});

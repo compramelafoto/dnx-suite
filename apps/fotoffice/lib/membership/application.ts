@@ -1,5 +1,13 @@
 import { Prisma } from "@repo/db";
 import { z } from "zod";
+import {
+  normalizarSitioWeb,
+  normalizarUrlRed,
+  normalizarUsuarioRed,
+  type RedPorUrl,
+  type RedPorUsuario,
+} from "./social";
+import { parsearEspecialidades, type EspecialidadId } from "./specialties";
 
 /**
  * Escalas que una persona puede **declarar** al asociarse.
@@ -63,6 +71,29 @@ const schema = z
         return anio >= 1900 && d.getTime() <= Date.now();
       }, "Revisá la fecha de nacimiento."),
     avatarUrl: texto(600).optional().nullable(),
+    /**
+     * Presencia profesional. Todo opcional: nadie deja de asociarse por no tener Instagram,
+     * y una solicitud perdida cuesta más que un dato faltante.
+     */
+    businessName: texto(160).optional().nullable(),
+    bio: texto(600).optional().nullable(),
+    website: texto(500).optional().nullable(),
+    instagram: texto(200).optional().nullable(),
+    tiktok: texto(200).optional().nullable(),
+    facebook: texto(500).optional().nullable(),
+    youtube: texto(500).optional().nullable(),
+    linkedin: texto(500).optional().nullable(),
+    /** Llegan varios valores con el mismo nombre desde el formulario. */
+    specialties: z
+      .union([z.array(z.string()), z.string()])
+      .optional()
+      .nullable()
+      .transform((v) => (v == null ? [] : Array.isArray(v) ? v : [v])),
+    directoryOptIn: z
+      .union([z.boolean(), z.string()])
+      .optional()
+      .nullable()
+      .transform((v) => v === true || v === "on" || v === "true"),
     presenterMemberId: texto(64).optional().nullable(),
     /** Un checkbox llega como "on"; desde código puede llegar como booleano. */
     wantsPrintedCard: z
@@ -95,6 +126,16 @@ export type ParsedApplication = {
   avatarUrl: string | null;
   presenterMemberId: string | null;
   wantsPrintedCard: boolean;
+  businessName: string | null;
+  bio: string | null;
+  specialties: EspecialidadId[];
+  website: string | null;
+  instagram: string | null;
+  tiktok: string | null;
+  facebook: string | null;
+  youtube: string | null;
+  linkedin: string | null;
+  directoryOptIn: boolean;
 };
 
 export type ParseResult =
@@ -124,6 +165,29 @@ export function parseApplication(raw: unknown): ParseResult {
   }
 
   const d = parsed.data;
+
+  /**
+   * Las redes se normalizan después de zod porque no alcanza con validar el formato: hay que
+   * transformar lo pegado en un valor canónico, y cuando falla el mensaje tiene que señalar
+   * el campo exacto para que el formulario lo marque.
+   */
+  const redes: Record<string, string | null> = {};
+  for (const red of ["instagram", "tiktok"] as RedPorUsuario[]) {
+    const r = normalizarUsuarioRed(red, d[red]);
+    if (!r.ok) return { ok: false, error: r.error, field: red };
+    redes[red] = r.valor;
+  }
+  for (const red of ["facebook", "youtube", "linkedin"] as RedPorUrl[]) {
+    const r = normalizarUrlRed(red, d[red]);
+    if (!r.ok) return { ok: false, error: r.error, field: red };
+    redes[red] = r.valor;
+  }
+  const web = normalizarSitioWeb(d.website);
+  if (!web.ok) return { ok: false, error: web.error, field: "website" };
+
+  const rubros = parsearEspecialidades(d.specialties);
+  if (!rubros.ok) return { ok: false, error: rubros.error, field: "specialties" };
+
   return {
     ok: true,
     data: {
@@ -147,6 +211,16 @@ export function parseApplication(raw: unknown): ParseResult {
       avatarUrl: nulo(d.avatarUrl),
       presenterMemberId: nulo(d.presenterMemberId),
       wantsPrintedCard: d.wantsPrintedCard,
+      businessName: nulo(d.businessName),
+      bio: nulo(d.bio),
+      specialties: rubros.valor,
+      website: web.valor,
+      instagram: redes.instagram ?? null,
+      tiktok: redes.tiktok ?? null,
+      facebook: redes.facebook ?? null,
+      youtube: redes.youtube ?? null,
+      linkedin: redes.linkedin ?? null,
+      directoryOptIn: d.directoryOptIn,
     },
   };
 }
