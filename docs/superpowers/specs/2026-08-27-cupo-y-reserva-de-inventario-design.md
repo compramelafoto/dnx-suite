@@ -171,3 +171,24 @@ En `@repo/partners`, con `node:test`, sin base de datos:
 3. La tarea que vence las reservas.
 4. Conectar el generador: sin lugar, el ítem no entra en la propuesta.
 5. La habilitación explícita para vender inventario ajeno.
+
+## Verificación contra Postgres real
+
+2026-08-28, PostgreSQL 16.14 local y descartable. La migración corre completa,
+incluida `CREATE EXTENSION btree_gist` y la restricción de exclusión. Nueve casos
+funcionales:
+
+| Caso | Resultado |
+|---|---|
+| Mismo lugar, períodos que se pisan | La segunda **rechazada** |
+| Lugares distintos, mismo período | Las dos entran |
+| Mismo lugar, períodos pegados (termina y arranca el 1-sep) | Entra: el borde no se pisa |
+| Borrador sobre un lugar ocupado | Entra: un borrador no ocupa |
+| Reserva sobre un lugar vendido | **Rechazada** |
+| Mismo lugar y período en dos concursos distintos | Las dos entran |
+| Repetir en el mismo concurso | **Rechazada** |
+| Cupo de doce: los doce lugares | Los doce entran |
+| El trece, reusando un lugar | **Rechazada** |
+
+El `COALESCE("contextId", '')` funciona: los contextos quedan aislados entre sí y
+de los espacios globales.

@@ -23,7 +23,8 @@
     "./fotoffice-member-invitations": "./src/fotoffice-member-invitations.ts",
     "./daily-report-repository": "./src/daily-report-repository.ts",
     "./template-v2-repository": "./src/template-v2-repository.ts",
-    "./clickaton-readonly-client": "./src/clickaton-readonly-client.ts"
+    "./clickaton-readonly-client": "./src/clickaton-readonly-client.ts",
+    "./partners-inventory-bookings": "./src/partners-inventory-bookings.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",
