@@ -25,6 +25,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
   }
 
-  const expired = await expireInventoryReservations(new Date());
-  return NextResponse.json({ ok: true, expired });
+  try {
+    const expired = await expireInventoryReservations(new Date());
+    return NextResponse.json({ ok: true, expired });
+  } catch (err) {
+    // Mientras la migración del inventario no esté aplicada no hay tabla que
+    // barrer. Devolver un error cada hora sería ruido, no información.
+    console.warn("[cron.expire-inventory-reservations] sin tabla de ocupación todavía", err);
+    return NextResponse.json({ ok: true, expired: 0, skipped: "no_table" });
+  }
 }
