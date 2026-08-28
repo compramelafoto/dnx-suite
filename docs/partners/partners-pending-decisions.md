@@ -83,6 +83,29 @@
 | $01 | ¿Cuándo se permiten PaymentTerms con MP? | Fuera de Etapa 00; nunca default |
 | $02 | ¿Cobros mensuales / suscripciones? | **Prohibido asumir**; solo si producto lo pide después |
 | $03 | ¿Links de pago automáticos? | No en v1 |
+| $04 | Comisiones por venta de inventario de red | **Diferido a propósito**; ver abajo |
+
+### $04 — Comisiones cuando el split 1:N esté listo
+
+**Decidido el 2026-08-27 (Daniel):** en la primera versión la plata queda **fuera del
+sistema**. Un organizador de FotoRank o un workspace de FotoOffice puede ofrecerle a una
+marca espacios de la red DNX, pero el sistema solo resuelve disponibilidad y deja
+constancia de quién vendió qué. Tarifa fija de lista y acuerdo marco por vendedor, ambos
+arreglados por fuera. **Nada de porcentajes, reparto ni liquidaciones en el código.**
+
+**Pendiente explícito:** armar el sistema de comisiones cuando el split 1:N esté
+disponible. Es la pieza que hace falta para que el aporte de un sponsor se reparta solo
+entre DNX y el vendedor, sin facturación cruzada a mano.
+
+Estado del split hoy: `@repo/payments` tiene el adaptador de la Orders API de Mercado Pago
+y declara `supportsSplit1N: true` en `providers/mercado-pago/capabilities.ts`, pero el
+adaptador **solo escribe contra sandbox**: `assertSandboxWriteAllowed`, `assertSandboxToken`
+e `isSandboxAccessToken` bloquean cualquier escritura productiva. Ver
+`docs/dnx-payments/09-mercado-pago-orders-sandbox-adapter.md` y `10-split-consent-sandbox-flow.md`.
+
+La condición para arrancar no es la bandera de capacidad —ya está en `true`— sino que el
+adaptador pueda operar en producción con consents reales. Antes de eso, cualquier cálculo
+de comisión termina en una liquidación manual, que es justamente lo que este diseño evita.
 
 ---
 
