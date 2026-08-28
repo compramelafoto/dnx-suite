@@ -62,6 +62,9 @@ export async function requestPrintedCard(input: {
       format: "PRINTED",
       revokedAt: null,
       fulfillmentState: { notIn: ["ENTREGADO", "ANULADO"] },
+      // Una vencida no está "en camino": es un trámite que quedó a mitad y no puede bloquear
+      // a nadie para siempre. Mismo criterio que decide si se ofrece pedirla.
+      validUntil: { gt: ahora },
     },
     select: { id: true },
   });

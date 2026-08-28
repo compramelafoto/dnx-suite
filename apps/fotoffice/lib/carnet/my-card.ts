@@ -28,6 +28,8 @@ export type MyCardView = {
   totalDueMinor: number;
   /** Estado de la tarjeta impresa, si la pidió. */
   printedState: FulfillmentState | null;
+  /** Hasta cuándo vale esa tarjeta impresa. Decide si corresponde reemitirla. */
+  printedValidUntil: Date | null;
 };
 
 export async function loadMyCard(
@@ -71,7 +73,7 @@ export async function loadMyCard(
     prisma.memberCard.findFirst({
       where: { memberId, format: "PRINTED", revokedAt: null },
       orderBy: { issuedAt: "desc" },
-      select: { fulfillmentState: true },
+      select: { fulfillmentState: true, validUntil: true },
     }),
   ]);
 
@@ -108,5 +110,6 @@ export async function loadMyCard(
     verificationUrl: token ? `${baseUrl.replace(/\/+$/, "")}/c/${token}` : null,
     totalDueMinor: duesCharges.reduce((s, c) => s + c.balanceMinor, 0),
     printedState: (impresa?.fulfillmentState ?? null) as FulfillmentState | null,
+    printedValidUntil: impresa?.validUntil ?? null,
   };
 }

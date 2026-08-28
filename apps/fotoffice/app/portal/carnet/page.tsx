@@ -11,6 +11,7 @@ import { prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { RequestPrintedCard } from "./request-printed";
 import { stateLabel } from "@/lib/carnet/fulfillment";
+import { printedCardOffer } from "@/lib/carnet/reissue";
 import { formatMinorArs } from "@/lib/membership/money";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +82,14 @@ export default async function MiCarnetPage() {
 
   // El precio de la tarjeta es el valor de una cuota. Se resuelve acá para poder mostrarlo
   // en el botón: pedirle a alguien que confirme un gasto sin decirle cuánto es no está bien.
+  // Se ofrece pedirla cuando no tiene, cuando la anterior se venció, o cuando ya la recibió y
+  // necesita otra —cambio de categoría, datos nuevos, extravío—. Cada una se cobra.
+  const oferta = printedCardOffer({
+    state: carnet.printedState,
+    validUntil: carnet.printedValidUntil,
+    now: new Date(),
+  });
+
   const socio = await prisma.member.findUnique({
     where: { id: context.member.id },
     select: { categoryId: true },
@@ -156,12 +165,15 @@ export default async function MiCarnetPage() {
         </div>
       </div>
 
-      {carnet.printedState ? null : precioMinor > 0 ? (
+      {oferta.ofrecer && precioMinor > 0 ? (
         <section className="fo-card space-y-2 p-5">
-          <h2 className="text-sm font-semibold">¿Querés la tarjeta impresa?</h2>
+          <h2 className="text-sm font-semibold">
+            {oferta.motivo === "PRIMERA" ? "¿Querés la tarjeta impresa?" : "¿Necesitás otra tarjeta?"}
+          </h2>
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            El carnet digital lo tenés siempre. La tarjeta física es opcional y cuesta el valor
-            de una cuota. Se agrega a tus cuotas y se paga junto con ellas.
+            {oferta.motivo === "PRIMERA"
+              ? "El carnet digital lo tenés siempre. La tarjeta física es opcional y cuesta el valor de una cuota."
+              : "Si cambiaste de categoría, actualizaste tus datos, se te venció o la perdiste, podés pedir una nueva. Cada tarjeta se cobra aparte, como la primera."}
           </p>
           <RequestPrintedCard priceLabel={formatMinorArs(precioMinor)} />
         </section>
