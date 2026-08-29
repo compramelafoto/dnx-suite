@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { canDesignTemplates } from "@/lib/template-v2/access";
 import { prisma } from "@repo/db";
 import { CreateTemplateV2Button } from "@repo/template-editor-ui";
 import { CreateCarnetTemplate } from "@/components/members/create-carnet-template";
@@ -48,7 +49,7 @@ export default async function PlantillasPage() {
   });
   // Diseñar la identidad visual es atribución de quien gobierna la institución, no de quien
   // administra el día a día.
-  if (!["OWNER", "ADMIN"].includes(String(membership?.role ?? ""))) redirect("/workspace");
+  if (!canDesignTemplates(membership?.role)) redirect("/workspace");
 
   // Las tablas del editor todavía no existen en todas las bases: hay una migración vieja que
   // las salteó a propósito. Sin esta tolerancia, la pantalla rompería con un error de Prisma en

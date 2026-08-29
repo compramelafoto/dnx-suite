@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { canDesignTemplates } from "@/lib/template-v2/access";
 import { prisma } from "@repo/db";
 import { TemplateEditorShell } from "@repo/template-editor-ui";
 import { requireActiveWorkspace } from "@/lib/workspace";
@@ -23,7 +24,7 @@ export default async function PlantillaEditorPage({ params }: Props) {
     where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
     select: { role: true },
   });
-  if (!["OWNER", "ADMIN"].includes(String(membership?.role ?? ""))) redirect("/workspace");
+  if (!canDesignTemplates(membership?.role)) redirect("/workspace");
 
   const { templateId, versionId } = await params;
   const template = await prisma.templateV2.findFirst({

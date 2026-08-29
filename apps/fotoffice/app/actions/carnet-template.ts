@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { createCarnetTemplate } from "@/lib/carnet/template-store";
+import { canDesignTemplates } from "@/lib/template-v2/access";
 
 export type CarnetTemplateState = { error: string | null; ok: string | null };
 
@@ -21,7 +22,7 @@ export async function createCarnetTemplateAction(): Promise<CarnetTemplateState>
     where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
     select: { role: true },
   });
-  if (!["OWNER", "ADMIN"].includes(String(membership?.role ?? ""))) {
+  if (!canDesignTemplates(membership?.role)) {
     return { error: "Solo el dueño o un administrador puede crear plantillas.", ok: null };
   }
 

@@ -19,9 +19,7 @@ import {
   uploadToFotofficeR2,
 } from "@/lib/images/r2-client";
 import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
-
-/** Quienes gobiernan la institución. STAFF administra el día a día, no la identidad visual. */
-const DESIGNER_ROLES = new Set(["OWNER", "ADMIN"]);
+import { canDesignTemplates } from "./access";
 
 setTemplateV2Runtime({
   prisma,
@@ -39,7 +37,7 @@ setTemplateV2Runtime({
       select: { role: true },
     });
     const role = membership?.role ? String(membership.role) : "";
-    if (!DESIGNER_ROLES.has(role)) throw new Error("Sin permisos para diseñar plantillas");
+    if (!canDesignTemplates(role)) throw new Error("Sin permisos para diseñar plantillas");
 
     return { id: user.id, role, email: user.email };
   },
