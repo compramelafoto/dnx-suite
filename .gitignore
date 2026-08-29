@@ -115,3 +115,7 @@ apps/fotorank/.data/
 packages/e2e/artifacts/
 # Datos locales de base de datos
 packages/db/.data/
+
+# Worktrees de sesiones de Claude Code. Están en .git/info/exclude, que es local: Vercel no lo
+# lee y subía 124.605 archivos de más, hasta pasarse del límite de 15.000 y fallar el deploy.
+**/.claude/worktrees/

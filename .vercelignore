@@ -1,0 +1,7 @@
+# Vercel no lee .git/info/exclude, y solo en parte .gitignore. Lo que no debe viajar al deploy
+# va acá, explícito.
+**/.claude/worktrees/
+**/node_modules
+**/.next
+**/.turbo
+packages/e2e/artifacts
