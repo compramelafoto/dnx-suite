@@ -22,7 +22,7 @@ export function SegmentedControl<T extends string>({
   return (
     <div
       className={cn(
-        "inline-flex min-w-0 rounded-lg border border-[#e5e7eb] bg-[#f3f4f6] p-0.5 shadow-inner",
+        "inline-flex min-w-0 rounded-lg border border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] p-0.5 shadow-inner",
         disabled && "pointer-events-none opacity-50",
         className
       )}
@@ -35,8 +35,8 @@ export function SegmentedControl<T extends string>({
           className={cn(
             "min-w-0 flex-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
             value === opt.value
-              ? "bg-white text-[#111827] shadow-sm"
-              : "text-[#6b7280] hover:text-[#374151]"
+              ? "bg-white text-[color:var(--te-ink)] shadow-sm"
+              : "text-[color:var(--te-ink-muted)] hover:text-[color:var(--te-ink)]"
           )}
           onClick={() => onChange(opt.value)}
         >

@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/*
+ * Tailwind v4 descubre las clases recorriendo el proyecto, y saltea node_modules. Los paquetes
+ * del monorepo entran por ahí —son enlaces simbólicos—, así que ninguna de sus clases llegaba a
+ * la hoja final: el editor de plantillas se dibujaba sin anchos, sin flex y sin espaciado, con
+ * los controles apilados unos sobre otros. Se veía roto porque le faltaba la mitad del CSS.
+ */
+@source "../../../packages/template-editor-ui/src";
+@source "../../../packages/template-editor-core/src";
+
 /**
  * Fotoffice — design system (modo claro)
  * Toda la UI debe consumir variables `--fo-*` o clases `.fo-*` definidas aquí.

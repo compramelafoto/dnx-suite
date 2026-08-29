@@ -60,10 +60,10 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
   if (!open) return null;
 
   const inputClass =
-    "w-full rounded-lg border border-[#e5e7eb] bg-white px-2.5 py-2 text-xs text-[#111827] shadow-sm focus:border-[#c27b3d] focus:outline-none focus:ring-1 focus:ring-[#c27b3d]/40";
+    "w-full rounded-lg border border-[color:var(--te-line)] bg-white px-2.5 py-2 text-xs text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
 
   const selectClass =
-    "rounded-lg border border-[#e5e7eb] bg-white px-2.5 py-2 text-xs shadow-sm focus:border-[#c27b3d] focus:outline-none focus:ring-1 focus:ring-[#c27b3d]/40";
+    "rounded-lg border border-[color:var(--te-line)] bg-white px-2.5 py-2 text-xs shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
 
   function applyWidthFromString(s: string) {
     setWidthStr(s);
@@ -120,21 +120,21 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
       onClick={onClose}
     >
       <div
-        className="box-border mx-auto w-full max-w-4xl min-w-[min(100%,300px)] shrink-0 rounded-2xl border border-[#e5e7eb] bg-white px-6 py-6 shadow-2xl"
+        className="box-border mx-auto w-full max-w-4xl min-w-[min(100%,300px)] shrink-0 rounded-2xl border border-[color:var(--te-line)] bg-white px-6 py-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="canvas-size-title" className="text-sm font-semibold text-[#111827]">
+        <h2 id="canvas-size-title" className="text-sm font-semibold text-[color:var(--te-ink)]">
           Tamaño del lienzo
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
-          El lienzo se guarda en <span className="font-medium text-[#374151]">píxeles</span>. Las medidas en cm o mm se
-          convierten con <span className="font-medium text-[#374151]">{DPI} DPI</span> (resolución de referencia para
+          El lienzo se guarda en <span className="font-medium text-[color:var(--te-ink)]">píxeles</span>. Las medidas en cm o mm se
+          convierten con <span className="font-medium text-[color:var(--te-ink)]">{DPI} DPI</span> (resolución de referencia para
           exportación). El contenido existente conserva su posición respecto del origen (arriba-izquierda).
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <label className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-medium text-[#374151]">Unidades</span>
+            <span className="text-[11px] font-medium text-[color:var(--te-ink)]">Unidades</span>
             <select
               className={selectClass}
               value={dimUnit}
@@ -154,7 +154,7 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
 
         <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-end gap-2">
           <label className="block min-w-0">
-            <span className="mb-1 block text-[11px] font-medium text-[#374151]">Ancho ({unitSuffix})</span>
+            <span className="mb-1 block text-[11px] font-medium text-[color:var(--te-ink)]">Ancho ({unitSuffix})</span>
             <input
               className={inputClass}
               inputMode="decimal"
@@ -173,10 +173,10 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
             aria-pressed={lockProportion}
             onClick={toggleProportionLock}
             className={cn(
-              "mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-[#6b7280] transition-colors",
+              "mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-[color:var(--te-ink-muted)] transition-colors",
               lockProportion
-                ? "border-[#c27b3d] bg-[#c27b3d]/10 text-[#9a5f2e] shadow-sm"
-                : "border-[#e5e7eb] bg-white hover:border-[#d1d5db] hover:bg-[#f9fafb]"
+                ? "border-[color:var(--te-accent)] bg-[color:var(--te-accent-wash)] text-[color:var(--te-accent)] shadow-sm"
+                : "border-[color:var(--te-line)] bg-white hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)]"
             )}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -189,7 +189,7 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
           </button>
 
           <label className="block min-w-0">
-            <span className="mb-1 block text-[11px] font-medium text-[#374151]">Alto ({unitSuffix})</span>
+            <span className="mb-1 block text-[11px] font-medium text-[color:var(--te-ink)]">Alto ({unitSuffix})</span>
             <input
               className={inputClass}
               inputMode="decimal"
@@ -199,7 +199,7 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
           </label>
         </div>
 
-        <p className="mt-1.5 text-[10px] text-[#9ca3af]">
+        <p className="mt-1.5 text-[10px] text-[color:var(--te-ink-faint)]">
           {lockProportion ? (
             <>Proporción fijada: {(wPx / hPx).toFixed(4)} (ancho / alto).</>
           ) : (
@@ -208,7 +208,7 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
         </p>
 
         <label className="mt-3 block">
-          <span className="mb-1 block text-[11px] font-medium text-[#374151]">
+          <span className="mb-1 block text-[11px] font-medium text-[color:var(--te-ink)]">
             Zona segura (margen interior, mm)
           </span>
           <input
@@ -218,7 +218,7 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
             value={safeMm}
             onChange={(e) => setSafeMm(e.target.value)}
           />
-          <span className="mt-1 block text-[10px] text-[#9ca3af]">
+          <span className="mt-1 block text-[10px] text-[color:var(--te-ink-faint)]">
             Vacío = margen por defecto del editor (~5%). El valor se guarda en milímetros en el lienzo.
           </span>
         </label>

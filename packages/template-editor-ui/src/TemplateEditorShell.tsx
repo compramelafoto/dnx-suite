@@ -76,14 +76,14 @@ import {
   isRevisionConflictResponse,
   TEMPLATE_V2_REVISION_CONFLICT_MESSAGE,
 } from "@repo/template-editor-core";
+import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
+import { ActionButton, ToolButton, ToolDivider, ToolGroup } from "./chrome/ToolControls";
 
 
 
-const toolbarIconOnlyClass =
-  "!h-9 !w-9 !min-h-9 !min-w-9 !shrink-0 !rounded-full !px-0 !py-0 !inline-flex !items-center !justify-center [&>svg]:pointer-events-none";
 
 const sheetToolbarIconClass =
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-[#475569] transition-colors disabled:pointer-events-none disabled:opacity-40 [&>svg]:pointer-events-none";
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-[color:var(--te-ink-muted)] transition-colors disabled:pointer-events-none disabled:opacity-40 [&>svg]:pointer-events-none";
 
 function IconToolbarUndo(props: SVGProps<SVGSVGElement>) {
   return (
@@ -235,11 +235,11 @@ function EditorToolButton({
       aria-label={label}
       aria-pressed={pressed ?? false}
       className={cn(
-        "flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-transparent text-[#d1d5db] transition-colors",
+        "flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-transparent text-[color:var(--te-line-strong)] transition-colors",
         "hover:border-white/10 hover:bg-white/10 hover:text-white",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#c27b3d]",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]",
         "disabled:pointer-events-none disabled:opacity-40",
-        pressed ? "border-white/15 bg-white/10 text-white" : "text-[#9ca3af]",
+        pressed ? "border-white/15 bg-white/10 text-white" : "text-[color:var(--te-ink-faint)]",
         className
       )}
       {...props}
@@ -250,7 +250,7 @@ function EditorToolButton({
 function RightSidebarSectionChevron({ open, className }: { open: boolean; className?: string }) {
   return (
     <svg
-      className={cn("h-4 w-4 shrink-0 text-[#64748b] transition-transform duration-200", open ? "rotate-0" : "-rotate-90", className)}
+      className={cn("h-4 w-4 shrink-0 text-[color:var(--te-ink-muted)] transition-transform duration-200", open ? "rotate-0" : "-rotate-90", className)}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -281,20 +281,20 @@ function RightSidebarSection({
   return (
     <section
       className={cn(
-        "border-b border-[#d8dee6]",
-        variant === "muted" ? "bg-[#f7f8fa]" : "bg-white"
+        "border-b border-[color:var(--te-line)]",
+        variant === "muted" ? "bg-[color:var(--te-chrome)]" : "bg-white"
       )}
     >
       <div className="flex items-center justify-between gap-2 px-3 py-2">
         <h3
           id={`${sectionId}-heading`}
-          className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]"
+          className="text-xs font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]"
         >
           {title}
         </h3>
         <button
           type="button"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#64748b] transition-colors hover:bg-black/[0.04] hover:text-[#111827] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#c27b3d]"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[color:var(--te-ink-muted)] transition-colors hover:bg-black/[0.04] hover:text-[color:var(--te-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]"
           onClick={onToggle}
           aria-expanded={open}
           aria-controls={`${sectionId}-content`}
@@ -323,6 +323,12 @@ type TemplateEditorShellProps = {
   /** Dónde vive el editor en esta app. Default: ComprameLaFoto. */
   basePath?: string;
   className?: string;
+  /**
+   * Paleta de la aplicación que hospeda el editor. Sin esto el editor se ve como otro
+   * producto: hasta hace poco tenía los colores de Clickatón escritos a mano y FotoOffice
+   * los heredaba sin quererlo.
+   */
+  theme?: TemplateEditorTheme;
 };
 
 type LoadResponse = {
@@ -344,6 +350,7 @@ export function TemplateEditorShell({
   templateId,
   versionId,
   className,
+  theme,
   basePath = DEFAULT_TEMPLATE_V2_BASE_PATH,
 }: TemplateEditorShellProps) {
   const router = useRouter();
@@ -430,7 +437,7 @@ export function TemplateEditorShell({
               templateId,
               versionId,
               revision: Number(data.revision ?? 0),
-              canvas: data.canvas ?? { width: 1200, height: 1800, background: "#ffffff" },
+              canvas: data.canvas ?? { width: 1200, height: 1800, background: "var(--te-surface)" },
               blocks: data.blocks ?? [],
               variableBindings: data.variableBindings ?? [],
               lastSavedAt: data.updatedAt ?? null,
@@ -839,11 +846,12 @@ export function TemplateEditorShell({
   return (
     <div
       className={cn("flex h-full min-h-0 flex-col", className)}
+      style={editorThemeStyle(theme)}
       data-testid="template-v2-editor"
     >
-      <div className="flex min-h-0 w-full flex-1 flex-col bg-[#dfe3e8]">
-        <header className="sticky top-0 z-30 shrink-0 border-b border-[#b8c2cf] bg-[#eceff4] shadow-[0_1px_0_rgba(0,0,0,0.06)]">
-          <div className="flex justify-end border-b border-[#d8dee6] bg-[#e8ebf0]/95 px-3 py-1.5 md:px-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col bg-[color:var(--te-void)]">
+        <header className="sticky top-0 z-30 shrink-0 border-b border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)] shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+          <div className="flex justify-end border-b border-[color:var(--te-line)] bg-[color:var(--te-line)] px-3 py-1.5 md:px-4">
             <Button
               type="button"
               size="sm"
@@ -869,254 +877,171 @@ export function TemplateEditorShell({
           {!loadError ? (
             <>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 md:px-4">
+              {/*
+                La barra agrupa por asunto en vez de alinear todo en una hilera. Antes eran once
+                controles idénticos, todos del mismo tamaño y con la misma forma: nada indicaba
+                cuáles hacían cosas parecidas ni cuál era la acción importante.
+              */}
               <div className="min-w-0 flex-1 basis-[12rem]">
                 <h1
-                  className="truncate text-sm font-semibold text-[#111827] md:text-base"
+                  className="truncate text-sm font-semibold tracking-[-0.01em] text-[color:var(--te-ink)]"
                   title={`${templateName}\nTemplate ID: ${templateId}\nVersión ID: ${versionId}`}
                 >
                   {templateName}
                 </h1>
-                <p className="mt-0.5 text-[11px] text-[#6b7280]">
+                <p className="mt-px flex items-center gap-1.5 text-[11px] text-[color:var(--te-ink-faint)]">
                   {versionNumber != null ? (
                     <>
-                      v{versionNumber}
-                      {state.lastSavedAt ? (
-                        <>
-                          {" "}
-                          ·{" "}
-                          {(() => {
-                            try {
-                              return new Date(state.lastSavedAt).toLocaleString();
-                            } catch {
-                              return state.lastSavedAt;
-                            }
-                          })()}
-                        </>
-                      ) : null}
+                      <span className="tabular-nums">Versión {versionNumber}</span>
+                      <span aria-hidden>·</span>
+                      <span data-testid="template-v2-save-status">{saveBadge}</span>
                     </>
                   ) : (
-                    <span className="text-[#9ca3af]">Cargando versión…</span>
+                    <span>Cargando versión…</span>
                   )}
                 </p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span
-                    className="inline-flex rounded border border-[#d8dee6] bg-white px-2 py-0.5 text-[10px] font-medium text-[#374151]"
-                    data-testid="template-v2-save-status"
-                  >
-                    {saveBadge}
-                  </span>
-                  {editorReady ? (
-                    <span
-                      className="text-[10px] text-[#9ca3af]"
-                      title={`Guardado automático ${TEMPLATE_V2_AUTOSAVE_DEBOUNCE_MS / 1000}s tras dejar de editar`}
-                    >
-                      Autosave
-                    </span>
-                  ) : null}
-                </div>
               </div>
 
-              <span className="hidden h-8 w-px shrink-0 bg-[#c5ccd6] md:inline" aria-hidden />
-
-              <div className="flex flex-wrap items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  type="button"
-                  className={toolbarIconOnlyClass}
+              <ToolGroup aria-label="Historia">
+                <ToolButton
+                  label="Deshacer"
+                  shortcut="⌘Z"
                   onClick={() => dispatch(undo())}
                   disabled={!editorReady || !selectCanUndo(state)}
-                  title="Deshacer el último cambio (⌘/Ctrl+Z)"
-                  aria-label="Deshacer"
                 >
                   <IconToolbarUndo />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  type="button"
-                  className={toolbarIconOnlyClass}
+                </ToolButton>
+                <ToolButton
+                  label="Rehacer"
+                  shortcut="⌘⇧Z"
                   onClick={() => dispatch(redo())}
                   disabled={!editorReady || !selectCanRedo(state)}
-                  title="Rehacer (⌘/Ctrl+Mayús+Z o Ctrl+Y)"
-                  aria-label="Rehacer"
                 >
                   <IconToolbarRedo />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  type="button"
-                  className={toolbarIconOnlyClass}
+                </ToolButton>
+              </ToolGroup>
+
+              <ToolGroup aria-label="Documento">
+                <ToolButton
+                  label="Tamaño del lienzo"
                   onClick={() => setCanvasSizeModalOpen(true)}
                   disabled={!editorReady}
-                  title="Tamaño del lienzo: ancho, alto y márgenes de zona segura"
-                  aria-label="Tamaño del lienzo"
                 >
                   <IconToolbarCanvasSize />
-                </Button>
-                <span className="mx-0.5 hidden h-6 w-px shrink-0 bg-[#c5ccd6] sm:inline" aria-hidden />
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className={cn(toolbarIconOnlyClass, "shadow-sm")}
-                  onClick={() => void handleSave()}
-                  disabled={
-                    state.isSaving ||
-                    savingAsNew ||
-                    !state.isDirty ||
-                    revisionConflictLocked
-                  }
-                  data-testid="template-v2-save-button"
-                  title={
-                    state.isSaving
-                      ? "Guardando cambios en el servidor…"
-                      : !state.isDirty
-                        ? "No hay cambios sin guardar"
-                        : "Guardar cambios en esta versión (⌘/Ctrl+S)"
-                  }
-                  aria-label={state.isSaving ? "Guardando" : "Guardar"}
-                >
-                  {state.isSaving ? <IconToolbarSpinner /> : <IconToolbarSave />}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  type="button"
-                  className={toolbarIconOnlyClass}
-                  onClick={() => void handleSaveAsNewVersion()}
-                  disabled={!editorReady || state.isSaving || savingAsNew}
-                  title="Crear una nueva versión del template con el estado actual del editor"
-                  aria-label="Nueva versión"
-                >
-                  {savingAsNew ? <IconToolbarSpinner /> : <IconToolbarNewVersion />}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  type="button"
-                  className={toolbarIconOnlyClass}
+                </ToolButton>
+                <ToolButton
+                  label="Vista previa"
                   data-testid="template-v2-preview-button"
                   onClick={handlePreview}
                   disabled={!editorReady || previewLoading}
-                  title="Vista previa en imagen del lienzo actual (incluye cambios sin guardar)"
-                  aria-label="Vista previa"
                 >
                   {previewLoading ? <IconToolbarSpinner /> : <IconToolbarPreview />}
-                </Button>
-              </div>
-
-              <span className="hidden h-8 w-px shrink-0 bg-[#c5ccd6] lg:inline" aria-hidden />
-
-              <div className="flex flex-wrap items-center justify-end gap-1.5 lg:ml-auto">
-                {editorReady && hasCopiedBlockStyle ? (
-                  <span
-                    className="hidden max-w-[min(100%,14rem)] truncate rounded border border-[#c27b3d]/40 bg-[#fdf6ef] px-2 py-0.5 text-[10px] font-medium text-[#8b5a2b] sm:inline"
-                    title="Hay un estilo copiado. Elegí una capa compatible en la lista de capas (panel derecho) para aplicarlo."
-                    role="status"
-                  >
-                    Estilo copiado — aplicá en capas
-                  </span>
-                ) : null}
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  type="button"
-                  aria-expanded={rightPanelOpen}
-                  className={cn(
-                    toolbarIconOnlyClass,
-                    "font-medium",
-                    rightPanelOpen ? "ring-2 ring-[#c27b3d]/35" : "",
-                    hasCopiedBlockStyle ? "ring-1 ring-[#c27b3d]/30" : ""
-                  )}
-                  onClick={() => setRightPanelOpen((open) => !open)}
-                  disabled={!editorReady}
-                  title={
-                    hasCopiedBlockStyle
-                      ? "Panel lateral: capas, propiedades y diagnóstico. Hay un estilo copiado listo para pegar en una capa compatible."
-                      : "Abrir u ocultar el panel lateral: capas, propiedades del bloque y revisión rápida"
-                  }
-                  aria-label="Panel lateral"
+                </ToolButton>
+                <ToolButton
+                  label="Guardar como versión nueva"
+                  onClick={() => void handleSaveAsNewVersion()}
+                  disabled={!editorReady || state.isSaving || savingAsNew}
                 >
-                  <IconToolbarPanel />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  type="button"
+                  {savingAsNew ? <IconToolbarSpinner /> : <IconToolbarNewVersion />}
+                </ToolButton>
+                <ToolButton
+                  label="Versiones"
+                  active={versionsPanelOpen}
                   aria-expanded={versionsPanelOpen}
-                  className={cn(toolbarIconOnlyClass, "font-medium", versionsPanelOpen ? "ring-2 ring-[#c27b3d]/35" : "")}
                   onClick={() => setVersionsPanelOpen((open) => !open)}
                   disabled={!editorReady}
-                  title="Listado de versiones de esta plantilla y cambio entre ellas"
-                  aria-label="Versiones del template"
                 >
                   <IconToolbarVersions />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  type="button"
-                  aria-expanded={shortcutsHelpOpen}
-                  className={cn(toolbarIconOnlyClass, "font-medium", shortcutsHelpOpen ? "ring-2 ring-[#c27b3d]/35" : "")}
-                  onClick={() => setShortcutsHelpOpen((open) => !open)}
+                </ToolButton>
+              </ToolGroup>
+
+              {/* Guías: no cambian el diseño, cambian lo que se ve mientras se diseña. */}
+              <ToolGroup aria-label="Guías">
+                <ToolButton
+                  label="Zona segura"
+                  active={showSafeArea}
+                  onClick={() => setShowSafeArea((v) => !v)}
                   disabled={!editorReady}
-                  title="Ver atajos de teclado del editor (guardar, deshacer, vista previa, etc.)"
-                  aria-label="Atajos de teclado"
                 >
-                  <IconToolbarShortcuts />
-                </Button>
-                <label
-                  className={cn(
-                    "inline-flex cursor-pointer items-center justify-center rounded-full border border-transparent p-1 text-[#4b5563] transition-colors hover:bg-[#e8ebf0]",
-                    !editorReady && "pointer-events-none opacity-40"
-                  )}
-                  title="Mostrar u ocultar la guía de márgenes seguros en el lienzo (solo referencia; no se imprime tal cual en la vista previa)"
+                  <IconToolbarSafeZone />
+                </ToolButton>
+                <ToolButton
+                  label="Ejes del centro"
+                  active={showCenterAxes}
+                  onClick={() => setShowCenterAxes((v) => !v)}
+                  disabled={!editorReady}
                 >
-                  <input
-                    type="checkbox"
-                    className="peer sr-only accent-[#c27b3d]"
-                    checked={showSafeArea}
-                    onChange={(e) => setShowSafeArea(e.target.checked)}
-                    disabled={!editorReady}
-                    aria-label="Zona segura"
-                  />
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#e5e7eb] bg-white shadow-sm peer-checked:border-[#c27b3d]/50 peer-checked:bg-[#fffaf6] peer-checked:text-[#9a5f2e]">
-                    <IconToolbarSafeZone />
+                  <IconToolbarAxes />
+                </ToolButton>
+              </ToolGroup>
+
+              <div className="ml-auto flex items-center gap-2">
+                {editorReady && hasCopiedBlockStyle ? (
+                  <span
+                    className="hidden max-w-[14rem] truncate rounded-[var(--te-radius)] border border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)] px-2 py-1 text-[10px] font-medium text-[color:var(--te-accent)] lg:inline"
+                    title="Elegí una capa compatible en el panel de capas para aplicar el estilo copiado."
+                    role="status"
+                  >
+                    Estilo copiado — elegí una capa
                   </span>
-                </label>
-                <label
-                  className={cn(
-                    "inline-flex cursor-pointer items-center justify-center rounded-full border border-transparent p-1 text-[#4b5563] transition-colors hover:bg-[#e8ebf0]",
-                    !editorReady && "pointer-events-none opacity-40"
-                  )}
-                  title="Mostrar u ocultar los ejes vertical y horizontal del centro del lienzo (solo guía visual)"
-                >
-                  <input
-                    type="checkbox"
-                    className="peer sr-only accent-[#c27b3d]"
-                    checked={showCenterAxes}
-                    onChange={(e) => setShowCenterAxes(e.target.checked)}
+                ) : null}
+
+                <ToolGroup aria-label="Paneles">
+                  <ToolButton
+                    label="Panel lateral"
+                    active={rightPanelOpen}
+                    aria-expanded={rightPanelOpen}
+                    onClick={() => setRightPanelOpen((open) => !open)}
                     disabled={!editorReady}
-                    aria-label="Ejes del centro"
-                  />
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#e5e7eb] bg-white shadow-sm peer-checked:border-[#c27b3d]/50 peer-checked:bg-[#fffaf6] peer-checked:text-[#9a5f2e]">
-                    <IconToolbarAxes />
-                  </span>
-                </label>
+                  >
+                    <IconToolbarPanel />
+                  </ToolButton>
+                  <ToolButton
+                    label="Atajos de teclado"
+                    active={shortcutsHelpOpen}
+                    aria-expanded={shortcutsHelpOpen}
+                    onClick={() => setShortcutsHelpOpen((open) => !open)}
+                    disabled={!editorReady}
+                  >
+                    <IconToolbarShortcuts />
+                  </ToolButton>
+                </ToolGroup>
+
+                <ToolDivider />
+
+                {/*
+                  Guardar lleva su nombre. Era un ícono más en la hilera: la acción que la
+                  persona viene a hacer no puede ser un dibujo que hay que descifrar.
+                */}
+                <ActionButton
+                  tone="primary"
+                  onClick={() => void handleSave()}
+                  disabled={state.isSaving || savingAsNew || !state.isDirty || revisionConflictLocked}
+                  data-testid="template-v2-save-button"
+                  title={
+                    state.isSaving
+                      ? "Guardando cambios…"
+                      : !state.isDirty
+                        ? "No hay cambios sin guardar"
+                        : "Guardar cambios (⌘S)"
+                  }
+                >
+                  {state.isSaving ? <IconToolbarSpinner /> : <IconToolbarSave />}
+                  {state.isSaving ? "Guardando…" : "Guardar"}
+                </ActionButton>
               </div>
             </div>
 
             {editorReady ? (
               <div
-                className="flex flex-wrap items-center gap-1.5 border-t border-[#d8dee6] bg-[#eef1f5] px-3 py-2 md:px-4"
+                className="flex flex-wrap items-center gap-1.5 border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-3 py-2 md:px-4"
                 onDragOver={(e) => {
                   if (sheetDragFrom == null) return;
                   e.preventDefault();
                   e.dataTransfer.dropEffect = "move";
                 }}
               >
-                <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-[#64748b]">
+                <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]">
                   Hojas
                 </span>
                 {Array.from({ length: state.templatePageCount }, (_, i) => {
@@ -1130,10 +1055,10 @@ export function TemplateEditorShell({
                         draggable={false}
                         autoFocus
                         className={cn(
-                          "min-w-[4.5rem] max-w-[160px] rounded-md border px-2 py-1 text-[11px] font-medium text-[#111827] shadow-sm outline-none focus:ring-2 focus:ring-[#c27b3d]/35",
+                          "min-w-[4.5rem] max-w-[160px] rounded-md border px-2 py-1 text-[11px] font-medium text-[color:var(--te-ink)] shadow-sm outline-none focus:ring-2 focus:ring-[color:var(--te-accent-wash)]",
                           active
-                            ? "border-[#c27b3d] bg-white"
-                            : "border-[#94a3b8] bg-white"
+                            ? "border-[color:var(--te-accent)] bg-white"
+                            : "border-[color:var(--te-ink-faint)] bg-white"
                         )}
                         value={pageLabelEdit.value}
                         onChange={(e) => setPageLabelEdit({ index: i, value: e.target.value })}
@@ -1174,11 +1099,11 @@ export function TemplateEditorShell({
                       className={cn(
                         "max-w-[160px] truncate rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
                         active
-                          ? "border-[#c27b3d] bg-white text-[#8b4513] shadow-sm"
-                          : "border-transparent bg-white/60 text-[#475569] hover:bg-white hover:text-[#111827]",
+                          ? "border-[color:var(--te-accent)] bg-white text-[color:var(--te-accent)] shadow-sm"
+                          : "border-transparent bg-white/60 text-[color:var(--te-ink-muted)] hover:bg-white hover:text-[color:var(--te-ink)]",
                         canReorder && "cursor-grab active:cursor-grabbing",
                         sheetDragFrom === i && "opacity-60",
-                        sheetDragOver === i && sheetDragFrom !== i && "ring-2 ring-[#2563eb]/50 ring-offset-1"
+                        sheetDragOver === i && sheetDragFrom !== i && "ring-2 ring-[color:var(--te-accent-wash)] ring-offset-1"
                       )}
                       onClick={() => dispatch(setActivePageIndex(i))}
                       onDoubleClick={(e) => {
@@ -1231,7 +1156,7 @@ export function TemplateEditorShell({
                   type="button"
                   className={cn(
                     sheetToolbarIconClass,
-                    "border-dashed border-[#94a3b8] bg-white/50 hover:border-[#c27b3d] hover:bg-[#fff8f3] hover:text-[#8b4513]"
+                    "border-dashed border-[color:var(--te-ink-faint)] bg-white/50 hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)]"
                   )}
                   onClick={() => dispatch(addTemplatePage())}
                   title="Añadir una hoja vacía (carpetas escolares, tapa/contraportada, etc.)"
@@ -1243,7 +1168,7 @@ export function TemplateEditorShell({
                   type="button"
                   className={cn(
                     sheetToolbarIconClass,
-                    "border-[#e5e7eb] bg-white/60 hover:border-[#fca5a5]/80 hover:bg-[#fff1f2] hover:text-[#b91c1c]"
+                    "border-[color:var(--te-line)] bg-white/60 hover:border-[color:var(--te-danger-wash)] hover:bg-[#fff1f2] hover:text-[color:var(--te-danger)]"
                   )}
                   onClick={() => dispatch(removeTemplatePage())}
                   disabled={state.templatePageCount <= 1}
@@ -1276,7 +1201,7 @@ export function TemplateEditorShell({
             {saveErrorMessage ? (
               <div
                 ref={conflictBannerRef}
-                className="flex flex-wrap items-center justify-between gap-2 border-t border-[#fecaca] bg-red-50/90 px-3 py-1.5"
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5"
                 data-testid="template-v2-error-banner"
                 role="alert"
                 tabIndex={-1}
@@ -1297,102 +1222,102 @@ export function TemplateEditorShell({
               </div>
             ) : null}
             {backgroundUploadError ? (
-              <p className="border-t border-[#fecaca] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{backgroundUploadError}</p>
+              <p className="border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{backgroundUploadError}</p>
             ) : null}
-            {saveAsNewError ? <p className="border-t border-[#fecaca] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{saveAsNewError}</p> : null}
+            {saveAsNewError ? <p className="border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{saveAsNewError}</p> : null}
             </>
           ) : null}
         </header>
 
         {shortcutsHelpOpen ? (
-          <Card className="mx-3 mb-3 mt-0 border border-[#e5e7eb] bg-[#fafafa] p-4 md:p-5">
-            <h2 className="text-sm font-semibold text-[#111827]">Atajos de teclado</h2>
-            <p className="mt-1 text-[11px] text-[#6b7280]">
+          <Card className="mx-3 mb-3 mt-0 border border-[color:var(--te-line)] bg-[color:var(--te-chrome)] p-4 md:p-5">
+            <h2 className="text-sm font-semibold text-[color:var(--te-ink)]">Atajos de teclado</h2>
+            <p className="mt-1 text-[11px] text-[color:var(--te-ink-muted)]">
               En el lienzo (sin foco en un campo de texto). El guardado automático corre cada{" "}
               {TEMPLATE_V2_AUTOSAVE_DEBOUNCE_MS / 1000}s tras dejar de editar.
             </p>
-            <ul className="mt-3 max-h-[min(50vh,420px)] space-y-2.5 overflow-y-auto text-xs text-[#374151]">
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Guardar</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+            <ul className="mt-3 max-h-[min(50vh,420px)] space-y-2.5 overflow-y-auto text-xs text-[color:var(--te-ink)]">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Guardar</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + S
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Herramienta texto / selección / mano</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Herramienta texto / selección / mano</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   T · V · H
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Mover vista del lienzo (arrastrar el área gris)</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Mover vista del lienzo (arrastrar el área gris)</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Barra espaciadora + arrastrar
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Duplicar bloque (selección primaria)</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Duplicar bloque (selección primaria)</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + D
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Eliminar selección</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Eliminar selección</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Supr / Retroceso
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Mover bloque · paso fino / grueso</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Mover bloque · paso fino / grueso</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Flechas · Mayús + Flechas
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Deshacer</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Deshacer</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Z
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Rehacer</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Rehacer</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Mayús + Z · Ctrl + Y
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Copiar / pegar bloque (primario)</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Copiar / pegar bloque (primario)</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + C · ⌘/Ctrl + V
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Vista previa</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Vista previa</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Mayús + P
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Quitar selección · cerrar preview</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Quitar selección · cerrar preview</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Escape
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Zoom · vista 100% y centrar</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Zoom · vista 100% y centrar</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + ± · ⌘/Ctrl + 0
                 </kbd>
               </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[#e5e7eb]/80 pb-2">
-                <span className="text-[#6b7280]">Duplicar y arrastrar copia (el original no se mueve)</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">Duplicar y arrastrar copia (el original no se mueve)</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Alt + arrastrar
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="text-[#6b7280]">Capa adelante / atrás (primario)</span>
-                <kbd className="shrink-0 rounded border border-[#d1d5db] bg-white px-2 py-0.5 font-mono text-[11px] text-[#111827] shadow-sm">
+                <span className="text-[color:var(--te-ink-muted)]">Capa adelante / atrás (primario)</span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + ] · ⌘/Ctrl + [
                 </kbd>
               </li>
@@ -1401,7 +1326,7 @@ export function TemplateEditorShell({
         ) : null}
 
         {versionsPanelOpen ? (
-          <div className="border-b border-[#cfd6df] bg-[#eef1f5] px-3 py-2">
+          <div className="border-b border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)] px-3 py-2">
             <TemplateVersionList templateId={templateId} activeVersionId={versionId} />
           </div>
         ) : null}
@@ -1409,10 +1334,10 @@ export function TemplateEditorShell({
         {loadError ? (
           <Card className="m-4 p-6">
             <p className="text-sm text-red-600">Error al cargar versión de plantilla.</p>
-            <p className="mt-2 break-all text-xs text-[#6b7280]">{loadError}</p>
+            <p className="mt-2 break-all text-xs text-[color:var(--te-ink-muted)]">{loadError}</p>
           </Card>
         ) : !editorReady ? (
-          <div className="flex flex-1 items-center justify-center py-20 text-sm text-[#6b7280]">Cargando editor…</div>
+          <div className="flex flex-1 items-center justify-center py-20 text-sm text-[color:var(--te-ink-muted)]">Cargando editor…</div>
         ) : (
           <div className="flex min-h-[min(88vh,calc(100vh-8rem))] w-full min-w-0 flex-1">
             <aside
@@ -1498,35 +1423,6 @@ export function TemplateEditorShell({
                 </svg>
               </EditorToolButton>
 
-              <div className="my-2 h-px w-8 bg-white/10" aria-hidden />
-
-              <EditorToolButton
-                label="Alejar(Cmd/Ctrl+-)"
-                className="!h-9 !w-9 !text-lg"
-                onClick={() => dispatch(setZoom(state.zoom / 1.15))}
-              >
-                −
-              </EditorToolButton>
-              <span
-                className="px-0.5 text-center font-mono text-[9px] leading-tight text-[#8b95a5]"
-                title="Zoom"
-              >
-                {Math.round(state.zoom * 100)}%
-              </span>
-              <EditorToolButton
-                label="Acercar(Cmd/Ctrl+=)"
-                className="!h-9 !w-9 !text-lg"
-                onClick={() => dispatch(setZoom(state.zoom * 1.15))}
-              >
-                +
-              </EditorToolButton>
-              <EditorToolButton
-                label="Zoom 100%(Cmd/Ctrl+0)"
-                className="!h-8 !w-9 !text-[10px] !font-semibold"
-                onClick={() => dispatch(setZoom(1))}
-              >
-                1:1
-              </EditorToolButton>
             </aside>
 
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -1540,10 +1436,53 @@ export function TemplateEditorShell({
                 canvasTool={canvasTool}
                 onExitTextPlacementMode={() => setCanvasTool("select")}
               />
+              {/*
+                Estado del lienzo. El zoom vivía al pie del riel de herramientas y las hojas
+                arriba, en la barra del documento: dos cosas que contestan "qué parte estoy
+                mirando", separadas por toda la pantalla. Van juntas, en el borde de lo que
+                describen.
+              */}
+              <div className="flex h-9 shrink-0 items-center gap-0.5 border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-2">
+                <div className="ml-auto flex items-center gap-0.5">
+                  <ToolButton
+                    label="Alejar"
+                    shortcut="⌘−"
+                    className="!h-7 !w-7"
+                    onClick={() => dispatch(setZoom(state.zoom / 1.15))}
+                    disabled={!editorReady}
+                  >
+                    <span className="text-base leading-none">−</span>
+                  </ToolButton>
+                  <span
+                    className="min-w-[3.25rem] text-center text-[11.5px] tabular-nums text-[color:var(--te-ink-muted)]"
+                    title="Nivel de zoom"
+                  >
+                    {Math.round(state.zoom * 100)} %
+                  </span>
+                  <ToolButton
+                    label="Acercar"
+                    shortcut="⌘+"
+                    className="!h-7 !w-7"
+                    onClick={() => dispatch(setZoom(state.zoom * 1.15))}
+                    disabled={!editorReady}
+                  >
+                    <span className="text-base leading-none">+</span>
+                  </ToolButton>
+                  <ToolButton
+                    label="Tamaño real"
+                    shortcut="⌘0"
+                    className="!h-7 !w-9 !text-[10px] !font-semibold"
+                    onClick={() => dispatch(setZoom(1))}
+                    disabled={!editorReady}
+                  >
+                    1:1
+                  </ToolButton>
+                </div>
+              </div>
             </div>
 
             {rightPanelOpen ? (
-              <aside className="flex min-h-0 w-[min(100%,320px)] max-w-full shrink-0 flex-col overflow-y-auto overflow-x-hidden border-l border-[#c5ccd6] bg-[#f7f8fa]">
+              <aside className="flex min-h-0 w-[min(100%,320px)] max-w-full shrink-0 flex-col overflow-y-auto overflow-x-hidden border-l border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)]">
                 <RightSidebarSection
                   sectionId="template-v2-panel-layers"
                   title="Capas"
@@ -1627,21 +1566,21 @@ export function TemplateEditorShell({
           onClick={closePreview}
         >
           <div
-            className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white shadow-2xl"
+            className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-[#e5e7eb] bg-[#fafafa] px-4 py-3">
-              <h2 id="template-v2-preview-title" className="text-sm font-semibold text-[#111827]">
+            <div className="flex items-center justify-between gap-3 border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-4 py-3">
+              <h2 id="template-v2-preview-title" className="text-sm font-semibold text-[color:var(--te-ink)]">
                 Vista previa
               </h2>
               <Button type="button" variant="secondary" size="sm" onClick={closePreview}>
                 Cerrar
               </Button>
             </div>
-            <div className="min-h-[200px] flex-1 overflow-auto bg-[#f3f4f6] p-4 sm:p-6">
+            <div className="min-h-[200px] flex-1 overflow-auto bg-[color:var(--te-chrome-sunken)] p-4 sm:p-6">
               {previewLoading ? (
-                <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-sm text-[#6b7280]">
-                  <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-[#c27b3d] border-t-transparent" />
+                <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-sm text-[color:var(--te-ink-muted)]">
+                  <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-[color:var(--te-accent)] border-t-transparent" />
                   <span>Generando preview…</span>
                 </div>
               ) : previewError ? (
@@ -1658,12 +1597,12 @@ export function TemplateEditorShell({
                     data-testid="template-v2-preview-image"
                     src={previewSrc}
                     alt="Vista previa de la plantilla"
-                    className="max-h-[min(78vh,1200px)] w-auto max-w-full rounded-lg border border-[#e5e7eb] bg-white object-contain shadow-sm"
+                    className="max-h-[min(78vh,1200px)] w-auto max-w-full rounded-lg border border-[color:var(--te-line)] bg-white object-contain shadow-sm"
                   />
                 </div>
               ) : null}
             </div>
-            <p className="border-t border-[#e5e7eb] px-4 py-2 text-center text-[11px] text-[#9ca3af]">
+            <p className="border-t border-[color:var(--te-line)] px-4 py-2 text-center text-[11px] text-[color:var(--te-ink-faint)]">
               Variables de texto usan datos mock o el fallback del bloque. Guardá los cambios cuando quieras persistirlos.
             </p>
           </div>

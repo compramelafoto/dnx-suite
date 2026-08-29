@@ -111,14 +111,14 @@ export function CreateTemplateV2Button({
 
       {menuOpen ? (
         <div
-          className="absolute right-0 top-full z-40 mt-2 min-w-[260px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-xl"
+          className="absolute right-0 top-full z-40 mt-2 min-w-[260px] rounded-xl border border-[color:var(--te-line)] bg-white p-2 shadow-xl"
           role="menu"
           data-testid="template-v2-create-menu"
         >
           <button
             type="button"
             role="menuitem"
-            className="flex w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[#111827] hover:bg-[#f3f4f6]"
+            className="flex w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[color:var(--te-ink)] hover:bg-[color:var(--te-chrome-sunken)]"
             data-testid="template-v2-create-blank"
             onClick={() => void createFromBody({})}
           >
@@ -127,16 +127,16 @@ export function CreateTemplateV2Button({
           <button
             type="button"
             role="menuitem"
-            className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[#111827] hover:bg-[#f3f4f6]"
+            className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[color:var(--te-ink)] hover:bg-[color:var(--te-chrome-sunken)]"
             data-testid="template-v2-create-official"
             onClick={() => setOfficialOpen((v) => !v)}
           >
             Plantillas oficiales
-            <span className="text-[#9ca3af]">{officialOpen ? "▴" : "▾"}</span>
+            <span className="text-[color:var(--te-ink-faint)]">{officialOpen ? "▴" : "▾"}</span>
           </button>
           {officialOpen ? (
-            <div className="mt-1 border-t border-[#f3f4f6] pt-1 pl-2">
-              <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#6b7280]">
+            <div className="mt-1 border-t border-[color:var(--te-chrome-sunken)] pt-1 pl-2">
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]">
                 Clickatón
               </p>
               {CLICKATON_PRESETS.map((p) => (
@@ -144,7 +144,7 @@ export function CreateTemplateV2Button({
                   key={p.presetId}
                   type="button"
                   role="menuitem"
-                  className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-[#111827] hover:bg-[#fdf8f4]"
+                  className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-[color:var(--te-ink)] hover:bg-[color:var(--te-accent-wash)]"
                   data-testid={p.testId}
                   onClick={() => void createFromBody({ presetId: p.presetId })}
                 >

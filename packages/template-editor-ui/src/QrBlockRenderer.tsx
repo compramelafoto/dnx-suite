@@ -35,7 +35,7 @@ export function QrBlockRenderer({
         : "";
 
   const foreground = typeof config.foreground === "string" ? config.foreground : "#000000";
-  const background = typeof config.background === "string" ? config.background : "#ffffff";
+  const background = typeof config.background === "string" ? config.background : "var(--te-surface)";
   const ec = typeof config.errorCorrection === "string" ? config.errorCorrection : "M";
   const quiet = typeof config.quietZoneModules === "number" ? config.quietZoneModules : 4;
 
@@ -72,7 +72,7 @@ export function QrBlockRenderer({
     return (
       <div
         className="flex h-full w-full items-center justify-center border border-dashed text-center"
-        style={{ borderColor: "#94a3b8", background }}
+        style={{ borderColor: "var(--te-ink-faint)", background }}
       >
         <span className="px-2 text-[10px] leading-tight text-slate-500">
           {mode === "FIXED"

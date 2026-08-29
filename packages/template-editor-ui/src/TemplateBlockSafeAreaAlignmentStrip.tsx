@@ -12,7 +12,7 @@ import { AlignmentGlyph } from "./alignment-glyph";
 import { cn } from "./primitives/cn";
 
 const alignBtnClass =
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#e8eaed] bg-white text-[#3c4043] shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-colors hover:border-[#c27b3d]/50 hover:bg-[#fffaf6] hover:text-[#9a5f2e] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[#e8eaed] disabled:hover:bg-white disabled:hover:text-[#3c4043]";
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--te-line)] bg-white text-[color:var(--te-ink)] shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-colors hover:border-[color:var(--te-accent-wash)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[color:var(--te-line)] disabled:hover:bg-white disabled:hover:text-[color:var(--te-ink)]";
 
 const ALIGN_ITEMS: { kind: CanvasQuickAlignment; title: string }[] = [
   { kind: "left", title: "Alinear a la izquierda (zona segura)" },

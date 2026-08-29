@@ -60,17 +60,17 @@ function clamp(n: number, min: number, max: number) {
 }
 
 const inputBase =
-  "w-full rounded-lg border border-[#e5e7eb] bg-white px-2 py-2 text-xs text-[#111827] shadow-sm focus:border-[#c27b3d] focus:outline-none focus:ring-1 focus:ring-[#c27b3d]/40";
+  "w-full rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-2 text-xs text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
 
 const selectBase =
-  "w-full rounded-lg border border-[#e5e7eb] bg-white px-2 py-2 text-xs shadow-sm focus:border-[#c27b3d] focus:outline-none focus:ring-1 focus:ring-[#c27b3d]/40";
+  "w-full rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-2 text-xs shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
 
 const alignBtnClass =
-  "rounded-lg border border-[#e5e7eb] bg-white px-2 py-1.5 text-[11px] font-medium text-[#374151] shadow-sm transition-colors hover:border-[#d1d5db] hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white";
+  "rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-1.5 text-[11px] font-medium text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white";
 
 /** Botón cuadrado con icono de alineación (zona segura / conjunto). */
 const alignIconBtnClass =
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#e5e7eb] bg-white text-[#374151] shadow-sm transition-colors hover:border-[#c27b3d] hover:bg-[#fdf8f4] hover:text-[#9a5f2e] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[#e5e7eb] disabled:hover:bg-white disabled:hover:text-[#374151]";
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[color:var(--te-line)] bg-white text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[color:var(--te-line)] disabled:hover:bg-white disabled:hover:text-[color:var(--te-ink)]";
 
 export function TemplateEditorInspector({
   selectedBlock,
@@ -91,16 +91,16 @@ export function TemplateEditorInspector({
   );
 
   if (!selectedBlock) {
-    const bg = typeof canvas.background === "string" ? canvas.background : "#ffffff";
+    const bg = typeof canvas.background === "string" ? canvas.background : "var(--te-surface)";
     return (
       <div className={cn("w-full min-w-0 space-y-4", className)}>
         <div>
-          <h2 className="text-sm font-semibold text-[#1a1a1a]">Inspector</h2>
-          <p className="mt-0.5 text-[11px] text-[#9ca3af]">Lienzo o bloques seleccionados.</p>
+          <h2 className="text-sm font-semibold text-[color:var(--te-ink)]">Inspector</h2>
+          <p className="mt-0.5 text-[11px] text-[color:var(--te-ink-faint)]">Lienzo o bloques seleccionados.</p>
         </div>
 
         <InspectorPanel title="Fondo de la hoja">
-          <p className="text-[11px] leading-relaxed text-[#6b7280]">
+          <p className="text-[11px] leading-relaxed text-[color:var(--te-ink-muted)]">
             Hacé clic en un área vacía del lienzo (sin bloques) para quitar la selección y ajustar el color de fondo.
           </p>
           <div className="mt-3">
@@ -112,7 +112,7 @@ export function TemplateEditorInspector({
           </div>
         </InspectorPanel>
 
-        <p className="text-xs leading-relaxed text-[#6b7280]">
+        <p className="text-xs leading-relaxed text-[color:var(--te-ink-muted)]">
           Elegí un bloque en el lienzo para ver y editar sus propiedades aquí.
         </p>
       </div>
@@ -168,9 +168,31 @@ export function TemplateEditorInspector({
   return (
     <div className={cn("w-full min-w-[280px] space-y-4", className)}>
       <div>
-        <h2 className="text-sm font-semibold text-[#1a1a1a]">Inspector</h2>
-        <p className="mt-0.5 text-[11px] text-[#9ca3af]">Cambios locales hasta que guardes.</p>
+        <h2 className="text-sm font-semibold text-[color:var(--te-ink)]">Inspector</h2>
+        <p className="mt-0.5 text-[11px] text-[color:var(--te-ink-faint)]">Cambios locales hasta que guardes.</p>
       </div>
+
+      {/*
+        La opacidad estaba en cada fila de la lista de capas, con su deslizador siempre a la
+        vista. Es una propiedad del bloque como el color o el tamaño, y vive donde viven las
+        propiedades del bloque.
+      */}
+      <InspectorPanel title="Opacidad">
+        <div className="flex items-center gap-3">
+          <NumberSliderField
+            value={Math.round((selectedBlock.layout.opacity ?? 1) * 100)}
+            onChange={(v) => updateLayout({ opacity: v / 100 })}
+            min={0}
+            max={100}
+            step={1}
+            ariaLabel={`Opacidad de ${selectedBlock.name ?? "el bloque"}`}
+            className="flex-1"
+          />
+          <span className="w-11 shrink-0 text-right text-[11px] tabular-nums text-[color:var(--te-ink-muted)]">
+            {Math.round((selectedBlock.layout.opacity ?? 1) * 100)} %
+          </span>
+        </div>
+      </InspectorPanel>
 
       <TemplateVariableBraceInsertPanel
         selectedBlockId={selectedBlock.id}
@@ -190,7 +212,7 @@ export function TemplateEditorInspector({
 
       {selectedBlockCount > 1 ? (
         <InspectorPanel title="Alineación del conjunto">
-          <p className="text-[11px] leading-snug text-[#6b7280]">
+          <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
             Respecto del rectángulo que envuelve los seleccionados (no del lienzo). La selección se mantiene.
           </p>
           {multiLocked ? (
@@ -222,9 +244,9 @@ export function TemplateEditorInspector({
               </button>
             ))}
           </div>
-          <p className="mt-3 text-[11px] font-medium text-[#374151]">Distribución uniforme</p>
-          <p className="text-[11px] leading-snug text-[#6b7280]">
-            Iguala el espacio libre <span className="font-medium text-[#4b5563]">entre</span> bloques vecinos (entre
+          <p className="mt-3 text-[11px] font-medium text-[color:var(--te-ink)]">Distribución uniforme</p>
+          <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
+            Iguala el espacio libre <span className="font-medium text-[color:var(--te-ink-muted)]">entre</span> bloques vecinos (entre
             bordes). Los extremos del conjunto son el borde más a la izquierda/derecha (↔) o arriba/abajo (↕) de la caja
             envolvente; el orden sigue la posición en ese eje.
           </p>
@@ -249,7 +271,7 @@ export function TemplateEditorInspector({
             </button>
           </div>
           {!canDistribute ? (
-            <p className="mt-1.5 text-[10px] text-[#9ca3af]">
+            <p className="mt-1.5 text-[10px] text-[color:var(--te-ink-faint)]">
               Necesitás al menos tres bloques en la selección para repartir espacio intermedio.
             </p>
           ) : null}
@@ -299,7 +321,7 @@ export function TemplateEditorInspector({
               ) : null}
             </select>
             {variableCatalogHint ? (
-              <p className="mt-1.5 text-[11px] leading-snug text-[#6b7280]">
+              <p className="mt-1.5 text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
                 {variableCatalogHint.description}
               </p>
             ) : variableKeyStr ? (
@@ -308,8 +330,8 @@ export function TemplateEditorInspector({
               </p>
             ) : null}
           </div>
-          <details className="rounded-lg border border-dashed border-[#e5e7eb] bg-[#fafafa] px-2 py-1.5">
-            <summary className="cursor-pointer select-none text-[11px] font-medium text-[#6b7280]">
+          <details className="rounded-lg border border-dashed border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-2 py-1.5">
+            <summary className="cursor-pointer select-none text-[11px] font-medium text-[color:var(--te-ink-muted)]">
               Editar clave manualmente (avanzado)
             </summary>
             <div className="mt-2">
@@ -320,14 +342,14 @@ export function TemplateEditorInspector({
                 spellCheck={false}
                 onChange={(e) => updateConfig({ variableKey: e.target.value })}
               />
-              <p className="mt-1 text-[10px] text-[#9ca3af]">
+              <p className="mt-1 text-[10px] text-[color:var(--te-ink-faint)]">
                 Preferí elegir arriba; usá esto solo si necesitás una clave exacta o legacy.
               </p>
             </div>
           </details>
-          <p className="text-[11px] leading-relaxed text-[#5f6368]">
-            El <span className="font-medium text-[#374151]">texto si falta dato</span> lo editás con{" "}
-            <span className="font-medium text-[#374151]">doble clic</span> en el bloque del lienzo (mismo estilo que el
+          <p className="text-[11px] leading-relaxed text-[color:var(--te-ink-muted)]">
+            El <span className="font-medium text-[color:var(--te-ink)]">texto si falta dato</span> lo editás con{" "}
+            <span className="font-medium text-[color:var(--te-ink)]">doble clic</span> en el bloque del lienzo (mismo estilo que el
             texto visible cuando no hay variable resuelta).
           </p>
         </InspectorPanel>
@@ -345,7 +367,7 @@ export function TemplateEditorInspector({
               <option value="VARIABLE">Un dato de cada persona</option>
               <option value="FIXED">Una dirección fija</option>
             </select>
-            <p className="mt-1 text-[11px] leading-snug text-[#6b7280]">
+            <p className="mt-1 text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
               {cfg.mode === "FIXED"
                 ? "El mismo código en todas las piezas. Sirve para llevar al sitio de la institución."
                 : "Cambia con cada pieza. Es lo que hace que el carnet verifique a ese socio y no a otro."}
@@ -398,7 +420,7 @@ export function TemplateEditorInspector({
               <option value="Q">Alta</option>
               <option value="H">Máxima — tolera desgaste y manchas</option>
             </select>
-            <p className="mt-1 text-[11px] leading-snug text-[#6b7280]">
+            <p className="mt-1 text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
               Más corrección aguanta una tarjeta rayada, pero hace el dibujo más denso.
             </p>
           </div>
@@ -477,12 +499,12 @@ export function TemplateEditorInspector({
           </div>
           <ColorField
             label="Relleno"
-            value={String(cfg.fill ?? "#e5e7eb")}
+            value={String(cfg.fill ?? "var(--te-line)")}
             onChange={(hex) => updateConfig({ fill: hex })}
           />
           <ColorField
             label="Borde"
-            value={String(cfg.stroke ?? "#94a3b8")}
+            value={String(cfg.stroke ?? "var(--te-ink-faint)")}
             onChange={(hex) => updateConfig({ stroke: hex })}
           />
           <div>
@@ -516,7 +538,7 @@ export function TemplateEditorInspector({
         <InspectorPanel title="Fondo (legacy)">
           <ColorField
             label="Color de fondo"
-            value={String(cfg.backgroundColor ?? "#ffffff")}
+            value={String(cfg.backgroundColor ?? "var(--te-surface)")}
             onChange={(hex) => updateConfig({ backgroundColor: hex })}
           />
           <div>
@@ -532,7 +554,7 @@ export function TemplateEditorInspector({
 
       {selectedBlock.type === "PHOTO" && (
         <InspectorPanel title="Foto (legacy)">
-          <p className="text-xs leading-relaxed text-[#6b7280]">
+          <p className="text-xs leading-relaxed text-[color:var(--te-ink-muted)]">
             Este tipo de bloque es heredado. Podés ajustar posición, tamaño y apariencia general arriba.
           </p>
         </InspectorPanel>

@@ -641,7 +641,7 @@ export function TemplateEditorCanvas({
       {/* Área de trabajo: gris suave. El lienzo se centra; el marco tiene el tamaño *ya escalado* para no duplicar altura en el scroll (bug: hijo con width/height en px + scale ocupaba layout completo). */}
       <div
         ref={workAreaRef}
-        className="flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-auto bg-[#e8eaef] px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8"
+        className="flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-auto bg-[color:var(--te-line)] px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8"
         style={{ cursor: workAreaCursor }}
         onPointerDownCapture={onWorkAreaPointerDownCapture}
         onPointerMove={onWorkAreaPointerMove}
@@ -1045,15 +1045,15 @@ export function TemplateEditorCanvas({
                   ...getOverlayStyle(primaryBlock),
                   boxSizing: "border-box",
                   border: primaryBlock.layout.locked
-                    ? "2px dashed #b45309"
+                    ? "2px dashed var(--te-danger)"
                     : primarySafeAreaStatus !== "inside"
-                      ? "2px solid #f59e0b"
-                      : "2px solid #2563eb",
+                      ? "2px solid var(--te-danger)"
+                      : "2px solid var(--te-accent)",
                   boxShadow: primaryBlock.layout.locked
                     ? "0 0 0 1px rgba(255,255,255,0.45) inset, 0 2px 14px rgba(180, 83, 9, 0.28)"
                     : primarySafeAreaStatus !== "inside"
                       ? "0 0 0 1px rgba(255,255,255,0.35) inset, 0 3px 16px rgba(245, 158, 11, 0.38)"
-                      : "0 0 0 1px rgba(255,255,255,0.85) inset, 0 0 0 1px #2563eb, 0 4px 18px rgba(37, 99, 235, 0.35)",
+                      : "0 0 0 1px rgba(255,255,255,0.85) inset, 0 0 0 1px var(--te-accent), 0 4px 18px rgba(0,0,0,0.28)",
                   transition: "box-shadow 160ms ease, border-color 160ms ease",
                   pointerEvents: "none",
                 }}
@@ -1080,7 +1080,7 @@ export function TemplateEditorCanvas({
                           width: 2,
                           height: 26,
                           borderRadius: 1,
-                          background: "linear-gradient(to top, #2563eb, #60a5fa)",
+                          background: "linear-gradient(to top, var(--te-accent), var(--te-accent))",
                           opacity: 0.9,
                           pointerEvents: "none",
                         }}
@@ -1098,12 +1098,12 @@ export function TemplateEditorCanvas({
                           marginLeft: -10,
                           marginTop: -10,
                           borderRadius: 9999,
-                          border: "2.5px solid #2563eb",
-                          background: "#ffffff",
+                          border: "2.5px solid var(--te-accent)",
+                          background: "var(--te-surface)",
                           cursor: rotatingBlockId === primaryBlock.id ? "grabbing" : "grab",
                           pointerEvents: "auto",
                           boxShadow:
-                            "0 1px 2px rgba(255,255,255,0.95) inset, 0 2px 10px rgba(37, 99, 235, 0.45)",
+                            "0 1px 2px rgba(255,255,255,0.95) inset, 0 2px 10px rgba(0,0,0,0.32)",
                           transition: "box-shadow 150ms ease, transform 150ms ease",
                           touchAction: "none",
                         }}
@@ -1195,12 +1195,12 @@ export function TemplateEditorCanvas({
                           width: RESIZE_HANDLE_SIZE_PX,
                           height: RESIZE_HANDLE_SIZE_PX,
                           borderRadius: 9999,
-                          border: "2.5px solid #2563eb",
-                          background: "#ffffff",
+                          border: "2.5px solid var(--te-accent)",
+                          background: "var(--te-surface)",
                           cursor: h.cursor,
                           pointerEvents: "auto",
                           boxShadow:
-                            "0 1px 2px rgba(255,255,255,0.9) inset, 0 2px 8px rgba(37, 99, 235, 0.42)",
+                            "0 1px 2px rgba(255,255,255,0.9) inset, 0 2px 8px rgba(0,0,0,0.30)",
                           transition: "box-shadow 150ms ease",
                           touchAction: "none",
                           ...(h.left !== undefined ? { left: h.left } : {}),
@@ -1326,9 +1326,9 @@ export function TemplateEditorCanvas({
                       top: -18,
                       right: 0,
                       fontSize: 10,
-                      background: "#fef3c7",
-                      color: "#92400e",
-                      border: "1px solid #f59e0b",
+                      background: "var(--te-accent-wash)",
+                      color: "var(--te-accent)",
+                      border: "1px solid var(--te-danger)",
                       borderRadius: 9999,
                       padding: "2px 6px",
                     }}
@@ -1345,7 +1345,7 @@ export function TemplateEditorCanvas({
                       bottom: -20,
                       textAlign: "center",
                       fontSize: 10,
-                      color: "#1d4ed8",
+                      color: "var(--te-accent)",
                       pointerEvents: "none",
                     }}
                   >
@@ -1416,7 +1416,7 @@ export function TemplateEditorCanvas({
                   top: Math.min(marqueeRect.ay, marqueeRect.by),
                   width: Math.abs(marqueeRect.bx - marqueeRect.ax),
                   height: Math.abs(marqueeRect.by - marqueeRect.ay),
-                  border: "1.5px solid rgba(37, 99, 235, 0.9)",
+                  border: "1.5px solid var(--te-accent)",
                   background: "rgba(59, 130, 246, 0.14)",
                   pointerEvents: "none",
                   zIndex: 99999,

@@ -110,8 +110,8 @@ export function ImageBlockUploadSection({
       />
 
       {isSchoolLogoDynamic ? (
-        <div className="mb-3 rounded-lg border border-[#c27b3d]/35 bg-[#fffaf6] px-2.5 py-2 text-[11px] leading-snug text-[#5c4a3a]">
-          <p className="font-medium text-[#8b5a2b]">Logo de la escuela (dinámico)</p>
+        <div className="mb-3 rounded-lg border border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)] px-2.5 py-2 text-[11px] leading-snug text-[color:var(--te-ink)]">
+          <p className="font-medium text-[color:var(--te-accent)]">Logo de la escuela (dinámico)</p>
           <p className="mt-1 text-[#6b5b4d]">
             En el pedido se usará el PNG con fondo transparente cargado al dar de alta la escuela en la plataforma. En el
             editor ves una vista previa de diseño.
@@ -120,28 +120,28 @@ export function ImageBlockUploadSection({
       ) : null}
 
       {!isSchoolLogoDynamic && varDef ? (
-        <p className="mb-2 rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2 py-1.5 text-[10px] text-[#475569]">
+        <p className="mb-2 rounded-md border border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-2 py-1.5 text-[10px] text-[color:var(--te-ink-muted)]">
           Variable de imagen: <span className="font-mono">{variableKey}</span>
         </p>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
         {hasStaticImage && !isSchoolLogoDynamic ? (
-          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-[#e5e7eb] bg-[#f8fafc]">
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-[color:var(--te-chrome)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={src} alt="" className="h-full w-full object-cover" />
           </div>
         ) : isSchoolLogoDynamic ? (
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[#c27b3d]/40 bg-[#fffdfb] text-[9px] font-medium text-[#9a5f2e]">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[color:var(--te-accent-wash)] bg-[#fffdfb] text-[9px] font-medium text-[color:var(--te-accent)]">
             Logo
           </div>
         ) : (
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[#cbd5e1] bg-[#f8fafc] text-[10px] text-[#94a3b8]">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[color:var(--te-ink-faint)] bg-[color:var(--te-chrome)] text-[10px] text-[color:var(--te-ink-faint)]">
             —
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-[#374151]">
+          <p className="text-xs font-medium text-[color:var(--te-ink)]">
             {isSchoolLogoDynamic
               ? "Vinculado al logo institucional"
               : hasStaticImage
@@ -149,7 +149,7 @@ export function ImageBlockUploadSection({
                 : "Sin imagen fija (se verá el placeholder en el lienzo)"}
           </p>
           {uploading ? (
-            <p className="mt-0.5 text-[11px] text-[#c27b3d]">Subiendo…</p>
+            <p className="mt-0.5 text-[11px] text-[color:var(--te-accent)]">Subiendo…</p>
           ) : null}
           {error ? (
             <p className="mt-0.5 text-[11px] text-red-600" role="alert">
@@ -195,8 +195,8 @@ export function ImageBlockUploadSection({
       </div>
 
       {!isSchoolLogoDynamic ? (
-        <details className="mt-2 rounded-lg border border-dashed border-[#e5e7eb] bg-[#fafafa] px-2 py-1.5">
-          <summary className="cursor-pointer select-none text-[11px] font-medium text-[#6b7280]">
+        <details className="mt-2 rounded-lg border border-dashed border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-2 py-1.5">
+          <summary className="cursor-pointer select-none text-[11px] font-medium text-[color:var(--te-ink-muted)]">
             URL manual (opcional)
           </summary>
           <div className="mt-2 space-y-1">
@@ -210,7 +210,7 @@ export function ImageBlockUploadSection({
                 dispatch(setVariableBindings(stripSrcBindingsForBlock(variableBindings, blockId)));
               }}
             />
-            <p className="text-[10px] text-[#9ca3af]">
+            <p className="text-[10px] text-[color:var(--te-ink-faint)]">
               Podés pegar un enlace público o usar el botón de subida arriba.
             </p>
           </div>

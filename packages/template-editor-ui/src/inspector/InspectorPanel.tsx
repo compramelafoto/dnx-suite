@@ -14,11 +14,11 @@ export function InspectorPanel({
   return (
     <section
       className={cn(
-        "rounded-xl border border-[#e5e7eb] bg-[#fafafa] p-3 shadow-sm",
+        "rounded-xl border border-[color:var(--te-line)] bg-[color:var(--te-chrome)] p-3 shadow-sm",
         className
       )}
     >
-      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">
+      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]">
         {title}
       </h3>
       <div className="space-y-3">{children}</div>
@@ -34,7 +34,7 @@ export function FieldLabel({
   className?: string;
 }) {
   return (
-    <span className={cn("mb-1 block text-xs font-medium text-[#374151]", className)}>
+    <span className={cn("mb-1 block text-xs font-medium text-[color:var(--te-ink)]", className)}>
       {children}
     </span>
   );

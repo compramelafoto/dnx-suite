@@ -3,6 +3,13 @@
  */
 
 @import "tailwindcss";
+
+/*
+ * Tailwind v4 saltea node_modules al descubrir clases, y los paquetes del monorepo entran por
+ * ahí. Sin esto, el editor de plantillas se dibuja sin la mitad de su CSS.
+ */
+@source "../../../packages/template-editor-ui/src";
+@source "../../../packages/template-editor-core/src";
 @import "../styles/tokens.css";
 @import "../styles/utilities.css";
 

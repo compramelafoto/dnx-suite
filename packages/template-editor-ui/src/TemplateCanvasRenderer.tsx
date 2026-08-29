@@ -189,7 +189,7 @@ function ImageBlockRenderer({
           display: "grid",
           placeItems: "center",
           border: "1px solid #94a3b8",
-          background: "#f1f5f9",
+          background: "var(--te-chrome-sunken)",
           color: "#334155",
           textAlign: "center",
           padding: padPx,
@@ -200,7 +200,7 @@ function ImageBlockRenderer({
         <span style={{ fontSize: titlePx, fontWeight: 700, letterSpacing: "-0.02em" }}>
           Imagen
           <br />
-          <span style={{ fontSize: subtitlePx, fontWeight: 600, color: "#475569" }}>{modeLabel}</span>
+          <span style={{ fontSize: subtitlePx, fontWeight: 600, color: "var(--te-ink-muted)" }}>{modeLabel}</span>
         </span>
       </div>
     );
@@ -214,7 +214,7 @@ function ImageBlockRenderer({
           height: "100%",
           borderRadius: "50%",
           overflow: "hidden",
-          background: "#f1f5f9",
+          background: "var(--te-chrome-sunken)",
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -232,7 +232,7 @@ function ImageBlockRenderer({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#f1f5f9",
+          background: "var(--te-chrome-sunken)",
         }}
       >
         <div
@@ -244,7 +244,7 @@ function ImageBlockRenderer({
             aspectRatio: "1",
             borderRadius: "50%",
             overflow: "hidden",
-            background: "#e2e8f0",
+            background: "var(--te-line)",
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -262,7 +262,7 @@ function ImageBlockRenderer({
 
 function ShapeBlockRenderer({ config }: { config: Record<string, unknown> }) {
   const variant = String(config.variant ?? "rectangle").toLowerCase();
-  const fill = typeof config.fill === "string" ? config.fill : "#e5e7eb";
+  const fill = typeof config.fill === "string" ? config.fill : "var(--te-line)";
   const stroke = typeof config.stroke === "string" ? config.stroke : "transparent";
   const strokeWidth = Number(config.strokeWidth ?? 0);
   const sw = Math.max(0, strokeWidth);
@@ -327,7 +327,7 @@ function ShapeBlockRenderer({ config }: { config: Record<string, unknown> }) {
 }
 
 function BackgroundLegacyRenderer({ config }: { config: Record<string, unknown> }) {
-  const bg = typeof config.backgroundColor === "string" ? config.backgroundColor : "#ffffff";
+  const bg = typeof config.backgroundColor === "string" ? config.backgroundColor : "var(--te-surface)";
   const src = typeof config.src === "string" ? config.src.trim() : "";
   const objectFit = "cover" as const;
   if (src) {
@@ -358,7 +358,7 @@ function PhotoLegacyRenderer({ layoutWidth, layoutHeight }: { layoutWidth: numbe
         width: "100%",
         height: "100%",
         border: "1px dashed #64748b",
-        background: "#e2e8f0",
+        background: "var(--te-line)",
         display: "grid",
         placeItems: "center",
         color: "#1e293b",
@@ -387,7 +387,7 @@ export function TemplateCanvasRenderer({
   hideTextBodyForBlockId = null,
   className,
 }: TemplateCanvasRendererProps) {
-  const canvasBackground = typeof canvas.background === "string" ? canvas.background : "#ffffff";
+  const canvasBackground = typeof canvas.background === "string" ? canvas.background : "var(--te-surface)";
   const renderableBlocks = toRenderableBlocks(blocks);
   const selectedSet = new Set(selectedBlockIds);
 

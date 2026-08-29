@@ -22,7 +22,7 @@ type Props = {
 };
 
 const btnBase =
-  "rounded-md border border-[#e5e7eb] bg-white px-2 py-1 text-[10px] font-medium text-[#374151] shadow-sm transition-colors hover:border-[#d1d5db] hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:opacity-40";
+  "rounded-md border border-[color:var(--te-line)] bg-white px-2 py-1 text-[10px] font-medium text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-40";
 
 function mergeConfigJson(block: TemplateV2Block, patch: Record<string, unknown>) {
   const base = asObject(normalizeBlockConfig(block.type, block.configJson));
@@ -71,18 +71,18 @@ export function TemplateBlockContextToolbar({ state, dispatch, templateId, versi
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-1 gap-y-1.5 border-t border-[#dadce0] bg-[#f1f3f4] px-2 py-1.5"
+      className="flex flex-wrap items-center gap-x-1 gap-y-1.5 border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 py-1.5"
       role="toolbar"
       aria-label="Acciones del bloque"
     >
-      <span className="mr-1 hidden text-[10px] font-medium text-[#80868b] sm:inline">Bloque</span>
+      <span className="mr-1 hidden text-[10px] font-medium text-[color:var(--te-ink-faint)] sm:inline">Bloque</span>
 
       <div className="flex items-center gap-1.5">
-        <span className="hidden shrink-0 text-[10px] font-medium text-[#80868b] sm:inline">Posición</span>
+        <span className="hidden shrink-0 text-[10px] font-medium text-[color:var(--te-ink-faint)] sm:inline">Posición</span>
         <TemplateBlockSafeAreaAlignmentStrip state={state} dispatch={dispatch} />
       </div>
 
-      <span className="mx-0.5 hidden h-8 w-px shrink-0 bg-[#dadce0] sm:inline" aria-hidden />
+      <span className="mx-0.5 hidden h-8 w-px shrink-0 bg-[color:var(--te-line)] sm:inline" aria-hidden />
 
       <button
         type="button"
@@ -109,7 +109,7 @@ export function TemplateBlockContextToolbar({ state, dispatch, templateId, versi
 
       {selectedBlock.type === "IMAGE" ? (
         <>
-          <span className="mx-0.5 hidden h-4 w-px bg-[#dadce0] sm:inline" aria-hidden />
+          <span className="mx-0.5 hidden h-4 w-px bg-[color:var(--te-line)] sm:inline" aria-hidden />
           <input
             ref={imageFileRef}
             type="file"
@@ -133,7 +133,7 @@ export function TemplateBlockContextToolbar({ state, dispatch, templateId, versi
 
       {selectedBlock.type === "SHAPE" && shapeCfg ? (
         <>
-          <span className="mx-0.5 hidden h-4 w-px bg-[#dadce0] sm:inline" aria-hidden />
+          <span className="mx-0.5 hidden h-4 w-px bg-[color:var(--te-line)] sm:inline" aria-hidden />
           <button
             type="button"
             className={btnBase}

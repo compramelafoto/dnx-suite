@@ -25,13 +25,13 @@ export function TemplateDiagnosticsPanel({ blocks, canvas, dispatch, embedded }:
   return (
     <div>
       {embedded ? (
-        <p className="mb-1.5 text-[10px] text-[#6b7280]">
+        <p className="mb-1.5 text-[10px] text-[color:var(--te-ink-muted)]">
           {issues.length === 0 ? "Sin problemas detectados" : `${issues.length} aviso${issues.length === 1 ? "" : "s"}`}
         </p>
       ) : (
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-semibold text-[#111827]">Revisión rápida</h3>
-          <span className="text-[11px] text-[#6b7280]">
+          <h3 className="text-sm font-semibold text-[color:var(--te-ink)]">Revisión rápida</h3>
+          <span className="text-[11px] text-[color:var(--te-ink-muted)]">
             {issues.length === 0 ? "Sin problemas detectados" : `${issues.length} aviso${issues.length === 1 ? "" : "s"}`}
           </span>
         </div>
@@ -45,21 +45,21 @@ export function TemplateDiagnosticsPanel({ blocks, canvas, dispatch, embedded }:
             const fixLabel = getDiagnosticQuickFixLabel(issue.code);
             return (
               <li key={`${issue.blockId}-${issue.code}-${i}`}>
-                <div className="flex gap-1.5 rounded-lg border border-transparent bg-[#f9fafb] p-1.5 transition-colors hover:border-[#e5e7eb] hover:bg-[#f3f4f6]">
+                <div className="flex gap-1.5 rounded-lg border border-transparent bg-[color:var(--te-chrome)] p-1.5 transition-colors hover:border-[color:var(--te-line)] hover:bg-[color:var(--te-chrome-sunken)]">
                   <button
                     type="button"
-                    className="min-w-0 flex-1 rounded-md px-1.5 py-0.5 text-left text-[11px] leading-snug text-[#374151]"
+                    className="min-w-0 flex-1 rounded-md px-1.5 py-0.5 text-left text-[11px] leading-snug text-[color:var(--te-ink)]"
                     onClick={() => dispatch(selectBlock(issue.blockId))}
                     title="Seleccionar este bloque"
                   >
-                    <span className="font-medium text-[#111827]">{label}</span>
-                    <span className="text-[#9ca3af]"> · {typeLabel}</span>
-                    <span className="mt-0.5 block text-[#6b7280]">{issue.problem}</span>
+                    <span className="font-medium text-[color:var(--te-ink)]">{label}</span>
+                    <span className="text-[color:var(--te-ink-faint)]"> · {typeLabel}</span>
+                    <span className="mt-0.5 block text-[color:var(--te-ink-muted)]">{issue.problem}</span>
                   </button>
                   {fixLabel ? (
                     <button
                       type="button"
-                      className="shrink-0 self-center rounded-md border border-[#e8d4c4] bg-white px-2 py-1 text-[10px] font-medium text-[#9a5f2e] shadow-sm hover:bg-[#fffbf7]"
+                      className="shrink-0 self-center rounded-md border border-[color:var(--te-accent-wash)] bg-white px-2 py-1 text-[10px] font-medium text-[color:var(--te-accent)] shadow-sm hover:bg-[color:var(--te-accent-wash)]"
                       title="Acción rápida"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -80,7 +80,7 @@ export function TemplateDiagnosticsPanel({ blocks, canvas, dispatch, embedded }:
           })}
         </ul>
       ) : (
-        <p className="mt-1.5 text-[11px] text-[#6b7280]">Podés publicar o seguir editando con tranquilidad.</p>
+        <p className="mt-1.5 text-[11px] text-[color:var(--te-ink-muted)]">Podés publicar o seguir editando con tranquilidad.</p>
       )}
     </div>
   );

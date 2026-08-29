@@ -98,7 +98,7 @@ export default function AppModal({
       <div className="relative z-[1] flex min-h-full items-center justify-center p-4 sm:p-6">
         <div
           className={cn(
-            "relative box-border flex w-full max-h-[min(92vh,900px)] shrink-0 flex-col overflow-hidden rounded-2xl border border-[#ebe8e4] bg-white text-left shadow-xl",
+            "relative box-border flex w-full max-h-[min(92vh,900px)] shrink-0 flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-white text-left shadow-xl",
             SIZE_MAX_CLASS[size],
             panelClassName,
           )}
@@ -112,15 +112,15 @@ export default function AppModal({
           aria-labelledby={labelledBy}
         >
           {title != null || description != null || showCloseButton ? (
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#ebe8e4] px-5 py-4 sm:px-6">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[color:var(--te-line)] px-5 py-4 sm:px-6">
               <div className="min-w-0 flex-1 overflow-hidden">
                 {title ? (
-                  <h2 id={titleId} className="text-base font-semibold text-[#1a1a1a] sm:text-lg">
+                  <h2 id={titleId} className="text-base font-semibold text-[color:var(--te-ink)] sm:text-lg">
                     {title}
                   </h2>
                 ) : null}
                 {description ? (
-                  <div className="mt-1 text-xs leading-relaxed text-[#6b7280] sm:text-sm">
+                  <div className="mt-1 text-xs leading-relaxed text-[color:var(--te-ink-muted)] sm:text-sm">
                     {description}
                   </div>
                 ) : null}
@@ -129,7 +129,7 @@ export default function AppModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-[#6b7280] transition-colors hover:bg-[#f3f4f6] hover:text-[#1a1a1a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#111827]/20 focus-visible:ring-offset-2"
+                  className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--te-ink-muted)] transition-colors hover:bg-[color:var(--te-chrome-sunken)] hover:text-[color:var(--te-ink)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--te-ink-faint)] focus-visible:ring-offset-2"
                   aria-label="Cerrar"
                 >
                   <X className="h-5 w-5" strokeWidth={1.75} />

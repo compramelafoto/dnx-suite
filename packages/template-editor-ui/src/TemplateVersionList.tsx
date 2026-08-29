@@ -100,8 +100,8 @@ export function TemplateVersionList({
     <Card className="mb-4 p-4 md:p-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-[#1a1a1a]">Versiones del template</h2>
-          <p className="mt-1 text-xs text-[#6b7280]">
+          <h2 className="text-sm font-semibold text-[color:var(--te-ink)]">Versiones del template</h2>
+          <p className="mt-1 text-xs text-[color:var(--te-ink-muted)]">
             Abrí una versión para editarla o revisarla. La versión marcada como <span className="font-medium">Actual</span>{" "}
             es la vigente del template.
           </p>
@@ -117,15 +117,15 @@ export function TemplateVersionList({
       {error ? <p className="mt-3 text-xs text-red-600">{error}</p> : null}
 
       {rows === null && !error ? (
-        <p className="mt-3 text-xs text-[#6b7280]">Cargando versiones…</p>
+        <p className="mt-3 text-xs text-[color:var(--te-ink-muted)]">Cargando versiones…</p>
       ) : rows && rows.length === 0 && !error ? (
-        <p className="mt-3 text-xs text-[#6b7280]">No hay versiones registradas.</p>
+        <p className="mt-3 text-xs text-[color:var(--te-ink-muted)]">No hay versiones registradas.</p>
       ) : null}
 
       {rows && rows.length > 0 ? (
-        <div className="mt-3 max-h-52 overflow-y-auto rounded-lg border border-[#e5e7eb]">
+        <div className="mt-3 max-h-52 overflow-y-auto rounded-lg border border-[color:var(--te-line)]">
           <table className="w-full min-w-[520px] text-left text-xs">
-            <thead className="sticky top-0 z-[1] border-b border-[#e5e7eb] bg-[#f9fafb] text-[#6b7280]">
+            <thead className="sticky top-0 z-[1] border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)] text-[color:var(--te-ink-muted)]">
               <tr>
                 <th className="px-3 py-2 font-semibold">Versión</th>
                 <th className="px-3 py-2 font-semibold">ID</th>
@@ -139,12 +139,12 @@ export function TemplateVersionList({
                 const isOpen = row.id === activeVersionId;
                 const href = templateV2EditorPath(basePath, templateId, row.id);
                 return (
-                  <tr key={row.id} className="border-b border-[#f3f4f6] last:border-b-0 align-middle">
-                    <td className="px-3 py-2 font-semibold text-[#111827]">v{row.versionNumber}</td>
-                    <td className="px-3 py-2 font-mono text-[10px] text-[#4b5563] break-all max-w-[200px]">
+                  <tr key={row.id} className="border-b border-[color:var(--te-chrome-sunken)] last:border-b-0 align-middle">
+                    <td className="px-3 py-2 font-semibold text-[color:var(--te-ink)]">v{row.versionNumber}</td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-[color:var(--te-ink-muted)] break-all max-w-[200px]">
                       {row.id}
                     </td>
-                    <td className="px-3 py-2 text-[#374151] whitespace-nowrap">{formatUpdatedAt(row.updatedAt)}</td>
+                    <td className="px-3 py-2 text-[color:var(--te-ink)] whitespace-nowrap">{formatUpdatedAt(row.updatedAt)}</td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-1">
                         {row.isCurrent ? (
@@ -165,11 +165,11 @@ export function TemplateVersionList({
                     </td>
                     <td className="px-3 py-2 text-right">
                       {isOpen ? (
-                        <span className="text-[11px] text-[#9ca3af]">Vista actual</span>
+                        <span className="text-[11px] text-[color:var(--te-ink-faint)]">Vista actual</span>
                       ) : (
                         <Link
                           href={href}
-                          className="inline-flex rounded-full border border-[#111827]/10 bg-white px-3 py-1 text-[11px] font-semibold text-[#111827] shadow-sm transition hover:border-[#111827]/30 hover:shadow-md"
+                          className="inline-flex rounded-full border border-[color:var(--te-ink-faint)] bg-white px-3 py-1 text-[11px] font-semibold text-[color:var(--te-ink)] shadow-sm transition hover:border-[color:var(--te-ink-faint)] hover:shadow-md"
                         >
                           Abrir
                         </Link>

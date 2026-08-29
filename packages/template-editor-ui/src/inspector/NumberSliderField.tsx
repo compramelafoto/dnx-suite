@@ -3,7 +3,7 @@
 import { cn } from "../primitives/cn";
 
 const rangeClass =
-  "h-1.5 w-full min-w-0 cursor-pointer accent-[#c27b3d] disabled:cursor-not-allowed disabled:opacity-40";
+  "h-1.5 w-full min-w-0 cursor-pointer accent-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-40";
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
@@ -58,7 +58,7 @@ export function NumberSliderField({
         aria-label={ariaLabel}
         title={ariaLabel}
       />
-      <span className="w-10 shrink-0 tabular-nums text-right text-xs font-medium text-[#374151]" aria-hidden>
+      <span className="w-10 shrink-0 tabular-nums text-right text-xs font-medium text-[color:var(--te-ink)]" aria-hidden>
         {dec > 0 ? shown.toLocaleString("es-AR", { maximumFractionDigits: dec }) : Math.round(shown)}
       </span>
     </div>

@@ -34,7 +34,7 @@ import { reorderLayersByPanelIndexForPage, sortBlocksByZIndexDesc } from "@repo/
 import { cn } from "./primitives/cn";
 
 const layerActionBtnClass =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#94a3b8] transition-colors hover:bg-[#f3f4f6] hover:text-[#374151] disabled:pointer-events-none disabled:opacity-30";
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[color:var(--te-ink-faint)] transition-colors hover:bg-[color:var(--te-chrome-sunken)] hover:text-[color:var(--te-ink)] disabled:pointer-events-none disabled:opacity-30";
 
 function IconEye({ className }: { className?: string }) {
   return (
@@ -285,11 +285,11 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
       <div className="shrink-0">
         {copiedStyle ? (
           <p
-            className="mt-2 rounded-md border border-[#c27b3d]/45 bg-[#fdf6ef] px-2 py-1.5 text-[10px] leading-snug text-[#5c4a3a] shadow-sm"
+            className="mt-2 rounded-md border border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)] px-2 py-1.5 text-[10px] leading-snug text-[color:var(--te-ink)] shadow-sm"
             role="status"
             aria-live="polite"
           >
-            <span className="font-semibold text-[#8b5a2b]">Estilo copiado.</span> Tocá otra capa compatible aquí abajo
+            <span className="font-semibold text-[color:var(--te-accent)]">Estilo copiado.</span> Tocá otra capa compatible aquí abajo
             (texto↔texto, imagen↔imagen, forma↔forma) para aplicarlo. Volvé a pulsar el rodillo en la misma capa para
             cancelar.
           </p>
@@ -301,7 +301,7 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
         ) : null}
       </div>
       {ordered.length === 0 ? (
-        <p className="mt-3 text-[11px] text-[#9ca3af]">No hay bloques en el lienzo.</p>
+        <p className="mt-3 text-[11px] text-[color:var(--te-ink-faint)]">No hay bloques en el lienzo.</p>
       ) : (
         <ul className="mt-2 space-y-1 pr-0.5">
           {ordered.map((block, index) => {
@@ -311,7 +311,12 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
             const locked = block.layout.locked ?? false;
             const visible = block.layout.visible;
             const rowTitle = `${getBlockDisplayName(block)} · ${getBlockTypeLabelEs(block.type)} · ${block.id}`;
-            const opacityPct = Math.round((block.layout.opacity ?? 1) * 100);
+            /*
+             * La opacidad se editaba acá, con un deslizador visible en cada fila. Con seis
+             * capas eso era media pantalla de deslizadores y la lista dejaba de servir para lo
+             * único que tiene que hacer: mostrar qué hay y en qué orden. Vive en el inspector,
+             * junto al resto de las propiedades del bloque.
+             */
             return (
               <li
                 key={block.id}
@@ -341,16 +346,16 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                 }}
                 className={cn(
                   "rounded-lg border py-1.5 pl-2 pr-2 transition-[background-color,border-color,box-shadow] duration-150 ease-out",
-                  copiedStyle && styleSourceId === block.id && "ring-2 ring-[#c27b3d]/40 ring-offset-1",
+                  copiedStyle && styleSourceId === block.id && "ring-2 ring-[color:var(--te-accent-wash)] ring-offset-1",
                   dragOverIndex === index &&
                     dragSourceIndex !== null &&
                     dragSourceIndex !== index &&
-                    "ring-2 ring-[#c27b3d]/35 ring-offset-1",
+                    "ring-2 ring-[color:var(--te-accent-wash)] ring-offset-1",
                   isPrimary &&
-                    "border-[#bfdbfe] bg-[#eff6ff] shadow-[inset_3px_0_0_0_#2563eb,inset_0_0_0_1px_rgba(37,99,235,0.12)]",
+                    "border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)] shadow-[inset_3px_0_0_0_var(--te-accent)]",
                   isSecondary &&
-                    "border-[#e2e8f0] bg-[#f8fafc] shadow-[inset_3px_0_0_0_#93c5fd,inset_0_0_0_1px_rgba(148,163,184,0.2)]",
-                  !selected && "border-[#ebeef1] bg-white hover:border-[#d8dce2] hover:bg-[#fafbfc]"
+                    "border-[color:var(--te-line)] bg-[color:var(--te-chrome)] shadow-[inset_3px_0_0_0_#93c5fd,inset_0_0_0_1px_rgba(148,163,184,0.2)]",
+                  !selected && "border-[color:var(--te-chrome-sunken)] bg-white hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)]"
                 )}
               >
                 <div className="flex items-center gap-1.5">
@@ -372,7 +377,7 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                         setDragOverIndex(null);
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      className="shrink-0 cursor-grab rounded px-0.5 py-1 text-[#cbd5e1] transition-colors active:cursor-grabbing hover:bg-[#f1f5f9] hover:text-[#64748b]"
+                      className="shrink-0 cursor-grab rounded px-0.5 py-1 text-[color:var(--te-ink-faint)] transition-colors active:cursor-grabbing hover:bg-[color:var(--te-chrome-sunken)] hover:text-[color:var(--te-ink-muted)]"
                       title="Arrastrar para reordenar capas"
                       aria-label="Arrastrar para reordenar capas"
                     >
@@ -383,7 +388,7 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                     {editingId === block.id ? (
                       <input
                         type="text"
-                        className="min-w-0 flex-1 rounded-md border border-[#c27b3d]/50 bg-white px-2 py-1 text-xs font-semibold text-[#111827] shadow-sm focus:border-[#c27b3d] focus:outline-none focus:ring-1 focus:ring-[#c27b3d]/35"
+                        className="min-w-0 flex-1 rounded-md border border-[color:var(--te-accent-wash)] bg-white px-2 py-1 text-xs font-semibold text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]"
                         value={draftName}
                         autoFocus
                         aria-label="Nombre del bloque"
@@ -426,7 +431,7 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                           <span className="flex min-w-0 items-center gap-1.5">
                             {isPrimary ? (
                               <span
-                                className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563eb] shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
+                                className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--te-accent)] shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
                                 aria-hidden
                                 title="Bloque activo (primario)"
                               />
@@ -434,19 +439,19 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                             <span
                               className={cn(
                                 "min-w-0 flex-1 truncate text-[13px] font-semibold leading-tight tracking-tight",
-                                visible ? "text-[#111827]" : "text-[#9ca3af] line-through decoration-[#d1d5db]"
+                                visible ? "text-[color:var(--te-ink)]" : "text-[color:var(--te-ink-faint)] line-through decoration-[color:var(--te-line-strong)]"
                               )}
                             >
                               {getBlockDisplayName(block)}
                             </span>
                           </span>
-                          <span className="mt-0.5 block truncate text-[10px] text-[#9ca3af]">
+                          <span className="mt-0.5 block truncate text-[10px] text-[color:var(--te-ink-faint)]">
                             {getBlockTypeLabelEs(block.type)}
                           </span>
                         </button>
                         <button
                           type="button"
-                          className={cn(layerActionBtnClass, "text-[#b0b8c4] hover:text-[#c27b3d]")}
+                          className={cn(layerActionBtnClass, "text-[color:var(--te-ink-faint)] hover:text-[color:var(--te-accent)]")}
                           title="Renombrar"
                           aria-label="Renombrar capa"
                           onClick={(e) => {
@@ -464,7 +469,7 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                       <>
                         <button
                           type="button"
-                          className={cn(layerActionBtnClass, "hover:text-[#2563eb]")}
+                          className={cn(layerActionBtnClass, "hover:text-[color:var(--te-accent)]")}
                           title="Duplicar capa"
                           aria-label="Duplicar capa"
                           onClick={(e) => {
@@ -478,9 +483,9 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                           type="button"
                           className={cn(
                             layerActionBtnClass,
-                            "hover:text-[#c27b3d]",
+                            "hover:text-[color:var(--te-accent)]",
                             copiedStyle && styleSourceId === block.id
-                              ? "bg-[#c27b3d]/18 text-[#9a5f2e] ring-2 ring-[#c27b3d]/45"
+                              ? "bg-[color:var(--te-accent-wash)] text-[color:var(--te-accent)] ring-2 ring-[color:var(--te-accent-wash)]"
                               : ""
                           )}
                           title={
@@ -524,7 +529,7 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                       type="button"
                       className={cn(
                         layerActionBtnClass,
-                        "text-[#6b7280]",
+                        "text-[color:var(--te-ink-muted)]",
                         !visible && "bg-amber-50/80 text-amber-800 hover:bg-amber-100 hover:text-amber-900"
                       )}
                       title={visible ? "Ocultar en el lienzo" : "Mostrar en el lienzo"}
@@ -551,8 +556,8 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                       type="button"
                       className={cn(
                         layerActionBtnClass,
-                        "text-[#6b7280]",
-                        locked && "bg-[#fffbeb] text-amber-900 hover:bg-amber-100"
+                        "text-[color:var(--te-ink-muted)]",
+                        locked && "bg-[color:var(--te-accent-wash)] text-amber-900 hover:bg-amber-100"
                       )}
                       title={locked ? "Desbloquear edición" : "Bloquear edición"}
                       aria-label={locked ? "Desbloquear capa" : "Bloquear capa"}
@@ -569,26 +574,6 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                       )}
                     </button>
                   </div>
-                </div>
-                <div data-layer-opacity-row className="mt-2 flex min-w-0 items-center gap-2 pl-6">
-                  <span className="shrink-0 text-[10px] font-medium text-[#64748b]">Opacidad</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    className="h-1.5 min-w-0 flex-1 cursor-pointer accent-[#2563eb]"
-                    aria-label={`Opacidad de ${getBlockDisplayName(block)}`}
-                    value={opacityPct}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      dispatch(updateBlock(block.id, { layout: { opacity: v / 100 } }));
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums text-[#64748b]" aria-hidden>
-                    {opacityPct}%
-                  </span>
                 </div>
               </li>
             );

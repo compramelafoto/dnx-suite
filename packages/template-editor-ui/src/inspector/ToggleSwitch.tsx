@@ -18,7 +18,7 @@ export function ToggleSwitch({ checked, onChange, label, disabled, className }: 
       aria-checked={checked}
       disabled={disabled}
       className={cn(
-        "flex w-full items-center justify-between gap-3 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-left text-xs text-[#374151] shadow-sm transition-colors hover:border-[#d1d5db]",
+        "flex w-full items-center justify-between gap-3 rounded-lg border border-[color:var(--te-line)] bg-white px-3 py-2 text-left text-xs text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-line-strong)]",
         disabled && "cursor-not-allowed opacity-50",
         className
       )}
@@ -28,7 +28,7 @@ export function ToggleSwitch({ checked, onChange, label, disabled, className }: 
       <span
         className={cn(
           "relative inline-flex h-6 w-11 shrink-0 rounded-full border border-transparent transition-colors",
-          checked ? "bg-[#c27b3d]" : "bg-[#e5e7eb]"
+          checked ? "bg-[color:var(--te-accent)]" : "bg-[color:var(--te-line)]"
         )}
       >
         <span

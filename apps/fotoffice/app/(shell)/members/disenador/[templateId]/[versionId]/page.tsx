@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { canDesignTemplates } from "@/lib/template-v2/access";
 import { prisma } from "@repo/db";
 import { TemplateEditorShell } from "@repo/template-editor-ui";
+import { FOTOFFICE_EDITOR_THEME } from "@/lib/template-v2/theme";
 import { requireActiveWorkspace } from "@/lib/workspace";
 // El import registra el runtime del editor: base, sesión y almacenamiento de esta app.
 import "@/lib/template-v2/server";
@@ -38,6 +39,7 @@ export default async function PlantillaEditorPage({ params }: Props) {
       templateId={templateId}
       versionId={versionId}
       basePath="/members/disenador"
+      theme={FOTOFFICE_EDITOR_THEME}
     />
   );
 }

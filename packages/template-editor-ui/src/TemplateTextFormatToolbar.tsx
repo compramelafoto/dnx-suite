@@ -23,7 +23,7 @@ function mergeConfigJson(block: TemplateV2Block, patch: Record<string, unknown>)
   return { ...base, ...patch };
 }
 
-const toolSep = <span className="mx-0.5 hidden h-6 w-px shrink-0 bg-[#dadce0] sm:inline" aria-hidden />;
+const toolSep = <span className="mx-0.5 hidden h-6 w-px shrink-0 bg-[color:var(--te-line)] sm:inline" aria-hidden />;
 
 function IconBold({ className }: { className?: string }) {
   return (
@@ -92,11 +92,11 @@ function IconChevronDown({ className }: { className?: string }) {
 }
 
 const fmtMiniBtn =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#dadce0] bg-white text-[#3c4043] shadow-sm hover:bg-[#f8f9fa] disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[color:var(--te-line)] bg-white text-[color:var(--te-ink)] shadow-sm hover:bg-[#f8f9fa] disabled:cursor-not-allowed disabled:opacity-40";
 
 /** Slider compacto para la barra de formato (accent = color de marca). */
 const fmtRange =
-  "h-1.5 w-[min(100%,7.5rem)] min-w-[5.5rem] max-w-[8.5rem] cursor-pointer accent-[#c27b3d] disabled:cursor-not-allowed disabled:opacity-40";
+  "h-1.5 w-[min(100%,7.5rem)] min-w-[5.5rem] max-w-[8.5rem] cursor-pointer accent-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-40";
 
 export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
   const primaryId = getPrimarySelectedBlockId(state);
@@ -153,12 +153,12 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
   return (
     <div
       ref={rootRef}
-      className="flex flex-col gap-1.5 border-t border-[#dadce0] bg-[#f1f3f4] px-2 py-1.5"
+      className="flex flex-col gap-1.5 border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 py-1.5"
       role="toolbar"
       aria-label="Formato de texto"
     >
-      <p className="text-[10px] leading-snug text-[#5f6368]">
-        <span className="font-semibold text-[#202124]">Cómo editar:</span> un clic en el texto selecciona · doble clic
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-muted)]">
+        <span className="font-semibold text-[color:var(--te-ink)]">Cómo editar:</span> un clic en el texto selecciona · doble clic
         para escribir · arrastrá el marco para mover ·{" "}
         <span className="whitespace-nowrap">
           esquinas redimensionan caja y tipografía; el tamaño en px es aquí abajo.
@@ -171,7 +171,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
           disabled={locked}
           onClick={() => setFontOpen((o) => !o)}
           className={cn(
-            "flex h-8 max-w-[min(100%,220px)] min-w-[148px] items-center justify-between gap-1 rounded border border-[#babfc5] bg-white px-2.5 text-left text-[12px] text-[#202124] shadow-sm",
+            "flex h-8 max-w-[min(100%,220px)] min-w-[148px] items-center justify-between gap-1 rounded border border-[#babfc5] bg-white px-2.5 text-left text-[12px] text-[color:var(--te-ink)] shadow-sm",
             locked && "cursor-not-allowed opacity-50"
           )}
           style={{ fontFamily: formatFontFamilyCss(fontFamily) }}
@@ -182,7 +182,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
         </button>
         {fontOpen && !locked ? (
           <div
-            className="absolute left-0 top-full z-50 mt-1 max-h-[min(70vh,320px)] w-[min(100vw-2rem,280px)] overflow-y-auto rounded-md border border-[#dadce0] bg-white py-1 shadow-lg"
+            className="absolute left-0 top-full z-50 mt-1 max-h-[min(70vh,320px)] w-[min(100vw-2rem,280px)] overflow-y-auto rounded-md border border-[color:var(--te-line)] bg-white py-1 shadow-lg"
             role="listbox"
           >
             {categoryOrder.map((cat) => {
@@ -190,7 +190,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
               if (!items?.length) return null;
               return (
                 <div key={cat}>
-                  <p className="sticky top-0 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#80868b]">
+                  <p className="sticky top-0 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--te-ink-faint)]">
                     {EDITOR_FONT_CATEGORY_LABELS[cat]}
                   </p>
                   {items.map((f) => (
@@ -199,7 +199,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
                       type="button"
                       role="option"
                       className={cn(
-                        "flex w-full items-center px-2.5 py-2 text-left text-[13px] hover:bg-[#f1f3f4]",
+                        "flex w-full items-center px-2.5 py-2 text-left text-[13px] hover:bg-[color:var(--te-chrome-sunken)]",
                         f.family === fontFamily && "bg-[#e8f0fe]"
                       )}
                       style={{ fontFamily: formatFontFamilyCss(f.family) }}
@@ -209,7 +209,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
                       }}
                     >
                       <span className="min-w-0 flex-1 truncate">{f.label}</span>
-                      <span className="ml-2 shrink-0 text-[10px] text-[#80868b]">
+                      <span className="ml-2 shrink-0 text-[10px] text-[color:var(--te-ink-faint)]">
                         {EDITOR_FONT_CATEGORY_LABELS[f.category]}
                       </span>
                     </button>
@@ -237,7 +237,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
         <input
           type="number"
           disabled={locked}
-          className="h-7 w-11 rounded border border-[#dadce0] bg-white px-1 text-center text-[12px] text-[#202124] shadow-sm"
+          className="h-7 w-11 rounded border border-[color:var(--te-line)] bg-white px-1 text-center text-[12px] text-[color:var(--te-ink)] shadow-sm"
           value={Math.round(fontSize)}
           min={8}
           max={400}
@@ -265,7 +265,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
       <div className="flex items-center gap-0.5">
         <button
           type="button"
-          className={cn(fmtMiniBtn, isBold && "border-[#c27b3d]/45 bg-[#fff8f3]")}
+          className={cn(fmtMiniBtn, isBold && "border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)]")}
           disabled={locked}
           title="Negrita"
           aria-label="Negrita"
@@ -276,7 +276,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
         </button>
         <button
           type="button"
-          className={cn(fmtMiniBtn, fontItalic && "border-[#c27b3d]/45 bg-[#fff8f3]")}
+          className={cn(fmtMiniBtn, fontItalic && "border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)]")}
           disabled={locked}
           title="Cursiva"
           aria-label="Cursiva"
@@ -287,7 +287,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
         </button>
         <button
           type="button"
-          className={cn(fmtMiniBtn, underline && "border-[#c27b3d]/45 bg-[#fff8f3]")}
+          className={cn(fmtMiniBtn, underline && "border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)]")}
           disabled={locked}
           title="Subrayado"
           aria-label="Subrayado"
@@ -298,7 +298,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
         </button>
         <label
           className={cn(
-            "inline-flex h-7 w-9 cursor-pointer items-center justify-center overflow-hidden rounded border border-[#dadce0] bg-white shadow-sm",
+            "inline-flex h-7 w-9 cursor-pointer items-center justify-center overflow-hidden rounded border border-[color:var(--te-line)] bg-white shadow-sm",
             locked && "pointer-events-none opacity-40"
           )}
           title="Color del texto"
@@ -317,7 +317,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
       {toolSep}
 
       <div className="flex items-center gap-1.5">
-        <span className="hidden shrink-0 text-[10px] font-medium leading-tight text-[#80868b] sm:inline">
+        <span className="hidden shrink-0 text-[10px] font-medium leading-tight text-[color:var(--te-ink-faint)] sm:inline">
           En zona segura
         </span>
         <TemplateBlockSafeAreaAlignmentStrip state={state} dispatch={dispatch} />
@@ -336,7 +336,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
           <button
             key={al}
             type="button"
-            className={cn(fmtMiniBtn, textAlignRaw === al && "border-[#c27b3d]/45 bg-[#fff8f3]")}
+            className={cn(fmtMiniBtn, textAlignRaw === al && "border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)]")}
             disabled={locked}
             title={title}
             aria-label={title}
@@ -351,7 +351,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
       {toolSep}
 
       <div className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-1.5">
-        <span className="shrink-0 text-[10px] font-medium leading-none text-[#5f6368] sm:w-[4.75rem]">
+        <span className="shrink-0 text-[10px] font-medium leading-none text-[color:var(--te-ink-muted)] sm:w-[4.75rem]">
           Interlineado
         </span>
         <div className="flex min-w-0 items-center gap-1.5">
@@ -371,14 +371,14 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
             aria-label="Interlineado"
             title="Interlineado (altura de línea)"
           />
-          <span className="w-9 shrink-0 tabular-nums text-right text-[10px] text-[#3c4043]" aria-hidden>
+          <span className="w-9 shrink-0 tabular-nums text-right text-[10px] text-[color:var(--te-ink)]" aria-hidden>
             {lineHeight.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
           </span>
         </div>
       </div>
 
       <div className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-1.5">
-        <span className="shrink-0 text-[10px] font-medium leading-none text-[#5f6368] sm:w-[4.75rem]">
+        <span className="shrink-0 text-[10px] font-medium leading-none text-[color:var(--te-ink-muted)] sm:w-[4.75rem]">
           Espacio
         </span>
         <div className="flex min-w-0 items-center gap-1.5">
@@ -398,7 +398,7 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
             aria-label="Espacio entre letras"
             title="Espacio entre letras (px)"
           />
-          <span className="w-9 shrink-0 tabular-nums text-right text-[10px] text-[#3c4043]" aria-hidden>
+          <span className="w-9 shrink-0 tabular-nums text-right text-[10px] text-[color:var(--te-ink)]" aria-hidden>
             {letterSpacing.toLocaleString("es-AR", { maximumFractionDigits: 1 })}
           </span>
         </div>

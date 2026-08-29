@@ -39,20 +39,20 @@ export function TemplateVariableBraceInsertPanel({
 
   return (
     <div
-      className="mb-4 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-2.5 shadow-sm"
+      className="mb-4 rounded-xl border border-[#bbf7d0] bg-[color:var(--te-chrome-sunken)] px-3 py-2.5 shadow-sm"
       data-testid="template-v2-variable-catalog"
     >
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#166534]">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--te-success)]">
         Agregar dato variable
       </p>
-      <p className="mt-1 text-[10px] leading-snug text-[#15803d]/90">
+      <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-line)]">
         Se inserta en el cursor como <code className="font-mono text-[10px]">{`{clave}`}</code>.
         {product === "clickaton" ? " Catálogo Clickatón." : " Catálogo escolar."}
       </p>
       <div className="mt-2 max-h-[220px] space-y-2.5 overflow-y-auto pr-0.5">
         {groups.map((g) => (
           <div key={g.id} data-testid={`template-v2-variable-group-${g.id}`}>
-            <p className="text-[10px] font-medium text-[#14532d]/90">{g.label}</p>
+            <p className="text-[10px] font-medium text-[color:var(--te-line)]">{g.label}</p>
             <div className="mt-1 flex flex-col gap-1">
               {g.variables.map((v) => (
                 <button
@@ -61,17 +61,17 @@ export function TemplateVariableBraceInsertPanel({
                   data-testid={`template-v2-variable-key-${v.key.replace(/\./g, "-")}`}
                   className={cn(
                     "rounded-md border border-emerald-200/90 bg-white px-2 py-1.5 text-left transition-colors",
-                    "hover:border-[#c27b3d]/45 hover:bg-[#fffbf7]"
+                    "hover:border-[color:var(--te-accent-wash)] hover:bg-[color:var(--te-accent-wash)]"
                   )}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() =>
                     insertTextIntoActiveTemplateEditor(braceSnippetForCatalogKey(v.key))
                   }
                 >
-                  <span className="text-[11px] font-medium leading-snug text-[#0f172a]">
+                  <span className="text-[11px] font-medium leading-snug text-[color:var(--te-ink)]">
                     {v.label}
                   </span>
-                  <span className="mt-0.5 block font-mono text-[9px] text-[#64748b]">
+                  <span className="mt-0.5 block font-mono text-[9px] text-[color:var(--te-ink-muted)]">
                     {braceSnippetForCatalogKey(v.key)}
                   </span>
                 </button>

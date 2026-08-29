@@ -31,11 +31,11 @@ export function ColorField({ value, onChange, label, className, disabled }: Prop
 
   return (
     <div className={cn("space-y-1.5", className)}>
-      {label ? <span className="text-xs font-medium text-[#374151]">{label}</span> : null}
+      {label ? <span className="text-xs font-medium text-[color:var(--te-ink)]">{label}</span> : null}
       <div className="flex items-center gap-2">
         <input
           type="color"
-          className="h-9 w-11 cursor-pointer rounded-md border border-[#e5e7eb] bg-white p-0.5 shadow-sm disabled:opacity-50"
+          className="h-9 w-11 cursor-pointer rounded-md border border-[color:var(--te-line)] bg-white p-0.5 shadow-sm disabled:opacity-50"
           value={colorInputValue}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
@@ -43,7 +43,7 @@ export function ColorField({ value, onChange, label, className, disabled }: Prop
         />
         <input
           type="text"
-          className="min-w-0 flex-1 rounded-lg border border-[#e5e7eb] bg-white px-2 py-1.5 font-mono text-xs text-[#111827] shadow-sm focus:border-[#c27b3d] focus:outline-none focus:ring-1 focus:ring-[#c27b3d]/40"
+          className="min-w-0 flex-1 rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-1.5 font-mono text-xs text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]"
           value={value}
           disabled={disabled}
           spellCheck={false}

@@ -25,7 +25,7 @@ export default function Button({
   style,
   ...props
 }: ButtonProps) {
-  const defaultAccentColor = "#c27b3d";
+  const defaultAccentColor = "var(--te-accent)";
   const whatsappColor = "#25D366";
   const effectiveAccentColor =
     variant === "whatsapp" ? whatsappColor : accentColor || defaultAccentColor;
@@ -42,9 +42,9 @@ export default function Button({
     variant === "primary"
       ? "text-white shadow-[0_4px_14px_0_rgba(0,0,0,0.1)] hover:shadow-[0_8px_25px_-5px_rgba(0,0,0,0.15)] active:scale-[0.98] focus-visible:ring-[var(--ds-btn-accent)]"
       : variant === "secondary"
-        ? "border border-[#111827]/10 bg-white text-[#111827] shadow-sm hover:border-[#111827]/30 hover:text-[#111827] hover:shadow-md active:scale-[0.98] focus-visible:ring-[#111827]/20"
+        ? "border border-[color:var(--te-ink-faint)] bg-white text-[color:var(--te-ink)] shadow-sm hover:border-[color:var(--te-ink-faint)] hover:text-[color:var(--te-ink)] hover:shadow-md active:scale-[0.98] focus-visible:ring-[color:var(--te-ink-faint)]"
         : variant === "outline"
-          ? "border border-[#e5e7eb] bg-transparent text-[#111827] hover:bg-[#f9fafb] active:scale-[0.98] focus-visible:ring-[#111827]/20"
+          ? "border border-[color:var(--te-line)] bg-transparent text-[color:var(--te-ink)] hover:bg-[color:var(--te-chrome)] active:scale-[0.98] focus-visible:ring-[color:var(--te-ink-faint)]"
           : "text-white shadow-[0_6px_18px_-8px_rgba(17,24,39,0.5)] active:scale-[0.98] focus-visible:ring-[var(--ds-btn-accent)]";
 
   const accentStyle =

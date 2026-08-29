@@ -26,3 +26,6 @@ export {
   DEFAULT_TEMPLATE_V2_BASE_PATH,
   templateV2EditorPath,
 } from "./template-v2-base-path";
+
+export * from "./theme";
+export * from "./chrome/ToolControls";
