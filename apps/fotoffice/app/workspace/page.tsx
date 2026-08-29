@@ -6,6 +6,7 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { submodulesFor } from "@/lib/modules/submodules";
 import { canManageMembers } from "@/lib/members/role-policy";
+import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 
 export default async function WorkspaceHomePage() {
@@ -27,11 +28,9 @@ export default async function WorkspaceHomePage() {
 
   // Las tarjetas listan las pantallas de cada módulo. Sin esto, desde el inicio no había forma
   // de enterarse de que existían: la tarjeta decía "Socios" y nada más.
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: ensured.workspaceId } },
-    select: { role: true },
-  });
-  const puedeAdministrarSocios = canManageMembers(membership?.role);
+  const puedeAdministrarSocios = canManageMembers(
+    await resolveWorkspaceRole(user.id, ensured.workspaceId),
+  );
 
   const pending: string[] = [];
   if (!profile?.displayName) pending.push("Nombre visible");

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { prisma } from "@repo/db";
 import { getAuthUser, requireAuth, type AuthUser } from "@/lib/auth";
 import { resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
+import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { MEMBERS_MODULE_KEY } from "./constants";
 import { canManageMembers } from "./role-policy";
@@ -27,11 +27,8 @@ export async function requireMembersContext(): Promise<MembersContext> {
   const enabled = await isModuleEnabledForWorkspace(workspace.id, MEMBERS_MODULE_KEY);
   if (!enabled) redirect("/dashboard?module=off");
 
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
-    select: { role: true },
-  });
-  return { user, workspace, canManage: canManageMembers(membership?.role) };
+  const role = await resolveWorkspaceRole(user.id, workspace.id);
+  return { user, workspace, canManage: canManageMembers(role) };
 }
 
 /** Para rutas de alta/edición/categorías: exige además rol OWNER/ADMIN. STAFF queda afuera aunque entre por URL directa. */
@@ -59,12 +56,9 @@ export async function resolveMembersExportContext(): Promise<MembersContext | nu
   const enabled = await isModuleEnabledForWorkspace(workspace.id, MEMBERS_MODULE_KEY);
   if (!enabled) return null;
 
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
-    select: { role: true },
-  });
+  const role = await resolveWorkspaceRole(user.id, workspace.id);
   // La exportación masiva se lleva datos personales de todo el padrón: solo OWNER/ADMIN.
-  if (!canManageMembers(membership?.role)) return null;
+  if (!canManageMembers(role)) return null;
 
   return { user, workspace, canManage: true };
 }

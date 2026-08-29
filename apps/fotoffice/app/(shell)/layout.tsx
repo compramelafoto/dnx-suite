@@ -10,6 +10,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { canManageMembers } from "@/lib/members/role-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellFrame } from "@/components/shell/shell-frame";
@@ -25,19 +26,14 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   }
   // Un socio no entra al panel administrativo: su lugar es el portal.
   if ((await resolveFotofficeUserKind(user.id)) === "MEMBER") redirect(PORTAL_HOME);
-  const unifiedMemberships = await prisma.workspaceMembership.findMany({
+  // Solo `workspaceMembership`: sin respaldo a la tabla legacy. El menú tiene que
+  // ofrecer exactamente lo que las páginas aceptan, y las páginas leen de acá
+  // (ver `lib/workspace-role.ts`).
+  const memberships = await prisma.workspaceMembership.findMany({
     where: { userId: user.id },
     include: { workspace: true },
     orderBy: { createdAt: "asc" },
   });
-  const memberships =
-    unifiedMemberships.length > 0
-      ? unifiedMemberships
-      : await prisma.membership.findMany({
-          where: { userId: user.id },
-          include: { workspace: true },
-          orderBy: { id: "asc" },
-        });
   const workspace = await resolveActiveWorkspace(user.id);
   const enabledModuleKeys =
     workspace !== null ? await getEnabledModuleKeysForWorkspace(workspace.id) : new Set<string>();
@@ -45,9 +41,11 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const evaluacionesOn = enabledModuleKeys.has(EVALUACIONES_MODULE_KEY);
   const membersOn = enabledModuleKeys.has(MEMBERS_MODULE_KEY);
   const websiteOn = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
-  const activeMembership = memberships.find((m) => m.workspaceId === workspace?.id);
-  const canManageMembersFlag = canManageMembers(activeMembership?.role);
-  const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeMembership?.role);
+  // Un solo rol resuelto alimenta los dos flags del menú: si se resolvieran por caminos
+  // distintos, volvería a poder pasar que uno ofrezca lo que el otro niega.
+  const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
+  const canManageMembersFlag = canManageMembers(activeRole);
+  const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
   const platformAdmin = await isFotofficePlatformAdmin(user.id);
 
   // Se lee acá, en el servidor, para que el menú ya salga oculto en el primer pintado:
