@@ -12,6 +12,7 @@ import {
   TEMPLATE_V2_EXPORT_DPI,
 } from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
+import { useEditorThemeStyle } from "./theme-context";
 
 type Props = {
   open: boolean;
@@ -40,6 +41,8 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
   const [safeMm, setSafeMm] = useState(
     canvas.safeAreaMm != null && Number.isFinite(canvas.safeAreaMm) ? String(canvas.safeAreaMm) : ""
   );
+  // El portal sale del árbol del editor: sin esto los tokens `--te-*` no llegan.
+  const themeStyle = useEditorThemeStyle();
 
   useEffect(() => {
     setMounted(true);
@@ -114,19 +117,20 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
   const modal = (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[1px]"
+      style={themeStyle}
       role="dialog"
       aria-modal="true"
       aria-labelledby="canvas-size-title"
       onClick={onClose}
     >
       <div
-        className="box-border mx-auto w-full max-w-4xl min-w-[min(100%,300px)] shrink-0 rounded-2xl border border-[color:var(--te-line)] bg-white px-6 py-6 shadow-2xl"
+        className="box-border mx-auto w-full max-w-lg min-w-[min(100%,300px)] shrink-0 rounded-2xl border border-[color:var(--te-line)] bg-white px-5 py-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="canvas-size-title" className="text-sm font-semibold text-[color:var(--te-ink)]">
           Tamaño del lienzo
         </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
+        <p className="mt-1.5 text-xs leading-relaxed text-[color:var(--te-ink-muted)]">
           El lienzo se guarda en <span className="font-medium text-[color:var(--te-ink)]">píxeles</span>. Las medidas en cm o mm se
           convierten con <span className="font-medium text-[color:var(--te-ink)]">{DPI} DPI</span> (resolución de referencia para
           exportación). El contenido existente conserva su posición respecto del origen (arriba-izquierda).
@@ -223,11 +227,11 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
           </span>
         </label>
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-4 flex justify-end gap-2">
           <Button type="button" variant="secondary" size="sm" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="button" variant="primary" onClick={submit}>
+          <Button type="button" variant="primary" size="sm" onClick={submit}>
             Aplicar
           </Button>
         </div>

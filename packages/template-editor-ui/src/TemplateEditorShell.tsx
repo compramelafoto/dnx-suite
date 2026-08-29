@@ -77,6 +77,7 @@ import {
   TEMPLATE_V2_REVISION_CONFLICT_MESSAGE,
 } from "@repo/template-editor-core";
 import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
+import { EditorThemeProvider } from "./theme-context";
 import { ActionButton, ToolButton, ToolDivider, ToolGroup } from "./chrome/ToolControls";
 
 
@@ -844,6 +845,7 @@ export function TemplateEditorShell({
   }, [editorReady, state.selectedBlockIds.join("|")]);
 
   return (
+    <EditorThemeProvider theme={theme}>
     <div
       className={cn("flex h-full min-h-0 flex-col", className)}
       style={editorThemeStyle(theme)}
@@ -1609,5 +1611,6 @@ export function TemplateEditorShell({
         </div>
       ) : null}
     </div>
+    </EditorThemeProvider>
   );
 }

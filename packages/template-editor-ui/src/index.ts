@@ -28,4 +28,5 @@ export {
 } from "./template-v2-base-path";
 
 export * from "./theme";
+export * from "./theme-context";
 export * from "./chrome/ToolControls";

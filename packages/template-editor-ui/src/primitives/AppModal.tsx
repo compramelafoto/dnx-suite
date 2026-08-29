@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "./cn";
+import { useEditorThemeStyle } from "../theme-context";
 
 export type AppModalSize = "sm" | "md" | "lg" | "xl";
 
@@ -63,6 +64,8 @@ export default function AppModal({
   maxWidthCapRem,
 }: AppModalProps) {
   const [mounted, setMounted] = useState(false);
+  // El portal sale del árbol del editor: sin esto los tokens `--te-*` no llegan.
+  const themeStyle = useEditorThemeStyle();
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
@@ -80,7 +83,11 @@ export default function AppModal({
   const labelledBy = ariaLabelledBy ?? (title ? titleId : undefined);
 
   return createPortal(
-    <div className={cn("fixed inset-0 overflow-y-auto overscroll-contain", zIndexClass)} role="presentation">
+    <div
+      className={cn("fixed inset-0 overflow-y-auto overscroll-contain", zIndexClass)}
+      style={themeStyle}
+      role="presentation"
+    >
       <button
         type="button"
         aria-label="Cerrar"
