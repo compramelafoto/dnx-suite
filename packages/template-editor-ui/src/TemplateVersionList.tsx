@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  DEFAULT_TEMPLATE_V2_BASE_PATH,
+  templateV2EditorPath,
+} from "./template-v2-base-path";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Card from "./primitives/Card";
@@ -40,10 +44,16 @@ function badgeClass(kind: "current" | "open"): string {
 
 type TemplateVersionListProps = {
   templateId: string;
+  /** Dónde vive el editor en esta app. */
+  basePath?: string;
   activeVersionId: string;
 };
 
-export function TemplateVersionList({ templateId, activeVersionId }: TemplateVersionListProps) {
+export function TemplateVersionList({
+  templateId,
+  activeVersionId,
+  basePath = DEFAULT_TEMPLATE_V2_BASE_PATH,
+}: TemplateVersionListProps) {
   const [rows, setRows] = useState<TemplateVersionListRow[] | null>(null);
   const [currentVersionId, setCurrentVersionId] = useState<string | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +137,7 @@ export function TemplateVersionList({ templateId, activeVersionId }: TemplateVer
             <tbody>
               {rows.map((row) => {
                 const isOpen = row.id === activeVersionId;
-                const href = `/fotografo/diseno/plantillas/v2/${encodeURIComponent(templateId)}/${encodeURIComponent(row.id)}`;
+                const href = templateV2EditorPath(basePath, templateId, row.id);
                 return (
                   <tr key={row.id} className="border-b border-[#f3f4f6] last:border-b-0 align-middle">
                     <td className="px-3 py-2 font-semibold text-[#111827]">v{row.versionNumber}</td>

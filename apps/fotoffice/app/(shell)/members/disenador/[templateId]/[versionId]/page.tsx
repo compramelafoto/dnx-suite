@@ -33,5 +33,11 @@ export default async function PlantillaEditorPage({ params }: Props) {
   });
   if (!template) redirect("/members/disenador");
 
-  return <TemplateEditorShell templateId={templateId} versionId={versionId} />;
+  return (
+    <TemplateEditorShell
+      templateId={templateId}
+      versionId={versionId}
+      basePath="/members/disenador"
+    />
+  );
 }

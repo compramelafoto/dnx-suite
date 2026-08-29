@@ -80,7 +80,7 @@ export default async function PlantillasPage() {
       <PageHeader
         title="Plantillas"
         description="El diseño de las piezas de la institución: el carnet de socio y lo que venga después."
-        actions={<CreateTemplateV2Button />}
+        actions={<CreateTemplateV2Button basePath="/members/disenador" />}
       />
 
       {faltaMigracion ? (

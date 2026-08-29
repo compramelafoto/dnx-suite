@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "./primitives/Button";
+import {
+  DEFAULT_TEMPLATE_V2_BASE_PATH,
+  templateV2EditorPath,
+} from "./template-v2-base-path";
 
 type CreateResponse = {
   ok: boolean;
@@ -30,7 +34,9 @@ const CLICKATON_PRESETS: PresetOption[] = [
   },
 ];
 
-export function CreateTemplateV2Button() {
+export function CreateTemplateV2Button({
+  basePath = DEFAULT_TEMPLATE_V2_BASE_PATH,
+}: { basePath?: string } = {}) {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +73,7 @@ export function CreateTemplateV2Button() {
       if (!res.ok || !data.ok || !data.templateId || !data.versionId) {
         throw new Error(data.error || "No se pudo crear la plantilla.");
       }
-      router.push(`/fotografo/diseno/plantillas/v2/${data.templateId}/${data.versionId}`);
+      router.push(templateV2EditorPath(basePath, data.templateId, data.versionId));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error creando plantilla.");

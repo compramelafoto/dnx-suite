@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  DEFAULT_TEMPLATE_V2_BASE_PATH,
+  templateV2EditorPath,
+} from "./template-v2-base-path";
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -73,7 +77,7 @@ import {
   TEMPLATE_V2_REVISION_CONFLICT_MESSAGE,
 } from "@repo/template-editor-core";
 
-const TEMPLATE_V2_EDITOR_LIST_PATH = "/fotografo/diseno/plantillas/v2";
+
 
 const toolbarIconOnlyClass =
   "!h-9 !w-9 !min-h-9 !min-w-9 !shrink-0 !rounded-full !px-0 !py-0 !inline-flex !items-center !justify-center [&>svg]:pointer-events-none";
@@ -316,6 +320,8 @@ function RightSidebarSection({
 type TemplateEditorShellProps = {
   templateId: string;
   versionId: string;
+  /** Dónde vive el editor en esta app. Default: ComprameLaFoto. */
+  basePath?: string;
   className?: string;
 };
 
@@ -334,7 +340,12 @@ type LoadResponse = {
   details?: string;
 };
 
-export function TemplateEditorShell({ templateId, versionId, className }: TemplateEditorShellProps) {
+export function TemplateEditorShell({
+  templateId,
+  versionId,
+  className,
+  basePath = DEFAULT_TEMPLATE_V2_BASE_PATH,
+}: TemplateEditorShellProps) {
   const router = useRouter();
   const [state, dispatch] = useReducer(templateV2EditorReducer, TEMPLATE_V2_EDITOR_INITIAL_STATE);
   const [templateName, setTemplateName] = useState<string>("Plantilla");
@@ -634,7 +645,7 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
   }
 
   const navigateToTemplateList = useCallback(() => {
-    router.push(TEMPLATE_V2_EDITOR_LIST_PATH);
+    router.push(basePath);
   }, [router]);
 
   const handleRequestCloseEditor = useCallback(() => {
@@ -773,7 +784,7 @@ export function TemplateEditorShell({ templateId, versionId, className }: Templa
         throw new Error("Respuesta inválida del servidor");
       }
       router.push(
-        `/fotografo/diseno/plantillas/v2/${encodeURIComponent(templateId)}/${encodeURIComponent(newVid)}`
+        templateV2EditorPath(basePath, templateId, newVid)
       );
     } catch (err) {
       setSaveAsNewError(err instanceof Error ? err.message : "Error al crear la nueva versión");
