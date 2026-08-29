@@ -1,6 +1,6 @@
 import {
-  isTemplateV2DesignerRole,
   type TemplateV2AuthUser,
+  resolveTemplateV2Policy,
 } from "./template-v2-authorization";
 import { toErrorResponse, TemplateV2DomainError } from "./template-v2-errors";
 import { assertPayloadSize } from "./template-v2-limits";
@@ -25,12 +25,13 @@ export async function requireTemplateV2ApiUser(): Promise<TemplateV2AuthUser> {
     );
   }
 
-  const canDesign = runtime.policy?.canDesign ?? ((u) => isTemplateV2DesignerRole(u.role));
-  if (!canDesign(user)) {
+  if (!resolveTemplateV2Policy().canDesign(user)) {
     throw new TemplateV2DomainError("TEMPLATE_FORBIDDEN", "Sin permisos", 403);
   }
 
-  return { id: user.id, role: user.role };
+  // El workspace viaja con el usuario: es lo que le permite a la política decir "esta
+  // plantilla es de mi institución" sin volver a consultar la base en cada servicio.
+  return { id: user.id, role: user.role, workspaceId: user.workspaceId ?? null };
 }
 
 export async function readJsonWithLimit(req: Request): Promise<unknown> {

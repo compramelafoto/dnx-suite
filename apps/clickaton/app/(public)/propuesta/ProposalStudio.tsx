@@ -137,7 +137,7 @@ export function ProposalStudio({ pieces, defaultPeriod }: Props) {
         <Field
           id={`${fieldId}-logo`}
           label="Logo del cliente"
-          hint="PNG, JPG, WEBP o SVG. Hasta 5 MB."
+          hint="PNG, JPG o WEBP. Hasta 5 MB. Mejor con fondo transparente."
         >
           <input
             type="file"

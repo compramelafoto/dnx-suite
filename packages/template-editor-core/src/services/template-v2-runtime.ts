@@ -1,3 +1,4 @@
+import type { TemplateV2AccessPolicy } from "./template-v2-policy";
 /**
  * Puntos de contacto del editor con la app que lo hospeda.
  *
@@ -14,6 +15,8 @@ export type TemplateV2RuntimeUser = {
   /** Rol de la app; la política de permisos lo interpreta. */
   role: string;
   email?: string | null;
+  /** Institución activa, cuando la app agrupa las plantillas por workspace. */
+  workspaceId?: string | null;
 };
 
 export type TemplateV2UploadedImage = {
@@ -38,12 +41,7 @@ export type TemplateV2Runtime = {
    * Permisos. Por defecto sólo el dueño edita; una app puede ampliarlo
    * (en Clickatón, cualquier admin puede editar las plantillas del evento).
    */
-  policy?: {
-    /** Puede crear y editar plantillas propias. */
-    canDesign?: (user: TemplateV2RuntimeUser) => boolean;
-    /** Ve y edita cualquier plantilla (moderación). */
-    isAdmin?: (user: TemplateV2RuntimeUser) => boolean;
-  };
+  policy?: Partial<TemplateV2AccessPolicy>;
 };
 
 let runtime: TemplateV2Runtime | null = null;
@@ -64,4 +62,9 @@ export function getTemplateV2Runtime(): TemplateV2Runtime {
 /** Cliente Prisma tipado laxo: los servicios acceden a modelos por nombre. */
 export function templateV2Db(): Record<string, never> {
   return getTemplateV2Runtime().prisma as Record<string, never>;
+}
+
+/** La política declarada por la app, sin completar. La completa `resolveTemplateV2Policy`. */
+export function peekTemplateV2Policy(): Partial<TemplateV2AccessPolicy> | undefined {
+  return runtime?.policy;
 }

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { PROPOSAL_PIECES, defaultProposalPeriod, listSellableSpaces } from "@repo/partners";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
@@ -22,7 +21,6 @@ export const metadata: Metadata = {
 };
 
 export default function ProposalPage() {
-  if (process.env.NODE_ENV === "production") notFound();
 
   // Solo las piezas cuyo espacio este vendedor puede ofrecer. Lo declarado pero
   // todavía sin montar queda afuera: no se le promete a una marca un lugar

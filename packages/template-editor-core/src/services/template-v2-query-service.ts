@@ -3,6 +3,7 @@ import { templateV2Db } from "./template-v2-runtime";
 import {
   requireTemplateV2ReadAccess,
   type TemplateV2AuthUser,
+  resolveTemplateV2Policy,
 } from "./template-v2-authorization";
 import { TemplateV2DomainError } from "./template-v2-errors";
 import {
@@ -14,6 +15,7 @@ import {
 } from "./template-v2-mappers";
 import { loadTemplateV2BlocksForVersion } from "./load-template-v2-blocks-from-db";
 import { TEMPLATE_SCHEMA_VERSION } from "@repo/template-engine";
+
 
 const ALLOWED_SORT = new Set(["updatedAt", "createdAt", "name"] as const);
 type SortField = "updatedAt" | "createdAt" | "name";
@@ -102,6 +104,7 @@ export async function listTemplateV2Summaries(
       name: true,
       status: true,
       ownerUserId: true,
+      workspaceId: true,
       currentVersionId: true,
       createdAt: true,
       updatedAt: true,
@@ -191,6 +194,7 @@ export async function getTemplateV2Detail(
       description: true,
       status: true,
       ownerUserId: true,
+      workspaceId: true,
       currentVersionId: true,
       createdAt: true,
       updatedAt: true,
@@ -204,7 +208,7 @@ export async function getTemplateV2Detail(
       })
     : null;
 
-  requireTemplateV2ReadAccess({ user, template, publication });
+  requireTemplateV2ReadAccess({ user, template, publication, policy: resolveTemplateV2Policy() });
 
   const versionId = options?.versionId ?? template!.currentVersionId;
   if (!versionId) {
@@ -292,7 +296,7 @@ export async function listTemplateVersions(user: TemplateV2AuthUser, templateId:
   const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: templateId },
-    select: { id: true, ownerUserId: true, status: true, currentVersionId: true },
+    select: { id: true, ownerUserId: true, workspaceId: true, status: true, currentVersionId: true },
   });
   const publication = template
     ? await db.templateV2Publication.findUnique({
@@ -300,7 +304,7 @@ export async function listTemplateVersions(user: TemplateV2AuthUser, templateId:
         select: { visibility: true, reviewStatus: true },
       })
     : null;
-  requireTemplateV2ReadAccess({ user, template, publication });
+  requireTemplateV2ReadAccess({ user, template, publication, policy: resolveTemplateV2Policy() });
 
   const versions = await db.templateV2Version.findMany({
     where: { templateId },
@@ -338,6 +342,7 @@ export async function listPublicTemplates() {
       name: true,
       description: true,
       ownerUserId: true,
+      workspaceId: true,
       currentVersionId: true,
     },
   });

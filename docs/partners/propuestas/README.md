@@ -9,8 +9,17 @@ para mandarle a la marca.
 pregunta a `listSellableSpaces` qué espacios puede ofrecer quien está vendiendo y
 arma la propuesta solo con esos. Ver [inventario.md](../inventario.md).
 
-**No usa base de datos.** Nada se guarda: se sube, se compone y se devuelve.
-En producción la pantalla y las tres rutas responden 404.
+**No guarda la propuesta.** Se sube, se compone y se devuelve; consulta la base
+solo para saber qué espacios tienen lugar en el período.
+
+**La pantalla es pública**: cualquiera con el enlace arma una propuesta sin
+cuenta. Por eso las dos rutas tienen tope de uso por cliente —90 piezas cada 5
+minutos, 6 PDF cada 10— y el logo se valida por sus bytes, no por lo que declara
+el navegador. El tope es por proceso: en serverless cada instancia lleva su
+cuenta, así que frena al insistente pero no reparte cupo con precisión.
+
+SVG queda rechazado salvo que el despliegue lo habilite: rasterizar SVG de
+cualquiera es superficie de ataque que no hace falta abrir.
 
 ## Cómo se usa
 
@@ -19,7 +28,7 @@ pnpm --filter clickaton dev
 # abrir http://localhost:3005/propuesta
 ```
 
-1. Subir el logo del cliente (PNG, JPG, WEBP o SVG, hasta 5 MB).
+1. Subir el logo del cliente (PNG, JPG o WEBP, hasta 5 MB).
 2. Escribir el nombre de la marca y el rubro.
 3. Recorrer las piezas disponibles y alternar entre escritorio y celular.
 4. Descargar el PDF.

@@ -39,7 +39,7 @@ setTemplateV2Runtime({
     const role = membership?.role ? String(membership.role) : "";
     if (!canDesignTemplates(role)) throw new Error("Sin permisos para diseñar plantillas");
 
-    return { id: user.id, role, email: user.email };
+    return { id: user.id, role, email: user.email, workspaceId: workspace.id };
   },
   uploadImage: async (input) => {
     // Namespace propio dentro del prefijo de FotoOffice: el bucket es compartido entre apps
@@ -58,7 +58,25 @@ setTemplateV2Runtime({
   policy: {
     // `requireUser` ya rechazó a quien no puede diseñar: si llegó hasta acá, puede.
     canDesign: () => true,
-    isAdmin: () => true,
+    /*
+     * FALSE, y es deliberado. `isAdmin` no significa "administra su institución": significa
+     * moderación de plataforma, ver y editar plantillas de cualquiera. Cuando acá decía `true`,
+     * el dueño de una institución habría podido abrir el carnet de otra con solo adivinar el
+     * id. No se notaba porque un 403 anterior tapaba todo, así que la puerta estaba abierta y
+     * el pasillo cerrado.
+     */
+    isAdmin: () => false,
+    /*
+     * La plantilla es de la institución, no de quien la creó. Si dependiera de la persona, el
+     * día que deja la comisión directiva la SFPR perdería su propio carnet.
+     *
+     * Una plantilla sin workspace no es de nadie: se cae al dueño original, que es la regla
+     * del paquete.
+     */
+    owns: (user, template) =>
+      template.workspaceId != null && user.workspaceId != null
+        ? template.workspaceId === user.workspaceId
+        : template.ownerUserId === user.id,
   },
 });
 

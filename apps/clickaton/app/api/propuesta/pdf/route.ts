@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { buildProposalPdf, ProposalWithoutSpacesError } from "@/lib/propuesta/pdf";
+import {
+  PDF_LIMIT,
+  leerLogoDelFormulario,
+  rejectIfRateLimited,
+} from "@/lib/propuesta/public-guard";
 import { PROPOSAL_SELLER } from "@/lib/propuesta/seller";
 import {
   defaultProposalPeriod,
@@ -44,11 +49,6 @@ async function disponibilidadONada(
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Tope de subida: un logo razonable no pasa de esto. */
-const MAX_LOGO_BYTES = 5 * 1024 * 1024;
-
-const TIPOS_PERMITIDOS = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
-
 /** Nombre de archivo seguro a partir de la marca. */
 function nombreDeArchivo(brandName: string): string {
   const base = brandName
@@ -65,9 +65,8 @@ function nombreDeArchivo(brandName: string): string {
  * No guarda nada: recibe, compone y devuelve.
  */
 export async function POST(request: Request) {
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "No disponible" }, { status: 404 });
-  }
+  const frenado = rejectIfRateLimited(request, PDF_LIMIT);
+  if (frenado) return frenado;
 
   let form: FormData;
   try {
@@ -84,21 +83,8 @@ export async function POST(request: Request) {
     .map((v) => String(v).trim())
     .filter(Boolean);
 
-  if (!(archivo instanceof File)) {
-    return NextResponse.json({ error: "Falta el logo." }, { status: 400 });
-  }
-  if (archivo.size > MAX_LOGO_BYTES) {
-    return NextResponse.json(
-      { error: "El logo pesa más de 5 MB. Probá con uno más liviano." },
-      { status: 413 },
-    );
-  }
-  if (!TIPOS_PERMITIDOS.has(archivo.type)) {
-    return NextResponse.json(
-      { error: "Formato no admitido. Usá PNG, JPG, WEBP o SVG." },
-      { status: 415 },
-    );
-  }
+  const logo = await leerLogoDelFormulario(archivo);
+  if (!logo.ok) return logo.response;
   if (!brandName) {
     return NextResponse.json({ error: "Falta el nombre de la marca." }, { status: 400 });
   }
@@ -115,7 +101,7 @@ export async function POST(request: Request) {
     const pdf = await buildProposalPdf({
       brandName,
       industry: industry || null,
-      logo: Buffer.from(await archivo.arrayBuffer()),
+      logo: logo.buffer,
       excludePieceIds: excluidas,
       issuedAt,
       period,

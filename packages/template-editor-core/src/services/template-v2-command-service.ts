@@ -5,6 +5,7 @@ import {
   assertCanClone,
   requireTemplateV2WriteAccess,
   type TemplateV2AuthUser,
+  resolveTemplateV2Policy,
 } from "./template-v2-authorization";
 import { TemplateV2DomainError } from "./template-v2-errors";
 import {
@@ -23,6 +24,7 @@ import { createTemplateV2VersionFromEditorPayload } from "./create-version-from-
 import { validateLegacyTemplatePayload } from "./template-v2-validation-service";
 import { getTemplateV2Runtime } from "./template-v2-runtime";
 import { TEMPLATE_V2_LIMITS } from "./template-v2-limits";
+
 
 const DEFAULT_CANVAS = {
   width: 1200,
@@ -215,9 +217,9 @@ export async function saveTemplateV2Version(args: {
   const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
-    select: { id: true, ownerUserId: true, status: true, name: true },
+    select: { id: true, ownerUserId: true, workspaceId: true, status: true, name: true },
   });
-  requireTemplateV2WriteAccess({ user: args.user, template });
+  requireTemplateV2WriteAccess({ user: args.user, template, policy: resolveTemplateV2Policy() });
 
   const publication = await db.templateV2Publication.findUnique({
     where: { templateId: args.templateId },
@@ -340,13 +342,14 @@ export async function patchTemplateV2(args: {
     select: {
       id: true,
       ownerUserId: true,
+      workspaceId: true,
       status: true,
       currentVersionId: true,
       updatedAt: true,
       name: true,
     },
   });
-  requireTemplateV2WriteAccess({ user: args.user, template });
+  requireTemplateV2WriteAccess({ user: args.user, template, policy: resolveTemplateV2Policy() });
 
   if (args.body.expectedUpdatedAt) {
     const expected = new Date(args.body.expectedUpdatedAt).getTime();
@@ -408,7 +411,7 @@ export async function duplicateTemplateV2(args: {
   const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
-    select: { id: true, ownerUserId: true, status: true, name: true },
+    select: { id: true, ownerUserId: true, workspaceId: true, status: true, name: true },
   });
   const publication = await db.templateV2Publication.findUnique({
     where: { templateId: args.templateId },
@@ -459,9 +462,9 @@ export async function deleteTemplateV2(args: {
   const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
-    select: { id: true, ownerUserId: true, status: true },
+    select: { id: true, ownerUserId: true, workspaceId: true, status: true },
   });
-  requireTemplateV2WriteAccess({ user: args.user, template });
+  requireTemplateV2WriteAccess({ user: args.user, template, policy: resolveTemplateV2Policy() });
 
   const packCount = await db.albumPack.count({
     where: { templateV2Id: args.templateId },
@@ -536,9 +539,9 @@ export async function saveAsNewVersion(args: {
   const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
-    select: { id: true, ownerUserId: true, status: true },
+    select: { id: true, ownerUserId: true, workspaceId: true, status: true },
   });
-  requireTemplateV2WriteAccess({ user: args.user, template });
+  requireTemplateV2WriteAccess({ user: args.user, template, policy: resolveTemplateV2Policy() });
 
   const publication = await db.templateV2Publication.findUnique({
     where: { templateId: args.templateId },
@@ -565,9 +568,9 @@ export async function submitTemplateForReview(args: {
   const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
-    select: { id: true, ownerUserId: true, status: true },
+    select: { id: true, ownerUserId: true, workspaceId: true, status: true },
   });
-  requireTemplateV2WriteAccess({ user: args.user, template });
+  requireTemplateV2WriteAccess({ user: args.user, template, policy: resolveTemplateV2Policy() });
 
   await db.templateV2Publication.upsert({
     where: { templateId: args.templateId },
@@ -591,9 +594,9 @@ export async function uploadTemplateVersionImage(args: {
   const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
-    select: { id: true, ownerUserId: true, status: true },
+    select: { id: true, ownerUserId: true, workspaceId: true, status: true },
   });
-  requireTemplateV2WriteAccess({ user: args.user, template });
+  requireTemplateV2WriteAccess({ user: args.user, template, policy: resolveTemplateV2Policy() });
 
   const version = await db.templateV2Version.findFirst({
     where: { id: args.versionId, templateId: args.templateId },
