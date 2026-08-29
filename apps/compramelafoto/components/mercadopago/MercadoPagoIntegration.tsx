@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 
@@ -25,6 +28,34 @@ export default function MercadoPagoIntegration({
   onSuccess,
 }: MercadoPagoIntegrationProps) {
   const isConnected = Boolean(mpAccessToken);
+  /**
+   * Tener token guardado no alcanza: Mercado Pago los vence a los ~180 días. Se consulta el
+   * estado real para no mostrar "Conectado" cuando en realidad ya no se puede cobrar.
+   */
+  const [isExpired, setIsExpired] = useState(false);
+
+  useEffect(() => {
+    if (!isConnected) {
+      setIsExpired(false);
+      return;
+    }
+    let active = true;
+    fetch(`/api/mercadopago/connection-status?ownerType=${ownerType}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data) setIsExpired(data.status === "EXPIRED");
+      })
+      .catch(() => {
+        /* si no se puede confirmar, no se alarma al vendedor */
+      });
+    return () => {
+      active = false;
+    };
+  }, [isConnected, ownerType, mpUserId]);
+
+  function startConnect() {
+    window.location.href = `/api/mercadopago/oauth/start?ownerType=${ownerType}`;
+  }
 
   async function handleDisconnect() {
     if (!confirm("¿Desconectar tu cuenta de Mercado Pago?")) return;
@@ -66,7 +97,37 @@ export default function MercadoPagoIntegration({
         </div>
       )}
 
-      {isConnected ? (
+      {isConnected && isExpired ? (
+        <div className="p-4 bg-red-50 border border-red-300 rounded-lg">
+          <p className="text-sm text-red-800 font-semibold mb-1">
+            ⚠️ Se venció tu conexión con Mercado Pago
+          </p>
+          <p className="text-sm text-red-800 mb-2">
+            Mercado Pago pide renovar el permiso cada 6 meses y el tuyo ya caducó.
+            <strong> Hasta que lo renueves nadie puede comprarte fotos</strong>: al momento de
+            pagar les aparece un error.
+          </p>
+          <p className="text-xs text-red-700 mb-4">
+            Se arregla en un paso: apretá el botón, iniciás sesión en Mercado Pago y autorizás de
+            nuevo. Cobrás en la misma cuenta de siempre y no perdés ninguna venta anterior.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <button
+              onClick={startConnect}
+              className="flex items-center justify-center gap-3 px-6 py-3 text-white font-semibold rounded-lg transition-all shadow-md hover:shadow-lg text-sm"
+              style={{ backgroundColor: "#009EE3" }}
+            >
+              Reconectar Mercado Pago
+            </button>
+            <Link
+              href={securityUrl}
+              className="text-sm text-[#6b7280] hover:text-[#1a1a1a] hover:underline"
+            >
+              ¿Por qué es seguro conectarse?
+            </Link>
+          </div>
+        </div>
+      ) : isConnected ? (
         <div className="p-4 bg-[#10b981]/10 border border-[#10b981]/20 rounded-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -108,9 +169,7 @@ export default function MercadoPagoIntegration({
           </a>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
             <button
-              onClick={() => {
-                window.location.href = `/api/mercadopago/oauth/start?ownerType=${ownerType}`;
-              }}
+              onClick={startConnect}
               className="flex items-center justify-center gap-3 px-6 py-3 text-white font-semibold rounded-lg transition-all shadow-md hover:shadow-lg transform hover:scale-[1.02] text-sm"
               style={{ backgroundColor: "#009EE3" }}
               onMouseEnter={(e) => {

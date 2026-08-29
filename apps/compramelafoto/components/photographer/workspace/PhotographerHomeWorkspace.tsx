@@ -91,6 +91,8 @@ type PhotographerHomeWorkspaceProps = {
   pendingOrdersCount: number;
   myEventsCount: number;
   mpConnected: boolean;
+  /** Conectó Mercado Pago pero el permiso venció: tiene que autorizar de nuevo. */
+  mpExpired?: boolean;
   preferredLabSet: boolean;
 };
 
@@ -132,14 +134,31 @@ export default function PhotographerHomeWorkspace({
   pendingOrdersCount,
   myEventsCount,
   mpConnected,
+  mpExpired = false,
   preferredLabSet,
 }: PhotographerHomeWorkspaceProps) {
   const [recommendLabOpen, setRecommendLabOpen] = useState(false);
 
-  const alerts: { id: string; tone: "amber" | "blue"; title: string; body: string; href: string; cta: string }[] =
-    [];
+  const alerts: {
+    id: string;
+    tone: "amber" | "blue" | "red";
+    title: string;
+    body: string;
+    href: string;
+    cta: string;
+  }[] = [];
 
-  if (!mpConnected) {
+  if (mpExpired) {
+    alerts.push({
+      id: "mp-expired",
+      tone: "red",
+      title: "Se venció tu conexión con Mercado Pago",
+      body: "Mercado Pago pide renovar el permiso cada 6 meses. Hasta que lo hagas, nadie puede comprarte fotos: al pagar les da error.",
+      href: "/fotografo/configuracion?tab=mercadopago",
+      cta: "Reconectar Mercado Pago",
+    });
+  }
+  if (!mpConnected && !mpExpired) {
     alerts.push({
       id: "mp",
       tone: "amber",
@@ -190,9 +209,11 @@ export default function PhotographerHomeWorkspace({
             <div
               key={alert.id}
               className={`rounded-lg border p-4 ${
-                alert.tone === "amber"
-                  ? "border-amber-200 bg-amber-50/80"
-                  : "border-blue-200 bg-blue-50/80"
+                alert.tone === "red"
+                  ? "border-red-300 bg-red-50/90"
+                  : alert.tone === "amber"
+                    ? "border-amber-200 bg-amber-50/80"
+                    : "border-blue-200 bg-blue-50/80"
               }`}
             >
               <p className="text-sm font-semibold text-gray-900 m-0">{alert.title}</p>

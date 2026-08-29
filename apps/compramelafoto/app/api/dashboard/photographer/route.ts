@@ -3,6 +3,10 @@ import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import { resolveMarketplaceFeePercent } from "@/lib/pricing/pricing-engine";
+import {
+  canChargeWithMercadoPago,
+  getMercadoPagoConnectionHealth,
+} from "@/lib/mercadopago/mp-connection-health";
 
 /**
  * GET /api/dashboard/photographer
@@ -56,6 +60,10 @@ export async function GET() {
     }
 
     const { mpAccessToken, ...safePhotographer } = photographer || {};
+    // El token guardado puede estar vencido: preguntamos el estado real (y se renueva solo si se puede).
+    const mpHealth = mpAccessToken
+      ? await getMercadoPagoConnectionHealth({ ownerType: "USER", ownerId: user.id })
+      : ({ status: "NOT_CONNECTED", selfHealed: false } as const);
     const platformCommissionPercent = await resolveMarketplaceFeePercent({
       flow: "ALBUM_ORDER",
       photographerId: user.id,
@@ -64,7 +72,8 @@ export async function GET() {
     });
     return NextResponse.json({
       ...safePhotographer,
-      mpConnected: Boolean(mpAccessToken),
+      mpConnected: canChargeWithMercadoPago(mpHealth.status),
+      mpStatus: mpHealth.status,
       platformCommissionPercent,
     });
   } catch (err: any) {

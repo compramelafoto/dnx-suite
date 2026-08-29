@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { getMercadoPagoConnectionHealth } from "@/lib/mercadopago/mp-connection-health";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,8 +28,13 @@ export async function GET(req: Request) {
         where: { id: user.id },
         select: { mpAccessToken: true, mpUserId: true, mpConnectedAt: true },
       });
+      // Un token guardado puede estar vencido: se consulta el estado real contra Mercado Pago.
+      const health = data?.mpAccessToken
+        ? await getMercadoPagoConnectionHealth({ ownerType: "USER", ownerId: user.id })
+        : ({ status: "NOT_CONNECTED", selfHealed: false } as const);
       return NextResponse.json({
         connected: Boolean(data?.mpAccessToken),
+        status: health.status,
         mpUserId: data?.mpUserId ?? null,
         updatedAt: data?.mpConnectedAt ? data.mpConnectedAt.toISOString() : null,
       });
@@ -52,8 +58,12 @@ export async function GET(req: Request) {
       select: { mpAccessToken: true, mpUserId: true, mpConnectedAt: true },
     });
 
+    const labHealth = data?.mpAccessToken
+      ? await getMercadoPagoConnectionHealth({ ownerType: "LAB", ownerId: labId })
+      : ({ status: "NOT_CONNECTED", selfHealed: false } as const);
     return NextResponse.json({
       connected: Boolean(data?.mpAccessToken),
+      status: labHealth.status,
       mpUserId: data?.mpUserId ?? null,
       updatedAt: data?.mpConnectedAt ? data.mpConnectedAt.toISOString() : null,
     });

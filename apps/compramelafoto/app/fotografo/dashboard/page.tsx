@@ -16,6 +16,7 @@ export default function PhotographerDashboardPage() {
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [myEventsCount, setMyEventsCount] = useState(0);
   const [mpConnected, setMpConnected] = useState(false);
+  const [mpStatus, setMpStatus] = useState<string | null>(null);
   const [preferredLabSet, setPreferredLabSet] = useState(false);
 
   useEffect(() => {
@@ -72,6 +73,7 @@ export default function PhotographerDashboardPage() {
         .then((data) => {
           if (!active || !data) return;
           setMpConnected(Boolean(data.mpConnected));
+          setMpStatus(typeof data.mpStatus === "string" ? data.mpStatus : null);
           setPreferredLabSet(Boolean(data.preferredLabId));
         })
         .catch(() => {});
@@ -142,6 +144,7 @@ export default function PhotographerDashboardPage() {
             pendingOrdersCount={pendingOrdersCount}
             myEventsCount={myEventsCount}
             mpConnected={mpConnected}
+            mpExpired={mpStatus === "EXPIRED"}
             preferredLabSet={preferredLabSet}
           />
         </DsDashboardInner>
