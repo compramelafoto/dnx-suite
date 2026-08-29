@@ -8,6 +8,8 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Componer con sharp puede tardar varios segundos con un logo pesado. */
+export const maxDuration = 60;
 
 /**
  * Compone una pieza con el logo que manda el vendedor.

@@ -48,6 +48,8 @@ async function disponibilidadONada(
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Compone dieciocho imágenes y arma el documento: es el pedido más caro del generador. */
+export const maxDuration = 60;
 
 /** Nombre de archivo seguro a partir de la marca. */
 function nombreDeArchivo(brandName: string): string {
