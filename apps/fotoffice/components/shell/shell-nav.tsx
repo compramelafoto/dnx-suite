@@ -24,6 +24,13 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
+import {
+  claimedPrefixes,
+  submodulesFor,
+  type SubmoduleItem,
+} from "@/lib/modules/submodules";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 
 /**
  * Menú principal.
@@ -59,6 +66,45 @@ function exact(href: string) {
 
 function under(href: string) {
   return (path: string) => path === href || path.startsWith(`${href}/`);
+}
+
+/** Los íconos que puede nombrar un submódulo. Cerrado a propósito: un nombre suelto no dibuja nada. */
+const ICONOS: Record<string, ComponentType<{ className?: string }>> = {
+  CalendarClock,
+  CreditCard,
+  GraduationCap,
+  Inbox,
+  LayoutGrid,
+  Palette,
+  Tag,
+  Users,
+  Wallet,
+};
+
+/**
+ * Convierte las pantallas declaradas de un módulo en entradas del menú.
+ *
+ * La lista vive en `lib/modules/submodules.ts` y la comparte con el inicio del workspace: es
+ * lo que evita que una pantalla nueva aparezca en un lado y en el otro no.
+ */
+function itemsDeModulo(moduleKey: string, canManage: boolean): Item[] {
+  const reclamadas = claimedPrefixes(moduleKey);
+  return submodulesFor(moduleKey, { canManage }).map((sub: SubmoduleItem) => ({
+    href: sub.href,
+    label: sub.label,
+    icon: ICONOS[sub.icon] ?? LayoutDashboard,
+    isActive:
+      sub.activeMatch === "exact"
+        ? exact(sub.href)
+        : sub.activeMatch === "under"
+          ? under(sub.href)
+          : // "rest": el resto del módulo, lo que no reclama ninguna otra entrada. Si abarcara
+            // todo, quedaría iluminado mientras mirás Cuotas y no sabrías dónde estás parado.
+            (path: string) =>
+              path === sub.href ||
+              (path.startsWith(`${sub.href}/`) &&
+                !reclamadas.some((r) => path === r || path.startsWith(`${r}/`))),
+  }));
 }
 
 function itemClass(active: boolean) {
@@ -128,84 +174,12 @@ export function ShellNav({
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
 
-  // El padrón se marca actual solo en sus propias pantallas: si abarcara todo /members,
-  // quedaría iluminado mientras mirás Cuotas y no sabrías dónde estás parado.
   const socios: Item[] = membersEnabled
-    ? [
-        {
-          href: "/members",
-          label: "Padrón",
-          icon: Users,
-          isActive: (p) =>
-            p === "/members" ||
-            (p.startsWith("/members/") &&
-              !p.startsWith("/members/categories") &&
-              !p.startsWith("/members/cuotas") &&
-              !p.startsWith("/members/carnets") &&
-              !p.startsWith("/members/disenador") &&
-              !p.startsWith("/members/solicitudes") &&
-              !p.startsWith("/members/import")),
-        },
-        ...(canManageMembers
-          ? [
-              {
-                href: "/members/solicitudes",
-                label: "Solicitudes",
-                icon: Inbox,
-                isActive: under("/members/solicitudes"),
-              },
-              {
-                href: "/members/cuotas",
-                label: "Cuotas",
-                icon: Wallet,
-                // La configuración de cuotas tiene su propia entrada más abajo.
-                isActive: exact("/members/cuotas"),
-              },
-              {
-                href: "/members/carnets",
-                label: "Carnets",
-                icon: CreditCard,
-                isActive: under("/members/carnets"),
-              },
-              {
-                href: "/members/disenador",
-                label: "Diseñador",
-                icon: Palette,
-                isActive: under("/members/disenador"),
-              },
-              {
-                href: "/members/categories",
-                label: "Categorías",
-                icon: Tag,
-                isActive: under("/members/categories"),
-              },
-              {
-                href: "/members/cuotas/configuracion",
-                label: "Valores y calendario",
-                icon: CalendarClock,
-                isActive: under("/members/cuotas/configuracion"),
-              },
-            ]
-          : []),
-      ]
+    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers)
     : [];
 
   const cursos: Item[] = coursesEnabled
-    ? [
-        {
-          href: "/dashboard/courses",
-          label: "Cursos",
-          icon: GraduationCap,
-          isActive: (p) =>
-            p.startsWith("/dashboard/courses") ||
-            p === "/courses" ||
-            p.startsWith("/courses/new") ||
-            /^\/courses\/[^/]+\/edit$/.test(p),
-        },
-        { href: "/dashboard/sales", label: "Ventas", icon: LayoutGrid, isActive: under("/dashboard/sales") },
-        { href: "/courses/teachers", label: "Docentes", icon: Users, isActive: under("/courses/teachers") },
-        { href: "/courses/leads", label: "Inscripciones", icon: Inbox, isActive: under("/courses/leads") },
-      ]
+    ? itemsDeModulo(COURSES_SALES_MODULE_KEY, true)
     : [];
 
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.

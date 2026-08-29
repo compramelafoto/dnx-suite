@@ -4,6 +4,9 @@ import { requireAuth } from "@/lib/auth";
 import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
+import { submodulesFor } from "@/lib/modules/submodules";
+import { canManageMembers } from "@/lib/members/role-policy";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 
 export default async function WorkspaceHomePage() {
   const user = await requireAuth();
@@ -21,6 +24,14 @@ export default async function WorkspaceHomePage() {
     getEnabledModuleKeysForWorkspace(ensured.workspaceId),
   ]);
   const modules = resolveEnabledNavModules(enabledModuleKeys);
+
+  // Las tarjetas listan las pantallas de cada módulo. Sin esto, desde el inicio no había forma
+  // de enterarse de que existían: la tarjeta decía "Socios" y nada más.
+  const membership = await prisma.workspaceMembership.findUnique({
+    where: { userId_workspaceId: { userId: user.id, workspaceId: ensured.workspaceId } },
+    select: { role: true },
+  });
+  const puedeAdministrarSocios = canManageMembers(membership?.role);
 
   const pending: string[] = [];
   if (!profile?.displayName) pending.push("Nombre visible");
@@ -73,11 +84,42 @@ export default async function WorkspaceHomePage() {
         <h2 className="text-lg font-semibold text-[var(--fo-text)]">Módulos</h2>
         {modules.length > 0 ? (
           <div className="grid sm:grid-cols-2 gap-4">
-            {modules.map((m) => (
-              <Link key={m.key} href={m.route} className="fo-card hover:border-[var(--fo-accent)]/40">
-                <p className="font-medium text-[var(--fo-text)]">{m.label}</p>
-              </Link>
-            ))}
+            {modules.map((m) => {
+              // El permiso es por módulo: el de Socios no habilita nada en otro.
+              const pantallas = submodulesFor(m.key, {
+                canManage:
+                  m.key === MEMBERS_MODULE_KEY ? puedeAdministrarSocios : true,
+              });
+              return (
+                <div
+                  key={m.key}
+                  className="fo-card flex flex-col gap-3 transition-colors hover:border-[var(--fo-accent)]/40"
+                >
+                  <Link href={m.route} className="font-medium text-[var(--fo-text)] hover:underline">
+                    {m.label}
+                  </Link>
+                  {pantallas.length > 0 ? (
+                    <ul className="space-y-1.5">
+                      {pantallas.map((sub) => (
+                        <li key={sub.href}>
+                          <Link
+                            href={sub.href}
+                            className="group block rounded-lg px-2 py-1.5 -mx-2 transition-colors hover:bg-[var(--fo-surface-hover)]"
+                          >
+                            <span className="block text-sm text-[var(--fo-text)] group-hover:text-[var(--fo-accent)]">
+                              {sub.label}
+                            </span>
+                            <span className="block text-xs text-[var(--fo-muted)] leading-relaxed">
+                              {sub.description}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
