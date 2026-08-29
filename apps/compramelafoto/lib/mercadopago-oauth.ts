@@ -1,11 +1,12 @@
 const MP_AUTH_URL = "https://auth.mercadopago.com/authorization";
 const MP_TOKEN_URL = "https://api.mercadopago.com/oauth/token";
 
-type TokenResponse = {
+export type TokenResponse = {
   access_token: string;
   refresh_token?: string;
   expires_in?: number;
-  user_id?: string;
+  /** Mercado Pago devuelve el user_id como número; se persiste como string. */
+  user_id?: string | number;
 };
 
 function getEnvOrThrow(key: string): string {

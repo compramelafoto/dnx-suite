@@ -17,6 +17,12 @@ import { denyIfTestAlbumNotOwnerPreview } from "@/lib/public-album-test-access";
 import { albumPhotoFileKey, stripCartCopySuffix } from "@/lib/album-photo-ref";
 import { buildAlbumOrderMercadoPagoCheckoutSplit } from "@/lib/event-organizer-commission-mp-checkout";
 import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
+import {
+  buildMercadoPagoUnauthorizedRefresher,
+  isMercadoPagoUnauthorizedError,
+  MP_TOKEN_EXPIRED_BUYER_ERROR,
+  MP_TOKEN_EXPIRED_CODE,
+} from "@/lib/mercadopago/mp-oauth-token-refresh";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
 import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
 import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-marketplace-fee";
@@ -571,7 +577,9 @@ export async function POST(
           {
             id: order.id,
             totalCents: order.totalCents,
-            error: "Pedido creado pero error al generar link de pago",
+            // El motivo real (ej. "el vendedor tiene que conectar Mercado Pago") es
+            // más útil para el comprador que un "error al generar link de pago".
+            error: mpCreds.error || "Pedido creado pero error al generar link de pago",
             mpError: mpCreds.error,
             code: mpCreds.code,
           },
@@ -633,7 +641,13 @@ export async function POST(
             component,
           },
         },
-        { accessTokenOverride }
+        {
+          accessTokenOverride,
+          refreshAccessTokenOnUnauthorized: buildMercadoPagoUnauthorizedRefresher({
+            ownerType: "USER",
+            ownerId: mpCreds.collectorUserId,
+          }),
+        }
       );
 
       await prisma.order.update({
@@ -656,11 +670,16 @@ export async function POST(
     } catch (mpError: any) {
       // Si falla la creación de preferencia, igual retornamos el pedido creado
       console.error("Error creando preferencia MP para Order:", mpError);
+      // Token OAuth vencido/revocado y sin poder renovarlo: el vendedor tiene que reconectar.
+      const tokenExpired = isMercadoPagoUnauthorizedError(mpError);
       return NextResponse.json(
         {
           id: order.id,
           totalCents: order.totalCents,
-          error: "Pedido creado pero error al generar link de pago",
+          error: tokenExpired
+            ? MP_TOKEN_EXPIRED_BUYER_ERROR
+            : "Pedido creado pero error al generar link de pago",
+          code: tokenExpired ? MP_TOKEN_EXPIRED_CODE : undefined,
           mpError: String(mpError?.message ?? mpError),
         },
         { status: 201 }

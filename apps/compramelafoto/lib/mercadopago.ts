@@ -5,6 +5,18 @@
 
 const MP_API_BASE = "https://api.mercadopago.com";
 
+/** Error de la API de Mercado Pago con el status HTTP a mano (401 = token vencido/revocado). */
+export class MercadoPagoApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "MercadoPagoApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 /**
  * Obtiene el access token de Mercado Pago desde variables de entorno
  */
@@ -98,6 +110,12 @@ export async function createPreference(
      * Usado por el curso DNX para no redirigir nunca a sandbox en compramelafoto.com.
      */
     forbidSandboxCheckoutUrl?: boolean;
+    /**
+     * CLF-MP-OAUTH-REFRESH-100: si Mercado Pago responde 401 (access token OAuth vencido),
+     * se pide un token nuevo con el refresh token y se reintenta una sola vez.
+     * Devolver `null` significa que el vendedor tiene que reconectar Mercado Pago.
+     */
+    refreshAccessTokenOnUnauthorized?: () => Promise<string | null>;
   }
 ): Promise<CreatePreferenceResponse> {
   const token = getAccessToken(options?.accessTokenOverride);
@@ -186,21 +204,43 @@ export async function createPreference(
     preferenceBody.notification_url = notificationUrl.toString();
   }
 
-  const response = await fetch(`${MP_API_BASE}/checkout/preferences`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(preferenceBody),
-  });
+  async function postPreference(bearer: string) {
+    const res = await fetch(`${MP_API_BASE}/checkout/preferences`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(preferenceBody),
+    });
+    return { res, body: await res.json().catch(() => ({})) };
+  }
 
-  const data = await response.json();
+  let { res: response, data } = await postPreference(token).then((r) => ({
+    res: r.res,
+    data: r.body as any,
+  }));
+
+  // Access token OAuth vencido: renovarlo con el refresh token y reintentar una vez.
+  if (response.status === 401 && options?.refreshAccessTokenOnUnauthorized) {
+    console.warn(
+      "[MP createPreference] 401 de Mercado Pago: intentando renovar el access token OAuth",
+      { orderType: params.metadata.orderType, orderId: params.metadata.orderId }
+    );
+    const refreshedToken = await options.refreshAccessTokenOnUnauthorized();
+    if (refreshedToken) {
+      const retry = await postPreference(refreshedToken);
+      response = retry.res;
+      data = retry.body as any;
+    }
+  }
 
   if (!response.ok) {
     console.error("MP CREATE PREFERENCE ERROR:", data);
-    throw new Error(
-      `Error creando preferencia en Mercado Pago: ${JSON.stringify(data)}`
+    throw new MercadoPagoApiError(
+      `Error creando preferencia en Mercado Pago: ${JSON.stringify(data)}`,
+      response.status,
+      data
     );
   }
 

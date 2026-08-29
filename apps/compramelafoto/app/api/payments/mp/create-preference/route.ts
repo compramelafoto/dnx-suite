@@ -9,6 +9,7 @@ import {
 import { feeFromTotal } from "@/lib/pricing/fee-formula";
 import { buildAlbumOrderMercadoPagoCheckoutSplit } from "@/lib/event-organizer-commission-mp-checkout";
 import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
+import { buildMercadoPagoUnauthorizedRefresher } from "@/lib/mercadopago/mp-oauth-token-refresh";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
 import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
 import { logLegacyPreventaUsage } from "@/lib/observability/legacy-preventa-usage";
@@ -36,6 +37,8 @@ export async function POST(req: Request) {
   let component: "DIGITAL" | "PRINT" = "PRINT";
     let accessTokenOverride: string | undefined;
     let tokenSource = "global";
+    /** Dueño del token OAuth, para poder renovarlo si Mercado Pago responde 401. */
+    let mpTokenOwner: { ownerType: "USER" | "LAB"; ownerId: number } | null = null;
     let albumOrderForMpMeta: {
       origin: OrderOrigin;
       pricingSnapshot: unknown;
@@ -134,6 +137,7 @@ export async function POST(req: Request) {
         if (photographer?.mpAccessToken) {
           accessTokenOverride = photographer.mpAccessToken;
           tokenSource = "user_oauth";
+          mpTokenOwner = { ownerType: "USER", ownerId: order.album.userId };
         } else {
           logLegacyPreventaUsage({
             source: "legacy_precompra_order",
@@ -211,6 +215,7 @@ export async function POST(req: Request) {
         if (photographer?.mpAccessToken) {
           accessTokenOverride = photographer.mpAccessToken;
           tokenSource = "user_oauth";
+          mpTokenOwner = { ownerType: "USER", ownerId: order.photographerId };
         }
       }
       if (!accessTokenOverride && order.labId != null) {
@@ -221,6 +226,7 @@ export async function POST(req: Request) {
         if (lab?.mpAccessToken) {
           accessTokenOverride = lab.mpAccessToken;
           tokenSource = "lab_oauth";
+          mpTokenOwner = { ownerType: "LAB", ownerId: order.labId };
         }
       }
       // La plataforma siempre cobra el 100% del fee (marketplace_fee). La parte del referidor
@@ -303,6 +309,7 @@ export async function POST(req: Request) {
       accessTokenOverride = mpCreds.accessToken;
       tokenSource =
         mpCreds.collectorType === "ORGANIZER" ? "event_organizer_oauth" : "user_oauth";
+      mpTokenOwner = { ownerType: "USER", ownerId: mpCreds.collectorUserId };
       let referralDiscountCentsAlbum = 0;
       // Descontar saldo de referidos del dueño del álbum del fee de esta venta
       if (photographerIdAlbum != null && marketplaceFeeCentsAlbum > 0) {
@@ -407,7 +414,15 @@ export async function POST(req: Request) {
             : {}),
         },
       },
-      { accessTokenOverride }
+      {
+        accessTokenOverride,
+        ...(mpTokenOwner
+          ? {
+              refreshAccessTokenOnUnauthorized:
+                buildMercadoPagoUnauthorizedRefresher(mpTokenOwner),
+            }
+          : {}),
+      }
     );
 
     console.log("CREATE PREFERENCE: Preferencia creada exitosamente", {

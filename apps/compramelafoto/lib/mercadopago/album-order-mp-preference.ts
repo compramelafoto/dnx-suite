@@ -16,6 +16,7 @@ import { resolvePlatformCommissionPercent } from "@/lib/services/commissionServi
 import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-marketplace-fee";
 import { scheduleCheckoutFeeShadowCompare } from "@/lib/pricing/checkout-fee-shadow";
 import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
+import { buildMercadoPagoUnauthorizedRefresher } from "@/lib/mercadopago/mp-oauth-token-refresh";
 
 const LOG_BLOCKED = "[TEST_CHECKOUT] blocked real payment flow";
 
@@ -42,7 +43,12 @@ async function resolveAlbumOrderMpAccessToken(
   albumUserId: number | null,
   eventId: number | null | undefined
 ): Promise<
-  | { ok: true; accessTokenOverride: string; collectorType: "PHOTOGRAPHER" | "ORGANIZER" }
+  | {
+      ok: true;
+      accessTokenOverride: string;
+      collectorType: "PHOTOGRAPHER" | "ORGANIZER";
+      collectorUserId: number;
+    }
   | { ok: false; error: string; code: string }
 > {
   const creds = await resolveAlbumOrderMercadoPagoCredentials({
@@ -56,6 +62,7 @@ async function resolveAlbumOrderMpAccessToken(
     ok: true,
     accessTokenOverride: creds.accessToken,
     collectorType: creds.collectorType,
+    collectorUserId: creds.collectorUserId,
   };
 }
 
@@ -108,7 +115,7 @@ export async function ensureAlbumOrderMpPreference(
     };
   }
 
-  const { accessTokenOverride, collectorType } = tokenResult;
+  const { accessTokenOverride, collectorType, collectorUserId } = tokenResult;
 
   if (
     !options?.forceRegenerate &&
@@ -231,7 +238,13 @@ export async function ensureAlbumOrderMpPreference(
         ...(packDefFromSnap != null ? { packDefinitionId: packDefFromSnap } : {}),
       },
     },
-    { accessTokenOverride }
+    {
+      accessTokenOverride,
+      refreshAccessTokenOnUnauthorized: buildMercadoPagoUnauthorizedRefresher({
+        ownerType: "USER",
+        ownerId: collectorUserId,
+      }),
+    }
   );
 
   await prisma.order.update({

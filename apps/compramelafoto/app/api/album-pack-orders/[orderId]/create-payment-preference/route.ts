@@ -15,6 +15,7 @@ import { scheduleCheckoutFeeShadowCompare } from "@/lib/pricing/checkout-fee-sha
 import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-marketplace-fee";
 import { buildAlbumOrderMercadoPagoMarketplaceFeeWithEventOrganizer } from "@/lib/event-organizer-commission-mp-checkout";
 import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
+import { buildMercadoPagoUnauthorizedRefresher } from "@/lib/mercadopago/mp-oauth-token-refresh";
 import { readAlbumPackCartDraftIdsFromSnapshot } from "@/lib/album-packs/album-pack-cart-payment-ref";
 import {
   getAlbumPackNameFromSnapshot,
@@ -275,7 +276,13 @@ export async function POST(
           source: snapshotType || "ALBUM_PACK_ORDER_V2",
         },
       },
-      { accessTokenOverride }
+      {
+        accessTokenOverride,
+        refreshAccessTokenOnUnauthorized: buildMercadoPagoUnauthorizedRefresher({
+          ownerType: "USER",
+          ownerId: mpCreds.collectorUserId,
+        }),
+      }
     );
 
     await prisma.order.update({
