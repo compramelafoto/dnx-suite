@@ -5,6 +5,7 @@ import AppModal from "@/components/ui/AppModal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
+import FilePickerButton from "@/components/ui/FilePickerButton";
 import { clientTotalArsFromPhotographerBaseArs } from "@/lib/preventa-canjeable/pack-client-price";
 import { PACK_EMPTY_ACTIVATION_MESSAGE } from "@/lib/preventa-canjeable/pack-activation";
 import PreventaPackBenefitsEditor from "./PreventaPackBenefitsEditor";
@@ -63,7 +64,6 @@ export default function PreventaPackCreateWizard({
   const [description, setDescription] = useState("");
   const [priceClientArs, setPriceClientArs] = useState("0");
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const coverPreviewUrl = useMemo(() => {
     if (!pendingCoverFile) return null;
@@ -414,16 +414,16 @@ export default function PreventaPackCreateWizard({
                       <span className="text-xs text-[#9ca3af]">Sin imagen</span>
                     )}
                   </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    disabled={saving}
-                    className="text-sm"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
+                  <FilePickerButton
+                    file={pendingCoverFile}
+                    onSelect={(f) => {
                       if (f) setPendingCoverFile(f);
                     }}
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    disabled={saving}
+                    label="Cargar imagen"
+                    size="sm"
+                    className="w-auto"
                   />
                 </div>
               </div>

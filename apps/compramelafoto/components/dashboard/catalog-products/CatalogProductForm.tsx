@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
+import FilePickerButton from "@/components/ui/FilePickerButton";
 import CatalogPhase1Notice from "@/components/dashboard/catalog-products/CatalogPhase1Notice";
 import CatalogProductComponentsEditor, {
   buildComponentsPayload,
@@ -51,7 +52,7 @@ export default function CatalogProductForm({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [componentDrafts, setComponentDrafts] = useState<CatalogComponentDraft[]>([]);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   async function saveProduct(targetId?: number) {
     setSaving(true);
@@ -102,7 +103,7 @@ export default function CatalogProductForm({
       let saved = await saveProduct();
       if (!saved) return;
 
-      const file = fileRef.current?.files?.[0];
+      const file = selectedFile;
       if (file && saved.id) {
         setUploading(true);
         const fd = new FormData();
@@ -129,7 +130,7 @@ export default function CatalogProductForm({
 
   async function uploadMockupOnly() {
     if (!productId) return;
-    const file = fileRef.current?.files?.[0];
+    const file = selectedFile;
     if (!file) {
       setError("Elegí una imagen primero.");
       return;
@@ -148,7 +149,7 @@ export default function CatalogProductForm({
         throw new Error(typeof data.error === "string" ? data.error : "Error al subir");
       }
       if (data.mockupUrl) setMockupUrl(data.mockupUrl);
-      if (fileRef.current) fileRef.current.value = "";
+      setSelectedFile(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al subir");
     } finally {
@@ -265,19 +266,21 @@ export default function CatalogProductForm({
                 <span className="text-sm text-[#9ca3af] px-4 text-center">Sin imagen — se mostrará un placeholder</span>
               )}
             </div>
-            <input
-              ref={fileRef}
-              type="file"
+            <FilePickerButton
+              file={selectedFile}
+              onSelect={setSelectedFile}
               accept="image/jpeg,image/png,image/webp"
-              className="w-full min-w-0 text-sm"
+              disabled={saving || uploading}
+              label="Cargar imagen"
+              fullWidth
             />
             {mode === "edit" && productId ? (
               <Button
                 type="button"
-                variant="secondary"
+                variant="primary"
                 size="md"
                 className="w-full"
-                disabled={uploading}
+                disabled={uploading || !selectedFile}
                 onClick={() => void uploadMockupOnly()}
               >
                 {uploading ? "Subiendo…" : "Subir imagen ahora"}

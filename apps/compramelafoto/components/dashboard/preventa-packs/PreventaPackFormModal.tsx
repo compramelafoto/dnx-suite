@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppModal from "@/components/ui/AppModal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
+import FilePickerButton from "@/components/ui/FilePickerButton";
 import { preventaSelectClassName } from "./preventa-form-controls";
 import { clientTotalArsFromPhotographerBaseArs } from "@/lib/preventa-canjeable/pack-client-price";
 import { PACK_EMPTY_ACTIVATION_MESSAGE } from "@/lib/preventa-canjeable/pack-activation";
@@ -63,7 +64,6 @@ export default function PreventaPackFormModal({
   const [localError, setLocalError] = useState<string | null>(null);
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [removeCover, setRemoveCover] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (pack) {
@@ -96,7 +96,6 @@ export default function PreventaPackFormModal({
     }
     setPendingCoverFile(null);
     setRemoveCover(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
     setLocalError(null);
   }, [pack, duplicateSource]);
 
@@ -255,19 +254,17 @@ export default function PreventaPackFormModal({
                 )}
               </div>
               <div className="flex flex-col gap-2 min-w-0">
-                <input
-                  ref={fileInputRef}
-                  type="file"
+                <FilePickerButton
+                  file={pendingCoverFile}
+                  onSelect={(f) => {
+                    if (!f) return;
+                    setRemoveCover(false);
+                    setPendingCoverFile(f);
+                  }}
                   accept="image/jpeg,image/png,image/webp,image/gif"
                   disabled={saving}
-                  className="text-sm text-[#374151] file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-[#e5e7eb] file:bg-white file:text-sm"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      setRemoveCover(false);
-                      setPendingCoverFile(f);
-                    }
-                  }}
+                  label="Cargar imagen"
+                  size="sm"
                 />
                 {(pack?.coverImageUrl || pendingCoverFile) && (
                   <button
@@ -277,7 +274,6 @@ export default function PreventaPackFormModal({
                     onClick={() => {
                       setPendingCoverFile(null);
                       setRemoveCover(true);
-                      if (fileInputRef.current) fileInputRef.current.value = "";
                     }}
                   >
                     Quitar imagen

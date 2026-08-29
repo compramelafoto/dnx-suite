@@ -13,6 +13,7 @@ import AppModal from "@/components/ui/AppModal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
+import FilePickerButton from "@/components/ui/FilePickerButton";
 import {
   availabilityPhaseOptions,
   packTypeOptions,
@@ -224,7 +225,6 @@ export default function AlbumPacksSection({
   const [photographerProducts, setPhotographerProducts] = useState<PhotographerProductOption[]>([]);
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [removeCover, setRemoveCover] = useState(false);
-  const coverFileInputRef = useRef<HTMLInputElement>(null);
   const inlineCoverInputRef = useRef<HTMLInputElement>(null);
   const [inlineCoverPackId, setInlineCoverPackId] = useState<string | null>(null);
   const [inlineCoverUploadingId, setInlineCoverUploadingId] = useState<string | null>(null);
@@ -255,7 +255,6 @@ export default function AlbumPacksSection({
   function resetCoverDraftState() {
     setPendingCoverFile(null);
     setRemoveCover(false);
-    if (coverFileInputRef.current) coverFileInputRef.current.value = "";
   }
 
   const closeModal = useCallback(() => {
@@ -1768,19 +1767,17 @@ export default function AlbumPacksSection({
                         )}
                       </div>
                       <div className="flex flex-col gap-2 min-w-0">
-                        <input
-                          ref={coverFileInputRef}
-                          type="file"
+                        <FilePickerButton
+                          file={pendingCoverFile}
+                          onSelect={(file) => {
+                            if (!file) return;
+                            setRemoveCover(false);
+                            setPendingCoverFile(file);
+                          }}
                           accept="image/jpeg,image/png,image/webp,image/gif,image/*"
                           disabled={saving}
-                          className="text-sm text-[#374151] file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-[#e5e7eb] file:bg-white file:text-sm"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              setRemoveCover(false);
-                              setPendingCoverFile(file);
-                            }
-                          }}
+                          label="Cargar imagen"
+                          size="sm"
                         />
                         {coverDisplaySrc ? (
                           <button
@@ -1790,7 +1787,6 @@ export default function AlbumPacksSection({
                             onClick={() => {
                               setPendingCoverFile(null);
                               setRemoveCover(true);
-                              if (coverFileInputRef.current) coverFileInputRef.current.value = "";
                             }}
                           >
                             Quitar imagen
