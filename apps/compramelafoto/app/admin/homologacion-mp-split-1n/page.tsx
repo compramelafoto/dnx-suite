@@ -30,8 +30,6 @@ export default function ClfMpSplit1nHomologationPage() {
     currency: s.currency,
   }));
 
-  // NOTE: In CLF Tailwind theme, `max-w-3xl` maps to `--spacing-3xl` (96px),
-  // not a readable container. Use `max-w-4xl` (`--container-4xl` = 56rem).
   return (
     <div className="mx-auto box-border w-full min-w-0 max-w-4xl space-y-8 p-6 md:p-8">
       <header className="w-full space-y-4 border-b border-neutral-200 pb-6">

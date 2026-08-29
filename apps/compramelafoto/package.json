@@ -8,6 +8,7 @@
     "start": "next start --port 3002",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:theme-scale": "../../packages/payments/node_modules/.bin/tsx --test styles/design-system/theme-scale.test.ts",
     "test:scan-protection": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/photo/scan-protection.test.ts components/photo/scan-protected-photo.test.tsx",
     "test:content-reports": "pnpm --filter @repo/payments exec tsx --test ../../apps/compramelafoto/lib/legal/content-reports/content-reports.test.ts ../../apps/compramelafoto/lib/legal/content-reports/footer-links.test.ts",
     "e2e:ensure-template-v2-photographers": "pnpm --filter @repo/payments exec tsx ../../apps/compramelafoto/scripts/e2e-ensure-template-v2-photographers.ts",

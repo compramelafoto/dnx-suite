@@ -36,14 +36,17 @@
   --shadow-soft: 0 10px 30px rgba(17, 24, 39, 0.08);
   --shadow-card: 0 12px 24px rgba(17, 24, 39, 0.06);
 
-  /* Espaciado */
-  --spacing-xs: 8px;
-  --spacing-sm: 16px;
-  --spacing-md: 24px;
-  --spacing-lg: 32px;
-  --spacing-xl: 48px;
-  --spacing-2xl: 64px;
-  --spacing-3xl: 96px;
+  /* Espaciado
+   *
+   * NO declarar aqui `--spacing-xs/sm/md/lg/xl/2xl/3xl`.
+   * En Tailwind v4 el namespace `--spacing-*` alimenta las utilidades de
+   * tamano (`max-w-*`, `w-*`, `min-w-*`, `h-*`, ...) y pisa el namespace
+   * `--container-*` que define `max-w-sm` ... `max-w-7xl`.
+   * Con esos tokens, `max-w-xl` valia 48px en vez de 36rem y las pantallas
+   * quedaban en una columna de pocos pixeles (texto envuelto letra a letra).
+   * Para espaciados de marca usar nombres que no colisionen (`--space-*`)
+   * fuera de `@theme`, o directamente la escala numerica de Tailwind.
+   */
 }
 
 @layer base {

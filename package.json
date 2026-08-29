@@ -28,6 +28,7 @@
     "sales-assistant:conversation:lab": "pnpm --filter dnx-sales-assistant conversation:lab",
     "cuantocobro:test:characterization": "pnpm --filter compramelafoto run test:cuantocobro:characterization",
     "cuanto-cobro:test:characterization": "pnpm --filter compramelafoto run test:cuantocobro:characterization",
+    "clf:test:theme-scale": "pnpm --filter compramelafoto run test:theme-scale",
     "e2e:prepare": "pnpm --filter compramelafoto run e2e:prepare",
     "e2e:school": "pnpm --filter compramelafoto run e2e:school",
     "clickaton:release:check-env": "pnpm --filter clickaton release:check-env",
