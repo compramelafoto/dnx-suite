@@ -27,22 +27,43 @@ Cada uno con su propio ciclo de diseño, plan e implementación.
 
 ### 1 · Portal del socio: identidad, cuenta y carnet
 
-**En curso.** Estado al 2026-08-27:
+**En curso.** Estado verificado contra la base el **2026-08-29**:
 
 | Paso | Estado |
 |---|---|
-| Importar el padrón real con su deuda | ✅ Hecho — ver [ANALISIS-PADRON-SFPR.md](ANALISIS-PADRON-SFPR.md) |
-| Escala histórica de la cuota | ✅ Cargada |
+| Importar el padrón real con su deuda | ✅ 154 socios: 109 activos, 45 inactivos |
+| Escala histórica de la cuota | ✅ $5.000 (oct-2025) → $8.000 (mar-2026) |
 | Exentos a categoría Honorario | ✅ 8 socios |
 | Baja transitoria por deuda | ✅ 45 socios |
-| Generación automática de septiembre | ✅ Verificada: cron, secreto y proyección de 99 cuotas |
 | Identidad del socio en la portada | ✅ Número, categoría y antigüedad |
-| Estado de cuenta con datos reales | ✅ Ya no miente: la deuda es la verdadera |
-| Emitir los carnets | ⏳ Pendiente — 0 emitidos, falta definir el diseño |
-| Cargar los emails faltantes | ⏳ Pendiente — 11 de los 107 activos no tienen |
-| Referido con mes bonificado | ⏳ Pendiente |
+| Estado de cuenta con datos reales | ✅ 80 cargos de APERTURA, $1.868.500 de deuda |
+| Formulario de asociación | ✅ Abierto, con datos profesionales y redes |
+| Emitir los carnets | ✅ 109 digitales emitidos |
+| Diseñador de plantillas | ✅ El carnet se imprime con la plantilla diseñada |
+| **Invitar al padrón** | ❌ **3 de 109 tienen cuenta.** Es el cuello de botella |
+| Cargar los emails faltantes | ❌ 11 de 109 activos no tienen |
+| Envío masivo de invitaciones | ❌ No existe: hoy es de a uno |
+| Fotos de los socios | ❌ 0 cargadas — la pantalla existe, nadie entró |
+| Carnets impresos | ❌ 0 pedidos |
+| Referido con mes bonificado | ❌ Pendiente |
 
-Casi todo existe; falta ponerlo en marcha y rediseñar cómo se presenta.
+### Lo que fuerza el calendario
+
+`generationDay: 1` y el cron `0 6 * * *`: **el 1 de septiembre a las 06:00 UTC** se generan
+las cuotas de septiembre para los 109 activos — 99 profesionales a $8.000, 2 estudiantes al
+50%, 8 honorarios a $0.
+
+Hoy solo 3 socios tienen cuenta vinculada. Si el cron corre tal cual, 106 personas quedan con
+un cargo que no pueden ver ni pagar, y la primera noticia que tienen del sistema es una deuda.
+No es un problema técnico: el sistema haría exactamente lo que se le configuró. Es una
+decisión de Daniel sobre qué conviene que pase primero.
+
+Las opciones, sin recomendación técnica porque no es una decisión técnica:
+
+1. **Invitar antes del 1/9.** Requiere resolver los 11 emails faltantes y el envío masivo.
+2. **Correr el cron igual** y avisar por otro canal (WhatsApp, la secretaría) mientras se
+   invita en paralelo.
+3. **Mover `generationDay`** para darse aire, sabiendo que corre el vencimiento del 10.
 
 - Datos del socio: número, antigüedad, categoría, escala de cuota.
 - Estado de cuenta real. **Hoy dice "estás al día" cuando nunca se emitió una cuota**: es
@@ -363,11 +384,21 @@ como modelos separados: la unificación es lo que justifica el módulo.
 
 ### Lo que falta para cerrar el carnet
 
-1. **Migrar la plantilla del carnet** de `lib/carnet/template.ts` a una plantilla de sistema en
-   `TemplateV2`, que cada institución duplique y edite. El comentario del código ya lo anticipa:
-   *"la migración va a ser mover el JSON, no rehacerlo"*.
-2. **Que el renderizador lea de la base** en vez de la constante, conservando la versión con la
-   que se emitió cada carnet: la plantilla puede cambiar entre que el socio la pide y alguien la
-   imprime.
-3. **La pantalla del portal** para que el socio suba su foto, con el preset `memberAvatar` ya
-   ajustado a 472×472.
+Al **2026-08-29**, los tres puntos originales están hechos:
+
+1. ✅ **La plantilla se copia a `TemplateV2`** y cada institución la edita. `createCarnetTemplate`
+   siembra el diseño de fábrica ya traducido al modelo del editor.
+2. ✅ **El renderizador lee de la base** y guarda `designTemplateVersionId` en cada carnet, así
+   una tarjeta impresa sabe con qué versión salió aunque después alguien edite la plantilla.
+3. ✅ **La pantalla del portal** para subir la foto existe, en `/portal/carnet`.
+
+Lo que queda no es código sino uso: **0 socios subieron su foto** y **0 pidieron la tarjeta
+impresa**, porque 106 de 109 todavía no tienen cuenta. Ver el cuello de botella más arriba.
+
+Dos deudas técnicas que sí quedaron anotadas:
+
+- El puente avisa lo que no puede traducir (tipografía fuera del catálogo, elipses, un bloque
+  de dato variable sin variable elegida), pero **esos avisos no se le muestran a quien diseña**:
+  hoy se pierden. Habría que mostrarlos en el editor, antes de imprimir.
+- Las **placas de historias que se autogeneran** cuando entra un sponsor o un socio nuevo
+  dependen del módulo de comunicaciones, que todavía no existe.
