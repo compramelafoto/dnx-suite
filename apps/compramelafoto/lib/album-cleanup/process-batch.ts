@@ -16,6 +16,10 @@ import {
   deletePhotoRowIfAllowed,
   purgePhotoStorageAndMetadata,
 } from "@/lib/album-cleanup/purge-photo-storage";
+import {
+  nextProcessedCount,
+  planPhotoBatch,
+} from "@/lib/album-cleanup/resume-cursor";
 import type { AlbumBlockerReport, DestructiveAlbumDeleteAttempt } from "@/lib/album-cleanup/types";
 
 export type AlbumCleanupRunLog = {
@@ -181,15 +185,26 @@ async function finalizeAlbumCleanup(
 
   const cleanupLastError = destructiveAttempt?.error?.slice(0, 2000) ?? null;
 
-  await prisma.album.update({
-    where: { id: albumId },
-    data: {
-      cleanupStatus: status,
-      cleanupCompletedAt: new Date(),
-      cleanupLastError,
-      cleanupBlockReason: hasReferences ? blockers.primaryReason : null,
-    },
-  });
+  // Si la fila no se pudo borrar (ventas, invitaciones y demás FK que la base
+  // protege por integridad contable), el álbum queda como cascarón sin fotos.
+  // El soft delete apaga la página pública (page.tsx devuelve notFound) para que
+  // a los 45 días el álbum desaparezca de cara al usuario igual que si se hubiera
+  // borrado la fila.
+  const albumRowSurvives = !destructiveAttempt?.albumDeleted;
+
+  if (albumRowSurvives) {
+    await prisma.album.update({
+      where: { id: albumId },
+      data: {
+        cleanupStatus: status,
+        cleanupCompletedAt: new Date(),
+        cleanupLastError,
+        cleanupBlockReason: hasReferences ? blockers.primaryReason : null,
+        deletedAt: new Date(),
+        isHidden: true,
+      },
+    });
+  }
 
   console.info(
     "[album-cleanup] album finalized",
@@ -368,10 +383,13 @@ export async function processAlbumCleanupBatch(
         })
       );
 
-      const startIndex = album.cleanupPhotosProcessed ?? 0;
-      let cursor = startIndex;
+      // `photos` ya viene filtrada por storageCleanupStatus = ACTIVE: las purgadas
+      // en corridas anteriores no están en la lista, así que la reanudación es
+      // automática y siempre se arranca en 0. cleanupPhotosProcessed es solo un
+      // acumulado histórico, nunca un índice (ver resume-cursor.ts).
+      const batchPlan = planPhotoBatch(album.cleanupPhotosProcessed, photos.length);
 
-      for (; cursor < photos.length; cursor += 1) {
+      for (let cursor = batchPlan.startIndex; cursor < photos.length; cursor += 1) {
         if (budgetExhausted(budget)) break;
         const photo = photos[cursor]!;
         const hasOrderItem = orderItemBlocked.has(photo.id);
@@ -404,7 +422,7 @@ export async function processAlbumCleanupBatch(
 
         await prisma.album.update({
           where: { id: album.id },
-          data: { cleanupPhotosProcessed: cursor + 1 },
+          data: { cleanupPhotosProcessed: nextProcessedCount(batchPlan, cursor) },
         });
       }
 
