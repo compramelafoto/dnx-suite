@@ -209,3 +209,46 @@ Cada intento fallido deja la copia limpia, así que se puede iterar sobre la mis
 | **P0-02** — rename `Student` → `SchoolStudent` | Abierto, complejidad **XL** | **RESUELTO** — 6 líneas, verificado con datos reales |
 | **P0-03** — historial de migraciones | Abierto, complejidad **XL** | Acotado: baseline de 158 migraciones |
 | **P0-05** — workers Docker | Abierto, complejidad **L** | **ANULADO** — nunca funcionaron en legacy |
+
+---
+
+## 7. Hallazgo de prueba real (2026-08-30): `UserSession` bloquea el login en producción
+
+**Síntoma reportado:** al entrar con Google, el sitio vuelve a la pantalla de login en vez de ir al panel.
+
+### Causa
+
+El login del monorepo persiste la sesión en la tabla **`UserSession`** (`packages/auth/src/sessions.ts`:
+`prisma.userSession.create` al entrar, `findUnique` en cada request posterior).
+
+| | `UserSession` |
+|--|--|
+| Esquema legacy | **no existe** — legacy usa sólo la cookie `auth-token`, sin tabla |
+| Producción (`br-autumn-rain`) | **no existe** |
+| Esquema monorepo | existe (línea 5140) |
+| Copia migrada (`br-morning-sea`) | existe, 0 filas |
+
+El sitio desplegado seguía apuntando a producción: **las variables de entorno de Vercel se
+aplican al desplegar**, y el último deploy es anterior al cambio de `DATABASE_URL`.
+
+Secuencia: Google autentica → la app intenta crear la fila en `UserSession` → la tabla no existe →
+no hay sesión → el guard rebota al login. Consistente con **0 sesiones** en ambas ramas.
+
+### Consecuencia para el cutover
+
+**Bloqueante duro.** Mientras producción no reciba la migración, **nadie puede iniciar sesión**
+en el monorepo. No es un problema de cookies, de dominio ni de `AUTH_SECRET`.
+
+Esto no era visible en la auditoría de julio porque el cierre de auth (ETAPA 03) se validó
+a nivel de código, no contra el esquema físico de producción.
+
+### Salida
+
+1. **Ahora, para probar:** redesplegar para que tome la copia migrada (ya tiene la tabla).
+2. **En el cutover:** la migración a producción debe aplicarse **antes** de dirigir tráfico.
+   `UserSession` viene incluida entre las ~240 tablas que crea el script ya verificado (§3.3).
+
+### Nota operativa
+
+Un cambio de variable en Vercel **no afecta al deploy en curso**. Verificar siempre con un
+deploy nuevo antes de concluir que una variable "no funcionó".
