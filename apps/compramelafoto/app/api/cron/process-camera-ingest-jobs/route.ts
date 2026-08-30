@@ -87,6 +87,6 @@ export async function GET(req: NextRequest) {
     console.info("[cron:process-camera-ingest-jobs]", result);
     return NextResponse.json({ ok: true, skipped: false, ...result });
   } finally {
-    await releaseCronLock(CRON_LOCK_IDS.CAMERA_INGEST);
+    await releaseCronLock(CRON_LOCK_IDS.CAMERA_INGEST, lockAcquired);
   }
 }

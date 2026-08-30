@@ -93,7 +93,7 @@ async function runAnalysis(req: Request) {
 
     return response;
   } finally {
-    await releaseCronLock(CRON_LOCK_IDS.ANALYSIS);
+    await releaseCronLock(CRON_LOCK_IDS.ANALYSIS, lockAcquired);
   }
 }
 

@@ -2918,7 +2918,7 @@ model SchoolStudent {
   @@index([schoolId])
   @@index([schoolId, lastName, firstName])
   @@index([schoolId, normalizedFullName])
-  @@map("SchoolStudent")
+  @@map("Student")
 }
 
 /// Matrícula anual del alumno
@@ -3332,6 +3332,16 @@ model PhotographicGearObservation {
   @@index([lensId])
   @@index([combinationId])
   @@index([takenAt])
+}
+
+model CronLease {
+  id        String    @id
+  holder    String?
+  lockedAt  DateTime?
+  expiresAt DateTime?
+  updatedAt DateTime  @updatedAt
+
+  @@index([expiresAt])
 }
 
 model PhotoAnalysisJob {
@@ -6142,6 +6152,8 @@ enum PhotoExifMetadataStatus {
   NO_EXIF
   FAILED
   SKIPPED_EXPIRED
+  /// Fuera de la muestra del álbum: el equipamiento ya quedó cubierto por otras fotos.
+  SKIPPED_SAMPLING
 }
 
 enum ExifDeviceScanMode {
@@ -6847,7 +6859,7 @@ model Workspace {
   serviceLeadForms            ServiceLeadForm[]
   serviceSalesLeads           ServiceSalesLead[]
   evaluationContexts          EvaluationContext[]
-  students                    Student[]
+  students                    EvaluationStudent[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
   appAccessUnified            WorkspaceAppAccess[]
@@ -7729,7 +7741,7 @@ model EvaluationContext {
   @@index([ownerType, ownerId])
 }
 
-model Student {
+model EvaluationStudent {
   id          String                     @id @default(cuid())
   workspaceId String
   fullName    String
@@ -7750,7 +7762,7 @@ model EvaluationContextStudent {
   contextId String
   studentId String
   context   EvaluationContext @relation(fields: [contextId], references: [id], onDelete: Cascade)
-  student   Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student   EvaluationStudent         @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([contextId, studentId])
   @@index([studentId])
@@ -7816,7 +7828,7 @@ model EvaluationResult {
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
   activity      EvaluationActivity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  student       Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       EvaluationStudent               @relation(fields: [studentId], references: [id], onDelete: Cascade)
   items         EvaluationResultItem[]
 
   @@unique([activityId, studentId])
