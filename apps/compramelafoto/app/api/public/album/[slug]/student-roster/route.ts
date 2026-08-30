@@ -81,7 +81,7 @@ function canPublicManualCreate(
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { slug: string } | Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     const { slug: rawSlug } = await params;
@@ -191,7 +191,7 @@ export async function GET(
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { slug: string } | Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     const { slug: rawSlug } = await params;
