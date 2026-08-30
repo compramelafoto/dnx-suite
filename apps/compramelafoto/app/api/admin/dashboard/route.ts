@@ -667,6 +667,11 @@ export async function GET(req: NextRequest) {
     const activePhotosInDb = await prisma.photo.count({
       where: { isRemoved: false, storageCleanupStatus: "ACTIVE" },
     });
+    // Fotos cuyo archivo ya se borró de R2 por la retención de 45 días.
+    // activePhotos baja y purgedPhotos sube a medida que el cron limpia.
+    const purgedPhotosInDb = await prisma.photo.count({
+      where: { storageCleanupStatus: { not: "ACTIVE" } },
+    });
 
     // Fotos vendidas: OrderItems de Orders pagados + PrintOrderItems de PrintOrders pagados
     const [soldPhotosFromAlbums, soldPhotosFromPrints] = await Promise.all([
@@ -849,6 +854,7 @@ export async function GET(req: NextRequest) {
         openTickets,
         totalPhotosUploaded,
         activePhotosInDb,
+        purgedPhotosInDb,
         totalPhotosSold,
         salesConversionRate,
       },
