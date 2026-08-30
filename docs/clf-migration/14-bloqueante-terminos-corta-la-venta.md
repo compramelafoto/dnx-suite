@@ -97,3 +97,72 @@ curl -s https://<dominio>/album/<slug> | grep -c "Comprar"
 
 Y en la base, que no queden álbumes públicos con venta digital cuya `termsVersion`
 difiera de la constante compilada.
+
+---
+
+## 7. RESUELTO (2026-08-30)
+
+**Decisión: opción A acotada** — la habilitación comercial acepta cualquier versión de
+`TERMS_VERSIONS_VALIDAS_PARA_VENTA`, no sólo la última.
+
+### Razonamiento
+
+Los términos se aceptan **por álbum, al crearlo** (`app/api/dashboard/albums/route.ts:730`
+y `create-confirm/route.ts:150` guardan `TERMS_VERSION` al tildar la aceptación).
+
+Los 765 álbumes tienen una aceptación **real**: el fotógrafo leyó el texto de enero y lo
+aprobó. Cortarles la venta no repara nada — el texto que nadie aceptó es el nuevo, y ese
+ya rige para los álbumes que se crean de ahora en más, porque el alta graba la versión
+vigente. El sistema se corrige solo hacia adelante.
+
+Se descartó el backfill (opción B): daba por aceptado lo que nadie aceptó.
+
+Se descartó bloquear hasta re-aceptar (opción C) por un motivo que apareció al revisar el
+código: **`/api/terms/accept` registra la aceptación del usuario pero no actualiza los
+álbumes**. Un aviso en el panel habría dejado constancia legal sin desbloquear la venta,
+porque el control lee `Album.termsVersion`. Habría hecho falta código adicional para
+propagar la aceptación a los álbumes existentes.
+
+### Cambio
+
+```ts
+export function isAlbumTermsAccepted(input) {
+  if (!input.termsAcceptedAt) return false;
+  const version = input.termsVersion;
+  if (!version) return false;
+  return TERMS_VERSIONS_VALIDAS_PARA_VENTA.includes(version);
+}
+```
+
+### Cómo forzar la re-aceptación cuando corresponda
+
+Si un cambio futuro es materialmente relevante (cede derechos, cambia comisiones, altera
+responsabilidades), **quitar esa versión de la lista**. Eso corta la venta de los álbumes
+viejos a propósito. Queda como decisión legal explícita y no como efecto lateral de editar
+un texto — que es exactamente lo que había pasado acá.
+
+### Verificación sobre datos reales
+
+Mismo álbum, los dos sitios, tras desplegar:
+
+| Álbum | legacy | monorepo | |
+|--|--:|--:|--|
+| `prueba-2-b139c336` | 1 | 1 | igual |
+| `fotograf-a-automotriz-c79296d3` | 1 | 1 | igual |
+| `dansas-folkloricas-80b9d23b` | 1 | 1 | igual |
+| `viii-eventp-folklorico-...` | 1 | 1 | igual |
+| `prueba-1833693a` | **0** | **0** | igual |
+
+(cantidad de veces que aparece "Comprar" en el HTML)
+
+El último caso importa: **ninguno de los dos** habilita la compra. Confirma que el arreglo
+replica el comportamiento de legacy en ambos sentidos, y no habilita la venta a ciegas.
+
+Pruebas: `lib/albums/album-terms-venta.test.ts` — 7 casos, incluido uno que falla si alguien
+saca `2026-01-26` de la lista sin querer.
+
+### Pendiente opcional (no bloquea)
+
+Un aviso en el panel del fotógrafo informando que los términos cambiaron. Ya no es
+necesario para vender: quien cree un álbum nuevo verá y aceptará el texto vigente en ese
+momento. Queda como decisión de comunicación del titular.
