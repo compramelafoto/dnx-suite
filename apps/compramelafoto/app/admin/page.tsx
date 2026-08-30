@@ -50,6 +50,7 @@ interface DashboardStats {
   openTickets: number;
   totalPhotosUploaded: number;
   activePhotosInDb?: number;
+  purgedPhotosInDb?: number;
   totalPhotosSold: number;
   salesConversionRate: number;
 }
@@ -1312,18 +1313,35 @@ export default function AdminDashboardPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Estadísticas de Fotos</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <p className="text-sm text-gray-600">Fotos Subidas (Total)</p>
+              <p className="text-sm text-gray-600">Fotos subidas (histórico)</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 {stats.totalPhotosUploaded?.toLocaleString("es-AR") || 0}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Histórico acumulado (incluye fotos ya purgadas o eliminadas)
+                Todo lo que se subió alguna vez. Nunca baja.
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Fotos activas en BD</p>
+              <p className="text-sm text-gray-600">Fotos hoy en la plataforma</p>
               <p className="text-2xl font-bold text-gray-700 mt-1">
                 {stats.activePhotosInDb?.toLocaleString("es-AR") ?? "—"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats.purgedPhotosInDb !== undefined && stats.totalPhotosUploaded > 0 ? (
+                  <>
+                    Con archivo en R2 ocupando storage.{" "}
+                    <span className="text-emerald-700 font-medium">
+                      {stats.purgedPhotosInDb.toLocaleString("es-AR")} borradas (
+                      {Math.round(
+                        (stats.purgedPhotosInDb / stats.totalPhotosUploaded) * 100
+                      )}
+                      %)
+                    </span>{" "}
+                    por la retención de 45 días.
+                  </>
+                ) : (
+                  "Con archivo en R2 ocupando storage."
+                )}
               </p>
             </div>
             <div>

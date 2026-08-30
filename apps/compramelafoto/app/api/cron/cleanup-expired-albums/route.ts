@@ -5,9 +5,11 @@ import { runAlbumCleanupCron } from "@/lib/album-cleanup/process-batch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 90;
+// El corte real de cada corrida lo pone este tope, no ALBUM_CLEANUP_MAX_ALBUMS.
+// El pipeline es idempotente: si se corta por tiempo, retoma donde quedó.
+export const maxDuration = 800;
 
-const CLEANUP_BUILD_VERSION = "safe-finalize-v2";
+const CLEANUP_BUILD_VERSION = "resume-cursor-fix-v3";
 
 /**
  * GET /api/cron/cleanup-expired-albums
