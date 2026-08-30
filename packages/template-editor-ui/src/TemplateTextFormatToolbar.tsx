@@ -16,6 +16,11 @@ import { cn } from "./primitives/cn";
 type Props = {
   state: TemplateV2EditorState;
   dispatch: TemplateV2EditorDispatch;
+  /**
+   * Reemplaza el contenedor propio (dirección, cromo y espaciado). La barra de propiedades la
+   * monta en una sola línea sin borde ni fondo; suelta, se apila y crece en alto.
+   */
+  shellClassName?: string;
 };
 
 function mergeConfigJson(block: TemplateV2Block, patch: Record<string, unknown>) {
@@ -98,7 +103,7 @@ const fmtMiniBtn =
 const fmtRange =
   "h-1.5 w-[min(100%,7.5rem)] min-w-[5.5rem] max-w-[8.5rem] cursor-pointer accent-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-40";
 
-export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
+export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: Props) {
   const primaryId = getPrimarySelectedBlockId(state);
   const block = primaryId ? state.blocks.find((b) => b.id === primaryId) ?? null : null;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -153,7 +158,11 @@ export function TemplateTextFormatToolbar({ state, dispatch }: Props) {
   return (
     <div
       ref={rootRef}
-      className="flex flex-col gap-1.5 border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 py-1.5"
+      className={cn(
+        "flex gap-1.5",
+        shellClassName ??
+          "flex-col border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 py-1.5",
+      )}
       role="toolbar"
       aria-label="Formato de texto"
     >

@@ -13,14 +13,12 @@ import {
   useState,
   useSyncExternalStore,
   type ButtonHTMLAttributes,
-  type ReactNode,
   type SVGProps,
 } from "react";
 import { useRouter } from "next/navigation";
 import Card from "./primitives/Card";
 import Button from "./primitives/Button";
 import { TemplateEditorCanvas } from "./TemplateEditorCanvas";
-import { TemplateEditorInspector } from "./TemplateEditorInspector";
 import { TemplateEditorLayers } from "./TemplateEditorLayers";
 import {
   TEMPLATE_V2_EDITOR_INITIAL_STATE,
@@ -62,10 +60,8 @@ import {
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
 import { requestTemplateVersionImageUpload } from "@repo/template-editor-core";
-import { TemplateBlockContextToolbar } from "./TemplateBlockContextToolbar";
+import { EditorPropertiesBar } from "./EditorPropertiesBar";
 import { GoogleFontsLoader } from "./GoogleFontsLoader";
-import { TemplateTextFormatToolbar } from "./TemplateTextFormatToolbar";
-import { TemplateDiagnosticsPanel } from "./TemplateDiagnosticsPanel";
 import { TemplateVersionList } from "./TemplateVersionList";
 import type { TemplateEditorCanvasTool } from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
@@ -249,75 +245,6 @@ function EditorToolButton({
   );
 }
 
-function RightSidebarSectionChevron({ open, className }: { open: boolean; className?: string }) {
-  return (
-    <svg
-      className={cn("h-4 w-4 shrink-0 text-[color:var(--te-ink-muted)] transition-transform duration-200", open ? "rotate-0" : "-rotate-90", className)}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      aria-hidden
-    >
-      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** Encabezado + botón para plegar/desplegar; el panel lateral hace scroll único. */
-function RightSidebarSection({
-  sectionId,
-  title,
-  open,
-  onToggle,
-  children,
-  variant = "muted",
-}: {
-  sectionId: string;
-  title: string;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-  variant?: "muted" | "white";
-}) {
-  return (
-    <section
-      className={cn(
-        "border-b border-[color:var(--te-line)]",
-        variant === "muted" ? "bg-[color:var(--te-chrome)]" : "bg-white"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <h3
-          id={`${sectionId}-heading`}
-          className="text-xs font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]"
-        >
-          {title}
-        </h3>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[color:var(--te-ink-muted)] transition-colors hover:bg-black/[0.04] hover:text-[color:var(--te-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]"
-          onClick={onToggle}
-          aria-expanded={open}
-          aria-controls={`${sectionId}-content`}
-          title={open ? "Minimizar bloque" : "Desplegar bloque"}
-        >
-          <RightSidebarSectionChevron open={open} />
-        </button>
-      </div>
-      {open ? (
-        <div
-          id={`${sectionId}-content`}
-          role="region"
-          aria-labelledby={`${sectionId}-heading`}
-          className="px-3 pb-3 pt-0"
-        >
-          {children}
-        </div>
-      ) : null}
-    </section>
-  );
-}
 
 type TemplateEditorShellProps = {
   templateId: string;
@@ -387,9 +314,6 @@ export function TemplateEditorShell({
   /** Herramienta del lienzo: T texto, V selección, H mano (atajos alineados con Photoshop). */
   const [canvasTool, setCanvasTool] = useState<TemplateEditorCanvasTool>("select");
   /** Panel derecho: bloques apilados con un solo scroll; cada sección se puede plegar. */
-  const [rightPanelLayersOpen, setRightPanelLayersOpen] = useState(true);
-  const [rightPanelInspectorOpen, setRightPanelInspectorOpen] = useState(true);
-  const [rightPanelReviewOpen, setRightPanelReviewOpen] = useState(false);
   const [pageLabelEdit, setPageLabelEdit] = useState<{ index: number; value: string } | null>(null);
   const [sheetDragFrom, setSheetDragFrom] = useState<number | null>(null);
   const [sheetDragOver, setSheetDragOver] = useState<number | null>(null);
@@ -1200,17 +1124,16 @@ export function TemplateEditorShell({
             ) : null}
 
             {editorReady ? <GoogleFontsLoader /> : null}
-            {editorReady && state.selectedBlockIds.length > 0 ? (
-              selectedBlock?.type === "TEXT" || selectedBlock?.type === "VARIABLE_TEXT" ? (
-                <TemplateTextFormatToolbar state={state} dispatch={dispatch} />
-              ) : (
-                <TemplateBlockContextToolbar
-                  state={state}
-                  dispatch={dispatch}
-                  templateId={templateId}
-                  versionId={versionId}
-                />
-              )
+            {editorReady ? (
+              <EditorPropertiesBar
+                state={state}
+                dispatch={dispatch}
+                selectedBlock={selectedBlock}
+                templateId={templateId}
+                versionId={versionId}
+                product={state.versionMeta?.product === "clickaton" ? "clickaton" : "school"}
+                onOpenCanvasSize={() => setCanvasSizeModalOpen(true)}
+              />
             ) : null}
 
             {saveErrorMessage ? (
@@ -1493,73 +1416,81 @@ export function TemplateEditorShell({
                     1:1
                   </ToolButton>
                   {/*
-                    Devuelve el lienzo al ajuste automático. Basta con emitir el zoom actual
-                    con origen "fit": el lienzo vuelve a seguir el tamaño de la ventana y se
-                    recalcula solo.
+                    Ajustar a la pantalla es el modo de arranque, y queda marcado mientras el
+                    lienzo siga al tamaño de la ventana. Se apaga solo al elegir un zoom a
+                    mano; volver a pulsarlo devuelve el lienzo al ajuste automático emitiendo
+                    el zoom actual con origen "fit".
                   */}
                   <ToolButton
                     label="Ajustar a la pantalla"
-                    className="!h-7 !w-auto !px-2 !text-[10px] !font-semibold"
+                    active={!state.zoomUserAdjusted}
+                    className="!h-7 !w-7"
                     onClick={() => dispatch(setZoom(state.zoom, "fit"))}
                     disabled={!editorReady}
                   >
-                    Ajustar
+                    <svg
+                      className="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden
+                    >
+                      <path
+                        d="M4 9V5a1 1 0 011-1h4M15 4h4a1 1 0 011 1v4M20 15v4a1 1 0 01-1 1h-4M9 20H5a1 1 0 01-1-1v-4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                   </ToolButton>
                 </div>
               </div>
             </div>
 
+            {/*
+              Sólo capas, como en Photoshop. Antes esta columna medía 320px y además cargaba
+              las propiedades y la revisión rápida: casi un tercio del ancho para paneles que
+              la mayor parte del tiempo estaban vacíos. Las propiedades viven arriba y acá
+              queda una lista angosta, que se pliega a un borde cuando estorba.
+            */}
             {rightPanelOpen ? (
-              <aside className="flex min-h-0 w-[min(100%,320px)] max-w-full shrink-0 flex-col overflow-y-auto overflow-x-hidden border-l border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)]">
-                <RightSidebarSection
-                  sectionId="template-v2-panel-layers"
-                  title="Capas"
-                  open={rightPanelLayersOpen}
-                  onToggle={() => setRightPanelLayersOpen((v) => !v)}
-                  variant="muted"
-                >
+              <aside
+                className="flex min-h-0 w-[min(100%,210px)] max-w-full shrink-0 flex-col border-l border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)]"
+                aria-label="Capas"
+              >
+                <div className="flex h-8 shrink-0 items-center justify-between gap-1 border-b border-[color:var(--te-line)] px-2">
+                  <span className="text-[11px] font-semibold text-[color:var(--te-ink-muted)]">
+                    Capas
+                  </span>
+                  <button
+                    type="button"
+                    title="Ocultar capas"
+                    aria-label="Ocultar capas"
+                    onClick={() => setRightPanelOpen(false)}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded text-[color:var(--te-ink-muted)] transition-colors hover:bg-[color:var(--te-chrome-sunken)] hover:text-[color:var(--te-ink)]"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
                   <TemplateEditorLayers state={state} dispatch={dispatch} />
-                </RightSidebarSection>
-
-                <RightSidebarSection
-                  sectionId="template-v2-panel-inspector"
-                  title="Propiedades"
-                  open={rightPanelInspectorOpen}
-                  onToggle={() => setRightPanelInspectorOpen((v) => !v)}
-                  variant="white"
-                >
-                  <TemplateEditorInspector
-                    selectedBlock={selectedBlock}
-                    selectedBlockCount={state.selectedBlockIds.length}
-                    selectedBlockIds={state.selectedBlockIds}
-                    blocks={state.blocks}
-                    canvas={state.canvas}
-                    templateId={templateId}
-                    versionId={versionId}
-                    variableBindings={state.variableBindings}
-                    dispatch={dispatch}
-                    product={
-                      state.versionMeta?.product === "clickaton" ? "clickaton" : "school"
-                    }
-                  />
-                </RightSidebarSection>
-
-                <RightSidebarSection
-                  sectionId="template-v2-panel-review"
-                  title="Revisión rápida"
-                  open={rightPanelReviewOpen}
-                  onToggle={() => setRightPanelReviewOpen((v) => !v)}
-                  variant="white"
-                >
-                  <TemplateDiagnosticsPanel
-                    blocks={state.blocks}
-                    canvas={state.canvas}
-                    dispatch={dispatch}
-                    embedded
-                  />
-                </RightSidebarSection>
+                </div>
               </aside>
-            ) : null}
+            ) : (
+              <button
+                type="button"
+                title="Mostrar capas"
+                aria-label="Mostrar capas"
+                onClick={() => setRightPanelOpen(true)}
+                className="flex w-8 shrink-0 items-center justify-center border-l border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)] text-[color:var(--te-ink-muted)] transition-colors hover:bg-[color:var(--te-chrome-sunken)] hover:text-[color:var(--te-ink)]"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
           </div>
         )}
       </div>

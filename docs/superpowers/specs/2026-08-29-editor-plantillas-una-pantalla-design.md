@@ -114,12 +114,19 @@ El Shell queda como orquestador: estado, atajos, guardado.
 
 Cada una se prueba antes de seguir.
 
-1. **Alto fijo y ajuste a pantalla.** Ruta propia en FotOffice, raíz `100dvh`, se quita el
-   `min-h`, zoom "ajustar".
-2. **Propiedades arriba.** `EditorPropertiesBar` + desplegables; se desmonta el panel de
-   propiedades.
-3. **Capas compactas.** `EditorLayersPanel` a la derecha, colapsable.
-4. **Hojas y limpieza.** Tira inferior, aviso flotante, cabecera a dos filas.
+1. ~~**Alto fijo y ajuste a pantalla.**~~ Hecho. Ruta propia en FotOffice, alto medido, se
+   quitó el `min-h`, `fitZoom` por los dos ejes y control "ajustar", marcado mientras el
+   lienzo siga a la ventana (es el modo de arranque).
+2. ~~**Propiedades arriba.**~~ Hecho. `EditorPropertiesBar` con las barras de texto y de
+   bloque en línea, más desplegables (`Popover`) para el inspector y la revisión rápida.
+3. ~~**Capas compactas.**~~ Hecho. Columna de 210px con encabezado propio, plegable a un
+   borde de 32px. Se eliminó el acordeón de tres secciones.
+4. **Hojas y limpieza.** Tira inferior de miniaturas, aviso de error flotante, cabecera a dos
+   filas. Pendiente.
+
+Nota sobre la 2: las barras de texto y de bloque ya vivían arriba, pero con contenedor propio
+que apilaba (`flex-col`) o envolvía (`flex-wrap`). Reciben `shellClassName` para que la barra
+de propiedades las monte en una línea; suelto, cada uno seguía creciendo en alto.
 
 ## Verificación
 

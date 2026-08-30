@@ -13,10 +13,16 @@ import {
 import { asObject, normalizeBlockConfig, type TemplateV2Block } from "@repo/template-editor-core";
 import { requestTemplateVersionImageUpload } from "@repo/template-editor-core";
 import { TemplateBlockSafeAreaAlignmentStrip } from "./TemplateBlockSafeAreaAlignmentStrip";
+import { cn } from "./primitives/cn";
 
 type Props = {
   state: TemplateV2EditorState;
   dispatch: TemplateV2EditorDispatch;
+  /**
+   * Reemplaza el contenedor propio (dirección, cromo y espaciado). La barra de propiedades la
+   * monta en una sola línea sin borde ni fondo; suelta, envuelve y crece en alto.
+   */
+  shellClassName?: string;
   templateId: string;
   versionId: string;
 };
@@ -30,7 +36,13 @@ function mergeConfigJson(block: TemplateV2Block, patch: Record<string, unknown>)
 }
 
 /** Acciones mínimas para imagen y forma; la tipografía va en la barra superior. */
-export function TemplateBlockContextToolbar({ state, dispatch, templateId, versionId }: Props) {
+export function TemplateBlockContextToolbar({
+  state,
+  dispatch,
+  templateId,
+  versionId,
+  shellClassName,
+}: Props) {
   const primaryId = getPrimarySelectedBlockId(state);
   const block = primaryId ? state.blocks.find((b) => b.id === primaryId) ?? null : null;
   const imageFileRef = useRef<HTMLInputElement>(null);
@@ -71,7 +83,11 @@ export function TemplateBlockContextToolbar({ state, dispatch, templateId, versi
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-1 gap-y-1.5 border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 py-1.5"
+      className={cn(
+        "flex items-center gap-x-1 gap-y-1.5",
+        shellClassName ??
+          "flex-wrap border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 py-1.5",
+      )}
       role="toolbar"
       aria-label="Acciones del bloque"
     >
