@@ -1,3 +1,27 @@
+/// ⚠️ EL SUFIJO "Cents" NO ES CONFIABLE — verificar campo por campo antes de usarlo.
+///
+/// En este esquema conviven DOS convenciones con el mismo sufijo:
+///
+///   • Dominio CompraMeLaFoto (histórico): guarda ARS ENTEROS. No dividir por 100.
+///     Verificados contra Mercado Pago y contra el código:
+///       Order.totalCents · Order.platformCommissionCents
+///       Album.digitalPhotoPriceCents · PreCompraOrder.totalCents
+///
+///   • Dominio Clickatón / DNX Pagos (nuevo): guarda CENTAVOS de verdad.
+///     Sus comentarios dicen "minor units" y ahí el sufijo sí es literal.
+///
+/// Y la mezcla ocurre incluso dentro de un mismo flujo. En
+/// `app/api/precompra/order/route.ts` conviven a 20 líneas de distancia:
+///     línea 243  totalCents += it.priceCents * qty   → PreCompraOrderItem.priceCents es CENTAVOS
+///     línea 246  orderTotalArs = totalCents / 100
+///     línea 263  Order.totalCents = orderTotalArs    → Order.totalCents es PESOS
+///
+/// Los campos no listados arriba NO están verificados: confirmá con datos reales o
+/// siguiendo el código antes de asumir la escala. Un `/100` de más muestra un total
+/// cien veces menor y nadie se entera hasta que un cliente reclama.
+///
+/// Renombrado pendiente: ver docs/clf-migration/15-pendientes-post-cutover.md
+
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
@@ -7108,7 +7132,7 @@ model Member {
   /// Nombre del estudio o marca, si trabaja con uno distinto de su nombre.
   businessName   String?
   /// Rubros en los que trabaja. Vocabulario cerrado, validado en lib/membership/specialties.ts.
-  specialties    String[]  @default([])
+  specialties    String[] @default([])
   /// Presentación breve, en palabras del socio.
   bio            String?
   website        String?
@@ -7122,10 +7146,10 @@ model Member {
   /// Consentimiento explícito para publicar estos datos en la web pública de la institución.
   /// Arranca en false a propósito: publicar los datos de alguien requiere que lo haya pedido,
   /// no que no se haya opuesto.
-  directoryOptIn Boolean   @default(false)
+  directoryOptIn Boolean  @default(false)
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   workspace         Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   category          MemberCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -7244,7 +7268,7 @@ model MembershipApplication {
   /// Nombre del estudio o marca, si trabaja con uno distinto de su nombre.
   businessName   String?
   /// Rubros en los que trabaja. Vocabulario cerrado, validado en lib/membership/specialties.ts.
-  specialties    String[]  @default([])
+  specialties    String[] @default([])
   /// Presentación breve, en palabras del socio.
   bio            String?
   website        String?
@@ -7258,8 +7282,7 @@ model MembershipApplication {
   /// Consentimiento explícito para publicar estos datos en la web pública de la institución.
   /// Arranca en false a propósito: publicar los datos de alguien requiere que lo haya pedido,
   /// no que no se haya opuesto.
-  directoryOptIn Boolean   @default(false)
-
+  directoryOptIn Boolean  @default(false)
 
   status           MembershipApplicationStatus @default(PENDIENTE)
   /// Motivo del rechazo. Obligatorio al rechazar; se le comunica a la persona.
@@ -7762,7 +7785,7 @@ model EvaluationContextStudent {
   contextId String
   studentId String
   context   EvaluationContext @relation(fields: [contextId], references: [id], onDelete: Cascade)
-  student   EvaluationStudent         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student   EvaluationStudent @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([contextId, studentId])
   @@index([studentId])
@@ -7828,7 +7851,7 @@ model EvaluationResult {
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
   activity      EvaluationActivity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  student       EvaluationStudent               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       EvaluationStudent      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   items         EvaluationResultItem[]
 
   @@unique([activityId, studentId])
@@ -14164,14 +14187,14 @@ model DnxPartnerParticipation {
   updatedAt            DateTime                      @updatedAt
   archivedAt           DateTime?
 
-  partner                     DnxPartner                       @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-  contributions               DnxPartnerContribution[]
-  benefits                    DnxPartnerBenefit[]
-  outboundLinks               DnxPartnerOutboundLink[]
-  materials                   DnxPartnerParticipationAsset[]
-  onboardingInvitations       DnxPartnerOnboardingInvitation[]
-  campaigns                   DnxPartnerCampaign[]
-  inventoryBookings           DnxPartnerInventoryBooking[]
+  partner               DnxPartner                       @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  contributions         DnxPartnerContribution[]
+  benefits              DnxPartnerBenefit[]
+  outboundLinks         DnxPartnerOutboundLink[]
+  materials             DnxPartnerParticipationAsset[]
+  onboardingInvitations DnxPartnerOnboardingInvitation[]
+  campaigns             DnxPartnerCampaign[]
+  inventoryBookings     DnxPartnerInventoryBooking[]
 
   @@index([partnerId, status])
   @@index([application, status])
