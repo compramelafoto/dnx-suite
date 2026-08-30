@@ -112,7 +112,7 @@ export type TemplateV2EditorAction =
       };
     }
   | { type: "pasteBlockFromClipboard"; payload: { snapshot: TemplateV2ClipboardSnapshot } }
-  | { type: "setZoom"; payload: { zoom: number; source?: "user" | "auto" } }
+  | { type: "setZoom"; payload: { zoom: number; source?: "user" | "auto" | "fit" } }
   | { type: "setPan"; payload: { pan: Partial<TemplateV2EditorPan> } }
   | { type: "setCanvas"; payload: { canvas: Partial<TemplateV2Canvas> } }
   | { type: "setVariableBindings"; payload: { variableBindings: TemplateV2VariableBinding[] } }
@@ -704,7 +704,9 @@ function coreTemplateV2EditorReducer(
       return {
         ...state,
         zoom: clampZoom(action.payload.zoom),
-        zoomUserAdjusted: src === "user" ? true : state.zoomUserAdjusted,
+        // "fit" devuelve el lienzo al ajuste automático: vuelve a seguir el tamaño de la
+        // ventana hasta que se elija un zoom a mano.
+        zoomUserAdjusted: src === "user" ? true : src === "fit" ? false : state.zoomUserAdjusted,
       };
     }
 
@@ -912,7 +914,7 @@ export function pasteBlockFromClipboard(snapshot: TemplateV2ClipboardSnapshot): 
   return { type: "pasteBlockFromClipboard", payload: { snapshot } };
 }
 
-export function setZoom(zoom: number, source: "user" | "auto" = "user"): TemplateV2EditorAction {
+export function setZoom(zoom: number, source: "user" | "auto" | "fit" = "user"): TemplateV2EditorAction {
   return { type: "setZoom", payload: { zoom, source } };
 }
 

@@ -78,6 +78,7 @@ import {
 } from "@repo/template-editor-core";
 import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
 import { EditorThemeProvider } from "./theme-context";
+import { useViewportFitHeight } from "./useViewportFitHeight";
 import { ActionButton, ToolButton, ToolDivider, ToolGroup } from "./chrome/ToolControls";
 
 
@@ -398,6 +399,13 @@ export function TemplateEditorShell({
 
   const cancelAutosaveRef = useRef<() => void>(() => {});
   const conflictBannerRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * El editor entra en una pantalla: mide el alto que le queda desde donde arranca y no lo
+   * desborda. Antes el cuerpo tenía un alto mínimo de 88vh, que empujaba hacia abajo en vez
+   * de adaptarse, y había que scrollear para ver el lienzo entero.
+   */
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const fitHeight = useViewportFitHeight(rootRef);
 
   useEffect(() => {
     if (saveErrorMessage === TEMPLATE_V2_REVISION_CONFLICT_MESSAGE) {
@@ -847,8 +855,13 @@ export function TemplateEditorShell({
   return (
     <EditorThemeProvider theme={theme}>
     <div
-      className={cn("flex h-full min-h-0 flex-col", className)}
-      style={editorThemeStyle(theme)}
+      ref={rootRef}
+      className={cn("flex min-h-0 flex-col overflow-hidden", className)}
+      style={{
+        ...editorThemeStyle(theme),
+        // Hasta la primera medición, la respuesta correcta cuando el editor ocupa la ventana.
+        height: fitHeight != null ? `${fitHeight}px` : "100dvh",
+      }}
       data-testid="template-v2-editor"
     >
       <div className="flex min-h-0 w-full flex-1 flex-col bg-[color:var(--te-void)]">
@@ -1341,7 +1354,7 @@ export function TemplateEditorShell({
         ) : !editorReady ? (
           <div className="flex flex-1 items-center justify-center py-20 text-sm text-[color:var(--te-ink-muted)]">Cargando editor…</div>
         ) : (
-          <div className="flex min-h-[min(88vh,calc(100vh-8rem))] w-full min-w-0 flex-1">
+          <div className="flex min-h-0 w-full min-w-0 flex-1">
             <aside
               className="flex w-[52px] shrink-0 flex-col items-center gap-0.5 border-r border-[#1a1d24] bg-[#2b3038] py-2"
               aria-label="Herramientas"
@@ -1478,6 +1491,19 @@ export function TemplateEditorShell({
                     disabled={!editorReady}
                   >
                     1:1
+                  </ToolButton>
+                  {/*
+                    Devuelve el lienzo al ajuste automático. Basta con emitir el zoom actual
+                    con origen "fit": el lienzo vuelve a seguir el tamaño de la ventana y se
+                    recalcula solo.
+                  */}
+                  <ToolButton
+                    label="Ajustar a la pantalla"
+                    className="!h-7 !w-auto !px-2 !text-[10px] !font-semibold"
+                    onClick={() => dispatch(setZoom(state.zoom, "fit"))}
+                    disabled={!editorReady}
+                  >
+                    Ajustar
                   </ToolButton>
                 </div>
               </div>

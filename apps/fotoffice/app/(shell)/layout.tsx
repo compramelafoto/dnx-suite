@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
-import { hasAppAccess, requireAuth } from "@/lib/auth";
+import { requireFotofficePanelUser } from "@/lib/shell/require-fotoffice-access";
 import { resolveActiveWorkspace } from "@/lib/workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
@@ -16,16 +15,9 @@ import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { ShellHeader } from "@/components/shell/shell-header";
 import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
-import { PORTAL_HOME } from "@/lib/portal/destination";
-import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 
 export default async function ShellLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireAuth();
-  if (!hasAppAccess(user, "FOTOFFICE")) {
-    redirect("/login?forbiddenApp=fotoffice");
-  }
-  // Un socio no entra al panel administrativo: su lugar es el portal.
-  if ((await resolveFotofficeUserKind(user.id)) === "MEMBER") redirect(PORTAL_HOME);
+  const user = await requireFotofficePanelUser();
   // Solo `workspaceMembership`: sin respaldo a la tabla legacy. El menú tiene que
   // ofrecer exactamente lo que las páginas aceptan, y las páginas leen de acá
   // (ver `lib/workspace-role.ts`).

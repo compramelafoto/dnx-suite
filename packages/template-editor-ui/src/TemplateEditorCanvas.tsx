@@ -11,6 +11,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { TemplateCanvasRenderer } from "./TemplateCanvasRenderer";
+import { fitZoom } from "@repo/template-editor-core";
 import { getCanvasCenterPoint } from "@repo/template-editor-core";
 import { getSafeAreaRectPx } from "@repo/template-editor-core";
 import { getLayoutSafeAreaStatus, type LayoutSafeAreaStatus } from "@repo/template-editor-core";
@@ -107,6 +108,12 @@ const MARQUEE_MIN_DRAG_CANVAS_PX = 4;
 function getScrollAreaInnerWidth(el: HTMLElement): number {
   const cs = getComputedStyle(el);
   return el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+}
+
+/** Alto útil del área scroll (sin padding vertical del contenedor). */
+function getScrollAreaInnerHeight(el: HTMLElement): number {
+  const cs = getComputedStyle(el);
+  return el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
 }
 
 function mergeSelectionIds(existing: readonly string[], found: readonly string[]): string[] {
@@ -545,17 +552,17 @@ export function TemplateEditorCanvas({
     if (!el || state.canvas.width <= 0) return;
 
     const cw = state.canvas.width;
+    const ch = state.canvas.height;
 
-    const applyFitWidth = () => {
+    const applyFit = () => {
       if (zoomUserAdjustedRef.current) return;
-      const innerW = getScrollAreaInnerWidth(el);
-      if (innerW <= 0) return;
-      const z = Math.min(4, Math.max(0.1, innerW / cw));
+      const z = fitZoom(getScrollAreaInnerWidth(el), getScrollAreaInnerHeight(el), cw, ch);
+      if (z === null) return;
       dispatch(setZoom(z, "auto"));
     };
 
-    applyFitWidth();
-    const ro = new ResizeObserver(applyFitWidth);
+    applyFit();
+    const ro = new ResizeObserver(applyFit);
     ro.observe(el);
     return () => ro.disconnect();
   }, [dispatch, state.canvas.width, state.canvas.height]);
