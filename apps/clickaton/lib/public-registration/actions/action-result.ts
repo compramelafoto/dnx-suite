@@ -21,6 +21,11 @@ export function pubFailure<T = unknown>(
   values?: Record<string, string>,
 ): PublicRegistrationActionState<T> {
   const serialized = toSerializablePublicRegistrationError(error);
+  // UNEXPECTED significa que no reconocimos el error: sin este log la causa real
+  // queda invisible y el participante sólo ve el mensaje genérico.
+  if (serialized.code === "UNEXPECTED") {
+    console.error("[clickaton] public registration UNEXPECTED:", error);
+  }
   return {
     ok: false,
     code: serialized.code,
