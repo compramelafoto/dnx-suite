@@ -1,6 +1,30 @@
 /** Versión con cláusula Info Spot (autorización editorial limitada). */
 export const TERMS_VERSION = "2026-07-21";
 
+/**
+ * Versiones cuya aceptación sigue habilitando la venta del álbum.
+ *
+ * Los términos se aceptan **por álbum, al crearlo**, y quedan guardados en
+ * `Album.termsVersion`. Un álbum creado bajo una versión anterior fue aceptado de
+ * verdad: el fotógrafo leyó ese texto y lo aprobó. Bloquearle la venta no lo hace
+ * más correcto, solo frena una venta válida.
+ *
+ * Por eso la habilitación comercial acepta cualquier versión de esta lista, y no
+ * solo la última. Los álbumes nuevos siguen guardando `TERMS_VERSION`.
+ *
+ * **Cuándo sacar una versión de acá:** si un cambio de términos es materialmente
+ * relevante (cede derechos, cambia comisiones, altera responsabilidades), quitala
+ * de la lista. Eso corta la venta de los álbumes viejos a propósito y obliga a la
+ * re-aceptación. Es una decisión legal, no técnica.
+ *
+ * `2026-01-26` — versión base, la que aceptaron los álbumes en producción.
+ * `2026-07-21` — agrega la cláusula Info Spot (autorización editorial limitada).
+ */
+export const TERMS_VERSIONS_VALIDAS_PARA_VENTA: readonly string[] = [
+  "2026-01-26",
+  TERMS_VERSION,
+];
+
 export const TERMS_TEXT = `TÉRMINOS Y CONDICIONES – FOTÓGRAFOS (Aceptados al crear un álbum)
 
 1. Titularidad de las fotografías

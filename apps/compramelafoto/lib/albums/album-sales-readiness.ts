@@ -1,4 +1,4 @@
-import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
+import { TERMS_VERSIONS_VALIDAS_PARA_VENTA } from "@/lib/terms/photographerTerms";
 
 /** Estado comercial del álbum para dashboard y galería. */
 export type AlbumSalesStatus = "pending" | "incomplete" | "active";
@@ -73,8 +73,19 @@ function positiveStoredDigitalPrice(cents: number | null | undefined): boolean {
   return Number.isFinite(n) && n > 0;
 }
 
+/**
+ * El álbum tiene términos aceptados y su versión sigue habilitando la venta.
+ *
+ * La comparación es contra la lista de versiones válidas, no contra la última: un
+ * álbum creado bajo una versión anterior fue aceptado realmente y sigue vendiendo.
+ * Ver `TERMS_VERSIONS_VALIDAS_PARA_VENTA` para cuándo corresponde forzar la
+ * re-aceptación.
+ */
 export function isAlbumTermsAccepted(input: Pick<AlbumSalesReadinessInput, "termsAcceptedAt" | "termsVersion">): boolean {
-  return Boolean(input.termsAcceptedAt) && input.termsVersion === TERMS_VERSION;
+  if (!input.termsAcceptedAt) return false;
+  const version = input.termsVersion;
+  if (!version) return false;
+  return TERMS_VERSIONS_VALIDAS_PARA_VENTA.includes(version);
 }
 
 /** Precio digital listo: solo valor guardado en el álbum o precio fijado por organizador. */
