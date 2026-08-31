@@ -7075,6 +7075,14 @@ model Member {
   /// FotorankProfile, FotorankJudgeProfile, BlogAuthor usan el mismo nombre).
   /// Solo la URL — el upload/storage se resuelve en la etapa de UI, no acá.
   avatarUrl      String?
+  /// Foto del portal, distinta de la del carnet a propósito.
+  ///
+  /// `avatarUrl` es una foto de documento: fondo plano, encuadre fijo, 300 dpi, y la aprueba la
+  /// Secretaría. Sirve para identificar, no para presentarse. Obligar a usarla como foto de
+  /// perfil deja al socio con una foto de trámite en el único lugar donde se muestra a sí mismo.
+  ///
+  /// Vacío significa "usar la del carnet": quien no quiera elegir otra no tiene que hacer nada.
+  profilePhotoUrl String?
   birthDate      DateTime?
   address        String?
   city           String?

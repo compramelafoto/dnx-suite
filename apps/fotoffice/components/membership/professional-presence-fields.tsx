@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ESPECIALIDADES, MAX_ESPECIALIDADES } from "@/lib/membership/specialties";
+import { especialidadesPorGrupo, MAX_ESPECIALIDADES } from "@/lib/membership/specialties";
 
 /**
  * Presencia profesional del aspirante: rubros, estudio, redes y sitio.
@@ -107,8 +107,14 @@ export function ProfessionalPresenceFields({
           Marcalos en orden: el primero es a lo que más te dedicás. Para cambiar el orden,
           desmarcá y volvé a marcar.
         </p>
-        <div className="flex flex-wrap gap-2">
-          {ESPECIALIDADES.map((e) => {
+        <div className="space-y-3">
+          {especialidadesPorGrupo().map((grupo) => (
+            <div key={grupo.id} className="space-y-1.5">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--fo-muted-soft)]">
+                {grupo.label}
+              </p>
+              <div className="flex flex-wrap gap-2">
+          {grupo.items.map((e) => {
             const posicion = elegidas.indexOf(e.id);
             const activa = posicion >= 0;
             return (
@@ -146,6 +152,9 @@ export function ProfessionalPresenceFields({
               </label>
             );
           })}
+              </div>
+            </div>
+          ))}
         </div>
       </fieldset>
 

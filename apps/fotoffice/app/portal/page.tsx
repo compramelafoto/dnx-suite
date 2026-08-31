@@ -10,6 +10,10 @@ import { loadMemberAccount } from "@/lib/membership/account";
 import { formatMinorArs } from "@/lib/membership/money";
 import { describeSeniority } from "@/lib/portal/identity";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
+import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
+import { resolvePortalMenu } from "@/lib/portal/menu";
+import { PortalShell } from "@/components/portal/portal-shell";
+import { PortalSections } from "@/components/portal/portal-sections";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +54,10 @@ export default async function PortalPage() {
   // formulario donde cargarlos. El aviso está para eso, y desaparece solo cuando ya cargó algo.
   const perfil = await prisma.member.findUnique({
     where: { id: context.member.id },
-    select: { businessName: true, bio: true, specialties: true, instagram: true, website: true },
+    select: {
+      businessName: true, bio: true, specialties: true, instagram: true, website: true,
+      avatarUrl: true, profilePhotoUrl: true,
+    },
   });
   const perfilVacio =
     !perfil?.businessName &&
@@ -59,8 +66,22 @@ export default async function PortalPage() {
     !perfil?.website &&
     (perfil?.specialties.length ?? 0) === 0;
 
+  const enabledModuleKeys = await getEnabledModuleKeysForWorkspace(context.workspace.id);
+  const secciones = resolvePortalMenu(enabledModuleKeys);
+
   return (
-    <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
+    <PortalShell
+      items={secciones}
+      activeHref="/portal"
+      institution={{ name: institution, logoUrl: branding?.logoUrl ?? null }}
+      member={{
+        fullName: `${context.member.firstName} ${context.member.lastName}`.trim(),
+        memberNumber: context.member.memberNumber,
+        category: context.member.categoryName ?? null,
+        // Vacío significa "usar la del carnet": nadie tiene que elegir una foto para tener una.
+        photoUrl: perfil?.profilePhotoUrl ?? perfil?.avatarUrl ?? null,
+      }}
+    >
       <main className="mx-auto max-w-lg px-4 py-16">
         <section className="fo-card space-y-6">
           <div className="flex items-center gap-3">
@@ -173,6 +194,11 @@ export default async function PortalPage() {
           </div>
         </section>
 
+        {/* Todo lo que el portal ofrece, incluido lo que todavía se está construyendo. */}
+        <div className="mt-6">
+          <PortalSections items={secciones} />
+        </div>
+
         {perfilVacio ? (
           <section className="fo-card mt-6 space-y-3 p-5">
             <h2 className="text-sm font-semibold">Completá tu perfil profesional</h2>
@@ -205,6 +231,6 @@ export default async function PortalPage() {
           </section>
         ) : null}
       </main>
-    </div>
+    </PortalShell>
   );
 }
