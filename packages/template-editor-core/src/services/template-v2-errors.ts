@@ -113,8 +113,21 @@ export function toErrorResponse(err: unknown): {
     };
   }
   console.error("[template-v2]", err);
+  /*
+   * El mensaje real viaja al cliente, no un "Error interno" a secas.
+   *
+   * Estas rutas solo las alcanza alguien autenticado y con permiso de diseño sobre su propia
+   * institución, así que no hay nada que ocultarle. Y sin el mensaje no hay nada que hacer:
+   * quien diseña ve un cartel rojo que no dice nada, y quien programa tiene que adivinar contra
+   * un servidor cuyos registros no siempre están a mano. Se manda el mensaje, nunca la traza.
+   */
+  const causa = err instanceof Error ? err.message : String(err);
   return {
     status: 500,
-    body: { ok: false, error: "Error interno de plantillas" },
+    body: {
+      ok: false,
+      error: causa ? `Error interno de plantillas: ${causa}` : "Error interno de plantillas",
+      code: "TEMPLATE_INTERNAL",
+    },
   };
 }

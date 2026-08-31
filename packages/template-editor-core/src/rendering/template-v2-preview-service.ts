@@ -183,7 +183,11 @@ export async function runTemplateV2Preview(args: {
     name: templateName,
   });
   if (!svg.ok) {
-    throw previewInvalid("No se pudo dibujar la vista previa", { errors: svg.errors });
+    // El detalle va en el mensaje, no solo en `details`: es lo único que se ve en pantalla.
+    throw previewInvalid(
+      `No se pudo dibujar la vista previa: ${svg.errors.join(" · ")}`,
+      { errors: svg.errors },
+    );
   }
 
   const render = {

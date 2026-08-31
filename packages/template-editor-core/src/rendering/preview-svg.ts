@@ -110,7 +110,22 @@ export async function renderPreviewSvg(input: {
     return { ok: false, errors: resueltas.errors ?? ["No se pudieron resolver las variables"] };
   }
 
-  const svg = await renderSvgPages(leido.value, resueltas.value);
+  /*
+   * El dibujo se envuelve porque puede fallar por cosas que no son el diseño: una tipografía que
+   * no llegó al servidor, una imagen que no se pudo leer. Sin esto sale como excepción y quien
+   * diseña ve "Error interno" sin ninguna pista de qué corregir.
+   */
+  let svg;
+  try {
+    svg = await renderSvgPages(leido.value, resueltas.value);
+  } catch (err) {
+    return {
+      ok: false,
+      errors: [
+        `No se pudo dibujar: ${err instanceof Error ? err.message : String(err)}`,
+      ],
+    };
+  }
   if (!svg.ok) {
     return { ok: false, errors: svg.errors };
   }
