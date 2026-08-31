@@ -50,3 +50,5 @@ export * from "./variable-catalog-fotoffice";
 export * from "./variable-catalog-product";
 
 export * from "./presets/index";
+
+export * from "./fit-zoom";

@@ -231,6 +231,16 @@ export const FOTOFFICE_VARIABLE_GROUPS: TemplateV2VariableGroup[] = [
  * Datos de muestra para la vista previa del editor. No son de nadie real: sirven para que el
  * diseñador vea cómo queda la plantilla antes de que exista una credencial de verdad.
  */
+/**
+ * Silueta de muestra para la vista previa. Va como dato incrustado y no como archivo remoto: la
+ * vista previa se dibuja en el servidor y no tiene por qué depender de que una URL responda.
+ *
+ * Es deliberadamente sosa. Una foto bonita acá haría que el diseño se vea mejor de lo que se va
+ * a ver con la foto real de un socio.
+ */
+export const FOTOFFICE_FIXTURE_PHOTO_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAACACAIAAAB7vvvtAAABTUlEQVR42u3auw3CQBBF0em/IzJCKkEioAcKsFkbCc/s50i3gpOsNPvi+XqrUSAABAgQIECAAAESIECAAAECBAiQAAECBAgQIECAErrdH+3WBTqk6YEp+qepZYpRaKqYYjidZKMYUSfTKAbVSTOKcXVyjGJonQQjQKVACTpXGwGqA0rTudQIECBAQwIl61xnBAgQIECAFgTyzAMCBMi5A9DoQE6ugHz7+Dj09Wy8YP6yyvzFgMoEz4hTgAABAgQIECBAAgQIECBA0wGV7FoKj9mA/go0gc6vRoAAAeoFaBqdn4wAAQLUBdBkOueNAAFKAJpS56QRIECAioEm1jljBAgQoEqg6XUOjQABAlQGtIhO2wgQIEA1QEvpNIwAAQJUALSgzjcjQIAAZQMtq7NrBAgQoFSgxXW2RoAAAcoDQrM1AgQIUBIQlF0jQAdAHwVqnh8npyVFAAAAAElFTkSuQmCC";
+
 export function createFotofficeExampleData(
   overrides?: Record<string, unknown>
 ): Record<string, unknown> {
@@ -242,7 +252,7 @@ export function createFotofficeExampleData(
     category: "Profesional",
     documentNumber: "28.114.507",
     joinedAt: "2014-03-15",
-    photo: null,
+    photo: FOTOFFICE_FIXTURE_PHOTO_DATA_URL,
     email: "maria.gomez@example.com",
     phone: "+54 341 555-0142",
     city: "Rosario",
@@ -250,7 +260,7 @@ export function createFotofficeExampleData(
     validUntil: "2027-12-31",
     verificationUrl: "https://fotoffice.com/c/ejemplo",
     institutionName: "Sociedad de Fotógrafos Profesionales de Rosario",
-    institutionLogo: null,
+    institutionLogo: FOTOFFICE_FIXTURE_PHOTO_DATA_URL,
     ...overrides,
   };
 }

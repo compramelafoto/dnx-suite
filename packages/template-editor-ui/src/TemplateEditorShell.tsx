@@ -57,6 +57,7 @@ import {
   createDefaultImageBlock,
   createDefaultShapeBlock,
   createDefaultQrBlock,
+  fitZoom,
   createDefaultVariableImageBlock,
   resolveTemplateProduct,
   getInsertableImageVariablesForProduct,
@@ -349,6 +350,9 @@ type LoadResponse = {
   details?: string;
 };
 
+/** Alto de la barra de estado del lienzo, en píxeles. Debe seguir a la clase `h-9` de abajo. */
+const BARRA_ESTADO_PX = 36;
+
 export function TemplateEditorShell({
   templateId,
   versionId,
@@ -374,6 +378,8 @@ export function TemplateEditorShell({
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [showSafeArea, setShowSafeArea] = useState(true);
   const [imagenMenuOpen, setImagenMenuOpen] = useState(false);
+  /** El área donde se dibuja. De ahí sale la medida para ajustar el zoom. */
+  const areaLienzoRef = useRef<HTMLDivElement | null>(null);
   const [showCenterAxes, setShowCenterAxes] = useState(true);
   const [canvasSizeModalOpen, setCanvasSizeModalOpen] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -521,6 +527,29 @@ export function TemplateEditorShell({
 
   /** Las imágenes que este producto sabe atar a un dato: la foto del socio, un logo. */
   const imagenesDeVariable = getInsertableImageVariablesForProduct(producto);
+
+  /**
+   * Lleva el zoom al punto donde la pieza entra completa.
+   *
+   * La medida sale del elemento real y no de un cálculo aparte: el panel lateral se abre y se
+   * cierra, y la ventana cambia de tamaño. Un número guardado quedaría viejo enseguida.
+   */
+  function ajustarALaVentana() {
+    const caja = areaLienzoRef.current?.getBoundingClientRect();
+    if (!caja) return;
+    const s = stateRef.current;
+    dispatch(
+      setZoom(
+        fitZoom({
+          canvasWidth: s.canvas.width,
+          canvasHeight: s.canvas.height,
+          viewportWidth: caja.width,
+          // La barra de estado no es lienzo: descontarla evita que la pieza quede tapada abajo.
+          viewportHeight: caja.height - BARRA_ESTADO_PX,
+        }),
+      ),
+    );
+  }
 
   function handleAddVariableImage(variableKey: string, name: string) {
     setCanvasTool("select");
@@ -1477,7 +1506,7 @@ export function TemplateEditorShell({
 
             </aside>
 
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div ref={areaLienzoRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
               <TemplateEditorCanvas
                 state={state}
                 dispatch={dispatch}
@@ -1519,6 +1548,17 @@ export function TemplateEditorShell({
                     disabled={!editorReady}
                   >
                     <span className="text-base leading-none">+</span>
+                  </ToolButton>
+                  <ToolButton
+                    label="Ajustar a la ventana"
+                    shortcut="⇧⌘0"
+                    className="!h-7 !w-7"
+                    onClick={ajustarALaVentana}
+                    disabled={!editorReady}
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" />
+                    </svg>
                   </ToolButton>
                   <ToolButton
                     label="Tamaño real"

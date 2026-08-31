@@ -92,6 +92,16 @@ export { safeGetByPath, isEmptyValue } from "./variables/resolve-path";
 export { applyFormatter, isKnownFormatter } from "./variables/formatters";
 
 export {
+  fotofficeTemplateVariablesPlugin,
+  FOTOFFICE_TEMPLATE_VARIABLE_DEFINITIONS,
+} from "./plugins/fotoffice";
+
+export {
+  fotorankTemplateVariablesPlugin,
+  FOTORANK_TEMPLATE_VARIABLE_DEFINITIONS,
+} from "./plugins/fotorank";
+
+export {
   schoolTemplateVariablesPlugin,
   SCHOOL_TEMPLATE_ALIASES,
   SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS,
