@@ -233,3 +233,38 @@ describe("editorADocumento", () => {
     expect(doc.value.format.width).toBeCloseTo(85.6, 1);
   });
 });
+
+describe("imágenes atadas a un dato", () => {
+  const canvas = { width: 1011, height: 638, dpi: 300 };
+  const imagen = (configJson: unknown): EditorBlock => ({
+    id: "img", type: "IMAGE", pageIndex: 0, x: 0, y: 0, width: 100, height: 100,
+    rotation: 0, zIndex: 0, opacity: 1, locked: false, visible: true, configJson,
+  });
+
+  it("lee la variable donde la escribe el editor", () => {
+    const r = editorADocumento({
+      canvas,
+      blocks: [imagen({ source: { variableKey: "photo" }, fit: "cover" })],
+    });
+    const doc = readDesignDocument(r.document);
+    if (!doc.ok) throw new Error("no se leyó");
+    const b = doc.value.sides[0].blocks[0];
+    expect(b.type === "image" && b.variableKey).toBe("photo");
+  });
+
+  it("y también en la raíz, por compatibilidad", () => {
+    const r = editorADocumento({ canvas, blocks: [imagen({ variableKey: "institutionLogo" })] });
+    const doc = readDesignDocument(r.document);
+    if (!doc.ok) throw new Error("no se leyó");
+    const b = doc.value.sides[0].blocks[0];
+    expect(b.type === "image" && b.variableKey).toBe("institutionLogo");
+  });
+
+  it("una imagen con archivo propio sigue usando el archivo", () => {
+    const r = editorADocumento({ canvas, blocks: [imagen({ src: "https://cdn/x.png" })] });
+    const doc = readDesignDocument(r.document);
+    if (!doc.ok) throw new Error("no se leyó");
+    const b = doc.value.sides[0].blocks[0];
+    expect(b.type === "image" && b.resourceRef).toBe("https://cdn/x.png");
+  });
+});

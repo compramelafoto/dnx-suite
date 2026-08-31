@@ -6,7 +6,10 @@ import {
   resolveTemplateProduct,
   createExampleDataForProduct,
 } from "../resolve-template-product";
-import { getVariableGroupsForProduct } from "../variable-catalog-product";
+import {
+  getInsertableImageVariablesForProduct,
+  getVariableGroupsForProduct,
+} from "../variable-catalog-product";
 import { FOTOFFICE_VARIABLE_GROUPS } from "../variable-catalog-fotoffice";
 
 /**
@@ -75,4 +78,43 @@ test("la vista previa trae un valor para cada variable obligatoria", () => {
       );
     }
   }
+});
+
+test("FotoOffice puede insertar la foto del socio y el logo de la institución", () => {
+  const claves = getInsertableImageVariablesForProduct("fotoffice").map((v) => v.key);
+  // La regresión concreta: el editor ofrecía "Logo escuela" y ninguna forma de poner la foto.
+  assert.deepEqual(claves.sort(), ["institutionLogo", "photo"]);
+});
+
+test("cada producto ofrece sus imágenes, no las de otro", () => {
+  const foto = getInsertableImageVariablesForProduct("fotoffice").map((v) => v.key);
+  const escuela = getInsertableImageVariablesForProduct("school").map((v) => v.key);
+  assert.ok(!foto.some((k) => escuela.includes(k)), "FotoOffice no debe ofrecer imágenes de escuela");
+  assert.ok(escuela.some((k) => k.includes("schoolLogo")), "la escuela conserva su logo");
+});
+
+test("las imágenes insertables salen del catálogo, no de una lista aparte", () => {
+  for (const v of getInsertableImageVariablesForProduct("fotoffice")) {
+    assert.equal(v.valueType, "imageUrl");
+    assert.ok(v.usableIn.includes("IMAGE"));
+    assert.ok(v.label.length > 0, `${v.key} sin nombre visible`);
+  }
+});
+
+test("una plantilla de FotoOffice se reconoce como tal y no cae en escuela", () => {
+  /*
+   * El shell resolvía el producto con `=== "clickaton" ? "clickaton" : "school"`. Una plantilla
+   * de FotoOffice caía en la rama de escuela y el editor le ofrecía las variables de un
+   * colegio: todo el catálogo de socios existía y no había forma de llegar a él.
+   */
+  const meta = { templateKey: "carnet-socio-v1", product: "fotoffice", origin: "system" };
+  const producto = resolveTemplateProduct(meta);
+  assert.equal(producto, "fotoffice");
+  assert.notEqual(producto, "school");
+
+  const claves = getVariableGroupsForProduct(producto)
+    .flatMap((g) => g.variables)
+    .map((v) => v.key);
+  assert.ok(claves.includes("photo"), "tiene que ofrecer la foto del socio");
+  assert.ok(claves.includes("memberNumber"), "y el número de socio");
 });

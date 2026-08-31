@@ -85,3 +85,19 @@ export function getVariableByKeyForProduct(
   }
   return undefined;
 }
+
+/**
+ * Las imágenes que el editor puede insertar como bloque atado a un dato.
+ *
+ * Sale del propio catálogo del producto: una variable de imagen usable en bloques de imagen es,
+ * por definición, una imagen insertable. Así el riel de herramientas no tiene su propia lista
+ * que mantener al día — era el defecto que dejaba a FotoOffice sin forma de poner la foto del
+ * socio mientras ofrecía el logo de una escuela que no existe en ese producto.
+ */
+export function getInsertableImageVariablesForProduct(
+  product: TemplateProductId | "unknown"
+): TemplateV2VariableDefinition[] {
+  return getVariableGroupsForProduct(product)
+    .flatMap((g) => g.variables)
+    .filter((v) => v.valueType === "imageUrl" && v.usableIn.includes("IMAGE"));
+}

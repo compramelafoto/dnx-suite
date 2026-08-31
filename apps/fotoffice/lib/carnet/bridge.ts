@@ -227,7 +227,12 @@ export function editorADocumento(input: {
           }
 
           case "IMAGE": {
-            const clave = texto(cfg.variableKey);
+            /*
+             * La clave puede estar en `source.variableKey` —que es donde la escribe el editor y
+             * donde la busca el lienzo— o en la raíz. Leer solo la raíz hacía que una imagen
+             * atada a un dato se viera bien mientras se diseñaba y saliera vacía al imprimir.
+             */
+            const clave = texto(obj(cfg.source).variableKey) || texto(cfg.variableKey);
             const src = texto(cfg.src) || texto(obj(cfg.source).src) || texto(obj(cfg.source).url);
             if (clave) {
               dibujables.push({ ...geo, type: "image", variableKey: clave, fit: "cover" });

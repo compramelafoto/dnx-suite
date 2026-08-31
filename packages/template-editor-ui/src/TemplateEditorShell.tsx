@@ -55,9 +55,11 @@ import {
 import {
   createDefaultBackgroundBlock,
   createDefaultImageBlock,
-  createDefaultSchoolLogoImageBlock,
   createDefaultShapeBlock,
   createDefaultQrBlock,
+  createDefaultVariableImageBlock,
+  resolveTemplateProduct,
+  getInsertableImageVariablesForProduct,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -371,6 +373,7 @@ export function TemplateEditorShell({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [showSafeArea, setShowSafeArea] = useState(true);
+  const [imagenMenuOpen, setImagenMenuOpen] = useState(false);
   const [showCenterAxes, setShowCenterAxes] = useState(true);
   const [canvasSizeModalOpen, setCanvasSizeModalOpen] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -513,24 +516,35 @@ export function TemplateEditorShell({
     dispatch(addBlock(createDefaultImageBlock(state.canvas, onPage, ap)));
   }
 
-  function handleAddSchoolLogoImage() {
+  /** El producto de esta plantilla. Gobierna qué variables e imágenes ofrece el editor. */
+  const producto = resolveTemplateProduct(state.versionMeta);
+
+  /** Las imágenes que este producto sabe atar a un dato: la foto del socio, un logo. */
+  const imagenesDeVariable = getInsertableImageVariablesForProduct(producto);
+
+  function handleAddVariableImage(variableKey: string, name: string) {
     setCanvasTool("select");
     const s = stateRef.current;
     const ap = s.activePageIndex ?? 0;
     const onPage = s.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
-    const block = createDefaultSchoolLogoImageBlock(s.canvas, onPage, ap);
-    const binding: TemplateV2VariableBinding = {
-      blockId: block.id,
-      variableKey: "branding.schoolLogoUrl",
-      targetPath: "src",
-    };
-    const nextBindings: TemplateV2VariableBinding[] = [
-      ...s.variableBindings.filter((vb) => vb.blockId !== block.id),
-      binding,
-    ];
+    const block = createDefaultVariableImageBlock(s.canvas, onPage, ap, { variableKey, name });
+
+    /*
+     * El vínculo se registra además del `source.variableKey` del bloque. Son dos cosas: uno es
+     * lo que el lienzo lee para dibujar, el otro se guarda como fila propia y lleva el formato
+     * y el valor de reemplazo. Un bloque sin vínculo se ve mientras se diseña y no deja
+     * registro de a qué dato responde.
+     */
+    const binding: TemplateV2VariableBinding = { blockId: block.id, variableKey, targetPath: "src" };
     dispatch(addBlock(block));
-    dispatch(setVariableBindings(nextBindings));
+    dispatch(
+      setVariableBindings([
+        ...s.variableBindings.filter((vb) => vb.blockId !== block.id),
+        binding,
+      ]),
+    );
   }
+
 
   async function handleBackgroundFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -1397,13 +1411,49 @@ export function TemplateEditorShell({
                   <path d="M3 17l5-5 4 4 5-6 6 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </EditorToolButton>
-              <EditorToolButton label="Logo escuela" onClick={handleAddSchoolLogoImage}>
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <rect x="3.5" y="5" width="17" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="10" cy="11.5" r="2.25" />
-                  <path d="M14.5 10h5.5M14.5 13h4" strokeLinecap="round" />
-                </svg>
-              </EditorToolButton>
+              {/*
+                Imágenes atadas a un dato del destinatario. Antes había un solo botón fijo,
+                "Logo escuela", con la variable de otro producto escrita adentro: en FotoOffice
+                ofrecía el logo de un colegio que ahí no existe, y no había ninguna forma de
+                poner la foto del socio. La lista sale del catálogo de variables del producto,
+                así que cada plataforma ofrece lo suyo sin una lista aparte que mantener.
+              */}
+              {imagenesDeVariable.length > 0 ? (
+                <div className="relative">
+                  <EditorToolButton
+                    label="Foto o logo del destinatario"
+                    pressed={imagenMenuOpen}
+                    onClick={() => setImagenMenuOpen((v) => !v)}
+                  >
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                      <rect x="3.5" y="5" width="17" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="12" r="3.25" />
+                    </svg>
+                  </EditorToolButton>
+                  {imagenMenuOpen ? (
+                    <div
+                      role="menu"
+                      className="absolute left-full top-0 z-50 ml-1 min-w-[13rem] overflow-hidden rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] py-1 shadow-lg"
+                    >
+                      {imagenesDeVariable.map((v) => (
+                        <button
+                          key={v.key}
+                          role="menuitem"
+                          type="button"
+                          className="block w-full px-3 py-1.5 text-left text-[12px] text-[color:var(--te-ink)] hover:bg-[color:var(--te-chrome-sunken)]"
+                          title={v.description}
+                          onClick={() => {
+                            handleAddVariableImage(v.key, v.label);
+                            setImagenMenuOpen(false);
+                          }}
+                        >
+                          {v.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <input
                 ref={backgroundFileRef}
                 type="file"
@@ -1512,9 +1562,13 @@ export function TemplateEditorShell({
                     versionId={versionId}
                     variableBindings={state.variableBindings}
                     dispatch={dispatch}
-                    product={
-                      state.versionMeta?.product === "clickaton" ? "clickaton" : "school"
-                    }
+                    /*
+                      Antes: `=== "clickaton" ? "clickaton" : "school"`. Una plantilla de
+                      FotoOffice, cuyo producto es "fotoffice", caía en la rama de escuela y el
+                      editor le ofrecía las variables de un colegio. Todo el catálogo del socio
+                      existía y no había forma de llegar a él.
+                    */
+                    product={producto}
                   />
                 </RightSidebarSection>
 
