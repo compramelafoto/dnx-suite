@@ -42,6 +42,19 @@ export type TemplateV2Runtime = {
    * (en Clickatón, cualquier admin puede editar las plantillas del evento).
    */
   policy?: Partial<TemplateV2AccessPolicy>;
+  /**
+   * Datos reales para la vista previa, de la base de la aplicación.
+   *
+   * Sin esto la vista previa dibuja con valores inventados, y sirve para ver el diseño pero no
+   * para contestar la pregunta que uno se hace de verdad: "¿sale bien con los datos que tengo?".
+   * Un nombre largo que se corta o una foto con otra proporción no se ven con datos de ejemplo.
+   *
+   * Devolver `null` es válido: una institución sin registros todavía cae en los datos de
+   * ejemplo, que es mejor que una vista previa vacía.
+   *
+   * Quien la implemente responde por el alcance: solo datos que quien está mirando ya puede ver.
+   */
+  resolvePreviewValues?: () => Promise<Record<string, unknown> | null>;
 };
 
 let runtime: TemplateV2Runtime | null = null;

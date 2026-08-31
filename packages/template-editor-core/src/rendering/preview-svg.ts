@@ -2,6 +2,7 @@ import { readDesignDocument, renderSvgPages, resolveVariables } from "@repo/desi
 import { editorADocumento, type EditorBlock, type EditorCanvas } from "../design-studio-bridge";
 import { buildContractForProduct } from "../design-studio-contract";
 import { createExampleDataForProduct } from "../resolve-template-product";
+import { getTemplateV2Runtime } from "../services/template-v2-runtime";
 import type { TemplateProductId } from "../resolve-template-product";
 
 /**
@@ -36,6 +37,21 @@ function conImagenesVisibles(svg: string): string {
     /data-resource-ref="((?:https?:\/\/|data:image\/(?:png|jpeg|jpg|webp|gif);)[^"]*)"/g,
     (_todo, ref: string) => `href="${ref}" data-resource-ref="${ref}"`,
   );
+}
+
+/**
+ * Los datos reales, si la aplicación sabe darlos.
+ *
+ * Nada de esto puede tumbar la vista previa: sin runtime —en una prueba, por ejemplo— o si la
+ * consulta falla, se sigue con los datos de ejemplo. Ver el diseño con valores inventados es
+ * peor que verlo con los de verdad, y mucho mejor que no verlo.
+ */
+async function obtenerDatosReales(): Promise<Record<string, unknown> | null> {
+  try {
+    return (await getTemplateV2Runtime().resolvePreviewValues?.()) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function renderPreviewSvg(input: {
@@ -73,8 +89,15 @@ export async function renderPreviewSvg(input: {
     ],
   };
 
+  /*
+   * Datos reales si la aplicación sabe dar alguno; si no, los de ejemplo. Se combinan en vez de
+   * reemplazarse: un registro real puede no tener todos los campos, y una variable sin valor
+   * dibujaría un hueco donde el diseño espera algo.
+   */
+  const reales = await obtenerDatosReales();
   const valores = {
     ...createExampleDataForProduct(input.product),
+    ...(reales ?? {}),
     ...Object.fromEntries(puente.variablesSinteticas.map((v) => [v.key, v.value])),
   };
 

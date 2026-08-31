@@ -439,6 +439,7 @@ export function TemplateEditorInspector({
             updateConfig={updateConfig}
             dispatch={dispatch}
             inputBase={inputBase}
+            product={product}
           />
           <InspectorPanel title="Contenedor de imagen">
             <div>

@@ -1688,8 +1688,8 @@ export function TemplateEditorShell({
               ) : null}
             </div>
             <p className="border-t border-[color:var(--te-line)] px-4 py-2 text-center text-[11px] text-[color:var(--te-ink-faint)]">
-              Se dibuja con el mismo motor que produce el archivo para imprenta, con datos de
-              ejemplo. Guardá los cambios cuando quieras conservarlos.
+              Se dibuja con el mismo motor que produce el archivo para imprenta, con datos
+              reales de tu institución. Guardá los cambios cuando quieras conservarlos.
             </p>
           </div>
         </div>
