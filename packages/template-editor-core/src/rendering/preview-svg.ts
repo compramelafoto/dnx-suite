@@ -1,7 +1,10 @@
 import { readDesignDocument, renderSvgPages, resolveVariables } from "@repo/design-studio";
 import { editorADocumento, type EditorBlock, type EditorCanvas } from "../design-studio-bridge";
 import { buildContractForProduct } from "../design-studio-contract";
-import { createExampleDataForProduct } from "../resolve-template-product";
+import {
+  createExampleDataForProduct,
+  getAllowedVariableKeysForProduct,
+} from "../resolve-template-product";
 import { getTemplateV2Runtime } from "../services/template-v2-runtime";
 import type { TemplateProductId } from "../resolve-template-product";
 
@@ -64,6 +67,7 @@ export async function renderPreviewSvg(input: {
     canvas: input.canvas,
     blocks: input.blocks,
     nombre: input.name,
+    variablesConocidas: getAllowedVariableKeysForProduct(input.product),
   });
 
   const leido = readDesignDocument(puente.document);

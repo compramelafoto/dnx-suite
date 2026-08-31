@@ -117,10 +117,32 @@ function alineacion(v: unknown): "left" | "center" | "right" {
 /**
  * Traduce un diseño del editor al documento que imprime design-studio.
  */
+/**
+ * Pasa `{clave}` a `{{clave}}` para las variables que el producto conoce.
+ *
+ * Conviven dos escrituras: el panel del editor inserta `{clave}` y el módulo de impresión lee
+ * `{{clave}}`. Sin esto, quien agregaba "Nombre y apellido" desde el panel veía impreso el texto
+ * `{fullName}` en vez del nombre — el marcador salía literal, sin ningún error que lo avisara.
+ *
+ * Solo se convierten las claves que el producto declara. Una llave suelta en el medio de una
+ * frase sigue siendo una llave: alguien puede querer escribirla.
+ */
+function normalizarMarcadores(texto: string, conocidas?: ReadonlySet<string>): string {
+  if (!conocidas || conocidas.size === 0) return texto;
+  return texto.replace(/(?<!\{)\{\s*([A-Za-z_][\w.]*)\s*\}(?!\})/g, (todo, clave: string) =>
+    conocidas.has(clave) ? `{{${clave}}}` : todo,
+  );
+}
+
 export function editorADocumento(input: {
   canvas: EditorCanvas;
   blocks: readonly EditorBlock[];
   nombre?: string;
+  /**
+   * Las variables que este producto declara. Sin esto los marcadores se dejan como están, que
+   * es lo correcto cuando no se sabe cuáles son válidos.
+   */
+  variablesConocidas?: ReadonlySet<string>;
 }): PuenteResultado {
   const avisos: string[] = [];
   const variablesSinteticas: VariableSintetica[] = [];
@@ -193,7 +215,7 @@ export function editorADocumento(input: {
             dibujables.push({
               ...geo,
               type: "text",
-              content: texto(cfg.content),
+              content: normalizarMarcadores(texto(cfg.content), input.variablesConocidas),
               fontId: fuenteDesde(texto(cfg.fontFamily, "Helvetica"), avisos),
               fontSize: pt(num(cfg.fontSize, 20)),
               fontWeight: num(cfg.fontWeight, 400) >= 600 ? "bold" : "normal",

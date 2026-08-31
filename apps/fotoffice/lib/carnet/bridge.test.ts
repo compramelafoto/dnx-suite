@@ -316,3 +316,47 @@ describe("forma del recorte", () => {
     expect(formaDe({ source: { variableKey: "photo" }, maskShape: "circle" })).toBe("circle");
   });
 });
+
+describe("las dos escrituras de marcador", () => {
+  const canvas = { width: 1011, height: 638, dpi: 300 };
+  const conocidas = new Set(["fullName", "memberNumber"]);
+  const texto = (content: string, variablesConocidas?: Set<string>) => {
+    const r = editorADocumento({
+      canvas,
+      variablesConocidas,
+      blocks: [{
+        id: "t", type: "TEXT", pageIndex: 0, x: 0, y: 0, width: 300, height: 40,
+        rotation: 0, zIndex: 0, opacity: 1, locked: false, visible: true,
+        configJson: { content, fontSize: 20 },
+      }],
+    });
+    const doc = readDesignDocument(r.document);
+    if (!doc.ok) throw new Error(doc.errors.join(", "));
+    const b = doc.value.sides[0].blocks[0];
+    return b.type === "text" ? b.content : "";
+  };
+
+  it("una llave simple pasa a doble cuando la variable existe", () => {
+    /*
+     * El defecto concreto: el panel del editor inserta `{clave}` y el módulo de impresión lee
+     * `{{clave}}`. Quien agregaba "Nombre y apellido" veía impreso el texto `{fullName}`.
+     */
+    expect(texto("{fullName}", conocidas)).toBe("{{fullName}}");
+  });
+
+  it("la doble se deja como está", () => {
+    expect(texto("{{fullName}}", conocidas)).toBe("{{fullName}}");
+  });
+
+  it("funciona en medio de una frase", () => {
+    expect(texto("Socio N° {memberNumber} — SFPR", conocidas)).toBe("Socio N° {{memberNumber}} — SFPR");
+  });
+
+  it("una llave que no es variable se respeta: alguien puede querer escribirla", () => {
+    expect(texto("Horario {mañana} a {tarde}", conocidas)).toBe("Horario {mañana} a {tarde}");
+  });
+
+  it("sin lista de variables no se toca nada", () => {
+    expect(texto("{fullName}")).toBe("{fullName}");
+  });
+});

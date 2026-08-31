@@ -17,10 +17,23 @@ type Props = {
   product?: TemplateProductId | "unknown";
 };
 
+/** Cómo se nombra cada catálogo. Sin entrada, no se dice nada: mejor callar que nombrar mal. */
+const ETIQUETA_PRODUCTO: Record<string, string> = {
+  fotoffice: " Datos del socio.",
+  fotorank: " Datos del diploma.",
+  clickaton: " Catálogo Clickatón.",
+  school: " Catálogo de ComprameLaFoto.",
+};
+
 export function TemplateVariableBraceInsertPanel({
   selectedBlockId,
   selectedKind,
-  product = "school",
+  /*
+   * Sin producto no se asume ninguno. Antes el valor por omisión era "school": una pantalla que
+   * se olvidara de pasarlo mostraba el catálogo de CLF, y en FotoOffice aparecían "Alumno" y
+   * "Escuela". Un catálogo vacío avisa; uno equivocado engaña.
+   */
+  product = "unknown",
 }: Props) {
   const editingId = useSyncExternalStore(
     subscribeTemplateTextEditing,
@@ -46,8 +59,12 @@ export function TemplateVariableBraceInsertPanel({
         Agregar dato variable
       </p>
       <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-line)]">
+        {/*
+          Se inserta con una llave, que es lo que entiende el lienzo del editor. La conversión a
+          la escritura del módulo de impresión la hace el puente, no la persona.
+        */}
         Se inserta en el cursor como <code className="font-mono text-[10px]">{`{clave}`}</code>.
-        {product === "clickaton" ? " Catálogo Clickatón." : " Catálogo escolar."}
+        {ETIQUETA_PRODUCTO[product] ?? ""}
       </p>
       <div className="mt-2 max-h-[220px] space-y-2.5 overflow-y-auto pr-0.5">
         {groups.map((g) => (
