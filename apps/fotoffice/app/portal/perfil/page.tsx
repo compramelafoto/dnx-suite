@@ -27,6 +27,8 @@ export default async function PerfilProfesionalPage() {
       youtube: true,
       linkedin: true,
       directoryOptIn: true,
+      avatarUrl: true,
+      profilePhotoUrl: true,
       workspace: { select: { name: true } },
     },
   });
@@ -35,6 +37,7 @@ export default async function PerfilProfesionalPage() {
   const { ProfessionalProfileForm } = await import(
     "@/components/portal/professional-profile-form"
   );
+  const { MemberPhotoUpload } = await import("@/components/portal/member-photo-upload");
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -44,6 +47,20 @@ export default async function PerfilProfesionalPage() {
           Estos datos son tuyos. Se publican solo si lo autorizás.
         </p>
       </header>
+      {/*
+        Las dos fotos viven acá, que es donde la persona configura cómo se muestra. La de la
+        credencial estaba en la pantalla del carnet: se llegaba solo por ahí, y quien nunca
+        entraba a su carnet no encontraba dónde cargarla.
+      */}
+      <div className="mb-4 grid gap-4 sm:grid-cols-2">
+        <MemberPhotoUpload
+          tipo="PERFIL"
+          currentUrl={socio.profilePhotoUrl}
+          carnetUrl={socio.avatarUrl}
+        />
+        <MemberPhotoUpload tipo="CARNET" currentUrl={socio.avatarUrl} />
+      </div>
+
       <ProfessionalProfileForm
         institutionName={socio.workspace.name}
         defaults={{

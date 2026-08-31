@@ -12,7 +12,6 @@ import { describeSeniority } from "@/lib/portal/identity";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
-import { PortalShell } from "@/components/portal/portal-shell";
 import { PortalSections } from "@/components/portal/portal-sections";
 
 export const dynamic = "force-dynamic";
@@ -66,22 +65,10 @@ export default async function PortalPage() {
     !perfil?.website &&
     (perfil?.specialties.length ?? 0) === 0;
 
-  const enabledModuleKeys = await getEnabledModuleKeysForWorkspace(context.workspace.id);
-  const secciones = resolvePortalMenu(enabledModuleKeys);
+  const secciones = resolvePortalMenu(await getEnabledModuleKeysForWorkspace(context.workspace.id));
 
   return (
-    <PortalShell
-      items={secciones}
-      activeHref="/portal"
-      institution={{ name: institution, logoUrl: branding?.logoUrl ?? null }}
-      member={{
-        fullName: `${context.member.firstName} ${context.member.lastName}`.trim(),
-        memberNumber: context.member.memberNumber,
-        category: context.member.categoryName ?? null,
-        // Vacío significa "usar la del carnet": nadie tiene que elegir una foto para tener una.
-        photoUrl: perfil?.profilePhotoUrl ?? perfil?.avatarUrl ?? null,
-      }}
-    >
+    <>
       <main className="mx-auto max-w-lg px-4 py-16">
         <section className="fo-card space-y-6">
           <div className="flex items-center gap-3">
@@ -231,6 +218,6 @@ export default async function PortalPage() {
           </section>
         ) : null}
       </main>
-    </PortalShell>
+    </>
   );
 }

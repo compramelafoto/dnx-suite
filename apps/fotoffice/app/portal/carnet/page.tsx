@@ -4,7 +4,6 @@ import QRCode from "qrcode";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { loadMyCard } from "@/lib/carnet/my-card";
-import { MemberPhotoUpload } from "@/components/portal/member-photo-upload";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
 import { getActiveFeeValue } from "@/lib/membership/settings";
 import { prisma } from "@repo/db";
@@ -74,7 +73,10 @@ export default async function MiCarnetPage() {
           </p>
         </section>
       ) : null}
-          <MemberPhotoUpload currentUrl={ficha?.avatarUrl ?? null} />
+          {/* La foto se carga en Mi perfil, junto con la de perfil. Acá solo se avisa. */}
+          <Link href="/portal/perfil" className="fo-btn fo-btn-primary text-sm">
+            Cargar mi foto en Mi perfil
+          </Link>
         </div>
       </main>
     );
@@ -215,7 +217,9 @@ export default async function MiCarnetPage() {
         </section>
       ) : null}
 
-      <MemberPhotoUpload currentUrl={ficha?.avatarUrl ?? null} />
+      <Link href="/portal/perfil" className="fo-btn fo-btn-secondary text-sm">
+        Cambiar la foto de mi credencial
+      </Link>
     </main>
   );
 }

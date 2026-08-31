@@ -1,7 +1,6 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { portalBottomBar, type ResolvedPortalItem } from "@/lib/portal/menu";
-import { PortalIcon } from "./portal-icon";
+import { type ResolvedPortalItem } from "@/lib/portal/menu";
+import { PortalNav, PortalTabs } from "./portal-nav";
 
 /**
  * El marco del portal: identidad arriba, contenido en el medio, navegación abajo.
@@ -12,25 +11,28 @@ import { PortalIcon } from "./portal-icon";
  *
  * En pantalla grande la barra pasa a ser horizontal arriba: abajo del todo, en un monitor, es
  * el lugar donde nadie mira.
+ *
+ * Lo monta el layout de `/portal`, no cada pantalla. Así ninguna se lo puede olvidar y el socio
+ * nunca queda en una pantalla sin saber quién es ni cómo volver.
  */
 export function PortalShell({
   items,
-  activeHref,
   member,
   institution,
   children,
 }: {
   items: ResolvedPortalItem[];
-  activeHref: string;
   member: { fullName: string; memberNumber: string; category: string | null; photoUrl: string | null };
   institution: { name: string; logoUrl: string | null };
   children: ReactNode;
 }) {
-  const barra = portalBottomBar(items);
-
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] pb-20 text-[var(--fo-text)] sm:pb-0">
-      <header className="border-b border-[var(--fo-border)] bg-[var(--fo-surface)]">
+      {/*
+        Pegado arriba: la identidad del socio y el acceso a las secciones tienen que estar a
+        mano en cualquier punto de una lista larga de cuotas, no solo al principio.
+      */}
+      <header className="sticky top-0 z-30 border-b border-[var(--fo-border)] bg-[var(--fo-surface)]">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
           <PortalAvatar name={member.fullName} src={member.photoUrl} />
           <div className="min-w-0 flex-1">
@@ -45,7 +47,7 @@ export function PortalShell({
             <img
               src={institution.logoUrl}
               alt={institution.name}
-              className="h-8 w-auto max-w-24 shrink-0 object-contain"
+              className="h-16 w-auto max-w-48 shrink-0 object-contain"
             />
           ) : (
             <span className="shrink-0 text-xs font-medium text-[var(--fo-muted)]">
@@ -55,54 +57,13 @@ export function PortalShell({
         </div>
 
         {/* En pantalla grande la navegación vive acá arriba; en el teléfono, abajo. */}
-        <nav aria-label="Secciones" className="mx-auto hidden max-w-3xl gap-1 px-2 sm:flex">
-          {barra.map((i) => (
-            <PortalTab key={i.href} item={i} active={activeHref === i.href} />
-          ))}
-        </nav>
+        <PortalTabs items={items} />
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-5">{children}</main>
 
-      <nav
-        aria-label="Secciones"
-        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-[var(--fo-border)] bg-[var(--fo-surface)] pb-[env(safe-area-inset-bottom)] sm:hidden"
-      >
-        {barra.map((i) => (
-          <Link
-            key={i.href}
-            href={i.href}
-            aria-current={activeHref === i.href ? "page" : undefined}
-            className={[
-              "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-              activeHref === i.href
-                ? "text-[var(--fo-accent)]"
-                : "text-[var(--fo-muted)] hover:text-[var(--fo-text)]",
-            ].join(" ")}
-          >
-            <PortalIcon name={i.icon} className="h-5 w-5" />
-            {i.label}
-          </Link>
-        ))}
-      </nav>
+      <PortalNav items={items} />
     </div>
-  );
-}
-
-function PortalTab({ item, active }: { item: ResolvedPortalItem; active: boolean }) {
-  return (
-    <Link
-      href={item.href}
-      aria-current={active ? "page" : undefined}
-      className={[
-        "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
-        active
-          ? "border-[var(--fo-accent)] font-semibold text-[var(--fo-accent)]"
-          : "border-transparent text-[var(--fo-muted)] hover:text-[var(--fo-text)]",
-      ].join(" ")}
-    >
-      {item.label}
-    </Link>
   );
 }
 
