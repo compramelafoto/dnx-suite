@@ -1,4 +1,17 @@
-import { degrees, rgb, type PDFImage, type PDFPage } from "pdf-lib";
+import {
+  appendBezierCurve,
+  clip,
+  closePath,
+  degrees,
+  endPath,
+  lineTo,
+  moveTo,
+  popGraphicsState,
+  pushGraphicsState,
+  rgb,
+  type PDFImage,
+  type PDFPage,
+} from "pdf-lib";
 import QRCode from "qrcode";
 import { fail, ok, type Result } from "../result";
 import type { DesignDocument } from "../document/schema";
@@ -173,6 +186,19 @@ async function dibujarPagina(
     const ancho = imagen.width * escala;
     const altoImg = imagen.height * escala;
 
+    /*
+     * El recorte se aplica como región de clip del PDF, no dibujando una forma encima. Tapar
+     * con un rectángulo del color del fondo funcionaría solo sobre fondo liso, y dejaría un
+     * recuadro visible en cuanto haya una imagen o un degradado detrás.
+     *
+     * `q … Q` acota el clip a esta imagen: sin el par, todo lo que se dibuje después queda
+     * recortado por la misma forma.
+     */
+    const recorta = item.mask === "circle" || item.mask === "ellipse" || !!item.cornerRadiusPt;
+    if (recorta) {
+      page.pushOperators(pushGraphicsState(), ...operadoresDeClip(item, yPdf), clip(), endPath());
+    }
+
     page.drawImage(imagen, {
       x: item.xPt + (item.widthPt - ancho) / 2,
       y: yPdf + (item.heightPt - altoImg) / 2,
@@ -181,7 +207,69 @@ async function dibujarPagina(
       opacity: item.opacity,
       ...(item.rotation ? { rotate: degrees(-item.rotation) } : {}),
     });
+
+    if (recorta) page.pushOperators(popGraphicsState());
   }
+}
+
+/** Proporción para aproximar un cuarto de círculo con una curva de Bézier. */
+const K = 0.5522847498;
+
+/**
+ * El contorno de la forma con la que se recorta, en coordenadas del PDF.
+ *
+ * El PDF no tiene primitiva de círculo: se arma con cuatro curvas. Es la misma técnica que usa
+ * cualquier motor de dibujo, y `K` es la constante conocida que hace que la curva pase por donde
+ * pasaría el círculo.
+ */
+function operadoresDeClip(
+  item: {
+    xPt: number;
+    widthPt: number;
+    heightPt: number;
+    mask: "rect" | "circle" | "ellipse";
+    cornerRadiusPt?: number;
+  },
+  yPdf: number,
+) {
+  const x = item.xPt;
+  const y = yPdf;
+  const w = item.widthPt;
+  const h = item.heightPt;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+
+  if (item.mask === "circle" || item.mask === "ellipse") {
+    // El círculo se inscribe en el lado corto para no salirse de la caja del bloque.
+    const rx = item.mask === "circle" ? Math.min(w, h) / 2 : w / 2;
+    const ry = item.mask === "circle" ? Math.min(w, h) / 2 : h / 2;
+    const ox = rx * K;
+    const oy = ry * K;
+    return [
+      moveTo(cx - rx, cy),
+      appendBezierCurve(cx - rx, cy + oy, cx - ox, cy + ry, cx, cy + ry),
+      appendBezierCurve(cx + ox, cy + ry, cx + rx, cy + oy, cx + rx, cy),
+      appendBezierCurve(cx + rx, cy - oy, cx + ox, cy - ry, cx, cy - ry),
+      appendBezierCurve(cx - ox, cy - ry, cx - rx, cy - oy, cx - rx, cy),
+      closePath(),
+    ];
+  }
+
+  // Rectángulo con esquinas redondeadas. El radio no puede pasar la mitad del lado corto.
+  const r = Math.min(item.cornerRadiusPt ?? 0, w / 2, h / 2);
+  const o = r * K;
+  return [
+    moveTo(x + r, y),
+    lineTo(x + w - r, y),
+    appendBezierCurve(x + w - r + o, y, x + w, y + r - o, x + w, y + r),
+    lineTo(x + w, y + h - r),
+    appendBezierCurve(x + w, y + h - r + o, x + w - r + o, y + h, x + w - r, y + h),
+    lineTo(x + r, y + h),
+    appendBezierCurve(x + r - o, y + h, x, y + h - r + o, x, y + h - r),
+    lineTo(x, y + r),
+    appendBezierCurve(x, y + r - o, x + r - o, y, x + r, y),
+    closePath(),
+  ];
 }
 
 export async function renderPdf(

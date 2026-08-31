@@ -48,6 +48,10 @@ export type LayoutImageItem = ItemBase & {
   /** Referencia que el producto resuelve a bytes. */
   ref: string;
   fit: "cover" | "contain";
+  /** Con qué forma se recorta. Rectangular es no recortar. */
+  mask: "rect" | "circle" | "ellipse";
+  /** Solo con `mask: "rect"`. */
+  cornerRadiusPt?: number;
 };
 
 export type LayoutLineItem = ItemBase & {
@@ -218,7 +222,14 @@ export function buildLayoutPlan(
           errores.push(`La imagen "${bloque.id}" no tiene de dónde salir.`);
           continue;
         }
-        items.push({ ...base, kind: "image", ref, fit: bloque.fit });
+        items.push({
+          ...base,
+          kind: "image",
+          ref,
+          fit: bloque.fit,
+          mask: bloque.mask ?? "rect",
+          ...(bloque.cornerRadius ? { cornerRadiusPt: aPuntos(bloque.cornerRadius) } : {}),
+        });
         continue;
       }
 

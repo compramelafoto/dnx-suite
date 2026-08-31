@@ -79,6 +79,15 @@ export type QrBlock = BlockGeometry &
 
 export type ImageFit = "cover" | "contain";
 
+/**
+ * Forma con la que se recorta la imagen.
+ *
+ * Existe porque una foto de socio dentro de un círculo es una petición corriente y hasta ahora
+ * el editor la ofrecía sin que llegara al papel: se elegía "circular" y la credencial salía
+ * cuadrada igual. Una opción que no cambia nada es peor que no tenerla.
+ */
+export type ImageMask = "rect" | "circle" | "ellipse";
+
 export type ImageBlock = BlockGeometry &
   BlockChrome & {
     type: "image";
@@ -89,6 +98,10 @@ export type ImageBlock = BlockGeometry &
     resourceRef?: string;
     variableKey?: string;
     fit: ImageFit;
+    /** Por omisión rectangular, que es no recortar nada. */
+    mask?: ImageMask;
+    /** Solo con `mask: "rect"`. Radio de esquina, en las unidades del documento. */
+    cornerRadius?: number;
   };
 
 export type LineBlock = BlockGeometry &

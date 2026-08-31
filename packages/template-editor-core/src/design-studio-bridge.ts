@@ -227,7 +227,15 @@ export function editorADocumento(input: {
           case "PHOTO": {
             // El bloque de foto siempre es la foto del socio: es lo que lo distingue de una
             // imagen cualquiera.
-            dibujables.push({ ...geo, type: "image", variableKey: "photo", fit: "cover" });
+            const recortePhoto = texto(cfg.maskShape, "rect");
+            dibujables.push({
+              ...geo,
+              type: "image",
+              variableKey: "photo",
+              fit: "cover",
+              mask:
+                recortePhoto === "circle" || recortePhoto === "ellipse" ? recortePhoto : "rect",
+            });
             break;
           }
 
@@ -239,10 +247,21 @@ export function editorADocumento(input: {
              */
             const clave = texto(obj(cfg.source).variableKey) || texto(cfg.variableKey);
             const src = texto(cfg.src) || texto(obj(cfg.source).src) || texto(obj(cfg.source).url);
+            /*
+             * La forma del recorte se elige en el inspector y hasta ahora no llegaba hasta acá:
+             * se marcaba "Circular", el editor lo guardaba y la credencial salía cuadrada igual.
+             */
+            const recorte = texto(cfg.maskShape, "rect");
+            const forma = {
+              mask: recorte === "circle" || recorte === "ellipse" ? recorte : "rect",
+              ...(num(cfg.borderRadius, 0) > 0
+                ? { cornerRadius: mm(num(cfg.borderRadius, 0)) }
+                : {}),
+            };
             if (clave) {
-              dibujables.push({ ...geo, type: "image", variableKey: clave, fit: "cover" });
+              dibujables.push({ ...geo, type: "image", variableKey: clave, fit: "cover", ...forma });
             } else if (src) {
-              dibujables.push({ ...geo, type: "image", resourceRef: src, fit: "cover" });
+              dibujables.push({ ...geo, type: "image", resourceRef: src, fit: "cover", ...forma });
             } else {
               avisos.push("Una imagen quedó sin archivo ni variable; no se imprimió.");
             }
