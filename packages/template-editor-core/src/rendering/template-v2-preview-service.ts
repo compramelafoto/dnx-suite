@@ -5,11 +5,12 @@ import { validateLegacyTemplatePayload } from "../services/template-v2-validatio
 import { TemplateV2DomainError } from "../services/template-v2-errors";
 import type { TemplateV2AuthUser } from "../services/template-v2-authorization";
 import { getTemplateV2Detail } from "../services/template-v2-query-service";
-import { renderTemplatePreviewPng } from "../rendering/template-v2-preview-renderer";
+import { renderPreviewSvg } from "./preview-svg";
 import {
   previewInvalid,
+  previewLimitExceeded,
 } from "../rendering/template-v2-render-errors";
-import { clampPreviewScale } from "../rendering/template-v2-render-limits";
+import { assertPreviewCanvasLimits } from "../rendering/template-v2-render-limits";
 import { parseTemplateV2EditorPayload } from "../validate-save-payload";
 import {
   createExampleDataForProduct,
@@ -33,10 +34,18 @@ export type TemplatePreviewRequest = {
 };
 
 export type TemplatePreviewServiceResult = {
-  png: Buffer;
+  /**
+   * El dibujo, en SVG.
+   *
+   * Antes era un PNG que sacaba un navegador headless. Ahora lo produce el mismo módulo que
+   * imprime, que no necesita navegador y da los mismos cortes de línea que el archivo final.
+   */
+  svg: string;
+  /** Cuántas caras tiene el diseño. La vista previa muestra una por vez. */
+  pageCount: number;
   width: number;
   height: number;
-  mimeType: "image/png";
+  mimeType: "image/svg+xml";
   durationMs: number;
   blockCount: number;
   imageCount: number;
@@ -132,13 +141,62 @@ export async function runTemplateV2Preview(args: {
     }
   }
 
-  const render = await renderTemplatePreviewPng(resolved.document, {
-    pageIndex:
-      typeof args.body.previewPageIndex === "number"
-        ? args.body.previewPageIndex
-        : 0,
-    scale: clampPreviewScale(args.body.output?.scale),
+  /*
+   * Se dibuja con el módulo de impresión, sin navegador.
+   *
+   * La versión anterior levantaba Chromium para sacarle una foto a una página HTML. Anda en una
+   * computadora y no en el servidor de producción, donde ese binario no existe: la vista previa
+   * contestaba "playwright-core no disponible en este runtime" y no se podía ver ningún diseño,
+   * en ninguna plataforma.
+   *
+   * Además de andar, es más fiel: es el mismo motor y el mismo medidor de texto que produce el
+   * archivo que va a la imprenta, así que los cortes de línea son los de verdad.
+   */
+  /*
+   * El límite de tamaño lo imponía el navegador que ya no se usa. Se comprueba acá, explícito:
+   * un lienzo enorme produce un SVG enorme, y el servidor lo dibuja igual sin quejarse hasta
+   * que se queda sin memoria.
+   */
+  try {
+    assertPreviewCanvasLimits(resolved.document.width, resolved.document.height);
+  } catch (err) {
+    // Se traduce al error del módulo para que la ruta devuelva su código y no un 500 genérico.
+    throw previewLimitExceeded(
+      err instanceof Error ? err.message : "Lienzo fuera de rango",
+    );
+  }
+
+  const pagina =
+    typeof args.body.previewPageIndex === "number" ? args.body.previewPageIndex : 0;
+
+  const svg = await renderPreviewSvg({
+    canvas: legacy.canvas as never,
+    blocks: legacy.blocks.map((b) => ({
+      id: b.id,
+      type: b.type,
+      name: b.name ?? null,
+      pageIndex: b.pageIndex ?? 0,
+      ...b.layout,
+      configJson: b.configJson,
+    })) as never,
+    product,
+    name: templateName,
   });
+  if (!svg.ok) {
+    throw previewInvalid("No se pudo dibujar la vista previa", { errors: svg.errors });
+  }
+
+  const render = {
+    svg: svg.pages[pagina] ?? svg.pages[0] ?? "",
+    pageCount: svg.pages.length,
+    mimeType: "image/svg+xml" as const,
+    width: resolved.document.width,
+    height: resolved.document.height,
+    blockCount: legacy.blocks.length,
+    durationMs: 0,
+    imageCount: legacy.blocks.filter((b) => b.type === "IMAGE" || b.type === "PHOTO").length,
+    warnings: svg.warnings,
+  };
 
   const warnings = [
     ...bridgeWarnings.map((w) => w.message),

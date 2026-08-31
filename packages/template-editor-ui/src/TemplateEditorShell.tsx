@@ -375,7 +375,7 @@ export function TemplateEditorShell({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [previewSvg, setPreviewSvg] = useState<string | null>(null);
   const [showSafeArea, setShowSafeArea] = useState(true);
   const [imagenMenuOpen, setImagenMenuOpen] = useState(false);
   /** El área donde se dibuja. De ahí sale la medida para ajustar el zoom. */
@@ -614,10 +614,7 @@ export function TemplateEditorShell({
     setPreviewOpen(true);
     setPreviewLoading(true);
     setPreviewError(null);
-    setPreviewSrc((prev) => {
-      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
-      return null;
-    });
+    setPreviewSvg(null);
     try {
       const res = await fetch("/api/template-v2/preview", {
         method: "POST",
@@ -652,31 +649,23 @@ export function TemplateEditorShell({
             : "No se pudo generar la vista previa."
         );
       }
+      /*
+       * El dibujo llega como SVG y se inserta tal cual en la ventana. No va dentro de una
+       * etiqueta `img`: un SVG usado como imagen no puede pedir archivos de afuera, y las
+       * fotos y los logos del diseño viven en el almacenamiento — se verían como huecos.
+       */
       if (contentType.includes("application/json")) {
-        const data = (await res.json()) as {
-          ok?: boolean;
-          imageBase64?: string;
-          mimeType?: string;
-        };
-        if (data.ok !== true || typeof data.imageBase64 !== "string") {
-          throw new Error("Respuesta de preview inválida.");
+        const data = (await res.json()) as { ok?: boolean; svg?: string };
+        if (data.ok !== true || typeof data.svg !== "string" || !data.svg.includes("<svg")) {
+          throw new Error("La respuesta de la vista previa no trae un dibujo.");
         }
-        const mime =
-          typeof data.mimeType === "string" && data.mimeType
-            ? data.mimeType
-            : "image/png";
-        const bin = Uint8Array.from(atob(data.imageBase64), (c) => c.charCodeAt(0));
-        setPreviewSrc(URL.createObjectURL(new Blob([bin], { type: mime })));
-      } else if (contentType.includes("image/png")) {
-        const buf = await res.arrayBuffer();
-        if (buf.byteLength < 8) {
-          throw new Error("Preview vacío.");
-        }
-        setPreviewSrc(
-          URL.createObjectURL(new Blob([buf], { type: "image/png" }))
-        );
+        setPreviewSvg(data.svg);
+      } else if (contentType.includes("image/svg")) {
+        const texto = await res.text();
+        if (!texto.includes("<svg")) throw new Error("La vista previa llegó vacía.");
+        setPreviewSvg(texto);
       } else {
-        throw new Error("Respuesta de preview inválida (se esperaba PNG).");
+        throw new Error("La vista previa respondió en un formato que no se puede mostrar.");
       }
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "Error al generar la vista previa.");
@@ -686,10 +675,7 @@ export function TemplateEditorShell({
   }
 
   function closePreview() {
-    setPreviewSrc((prev) => {
-      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
-      return null;
-    });
+    setPreviewSvg(null);
     setPreviewOpen(false);
     setPreviewError(null);
     setPreviewLoading(false);
@@ -1686,20 +1672,24 @@ export function TemplateEditorShell({
                 >
                   {previewError}
                 </p>
-              ) : previewSrc ? (
+              ) : previewSvg ? (
                 <div className="flex justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <div
                     data-testid="template-v2-preview-image"
-                    src={previewSrc}
-                    alt="Vista previa de la plantilla"
-                    className="max-h-[min(78vh,1200px)] w-auto max-w-full rounded-lg border border-[color:var(--te-line)] bg-white object-contain shadow-sm"
+                    role="img"
+                    aria-label="Vista previa de la plantilla"
+                    className="max-h-[min(78vh,1200px)] max-w-full overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-white shadow-sm [&>svg]:h-auto [&>svg]:max-h-[min(78vh,1200px)] [&>svg]:w-auto [&>svg]:max-w-full"
+                    // El dibujo lo produce el módulo de impresión de este mismo monorepo, no
+                    // el navegador ni contenido de terceros: los textos van escapados y las
+                    // imágenes se limitan a direcciones http(s) y a mapas de bits.
+                    dangerouslySetInnerHTML={{ __html: previewSvg }}
                   />
                 </div>
               ) : null}
             </div>
             <p className="border-t border-[color:var(--te-line)] px-4 py-2 text-center text-[11px] text-[color:var(--te-ink-faint)]">
-              Variables de texto usan datos mock o el fallback del bloque. Guardá los cambios cuando quieras persistirlos.
+              Se dibuja con el mismo motor que produce el archivo para imprenta, con datos de
+              ejemplo. Guardá los cambios cuando quieras conservarlos.
             </p>
           </div>
         </div>

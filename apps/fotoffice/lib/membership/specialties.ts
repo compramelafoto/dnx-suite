@@ -9,6 +9,7 @@
 export const ESPECIALIDADES = [
   { id: "SOCIAL", label: "Social y eventos" },
   { id: "CASAMIENTOS", label: "Casamientos" },
+  { id: "XV", label: "Quince años (XV)" },
   { id: "RETRATO", label: "Retrato" },
   { id: "INFANTIL", label: "Infantil y familia" },
   { id: "ESCOLAR", label: "Escolar e institucional" },
@@ -29,15 +30,29 @@ export type EspecialidadId = (typeof ESPECIALIDADES)[number]["id"];
 
 const VALIDAS = new Set<string>(ESPECIALIDADES.map((e) => e.id));
 
-/** Cuántas puede elegir. Sin tope, "especialidad" deja de significar algo. */
-export const MAX_ESPECIALIDADES = 5;
+/**
+ * Cuántas puede elegir.
+ *
+ * El tope existe para que "especialidad" siga significando algo: quien marca todo no está
+ * diciendo a qué se dedica. Diez es el número que pidió la institución — alcanza para un
+ * fotógrafo que de verdad cubre varios rubros sin volver la lista inútil.
+ */
+export const MAX_ESPECIALIDADES = 10;
 
 export type ResultadoEspecialidades =
   | { ok: true; valor: EspecialidadId[] }
   | { ok: false; error: string };
 
 /**
- * Valida las especialidades declaradas. Descarta repetidas y conserva el orden de elección.
+ * Valida las especialidades declaradas.
+ *
+ * **El orden importa y es el de elección.** La primera que marcó es a lo que más se dedica, y
+ * así hacia abajo: es lo que permite mostrar "Fotógrafa de casamientos" y no una lista de diez
+ * rubros donde ninguno pesa más que otro. Por eso se conserva tal cual y no se ordena
+ * alfabéticamente ni por el orden del catálogo.
+ *
+ * Descarta repetidas sin avisar: marcar dos veces lo mismo es un accidente de la interfaz, no
+ * una intención que valga la pena discutirle a alguien que está completando un formulario.
  */
 export function parsearEspecialidades(
   entrada: readonly string[] | null | undefined

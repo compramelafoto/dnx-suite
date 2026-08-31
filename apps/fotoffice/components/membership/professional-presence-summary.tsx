@@ -53,10 +53,20 @@ export function ProfessionalPresenceSummary({
 
       {data.specialties.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
-          {data.specialties.map((id) => (
+          {/*
+            En el orden que declaró la persona, que es el de relevancia: la primera es a lo que
+            más se dedica. La principal se distingue para que se lea de un vistazo — es el dato
+            que sirve para recomendar a alguien.
+          */}
+          {data.specialties.map((id, i) => (
             <span
               key={id}
-              className="rounded-full border border-[var(--fo-border)] px-2 py-0.5 text-[11px] text-[var(--fo-muted)]"
+              title={i === 0 ? "Su especialidad principal" : `Prioridad ${i + 1}`}
+              className={
+                i === 0
+                  ? "rounded-full border border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] px-2 py-0.5 text-[11px] font-medium text-[var(--fo-accent)]"
+                  : "rounded-full border border-[var(--fo-border)] px-2 py-0.5 text-[11px] text-[var(--fo-muted)]"
+              }
             >
               {etiquetaEspecialidad(id)}
             </span>

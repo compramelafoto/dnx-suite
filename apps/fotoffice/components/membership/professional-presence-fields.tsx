@@ -98,9 +98,19 @@ export function ProfessionalPresenceFields({
             {elegidas.length > 0 ? ` · elegiste ${elegidas.length}` : ""})
           </span>
         </legend>
+        {/*
+          El orden de elección es el orden de relevancia, y por eso se numera a la vista. Sin el
+          número, una persona que marca cinco rubros no tiene forma de saber que el primero pesa
+          más, ni de corregirlo.
+        */}
+        <p className="fo-helper">
+          Marcalos en orden: el primero es a lo que más te dedicás. Para cambiar el orden,
+          desmarcá y volvé a marcar.
+        </p>
         <div className="flex flex-wrap gap-2">
           {ESPECIALIDADES.map((e) => {
-            const activa = elegidas.includes(e.id);
+            const posicion = elegidas.indexOf(e.id);
+            const activa = posicion >= 0;
             return (
               <label
                 key={e.id}
@@ -121,7 +131,18 @@ export function ProfessionalPresenceFields({
                   onChange={() => alternar(e.id)}
                   className="sr-only"
                 />
+                {activa ? (
+                  <span
+                    aria-hidden
+                    className="mr-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px] font-semibold tabular-nums"
+                  >
+                    {posicion + 1}
+                  </span>
+                ) : null}
                 {e.label}
+                <span className="sr-only">
+                  {activa ? ` — prioridad ${posicion + 1} de ${elegidas.length}` : ""}
+                </span>
               </label>
             );
           })}

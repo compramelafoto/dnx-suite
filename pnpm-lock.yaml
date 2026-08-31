@@ -1614,6 +1614,9 @@ importers:
       '@prisma/client':
         specifier: ^6.19.2
         version: 6.19.2(prisma@6.19.2(typescript@5.9.2))(typescript@5.9.2)
+      '@repo/design-studio':
+        specifier: workspace:*
+        version: link:../design-studio
       '@repo/template-engine':
         specifier: workspace:*
         version: link:../template-engine

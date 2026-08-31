@@ -22,7 +22,8 @@
   "dependencies": {
     "@prisma/client": "^6.19.2",
     "@repo/template-engine": "workspace:*",
-    "@repo/template-engine-renderer": "workspace:*"
+    "@repo/template-engine-renderer": "workspace:*",
+    "@repo/design-studio": "workspace:*"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
