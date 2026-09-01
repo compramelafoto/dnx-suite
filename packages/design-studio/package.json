@@ -16,7 +16,7 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test \"src/**/*.test.ts\" src/fonts/embedded.test.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" src/fonts/embedded.test.ts src/layout/text-transform.test.ts",
     "fuentes": "tsx scripts/generar-fuentes-incrustadas.mts"
   },
   "dependencies": {

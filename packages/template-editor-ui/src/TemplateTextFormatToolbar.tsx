@@ -103,6 +103,21 @@ const fmtMiniBtn =
 const fmtRange =
   "h-1.5 w-[min(100%,7.5rem)] min-w-[5.5rem] max-w-[8.5rem] cursor-pointer accent-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-40";
 
+/** El ciclo del botón: normal → MAYÚSCULAS → minúsculas → Iniciales → normal. */
+const SIGUIENTE_CONVERSION = {
+  none: "uppercase",
+  uppercase: "lowercase",
+  lowercase: "capitalize",
+  capitalize: "none",
+} as const;
+
+const ETIQUETA_CONVERSION = {
+  none: "Sin conversión — tocá para pasar a MAYÚSCULAS",
+  uppercase: "MAYÚSCULAS — tocá para pasar a minúsculas",
+  lowercase: "minúsculas — tocá para pasar a Iniciales",
+  capitalize: "Iniciales — tocá para volver al texto original",
+} as const;
+
 export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: Props) {
   const primaryId = getPrimarySelectedBlockId(state);
   const block = primaryId ? state.blocks.find((b) => b.id === primaryId) ?? null : null;
@@ -144,6 +159,12 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
   const color = String(cfg.color ?? "#111111");
   const fontItalic = cfg.fontItalic === true;
   const underline = cfg.underline === true;
+  const conversion =
+    cfg.textTransform === "uppercase" ||
+    cfg.textTransform === "lowercase" ||
+    cfg.textTransform === "capitalize"
+      ? (cfg.textTransform as "uppercase" | "lowercase" | "capitalize")
+      : "none";
   const isBold = fontWeight >= 600;
 
   const byCategory = EDITOR_FONT_CATALOG.reduce<Record<string, EditorFontEntry[]>>((acc, f) => {
@@ -304,6 +325,28 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
           onClick={() => patchConfig({ underline: !underline })}
         >
           <IconUnderline className="block" />
+        </button>
+        {/*
+          Conmuta entre normal, MAYÚSCULAS, minúsculas e Iniciales. No cambia el texto guardado:
+          es cómo se dibuja. Por eso funciona igual sobre un dato variable —un nombre que llega
+          del padrón en minúsculas se imprime en mayúsculas sin tocar el padrón.
+        */}
+        <button
+          type="button"
+          className={cn(
+            fmtMiniBtn,
+            conversion !== "none" &&
+              "border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)]",
+          )}
+          disabled={locked}
+          title={ETIQUETA_CONVERSION[conversion]}
+          aria-label={ETIQUETA_CONVERSION[conversion]}
+          aria-pressed={conversion !== "none"}
+          onClick={() => patchConfig({ textTransform: SIGUIENTE_CONVERSION[conversion] })}
+        >
+          <span className="block font-semibold leading-none">
+            {conversion === "lowercase" ? "aa" : conversion === "capitalize" ? "Aa" : "AA"}
+          </span>
         </button>
         <label
           className={cn(

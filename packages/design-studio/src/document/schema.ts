@@ -44,6 +44,15 @@ export type BlockGeometry = {
 };
 
 export type TextAlign = "left" | "center" | "right";
+
+/**
+ * Cómo se escriben las letras al dibujar.
+ *
+ * Es una propiedad de presentación, como la negrita, y no una transformación del dato: se
+ * aplica **después** de reemplazar las variables. Por eso un nombre que llega en minúsculas
+ * desde el padrón puede imprimirse en mayúsculas sin tocar lo que hay guardado.
+ */
+export type TextTransform = "none" | "uppercase" | "lowercase" | "capitalize";
 export type FontWeight = "normal" | "bold";
 export type FontStyle = "normal" | "italic";
 
@@ -57,6 +66,7 @@ export type TextBlock = BlockGeometry &
     fontStyle?: FontStyle;
     color: string;
     align?: TextAlign;
+    textTransform?: TextTransform;
     /** Texto fijo o con marcadores `{{clave}}` declarados en el contrato de variables. */
     content: string;
     /** Si el texto no entra en estas líneas, la validación de publicación lo rechaza. */

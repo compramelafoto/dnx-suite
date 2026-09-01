@@ -94,6 +94,12 @@ export function normalizeBlockConfig(type: TemplateV2BlockType, input: unknown):
       color: typeof cfg.color === "string" ? cfg.color : "#111111",
       fontItalic: cfg.fontItalic === true,
       underline: cfg.underline === true,
+      textTransform:
+        cfg.textTransform === "uppercase" ||
+        cfg.textTransform === "lowercase" ||
+        cfg.textTransform === "capitalize"
+          ? cfg.textTransform
+          : "none",
     };
   }
 
@@ -115,6 +121,12 @@ export function normalizeBlockConfig(type: TemplateV2BlockType, input: unknown):
       color: typeof cfg.color === "string" ? cfg.color : "#111111",
       fontItalic: cfg.fontItalic === true,
       underline: cfg.underline === true,
+      textTransform:
+        cfg.textTransform === "uppercase" ||
+        cfg.textTransform === "lowercase" ||
+        cfg.textTransform === "capitalize"
+          ? cfg.textTransform
+          : "none",
     };
   }
 
@@ -233,6 +245,17 @@ export function getTextVisualConfig(cfg: Record<string, unknown>) {
     lineHeight: Number(cfg.lineHeight ?? 1.2),
     letterSpacing: Number(cfg.letterSpacing ?? 0),
     textAlign: textAlign as "left" | "center" | "right",
+    /*
+     * El navegador convierte con `text-transform`, y el módulo de impresión convierte el texto
+     * ya resuelto. Los dos llegan al mismo resultado, así que el lienzo muestra lo que se va a
+     * imprimir.
+     */
+    textTransform:
+      cfg.textTransform === "uppercase" ||
+      cfg.textTransform === "lowercase" ||
+      cfg.textTransform === "capitalize"
+        ? (cfg.textTransform as "uppercase" | "lowercase" | "capitalize")
+        : ("none" as const),
   };
 }
 

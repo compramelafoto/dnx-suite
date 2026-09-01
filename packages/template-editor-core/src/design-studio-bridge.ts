@@ -109,6 +109,11 @@ function fuenteDesde(familia: string, avisos: string[]): FontId {
   return FUENTE_POR_DEFECTO;
 }
 
+/** La conversión de mayúsculas elegida en el editor, o ninguna si viene algo desconocido. */
+function conversionDeLetras(v: unknown): "none" | "uppercase" | "lowercase" | "capitalize" {
+  return v === "uppercase" || v === "lowercase" || v === "capitalize" ? v : "none";
+}
+
 function alineacion(v: unknown): "left" | "center" | "right" {
   const a = texto(v, "CENTER").toLowerCase();
   return a === "left" || a === "right" ? a : "center";
@@ -222,6 +227,7 @@ export function editorADocumento(input: {
               fontStyle: cfg.fontItalic === true ? "italic" : "normal",
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
+              textTransform: conversionDeLetras(cfg.textTransform),
             });
             break;
           }
@@ -242,6 +248,7 @@ export function editorADocumento(input: {
               fontStyle: cfg.fontItalic === true ? "italic" : "normal",
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
+              textTransform: conversionDeLetras(cfg.textTransform),
             });
             break;
           }

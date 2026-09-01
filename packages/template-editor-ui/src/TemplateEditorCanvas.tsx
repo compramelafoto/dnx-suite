@@ -290,6 +290,7 @@ function InlineTextEditOverlay({
         fontWeight: t.fontWeight,
         fontStyle: t.fontStyle,
         textDecoration: t.textDecoration,
+        textTransform: t.textTransform,
         lineHeight: String(t.lineHeight),
         letterSpacing: `${t.letterSpacing}px`,
         textAlign: t.textAlign,

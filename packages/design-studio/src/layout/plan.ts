@@ -103,6 +103,25 @@ export type LayoutOptions = {
 /** Proporción de interlineado. 1,2 es el valor tipográfico habitual para texto corto. */
 const LINE_HEIGHT_RATIO = 1.2;
 
+/** Cómo se escriben las letras al dibujar. Es presentación, no un cambio del dato. */
+function aplicarTransformacion(
+  texto: string,
+  modo: "none" | "uppercase" | "lowercase" | "capitalize" | undefined,
+): string {
+  if (modo === "uppercase") return texto.toLocaleUpperCase("es-AR");
+  if (modo === "lowercase") return texto.toLocaleLowerCase("es-AR");
+  if (modo === "capitalize") {
+    // Cada palabra con su inicial: "maría fernanda" → "María Fernanda". El resto en minúscula,
+    // porque si no un nombre escrito TODO EN MAYÚSCULAS en el padrón quedaría igual.
+    return texto
+      .toLocaleLowerCase("es-AR")
+      .replace(/(^|\s|['’\-])(\p{L})/gu, (_t, antes: string, letra: string) =>
+        antes + letra.toLocaleUpperCase("es-AR"),
+      );
+  }
+  return texto;
+}
+
 export function buildLayoutPlan(
   doc: DesignDocument,
   resolved: ResolvedVariables,
@@ -143,7 +162,16 @@ export function buildLayoutPlan(
         }
         let texto: string;
         try {
-          texto = interpolate(bloque.content, resolved.values);
+          /*
+           * La conversión de mayúsculas se aplica **después** de reemplazar las variables, no
+           * sobre el marcador. Un nombre que llega en minúsculas desde el padrón se imprime en
+           * mayúsculas sin que nadie toque el dato guardado, y `{{fullName}}` no se convierte en
+           * `{{FULLNAME}}`, que no resolvería nada.
+           */
+          texto = aplicarTransformacion(
+            interpolate(bloque.content, resolved.values),
+            bloque.textTransform,
+          );
         } catch (e) {
           errores.push(e instanceof Error ? e.message : String(e));
           continue;
