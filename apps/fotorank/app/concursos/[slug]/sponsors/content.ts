@@ -100,19 +100,6 @@ export const SFEF_SPONSORS_STYLES = `.sfef-sponsors{
 .sfef-sponsors .strip .slot{flex:1.4 1 0;min-height:34px;padding:7px 8px}
 .sfef-sponsors .strip .slot .label{font-size:9.5px;letter-spacing:.08em}
 .sfef-sponsors .banner-slot{min-height:74px}
-.sfef-sponsors 
-.thing{position:relative;background:var(--night);border-radius:6px;min-height:210px;
-  display:flex;align-items:center;justify-content:center;padding:22px;overflow:hidden}
-.sfef-sponsors .shirt{width:230px;height:170px;position:relative;background:#22292a;border-radius:8px;
-  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:7px;padding:16px 14px}
-.sfef-sponsors .shirt::before, .sfef-sponsors .shirt::after{content:"";position:absolute;top:0;width:34px;height:52px;background:#22292a}
-.sfef-sponsors .shirt::before{left:-26px;border-radius:8px 0 0 14px}
-.sfef-sponsors .shirt::after{right:-26px;border-radius:0 8px 14px 0}
-.sfef-sponsors .shirt .slot{width:100%;min-height:44px;padding:8px}
-.sfef-sponsors .shirt .slot.sm{min-height:30px;width:74%}
-.sfef-sponsors .shirt .slot.xs{min-height:24px;width:52%}
-.sfef-sponsors .shirt-note{font-family:"DM Mono",monospace;font-size:10px;color:#7e908d;letter-spacing:.08em;
-  text-transform:uppercase;margin-top:2px}
 .sfef-sponsors .stagebox{width:100%;max-width:430px;display:flex;flex-direction:column;gap:10px}
 .sfef-sponsors .stagebox .slot{min-height:96px}
 .sfef-sponsors .stagebox .podium{height:34px;border-radius:4px 4px 0 0;background:#2b3433;
@@ -137,18 +124,45 @@ export const SFEF_SPONSORS_STYLES = `.sfef-sponsors{
     repeating-linear-gradient(135deg,rgba(15,107,104,.1) 0 9px,transparent 9px 18px),#eef3f1;
   border-color:#0f6b68;color:#0f6b68}
 .sfef-sponsors .post-foot{padding:9px 10px 12px;font-size:11.5px;color:#4b5559}
-.sfef-sponsors 
-.packs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
-.sfef-sponsors .pack{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:22px;
-  display:flex;flex-direction:column;gap:13px}
-.sfef-sponsors .pack.lead{border-color:var(--gold);border-width:2px;background:var(--gold-soft)}
-.sfef-sponsors .pack-name{font-family:"Fraunces",serif;font-size:23px;font-weight:700;line-height:1.1}
-.sfef-sponsors .pack-cupo{font-family:"DM Mono",monospace;font-size:10.5px;letter-spacing:.11em;
+.sfef-sponsors
+.cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;
+  border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+.sfef-sponsors .cmp{width:100%;min-width:800px;border-collapse:separate;border-spacing:0;
+  font-size:14.5px;text-align:left}
+.sfef-sponsors .cmp th, .sfef-sponsors .cmp td{padding:13px 16px;vertical-align:top;
+  border-bottom:1px solid var(--rule);color:var(--ink-2);line-height:1.4}
+.sfef-sponsors .cmp thead th{vertical-align:bottom;padding-top:20px;padding-bottom:15px;
+  background:var(--surface);border-bottom:1px solid var(--rule-2)}
+.sfef-sponsors .cmp .rowh{position:sticky;left:0;z-index:2;background:var(--surface);
+  border-right:1px solid var(--rule);width:240px;min-width:240px;
+  font-weight:600;color:var(--ink)}
+.sfef-sponsors .cmp thead .rowh{z-index:3}
+.sfef-sponsors .cmp .cat-name{display:block;font-family:"Fraunces",serif;font-size:19px;
+  font-weight:700;line-height:1.15;color:var(--ink)}
+.sfef-sponsors .cmp .cat-cupo{display:block;margin-top:5px;font-family:"DM Mono",monospace;
+  font-size:10px;font-weight:400;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3)}
+.sfef-sponsors .cmp .lead-col{background:var(--gold-soft)}
+.sfef-sponsors .cmp thead .lead-col{box-shadow:inset 0 3px 0 var(--gold)}
+.sfef-sponsors .cmp thead .lead-col .cat-cupo{color:var(--gold)}
+.sfef-sponsors .cmp .cmp-price td{font-family:"Fraunces",serif;font-size:25px;font-weight:700;
+  color:var(--ink);padding-top:18px;padding-bottom:18px;white-space:nowrap}
+.sfef-sponsors .cmp .cmp-price .lead-col{color:var(--gold)}
+.sfef-sponsors .cmp .cmp-price small{display:block;margin-top:6px;white-space:normal;
+  font-family:"DM Mono",monospace;font-size:10px;font-weight:400;letter-spacing:.09em;
   text-transform:uppercase;color:var(--ink-3)}
-.sfef-sponsors .pack.lead .pack-cupo{color:var(--gold)}
-.sfef-sponsors .pack ul{margin:0;padding-left:17px;display:flex;flex-direction:column;gap:6px}
-.sfef-sponsors .pack li{font-size:14.5px;color:var(--ink-2);line-height:1.42}
-.sfef-sponsors .pack li strong{color:var(--ink);font-weight:600}
+.sfef-sponsors .cmp .yes{color:var(--accent);font-weight:700}
+.sfef-sponsors .cmp .no{color:var(--rule-2)}
+.sfef-sponsors .cmp tbody tr:last-child th, .sfef-sponsors .cmp tbody tr:last-child td{border-bottom:0}
+.sfef-sponsors .cmp-hint{display:none;font-family:"DM Mono",monospace;font-size:11px;
+  letter-spacing:.05em;color:var(--ink-3)}
+@media (max-width:880px){
+  .sfef-sponsors .cmp-hint{display:block}
+  .sfef-sponsors .cmp{min-width:660px}
+  .sfef-sponsors .cmp th, .sfef-sponsors .cmp td{padding:11px 12px;font-size:13.5px}
+  .sfef-sponsors .cmp .rowh{width:152px;min-width:152px;font-size:13px}
+  .sfef-sponsors .cmp .cat-name{font-size:16px}
+  .sfef-sponsors .cmp .cmp-price td{font-size:20px;padding-top:14px;padding-bottom:14px}
+}
 .sfef-sponsors 
 .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;
   background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
@@ -172,7 +186,7 @@ export const SFEF_SPONSORS_STYLES = `.sfef-sponsors{
   padding:16px 20px;border-radius:0 5px 5px 0;font-size:15.5px}
 .sfef-sponsors .foot{padding:30px 0 90px;border-top:1px solid var(--rule);margin-top:56px;
   font-family:"DM Mono",monospace;font-size:11.5px;color:var(--ink-3);letter-spacing:.04em}
-@media (max-width:640px){.sfef-sponsors .hero-in{padding:60px 20px 40px}.sfef-sponsors .shirt::before, .sfef-sponsors .shirt::after{display:none}
+@media (max-width:640px){.sfef-sponsors .hero-in{padding:60px 20px 40px}
 }
 .sfef-sponsors .orgs{display:flex;flex-wrap:wrap;gap:14px}
 .sfef-sponsors .org-card{flex:1 1 240px;background:var(--surface);border:1px solid var(--rule);
@@ -195,20 +209,6 @@ export const SFEF_SPONSORS_STYLES = `.sfef-sponsors{
 .sfef-sponsors .org .crest{height:56px;width:56px;border-radius:4px;border:1.5px solid var(--rule-2);
   display:flex;align-items:center;justify-content:center;
   font-family:"Fraunces",serif;font-size:20px;font-weight:700;color:var(--ink-2);flex:0 0 auto}
-.sfef-sponsors 
-.tee-stage{position:relative;width:min(430px,100%);margin:0 auto}
-.sfef-sponsors .tee-stage svg{display:block;width:100%;height:auto}
-.sfef-sponsors .tee-slot{position:absolute;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:3px;border:2px dashed #7fd0c9;border-radius:4px;
-  background:repeating-linear-gradient(135deg,rgba(159,222,216,.16) 0 8px,transparent 8px 16px),
-    rgba(12,18,18,.55);
-  color:#b6e8e2;text-align:center;padding:5px 6px}
-.sfef-sponsors .tee-slot .label{font-family:"DM Mono",monospace;font-weight:500;letter-spacing:.09em;
-  text-transform:uppercase;line-height:1.25;font-size:10px}
-.sfef-sponsors .tee-slot .who{font-family:"DM Mono",monospace;font-size:8.5px;letter-spacing:.05em;color:#7fb5b0}
-.sfef-sponsors .tee-legend{display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:center;margin-top:16px;
-  font-family:"DM Mono",monospace;font-size:10.5px;letter-spacing:.06em;
-  text-transform:uppercase;color:#8b9b98}
 .sfef-sponsors 
 .reach{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
 .sfef-sponsors .reach-card{background:var(--surface);border:1px solid var(--rule);border-radius:6px;
@@ -280,7 +280,7 @@ export const SFEF_SPONSORS_HTML = `<header class="hero">
   <div class="sec-title"><span class="eyebrow">La invitación</span><h2>Su marca, donde mira toda la provincia</h2></div>
   <div class="stack">
     <p class="lede">Santa Fe en Foco convoca a fotógrafos de todo el país a retratar el territorio santafesino, <strong>en el entorno de los Juegos Suramericanos</strong>: miles de personas llegando a la provincia desde toda la Argentina y desde el continente, y una agenda de eventos que se cubre día a día.</p>
-    <p>Acompañar el concurso no es poner un logo en un afiche. Es estar en la pantalla donde el fotógrafo se inscribe, en la remera que se usa el día del evento, y en los portales que van a publicar todo lo que pase durante los Juegos.</p>
+    <p>Acompañar el concurso no es poner un logo en un afiche. Es estar en la pantalla donde el fotógrafo se inscribe, en el recorrido del evento, y en los portales que van a publicar todo lo que pase durante los Juegos.</p>
     <p>En las páginas que siguen está cada uno de esos lugares, dibujado tal cual se vería. Donde dice <strong>«tu logo aquí»</strong> va la marca de su empresa.</p>
   </div>
 </section>
@@ -353,56 +353,6 @@ export const SFEF_SPONSORS_HTML = `<header class="hero">
         </div>
       </div>
       <p class="mock-note">Una pieza gráfica propia, intercalada en el contenido de la página. Se ve mientras el fotógrafo lee las bases y las categorías.</p>
-    </article>
-
-    <article class="mock">
-      <div class="mock-head"><h3>Indumentaria oficial</h3><span class="mock-kind">Físico · Día del evento</span></div>
-      <div class="mock-stage">
-        <div class="thing" style="min-height:auto;padding:26px 20px">
-          <div class="tee-stage">
-            <svg viewBox="0 0 400 450" role="img" aria-label="Espalda de la remera oficial con los espacios de las marcas">
-              <defs>
-                <linearGradient id="tela" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stop-color="#39423f"/>
-                  <stop offset="45%" stop-color="#2a3230"/>
-                  <stop offset="100%" stop-color="#1d2523"/>
-                </linearGradient>
-                <linearGradient id="sombra" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#000" stop-opacity=".28"/>
-                  <stop offset="30%" stop-color="#000" stop-opacity="0"/>
-                </linearGradient>
-              </defs>
-              <path d="M152 26 L104 40 L34 92 L14 156 L72 190 L98 148 L98 404 Q98 424 118 424 L282 424 Q302 424 302 404 L302 148 L328 190 L386 156 L366 92 L296 40 L248 26 Q200 62 152 26 Z"
-                    fill="url(#tela)" stroke="#4a5450" stroke-width="1.5" stroke-linejoin="round"/>
-              <path d="M152 26 Q200 62 248 26 Q226 48 200 48 Q174 48 152 26 Z" fill="#151b19" opacity=".85"/>
-              <path d="M98 148 L98 404 Q98 424 118 424 L282 424 Q302 424 302 404 L302 148" fill="url(#sombra)"/>
-              <path d="M128 150 L128 415" stroke="#3f4946" stroke-width="1" opacity=".55"/>
-              <path d="M272 150 L272 415" stroke="#3f4946" stroke-width="1" opacity=".55"/>
-              <path d="M72 190 L98 148" stroke="#4a5450" stroke-width="1.2" opacity=".7"/>
-              <path d="M328 190 L302 148" stroke="#4a5450" stroke-width="1.2" opacity=".7"/>
-            </svg>
-            <div class="tee-slot" style="left:31%;top:19%;width:38%;height:15%">
-              <span class="label">Tu logo aquí</span><span class="who">Main Sponsor</span>
-            </div>
-            <div class="tee-slot" style="left:36%;top:39%;width:28%;height:10.5%">
-              <span class="label">Tu logo</span><span class="who">Principal</span>
-            </div>
-            <div class="tee-slot" style="left:33%;top:54%;width:15%;height:8%">
-              <span class="label">Oficial</span>
-            </div>
-            <div class="tee-slot" style="left:52%;top:54%;width:15%;height:8%">
-              <span class="label">Oficial</span>
-            </div>
-            <div class="tee-slot" style="left:5%;top:33%;width:14%;height:7.5%">
-              <span class="label">Técnico</span>
-            </div>
-          </div>
-          <div class="tee-legend">
-            <span>Vista de espalda</span><span>El frente queda para la identidad del concurso</span>
-          </div>
-        </div>
-      </div>
-      <p class="mock-note">El tamaño y la ubicación dependen de la categoría contratada: el Main Sponsor va arriba y más grande, el resto en orden descendente, y el Técnico en la manga.</p>
     </article>
 
   </div>
@@ -481,56 +431,129 @@ export const SFEF_SPONSORS_HTML = `<header class="hero">
 <section>
   <div class="sec-title"><span class="eyebrow">Cómo se acompaña</span><h2>Cuatro formas de estar</h2></div>
   <div class="stack">
-    <p class="lede">Cada categoría combina esos espacios de manera distinta. Los valores se conversan según la combinación que mejor le sirva a su empresa.</p>
-    <div class="packs">
-
-      <div class="pack lead">
-        <div><div class="pack-name">Main Sponsor</div><div class="pack-cupo">Una sola marca</div></div>
-        <ul>
-          <li><strong>Naming del concurso</strong>: «Santa Fe en Foco presentado por…»</li>
-          <li><strong>Exclusividad de rubro</strong></li>
-          <li>Placa de bienvenida y logo en la página</li>
-          <li>Logo de máxima jerarquía en la indumentaria</li>
-          <li>Presencia en el recorrido del evento</li>
-          <li>Espacio de encuentro con los participantes</li>
-          <li>Mailing exclusivo a inscriptos</li>
-          <li>Menciones en streaming, video de marca, entrevista y prensa</li>
-          <li>Presencia en la premiación</li>
-        </ul>
-      </div>
-
-      <div class="pack">
-        <div><div class="pack-name">Sponsor Principal</div><div class="pack-cupo">Tres a cuatro marcas</div></div>
-        <ul>
-          <li>Logo destacado en indumentaria y en la página</li>
-          <li>Publicaciones en redes</li>
-          <li>Mailing a inscriptos</li>
-          <li>Video o contenido de marca</li>
-          <li>Presencia en la premiación</li>
-        </ul>
-      </div>
-
-      <div class="pack">
-        <div><div class="pack-name">Sponsor Oficial</div><div class="pack-cupo">Hasta diez marcas</div></div>
-        <ul>
-          <li>Logo en la página del concurso</li>
-          <li>Logo en indumentaria</li>
-          <li>Dos publicaciones en redes</li>
-        </ul>
-      </div>
-
-      <div class="pack">
-        <div><div class="pack-name">Sponsor Técnico</div><div class="pack-cupo">Según necesidad</div></div>
-        <ul>
-          <li>Aporta <strong>productos, servicios, equipamiento o logística</strong> en lugar de dinero</li>
-          <li>Reconocimiento como Proveedor Técnico Oficial de su rubro</li>
-          <li>Logo en el bloque de sponsors técnicos</li>
-          <li>Historia en redes y mención vinculada a su aporte</li>
-          <li>Enlace a su sitio con seguimiento</li>
-        </ul>
-      </div>
-
+    <p class="lede">Cada categoría combina esos espacios de manera distinta. Estos son los valores de esta edición; la combinación se ajusta a lo que su empresa busque.</p>
+    <p class="cmp-hint">Deslizá la tabla para ver las cuatro categorías.</p>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th scope="col" class="rowh"><span class="cat-cupo">Qué incluye</span></th>
+            <th scope="col" class="lead-col"><span class="cat-name">Main Sponsor</span><span class="cat-cupo">Una sola marca</span></th>
+            <th scope="col"><span class="cat-name">Sponsor Principal</span><span class="cat-cupo">Tres a cuatro marcas</span></th>
+            <th scope="col"><span class="cat-name">Sponsor Oficial</span><span class="cat-cupo">Hasta diez marcas</span></th>
+            <th scope="col"><span class="cat-name">Sponsor Técnico</span><span class="cat-cupo">Según necesidad</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="cmp-price">
+            <th scope="row" class="rowh">Valor del patrocinio</th>
+            <td class="lead-col">$450.000</td>
+            <td>$250.000</td>
+            <td>$150.000</td>
+            <td>A convenir<small>Aporte en productos o servicios</small></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Naming del concurso</th>
+            <td class="lead-col">«Santa Fe en Foco presentado por…»</td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Exclusividad de rubro</th>
+            <td class="lead-col"><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Placa de bienvenida en la página</th>
+            <td class="lead-col"><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Logo en la página del concurso</th>
+            <td class="lead-col">Máxima jerarquía</td>
+            <td>Destacado</td>
+            <td><span class="yes" aria-label="Incluido">✓</span></td>
+            <td>En el bloque de sponsors técnicos</td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Publicaciones en redes</th>
+            <td class="lead-col"><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="yes" aria-label="Incluido">✓</span></td>
+            <td>Dos publicaciones</td>
+            <td>Historia y mención por su aporte</td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Mailing a inscriptos</th>
+            <td class="lead-col">Exclusivo</td>
+            <td><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Video o contenido de marca</th>
+            <td class="lead-col">Video, entrevista y prensa</td>
+            <td><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Menciones en streaming</th>
+            <td class="lead-col"><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Presencia en el recorrido del evento</th>
+            <td class="lead-col"><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Espacio de encuentro con los participantes</th>
+            <td class="lead-col"><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Presencia en la premiación</th>
+            <td class="lead-col"><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="yes" aria-label="Incluido">✓</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Enlace a su sitio con seguimiento</th>
+            <td class="lead-col"><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="yes" aria-label="Incluido">✓</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Reconocimiento como Proveedor Técnico Oficial</th>
+            <td class="lead-col"><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="no" aria-label="No incluido">—</span></td>
+            <td><span class="yes" aria-label="Incluido">✓</span></td>
+          </tr>
+          <tr>
+            <th scope="row" class="rowh">Forma del aporte</th>
+            <td class="lead-col">Económico</td>
+            <td>Económico</td>
+            <td>Económico</td>
+            <td>Productos, servicios, equipamiento o logística</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
+    <p style="font-size:14.5px;color:var(--ink-2)">El Main Sponsor incluye, además, los espacios de las categorías siguientes. Los valores corresponden a esta edición y no incluyen la presencia en InfoSpot y ComprameLaFoto, que se contrata aparte.</p>
   </div>
 </section>
 
