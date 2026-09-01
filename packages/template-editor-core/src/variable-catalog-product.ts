@@ -108,3 +108,18 @@ export function getInsertableImageVariablesForProduct(
     .flatMap((g) => g.variables)
     .filter((v) => v.valueType === "imageUrl" && v.usableIn.includes("IMAGE"));
 }
+
+/**
+ * Las variables que sirven de contenido para un código QR.
+ *
+ * Sale del catálogo del producto, igual que las imágenes insertables: una variable declarada
+ * como dirección de QR es, por definición, la que va adentro del código. En FotoOffice es la
+ * dirección que verifica si el socio está habilitado; en FotoRank, la que verifica el diploma.
+ */
+export function getQrVariablesForProduct(
+  product: TemplateProductId | "unknown"
+): TemplateV2VariableDefinition[] {
+  return getVariableGroupsForProduct(product)
+    .flatMap((g) => g.variables)
+    .filter((v) => v.valueType === "qrUrl");
+}

@@ -61,6 +61,7 @@ import {
   createDefaultVariableImageBlock,
   resolveTemplateProduct,
   getInsertableImageVariablesForProduct,
+  getQrVariablesForProduct,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -513,7 +514,21 @@ export function TemplateEditorShell({
     setCanvasTool("select");
     const ap = state.activePageIndex ?? 0;
     const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
-    dispatch(addBlock(createDefaultQrBlock(state.canvas, onPage, ap)));
+    const block = createDefaultQrBlock(state.canvas, onPage, ap, {
+      variableKey: qrDelProducto?.key,
+      name: qrDelProducto?.label ?? "Código QR",
+    });
+    dispatch(addBlock(block));
+    if (qrDelProducto) {
+      // El vínculo formal, igual que en las imágenes atadas a un dato.
+      const s = stateRef.current;
+      dispatch(
+        setVariableBindings([
+          ...s.variableBindings.filter((vb) => vb.blockId !== block.id),
+          { blockId: block.id, variableKey: qrDelProducto.key, targetPath: "value" },
+        ]),
+      );
+    }
   }
   function handleAddImage() {
     setCanvasTool("select");
@@ -529,27 +544,35 @@ export function TemplateEditorShell({
   const imagenesDeVariable = getInsertableImageVariablesForProduct(producto);
 
   /**
+   * El QR del producto: en FotoOffice, la dirección que verifica si el socio está habilitado.
+   * Se ata al insertarlo — un QR en blanco obliga a adivinar qué dato va adentro.
+   */
+  const qrDelProducto = getQrVariablesForProduct(producto)[0] ?? null;
+
+
+  /**
    * Lleva el zoom al punto donde la pieza entra completa.
    *
    * La medida sale del elemento real y no de un cálculo aparte: el panel lateral se abre y se
    * cierra, y la ventana cambia de tamaño. Un número guardado quedaría viejo enseguida.
    */
-  function ajustarALaVentana() {
+  const ajustarALaVentana = useCallback((origen: "user" | "auto" = "user") => {
     const caja = areaLienzoRef.current?.getBoundingClientRect();
     if (!caja) return;
     const s = stateRef.current;
-    dispatch(
-      setZoom(
-        fitZoom({
-          canvasWidth: s.canvas.width,
-          canvasHeight: s.canvas.height,
-          viewportWidth: caja.width,
-          // La barra de estado no es lienzo: descontarla evita que la pieza quede tapada abajo.
-          viewportHeight: caja.height - BARRA_ESTADO_PX,
-        }),
-      ),
-    );
-  }
+    const z = fitZoom({
+      canvasWidth: s.canvas.width,
+      canvasHeight: s.canvas.height,
+      viewportWidth: caja.width,
+      // La barra de estado no es lienzo: descontarla evita que la pieza quede tapada abajo.
+      viewportHeight: caja.height - BARRA_ESTADO_PX,
+    });
+    /*
+     * El ajuste automático se marca como "auto" para no contar como zoom elegido a mano: si
+     * contara, el primer ajuste al abrir apagaría el seguimiento del tamaño de la ventana.
+     */
+    dispatch(setZoom(z, origen));
+  }, [dispatch]);
 
   function handleAddVariableImage(variableKey: string, name: string) {
     setCanvasTool("select");
@@ -861,6 +884,27 @@ export function TemplateEditorShell({
   });
 
   const editorReady = state.loadStatus === "ready";
+
+  /*
+   * Al abrir, la plantilla entra entera. Antes se abría al 100% y una pieza más grande que la
+   * ventana aparecía cortada: había que alejar a mano antes de poder ver lo que se editaba.
+   *
+   * Se sigue ajustando cuando cambia el tamaño del área —al abrir el panel lateral, al cambiar
+   * la ventana— hasta que se elija un zoom a mano. A partir de ahí manda la persona.
+   */
+  useEffect(() => {
+    const area = areaLienzoRef.current;
+    if (!area || !editorReady) return;
+
+    ajustarALaVentana("auto");
+
+    const observer = new ResizeObserver(() => {
+      if (!stateRef.current.zoomUserAdjusted) ajustarALaVentana("auto");
+    });
+    observer.observe(area);
+    return () => observer.disconnect();
+  }, [editorReady, ajustarALaVentana, state.canvas.width, state.canvas.height]);
+
 
   /** Si el panel lateral (Capas + Propiedades) estaba cerrado, abrirlo al cambiar selección ↔ lienzo vacío (bloques o fondo). */
   useEffect(() => {
@@ -1299,6 +1343,22 @@ export function TemplateEditorShell({
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">
+                  Sumar o quitar de la selección · arrastrar en conjunto
+                </span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                  Mayús + clic
+                </kbd>
+              </li>
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">
+                  Elegir lo que está debajo (una capa por clic)
+                </span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                  ⌘/Ctrl + clic
+                </kbd>
+              </li>
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Mover bloque · paso fino / grueso</span>
                 <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Flechas · Mayús + Flechas
@@ -1412,7 +1472,10 @@ export function TemplateEditorShell({
                   <rect x="4" y="4" width="16" height="16" rx="2" />
                 </svg>
               </EditorToolButton>
-              <EditorToolButton label="Código QR" onClick={handleAddQr}>
+              <EditorToolButton
+                label={qrDelProducto ? `QR · ${qrDelProducto.label}` : "Código QR"}
+                onClick={handleAddQr}
+              >
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <rect x="3" y="3" width="7" height="7" rx="1" />
                   <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -1539,7 +1602,7 @@ export function TemplateEditorShell({
                     label="Ajustar a la ventana"
                     shortcut="⇧⌘0"
                     className="!h-7 !w-7"
-                    onClick={ajustarALaVentana}
+                    onClick={() => ajustarALaVentana("user")}
                     disabled={!editorReady}
                   >
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

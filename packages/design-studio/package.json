@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "DNX Design Studio — documento de diseño neutral, contrato de variables y render reproducible a PDF/PNG.",
+  "description": "DNX Design Studio \u2014 documento de dise\u00f1o neutral, contrato de variables y render reproducible a PDF/PNG.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -16,7 +16,8 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --import tsx --test \"src/**/*.test.ts\" src/fonts/embedded.test.ts",
+    "fuentes": "tsx scripts/generar-fuentes-incrustadas.mts"
   },
   "dependencies": {
     "@fontsource/cinzel": "^5.2.8",

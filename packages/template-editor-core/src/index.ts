@@ -52,3 +52,5 @@ export * from "./variable-catalog-product";
 export * from "./presets/index";
 
 export * from "./fit-zoom";
+export * from "./blocks-at-point";
+export * from "./selection-bounds";
