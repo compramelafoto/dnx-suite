@@ -81,15 +81,48 @@ const nextConfig: NextConfig = {
     "@repo/template-editor-ui",
     "@mercadopago/sdk-react",
   ],
-  serverExternalPackages: ["sharp", "sanitize-html"],
+  serverExternalPackages: [
+    "sharp",
+    "sanitize-html",
+    // Binario nativo del rasterizado de PDF: si webpack intenta empaquetarlo, falla el build.
+    // Llega acá por @repo/template-editor-core → @repo/design-studio. Mismo criterio que
+    // apps/fotoffice, que consume el mismo paquete.
+    "pdf-to-png-converter",
+    "@napi-rs/canvas",
+  ],
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),
       ".js": [".ts", ".tsx", ".js"],
       ".mjs": [".mts", ".mjs"],
     };
+
+    if (isServer) {
+      // `serverExternalPackages` no alcanza: el import de pdf-to-png-converter vive DENTRO
+      // de @repo/design-studio, y ese sí se transpila (llega por @repo/template-editor-core),
+      // así que webpack lo resuelve y termina intentando empaquetar el binario de skia.
+      // Externalizarlo a mano es lo que lo saca del grafo. Copiado de apps/fotoffice.
+      //
+      // CompraMeLaFoto no rasteriza: la vista previa de plantillas usa el renderer propio.
+      // Esto existe para que el código del módulo de diseño no rompa la compilación.
+      const externals = Array.isArray(config.externals) ? config.externals : [config.externals];
+      config.externals = [
+        ...externals.filter(Boolean),
+        ({ request }: { request?: string }, callback: (err?: unknown, result?: string) => void) => {
+          if (
+            request === "pdf-to-png-converter" ||
+            request === "@napi-rs/canvas" ||
+            request?.startsWith("@napi-rs/canvas-")
+          ) {
+            return callback(undefined, `commonjs ${request}`);
+          }
+          return callback();
+        },
+      ];
+    }
+
     return config;
   },
   images: {

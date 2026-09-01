@@ -534,22 +534,23 @@ export function TemplateEditorShell({
    * La medida sale del elemento real y no de un cálculo aparte: el panel lateral se abre y se
    * cierra, y la ventana cambia de tamaño. Un número guardado quedaría viejo enseguida.
    */
-  function ajustarALaVentana() {
+  const ajustarALaVentana = useCallback((origen: "user" | "auto" = "user") => {
     const caja = areaLienzoRef.current?.getBoundingClientRect();
     if (!caja) return;
     const s = stateRef.current;
-    dispatch(
-      setZoom(
-        fitZoom({
-          canvasWidth: s.canvas.width,
-          canvasHeight: s.canvas.height,
-          viewportWidth: caja.width,
-          // La barra de estado no es lienzo: descontarla evita que la pieza quede tapada abajo.
-          viewportHeight: caja.height - BARRA_ESTADO_PX,
-        }),
-      ),
-    );
-  }
+    const z = fitZoom({
+      canvasWidth: s.canvas.width,
+      canvasHeight: s.canvas.height,
+      viewportWidth: caja.width,
+      // La barra de estado no es lienzo: descontarla evita que la pieza quede tapada abajo.
+      viewportHeight: caja.height - BARRA_ESTADO_PX,
+    });
+    /*
+     * El ajuste automático se marca como "auto" para no contar como zoom elegido a mano: si
+     * contara, el primer ajuste al abrir apagaría el seguimiento del tamaño de la ventana.
+     */
+    dispatch(setZoom(z, origen));
+  }, [dispatch]);
 
   function handleAddVariableImage(variableKey: string, name: string) {
     setCanvasTool("select");
@@ -861,6 +862,27 @@ export function TemplateEditorShell({
   });
 
   const editorReady = state.loadStatus === "ready";
+
+  /*
+   * Al abrir, la plantilla entra entera. Antes se abría al 100% y una pieza más grande que la
+   * ventana aparecía cortada: había que alejar a mano antes de poder ver lo que se editaba.
+   *
+   * Se sigue ajustando cuando cambia el tamaño del área —al abrir el panel lateral, al cambiar
+   * la ventana— hasta que se elija un zoom a mano. A partir de ahí manda la persona.
+   */
+  useEffect(() => {
+    const area = areaLienzoRef.current;
+    if (!area || !editorReady) return;
+
+    ajustarALaVentana("auto");
+
+    const observer = new ResizeObserver(() => {
+      if (!stateRef.current.zoomUserAdjusted) ajustarALaVentana("auto");
+    });
+    observer.observe(area);
+    return () => observer.disconnect();
+  }, [editorReady, ajustarALaVentana, state.canvas.width, state.canvas.height]);
+
 
   /** Si el panel lateral (Capas + Propiedades) estaba cerrado, abrirlo al cambiar selección ↔ lienzo vacío (bloques o fondo). */
   useEffect(() => {
@@ -1539,7 +1561,7 @@ export function TemplateEditorShell({
                     label="Ajustar a la ventana"
                     shortcut="⇧⌘0"
                     className="!h-7 !w-7"
-                    onClick={ajustarALaVentana}
+                    onClick={() => ajustarALaVentana("user")}
                     disabled={!editorReady}
                   >
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
