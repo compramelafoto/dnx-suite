@@ -121,13 +121,20 @@ describe("template-v2 preview service", () => {
     );
   });
 
-  it("draft válido genera PNG real", async () => {
+  it("un diseño válido se dibuja sin navegador", async () => {
+    /*
+     * Antes esto exigía un PNG con su firma de archivo, que salía de levantar Chromium. El
+     * servidor de producción no tiene ese binario: la prueba pasaba en una computadora y la
+     * vista previa fallaba para todo el mundo. Ahora se dibuja con el módulo de impresión.
+     */
     const result = await runTemplateV2Preview({
       user: { id: 1, role: Role.PHOTOGRAPHER },
       body: { draft: draftValid, output: { format: "png" } },
     });
-    assert.equal(result.mimeType, "image/png");
-    assert.ok(result.png.subarray(0, 8).equals(PNG_SIG));
+    assert.equal(result.mimeType, "image/svg+xml");
+    assert.ok(result.svg.startsWith("<svg"), "tiene que ser un SVG");
+    assert.ok(result.svg.includes("</svg>"));
+    assert.ok(result.pageCount >= 1);
     assert.equal(result.width, 240);
     assert.equal(result.height, 160);
   });

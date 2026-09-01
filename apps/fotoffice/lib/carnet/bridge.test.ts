@@ -233,3 +233,130 @@ describe("editorADocumento", () => {
     expect(doc.value.format.width).toBeCloseTo(85.6, 1);
   });
 });
+
+describe("imágenes atadas a un dato", () => {
+  const canvas = { width: 1011, height: 638, dpi: 300 };
+  const imagen = (configJson: unknown): EditorBlock => ({
+    id: "img", type: "IMAGE", pageIndex: 0, x: 0, y: 0, width: 100, height: 100,
+    rotation: 0, zIndex: 0, opacity: 1, locked: false, visible: true, configJson,
+  });
+
+  it("lee la variable donde la escribe el editor", () => {
+    const r = editorADocumento({
+      canvas,
+      blocks: [imagen({ source: { variableKey: "photo" }, fit: "cover" })],
+    });
+    const doc = readDesignDocument(r.document);
+    if (!doc.ok) throw new Error("no se leyó");
+    const b = doc.value.sides[0].blocks[0];
+    expect(b.type === "image" && b.variableKey).toBe("photo");
+  });
+
+  it("y también en la raíz, por compatibilidad", () => {
+    const r = editorADocumento({ canvas, blocks: [imagen({ variableKey: "institutionLogo" })] });
+    const doc = readDesignDocument(r.document);
+    if (!doc.ok) throw new Error("no se leyó");
+    const b = doc.value.sides[0].blocks[0];
+    expect(b.type === "image" && b.variableKey).toBe("institutionLogo");
+  });
+
+  it("una imagen con archivo propio sigue usando el archivo", () => {
+    const r = editorADocumento({ canvas, blocks: [imagen({ src: "https://cdn/x.png" })] });
+    const doc = readDesignDocument(r.document);
+    if (!doc.ok) throw new Error("no se leyó");
+    const b = doc.value.sides[0].blocks[0];
+    expect(b.type === "image" && b.resourceRef).toBe("https://cdn/x.png");
+  });
+});
+
+describe("forma del recorte", () => {
+  const canvas = { width: 1011, height: 638, dpi: 300 };
+  const imagen = (configJson: unknown): EditorBlock => ({
+    id: "img", type: "IMAGE", pageIndex: 0, x: 0, y: 0, width: 120, height: 160,
+    rotation: 0, zIndex: 0, opacity: 1, locked: false, visible: true, configJson,
+  });
+
+  const formaDe = (configJson: unknown, tipo = "IMAGE") => {
+    const r = editorADocumento({
+      canvas,
+      blocks: [{ ...imagen(configJson), type: tipo }],
+    });
+    const doc = readDesignDocument(r.document);
+    if (!doc.ok) throw new Error(doc.errors.join(", "));
+    const b = doc.value.sides[0].blocks[0];
+    if (b.type !== "image") throw new Error("no es una imagen");
+    return b.mask;
+  };
+
+  it("elegir circular llega hasta el dibujo", () => {
+    /*
+     * La regresión concreta: el editor guardaba maskShape y ni el puente ni el motor lo leían.
+     * Se marcaba "Circular" y la credencial salía cuadrada.
+     */
+    expect(formaDe({ src: "https://cdn/x.png", maskShape: "circle" })).toBe("circle");
+  });
+
+  it("y elipse también", () => {
+    expect(formaDe({ src: "https://cdn/x.png", maskShape: "ellipse" })).toBe("ellipse");
+  });
+
+  it("sin elegir nada, no se recorta", () => {
+    expect(formaDe({ src: "https://cdn/x.png" })).toBe("rect");
+  });
+
+  it("una forma inventada no recorta en vez de romper la emisión", () => {
+    expect(formaDe({ src: "https://cdn/x.png", maskShape: "estrella" })).toBe("rect");
+  });
+
+  it("la foto del socio también se puede recortar en círculo", () => {
+    expect(formaDe({ maskShape: "circle" }, "PHOTO")).toBe("circle");
+  });
+
+  it("una imagen atada a un dato conserva su recorte", () => {
+    expect(formaDe({ source: { variableKey: "photo" }, maskShape: "circle" })).toBe("circle");
+  });
+});
+
+describe("las dos escrituras de marcador", () => {
+  const canvas = { width: 1011, height: 638, dpi: 300 };
+  const conocidas = new Set(["fullName", "memberNumber"]);
+  const texto = (content: string, variablesConocidas?: Set<string>) => {
+    const r = editorADocumento({
+      canvas,
+      variablesConocidas,
+      blocks: [{
+        id: "t", type: "TEXT", pageIndex: 0, x: 0, y: 0, width: 300, height: 40,
+        rotation: 0, zIndex: 0, opacity: 1, locked: false, visible: true,
+        configJson: { content, fontSize: 20 },
+      }],
+    });
+    const doc = readDesignDocument(r.document);
+    if (!doc.ok) throw new Error(doc.errors.join(", "));
+    const b = doc.value.sides[0].blocks[0];
+    return b.type === "text" ? b.content : "";
+  };
+
+  it("una llave simple pasa a doble cuando la variable existe", () => {
+    /*
+     * El defecto concreto: el panel del editor inserta `{clave}` y el módulo de impresión lee
+     * `{{clave}}`. Quien agregaba "Nombre y apellido" veía impreso el texto `{fullName}`.
+     */
+    expect(texto("{fullName}", conocidas)).toBe("{{fullName}}");
+  });
+
+  it("la doble se deja como está", () => {
+    expect(texto("{{fullName}}", conocidas)).toBe("{{fullName}}");
+  });
+
+  it("funciona en medio de una frase", () => {
+    expect(texto("Socio N° {memberNumber} — SFPR", conocidas)).toBe("Socio N° {{memberNumber}} — SFPR");
+  });
+
+  it("una llave que no es variable se respeta: alguien puede querer escribirla", () => {
+    expect(texto("Horario {mañana} a {tarde}", conocidas)).toBe("Horario {mañana} a {tarde}");
+  });
+
+  it("sin lista de variables no se toca nada", () => {
+    expect(texto("{fullName}")).toBe("{fullName}");
+  });
+});

@@ -1,4 +1,6 @@
 import {
+  fotofficeTemplateVariablesPlugin,
+  fotorankTemplateVariablesPlugin,
   clickatonTemplateVariablesPlugin,
   createClickatonTemplateExampleData,
   createTemplateVariableRegistry,
@@ -6,13 +8,10 @@ import {
   type TemplateVariableRegistry,
 } from "@repo/template-engine";
 import { createTemplatePreviewExampleData } from "./rendering/create-template-preview-example-data";
-import {
-  FOTOFFICE_VARIABLE_GROUPS,
-  createFotofficeExampleData,
-} from "./variable-catalog-fotoffice";
+import { createFotofficeExampleData } from "./variable-catalog-fotoffice";
 import { createSchoolTemplateEngineRegistry } from "./template-engine-compat";
 
-export type TemplateProductId = "school" | "clickaton" | "fotoffice";
+export type TemplateProductId = "school" | "clickaton" | "fotoffice" | "fotorank";
 
 export function resolveTemplateProduct(
   meta: unknown
@@ -21,6 +20,7 @@ export function resolveTemplateProduct(
   const product = (meta as { product?: unknown }).product;
   if (product === "clickaton") return "clickaton";
   if (product === "fotoffice") return "fotoffice";
+  if (product === "fotorank") return "fotorank";
   if (product === "school" || product == null || product === "") return "school";
   return "unknown";
 }
@@ -35,10 +35,20 @@ export function resolveTemplateVariablePlugin(
   if (product === "clickaton") {
     return createTemplateVariableRegistry([clickatonTemplateVariablesPlugin]);
   }
+  if (product === "fotoffice") {
+    return createTemplateVariableRegistry([fotofficeTemplateVariablesPlugin]);
+  }
+  if (product === "fotorank") {
+    return createTemplateVariableRegistry([fotorankTemplateVariablesPlugin]);
+  }
   if (product === "school") {
     return createSchoolTemplateEngineRegistry();
   }
-  // producto desconocido: sin plugins de dominio
+  /*
+   * Producto desconocido: registro vacío. Es deliberado y es la regla que pide el aislamiento —
+   * ninguna plataforma hereda las variables de otra por descarte. Una plantilla cuyo producto no
+   * se reconoce no valida, y eso es preferible a que valide contra el vocabulario equivocado.
+   */
   return createTemplateVariableRegistry([]);
 }
 
@@ -59,7 +69,10 @@ export function isKnownTemplateProduct(
   product: string
 ): product is TemplateProductId {
   return (
-    product === "school" || product === "clickaton" || product === "fotoffice"
+    product === "school" ||
+    product === "clickaton" ||
+    product === "fotoffice" ||
+    product === "fotorank"
   );
 }
 
@@ -67,15 +80,13 @@ export function isKnownTemplateProduct(
 export function getAllowedVariableKeysForProduct(
   product: TemplateProductId | "unknown"
 ): Set<string> {
-  if (product === "fotoffice") {
-    return new Set(
-      FOTOFFICE_VARIABLE_GROUPS.flatMap((g) => g.variables.map((v) => v.key))
-    );
-  }
-  const reg = resolveTemplateVariablePlugin(
-    product === "unknown" ? "school" : product
+  /*
+   * Un producto desconocido no hereda las claves de otro. Antes caía en las de escuela: una
+   * plantilla mal etiquetada validaba contra el vocabulario equivocado y parecía sana.
+   */
+  return new Set(
+    resolveTemplateVariablePlugin(product).listVariableDefinitions().map((d) => d.path)
   );
-  return new Set(reg.listVariableDefinitions().map((d) => d.path));
 }
 
 export function isVariableUsableInForProduct(
@@ -83,17 +94,7 @@ export function isVariableUsableInForProduct(
   key: string,
   target: "TEXT" | "IMAGE"
 ): boolean {
-  if (product === "fotoffice") {
-    for (const group of FOTOFFICE_VARIABLE_GROUPS) {
-      const def = group.variables.find((v) => v.key === key);
-      if (def) return def.usableIn.includes(target);
-    }
-    return false;
-  }
-  const reg = resolveTemplateVariablePlugin(
-    product === "unknown" ? "school" : product
-  );
-  const def = reg.getVariableDefinition(key);
+  const def = resolveTemplateVariablePlugin(product).getVariableDefinition(key);
   if (!def) return false;
   const usable = def.usableIn ?? ["TEXT"];
   return usable.includes(target);

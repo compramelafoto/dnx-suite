@@ -439,20 +439,28 @@ export function TemplateEditorInspector({
             updateConfig={updateConfig}
             dispatch={dispatch}
             inputBase={inputBase}
+            product={product}
           />
           <InspectorPanel title="Contenedor de imagen">
-            <div>
-              <FieldLabel>Uso del marco</FieldLabel>
-              <select
-                className={selectBase}
-                value={String(cfg.photoMode ?? "free")}
-                onChange={(e) => updateConfig({ photoMode: e.target.value })}
-              >
-                <option value="single">Foto individual</option>
-                <option value="group">Foto grupal</option>
-                <option value="free">Libre (genérico)</option>
-              </select>
-            </div>
+            {/*
+              "Uso del marco" distingue foto individual de foto grupal, que es una noción de
+              Clickatón: sus plantillas encuadran distinto según cuánta gente entra. En un carnet
+              de socio no significa nada, y aparecía igual porque estaba escrita para todos.
+            */}
+            {product === "clickaton" ? (
+              <div>
+                <FieldLabel>Uso del marco</FieldLabel>
+                <select
+                  className={selectBase}
+                  value={String(cfg.photoMode ?? "free")}
+                  onChange={(e) => updateConfig({ photoMode: e.target.value })}
+                >
+                  <option value="single">Foto individual</option>
+                  <option value="group">Foto grupal</option>
+                  <option value="free">Libre (genérico)</option>
+                </select>
+              </div>
+            ) : null}
             <div>
               <FieldLabel>Forma del recorte</FieldLabel>
               <select

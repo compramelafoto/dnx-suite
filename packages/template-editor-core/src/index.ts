@@ -18,7 +18,6 @@ export * from "./block-display-name";
 export * from "./block-style-clipboard";
 export * from "./canvas-print-units";
 export * from "./clamp-block-position";
-export * from "./fit-zoom";
 export * from "./create-default-blocks";
 export * from "./diagnostic-quick-fixes";
 export * from "./editor-canvas-tool";
@@ -51,3 +50,5 @@ export * from "./variable-catalog-fotoffice";
 export * from "./variable-catalog-product";
 
 export * from "./presets/index";
+
+export * from "./fit-zoom";

@@ -360,6 +360,43 @@ export function createDefaultImageBlock(
 }
 
 /** Logo institucional: URL resuelta en runtime desde el alta de la escuela (PNG con fondo transparente). */
+/**
+ * Imagen atada a un dato del destinatario: la foto del socio, el logo de la institución.
+ *
+ * Generaliza el bloque de logo de escuela, que era el único que existía y venía con la
+ * variable de Clickatón escrita adentro. Cada producto declara sus imágenes en su catálogo de
+ * variables y el editor ofrece las que correspondan.
+ *
+ * La clave va en `source.variableKey` porque es donde la busca el lienzo al dibujar. No es un
+ * detalle: puesta en la raíz del config, el bloque se ve bien mientras se diseña y sale vacío
+ * al imprimir.
+ */
+export function createDefaultVariableImageBlock(
+  canvas: TemplateV2Canvas,
+  blocks: TemplateV2Block[],
+  pageIndex: number,
+  opciones: { variableKey: string; name: string; width?: number; height?: number }
+): TemplateV2Block {
+  const w = opciones.width ?? 220;
+  const h = opciones.height ?? 140;
+  const { x, y, zIndex } = placeBlock({ canvas, blocks, width: w, height: h });
+  return {
+    id: newBlockId(),
+    type: "IMAGE",
+    pageIndex,
+    name: opciones.name,
+    layout: { x, y, width: w, height: h, rotation: 0, zIndex, opacity: 1, locked: false, visible: true },
+    configJson: {
+      src: "",
+      fit: "cover",
+      borderRadius: 0,
+      photoMode: "free",
+      maskShape: "rect",
+      source: { variableKey: opciones.variableKey },
+    },
+  };
+}
+
 export function createDefaultSchoolLogoImageBlock(
   canvas: TemplateV2Canvas,
   blocks: TemplateV2Block[],

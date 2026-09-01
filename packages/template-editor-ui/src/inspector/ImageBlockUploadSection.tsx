@@ -11,8 +11,18 @@ import {
 import { requestTemplateVersionImageUpload } from "@repo/template-editor-core";
 import { getTemplateV2VariableByKey } from "@repo/template-editor-core";
 import { cn } from "../primitives/cn";
+import {
+  getInsertableImageVariablesForProduct,
+  type TemplateProductId,
+} from "@repo/template-editor-core";
 
-const SCHOOL_LOGO_VARIABLE_KEY = "branding.schoolLogoUrl";
+/*
+ * Este panel estaba escrito alrededor de una sola variable, `branding.schoolLogoUrl`, con un
+ * botón fijo que decía "Logo escuela (dinámico)". En FotoOffice ofrecía el logo de un colegio
+ * que ahí no existe, y no había forma de atar la imagen a la foto del socio.
+ *
+ * Ahora las opciones salen del catálogo del producto, igual que en el riel de inserción.
+ */
 
 function stripSrcBindingsForBlock(
   bindings: TemplateV2VariableBinding[],
@@ -31,6 +41,8 @@ type Props = {
   updateConfig: (patch: Record<string, unknown>) => void;
   dispatch: TemplateV2EditorDispatch;
   inputBase: string;
+  /** La plataforma de esta plantilla. Gobierna qué imágenes se pueden atar. */
+  product: TemplateProductId | "unknown";
 };
 
 export function ImageBlockUploadSection({
@@ -43,14 +55,17 @@ export function ImageBlockUploadSection({
   updateConfig,
   dispatch,
   inputBase,
+  product,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const variableKey = typeof sourceObj.variableKey === "string" ? sourceObj.variableKey.trim() : "";
-  const isSchoolLogoDynamic = variableKey === SCHOOL_LOGO_VARIABLE_KEY;
+  /** La imagen sale de un dato, no de un archivo subido. */
+  const isSchoolLogoDynamic = variableKey !== "";
   const varDef = variableKey ? getTemplateV2VariableByKey(variableKey) : undefined;
+  const imagenesDelProducto = getInsertableImageVariablesForProduct(product);
 
   const hasStaticImage = src.trim() !== "";
 
@@ -78,11 +93,11 @@ export function ImageBlockUploadSection({
     dispatch(setVariableBindings(stripSrcBindingsForBlock(variableBindings, blockId)));
   }
 
-  function useSchoolLogoDynamic() {
+  function useSchoolLogoDynamic(clave: string) {
     setError(null);
     updateConfig({
       src: "",
-      source: { ...sourceObj, variableKey: SCHOOL_LOGO_VARIABLE_KEY },
+      source: { ...sourceObj, variableKey: clave },
     });
     const next = stripSrcBindingsForBlock(variableBindings, blockId);
     dispatch(
@@ -90,7 +105,7 @@ export function ImageBlockUploadSection({
         ...next,
         {
           blockId,
-          variableKey: SCHOOL_LOGO_VARIABLE_KEY,
+          variableKey: clave,
           targetPath: "src",
         },
       ])
@@ -176,16 +191,24 @@ export function ImageBlockUploadSection({
                 Quitar imagen
               </Button>
             ) : null}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={uploading}
-              onClick={useSchoolLogoDynamic}
-              title="Usa el logo PNG (fondo transparente) configurado al dar de alta la escuela"
-            >
-              Logo escuela (dinámico)
-            </Button>
+            {imagenesDelProducto.length > 0 ? (
+              <select
+                className={cn(inputBase, "h-9 w-auto text-[12px]")}
+                value=""
+                disabled={uploading}
+                aria-label="Atar la imagen a un dato"
+                onChange={(e) => {
+                  if (e.target.value) useSchoolLogoDynamic(e.target.value);
+                }}
+              >
+                <option value="">Atar a un dato…</option>
+                {imagenesDelProducto.map((v) => (
+                  <option key={v.key} value={v.key} title={v.description}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </>
         ) : (
           <Button type="button" variant="secondary" size="sm" disabled={uploading} onClick={clearImage}>

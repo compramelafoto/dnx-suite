@@ -1,17 +1,14 @@
+import type { TemplateVariableDefinition } from "@repo/template-engine";
 import {
-  clickatonTemplateVariablesPlugin,
-  type TemplateVariableDefinition,
-} from "@repo/template-engine";
-import {
-  getTemplateV2VariableGroupsForTextBlocks,
-  TEMPLATE_V2_VARIABLE_CATALOG,
   type TemplateV2VariableDefinition,
   type TemplateV2VariableGroup,
   type TemplateV2VariableUsableIn,
   type TemplateV2VariableValueType,
 } from "./variable-catalog";
-import { FOTOFFICE_VARIABLE_GROUPS } from "./variable-catalog-fotoffice";
-import type { TemplateProductId } from "./resolve-template-product";
+import {
+  resolveTemplateVariablePlugin,
+  type TemplateProductId,
+} from "./resolve-template-product";
 
 function mapValueType(
   t: TemplateVariableDefinition["valueType"]
@@ -41,10 +38,19 @@ function toEditorDef(def: TemplateVariableDefinition): TemplateV2VariableDefinit
 export function getVariableGroupsForProduct(
   product: TemplateProductId | "unknown"
 ): TemplateV2VariableGroup[] {
-  if (product === "fotoffice") return FOTOFFICE_VARIABLE_GROUPS;
-  if (product === "clickaton") {
+  /*
+   * El catálogo que ve quien diseña se deriva del registro del motor, que es el mismo que valida
+   * y renderiza. Antes eran dos listas: el editor ofrecía la foto del socio y la vista previa la
+   * rechazaba como variable desconocida, porque FotoOffice existía en una y no en la otra.
+   *
+   * Derivarlo hace imposible ese desacuerdo: el editor no puede ofrecer nada que la emisión no
+   * sepa resolver, y ninguna plataforma ve las variables de otra.
+   */
+  const registro = resolveTemplateVariablePlugin(product);
+  const definiciones = registro.listVariableDefinitions();
+  if (definiciones.length > 0) {
     const byGroup = new Map<string, TemplateV2VariableGroup>();
-    for (const def of clickatonTemplateVariablesPlugin.definitions) {
+    for (const def of definiciones) {
       const groupId = def.group ?? "card";
       const label = def.groupLabel ?? groupId;
       if (!byGroup.has(groupId)) {
@@ -58,15 +64,16 @@ export function getVariableGroupsForProduct(
     }
     return Array.from(byGroup.values());
   }
-  return TEMPLATE_V2_VARIABLE_CATALOG.groups;
+  /*
+   * Sin plugin no hay catálogo. Devolver el genérico sería exactamente lo que se quiere evitar:
+   * una plataforma mostrando las variables de otra porque la suya no estaba definida.
+   */
+  return [];
 }
 
 export function getTextVariableGroupsForProduct(
   product: TemplateProductId | "unknown"
 ): TemplateV2VariableGroup[] {
-  if (product !== "clickaton" && product !== "fotoffice") {
-    return getTemplateV2VariableGroupsForTextBlocks();
-  }
   return getVariableGroupsForProduct(product)
     .map((g) => ({
       ...g,
@@ -84,4 +91,20 @@ export function getVariableByKeyForProduct(
     if (found) return found;
   }
   return undefined;
+}
+
+/**
+ * Las imágenes que el editor puede insertar como bloque atado a un dato.
+ *
+ * Sale del propio catálogo del producto: una variable de imagen usable en bloques de imagen es,
+ * por definición, una imagen insertable. Así el riel de herramientas no tiene su propia lista
+ * que mantener al día — era el defecto que dejaba a FotoOffice sin forma de poner la foto del
+ * socio mientras ofrecía el logo de una escuela que no existe en ese producto.
+ */
+export function getInsertableImageVariablesForProduct(
+  product: TemplateProductId | "unknown"
+): TemplateV2VariableDefinition[] {
+  return getVariableGroupsForProduct(product)
+    .flatMap((g) => g.variables)
+    .filter((v) => v.valueType === "imageUrl" && v.usableIn.includes("IMAGE"));
 }

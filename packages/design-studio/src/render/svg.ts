@@ -15,6 +15,38 @@ export function escapeXml(texto: string): string {
     .replace(/'/g, "&apos;");
 }
 
+/** La forma con la que se recorta una imagen, como `clipPath` propio del bloque. */
+function clipDeImagen(item: {
+  id: string;
+  xPt: number;
+  yPt: number;
+  widthPt: number;
+  heightPt: number;
+  mask: "rect" | "circle" | "ellipse";
+  cornerRadiusPt?: number;
+}): { def: string; attr: string } {
+  const cx = item.xPt + item.widthPt / 2;
+  const cy = item.yPt + item.heightPt / 2;
+
+  let forma = "";
+  if (item.mask === "circle") {
+    // Círculo perfecto: el radio lo manda el lado corto, así no se sale de la caja.
+    const r = Math.min(item.widthPt, item.heightPt) / 2;
+    forma = `<circle cx="${cx}" cy="${cy}" r="${r}"/>`;
+  } else if (item.mask === "ellipse") {
+    forma = `<ellipse cx="${cx}" cy="${cy}" rx="${item.widthPt / 2}" ry="${item.heightPt / 2}"/>`;
+  } else if (item.cornerRadiusPt) {
+    forma = `<rect x="${item.xPt}" y="${item.yPt}" width="${item.widthPt}" height="${item.heightPt}" rx="${item.cornerRadiusPt}"/>`;
+  }
+  if (!forma) return { def: "", attr: "" };
+
+  const id = `clip-${item.id.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  return {
+    def: `<clipPath id="${id}">${forma}</clipPath>`,
+    attr: ` clip-path="url(#${id})"`,
+  };
+}
+
 function svgDePagina(pagina: LayoutPage, qrPorItem: Map<string, string>): string {
   const partes: string[] = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${pagina.widthPt}" height="${pagina.heightPt}" viewBox="0 0 ${pagina.widthPt} ${pagina.heightPt}">`,
@@ -84,9 +116,16 @@ function svgDePagina(pagina: LayoutPage, qrPorItem: Map<string, string>): string
 
     // La imagen se referencia por su clave: quien muestre el SVG la resuelve a una URL
     // firmada. El módulo no sabe dónde vive el archivo.
+    /*
+     * El recorte se hace con una máscara y no dibujando una forma encima: una foto circular
+     * dentro de un carnet tiene que dejar ver el fondo alrededor, no taparlo con un cuadrado
+     * del color que se haya adivinado.
+     */
+    const recorte = clipDeImagen(item);
     partes.push(
-      `<image x="${item.xPt}" y="${item.yPt}" width="${item.widthPt}" height="${item.heightPt}"` +
-        ` data-resource-ref="${escapeXml(item.ref)}" preserveAspectRatio="${item.fit === "cover" ? "xMidYMid slice" : "xMidYMid meet"}"${alfa}${giro}/>`,
+      recorte.def +
+        `<image x="${item.xPt}" y="${item.yPt}" width="${item.widthPt}" height="${item.heightPt}"` +
+        ` data-resource-ref="${escapeXml(item.ref)}" preserveAspectRatio="${item.fit === "cover" ? "xMidYMid slice" : "xMidYMid meet"}"${recorte.attr}${alfa}${giro}/>`,
     );
   }
 

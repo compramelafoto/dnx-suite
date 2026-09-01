@@ -10,6 +10,9 @@ import { loadMemberAccount } from "@/lib/membership/account";
 import { formatMinorArs } from "@/lib/membership/money";
 import { describeSeniority } from "@/lib/portal/identity";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
+import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
+import { resolvePortalMenu } from "@/lib/portal/menu";
+import { PortalSections } from "@/components/portal/portal-sections";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +53,10 @@ export default async function PortalPage() {
   // formulario donde cargarlos. El aviso está para eso, y desaparece solo cuando ya cargó algo.
   const perfil = await prisma.member.findUnique({
     where: { id: context.member.id },
-    select: { businessName: true, bio: true, specialties: true, instagram: true, website: true },
+    select: {
+      businessName: true, bio: true, specialties: true, instagram: true, website: true,
+      avatarUrl: true, profilePhotoUrl: true,
+    },
   });
   const perfilVacio =
     !perfil?.businessName &&
@@ -59,8 +65,10 @@ export default async function PortalPage() {
     !perfil?.website &&
     (perfil?.specialties.length ?? 0) === 0;
 
+  const secciones = resolvePortalMenu(await getEnabledModuleKeysForWorkspace(context.workspace.id));
+
   return (
-    <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
+    <>
       <main className="mx-auto max-w-lg px-4 py-16">
         <section className="fo-card space-y-6">
           <div className="flex items-center gap-3">
@@ -173,6 +181,11 @@ export default async function PortalPage() {
           </div>
         </section>
 
+        {/* Todo lo que el portal ofrece, incluido lo que todavía se está construyendo. */}
+        <div className="mt-6">
+          <PortalSections items={secciones} />
+        </div>
+
         {perfilVacio ? (
           <section className="fo-card mt-6 space-y-3 p-5">
             <h2 className="text-sm font-semibold">Completá tu perfil profesional</h2>
@@ -205,6 +218,6 @@ export default async function PortalPage() {
           </section>
         ) : null}
       </main>
-    </div>
+    </>
   );
 }

@@ -352,12 +352,17 @@ lleva ítem propio.
 Hoy son cuatro pantallas sin menú: se navega con tarjetas desde `/portal` y se vuelve con un
 enlace. **Funciona con cuatro; no funciona con doce.**
 
+**Implementado el 2026-08-31.** El mapa de abajo vive en `apps/fotoffice/lib/portal/menu.ts`,
+que es esta tabla hecha código. Si las dos se separan, manda el documento. Hay pruebas que
+fallan si una sección declarada no tiene su pantalla, si se repite una ruta o si el orden deja
+de ser el de acá.
+
 ### Regla de crecimiento del portal
 
 | Cantidad de secciones | Navegación que corresponde |
 |---|---|
-| Hasta 5 | Tarjetas en la portada, como hoy ✅ |
-| 6 a 9 | Barra inferior fija en el teléfono, y menú lateral en pantalla grande ⬜ |
+| Hasta 5 | Tarjetas en la portada |
+| 6 a 9 | Barra inferior fija en el teléfono, y pestañas arriba en pantalla grande ✅ |
 | 10 o más | Revisar: el portal se convirtió en un panel y el socio no es administrativo |
 
 El portal se usa desde el teléfono. La navegación va **abajo**, al alcance del pulgar, no en un
@@ -370,13 +375,49 @@ menú lateral copiado del panel.
 | 10 | Inicio | `/portal` | Identidad: número, categoría, antigüedad y estado de cuenta real | ✅ |
 | 20 | Mi carnet | `/portal/carnet` | Carnet emitido, con su QR de verificación | 🟡 |
 | 30 | Mis cuotas | `/portal/cuotas` | Estado de cuenta y pago por Mercado Pago | ✅ |
-| 40 | Mi perfil | `/portal/perfil` | Datos, foto y presencia profesional | ✅ |
+| 40 | Mi perfil | `/portal/perfil` | Datos, foto de perfil y presencia profesional | ✅ |
 | 50 | Beneficios | `/portal/beneficios` | Descuentos y convenios vigentes | ⬜ |
 | 60 | Reservas | `/portal/reservas` | Reservar salón o estudio, y ver las propias | ⬜ |
 | 70 | Sorteos | `/portal/sorteos` | Sorteo del mes y resultados verificables | ⬜ |
 | 80 | Cursos | `/portal/cursos` | Cursos de la institución e inscripción | ⬜ |
 | 90 | Institucional | `/portal/institucional` | Novedades, actas y transparencia | ⬜ |
 | 100 | Mis referidos | `/portal/referidos` | A quién recomendé y qué mes me bonificaron | ⬜ |
+
+### Excepción del portal a P1 y P2 — decidida el 2026-08-31
+
+**En el portal, lo que todavía no existe se muestra apagado y con la palabra "Próximamente".**
+En el panel administrativo sigue rigiendo lo contrario, sin cambios.
+
+P1 y P2 se escribieron pensando en quien trabaja en el sistema todos los días: para esa persona
+una lista de funciones que no andan es una lista de deudas que relee cada mañana, y no puede
+hacer nada al respecto.
+
+El socio es otro lector. Entra cada tanto y lo que necesita saber es **qué le da la institución
+a cambio de la cuota**. Ahí lo que viene no es una deuda: es parte de la respuesta. Un portal
+con cuatro tarjetas se lee como un sistema chico; el mismo portal mostrando que hay beneficios,
+reservas y sorteos en camino se lee como una institución que está construyendo algo.
+
+El riesgo de P2 es real y se acota así:
+
+- La sección apagada **no es un enlace**. No se puede tocar y llevar a una pantalla vacía.
+- Va en su propio bloque, "En camino", **debajo** de lo que sí funciona. Nunca intercalada.
+- Dice qué se va a poder hacer, no cuándo. Una fecha que no se cumple es peor que ninguna.
+- Cuando una sección se habilita, sale de ese bloque sola: el estado se calcula, no se escribe.
+
+Si el bloque "En camino" queda mucho tiempo con seis secciones, el problema no es el cartel
+—es que se prometió de más—. La solución es construir o sacar del mapa, no esconder.
+
+### La foto del socio: dos fotos distintas
+
+`Member.avatarUrl` es **la foto del carnet**: encuadre fijo, fondo plano, 300 dpi, y la aprueba
+la Secretaría. Sirve para identificar en un control, no para presentarse.
+
+`Member.profilePhotoUrl` es **la del portal**, y la elige el socio. Vacía significa "usar la del
+carnet", así que quien no quiera decidir no tiene que hacer nada.
+
+Están separadas porque cumplen funciones opuestas. Obligar a usar la del carnet deja a la
+persona con una foto de trámite en el único lugar del sistema donde se muestra a sí misma; y al
+revés, dejar que la foto de perfil vaya al carnet rompería el requisito de la credencial.
 
 ### Lo que el portal nunca muestra
 

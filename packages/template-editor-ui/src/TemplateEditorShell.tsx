@@ -13,12 +13,14 @@ import {
   useState,
   useSyncExternalStore,
   type ButtonHTMLAttributes,
+  type ReactNode,
   type SVGProps,
 } from "react";
 import { useRouter } from "next/navigation";
 import Card from "./primitives/Card";
 import Button from "./primitives/Button";
 import { TemplateEditorCanvas } from "./TemplateEditorCanvas";
+import { TemplateEditorInspector } from "./TemplateEditorInspector";
 import { TemplateEditorLayers } from "./TemplateEditorLayers";
 import {
   TEMPLATE_V2_EDITOR_INITIAL_STATE,
@@ -53,15 +55,20 @@ import {
 import {
   createDefaultBackgroundBlock,
   createDefaultImageBlock,
-  createDefaultSchoolLogoImageBlock,
   createDefaultShapeBlock,
   createDefaultQrBlock,
+  fitZoom,
+  createDefaultVariableImageBlock,
+  resolveTemplateProduct,
+  getInsertableImageVariablesForProduct,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
 import { requestTemplateVersionImageUpload } from "@repo/template-editor-core";
-import { EditorPropertiesBar } from "./EditorPropertiesBar";
+import { TemplateBlockContextToolbar } from "./TemplateBlockContextToolbar";
 import { GoogleFontsLoader } from "./GoogleFontsLoader";
+import { TemplateTextFormatToolbar } from "./TemplateTextFormatToolbar";
+import { TemplateDiagnosticsPanel } from "./TemplateDiagnosticsPanel";
 import { TemplateVersionList } from "./TemplateVersionList";
 import type { TemplateEditorCanvasTool } from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
@@ -74,7 +81,6 @@ import {
 } from "@repo/template-editor-core";
 import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
 import { EditorThemeProvider } from "./theme-context";
-import { useViewportFitHeight } from "./useViewportFitHeight";
 import { ActionButton, ToolButton, ToolDivider, ToolGroup } from "./chrome/ToolControls";
 
 
@@ -245,6 +251,75 @@ function EditorToolButton({
   );
 }
 
+function RightSidebarSectionChevron({ open, className }: { open: boolean; className?: string }) {
+  return (
+    <svg
+      className={cn("h-4 w-4 shrink-0 text-[color:var(--te-ink-muted)] transition-transform duration-200", open ? "rotate-0" : "-rotate-90", className)}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Encabezado + botón para plegar/desplegar; el panel lateral hace scroll único. */
+function RightSidebarSection({
+  sectionId,
+  title,
+  open,
+  onToggle,
+  children,
+  variant = "muted",
+}: {
+  sectionId: string;
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+  variant?: "muted" | "white";
+}) {
+  return (
+    <section
+      className={cn(
+        "border-b border-[color:var(--te-line)]",
+        variant === "muted" ? "bg-[color:var(--te-chrome)]" : "bg-white"
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <h3
+          id={`${sectionId}-heading`}
+          className="text-xs font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]"
+        >
+          {title}
+        </h3>
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[color:var(--te-ink-muted)] transition-colors hover:bg-black/[0.04] hover:text-[color:var(--te-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={`${sectionId}-content`}
+          title={open ? "Minimizar bloque" : "Desplegar bloque"}
+        >
+          <RightSidebarSectionChevron open={open} />
+        </button>
+      </div>
+      {open ? (
+        <div
+          id={`${sectionId}-content`}
+          role="region"
+          aria-labelledby={`${sectionId}-heading`}
+          className="px-3 pb-3 pt-0"
+        >
+          {children}
+        </div>
+      ) : null}
+    </section>
+  );
+}
 
 type TemplateEditorShellProps = {
   templateId: string;
@@ -275,6 +350,9 @@ type LoadResponse = {
   details?: string;
 };
 
+/** Alto de la barra de estado del lienzo, en píxeles. Debe seguir a la clase `h-9` de abajo. */
+const BARRA_ESTADO_PX = 36;
+
 export function TemplateEditorShell({
   templateId,
   versionId,
@@ -297,8 +375,11 @@ export function TemplateEditorShell({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [previewSvg, setPreviewSvg] = useState<string | null>(null);
   const [showSafeArea, setShowSafeArea] = useState(true);
+  const [imagenMenuOpen, setImagenMenuOpen] = useState(false);
+  /** El área donde se dibuja. De ahí sale la medida para ajustar el zoom. */
+  const areaLienzoRef = useRef<HTMLDivElement | null>(null);
   const [showCenterAxes, setShowCenterAxes] = useState(true);
   const [canvasSizeModalOpen, setCanvasSizeModalOpen] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -314,6 +395,9 @@ export function TemplateEditorShell({
   /** Herramienta del lienzo: T texto, V selección, H mano (atajos alineados con Photoshop). */
   const [canvasTool, setCanvasTool] = useState<TemplateEditorCanvasTool>("select");
   /** Panel derecho: bloques apilados con un solo scroll; cada sección se puede plegar. */
+  const [rightPanelLayersOpen, setRightPanelLayersOpen] = useState(true);
+  const [rightPanelInspectorOpen, setRightPanelInspectorOpen] = useState(true);
+  const [rightPanelReviewOpen, setRightPanelReviewOpen] = useState(false);
   const [pageLabelEdit, setPageLabelEdit] = useState<{ index: number; value: string } | null>(null);
   const [sheetDragFrom, setSheetDragFrom] = useState<number | null>(null);
   const [sheetDragOver, setSheetDragOver] = useState<number | null>(null);
@@ -323,13 +407,6 @@ export function TemplateEditorShell({
 
   const cancelAutosaveRef = useRef<() => void>(() => {});
   const conflictBannerRef = useRef<HTMLDivElement | null>(null);
-  /**
-   * El editor entra en una pantalla: mide el alto que le queda desde donde arranca y no lo
-   * desborda. Antes el cuerpo tenía un alto mínimo de 88vh, que empujaba hacia abajo en vez
-   * de adaptarse, y había que scrollear para ver el lienzo entero.
-   */
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const fitHeight = useViewportFitHeight(rootRef);
 
   useEffect(() => {
     if (saveErrorMessage === TEMPLATE_V2_REVISION_CONFLICT_MESSAGE) {
@@ -445,24 +522,58 @@ export function TemplateEditorShell({
     dispatch(addBlock(createDefaultImageBlock(state.canvas, onPage, ap)));
   }
 
-  function handleAddSchoolLogoImage() {
+  /** El producto de esta plantilla. Gobierna qué variables e imágenes ofrece el editor. */
+  const producto = resolveTemplateProduct(state.versionMeta);
+
+  /** Las imágenes que este producto sabe atar a un dato: la foto del socio, un logo. */
+  const imagenesDeVariable = getInsertableImageVariablesForProduct(producto);
+
+  /**
+   * Lleva el zoom al punto donde la pieza entra completa.
+   *
+   * La medida sale del elemento real y no de un cálculo aparte: el panel lateral se abre y se
+   * cierra, y la ventana cambia de tamaño. Un número guardado quedaría viejo enseguida.
+   */
+  function ajustarALaVentana() {
+    const caja = areaLienzoRef.current?.getBoundingClientRect();
+    if (!caja) return;
+    const s = stateRef.current;
+    dispatch(
+      setZoom(
+        fitZoom({
+          canvasWidth: s.canvas.width,
+          canvasHeight: s.canvas.height,
+          viewportWidth: caja.width,
+          // La barra de estado no es lienzo: descontarla evita que la pieza quede tapada abajo.
+          viewportHeight: caja.height - BARRA_ESTADO_PX,
+        }),
+      ),
+    );
+  }
+
+  function handleAddVariableImage(variableKey: string, name: string) {
     setCanvasTool("select");
     const s = stateRef.current;
     const ap = s.activePageIndex ?? 0;
     const onPage = s.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
-    const block = createDefaultSchoolLogoImageBlock(s.canvas, onPage, ap);
-    const binding: TemplateV2VariableBinding = {
-      blockId: block.id,
-      variableKey: "branding.schoolLogoUrl",
-      targetPath: "src",
-    };
-    const nextBindings: TemplateV2VariableBinding[] = [
-      ...s.variableBindings.filter((vb) => vb.blockId !== block.id),
-      binding,
-    ];
+    const block = createDefaultVariableImageBlock(s.canvas, onPage, ap, { variableKey, name });
+
+    /*
+     * El vínculo se registra además del `source.variableKey` del bloque. Son dos cosas: uno es
+     * lo que el lienzo lee para dibujar, el otro se guarda como fila propia y lleva el formato
+     * y el valor de reemplazo. Un bloque sin vínculo se ve mientras se diseña y no deja
+     * registro de a qué dato responde.
+     */
+    const binding: TemplateV2VariableBinding = { blockId: block.id, variableKey, targetPath: "src" };
     dispatch(addBlock(block));
-    dispatch(setVariableBindings(nextBindings));
+    dispatch(
+      setVariableBindings([
+        ...s.variableBindings.filter((vb) => vb.blockId !== block.id),
+        binding,
+      ]),
+    );
   }
+
 
   async function handleBackgroundFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -503,10 +614,7 @@ export function TemplateEditorShell({
     setPreviewOpen(true);
     setPreviewLoading(true);
     setPreviewError(null);
-    setPreviewSrc((prev) => {
-      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
-      return null;
-    });
+    setPreviewSvg(null);
     try {
       const res = await fetch("/api/template-v2/preview", {
         method: "POST",
@@ -541,31 +649,23 @@ export function TemplateEditorShell({
             : "No se pudo generar la vista previa."
         );
       }
+      /*
+       * El dibujo llega como SVG y se inserta tal cual en la ventana. No va dentro de una
+       * etiqueta `img`: un SVG usado como imagen no puede pedir archivos de afuera, y las
+       * fotos y los logos del diseño viven en el almacenamiento — se verían como huecos.
+       */
       if (contentType.includes("application/json")) {
-        const data = (await res.json()) as {
-          ok?: boolean;
-          imageBase64?: string;
-          mimeType?: string;
-        };
-        if (data.ok !== true || typeof data.imageBase64 !== "string") {
-          throw new Error("Respuesta de preview inválida.");
+        const data = (await res.json()) as { ok?: boolean; svg?: string };
+        if (data.ok !== true || typeof data.svg !== "string" || !data.svg.includes("<svg")) {
+          throw new Error("La respuesta de la vista previa no trae un dibujo.");
         }
-        const mime =
-          typeof data.mimeType === "string" && data.mimeType
-            ? data.mimeType
-            : "image/png";
-        const bin = Uint8Array.from(atob(data.imageBase64), (c) => c.charCodeAt(0));
-        setPreviewSrc(URL.createObjectURL(new Blob([bin], { type: mime })));
-      } else if (contentType.includes("image/png")) {
-        const buf = await res.arrayBuffer();
-        if (buf.byteLength < 8) {
-          throw new Error("Preview vacío.");
-        }
-        setPreviewSrc(
-          URL.createObjectURL(new Blob([buf], { type: "image/png" }))
-        );
+        setPreviewSvg(data.svg);
+      } else if (contentType.includes("image/svg")) {
+        const texto = await res.text();
+        if (!texto.includes("<svg")) throw new Error("La vista previa llegó vacía.");
+        setPreviewSvg(texto);
       } else {
-        throw new Error("Respuesta de preview inválida (se esperaba PNG).");
+        throw new Error("La vista previa respondió en un formato que no se puede mostrar.");
       }
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "Error al generar la vista previa.");
@@ -575,10 +675,7 @@ export function TemplateEditorShell({
   }
 
   function closePreview() {
-    setPreviewSrc((prev) => {
-      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
-      return null;
-    });
+    setPreviewSvg(null);
     setPreviewOpen(false);
     setPreviewError(null);
     setPreviewLoading(false);
@@ -779,13 +876,8 @@ export function TemplateEditorShell({
   return (
     <EditorThemeProvider theme={theme}>
     <div
-      ref={rootRef}
-      className={cn("flex min-h-0 flex-col overflow-hidden", className)}
-      style={{
-        ...editorThemeStyle(theme),
-        // Hasta la primera medición, la respuesta correcta cuando el editor ocupa la ventana.
-        height: fitHeight != null ? `${fitHeight}px` : "100dvh",
-      }}
+      className={cn("flex h-full min-h-0 flex-col", className)}
+      style={editorThemeStyle(theme)}
       data-testid="template-v2-editor"
     >
       <div className="flex min-h-0 w-full flex-1 flex-col bg-[color:var(--te-void)]">
@@ -1124,16 +1216,17 @@ export function TemplateEditorShell({
             ) : null}
 
             {editorReady ? <GoogleFontsLoader /> : null}
-            {editorReady ? (
-              <EditorPropertiesBar
-                state={state}
-                dispatch={dispatch}
-                selectedBlock={selectedBlock}
-                templateId={templateId}
-                versionId={versionId}
-                product={state.versionMeta?.product === "clickaton" ? "clickaton" : "school"}
-                onOpenCanvasSize={() => setCanvasSizeModalOpen(true)}
-              />
+            {editorReady && state.selectedBlockIds.length > 0 ? (
+              selectedBlock?.type === "TEXT" || selectedBlock?.type === "VARIABLE_TEXT" ? (
+                <TemplateTextFormatToolbar state={state} dispatch={dispatch} />
+              ) : (
+                <TemplateBlockContextToolbar
+                  state={state}
+                  dispatch={dispatch}
+                  templateId={templateId}
+                  versionId={versionId}
+                />
+              )
             ) : null}
 
             {saveErrorMessage ? (
@@ -1277,7 +1370,7 @@ export function TemplateEditorShell({
         ) : !editorReady ? (
           <div className="flex flex-1 items-center justify-center py-20 text-sm text-[color:var(--te-ink-muted)]">Cargando editor…</div>
         ) : (
-          <div className="flex min-h-0 w-full min-w-0 flex-1">
+          <div className="flex min-h-[min(88vh,calc(100vh-8rem))] w-full min-w-0 flex-1">
             <aside
               className="flex w-[52px] shrink-0 flex-col items-center gap-0.5 border-r border-[#1a1d24] bg-[#2b3038] py-2"
               aria-label="Herramientas"
@@ -1333,13 +1426,49 @@ export function TemplateEditorShell({
                   <path d="M3 17l5-5 4 4 5-6 6 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </EditorToolButton>
-              <EditorToolButton label="Logo escuela" onClick={handleAddSchoolLogoImage}>
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <rect x="3.5" y="5" width="17" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="10" cy="11.5" r="2.25" />
-                  <path d="M14.5 10h5.5M14.5 13h4" strokeLinecap="round" />
-                </svg>
-              </EditorToolButton>
+              {/*
+                Imágenes atadas a un dato del destinatario. Antes había un solo botón fijo,
+                "Logo escuela", con la variable de otro producto escrita adentro: en FotoOffice
+                ofrecía el logo de un colegio que ahí no existe, y no había ninguna forma de
+                poner la foto del socio. La lista sale del catálogo de variables del producto,
+                así que cada plataforma ofrece lo suyo sin una lista aparte que mantener.
+              */}
+              {imagenesDeVariable.length > 0 ? (
+                <div className="relative">
+                  <EditorToolButton
+                    label="Foto o logo del destinatario"
+                    pressed={imagenMenuOpen}
+                    onClick={() => setImagenMenuOpen((v) => !v)}
+                  >
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                      <rect x="3.5" y="5" width="17" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="12" r="3.25" />
+                    </svg>
+                  </EditorToolButton>
+                  {imagenMenuOpen ? (
+                    <div
+                      role="menu"
+                      className="absolute left-full top-0 z-50 ml-1 min-w-[13rem] overflow-hidden rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] py-1 shadow-lg"
+                    >
+                      {imagenesDeVariable.map((v) => (
+                        <button
+                          key={v.key}
+                          role="menuitem"
+                          type="button"
+                          className="block w-full px-3 py-1.5 text-left text-[12px] text-[color:var(--te-ink)] hover:bg-[color:var(--te-chrome-sunken)]"
+                          title={v.description}
+                          onClick={() => {
+                            handleAddVariableImage(v.key, v.label);
+                            setImagenMenuOpen(false);
+                          }}
+                        >
+                          {v.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <input
                 ref={backgroundFileRef}
                 type="file"
@@ -1363,7 +1492,7 @@ export function TemplateEditorShell({
 
             </aside>
 
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div ref={areaLienzoRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
               <TemplateEditorCanvas
                 state={state}
                 dispatch={dispatch}
@@ -1407,6 +1536,17 @@ export function TemplateEditorShell({
                     <span className="text-base leading-none">+</span>
                   </ToolButton>
                   <ToolButton
+                    label="Ajustar a la ventana"
+                    shortcut="⇧⌘0"
+                    className="!h-7 !w-7"
+                    onClick={ajustarALaVentana}
+                    disabled={!editorReady}
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" />
+                    </svg>
+                  </ToolButton>
+                  <ToolButton
                     label="Tamaño real"
                     shortcut="⌘0"
                     className="!h-7 !w-9 !text-[10px] !font-semibold"
@@ -1415,82 +1555,65 @@ export function TemplateEditorShell({
                   >
                     1:1
                   </ToolButton>
-                  {/*
-                    Ajustar a la pantalla es el modo de arranque, y queda marcado mientras el
-                    lienzo siga al tamaño de la ventana. Se apaga solo al elegir un zoom a
-                    mano; volver a pulsarlo devuelve el lienzo al ajuste automático emitiendo
-                    el zoom actual con origen "fit".
-                  */}
-                  <ToolButton
-                    label="Ajustar a la pantalla"
-                    active={!state.zoomUserAdjusted}
-                    className="!h-7 !w-7"
-                    onClick={() => dispatch(setZoom(state.zoom, "fit"))}
-                    disabled={!editorReady}
-                  >
-                    <svg
-                      className="h-3.5 w-3.5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      aria-hidden
-                    >
-                      <path
-                        d="M4 9V5a1 1 0 011-1h4M15 4h4a1 1 0 011 1v4M20 15v4a1 1 0 01-1 1h-4M9 20H5a1 1 0 01-1-1v-4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </ToolButton>
                 </div>
               </div>
             </div>
 
-            {/*
-              Sólo capas, como en Photoshop. Antes esta columna medía 320px y además cargaba
-              las propiedades y la revisión rápida: casi un tercio del ancho para paneles que
-              la mayor parte del tiempo estaban vacíos. Las propiedades viven arriba y acá
-              queda una lista angosta, que se pliega a un borde cuando estorba.
-            */}
             {rightPanelOpen ? (
-              <aside
-                className="flex min-h-0 w-[min(100%,210px)] max-w-full shrink-0 flex-col border-l border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)]"
-                aria-label="Capas"
-              >
-                <div className="flex h-8 shrink-0 items-center justify-between gap-1 border-b border-[color:var(--te-line)] px-2">
-                  <span className="text-[11px] font-semibold text-[color:var(--te-ink-muted)]">
-                    Capas
-                  </span>
-                  <button
-                    type="button"
-                    title="Ocultar capas"
-                    aria-label="Ocultar capas"
-                    onClick={() => setRightPanelOpen(false)}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded text-[color:var(--te-ink-muted)] transition-colors hover:bg-[color:var(--te-chrome-sunken)] hover:text-[color:var(--te-ink)]"
-                  >
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+              <aside className="flex min-h-0 w-[min(100%,320px)] max-w-full shrink-0 flex-col overflow-y-auto overflow-x-hidden border-l border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)]">
+                <RightSidebarSection
+                  sectionId="template-v2-panel-layers"
+                  title="Capas"
+                  open={rightPanelLayersOpen}
+                  onToggle={() => setRightPanelLayersOpen((v) => !v)}
+                  variant="muted"
+                >
                   <TemplateEditorLayers state={state} dispatch={dispatch} />
-                </div>
+                </RightSidebarSection>
+
+                <RightSidebarSection
+                  sectionId="template-v2-panel-inspector"
+                  title="Propiedades"
+                  open={rightPanelInspectorOpen}
+                  onToggle={() => setRightPanelInspectorOpen((v) => !v)}
+                  variant="white"
+                >
+                  <TemplateEditorInspector
+                    selectedBlock={selectedBlock}
+                    selectedBlockCount={state.selectedBlockIds.length}
+                    selectedBlockIds={state.selectedBlockIds}
+                    blocks={state.blocks}
+                    canvas={state.canvas}
+                    templateId={templateId}
+                    versionId={versionId}
+                    variableBindings={state.variableBindings}
+                    dispatch={dispatch}
+                    /*
+                      Antes: `=== "clickaton" ? "clickaton" : "school"`. Una plantilla de
+                      FotoOffice, cuyo producto es "fotoffice", caía en la rama de escuela y el
+                      editor le ofrecía las variables de un colegio. Todo el catálogo del socio
+                      existía y no había forma de llegar a él.
+                    */
+                    product={producto}
+                  />
+                </RightSidebarSection>
+
+                <RightSidebarSection
+                  sectionId="template-v2-panel-review"
+                  title="Revisión rápida"
+                  open={rightPanelReviewOpen}
+                  onToggle={() => setRightPanelReviewOpen((v) => !v)}
+                  variant="white"
+                >
+                  <TemplateDiagnosticsPanel
+                    blocks={state.blocks}
+                    canvas={state.canvas}
+                    dispatch={dispatch}
+                    embedded
+                  />
+                </RightSidebarSection>
               </aside>
-            ) : (
-              <button
-                type="button"
-                title="Mostrar capas"
-                aria-label="Mostrar capas"
-                onClick={() => setRightPanelOpen(true)}
-                className="flex w-8 shrink-0 items-center justify-center border-l border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)] text-[color:var(--te-ink-muted)] transition-colors hover:bg-[color:var(--te-chrome-sunken)] hover:text-[color:var(--te-ink)]"
-              >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <path d="M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            )}
+            ) : null}
           </div>
         )}
       </div>
@@ -1549,20 +1672,24 @@ export function TemplateEditorShell({
                 >
                   {previewError}
                 </p>
-              ) : previewSrc ? (
+              ) : previewSvg ? (
                 <div className="flex justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <div
                     data-testid="template-v2-preview-image"
-                    src={previewSrc}
-                    alt="Vista previa de la plantilla"
-                    className="max-h-[min(78vh,1200px)] w-auto max-w-full rounded-lg border border-[color:var(--te-line)] bg-white object-contain shadow-sm"
+                    role="img"
+                    aria-label="Vista previa de la plantilla"
+                    className="max-h-[min(78vh,1200px)] max-w-full overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-white shadow-sm [&>svg]:h-auto [&>svg]:max-h-[min(78vh,1200px)] [&>svg]:w-auto [&>svg]:max-w-full"
+                    // El dibujo lo produce el módulo de impresión de este mismo monorepo, no
+                    // el navegador ni contenido de terceros: los textos van escapados y las
+                    // imágenes se limitan a direcciones http(s) y a mapas de bits.
+                    dangerouslySetInnerHTML={{ __html: previewSvg }}
                   />
                 </div>
               ) : null}
             </div>
             <p className="border-t border-[color:var(--te-line)] px-4 py-2 text-center text-[11px] text-[color:var(--te-ink-faint)]">
-              Variables de texto usan datos mock o el fallback del bloque. Guardá los cambios cuando quieras persistirlos.
+              Se dibuja con el mismo motor que produce el archivo para imprenta, con datos
+              reales de tu institución. Guardá los cambios cuando quieras conservarlos.
             </p>
           </div>
         </div>

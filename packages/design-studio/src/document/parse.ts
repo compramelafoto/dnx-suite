@@ -161,6 +161,9 @@ function leerBloque(raw: unknown, donde: string, e: Errores): DesignBlock | null
       ...(resourceRef ? { resourceRef } : {}),
       ...(variableKey ? { variableKey } : {}),
       fit: raw.fit === "contain" ? "contain" : "cover",
+      mask:
+        raw.mask === "circle" || raw.mask === "ellipse" ? raw.mask : "rect",
+      ...(numeroFinito(raw.cornerRadius) ? { cornerRadius: numeroFinito(raw.cornerRadius)! } : {}),
     };
   }
 

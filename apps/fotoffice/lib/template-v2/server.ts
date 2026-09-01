@@ -21,6 +21,21 @@ import {
 import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
 import { canDesignTemplates } from "./access";
 
+/** Lo que la vista previa necesita de un socio para dibujar cualquier plantilla del producto. */
+const SOCIO_DE_MUESTRA = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  memberNumber: true,
+  documentNumber: true,
+  joinedAt: true,
+  avatarUrl: true,
+  email: true,
+  phone: true,
+  city: true,
+  category: { select: { name: true } },
+} as const;
+
 setTemplateV2Runtime({
   prisma,
   requireUser: async () => {
@@ -54,6 +69,69 @@ setTemplateV2Runtime({
       versionId: input.versionId,
     });
     return { url: getFotofficeR2PublicUrl(key), key };
+  },
+  /**
+   * Datos de un socio real de la institución activa, para que la vista previa conteste la
+   * pregunta que importa: cómo sale el carnet con los datos que hay, no con un nombre inventado.
+   *
+   * Se elige uno con foto cargada y, entre esos, el de número más bajo: un socio con foto
+   * muestra el diseño completo, y un criterio fijo hace que la vista previa no cambie de persona
+   * entre una recarga y otra.
+   *
+   * Alcance: solo la institución activa de quien está mirando, que es quien administra ese
+   * padrón. Nunca datos de otra institución.
+   */
+  resolvePreviewValues: async () => {
+    const user = await getAuthUser();
+    if (!user) return null;
+    const workspace = await resolveActiveWorkspace(user.id);
+    if (!workspace) return null;
+
+    const socio =
+      (await prisma.member.findFirst({
+        where: { workspaceId: workspace.id, status: "ACTIVE", avatarUrl: { not: null } },
+        orderBy: { memberNumber: "asc" },
+        select: SOCIO_DE_MUESTRA,
+      })) ??
+      (await prisma.member.findFirst({
+        where: { workspaceId: workspace.id, status: "ACTIVE" },
+        orderBy: { memberNumber: "asc" },
+        select: SOCIO_DE_MUESTRA,
+      }));
+    if (!socio) return null;
+
+    const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { commercialName: true, logoUrl: true },
+    });
+    const carnet = await prisma.memberCard.findFirst({
+      where: { memberId: socio.id },
+      orderBy: { issuedAt: "desc" },
+      select: { cardNumber: true, validUntil: true },
+    });
+
+    return {
+      fullName: `${socio.firstName} ${socio.lastName}`.trim(),
+      firstName: socio.firstName,
+      lastName: socio.lastName,
+      memberNumber: socio.memberNumber,
+      category: socio.category?.name ?? null,
+      documentNumber: socio.documentNumber,
+      joinedAt: socio.joinedAt,
+      photo: socio.avatarUrl,
+      email: socio.email,
+      phone: socio.phone,
+      city: socio.city,
+      cardNumber: carnet?.cardNumber ?? null,
+      validUntil: carnet?.validUntil ?? null,
+      institutionName: branding?.commercialName?.trim() || workspace.name,
+      institutionLogo: branding?.logoUrl ?? null,
+      /*
+       * La dirección de verificación no se muestra real: cada credencial lleva su propio código
+       * y publicarlo acá lo dejaría a la vista de quien esté diseñando. El QR se ve, y lleva a
+       * una dirección de ejemplo.
+       */
+    };
   },
   policy: {
     // `requireUser` ya rechazó a quien no puede diseñar: si llegó hasta acá, puede.

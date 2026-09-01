@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ESPECIALIDADES, MAX_ESPECIALIDADES } from "@/lib/membership/specialties";
+import { especialidadesPorGrupo, MAX_ESPECIALIDADES } from "@/lib/membership/specialties";
 
 /**
  * Presencia profesional del aspirante: rubros, estudio, redes y sitio.
@@ -98,9 +98,25 @@ export function ProfessionalPresenceFields({
             {elegidas.length > 0 ? ` · elegiste ${elegidas.length}` : ""})
           </span>
         </legend>
-        <div className="flex flex-wrap gap-2">
-          {ESPECIALIDADES.map((e) => {
-            const activa = elegidas.includes(e.id);
+        {/*
+          El orden de elección es el orden de relevancia, y por eso se numera a la vista. Sin el
+          número, una persona que marca cinco rubros no tiene forma de saber que el primero pesa
+          más, ni de corregirlo.
+        */}
+        <p className="fo-helper">
+          Marcalos en orden: el primero es a lo que más te dedicás. Para cambiar el orden,
+          desmarcá y volvé a marcar.
+        </p>
+        <div className="space-y-3">
+          {especialidadesPorGrupo().map((grupo) => (
+            <div key={grupo.id} className="space-y-1.5">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--fo-muted-soft)]">
+                {grupo.label}
+              </p>
+              <div className="flex flex-wrap gap-2">
+          {grupo.items.map((e) => {
+            const posicion = elegidas.indexOf(e.id);
+            const activa = posicion >= 0;
             return (
               <label
                 key={e.id}
@@ -121,10 +137,24 @@ export function ProfessionalPresenceFields({
                   onChange={() => alternar(e.id)}
                   className="sr-only"
                 />
+                {activa ? (
+                  <span
+                    aria-hidden
+                    className="mr-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px] font-semibold tabular-nums"
+                  >
+                    {posicion + 1}
+                  </span>
+                ) : null}
                 {e.label}
+                <span className="sr-only">
+                  {activa ? ` — prioridad ${posicion + 1} de ${elegidas.length}` : ""}
+                </span>
               </label>
             );
           })}
+              </div>
+            </div>
+          ))}
         </div>
       </fieldset>
 

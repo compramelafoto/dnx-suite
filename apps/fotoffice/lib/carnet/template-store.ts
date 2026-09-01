@@ -7,6 +7,7 @@ import {
   editorADocumento,
   type VariableSintetica,
 } from "./bridge";
+import { getAllowedVariableKeysForProduct } from "@repo/template-editor-core";
 
 /**
  * La plantilla del carnet, guardada en el módulo de diseño.
@@ -116,6 +117,8 @@ export async function findCarnetTemplate(workspaceId: string): Promise<CarnetTem
       configJson: b.configJson,
     })),
     nombre: CARNET_NAME,
+    // Lo mismo que en la vista previa: `{clave}` y `{{clave}}` tienen que valer igual.
+    variablesConocidas: getAllowedVariableKeysForProduct("fotoffice"),
   });
 
   return {

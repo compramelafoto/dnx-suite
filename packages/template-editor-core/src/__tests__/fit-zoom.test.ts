@@ -1,43 +1,54 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fitZoom, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM } from "../fit-zoom";
+import { clampZoom, fitZoom, MAX_ZOOM, MIN_ZOOM } from "../fit-zoom";
 
-test("una hoja más alta que ancha se ajusta por el alto, no por el ancho", () => {
-  // El caso que hacía scrollear: carnet vertical de 638×1016 en un área apaisada.
-  const z = fitZoom(900, 600, 638, 1016);
-  assert.equal(z, 600 / 1016);
-  assert.ok(638 * z! <= 900, "tiene que entrar también a lo ancho");
+const carnet = { canvasWidth: 1011, canvasHeight: 638 };
+
+test("una pieza grande se achica hasta entrar", () => {
+  const z = fitZoom({ ...carnet, viewportWidth: 800, viewportHeight: 600, paddingPx: 40 });
+  assert.ok(z < 1);
+  assert.ok(1011 * z <= 800 - 80 + 0.01, "tiene que entrar a lo ancho");
+  assert.ok(638 * z <= 600 - 80 + 0.01, "y a lo alto");
 });
 
-test("una hoja más ancha que alta se ajusta por el ancho", () => {
-  const z = fitZoom(400, 900, 1000, 500);
-  assert.equal(z, 400 / 1000);
-  assert.ok(500 * z! <= 900);
+test("manda el lado que aprieta", () => {
+  // Ventana muy ancha y baja: la altura es la que limita.
+  const z = fitZoom({ ...carnet, viewportWidth: 4000, viewportHeight: 400, paddingPx: 20 });
+  assert.ok(Math.abs(638 * z - (400 - 40)) < 0.01);
 });
 
-test("la hoja entra completa en los dos ejes", () => {
-  const casos: Array<[number, number, number, number]> = [
-    [1200, 800, 638, 1016],
-    [500, 500, 2000, 100],
-    [300, 900, 100, 100],
-    [1024, 768, 1024, 768],
-  ];
-  for (const [w, h, cw, ch] of casos) {
-    const z = fitZoom(w, h, cw, ch)!;
-    assert.ok(cw * z <= w + 0.001, `ancho: ${cw}x${ch} en ${w}x${h}`);
-    assert.ok(ch * z <= h + 0.001, `alto: ${cw}x${ch} en ${w}x${h}`);
+test("no amplía una pieza chica: mostrarla gigante miente sobre cómo se imprime", () => {
+  const z = fitZoom({ canvasWidth: 100, canvasHeight: 100, viewportWidth: 2000, viewportHeight: 2000 });
+  assert.equal(z, 1);
+});
+
+test("deja aire alrededor", () => {
+  const z = fitZoom({ ...carnet, viewportWidth: 1091, viewportHeight: 800, paddingPx: 40 });
+  assert.ok(1011 * z <= 1011, "con 40 de aire de cada lado entra justo");
+});
+
+test("medidas imposibles no producen un zoom absurdo", () => {
+  for (const caso of [
+    { canvasWidth: 0, canvasHeight: 100 },
+    { canvasWidth: 100, canvasHeight: 0 },
+    { canvasWidth: NaN, canvasHeight: 100 },
+  ]) {
+    assert.equal(fitZoom({ ...caso, viewportWidth: 800, viewportHeight: 600 }), 1);
   }
 });
 
-test("no pasa de los límites de zoom", () => {
-  assert.equal(fitZoom(10000, 10000, 10, 10), MAX_CANVAS_ZOOM);
-  assert.equal(fitZoom(10, 10, 10000, 10000), MIN_CANVAS_ZOOM);
+test("una ventana más chica que el aire no rompe", () => {
+  assert.equal(fitZoom({ ...carnet, viewportWidth: 50, viewportHeight: 50, paddingPx: 40 }), 1);
 });
 
-test("sin medidas todavía no hay respuesta", () => {
-  assert.equal(fitZoom(0, 600, 638, 1016), null);
-  assert.equal(fitZoom(900, 0, 638, 1016), null);
-  assert.equal(fitZoom(900, 600, 0, 1016), null);
-  assert.equal(fitZoom(900, 600, 638, 0), null);
-  assert.equal(fitZoom(Number.NaN, 600, 638, 1016), null);
+test("el resultado siempre queda dentro de los límites del control", () => {
+  const z = fitZoom({ canvasWidth: 100000, canvasHeight: 100000, viewportWidth: 300, viewportHeight: 300 });
+  assert.ok(z >= MIN_ZOOM);
+});
+
+test("clampZoom acota por los dos lados", () => {
+  assert.equal(clampZoom(0.0001), MIN_ZOOM);
+  assert.equal(clampZoom(99), MAX_ZOOM);
+  assert.equal(clampZoom(0.5), 0.5);
+  assert.equal(clampZoom(NaN), 1);
 });

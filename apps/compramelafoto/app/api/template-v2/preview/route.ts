@@ -27,26 +27,31 @@ export async function POST(req: Request) {
     const result = await runTemplateV2Preview({ user, body });
 
     const accept = req.headers.get("accept") ?? "";
-    // Compat editor: si pide JSON explícito, devolver base64 (legacy client).
     if (accept.includes("application/json")) {
       return NextResponse.json({
         ok: true,
         mimeType: result.mimeType,
-        imageBase64: result.png.toString("base64"),
+        /*
+         * El dibujo va como texto, no como imagen codificada. Es un SVG, y mostrarlo dentro de
+         * una etiqueta `img` impediría que cargue las fotos y los logos: un SVG usado como
+         * imagen no puede pedir archivos de afuera.
+         */
+        svg: result.svg,
+        pageCount: result.pageCount,
         width: result.width,
         height: result.height,
         warnings: result.warnings,
       });
     }
 
-    const bytes = Buffer.from(result.png);
+    const bytes = Buffer.from(result.svg, "utf8");
     return new Response(bytes, {
       status: 200,
       headers: {
-        "Content-Type": "image/png",
+        "Content-Type": "image/svg+xml; charset=utf-8",
         "Content-Length": String(bytes.byteLength),
         "Cache-Control": "no-store",
-        "Content-Disposition": 'inline; filename="template-preview.png"',
+        "Content-Disposition": 'inline; filename="template-preview.svg"',
         "X-Template-Preview-Width": String(result.width),
         "X-Template-Preview-Height": String(result.height),
         "X-Template-Preview-Duration-Ms": String(result.durationMs),
