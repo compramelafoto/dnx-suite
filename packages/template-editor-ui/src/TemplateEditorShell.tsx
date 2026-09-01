@@ -61,6 +61,7 @@ import {
   createDefaultVariableImageBlock,
   resolveTemplateProduct,
   getInsertableImageVariablesForProduct,
+  getQrVariablesForProduct,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -513,7 +514,21 @@ export function TemplateEditorShell({
     setCanvasTool("select");
     const ap = state.activePageIndex ?? 0;
     const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
-    dispatch(addBlock(createDefaultQrBlock(state.canvas, onPage, ap)));
+    const block = createDefaultQrBlock(state.canvas, onPage, ap, {
+      variableKey: qrDelProducto?.key,
+      name: qrDelProducto?.label ?? "Código QR",
+    });
+    dispatch(addBlock(block));
+    if (qrDelProducto) {
+      // El vínculo formal, igual que en las imágenes atadas a un dato.
+      const s = stateRef.current;
+      dispatch(
+        setVariableBindings([
+          ...s.variableBindings.filter((vb) => vb.blockId !== block.id),
+          { blockId: block.id, variableKey: qrDelProducto.key, targetPath: "value" },
+        ]),
+      );
+    }
   }
   function handleAddImage() {
     setCanvasTool("select");
@@ -527,6 +542,13 @@ export function TemplateEditorShell({
 
   /** Las imágenes que este producto sabe atar a un dato: la foto del socio, un logo. */
   const imagenesDeVariable = getInsertableImageVariablesForProduct(producto);
+
+  /**
+   * El QR del producto: en FotoOffice, la dirección que verifica si el socio está habilitado.
+   * Se ata al insertarlo — un QR en blanco obliga a adivinar qué dato va adentro.
+   */
+  const qrDelProducto = getQrVariablesForProduct(producto)[0] ?? null;
+
 
   /**
    * Lleva el zoom al punto donde la pieza entra completa.
@@ -1450,7 +1472,10 @@ export function TemplateEditorShell({
                   <rect x="4" y="4" width="16" height="16" rx="2" />
                 </svg>
               </EditorToolButton>
-              <EditorToolButton label="Código QR" onClick={handleAddQr}>
+              <EditorToolButton
+                label={qrDelProducto ? `QR · ${qrDelProducto.label}` : "Código QR"}
+                onClick={handleAddQr}
+              >
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <rect x="3" y="3" width="7" height="7" rx="1" />
                   <rect x="14" y="3" width="7" height="7" rx="1" />

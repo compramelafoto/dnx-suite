@@ -231,7 +231,14 @@ export function createDefaultVariableTextBlock(
 export function createDefaultQrBlock(
   canvas: TemplateV2Canvas,
   blocks: TemplateV2Block[],
-  pageIndex = 0
+  pageIndex = 0,
+  /**
+   * La variable que va adentro del código, y cómo se llama el bloque.
+   *
+   * Sin esto el QR nacía en blanco y había que ir al inspector a elegir el dato. Quien lo
+   * insertaba veía un cuadrado vacío y concluía, con razón, que faltaba el QR del socio.
+   */
+  opciones?: { variableKey?: string; name?: string }
 ): TemplateV2Block {
   const lado = 240;
   const { x, y, zIndex } = placeBlock({ canvas, blocks, width: lado, height: lado });
@@ -239,7 +246,7 @@ export function createDefaultQrBlock(
     id: newBlockId(),
     type: "QR",
     pageIndex,
-    name: "Código QR",
+    name: opciones?.name ?? "Código QR",
     layout: {
       x,
       y,
@@ -255,7 +262,7 @@ export function createDefaultQrBlock(
       // Arranca en variable: el caso que motivó el bloque es la credencial, donde cada
       // persona lleva su propio código. Quien quiera uno fijo lo cambia en el inspector.
       mode: "VARIABLE",
-      variableKey: "",
+      variableKey: opciones?.variableKey ?? "",
       value: "",
       errorCorrection: "M",
       quietZoneModules: 4,

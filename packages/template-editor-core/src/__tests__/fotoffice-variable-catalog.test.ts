@@ -8,6 +8,7 @@ import {
 } from "../resolve-template-product";
 import {
   getInsertableImageVariablesForProduct,
+  getQrVariablesForProduct,
   getVariableGroupsForProduct,
 } from "../variable-catalog-product";
 import { FOTOFFICE_VARIABLE_GROUPS } from "../variable-catalog-fotoffice";
@@ -117,4 +118,30 @@ test("una plantilla de FotoOffice se reconoce como tal y no cae en escuela", () 
     .map((v) => v.key);
   assert.ok(claves.includes("photo"), "tiene que ofrecer la foto del socio");
   assert.ok(claves.includes("memberNumber"), "y el número de socio");
+});
+
+test("el QR de cada plataforma sale de su catálogo", () => {
+  /*
+   * El bloque de QR nacía con la variable vacía: quien lo insertaba veía un cuadrado en blanco
+   * y concluía, con razón, que faltaba el QR del socio.
+   */
+  const foto = getQrVariablesForProduct("fotoffice");
+  assert.equal(foto.length, 1);
+  assert.equal(foto[0]!.key, "verificationUrl");
+  assert.equal(foto[0]!.valueType, "qrUrl");
+
+  // Cada producto verifica lo suyo: el socio en uno, el diploma en el otro.
+  assert.equal(getQrVariablesForProduct("fotorank")[0]?.key, "verificationUrl");
+  assert.equal(getQrVariablesForProduct("school")[0]?.key, "order.fulfillmentQrUrl");
+});
+
+test("el QR que se ofrece es uno que la emisión sabe resolver", () => {
+  for (const p of ["fotoffice", "fotorank", "school"] as const) {
+    for (const v of getQrVariablesForProduct(p)) {
+      assert.ok(
+        getAllowedVariableKeysForProduct(p).has(v.key),
+        `${p} ofrece el QR ${v.key} y la emisión no lo conoce`,
+      );
+    }
+  }
 });
