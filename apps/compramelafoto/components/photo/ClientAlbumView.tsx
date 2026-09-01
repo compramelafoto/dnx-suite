@@ -3027,6 +3027,38 @@ export default function ClientAlbumView({
         </button>
       )}
 
+      {/*
+       * Mismo CTA flotante, para cuando se está armando un pack.
+       *
+       * "Confirmar pack" vive en el panel de arriba de la galería. El cliente baja a elegir
+       * fotos y el botón le queda fuera de pantalla: elige las que necesita y no encuentra
+       * cómo seguir. Reportado por una fotógrafa que no podía vender packs.
+       *
+       * Muestra el avance (3 de 5) porque el pack exige una cantidad exacta, y sólo habilita
+       * cuando está completo: el mismo criterio que valida handleSavePackSelection.
+       */}
+      {packSelectionMode && !purchaseUxV2 && (
+        <button
+          type="button"
+          onClick={handleSavePackSelection}
+          disabled={
+            packSelectionSaving ||
+            packSelectionMode.photoIds.size !== packSelectionMode.requiredCount
+          }
+          className={`fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none ${
+            packSelectionMode.photoIds.size === packSelectionMode.requiredCount &&
+            !packSelectionSaving
+              ? "bg-[#c27b3d] hover:bg-[#a0652d]"
+              : "bg-[#9ca3af] cursor-not-allowed"
+          }`}
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
+        >
+          {packSelectionSaving
+            ? "Confirmando pack…"
+            : `Confirmar pack (${packSelectionMode.photoIds.size} de ${packSelectionMode.requiredCount})`}
+        </button>
+      )}
+
       {showPurchaseStickyUx ? (
         <>
           <PurchaseStickyBar
