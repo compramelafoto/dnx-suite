@@ -32,6 +32,8 @@ import {
   selectBlock,
   blocksAtPoint,
   nextBlockInStack,
+  selectionBounds,
+  offsetsWithinSelection,
   setSelectedBlockIds,
   setZoom,
   takePersistSnapshot,
@@ -408,6 +410,12 @@ export function TemplateEditorCanvas({
     blockWidth: number;
     blockHeight: number;
     moved: boolean;
+    /**
+     * Cuando se arrastra una selección de varios, esto guarda dónde estaba cada bloque respecto
+     * de la caja del conjunto. Se calcula una vez al empezar: recalcularlo en cada movimiento
+     * acumularía el redondeo del ajuste a guías y los bloques se irían separando entre ellos.
+     */
+    grupo: { id: string; dx: number; dy: number }[] | null;
   } | null>(null);
   const resizeRef = useRef<{
     pointerId: number;
@@ -973,6 +981,8 @@ export function TemplateEditorCanvas({
                     dragRef.current = {
                       pointerId: e.pointerId,
                       blockId: newId,
+                      // El duplicado con Alt nace suelto: se arrastra solo, no en conjunto.
+                      grupo: null,
                       startClientX: e.clientX,
                       startClientY: e.clientY,
                       startX: b.layout.x,
@@ -988,15 +998,34 @@ export function TemplateEditorCanvas({
                   dispatch(selectBlock(b.id));
                   gesturePersistSnapshotRef.current = takePersistSnapshot(state);
                   (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+                  /*
+                   * Arrastrar cualquiera de los seleccionados mueve a todos. Antes movía solo el
+                   * que se agarraba: con dos elementos elegidos, uno se iba y el otro se quedaba.
+                   */
+                  const enSeleccion =
+                    state.selectedBlockIds.length > 1 && state.selectedBlockIds.includes(b.id);
+                  const cajaGrupo = enSeleccion
+                    ? selectionBounds(state.blocks, state.selectedBlockIds)
+                    : null;
+
                   dragRef.current = {
                     pointerId: e.pointerId,
                     blockId: b.id,
+                    grupo:
+                      cajaGrupo != null
+                        ? offsetsWithinSelection(state.blocks, state.selectedBlockIds, cajaGrupo)
+                        : null,
                     startClientX: e.clientX,
                     startClientY: e.clientY,
-                    startX: b.layout.x,
-                    startY: b.layout.y,
-                    blockWidth: b.layout.width,
-                    blockHeight: b.layout.height,
+                    /*
+                     * Con varios elegidos, lo que se arrastra y lo que se ajusta a las guías es
+                     * la caja del conjunto. Así "centrar" centra el grupo entero; si midiera el
+                     * bloque agarrado, ese quedaría centrado y los demás corridos.
+                     */
+                    startX: cajaGrupo?.x ?? b.layout.x,
+                    startY: cajaGrupo?.y ?? b.layout.y,
+                    blockWidth: cajaGrupo?.width ?? b.layout.width,
+                    blockHeight: cajaGrupo?.height ?? b.layout.height,
                     moved: false,
                   };
                   setDraggingBlockId(b.id);
@@ -1022,9 +1051,32 @@ export function TemplateEditorCanvas({
                     rawX,
                     rawY,
                     blockId,
-                    blocksOnPage
+                    /*
+                     * Al mover un conjunto, sus propios integrantes no sirven de guía: se moverían
+                     * junto con la caja y el ajuste se pegaría a sí mismo. Solo cuentan los que
+                     * se quedan quietos.
+                     */
+                    drag.grupo
+                      ? blocksOnPage.filter((x) => !drag.grupo!.some((m) => m.id === x.id))
+                      : blocksOnPage
                   );
                   setSnapGuides({ vx: snapped.guideVerticalX, hy: snapped.guideHorizontalY });
+
+                  if (drag.grupo) {
+                    // `snapped` es la esquina de la caja del conjunto: cada bloque vuelve a su
+                    // lugar relativo, así llegan al destino con la misma separación de origen.
+                    for (const m of drag.grupo) {
+                      dispatch(
+                        updateBlock(
+                          m.id,
+                          { layout: { x: snapped.x + m.dx, y: snapped.y + m.dy } },
+                          { skipHistory: true },
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
                   dispatch(
                     updateBlock(
                       blockId,

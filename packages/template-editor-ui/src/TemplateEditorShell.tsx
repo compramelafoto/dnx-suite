@@ -1322,6 +1322,14 @@ export function TemplateEditorShell({
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">
+                  Sumar o quitar de la selección · arrastrar en conjunto
+                </span>
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                  Mayús + clic
+                </kbd>
+              </li>
+              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
+                <span className="text-[color:var(--te-ink-muted)]">
                   Elegir lo que está debajo (una capa por clic)
                 </span>
                 <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
