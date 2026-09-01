@@ -27,18 +27,46 @@ y cómo volver atrás.
 
 ## Lo que falta
 
-### 0. Juntar `main` con la rama
+### 0. Juntar `main` con la rama — ✅ **HECHO** (2026-08-31)
 
-`main` avanzó **11 commits** desde que se abrió la rama (portal del socio, editor).
-La rama tiene 16 que `main` no tiene.
+Merge `75e1786f`. Build verde con 191 páginas, 81 pruebas del editor y 12 de la
+migración en verde. `git rev-list --count HEAD..main` = **0**.
+
+**Repetirlo antes del cutover si `main` volvió a avanzar.** Y hacerlo con tiempo, nunca
+el mismo día: acá aparecieron dos roturas que no tenían nada que ver con la migración.
+
+#### Lo que encontró, y que conviene saber
+
+**`main` no podía compilar CompraMeLaFoto.** Comprobado construyendo `main` puro en un
+worktree aparte, sin el merge de por medio: el mismo fallo. Dos causas:
+
+1. **Binario nativo en el empaquetado.** `template-editor-core` → `design-studio` →
+   `pdf-to-png-converter` → `@napi-rs/canvas`, y webpack no sabe leer un `.node`.
+   `apps/fotoffice` ya lo había resuelto: `serverExternalPackages` **no alcanza** cuando
+   el import vive dentro de un paquete que sí se transpila; hay que externalizarlo a mano
+   en `webpack.externals`. Se copió ese criterio a CLF.
+
+2. **La vista previa pasó de PNG a SVG** y la ruta de CLF quedó pidiendo `result.png`.
+   El cambio actualizó `fotoffice` y `clickaton` y **se olvidó `compramelafoto`**.
+
+El segundo caso es exactamente el problema que la migración viene a resolver: hoy un
+arreglo hay que aplicarlo en varios lugares y es fácil que quede uno afuera. Acá quedaron
+dos de tres apps.
+
+#### Cómo verificar que el merge quedó bien
+
+El esquema Prisma es lo delicado. Después de unir, confirmar que sobrevivieron:
 
 ```bash
-git checkout feat/clf-migracion-monorepo-etapa06
-git merge main
-pnpm --filter compramelafoto build     # el build completo, no sólo tsc
+grep -c '@@map("Student")'        packages/db/prisma/schema.prisma   # 1
+grep -c "^model EvaluationStudent" packages/db/prisma/schema.prisma  # 1
+grep -c "^model CronLease"         packages/db/prisma/schema.prisma  # 1
+grep -c "SKIPPED_SAMPLING"         packages/db/prisma/schema.prisma  # 1
+grep -c "^model Student {"         packages/db/prisma/schema.prisma  # 0 ← debe ser cero
 ```
 
-**Hacerlo con tiempo, no el día del cambio.** Si hay conflictos, mejor descubrirlos antes.
+Y el build **completo**, no `tsc --noEmit`: Next corre una validación propia de rutas que
+`tsc` no hace. Ya nos pasó — pasó local y se cayó en Vercel.
 
 ---
 
