@@ -30,6 +30,8 @@ import {
   duplicateBlock,
   getPrimarySelectedBlockId,
   selectBlock,
+  blocksAtPoint,
+  nextBlockInStack,
   setSelectedBlockIds,
   setZoom,
   takePersistSnapshot,
@@ -900,7 +902,14 @@ export function TemplateEditorCanvas({
                   ...getOverlayStyle(b),
                   border: "none",
                   background: "transparent",
-                  pointerEvents: editingTextBlockId === b.id ? "none" : "auto",
+                  /*
+                   * Con la herramienta de texto activa, los bloques dejan pasar el clic.
+                   * Antes lo interceptaban y lo frenaban: sobre una imagen de fondo —que ocupa
+                   * toda la hoja— no había ningún lugar donde el clic llegara al lienzo, así que
+                   * la herramienta de texto quedaba inutilizable.
+                   */
+                  pointerEvents:
+                    textMode || editingTextBlockId === b.id ? "none" : "auto",
                   cursor: b.layout.locked
                     ? "not-allowed"
                     : draggingBlockId === b.id
@@ -917,6 +926,26 @@ export function TemplateEditorCanvas({
                   if (resizeRef.current || rotateRef.current) return;
                   if (e.shiftKey) {
                     dispatch(toggleBlockInSelection(b.id));
+                    return;
+                  }
+                  /*
+                   * Con la tecla de capas se baja de a uno por lo que hay debajo del cursor. Sin
+                   * esto, un bloque tapado por el fondo no se puede seleccionar en el lienzo: el
+                   * clic siempre agarra lo de arriba.
+                   *
+                   * Cmd en Mac y Ctrl en el resto. Es la convención de las herramientas de
+                   * diseño y por eso no se inventa otra.
+                   */
+                  if (e.metaKey || e.ctrlKey) {
+                    const { x, y } = clientToCanvas(e.clientX, e.clientY);
+                    const pila = blocksAtPoint(
+                      state.blocks,
+                      x,
+                      y,
+                      state.activePageIndex ?? 0,
+                    );
+                    const siguiente = nextBlockInStack(pila, primaryId);
+                    if (siguiente) dispatch(selectBlock(siguiente.id));
                     return;
                   }
                   if (b.layout.locked) {
