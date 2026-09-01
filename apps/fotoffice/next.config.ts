@@ -26,31 +26,11 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**",
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
       "../../packages/db/prisma/**",
-      // @repo/design-studio abre los .woff armando la ruta en tiempo de ejecución, así que
-      // el rastreador de Next no la ve y no los copia. Sin esto, en local anda y en Vercel
-      // falla al emitir el primer carnet.
-      //
-      // Se listan las seis familias del catálogo, y solo el subconjunto latino: un patrón
-      // abierto sobre @fontsource arrastraría las 20 familias que tiene fotorank en el
-      // monorepo —30 MB— a todas las rutas de esta aplicación.
-      //
-      // El `package.json` de cada familia va sí o sí, aunque no sea una fuente. Copiar los
-      // .woff no alcanza: `require.resolve("@fontsource/dm-sans/files/…")` necesita leer el
-      // campo `exports` del paquete para resolver esa ruta. Sin él Node no encuentra el
-      // archivo aunque esté ahí al lado, y la vista previa falla con "Falta instalar la
-      // dependencia" — que es engañoso, porque la dependencia está instalada.
-      "../../node_modules/.pnpm/@fontsource+dm-sans@*/node_modules/@fontsource/dm-sans/files/*-latin-*.woff",
-      "../../node_modules/.pnpm/@fontsource+dm-sans@*/node_modules/@fontsource/dm-sans/package.json",
-      "../../node_modules/.pnpm/@fontsource+inter@*/node_modules/@fontsource/inter/files/*-latin-*.woff",
-      "../../node_modules/.pnpm/@fontsource+inter@*/node_modules/@fontsource/inter/package.json",
-      "../../node_modules/.pnpm/@fontsource+playfair-display@*/node_modules/@fontsource/playfair-display/files/*-latin-*.woff",
-      "../../node_modules/.pnpm/@fontsource+playfair-display@*/node_modules/@fontsource/playfair-display/package.json",
-      "../../node_modules/.pnpm/@fontsource+merriweather@*/node_modules/@fontsource/merriweather/files/*-latin-*.woff",
-      "../../node_modules/.pnpm/@fontsource+merriweather@*/node_modules/@fontsource/merriweather/package.json",
-      "../../node_modules/.pnpm/@fontsource+cinzel@*/node_modules/@fontsource/cinzel/files/*-latin-*.woff",
-      "../../node_modules/.pnpm/@fontsource+cinzel@*/node_modules/@fontsource/cinzel/package.json",
-      "../../node_modules/.pnpm/@fontsource+great-vibes@*/node_modules/@fontsource/great-vibes/files/*-latin-*.woff",
-      "../../node_modules/.pnpm/@fontsource+great-vibes@*/node_modules/@fontsource/great-vibes/package.json",
+      // Las tipografías ya no se leen del disco: viajan incrustadas en @repo/design-studio.
+      // Antes se copiaban acá y aun así fallaban en el servidor — con pnpm el enlace a
+      // @fontsource vive dentro de packages/design-studio, y el código empaquetado termina en
+      // otro lado del árbol, donde la búsqueda hacia arriba nunca llega. Copiar los archivos no
+      // alcanzaba: el problema no era que faltaran, era que Node no sabía dónde buscarlos.
     ],
   },
   images: {
