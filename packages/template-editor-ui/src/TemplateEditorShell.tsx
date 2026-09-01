@@ -510,6 +510,7 @@ export function TemplateEditorShell({
     const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
     dispatch(addBlock(createDefaultShapeBlock(state.canvas, onPage, ap)));
   }
+
   function handleAddQr() {
     setCanvasTool("select");
     const ap = state.activePageIndex ?? 0;
@@ -548,6 +549,7 @@ export function TemplateEditorShell({
    * Se ata al insertarlo — un QR en blanco obliga a adivinar qué dato va adentro.
    */
   const qrDelProducto = getQrVariablesForProduct(producto)[0] ?? null;
+
 
 
   /**
@@ -1499,7 +1501,7 @@ export function TemplateEditorShell({
               {imagenesDeVariable.length > 0 ? (
                 <div className="relative">
                   <EditorToolButton
-                    label="Foto o logo del destinatario"
+                    label="Datos visuales del socio: foto, logo y QR"
                     pressed={imagenMenuOpen}
                     onClick={() => setImagenMenuOpen((v) => !v)}
                   >
@@ -1528,6 +1530,32 @@ export function TemplateEditorShell({
                           {v.label}
                         </button>
                       ))}
+                      {/*
+                        El QR tiene su propia herramienta en el riel, pero también entra acá.
+                        Quien busca "poner el código del socio" piensa en lo que va a aparecer
+                        dibujado en la credencial, no en qué tipo de bloque es por dentro. Estar
+                        en los dos lugares no confunde: llevan al mismo resultado.
+                      */}
+                      {qrDelProducto ? (
+                        <>
+                          <span
+                            aria-hidden
+                            className="my-1 block h-px bg-[color:var(--te-line)]"
+                          />
+                          <button
+                            role="menuitem"
+                            type="button"
+                            className="block w-full px-3 py-1.5 text-left text-[12px] text-[color:var(--te-ink)] hover:bg-[color:var(--te-chrome-sunken)]"
+                            title={qrDelProducto.description}
+                            onClick={() => {
+                              handleAddQr();
+                              setImagenMenuOpen(false);
+                            }}
+                          >
+                            Código QR · {qrDelProducto.label}
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
