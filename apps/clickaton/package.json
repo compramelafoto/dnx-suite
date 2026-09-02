@@ -85,6 +85,7 @@
     "test:public-marathons-visibility": "tsx --test data/public-marathons/unlisted-visibility.test.ts",
     "seed:clickaton-blog-taxonomy": "tsx scripts/seed-clickaton-blog-taxonomy.ts",
     "seed:pilot-edition": "tsx scripts/seed-pilot-edition-test.ts",
+    "seed:demo-edition": "tsx scripts/seed-clickaton-demo-edition.ts",
     "seed:argentina-2026": "tsx scripts/seed-argentina-2026-edition.ts",
     "release:check-env": "tsx scripts/release-check-env.ts",
     "selfcheck:email-idempotency": "tsx scripts/email-idempotency.selfcheck.ts",
