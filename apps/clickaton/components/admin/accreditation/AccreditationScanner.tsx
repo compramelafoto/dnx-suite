@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { paymentStatusLabel } from "@/lib/admin-registration/ui/status-labels";
 import { presentAdminFulfillmentStatus } from "@/lib/admin-registration/ui/admin-status-presentation";
 import { presentAccreditationEligibilityReason } from "@/lib/social-communications/ui/social-communications-status-presentation";
+import { avisarEscaneo, avisoParaTono } from "@/lib/accreditation/ui/scan-feedback";
+import { describirBloqueoDeAcreditacion } from "@/lib/accreditation/ui/scan-guidance";
 
 type ScanResult = {
   tone?: "GREEN" | "YELLOW" | "RED" | "BLUE";
@@ -31,7 +33,14 @@ type ScanResult = {
     operatorName: string | null;
     identityStatus: string;
   } | null;
-  window?: { canCheckIn: boolean | null; accreditationEnabled: boolean; serverNow: string };
+  window?: {
+    canCheckIn: boolean | null;
+    accreditationEnabled: boolean;
+    serverNow: string;
+    opensAt?: string | null;
+    closesAt?: string | null;
+    timezone?: string | null;
+  };
   error?: string;
   message?: string;
 };
@@ -79,10 +88,12 @@ export function AccreditationScanner({ editionId }: Props) {
       });
       const json = (await res.json()) as ScanResult;
       if (!res.ok) {
+        avisarEscaneo("error");
         setResult({ tone: "RED", reason: json.error ?? "ERROR", message: json.message });
         setMessage(json.message ?? json.error ?? "Error");
         return;
       }
+      avisarEscaneo(avisoParaTono(json.tone));
       setResult(json);
       setMessage(toneLabel[json.tone ?? ""] ?? json.reason ?? null);
     },
@@ -103,9 +114,11 @@ export function AccreditationScanner({ editionId }: Props) {
     });
     const json = (await res.json()) as { result?: ScanResult; duplicate?: boolean; error?: string; message?: string };
     if (!res.ok) {
+      avisarEscaneo("error");
       setMessage(json.message ?? json.error ?? "No se pudo acreditar");
       return;
     }
+    avisarEscaneo(json.duplicate ? "warning" : "ok");
     if (json.result) setResult(json.result);
     setMessage(json.duplicate ? "Ya estaba acreditado (idempotente)." : "Acreditado correctamente.");
   }, [editionId, result?.participant?.registrationId]);
@@ -329,14 +342,34 @@ export function AccreditationScanner({ editionId }: Props) {
           ) : null}
 
           {result.canCheckIn && result.participant ? (
-            <Button
-              type="button"
-              variant="primary"
-              disabled={pending}
-              onClick={() => startTransition(() => void confirmCheckIn())}
-            >
-              Confirmar acreditación
-            </Button>
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="primary"
+                disabled={pending}
+                onClick={() => startTransition(() => void confirmCheckIn())}
+              >
+                Confirmar acreditación
+              </Button>
+              <p className="text-sm text-ck-text-secondary">
+                Verificá que la persona coincida con los datos y confirmá.
+                {result.kitItems && result.kitItems.length > 0
+                  ? " Después registrá la entrega de cada ítem del kit."
+                  : ""}
+              </p>
+            </div>
+          ) : null}
+
+          {!result.canCheckIn && result.participant && result.reason !== "ALREADY_CHECKED_IN" ? (
+            <div className="rounded border border-ck-border/60 bg-ck-black/20 p-3 text-sm">
+              <p className="font-semibold">Qué hacer ahora</p>
+              <p className="mt-1 text-ck-text-secondary">
+                {describirBloqueoDeAcreditacion({
+                  reason: result.reason,
+                  window: result.window,
+                })}
+              </p>
+            </div>
           ) : null}
         </div>
       ) : null}

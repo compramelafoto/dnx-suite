@@ -15,6 +15,11 @@
 
 import { pathToFileURL } from "node:url";
 import { prisma } from "@repo/db";
+import {
+  activateTimeline,
+  ensureDraftTimeline,
+  getActiveTimeline,
+} from "@/lib/timeline/prisma-timeline";
 
 export const DEMO_EDITION_SLUG = "clickaton-demo";
 const DEMO_CONTEST_SLUG = "clickaton-demo-oculta";
@@ -35,6 +40,10 @@ const REGISTRATION_OPEN_AT = at("2026-09-01T12:00:00.000Z");
 const REGISTRATION_CLOSE_AT = END_AT;
 /** Media hora extra para subir lo ya fotografiado. */
 const UPLOAD_ENDS_AT = at("2026-09-02T15:30:00.000Z"); // 12:30
+/** Acreditación: abierta toda la jornada para que el escáner funcione siempre. */
+const ACCREDITATION_OPENS_AT = at("2026-09-02T10:00:00.000Z"); // 07:00
+const ACCREDITATION_CLOSES_AT = at("2026-09-02T15:00:00.000Z"); // 12:00
+const RESULTS_AT = at("2026-09-02T18:00:00.000Z"); // 15:00
 
 const PROMPTS = [
   {
@@ -160,8 +169,9 @@ export async function seedClickatonDemoEdition() {
     timezone: TIMEZONE,
     country: "AR",
     currency: "ARS",
-    location: "Demo",
-    city: "Demo",
+    location: "Ecoparque de San Nicolás",
+    city: "San Nicolás",
+    provinceOrState: "Buenos Aires",
     startAt: START_AT,
     endAt: END_AT,
     registrationOpenAt: REGISTRATION_OPEN_AT,
@@ -182,15 +192,23 @@ export async function seedClickatonDemoEdition() {
     where: { editionId_slug: { editionId: edition.id, slug: "sede-demo" } },
     create: {
       editionId: edition.id,
-      name: "Sede DEMO",
+      name: "Ecoparque de San Nicolás",
       slug: "sede-demo",
-      city: "Demo",
+      city: "San Nicolás",
+      provinceOrState: "Buenos Aires",
       country: "AR",
-      meetingPoint: "Punto de encuentro de prueba",
+      meetingPoint: "Ingreso principal del Ecoparque",
       capacity: 20,
       isActive: true,
     },
-    update: { name: "Sede DEMO", capacity: 20, isActive: true },
+    update: {
+      name: "Ecoparque de San Nicolás",
+      city: "San Nicolás",
+      provinceOrState: "Buenos Aires",
+      meetingPoint: "Ingreso principal del Ecoparque",
+      capacity: 20,
+      isActive: true,
+    },
   });
 
   // 4. Entrada gratuita.
@@ -292,8 +310,48 @@ export async function seedClickatonDemoEdition() {
     });
   }
 
+  // 8. Cronograma. Sin esto la acreditación queda deshabilitada: el escáner
+  // resuelve la ventana de check-in a partir de los eventos ACCREDITATION_OPEN /
+  // ACCREDITATION_CLOSE, y sin cronograma activo esconde el botón de confirmar.
+  const draft = await ensureDraftTimeline(edition.id, owner.id);
+  const horarios: Record<string, { startsAt: Date | null; endsAt?: Date | null }> = {
+    REGISTRATION_OPEN: { startsAt: REGISTRATION_OPEN_AT },
+    REGISTRATION_CLOSE: { startsAt: REGISTRATION_CLOSE_AT },
+    ACCREDITATION_OPEN: { startsAt: ACCREDITATION_OPENS_AT },
+    ACCREDITATION_CLOSE: { startsAt: ACCREDITATION_CLOSES_AT },
+    MARATHON_START: { startsAt: START_AT },
+    PROMPT_RELEASE: { startsAt: START_AT },
+    CAPTURE_WINDOW_CLOSE: { startsAt: END_AT },
+    UPLOAD_WINDOW_OPEN: { startsAt: START_AT },
+    UPLOAD_WINDOW_CLOSE: { startsAt: UPLOAD_ENDS_AT },
+    MARATHON_END: { startsAt: END_AT },
+    RESULTS_RELEASE: { startsAt: RESULTS_AT },
+  };
+  const nombres: Record<string, string> = {
+    ACCREDITATION_OPEN: "Acreditación en el Ecoparque de San Nicolás",
+    RESULTS_RELEASE: "Resultados",
+  };
+  for (const evento of draft.events) {
+    const h = horarios[evento.eventType];
+    if (!h) continue;
+    await prisma.clickatonTimelineEvent.update({
+      where: { id: evento.id },
+      data: {
+        startsAt: h.startsAt,
+        endsAt: h.endsAt ?? null,
+        name: nombres[evento.eventType] ?? evento.name,
+        visibilityPolicy: "PUBLIC_SAFE",
+      },
+    });
+  }
+  const yaActivo = await getActiveTimeline(edition.id);
+  if (!yaActivo || yaActivo.id !== draft.id) {
+    await activateTimeline(draft.id, owner.id);
+  }
+
   return {
     editionId: edition.id,
+    cronogramaId: draft.id,
     slug: edition.slug,
     organizationId: organization.id,
     contestId: contestReady ? contestId : null,

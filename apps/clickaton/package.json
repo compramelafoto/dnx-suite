@@ -83,6 +83,7 @@
     "registrations:expire-holds": "tsx scripts/expire-registration-holds.ts",
     "test:content": "tsx --test lib/content/*.test.ts",
     "test:public-marathons-visibility": "tsx --test data/public-marathons/unlisted-visibility.test.ts",
+    "test:accreditation-scan-ui": "tsx --test lib/accreditation/ui/scan-guidance.test.ts",
     "seed:clickaton-blog-taxonomy": "tsx scripts/seed-clickaton-blog-taxonomy.ts",
     "seed:pilot-edition": "tsx scripts/seed-pilot-edition-test.ts",
     "seed:demo-edition": "tsx scripts/seed-clickaton-demo-edition.ts",

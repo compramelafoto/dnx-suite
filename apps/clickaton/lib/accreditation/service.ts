@@ -165,6 +165,15 @@ async function buildScanResult(registrationId: string, actor: Actor, grantExcept
       serverNow: temporal.serverNow,
       timelineVersion: temporal.timelineVersion,
       accreditationEnabled: Boolean(config?.accreditationEnabled),
+      // Horarios para que el operador sepa desde/hasta cuándo puede acreditar,
+      // en vez de encontrarse con el botón ausente y sin explicación.
+      opensAt:
+        temporal.milestones.find((m) => m.eventType === "ACCREDITATION_OPEN")?.startsAt ??
+        null,
+      closesAt:
+        temporal.milestones.find((m) => m.eventType === "ACCREDITATION_CLOSE")?.startsAt ??
+        null,
+      timezone: temporal.timezone,
     },
     editionId: reg.editionId,
   };
