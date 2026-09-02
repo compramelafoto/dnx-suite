@@ -21,6 +21,8 @@ const clickatonCsp = [
   "form-action 'self' https://www.mercadopago.com https://www.mercadopago.com.ar",
 ].join("; ");
 
+type ExternalCallback = (err?: Error | null, result?: string) => void;
+
 const nextConfig: NextConfig = {
   // Portadas de edición permiten hasta 8 MB; default de Server Actions es 1 MB.
   experimental: {
@@ -39,7 +41,14 @@ const nextConfig: NextConfig = {
     "@mercadopago/sdk-react",
   ],
   // Evita que el bundler omita el Query Engine de Prisma en Vercel (rhel-openssl-3.0.x).
-  serverExternalPackages: ["@prisma/client", "@repo/db"],
+  // `pdf-to-png-converter` arrastra el binario nativo de `@napi-rs/canvas`.
+  // Webpack no puede empaquetar un .node: hay que dejarlo como dependencia externa.
+  serverExternalPackages: [
+    "@prisma/client",
+    "@repo/db",
+    "@napi-rs/canvas",
+    "pdf-to-png-converter",
+  ],
   outputFileTracingRoot: monorepoRoot,
   outputFileTracingIncludes: {
     "/**": [
@@ -54,13 +63,39 @@ const nextConfig: NextConfig = {
     root: monorepoRoot,
   },
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),
       ".js": [".ts", ".tsx", ".js"],
       ".mjs": [".mts", ".mjs"],
     };
+
+    // `pdf-to-png-converter` arrastra el binario nativo de `@napi-rs/canvas`, que
+    // webpack no puede empaquetar (`Module parse failed` sobre un .node).
+    // `serverExternalPackages` no alcanza: el import nace dentro de un paquete del
+    // workspace (@repo/template-editor-core → design-studio), no dentro de
+    // node_modules, y Next no lo externaliza. Se resuelve en tiempo de ejecución
+    // con require de Node.
+    if (isServer) {
+      const previos = Array.isArray(config.externals)
+        ? config.externals
+        : [config.externals].filter(Boolean);
+      config.externals = [
+        ...previos,
+        ({ request }: { request?: string }, callback: ExternalCallback) => {
+          if (
+            request === "pdf-to-png-converter" ||
+            request === "@napi-rs/canvas" ||
+            request?.endsWith(".node")
+          ) {
+            return callback(null, `commonjs ${request}`);
+          }
+          return callback();
+        },
+      ];
+    }
+
     return config;
   },
   async headers() {
