@@ -18,8 +18,11 @@ import { prisma } from "@repo/db";
 
 export const DEMO_EDITION_SLUG = "clickaton-demo";
 const DEMO_CONTEST_SLUG = "clickaton-demo-oculta";
-/** Misma organización FotoRank que la edición real. */
-const ORGANIZATION_ID = "cmslf0mlc0001i7nlxkjnijxa";
+/**
+ * Nada de identificadores fijos: cada base (producción, staging, local) tiene los
+ * suyos. Se resuelven por email y por slug, y si falta algo el guion falla fuerte.
+ */
+const OWNER_EMAIL = "dnxfotografia@gmail.com";
 const TIMEZONE = "America/Argentina/Buenos_Aires";
 
 /** Argentina es UTC-3: 10:00 local = 13:00 UTC. */
@@ -64,13 +67,41 @@ const PROMPTS = [
 ] as const;
 
 export async function seedClickatonDemoEdition() {
+  const owner = await prisma.user.findUnique({
+    where: { email: OWNER_EMAIL },
+    select: { id: true },
+  });
+  if (!owner) {
+    throw new Error(
+      `No existe el usuario ${OWNER_EMAIL} en esta base. Revisá a qué base estás apuntando.`,
+    );
+  }
+
+  // La base de producción puede estar atrás del esquema del repo. Si las tablas de
+  // FotoRank no tienen todas las columnas, la demo se crea igual: se pierde la subida
+  // de fotografías, pero inscripción, acreditación y consignas siguen funcionando.
+  // Se avisa fuerte en vez de fallar en silencio.
+  // 0. Organización FotoRank propia de la demo.
+  const organization = await prisma.contestOrganization.upsert({
+    where: { slug: DEMO_CONTEST_SLUG },
+    create: {
+      name: "Clickatón DEMO (oculta)",
+      slug: DEMO_CONTEST_SLUG,
+      shortDescription: "Organización de prueba. No corresponde a una entidad real.",
+      createdByUser: { connect: { id: owner.id } },
+    },
+    update: { name: "Clickatón DEMO (oculta)" },
+  });
+
   // 1. Concurso FotoRank propio: la demo nunca mezcla obras con la edición real.
   const contestId = `demo-${DEMO_CONTEST_SLUG}`;
+  let contestReady = false;
+  try {
   const contest = await prisma.fotorankContest.upsert({
     where: { id: contestId },
     create: {
       id: contestId,
-      organizationId: ORGANIZATION_ID,
+      organization: { connect: { id: organization.id } },
       title: "Clickatón DEMO (oculta)",
       slug: DEMO_CONTEST_SLUG,
       shortDescription: "Concurso de prueba asociado a la edición DEMO de Clickatón.",
@@ -80,6 +111,7 @@ export async function seedClickatonDemoEdition() {
       distributionChannel: "CLICKATON",
       registrationEnabled: false,
       timezone: TIMEZONE,
+      createdByUser: { connect: { id: owner.id } },
     },
     update: {
       title: "Clickatón DEMO (oculta)",
@@ -92,7 +124,7 @@ export async function seedClickatonDemoEdition() {
   await prisma.fotorankContestCategory.upsert({
     where: { contestId_slug: { contestId: contest.id, slug: "general" } },
     create: {
-      contestId: contest.id,
+      contestId: contestReady ? contestId : null,
       name: "General",
       slug: "general",
       status: "ACTIVE",
@@ -101,6 +133,18 @@ export async function seedClickatonDemoEdition() {
     },
     update: { status: "ACTIVE" },
   });
+    contestReady = true;
+  } catch (error) {
+    const detalle = error instanceof Error ? error.message : String(error);
+    console.warn(
+      [
+        "AVISO: no se pudo preparar el concurso FotoRank de la demo.",
+        "La edición se crea igual, pero la SUBIDA DE FOTOGRAFÍAS quedará deshabilitada",
+        "(el servicio exige una edición vinculada a un concurso).",
+        `Motivo: ${detalle}`,
+      ].join(" "),
+    );
+  }
 
   // 2. Edición oculta.
   const editionData = {
@@ -124,7 +168,7 @@ export async function seedClickatonDemoEdition() {
     registrationCloseAt: REGISTRATION_CLOSE_AT,
     defaultCapacity: 20,
     visibleCodePrefix: "DEMO",
-    fotorankContestId: contest.id,
+    fotorankContestId: contestReady ? contestId : null,
   };
 
   const edition = await prisma.clickatonEdition.upsert({
@@ -243,6 +287,7 @@ export async function seedClickatonDemoEdition() {
   return {
     editionId: edition.id,
     slug: edition.slug,
+    organizationId: organization.id,
     contestId: contest.id,
     venueId: venue.id,
     ticketTypeId: ticket.id,
