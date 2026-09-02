@@ -38,8 +38,8 @@ const END_AT = at("2026-09-02T15:00:00.000Z"); // 12:00
 const REGISTRATION_OPEN_AT = at("2026-09-01T12:00:00.000Z");
 /** Se puede entrar por el link incluso empezada la demo. */
 const REGISTRATION_CLOSE_AT = END_AT;
-/** Media hora extra para subir lo ya fotografiado. */
-const UPLOAD_ENDS_AT = at("2026-09-02T15:30:00.000Z"); // 12:30
+/** Dos horas extra para subir: se fotografía hasta las 12:00, se entrega hasta las 14:00. */
+const UPLOAD_ENDS_AT = at("2026-09-02T17:00:00.000Z"); // 14:00
 /** Acreditación: abierta toda la jornada para que el escáner funcione siempre. */
 const ACCREDITATION_OPENS_AT = at("2026-09-02T10:00:00.000Z"); // 07:00
 const ACCREDITATION_CLOSES_AT = at("2026-09-02T15:00:00.000Z"); // 12:00
@@ -247,6 +247,10 @@ export async function seedClickatonDemoEdition() {
   });
 
   // 5. Configuración de subida: ventanas por consigna, sin reveal global.
+  // En la demo la exigencia técnica no debe frenar a nadie: lo que se prueba es el
+  // circuito, no la calidad del archivo. Se bajan los mínimos y se permiten los
+  // casos que normalmente rebotan (misma foto en varias consignas, coincidencias
+  // entre participantes). Una edición real usa los valores por defecto, más estrictos.
   const uploadConfig = {
     uploadsEnabled: true,
     globalPromptReveal: false,
@@ -256,6 +260,19 @@ export async function seedClickatonDemoEdition() {
     uploadWindowStartsAt: START_AT,
     uploadWindowEndsAt: UPLOAD_ENDS_AT,
     allowReplacement: true,
+    /** Cualquier foto de celular entra; sólo se frena un archivo ilegible. */
+    minWidth: 200,
+    minHeight: 200,
+    maxWidth: 20000,
+    maxHeight: 20000,
+    maxFileSizeBytes: 26_214_400,
+    /** Se puede usar la misma foto en más de una consigna. */
+    allowCrossPromptDuplicate: true,
+    /** Que dos participantes suban algo parecido no frena ni marca nada. */
+    blockCrossParticipantDuplicate: false,
+    reviewCrossParticipantDuplicate: false,
+    /** Reloj del celular desfasado: no queremos avisos por eso en una prueba. */
+    captureClockToleranceMinutes: 120,
   };
   await prisma.clickatonEditionUploadConfig.upsert({
     where: { editionId: edition.id },
