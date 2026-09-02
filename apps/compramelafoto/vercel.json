@@ -39,6 +39,10 @@
       "schedule": "0 2 * * *"
     },
     {
+      "path": "/api/cron/hidden-album-cleanup",
+      "schedule": "30 2 * * *"
+    },
+    {
       "path": "/api/cron/cleanup-expired-albums",
       "schedule": "0 2 * * *"
     },
