@@ -91,6 +91,8 @@ model User {
   fontColor                             String?
   showCarnetPrints                      Boolean                                @default(false)
   showPolaroidPrints                    Boolean                                @default(false)
+  /// Si es true, la sección de impresión se muestra arriba de las galerías en la página pública.
+  printSectionOnTop                     Boolean                                @default(false)
   postalCode                            String?
   /// Ubicación para eventos cerca e invitaciones por proximidad (km)
   latitude                              Float?

@@ -52,6 +52,7 @@ type PhotographerData = {
   enablePrintPage?: boolean;
   showCarnetPrints?: boolean;
   showPolaroidPrints?: boolean;
+  printSectionOnTop?: boolean;
   preferredLab?: { id: number; name: string } | null;
   mpAccessToken?: string | null;
   mpUserId?: string | null;
@@ -213,6 +214,7 @@ export default function ConfiguracionClient({
   const [enablePrintPage, setEnablePrintPage] = useState(false);
   const [showCarnetPrints, setShowCarnetPrints] = useState(false);
   const [showPolaroidPrints, setShowPolaroidPrints] = useState(false);
+  const [printSectionOnTop, setPrintSectionOnTop] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedHtml, setCopiedHtml] = useState(false);
@@ -632,6 +634,7 @@ export default function ConfiguracionClient({
         setEnablePrintPage(data.enablePrintPage ?? false);
         setShowCarnetPrints(data.showCarnetPrints ?? false);
         setShowPolaroidPrints(data.showPolaroidPrints ?? false);
+        setPrintSectionOnTop(data.printSectionOnTop ?? false);
         setMarketingOptIn(data.marketingOptIn ?? false);
         
         // Cargar pricing para la calculadora
@@ -777,6 +780,7 @@ export default function ConfiguracionClient({
         enablePrintPage,
         showCarnetPrints,
         showPolaroidPrints,
+        printSectionOnTop,
         workingCoverageRadiusKm: serializeWorkingCoverageRadiusForApi(coverageRadiusKm),
       };
 
@@ -1012,6 +1016,8 @@ export default function ConfiguracionClient({
                 setShowCarnetPrints={setShowCarnetPrints}
                 showPolaroidPrints={showPolaroidPrints}
                 setShowPolaroidPrints={setShowPolaroidPrints}
+                printSectionOnTop={printSectionOnTop}
+                setPrintSectionOnTop={setPrintSectionOnTop}
                 copied={copied}
                 setCopied={setCopied}
                 copiedHtml={copiedHtml}

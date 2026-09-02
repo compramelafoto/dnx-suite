@@ -59,6 +59,7 @@ async function getPhotographerData(handler: string) {
         enablePrintPage: true,
         showCarnetPrints: true,
         showPolaroidPrints: true,
+        printSectionOnTop: true,
         website: true,
         instagram: true,
         tiktok: true,
@@ -79,7 +80,7 @@ async function getPhotographerData(handler: string) {
   } catch (err: any) {
     // Si falla por campos desconocidos, intentar sin ellos
     const errorMsg = String(err?.message ?? "");
-    if (errorMsg.includes("enableAlbumsPage") || errorMsg.includes("enablePrintPage") || errorMsg.includes("showCarnetPrints") || errorMsg.includes("showPolaroidPrints") || errorMsg.includes("tertiaryColor") || errorMsg.includes("fontColor") || errorMsg.includes("headerBackgroundColor") || errorMsg.includes("footerBackgroundColor") || errorMsg.includes("heroBackgroundColor") || errorMsg.includes("pageBackgroundColor") || errorMsg.includes("website") || errorMsg.includes("instagram") || errorMsg.includes("tiktok") || errorMsg.includes("facebook") || errorMsg.includes("whatsapp") || errorMsg.includes("companyAddress") || errorMsg.includes("companyName") || errorMsg.includes("Unknown field")) {
+    if (errorMsg.includes("enableAlbumsPage") || errorMsg.includes("enablePrintPage") || errorMsg.includes("showCarnetPrints") || errorMsg.includes("showPolaroidPrints") || errorMsg.includes("printSectionOnTop") || errorMsg.includes("tertiaryColor") || errorMsg.includes("fontColor") || errorMsg.includes("headerBackgroundColor") || errorMsg.includes("footerBackgroundColor") || errorMsg.includes("heroBackgroundColor") || errorMsg.includes("pageBackgroundColor") || errorMsg.includes("website") || errorMsg.includes("instagram") || errorMsg.includes("tiktok") || errorMsg.includes("facebook") || errorMsg.includes("whatsapp") || errorMsg.includes("companyAddress") || errorMsg.includes("companyName") || errorMsg.includes("Unknown field")) {
       console.warn("GET /[handler]: algunos campos no existen. Ejecutá: npx prisma db push && npx prisma generate");
       try {
         const photographer = await prisma.user.findFirst({
@@ -116,6 +117,7 @@ async function getPhotographerData(handler: string) {
         (photographer as any).enablePrintPage = true;
         (photographer as any).showCarnetPrints = false;
         (photographer as any).showPolaroidPrints = false;
+        (photographer as any).printSectionOnTop = false;
         (photographer as any).tertiaryColor = photographer.primaryColor || "#c27b3d";
         (photographer as any).fontColor = null;
         (photographer as any).headerBackgroundColor = null;
@@ -262,6 +264,9 @@ export default async function PhotographerHandlerPage({
   }
   if (photographer.showPolaroidPrints === null || photographer.showPolaroidPrints === undefined) {
     photographer.showPolaroidPrints = false;
+  }
+  if (photographer.printSectionOnTop === null || photographer.printSectionOnTop === undefined) {
+    photographer.printSectionOnTop = false;
   }
   if (!photographer.tertiaryColor) {
     photographer.tertiaryColor = photographer.primaryColor || "#c27b3d";

@@ -60,10 +60,17 @@ export async function GET(
         preferredLabId: true,
         profitMarginPercent: true,
         defaultDigitalPhotoPrice: true,
+        digitalDiscountsEnabled: true,
+        digitalDiscount5Plus: true,
+        digitalDiscount10Plus: true,
+        digitalDiscount20Plus: true,
         isPublicPageEnabled: true,
         publicPageHandler: true,
         enableAlbumsPage: true,
         enablePrintPage: true,
+        showCarnetPrints: true,
+        showPolaroidPrints: true,
+        printSectionOnTop: true,
         mpAccessToken: true,
         mpRefreshToken: true,
         mpUserId: true,
@@ -84,7 +91,7 @@ export async function GET(
     } catch (err: any) {
       // Si falla por campos desconocidos, intentar sin ellos
       const errorMsg = String(err?.message ?? "");
-      if (errorMsg.includes("enableAlbumsPage") || errorMsg.includes("enablePrintPage") || errorMsg.includes("tertiaryColor") || errorMsg.includes("fontColor") || errorMsg.includes("headerBackgroundColor") || errorMsg.includes("footerBackgroundColor") || errorMsg.includes("heroBackgroundColor") || errorMsg.includes("pageBackgroundColor") || errorMsg.includes("website") || errorMsg.includes("instagram") || errorMsg.includes("tiktok") || errorMsg.includes("facebook") || errorMsg.includes("whatsapp") || errorMsg.includes("companyAddress") || errorMsg.includes("Unknown field")) {
+      if (errorMsg.includes("enableAlbumsPage") || errorMsg.includes("enablePrintPage") || errorMsg.includes("showCarnetPrints") || errorMsg.includes("showPolaroidPrints") || errorMsg.includes("printSectionOnTop") || errorMsg.includes("tertiaryColor") || errorMsg.includes("fontColor") || errorMsg.includes("headerBackgroundColor") || errorMsg.includes("footerBackgroundColor") || errorMsg.includes("heroBackgroundColor") || errorMsg.includes("pageBackgroundColor") || errorMsg.includes("website") || errorMsg.includes("instagram") || errorMsg.includes("tiktok") || errorMsg.includes("facebook") || errorMsg.includes("whatsapp") || errorMsg.includes("companyAddress") || errorMsg.includes("Unknown field")) {
         console.warn("GET /api/fotografo/[id]: algunos campos no existen. Ejecutá: npx prisma db push && npx prisma generate");
         user = await prisma.user.findUnique({
           where: { id },
@@ -125,6 +132,9 @@ export async function GET(
         if (user) {
           user.enableAlbumsPage = false;
           user.enablePrintPage = false;
+          user.showCarnetPrints = false;
+          user.showPolaroidPrints = false;
+          user.printSectionOnTop = false;
           user.tertiaryColor = null;
           user.fontColor = null;
           user.headerBackgroundColor = null;

@@ -27,6 +27,7 @@ type Photographer = {
   enablePrintPage?: boolean;
   showCarnetPrints?: boolean;
   showPolaroidPrints?: boolean;
+  printSectionOnTop?: boolean;
   website?: string | null;
   instagram?: string | null;
   tiktok?: string | null;
@@ -82,6 +83,7 @@ export default function PhotographerPublicPage({
   const softFontColor = toRgba(fontColor, 0.85);
   const showCarnet = photographer.showCarnetPrints === true;
   const showPolaroids = photographer.showPolaroidPrints === true;
+  const printSectionOnTop = photographer.printSectionOnTop === true;
   
   // Log para debugging
   console.log("PhotographerPublicPage render:", {
@@ -91,6 +93,240 @@ export default function PhotographerPublicPage({
     willShowAlbums: photographer.enableAlbumsPage === true && albums.length > 0,
     willShowPrint: photographer.enablePrintPage === true,
   });
+
+  const albumsSection =
+    photographer.enableAlbumsPage === true && albums.length > 0 ? (
+      <section className="py-12 md:py-16" style={{ backgroundColor: pageBg }}>
+        <div className="container-custom">
+          {/* Mensaje informativo sobre álbumes */}
+          <div className="mb-8">
+            <div className="bg-gradient-to-r rounded-lg p-5 border-2 shadow-sm" style={{ backgroundColor: `${primaryColor}08`, borderColor: `${primaryColor}30` }}>
+              <p className="text-base md:text-lg font-medium text-center" style={{ color: fontColor }}>
+                📸 <strong>Busca el álbum donde está tu foto y comprala 100% online.</strong> Hacé clic en cualquier álbum para ver todas las opciones disponibles.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            {albums.map((album) => (
+              <Link
+                key={album.id}
+                href={`/a/${album.publicSlug}`}
+                className="group block"
+              >
+                <Card className="overflow-hidden h-full hover:shadow-xl transition-all duration-300 border-2" style={{ borderColor: tertiaryColor ? `${tertiaryColor}33` : undefined }}>
+                  <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
+                    {album.coverPhotoUrl && album.photosCount > 0 ? (
+                      <Image
+                        src={album.coverPhotoUrl}
+                        alt={album.title}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          if (
+                            album.coverPhotoUrlFallback &&
+                            target.src !== album.coverPhotoUrlFallback
+                          ) {
+                            target.src = album.coverPhotoUrlFallback;
+                          }
+                        }}
+                      />
+                    ) : album.photosCount === 0 ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br" style={{ background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}15)` }}>
+                        <Image
+                          src="/watermark.png"
+                          alt="ComprameLaFoto"
+                          width={120}
+                          height={120}
+                          className="opacity-50"
+                        />
+                        <p className="text-xs mt-3 text-center font-medium" style={{ color: mutedFontColor }}>
+                          Las fotos serán subidas próximamente
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br" style={{ background: `linear-gradient(135deg, ${primaryColor}10, ${secondaryColor}10)` }}>
+                        <svg
+                          className="w-16 h-16"
+                          style={{ color: primaryColor, opacity: 0.3 }}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                    <GalleryMediaTypeBadges
+                      hasPhotos={album.hasPhotos ?? album.photosCount > 0}
+                      hasVideos={Boolean(album.hasVideos)}
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                  </div>
+                  <div className="p-5">
+                    <h3 className="text-lg font-semibold mb-2 line-clamp-2 group-hover:text-opacity-80 transition-colors" style={{ color: fontColor }}>
+                      {album.title}
+                    </h3>
+                    <div className="space-y-1 mb-3">
+                      {album.location && (
+                        <p className="text-sm flex items-center gap-1" style={{ color: mutedFontColor }}>
+                          <span>📍</span> {album.location}
+                        </p>
+                      )}
+                      {album.eventDate && (
+                        <p className="text-sm flex items-center gap-1" style={{ color: mutedFontColor }}>
+                          <span>📅</span> {new Date(album.eventDate).toLocaleDateString("es-AR")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-[#e5e7eb]">
+                      <span className="text-sm font-medium" style={{ color: primaryColor }}>
+                        {album.photosCount} {album.photosCount === 1 ? "foto" : "fotos"}
+                      </span>
+                      <span className="text-sm transition-colors" style={{ color: mutedFontColor }}>
+                        Ver álbum →
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+    ) : null;
+
+  const printSection = (() => {
+    if (photographer.enablePrintPage !== true) return null;
+    const cardCount = 1 + (showCarnet ? 1 : 0) + (showPolaroids ? 1 : 0);
+    const gridCols = cardCount === 1 ? "md:grid-cols-1" : cardCount === 2 ? "md:grid-cols-2" : "md:grid-cols-3";
+    return (
+      <section className="py-12 md:py-16" style={{ backgroundColor: pageBg }}>
+        <div className="container-custom">
+          <div className="w-full max-w-4xl mx-auto mb-8">
+            {/* Mensaje informativo sobre impresión */}
+            <div className="bg-gradient-to-r rounded-lg p-5 border-2 shadow-sm" style={{ backgroundColor: `${tertiaryColor}08`, borderColor: `${tertiaryColor}30` }}>
+              <p className="text-base md:text-lg font-medium text-center" style={{ color: fontColor }}>
+                🖨️ <strong>Imprimí tus propias fotos:</strong> Subí tus fotos, elegí tamaño, cantidad y laboratorio. Todo 100% online.
+              </p>
+            </div>
+          </div>
+          <div className={`grid grid-cols-1 ${gridCols} gap-6 w-full max-w-6xl mx-auto`}>
+              <Card className="p-6 md:p-10 text-center border-2 flex flex-col min-w-0 flex-1" style={{ borderColor: tertiaryColor ? `${tertiaryColor}4D` : undefined }}>
+                <div className="mb-6">
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: tertiaryColor + "15" }}>
+                    <svg
+                      className="w-10 h-10"
+                      style={{ color: tertiaryColor }}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <Link href={`/${handler}/imprimir`}>
+                  <Button
+                    variant="primary"
+                    className="text-lg px-8 py-4 font-semibold"
+                    accentColor={tertiaryColor}
+                    style={{
+                      backgroundColor: tertiaryColor,
+                      borderColor: tertiaryColor,
+                    }}
+                  >
+                    Imprimir tus fotos
+                  </Button>
+                </Link>
+              </Card>
+
+              {showCarnet && (
+                <Card className="p-6 md:p-10 text-center border-2 flex flex-col min-w-0 flex-1" style={{ borderColor: tertiaryColor ? `${tertiaryColor}2B` : undefined }}>
+                  <div className="mb-6">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: tertiaryColor + "12" }}>
+                      <svg
+                        className="w-10 h-10"
+                        style={{ color: tertiaryColor }}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4a4 4 0 100 8 4 4 0 000-8zm-7 16a7 7 0 0114 0H5z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <Link href={`/${handler}/fotocarnet`}>
+                    <Button
+                      variant="primary"
+                      className="text-lg px-8 py-4 font-semibold"
+                      accentColor={tertiaryColor}
+                      style={{
+                        backgroundColor: tertiaryColor,
+                        borderColor: tertiaryColor,
+                      }}
+                    >
+                      Fotos Carnet
+                    </Button>
+                  </Link>
+                </Card>
+              )}
+
+              {showPolaroids && (
+                <Card className="p-6 md:p-10 text-center border-2 flex flex-col min-w-0 flex-1" style={{ borderColor: tertiaryColor ? `${tertiaryColor}2B` : undefined }}>
+                  <div className="mb-6">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: tertiaryColor + "12" }}>
+                      <svg
+                        className="w-10 h-10"
+                        style={{ color: tertiaryColor }}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 7a2 2 0 012-2h8l4 4v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <Link href={`/${handler}/polaroids`}>
+                    <Button
+                      variant="primary"
+                      className="text-lg px-8 py-4 font-semibold"
+                      accentColor={tertiaryColor}
+                      style={{
+                        backgroundColor: tertiaryColor,
+                        borderColor: tertiaryColor,
+                      }}
+                    >
+                      Polaroids
+                    </Button>
+                  </Link>
+                </Card>
+              )}
+            </div>
+        </div>
+      </section>
+    );
+  })();
 
   return (
     <>
@@ -123,239 +359,10 @@ export default function PhotographerPublicPage({
         </section>
         )}
 
-        {/* Albums Grid Section */}
-        {photographer.enableAlbumsPage === true && albums.length > 0 && (
-          <section className="py-12 md:py-16" style={{ backgroundColor: pageBg }}>
-            <div className="container-custom">
-              {/* Mensaje informativo sobre álbumes */}
-              <div className="mb-8">
-                <div className="bg-gradient-to-r rounded-lg p-5 border-2 shadow-sm" style={{ backgroundColor: `${primaryColor}08`, borderColor: `${primaryColor}30` }}>
-                  <p className="text-base md:text-lg font-medium text-center" style={{ color: fontColor }}>
-                    📸 <strong>Busca el álbum donde está tu foto y comprala 100% online.</strong> Hacé clic en cualquier álbum para ver todas las opciones disponibles.
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                {albums.map((album) => (
-                  <Link
-                    key={album.id}
-                    href={`/a/${album.publicSlug}`}
-                    className="group block"
-                  >
-                    <Card className="overflow-hidden h-full hover:shadow-xl transition-all duration-300 border-2" style={{ borderColor: tertiaryColor ? `${tertiaryColor}33` : undefined }}>
-                      <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
-                        {album.coverPhotoUrl && album.photosCount > 0 ? (
-                          <Image
-                            src={album.coverPhotoUrl}
-                            alt={album.title}
-                            fill
-                            className="object-cover group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              if (
-                                album.coverPhotoUrlFallback &&
-                                target.src !== album.coverPhotoUrlFallback
-                              ) {
-                                target.src = album.coverPhotoUrlFallback;
-                              }
-                            }}
-                          />
-                        ) : album.photosCount === 0 ? (
-                          <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br" style={{ background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}15)` }}>
-                            <Image
-                              src="/watermark.png"
-                              alt="ComprameLaFoto"
-                              width={120}
-                              height={120}
-                              className="opacity-50"
-                            />
-                            <p className="text-xs mt-3 text-center font-medium" style={{ color: mutedFontColor }}>
-                              Las fotos serán subidas próximamente
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br" style={{ background: `linear-gradient(135deg, ${primaryColor}10, ${secondaryColor}10)` }}>
-                            <svg
-                              className="w-16 h-16"
-                              style={{ color: primaryColor, opacity: 0.3 }}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                              />
-                            </svg>
-                          </div>
-                        )}
-                        <GalleryMediaTypeBadges
-                          hasPhotos={album.hasPhotos ?? album.photosCount > 0}
-                          hasVideos={Boolean(album.hasVideos)}
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
-                      </div>
-                      <div className="p-5">
-                        <h3 className="text-lg font-semibold mb-2 line-clamp-2 group-hover:text-opacity-80 transition-colors" style={{ color: fontColor }}>
-                          {album.title}
-                        </h3>
-                        <div className="space-y-1 mb-3">
-                          {album.location && (
-                            <p className="text-sm flex items-center gap-1" style={{ color: mutedFontColor }}>
-                              <span>📍</span> {album.location}
-                            </p>
-                          )}
-                          {album.eventDate && (
-                            <p className="text-sm flex items-center gap-1" style={{ color: mutedFontColor }}>
-                              <span>📅</span> {new Date(album.eventDate).toLocaleDateString("es-AR")}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between pt-2 border-t border-[#e5e7eb]">
-                          <span className="text-sm font-medium" style={{ color: primaryColor }}>
-                            {album.photosCount} {album.photosCount === 1 ? "foto" : "fotos"}
-                          </span>
-                          <span className="text-sm transition-colors" style={{ color: mutedFontColor }}>
-                            Ver álbum →
-                          </span>
-                        </div>
-                      </div>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Print Photos Section */}
-        {photographer.enablePrintPage === true && (() => {
-          const cardCount = 1 + (showCarnet ? 1 : 0) + (showPolaroids ? 1 : 0);
-          const gridCols = cardCount === 1 ? "md:grid-cols-1" : cardCount === 2 ? "md:grid-cols-2" : "md:grid-cols-3";
-          return (
-          <section className="py-12 md:py-16" style={{ backgroundColor: pageBg }}>
-            <div className="container-custom">
-              <div className="w-full max-w-4xl mx-auto mb-8">
-                {/* Mensaje informativo sobre impresión */}
-                <div className="bg-gradient-to-r rounded-lg p-5 border-2 shadow-sm" style={{ backgroundColor: `${tertiaryColor}08`, borderColor: `${tertiaryColor}30` }}>
-                  <p className="text-base md:text-lg font-medium text-center" style={{ color: fontColor }}>
-                    🖨️ <strong>Imprimí tus propias fotos:</strong> Subí tus fotos, elegí tamaño, cantidad y laboratorio. Todo 100% online.
-                  </p>
-                </div>
-              </div>
-              <div className={`grid grid-cols-1 ${gridCols} gap-6 w-full max-w-6xl mx-auto`}>
-                  <Card className="p-6 md:p-10 text-center border-2 flex flex-col min-w-0 flex-1" style={{ borderColor: tertiaryColor ? `${tertiaryColor}4D` : undefined }}>
-                    <div className="mb-6">
-                      <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: tertiaryColor + "15" }}>
-                        <svg
-                          className="w-10 h-10"
-                          style={{ color: tertiaryColor }}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                    <Link href={`/${handler}/imprimir`}>
-                      <Button
-                        variant="primary"
-                        className="text-lg px-8 py-4 font-semibold"
-                        accentColor={tertiaryColor}
-                        style={{
-                          backgroundColor: tertiaryColor,
-                          borderColor: tertiaryColor,
-                        }}
-                      >
-                        Imprimir tus fotos
-                      </Button>
-                    </Link>
-                  </Card>
-
-                  {showCarnet && (
-                    <Card className="p-6 md:p-10 text-center border-2 flex flex-col min-w-0 flex-1" style={{ borderColor: tertiaryColor ? `${tertiaryColor}2B` : undefined }}>
-                      <div className="mb-6">
-                        <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: tertiaryColor + "12" }}>
-                          <svg
-                            className="w-10 h-10"
-                            style={{ color: tertiaryColor }}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 4a4 4 0 100 8 4 4 0 000-8zm-7 16a7 7 0 0114 0H5z"
-                            />
-                          </svg>
-                        </div>
-                      </div>
-                      <Link href={`/${handler}/fotocarnet`}>
-                        <Button
-                          variant="primary"
-                          className="text-lg px-8 py-4 font-semibold"
-                          accentColor={tertiaryColor}
-                          style={{
-                            backgroundColor: tertiaryColor,
-                            borderColor: tertiaryColor,
-                          }}
-                        >
-                          Fotos Carnet
-                        </Button>
-                      </Link>
-                    </Card>
-                  )}
-
-                  {showPolaroids && (
-                    <Card className="p-6 md:p-10 text-center border-2 flex flex-col min-w-0 flex-1" style={{ borderColor: tertiaryColor ? `${tertiaryColor}2B` : undefined }}>
-                      <div className="mb-6">
-                        <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: tertiaryColor + "12" }}>
-                          <svg
-                            className="w-10 h-10"
-                            style={{ color: tertiaryColor }}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 7a2 2 0 012-2h8l4 4v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7z"
-                            />
-                          </svg>
-                        </div>
-                      </div>
-                      <Link href={`/${handler}/polaroids`}>
-                        <Button
-                          variant="primary"
-                          className="text-lg px-8 py-4 font-semibold"
-                          accentColor={tertiaryColor}
-                          style={{
-                            backgroundColor: tertiaryColor,
-                            borderColor: tertiaryColor,
-                          }}
-                        >
-                          Polaroids
-                        </Button>
-                      </Link>
-                    </Card>
-                  )}
-                </div>
-            </div>
-          </section>
-          );
-        })()}
+        {/* Impresión y galerías: el fotógrafo elige cuál va primero */}
+        {printSectionOnTop && printSection}
+        {albumsSection}
+        {!printSectionOnTop && printSection}
 
         {/* Empty State */}
         {photographer.enableAlbumsPage === true && albums.length === 0 && photographer.enablePrintPage !== true && (

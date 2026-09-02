@@ -43,6 +43,8 @@ export type PreferenciasMarcaSectionProps = {
   setShowCarnetPrints: (v: boolean) => void;
   showPolaroidPrints: boolean;
   setShowPolaroidPrints: (v: boolean) => void;
+  printSectionOnTop: boolean;
+  setPrintSectionOnTop: (v: boolean) => void;
   copied: boolean;
   setCopied: (v: boolean) => void;
   copiedHtml: boolean;
@@ -121,6 +123,8 @@ export default function PreferenciasMarcaSection({
   setShowCarnetPrints,
   showPolaroidPrints,
   setShowPolaroidPrints,
+  printSectionOnTop,
+  setPrintSectionOnTop,
   copied,
   setCopied,
   copiedHtml,
@@ -506,6 +510,35 @@ export default function PreferenciasMarcaSection({
                     className="mt-0.5 w-4 h-4"
                   />
                   <span className="text-sm text-[#1a1a1a]">Mostrar polaroids</span>
+                </label>
+              </div>
+            )}
+
+            {enablePrintPage && enableAlbumsPage && (
+              <div className="ml-7 space-y-3 pt-2 border-l-2 border-[#e5e7eb] pl-4">
+                <p className="text-xs uppercase tracking-wide text-[#6b7280] m-0">Orden en la página</p>
+                <p className="text-xs text-[#6b7280] m-0">
+                  Dónde aparece el bloque de impresión respecto de tus álbumes.
+                </p>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="printSectionPosition"
+                    checked={!printSectionOnTop}
+                    onChange={() => setPrintSectionOnTop(false)}
+                    className="mt-0.5 w-4 h-4"
+                  />
+                  <span className="text-sm text-[#1a1a1a]">Debajo de mis álbumes</span>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="printSectionPosition"
+                    checked={printSectionOnTop}
+                    onChange={() => setPrintSectionOnTop(true)}
+                    className="mt-0.5 w-4 h-4"
+                  />
+                  <span className="text-sm text-[#1a1a1a]">Arriba de mis álbumes</span>
                 </label>
               </div>
             )}

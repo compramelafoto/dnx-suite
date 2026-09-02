@@ -370,6 +370,9 @@ export async function PATCH(req: Request) {
       if (body.showPolaroidPrints !== undefined) {
         updateData.showPolaroidPrints = Boolean(body.showPolaroidPrints);
       }
+      if (body.printSectionOnTop !== undefined) {
+        updateData.printSectionOnTop = Boolean(body.printSectionOnTop);
+      }
     } catch (err: any) {
       // Si los campos no existen, simplemente no los agregamos
       const errorMsg = String(err?.message ?? "");
@@ -377,7 +380,8 @@ export async function PATCH(req: Request) {
         !errorMsg.includes("enableAlbumsPage") &&
         !errorMsg.includes("enablePrintPage") &&
         !errorMsg.includes("showCarnetPrints") &&
-        !errorMsg.includes("showPolaroidPrints")
+        !errorMsg.includes("showPolaroidPrints") &&
+        !errorMsg.includes("printSectionOnTop")
       ) {
         throw err;
       }
@@ -489,6 +493,7 @@ export async function PATCH(req: Request) {
             enablePrintPage: true,
             showCarnetPrints: true,
             showPolaroidPrints: true,
+            printSectionOnTop: true,
             mpAccessToken: true,
             mpRefreshToken: true,
             mpUserId: true,
@@ -516,12 +521,13 @@ export async function PATCH(req: Request) {
         updated.enablePrintPage = false;
         updated.showCarnetPrints = false;
         updated.showPolaroidPrints = false;
+        updated.printSectionOnTop = false;
       }
     } catch (updateErr: any) {
       const errorMsg = String(updateErr?.message ?? "");
       
       // Si falla por campos desconocidos, intentar sin ellos
-      if (errorMsg.includes("enableAlbumsPage") || errorMsg.includes("enablePrintPage") || errorMsg.includes("showCarnetPrints") || errorMsg.includes("showPolaroidPrints") || errorMsg.includes("tertiaryColor") || errorMsg.includes("fontColor") || errorMsg.includes("headerBackgroundColor") || errorMsg.includes("footerBackgroundColor") || errorMsg.includes("heroBackgroundColor") || errorMsg.includes("pageBackgroundColor") || errorMsg.includes("companyAddress") || errorMsg.includes("website") || errorMsg.includes("instagram") || errorMsg.includes("tiktok") || errorMsg.includes("facebook") || errorMsg.includes("whatsapp") || errorMsg.includes("defaultDigitalPhotoPrice") || errorMsg.includes("digitalDiscountsEnabled") || errorMsg.includes("digitalDiscount5Plus") || errorMsg.includes("digitalDiscount10Plus") || errorMsg.includes("digitalDiscount20Plus") || errorMsg.includes("Unknown field") || errorMsg.includes("Unknown argument") || errorMsg.includes("does not exist")) {
+      if (errorMsg.includes("enableAlbumsPage") || errorMsg.includes("enablePrintPage") || errorMsg.includes("showCarnetPrints") || errorMsg.includes("showPolaroidPrints") || errorMsg.includes("printSectionOnTop") || errorMsg.includes("tertiaryColor") || errorMsg.includes("fontColor") || errorMsg.includes("headerBackgroundColor") || errorMsg.includes("footerBackgroundColor") || errorMsg.includes("heroBackgroundColor") || errorMsg.includes("pageBackgroundColor") || errorMsg.includes("companyAddress") || errorMsg.includes("website") || errorMsg.includes("instagram") || errorMsg.includes("tiktok") || errorMsg.includes("facebook") || errorMsg.includes("whatsapp") || errorMsg.includes("defaultDigitalPhotoPrice") || errorMsg.includes("digitalDiscountsEnabled") || errorMsg.includes("digitalDiscount5Plus") || errorMsg.includes("digitalDiscount10Plus") || errorMsg.includes("digitalDiscount20Plus") || errorMsg.includes("Unknown field") || errorMsg.includes("Unknown argument") || errorMsg.includes("does not exist")) {
         console.warn("PATCH /api/fotografo/update: algunos campos no existen. Ejecutá: npx prisma migrate dev && npx prisma generate");
         
         // Remover campos que pueden no existir del updateData
@@ -535,6 +541,7 @@ export async function PATCH(req: Request) {
         delete safeUpdateData.enablePrintPage;
         delete safeUpdateData.showCarnetPrints;
         delete safeUpdateData.showPolaroidPrints;
+        delete safeUpdateData.printSectionOnTop;
         delete safeUpdateData.tertiaryColor;
         delete safeUpdateData.fontColor;
         delete safeUpdateData.headerBackgroundColor;
