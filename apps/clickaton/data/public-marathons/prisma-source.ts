@@ -33,6 +33,8 @@ function mapEditionToPublicMarathon(row: {
   provinceOrState: string | null;
   country: string | null;
   isPublished: boolean;
+  /** Edición oculta: routable por link, nunca en listados públicos. */
+  isOpsFixture: boolean;
   /** Kill switch comercial: false ⇒ CTA cerrado aunque las ventanas estén abiertas. */
   registrationEnabled: boolean;
   timezone: string | null;
@@ -133,6 +135,7 @@ function mapEditionToPublicMarathon(row: {
     modality: "Presencial",
     featured: true,
     isDemo: false,
+    isUnlisted: row.isOpsFixture,
     city,
     provinceOrRegion: province,
     country: countryLabel,
@@ -239,6 +242,8 @@ async function loadPublishedEditions() {
   return prisma.clickatonEdition.findMany({
     where: {
       isPublished: true,
+      // Ocultas: nunca en listados públicos (home, /maratones, carousel).
+      isOpsFixture: false,
       status: { not: "CANCELLED" },
     },
     include: {

@@ -4,6 +4,10 @@
   "framework": "nextjs",
   "crons": [
     {
+      "path": "/api/cron/prompt-scheduled-release",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/expire-registration-holds",
       "schedule": "*/15 * * * *"
     },

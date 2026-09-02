@@ -126,7 +126,7 @@ export async function listSystemSlidesForAdmin() {
         select: { systemSlidesConfig: true },
       }),
       prisma.clickatonEdition.findMany({
-        where: { isPublished: true },
+        where: { isPublished: true, isOpsFixture: false },
         select: { id: true, name: true, slug: true, city: true },
         orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
       }),

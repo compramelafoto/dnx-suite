@@ -24,7 +24,9 @@ function slidesFromEditions(
 ): HomeSpotlightSlide[] {
   if (!config.editionsEnabled) return [];
   const disabled = new Set(config.disabledEditionIds);
-  const eligible = editions.filter((m) => !m.isDemo && !disabled.has(m.id));
+  const eligible = editions.filter(
+    (m) => !m.isDemo && !m.isUnlisted && !disabled.has(m.id),
+  );
   const ordered = orderByIds(eligible, config.editionOrder, (m) => m.id).slice(0, 6);
   return ordered.map((edition) => {
     const canRegister = Boolean(edition.registration?.canRegister);

@@ -145,3 +145,57 @@ test("el QR que se ofrece es uno que la emisión sabe resolver", () => {
     }
   }
 });
+
+test("el QR del socio se puede guardar: es una dirección de QR válida", async () => {
+  /*
+   * Dos defectos encadenados hacían que insertar el QR y guardar fallara. El primero, un camino
+   * de vínculo equivocado. El segundo, más de fondo: la validación medía al QR con la vara de
+   * texto/imagen, y la variable que verifica al socio no está marcada como usable en imágenes,
+   * así que rechazaba justo la correcta.
+   */
+  const { parseTemplateV2EditorPayload } = await import("../validate-save-payload");
+  const r = parseTemplateV2EditorPayload({
+    canvas: { width: 1011, height: 638 },
+    meta: { product: "fotoffice" },
+    blocks: [
+      {
+        id: "qr1",
+        type: "QR",
+        pageIndex: 0,
+        layout: { x: 0, y: 0, width: 240, height: 240, rotation: 0, zIndex: 1, opacity: 1, visible: true, locked: false },
+        configJson: { mode: "VARIABLE", variableKey: "verificationUrl" },
+      },
+    ],
+    variableBindings: [
+      { blockId: "qr1", variableKey: "verificationUrl", targetPath: "variableKey" },
+    ],
+  });
+  assert.equal(r.ok, true, r.ok ? "" : r.error);
+});
+
+test("un QR atado a algo que no es una dirección de QR se rechaza", async () => {
+  const { parseTemplateV2EditorPayload } = await import("../validate-save-payload");
+  const r = parseTemplateV2EditorPayload({
+    canvas: { width: 1011, height: 638 },
+    meta: { product: "fotoffice" },
+    blocks: [
+      {
+        id: "qr1",
+        type: "QR",
+        pageIndex: 0,
+        layout: { x: 0, y: 0, width: 240, height: 240, rotation: 0, zIndex: 1, opacity: 1, visible: true, locked: false },
+        configJson: { mode: "VARIABLE", variableKey: "fullName" },
+      },
+    ],
+    variableBindings: [{ blockId: "qr1", variableKey: "fullName", targetPath: "variableKey" }],
+  });
+  assert.equal(r.ok, false);
+});
+
+test("el lienzo tiene un valor de muestra para el QR del socio", async () => {
+  // Sin esto el bloque dice "Sin valor todavía" aunque la variable esté bien elegida.
+  const { editorResolvedVariablesForProduct } = await import("../editor-mock-variables");
+  const v = editorResolvedVariablesForProduct("fotoffice");
+  assert.ok(typeof v.verificationUrl === "string" && (v.verificationUrl as string).length > 0);
+  assert.ok(typeof v.fullName === "string");
+});

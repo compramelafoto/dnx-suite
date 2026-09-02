@@ -119,6 +119,7 @@ export function normalizePublicMarathon(input: PublicMarathon): PublicMarathon {
     modality: input.modality ?? "",
     featured: Boolean(input.featured),
     isDemo: Boolean(input.isDemo) || undefined,
+    isUnlisted: Boolean(input.isUnlisted) || undefined,
     city: input.city ?? "",
     provinceOrRegion: input.provinceOrRegion ?? "",
     country: input.country ?? "",

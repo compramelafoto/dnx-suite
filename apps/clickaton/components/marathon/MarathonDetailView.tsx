@@ -45,6 +45,9 @@ export function MarathonDetailView({
   return (
     <article>
       {marathon.isDemo ? <MarathonDemoBanner /> : null}
+      {!marathon.isDemo && marathon.isUnlisted ? (
+        <MarathonDemoBanner message="Edición de prueba oculta: accesible solo por link, no figura en el sitio. La inscripción es gratuita y sin valor comercial." />
+      ) : null}
       <MarathonHero
         marathon={marathon}
         capabilities={capabilities}

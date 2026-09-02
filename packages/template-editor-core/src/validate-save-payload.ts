@@ -3,6 +3,7 @@ import {
   isVariableUsableInForProduct,
   resolveTemplateProduct,
 } from "./resolve-template-product";
+import { getQrVariablesForProduct } from "./variable-catalog-product";
 
 export type TemplateV2SaveBlockType =
   | "BACKGROUND"
@@ -213,6 +214,24 @@ export function parseTemplateV2EditorPayload(body: unknown):
     const allowedPaths = ALLOWED_TARGET_PATHS[blockType];
     if (!allowedPaths.has(vb.targetPath)) {
       return { ok: false, error: `targetPath no permitido para bloque ${blockType}` };
+    }
+
+    /*
+     * El QR no encaja en el eje texto/imagen: lo que codifica no se dibuja como letras ni como
+     * una foto, es una dirección. Medirlo con esa vara rechazaba justamente la variable
+     * correcta —la que verifica al socio— por no estar marcada como usable en imágenes.
+     */
+    if (blockType === "QR") {
+      const esDireccionDeQr = getQrVariablesForProduct(
+        product === "unknown" ? "school" : product
+      ).some((v) => v.key === vb.variableKey);
+      if (!esDireccionDeQr) {
+        return {
+          ok: false,
+          error: `"${vb.variableKey}" no es una dirección de QR en este producto`,
+        };
+      }
+      continue;
     }
 
     const target: "TEXT" | "IMAGE" =

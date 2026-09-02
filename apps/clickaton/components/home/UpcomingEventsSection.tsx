@@ -16,7 +16,9 @@ import { marathonPath, marathonRegistrationPath } from "@/config/navigation";
 export async function UpcomingEventsSection() {
   const { upcoming } = homeContent;
   // Empty state solo cuando la consulta responde sin ediciones (no ante error de DB).
-  const editions = (await listPublicMarathons()).filter((m) => !m.isDemo);
+  const editions = (await listPublicMarathons()).filter(
+    (m) => !m.isDemo && !m.isUnlisted,
+  );
 
   return (
     <Section id={upcoming.id} tone="raised" aria-labelledby="upcoming-title">

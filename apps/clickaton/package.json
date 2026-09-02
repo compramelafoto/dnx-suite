@@ -82,6 +82,7 @@
     "seed:ux-staging-auth": "tsx scripts/seed-ux-staging-auth-fixtures.ts",
     "registrations:expire-holds": "tsx scripts/expire-registration-holds.ts",
     "test:content": "tsx --test lib/content/*.test.ts",
+    "test:public-marathons-visibility": "tsx --test data/public-marathons/unlisted-visibility.test.ts",
     "seed:clickaton-blog-taxonomy": "tsx scripts/seed-clickaton-blog-taxonomy.ts",
     "seed:pilot-edition": "tsx scripts/seed-pilot-edition-test.ts",
     "seed:argentina-2026": "tsx scripts/seed-argentina-2026-edition.ts",

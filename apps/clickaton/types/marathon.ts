@@ -211,6 +211,8 @@ export type PublicMarathon = {
   featured: boolean;
   /** Fixture técnico; no es una edición anunciada. */
   isDemo?: boolean;
+  /** Oculta: accesible por link directo, fuera de todo listado público. */
+  isUnlisted?: boolean;
   city: string;
   provinceOrRegion: string;
   country: string;

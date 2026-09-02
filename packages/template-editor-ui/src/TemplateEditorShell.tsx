@@ -62,6 +62,7 @@ import {
   resolveTemplateProduct,
   getInsertableImageVariablesForProduct,
   getQrVariablesForProduct,
+  editorResolvedVariablesForProduct,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -526,7 +527,7 @@ export function TemplateEditorShell({
       dispatch(
         setVariableBindings([
           ...s.variableBindings.filter((vb) => vb.blockId !== block.id),
-          { blockId: block.id, variableKey: qrDelProducto.key, targetPath: "value" },
+          { blockId: block.id, variableKey: qrDelProducto.key, targetPath: "variableKey" },
         ]),
       );
     }
@@ -549,6 +550,12 @@ export function TemplateEditorShell({
    * Se ata al insertarlo — un QR en blanco obliga a adivinar qué dato va adentro.
    */
   const qrDelProducto = getQrVariablesForProduct(producto)[0] ?? null;
+
+  /*
+   * Con qué se dibuja el lienzo mientras se diseña. Sale de la misma fuente que la vista previa,
+   * así que lo que se ve al diseñar y lo que se emite cuentan la misma historia.
+   */
+  const valoresDeMuestra = editorResolvedVariablesForProduct(producto);
 
 
 

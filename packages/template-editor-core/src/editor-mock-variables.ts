@@ -25,6 +25,11 @@ const clickatonFlat = createClickatonTemplateExampleData();
  * Valores de ejemplo en el lienzo del editor para que `{variables}` se vean resueltas
  * (school + clickaton; el catálogo UI se filtra por metadata.product).
  */
+import {
+  createExampleDataForProduct,
+  type TemplateProductId,
+} from "./resolve-template-product";
+
 export const TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES: Record<string, unknown> = {
   "branding.schoolLogoUrl": TEMPLATE_V2_EDITOR_SCHOOL_LOGO_PLACEHOLDER,
   "student.fullName": "María Gómez",
@@ -39,3 +44,23 @@ export const TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES: Record<string, unknown> = {
     Object.entries(clickatonFlat).filter(([k]) => k.includes("."))
   ),
 };
+
+/**
+ * Los valores de muestra del lienzo, según la plataforma.
+ *
+ * `TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES` era una lista fija con datos de escuela. En FotoOffice
+ * eso dejaba todo sin valor: el QR mostraba "Sin valor todavía" y los datos del socio salían en
+ * blanco mientras se diseñaba, aunque la variable estuviera bien elegida.
+ *
+ * Sale de la misma fuente que usa la vista previa, así que lo que se ve al diseñar y lo que se
+ * dibuja al emitir cuentan la misma historia.
+ */
+export function editorResolvedVariablesForProduct(
+  product: TemplateProductId | "unknown",
+): Record<string, unknown> {
+  return {
+    // Los de escuela se conservan: las plantillas viejas de CLF los siguen usando.
+    ...TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES,
+    ...createExampleDataForProduct(product),
+  };
+}
