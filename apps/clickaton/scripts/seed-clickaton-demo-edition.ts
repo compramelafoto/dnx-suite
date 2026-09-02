@@ -97,7 +97,7 @@ export async function seedClickatonDemoEdition() {
   const contestId = `demo-${DEMO_CONTEST_SLUG}`;
   let contestReady = false;
   try {
-  const contest = await prisma.fotorankContest.upsert({
+    await prisma.fotorankContest.upsert({
     where: { id: contestId },
     create: {
       id: contestId,
@@ -122,9 +122,9 @@ export async function seedClickatonDemoEdition() {
   });
 
   await prisma.fotorankContestCategory.upsert({
-    where: { contestId_slug: { contestId: contest.id, slug: "general" } },
+      where: { contestId_slug: { contestId, slug: "general" } },
     create: {
-      contestId: contestReady ? contestId : null,
+        contest: { connect: { id: contestId } },
       name: "General",
       slug: "general",
       status: "ACTIVE",
@@ -220,6 +220,14 @@ export async function seedClickatonDemoEdition() {
     },
   });
 
+  // 4b. Nada pago en la demo. Otros mecanismos (packs) dan de alta entradas por
+  // edición automáticamente; si alguna quedara activa, un invitado podría llegar a
+  // un cobro real de Mercado Pago desde una edición de prueba.
+  const desactivadas = await prisma.clickatonTicketType.updateMany({
+    where: { editionId: edition.id, code: { not: "DEMO_FREE" }, isActive: true },
+    data: { isActive: false },
+  });
+
   // 5. Configuración de subida: ventanas por consigna, sin reveal global.
   const uploadConfig = {
     uploadsEnabled: true,
@@ -288,9 +296,10 @@ export async function seedClickatonDemoEdition() {
     editionId: edition.id,
     slug: edition.slug,
     organizationId: organization.id,
-    contestId: contest.id,
+    contestId: contestReady ? contestId : null,
     venueId: venue.id,
     ticketTypeId: ticket.id,
+    entradasPagasDesactivadas: desactivadas.count,
     prompts,
     publicUrl: `https://maratonfotografica.com/maratones/${edition.slug}`,
   };
