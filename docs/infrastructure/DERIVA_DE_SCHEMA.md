@@ -55,6 +55,12 @@ El script imprime el `ALTER TABLE … ADD COLUMN IF NOT EXISTS` sugerido para ca
 faltante. **No ejecuta nada**: se revisa y se aplica a mano. Cuando una columna es `NOT NULL`
 sin default, la marca con `REVISAR`, porque agregarla así revienta si la tabla ya tiene filas.
 
+Cuando una columna faltante usa un tipo enum que esa base tampoco tiene, el script emite
+primero el `CREATE TYPE` idempotente correspondiente y lo dice explícitamente ("van PRIMERO").
+Sin eso el `ALTER` falla: pasa en las bases que nunca corrieron la migración que creó el tipo.
+Infospot producción, por ejemplo, no tiene ninguno de los 9 enums que sus columnas faltantes
+necesitan.
+
 Sale con código 1 si hay deriva, 0 si está todo al día.
 
 ## Bases que comparten este schema

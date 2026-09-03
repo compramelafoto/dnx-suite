@@ -29,6 +29,8 @@ type ColumnaEsperada = {
   tipoSql: string;
   requerida: boolean;
   defaultSql: string | null;
+  /** Nombre del tipo enum si la columna usa uno; la base puede no tenerlo creado. */
+  enumType: string | null;
 };
 
 function parseArgs(argv: string[]): Target[] {
@@ -131,11 +133,26 @@ function columnasEsperadas(): Map<string, ColumnaEsperada[]> {
         tipoSql: tipoSql(field, enums),
         requerida: field.isRequired && !field.isList,
         defaultSql: defaultSql(field, enums),
+        enumType: enums.has(field.type) ? field.type : null,
       });
     }
     salida.set(tabla, columnas);
   }
   return salida;
+}
+
+/**
+ * CREATE TYPE idempotente. Sin esto, el ALTER de una columna enum falla en las bases
+ * que nunca corrieron la migración que creó el tipo.
+ */
+function createTypeSql(nombreEnum: string): string | null {
+  const def = Prisma.dmmf.datamodel.enums.find((e) => (e.dbName ?? e.name) === nombreEnum);
+  if (!def) return null;
+  const valores = def.values.map((v) => `'${(v.dbName ?? v.name).replace(/'/g, "''")}'`).join(", ");
+  return (
+    `DO $$ BEGIN CREATE TYPE "${nombreEnum}" AS ENUM (${valores}); ` +
+    `EXCEPTION WHEN duplicate_object THEN NULL; END $$;`
+  );
 }
 
 function alterSql(tabla: string, col: ColumnaEsperada): string {
@@ -169,6 +186,14 @@ async function revisarBase(target: Target, esperadas: Map<string, ColumnaEsperad
     `;
     const conDatos = new Set(tamanos.filter((t) => t.filas > 0).map((t) => t.relname));
 
+    const tiposEnum = await prisma.$queryRaw<Array<{ typname: string }>>`
+      SELECT t.typname
+      FROM pg_type t
+      JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'public' AND t.typtype = 'e'
+    `;
+    const enumsPresentes = new Set(tiposEnum.map((t) => t.typname));
+
     const reales = new Map<string, Set<string>>();
     for (const f of filas) {
       let cols = reales.get(f.table_name);
@@ -193,7 +218,19 @@ async function revisarBase(target: Target, esperadas: Map<string, ColumnaEsperad
       }
     }
 
-    return { urgentes, latentes, tablasAusentes, tablasPresentes: esperadas.size - tablasAusentes };
+    // Tipos enum que hacen falta para que los ALTER de arriba no revienten.
+    const enumsFaltantes = new Set<string>();
+    for (const { col } of [...urgentes, ...latentes]) {
+      if (col.enumType && !enumsPresentes.has(col.enumType)) enumsFaltantes.add(col.enumType);
+    }
+
+    return {
+      urgentes,
+      latentes,
+      enumsFaltantes: [...enumsFaltantes].sort(),
+      tablasAusentes,
+      tablasPresentes: esperadas.size - tablasAusentes,
+    };
   } finally {
     await prisma.$disconnect();
   }
@@ -226,7 +263,7 @@ async function main() {
       continue;
     }
 
-    const { urgentes, latentes, tablasPresentes, tablasAusentes } = resultado;
+    const { urgentes, latentes, enumsFaltantes, tablasPresentes, tablasAusentes } = resultado;
     console.log(`── ${target.label}`);
     console.log(`   ${tablasPresentes} tablas del schema presentes, ${tablasAusentes} no usadas por esta app.`);
 
@@ -236,6 +273,15 @@ async function main() {
     }
 
     hayDeriva = true;
+
+    if (enumsFaltantes.length > 0) {
+      console.log(`   · ${enumsFaltantes.length} tipo(s) enum que esta base no tiene. Van PRIMERO:\n`);
+      for (const nombre of enumsFaltantes) {
+        const sql = createTypeSql(nombre);
+        if (sql) console.log(`     ${sql}`);
+      }
+      console.log("");
+    }
 
     if (urgentes.length > 0) {
       console.log(`   ✗ URGENTE — ${urgentes.length} columna(s) faltante(s) en tablas CON DATOS.`);
