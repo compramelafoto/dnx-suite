@@ -69,7 +69,7 @@ const CHIPS: Record<
 > = {
   PENDIENTE: { variant: "neutral", label: "Pendiente" },
   YA_LA_TENGO: { variant: "brand", label: "Ya la tengo" },
-  SIN_CONFIRMAR: { variant: "warning", label: "Sin confirmar" },
+  SIN_CONFIRMAR: { variant: "warning", label: "Sin guardar" },
   ENVIADA: { variant: "success", label: "Enviada" },
   RECHAZADA: { variant: "danger", label: "No admitida" },
 };
@@ -290,8 +290,8 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
           }`}
         >
           {props.entregaAbierta
-            ? `Te ${sinConfirmar === 1 ? "queda 1 foto subida" : `quedan ${sinConfirmar} fotos subidas`} sin confirmar. Si no ${sinConfirmar === 1 ? "la confirmás" : "las confirmás"} antes del cierre, no ${sinConfirmar === 1 ? "compite" : "compiten"}.`
-            : `${sinConfirmar === 1 ? "Quedó 1 foto subida" : `Quedaron ${sinConfirmar} fotos subidas`} sin confirmar. No ${sinConfirmar === 1 ? "entró" : "entraron"} al concurso.`}
+            ? `${sinConfirmar === 1 ? "Una foto se subió" : `${sinConfirmar} fotos se subieron`} pero la entrega no llegó a guardarse. Abrí ${sinConfirmar === 1 ? "esa consigna" : "esas consignas"} y tocá “Guardar la entrega”: hasta entonces no ${sinConfirmar === 1 ? "compite" : "compiten"}.`
+            : `${sinConfirmar === 1 ? "Quedó 1 foto subida" : `Quedaron ${sinConfirmar} fotos subidas`} sin guardar la entrega. No ${sinConfirmar === 1 ? "entró" : "entraron"} al concurso.`}
         </p>
       ) : null}
 

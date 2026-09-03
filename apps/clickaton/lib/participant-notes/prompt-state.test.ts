@@ -15,7 +15,7 @@ test("una foto confirmada está enviada", () => {
   assert.equal(estaResuelta(e), true);
 });
 
-test("una foto subida sin confirmar no cuenta como enviada", () => {
+test("una foto subida cuya entrega no se guardó no cuenta como enviada", () => {
   for (const s of ["PENDING_CONFIRMATION", "UPLOAD_PENDING", "PROCESSING"]) {
     const e = resolverEstadoConsigna({ submissionStatus: s });
     assert.equal(e, "SIN_CONFIRMAR", s);

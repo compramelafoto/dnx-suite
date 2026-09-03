@@ -17,7 +17,7 @@ export function resolverEstadoConsigna(input: {
   const s = input.submissionStatus;
   if (s === "CONFIRMED") return "ENVIADA";
   if (s === "REJECTED") return "RECHAZADA";
-  // Subida pero sin confirmar: no compite.
+  // Subida pero sin que se guardara la entrega: no compite.
   if (s === "PENDING_CONFIRMATION" || s === "UPLOAD_PENDING" || s === "PROCESSING") {
     return "SIN_CONFIRMAR";
   }
@@ -25,7 +25,7 @@ export function resolverEstadoConsigna(input: {
   return "PENDIENTE";
 }
 
-/** Una foto subida que todavía no compite porque falta confirmarla. */
+/** Una foto subida cuya entrega no llegó a guardarse: todavía no compite. */
 export function estaSinConfirmar(estado: EstadoConsigna): boolean {
   return estado === "SIN_CONFIRMAR";
 }
