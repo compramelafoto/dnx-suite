@@ -49,6 +49,7 @@
     "test:partners-analytics": "tsx --test src/partners-analytics.test.ts",
     "test:welcome-context": "tsx --test src/partners-welcome-context-clients.test.ts",
     "db:studio": "prisma studio",
+    "db:drift": "tsx scripts/check-schema-drift.mts",
     "audit:migration-state": "tsx scripts/audit-migration-state.mts",
     "audit:schema-baseline": "tsx scripts/verify-schema-baseline.mts",
     "audit:gap-objects": "tsx scripts/verify-gap-objects.mts",
