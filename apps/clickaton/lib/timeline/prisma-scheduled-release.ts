@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/admin/db";
+import { releaseAllPromptsForEdition } from "@/lib/timeline/prisma-timeline";
 import {
   buildDuePromptsWhere,
   type PromptReleaseStore,
@@ -16,11 +17,8 @@ export function createPrismaPromptReleaseStore(): PromptReleaseStore {
         take: limit,
       });
     },
-    async markReleased({ promptId, releasedAt }) {
-      await prisma.clickatonPrompt.update({
-        where: { id: promptId },
-        data: { status: "RELEASED", releasedAt },
-      });
+    async markEditionReleased({ editionId, releasedAt }) {
+      return releaseAllPromptsForEdition({ editionId, releasedAt });
     },
   };
 }

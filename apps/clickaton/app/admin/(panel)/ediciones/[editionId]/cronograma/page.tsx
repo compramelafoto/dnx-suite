@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
 import { ConfirmSubmitButton } from "@/components/admin/ConfirmSubmitButton";
+import { TimelineBars, type TramoUI } from "@/components/admin/timeline/TimelineBars";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -16,6 +17,7 @@ import {
   updateTimelineEventAction,
 } from "@/lib/timeline/admin-actions";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
+import { construirTramos, validarTramo } from "@/lib/timeline/ui/timeline-bars";
 import {
   formatTimelineDateTime,
   presentAuditAction,
@@ -51,6 +53,48 @@ export default async function EditionTimelineAdminPage({ params }: Props) {
   const draft = timelines.find((t) => t.status === "DRAFT") ?? null;
   const active = timelines.find((t) => t.status === "ACTIVE") ?? null;
   const temporal = await getEditionTemporalState(editionId);
+
+  // Los horarios como barras. Un tramo agrupa el par de eventos que ya existe
+  // (apertura y cierre), así que el motor de cronograma no cambia.
+  const COLORES: Record<string, string> = {
+    inscripciones: "var(--ck-brand-blue)",
+    acreditacion: "var(--ck-brand-violet)",
+    consignas: "var(--ck-brand-primary)",
+    captura: "var(--ck-brand-primary)",
+    subida: "var(--ck-brand-green)",
+    jurado: "var(--ck-brand-violet)",
+    resultados: "var(--ck-brand-blue)",
+  };
+
+  /** ISO local: mandar UTC al navegador correría el horario. */
+  function aIsoLocal(d: Date | null): string | null {
+    if (!d) return null;
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  function aTramosUi(eventos: Array<{ id: string; eventType: string; startsAt: Date | null }>) {
+    const tramos = construirTramos(eventos);
+    return tramos.map<TramoUI>((t) => ({
+      id: t.id,
+      nombre: t.nombre,
+      ayuda: t.ayuda,
+      desdeEventId: t.desdeEventId,
+      hastaEventId: t.hastaEventId,
+      desde: aIsoLocal(t.desde),
+      hasta: aIsoLocal(t.hasta),
+      esHito: t.esHito,
+      color: COLORES[t.id] ?? "var(--ck-brand-primary)",
+      problema: validarTramo(t, tramos),
+    }));
+  }
+
+  const tramosDeBorrador = draft ? aTramosUi(draft.events) : [];
+  const tramosActivos = active ? aTramosUi(active.events) : [];
+  const anclaDia =
+    tramosDeBorrador.find((t) => t.id === "captura")?.desde ??
+    tramosActivos.find((t) => t.id === "captura")?.desde ??
+    null;
   const publishedStatus = presentTimelineVersionStatus(temporal.timelineStatus, {
     paused: temporal.paused,
   });
@@ -273,8 +317,16 @@ export default async function EditionTimelineAdminPage({ params }: Props) {
               </form>
             </div>
           </div>
+          <TimelineBars
+            editionId={editionId}
+            tramos={tramosDeBorrador}
+            editable
+            anclaDia={anclaDia}
+          />
           <p className="text-sm text-ck-text-secondary">
-            Si dejás vacío el inicio, se mostrará como “Horario a confirmar”.
+            Debajo están las mismas fechas en campos: barras y campos son lo mismo, editás donde
+            te resulte más cómodo. Si dejás vacío el inicio, se mostrará como “Horario a
+            confirmar”.
           </p>
           <ul className="space-y-4">
             {draft.events.map((ev) => {
@@ -383,6 +435,13 @@ export default async function EditionTimelineAdminPage({ params }: Props) {
             Esta versión está en uso y no se edita aquí. Para mover actividades futuras, usá
             la reprogramación (crea un nuevo borrador).
           </p>
+
+          <TimelineBars
+            editionId={editionId}
+            tramos={tramosActivos}
+            editable={false}
+            anclaDia={anclaDia}
+          />
 
           {/* Desktop-ish list */}
           <ul className="hidden space-y-2 md:block">

@@ -10915,6 +10915,7 @@ model ClickatonEdition {
   capabilityGrants           ClickatonEditionCapabilityGrant[]
   uploadConfig               ClickatonEditionUploadConfig?
   photoSubmissions           ClickatonPhotoSubmission[]
+  promptNotes                ClickatonPromptNote[]
   accreditationConfig        ClickatonEditionAccreditationConfig?
   accreditationDevices       ClickatonAccreditationDevice[]
   accreditationAudits        ClickatonAccreditationAudit[]
@@ -11385,6 +11386,7 @@ model ClickatonRegistration {
   participantCards                   ClickatonParticipantCard[]
   mediaAssets                        DnxMediaAsset[]
   photoSubmissions                   ClickatonPhotoSubmission[]
+  promptNotes                        ClickatonPromptNote[]
 
   @@unique([editionId, visibleCode])
   @@unique([editionId, sequenceNumber])
@@ -11579,6 +11581,7 @@ model ClickatonPrompt {
   releasedBy            User?                      @relation("ClickatonPromptReleaser", fields: [releasedByUserId], references: [id], onDelete: SetNull)
   assignedFromLibraryBy User?                      @relation("ClickatonPromptLibraryAssigner", fields: [assignedFromLibraryByUserId], references: [id], onDelete: SetNull)
   photoSubmissions      ClickatonPhotoSubmission[]
+  promptNotes           ClickatonPromptNote[]
 
   @@unique([editionId, sequence])
   @@index([editionId, status])
@@ -11711,6 +11714,32 @@ model ClickatonPhotoSubmission {
   @@index([fotorankEntryId])
   @@index([sha256])
   @@index([userId])
+}
+
+/// Cuaderno privado del participante: una fila por consigna.
+/// Nunca se expone a la organización, al jurado ni a FotoRank.
+model ClickatonPromptNote {
+  id              String    @id @default(cuid())
+  editionId       String
+  registrationId  String
+  promptId        String
+  /// Texto libre. Máximo 2000 caracteres, validado en el servidor.
+  body            String    @default("")
+  /// El check "Ya la tengo": la resolvió en cámara aunque todavía no haya subido.
+  solved          Boolean   @default(false)
+  solvedAt        DateTime?
+  /// Hora del dispositivo que escribió. Resuelve el conflicto entre el teléfono
+  /// en la calle y la computadora en casa: gana la escritura más reciente.
+  clientUpdatedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  prompt       ClickatonPrompt       @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([registrationId, promptId])
+  @@index([editionId])
 }
 
 model ClickatonPhotoSubmissionJob {

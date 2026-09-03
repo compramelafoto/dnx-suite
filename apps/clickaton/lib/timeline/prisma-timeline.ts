@@ -1,9 +1,10 @@
-import { prisma } from "@/lib/admin/db";
+import { Prisma, prisma } from "@/lib/admin/db";
 import type { EditionClock } from "./clock";
 import { DEFAULT_EDITION_TIMEZONE, systemClock } from "./clock";
 import { buildEditionTemporalState, shiftFutureEvents } from "./engine";
 import { reprogramNotificationsAfterShift } from "./notifications";
 import { toPromptPublicDto } from "./prompt-dto";
+import { isReleasablePrompt, resolvePromptGate, type PromptGate } from "./prompt-gate";
 import type { PromptRecord, TimelineEventView } from "./types";
 
 const BASE_EVENTS: Array<{
@@ -149,17 +150,100 @@ export async function getEditionTemporalState(editionId: string, clock: EditionC
   });
 }
 
+/**
+ * Portón único de apertura de consignas de la edición.
+ *
+ * Todas las consignas se habilitan en el mismo instante: no hay apertura
+ * progresiva. Ver `lib/timeline/prompt-gate.ts`.
+ */
+export async function getEditionPromptGate(
+  editionId: string,
+  options?: { clock?: EditionClock; prompts?: Array<{ status: string; releasedAt: Date | null; captureStartsAt: Date | null }> },
+): Promise<PromptGate> {
+  const clock = options?.clock ?? systemClock();
+  const [edition, active, prompts] = await Promise.all([
+    prisma.clickatonEdition.findUnique({
+      where: { id: editionId },
+      select: { startAt: true },
+    }),
+    getActiveTimeline(editionId),
+    options?.prompts
+      ? Promise.resolve(options.prompts)
+      : prisma.clickatonPrompt.findMany({
+          where: { editionId },
+          select: { status: true, releasedAt: true, captureStartsAt: true },
+        }),
+  ]);
+
+  return resolvePromptGate({
+    prompts,
+    events: (active?.events ?? []).map(mapEvent),
+    editionStartAt: edition?.startAt ?? null,
+    clock,
+  });
+}
+
+/**
+ * Deja la base coherente con el portón: si ya abrió, todas las consignas
+ * quedan RELEASED con el MISMO `releasedAt`. Idempotente.
+ *
+ * Importante para la carga de fotos: las ventanas efectivas se calculan con
+ * `releasedAt`, así que la base no puede quedar atrás de lo que ve la persona.
+ */
+export async function releaseAllPromptsForEdition(input: {
+  editionId: string;
+  releasedAt: Date;
+  actorUserId?: number | null;
+}): Promise<number> {
+  const alcance = {
+    editionId: input.editionId,
+    status: { in: ["READY", "LOCKED"] },
+    releasedAt: null,
+  } satisfies Prisma.ClickatonPromptWhereInput;
+  const cambios = {
+    status: "RELEASED",
+    releasedAt: input.releasedAt,
+    releasedByUserId: input.actorUserId ?? null,
+  } satisfies Prisma.ClickatonPromptUncheckedUpdateManyInput;
+
+  // La captura no puede empezar después de que la consigna sea visible: si la
+  // planificación quedó más tarde (o vacía), se adelanta al instante de apertura.
+  const [adelantadas, respetadas] = await prisma.$transaction([
+    prisma.clickatonPrompt.updateMany({
+      where: {
+        ...alcance,
+        OR: [{ captureStartsAt: null }, { captureStartsAt: { gt: input.releasedAt } }],
+      },
+      data: { ...cambios, captureStartsAt: input.releasedAt },
+    }),
+    prisma.clickatonPrompt.updateMany({
+      where: { ...alcance, captureStartsAt: { lte: input.releasedAt } },
+      data: cambios,
+    }),
+  ]);
+  return adelantadas.count + respetadas.count;
+}
+
+async function syncPromptsWithGate(editionId: string, gate: PromptGate): Promise<void> {
+  if (!gate.isOpen || !gate.opensAt) return;
+  await releaseAllPromptsForEdition({ editionId, releasedAt: gate.opensAt });
+}
+
 export async function listPromptPublicDtos(
   editionId: string,
   options?: { clock?: EditionClock; participantPaid?: boolean },
 ) {
   const clock = options?.clock ?? systemClock();
+  const rows = await prisma.clickatonPrompt.findMany({
+    where: { editionId },
+    orderBy: { sequence: "asc" },
+  });
+  const releasable = rows.filter(isReleasablePrompt);
+  const gate = await getEditionPromptGate(editionId, { clock, prompts: rows });
+
   if (!options?.participantPaid) {
-    // Visitante: solo conteo LOCKED sin secretos.
-    const count = await prisma.clickatonPrompt.count({
-      where: { editionId, status: { not: "CANCELLED" } },
-    });
-    return Array.from({ length: count }, (_, i) =>
+    // Visitante: solo conteo LOCKED sin secretos, con la hora pública de apertura.
+    return releasable.map((_, i) =>
       toPromptPublicDto(
         {
           id: `locked-${i}`,
@@ -172,7 +256,7 @@ export async function listPromptPublicDtos(
           imageAssetId: null,
           videoAssetId: null,
           audioAssetId: null,
-          captureStartsAt: null,
+          captureStartsAt: gate.opensAt,
           captureEndsAt: null,
           uploadEndsAt: null,
           releaseMode: "SCHEDULED",
@@ -180,41 +264,16 @@ export async function listPromptPublicDtos(
           releasedAt: null,
           contentVersion: 1,
         },
-        { clock },
+        { clock, gate: { ...gate, isOpen: false } },
       ),
     );
   }
 
-  const rows = await prisma.clickatonPrompt.findMany({
-    where: { editionId },
-    orderBy: { sequence: "asc" },
-  });
-  return rows.map((r) =>
-    toPromptPublicDto(r as PromptRecord, { clock, showOpensAt: true }),
+  await syncPromptsWithGate(editionId, gate);
+
+  return releasable.map((r) =>
+    toPromptPublicDto(r as PromptRecord, { clock, showOpensAt: true, gate }),
   );
-}
-
-export async function releasePromptManual(input: {
-  promptId: string;
-  actorUserId: number;
-}) {
-  const prompt = await prisma.clickatonPrompt.findUniqueOrThrow({
-    where: { id: input.promptId },
-  });
-  if (prompt.status === "RELEASED") {
-    return prompt; // idempotente
-  }
-  if (prompt.status === "CANCELLED") throw new Error("PROMPT_CANCELLED");
-
-  return prisma.clickatonPrompt.update({
-    where: { id: input.promptId },
-    data: {
-      status: "RELEASED",
-      releasedAt: new Date(),
-      releasedByUserId: input.actorUserId,
-      captureStartsAt: prompt.captureStartsAt ?? new Date(),
-    },
-  });
 }
 
 /**

@@ -12,6 +12,7 @@ import {
 } from "@/lib/admin/auth";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { marathonRegistrationPath } from "@/config/navigation";
+import { participantLivePath } from "@/lib/participant-live/routes";
 import {
   presentParticipantRegistration,
   presentPaymentStatus,
@@ -154,13 +155,22 @@ export default async function MiCuentaPage() {
 
                     <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap">
                       {reg.status === "CONFIRMED" ? (
-                        <Button
-                          href={`/mi-cuenta/inscripciones/${reg.id}`}
-                          variant="primary"
-                          className="min-h-11 w-full sm:w-auto"
-                        >
-                          Ver QR y credencial
-                        </Button>
+                        <>
+                          <Button
+                            href={participantLivePath(reg.id)}
+                            variant="primary"
+                            className="min-h-11 w-full sm:w-auto"
+                          >
+                            Mis consignas
+                          </Button>
+                          <Button
+                            href={`/mi-cuenta/inscripciones/${reg.id}`}
+                            variant="secondary"
+                            className="min-h-11 w-full sm:w-auto"
+                          >
+                            Ver QR y credencial
+                          </Button>
+                        </>
                       ) : (
                         <Button
                           href={`${marathonRegistrationPath(reg.edition.slug)}/resumen/${reg.id}`}

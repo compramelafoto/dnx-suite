@@ -1,5 +1,6 @@
 import type { EditionClock } from "./clock";
 import { systemClock } from "./clock";
+import type { PromptGate } from "./prompt-gate";
 import type { PromptPublicDto, PromptRecord } from "./types";
 
 function iso(d: Date | null | undefined): string | null {
@@ -12,7 +13,7 @@ function iso(d: Date | null | undefined): string | null {
  */
 export function toPromptPublicDto(
   prompt: PromptRecord,
-  options?: { clock?: EditionClock; showOpensAt?: boolean },
+  options?: { clock?: EditionClock; showOpensAt?: boolean; gate?: PromptGate },
 ): PromptPublicDto {
   const clock = options?.clock ?? systemClock();
   const serverNow = clock.now().toISOString();
@@ -38,15 +39,25 @@ export function toPromptPublicDto(
     };
   }
 
-  const opensAt = prompt.releasedAt ?? prompt.captureStartsAt;
-  const manuallyReleased = prompt.status === "RELEASED" || prompt.releasedAt != null;
-  const scheduleOpen =
-    opensAt != null &&
-    opensAt.getTime() <= now &&
-    (prompt.status === "READY" || prompt.status === "LOCKED" || prompt.status === "RELEASED");
+  const gate = options?.gate;
+  const opensAt = gate ? gate.opensAt : (prompt.releasedAt ?? prompt.captureStartsAt);
 
-  // DRAFT never reveals. LOCKED/READY stay opaque until schedule or manual release.
-  const isOpen = manuallyReleased || (prompt.status !== "DRAFT" && scheduleOpen);
+  let isOpen: boolean;
+  if (gate) {
+    // Apertura conjunta: manda el portón de la edición, nunca la consigna suelta.
+    // DRAFT sigue sin revelarse aunque el portón esté abierto.
+    isOpen = gate.isOpen && prompt.status !== "DRAFT";
+  } else {
+    const promptOpensAt = prompt.releasedAt ?? prompt.captureStartsAt;
+    const manuallyReleased = prompt.status === "RELEASED" || prompt.releasedAt != null;
+    const scheduleOpen =
+      promptOpensAt != null &&
+      promptOpensAt.getTime() <= now &&
+      (prompt.status === "READY" || prompt.status === "LOCKED" || prompt.status === "RELEASED");
+
+    // DRAFT never reveals. LOCKED/READY stay opaque until schedule or manual release.
+    isOpen = manuallyReleased || (prompt.status !== "DRAFT" && scheduleOpen);
+  }
 
   if (!isOpen || prompt.status === "DRAFT") {
     return {

@@ -104,8 +104,10 @@ export default async function EditionPromptsAdminPage({ params }: Props) {
           </li>
         </ul>
         <p className="text-sm text-ck-text-secondary">
-          Guardar una consigna no la hace visible. Publicar ahora la muestra de inmediato.
-          La apertura programada depende del cronograma y del estado.
+          Las consignas se abren todas juntas, nunca de a una: publicar muestra de inmediato
+          todas las consignas de la edición. La apertura programada también es conjunta y la
+          define el cronograma (Liberación de consignas o, si no está cargada, el inicio
+          oficial).
         </p>
         {/* LEGAL_REVIEW */}
         <p className="text-xs text-ck-text-muted">
@@ -205,8 +207,8 @@ export default async function EditionPromptsAdminPage({ params }: Props) {
               Guardar cambios
             </Button>
             <p className="text-xs text-ck-text-muted">
-              Guardar no publica la consigna. Para mostrarlas ya, usá “Publicar ahora” en la
-              ficha correspondiente.
+              Guardar no publica nada. Para mostrarlas ya, usá “Publicar todas ahora”: se
+              habilitan todas las consignas de la edición al mismo tiempo.
             </p>
           </div>
         </form>
@@ -275,14 +277,15 @@ export default async function EditionPromptsAdminPage({ params }: Props) {
                           variant="primary"
                           className="min-h-11 w-full sm:w-auto"
                           confirmMessage={[
-                            "¿Publicar esta consigna ahora?",
+                            "¿Publicar TODAS las consignas de esta edición ahora?",
                             "",
-                            "Los participantes podrán ver el título y las indicaciones de inmediato.",
+                            "Las consignas se habilitan siempre juntas: no se puede publicar una sola.",
+                            "Los participantes verán el título y las indicaciones de todas, de inmediato.",
                             "No espera la fecha programada del cronograma.",
                             "Esta acción no elimina entregas existentes.",
                           ].join("\n")}
                         >
-                          Publicar ahora
+                          Publicar todas ahora
                         </ConfirmSubmitButton>
                       </form>
                     ) : (
