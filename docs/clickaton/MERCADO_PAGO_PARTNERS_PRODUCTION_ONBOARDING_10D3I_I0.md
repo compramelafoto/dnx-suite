@@ -32,6 +32,12 @@ Código I0: `packages/payments/src/partner-onboarding/`.
 
 **Estado: RESUELTA EN I1 — OPCIÓN B (CUENTA EXCLUSIVA DE CLICKATÓN)**
 
+> ⚠️ **SUPERADO.** La cuenta exclusiva nunca se creó. El collector real de producción es
+> `dnxfotografia@gmail.com` (`providerUserId 97484805`), fijado el 2026-07-31 en
+> [`CLICKATON_REGISTRATION_SALES_LAUNCH.md`](./CLICKATON_REGISTRATION_SALES_LAUNCH.md).
+> Y desde el 2026-09-03 el Split 1:N de toda la suite va por una aplicación centralizada:
+> [`../payments/mp-split-1n-mercadopago-confirmations.md`](../payments/mp-split-1n-mercadopago-confirmations.md).
+
 Detalle operativo: `docs/clickaton/MERCADO_PAGO_OWNER_PRODUCTION_CONNECTION_10D3I_I1.md`.
 
 ### Hechos (histórico I0)

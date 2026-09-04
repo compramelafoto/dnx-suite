@@ -174,6 +174,41 @@ describe("orders mapper", () => {
     assert.equal(sum, 10_001n);
   });
 
+  /**
+   * Confirmado por Mercado Pago (respuesta oficial de homologación):
+   * `items[]` va en el nivel superior del body; `additional_info.items` está
+   * deprecado para Orders API. Este test falla si alguien reintroduce el nodo.
+   */
+  it("items[] va top-level y el payload nunca contiene additional_info.items", () => {
+    const total = money("ARS", 250_000n);
+    const req = buildMercadoPagoSplitOrderRequest({
+      externalReference: "dnx-order-items-toplevel",
+      total,
+      amountType: "fixed",
+      deviceSessionId: TEST_DEVICE_SESSION_ID,
+      payerEmail: "test_buyer@testuser.com",
+      statementDescriptor: "DNX",
+      items: [
+        singleIntangibleItem({ title: "Item intangible A", total: money("ARS", 150_000n), categoryId: "others" }),
+        singleIntangibleItem({ title: "Item intangible B", total: money("ARS", 100_000n), categoryId: "others" }),
+      ],
+      paymentToken: "TEST_TOKEN",
+      paymentMethodId: "visa",
+      entries: [
+        { receiverType: "owner", receiverId: FAKE_OWNER_USER_ID, amount: money("ARS", 250_000n) },
+      ],
+    });
+
+    assert.ok(Array.isArray(req.body.items), "items debe ser un array top-level");
+    assert.equal(req.body.items?.length, 2);
+    assert.equal(req.body.items?.[0]?.category_id, "others");
+    assert.equal(req.body.additional_info, undefined);
+
+    // Serializado completo: ningún additional_info en ningún nivel del payload.
+    const serialized = JSON.stringify(req.body);
+    assert.equal(serialized.includes("additional_info"), false);
+  });
+
   it("mapMercadoPagoOrderStatus maps processed+accredited", () => {
     assert.equal(mapMercadoPagoOrderStatus("processed", "accredited"), "PROCESSED_ACCREDITED");
   });

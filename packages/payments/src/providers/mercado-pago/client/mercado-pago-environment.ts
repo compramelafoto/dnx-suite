@@ -9,7 +9,12 @@ export interface MercadoPagoProviderConfig {
   publicKey?: string;
   baseUrl: string;
   applicationId?: string;
-  integratorId?: string;
+  /**
+   * Etiqueta de plataforma, sólo para el User-Agent de nuestras requests.
+   * No se envía a Mercado Pago como identificador: `integrator_id` y
+   * `platform_id` fueron descartados por MP para este caso (ticket IXFS-16376,
+   * 2026-09-03). El producto de origen se distingue por `external_reference`.
+   */
   platformId?: string;
   requestTimeoutMs: number;
   maxRetries: number;
@@ -62,7 +67,6 @@ export function createMercadoPagoProviderConfig(
     ...(partial.allowProductionWrites ? { allowProductionWrites: true } : {}),
     ...(partial.publicKey ? { publicKey: partial.publicKey } : {}),
     ...(partial.applicationId ? { applicationId: partial.applicationId } : {}),
-    ...(partial.integratorId ? { integratorId: partial.integratorId } : {}),
     ...(partial.platformId ? { platformId: partial.platformId } : {}),
   };
 }

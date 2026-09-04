@@ -14,7 +14,23 @@
 
 ## 1. Decisión owner (resuelta)
 
-**OPCIÓN B — CUENTA MERCADO PAGO EXCLUSIVA DE CLICKATÓN**
+> ### ⚠️ SUPERADO — no usar esta sección como referencia
+>
+> Lo que sigue quedó **obsoleto en dos pasos**:
+>
+> 1. **2026-07-31 — la cuenta.** El launch gate de inscripciones fijó como collector real a
+>    `dnxfotografia@gmail.com` (`providerUserId 97484805`, PA canónico `pa_ba733fa7a35f4326`).
+>    **No** se creó una cuenta exclusiva de Clickatón. Lo dedicado terminó siendo la
+>    *aplicación*, no la *cuenta*.
+>    Ver [`CLICKATON_REGISTRATION_SALES_LAUNCH.md`](./CLICKATON_REGISTRATION_SALES_LAUNCH.md) §"Identidades".
+> 2. **2026-09-03 — la aplicación.** Se decidió centralizar el flujo Split 1:N de toda la suite
+>    en una sola aplicación. La app dedicada de Clickatón deja de ser el camino para Split.
+>    Ver [`../payments/mp-split-1n-mercadopago-confirmations.md`](../payments/mp-split-1n-mercadopago-confirmations.md).
+>
+> El resto del documento (hosts, redirects, notification URLs, gates de autorización manual)
+> **sigue siendo válido** y describe lo que efectivamente se construyó.
+
+**OPCIÓN B — CUENTA MERCADO PAGO EXCLUSIVA DE CLICKATÓN** *(superada — ver aviso arriba)*
 
 - No personal de Daniel / Rodrigo / Tamara
 - No DNX Estudio operativo
@@ -32,6 +48,11 @@ Daniel mantiene roles separados:
 ## 2. Developer App
 
 **Decisión:** aplicación Mercado Pago **dedicada a Clickatón** (no reutilizar CLF).
+
+> **Superado el 2026-09-03 para Split 1:N.** El flujo Checkout API + Orders + Split 1:N se
+> centraliza en una única aplicación de la suite. Las variables `CLICKATON_MP_*` de abajo
+> siguen vigentes para lo que ya está construido y en uso (OAuth owner, Checkout Pro), pero
+> **no** son el camino para Split.
 
 ### Variables (nunca en Git)
 

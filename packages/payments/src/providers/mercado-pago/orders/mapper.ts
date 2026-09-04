@@ -10,6 +10,11 @@ import type {
   MpOrderResponse,
   MpOrderAmountType,
 } from "./contracts.js";
+import {
+  buildMercadoPagoAdditionalInfoPayer,
+  buildMercadoPagoPayer,
+  type OrderPayerProfile,
+} from "./payer-profile.js";
 import type { SplitOrderEntry } from "./validator.js";
 import type { PartnerConsentEvidence } from "./consent-evidence.js";
 import type { OrderItemInput } from "./order-items.js";
@@ -150,8 +155,8 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
   /** Required by MP Orders when paymentToken is set (e.g. "visa"). */
   paymentMethodId?: string;
   installments?: number;
-  integratorId?: string;
-  platformId?: string;
+  /** Señales antifraude opcionales del pagador (checklist IXFS-16376). */
+  payerProfile?: OrderPayerProfile;
 }): {
   body: MpOrderCreateRequest;
   headers: Record<string, string>;
@@ -192,7 +197,7 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
     external_reference: opts.externalReference,
     total_amount: totalAmount,
     processing_mode: "automatic",
-    payer: { email: opts.payerEmail },
+    payer: buildMercadoPagoPayer(opts.payerEmail, opts.payerProfile),
     splits,
     items: mpItems,
     transactions: {
@@ -215,13 +220,16 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
       },
     },
   };
-  if (opts.integratorId || opts.platformId) {
-    body.integration_data = {
-      ...(opts.integratorId ? { integrator_id: opts.integratorId } : {}),
-      ...(opts.platformId ? { platform_id: opts.platformId } : {}),
-    };
-  }
 
+  /**
+   * `additional_info.payer` es el nodo antifraude recomendado por MP. Ojo: los
+   * `items` del catálogo NUNCA van bajo `additional_info` — ese nodo quedó
+   * deprecado para ellos y MP responde 400.
+   */
+  const additionalInfoPayer = buildMercadoPagoAdditionalInfoPayer(opts.payerProfile);
+  if (additionalInfoPayer) {
+    body.additional_info = { payer: additionalInfoPayer };
+  }
   const headers: Record<string, string> = {
     "x-meli-session-id": opts.deviceSessionId,
   };

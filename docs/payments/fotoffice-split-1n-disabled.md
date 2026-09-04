@@ -21,6 +21,17 @@ Mercado Pago, mantener a FotOffice fuera evita:
 Contexto previo: Mercado Pago habilita el split **por aplicación, no por cuenta**, y la
 aplicación de FotOffice no heredó esa habilitación.
 
+> **Actualización 2026-09-03.** Dos de los motivos de arriba ya no aplican. Mercado Pago
+> confirmó que el **consentimiento del receptor es por cuenta cobradora, no por aplicación**,
+> así que "duplicar consentimientos de partners" nunca fue un costo real de tener varias apps.
+> Y se decidió **centralizar el flujo Split 1:N en una sola aplicación** de la suite, con lo
+> cual tampoco hay que "pedir habilitación independiente" para FotoOffice.
+> Ver [confirmaciones y arquitectura de apps](./mp-split-1n-mercadopago-confirmations.md).
+>
+> **El guard sigue activo igual.** Lo que desapareció es el obstáculo administrativo, no el
+> motivo de fondo: FotOffice todavía no tiene un caso productivo que requiera repartir un
+> cobro entre varios destinatarios.
+
 ---
 
 ## 2. Estado ANTES de esta revisión
@@ -111,8 +122,10 @@ eliminaron contratos reutilizables, no se rompió `@repo/payments`, no se perdi�
 
 ## 6. Para reactivar (cuando haya un caso real)
 
-1. Confirmar con Mercado Pago la arquitectura de aplicaciones — hoy `PENDING`
+1. ~~Confirmar con Mercado Pago la arquitectura de aplicaciones.~~ **RESUELTO 2026-09-03:**
+   una sola aplicación centralizada para Split 1:N en toda la suite
    (ver [confirmaciones de MP](./mp-split-1n-mercadopago-confirmations.md)).
+   FotoOffice usa esa app, **no** la suya (`5350262556971123`).
 2. Definir el caso de negocio: quién es owner, quiénes son partners, qué se reparte.
 3. Poner `FOTOFFICE_SPLIT_1N_ENABLED = true` y actualizar el test del guard.
 4. Agregar `@repo/payments` a las dependencias de la app.

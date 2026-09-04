@@ -16,6 +16,8 @@ export interface OrderItemInput {
   unitPrice: Money;
   categoryId?: string;
   description?: string;
+  /** Código interno del ítem en el catálogo del producto (señal antifraude). */
+  externalCode?: string;
 }
 
 export type ItemsTotalRelation = "informative" | "exact";
@@ -96,6 +98,7 @@ export function mapOrderItemsToMercadoPago(
   unit_price: string;
   category_id?: string;
   description?: string;
+  external_code?: string;
 }> {
   return items.map((item) => {
     const mapped: {
@@ -104,6 +107,7 @@ export function mapOrderItemsToMercadoPago(
       unit_price: string;
       category_id?: string;
       description?: string;
+      external_code?: string;
     } = {
       title: item.title.trim().slice(0, MERCADO_PAGO_ORDER_ITEM_TITLE_MAX_LENGTH),
       quantity: item.quantity,
@@ -111,6 +115,7 @@ export function mapOrderItemsToMercadoPago(
     };
     if (item.categoryId?.trim()) mapped.category_id = item.categoryId.trim();
     if (item.description?.trim()) mapped.description = item.description.trim();
+    if (item.externalCode?.trim()) mapped.external_code = item.externalCode.trim();
     return mapped;
   });
 }
