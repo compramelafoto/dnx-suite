@@ -8,6 +8,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { isAlbumTestOwnerPhotographer } from "@/lib/public-album-test-access";
+import { createPackAccessTokenForOrder } from "@/lib/preventa-canjeable/pack-access-tokens";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,6 +115,28 @@ export async function POST(req: NextRequest) {
       });
     });
 
+    // Igual que el webhook real: sin este link el checkout simulado no llega al canje,
+    // que es justo la parte que conviene ensayar.
+    let packAccessUrl: string | null = null;
+    if (result === "approved") {
+      try {
+        // `create` y no `ensure`: en un pedido de prueba querés un link usable cada vez que
+        // simulás la aprobación. Rota el anterior, que en un álbum de prueba no molesta.
+        const tokenData = await createPackAccessTokenForOrder(orderId, { revokeExisting: true });
+        if (tokenData?.token) {
+          const appUrl =
+            process.env.APP_URL ||
+            (process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : "https://compramelafoto.com");
+          packAccessUrl = `${appUrl}/cliente/pack/${tokenData.token}`;
+        }
+      } catch (err) {
+        // El pedido simulado ya quedó pagado; no lo tiramos abajo por el link.
+        console.error("[TEST_CHECKOUT] pack_access_token_failed", { orderId, err });
+      }
+    }
+
     console.info(LOG_SIM, { orderId, preCompraOrderId: pcoId, result, orderStatus, preStatus, userId: user.id });
 
     return NextResponse.json({
@@ -123,6 +146,8 @@ export async function POST(req: NextRequest) {
       result,
       orderStatus,
       preCompraOrderStatus: preStatus,
+      /** Link de canje para seguir la prueba (solo en "approved"). No se manda por email; rota en cada simulación. */
+      packAccessUrl,
     });
   } catch (e) {
     if (e instanceof Error && e.message === "precompra_not_found_or_not_test") {

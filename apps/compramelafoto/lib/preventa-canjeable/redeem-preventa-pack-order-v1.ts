@@ -17,8 +17,10 @@ import {
 import { assertPreventaPackOrderRedeemable } from "@/lib/preventa-canjeable/assert-preventa-pack-redeemable";
 import {
   ensureSchoolDesignForPreCompraOrderItem,
+  PRE_DESIGN_ITEM_STATUSES,
   type TemplateRow,
 } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
+import { ensureDigitalDelivery } from "@/lib/digital-delivery";
 
 export { PreventaPackRedeemValidationError };
 
@@ -30,6 +32,8 @@ type SelectionChunk = {
   orderItemId: number;
   subjectId: number | null;
   photoIds: number[];
+  /** Qué fotos eligió la familia para cada beneficio: el diseño solo puede usar las suyas. */
+  photoIdsByBenefitKey: Map<string, number[]>;
 };
 
 function collectPhotoIds(selections: RedeemUnitSelectionInput[]): number[] {
@@ -96,6 +100,7 @@ async function persistSchoolSelectionsFromRedeem(
           id: true,
           role: true,
           position: true,
+          photoId: true,
           photo: { select: { id: true, previewUrl: true, originalKey: true, isRemoved: true } },
         },
         orderBy: [{ position: "asc" }, { id: "asc" }],
@@ -115,6 +120,7 @@ async function persistSchoolSelectionsFromRedeem(
     orderItemId: item.id,
     subjectId: item.subjectId ?? null,
     photoIds: [],
+    photoIdsByBenefitKey: new Map<string, number[]>(),
   }));
 
   for (const ben of benefits) {
@@ -123,9 +129,12 @@ async function persistSchoolSelectionsFromRedeem(
     const distributed = distributeUnitsAcrossPacks(sel.units, perItemPhotoIds.length);
     for (let i = 0; i < perItemPhotoIds.length; i += 1) {
       const unitGroups = distributed[i] || [];
+      const delBeneficio = perItemPhotoIds[i].photoIdsByBenefitKey.get(ben.stableKey) ?? [];
       for (const unit of unitGroups) {
         perItemPhotoIds[i].photoIds.push(...unit);
+        delBeneficio.push(...unit);
       }
+      perItemPhotoIds[i].photoIdsByBenefitKey.set(ben.stableKey, delBeneficio);
     }
   }
 
@@ -135,8 +144,13 @@ async function persistSchoolSelectionsFromRedeem(
     if (chunk.photoIds.length === 0) continue;
     const existingSelection = existingByOrderItemId.get(chunk.orderItemId);
     let totalCount = existingSelection?.photos?.length ?? 0;
-    let selectionPhotos: Array<{ id: number; role: string | null; position?: number | null }> =
-      existingSelection?.photos ?? [];
+    let selectionPhotos: Array<{
+      id: number;
+      role: string | null;
+      position?: number | null;
+      photoId?: number | null;
+      photo?: { previewUrl?: string | null; originalKey?: string | null; isRemoved?: boolean } | null;
+    }> = existingSelection?.photos ?? [];
     if (!existingSelection?.photos?.length) {
       const selectionId =
         existingSelection?.id ??
@@ -158,16 +172,24 @@ async function persistSchoolSelectionsFromRedeem(
         where: { orderItemId: chunk.orderItemId },
         include: {
           photos: {
-            select: { id: true, role: true, position: true },
+            select: {
+              id: true,
+              role: true,
+              position: true,
+              photoId: true,
+              photo: { select: { previewUrl: true, originalKey: true, isRemoved: true } },
+            },
             orderBy: [{ position: "asc" }, { id: "asc" }],
           },
         },
       });
-      selectionPhotos = fresh?.photos ?? chunk.photoIds.map((photoId, idx) => ({
-        id: photoId,
-        role: null,
-        position: idx,
-      }));
+      if (!fresh?.photos?.length) {
+        console.warn("[school_redeem_design_gate] selection_reload_failed", {
+          orderItemId: chunk.orderItemId,
+        });
+        continue;
+      }
+      selectionPhotos = fresh.photos;
     }
 
     const expectedCount = chunk.photoIds.length;
@@ -183,9 +205,20 @@ async function persistSchoolSelectionsFromRedeem(
         albumProduct: item?.albumProduct ?? null,
       },
       selectionPhotos,
+      photoIdsByBenefitKey: chunk.photoIdsByBenefitKey,
       templateCache,
     });
     if (designResult.outcome === "skipped") {
+      // El pack puede no tener pieza para diseñar (por ejemplo, solo digitales). Igual la familia
+      // ya eligió: dejarlo en "Esperando selfie" hace que el panel del fotógrafo mienta.
+      await tx.preCompraOrderItem.updateMany({
+        where: { id: chunk.orderItemId, status: { in: [...PRE_DESIGN_ITEM_STATUSES] } },
+        data: {
+          status: "APPROVED_BY_MATCH",
+          approvalProof: "SELECTION",
+          approvedAt: new Date(),
+        },
+      });
       continue;
     }
   }
@@ -484,7 +517,7 @@ export async function executePreventaPackRedeemV1(
 
   const now = new Date();
   try {
-    return await prisma.$transaction(
+    const resultado = await prisma.$transaction(
       (tx) => executePreventaPackRedeemV1InTransaction(tx, preventaOrderId, selections, now),
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -492,6 +525,20 @@ export async function executePreventaPackRedeemV1(
         timeout: 30_000,
       }
     );
+
+    // El pedido de canje nace pagado sin pasar por el webhook de Mercado Pago, que es quien
+    // normalmente prepara la entrega. Sin esto la familia canjea y nunca recibe sus fotos.
+    // Fuera de la transacción y sin propagar el error: el canje ya está confirmado.
+    try {
+      await ensureDigitalDelivery(resultado.redemptionOrderId);
+    } catch (err) {
+      console.error("[preventa_redeem] digital_delivery_failed", {
+        redemptionOrderId: resultado.redemptionOrderId,
+        err,
+      });
+    }
+
+    return resultado;
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       throw new PreventaPackRedeemValidationError(

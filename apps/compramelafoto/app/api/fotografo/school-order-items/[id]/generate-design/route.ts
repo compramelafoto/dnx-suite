@@ -4,6 +4,8 @@ import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
 import { parsePreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import { ensureSchoolDesignForPreCompraOrderItem } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
+import { loadPhotoIdsByBenefitKeyForPreventaOrder } from "@/lib/preventa-canjeable/photo-ids-by-benefit-key";
+import { OrderOrigin } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,9 +96,7 @@ export async function POST(_req: Request, context: RouteCtx) {
             album: {
               select: { userId: true, schoolId: true },
             },
-            packPurchaseEntitlement: {
-              select: { snapshotJson: true },
-            },
+
           },
         },
         selection: {
@@ -106,6 +106,7 @@ export async function POST(_req: Request, context: RouteCtx) {
                 id: true,
                 role: true,
                 position: true,
+                photoId: true,
                 photo: {
                   select: {
                     id: true,
@@ -157,8 +158,17 @@ export async function POST(_req: Request, context: RouteCtx) {
       );
     }
 
-    const entitlement = item.order.packPurchaseEntitlement;
-    if (!entitlement?.snapshotJson) {
+    // El pack congelado vive en el Order de preventa (mismo origen que usa el canje).
+    const preventaOrder = await prisma.order.findFirst({
+      where: {
+        origin: OrderOrigin.PREVENTA_PACK,
+        preCompraPaymentRef: String(item.order.id),
+      },
+      select: { id: true, preventaPackSnapshotJson: true },
+      orderBy: { id: "desc" },
+    });
+
+    if (!preventaOrder?.preventaPackSnapshotJson) {
       const reason = "no_pack_snapshot";
       return NextResponse.json(
         {
@@ -173,7 +183,7 @@ export async function POST(_req: Request, context: RouteCtx) {
 
     let snapshot;
     try {
-      snapshot = parsePreventaPackSnapshotV1(entitlement.snapshotJson);
+      snapshot = parsePreventaPackSnapshotV1(preventaOrder.preventaPackSnapshotJson);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "snapshot inválido";
       const reason = `invalid_snapshot:${msg}`;
@@ -215,10 +225,13 @@ export async function POST(_req: Request, context: RouteCtx) {
       );
     }
 
+    const photoIdsByBenefitKey = await loadPhotoIdsByBenefitKeyForPreventaOrder(preventaOrder.id);
+
     const selectionPhotos = photos.map((p) => ({
       id: p.id,
       role: p.role,
       position: p.position,
+      photoId: p.photoId,
       photo: p.photo
         ? {
             previewUrl: p.photo.previewUrl,
@@ -236,6 +249,7 @@ export async function POST(_req: Request, context: RouteCtx) {
           albumProduct: item.albumProduct,
         },
         selectionPhotos,
+        photoIdsByBenefitKey,
       })
     );
 

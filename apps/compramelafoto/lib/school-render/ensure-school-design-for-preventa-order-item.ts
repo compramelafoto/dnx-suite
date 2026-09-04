@@ -1,11 +1,32 @@
 import type { Prisma } from "@/lib/prisma";
 import type { PreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 
-type DesignTemplateSource = "PACK_REQUIRED" | "ALBUM_PRODUCT_DEFAULT" | "NONE" | "AMBIGUOUS";
+/**
+ * Estados del ítem escolar previos al diseño.
+ *
+ * Nada en el sistema escribe `WAITING_UPLOAD`, `APPROVED_BY_MATCH` ni `WAITING_SELECTION`: los
+ * ítems nacen en `WAITING_SELFIE` y se quedan ahí. Por eso la compuerta que pasaba a
+ * `READY_TO_DESIGN` no puede exigir un estado puntual —solo lo cumplían los fixtures de test— y
+ * acepta cualquiera de los previos.
+ */
+export const PRE_DESIGN_ITEM_STATUSES = [
+  "WAITING_SELFIE",
+  "WAITING_UPLOAD",
+  "APPROVED_BY_MATCH",
+  "WAITING_SELECTION",
+] as const;
 
-type DesignTemplateResolution = {
+export type DesignTemplateSource =
+  | "PACK_REQUIRED"
+  | "ALBUM_PRODUCT_DEFAULT"
+  | "NONE"
+  | "AMBIGUOUS";
+
+export type DesignTemplateResolution = {
   source: DesignTemplateSource;
   templateId: number | null;
+  /** Beneficios del pack que exigen esta plantilla (vacío si no viene del pack). */
+  benefitStableKeys: string[];
   reason?: string;
 };
 
@@ -77,26 +98,49 @@ function resolveDesignTemplateForRedeemItem(
   if (requiredBenefits.length > 0) {
     const templateIds = requiredBenefits.map((b) => b.templateId).filter((id): id is number => !!id);
     if (templateIds.length !== requiredBenefits.length) {
-      return { source: "NONE", templateId: null, reason: "required_template_missing" };
+      return {
+        source: "NONE",
+        templateId: null,
+        benefitStableKeys: [],
+        reason: "required_template_missing",
+      };
     }
     const unique = new Set(templateIds);
     if (unique.size !== 1) {
-      return { source: "AMBIGUOUS", templateId: null, reason: "multiple_required_templates" };
+      return {
+        source: "AMBIGUOUS",
+        templateId: null,
+        benefitStableKeys: [],
+        reason: "multiple_required_templates",
+      };
     }
-    return { source: "PACK_REQUIRED", templateId: templateIds[0] };
+    return {
+      source: "PACK_REQUIRED",
+      templateId: templateIds[0],
+      benefitStableKeys: requiredBenefits.map((b) => b.stableKey),
+    };
   }
 
   const productRequiresDesign = item?.albumProduct?.requiresDesign === true;
   const productTemplateId = item?.albumProduct?.defaultTemplateId ?? null;
   if (productRequiresDesign && productTemplateId) {
-    return { source: "ALBUM_PRODUCT_DEFAULT", templateId: productTemplateId };
+    return {
+      source: "ALBUM_PRODUCT_DEFAULT",
+      templateId: productTemplateId,
+      benefitStableKeys: [],
+    };
   }
 
   if (productRequiresDesign && !productTemplateId) {
-    return { source: "NONE", templateId: null, reason: "album_product_template_missing" };
+    return {
+      source: "NONE",
+      templateId: null,
+      benefitStableKeys: [],
+      reason: "album_product_template_missing",
+    };
   }
 
-  return { source: "NONE", templateId: null, reason: "no_design_required" };
+  return { source: "NONE", templateId: null, benefitStableKeys: [], reason: "no_design_required" };
 }
 
 function validateSelectionAgainstTemplate(
@@ -355,6 +399,33 @@ function buildRevisionDataJson(params: {
   return base;
 }
 
+/**
+ * Fotos que van al diseño.
+ *
+ * Cuando la plantilla la exige un beneficio del pack, solo entran las fotos que la familia eligió
+ * PARA ESE beneficio. Si entraran todas, las fotos digitales podrían ocupar los huecos del impreso
+ * (se asignan por orden de posición) y la carpeta se imprimiría con las fotos equivocadas.
+ *
+ * Devuelve lista vacía cuando hay fotos permitidas pero ninguna coincide: es preferible no generar
+ * el diseño a generarlo con las fotos que no son.
+ */
+export function pickSelectionPhotosForDesign<T extends { photoId?: number | null }>(
+  selectionPhotos: T[],
+  resolution: Pick<DesignTemplateResolution, "source" | "benefitStableKeys">,
+  photoIdsByBenefitKey: Map<string, number[]> | null | undefined
+): T[] {
+  if (resolution.source !== "PACK_REQUIRED") return selectionPhotos;
+  if (!photoIdsByBenefitKey) return selectionPhotos;
+
+  const permitidas = new Set<number>();
+  for (const key of resolution.benefitStableKeys) {
+    for (const photoId of photoIdsByBenefitKey.get(key) ?? []) permitidas.add(photoId);
+  }
+  if (permitidas.size === 0) return selectionPhotos;
+
+  return selectionPhotos.filter((p) => p.photoId != null && permitidas.has(p.photoId));
+}
+
 export type EnsureSchoolDesignForPreCompraOrderItemResult =
   | { outcome: "created"; designProjectId: number }
   | { outcome: "skipped"; reason: string };
@@ -369,8 +440,12 @@ export type EnsureSchoolDesignForPreCompraOrderItemParams = {
     id: number;
     role: string | null;
     position?: number | null;
+    /** Foto del álbum. Necesario para separar las fotos por beneficio. */
+    photoId?: number | null;
     photo?: { previewUrl?: string | null; originalKey?: string | null; isRemoved?: boolean } | null;
   }>;
+  /** Fotos elegidas por la familia para cada beneficio del pack (clave estable → photoIds). */
+  photoIdsByBenefitKey?: Map<string, number[]> | null;
   /** Opcional: cache por templateId dentro del mismo redeem (misma semántica que antes). */
   templateCache?: Map<number, TemplateRow | null>;
 };
@@ -404,6 +479,30 @@ export async function ensureSchoolDesignForPreCompraOrderItem(
     source: resolution.source,
   });
 
+  // Solo las fotos del beneficio que exige la plantilla; ver pickSelectionPhotosForDesign.
+  const fotosDelDiseno = pickSelectionPhotosForDesign(
+    selectionPhotos,
+    resolution,
+    params.photoIdsByBenefitKey
+  );
+  if (fotosDelDiseno.length === 0) {
+    console.warn("[school_redeem_design_gate] no_photos_for_template", {
+      orderItemId: orderItem.id,
+      templateId: resolution.templateId,
+      benefitStableKeys: resolution.benefitStableKeys,
+      selectedCount: selectionPhotos.length,
+    });
+    return { outcome: "skipped", reason: "no_photos_for_template" };
+  }
+  if (fotosDelDiseno.length !== selectionPhotos.length) {
+    console.info("[school_redeem_design_gate] photos_scoped_to_benefit", {
+      orderItemId: orderItem.id,
+      benefitStableKeys: resolution.benefitStableKeys,
+      elegidas: selectionPhotos.length,
+      paraElDiseno: fotosDelDiseno.length,
+    });
+  }
+
   let template = templateCache.get(resolution.templateId) ?? null;
   if (!template) {
     template = await tx.template.findUnique({
@@ -423,7 +522,7 @@ export async function ensureSchoolDesignForPreCompraOrderItem(
     return { outcome: "skipped", reason: "template_not_found" };
   }
 
-  const validation = validateSelectionAgainstTemplate(template, selectionPhotos);
+  const validation = validateSelectionAgainstTemplate(template, fotosDelDiseno);
   if (!validation.isValid) {
     console.warn("[school_redeem_design_gate] validation_failed", {
       orderItemId: orderItem.id,
@@ -444,6 +543,15 @@ export async function ensureSchoolDesignForPreCompraOrderItem(
     selectedCount: validation.selectedCount,
     expectedCount: validation.expectedCount,
   });
+
+  if (validation.selectedCount > validation.expectedCount) {
+    console.warn("[school_redeem_design_gate] selection_photos_exceed_slots", {
+      orderItemId: orderItem.id,
+      templateId: template.id,
+      selectedCount: validation.selectedCount,
+      expectedCount: validation.expectedCount,
+    });
+  }
 
   const existingProject = await tx.designProject.findUnique({
     where: { orderItemId: orderItem.id },
@@ -466,7 +574,7 @@ export async function ensureSchoolDesignForPreCompraOrderItem(
   }
 
   const updated = await tx.preCompraOrderItem.updateMany({
-    where: { id: orderItem.id, status: "WAITING_SELECTION" },
+    where: { id: orderItem.id, status: { in: [...PRE_DESIGN_ITEM_STATUSES] } },
     data: { status: "READY_TO_DESIGN", approvalProof: "SELECTION", approvedAt: new Date() },
   });
   if (updated.count > 0) {
@@ -483,7 +591,7 @@ export async function ensureSchoolDesignForPreCompraOrderItem(
     return { outcome: "skipped", reason: "design_project_missing" };
   }
 
-  const mapping = buildInitialTemplateSlotAssignments(template, selectionPhotos);
+  const mapping = buildInitialTemplateSlotAssignments(template, fotosDelDiseno);
 
   if (!mapping.isValid) {
     console.warn("[school_redeem_design_revision] mapping_failed", {
@@ -521,7 +629,7 @@ export async function ensureSchoolDesignForPreCompraOrderItem(
     designProjectId,
   });
 
-  const preflight = buildInitialRenderPreflight(template, mapping, selectionPhotos);
+  const preflight = buildInitialRenderPreflight(template, mapping, fotosDelDiseno);
   if (!preflight.isValid) {
     console.warn("[school_redeem_render_preflight] preflight_failed", {
       orderItemId: orderItem.id,
