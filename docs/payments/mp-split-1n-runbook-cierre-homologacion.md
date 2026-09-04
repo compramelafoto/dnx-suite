@@ -11,10 +11,15 @@ Los bloques van en orden de dependencia. Dentro de cada bloque, los pasos tambi�
 
 ## Bloque A — Ahora mismo, sin depender de nadie
 
-### A1. Commitear el trabajo del 2026-09-03
-El árbol tiene los cambios sin commitear, mezclados con trabajo de referidos y registro.
-Corresponde una rama propia con **sólo** lo de pagos: port del webhook, `payer-profile.ts`,
-limpieza de `integration_data`, `external_code` y los cinco documentos.
+### A1. ✅ HECHO — commitear el trabajo del 2026-09-03
+Rama **`feat/mp-split-1n-webhook-order-y-antifraude`**, dos commits:
+
+| Commit | Contenido |
+|---|---|
+| `3cdf678b` | Port del webhook `order` + correcciones fail-closed + `payer-profile.ts` + `external_code` + limpieza de `integration_data` + documentación |
+| `f597e2c6` | Vista de comprador para el video (E1) |
+
+El trabajo de referidos y registro quedó **fuera del commit**, sin tocar.
 
 ### A2. Responder a Marilyn
 Una sola cosa pendiente de nuestro lado en el ticket: confirmar `processing_mode`.
@@ -76,7 +81,7 @@ de otra cuenta devuelve `Order not found`: eso fue exactamente lo que rompió la
 
 Produce la evidencia **"GET a la orden post-webhook"** del checklist.
 
-1. Entrar a `/admin/homologacion-mp-split-1n` en el entorno configurado.
+1. Entrar a `/admin/homologacion-mp-split-1n` en el entorno configurado. (Para el video del bloque E, la ruta es `/homologacion/compra`.)
 2. Correr el escenario `OWNER_PLUS_2` (owner + 2 partners = 3 receptores). Cubre de una vez la evidencia **"Split con múltiples partners"**.
 3. Pagar con tarjeta de prueba. El `payer.email` debe terminar en `@testuser.com` — los fixtures ya cumplen.
 4. Verificar en los logs del endpoint que la respuesta traiga:
@@ -104,10 +109,17 @@ selección del producto → checkout con Card Payment Brick → carga de la tarj
 **El problema:** la superficie actual vive en `/admin/...` y se ve administrativa. Tiene el Brick,
 pero le faltan los dos extremos del recorrido.
 
-### E1. Construir la vista de comprador
-Una ruta pública, detrás del mismo flag y **sólo sandbox**, que envuelva el Brick que ya existe
-con: una pantalla de selección del producto, y una pantalla de resultado con el retorno al
-comercio. No es una tienda nueva: es envolver lo que ya funciona.
+### E1. ✅ HECHO — vista de comprador
+Ruta **`/homologacion/compra`** (`apps/compramelafoto/app/homologacion/compra/`).
+
+Tres pasos: elegir la foto → pagar con el Card Payment Brick → resultado con el botón de
+retorno al comercio. Usa **el mismo Brick y la misma server action** que la superficie admin,
+que no cambió. Mismos guards: sandbox, flag explícito, producción bloqueada; fuera de
+homologación devuelve 404.
+
+**Verificado:** typecheck de la app en 0 errores y los pasos 1 y 2 renderizados en local. El
+Brick quedó vacío en esa prueba porque se usó una public key inventada — con la credencial TEST
+real renderiza. Esa parte se comprueba recién en el bloque D.
 
 ### E2. Grabar
 Una sola toma, sin cortar, mostrando el recorrido completo.
@@ -159,7 +171,7 @@ Paquete final con las cuatro evidencias que pide el checklist:
 
 | Bloque | Quién |
 |---|---|
-| A1 commit · E1 vista de comprador | Yo, con tu OK |
+| ~~A1 commit · E1 vista de comprador~~ | ✅ **Hechos el 2026-09-03** |
 | A2 responder · B1–B4 panel · C variables | Vos |
 | D prueba punta a punta | Vos ejecutás, yo verifico la evidencia |
 | E2 grabar | Vos |
