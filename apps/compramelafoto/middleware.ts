@@ -62,30 +62,8 @@ function prepareBlogVisitor(request: NextRequest): {
 export function middleware(request: NextRequest) {
   const blogVisitor = prepareBlogVisitor(request);
 
-  if (request.nextUrl.pathname === "/") {
-    const userParam = request.nextUrl.searchParams.get("user");
-    if (userParam) {
-      try {
-        const userData = JSON.parse(userParam);
-        if (userData?.role === "ORGANIZER") {
-          const res = NextResponse.next({
-            request: { headers: blogVisitor.requestHeaders },
-          });
-          if (blogVisitor.isNewVisitor && blogVisitor.visitorKey) {
-            applyBlogVisitorCookie(res, blogVisitor.visitorKey);
-          }
-          return res;
-        }
-      } catch {}
-    }
-    const homeRes = NextResponse.next({
-      request: { headers: blogVisitor.requestHeaders },
-    });
-    if (blogVisitor.isNewVisitor && blogVisitor.visitorKey) {
-      applyBlogVisitorCookie(homeRes, blogVisitor.visitorKey);
-    }
-    return homeRes;
-  }
+  // La home ("/") sigue el mismo camino que el resto: es el destino por defecto
+  // del link de referidos, así que también tiene que persistir ?ref= en clf_ref.
 
   const ref = request.nextUrl.searchParams.get("ref");
   const refTrimmed = typeof ref === "string" ? ref.trim() : "";

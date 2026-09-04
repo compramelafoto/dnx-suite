@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import AaipBadge from "@/components/legal/AaipBadge";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 
@@ -100,6 +101,9 @@ export default function Footer() {
             <p className="text-sm md:text-base text-white/70">
               creado por ComprameLaFoto
             </p>
+            <div className="w-full max-w-md border-t border-white/10 pt-5 flex justify-center">
+              <AaipBadge variant="footer" />
+            </div>
           </div>
         </div>
       </footer>

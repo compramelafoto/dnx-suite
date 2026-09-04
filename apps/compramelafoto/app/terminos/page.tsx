@@ -1,4 +1,5 @@
 import Card from "@/components/ui/Card";
+import AaipBadge from "@/components/legal/AaipBadge";
 import { TERMS_TEXT as PHOTOGRAPHER_TERMS_TEXT } from "@/lib/terms/photographerTerms";
 import { LAB_TERMS_TEXT } from "@/lib/terms/labTerms";
 
@@ -45,6 +46,8 @@ export default function TermsPage() {
               Accedé a los términos vigentes para fotógrafos, laboratorios y clientes finales.
             </p>
           </div>
+
+          <AaipBadge variant="card" />
 
           <Card className="p-6 space-y-4" id="fotografo">
             <h2 className="text-lg font-semibold text-[#1a1a1a]">Fotógrafo</h2>

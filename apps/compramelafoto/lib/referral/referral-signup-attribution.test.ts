@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { ReferralProgram } from "@/lib/prisma";
 import {
+  describeAttributionOutcome,
   passesReferralSignupAttributionChecks,
   shouldCreateReferralSignupAttribution,
 } from "./referral-signup-attribution";
@@ -44,7 +45,8 @@ describe("passesReferralSignupAttributionChecks", () => {
     assert.equal(shouldCreateReferralSignupAttribution(checks), false);
   });
 
-  it("rechaza referidor sin Mercado Pago", () => {
+  it("acepta referidor que todavía no conectó Mercado Pago", () => {
+    // Puede conectar MP después: la atribución no se pierde por eso.
     const checks = passesReferralSignupAttributionChecks({
       referrer: {
         ...referrer,
@@ -55,7 +57,7 @@ describe("passesReferralSignupAttributionChecks", () => {
       referredUserEmail: "referred@test.com",
     });
     assert.equal(checks.referrerHasMp, false);
-    assert.equal(shouldCreateReferralSignupAttribution(checks), false);
+    assert.equal(shouldCreateReferralSignupAttribution(checks), true);
   });
 
   it("rechaza mismo MP del referidor y referido", () => {
@@ -67,6 +69,29 @@ describe("passesReferralSignupAttributionChecks", () => {
     });
     assert.equal(checks.mpDifferent, false);
     assert.equal(shouldCreateReferralSignupAttribution(checks), false);
+  });
+});
+
+describe("describeAttributionOutcome", () => {
+  function checksWith(over: Partial<ReturnType<typeof passesReferralSignupAttributionChecks>>) {
+    return {
+      referralCodeFound: true,
+      referrerHasMp: true,
+      notSelf: true,
+      emailDifferent: true,
+      mpDifferent: true,
+      ...over,
+    };
+  }
+
+  it("nombra el motivo del descarte para poder auditarlo", () => {
+    assert.equal(describeAttributionOutcome(checksWith({ notSelf: false })), "SELF_REFERRAL");
+    assert.equal(describeAttributionOutcome(checksWith({ emailDifferent: false })), "SAME_EMAIL");
+    assert.equal(describeAttributionOutcome(checksWith({ mpDifferent: false })), "SAME_MP");
+  });
+
+  it("no considera motivo de descarte que al referidor le falte Mercado Pago", () => {
+    assert.equal(describeAttributionOutcome(checksWith({ referrerHasMp: false })), "UNKNOWN");
   });
 });
 

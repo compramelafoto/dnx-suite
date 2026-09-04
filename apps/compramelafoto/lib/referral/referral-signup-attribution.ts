@@ -51,12 +51,17 @@ export function passesReferralSignupAttributionChecks(input: {
   };
 }
 
+/**
+ * `referrerHasMp` queda como dato informativo y NO bloquea la atribución: el
+ * referidor puede conectar Mercado Pago después del alta de su referido, y antes
+ * ese caso se descartaba para siempre y sin dejar rastro. Los chequeos que sí
+ * bloquean son los anti-abuso reales (auto-referencia, mismo email, misma cuenta MP).
+ */
 export function shouldCreateReferralSignupAttribution(
   checks: ReferralSignupAttributionChecks
 ): boolean {
   return (
     checks.referralCodeFound &&
-    checks.referrerHasMp &&
     checks.notSelf &&
     checks.emailDifferent &&
     checks.mpDifferent
@@ -103,6 +108,49 @@ export async function resolveReferralAttributionSource(input: {
   return { sourceType, sourceEntityId };
 }
 
+/** Motivo por el que un alta con código de referido no terminó en atribución. */
+export function describeAttributionOutcome(
+  checks: ReferralSignupAttributionChecks
+): string {
+  if (!checks.notSelf) return "SELF_REFERRAL";
+  if (!checks.emailDifferent) return "SAME_EMAIL";
+  if (!checks.mpDifferent) return "SAME_MP";
+  return "UNKNOWN";
+}
+
+/**
+ * Deja constancia del intento (creado o descartado) para poder auditarlo después.
+ * Nunca lanza ni bloquea: si la tabla todavía no existe en esta base, se ignora.
+ */
+async function recordAttributionAttempt(params: {
+  refCode: string;
+  referredUserId: number | null;
+  referredEmail: string | null;
+  referrerUserId: number | null;
+  outcome: string;
+  detail?: string | null;
+  logContext: string;
+}): Promise<void> {
+  try {
+    await prisma.referralAttributionAttempt.create({
+      data: {
+        refCode: params.refCode,
+        referredUserId: params.referredUserId,
+        referredEmail: params.referredEmail,
+        referrerUserId: params.referrerUserId,
+        outcome: params.outcome,
+        detail: params.detail ?? null,
+        logContext: params.logContext,
+      },
+    });
+  } catch (err) {
+    console.warn(
+      `${params.logContext}: no se pudo registrar el intento de atribución (${params.outcome})`,
+      err
+    );
+  }
+}
+
 /**
  * Crea ReferralAttribution tras el alta si el ref es válido y pasa anti-abuso.
  * Nunca lanza: fallos de atribución no bloquean el registro.
@@ -131,6 +179,14 @@ export async function tryCreateReferralAttributionOnSignup(
     });
 
     if (!referralCode?.ownerUser) {
+      await recordAttributionAttempt({
+        refCode,
+        referredUserId: input.referredUserId,
+        referredEmail: input.referredUserEmail,
+        referrerUserId: null,
+        outcome: "CODE_NOT_FOUND",
+        logContext: input.logContext,
+      });
       return { created: false };
     }
 
@@ -142,6 +198,14 @@ export async function tryCreateReferralAttributionOnSignup(
     });
 
     if (!shouldCreateReferralSignupAttribution(checks)) {
+      await recordAttributionAttempt({
+        refCode,
+        referredUserId: input.referredUserId,
+        referredEmail: input.referredUserEmail,
+        referrerUserId: referralCode.ownerUser.id,
+        outcome: describeAttributionOutcome(checks),
+        logContext: input.logContext,
+      });
       return { created: false };
     }
 
@@ -169,9 +233,34 @@ export async function tryCreateReferralAttributionOnSignup(
       },
     });
 
+    await recordAttributionAttempt({
+      refCode,
+      referredUserId: input.referredUserId,
+      referredEmail: input.referredUserEmail,
+      referrerUserId: referralCode.ownerUser.id,
+      outcome: "CREATED",
+      detail: checks.referrerHasMp ? null : "referidor sin Mercado Pago al momento del alta",
+      logContext: input.logContext,
+    });
+
     return { created: true };
   } catch (attrErr) {
     console.warn(`${input.logContext}: atribución referido fallida (se ignora)`, attrErr);
+    // P2002 = el referido ya tenía una atribución (referredUserId es único).
+    const alreadyAttributed = (attrErr as { code?: string })?.code === "P2002";
+    await recordAttributionAttempt({
+      refCode,
+      referredUserId: input.referredUserId,
+      referredEmail: input.referredUserEmail,
+      referrerUserId: null,
+      outcome: alreadyAttributed ? "ALREADY_ATTRIBUTED" : "ERROR",
+      detail: alreadyAttributed
+        ? null
+        : attrErr instanceof Error
+          ? attrErr.message.slice(0, 500)
+          : String(attrErr).slice(0, 500),
+      logContext: input.logContext,
+    });
     return { created: false };
   }
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Card from "@/components/ui/Card";
+import AaipBadge from "@/components/legal/AaipBadge";
 import { PRIVACY_SECTIONS, PRIVACY_SOLICITUD_URL } from "@/lib/privacy-policy-content";
 
 export const metadata: Metadata = {
@@ -23,6 +24,8 @@ export default function PrivacidadPage() {
               según la Ley 25.326 y normativa AAIP.
             </p>
           </div>
+
+          <AaipBadge variant="card" />
 
           <Card className="p-6 bg-[#f7f5f2] border-[#c27b3d]/20">
             <h2 className="text-lg font-semibold text-[#1a1a1a] mb-3">Documentos relacionados</h2>

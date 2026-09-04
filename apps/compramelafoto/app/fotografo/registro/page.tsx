@@ -6,6 +6,10 @@ import Link from "next/link";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import {
+  getReferralCookie,
+  getReferralMetaCookie,
+} from "@/lib/referral-cookie";
 
 export default function PhotographerRegisterPage() {
   const router = useRouter();
@@ -52,10 +56,23 @@ export default function PhotographerRegisterPage() {
     setLoading(true);
 
     try {
+      const ref = getReferralCookie();
+      const trainingMeta = getReferralMetaCookie();
       const res = await fetch("/api/auth/register-photographer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          ...(ref ? { ref } : {}),
+          ...(trainingMeta
+            ? {
+                sourceType: trainingMeta.sourceType,
+                sourceEntityId: trainingMeta.sourceEntityId,
+              }
+            : {}),
+        }),
       });
 
       const data = await res.json();
@@ -237,9 +254,9 @@ export default function PhotographerRegisterPage() {
                 variant="secondary"
                 className="w-full flex items-center justify-center gap-2"
                 onClick={() => {
-                  const ref = document.cookie.match(/(?:^|;\s*)clf_ref=([^;]*)/)?.[1];
+                  const ref = getReferralCookie();
                   const params = new URLSearchParams({ role: "PHOTOGRAPHER" });
-                  if (ref) params.set("ref", decodeURIComponent(ref));
+                  if (ref) params.set("ref", ref);
                   window.location.href = `/api/auth/google?${params.toString()}`;
                 }}
                 disabled={loading}
