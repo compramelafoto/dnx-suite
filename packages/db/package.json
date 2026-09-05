@@ -20,6 +20,7 @@
     "./partners-welcome-context-clients": "./src/partners-welcome-context-clients.ts",
     "./fotoffice-members": "./src/fotoffice-members.ts",
     "./fotoffice-user-lookup": "./src/fotoffice-user-lookup.ts",
+    "./fotoffice-member-access-filter": "./src/fotoffice-member-access-filter.ts",
     "./fotoffice-member-invitations": "./src/fotoffice-member-invitations.ts",
     "./daily-report-repository": "./src/daily-report-repository.ts",
     "./template-v2-repository": "./src/template-v2-repository.ts",
