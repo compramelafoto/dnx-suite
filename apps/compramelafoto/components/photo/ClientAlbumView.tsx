@@ -73,6 +73,8 @@ type Album = {
   firstPhotoDate?: string | null;
   /** Foto marcada como portada (listados usan URL sin marca; la grilla del álbum siempre preview con marca) */
   coverPhotoId?: number | null;
+  /** Portada propia subida por el fotógrafo: imagen aparte, no es una foto del álbum. */
+  coverImageUrl?: string | null;
   expirationExtensionDays?: number | null;
   isHidden?: boolean;
   showComingSoonMessage?: boolean;
@@ -2487,11 +2489,19 @@ export default function ClientAlbumView({
             <div className="ds-gallery-empty-state__panel rounded-2xl border border-[#e5e7eb] bg-white p-6 sm:p-8 shadow-sm">
               <div className="ds-gallery-empty-state__stack">
                 <div className="ds-gallery-empty-state__icon flex flex-col items-center gap-4 py-2">
-                  <img
-                    src="/watermark.png"
-                    alt="ComprameLaFoto"
-                    className="w-48 h-auto opacity-90"
-                  />
+                  {album.coverImageUrl ? (
+                    <img
+                      src={album.coverImageUrl}
+                      alt={album.title}
+                      className="w-56 max-w-full h-auto aspect-square object-cover rounded-2xl border border-[#e5e7eb] shadow-sm"
+                    />
+                  ) : (
+                    <img
+                      src="/watermark.png"
+                      alt="ComprameLaFoto"
+                      className="w-48 h-auto opacity-90"
+                    />
+                  )}
                   <p className="ds-readable-text ds-readable-text--fluid ds-readable-text--center text-lg text-[#6b7280] m-0">
                     Las fotos serán subidas próximamente.
                   </p>

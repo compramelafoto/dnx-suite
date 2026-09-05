@@ -25,6 +25,7 @@
     "test:referrals": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test middleware.referral.test.ts lib/referral-cookie-server.test.ts lib/referral/resolve-signup-referral-input.test.ts lib/referral/referral-signup-attribution.test.ts lib/referral/referral-program.test.ts lib/referral/balance.test.ts lib/referral/referral-marketplace-fee.test.ts lib/auth/google-oauth-state.test.ts lib/auth/build-google-auth-url.test.ts",
     "test:template-v2": "pnpm --filter @repo/template-editor-core test",
     "test:template-v2:render": "pnpm --filter @repo/template-editor-core test:render",
+    "test:album-cover": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/album/album-list-cover.test.ts",
     "test:school-design": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-render/ensure-school-design-for-preventa-order-item.test.ts"
   },
   "dependencies": {

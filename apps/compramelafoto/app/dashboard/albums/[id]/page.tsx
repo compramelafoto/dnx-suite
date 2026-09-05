@@ -123,6 +123,8 @@ type Album = {
   } | null;
   publicSlug: string;
   coverPhotoId: number | null;
+  /** Portada propia subida a mano (no es una foto del álbum). */
+  customCoverUrl?: string | null;
   createdAt: string;
   expirationExtensionDays?: number | null;
   isOwner?: boolean;
@@ -422,6 +424,9 @@ export default function DashboardAlbumDetailPage() {
 
   const coverPreviewUrl = useMemo(() => {
     if (!album) return null;
+    if (album.customCoverUrl && !album.coverPhotoId) {
+      return album.customCoverUrl;
+    }
     if (album.coverPhotoId) {
       return `/api/photos/${album.coverPhotoId}/view?albumId=${album.id}&mode=cover`;
     }
@@ -1287,7 +1292,7 @@ export default function DashboardAlbumDetailPage() {
 
       const savedPhotoId = coverCropPhoto.id;
       setAlbum((prev) =>
-        prev ? { ...prev, coverPhotoId: savedPhotoId } : prev
+        prev ? { ...prev, coverPhotoId: savedPhotoId, customCoverUrl: null } : prev
       );
       setFallbackPreviewPhotoId(null);
       setShowCoverCrop(false);
@@ -1298,6 +1303,15 @@ export default function DashboardAlbumDetailPage() {
     } finally {
       setCoverSaving(false);
     }
+  }
+
+  function handleCoverChanged(next: { coverPhotoId: number | null; customCoverUrl: string | null }) {
+    setAlbum((prev) =>
+      prev
+        ? { ...prev, coverPhotoId: next.coverPhotoId, customCoverUrl: next.customCoverUrl }
+        : prev
+    );
+    if (next.customCoverUrl) setFallbackPreviewPhotoId(null);
   }
 
   // Función auxiliar para crear un identificador único de archivo
@@ -2127,6 +2141,8 @@ export default function DashboardAlbumDetailPage() {
                 expirationExtensionDays={album.expirationExtensionDays}
                 coverPhotoId={album.coverPhotoId}
                 coverPreviewUrl={coverPreviewUrl}
+                customCoverUrl={album.customCoverUrl ?? null}
+                onCoverChanged={handleCoverChanged}
                 onEditVisibility={() => changeAlbumTab("configuracion")}
                 canShareWithClients={shareEligibility.canShare}
                 shareBlockReasons={shareEligibility.blockReasons}
@@ -2145,6 +2161,11 @@ export default function DashboardAlbumDetailPage() {
                 hiddenPhotosEnabled={hiddenPhotosEnabled}
                 hiddenSelfieRetentionDays={hiddenSelfieRetentionDays}
                 showComingSoonMessage={showComingSoonMessage}
+                photosCount={albumPhotoStats.total}
+                coverPhotoId={album.coverPhotoId}
+                customCoverUrl={album.customCoverUrl ?? null}
+                photoCoverPreviewUrl={album.customCoverUrl ? null : coverPreviewUrl}
+                onCoverChanged={handleCoverChanged}
                 scanProtectionEnabled={scanProtectionEnabled}
                 onScanProtectionChange={setScanProtectionEnabled}
                 albumMode={albumMode}

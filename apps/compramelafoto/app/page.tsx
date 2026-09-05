@@ -450,24 +450,29 @@ export default function HomePage() {
                 >
                   <Card className="overflow-hidden h-full hover:shadow-xl transition-all duration-300">
                     <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
-                      {album.coverPhotoUrl && album.photosCount > 0 ? (
-                        <Image
-                          src={album.coverPhotoUrl}
-                          alt={album.title}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                          className="object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            const triedFallback = target.getAttribute("data-fallback-tried") === "1";
-                            if (album.coverPhotoUrlFallback && !triedFallback) {
-                              target.setAttribute("data-fallback-tried", "1");
-                              target.src = album.coverPhotoUrlFallback;
-                              return;
-                            }
-                          }}
-                          unoptimized={album.coverPhotoUrl.startsWith("/uploads/")}
-                        />
+                      {album.coverPhotoUrl ? (
+                        <>
+                          <Image
+                            src={album.coverPhotoUrl}
+                            alt={album.title}
+                            fill
+                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              const triedFallback = target.getAttribute("data-fallback-tried") === "1";
+                              if (album.coverPhotoUrlFallback && !triedFallback) {
+                                target.setAttribute("data-fallback-tried", "1");
+                                target.src = album.coverPhotoUrlFallback;
+                                return;
+                              }
+                            }}
+                            unoptimized={album.coverPhotoUrl.startsWith("/uploads/")}
+                          />
+                          {album.photosCount === 0 ? (
+                            <span className="absolute inset-x-0 bottom-0 z-10 bg-black/55 px-2 py-1 text-center text-[11px] leading-tight text-white">Fotos próximamente</span>
+                          ) : null}
+                        </>
                       ) : album.photosCount === 0 ? (
                         <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#f3f4f6]">
                           <Image

@@ -7,6 +7,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { getR2PublicUrl, urlToR2Key } from "@/lib/r2-client";
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import ClientAlbumView from "@/components/photo/ClientAlbumView";
+import { resolveAlbumStandaloneCoverUrl } from "@/lib/album/album-list-cover";
 import PhotographerHeader from "@/components/photographer/PhotographerHeader";
 import PhotographerFooter from "@/components/photographer/PhotographerFooter";
 import { cookies } from "next/headers";
@@ -41,11 +42,23 @@ export async function generateMetadata({
   const resolved = await Promise.resolve(params);
   const slugOrId = String(resolved?.id || "").trim();
   if (!slugOrId) return {};
-  let album: { title: string; user: { name: string | null; logoUrl: string | null } | null } | null = null;
+  let album: {
+    id: number;
+    title: string;
+    coverPhotoId: number | null;
+    coverThumbnailKey: string | null;
+    user: { name: string | null; logoUrl: string | null } | null;
+  } | null = null;
   try {
     album = await prisma.album.findUnique({
       where: { publicSlug: slugOrId },
-      select: { title: true, user: { select: { name: true, logoUrl: true } } },
+      select: {
+        id: true,
+        title: true,
+        coverPhotoId: true,
+        coverThumbnailKey: true,
+        user: { select: { name: true, logoUrl: true } },
+      },
     });
   } catch {
     // ignore
@@ -54,7 +67,13 @@ export async function generateMetadata({
     try {
       album = await prisma.album.findUnique({
         where: { id: parseInt(slugOrId, 10) },
-        select: { title: true, user: { select: { name: true, logoUrl: true } } },
+        select: {
+        id: true,
+        title: true,
+        coverPhotoId: true,
+        coverThumbnailKey: true,
+        user: { select: { name: true, logoUrl: true } },
+      },
       });
     } catch {
       // ignore
@@ -63,7 +82,15 @@ export async function generateMetadata({
   if (!album) return {};
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://compramelafoto.com");
   const logoUrl = normalizeLogoUrl(album.user?.logoUrl ?? null);
-  const ogImage = logoUrl ? (logoUrl.startsWith("http") ? logoUrl : `${siteUrl}${logoUrl.startsWith("/") ? "" : "/"}${logoUrl}`) : `${siteUrl}/watermark.png`;
+  // La portada propia del álbum manda al compartir; si no hay, el logo del fotógrafo.
+  const albumCoverUrl = resolveAlbumStandaloneCoverUrl({
+    id: album.id,
+    coverPhotoId: album.coverPhotoId,
+    coverThumbnailKey: album.coverThumbnailKey,
+  });
+  const ogImage =
+    albumCoverUrl ||
+    (logoUrl ? (logoUrl.startsWith("http") ? logoUrl : `${siteUrl}${logoUrl.startsWith("/") ? "" : "/"}${logoUrl}`) : `${siteUrl}/watermark.png`);
   const title = album.title || "Álbum";
   const name = album.user?.name || "Fotógrafo";
   return {
@@ -135,6 +162,7 @@ export default async function Page({
     deletedAt: true,
     firstPhotoDate: true,
     coverPhotoId: true,
+    coverThumbnailKey: true,
     isHidden: true,
     isPublic: true,
     enablePrintedPhotos: true,
@@ -661,6 +689,12 @@ export default async function Page({
   const isAccessBlocked = !isAdmin && Boolean(album.isHidden || isExpired);
 
   const coverPhotoId = (album as { coverPhotoId?: number | null }).coverPhotoId ?? null;
+  // Portada propia del fotógrafo: imagen aparte, no es una foto del álbum.
+  const albumCoverImageUrl = resolveAlbumStandaloneCoverUrl({
+    id: album.id,
+    coverPhotoId,
+    coverThumbnailKey: (album as { coverThumbnailKey?: string | null }).coverThumbnailKey ?? null,
+  });
   // Grilla: miniatura con marca; vista ampliada/lightbox usa mode=preview (misma API).
   const mappedPhotos: Array<{ id: number; previewUrl: string; originalKey: string }> = album.photos.map((p: any) => ({
     id: p.id,
@@ -787,6 +821,7 @@ export default async function Page({
               createdAt: album.createdAt.toISOString(),
               firstPhotoDate,
               coverPhotoId,
+              coverImageUrl: albumCoverImageUrl,
               expirationExtensionDays: (album as any).expirationExtensionDays ?? 0,
               showComingSoonMessage: album.showComingSoonMessage,
               hiddenPhotosEnabled,

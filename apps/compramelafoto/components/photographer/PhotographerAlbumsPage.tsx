@@ -121,22 +121,29 @@ export default function PhotographerAlbumsPage({
                   >
                     <Card className="overflow-hidden hover:shadow-lg transition-shadow">
                       <div className="aspect-square bg-[#f3f4f6] relative">
-                        {album.coverPhotoUrl && album.photosCount > 0 ? (
-                          <Image
-                            src={album.coverPhotoUrl}
-                            alt={album.title}
-                            fill
-                            className="object-cover"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              if (
-                                album.coverPhotoUrlFallback &&
-                                target.src !== album.coverPhotoUrlFallback
-                              ) {
-                                target.src = album.coverPhotoUrlFallback;
-                              }
-                            }}
-                          />
+                        {album.coverPhotoUrl ? (
+                          <>
+                            <Image
+                              src={album.coverPhotoUrl}
+                              alt={album.title}
+                              fill
+                              className="object-cover"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                if (
+                                  album.coverPhotoUrlFallback &&
+                                  target.src !== album.coverPhotoUrlFallback
+                                ) {
+                                  target.src = album.coverPhotoUrlFallback;
+                                }
+                              }}
+                            />
+                            {album.photosCount === 0 ? (
+                              <span className="absolute inset-x-0 bottom-0 bg-black/55 px-2 py-1 text-center text-[11px] leading-tight text-white">
+                                Fotos próximamente
+                              </span>
+                            ) : null}
+                          </>
                         ) : album.photosCount === 0 ? (
                           <div className="w-full h-full flex flex-col items-center justify-center p-4">
                             <Image

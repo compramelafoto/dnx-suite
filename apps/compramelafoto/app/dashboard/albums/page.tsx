@@ -818,12 +818,17 @@ export default function DashboardAlbumsPage() {
                     </div>
                     <Link href={`/dashboard/albums/${album.id}`} className="block">
                       <div className="relative w-full aspect-square bg-[#f3f4f6] overflow-hidden">
-                        {album.coverPhotoUrl && album.photosCount > 0 ? (
-                          <img
-                            src={album.coverPhotoUrl}
-                            alt={album.title}
-                            className="w-full h-full object-cover"
-                          />
+                        {album.coverPhotoUrl ? (
+                          <>
+                            <img
+                              src={album.coverPhotoUrl}
+                              alt={album.title}
+                              className="w-full h-full object-cover"
+                            />
+                            {album.photosCount === 0 ? (
+                              <span className="absolute inset-x-0 bottom-0 z-10 bg-black/55 px-2 py-1 text-center text-[11px] leading-tight text-white">Fotos próximamente</span>
+                            ) : null}
+                          </>
                         ) : album.photosCount === 0 ? (
                           <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-4">
                             <img

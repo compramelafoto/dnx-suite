@@ -3,7 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import sharp from "sharp";
-import { readFromR2, uploadToR2, generateR2Key, urlToR2Key } from "@/lib/r2-client";
+import { readFromR2, uploadToR2, generateR2Key, urlToR2Key, deleteFromR2 } from "@/lib/r2-client";
 
 /**
  * PATCH /api/dashboard/albums/[id]/cover
@@ -48,6 +48,17 @@ export async function PATCH(
 
     // Si photoId es null, se limpia la portada
     if (photoId === null) {
+      const standaloneKey =
+        (album as any).coverPhotoId == null
+          ? String((album as any).coverThumbnailKey || "").trim()
+          : "";
+      if (standaloneKey && standaloneKey.startsWith("album-covers/")) {
+        try {
+          await deleteFromR2(standaloneKey);
+        } catch (e) {
+          console.warn("No se pudo borrar la portada propia:", e);
+        }
+      }
       try {
         await prisma.album.update({
           where: { id: albumId },
@@ -139,9 +150,9 @@ export async function PATCH(
       coverCropZoom: typeof zoom === "number" ? zoom : null,
       coverCropAspect: typeof aspect === "number" ? aspect : null,
     };
-    if (coverThumbnailKey) {
-      updateData.coverThumbnailKey = coverThumbnailKey;
-    }
+    // Siempre se reescribe: si el álbum tenía una portada propia subida a mano,
+    // elegir una foto como portada debe reemplazarla (si no, la vieja seguiría ganando).
+    updateData.coverThumbnailKey = coverThumbnailKey;
 
     let updatedAlbum: any;
     try {
@@ -162,6 +173,23 @@ export async function PATCH(
         });
       } else {
         throw updateErr;
+      }
+    }
+
+    // Si venía de una portada propia subida a mano, ese archivo queda huérfano.
+    const previousStandaloneKey =
+      (album as any).coverPhotoId == null
+        ? String((album as any).coverThumbnailKey || "").trim()
+        : "";
+    if (
+      previousStandaloneKey &&
+      previousStandaloneKey.startsWith("album-covers/") &&
+      previousStandaloneKey !== coverThumbnailKey
+    ) {
+      try {
+        await deleteFromR2(previousStandaloneKey);
+      } catch (e) {
+        console.warn("No se pudo borrar la portada propia anterior:", e);
       }
     }
 

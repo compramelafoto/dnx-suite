@@ -238,6 +238,21 @@ async function purgeAlbumRawUploads(albumId: number): Promise<number> {
   return deleted;
 }
 
+/** Miniaturas de portada (recortes de fotos y portadas propias subidas a mano). */
+async function purgeAlbumCovers(albumId: number): Promise<number> {
+  let deleted = 0;
+  try {
+    const coverObjects = await listObjectsByPrefix(`album-covers/${albumId}/`);
+    for (const obj of coverObjects) {
+      await deleteFromR2(obj.Key).catch(() => {});
+      deleted += 1;
+    }
+  } catch {
+    /* best-effort */
+  }
+  return deleted;
+}
+
 export async function processAlbumCleanupBatch(
   now = new Date()
 ): Promise<AlbumCleanupRunLog> {
@@ -432,6 +447,7 @@ export async function processAlbumCleanupBatch(
 
       if (activeLeft === 0) {
         albumLog.externalOps += await purgeAlbumRawUploads(album.id);
+        albumLog.externalOps += await purgeAlbumCovers(album.id);
         const finalized = await finalizeAlbumCleanup(album.id, config);
         albumLog.status = finalized.status;
         log.processedAlbums.push({

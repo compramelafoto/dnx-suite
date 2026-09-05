@@ -48,6 +48,25 @@ function hasExplicitCoverSelection(album: AlbumForListCover): boolean {
   );
 }
 
+/**
+ * Portada propia: imagen subida por el fotógrafo que NO es una foto del álbum.
+ * Se guarda en `coverThumbnailKey` sin `coverPhotoId`, así no cuenta como foto
+ * subida y el álbum puede seguir mostrando el cartel "fotos próximamente".
+ */
+export function hasAlbumStandaloneCover(album: AlbumForListCover): boolean {
+  return album.coverPhotoId == null && Boolean(album.coverThumbnailKey?.trim());
+}
+
+/** URL pública de la portada propia (null si el álbum no tiene una). */
+export function resolveAlbumStandaloneCoverUrl(album: AlbumForListCover): string | null {
+  if (!hasAlbumStandaloneCover(album)) return null;
+  try {
+    return getR2PublicUrl(album.coverThumbnailKey!.trim());
+  } catch {
+    return null;
+  }
+}
+
 export type ResolveAlbumListCoverOptions = {
   /** Reservado; las portadas de listado siempre usan `mode=cover` (sin marca). */
   maxMode?: "thumb" | "cover";
@@ -61,6 +80,9 @@ export function resolveAlbumListCoverUrl(
   album: AlbumForListCover,
   _options?: ResolveAlbumListCoverOptions
 ): string | null {
+  const standalone = resolveAlbumStandaloneCoverUrl(album);
+  if (standalone) return standalone;
+
   const effective = resolveEffectiveListCoverPhoto(album);
   if (!effective?.id) return null;
 
@@ -84,6 +106,7 @@ export function resolveAlbumListCoverUrlFallback(
   primaryUrl: string | null
 ): string | null {
   const effective = resolveEffectiveListCoverPhoto(album);
+  if (!effective?.id && hasAlbumStandaloneCover(album)) return null;
   if (!effective?.id) return null;
   const apiUrl = buildPhotoViewApiUrl(effective.id, album.id, "cover");
   if (!primaryUrl || primaryUrl !== apiUrl) return apiUrl;
@@ -109,7 +132,13 @@ export function countActiveAlbumPhotos(
   return activePhotos(photosOrCount).length;
 }
 
-/** Sin fotos → cartel “próximamente”; con fotos → portada (aunque falte flag showComingSoon). */
-export function shouldShowAlbumComingSoonCover(photosCount: number): boolean {
-  return photosCount <= 0;
+/**
+ * Sin fotos ni portada propia → cartel “próximamente”.
+ * Con portada propia se muestra la imagen (el cartel pasa a ser una franja encima).
+ */
+export function shouldShowAlbumComingSoonCover(
+  photosCount: number,
+  hasStandaloneCover = false
+): boolean {
+  return photosCount <= 0 && !hasStandaloneCover;
 }

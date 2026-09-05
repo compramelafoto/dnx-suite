@@ -80,7 +80,7 @@ export function AlbumCard({ album }: { album: PublicAlbum }) {
   return (
     <Card className="hp-card overflow-hidden h-full flex flex-col min-w-0 w-full !rounded-2xl !p-0 border-[#e5e7eb] shadow-none">
       <div className="aspect-[4/3] relative bg-[#f3f4f6] min-w-0">
-        {album.coverPhotoUrl && album.photosCount > 0 ? (
+        {album.coverPhotoUrl ? (
           <Image
             src={album.coverPhotoUrl}
             alt=""

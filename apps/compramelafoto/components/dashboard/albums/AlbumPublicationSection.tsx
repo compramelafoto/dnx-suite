@@ -4,6 +4,7 @@ import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import AlbumSharePanel from "@/components/dashboard/albums/AlbumSharePanel";
+import AlbumCoverManager from "@/components/dashboard/albums/AlbumCoverManager";
 import { AlbumTestModeDashboardAlert } from "@/components/album/AlbumTestModeNotice";
 import type { AlbumNextStepsMode } from "@/components/dashboard/albums/AlbumNextSteps";
 import type { AlbumPublicationPanelId } from "@/lib/albums/album-dashboard-nav";
@@ -24,6 +25,8 @@ export type AlbumPublicationSectionProps = {
   expirationExtensionDays?: number | null;
   coverPhotoId?: number | null;
   coverPreviewUrl?: string | null;
+  customCoverUrl?: string | null;
+  onCoverChanged?: (next: { coverPhotoId: number | null; customCoverUrl: string | null }) => void;
   onEditVisibility?: () => void;
   canShareWithClients?: boolean;
   shareBlockReasons?: string[];
@@ -130,6 +133,8 @@ export default function AlbumPublicationSection({
   expirationExtensionDays,
   coverPhotoId,
   coverPreviewUrl,
+  customCoverUrl = null,
+  onCoverChanged,
   onEditVisibility,
   canShareWithClients = true,
   shareBlockReasons = [],
@@ -320,43 +325,19 @@ export default function AlbumPublicationSection({
             <div className="ds-content-container w-full space-y-1">
               <h3 className="text-base font-semibold text-[#1a1a1a] m-0">Portada social</h3>
               <p className="ds-readable-text ds-readable-text--sm text-[#6b7280] m-0">
-                Imagen del álbum en listados y al compartir.
+                Imagen del álbum en listados y al compartir. Es una imagen aparte: no se vende, no
+                aparece en la galería y no cuenta como foto subida.
               </p>
             </div>
-            {coverPreviewUrl ? (
-              <div className="flex w-full min-w-0 flex-col gap-4 sm:flex-row sm:items-start">
-                <div className="mx-auto sm:mx-0 shrink-0 w-[min(100%,12rem)] aspect-square rounded-xl border border-[#e5e7eb] bg-[#fafafa] overflow-hidden">
-                  <img
-                    src={coverPreviewUrl}
-                    alt="Portada del álbum"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex-1 min-w-0 space-y-2">
-                  <p className="ds-readable-text text-sm text-[#1a1a1a] m-0">
-                    {coverPhotoId
-                      ? `Foto #${coverPhotoId} configurada como portada.`
-                      : "Primera foto disponible como referencia."}
-                  </p>
-                  <Link href={`/dashboard/albums/${albumId}?tab=fotos`} prefetch={false}>
-                    <Button type="button" variant="secondary" size="md" className="whitespace-nowrap">
-                      Elegir portada en Fotos
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="ds-readable-text text-sm text-[#6b7280] m-0">
-                  Subí fotos y elegí una portada desde Contenido → Fotos.
-                </p>
-                <Link href={`/dashboard/albums/${albumId}?tab=fotos`} prefetch={false}>
-                  <Button type="button" variant="secondary" size="md">
-                    Ir a Fotos
-                  </Button>
-                </Link>
-              </div>
-            )}
+            <AlbumCoverManager
+              albumId={albumId}
+              photosCount={photoCount}
+              coverPhotoId={coverPhotoId ?? null}
+              customCoverUrl={customCoverUrl}
+              photoCoverPreviewUrl={customCoverUrl ? null : coverPreviewUrl ?? null}
+              onChanged={onCoverChanged ?? (() => {})}
+              showHeading={false}
+            />
           </div>
         </Card>
       ) : null}

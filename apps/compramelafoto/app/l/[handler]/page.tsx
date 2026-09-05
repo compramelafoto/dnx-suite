@@ -511,7 +511,7 @@ export default async function LabPublicPage({
                 {labAlbums.map((album) => (
                   <Link key={album.id} href={`/a/${album.publicSlug || album.id}`}>
                     <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
-                      {album.coverPhotoUrl && album.photosCount > 0 ? (
+                      {album.coverPhotoUrl ? (
                         <div className="aspect-square relative">
                           <Image
                             src={album.coverPhotoUrl}
@@ -520,6 +520,9 @@ export default async function LabPublicPage({
                             className="object-cover"
                             unoptimized
                           />
+                          {album.photosCount === 0 ? (
+                            <span className="absolute inset-x-0 bottom-0 z-10 bg-black/55 px-2 py-1 text-center text-[11px] leading-tight text-white">Fotos próximamente</span>
+                          ) : null}
                         </div>
                       ) : album.photosCount === 0 ? (
                         <div className="aspect-square flex flex-col items-center justify-center p-4 bg-[#f3f4f6]">
@@ -565,7 +568,7 @@ export default async function LabPublicPage({
                     href={`/a/${album.publicSlug || album.id}`}
                   >
                     <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
-                      {album.coverPhotoUrl && album.photosCount > 0 ? (
+                      {album.coverPhotoUrl ? (
                         <div className="aspect-square relative">
                           <Image
                             src={album.coverPhotoUrl}
@@ -574,6 +577,9 @@ export default async function LabPublicPage({
                             className="object-cover"
                             unoptimized
                           />
+                          {album.photosCount === 0 ? (
+                            <span className="absolute inset-x-0 bottom-0 z-10 bg-black/55 px-2 py-1 text-center text-[11px] leading-tight text-white">Fotos próximamente</span>
+                          ) : null}
                         </div>
                       ) : album.photosCount === 0 ? (
                         <div className="aspect-square flex flex-col items-center justify-center p-4 bg-[#f3f4f6]">

@@ -29,6 +29,7 @@ import { collectAlbumPackPrintProductIds } from "@/lib/album-packs/public-pack";
 import { isAlbumPackPaymentGloballyAllowedForAlbum } from "@/lib/album-packs/album-pack-feature-flags";
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import ClientAlbumView from "@/components/photo/ClientAlbumView";
+import { resolveAlbumStandaloneCoverUrl } from "@/lib/album/album-list-cover";
 import PhotographerHeader from "@/components/photographer/PhotographerHeader";
 import PhotographerFooter from "@/components/photographer/PhotographerFooter";
 import { ClfAlbumPartnerWelcome } from "@/components/partners/ClfAlbumPartnerWelcome";
@@ -107,6 +108,7 @@ const selectAlbumBase = {
   deletedAt: true,
   firstPhotoDate: true,
   coverPhotoId: true,
+  coverThumbnailKey: true,
   isHidden: true,
   isTest: true,
   isPublic: true,
@@ -423,6 +425,12 @@ export default async function AlbumPublicPage({
   const isAccessBlocked = !isAdmin && Boolean(album.isHidden || isExpired);
 
   const coverPhotoId = (album as { coverPhotoId?: number | null }).coverPhotoId ?? null;
+  // Portada propia del fotógrafo: imagen aparte, no es una foto del álbum.
+  const albumCoverImageUrl = resolveAlbumStandaloneCoverUrl({
+    id: album.id,
+    coverPhotoId,
+    coverThumbnailKey: (album as { coverThumbnailKey?: string | null }).coverThumbnailKey ?? null,
+  });
 
   const albumEventId =
     typeof (album as { eventId?: number | null }).eventId === "number" &&
@@ -646,6 +654,7 @@ export default async function AlbumPublicPage({
               createdAt: album.createdAt.toISOString(),
               firstPhotoDate,
               coverPhotoId,
+              coverImageUrl: albumCoverImageUrl,
               expirationExtensionDays: (album as any).expirationExtensionDays ?? 0,
               showComingSoonMessage: album.showComingSoonMessage,
               hiddenPhotosEnabled,

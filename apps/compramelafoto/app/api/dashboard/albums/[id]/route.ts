@@ -34,6 +34,7 @@ import {
   type AlbumPhotoStats,
 } from "@/lib/albums/album-photo-stats";
 import { albumDashboardGetIncludePhotos } from "@/lib/albums/album-dashboard-get-options";
+import { resolveAlbumStandaloneCoverUrl } from "@/lib/album/album-list-cover";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -442,8 +443,17 @@ export async function GET(
         albumFolders = [];
       }
     }
+    // Portada propia (imagen subida a mano, sin foto asociada): el cliente no
+    // puede armar la URL de R2 por su cuenta, así que se resuelve acá.
+    const customCoverUrl = resolveAlbumStandaloneCoverUrl({
+      id: album.id as number,
+      coverPhotoId: (album as any).coverPhotoId ?? null,
+      coverThumbnailKey: (album as any).coverThumbnailKey ?? null,
+    });
+
     return NextResponse.json({
       ...album,
+      customCoverUrl,
       photos: dashboardPhotos,
       eventSchedule: buildAlbumEventScheduleFromDb({
         eventDate: (album.eventDate as Date | null | undefined) ?? null,

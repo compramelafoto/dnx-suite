@@ -5,6 +5,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import EventLocationSearch from "@/components/organizer/EventLocationSearch";
+import AlbumCoverManager from "@/components/dashboard/albums/AlbumCoverManager";
 import AlbumEventScheduleFields, {
   type AlbumEventScheduleValue,
 } from "@/components/dashboard/albums/AlbumEventScheduleFields";
@@ -22,6 +23,11 @@ export type AlbumConfigurationSectionProps = {
   hiddenPhotosEnabled: boolean;
   hiddenSelfieRetentionDays: string;
   showComingSoonMessage: boolean;
+  photosCount: number;
+  coverPhotoId: number | null;
+  customCoverUrl: string | null;
+  photoCoverPreviewUrl: string | null;
+  onCoverChanged: (next: { coverPhotoId: number | null; customCoverUrl: string | null }) => void;
   scanProtectionEnabled: boolean;
   onScanProtectionChange: (value: boolean) => void;
   albumMode: AlbumNextStepsMode;
@@ -75,6 +81,11 @@ export default function AlbumConfigurationSection({
   hiddenPhotosEnabled,
   hiddenSelfieRetentionDays,
   showComingSoonMessage,
+  photosCount,
+  coverPhotoId,
+  customCoverUrl,
+  photoCoverPreviewUrl,
+  onCoverChanged,
   scanProtectionEnabled,
   onScanProtectionChange,
   albumMode,
@@ -247,6 +258,21 @@ export default function AlbumConfigurationSection({
             </span>
           </label>
         </div>
+      </ConfigBlock>
+
+      <ConfigBlock
+        title="Portada del álbum"
+        description="La portada es una imagen aparte: no se vende, no aparece en la galería y no cuenta como foto subida."
+      >
+        <AlbumCoverManager
+          albumId={albumId}
+          photosCount={photosCount}
+          coverPhotoId={coverPhotoId}
+          customCoverUrl={customCoverUrl}
+          photoCoverPreviewUrl={photoCoverPreviewUrl}
+          onChanged={onCoverChanged}
+          showHeading={false}
+        />
       </ConfigBlock>
 
       <ConfigBlock title="Tipo de álbum" description="Define el flujo operativo del workspace.">

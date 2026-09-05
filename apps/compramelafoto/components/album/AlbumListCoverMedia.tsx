@@ -26,7 +26,6 @@ export default function AlbumListCoverMedia({
   imageClassName = "object-cover",
   comingSoonClassName = "w-full h-full flex flex-col items-center justify-center p-4 bg-[#f3f4f6]",
 }: Props) {
-  const showComingSoon = photosCount <= 0;
   const [src, setSrc] = useState(coverPhotoUrl ?? null);
   const [triedFallback, setTriedFallback] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -47,22 +46,32 @@ export default function AlbumListCoverMedia({
     setLoadFailed(true);
   }
 
-  if (!showComingSoon && src && !loadFailed) {
+  // Con portada propia (subida por el fotógrafo) se muestra la imagen aunque el
+  // álbum todavía no tenga fotos; el aviso pasa a ser una franja sobre la portada.
+  const hasImage = Boolean(src) && !loadFailed;
+  const pendingPhotos = photosCount <= 0;
+
+  if (hasImage) {
     return (
       <div className={`relative ${className}`}>
         <Image
-          src={src}
+          src={src as string}
           alt={title}
           fill
           className={imageClassName}
           sizes="(max-width: 768px) 100vw, 33vw"
           onError={handleImageError}
         />
+        {pendingPhotos ? (
+          <span className="absolute inset-x-0 bottom-0 bg-black/55 px-2 py-1 text-center text-[11px] leading-tight text-white">
+            Fotos próximamente
+          </span>
+        ) : null}
       </div>
     );
   }
 
-  if (showComingSoon) {
+  if (pendingPhotos) {
     return (
       <div className={comingSoonClassName}>
         {variant === "watermark" ? (
