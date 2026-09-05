@@ -40,7 +40,7 @@
     },
     {
       "path": "/api/internal/analysis/run?ocr=1",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/2 * * * *"
     },
     {
       "path": "/api/cron/biometric-cleanup",

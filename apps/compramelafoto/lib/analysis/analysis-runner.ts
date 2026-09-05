@@ -10,10 +10,14 @@ import {
   photoCreatedAtCutoff,
   resolveMaxPhotoAgeDays,
 } from "@/lib/analysis/analysis-age-policy";
+import {
+  resolveBatchSize,
+  resolveConcurrency,
+  resolveMaxRunMs,
+  shouldRunAnotherRound,
+} from "@/lib/analysis/analysis-throughput";
 import sharp from "sharp";
 
-const DEFAULT_BATCH_SIZE = 2;
-const DEFAULT_CONCURRENCY = 2;
 const MAX_ATTEMPTS = 3;
 
 type RunOptions = {
@@ -22,21 +26,12 @@ type RunOptions = {
   source: "cron" | "admin";
   /** Si se indica, solo crea/claim jobs de ese álbum (útil para destrabar galerías grandes). */
   albumId?: number;
+  /**
+   * Presupuesto de pared de la corrida. El cron usa el máximo de la función; el panel
+   * de admin pasa uno corto para que la respuesta no cuelgue en el navegador.
+   */
+  maxRunMs?: number;
 };
-
-function clampInt(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function resolveBatchSize() {
-  const envValue = Number(process.env.ANALYSIS_BATCH_SIZE ?? DEFAULT_BATCH_SIZE);
-  return clampInt(Number.isFinite(envValue) ? envValue : DEFAULT_BATCH_SIZE, 1, 20);
-}
-
-function resolveConcurrency() {
-  const envValue = Number(process.env.ANALYSIS_CONCURRENCY ?? DEFAULT_CONCURRENCY);
-  return clampInt(Number.isFinite(envValue) ? envValue : DEFAULT_CONCURRENCY, 1, 6);
-}
 
 async function runWithConcurrency<T, R>(
   items: T[],
@@ -646,20 +641,12 @@ async function processJob(
   }
 }
 
-export async function runAnalysisPipeline(options: RunOptions) {
-  const now = new Date();
-  const batchSize = resolveBatchSize();
-  const concurrency = resolveConcurrency();
-  const albumId =
-    typeof options.albumId === "number" && Number.isFinite(options.albumId)
-      ? options.albumId
-      : undefined;
-  const maxPhotoAgeDays = resolveMaxPhotoAgeDays();
-  const ageCutoff =
-    albumId == null && maxPhotoAgeDays != null
-      ? photoCreatedAtCutoff(maxPhotoAgeDays, now)
-      : null;
-
+/** Crea los jobs faltantes de fotos que nunca entraron a la cola. */
+async function backfillMissingJobs(
+  batchSize: number,
+  albumId: number | undefined,
+  ageCutoff: Date | null
+): Promise<number> {
   const missingPhotos = await prisma.photo.findMany({
     where: {
       analysisJob: null,
@@ -677,115 +664,182 @@ export async function runAnalysisPipeline(options: RunOptions) {
     },
     select: { id: true },
     orderBy: { createdAt: "asc" },
-    take: albumId != null ? Math.max(batchSize, 50) : batchSize,
+    take: Math.max(batchSize, 50),
   });
 
-  if (missingPhotos.length > 0) {
-    await prisma.photoAnalysisJob.createMany({
-      data: missingPhotos.map((p) => ({
-        photoId: p.id,
-        status: "PENDING",
-      })),
-      skipDuplicates: true,
-    });
-    await prisma.photo.updateMany({
-      where: { id: { in: missingPhotos.map((p) => p.id) } },
-      data: { analysisStatus: "PENDING", analysisError: null },
-    });
-  }
+  if (missingPhotos.length === 0) return 0;
 
-  const { jobsFound, locked } = await claimJobsAtomic(
-    now,
-    batchSize,
-    albumId,
-    maxPhotoAgeDays
-  );
-  const lockedJobIds = locked.map((j) => j.id);
-
-  console.log("[analysis_v2] claim", {
-    source: options.source,
-    albumId: albumId ?? null,
-    max_photo_age_days: maxPhotoAgeDays,
-    jobs_claimed: jobsFound,
-    jobs_locked_real: lockedJobIds.length,
-    batch_size_config: batchSize,
-    concurrency_config: concurrency,
-    ocr_skipped_in_primary_pipeline: !options.includeOcr,
+  await prisma.photoAnalysisJob.createMany({
+    data: missingPhotos.map((p) => ({ photoId: p.id, status: "PENDING" as const })),
+    skipDuplicates: true,
   });
+  await prisma.photo.updateMany({
+    where: { id: { in: missingPhotos.map((p) => p.id) } },
+    data: { analysisStatus: "PENDING", analysisError: null },
+  });
+  return missingPhotos.length;
+}
 
-  if (!lockedJobIds.length) {
-    return NextResponse.json({
-      ok: true,
-      processed: 0,
-      backfilled: missingPhotos.length,
-      jobs_claimed: jobsFound,
-      jobs_locked_real: 0,
-      albumId: albumId ?? null,
-    });
-  }
+/**
+ * Procesa la cola de análisis hasta vaciarla o hasta agotar el presupuesto de tiempo.
+ *
+ * No hay tope de fotos por corrida: antes se tomaba un lote fijo de 2 y se devolvía,
+ * lo que daba ~288 fotos por día y dejaba álbumes enteros esperando días con el
+ * reconocimiento facial apagado. Ahora lo único que corta la corrida es el reloj de
+ * la función (`maxDuration`), y el cron siguiente retoma donde quedó.
+ */
+export async function runAnalysisPipeline(options: RunOptions) {
+  const startedAt = Date.now();
+  const batchSize = resolveBatchSize();
+  const concurrency = resolveConcurrency();
+  const maxRunMs = options.maxRunMs ?? resolveMaxRunMs();
+  const albumId =
+    typeof options.albumId === "number" && Number.isFinite(options.albumId)
+      ? options.albumId
+      : undefined;
+  const maxPhotoAgeDays = resolveMaxPhotoAgeDays();
 
-  const jobs = await prisma.photoAnalysisJob.findMany({
-    where: { id: { in: lockedJobIds } },
-    include: {
-      photo: {
-        select: {
-          id: true,
-          albumId: true,
-          userId: true,
-          originalKey: true,
-          previewUrl: true,
-          createdAt: true,
-          capturedAt: true,
-          storageDeletedAt: true,
-          exifMetadataStatus: true,
-          album: {
-            select: {
-              userId: true,
-              deletedAt: true,
-              isHidden: true,
-              firstPhotoDate: true,
-              expirationExtensionDays: true,
-              cleanupStatus: true,
+  let totalOk = 0;
+  let totalFail = 0;
+  let totalBackfilled = 0;
+  let totalLocked = 0;
+  let rounds = 0;
+  let lastRoundLocked = 0;
+  let lastRoundMs = 0;
+
+  do {
+    const roundStartedAt = Date.now();
+    const now = new Date(roundStartedAt);
+    const ageCutoff =
+      albumId == null && maxPhotoAgeDays != null
+        ? photoCreatedAtCutoff(maxPhotoAgeDays, now)
+        : null;
+
+    totalBackfilled += await backfillMissingJobs(batchSize, albumId, ageCutoff);
+
+    const { jobsFound, locked } = await claimJobsAtomic(
+      now,
+      batchSize,
+      albumId,
+      maxPhotoAgeDays
+    );
+    const lockedJobIds = locked.map((j) => j.id);
+    lastRoundLocked = lockedJobIds.length;
+    totalLocked += lockedJobIds.length;
+
+    if (lockedJobIds.length === 0) {
+      console.log("[analysis_v2] queue_empty", {
+        source: options.source,
+        albumId: albumId ?? null,
+        jobs_claimed: jobsFound,
+        rounds_done: rounds,
+        processed_total: totalOk,
+      });
+      lastRoundMs = Date.now() - roundStartedAt;
+      break;
+    }
+
+    const jobs = await prisma.photoAnalysisJob.findMany({
+      where: { id: { in: lockedJobIds } },
+      include: {
+        photo: {
+          select: {
+            id: true,
+            albumId: true,
+            userId: true,
+            originalKey: true,
+            previewUrl: true,
+            createdAt: true,
+            capturedAt: true,
+            storageDeletedAt: true,
+            exifMetadataStatus: true,
+            album: {
+              select: {
+                userId: true,
+                deletedAt: true,
+                isHidden: true,
+                firstPhotoDate: true,
+                expirationExtensionDays: true,
+                cleanupStatus: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    });
 
-  const results = await runWithConcurrency(
-    jobs,
-    concurrency,
-    (job) =>
-      processJob(
-        {
-          id: job.id,
-          photoId: job.photoId,
-          attempts: job.attempts ?? null,
-          photo: job.photo,
-        },
-        options.includeOcr,
-        options.debug
-      )
+    const results = await runWithConcurrency(
+      jobs,
+      concurrency,
+      (job) =>
+        processJob(
+          {
+            id: job.id,
+            photoId: job.photoId,
+            attempts: job.attempts ?? null,
+            photo: job.photo,
+          },
+          options.includeOcr,
+          options.debug
+        )
+    );
+
+    const processedOk = results.filter((r) => (r as { ok: boolean }).ok).length;
+    totalOk += processedOk;
+    totalFail += results.length - processedOk;
+    rounds += 1;
+    lastRoundMs = Date.now() - roundStartedAt;
+
+    console.log("[analysis_v2] round_done", {
+      source: options.source,
+      albumId: albumId ?? null,
+      round: rounds,
+      processed_ok: processedOk,
+      processed_fail: results.length - processedOk,
+      jobs_locked_real: lockedJobIds.length,
+      round_ms: lastRoundMs,
+      elapsed_ms: Date.now() - startedAt,
+      batch_size_config: batchSize,
+      concurrency_config: concurrency,
+      max_run_ms: maxRunMs,
+      ocr_skipped_in_primary_pipeline: !options.includeOcr,
+    });
+  } while (
+    shouldRunAnotherRound({
+      elapsedMs: Date.now() - startedAt,
+      maxRunMs,
+      lastRoundLocked,
+      lastRoundMs,
+      processedSoFar: totalOk,
+    })
   );
 
-  const processedOk = results.filter((r) => (r as { ok: boolean }).ok).length;
-  const processedFail = results.length - processedOk;
+  const durationMs = Date.now() - startedAt;
+  const stoppedByTime = lastRoundLocked > 0;
 
-  console.log("[analysis_v2] batch_done", {
+  console.log("[analysis_v2] run_done", {
     source: options.source,
-    processed_ok: processedOk,
-    processed_fail: processedFail,
-    jobs_locked_real: lockedJobIds.length,
+    albumId: albumId ?? null,
+    max_photo_age_days: maxPhotoAgeDays,
+    rounds,
+    processed_ok: totalOk,
+    processed_fail: totalFail,
+    jobs_locked_real: totalLocked,
+    backfilled: totalBackfilled,
+    duration_ms: durationMs,
+    stopped_by_time_budget: stoppedByTime,
   });
 
   return NextResponse.json({
     ok: true,
-    processed: processedOk,
-    backfilled: missingPhotos.length,
-    jobs_claimed: jobsFound,
-    jobs_locked_real: lockedJobIds.length,
-    processed_fail: processedFail,
+    processed: totalOk,
+    processed_fail: totalFail,
+    backfilled: totalBackfilled,
+    jobs_claimed: totalLocked,
+    jobs_locked_real: totalLocked,
+    rounds,
+    duration_ms: durationMs,
+    stopped_by_time_budget: stoppedByTime,
     albumId: albumId ?? null,
   });
 }
