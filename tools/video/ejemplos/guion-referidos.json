@@ -1,0 +1,47 @@
+{
+ "voz": "fEKPLlD4JJ8whdCY6JsE",
+ "frases": [
+  {
+   "escena": "hook",
+   "texto": "Si conocés a otros fotógrafos, podés estar ganando plata con cada venta que ellos hacen. Y a ellos no les cuesta nada."
+  },
+  {
+   "escena": "reparto",
+   "texto": "Funciona así: Comprámelafoto cobra una comisión por cada venta, y cuando vos recomendás a alguien, la mitad de esa comisión es tuya, durante un año entero."
+  },
+  {
+   "escena": "producto",
+   "texto": "Entrá a Recomendanos y pedí tu link. Es tuyo, no hay que configurar nada."
+  },
+  {
+   "escena": "producto2",
+   "texto": "Te da el link y un mensaje ya escrito. Lo copiás, y lo mandás por WhatsApp."
+  },
+  {
+   "escena": "perfiles",
+   "texto": "Podés recomendar fotógrafos, y también organizadores de eventos. Cuando entran por tu link y crean su cuenta, quedan asociados a vos por doce meses."
+  },
+  {
+   "escena": "tresPartes",
+   "texto": "Desde ahí, cada venta que ellos hacen te deja tu parte. Y tu colega cobra exactamente lo mismo que cobraría sin vos: tu comisión sale de lo que se queda la plataforma."
+  },
+  {
+   "escena": "cobro",
+   "texto": "Lo mejor es cómo cobrás: tu parte se acredita sola en tu cuenta de Mercado Pago, en la misma venta. No hay que pedir nada, ni esperar liquidaciones."
+  },
+  {
+   "escena": "aviso",
+   "texto": "Por eso necesitás tener tu Mercado Pago conectado. Si no lo tenés conectado cuando tu referido vende, esa comisión se pierde."
+  },
+  {
+   "escena": "cierre",
+   "texto": "Pedí tu link en comprámelafoto punto com, barra recomendános."
+  }
+ ],
+ "display": {
+  "Comprámelafoto": "ComprameLaFoto"
+ },
+ "sinSubtitulo": [
+  "cierre"
+ ]
+}
