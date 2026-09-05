@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runAnalysisPipeline } from "@/lib/analysis/analysis-runner";
 import { resolveIncludeOcrFromRequest } from "@/lib/analysis/resolve-include-ocr";
+import { resolveMaxRunMs } from "@/lib/analysis/analysis-throughput";
 import {
   CRON_LOCK_IDS,
   releaseCronLock,
@@ -36,7 +37,12 @@ async function runAnalysis(req: Request) {
   }
 
   const started = Date.now();
-  const lockAcquired = await tryAcquireCronLock(CRON_LOCK_IDS.ANALYSIS);
+  // El lease tiene que durar más que la corrida (que ahora da vueltas hasta vaciar la
+  // cola), pero no mucho más: si el proceso muere, esto es lo que tarda en destrabarse.
+  const lockAcquired = await tryAcquireCronLock(
+    CRON_LOCK_IDS.ANALYSIS,
+    resolveMaxRunMs() + 60_000
+  );
 
   if (!lockAcquired) {
     logCronMetrics({

@@ -29,7 +29,15 @@ export async function POST(req: Request) {
     const albumIdRaw = url.searchParams.get("albumId");
     const albumIdParsed = albumIdRaw ? Number(albumIdRaw) : NaN;
     const albumId = Number.isFinite(albumIdParsed) ? albumIdParsed : undefined;
-    return runAnalysisPipeline({ includeOcr, debug, source: "admin", albumId });
+    // Presupuesto corto: el panel llama esto desde el navegador y espera la respuesta.
+    // El cron es el que corre hasta vaciar la cola.
+    return runAnalysisPipeline({
+      includeOcr,
+      debug,
+      source: "admin",
+      albumId,
+      maxRunMs: 120_000,
+    });
   } catch (error: any) {
     console.error("Error en process:", error);
     return NextResponse.json(

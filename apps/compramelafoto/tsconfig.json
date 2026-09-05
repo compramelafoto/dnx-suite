@@ -28,6 +28,7 @@
     "scripts/**",
     "e2e/**",
     "playwright.config.ts",
-    "vitest.cuantocobro.config.ts"
+    "vitest.cuantocobro.config.ts",
+    "vitest.analysis.config.ts"
   ]
 }
