@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { queueEmail } from "@/lib/email-queue";
+import { getAlbumsReadiness } from "@/lib/analysis/album-analysis-readiness";
 
 type RunOptions = {
   dryRun?: boolean;
@@ -66,12 +67,31 @@ export async function runSendAlbumNotifications(options: RunOptions = {}): Promi
     take: batchLimit,
   });
 
+  // El aviso lleva al cliente al álbum, así que espera a que el reconocimiento facial
+  // y el OCR estén listos. Si no, llega y solo ve "las fotos se están procesando".
+  const readinessByAlbum = await getAlbumsReadiness(
+    albumsWithNewPhotos.map((album) => album.id)
+  );
+
   for (const album of albumsWithNewPhotos) {
     const firstPhotoDate = album.firstPhotoDate
       ? new Date(album.firstPhotoDate).getTime()
       : album.photos[0]
         ? new Date(album.photos[0].createdAt).getTime()
         : null;
+
+    const readiness = readinessByAlbum.get(album.id);
+    if (!readiness?.ready) {
+      // No marcamos notifiedWhenReady: queda pendiente y se reintenta la hora siguiente.
+      console.log("[cron:album-notifications] ready_pospuesto", {
+        albumId: album.id,
+        motivo: readiness?.reason ?? "sin_datos",
+        pendientes: (readiness?.pending ?? 0) + (readiness?.processing ?? 0),
+        suscriptores: album.notifications.length,
+      });
+      skipped += album.notifications.length;
+      continue;
+    }
 
     if (firstPhotoDate && album.notifications.length > 0) {
       for (const notif of album.notifications) {

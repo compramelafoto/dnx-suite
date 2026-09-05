@@ -227,14 +227,14 @@ async function matchFacesWithInterested(
     })),
   });
 
-  const notifyUrl = `${process.env.APP_URL || "http://localhost:3000"}/api/internal/face-matching/notify`;
-  const cronSecret = process.env.CRON_SECRET;
-  fetch(notifyUrl, {
-    method: "GET",
-    headers: cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {},
-  }).catch((fetchErr) => {
-    console.warn("[analysis_v2] notify_failed", fetchErr);
-  });
+  // El aviso NO se dispara acá. Antes salía foto por foto, así que el cliente recibía
+  // "encontramos tus fotos" con el álbum analizado a medias y le faltaban justo las que
+  // seguían en cola. Ahora los FaceMatchEvent quedan con notifiedAt = null y los manda el
+  // cron `/api/internal/face-matching/notify`, que solo avisa de álbumes ya terminados.
+  //
+  // Tampoco sirve dispararlo al final de la corrida: entre que el análisis termina y que
+  // el álbum se da por cerrado pasa la ventana de calma (30 min por default), o sea mucho
+  // después de que esta función devolvió.
 }
 
 type AnalysisPhotoContext = {

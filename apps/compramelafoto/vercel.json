@@ -43,6 +43,10 @@
       "schedule": "*/2 * * * *"
     },
     {
+      "path": "/api/internal/face-matching/notify",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/biometric-cleanup",
       "schedule": "0 2 * * *"
     },
