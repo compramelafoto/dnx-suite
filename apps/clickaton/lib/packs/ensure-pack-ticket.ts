@@ -1,17 +1,35 @@
 import { prisma } from "@repo/db";
 import { MARATHON_PACK, MARATHON_PACK_TICKET_CODE } from "@/lib/packs/marathon-pack";
+import { debeOfrecerPackDeMaratones } from "@/lib/packs/pack-offer-policy";
 
 /**
  * Garantiza que la edición tenga la entrada Pack 4 a precio fijo.
  * Idempotente — se llama al armar el contexto público de inscripción.
  */
-export async function ensureMarathonPackTicket(editionId: string): Promise<string> {
+export async function ensureMarathonPackTicket(editionId: string): Promise<string | null> {
+  const edition = await prisma.clickatonEdition.findUnique({
+    where: { id: editionId },
+    select: { isOpsFixture: true },
+  });
+
   const existing = await prisma.clickatonTicketType.findUnique({
     where: {
       editionId_code: { editionId, code: MARATHON_PACK_TICKET_CODE },
     },
     select: { id: true },
   });
+  // Edición oculta de prueba: además de no crearlo, apagar el que haya quedado
+  // de una ejecución anterior. Si no, vuelve a aparecer en la próxima visita.
+  if (!debeOfrecerPackDeMaratones(edition)) {
+    if (existing) {
+      await prisma.clickatonTicketType.update({
+        where: { id: existing.id },
+        data: { isActive: false },
+      });
+    }
+    return null;
+  }
+
   if (existing) {
     await prisma.clickatonTicketType.update({
       where: { id: existing.id },
