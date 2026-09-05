@@ -11,7 +11,8 @@ pagarlo, recibir el link de canje, elegir fotos, y se crea el proyecto de diseñ
 > **Estado al 2026-09-04:** arreglados los hallazgos **1** (fotos equivocadas en el impreso),
 > **3** (botón «generar diseño»), **4** (descarga digital tras el canje), **5** (estados del pedido)
 > y **6** (modo prueba). El banco de pruebas corre con **0 fallas**.
-> Queda solo el **2** (cron de render), en suspenso hasta decidir cómo entra el Designer.
+> El **2** (cron de render) también quedó arreglado: la cola y los cron sobreviven al cambio de
+> Designer, solo cambia el renderizador que llaman. No queda ninguna rotura abierta.
 >
 > **Decisión de producto:** las plantillas escolares se van a diseñar con el **módulo DNX Suite
 > Designer** (`TemplateV2`), no con el `Template` legacy de huecos. Eso cambia los hallazgos 2 y 9;
@@ -108,7 +109,7 @@ avisos de preflight.
 Archivos: `lib/preventa-canjeable/redeem-preventa-pack-order-v1.ts`,
 `lib/school-render/ensure-school-design-for-preventa-order-item.ts`.
 
-### 2. Los cron de preview y export de diseño no están agendados — BLOQUEANTE
+### 2. Los cron de preview y export de diseño no están agendados — ARREGLADO
 
 `app/api/cron/process-design-previews` y `app/api/cron/process-design-exports` existen, pero no
 figuran en [vercel.json](../../apps/compramelafoto/vercel.json) ni los llama nadie más
@@ -122,12 +123,35 @@ figuran en [vercel.json](../../apps/compramelafoto/vercel.json) ni los llama nad
 
 En producción hay 0 `DesignPreviewJob` y 0 `DesignExportJob`, coherente con que esto nunca corrió.
 
-Arreglo: agregar ambos a `vercel.json` (o encadenarlos desde `/api/cron/hourly`).
+**Arreglado el 2026-09-04.** Los dos cron quedaron agendados en `vercel.json` cada 2 minutos,
+junto a `process-zip-jobs`.
 
-> **Ojo con la decisión del Designer.** Estos cron renderizan el pipeline legacy (sharp + huecos de
-> `TemplateSlot`). Si las plantillas escolares pasan al Designer, ese pipeline se reemplaza por el
-> render de `@repo/template-engine-renderer`. Agendarlos ahora puede ser trabajo perdido: conviene
-> decidir primero. Ver «Impacto del Designer».
+**Corrección a lo que decía antes este informe:** habíamos anotado que agendarlos podía ser trabajo
+perdido por la migración al Designer. No es así. Lo que el Designer reemplaza es el **renderizador**
+(`renderDesignPreview` / `renderDesignExport`); la cola, los workers y las entradas de cron son
+independientes del modelo de plantilla y sobreviven al cambio. Solo cambia a qué función llaman.
+
+Agendarlos sin más era una trampa, así que primero se taparon dos agujeros que solo aparecen cuando
+la cola realmente corre (`lib/school-render/design-job-recovery.ts`):
+
+- **Trabajos trabados.** Los workers escribían `lockedAt` pero nadie lo leía. Si una corrida se
+  cortaba a la mitad —timeout de 60s, un deploy, un corte de red— el trabajo quedaba en
+  `PROCESSING` para siempre. Y como encolar deduplica contra `PENDING`/`PROCESSING`, ese diseño
+  tampoco se podía reintentar nunca más: el fotógrafo quedaba sin salida. Ahora, al empezar, cada
+  worker reencola lo que lleva más de 10 minutos trabado y descarta lo que ya agotó 3 intentos,
+  dejando el motivo en la revisión para que la pantalla no diga "renderizando" para siempre.
+- **Choque con el índice único.** `DesignPreviewJob` y `DesignExportJob` tienen
+  `@@unique([designRevisionId, status])`: por revisión existe un solo trabajo de cada estado. Un
+  segundo intento fallido de la misma revisión chocaba con el primero (P2002) al cerrarse, y el
+  render quedaba a mitad de camino. Ahora se libera el lugar del estado terminal apenas se toma el
+  trabajo.
+
+Archivos: `vercel.json`, `lib/school-render/design-job-recovery.ts` (nuevo),
+`app/api/cron/process-design-previews/route.ts`, `app/api/cron/process-design-exports/route.ts`.
+
+**Verificado por tipos y por lectura, no de punta a punta:** el render real necesita credenciales de
+R2, que no están en el entorno local. Lo que falta comprobar en el primer deploy es que los dos cron
+aparezcan en Vercel y que un diseño llegue a `EXPORTED`.
 
 ### 3. El botón "generar diseño" del fotógrafo siempre falla — ARREGLADO
 
@@ -310,10 +334,12 @@ Agregar esa columna es migración a mano en las 5 bases Neon del schema comparti
 | `buildInitialTemplateSlotAssignments` | Se rehace (atado a `TemplateSlot.bbox`) |
 | `buildInitialRenderPreflight` | Se rehace |
 | `renderDesignPreview` / `renderDesignExport` (sharp) | Se reemplaza por el render V2 |
-| Cron `process-design-previews` / `process-design-exports` | Se reemplazan junto con el render |
+| Cola, workers y entradas de cron | **Sobreviven** — son independientes de la plantilla |
+| Lo que el worker llama para renderizar | Se reemplaza |
 
 ### Consecuencia para el orden de trabajo
 
-El hallazgo 2 (agendar los cron) **pierde sentido si el render se reemplaza**. Los hallazgos 3 y 4
-(botón del fotógrafo y descarga digital) son independientes del motor de plantillas y siguen
-valiendo la pena tal cual.
+Ninguno de los arreglos hechos se tira con la migración: lo único atado al modelo de plantilla es la
+resolución, la asignación a huecos, el preflight y el render. Lo que queda por delante del Designer
+es una decisión de esquema —dónde guarda el pack escolar su plantilla nueva— más rehacer esas cuatro
+piezas.
