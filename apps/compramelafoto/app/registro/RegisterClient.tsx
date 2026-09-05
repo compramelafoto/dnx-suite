@@ -8,6 +8,14 @@ import { DNX_AUTH_MESSAGES } from "@repo/auth/messages";
 import { sanitizeInternalRedirect } from "@/lib/auth/post-login-destination";
 import { buildGoogleAuthUrl } from "@/lib/auth/build-google-auth-url";
 import { getReferralCookie, getReferralMetaCookie } from "@/lib/referral-cookie";
+import {
+  ACCOUNT_TYPE_OPTIONS,
+  buildRegisterAccountRequest,
+  googleRoleForAccountType,
+  parseAccountType,
+  type RegisterAccountType,
+} from "@/lib/auth/register-account-request";
+import { clearReferralCookies } from "@/lib/referral-cookie";
 
 export default function RegisterClient() {
   const router = useRouter();
@@ -15,6 +23,9 @@ export default function RegisterClient() {
   const [loading, setLoading] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState<string | null>(null);
   const [refCode, setRefCode] = useState<string | null>(null);
+  const [accountType, setAccountType] = useState<RegisterAccountType>(() =>
+    parseAccountType(searchParams?.get("tipo") ?? null)
+  );
   const [trainingMeta, setTrainingMeta] = useState<{
     sourceType: string;
     sourceEntityId: number;
@@ -53,10 +64,18 @@ export default function RegisterClient() {
     }
 
     try {
-      const res = await fetch("/api/auth/register", {
+      const { endpoint, body } = buildRegisterAccountRequest({
+        name,
+        email,
+        password,
+        accountType,
+        refCode,
+        trainingMeta,
+      });
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -65,6 +84,8 @@ export default function RegisterClient() {
         }
         throw new Error(data?.error || DNX_AUTH_MESSAGES.genericError);
       }
+
+      clearReferralCookies();
 
       const loginQs = new URLSearchParams();
       loginQs.set("registered", "1");
@@ -79,22 +100,86 @@ export default function RegisterClient() {
   const googleHref = useMemo(
     () =>
       buildGoogleAuthUrl({
-        role: "AUTO",
+        role: googleRoleForAccountType(accountType),
         redirect: safeRedirect || null,
         ref: refCode,
         sourceType: trainingMeta?.sourceType,
         sourceEntityId: trainingMeta?.sourceEntityId,
       }),
-    [safeRedirect, refCode, trainingMeta]
+    [safeRedirect, refCode, trainingMeta, accountType]
   );
   const loginHref = safeRedirect
     ? `/login?redirect=${encodeURIComponent(safeRedirect)}`
     : "/login";
 
+  const submitting = loading === "submitting";
+
   return (
     <DnxRegisterPanel
       brand={compramelafotoAuthBrand}
       onSubmit={handleSubmit}
+      hiddenFields={
+        <fieldset
+          data-dnx-auth-slot="accountType"
+          style={{ border: "none", margin: 0, padding: 0 }}
+        >
+          <legend
+            style={{
+              padding: 0,
+              marginBottom: "0.75rem",
+              fontSize: "0.875rem",
+              fontWeight: 600,
+              color: "var(--auth-text-primary)",
+              fontFamily: "var(--auth-font)",
+            }}
+          >
+            ¿Cómo vas a usar ComprameLaFoto?
+          </legend>
+          <div style={{ display: "grid", gap: "0.75rem" }}>
+            {ACCOUNT_TYPE_OPTIONS.map((option) => {
+              const selected = accountType === option.value;
+              return (
+                <label
+                  key={option.value}
+                  style={{
+                    display: "flex",
+                    gap: "0.75rem",
+                    alignItems: "flex-start",
+                    padding: "0.75rem 1rem",
+                    borderRadius: "var(--auth-radius)",
+                    border: `1px solid ${selected ? "var(--auth-primary)" : "var(--auth-border)"}`,
+                    background: selected ? "var(--auth-surface)" : "transparent",
+                    cursor: submitting ? "default" : "pointer",
+                    fontFamily: "var(--auth-font)",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="accountType"
+                    value={option.value}
+                    checked={selected}
+                    onChange={() => setAccountType(option.value)}
+                    disabled={submitting}
+                    style={{ marginTop: "0.2rem" }}
+                  />
+                  <span style={{ display: "grid", gap: "0.15rem" }}>
+                    <strong
+                      style={{ fontSize: "0.9375rem", color: "var(--auth-text-primary)" }}
+                    >
+                      {option.label}
+                    </strong>
+                    <small
+                      style={{ fontSize: "0.8125rem", color: "var(--auth-text-secondary)" }}
+                    >
+                      {option.hint}
+                    </small>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      }
       googleHref={googleHref}
       error={error}
       loading={loading}

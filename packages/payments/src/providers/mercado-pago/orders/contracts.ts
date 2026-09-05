@@ -56,6 +56,7 @@ export interface MpOrderCreateRequest {
     title?: string;
     description?: string;
     category_id?: string;
+    external_code?: string;
     quantity?: number;
     unit_price?: string;
   }>;
@@ -65,10 +66,6 @@ export interface MpOrderCreateRequest {
    */
   additional_info?: Record<string, unknown>;
   shipment?: { address?: Record<string, string> };
-  integration_data?: {
-    integrator_id?: string;
-    platform_id?: string;
-  };
 }
 
 export interface MpOrderPayment {

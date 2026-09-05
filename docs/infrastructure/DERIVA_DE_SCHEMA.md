@@ -1,6 +1,6 @@
 # Deriva de schema entre las bases de la suite
 
-**Última verificación:** 2026-09-03
+**Última verificación:** 2026-09-03 · **Última aplicación manual:** 2026-09-04
 **Regla:** no incluir connection strings, usuarios ni passwords en este documento.
 
 ---
@@ -88,6 +88,17 @@ Proyectos Neon de la organización `Dnx` con tabla `User`:
 
 Las latentes de Clickatón e Infospot están en tablas de otras apps (`Student`, `School`,
 `PreCompraOrder`, `Template`, `DesignExportJob`…) que esas bases tienen creadas pero no usan.
+
+## Migraciones aplicadas a mano
+
+Registro de lo que se aplicó por fuera de `prisma migrate`, para no perderle el rastro.
+
+| Fecha | Migración | Bases | Notas |
+| ----- | --------- | ----- | ----- |
+| 2026-09-04 | `20260903100000_referral_attribution_attempt` | las 5 | `compramelafoto` (prod) ya la tenía; se aplicó a las otras 4. Tabla nueva `ReferralAttributionAttempt`, aditiva y con `IF NOT EXISTS`. Verificado: 9 columnas y 5 índices en las 5, y una escritura de prueba en `compramelafoto-staging` (insertada, leída y borrada). |
+
+El SQL es idempotente, así que si más adelante alguien corre `prisma migrate deploy` sobre alguna
+de estas bases, esta migración pasa sin romper y queda registrada.
 
 ## Lo que este script NO arregla
 

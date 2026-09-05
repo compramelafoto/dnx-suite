@@ -119,3 +119,9 @@ packages/db/.data/
 # Worktrees de sesiones de Claude Code. Están en .git/info/exclude, que es local: Vercel no lo
 # lee y subía 124.605 archivos de más, hasta pasarse del límite de 15.000 y fallar el deploy.
 **/.claude/worktrees/
+
+# Secretos. Lo agregó `vercel env pull`; se le suma la excepción para que los
+# .env.example, que sí van al repo, no queden tapados.
+.env*
+!.env.example
+!**/.env.example

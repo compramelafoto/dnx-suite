@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { assertCronAuth } from "@/lib/cron-auth";
+import {
+  clearTerminalDesignJobs,
+  recoverStaleDesignJobs,
+} from "@/lib/school-render/design-job-recovery";
 import { renderDesignExport } from "@/lib/school-render/preview-renderer";
 import { generateR2Key, uploadToR2 } from "@/lib/r2-client";
 import { normalizeEditorDataJson } from "@/lib/school-render/design-editor";
@@ -15,6 +19,11 @@ const BATCH_SIZE = 2;
 export async function GET(req: NextRequest) {
   const unauthorized = assertCronAuth(req);
   if (unauthorized) return unauthorized;
+
+  const recovered = await recoverStaleDesignJobs("export");
+  if (recovered.reencolados > 0 || recovered.descartados > 0) {
+    console.info("[school_design_export] stale_jobs_recovered", recovered);
+  }
 
   const jobs = await prisma.designExportJob.findMany({
     where: { status: "PENDING" },
@@ -33,6 +42,10 @@ export async function GET(req: NextRequest) {
       console.info("[school_design_export] export_job_deduplicated", { jobId: job.id });
       continue;
     }
+
+    // `@@unique([designRevisionId, status])`: si quedó un cierre viejo de esta misma revisión,
+    // el cierre de este trabajo chocaría. Se libera el lugar antes de empezar.
+    await clearTerminalDesignJobs("export", job.designRevisionId, job.id);
 
     console.info("[school_design_export] export_job_started", { jobId: job.id });
     const revision = await prisma.designRevision.findUnique({

@@ -9,6 +9,8 @@ export type OrdersObserveAlertCode =
   | "RECIPIENT_MISMATCH"
   | "SNAPSHOT_MISMATCH"
   | "GET_ORDER_FAILED"
+  /** No hay callback de GET Order configurado: el estado real nunca se consultó. */
+  | "GET_ORDER_NOT_CONFIGURED"
   | "DEAD_LETTER"
   | "RETRY_SCHEDULED";
 

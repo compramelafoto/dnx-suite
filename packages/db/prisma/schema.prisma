@@ -5538,6 +5538,26 @@ model ReferralPayoutRequest {
   @@index([status])
 }
 
+/// Alta que llegó con un código de referido pero NO terminó en ReferralAttribution.
+/// Antes estos casos se descartaban en silencio y era imposible auditarlos o recuperarlos.
+/// `outcome`: CREATED | CODE_NOT_FOUND | SELF_REFERRAL | SAME_EMAIL | SAME_MP | ALREADY_ATTRIBUTED | ERROR
+model ReferralAttributionAttempt {
+  id             Int      @id @default(autoincrement())
+  refCode        String
+  referredUserId Int?
+  referredEmail  String?
+  referrerUserId Int?
+  outcome        String
+  detail         String?
+  logContext     String?
+  createdAt      DateTime @default(now())
+
+  @@index([refCode])
+  @@index([outcome, createdAt])
+  @@index([referredUserId])
+  @@index([createdAt])
+}
+
 model OrganizerCommission {
   id              Int                       @id @default(autoincrement())
   schoolId        Int

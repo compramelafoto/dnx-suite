@@ -12,6 +12,15 @@ import {
 import { submitClfMpSplit1nHomologationPaymentAction } from "@/lib/homologation/mp-split-1n/actions";
 import type { HomologationScenarioId } from "@/lib/homologation/mp-split-1n/scenarios";
 
+/** Resultado final del pago, para que el contenedor decida qué mostrar. */
+export type MpSplit1nBrickResult = {
+  uiState: CardBrickUiState;
+  message: string;
+  status: string | null;
+  statusDetail: string | null;
+  providerOrderIdPrefix: string | null;
+};
+
 type Props = {
   publicKey: string;
   scenarioId: HomologationScenarioId;
@@ -19,6 +28,19 @@ type Props = {
   amountMinor: number;
   currency: string;
   payerEmail?: string;
+  /**
+   * Avisa el resultado final hacia arriba. La superficie de homologación no lo
+   * usa (se muestra en línea); la vista de comprador sí, para pasar a su
+   * pantalla de resultado.
+   */
+  onResult?: (result: MpSplit1nBrickResult) => void;
+  /**
+   * Línea técnica (`source=… deviceLen=…`) bajo el Brick. Útil para evidencia,
+   * ruido en un recorrido de compra. Por defecto se muestra.
+   */
+  showDebugMeta?: boolean;
+  /** Cartel SANDBOX sobre el Brick. Por defecto se muestra. */
+  showSandboxBanner?: boolean;
 };
 
 let mpInitializedForKey: string | null = null;
@@ -99,6 +121,13 @@ export function MpSplit1nHomologationBrick(props: Props) {
         if (!result.ok) {
           setUiState("ERROR");
           setMessage(result.message);
+          props.onResult?.({
+            uiState: "ERROR",
+            message: result.message,
+            status: null,
+            statusDetail: null,
+            providerOrderIdPrefix: null,
+          });
           submittingRef.current = false;
           return;
         }
@@ -116,34 +145,51 @@ export function MpSplit1nHomologationBrick(props: Props) {
             `splitSumValid=${result.splitSumValid}`,
           ].join(" · "),
         );
+        props.onResult?.({
+          uiState: result.uiState,
+          message: result.userMessage,
+          status: result.status,
+          statusDetail: result.statusDetail,
+          providerOrderIdPrefix: result.providerOrderIdPrefix,
+        });
         submittingRef.current = false;
       } catch (e) {
         const detail = e instanceof Error ? e.message : "FAILED";
         setUiState("ERROR");
-        setMessage(
-          detail.startsWith("DEVICE_SESSION")
-            ? "Esperá a que el Brick inicialice la sesión de seguridad."
-            : detail.slice(0, 160),
-        );
+        const failureMessage = detail.startsWith("DEVICE_SESSION")
+          ? "Esperá a que el Brick inicialice la sesión de seguridad."
+          : detail.slice(0, 160);
+        setMessage(failureMessage);
+        props.onResult?.({
+          uiState: "ERROR",
+          message: failureMessage,
+          status: null,
+          statusDetail: null,
+          providerOrderIdPrefix: null,
+        });
         submittingRef.current = false;
       }
     },
-    [props.amountMinor, props.scenarioId],
+    [props],
   );
 
   const busy = uiState === "SUBMITTING" || uiState === "PROCESSING";
 
   return (
     <div className="w-full min-w-0 space-y-4">
-      <p className="w-full rounded border border-amber-600/40 bg-amber-50 px-3 py-2 text-xs text-amber-950 whitespace-normal">
-        SANDBOX · Homologation only · Production BLOCKED · No crea ventas CLF
-      </p>
-      <p className="w-full text-sm text-neutral-700 whitespace-normal">
-        Importe (solo lectura UI):{" "}
-        <strong>
-          ${(props.amountMinor / 100).toFixed(2)} {props.currency}
-        </strong>
-      </p>
+      {props.showSandboxBanner === false ? null : (
+        <p className="w-full rounded border border-amber-600/40 bg-amber-50 px-3 py-2 text-xs text-amber-950 whitespace-normal">
+          SANDBOX · Homologation only · Production BLOCKED · No crea ventas CLF
+        </p>
+      )}
+      {props.showDebugMeta === false ? null : (
+        <p className="w-full text-sm text-neutral-700 whitespace-normal">
+          Importe (solo lectura UI):{" "}
+          <strong>
+            ${(props.amountMinor / 100).toFixed(2)} {props.currency}
+          </strong>
+        </p>
+      )}
       <input type="hidden" id="deviceId" name="deviceId" readOnly value="" />
       <div
         className={`w-full min-w-0 ${busy ? "pointer-events-none opacity-60" : ""}`}
@@ -163,7 +209,7 @@ export function MpSplit1nHomologationBrick(props: Props) {
           }}
         />
       </div>
-      {message ? (
+      {message && props.showDebugMeta !== false ? (
         <p
           className={
             uiState === "APPROVED"
@@ -177,7 +223,7 @@ export function MpSplit1nHomologationBrick(props: Props) {
           {message}
         </p>
       ) : null}
-      {resultMeta ? (
+      {resultMeta && props.showDebugMeta !== false ? (
         <p className="break-all font-mono text-xs text-neutral-600" role="status">
           {resultMeta}
         </p>

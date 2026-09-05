@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import AaipBadge from "@/components/legal/AaipBadge";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 
@@ -111,18 +112,21 @@ export default function PhotographerFooter({ photographer, hideLogo = false }: {
         </div>
       </footer>
       {/* Link debajo del footer */}
-      <div className="bg-white py-4 text-center">
-        <button
-          onClick={() => setShowContactForm(true)}
-          className="text-[#6b7280] hover:text-[#1a1a1a] text-sm underline transition-colors"
-          style={{
-            wordBreak: "normal",
-            overflowWrap: "normal",
-            whiteSpace: "normal",
-          }}
-        >
-          Trabajá con nosotros
-        </button>
+      <div className="bg-white py-4">
+        <div className="container-custom flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-6">
+          <button
+            onClick={() => setShowContactForm(true)}
+            className="text-[#6b7280] hover:text-[#1a1a1a] text-sm underline transition-colors"
+            style={{
+              wordBreak: "normal",
+              overflowWrap: "normal",
+              whiteSpace: "normal",
+            }}
+          >
+            Trabajá con nosotros
+          </button>
+          <AaipBadge variant="light" />
+        </div>
       </div>
 
       {/* Modal de contacto */}

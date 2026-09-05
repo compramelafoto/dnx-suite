@@ -9,6 +9,7 @@ import { buildVerifyEmail } from "@/emails/templates/auth";
 import { CC_PRODUCT_KEY } from "@/lib/cuantocobro/constants";
 import { buildCuantoCobroSignupUserFields } from "@/lib/cuantocobro/user-access";
 import { tryCreateReferralAttributionOnSignup } from "@/lib/referral/referral-signup-attribution";
+import { resolveSignupReferralInput } from "@/lib/referral/resolve-signup-referral-input";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,9 +25,8 @@ export async function POST(req: NextRequest) {
     const name = (body.name ?? "").toString().trim();
     const email = (body.email ?? "").toString().trim().toLowerCase();
     const password = (body.password ?? "").toString();
-    const refCode = (body.ref ?? "").toString().trim();
-    const sourceTypeRaw = (body.sourceType ?? "").toString().trim();
-    const sourceEntityRaw = body.sourceEntityId;
+    // Ref del formulario y, si no vino, de la cookie clf_ref del link de referido.
+    const { refCode, sourceTypeRaw, sourceEntityRaw } = resolveSignupReferralInput(req, body);
     const marketingOptIn = !!body.marketingOptIn;
     const productSource = (body.productSource ?? body.signupSource ?? "").toString().trim().toLowerCase();
 

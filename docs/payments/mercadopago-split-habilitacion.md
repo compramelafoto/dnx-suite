@@ -83,28 +83,51 @@ Los tokens y códigos de autorización se enmascaran antes de registrarse. Un me
 sin detalle vuelve indistinguible un rechazo del proveedor de un error propio: eso ya costó
 dos vueltas en esta integración.
 
-## Actualización: 26 de agosto de 2026 — en suspenso
+## Actualización: 2 de septiembre de 2026 — resuelto
 
-Se frena a la espera de la respuesta del área técnica de MercadoPago.
+Mercado Pago respondió. **Se centraliza el flujo nuevo en una sola aplicación.**
+Definición completa: [`mp-split-1n-mercadopago-confirmations.md`](./mp-split-1n-mercadopago-confirmations.md).
+Plan de ejecución paso a paso: [`mp-split-1n-plan-implementacion.md`](./mp-split-1n-plan-implementacion.md).
 
-**La dirección que se perfila:** usar **una sola aplicación para toda DNX Suite**, la de
-ComprameLafoto, que ya está habilitada para split, en vez de pedir una habilitación por
-producto.
+### Una corrección a este documento
 
-Conviene tener presente lo que eso implica antes de ejecutarlo:
+Arriba se afirma que la habilitación es por aplicación. **Sigue siendo cierto.** Lo que no era
+cierto es la extensión que hicimos de esa idea al consentimiento del receptor.
+
+| | Nivel real | Antes creíamos |
+|---|---|---|
+| Habilitación de split | Aplicación | Aplicación ✅ |
+| Consentimiento del receptor | **Cuenta / collector** | Aplicación ❌ |
+
+Un fotógrafo que ya consintió para la cuenta cobradora **no vuelve a consentir** aunque la
+Order se cree desde otra aplicación de esa misma cuenta. El `app_id` es indistinto para el
+consentimiento.
+
+### La decisión
+
+Todos los productos de la suite cobran a la **misma cuenta** de Mercado Pago
+(`dnxfotografia@gmail.com`, `providerUserId 97484805`). Siendo así, una aplicación por producto
+sólo agrega trámite: tres pedidos de habilitación con tiempos que no controlamos —el paso que
+bloqueó a FotoOffice— sin ganar aislamiento real, porque la plata cae en el mismo lugar.
+
+Entonces: **el flujo nuevo (Checkout API + Orders + Split 1:N) va en una sola aplicación**, la
+que ya está habilitada. **Checkout Pro se mantiene repartido por aplicación**, sin tocar nada:
+Mercado Pago confirmó que ahí la vinculación sí es por app y que no hay conflicto entre ambos
+esquemas.
+
+### Qué implica, en concreto
 
 | Consecuencia | Detalle |
 |---|---|
-| Las credenciales pasan a ser compartidas | `FOTOFFICE_MP_CLIENT_ID` y compañía dejarían de tener sentido como variables por producto; serían de la plataforma |
-| Un receptor consiente una vez para todo | El consentimiento es por aplicación, así que un fotógrafo que ya consintió en ComprameLafoto no vuelve a consentir en FotoOffice |
-| Una revocación afecta a todos | Si MercadoPago suspende esa aplicación, se cae el cobro de toda la suite, no de un producto |
-| La URL de redirección se comparte | La app tiene una lista de redirecciones; cada producto necesita la suya declarada ahí |
-| La trazabilidad hay que sostenerla nosotros | Con una sola aplicación, distinguir qué cobro es de qué producto depende de nuestros propios identificadores (`organizationRef`, referencias externas), no del proveedor |
+| No se piden más habilitaciones | Se cierra el pedido pendiente de la app de FotoOffice (`5350262556971123`) y no se abren los de Clickatón ni FotoRank |
+| Credenciales compartidas en el flujo nuevo | `FOTOFFICE_MP_CLIENT_ID` y sus equivalentes por producto dejan de tener sentido para Split; pasan a un juego único de plataforma. Las de Checkout Pro no se tocan |
+| Un receptor consiente una vez para todo | Por cuenta cobradora, no por aplicación |
+| Una revocación afecta a todo el Split | Si MP suspende esa aplicación, cae el Split de toda la suite. Los Checkout Pro, al estar en apps separadas, siguen cobrando |
+| La URL de redirección se comparte | Cada producto declara la suya en la lista de la app centralizada |
+| La trazabilidad la sostenemos nosotros | Vía `external_reference` con prefijo por producto (`clickaton-`, `fotoffice-`, …), que ya genera `buildOpaqueExternalReference()`. Mercado Pago confirmó que alcanza, incluso para reportes |
+| `integrator_id` queda descartado | MP lo revisó internamente: identifica al integrador / software provider, no agrupa productos de una misma cuenta |
 
-Nada de esto lo vuelve mala idea —de hecho evita repetir el trámite por cada producto nuevo—,
-pero el aislamiento entre productos deja de venir dado por MercadoPago y pasa a ser
-responsabilidad del código.
-
-**Mientras tanto no se toca nada.** El código que hay funciona con la aplicación de FotoOffice
-en cuanto la habiliten; si se decide consolidar, el cambio es de configuración más una
-revisión de `workspaceOrganizationRef` para que siga distinguiendo productos.
+**Pendiente antes de ejecutar:** confirmar con MP que **renombrar** la aplicación —de
+"ComprameLafoto" a **"DNX Suite"**, por pasar a ser la app de split de toda la suite— no afecta
+la habilitación ya otorgada. El `client_id` no cambia, así que no debería, pero se pregunta
+antes de tocar nada.

@@ -12,6 +12,8 @@ import { getOrCreateReferralCodeForUser } from "@/lib/referral-code-service";
 import { buildReferralAmbassadorMessages } from "@/lib/referral-share-messages";
 import { FUNNEL_COOKIE_NAME, FUNNEL_EVENTS } from "@/lib/funnel-events";
 import { PHOTOGRAPHER_TERMS_VERSION } from "@/lib/terms/photographerTermsExtended";
+import { tryCreateReferralAttributionOnSignup } from "@/lib/referral/referral-signup-attribution";
+import { ReferralProgram } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -205,12 +207,14 @@ export async function POST(req: NextRequest) {
       : null;
 
   let incomingRefTag: string | null = null;
+  let incomingRefCode: string | null = null;
   if (body.incomingRef) {
     const codeRow = await prisma.referralCode.findFirst({
       where: { code: body.incomingRef, isActive: true },
       select: { code: true },
     });
     if (codeRow) {
+      incomingRefCode = codeRow.code;
       incomingRefTag = `landing_ref:${codeRow.code}`;
     }
   }
@@ -316,6 +320,18 @@ export async function POST(req: NextRequest) {
   }
 
   await ensurePhotographerTermsAcceptance(userId, req);
+
+  // Si llegó con el link de otro referidor, dejarlo como referido de verdad
+  // (antes sólo quedaba una etiqueta `landing_ref:` y no cobraba comisión).
+  if (incomingRefCode) {
+    await tryCreateReferralAttributionOnSignup({
+      referredUserId: userId,
+      referredUserEmail: body.email,
+      referralProgram: ReferralProgram.PHOTOGRAPHER_REFERRAL,
+      refCode: incomingRefCode,
+      logContext: "REFERRAL AMBASSADOR SIGNUP",
+    });
+  }
 
   const verifyToken = randomBytes(32).toString("hex");
   const verifyExpires = new Date();
