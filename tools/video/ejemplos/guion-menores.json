@@ -1,0 +1,11 @@
+{
+  "frases": [
+    { "escena": "producto",   "texto": "¿Trabajás con fotografía de menores de edad? Nosotros protegemos sus fotos." },
+    { "escena": "producto2",  "texto": "Cuando el álbum tiene las fotos ocultas, nadie ve la galería: ni con el link, ni si alguien lo reenvía a un grupo, porque el servidor no entrega ninguna foto sin verificar antes quién está mirando." },
+    { "escena": "selfie",     "texto": "Para entrar, la mamá o el papá tocan reconocimiento facial y le sacan una foto al chico." },
+    { "escena": "desbloqueo", "texto": "El sistema la compara con las caras del evento y muestra únicamente las fotos donde aparece ese chico, mientras el resto del álbum sigue oculto." },
+    { "escena": "privacidad", "texto": "Esa foto no se guarda: se usa para comparar y se descarta, y nunca queda registrada en el sistema de reconocimiento." },
+    { "escena": "acceso",     "texto": "El acceso dura treinta minutos y se puede revocar, y cada intento queda auditado: guardamos una huella cifrada que, ante una eventualidad o un pedido judicial, permite determinar desde qué conexión se vieron esas fotos." },
+    { "escena": "cierre",     "texto": "Así, las fotos de los menores de edad no circulan libremente; solo las ve su familia." }
+  ]
+}

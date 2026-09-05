@@ -1,0 +1,77 @@
+{
+ "voz": "fEKPLlD4JJ8whdCY6JsE",
+ "formato": "horizontal",
+ "display": {
+  "Comprámelafoto": "ComprameLaFoto"
+ },
+ "sinSubtitulo": [
+  "cierre"
+ ],
+ "pantalla": {
+  "url": "https://www.compramelafoto.com/a/copa-santa-fe---semifinal---atletico-tostado-vs-9-de-julio-08804269",
+  "esperar": "Galería aún no disponible",
+  "scrollY": 0
+ },
+ "frases": [
+  {
+   "escena": "apertura",
+   "texto": "Vamos a crear un álbum para un evento, de principio a fin. Son seis pasos, y cuando termines vas a tener el link listo para mandarle a tu cliente."
+  },
+  {
+   "escena": "requisito",
+   "texto": "Antes de empezar, una condición: tenés que tener tu Mercado Pago vinculado, porque si no, no habría forma de que cobres tus ventas."
+  },
+  {
+   "escena": "entrada",
+   "texto": "En la sección Álbumes, tocá el botón naranja: crear álbum con asistente paso a paso."
+  },
+  {
+   "escena": "tipo",
+   "texto": "Primer paso: el tipo de álbum. Para un evento deportivo, una fiesta o cualquier evento público, elegí Evento o deporte. Si en cambio es un trabajo escolar, con preventa y carpetas, ahí va la opción Escolar."
+  },
+  {
+   "escena": "datos",
+   "texto": "Segundo paso, los datos. El título es lo que va a ver tu cliente, así que ponelo claro. Y prestá atención al lugar: no es un texto suelto, queda georeferenciado, y de eso depende que tu álbum aparezca cuando alguien busca eventos cerca suyo."
+  },
+  {
+   "escena": "ventas",
+   "texto": "Tercer paso: cuánto sale cada foto. Acá está lo mejor del asistente, el simulador. Cargás tu precio, y te muestra en el momento cuánto pagaría el cliente, cuánto se lleva la plataforma, y cuánto te queda a vos. Movelo hasta que ese número te cierre."
+  },
+  {
+   "escena": "impresiones",
+   "texto": "Cuarto paso, las impresiones. Podés vender fotos impresas con tu propia lista de precios, o con la del laboratorio. Si todavía no lo tenés resuelto, dejalo apagado: lo activás después, sin rehacer nada."
+  },
+  {
+   "escena": "seguridad",
+   "texto": "Quinto paso: quién puede ver las fotos. Público, cualquiera con el link ve todo. Privado, solo los invitados. Y privado con identificación, donde cada persona se identifica con reconocimiento facial y ve únicamente sus propias fotos. Esta última es la que usás cuando fotografiás menores."
+  },
+  {
+   "escena": "listo",
+   "texto": "Sexto y último: revisás el resumen, y creás el álbum."
+  },
+  {
+   "escena": "proximamente",
+   "texto": "Ahora bien: ¿qué pasa si todavía no subiste ninguna foto? El álbum ya funciona igual."
+  },
+  {
+   "escena": "proximamente2",
+   "texto": "Tu cliente entra, ve que las fotos se van a subir pronto, y te deja su nombre y su WhatsApp para que le avises cuando estén listas. Así no perdés al que llegó antes que las fotos: cuando las subas, ya sabés a quién avisarle."
+  },
+  {
+   "escena": "fotos",
+   "texto": "Cuando las tengas, andá a la pestaña Fotos y subilas. La marca de agua se aplica sola: nadie puede descargar una foto sin comprarla."
+  },
+  {
+   "escena": "publicacion",
+   "texto": "Y en Publicación definís la visibilidad, la protección visual, y armás la portada, que es la imagen que se ve cuando compartís el link por WhatsApp."
+  },
+  {
+   "escena": "cierre",
+   "texto": "Copiás el link, se lo mandás a tu cliente, y desde ahí cada persona entra, busca sus fotos y compra sola."
+  }
+ ],
+ "musica": "Warm friendly tutorial background music, gentle acoustic guitar and soft rhodes piano, calm but forward moving, patient and instructional, light and unobtrusive, no drums, no vocals, plenty of room for a voiceover on top",
+ "musicaMs": 145000,
+ "pantallaEscena": "proximamente",
+ "pausaEntreFrases": 0.85
+}
