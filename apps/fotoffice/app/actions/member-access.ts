@@ -15,10 +15,17 @@ import { findLinkableUserByEmail } from "@repo/db/fotoffice-user-lookup";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom, normalizeReason } from "@/lib/members/audit";
 import { generateInvitationToken, hashInvitationToken } from "@/lib/members/invitation-tokens";
-import { buildInvitationUrl, canMemberUseInvitations, emailsMatch, invitationExpiryFrom } from "@/lib/members/invitations";
+import {
+  buildInvitationUrl,
+  canMemberUseInvitations,
+  emailsMatch,
+  invitationExpiryFrom,
+  INVITE_BATCH_MAX,
+} from "@/lib/members/invitations";
 import { buildInvitationEmailBody } from "@/lib/members/invitation-email";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
+import { loadDuesCallout } from "@/lib/membership/dues-callout";
 
 export type MemberAccessState = {
   error: string | null;
@@ -139,22 +146,27 @@ export async function linkMemberUserAction(
 }
 
 /**
- * Emite la invitación y la envía por email al socio.
+ * Emite la invitación de UN socio y la manda por email.
+ *
+ * Es el núcleo compartido entre invitar de a uno desde la ficha e invitar una tanda desde el
+ * padrón: las dos pantallas tienen que producir exactamente la misma invitación, la misma
+ * auditoría y el mismo email. Duplicar esta lógica para el envío masivo sería la forma
+ * segura de que una de las dos se quede atrás.
  *
  * Sirve también para reenviar: crear una invitación nueva revoca la anterior, así que nunca
  * quedan dos enlaces válidos dando vueltas.
  *
  * El token en claro no sale de esta función: viaja dentro del email y en la base solo queda
- * su hash. La pantalla confirma a qué dirección salió, nunca el enlace.
+ * su hash. Quien llama se entera de a qué dirección salió, nunca del enlace.
+ *
+ * El contexto (workspace y actor) llega ya resuelto y autorizado: una tanda de 25 socios no
+ * puede revalidar permisos 25 veces.
  */
-export async function inviteMemberAction(
-  _prev: MemberAccessState | undefined,
-  formData: FormData,
+async function inviteOneMember(
+  workspace: { id: string },
+  actorUser: Parameters<typeof auditActorFrom>[0],
+  memberId: string,
 ): Promise<MemberAccessState> {
-  const { workspace, user: actorUser } = await requireMembersManageContext();
-  const memberId = formData.get("memberId")?.toString()?.trim();
-  if (!memberId) return { error: "Socio inválido." };
-
   const member = await getMember(workspace.id, memberId);
   if (!member) return { error: "Socio no encontrado." };
   if (member.userId !== null) return { error: "Este socio ya tiene una cuenta vinculada." };
@@ -206,6 +218,7 @@ export async function inviteMemberAction(
     institution: organizationName,
     invitationUrl: link.url,
     signature,
+    dues: await loadDuesCallout(memberId),
   });
   const outcome = await sendTransactionalEmail({ to: email, ...body });
 
@@ -221,7 +234,6 @@ export async function inviteMemberAction(
     actor,
   );
 
-  revalidatePath(`/members/${memberId}`);
   if (outcome.status !== "SENT") {
     return {
       error:
@@ -229,6 +241,75 @@ export async function inviteMemberAction(
     };
   }
   return { error: null, ok: true, sentTo: email };
+}
+
+/** Invitación de a uno, desde la ficha del socio. */
+export async function inviteMemberAction(
+  _prev: MemberAccessState | undefined,
+  formData: FormData,
+): Promise<MemberAccessState> {
+  const { workspace, user: actorUser } = await requireMembersManageContext();
+  const memberId = formData.get("memberId")?.toString()?.trim();
+  if (!memberId) return { error: "Socio inválido." };
+
+  const result = await inviteOneMember(workspace, actorUser, memberId);
+  revalidatePath(`/members/${memberId}`);
+  return result;
+}
+
+export type InviteBatchState = {
+  error: string | null;
+  /** Cuántos salieron. */
+  sent?: number;
+  /** Socios cuyo email no salió, con el motivo, para poder reintentar. */
+  failed?: { memberId: string; error: string }[];
+};
+
+/**
+ * Invita a varios socios de una vez.
+ *
+ * Secuencial, no en paralelo: el proveedor de email limita los envíos por segundo, y una
+ * ráfaga de 25 simultáneos hace rechazar la mitad. Lento y completo es mejor que rápido y a
+ * medias, sobre todo cuando lo que se pierde es el aviso de cobranza de un socio.
+ *
+ * Cada socio se resuelve por separado y un fallo NO corta la tanda: se sigue con el resto y
+ * se informa quién quedó afuera. La alternativa —abortar en el primero que falla— dejaría a
+ * la Secretaría sin saber a quién ya se le mandó.
+ */
+export async function inviteMembersBatchAction(
+  _prev: InviteBatchState | undefined,
+  formData: FormData,
+): Promise<InviteBatchState> {
+  const { workspace, user: actorUser } = await requireMembersManageContext();
+
+  // `getAll` y no `get`: el formulario manda una casilla por socio seleccionado.
+  const ids = Array.from(
+    new Set(
+      formData
+        .getAll("memberIds")
+        .map((v) => v.toString().trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (ids.length === 0) return { error: "No seleccionaste ningún socio." };
+  if (ids.length > INVITE_BATCH_MAX) {
+    return {
+      error: `Se pueden invitar hasta ${INVITE_BATCH_MAX} socios por vez. Seleccionaste ${ids.length}.`,
+    };
+  }
+
+  let sent = 0;
+  const failed: { memberId: string; error: string }[] = [];
+
+  for (const memberId of ids) {
+    const result = await inviteOneMember(workspace, actorUser, memberId);
+    if (result.ok) sent += 1;
+    else failed.push({ memberId, error: result.error ?? "No se pudo invitar." });
+  }
+
+  revalidatePath("/members");
+  return { error: null, sent, failed };
 }
 
 export async function revokeMemberInvitationAction(

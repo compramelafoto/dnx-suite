@@ -10,6 +10,10 @@
 import { MEMBER_IMPORT_COLUMNS } from "./import/columns";
 import { normalizeDocument } from "./documents";
 import type { MemberStatus } from "./status-labels";
+import {
+  isMemberAccessFilter,
+  type MemberAccessFilter,
+} from "@repo/db/fotoffice-member-access-filter";
 
 /**
  * Caracteres que hacen que Excel, LibreOffice o Google Sheets interpreten la celda como una
@@ -125,6 +129,7 @@ export type ExportFilters = {
   search?: string;
   status?: MemberStatus;
   categoryId?: string;
+  access?: MemberAccessFilter;
 };
 
 const VALID_STATUS = new Set(["ACTIVE", "SUSPENDED", "INACTIVE"]);
@@ -139,14 +144,19 @@ export function parseExportFilters(params: URLSearchParams): ExportFilters {
   const search = params.get("q")?.trim();
   const statusRaw = params.get("status")?.trim();
   const categoryId = params.get("categoryId")?.trim();
+  const accessRaw = params.get("access")?.trim();
   return {
     search: search || undefined,
     status: statusRaw && VALID_STATUS.has(statusRaw) ? (statusRaw as MemberStatus) : undefined,
     categoryId: categoryId || undefined,
+    // El CSV tiene que traer exactamente las filas que la pantalla muestra filtradas. Si el
+    // filtro de acceso se perdiera acá, "Exportar resultados actuales" bajaría el padrón
+    // entero — justo cuando lo que se busca es la lista corta de socios sin email.
+    access: accessRaw && isMemberAccessFilter(accessRaw) ? accessRaw : undefined,
   };
 }
 
 /** `true` si la exportación viene acotada por algún filtro real. Define el nombre del archivo. */
 export function hasActiveFilters(f: ExportFilters): boolean {
-  return Boolean(f.search || f.status || f.categoryId);
+  return Boolean(f.search || f.status || f.categoryId || f.access);
 }

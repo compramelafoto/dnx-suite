@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateInvitationToken, hashInvitationToken, invitationTokenMatches } from "./invitation-tokens";
-import { buildInvitationUrl, canMemberUseInvitations, MEMBER_ACCESS_LABELS, memberAccessStatus, emailsMatch, INVITATION_TTL_HOURS, invitationExpiryFrom, invitationState, isInvitationUsable } from "./invitations";
+import { buildInvitationUrl, canMemberUseInvitations, MEMBER_ACCESS_LABELS, memberAccessStatus, emailsMatch, INVITATION_TTL_HOURS, INVITATION_TTL_LABEL, invitationExpiryFrom, invitationState, isInvitationUsable } from "./invitations";
 
 describe("token", () => {
   it("cada token es distinto", () => {
@@ -44,11 +44,17 @@ describe("token", () => {
 });
 
 describe("vigencia", () => {
-  it("vence a las 72 horas", () => {
+  it("vence a los 14 días", () => {
+    // En una invitación masiva, 72 horas dejaban vencido a todo el que abriera el email el
+    // fin de semana siguiente, y obligaban a reemitir a mano de a un socio por vez.
     const now = new Date("2026-08-21T10:00:00Z");
     const exp = invitationExpiryFrom(now);
     expect(exp.getTime() - now.getTime()).toBe(INVITATION_TTL_HOURS * 60 * 60 * 1000);
-    expect(INVITATION_TTL_HOURS).toBe(72);
+    expect(INVITATION_TTL_HOURS).toBe(14 * 24);
+  });
+
+  it("la etiqueta acompaña a la constante, para que el email no diga «336 horas»", () => {
+    expect(INVITATION_TTL_LABEL).toBe("14 días");
   });
 });
 

@@ -4,23 +4,17 @@ import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { loadMemberAccount } from "@/lib/membership/account";
 import { formatMinorArs } from "@/lib/membership/money";
+import {
+  chargeConceptLabel,
+  chargePeriodLabel,
+  isOpeningBalance,
+} from "@/lib/membership/charge-labels";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
+import { loadWorkspaceContactChannels } from "@/lib/portal/contact";
+import { DuesHelpCard } from "@/components/portal/dues-help-card";
 import { PayButton } from "./pay-button";
 
 export const dynamic = "force-dynamic";
-
-const MESES = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
-] as const;
-
-/** `2026-08` → `agosto de 2026`. Sin `Intl`: el resultado no debe depender del servidor. */
-function periodoLegible(period: string): string {
-  const [anio, mes] = period.split("-");
-  const indice = Number(mes) - 1;
-  if (!anio || Number.isNaN(indice) || indice < 0 || indice > 11) return period;
-  return `${MESES[indice]} de ${anio}`;
-}
 
 function avisoDePago(estado: string | undefined): { tono: "ok" | "warn"; texto: string } | null {
   if (estado === "ok") {
@@ -57,12 +51,28 @@ export default async function CuotasPage({
   const params = await searchParams;
   const aviso = avisoDePago(params.pago);
 
-  const [account, cobros] = await Promise.all([
+  const [account, cobros, contacto] = await Promise.all([
     loadMemberAccount(context.member.id),
     getWorkspaceCollectionStatus(context.workspace.id),
+    loadWorkspaceContactChannels(context.workspace.id),
   ]);
 
   const alDia = account.charges.length === 0;
+
+  /*
+    El arrastre del sistema anterior se separa de las cuotas.
+
+    Se guarda con el período literal `APERTURA` y el concepto `OTRO`, así que mezclado en la
+    misma lista aparecía como «APERTURA · Cuota mensual»: un saldo de hasta $60.000 con el
+    rótulo de la cuota del mes. Además esos importes vienen de una migración que no reconcilia
+    para todos, y por eso van con su propia advertencia.
+  */
+  const cuotas = account.charges.filter((c) => !isOpeningBalance(c.period));
+  const arrastre = account.charges.filter((c) => isOpeningBalance(c.period));
+  const arrastreMinor = arrastre.reduce((s, c) => s + c.balanceMinor, 0);
+
+  const ahora = new Date();
+  const cuotasVencidas = cuotas.filter((c) => c.dueDate.getTime() < ahora.getTime());
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
@@ -104,37 +114,71 @@ export default async function CuotasPage({
                   {formatMinorArs(account.totalDueMinor)}
                 </p>
               </div>
-              {account.overdueCount > 0 ? (
+              {/*
+                Se cuentan solo las cuotas: llamar "cuota vencida" al arrastre del sistema
+                anterior le sumaba a todo el mundo una cuota que nunca existió como tal.
+              */}
+              {cuotasVencidas.length > 0 ? (
                 <p className="text-xs text-[var(--fo-danger)]">
-                  {account.overdueCount === 1
+                  {cuotasVencidas.length === 1
                     ? "Tenés 1 cuota vencida"
-                    : `Tenés ${account.overdueCount} cuotas vencidas`}
-                  {account.oldestOverduePeriod
-                    ? `, la más antigua de ${periodoLegible(account.oldestOverduePeriod)}.`
+                    : `Tenés ${cuotasVencidas.length} cuotas vencidas`}
+                  {cuotasVencidas[0]
+                    ? `, la más antigua de ${chargePeriodLabel(cuotasVencidas[0].period)}.`
                     : "."}
+                </p>
+              ) : null}
+              {arrastreMinor > 0 ? (
+                <p className="text-xs text-[var(--fo-muted)]">
+                  Incluye {formatMinorArs(arrastreMinor)} de deuda anterior al sistema.
                 </p>
               ) : null}
             </section>
 
-            <section className="fo-card space-y-3 p-5">
-              <h2 className="text-sm font-semibold">Detalle</h2>
-              <ul className="divide-y divide-[var(--fo-border)]">
-                {account.charges.map((c, i) => (
-                  <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="space-y-0.5">
-                      <p className="text-sm">{periodoLegible(c.period)}</p>
-                      <p className="text-xs text-[var(--fo-muted-soft)]">
-                        {c.concept === "INGRESO" ? "Cuota de ingreso" : "Cuota mensual"}
-                        {i === 0 && account.charges.length > 1 ? " · la más antigua" : ""}
+            {cuotas.length > 0 ? (
+              <section className="fo-card space-y-3 p-5">
+                <h2 className="text-sm font-semibold">Cuotas</h2>
+                <ul className="divide-y divide-[var(--fo-border)]">
+                  {cuotas.map((c, i) => (
+                    <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="space-y-0.5">
+                        <p className="text-sm">{chargePeriodLabel(c.period)}</p>
+                        <p className="text-xs text-[var(--fo-muted-soft)]">
+                          {chargeConceptLabel(c.concept, c.period)}
+                          {i === 0 && cuotas.length > 1 ? " · la más antigua" : ""}
+                        </p>
+                      </div>
+                      <p className="text-sm font-medium tabular-nums">
+                        {formatMinorArs(c.balanceMinor)}
                       </p>
-                    </div>
-                    <p className="text-sm font-medium tabular-nums">
-                      {formatMinorArs(c.balanceMinor)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </section>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {arrastre.length > 0 ? (
+              <section className="fo-card space-y-3 p-5">
+                <h2 className="text-sm font-semibold">Deuda anterior al sistema</h2>
+                <ul className="divide-y divide-[var(--fo-border)]">
+                  {arrastre.map((c) => (
+                    <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <p className="text-xs text-[var(--fo-muted-soft)]">
+                        {chargeConceptLabel(c.concept, c.period)}
+                      </p>
+                      <p className="text-sm font-medium tabular-nums">
+                        {formatMinorArs(c.balanceMinor)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+                  Es el saldo que traías del sistema anterior al 31 de agosto de 2026, antes de
+                  que la institución empezara a usar FotoOffice. Si no coincide con tus
+                  registros, escribinos y lo revisamos.
+                </p>
+              </section>
+            ) : null}
 
             {cobros.canCharge ? (
               <section className="fo-card space-y-3 p-5">
@@ -170,6 +214,16 @@ export default async function CuotasPage({
             )}
           </>
         )}
+
+        {/*
+          Fuera del condicional a propósito: el socio que figura al día también puede estar
+          viendo un número que no es el suyo, y es justo el que no tiene dónde reclamar.
+        */}
+        <DuesHelpCard
+          memberNumber={context.member.memberNumber}
+          whatsapp={contacto.whatsapp}
+          contactEmail={contacto.contactEmail}
+        />
       </main>
     </div>
   );

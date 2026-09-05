@@ -44,9 +44,42 @@ describe("email de invitación", () => {
     expect(text).toContain("https://fotoffice.com/invitacion/abc123");
   });
 
-  it("avisa el vencimiento de 72 horas", () => {
+  it("avisa el vencimiento en días, no en horas", () => {
     const { html, text } = buildInvitationEmailBody(BASE);
-    for (const body of [html, text]) expect(body).toContain("72 horas");
+    for (const body of [html, text]) {
+      expect(body).toContain("14 días");
+      expect(body).not.toContain("336 horas");
+    }
+  });
+
+  it("cuando hay una cuota abierta, dice cuál, cuánto y cuándo vence", () => {
+    const { html, text } = buildInvitationEmailBody({
+      ...BASE,
+      dues: { period: "2026-09", amountLabel: "$8.000", dueDateLabel: "10 de septiembre" },
+    });
+    for (const body of [html, text]) {
+      expect(body).toContain("septiembre de 2026");
+      expect(body).toContain("$8.000");
+      expect(body).toContain("10 de septiembre");
+    }
+  });
+
+  it("sin cuota abierta no inventa ninguna mención de pago", () => {
+    // Los socios honorarios no tienen cargo: prometerles un pago sería un error.
+    const { html, text } = buildInvitationEmailBody({ ...BASE, dues: null });
+    for (const body of [html, text]) {
+      expect(body.toLowerCase()).not.toContain("pagar tu cuota");
+      expect(body).not.toContain("$");
+    }
+  });
+
+  it("el importe y el período se escapan en el HTML", () => {
+    const { html } = buildInvitationEmailBody({
+      ...BASE,
+      dues: { period: "2026-09", amountLabel: "<b>$8.000</b>", dueDateLabel: "10 de <i>sept</i>" },
+    });
+    expect(html).not.toContain("<b>$8.000</b>");
+    expect(html).toContain("&lt;b&gt;");
   });
 
   it("incluye el aviso para ignorarlo", () => {
