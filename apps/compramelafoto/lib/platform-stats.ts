@@ -12,6 +12,8 @@ const PLATFORM_LAUNCH_DATE = new Date("2026-02-24T00:00:00Z");
 export interface PlatformLandingStats {
   daysActive: number;
   totalUsers: number;
+  /** Solo cuentas de fotógrafo (incluye fotógrafos de laboratorio). */
+  totalPhotographers: number;
   totalPhotos: number;
   totalAmountSold: number;
 }
@@ -19,16 +21,22 @@ export interface PlatformLandingStats {
 export const LANDING_STATS_PUBLIC_KEYS = [
   "daysActive",
   "totalUsers",
+  "totalPhotographers",
   "totalPhotos",
   "totalAmountSold",
 ] as const;
 
 export async function getPlatformLandingStats(): Promise<PlatformLandingStats> {
-  const [totalUsers, totalPhotos, printRevenue, albumRevenue, preCompraRevenue] =
+  const [totalUsers, totalPhotographers, totalPhotos, printRevenue, albumRevenue, preCompraRevenue] =
     await Promise.all([
       prisma.user.count({
         where: {
           role: { not: "ADMIN" },
+        },
+      }),
+      prisma.user.count({
+        where: {
+          role: { in: ["PHOTOGRAPHER", "LAB_PHOTOGRAPHER"] },
         },
       }),
       getPhotosUploadedTotal(),
@@ -61,6 +69,7 @@ export async function getPlatformLandingStats(): Promise<PlatformLandingStats> {
   return {
     daysActive,
     totalUsers,
+    totalPhotographers,
     totalPhotos,
     totalAmountSold,
   };

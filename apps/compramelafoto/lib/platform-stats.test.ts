@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 const LANDING_STATS_PUBLIC_KEYS = [
   "daysActive",
   "totalUsers",
+  "totalPhotographers",
   "totalPhotos",
   "totalAmountSold",
 ] as const;
@@ -16,6 +17,7 @@ const LANDING_STATS_PUBLIC_KEYS = [
   assert.deepEqual([...LANDING_STATS_PUBLIC_KEYS], [
     "daysActive",
     "totalUsers",
+    "totalPhotographers",
     "totalPhotos",
     "totalAmountSold",
   ]);

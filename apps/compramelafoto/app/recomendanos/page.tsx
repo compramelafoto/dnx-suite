@@ -8,12 +8,12 @@ const canonical = `${String(base).replace(/\/$/, "")}/recomendanos`;
 export const metadata: Metadata = {
   title: "Recomendá ComprameLaFoto",
   description:
-    "Programa de recomendación de ComprameLaFoto: recomendá una plataforma real para vender fotos online y accedé a beneficios según el programa vigente. Registro en minutos.",
+    "Recomendá ComprameLaFoto y ganá el 7,5% de todo lo que venda cada fotógrafo que traigas, durante 12 meses. Sumarse es gratis y el link sale al instante.",
   alternates: { canonical },
   openGraph: {
     title: "Recomendá ComprameLaFoto",
     description:
-      "Programa de recomendación de ComprameLaFoto: recomendá una plataforma real para vender fotos online y accedé a beneficios según el programa vigente. Registro en minutos.",
+      "Recomendá ComprameLaFoto y ganá el 7,5% de todo lo que venda cada fotógrafo que traigas, durante 12 meses. Sumarse es gratis y el link sale al instante.",
     url: canonical,
     siteName: "ComprameLaFoto",
     locale: "es_AR",
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Recomendá ComprameLaFoto",
     description:
-      "Programa de recomendación de ComprameLaFoto: recomendá una plataforma real para vender fotos online y accedé a beneficios según el programa vigente. Registro en minutos.",
+      "Recomendá ComprameLaFoto y ganá el 7,5% de todo lo que venda cada fotógrafo que traigas, durante 12 meses. Sumarse es gratis y el link sale al instante.",
   },
   robots: { index: true, follow: true },
 };

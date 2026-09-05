@@ -18,6 +18,7 @@ export async function GET() {
       {
         daysActive: stats.daysActive,
         totalUsers: stats.totalUsers,
+        totalPhotographers: stats.totalPhotographers,
         totalPhotos: stats.totalPhotos,
         totalAmountSold: stats.totalAmountSold,
       },
@@ -36,6 +37,7 @@ export async function GET() {
         error: "Error obteniendo estadísticas",
         daysActive: 0,
         totalUsers: 0,
+        totalPhotographers: 0,
         totalPhotos: 0,
         totalAmountSold: 0,
       },
