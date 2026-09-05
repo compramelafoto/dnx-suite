@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/emails/send";
 import { buildAlbumInterestDigest } from "@/emails/templates/album-interest";
+import { getAlbumsReadiness } from "@/lib/analysis/album-analysis-readiness";
 
 type RunOptions = {
   dryRun?: boolean;
@@ -39,6 +40,8 @@ type RunResult = {
   sent: number;
   failed: number;
   skipped: number;
+  /** Interesados que quedaron esperando a que el álbum termine de analizarse. */
+  held: number;
   interestsDue: number;
 };
 
@@ -96,9 +99,38 @@ export async function runAlbumInterestDigest(options: RunOptions = {}): Promise<
 
   const groups = new Map<string, GroupItem>();
   let skipped = 0;
+  let held = 0;
+
+  // El digest lleva al cliente al álbum, así que espera a que el reconocimiento facial y
+  // el OCR estén listos. Si no, llega a un álbum vacío o a medio analizar.
+  const readinessByAlbum = await getAlbumsReadiness(
+    interests.map((interest) => interest.album.id),
+    now
+  );
 
   for (const interest of interests) {
-    const scheduleInfo = nextScheduleInfo(interest as any, interest.createdAt);
+    const readiness = readinessByAlbum.get(interest.album.id);
+    if (!readiness?.ready) {
+      if (!dryRun) {
+        // Reintentamos en una hora en vez de dejarlo vencido, para que un álbum demorado
+        // no acapare el batch y tape a los interesados de álbumes que sí están listos.
+        await prisma.albumInterest.update({
+          where: { id: interest.id },
+          data: { nextEmailAt: new Date(now.getTime() + 60 * 60 * 1000) },
+        });
+      }
+      held++;
+      continue;
+    }
+
+    // La secuencia cuenta desde que el álbum tuvo fotos, no desde que la persona se anotó.
+    // Si alguien se registra antes del evento, contar desde el registro haría que E01, E02
+    // y E03 salgan casi juntos apenas se publica el álbum.
+    const baseDate =
+      readiness.lastPhotoAt && readiness.lastPhotoAt > interest.createdAt
+        ? readiness.lastPhotoAt
+        : interest.createdAt;
+    const scheduleInfo = nextScheduleInfo(interest as any, baseDate);
     if (!scheduleInfo.current || !scheduleInfo.dueAt) {
       if (!dryRun) {
         await prisma.albumInterest.update({
@@ -230,6 +262,7 @@ export async function runAlbumInterestDigest(options: RunOptions = {}): Promise<
     sent,
     failed,
     skipped,
+    held,
     interestsDue: interests.length,
   };
 }

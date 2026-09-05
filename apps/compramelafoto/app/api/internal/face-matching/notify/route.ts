@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
+import { getAlbumsReadiness } from "@/lib/analysis/album-analysis-readiness";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -126,10 +127,48 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    // Solo avisamos de álbumes cuyo análisis terminó: el mail lleva al cliente a ver sus
+    // fotos, y con el álbum a medio analizar le faltarían justo las que todavía no se
+    // procesaron. Los matches de álbumes no listos quedan con notifiedAt = null y se
+    // reintentan en la corrida siguiente.
+    const interestsWithPending = await prisma.albumInterest.findMany({
+      where: { faceMatchEvents: { some: { notifiedAt: null } } },
+      select: { albumId: true },
+      distinct: ["albumId"],
+      take: 200,
+    });
+    const readinessByAlbum = await getAlbumsReadiness(
+      interestsWithPending.map((i) => i.albumId)
+    );
+    const readyAlbumIds = [...readinessByAlbum.values()]
+      .filter((r) => r.ready)
+      .map((r) => r.albumId);
+    const heldAlbums = [...readinessByAlbum.values()].filter((r) => !r.ready);
+
+    if (heldAlbums.length > 0) {
+      console.log("[face-matching] avisos_retenidos", {
+        albumes: heldAlbums.map((r) => ({
+          albumId: r.albumId,
+          motivo: r.reason,
+          pendientes: r.pending + r.processing,
+        })),
+      });
+    }
+
+    if (readyAlbumIds.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        message: "No hay álbumes con el análisis terminado para notificar",
+        processed: 0,
+        held_albums: heldAlbums.length,
+      });
+    }
+
     // Obtener matches pendientes de notificación (agrupados por interesado para evitar spam)
     const pendingMatches = await prisma.faceMatchEvent.findMany({
       where: {
         notifiedAt: null,
+        albumInterest: { albumId: { in: readyAlbumIds } },
       },
       include: {
         albumInterest: {
