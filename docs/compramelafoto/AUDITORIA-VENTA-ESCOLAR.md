@@ -25,14 +25,19 @@ en `PENDING` (nunca se pagaron) y los 2 pagados son de abril y de un código ant
 ## Cómo probarlo
 
 Se agregó un banco de pruebas que recorre el circuito llamando al mismo código que usa la app
-(no reimplementa nada). Corre en una rama aislada de Neon, deja 15 verificaciones y se autolimpia.
+(no reimplementa nada). Corre en una rama aislada de Neon, deja **22 verificaciones** y se autolimpia.
 
 ```bash
-cd apps/compramelafoto && DATABASE_URL="<rama de prueba>" AUDIT_E2E_CONFIRM=1 NODE_ENV=production pnpm --filter @repo/payments exec tsx --tsconfig ../../apps/compramelafoto/tsconfig.json ../../apps/compramelafoto/scripts/audit-venta-escolar-e2e.ts
+cd apps/compramelafoto && AUDIT_E2E_CONFIRM=1 NODE_ENV=production pnpm --filter @repo/payments exec tsx --tsconfig ../../apps/compramelafoto/tsconfig.json ../../apps/compramelafoto/scripts/audit-venta-escolar-e2e.ts
 ```
 
-Agregá `--cleanup` al mismo comando para borrar los datos que creó.
+Agregá `--cleanup` al mismo comando para borrar todo lo que creó, en la base y en R2.
 El script se niega a arrancar sin `AUDIT_E2E_CONFIRM=1`, para no correr contra producción por error.
+
+Lee solo `apps/compramelafoto/.env.local` (sin pisar lo que le pases por comando), así que no hace
+falta exportar nada. **Con credenciales de R2 ejercita el render de verdad**: sube fotos y plantilla
+al bucket, corre los dos workers de cron y verifica el JPG final. Sin R2 salta esa etapa con un
+aviso y el resto corre igual.
 
 Rama de prueba usada en esta auditoría: `auditoria-venta-escolar-20260904` (`br-fancy-truth-ad3hhe8p`,
 proyecto Neon `divine-hall-10689679`). Se puede borrar cuando no se use más.
@@ -56,8 +61,14 @@ proyecto Neon `divine-hall-10689679`). Se puede borrar cuando no se use más.
 [ aviso] 8b. Cola de render: los cron que la procesan no están agendados
 [  ok ] 9a. Descarga automática: 1 zip job, 1 token creados por el canje (era FALLA)
 [  ok ] 9b. Descarga manual: ensureDigitalDelivery también funciona a mano
+[  ok ] 10a. Vista previa: renderizada y subida a R2 (previewStatus=READY)
+[  ok ] 10b. Exportación: JPG final generado y subido a R2
+[  ok ] 10c. Archivo final: descargable (HTTP 200, 112 kB)
+[  ok ] 10f. Fotos dentro del impreso: cada hueco del JPG tiene la correcta (3000x4500px)
+[  ok ] 10d. Ítem listo para imprimir: estado EXPORTED, QR de entrega generado
+[  ok ] 10e. Entrega en la escuela: impresión → en la escuela → entregado
 
-Pasos verificados: 16 · Fallas: 0 · Avisos: 2
+Pasos verificados: 22 · Fallas: 0 · Avisos: 1
 ```
 
 > **Nota sobre la rama de prueba.** Su compute se apaga sola cada pocos minutos (scale-to-zero) y
@@ -149,9 +160,13 @@ la cola realmente corre (`lib/school-render/design-job-recovery.ts`):
 Archivos: `vercel.json`, `lib/school-render/design-job-recovery.ts` (nuevo),
 `app/api/cron/process-design-previews/route.ts`, `app/api/cron/process-design-exports/route.ts`.
 
-**Verificado por tipos y por lectura, no de punta a punta:** el render real necesita credenciales de
-R2, que no están en el entorno local. Lo que falta comprobar en el primer deploy es que los dos cron
-aparezcan en Vercel y que un diseño llegue a `EXPORTED`.
+**Verificado de punta a punta** (2026-09-04, ya con credenciales de R2 en el entorno local): el
+banco de pruebas encola los trabajos, corre los dos workers de cron reales, y comprueba que la vista
+previa llega a `READY`, que el JPG final se sube y se puede descargar, que el ítem queda en
+`EXPORTED` con su QR de entrega, y que la cadena de entrega en la escuela avanza hasta `DELIVERED`.
+
+El paso `8b` dejó de ser un aviso: ahora **lee `vercel.json`** y falla si los dos cron no están
+agendados.
 
 ### 3. El botón "generar diseño" del fotógrafo siempre falla — ARREGLADO
 
@@ -284,16 +299,33 @@ y `templateId` en NULL, para que los packs escolares actuales no queden sin dise
 
 Tres partes quedaron fuera porque necesitan credenciales externas que no están en el entorno local:
 
-- **Subida real de fotos**: el banco de pruebas inserta las fotos directo en la base. No se probó
-  el upload a R2 ni la generación de variantes/marca de agua.
+- **Subida de fotos desde el panel**: el banco de pruebas sube imágenes reales a R2, pero por el
+  cliente de R2, no por la pantalla de carga del fotógrafo. Queda sin probar la generación de
+  variantes y la marca de agua.
 - **Reconocimiento facial** (AWS Rekognition): no se probó el circuito selfie → coincidencia.
-- **Render real del diseño** (preview y JPG final): necesita R2. Se validó el preflight y el
-  armado de la revisión, no el pixel.
 - **Cobro real en Mercado Pago**: el banco de pruebas replica lo que hace el webhook al aprobar,
   no llama a MP.
 
-Para cerrar esas tres haría falta un `.env.local` de compramelafoto (hoy no existe en el repo)
-con R2, MP de test y Rekognition.
+El `.env.local` de compramelafoto ya existe (ver abajo), así que el render sí quedó cubierto.
+Falta Rekognition y un cobro real de Mercado Pago.
+
+### Cómo se armó el entorno local
+
+`vercel env pull` contra el proyecto **`compramelafoto-dnxsuite`** devuelve 35 variables vacías
+—entre ellas todas las de R2— porque están cargadas como sensibles y no se pueden leer de vuelta.
+Las mismas credenciales sí se leen desde el proyecto viejo **`compramelafoto`**:
+
+```bash
+cd apps/compramelafoto && vercel link --yes --project compramelafoto && vercel env pull .env.local --environment=production
+```
+
+Después hay que repuntar a mano `DATABASE_URL` y `DIRECT_URL` a una rama de prueba de Neon y poner
+`TEST_EMAIL_OVERRIDE`, o el entorno local escribe sobre producción. El `.env.local` del repo ya
+quedó con eso hecho, más Mercado Pago en modo test y el envío real de mails apagado.
+
+**El bucket de R2 sigue siendo el de producción.** El banco de pruebas escribe bajo el prefijo
+`auditoria-e2e/` y en `design-previews/` y `design-exports/`, y `--cleanup` borra exactamente lo
+que creó.
 
 ## Orden sugerido de arreglo
 
