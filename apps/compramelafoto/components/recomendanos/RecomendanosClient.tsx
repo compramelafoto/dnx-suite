@@ -54,26 +54,31 @@ function formatARS(amount: number): string {
 }
 
 async function fetchLandingStats(): Promise<LandingStats | null> {
-  const r = await fetch(`/api/public/landing-stats?_=${Date.now()}`, {
-    cache: "no-store",
-    headers: { Pragma: "no-cache", "Cache-Control": "no-cache" },
-  });
-  if (!r.ok) return null;
-  const data = (await r.json()) as Record<string, unknown>;
-  if (
-    typeof data.daysActive !== "number" ||
-    typeof data.totalPhotos !== "number" ||
-    typeof data.totalAmountSold !== "number"
-  ) {
+  try {
+    const r = await fetch(`/api/public/landing-stats?_=${Date.now()}`, {
+      cache: "no-store",
+      headers: { Pragma: "no-cache", "Cache-Control": "no-cache" },
+    });
+    if (!r.ok) return null;
+    const data = (await r.json()) as Record<string, unknown>;
+    if (
+      typeof data.daysActive !== "number" ||
+      typeof data.totalPhotos !== "number" ||
+      typeof data.totalAmountSold !== "number"
+    ) {
+      return null;
+    }
+    return {
+      daysActive: data.daysActive,
+      totalPhotographers:
+        typeof data.totalPhotographers === "number" ? data.totalPhotographers : 0,
+      totalPhotos: data.totalPhotos,
+      totalAmountSold: data.totalAmountSold,
+    };
+  } catch {
+    // Sin conexión o respuesta ilegible: la sección de números simplemente no se muestra.
     return null;
   }
-  return {
-    daysActive: data.daysActive,
-    totalPhotographers:
-      typeof data.totalPhotographers === "number" ? data.totalPhotographers : 0,
-    totalPhotos: data.totalPhotos,
-    totalAmountSold: data.totalAmountSold,
-  };
 }
 
 async function trackFunnelEvent(

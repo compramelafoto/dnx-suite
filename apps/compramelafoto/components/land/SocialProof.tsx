@@ -22,7 +22,7 @@ const STATIC_TESTIMONIALS = [
 
 interface LandingStats {
   daysActive: number;
-  totalUsers: number;
+  totalPhotographers: number;
   totalPhotos: number;
   totalAmountSold: number;
 }
@@ -50,7 +50,7 @@ function fetchStats(): Promise<LandingStats | null> {
       if (!data || typeof data.daysActive !== "number") return null;
       return {
         daysActive: data.daysActive ?? 0,
-        totalUsers: data.totalUsers ?? 0,
+        totalPhotographers: data.totalPhotographers ?? 0,
         totalPhotos: data.totalPhotos ?? 0,
         totalAmountSold: data.totalAmountSold ?? 0,
       };
@@ -110,7 +110,10 @@ export default function SocialProof() {
   const statCards = stats
     ? [
         { value: stats.daysActive.toLocaleString("es-AR"), label: "Días de plataforma activa" },
-        { value: stats.totalUsers.toLocaleString("es-AR"), label: "Usuarios registrados" },
+        {
+          value: stats.totalPhotographers.toLocaleString("es-AR"),
+          label: "Fotógrafos registrados",
+        },
         { value: stats.totalPhotos.toLocaleString("es-AR"), label: "Fotos subidas" },
         { value: formatARS(stats.totalAmountSold), label: "Vendido en la plataforma" },
       ]
