@@ -5,9 +5,13 @@
  *   Sigue siendo accesible por link directo a /maratones/clickaton-demo.
  * - Gratuita: una sola entrada con precio 0 (sin pasar por Mercado Pago).
  * - 3 consignas en vez de 10, con liberación programada.
- * - Ventana: 2026-09-02 de 10:00 a 12:00 (America/Argentina/Buenos_Aires).
+ * - Jornada: 2026-09-02 de 10:00 a 12:00 (hora argentina), acreditación desde las 07:00.
+ * - Abierta para pruebas tardías hasta 2026-09-05 23:00: inscripción, captura y carga.
  *
- * Idempotente: se puede volver a correr sin duplicar nada.
+ * Seguro de volver a correr con gente adentro:
+ * - No re-bloquea una consigna ya liberada.
+ * - No acorta una ventana que esté abierta hasta más tarde de lo configurado.
+ *   Para acortar a propósito: CLICKATON_SEED_DEMO_FORZAR_VENTANAS=1.
  *
  * Uso:
  *   CLICKATON_SEED_DEMO=1 pnpm --filter clickaton seed:demo-edition
@@ -20,6 +24,12 @@ import {
   ensureDraftTimeline,
   getActiveTimeline,
 } from "@/lib/timeline/prisma-timeline";
+import {
+  cierreAAplicar,
+  enHoraArgentina,
+  estadoAlReprogramar,
+  seForzanVentanas,
+} from "./lib/demo-schedule";
 
 export const DEMO_EDITION_SLUG = "clickaton-demo";
 const DEMO_CONTEST_SLUG = "clickaton-demo-oculta";
@@ -30,20 +40,37 @@ const DEMO_CONTEST_SLUG = "clickaton-demo-oculta";
 const OWNER_EMAIL = "dnxfotografia@gmail.com";
 const TIMEZONE = "America/Argentina/Buenos_Aires";
 
-/** Argentina es UTC-3: 10:00 local = 13:00 UTC. */
-const at = (utcIso: string) => new Date(utcIso);
+/**
+ * Todos los horarios en hora argentina, en un solo lugar.
+ * Para mover la demo de día, se cambian acá y nada más.
+ */
+const JORNADA = {
+  acreditacionAbre: "2026-09-02 07:00",
+  inicio: "2026-09-02 10:00",
+  consigna1: "2026-09-02 10:00",
+  consigna2: "2026-09-02 10:40",
+  consigna3: "2026-09-02 11:20",
+  fin: "2026-09-02 12:00",
+  resultados: "2026-09-02 15:00",
+  inscripcionAbre: "2026-09-01 09:00",
+  /**
+   * La jornada fue el 02/09, pero la demo se mantiene abierta para que se pueda
+   * seguir probando. Inscripción, captura y carga cierran todas acá: si la
+   * captura cerrara antes, toda foto sacada después quedaría marcada como
+   * tomada fuera de horario.
+   */
+  abiertaHasta: "2026-09-05 23:00",
+} as const;
 
-const START_AT = at("2026-09-02T13:00:00.000Z"); // 10:00
-const END_AT = at("2026-09-02T15:00:00.000Z"); // 12:00
-const REGISTRATION_OPEN_AT = at("2026-09-01T12:00:00.000Z");
-/** Se puede entrar por el link incluso empezada la demo. */
-const REGISTRATION_CLOSE_AT = END_AT;
-/** Dos horas extra para subir: se fotografía hasta las 12:00, se entrega hasta las 14:00. */
-const UPLOAD_ENDS_AT = at("2026-09-02T17:00:00.000Z"); // 14:00
-/** Acreditación: abierta toda la jornada para que el escáner funcione siempre. */
-const ACCREDITATION_OPENS_AT = at("2026-09-02T10:00:00.000Z"); // 07:00
-const ACCREDITATION_CLOSES_AT = at("2026-09-02T15:00:00.000Z"); // 12:00
-const RESULTS_AT = at("2026-09-02T18:00:00.000Z"); // 15:00
+const START_AT = enHoraArgentina(JORNADA.inicio);
+const END_AT = enHoraArgentina(JORNADA.fin);
+const REGISTRATION_OPEN_AT = enHoraArgentina(JORNADA.inscripcionAbre);
+const REGISTRATION_CLOSE_AT = enHoraArgentina(JORNADA.abiertaHasta);
+const CAPTURE_ENDS_AT = enHoraArgentina(JORNADA.abiertaHasta);
+const UPLOAD_ENDS_AT = enHoraArgentina(JORNADA.abiertaHasta);
+const ACCREDITATION_OPENS_AT = enHoraArgentina(JORNADA.acreditacionAbre);
+const ACCREDITATION_CLOSES_AT = enHoraArgentina(JORNADA.abiertaHasta);
+const RESULTS_AT = enHoraArgentina(JORNADA.resultados);
 
 const PROMPTS = [
   {
@@ -53,7 +80,7 @@ const PROMPTS = [
     shortDescription: "El contraste como protagonista.",
     instructions:
       "Buscá una escena donde la luz y la sombra convivan en el mismo encuadre. No vale simular el contraste en edición.",
-    revealAt: at("2026-09-02T13:00:00.000Z"), // 10:00
+    revealAt: enHoraArgentina(JORNADA.consigna1),
   },
   {
     sequence: 2,
@@ -62,7 +89,7 @@ const PROMPTS = [
     shortDescription: "Una fotografía dominada por un solo color.",
     instructions:
       "Un color debe ordenar toda la imagen. Puede ser un objeto, una pared, una prenda o la luz misma.",
-    revealAt: at("2026-09-02T13:40:00.000Z"), // 10:40
+    revealAt: enHoraArgentina(JORNADA.consigna2),
   },
   {
     sequence: 3,
@@ -71,11 +98,42 @@ const PROMPTS = [
     shortDescription: "Algo que se mueve, congelado o barrido.",
     instructions:
       "Mostrá movimiento real en la escena. Congelado o con barrido: la decisión técnica es tuya.",
-    revealAt: at("2026-09-02T14:20:00.000Z"), // 11:20
+    revealAt: enHoraArgentina(JORNADA.consigna3),
   },
 ] as const;
 
 export async function seedClickatonDemoEdition() {
+  const forzarVentanas = seForzanVentanas();
+  // Estado actual: se necesita antes de escribir para no pisar una demo en curso.
+  const previa = await prisma.clickatonEdition.findUnique({
+    where: { slug: DEMO_EDITION_SLUG },
+    select: {
+      id: true,
+      registrationCloseAt: true,
+      uploadConfig: { select: { uploadWindowEndsAt: true, captureWindowEndsAt: true } },
+      ticketTypes: { where: { code: "DEMO_FREE" }, select: { salesEndAt: true } },
+    },
+  });
+  const cierreInscripcion = cierreAAplicar(
+    previa?.registrationCloseAt,
+    REGISTRATION_CLOSE_AT,
+    forzarVentanas,
+  );
+  const cierreVenta = cierreAAplicar(
+    previa?.ticketTypes[0]?.salesEndAt,
+    REGISTRATION_CLOSE_AT,
+    forzarVentanas,
+  );
+  const cierreCaptura = cierreAAplicar(
+    previa?.uploadConfig?.captureWindowEndsAt,
+    CAPTURE_ENDS_AT,
+    forzarVentanas,
+  );
+  const cierreCarga = cierreAAplicar(
+    previa?.uploadConfig?.uploadWindowEndsAt,
+    UPLOAD_ENDS_AT,
+    forzarVentanas,
+  );
   const owner = await prisma.user.findUnique({
     where: { email: OWNER_EMAIL },
     select: { id: true },
@@ -175,7 +233,7 @@ export async function seedClickatonDemoEdition() {
     startAt: START_AT,
     endAt: END_AT,
     registrationOpenAt: REGISTRATION_OPEN_AT,
-    registrationCloseAt: REGISTRATION_CLOSE_AT,
+    registrationCloseAt: cierreInscripcion,
     defaultCapacity: 20,
     visibleCodePrefix: "DEMO",
     fotorankContestId: contestReady ? contestId : null,
@@ -226,7 +284,7 @@ export async function seedClickatonDemoEdition() {
       holdMinutes: 20,
       isActive: true,
       salesStartAt: REGISTRATION_OPEN_AT,
-      salesEndAt: REGISTRATION_CLOSE_AT,
+      salesEndAt: cierreVenta,
     },
     update: {
       priceAmount: 0,
@@ -234,7 +292,7 @@ export async function seedClickatonDemoEdition() {
       capacity: 20,
       venueId: venue.id,
       salesStartAt: REGISTRATION_OPEN_AT,
-      salesEndAt: REGISTRATION_CLOSE_AT,
+      salesEndAt: cierreVenta,
     },
   });
 
@@ -256,9 +314,9 @@ export async function seedClickatonDemoEdition() {
     globalPromptReveal: false,
     eventRevealAt: START_AT,
     captureWindowStartsAt: START_AT,
-    captureWindowEndsAt: END_AT,
+    captureWindowEndsAt: cierreCaptura,
     uploadWindowStartsAt: START_AT,
-    uploadWindowEndsAt: UPLOAD_ENDS_AT,
+    uploadWindowEndsAt: cierreCarga,
     allowReplacement: true,
     /** Cualquier foto de celular entra; sólo se frena un archivo ilegible. */
     minWidth: 200,
@@ -297,18 +355,23 @@ export async function seedClickatonDemoEdition() {
   // 7. Las 3 consignas, programadas.
   const prompts = [];
   for (const p of PROMPTS) {
-    const data = {
+    const existente = await prisma.clickatonPrompt.findUnique({
+      where: { editionId_sequence: { editionId: edition.id, sequence: p.sequence } },
+      select: { status: true, releasedAt: true },
+    });
+    // Una consigna ya liberada no vuelve atrás: los participantes vieron el
+    // texto y pueden haber entregado.
+    const estado = estadoAlReprogramar(existente);
+    const base = {
       internalName: p.internalName,
       title: p.title,
       shortDescription: p.shortDescription,
       instructions: p.instructions,
-      status: "READY" as const,
       releaseMode: "SCHEDULED" as const,
-      releasedAt: null,
       captureStartsAt: p.revealAt,
-      captureEndsAt: END_AT,
+      captureEndsAt: cierreCaptura,
       uploadStartsAt: p.revealAt,
-      uploadEndsAt: UPLOAD_ENDS_AT,
+      uploadEndsAt: cierreCarga,
       minEntries: 0,
       maxEntries: 1,
       allowReplacement: true,
@@ -317,8 +380,14 @@ export async function seedClickatonDemoEdition() {
     };
     const prompt = await prisma.clickatonPrompt.upsert({
       where: { editionId_sequence: { editionId: edition.id, sequence: p.sequence } },
-      create: { editionId: edition.id, sequence: p.sequence, ...data },
-      update: data,
+      create: {
+        editionId: edition.id,
+        sequence: p.sequence,
+        ...base,
+        status: "READY",
+        releasedAt: null,
+      },
+      update: { ...base, ...estado },
     });
     prompts.push({
       sequence: prompt.sequence,
@@ -333,14 +402,14 @@ export async function seedClickatonDemoEdition() {
   const draft = await ensureDraftTimeline(edition.id, owner.id);
   const horarios: Record<string, { startsAt: Date | null; endsAt?: Date | null }> = {
     REGISTRATION_OPEN: { startsAt: REGISTRATION_OPEN_AT },
-    REGISTRATION_CLOSE: { startsAt: REGISTRATION_CLOSE_AT },
+    REGISTRATION_CLOSE: { startsAt: cierreInscripcion },
     ACCREDITATION_OPEN: { startsAt: ACCREDITATION_OPENS_AT },
     ACCREDITATION_CLOSE: { startsAt: ACCREDITATION_CLOSES_AT },
     MARATHON_START: { startsAt: START_AT },
     PROMPT_RELEASE: { startsAt: START_AT },
-    CAPTURE_WINDOW_CLOSE: { startsAt: END_AT },
+    CAPTURE_WINDOW_CLOSE: { startsAt: cierreCaptura },
     UPLOAD_WINDOW_OPEN: { startsAt: START_AT },
-    UPLOAD_WINDOW_CLOSE: { startsAt: UPLOAD_ENDS_AT },
+    UPLOAD_WINDOW_CLOSE: { startsAt: cierreCarga },
     MARATHON_END: { startsAt: END_AT },
     RESULTS_RELEASE: { startsAt: RESULTS_AT },
   };
