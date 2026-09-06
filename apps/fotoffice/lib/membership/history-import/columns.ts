@@ -41,7 +41,8 @@ export const PAYMENT_IMPORT_COLUMNS: readonly PaymentImportColumn[] = [
   {
     key: "method",
     required: false,
-    description: "Cómo se cobró: EFECTIVO, TRANSFERENCIA, CHEQUE u OTRO. Si no consta, dejalo vacío.",
+    description:
+      "Cómo se cobró: EFECTIVO, TRANSFERENCIA, CHEQUE, MERCADO_PAGO u OTRO. Si no consta, dejalo vacío.",
   },
   {
     key: "period",
