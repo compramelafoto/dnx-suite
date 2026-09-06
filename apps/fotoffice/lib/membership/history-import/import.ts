@@ -45,11 +45,27 @@ export async function importHistoricalPayments(input: {
     ).map((m) => m.id),
   );
 
+  // Los que ya están se descartan ANTES de intentar escribirlos. Descubrirlos chocando
+  // contra la clave única funciona, pero Prisma deja un error en el log por cada choque: en
+  // la carga real de la SFPR eso fueron 224 errores registrados para 224 omisiones que son
+  // el comportamiento esperado. Un log lleno de errores normales enseña a ignorarlo.
+  const yaEstan = new Set(
+    (
+      await prisma.membershipPayment.findMany({
+        where: {
+          workspaceId: input.workspaceId,
+          providerPaymentRef: { in: input.payments.map((p) => p.dedupKey) },
+        },
+        select: { providerPaymentRef: true },
+      })
+    ).map((p) => p.providerPaymentRef),
+  );
+
   let imported = 0;
   let skipped = 0;
 
   for (const pago of input.payments) {
-    if (!validos.has(pago.memberId)) {
+    if (!validos.has(pago.memberId) || yaEstan.has(pago.dedupKey)) {
       skipped += 1;
       continue;
     }
@@ -73,8 +89,9 @@ export async function importHistoricalPayments(input: {
       });
       imported += 1;
     } catch (e) {
-      // Choque contra la clave única: este pago ya estaba importado. No es un error de la
-      // operación —es exactamente lo que la clave viene a evitar— así que se cuenta y sigue.
+      // Red de seguridad para la carrera: otra importación pudo escribirlo entre la consulta
+      // de arriba y esta línea. No es un error de la operación —es lo que la clave única
+      // viene a evitar— así que se cuenta y sigue.
       if (isUniqueViolation(e)) {
         skipped += 1;
         continue;
