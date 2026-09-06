@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
-import { loadMemberAccount } from "@/lib/membership/account";
+import { loadMemberBalance } from "@/lib/membership/balance";
+import { CreditCallout } from "@/components/membership/credit-callout";
 import { formatMinorArs } from "@/lib/membership/money";
 import {
   chargeConceptLabel,
@@ -53,8 +54,8 @@ export default async function CuotasPage({
   const params = await searchParams;
   const aviso = avisoDePago(params.pago);
 
-  const [account, cobros, contacto, pagos] = await Promise.all([
-    loadMemberAccount(context.member.id),
+  const [cuenta, cobros, contacto, pagos] = await Promise.all([
+    loadMemberBalance(context.member.id),
     getWorkspaceCollectionStatus(context.workspace.id),
     loadWorkspaceContactChannels(context.workspace.id),
     // Los últimos doce alcanzan para el uso real —comprobar los meses recientes— sin
@@ -62,7 +63,7 @@ export default async function CuotasPage({
     loadMemberPaymentHistory(context.member.id, { limit: 12 }),
   ]);
 
-  const alDia = account.charges.length === 0;
+  const alDia = cuenta.charges.length === 0;
 
   /*
     El arrastre del sistema anterior se separa de las cuotas.
@@ -72,8 +73,8 @@ export default async function CuotasPage({
     rótulo de la cuota del mes. Además esos importes vienen de una migración que no reconcilia
     para todos, y por eso van con su propia advertencia.
   */
-  const cuotas = account.charges.filter((c) => !isOpeningBalance(c.period));
-  const arrastre = account.charges.filter((c) => isOpeningBalance(c.period));
+  const cuotas = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
+  const arrastre = cuenta.charges.filter((c) => isOpeningBalance(c.period));
   const arrastreMinor = arrastre.reduce((s, c) => s + c.balanceMinor, 0);
 
   const ahora = new Date();
@@ -116,7 +117,7 @@ export default async function CuotasPage({
               <div className="flex items-baseline justify-between gap-3">
                 <h2 className="text-sm font-semibold">Lo que debés</h2>
                 <p className="text-2xl font-semibold tabular-nums">
-                  {formatMinorArs(account.totalDueMinor)}
+                  {formatMinorArs(cuenta.dueMinor)}
                 </p>
               </div>
               {/*
@@ -190,17 +191,17 @@ export default async function CuotasPage({
                 <h2 className="text-sm font-semibold">Pagar</h2>
                 <PayButton
                   howMany="ALL"
-                  label={`Pagar todo · ${formatMinorArs(account.totalDueMinor)}`}
+                  label={`Pagar todo · ${formatMinorArs(cuenta.dueMinor)}`}
                 />
                 {/*
                   Se ofrece pagar solo la más antigua, no elegir cualquiera: pagar la de
                   agosto dejando junio impaga haría figurar al socio al día y con tres meses
                   de atraso a la vez.
                 */}
-                {account.charges.length > 1 && account.charges[0] ? (
+                {cuenta.charges.length > 1 && cuenta.charges[0] ? (
                   <PayButton
                     howMany="1"
-                    label={`Pagar solo la más antigua · ${formatMinorArs(account.charges[0].balanceMinor)}`}
+                    label={`Pagar solo la más antigua · ${formatMinorArs(cuenta.charges[0].balanceMinor)}`}
                   />
                 ) : null}
                 <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
@@ -219,6 +220,8 @@ export default async function CuotasPage({
             )}
           </>
         )}
+
+        <CreditCallout creditMinor={cuenta.creditMinor} tone="socio" />
 
         {/*
           Fuera del condicional a propósito, igual que la ayuda de abajo: el socio que está
