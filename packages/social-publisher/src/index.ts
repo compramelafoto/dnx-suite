@@ -38,6 +38,14 @@ export {
   type EncryptedBlob,
 } from "./vault";
 
+export {
+  degradeMentionPlan,
+  planMentions,
+  DEFAULT_MAX_COLLABORATORS,
+  type MentionCandidate,
+  type MentionPlan,
+} from "./mentions";
+
 export type { ProviderPublishInput, SocialPublishProvider } from "./providers/types";
 export { createInstagramPublishProvider, createMetaGraphClient } from "./providers/instagram/index";
 
