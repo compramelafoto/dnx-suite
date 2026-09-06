@@ -48,3 +48,11 @@ export {
   type InstagramConnectedAccount,
   type InstagramOAuthConfig,
 } from "./providers/instagram/oauth";
+
+export {
+  decideTokenRefresh,
+  refreshInstagramToken,
+  TOKEN_MIN_AGE_HOURS,
+  TOKEN_REFRESH_THRESHOLD_DAYS,
+  type TokenRefreshDecision,
+} from "./providers/instagram/token-refresh";
