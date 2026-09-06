@@ -20,86 +20,53 @@ import type { DesignDocument, VariableContract } from "@repo/design-studio";
  *
  * Medidas en píxeles (medio SCREEN, sin sangrado): carrusel 1080×1350 (4:5, el aspecto que
  * Instagram no recorta), historia 1080×1920 (9:16).
- */
-
-/**
- * Contrato de variables de las piezas del álbum.
  *
- * Prohibido a propósito: cualquier campo de documento de identidad. Estas piezas se
- * publican en una cuenta pública de Instagram; un DNI ahí sería una filtración de datos
- * personales, no una plantilla mal hecha. El test de privacidad revisa esto.
+ * Cada pieza tiene SU PROPIO contrato de variables (`albumCarouselContract` /
+ * `ALBUM_STORY_CONTRACT`), no uno compartido. Antes había un único contrato para las dos
+ * piezas y declaraba `foto2`/`foto3` como obligatorias aunque la historia solo usa
+ * `foto1`: no rompía la emisión (`emitDesign` no chequea "obligatoria pero no usada"),
+ * pero `validateForPublish` (`validation/publish.ts`, líneas 91-97) sí lo hace, y habría
+ * rechazado la historia aunque renderizara perfecto. Un contrato por pieza, que declare
+ * exactamente lo que su plantilla usa, es lo que evita esa inconsistencia.
+ *
+ * Prohibido en los dos contratos, a propósito: cualquier campo de documento de identidad.
+ * Estas piezas se publican en una cuenta pública de Instagram; un DNI ahí sería una
+ * filtración de datos personales, no una plantilla mal hecha. El test de privacidad revisa
+ * los dos contratos.
  */
-export const ALBUM_VARIABLE_CONTRACT: VariableContract = {
-  variables: [
-    {
-      key: "nombreAlbum",
-      type: "text",
-      label: "Nombre del álbum",
-      required: true,
-      sampleValue: "Maratón de Santa Fe 2026",
-      maxLength: 60,
-    },
-    {
-      key: "fecha",
-      type: "date",
-      label: "Fecha del evento",
-      required: false,
-      sampleValue: "30/08/2026",
-      dateFormat: "es-AR-short",
-    },
-    {
-      key: "arrobaFotografo",
-      type: "text",
-      label: "Usuario de Instagram del fotógrafo",
-      required: false,
-      sampleValue: "@fotografo",
-      maxLength: 31,
-    },
-    {
-      // Texto, no "url": se imprime tal cual en la pieza ("compramelafoto.com/a/…", sin
-      // protocolo, igual que en el copy). El tipo "url" del Designer valida que el valor
-      // empiece con "http" — acá no es un enlace navegable (Meta no permite links tocables
-      // por API, ver Corrección 2), es una dirección decorativa dibujada como texto.
-      key: "urlAlbum",
-      type: "text",
-      label: "Dirección del álbum",
-      required: true,
-      sampleValue: "compramelafoto.com/a/maraton",
-      maxLength: 60,
-    },
-    {
-      key: "foto1",
-      type: "image",
-      label: "Foto 1",
-      required: true,
-      sampleValue: "https://cdn/1.jpg",
-    },
-    {
-      key: "foto2",
-      type: "image",
-      label: "Foto 2",
-      required: true,
-      sampleValue: "https://cdn/2.jpg",
-    },
-    {
-      key: "foto3",
-      type: "image",
-      label: "Foto 3",
-      required: true,
-      sampleValue: "https://cdn/3.jpg",
-    },
-    {
-      key: "foto4",
-      type: "image",
-      label: "Foto 4",
-      required: false,
-      sampleValue: "https://cdn/4.jpg",
-    },
-  ],
-};
 
 const CAROUSEL_WIDTH_PX = 1080;
 const CAROUSEL_HEIGHT_PX = 1350;
+
+/**
+ * Contrato del carrusel: `foto1`…`fotoN` obligatorias, tantas como caras tenga el
+ * documento — nada de texto, porque la plantilla del carrusel no dibuja ninguno.
+ *
+ * Es una función, en paralelo a `albumCarouselDocument`, y por la misma razón: los dos se
+ * generan del mismo número, así que no se pueden desincronizar entre sí. Un contrato fijo
+ * de 4 fotos obligatorias con un documento de 3 caras habría vuelto a caer en el mismo
+ * error que motivó separar los contratos por pieza.
+ */
+export function albumCarouselContract(cantidadDeFotos: number): VariableContract {
+  if (!Number.isInteger(cantidadDeFotos) || cantidadDeFotos < 1) {
+    throw new Error(
+      `El carrusel necesita al menos una foto; se pidieron ${cantidadDeFotos}.`,
+    );
+  }
+
+  return {
+    variables: Array.from({ length: cantidadDeFotos }, (_, indice) => {
+      const numero = indice + 1;
+      return {
+        key: `foto${numero}`,
+        type: "image" as const,
+        label: `Foto ${numero}`,
+        required: true,
+        sampleValue: `https://cdn/${numero}.jpg`,
+      };
+    }),
+  };
+}
 
 /**
  * Documento del carrusel: una cara por foto, cada una a sangre completa referida a su
@@ -151,6 +118,59 @@ export function albumCarouselDocument(cantidadDeFotos: number): DesignDocument {
 
 const STORY_WIDTH_PX = 1080;
 const STORY_HEIGHT_PX = 1920;
+
+/**
+ * Contrato de la historia: solo lo que `ALBUM_STORY_DOCUMENT` usa. `foto2` y `foto3` NO
+ * están acá — la historia no las dibuja, y declararlas como obligatorias sin usarlas es
+ * justo el error que este contrato separado existe para evitar.
+ */
+export const ALBUM_STORY_CONTRACT: VariableContract = {
+  variables: [
+    {
+      key: "nombreAlbum",
+      type: "text",
+      label: "Nombre del álbum",
+      required: true,
+      sampleValue: "Maratón de Santa Fe 2026",
+      maxLength: 60,
+    },
+    {
+      key: "fecha",
+      type: "date",
+      label: "Fecha del evento",
+      required: false,
+      sampleValue: "30/08/2026",
+      dateFormat: "es-AR-short",
+    },
+    {
+      key: "arrobaFotografo",
+      type: "text",
+      label: "Usuario de Instagram del fotógrafo",
+      required: false,
+      sampleValue: "@fotografo",
+      maxLength: 31,
+    },
+    {
+      // Texto, no "url": se imprime tal cual en la pieza ("compramelafoto.com/a/…", sin
+      // protocolo, igual que en el copy). El tipo "url" del Designer valida que el valor
+      // empiece con "http" — acá no es un enlace navegable (Meta no permite links tocables
+      // por API), es una dirección decorativa dibujada como texto.
+      key: "urlAlbum",
+      type: "text",
+      label: "Dirección del álbum",
+      required: true,
+      sampleValue: "compramelafoto.com/a/maraton",
+      maxLength: 60,
+    },
+    {
+      key: "foto1",
+      type: "image",
+      label: "Foto 1",
+      required: true,
+      sampleValue: "https://cdn/1.jpg",
+    },
+  ],
+};
 
 /**
  * Documento de la historia: una sola cara, siempre igual, no depende de la cantidad de

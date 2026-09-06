@@ -1,8 +1,9 @@
 import type { MentionCandidate } from "@repo/social-publisher";
 import type { SocialPieceSpec } from "@repo/social-pieces";
 import {
+  ALBUM_STORY_CONTRACT,
   ALBUM_STORY_DOCUMENT,
-  ALBUM_VARIABLE_CONTRACT,
+  albumCarouselContract,
   albumCarouselDocument,
 } from "./album-piece-templates";
 
@@ -99,7 +100,7 @@ export function buildAlbumPieceSpecs(datos: AlbumSocialData): SocialPieceSpec[] 
       pieceId: "clf-album-carousel",
       format: "CAROUSEL",
       document: albumCarouselDocument(datos.photoUrls.length),
-      contract: ALBUM_VARIABLE_CONTRACT,
+      contract: albumCarouselContract(datos.photoUrls.length),
       values,
       resources,
       dpi: SCREEN_PNG_DPI,
@@ -108,7 +109,7 @@ export function buildAlbumPieceSpecs(datos: AlbumSocialData): SocialPieceSpec[] 
       pieceId: "clf-album-story",
       format: "STORY",
       document: ALBUM_STORY_DOCUMENT,
-      contract: ALBUM_VARIABLE_CONTRACT,
+      contract: ALBUM_STORY_CONTRACT,
       values,
       resources,
       dpi: SCREEN_PNG_DPI,
