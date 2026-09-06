@@ -11,6 +11,8 @@ import {
 } from "@/lib/membership/charge-labels";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { loadWorkspaceContactChannels } from "@/lib/portal/contact";
+import { loadMemberPaymentHistory } from "@/lib/membership/payment-history";
+import { PaymentHistoryList } from "@/components/membership/payment-history-list";
 import { DuesHelpCard } from "@/components/portal/dues-help-card";
 import { PayButton } from "./pay-button";
 
@@ -51,10 +53,13 @@ export default async function CuotasPage({
   const params = await searchParams;
   const aviso = avisoDePago(params.pago);
 
-  const [account, cobros, contacto] = await Promise.all([
+  const [account, cobros, contacto, pagos] = await Promise.all([
     loadMemberAccount(context.member.id),
     getWorkspaceCollectionStatus(context.workspace.id),
     loadWorkspaceContactChannels(context.workspace.id),
+    // Los últimos doce alcanzan para el uso real —comprobar los meses recientes— sin
+    // convertir la pantalla en un extracto de años.
+    loadMemberPaymentHistory(context.member.id, { limit: 12 }),
   ]);
 
   const alDia = account.charges.length === 0;
@@ -214,6 +219,19 @@ export default async function CuotasPage({
             )}
           </>
         )}
+
+        {/*
+          Fuera del condicional a propósito, igual que la ayuda de abajo: el socio que está
+          al día es justamente el que entra a comprobar que su pago se registró, y hasta
+          ahora no tenía nada que mirar.
+        */}
+        <section className="fo-card space-y-3 p-5">
+          <h2 className="text-sm font-semibold">Lo que pagaste</h2>
+          <PaymentHistoryList
+            entries={pagos}
+            emptyText="Todavía no tenemos pagos registrados a tu nombre. Si pagaste y no lo ves acá, escribinos y lo revisamos."
+          />
+        </section>
 
         {/*
           Fuera del condicional a propósito: el socio que figura al día también puede estar

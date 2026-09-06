@@ -1,6 +1,7 @@
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
@@ -123,12 +124,14 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     status: "AVAILABLE",
   },
   {
-    key: "membership-dues",
+    key: MEMBERSHIP_DUES_MODULE_KEY,
     label: "Cuotas societarias",
-    description: "Cuotas periódicas de los socios.",
+    description:
+      "Cuotas periódicas de los socios: generación mensual, cobro por Mercado Pago, pagos a mano e historial.",
     category: "INSTITUTIONAL",
     order: 110,
-    status: "PLANNED",
+    route: "/members/cuotas",
+    status: "AVAILABLE",
   },
   {
     key: "governance",

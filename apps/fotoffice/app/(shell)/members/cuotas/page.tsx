@@ -73,6 +73,17 @@ export default async function CuotasPage() {
         </Link>
       </div>
 
+      <div className="fo-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold">Pagos anteriores al sistema</h2>
+        <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+          Cargá por planilla el registro de cobros previo a FotoOffice para que cada socio vea
+          su historial completo en el portal. No da de alta socios ni modifica ninguna deuda.
+        </p>
+        <Link href="/members/cuotas/historial" className="fo-btn fo-btn-secondary inline-flex text-sm">
+          Importar pagos anteriores
+        </Link>
+      </div>
+
       {!cobros.canCharge ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
           El cobro en línea no está habilitado, así que los socios no pueden pagar desde el
