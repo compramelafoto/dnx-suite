@@ -16,6 +16,8 @@ import { loadMemberPaymentHistory } from "@/lib/membership/payment-history";
 import { PaymentHistoryList } from "@/components/membership/payment-history-list";
 import { DuesHelpCard } from "@/components/portal/dues-help-card";
 import { PayButton } from "./pay-button";
+import { loadAdvanceOffer } from "@/lib/membership/advance-store";
+import { AdvanceForm } from "./advance-form";
 
 export const dynamic = "force-dynamic";
 
@@ -54,16 +56,26 @@ export default async function CuotasPage({
   const params = await searchParams;
   const aviso = avisoDePago(params.pago);
 
-  const [cuenta, cobros, contacto, pagos] = await Promise.all([
+  const [cuenta, cobros, contacto, pagos, oferta] = await Promise.all([
     loadMemberBalance(context.member.id),
     getWorkspaceCollectionStatus(context.workspace.id),
     loadWorkspaceContactChannels(context.workspace.id),
     // Los últimos doce alcanzan para el uso real —comprobar los meses recientes— sin
     // convertir la pantalla en un extracto de años.
     loadMemberPaymentHistory(context.member.id, { limit: 12 }),
+    loadAdvanceOffer(context.member.id),
   ]);
 
   const alDia = cuenta.charges.length === 0;
+
+  // Se ofrece 1, 3 y 6: una lista de seis opciones es una decisión que nadie quiere tomar.
+  const opcionesAdelanto = [1, 3, 6]
+    .filter((n) => n <= oferta.periods.length)
+    .map((n) => ({
+      months: n,
+      label: n === 1 ? "1 mes" : `${n} meses`,
+      totalLabel: formatMinorArs(oferta.periods.slice(0, n).reduce((s, p) => s + p.amountMinor, 0)),
+    }));
 
   /*
     El arrastre del sistema anterior se separa de las cuotas.
@@ -220,6 +232,13 @@ export default async function CuotasPage({
             )}
           </>
         )}
+
+        {/*
+          Fuera del condicional de "al día" a propósito: quien no tiene cuotas pendientes es
+          justo quien puede adelantar, y con deuda también sirve — adelanta lo que viene
+          después de lo que ya debe.
+        */}
+        {cobros.canCharge ? <AdvanceForm options={opcionesAdelanto} /> : null}
 
         <CreditCallout creditMinor={cuenta.creditMinor} tone="socio" />
 
