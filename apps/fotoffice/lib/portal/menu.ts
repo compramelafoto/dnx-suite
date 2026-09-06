@@ -1,4 +1,5 @@
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 
 /**
@@ -84,7 +85,7 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     href: "/portal/cuotas",
     description: "Qué debés, qué pagaste y cómo pagar.",
     icon: "wallet",
-    requiresModule: "membership-dues",
+    requiresModule: MEMBERSHIP_DUES_MODULE_KEY,
     built: true,
     primary: true,
   },

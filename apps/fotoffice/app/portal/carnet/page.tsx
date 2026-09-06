@@ -11,6 +11,7 @@ import { decimalArsToMinor } from "@/lib/membership/money";
 import { RequestPrintedCard } from "./request-printed";
 import { stateLabel } from "@/lib/carnet/fulfillment";
 import { printedCardOffer } from "@/lib/carnet/reissue";
+import { printedCardWarning } from "@/lib/carnet/printed-warning";
 import { formatMinorArs } from "@/lib/membership/money";
 
 export const dynamic = "force-dynamic";
@@ -34,13 +35,6 @@ export default async function MiCarnetPage() {
 
   const base = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").trim();
   const carnet = await loadMyCard(context.member.id, base);
-
-  // La foto se puede cargar aunque todavía no haya carnet: es lo que se le prometió al
-  // asociarse — "podés ir teniéndola lista".
-  const ficha = await prisma.member.findUnique({
-    where: { id: context.member.id },
-    select: { avatarUrl: true },
-  });
 
   // Quien marcó "quiero la credencial impresa" al asociarse tiene que enterarse de qué le
   // falta. Hasta ahora marcaba la casilla y no volvía a saber nada del asunto.
@@ -86,10 +80,20 @@ export default async function MiCarnetPage() {
   // en el botón: pedirle a alguien que confirme un gasto sin decirle cuánto es no está bien.
   // Se ofrece pedirla cuando no tiene, cuando la anterior se venció, o cuando ya la recibió y
   // necesita otra —cambio de categoría, datos nuevos, extravío—. Cada una se cobra.
+  const ahora = new Date();
   const oferta = printedCardOffer({
     state: carnet.printedState,
     validUntil: carnet.printedValidUntil,
-    now: new Date(),
+    now: ahora,
+  });
+
+  // `oferta` decide si se le puede cobrar una tarjeta; `aviso` decide qué se le dice. Son
+  // preguntas distintas: al socio que nunca registró una hay que advertirle que revise la
+  // vigencia de la que tenga en mano, y eso no depende de si se le puede vender otra.
+  const aviso = printedCardWarning({
+    state: carnet.printedState,
+    validUntil: carnet.printedValidUntil,
+    now: ahora,
   });
 
   const socio = await prisma.member.findUnique({
@@ -167,29 +171,38 @@ export default async function MiCarnetPage() {
         </div>
       </div>
 
-      {oferta.ofrecer && precioMinor > 0 ? (
-        <section className="fo-card space-y-2 p-5">
-          <h2 className="text-sm font-semibold">
-            {oferta.motivo === "PRIMERA" ? "¿Querés la tarjeta impresa?" : "¿Necesitás otra tarjeta?"}
-          </h2>
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            {oferta.motivo === "PRIMERA"
-              ? "El carnet digital lo tenés siempre. La tarjeta física es opcional y cuesta el valor de una cuota."
-              : "Si cambiaste de categoría, actualizaste tus datos, se te venció o la perdiste, podés pedir una nueva. Cada tarjeta se cobra aparte, como la primera."}
-          </p>
-          {/*
+      <section
+        className={`fo-card space-y-2 p-5 ${
+          aviso.tone === "warn"
+            ? "border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)]"
+            : ""
+        }`}
+      >
+        <h2
+          className={`text-sm font-semibold ${
+            aviso.tone === "warn" ? "text-[var(--fo-warning)]" : ""
+          }`}
+        >
+          {aviso.title}
+        </h2>
+        <p className="text-sm text-[var(--fo-muted)] leading-relaxed">{aviso.body}</p>
+        {oferta.ofrecer && precioMinor > 0 && aviso.actionLabel ? (
+          /*
             Sin foto el pedido falla, así que no se ofrece el botón: mandarlo a apretar algo
             que va a dar error es hacerle perder un paso y confundirlo sobre qué le falta.
-          */}
-          {socio?.avatarUrl ? (
-            <RequestPrintedCard priceLabel={formatMinorArs(precioMinor)} />
+          */
+          socio?.avatarUrl ? (
+            <RequestPrintedCard
+              priceLabel={formatMinorArs(precioMinor)}
+              actionLabel={aviso.actionLabel}
+            />
           ) : (
             <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
               Primero subí tu foto, acá abajo. Con eso vas a poder pedirla.
             </p>
-          )}
-        </section>
-      ) : null}
+          )
+        ) : null}
+      </section>
 
       {!carnet.enabled && carnet.disabledReason ? (
         <section className="fo-card space-y-3 p-5">
