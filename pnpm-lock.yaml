@@ -207,6 +207,9 @@ importers:
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
+      '@repo/media-composition':
+        specifier: workspace:*
+        version: link:../../packages/media-composition
       '@repo/ops-daily-report':
         specifier: workspace:*
         version: link:../../packages/ops-daily-report
