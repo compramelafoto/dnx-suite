@@ -42,4 +42,36 @@ describe("planAdvancePeriods", () => {
   it("un período mal formado no devuelve nada en vez de inventar una fecha", () => {
     expect(planAdvancePeriods({ ...BASE, fromPeriod: "octubre", months: 2 })).toEqual([]);
   });
+
+  describe("validaciones de seguridad en feeValueMinor", () => {
+    it("feeValueMinor = NaN no produce períodos", () => {
+      expect(planAdvancePeriods({ ...BASE, months: 1, feeValueMinor: NaN })).toEqual([]);
+    });
+
+    it("feeValueMinor = Infinity no produce períodos", () => {
+      expect(planAdvancePeriods({ ...BASE, months: 1, feeValueMinor: Infinity })).toEqual([]);
+    });
+
+    it("feeValueMinor con decimales (no entero) no produce períodos", () => {
+      expect(planAdvancePeriods({ ...BASE, months: 1, feeValueMinor: 800000.55 })).toEqual([]);
+    });
+  });
+
+  describe("validaciones de seguridad en dueDay", () => {
+    it("dueDay = NaN no produce períodos", () => {
+      expect(planAdvancePeriods({ ...BASE, months: 1, dueDay: NaN })).toEqual([]);
+    });
+
+    it("dueDay = 0 no produce períodos", () => {
+      expect(planAdvancePeriods({ ...BASE, months: 1, dueDay: 0 })).toEqual([]);
+    });
+
+    it("dueDay negativo no produce períodos", () => {
+      expect(planAdvancePeriods({ ...BASE, months: 1, dueDay: -1 })).toEqual([]);
+    });
+
+    it("dueDay = 32 (fuera de rango) no produce períodos", () => {
+      expect(planAdvancePeriods({ ...BASE, months: 1, dueDay: 32 })).toEqual([]);
+    });
+  });
 });

@@ -14,6 +14,8 @@
  * Módulo PURO.
  */
 
+import { monthlyDuePeriod } from "./periods";
+
 export const MAX_ADVANCE_MONTHS = 6;
 
 export type AdvancePeriod = {
@@ -35,7 +37,12 @@ export function planAdvancePeriods(input: {
 }): AdvancePeriod[] {
   if (!PERIOD_RE.test(input.fromPeriod)) return [];
   if (!Number.isInteger(input.months) || input.months < 1) return [];
-  if (input.feeValueMinor <= 0) return [];
+  // `feeValueMinor` debe ser entero y positivo. En JavaScript, `NaN <= 0` es `false`,
+  // así que una validación por magnitud no alcanza cuando lo que se decide es plata.
+  if (!Number.isInteger(input.feeValueMinor) || input.feeValueMinor <= 0) return [];
+  // `dueDay` debe ser entero entre 1 y 31. Un valor fuera de rango (0, negativo, NaN)
+  // puede desbordar el cálculo del vencimiento al mes anterior o producir dates inválidas.
+  if (!Number.isInteger(input.dueDay) || input.dueDay < 1 || input.dueDay > 31) return [];
 
   const [anio, mes] = input.fromPeriod.split("-").map(Number);
   if (!anio || !mes || mes < 1 || mes > 12) return [];
@@ -43,17 +50,22 @@ export function planAdvancePeriods(input: {
   const cuantos = Math.min(input.months, MAX_ADVANCE_MONTHS);
   const salida: AdvancePeriod[] = [];
 
+  let y = anio;
+  let m = mes;
   for (let i = 0; i < cuantos; i += 1) {
-    const fecha = new Date(Date.UTC(anio, mes - 1 + i, 1));
-    const a = fecha.getUTCFullYear();
-    const m = fecha.getUTCMonth() + 1;
-    // Último día real del mes: un vencimiento el 31 de febrero se desbordaría a marzo.
-    const ultimoDia = new Date(Date.UTC(a, m, 0)).getUTCDate();
+    const period = `${y}-${String(m).padStart(2, "0")}`;
+    const duePeriod = monthlyDuePeriod(period, input.dueDay);
     salida.push({
-      period: `${a}-${String(m).padStart(2, "0")}`,
+      period: duePeriod.period,
       amountMinor: input.feeValueMinor,
-      dueDate: new Date(Date.UTC(a, m - 1, Math.min(input.dueDay, ultimoDia))),
+      dueDate: duePeriod.dueDate,
     });
+    // Pasar al siguiente mes.
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
   }
 
   return salida;
