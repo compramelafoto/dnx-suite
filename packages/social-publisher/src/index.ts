@@ -65,3 +65,9 @@ export {
   TOKEN_REFRESH_THRESHOLD_DAYS,
   type TokenRefreshDecision,
 } from "./providers/instagram/token-refresh";
+
+export {
+  fetchPublishingLimit,
+  hasQuotaFor,
+  type PublishingLimit,
+} from "./providers/instagram/publishing-limit";
