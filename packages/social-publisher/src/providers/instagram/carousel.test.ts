@@ -199,6 +199,10 @@ test("si Meta rechaza los colaboradores, reintenta con uno menos", async () => {
   assert.deepEqual(JSON.parse(segundoPadre.body.collaborators!), ["fotografo", "organizador"]);
   // El que se cayó de la etiqueta queda anotado para que el motor lo sume al copy.
   assert.deepEqual(r.providerRawSanitized?.droppedCollaborators, ["sponsor"]);
+  // Los hijos se crean una sola vez y se reusan en el reintento del padre: no hay que
+  // volver a subir las fotos ni gastar cupo de Meta de nuevo por cada intento.
+  const hijosCreados = llamadas.filter((l) => l.body.is_carousel_item === "true");
+  assert.equal(hijosCreados.length, 2);
 });
 
 test("si el rechazo no es por colaboradores, no reintenta", async () => {
