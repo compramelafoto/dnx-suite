@@ -3,6 +3,7 @@ export type {
   PublishAsset,
   PublishAssetKind,
   PublishAttempt,
+  PublishFormat,
   PublishPriority,
   PublishRequest,
   PublishRequestStatus,

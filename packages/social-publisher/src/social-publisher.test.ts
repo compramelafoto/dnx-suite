@@ -236,3 +236,71 @@ test("no auto publish from PENDING_APPROVAL", async () => {
   assert.equal(n, 0);
   assert.equal(eng.list({ status: "PENDING_APPROVAL" }).length, 1);
 });
+
+test("el motor pasa formato y colaboradores desde metadata", async () => {
+  const store = createInMemorySocialPublisherStore();
+  store.accounts.set("acc1", {
+    id: "acc1",
+    platform: "INSTAGRAM",
+    ownerUserId: 1,
+    externalAccountId: "178414000",
+    businessId: null,
+    username: "clf",
+    displayName: "CLF",
+    scopes: ["instagram_business_content_publish"],
+    status: "ACTIVE",
+    expiresAt: null,
+    lastValidatedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  store.tokens.set("acc1", "token");
+
+  // Envuelto en un objeto: si fuera un `let` reasignado dentro del closure de
+  // `publish`, tsc lo termina angostando a `never` en el uso de más abajo
+  // (limitación conocida del control-flow narrowing con closures).
+  const recibido: { current: { format?: string; collaborators?: string[] } | null } = {
+    current: null,
+  };
+  const providers = new Map([
+    [
+      "INSTAGRAM" as const,
+      {
+        platform: "INSTAGRAM" as const,
+        async publish(input: { format?: string; collaborators?: string[] }) {
+          recibido.current = { format: input.format, collaborators: input.collaborators };
+          return {
+            ok: true as const,
+            dryRun: true,
+            externalMediaId: "m1",
+            externalPostId: "p1",
+            permalink: null,
+            providerRawSanitized: {},
+          };
+        },
+      },
+    ],
+  ]);
+  const eng = createSocialPublisherEngine(store, providers as never, {
+    livePublish: false,
+  });
+
+  const req = eng.createRequest({
+    application: "COMPRAMELAFOTO",
+    entityType: "ALBUM",
+    entityId: "42",
+    caption: "Álbum nuevo",
+    assets: [
+      { assetId: "a1", kind: "CAROUSEL_ITEM", publicUrl: "https://cdn.test/1.jpg" },
+      { assetId: "a2", kind: "CAROUSEL_ITEM", publicUrl: "https://cdn.test/2.jpg" },
+    ],
+    target: { platform: "INSTAGRAM", socialAccountId: "acc1" },
+    idempotencyKey: "clf:album-carousel:42",
+    metadata: { format: "CAROUSEL", collaborators: ["fotografo"] },
+  });
+  eng.approve(req.id, 1);
+  await eng.processDue(new Date());
+
+  assert.equal(recibido.current?.format, "CAROUSEL");
+  assert.deepEqual(recibido.current?.collaborators, ["fotografo"]);
+});

@@ -39,6 +39,9 @@ export type PublishPriority = "LOW" | "NORMAL" | "HIGH";
 
 export type PublishAssetKind = "IMAGE" | "VIDEO" | "CAROUSEL_ITEM";
 
+/** Cómo se publica el conjunto de assets. Sin especificar, una imagen sola. */
+export type PublishFormat = "SINGLE_IMAGE" | "CAROUSEL" | "STORY";
+
 export type PublishAsset = {
   assetId: string;
   kind: PublishAssetKind;

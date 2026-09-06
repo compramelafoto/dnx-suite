@@ -5,6 +5,7 @@ import {
   SocialPublisherError,
   type CreatePublishRequestInput,
   type PublishAttempt,
+  type PublishFormat,
   type PublishRequest,
   type PublishRequestStatus,
   type SocialAccount,
@@ -267,11 +268,18 @@ export function createSocialPublisherEngine(
           hashtags: r.hashtags,
           mentions: r.mentions,
         });
+        // Formato y colaboradores viajan en metadata: no se puede tocar el schema.
+        const meta = (r.metadata ?? {}) as {
+          format?: PublishFormat;
+          collaborators?: string[];
+        };
         const result = await provider.publish({
           account,
           accessToken: token,
           caption,
           assets: r.assets,
+          format: meta.format ?? "SINGLE_IMAGE",
+          collaborators: Array.isArray(meta.collaborators) ? meta.collaborators : [],
           dryRun,
         });
         if (!result.ok) {
