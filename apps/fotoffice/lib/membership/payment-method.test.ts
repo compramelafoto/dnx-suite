@@ -50,3 +50,12 @@ describe("paymentMethodLabel", () => {
       .toBe("DEBITO_AUTOMATICO");
   });
 });
+
+describe("Mercado Pago histórico", () => {
+  it("el pago que el sistema anterior cobró por Mercado Pago se muestra como tal", () => {
+    // Etiquetarlo «otro medio» sería falso justo en el dato que el socio reconoce.
+    expect(paymentMethodLabel({ method: historicalMethod("MERCADO_PAGO"), hasProviderRef: false }))
+      .toBe("Mercado Pago");
+    expect(isHistoricalMethod("MERCADO_PAGO")).toBe(true);
+  });
+});

@@ -17,8 +17,20 @@
 /** Marca de "esto pasó antes de FotoOffice". Ver el comentario de arriba. */
 const HISTORICAL_PREFIX = "HIST:";
 
-/** Medios que la Secretaría puede haber usado antes del sistema. */
-export const HISTORICAL_METHODS = ["EFECTIVO", "TRANSFERENCIA", "CHEQUE", "OTRO"] as const;
+/**
+ * Medios que la Secretaría puede haber usado antes del sistema.
+ *
+ * Mercado Pago está en la lista aunque hoy los pagos por Mercado Pago no lleven `method`: el
+ * sistema anterior también cobraba por ahí, y son la mayoría del registro histórico.
+ * Registrarlos como «otro medio» sería falso justo en el dato que el socio reconoce.
+ */
+export const HISTORICAL_METHODS = [
+  "EFECTIVO",
+  "TRANSFERENCIA",
+  "CHEQUE",
+  "MERCADO_PAGO",
+  "OTRO",
+] as const;
 export type HistoricalMethod = (typeof HISTORICAL_METHODS)[number];
 
 export function isHistoricalMethod(value: string): value is HistoricalMethod {
@@ -39,6 +51,7 @@ const ETIQUETAS: Record<string, string> = {
   EFECTIVO: "Efectivo",
   TRANSFERENCIA: "Transferencia",
   CHEQUE: "Cheque",
+  MERCADO_PAGO: "Mercado Pago",
   OTRO: "Otro medio",
 };
 

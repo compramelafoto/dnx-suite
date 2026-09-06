@@ -167,7 +167,7 @@ export function parseAndValidatePaymentImport(params: {
     } else if (isHistoricalMethod(methodRaw)) {
       method = methodRaw;
     } else {
-      errors.push(`Medio de pago desconocido: «${methodRaw}». Usá EFECTIVO, TRANSFERENCIA, CHEQUE u OTRO.`);
+      errors.push(`Medio de pago desconocido: «${methodRaw}». Usá EFECTIVO, TRANSFERENCIA, CHEQUE, MERCADO_PAGO u OTRO.`);
     }
 
     if (periodRaw && !PERIOD_RE.test(periodRaw)) {
