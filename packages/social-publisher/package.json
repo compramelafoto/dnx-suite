@@ -14,7 +14,7 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test src/social-publisher.test.ts src/providers/instagram/oauth.test.ts src/providers/instagram/token-refresh.test.ts src/mentions.test.ts",
+    "test": "tsx --test src/social-publisher.test.ts src/providers/instagram/oauth.test.ts src/providers/instagram/token-refresh.test.ts src/providers/instagram/carousel.test.ts src/mentions.test.ts",
     "lint": "eslint ."
   },
   "devDependencies": {
