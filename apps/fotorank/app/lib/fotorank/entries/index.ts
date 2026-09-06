@@ -6,3 +6,4 @@ export * from "./checklist";
 export * from "./derivatives";
 export * from "./entry-service";
 export * from "./eligibility-form";
+export * from "./staged-upload";

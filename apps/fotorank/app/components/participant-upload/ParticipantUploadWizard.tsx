@@ -3,14 +3,23 @@
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import {
+  API_TIMEOUT_MS,
+  buildEligibilityPayload,
   canStartUpload,
+  classifyTransportError,
+  CONFIRM_TIMEOUT_MS,
+  DIRECT_UPLOAD_TIMEOUT_MS,
   EMPTY_WORK_DATA,
+  fetchWithTimeout,
   formatBytes,
   formatDimensions,
   mapEntryToUploadFileStatus,
+  PLATFORM_REQUEST_LIMIT_BYTES,
   presentUploadFileStatus,
+  readApiResult,
   translateUploadError,
   validateFileClient,
+  type ApiResult,
   type UploadRequirementsSummary,
   type UploadWizardStepId,
   type WorkDataForm,
@@ -40,6 +49,13 @@ type EntryView = {
   publicRejectionReason?: string | null;
   previewUrl: string | null;
   checks: Array<{ checkCode: string; status: string; title: string; message: string }>;
+};
+
+/** Contrato de respuesta de `upload`, `replace` y `upload-direct`. */
+type UploadResponse = {
+  entryId?: string;
+  status?: string;
+  technicalSummaryStatus?: string;
 };
 
 export type ParticipantUploadWizardProps = {
@@ -412,28 +428,49 @@ export function ParticipantUploadWizard({
     // No usar startTransition para el fetch: demora updates urgentes y deja
     // “Estamos verificando…” pegado aunque el POST ya respondió.
     void (async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 55_000);
+      /**
+       * Cada paso lleva su propio presupuesto de tiempo. El PUT del original
+       * al bucket puede ser 25 MB por red móvil, así que compartir el timeout
+       * de 55 s de las llamadas de API cortaría envíos legítimos a mitad de
+       * camino.
+       */
+      const fail = (code: string) => {
+        setInfo(null);
+        setError(translateUploadError(code));
+        setUploadPhase("idle");
+      };
+
       try {
-        const intentRes = await fetch(`/api/fotorank/contests/${contestId}/entries/upload-intent`, {
-          method: "POST",
-          signal: controller.signal,
-        });
-        const intent = (await intentRes.json()) as {
-          ok?: boolean;
+        const intentRes = await fetchWithTimeout(
+          `/api/fotorank/contests/${contestId}/entries/upload-intent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contentType: file.type || "image/jpeg" }),
+          },
+          API_TIMEOUT_MS,
+        );
+        const intent = await readApiResult<{
           entryId?: string;
           uploadUrl?: string;
-          status?: string;
-          error?: { code?: string; message?: string };
-        };
-        if (!intentRes.ok || !intent.entryId || !intent.uploadUrl) {
-          setError(translateUploadError(intent.error?.code, intent.error?.message));
-          setUploadPhase("idle");
+          directUpload?: {
+            url: string;
+            method: "PUT";
+            headers?: Record<string, string>;
+            uploadId: string;
+            finalizeUrl: string;
+          };
+        }>(intentRes);
+        if (!intent.ok) {
+          fail(intent.code);
+          return;
+        }
+        const { entryId: intentEntryId, uploadUrl, directUpload } = intent.data;
+        if (!intentEntryId || !uploadUrl) {
+          fail("UNEXPECTED_RESPONSE");
           return;
         }
 
-        setUploadPhase("processing");
-        setInfo("Estamos verificando el archivo.");
         // Solo replace si ya hay obra presentada (no DRAFT/PROCESSING).
         const replace = Boolean(
           entry &&
@@ -444,59 +481,110 @@ export function ParticipantUploadWizard({
               entry.status === "CONFIRMED" ||
               entry.status === "TECHNICALLY_REJECTED"),
         );
-        const fd = new FormData();
-        fd.set("file", file);
-        if (replace) fd.set("replace", "1");
-        if (requirements.requiresSantaFeEligibility) {
-          fd.set("captureLocality", workData.captureLocality.trim());
-          if (workData.captureDepartment.trim()) {
-            fd.set("captureDepartment", workData.captureDepartment.trim());
+        const eligibility = requirements.requiresSantaFeEligibility ? buildEligibilityPayload(workData) : null;
+
+        /**
+         * Camino histórico: el archivo viaja dentro del pedido a la función.
+         * Sólo sirve por debajo del tope de la plataforma, y en dev local —sin
+         * R2— es el único disponible.
+         */
+        const uploadViaMultipart = async () => {
+          setUploadPhase("processing");
+          setInfo("Estamos verificando el archivo.");
+          const fd = new FormData();
+          fd.set("file", file);
+          if (replace) fd.set("replace", "1");
+          if (eligibility) {
+            for (const [key, value] of Object.entries(eligibility)) {
+              if (value === null || value === "" || value === false) continue;
+              fd.set(key, value === true ? "1" : String(value));
+            }
           }
-          fd.set("territoryConfirmedSantaFe", workData.territoryConfirmed ? "1" : "0");
-          fd.set("declaredDeviceKind", workData.declaredDeviceKind);
-          if (workData.declaredDeviceMake.trim()) {
-            fd.set("declaredDeviceMake", workData.declaredDeviceMake.trim());
+          const upRes = await fetchWithTimeout(
+            replace ? `/api/fotorank/contests/${contestId}/entries/${intentEntryId}/replace` : uploadUrl,
+            { method: "POST", body: fd },
+            API_TIMEOUT_MS,
+          );
+          return readApiResult<UploadResponse>(upRes);
+        };
+
+        let up: ApiResult<UploadResponse>;
+
+        if (directUpload) {
+          /**
+           * Camino normal en producción: el original va del navegador al
+           * bucket privado. La función nunca ve el binario, así que el tope de
+           * 4,5 MB por pedido de la plataforma deja de aplicar y valen los
+           * 25 MB de las bases del concurso.
+           */
+          let putOk = false;
+          let putFailureCode = "DIRECT_UPLOAD_FAILED";
+          try {
+            const putRes = await fetchWithTimeout(
+              directUpload.url,
+              {
+                method: "PUT",
+                headers: directUpload.headers ?? { "Content-Type": file.type || "image/jpeg" },
+                body: file,
+              },
+              DIRECT_UPLOAD_TIMEOUT_MS,
+            );
+            // El bucket no habla nuestro contrato JSON: sólo importa si aceptó.
+            putOk = putRes.ok;
+          } catch (err) {
+            const code = classifyTransportError(err);
+            putFailureCode = code === "ABORTED" ? "UPLOAD_TIMEOUT" : "DIRECT_UPLOAD_FAILED";
           }
-          if (workData.declaredDeviceModel.trim()) {
-            fd.set("declaredDeviceModel", workData.declaredDeviceModel.trim());
+
+          if (putOk) {
+            setUploadPhase("processing");
+            setInfo("Estamos verificando el archivo.");
+            const finalizeRes = await fetchWithTimeout(
+              directUpload.finalizeUrl,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  uploadId: directUpload.uploadId,
+                  fileName: file.name || "obra.jpg",
+                  mimeType: file.type || "image/jpeg",
+                  replace,
+                  eligibility,
+                }),
+              },
+              API_TIMEOUT_MS,
+            );
+            up = await readApiResult<UploadResponse>(finalizeRes);
+          } else if (file.size <= PLATFORM_REQUEST_LIMIT_BYTES) {
+            /**
+             * El PUT no salió —bucket inalcanzable, CORS todavía sin
+             * configurar—, pero esta foto entra en el pedido a la función. Se
+             * reintenta por el camino viejo antes de darle un error al
+             * participante: para un archivo chico, la vía directa es una
+             * mejora, no un requisito.
+             */
+            up = await uploadViaMultipart();
+          } else {
+            fail(putFailureCode);
+            return;
           }
-          fd.set("captureWithinPeriodDeclared", workData.captureWithinPeriod ? "1" : "0");
-          fd.set("authorshipDeclared", workData.authorshipDeclared ? "1" : "0");
-          fd.set("editingPolicyDeclared", workData.editingPolicyDeclared ? "1" : "0");
-          fd.set("noGenerativeAiDeclared", workData.noGenerativeAiDeclared ? "1" : "0");
-          if (workData.instagramHandle.trim()) {
-            fd.set("instagramHandle", workData.instagramHandle.trim());
-          }
-          if (workData.droneAck) fd.set("droneRegulationAcknowledged", "1");
+        } else {
+          up = await uploadViaMultipart();
         }
 
-        const upRes = await fetch(
-          replace
-            ? `/api/fotorank/contests/${contestId}/entries/${intent.entryId}/replace`
-            : intent.uploadUrl,
-          { method: "POST", body: fd, signal: controller.signal },
-        );
-        const up = (await upRes.json()) as {
-          ok?: boolean;
-          entryId?: string;
-          status?: string;
-          error?: { code?: string; message?: string };
-          technicalSummaryStatus?: string;
-        };
-        if (!upRes.ok || !up.ok) {
-          setInfo(null);
-          setError(translateUploadError(up.error?.code, up.error?.message));
-          setUploadPhase("idle");
+        if (!up.ok) {
+          fail(up.code);
           return;
         }
 
         // Salir de “verificando” con el contrato del upload; /me es best-effort.
-        const uploadStatus = up.status ?? "READY_TO_CONFIRM";
+        const uploadStatus = up.data.status ?? "READY_TO_CONFIRM";
         setEntry((prev) => ({
-          id: up.entryId ?? intent.entryId!,
+          id: up.data.entryId ?? intentEntryId,
           status: uploadStatus,
           entryNumber: prev?.entryNumber ?? null,
-          technicalSummaryStatus: up.technicalSummaryStatus ?? prev?.technicalSummaryStatus ?? "NOT_EVALUATED",
+          technicalSummaryStatus:
+            up.data.technicalSummaryStatus ?? prev?.technicalSummaryStatus ?? "NOT_EVALUATED",
           previewUrl: prev?.previewUrl ?? previewObjectUrl,
           checks: prev?.checks ?? [],
         }));
@@ -505,7 +593,7 @@ export function ParticipantUploadWizard({
         void refreshEntry().catch(() => null);
 
         if (uploadStatus === "READY_TO_CONFIRM" || uploadStatus === "REQUIRES_REVIEW") {
-          await confirmEntry(uploadStatus === "REQUIRES_REVIEW", up.entryId ?? intent.entryId);
+          await confirmEntry(uploadStatus === "REQUIRES_REVIEW", up.data.entryId ?? intentEntryId);
         } else if (uploadStatus === "CONFIRMED") {
           setUploadPhase("done");
           setDirty(false);
@@ -516,16 +604,8 @@ export function ParticipantUploadWizard({
           setInfo("Archivo recibido. Revisá el estado técnico antes de confirmar.");
         }
       } catch (err) {
-        const aborted = err instanceof Error && err.name === "AbortError";
-        setError(
-          aborted
-            ? "La verificación tardó demasiado. Si el archivo se recibió, reintentá desde Mis participaciones."
-            : "Error de red al subir. Conservamos tus datos: reintentá el envío.",
-        );
-        setUploadPhase("idle");
-        setInfo(null);
-      } finally {
-        clearTimeout(timeoutId);
+        const code = classifyTransportError(err);
+        fail(code === "ABORTED" ? "UPLOAD_TIMEOUT" : code);
       }
     })();
   }
@@ -533,23 +613,19 @@ export function ParticipantUploadWizard({
   async function confirmEntry(acknowledgeWarnings: boolean, entryId?: string) {
     const id = entryId ?? entry?.id;
     if (!id || isFixture) return;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30_000);
     try {
-      const res = await fetch(`/api/fotorank/contests/${contestId}/entries/${id}/confirm`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ acknowledgeWarnings }),
-        signal: controller.signal,
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        entryNumber?: string;
-        error?: { code?: string; message?: string };
-        message?: string;
-      };
-      if (!res.ok || !data.ok) {
-        setError(translateUploadError(data.error?.code, data.error?.message));
+      const res = await fetchWithTimeout(
+        `/api/fotorank/contests/${contestId}/entries/${id}/confirm`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ acknowledgeWarnings }),
+        },
+        CONFIRM_TIMEOUT_MS,
+      );
+      const result = await readApiResult<{ entryNumber?: string; message?: string }>(res);
+      if (!result.ok) {
+        setError(translateUploadError(result.code));
         setUploadPhase("idle");
         return;
       }
@@ -557,20 +633,14 @@ export function ParticipantUploadWizard({
       setDirty(false);
       setStep("confirmation");
       setInfo(
-        data.message ??
+        result.data.message ??
           "Envío recibido. Enviar no implica admisión ni aprobación del concurso.",
       );
       void refreshEntry().catch(() => null);
     } catch (err) {
-      const aborted = err instanceof Error && err.name === "AbortError";
-      setError(
-        aborted
-          ? "La confirmación tardó demasiado. Revisá Mis participaciones antes de reintentar."
-          : "No se pudo confirmar el envío. Reintentá.",
-      );
+      const code = classifyTransportError(err);
+      setError(translateUploadError(code === "ABORTED" ? "CONFIRM_TIMEOUT" : code));
       setUploadPhase("idle");
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
