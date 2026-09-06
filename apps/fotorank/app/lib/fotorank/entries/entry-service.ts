@@ -21,6 +21,12 @@ import { assessDeviceCompatibility, extractEntryExif } from "./exif";
 import { sha256Buffer, type DuplicateMatch } from "./hash";
 import { isPublicUploadOpenFlag, parseUploadPolicy } from "./upload-policy";
 import {
+  buildStagedUploadKey,
+  isValidStagedUploadId,
+  newStagedUploadId,
+  STAGED_UPLOAD_URL_TTL_SECONDS,
+} from "./staged-upload";
+import {
   buildVersionedEntryStorageKey,
   storageKeyContainsPiiLeak,
 } from "../storage/private-local-storage";
@@ -185,15 +191,35 @@ export async function ensureEntryForRegistration(input: {
   return { entryId: created.id, created: true };
 }
 
+export type DirectUploadTicket = {
+  /** PUT del binario directo al bucket privado, sin pasar por la función. */
+  url: string;
+  method: "PUT";
+  headers: Record<string, string>;
+  /** Se devuelve al finalizar; el servidor reconstruye la key con él. */
+  uploadId: string;
+  expiresInSeconds: number;
+  /** Endpoint que consume el objeto ya subido y procesa la obra. */
+  finalizeUrl: string;
+};
+
 export async function createUploadIntent(input: {
   contestId: string;
   participantUserId: number;
+  /** MIME que el navegador va a mandar en el PUT; debe coincidir con el firmado. */
+  contentType?: string | null;
 }): Promise<{
   entryId: string;
   registrationId: string;
   uploadUrl: string;
   maxFileSizeBytes: number;
   allowedMimeTypes: string[];
+  /**
+   * Presente sólo si el storage soporta URLs firmadas (R2). Ausente en dev
+   * local con storage de filesystem: ahí el cliente usa `uploadUrl` (multipart),
+   * que en local no tiene el tope de 4,5 MB de la plataforma.
+   */
+  directUpload?: DirectUploadTicket;
 }> {
   const reg = await prisma.fotorankContestRegistration.findUnique({
     where: {
@@ -232,7 +258,161 @@ export async function createUploadIntent(input: {
     uploadUrl: `/api/fotorank/contests/${input.contestId}/entries/${entryId}/upload`,
     maxFileSizeBytes: policy.maxFileSizeBytes,
     allowedMimeTypes: policy.allowedMimeTypes,
+    directUpload: await buildDirectUploadTicket({
+      contestId: input.contestId,
+      entryId,
+      contentType: pickDirectUploadContentType(input.contentType, policy.allowedMimeTypes),
+    }),
   };
+}
+
+/**
+ * El MIME va firmado dentro de la URL: R2 rechaza el PUT si el navegador manda
+ * otro. Se acota a lo que la policy admite para no firmar un tipo arbitrario.
+ */
+function pickDirectUploadContentType(declared: string | null | undefined, allowed: string[]): string {
+  const normalized = declared?.trim().toLowerCase();
+  if (normalized && allowed.includes(normalized)) return normalized;
+  return allowed[0] ?? "image/jpeg";
+}
+
+async function buildDirectUploadTicket(input: {
+  contestId: string;
+  entryId: string;
+  contentType: string;
+}): Promise<DirectUploadTicket | undefined> {
+  const storage = getContestEntryStorage();
+  if (typeof storage.createUploadIntent !== "function") return undefined;
+
+  const uploadId = newStagedUploadId();
+  const key = buildStagedUploadKey({
+    contestId: input.contestId,
+    entryId: input.entryId,
+    uploadId,
+  });
+  if (storageKeyContainsPiiLeak(key)) {
+    throw new EntryError("PROCESSING_FAILED", "No se pudo preparar la carga.", 500);
+  }
+
+  try {
+    const intent = await storage.createUploadIntent({
+      key,
+      contentType: input.contentType,
+      expiresInSeconds: STAGED_UPLOAD_URL_TTL_SECONDS,
+    });
+    return {
+      url: intent.uploadUrl,
+      method: "PUT",
+      headers: intent.headers ?? { "Content-Type": input.contentType },
+      uploadId,
+      expiresInSeconds: STAGED_UPLOAD_URL_TTL_SECONDS,
+      finalizeUrl: `/api/fotorank/contests/${input.contestId}/entries/${input.entryId}/upload-direct`,
+    };
+  } catch (err) {
+    /**
+     * Firmar es una llamada de red a R2. Si falla, no se cae el envío: el
+     * cliente usa el POST multipart, que sirve para archivos chicos. Se
+     * degrada la capacidad, no la disponibilidad.
+     */
+    console.error("[upload-intent] no se pudo firmar la subida directa", err);
+    return undefined;
+  }
+}
+
+/**
+ * Consume un objeto ya subido al staging y lo procesa como si hubiera llegado
+ * por multipart. Es el único camino que soporta los 25 MB de las bases.
+ */
+export async function processStagedUpload(input: {
+  contestId: string;
+  entryId: string;
+  participantUserId: number;
+  uploadId: string;
+  originalFileName: string;
+  declaredMime: string;
+  isReplace?: boolean;
+  eligibility?: EntryEligibilityFormInput | null;
+}) {
+  if (!isValidStagedUploadId(input.uploadId)) {
+    throw new EntryError("INVALID_FILE", "Referencia de carga inválida.", 400);
+  }
+
+  /**
+   * Ownership antes de tocar el storage: sin esto, un id de obra ajena
+   * alcanzaría para hacer que el servidor lea un objeto que no corresponde.
+   * `processUploadedFile` revalida todo, pero recién después de la descarga.
+   */
+  const entry = await prisma.fotorankContestEntry.findUnique({
+    where: { id: input.entryId },
+    select: { id: true, contestId: true, authorUserId: true, contest: { select: { uploadPolicyJson: true } } },
+  });
+  if (!entry || entry.contestId !== input.contestId) {
+    throw new EntryError("ENTRY_NOT_FOUND", "Obra no encontrada.", 404);
+  }
+  if (entry.authorUserId !== input.participantUserId) {
+    throw new EntryError("FORBIDDEN", "No podés modificar esta obra.", 403);
+  }
+
+  const policy = parseUploadPolicy(entry.contest.uploadPolicyJson);
+  const storage = getContestEntryStorage();
+  const key = buildStagedUploadKey({
+    contestId: input.contestId,
+    entryId: input.entryId,
+    uploadId: input.uploadId,
+  });
+
+  /**
+   * Se mide el peso ANTES de descargar: el objeto lo escribió el navegador
+   * directo en el bucket, así que este es el primer control de tamaño del lado
+   * del servidor. Sin él, un PUT de 500 MB se traduciría en 500 MB de memoria
+   * dentro de la función.
+   */
+  const head = typeof storage.headObject === "function" ? await storage.headObject(key) : null;
+  if (head && !head.exists) {
+    throw new EntryError("STAGED_FILE_MISSING", "No encontramos el archivo subido. Reintentá el envío.", 409);
+  }
+  if (head?.contentLength != null && head.contentLength > policy.maxFileSizeBytes) {
+    await storage.deleteObject(key).catch(() => null);
+    throw new EntryError("INVALID_FILE", "El archivo supera el peso permitido.", 400);
+  }
+
+  let buffer: Buffer;
+  try {
+    if (typeof storage.readObject !== "function") {
+      throw new Error("El storage configurado no permite leer el objeto de staging.");
+    }
+    buffer = Buffer.from(await storage.readObject(key));
+  } catch (err) {
+    console.error("[upload-direct] no se pudo leer el objeto de staging", err);
+    throw new EntryError("STAGED_FILE_MISSING", "No encontramos el archivo subido. Reintentá el envío.", 409);
+  }
+
+  if (buffer.length === 0) {
+    await storage.deleteObject(key).catch(() => null);
+    throw new EntryError("INVALID_FILE", "El archivo llegó vacío. Reintentá el envío.", 400);
+  }
+  // Redundante con `headObject` cuando el adapter lo implementa; obligatorio
+  // cuando no, porque entonces este es el único control de peso.
+  if (buffer.length > policy.maxFileSizeBytes) {
+    await storage.deleteObject(key).catch(() => null);
+    throw new EntryError("INVALID_FILE", "El archivo supera el peso permitido.", 400);
+  }
+
+  try {
+    return await processUploadedFile({
+      contestId: input.contestId,
+      entryId: input.entryId,
+      participantUserId: input.participantUserId,
+      buffer,
+      originalFileName: input.originalFileName,
+      declaredMime: input.declaredMime,
+      isReplace: input.isReplace,
+      eligibility: input.eligibility,
+    });
+  } finally {
+    // El original definitivo ya quedó guardado en su key versionada.
+    await storage.deleteObject(key).catch(() => null);
+  }
 }
 
 export async function processUploadedFile(input: {

@@ -4,14 +4,26 @@ import { EntryError, createUploadIntent } from "../../../../../../lib/fotorank/e
 
 type Ctx = { params: Promise<{ contestId: string }> };
 
-export async function POST(_req: Request, ctx: Ctx) {
+export async function POST(req: Request, ctx: Ctx) {
   const user = await getAuthUser();
   if (!user) {
     return NextResponse.json({ error: { code: "UNAUTHENTICATED", message: "Debés iniciar sesión." } }, { status: 401 });
   }
   const { contestId } = await ctx.params;
   try {
-    const intent = await createUploadIntent({ contestId, participantUserId: user.id });
+    /**
+     * El cuerpo es opcional: sólo trae el MIME que el navegador usará en el
+     * PUT directo, y que va firmado dentro de la URL. Un cliente que no lo
+     * mande sigue funcionando con el tipo por defecto de la policy.
+     */
+    let contentType: string | null = null;
+    try {
+      const body = (await req.json()) as { contentType?: unknown };
+      if (typeof body?.contentType === "string") contentType = body.contentType;
+    } catch {
+      contentType = null;
+    }
+    const intent = await createUploadIntent({ contestId, participantUserId: user.id, contentType });
     return NextResponse.json({ ok: true, ...intent });
   } catch (err) {
     if (err instanceof EntryError) {

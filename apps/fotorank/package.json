@@ -26,6 +26,7 @@
     "test:entries:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries.integration.selfcheck.ts",
     "test:entries:upload-timeout": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/upload-timeout-config.selfcheck.ts",
     "test:entries:eligibility-form": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/eligibility-form.selfcheck.ts",
+    "test:entries:staged-upload": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/staged-upload.selfcheck.ts",
     "test:jury:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/jury.selfcheck.ts",
     "test:jury:scoring": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/scoring.selfcheck.ts",
     "test:jury:santa-fe": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/santa-fe-jury.selfcheck.ts",
@@ -83,6 +84,7 @@
     "test:participant-experience:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/participant-experience/participant-experience.selfcheck.ts",
     "test:participant-upload:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/participant-upload/participant-upload.selfcheck.ts",
     "test:participant-upload:recovery": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/participant-upload/participant-upload.recovery.selfcheck.ts",
+    "test:participant-upload:api-result": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/participant-upload/api-result.selfcheck.ts",
     "validate:santa-fe-visual-assets": "node ./scripts/validate-santa-fe-visual-assets.mjs",
     "build:card-logo": "tsx scripts/build-card-logo.ts",
     "selfcheck:sponsor-card": "tsx scripts/sponsor-thankyou-card.selfcheck.ts"

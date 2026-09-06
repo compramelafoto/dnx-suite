@@ -20,7 +20,9 @@ export type EntryErrorCode =
   | "INSTAGRAM_REQUIRED"
   | "DECLARATIONS_REQUIRED"
   | "FROZEN"
-  | "RULES_VERSION_MISMATCH";
+  | "RULES_VERSION_MISMATCH"
+  /** El objeto de la subida directa no está en staging: PUT perdido o vencido. */
+  | "STAGED_FILE_MISSING";
 
 export class EntryError extends Error {
   readonly code: EntryErrorCode;

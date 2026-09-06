@@ -36,8 +36,16 @@ const ROUTES_DIR = join(
 const EXPECTED: Array<{ route: string; seconds: number; why: string }> = [
   { route: "upload", seconds: 60, why: "procesa la imagen subida (processUploadedFile)" },
   { route: "replace", seconds: 60, why: "reprocesa la imagen al reemplazarla" },
+  {
+    route: "upload-direct",
+    seconds: 60,
+    why: "descarga el original del staging y lo procesa igual que upload",
+  },
   { route: "confirm", seconds: 30, why: "sólo confirma en base; la notificación es asíncrona" },
 ];
+
+/** Funciones que consumen la imagen: la autenticación va siempre antes. */
+const PROCESADORES = ["processUploadedFile", "processStagedUpload"];
 
 function ok(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -74,11 +82,12 @@ for (const { route, seconds, why } of EXPECTED) {
   // import de `getAuthUser` está en la cabecera y aparecería antes del handler.
   const body = source.slice(source.indexOf("export async function POST"));
   ok(/await getAuthUser\(\)/.test(body), `${route}: el gate de autenticación sigue dentro del handler`);
-  ok(
-    body.indexOf("await getAuthUser()") < body.indexOf("processUploadedFile") ||
-      !body.includes("processUploadedFile"),
-    `${route}: la autenticación ocurre antes de procesar el archivo`,
-  );
+  for (const procesador of PROCESADORES) {
+    ok(
+      !body.includes(procesador) || body.indexOf("await getAuthUser()") < body.indexOf(procesador),
+      `${route}: la autenticación ocurre antes de ${procesador}`,
+    );
+  }
 }
 
 console.log("FINAL: PASS");
