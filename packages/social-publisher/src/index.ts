@@ -40,3 +40,11 @@ export {
 
 export type { ProviderPublishInput, SocialPublishProvider } from "./providers/types";
 export { createInstagramPublishProvider, createMetaGraphClient } from "./providers/instagram/index";
+
+export {
+  buildInstagramAuthorizeUrl,
+  exchangeInstagramCode,
+  INSTAGRAM_PUBLISH_SCOPES,
+  type InstagramConnectedAccount,
+  type InstagramOAuthConfig,
+} from "./providers/instagram/oauth";
