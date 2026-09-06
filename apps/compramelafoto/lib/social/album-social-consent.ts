@@ -54,10 +54,14 @@ export function decideAlbumSocialGeneration(input: {
 }): SocialGenerationDecision {
   if (input.alreadyGenerated) return { generate: false, reason: "ALREADY_GENERATED" };
   if (!input.consentGiven) return { generate: false, reason: "NO_CONSENT" };
-  if (input.selectedPhotoIds.length < MIN_SOCIAL_PHOTOS) {
+  // La cuenta de fotos se hace sobre la lista ya deduplicada: la misma foto repetida
+  // tres veces no son tres fotos, es una sola. Si esto no se dedupea antes de contar,
+  // el mínimo de 3 no protege nada.
+  const selectedPhotoIds = normalizeSelectedPhotoIds(input.selectedPhotoIds);
+  if (selectedPhotoIds.length < MIN_SOCIAL_PHOTOS) {
     return { generate: false, reason: "TOO_FEW_PHOTOS" };
   }
-  if (input.selectedPhotoIds.length > MAX_SOCIAL_PHOTOS) {
+  if (selectedPhotoIds.length > MAX_SOCIAL_PHOTOS) {
     return { generate: false, reason: "TOO_MANY_PHOTOS" };
   }
   if (!input.albumIsReady) return { generate: false, reason: "ALBUM_NOT_READY" };
@@ -69,6 +73,29 @@ export function decideAlbumSocialGeneration(input: {
 /** Normaliza el @usuario del fotógrafo; si es inválido, no se etiqueta a nadie. */
 export function normalizeConsentHandle(raw: string | null | undefined): string | null {
   return normalizeInstagramHandle(raw)?.handle ?? null;
+}
+
+/**
+ * Deja solo IDs numéricos, sin repetir, en el orden en que llegaron (orden del
+ * carrusel).
+ *
+ * Se usa en los tres lugares que tocan `selectedPhotoIds` —al decidir, al guardar y
+ * al leer— para que no se desincronicen entre sí. Un `metadata` corrupto (por ejemplo
+ * con strings en vez de números) no debe mentir un tipo `number[]`: la Task 13 busca
+ * las fotos reales con estos IDs, y un ID falso ahí falla de una forma confusa más
+ * adelante en vez de descartarse acá.
+ */
+export function normalizeSelectedPhotoIds(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  const vistos = new Set<number>();
+  const result: number[] = [];
+  for (const item of raw) {
+    if (typeof item !== "number" || !Number.isFinite(item)) continue;
+    if (vistos.has(item)) continue;
+    vistos.add(item);
+    result.push(item);
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +138,10 @@ export async function saveAlbumSocialConsent(input: {
     consentGiven: input.consentGiven,
     consentAt: input.consentGiven ? new Date().toISOString() : null,
     consentByUserId: input.userId,
-    selectedPhotoIds: input.selectedPhotoIds.slice(0, MAX_SOCIAL_PHOTOS),
+    selectedPhotoIds: normalizeSelectedPhotoIds(input.selectedPhotoIds).slice(
+      0,
+      MAX_SOCIAL_PHOTOS,
+    ),
     photographerHandle: normalizeConsentHandle(input.photographerHandle),
   };
 
@@ -150,9 +180,7 @@ export async function getAlbumSocialConsent(
     consentGiven: m.consentGiven === true,
     consentAt: typeof m.consentAt === "string" ? m.consentAt : null,
     consentByUserId: typeof m.consentByUserId === "number" ? m.consentByUserId : null,
-    selectedPhotoIds: Array.isArray(m.selectedPhotoIds)
-      ? (m.selectedPhotoIds as number[])
-      : [],
+    selectedPhotoIds: normalizeSelectedPhotoIds(m.selectedPhotoIds),
     photographerHandle:
       typeof m.photographerHandle === "string" ? m.photographerHandle : null,
   };
