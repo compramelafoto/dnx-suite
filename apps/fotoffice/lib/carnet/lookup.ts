@@ -15,6 +15,11 @@ import { hashCardToken, looksLikeCardToken } from "./token";
 export type PublicCardView = {
   found: true;
   institutionName: string;
+  /**
+   * Isotipo de la institución. Es identidad, no un dato del socio: quien escanea en la puerta
+   * de un evento tiene que reconocer de quién es la credencial antes de leer nada.
+   */
+  institutionLogoUrl: string | null;
   fullName: string;
   memberNumber: string;
   cardNumber: string;
@@ -71,7 +76,7 @@ export async function findCardByToken(token: string): Promise<CardLookupResult> 
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { workspaceId: card.workspace.id },
-    select: { commercialName: true },
+    select: { commercialName: true, logoUrl: true },
   });
 
   const status = computeCardStatus({
@@ -85,6 +90,7 @@ export async function findCardByToken(token: string): Promise<CardLookupResult> 
   return {
     found: true,
     institutionName: branding?.commercialName?.trim() || card.workspace.name,
+    institutionLogoUrl: branding?.logoUrl?.trim() || null,
     fullName: `${card.member.firstName} ${card.member.lastName}`.trim(),
     memberNumber: card.member.memberNumber,
     cardNumber: card.cardNumber,

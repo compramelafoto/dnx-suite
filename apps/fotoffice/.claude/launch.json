@@ -4,8 +4,24 @@
     {
       "name": "compramelafoto-dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "compramelafoto", "run", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "compramelafoto",
+        "run",
+        "dev"
+      ],
       "port": 3002
+    },
+    {
+      "name": "fotoffice-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "fotoffice",
+        "run",
+        "dev"
+      ],
+      "port": 3010
     }
   ]
 }
