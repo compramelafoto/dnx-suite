@@ -21,8 +21,15 @@ async function primerMesLibre(memberId: string, ahora: Date): Promise<string> {
     orderBy: { period: "desc" },
     select: { period: true },
   });
-  const base = ultimo?.period ?? periodOf(ahora);
-  const [a, m] = base.split("-").map(Number);
+
+  // Sin ningún cargo mensual todavía (el padrón recién migrado, por ejemplo), el mes corriente
+  // no está cargado por nadie: el primer mes libre es HOY, no el que sigue. Si en cambio ya
+  // tiene cargos, el corriente puede estar generado o no según cuándo corrió la generación
+  // mensual del mes — por eso ahí se sigue ofreciendo desde el mes siguiente al último que
+  // tiene, nunca uno que ya podría estar cargado.
+  if (!ultimo) return periodOf(ahora);
+
+  const [a, m] = ultimo.period.split("-").map(Number);
   const siguiente = new Date(Date.UTC(a ?? 1970, (m ?? 1), 1));
   return periodOf(siguiente);
 }
