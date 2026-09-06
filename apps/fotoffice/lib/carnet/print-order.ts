@@ -7,6 +7,7 @@ import { addMonthsUtc, CARNET_VALIDITY_MONTHS } from "./template";
 import { nextCardSequence } from "./sequence";
 import { formatCardNumber, generateCardToken, hashCardToken } from "./token";
 import { sealCardToken } from "./token-vault";
+import { applyCreditForMember } from "@/lib/membership/apply-credit-store";
 
 /**
  * Pedido de la tarjeta impresa.
@@ -156,6 +157,26 @@ export async function requestPrintedCard(input: {
 
         return card.id;
       });
+
+      // Sólo cuando el cargo lo creamos acá: si vino por `existingChargeId` ya existía antes
+      // de este pedido y no es esta operación la que lo introduce.
+      //
+      // Va después de la transacción -no adentro- porque `applyCreditForMember` abre la suya
+      // propia y Prisma no anida transacciones; además necesita el cargo ya comiteado para
+      // poder verlo. Si un socio con saldo a favor pide la tarjeta y esto no corriera, el
+      // portal le mostraría "Pagar todo" por un cargo que su crédito ya cubre, contradiciendo
+      // el cartel que le dice que no hace falta que haga nada.
+      //
+      // Se ignora cualquier error: la tarjeta ya se emitió y el cargo ya existe, y ninguno de
+      // los dos se puede deshacer acá. Perder esta imputación es recuperable en el próximo
+      // cierre mensual; perder la tarjeta recién emitida, no.
+      if (!input.existingChargeId) {
+        try {
+          await applyCreditForMember(input.memberId);
+        } catch {
+          // Ignorado a propósito: ver el comentario de arriba.
+        }
+      }
 
       return { ok: true, cardId, cardNumber, amountMinor };
     } catch (error) {
