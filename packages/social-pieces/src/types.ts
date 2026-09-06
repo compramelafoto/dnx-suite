@@ -21,9 +21,12 @@ export type SocialPieceSpec = {
 };
 
 export type RenderedPiece = {
-  fileName: string;
-  contentType: "image/jpeg";
-  bytes: Uint8Array;
+  /** Una entrada por cara del documento. En un carrusel, una por diapositiva. */
+  images: Array<{
+    fileName: string;
+    contentType: "image/jpeg";
+    bytes: Uint8Array;
+  }>;
   rendererVersion: string;
   schemaVersion: number;
   resolvedValues: Record<string, string>;

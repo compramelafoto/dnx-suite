@@ -37,12 +37,49 @@ test("convierte lo que emite el Designer a JPEG", async () => {
     }),
   });
 
-  assert.equal(pieza.contentType, "image/jpeg");
-  assert.ok(pieza.fileName.endsWith(".jpg"));
+  assert.equal(pieza.images.length, 1);
+  assert.equal(pieza.images[0]!.contentType, "image/jpeg");
+  assert.ok(pieza.images[0]!.fileName.endsWith(".jpg"));
   // Firma de un JPEG: empieza con FF D8 FF.
-  assert.equal(pieza.bytes[0], 0xff);
-  assert.equal(pieza.bytes[1], 0xd8);
-  assert.equal(pieza.bytes[2], 0xff);
+  assert.equal(pieza.images[0]!.bytes[0], 0xff);
+  assert.equal(pieza.images[0]!.bytes[1], 0xd8);
+  assert.equal(pieza.images[0]!.bytes[2], 0xff);
+});
+
+test("convierte todas las caras del carrusel, no solo la primera", async () => {
+  const pieza = await renderSocialPiece(spec, {
+    emit: async () => ({
+      ok: true,
+      files: [
+        { name: "carrusel-slide-0.png", contentType: "image/png", bytes: new Uint8Array(PNG_1X1), checksum: "1" },
+        { name: "carrusel-slide-1.png", contentType: "image/png", bytes: new Uint8Array(PNG_1X1), checksum: "2" },
+        { name: "carrusel-slide-2.png", contentType: "image/png", bytes: new Uint8Array(PNG_1X1), checksum: "3" },
+      ],
+      rendererVersion: "1.0.0",
+      schemaVersion: 1,
+      resolvedValues: { nombreAlbum: "Maratón 2026" },
+      omittedVariables: [],
+    }),
+  });
+
+  assert.equal(pieza.images.length, 3);
+
+  // Mismo orden que emitió el Designer.
+  assert.deepEqual(
+    pieza.images.map((imagen) => imagen.fileName),
+    ["carrusel-slide-0.jpg", "carrusel-slide-1.jpg", "carrusel-slide-2.jpg"],
+  );
+
+  // Nombres distintos: van a R2 con ese nombre, no pueden colisionar.
+  assert.equal(new Set(pieza.images.map((imagen) => imagen.fileName)).size, 3);
+
+  for (const imagen of pieza.images) {
+    assert.equal(imagen.contentType, "image/jpeg");
+    // Firma de un JPEG: empieza con FF D8 FF.
+    assert.equal(imagen.bytes[0], 0xff);
+    assert.equal(imagen.bytes[1], 0xd8);
+    assert.equal(imagen.bytes[2], 0xff);
+  }
 });
 
 test("si el Designer falla, el error explica qué faltó", async () => {
