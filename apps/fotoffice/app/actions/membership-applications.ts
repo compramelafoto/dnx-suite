@@ -7,6 +7,8 @@ import type { AuthUser } from "@/lib/auth";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { parseApplication } from "@/lib/membership/application";
+import { normalizeRecommendationCode } from "@/lib/membership/recommendation-code";
+import { resolveRecommender } from "@/lib/membership/recommendation-link";
 import { approveApplication, rejectApplication } from "@/lib/membership/repository";
 import { ApprovalError } from "@/lib/membership/approve";
 import {
@@ -83,8 +85,33 @@ export async function submitApplicationAction(
     return done("Ya tenemos tu solicitud y está en revisión. Te avisamos por email.");
   }
 
+  /*
+    El código se resuelve acá otra vez, contra el padrón, y nunca se confía en lo que vino
+    del navegador: el campo oculto es editable por cualquiera. Si no resuelve, la solicitud
+    entra igual sin recomendación — un enlace mal copiado no puede dejar a alguien afuera.
+  */
+  const code = normalizeRecommendationCode(parsed.data.recommendationCode);
+  const candidato = code
+    ? await prisma.member.findUnique({
+        where: { recommendationCode: code },
+        select: { id: true, workspaceId: true, status: true, firstName: true, lastName: true },
+      })
+    : null;
+  const recomendante = resolveRecommender({
+    rawCode: parsed.data.recommendationCode,
+    workspaceId: branding.workspaceId,
+    candidate: candidato,
+  });
+
+  // El código no se guarda: lo que importa es a qué socio quedó atribuida el alta.
+  const { recommendationCode: _codigo, ...datosSolicitud } = parsed.data;
+
   await prisma.membershipApplication.create({
-    data: { workspaceId: branding.workspaceId, ...parsed.data },
+    data: {
+      workspaceId: branding.workspaceId,
+      ...datosSolicitud,
+      recommenderMemberId: recomendante?.memberId ?? null,
+    },
     select: { id: true },
   });
 

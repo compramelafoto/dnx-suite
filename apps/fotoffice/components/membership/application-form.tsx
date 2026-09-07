@@ -17,12 +17,15 @@ export function MembershipApplicationForm({
   institutionName,
   monthlyAmountLabel,
   initialDuesCount,
+  recommendation,
 }: {
   workspaceSlug: string;
   institutionName: string;
   /** Cuota mensual plena, ya formateada. */
   monthlyAmountLabel: string | null;
   initialDuesCount: number;
+  /** Socio que lo recomienda, si entró por su enlace. Ya validado contra el padrón. */
+  recommendation: { code: string; displayName: string } | null;
 }) {
   const action = submitApplicationAction.bind(null, workspaceSlug);
   const [state, submit, pending] = useActionState(action, initial);
@@ -40,6 +43,20 @@ export function MembershipApplicationForm({
 
   return (
     <form action={submit} className="space-y-6">
+      {/*
+        Quién lo recomienda se muestra a la vista y no en silencio: la persona tiene que
+        poder ver a quién se le va a atribuir su alta antes de mandarla.
+      */}
+      {recommendation ? (
+        <>
+          <input type="hidden" name="recommendationCode" value={recommendation.code} />
+          <p className="fo-card p-4 text-sm leading-relaxed">
+            Te recomienda <strong>{recommendation.displayName}</strong>. Cuando termines de
+            pagar tu ingreso, su próxima cuota va a tener un descuento.
+          </p>
+        </>
+      ) : null}
+
       {/* La escala se declara con las palabras de la persona; el sistema la traduce. */}
       <input
         type="hidden"
