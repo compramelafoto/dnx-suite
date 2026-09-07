@@ -43,6 +43,27 @@ describe("sendTransactionalEmail", () => {
     expect(body.text).toBe("hola");
   });
 
+  it("manda el reply_to cuando se lo dan", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "email_123" }));
+    await sendTransactionalEmail(
+      { ...MESSAGE, replyTo: "SFPR <sfpr@example.com>" },
+      { env: ENV, fetchImpl },
+    );
+
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body)).reply_to).toEqual(["SFPR <sfpr@example.com>"]);
+  });
+
+  it("sin reply_to no manda la clave: el proveedor rechaza un nulo", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "email_123" }));
+    await sendTransactionalEmail({ ...MESSAGE, replyTo: null }, { env: ENV, fetchImpl });
+
+    const body = JSON.parse(
+      String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body),
+    );
+    expect("reply_to" in body).toBe(false);
+  });
+
   it("sin configuración no llama al proveedor", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "no" }));
     const result = await sendTransactionalEmail(MESSAGE, { env: {}, fetchImpl });
