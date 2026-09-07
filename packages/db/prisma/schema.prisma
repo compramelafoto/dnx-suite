@@ -319,6 +319,7 @@ model User {
   memberCardOperatorGrants            MemberCardOperator[]
   memberInvitationsSent               MemberInvitation[]                 @relation("MemberInvitationInviter")
   memberInvitationsAccepted           MemberInvitation[]                 @relation("MemberInvitationAcceptor")
+  voidedRecommendationBenefits        MembershipRecommendationBenefit[]  @relation("RecommendationBenefitVoider")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -6922,6 +6923,7 @@ model Workspace {
   membershipPayments          MembershipPayment[]
   memberCards                 MemberCard[]
   memberCardOperators         MemberCardOperator[]
+  recommendationBenefits      MembershipRecommendationBenefit[]
 }
 
 model WorkspaceFeatureModule {
@@ -7196,6 +7198,17 @@ model Member {
   /// Institución donde estudia o estudió, declarada al asociarse.
   originInstitution String?
 
+  /// --- Recomendaciones ---
+  /// Código del enlace de recomendación de este socio. Se genera la primera vez que entra a
+  /// la pantalla de recomendaciones: generarlo para los 152 socios de una sola vez llenaría
+  /// el padrón de códigos que nadie va a usar.
+  recommendationCode    String? @unique
+  /// Quién lo recomendó, si se asoció entrando por el enlace de otro socio. Se copia desde
+  /// la solicitud al aprobar y queda para siempre en la ficha: ante cualquier eventualidad,
+  /// la pregunta «¿quién lo trajo?» se responde sin depender de una solicitud que puede
+  /// archivarse.
+  recommendedByMemberId String?
+
   /// Historial inmutable de operaciones sobre este socio. Restrict del lado de MemberAudit:
   /// borrar un socio nunca puede llevarse su historial por delante en silencio.
   audits      MemberAudit[]
@@ -7204,6 +7217,14 @@ model Member {
   /// Invitaciones de acceso emitidas para este socio (pendientes, aceptadas o revocadas).
   invitations MemberInvitation[]
   cards       MemberCard[]
+
+  /// Autorrelación. SetNull, no Cascade: dar de baja al recomendante no puede borrar la
+  /// historia del recomendado.
+  recommendedBy   Member?  @relation("MemberRecommendation", fields: [recommendedByMemberId], references: [id], onDelete: SetNull)
+  recommendations Member[] @relation("MemberRecommendation")
+  /// Bonificaciones ganadas por recomendar, y la que originó su propia alta.
+  recommendationBenefits          MembershipRecommendationBenefit[] @relation("BenefitEarner")
+  originatedRecommendationBenefit MembershipRecommendationBenefit?  @relation("BenefitOrigin")
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -7216,6 +7237,7 @@ model Member {
   @@index([workspaceId, categoryId])
   @@index([workspaceId, documentNumber])
   @@index([workspaceId, lastName, firstName])
+  @@index([workspaceId, recommendedByMemberId])
 }
 
 /// Invitación para que un socio acceda con su propia cuenta.
@@ -7288,6 +7310,12 @@ model MembershipApplication {
   avatarUrl         String?
   /// Socio que presenta al aspirante, si el estatuto lo exige.
   presenterMemberId String?
+  /// Socio que lo recomendó, tomado del enlace por el que entró al formulario.
+  ///
+  /// NO se reutiliza `presenterMemberId`: ese es el socio que *presenta* al aspirante cuando
+  /// el estatuto lo exige, con otro efecto. Compartir columna haría que un requisito
+  /// estatutario y un beneficio se pisen.
+  recommenderMemberId String?
   /// Si al asociarse pidió también la credencial impresa. La foto no se pide en el formulario:
   /// se sube desde el portal cuando ya es socio, porque el formulario es público y abrir la
   /// subida de archivos a internet para eso no compensa.
@@ -7361,6 +7389,13 @@ model MembershipDuesSettings {
   alternateUnpaidThreshold   Int     @default(5)
   alternateWindowMonths      Int     @default(24)
 
+  /// Módulo de recomendaciones. Apagado por defecto: encenderlo es una decisión de la
+  /// comisión directiva, no un default del sistema.
+  recommendationEnabled        Boolean @default(false)
+  /// Porcentaje de la cuota que se bonifica por cada recomendado que termina de pagar su
+  /// ingreso. 100 = una cuota entera.
+  recommendationBenefitPercent Decimal @default(100) @db.Decimal(5, 2)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -7420,6 +7455,8 @@ model MembershipCharge {
   feeValue    MembershipFeeValue?       @relation(fields: [feeValueId], references: [id], onDelete: SetNull)
   allocations MembershipAllocation[]
   feeLedger   WorkspaceFeeLedgerEntry[]
+  /// Bonificación por recomendación aplicada sobre esta cuota. Una como máximo.
+  recommendationBenefit MembershipRecommendationBenefit?
 
   /// Un socio no puede tener dos cargos del mismo concepto para el mismo período.
   @@unique([memberId, concept, period])
@@ -7695,6 +7732,52 @@ enum MemberAuditSource {
 /// nunca se edita ni se borra desde la aplicación (no hay update ni delete en el repositorio).
 /// Cada fila se confirma en la MISMA transacción que la operación que la origina — nunca puede
 /// quedar un socio modificado sin su auditoría, ni una auditoría de algo que no ocurrió.
+enum MembershipRecommendationBenefitStatus {
+  PENDIENTE
+  APLICADA
+  ANULADA
+}
+
+/// Una cuota bonificada, ganada por recomendar a un colega que se asoció y pagó su ingreso.
+///
+/// No es dinero ni saldo a favor: es un descuento que se aplica sobre una cuota mensual
+/// concreta y no puede salir de ahí.
+model MembershipRecommendationBenefit {
+  id             String @id @default(cuid())
+  workspaceId    String
+  /// Socio que recomendó y gana la bonificación.
+  memberId       String
+  /// Socio nuevo que la originó. Único: un alta bonifica una sola vez, aunque el webhook de
+  /// Mercado Pago entre dos veces. Esta restricción es el árbitro de la idempotencia.
+  originMemberId String @unique
+
+  /// Porcentaje congelado al ganarla: cambiar la configuración no reescribe el pasado.
+  percent Decimal                               @db.Decimal(5, 2)
+  status  MembershipRecommendationBenefitStatus @default(PENDIENTE)
+
+  /// Cuota sobre la que se aplicó. Único: una cuota recibe una sola bonificación.
+  appliedChargeId  String?  @unique
+  appliedAmountArs Decimal? @db.Decimal(12, 2)
+  appliedAt        DateTime?
+
+  /// Anulación por la Secretaría. El motivo es obligatorio al anular.
+  voidedAt       DateTime?
+  voidedByUserId Int?
+  voidReason     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member        Member            @relation("BenefitEarner", fields: [memberId], references: [id], onDelete: Cascade)
+  originMember  Member            @relation("BenefitOrigin", fields: [originMemberId], references: [id], onDelete: Cascade)
+  appliedCharge MembershipCharge? @relation(fields: [appliedChargeId], references: [id], onDelete: SetNull)
+  voidedBy      User?             @relation("RecommendationBenefitVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([memberId, createdAt])
+}
+
 model MemberAudit {
   id          String            @id @default(cuid())
   workspaceId String
