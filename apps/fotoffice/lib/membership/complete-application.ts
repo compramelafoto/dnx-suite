@@ -9,6 +9,7 @@ import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-s
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { MEMBERSHIP_EMAIL_KEYS } from "@/lib/communications/constants";
 import { appUrl } from "@/lib/app-url";
+import { awardRecommendationBenefit } from "./recommendation-store";
 
 /**
  * Cierra el ingreso de un socio cuando termina de pagarlo.
@@ -104,6 +105,24 @@ async function completar(memberId: string): Promise<{ completed: boolean }> {
    */
   if (solicitud.wantsPrintedCard) {
     await issuePrepaidPrintedCard({ workspaceId: solicitud.workspaceId, memberId });
+  }
+
+  /*
+   * La bonificación de quien lo recomendó nace acá, y no al aprobar la solicitud.
+   *
+   * Recién ahora el alta está pagada. Bonificar al aprobar sería regalar cuotas por altas
+   * que después vencen impagas, que es un caso real y no una hipótesis.
+   *
+   * Va con su propio try/catch, más adentro que el general del módulo: una bonificación que
+   * falla no puede impedir que salga el email de bienvenida ni que se cierre el alta.
+   */
+  try {
+    await awardRecommendationBenefit(memberId);
+  } catch (error) {
+    console.error("[fotoffice][recomendaciones] no se pudo acreditar la bonificación", {
+      memberId,
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
   }
 
   if (socio.email) {

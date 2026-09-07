@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma, prisma } from "@repo/db";
 import { getActiveFeeValue, getDuesSettings } from "./settings";
 import { planMonthlyCharges, type MemberForDues } from "./monthly-plan";
+import { applyPendingBenefits } from "./recommendation-store";
 
 /**
  * Genera las cuotas mensuales de un período.
@@ -109,6 +110,29 @@ export async function generateMonthlyCharges(input: {
         continue;
       }
       throw error;
+    }
+  }
+
+  /*
+    Las bonificaciones pendientes se aplican sobre las cuotas recién creadas.
+
+    Quien ganó una estando al día no tenía dónde aplicarla; esta es esa cuota. Va afuera de
+    la creación de cargos y tolera fallas: una bonificación que no se aplica este mes se
+    aplica el que viene, pero una cuota que no se genera deja de cobrarse.
+  */
+  const conPendientes = await prisma.membershipRecommendationBenefit.findMany({
+    where: { workspaceId: input.workspaceId, status: "PENDIENTE" },
+    select: { memberId: true },
+    distinct: ["memberId"],
+  });
+  for (const { memberId } of conPendientes) {
+    try {
+      await applyPendingBenefits(memberId);
+    } catch (error) {
+      console.error("[fotoffice][recomendaciones] no se pudo aplicar la bonificación", {
+        memberId,
+        detalle: error instanceof Error ? error.message : "error desconocido",
+      });
     }
   }
 
