@@ -7,6 +7,7 @@ import { listUserProfiles } from "@/lib/portal/profiles";
 import Link from "next/link";
 import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
 import { loadMemberAccount } from "@/lib/membership/account";
+import { getDuesSettings } from "@/lib/membership/settings";
 import { formatMinorArs } from "@/lib/membership/money";
 import { describeSeniority } from "@/lib/portal/identity";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
@@ -65,7 +66,13 @@ export default async function PortalPage() {
     !perfil?.website &&
     (perfil?.specialties.length ?? 0) === 0;
 
-  const secciones = resolvePortalMenu(await getEnabledModuleKeysForWorkspace(context.workspace.id));
+  // Dos interruptores, no uno: el módulo de socios puede estar habilitado y la comisión
+  // directiva no haber resuelto todavía dar el beneficio por recomendar.
+  const duesSettings = await getDuesSettings(context.workspace.id);
+  const secciones = resolvePortalMenu(
+    await getEnabledModuleKeysForWorkspace(context.workspace.id),
+    { recommendationsEnabled: duesSettings.recommendationEnabled },
+  );
 
   return (
     <>
