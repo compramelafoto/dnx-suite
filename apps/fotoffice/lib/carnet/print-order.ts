@@ -21,7 +21,14 @@ import { applyCreditForMember } from "@/lib/membership/apply-credit-store";
 export const PRINT_ORDER_DUE_DAYS = 30;
 
 export type PrintOrderResult =
-  | { ok: true; cardId: string; cardNumber: string; amountMinor: number }
+  | {
+      ok: true;
+      cardId: string;
+      cardNumber: string;
+      amountMinor: number;
+      /** El saldo a favor del socio ya cubrió el cargo: la tarjeta pasó directo a la cola, sin esperar un pago. */
+      settledByCredit: boolean;
+    }
   | { ok: false; error: string };
 
 const MAX_INTENTOS = 5;
@@ -170,15 +177,24 @@ export async function requestPrintedCard(input: {
       // Se ignora cualquier error: la tarjeta ya se emitió y el cargo ya existe, y ninguno de
       // los dos se puede deshacer acá. Perder esta imputación es recuperable en el próximo
       // cierre mensual; perder la tarjeta recién emitida, no.
+      //
+      // Y si el crédito alcanzó para saldar el cargo, la tarjeta tiene que salir de
+      // PENDIENTE_PAGO ahí mismo: `applyCreditForMember` deja el cargo en cero, pero no
+      // mueve la tarjeta de estado por sí sola. Sin este paso quedaría pagada y sin embargo
+      // trabada para siempre, porque nada más la va a liberar (a diferencia de un pago por
+      // MercadoPago o manual, acá no hay webhook ni acreditación que dispare la cola).
+      let settledByCredit = false;
       if (!input.existingChargeId) {
         try {
           await applyCreditForMember(input.memberId);
+          const liberadas = await releasePaidPrintOrders(input.memberId);
+          settledByCredit = liberadas > 0;
         } catch {
           // Ignorado a propósito: ver el comentario de arriba.
         }
       }
 
-      return { ok: true, cardId, cardNumber, amountMinor };
+      return { ok: true, cardId, cardNumber, amountMinor, settledByCredit };
     } catch (error) {
       ultimoError = error;
       // P2002: otro pedido tomó ese número de carnet, o el socio ya tiene un cargo `OTRO`
