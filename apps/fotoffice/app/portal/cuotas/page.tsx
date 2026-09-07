@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
-import { loadMemberAccount } from "@/lib/membership/account";
+import { loadMemberBalance } from "@/lib/membership/balance";
+import { CreditCallout } from "@/components/membership/credit-callout";
 import { formatMinorArs } from "@/lib/membership/money";
 import {
   chargeConceptLabel,
@@ -15,6 +16,8 @@ import { loadMemberPaymentHistory } from "@/lib/membership/payment-history";
 import { PaymentHistoryList } from "@/components/membership/payment-history-list";
 import { DuesHelpCard } from "@/components/portal/dues-help-card";
 import { PayButton } from "./pay-button";
+import { loadAdvanceOffer } from "@/lib/membership/advance-store";
+import { AdvanceForm } from "./advance-form";
 import { loadAppliedBenefits } from "@/lib/membership/recommendation-store";
 
 export const dynamic = "force-dynamic";
@@ -54,17 +57,27 @@ export default async function CuotasPage({
   const params = await searchParams;
   const aviso = avisoDePago(params.pago);
 
-  const [account, cobros, contacto, pagos, bonificaciones] = await Promise.all([
-    loadMemberAccount(context.member.id),
+  const [cuenta, cobros, contacto, pagos, oferta, bonificaciones] = await Promise.all([
+    loadMemberBalance(context.member.id),
     getWorkspaceCollectionStatus(context.workspace.id),
     loadWorkspaceContactChannels(context.workspace.id),
     // Los últimos doce alcanzan para el uso real —comprobar los meses recientes— sin
     // convertir la pantalla en un extracto de años.
     loadMemberPaymentHistory(context.member.id, { limit: 12 }),
+    loadAdvanceOffer(context.member.id),
     loadAppliedBenefits(context.member.id),
   ]);
 
-  const alDia = account.charges.length === 0;
+  const alDia = cuenta.charges.length === 0;
+
+  // Se ofrece 1, 3 y 6: una lista de seis opciones es una decisión que nadie quiere tomar.
+  const opcionesAdelanto = [1, 3, 6]
+    .filter((n) => n <= oferta.periods.length)
+    .map((n) => ({
+      months: n,
+      label: n === 1 ? "1 mes" : `${n} meses`,
+      totalLabel: formatMinorArs(oferta.periods.slice(0, n).reduce((s, p) => s + p.amountMinor, 0)),
+    }));
 
   /*
     El arrastre del sistema anterior se separa de las cuotas.
@@ -74,8 +87,8 @@ export default async function CuotasPage({
     rótulo de la cuota del mes. Además esos importes vienen de una migración que no reconcilia
     para todos, y por eso van con su propia advertencia.
   */
-  const cuotas = account.charges.filter((c) => !isOpeningBalance(c.period));
-  const arrastre = account.charges.filter((c) => isOpeningBalance(c.period));
+  const cuotas = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
+  const arrastre = cuenta.charges.filter((c) => isOpeningBalance(c.period));
   const arrastreMinor = arrastre.reduce((s, c) => s + c.balanceMinor, 0);
 
   const ahora = new Date();
@@ -118,7 +131,7 @@ export default async function CuotasPage({
               <div className="flex items-baseline justify-between gap-3">
                 <h2 className="text-sm font-semibold">Lo que debés</h2>
                 <p className="text-2xl font-semibold tabular-nums">
-                  {formatMinorArs(account.totalDueMinor)}
+                  {formatMinorArs(cuenta.dueMinor)}
                 </p>
               </div>
               {/*
@@ -192,17 +205,17 @@ export default async function CuotasPage({
                 <h2 className="text-sm font-semibold">Pagar</h2>
                 <PayButton
                   howMany="ALL"
-                  label={`Pagar todo · ${formatMinorArs(account.totalDueMinor)}`}
+                  label={`Pagar todo · ${formatMinorArs(cuenta.dueMinor)}`}
                 />
                 {/*
                   Se ofrece pagar solo la más antigua, no elegir cualquiera: pagar la de
                   agosto dejando junio impaga haría figurar al socio al día y con tres meses
                   de atraso a la vez.
                 */}
-                {account.charges.length > 1 && account.charges[0] ? (
+                {cuenta.charges.length > 1 && cuenta.charges[0] ? (
                   <PayButton
                     howMany="1"
-                    label={`Pagar solo la más antigua · ${formatMinorArs(account.charges[0].balanceMinor)}`}
+                    label={`Pagar solo la más antigua · ${formatMinorArs(cuenta.charges[0].balanceMinor)}`}
                   />
                 ) : null}
                 <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
@@ -221,6 +234,15 @@ export default async function CuotasPage({
             )}
           </>
         )}
+
+        {/*
+          Fuera del condicional de "al día" a propósito: quien no tiene cuotas pendientes es
+          justo quien puede adelantar, y con deuda también sirve — adelanta lo que viene
+          después de lo que ya debe.
+        */}
+        {cobros.canCharge ? <AdvanceForm options={opcionesAdelanto} /> : null}
+
+        <CreditCallout creditMinor={cuenta.creditMinor} tone="socio" />
 
         {/*
           Las bonificaciones tienen sección propia y no una línea dentro de la lista de deuda.

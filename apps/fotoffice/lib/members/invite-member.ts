@@ -11,6 +11,7 @@ import { auditActorFrom } from "./audit";
 import { generateInvitationToken, hashInvitationToken } from "./invitation-tokens";
 import { buildInvitationUrl, canMemberUseInvitations, invitationExpiryFrom } from "./invitations";
 import { buildInvitationEmailBody } from "./invitation-email";
+import { invitationExtrasFor } from "./invitation-extras";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
 import { loadDuesCallout } from "@/lib/membership/dues-callout";
@@ -155,9 +156,22 @@ export async function inviteOneMember(
     invitationUrl: link.url,
     signature,
   };
+  /*
+    Los extras —la nota de migración, el video de presentación y el número de socio— sólo van
+    en la invitación genérica. Quien pasa su propio `buildBody` (la aprobación de un alta)
+    arma otro mensaje, con otro propósito, y meterle el video de bienvenida ahí sería mezclar
+    dos comunicaciones distintas.
+  */
+  const extras = invitationExtrasFor(workspace.id);
   const body = options.buildBody
     ? options.buildBody(contexto)
-    : buildInvitationEmailBody({ ...contexto, dues: await loadDuesCallout(memberId) });
+    : buildInvitationEmailBody({
+        ...contexto,
+        dues: await loadDuesCallout(memberId),
+        migrationNote: extras.migrationNote,
+        video: extras.video,
+        memberNumber: member.memberNumber,
+      });
   const outcome = await sendTransactionalEmail({ to: email, ...body });
 
   await markMemberInvitationDelivery(

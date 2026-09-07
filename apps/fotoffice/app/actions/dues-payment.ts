@@ -5,7 +5,7 @@ import { prisma } from "@repo/db";
 import { createMercadoPagoCheckoutProLiveAdapter } from "@repo/payments/mercado-pago";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
-import { loadMemberAccount } from "@/lib/membership/account";
+import { loadMemberBalance } from "@/lib/membership/balance";
 import { selectChargesToPay } from "@/lib/membership/select-charges";
 import { minorToDecimalString } from "@/lib/membership/money";
 import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
@@ -40,8 +40,8 @@ export async function startDuesPaymentAction(formData: FormData): Promise<StartD
   const crudo = String(formData.get("howMany") ?? "ALL");
   const howMany = crudo === "ALL" ? "ALL" : Number(crudo);
 
-  const account = await loadMemberAccount(context.member.id);
-  const seleccion = selectChargesToPay(account.charges, { howMany });
+  const cuenta = await loadMemberBalance(context.member.id);
+  const seleccion = selectChargesToPay(cuenta.charges, { howMany });
   if (!seleccion.ok) {
     return { ok: false, error: seleccion.message };
   }

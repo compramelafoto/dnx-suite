@@ -3,6 +3,7 @@ import { Prisma, prisma } from "@repo/db";
 import { getActiveFeeValue, getDuesSettings } from "./settings";
 import { planMonthlyCharges, type MemberForDues } from "./monthly-plan";
 import { applyPendingBenefits } from "./recommendation-store";
+import { applyCreditForWorkspace } from "./apply-credit-store";
 
 /**
  * Genera las cuotas mensuales de un período.
@@ -114,11 +115,16 @@ export async function generateMonthlyCharges(input: {
   }
 
   /*
-    Las bonificaciones pendientes se aplican sobre las cuotas recién creadas.
+    Sobre las cuotas recién creadas se aplican dos cosas, y en este orden.
 
-    Quien ganó una estando al día no tenía dónde aplicarla; esta es esa cuota. Va afuera de
-    la creación de cargos y tolera fallas: una bonificación que no se aplica este mes se
-    aplica el que viene, pero una cuota que no se genera deja de cobrarse.
+    Primero las bonificaciones por recomendar; después el saldo a favor. El orden no es
+    caprichoso: la bonificación SÓLO puede usarse contra una cuota, mientras que el saldo a
+    favor es plata del socio que queda disponible para lo que venga. Al revés, un crédito que
+    cancelara la cuota entera dejaría a la bonificación sin dónde aplicarse —esperando otro
+    mes— y le habría gastado al socio un dinero que podía conservar.
+
+    Las dos van afuera de la creación de cargos y toleran fallas: un descuento que no se
+    aplica este mes se aplica el que viene, pero una cuota que no se genera deja de cobrarse.
   */
   const conPendientes = await prisma.membershipRecommendationBenefit.findMany({
     where: { workspaceId: input.workspaceId, status: "PENDIENTE" },
@@ -135,6 +141,10 @@ export async function generateMonthlyCharges(input: {
       });
     }
   }
+
+  // El socio que tenía saldo a favor no puede recibir un reclamo por una cuota que su
+  // crédito ya cubre. Se corre después de crear los cargos, sobre los cargos recién creados.
+  await applyCreditForWorkspace(input.workspaceId);
 
   return {
     period: input.period,

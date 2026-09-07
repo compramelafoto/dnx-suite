@@ -12,6 +12,8 @@ import { MEMBER_STATUS_LABELS } from "@/lib/members/status-labels";
 import { ManualPaymentForm } from "@/components/members/manual-payment-form";
 import { PaymentHistoryList } from "@/components/membership/payment-history-list";
 import { loadMemberPaymentHistory } from "@/lib/membership/payment-history";
+import { loadMemberBalance } from "@/lib/membership/balance";
+import { CreditCallout } from "@/components/membership/credit-callout";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -86,6 +88,10 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   // Quien registra un pago necesita ver, en la misma pantalla, qué se le registró antes:
   // es la única forma de no cargar dos veces el mismo comprobante.
   const pagos = puedeCobrar ? await loadMemberPaymentHistory(member.id, { limit: 50 }) : [];
+  // Quien registra un pago necesita ver, en la misma pantalla, qué se le registró antes:
+  // es la única forma de no cargar dos veces el mismo comprobante.
+  const pagos = puedeCobrar ? await loadMemberPaymentHistory(member.id, { limit: 50 }) : [];
+  const cuenta = puedeCobrar ? await loadMemberBalance(member.id) : null;
 
   return (
     <div className="space-y-10">
@@ -239,6 +245,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                   Es la misma lista que ve el socio en su portal. Sólo pagos acreditados.
                 </p>
               </div>
+              {cuenta ? <CreditCallout creditMinor={cuenta.creditMinor} tone="panel" /> : null}
               <PaymentHistoryList
                 entries={pagos}
                 emptyText="Este socio no tiene pagos acreditados."
@@ -329,7 +336,6 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               </div>
             ) : null}
           </section>
-
           {member.notes ? (
             <section className="fo-card space-y-3 sm:col-span-2">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">

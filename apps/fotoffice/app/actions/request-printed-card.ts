@@ -46,9 +46,15 @@ export async function requestPrintedCardAction(): Promise<RequestPrintedCardResu
     };
   }
 
+  // Si el saldo a favor ya cubrió el cargo, decir "cuando lo pagues" sería mentirle: la
+  // tarjeta ya está en la cola, no esperando un pago que no va a hacer falta.
+  const message = r.settledByCredit
+    ? `Listo. Tu saldo a favor cubrió el cargo de ${formatMinorArs(r.amountMinor)}. La tarjeta ya está en la cola de impresión.`
+    : `Listo. Se agregó un cargo de ${formatMinorArs(r.amountMinor)} por la impresión de tu carnet. Cuando lo pagues, la tarjeta entra en la cola de impresión.`;
+
   return {
     ok: true,
-    message: `Listo. Se agregó un cargo de ${formatMinorArs(r.amountMinor)} por la impresión de tu carnet. Cuando lo pagues, la tarjeta entra en la cola de impresión.`,
+    message,
     payPath: "/portal/cuotas",
   };
 }

@@ -10,6 +10,7 @@ import { formatCardNumber, generateCardToken, hashCardToken } from "./token";
 import { sealCardToken } from "./token-vault";
 import { notifyCardEvent } from "./notify";
 import { reusablePrintOrderCharge } from "./reusable-charge";
+import { applyCreditForMember } from "@/lib/membership/apply-credit-store";
 
 /**
  * Pedido de la tarjeta impresa.
@@ -30,6 +31,8 @@ export type PrintOrderResult =
       amountMinor: number;
       /** El cargo ya estaba saldado: no hay nada que cobrar y la tarjeta entró en la cola. */
       alreadyPaid: boolean;
+      /** El saldo a favor del socio ya cubrió el cargo: la tarjeta pasó directo a la cola, sin esperar un pago. */
+      settledByCredit: boolean;
     }
   | { ok: false; error: string };
 
@@ -211,7 +214,41 @@ export async function requestPrintedCard(input: {
       // para no tener dos reglas distintas sobre cuándo entra al taller.
       const alreadyPaid = Boolean(reutilizable) && (await releasePaidPrintOrders(input.memberId)) > 0;
 
-      return { ok: true, cardId, cardNumber, amountMinor, alreadyPaid };
+      /*
+        Cargo nuevo: el saldo a favor del socio puede cubrirlo.
+
+        La condición es `!reutilizable` y no `!input.existingChargeId`: cuando se reutiliza un
+        cargo ya pago no hay nada que imputar, y correr la imputación ahí sería gastarle
+        crédito al socio contra un cargo que ya está en cero.
+
+        Va después de la transacción —no adentro— porque `applyCreditForMember` abre la suya
+        propia y Prisma no anida transacciones; además necesita el cargo ya comiteado para
+        poder verlo. Si un socio con saldo a favor pide la tarjeta y esto no corriera, el
+        portal le mostraría "Pagar todo" por un cargo que su crédito ya cubre, contradiciendo
+        el cartel que le dice que no hace falta que haga nada.
+
+        Se ignora cualquier error: la tarjeta ya se emitió y el cargo ya existe, y ninguno de
+        los dos se puede deshacer acá. Perder esta imputación es recuperable en el próximo
+        cierre mensual; perder la tarjeta recién emitida, no.
+
+        Y si el crédito alcanzó para saldar el cargo, la tarjeta tiene que salir de
+        PENDIENTE_PAGO ahí mismo: `applyCreditForMember` deja el cargo en cero, pero no
+        mueve la tarjeta de estado por sí sola. Sin este paso quedaría pagada y sin embargo
+        trabada para siempre, porque nada más la va a liberar (a diferencia de un pago por
+        MercadoPago o manual, acá no hay webhook ni acreditación que dispare la cola).
+      */
+      let settledByCredit = false;
+      if (!reutilizable) {
+        try {
+          await applyCreditForMember(input.memberId);
+          const liberadas = await releasePaidPrintOrders(input.memberId);
+          settledByCredit = liberadas > 0;
+        } catch {
+          // Ignorado a propósito: ver el comentario de arriba.
+        }
+      }
+
+      return { ok: true, cardId, cardNumber, amountMinor, alreadyPaid, settledByCredit };
     } catch (error) {
       ultimoError = error;
       // P2002: otro pedido tomó ese número de carnet, o el socio ya tiene un cargo `OTRO`
