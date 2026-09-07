@@ -29,6 +29,8 @@ export type InboxItem = {
   youtube: string | null;
   linkedin: string | null;
   directoryOptIn: boolean;
+  /** Socio que lo recomendó, si entró por su enlace. La Secretaría lo ve antes de aprobar. */
+  recommendedBy: { memberNumber: string; fullName: string } | null;
   createdAt: Date;
   notices: ApplicationNotice[];
 };
@@ -70,6 +72,22 @@ export async function listPendingApplications(workspaceId: string): Promise<Inbo
     },
     select: { id: true, memberNumber: true, email: true, documentNumber: true, leftAt: true },
   });
+
+  /*
+    Quién recomendó a cada aspirante. Se muestra antes de aprobar y no después: si el
+    vínculo está mal —un enlace compartido de más, una atribución que no corresponde—, este
+    es el único momento en que corregirlo no cuesta nada.
+  */
+  const recomendantesIds = [
+    ...new Set(solicitudes.map((s) => s.recommenderMemberId).filter(Boolean)),
+  ] as string[];
+  const recomendantes = recomendantesIds.length
+    ? await prisma.member.findMany({
+        where: { id: { in: recomendantesIds } },
+        select: { id: true, memberNumber: true, firstName: true, lastName: true },
+      })
+    : [];
+  const porRecomendante = new Map(recomendantes.map((r) => [r.id, r]));
 
   const deudas = new Map<string, string>();
   if (previos.length) {
@@ -117,6 +135,14 @@ export async function listPendingApplications(workspaceId: string): Promise<Inbo
       youtube: s.youtube,
       linkedin: s.linkedin,
       directoryOptIn: s.directoryOptIn,
+      recommendedBy: (() => {
+        const r = s.recommenderMemberId ? porRecomendante.get(s.recommenderMemberId) : null;
+        if (!r) return null;
+        return {
+          memberNumber: r.memberNumber,
+          fullName: `${r.firstName} ${r.lastName}`.trim(),
+        };
+      })(),
       declaredFeeScale: s.declaredFeeScale,
       categoryName: cat?.name ?? null,
       originInstitution: s.originInstitution,

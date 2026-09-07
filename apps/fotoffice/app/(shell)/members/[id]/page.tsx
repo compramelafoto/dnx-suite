@@ -16,6 +16,10 @@ import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { formatFeeBpsAsPercent } from "@/lib/platform-fee/fee";
+import { canVoidBenefit } from "@/lib/membership/recommendation";
+import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
+import { chargePeriodLabel } from "@/lib/membership/charge-labels";
+import { RecommendationVoidForm } from "@/components/members/recommendation-void-form";
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "?";
@@ -47,6 +51,38 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   const feePercent = puedeCobrar
     ? formatFeeBpsAsPercent(await getPlatformFeeBps(workspace.id, MEMBERS_MODULE_KEY))
     : "";
+  /*
+    Las recomendaciones de este socio: quién lo trajo, a quiénes trajo él, y qué bonificó
+    cada uno. Se consulta siempre —no sólo para OWNER/ADMIN— porque es información del
+    padrón, del mismo orden que la categoría o la fecha de alta.
+  */
+  const [recomendante, recomendados, bonificaciones] = await Promise.all([
+    member.recommendedByMemberId
+      ? prisma.member.findUnique({
+          where: { id: member.recommendedByMemberId },
+          select: { id: true, memberNumber: true, firstName: true, lastName: true },
+        })
+      : null,
+    prisma.member.findMany({
+      where: { workspaceId: workspace.id, recommendedByMemberId: member.id },
+      select: { id: true, memberNumber: true, firstName: true, lastName: true, joinedAt: true },
+      orderBy: { joinedAt: "desc" },
+    }),
+    prisma.membershipRecommendationBenefit.findMany({
+      where: { workspaceId: workspace.id, memberId: member.id },
+      select: {
+        id: true,
+        status: true,
+        percent: true,
+        appliedAmountArs: true,
+        voidReason: true,
+        appliedCharge: { select: { period: true, balanceArs: true } },
+        originMember: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
   // Quien registra un pago necesita ver, en la misma pantalla, qué se le registró antes:
   // es la única forma de no cargar dos veces el mismo comprobante.
   const pagos = puedeCobrar ? await loadMemberPaymentHistory(member.id, { limit: 50 }) : [];
@@ -209,6 +245,90 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               />
             </section>
           ) : null}
+
+          {/*
+            Recomendaciones. Va en la ficha y no sólo en el portal del socio: la pregunta
+            «¿quién lo trajo?» aparece del lado de la Secretaría, cuando hay que revisar una
+            atribución o explicar por qué una cuota salió más barata.
+          */}
+          <section className="fo-card space-y-4 sm:col-span-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+              Recomendaciones
+            </h2>
+
+            <p className="text-sm text-[var(--fo-text)]">
+              {recomendante ? (
+                <>
+                  Lo recomendó{" "}
+                  <Link href={`/members/${recomendante.id}`} className="hover:underline">
+                    N° {recomendante.memberNumber} · {recomendante.firstName}{" "}
+                    {recomendante.lastName}
+                  </Link>
+                </>
+              ) : (
+                <span className="text-[var(--fo-muted)]">Se asoció por su cuenta.</span>
+              )}
+            </p>
+
+            {recomendados.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-[var(--fo-muted)]">
+                  Se asociaron por su recomendación
+                </h3>
+                <ul className="divide-y divide-[var(--fo-border)]">
+                  {recomendados.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-3 py-2">
+                      <Link href={`/members/${r.id}`} className="text-sm hover:underline">
+                        N° {r.memberNumber} · {r.firstName} {r.lastName}
+                      </Link>
+                      <span className="text-xs text-[var(--fo-muted-soft)]">
+                        {fmtDate(r.joinedAt)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {bonificaciones.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-[var(--fo-muted)]">Bonificaciones</h3>
+                <ul className="divide-y divide-[var(--fo-border)]">
+                  {bonificaciones.map((b) => {
+                    const saldo = b.appliedCharge
+                      ? decimalArsToMinor(b.appliedCharge.balanceArs)
+                      : null;
+                    const anulable = canVoidBenefit({
+                      status: b.status as "PENDIENTE" | "APLICADA" | "ANULADA",
+                      appliedChargeBalanceMinor: saldo,
+                    });
+                    return (
+                      <li key={b.id} className="space-y-1.5 py-2.5">
+                        <p className="text-sm">
+                          {Number(b.percent)}% por {b.originMember.firstName}{" "}
+                          {b.originMember.lastName}
+                        </p>
+                        <p className="text-xs text-[var(--fo-muted-soft)]">
+                          {b.status === "PENDIENTE"
+                            ? "Pendiente: se aplica sobre su próxima cuota."
+                            : b.status === "ANULADA"
+                              ? `Anulada${b.voidReason ? ` · ${b.voidReason}` : ""}`
+                              : `Aplicada a ${chargePeriodLabel(
+                                  b.appliedCharge?.period ?? "",
+                                )} · −${formatMinorArs(
+                                  b.appliedAmountArs ? decimalArsToMinor(b.appliedAmountArs) : 0,
+                                )}`}
+                        </p>
+                        {canManage && anulable.ok ? (
+                          <RecommendationVoidForm benefitId={b.id} memberId={member.id} />
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+          </section>
 
           {member.notes ? (
             <section className="fo-card space-y-3 sm:col-span-2">

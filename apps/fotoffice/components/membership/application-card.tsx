@@ -40,6 +40,12 @@ export function ApplicationCard({ item }: { item: InboxItem }) {
             {ESCALA_LABEL[item.declaredFeeScale] ?? item.declaredFeeScale}
             {item.categoryName ? ` · ${item.categoryName}` : ""}
           </p>
+          {item.recommendedBy ? (
+            <p className="text-xs text-[var(--fo-muted)]">
+              Recomendado por N° {item.recommendedBy.memberNumber} ·{" "}
+              {item.recommendedBy.fullName}
+            </p>
+          ) : null}
         </div>
         {item.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
