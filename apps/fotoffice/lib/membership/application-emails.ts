@@ -44,10 +44,15 @@ type Composition = {
 /**
  * Arma el HTML y el texto plano de un email.
  *
+ * Exportada porque el aviso de las recomendaciones (`recommendation-emails.ts`) tiene que
+ * salir con exactamente la misma forma: mismo saludo, misma firma, mismo pie. Duplicar el
+ * armado sería la vía más corta a dos estilos de correo distintos saliendo de la misma
+ * institución.
+ *
  * Centralizado a propósito: siete emails escritos a mano cada uno por su lado terminan con
  * siete botones de colores distintos y tres formas de despedirse.
  */
-function compose(input: Composition): EmailBody {
+export function compose(input: Composition): EmailBody {
   const saludo = input.greetingName?.trim() ? `Hola ${input.greetingName.trim()},` : null;
 
   const htmlParrafos = input.paragraphs.map((p) => `  <p>${escapeHtml(p)}</p>`).join("\n");

@@ -76,4 +76,5 @@ export const MEMBERSHIP_EMAIL_KEYS = {
   REMINDER: "fotoffice.membership.application-reminder",
   EXPIRED: "fotoffice.membership.application-expired",
   WELCOME: "fotoffice.membership.welcome",
+  RECOMMENDATION_EARNED: "fotoffice.membership.recommendation-earned",
 } as const;

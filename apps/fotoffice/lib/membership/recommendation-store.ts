@@ -11,6 +11,11 @@ import {
 } from "./recommendation";
 import { getDuesSettings } from "./settings";
 import { decimalArsToMinor, minorToDecimalString } from "./money";
+import { buildRecommendationEarnedEmail } from "./recommendation-emails";
+import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
+import { sendAndLogEmail } from "@/lib/communications/send-and-log";
+import { MEMBERSHIP_EMAIL_KEYS } from "@/lib/communications/constants";
+import { appUrl } from "@/lib/app-url";
 
 /**
  * Acceso a base de las recomendaciones.
@@ -109,7 +114,64 @@ export async function awardRecommendationBenefit(
   }
 
   await applyPendingBenefits(recomendanteId);
+
+  // El aviso va después de aplicar el descuento: si el socio abre el portal apenas lo recibe,
+  // la cuota ya tiene que estar barata. Su propio try/catch — un email que no sale no puede
+  // deshacer una bonificación ya acreditada.
+  try {
+    await notificarBonificacion({
+      workspaceId: socioNuevo.workspaceId,
+      recomendanteId,
+      newMemberId,
+      percent: decision.percent,
+    });
+  } catch (error) {
+    console.error("[fotoffice][recomendaciones] no se pudo avisar la bonificación", {
+      memberId: recomendanteId,
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
   return { awarded: true };
+}
+
+/** Le avisa al recomendante que su colega se asoció y que su cuota viene con descuento. */
+async function notificarBonificacion(input: {
+  workspaceId: string;
+  recomendanteId: string;
+  newMemberId: string;
+  percent: number;
+}): Promise<void> {
+  const [recomendante, recomendado] = await Promise.all([
+    prisma.member.findUnique({
+      where: { id: input.recomendanteId },
+      select: { firstName: true, email: true, userId: true },
+    }),
+    prisma.member.findUnique({
+      where: { id: input.newMemberId },
+      select: { firstName: true, lastName: true },
+    }),
+  ]);
+  // Sin casilla no hay a quién escribirle, y no se inventa un destinatario. El socio ve la
+  // bonificación igual en su portal.
+  if (!recomendante?.email || !recomendado) return;
+
+  const { organizationName, signature } = await loadWorkspaceEmailContext(input.workspaceId);
+  const base = appUrl();
+
+  await sendAndLogEmail({
+    to: recomendante.email,
+    templateKey: MEMBERSHIP_EMAIL_KEYS.RECOMMENDATION_EARNED,
+    userId: recomendante.userId,
+    body: buildRecommendationEarnedEmail({
+      firstName: recomendante.firstName,
+      recommendedName: `${recomendado.firstName} ${recomendado.lastName}`.trim(),
+      institution: organizationName,
+      percent: input.percent,
+      duesUrl: `${base}/portal/cuotas`,
+      signature,
+    }),
+  });
 }
 
 /**
