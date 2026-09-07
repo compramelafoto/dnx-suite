@@ -50,6 +50,18 @@ describe("buildApproval", () => {
     expect(r.member.memberNumber).toBe("734");
   });
 
+  it("el vínculo con quien lo recomendó pasa de la solicitud a la ficha del socio", () => {
+    const r = buildApproval({
+      ...base,
+      application: { ...solicitud, recommenderMemberId: "socio-a" },
+    });
+    expect(r.member.recommendedByMemberId).toBe("socio-a");
+  });
+
+  it("sin recomendación, la ficha queda sin vínculo", () => {
+    expect(buildApproval(base).member.recommendedByMemberId).toBeNull();
+  });
+
   it("la foto de la solicitud pasa a ser el perfil del socio", () => {
     expect(buildApproval(base).member.avatarUrl).toBe("https://cdn/foto.jpg");
   });

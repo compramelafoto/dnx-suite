@@ -27,6 +27,8 @@ export type ApprovalInput = {
     declaredFeeScale: FeeScale;
     ownDuesAmount: Prisma.Decimal | null;
     originInstitution: string | null;
+    /** Socio que lo recomendó, tomado del enlace por el que entró al formulario. */
+    recommenderMemberId?: string | null;
     avatarUrl: string | null;
     noticeAddress: string | null;
     documentType: string | null;
@@ -84,6 +86,7 @@ export type ApprovalPlan = {
     feeScale: FeeScale;
     ownDuesAmount: Prisma.Decimal | null;
     originInstitution: string | null;
+    recommendedByMemberId: string | null;
     joinedAt: Date;
     businessName: string | null;
     bio: string | null;
@@ -217,6 +220,10 @@ export function buildApproval(input: ApprovalInput): ApprovalPlan {
       feeScale: input.application.declaredFeeScale,
       ownDuesAmount: input.application.ownDuesAmount,
       originInstitution: input.application.originInstitution,
+      // El vínculo se copia acá y no se consulta después contra la solicitud: una solicitud
+      // puede archivarse, y la pregunta «¿quién lo trajo?» tiene que poder responderse desde
+      // la ficha para siempre.
+      recommendedByMemberId: input.application.recommenderMemberId ?? null,
       joinedAt: input.now,
       // La presencia profesional declarada al asociarse pasa al socio. Si no se copiara acá,
       // el dato quedaría enterrado en la solicitud y el socio aparecería sin redes.
