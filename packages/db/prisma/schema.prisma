@@ -6915,6 +6915,7 @@ model Workspace {
   memberAudits                MemberAudit[]
   memberInvitations           MemberInvitation[]
   moduleFees                  WorkspaceModuleFee[]
+  integrations                WorkspaceIntegration[]
   feeLedger                   WorkspaceFeeLedgerEntry[]
   membershipApplications      MembershipApplication[]
   membershipDuesSettings      MembershipDuesSettings?
@@ -7856,6 +7857,58 @@ model WorkspaceModuleFee {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, moduleKey])
+  @@index([workspaceId])
+}
+
+/// Cuenta de un tercero vinculada a un workspace (Google hoy).
+///
+/// El refresh token va cifrado con AES-256-GCM — ver `apps/fotoffice/lib/integrations/vault.ts`.
+/// Nunca en claro y nunca en logs. Las cuatro columnas del cifrado son inseparables: sin las
+/// cuatro no hay nada que descifrar.
+model WorkspaceIntegration {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  /// "GOOGLE". Texto y no enum: agregar un proveedor no debería migrar un tipo en cinco bases.
+  provider          String
+  /// Clave del catálogo (`lib/integrations/registry.ts`), p. ej. "google-calendar".
+  integrationKey    String
+  /// La cuenta concreta. Sirve para que el dueño reconozca cuál conectó.
+  accountEmail      String
+  accountExternalId String?
+  /// Permisos efectivamente OTORGADOS por Google, no los pedidos: Google puede dar menos.
+  grantedScopes     String[]
+  ciphertext        String
+  nonce             String
+  authTag           String
+  keyVersion        String
+  /// ACTIVE | REVOKED | NEEDS_RECONSENT
+  status            String    @default("ACTIVE")
+  connectedByUserId Int?
+  connectedAt       DateTime  @default(now())
+  lastUsedAt        DateTime?
+  revokedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, integrationKey])
+  @@index([workspaceId, status])
+}
+
+/// Estado anti-CSRF del ida y vuelta con Google. Se borra al usarse.
+model WorkspaceIntegrationOAuthState {
+  id             String   @id @default(cuid())
+  state          String   @unique
+  workspaceId    String
+  integrationKey String
+  userId         Int
+  /// Path relativo interno al que volver. Nunca una URL absoluta.
+  redirectPath   String?
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  @@index([expiresAt])
   @@index([workspaceId])
 }
 

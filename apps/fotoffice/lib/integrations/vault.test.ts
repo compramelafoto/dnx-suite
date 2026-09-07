@@ -55,13 +55,13 @@ describe("cifrado de credenciales de integraciones", () => {
 
   it("una clave maestra de largo equivocado se rechaza", () => {
     const env = { [INTEGRATIONS_MASTER_KEY_ENV]: randomBytes(16).toString("base64") };
-    expect(() => requireIntegrationsMasterKey(env as NodeJS.ProcessEnv)).toThrow(
+    expect(() => requireIntegrationsMasterKey(env as unknown as NodeJS.ProcessEnv)).toThrow(
       IntegrationsVaultError,
     );
   });
 
   it("con la clave bien configurada devuelve 32 bytes", () => {
     const env = { [INTEGRATIONS_MASTER_KEY_ENV]: masterKey.toString("base64") };
-    expect(requireIntegrationsMasterKey(env as NodeJS.ProcessEnv)).toHaveLength(32);
+    expect(requireIntegrationsMasterKey(env as unknown as NodeJS.ProcessEnv)).toHaveLength(32);
   });
 });
