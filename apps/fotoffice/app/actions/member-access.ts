@@ -25,6 +25,7 @@ import {
 import { buildInvitationEmailBody } from "@/lib/members/invitation-email";
 import { invitationExtrasFor } from "@/lib/members/invitation-extras";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
+import { institutionReplyTo } from "@/lib/communications/reply-to";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
 import { loadDuesCallout } from "@/lib/membership/dues-callout";
 
@@ -213,7 +214,9 @@ async function inviteOneMember(
 
   // El envío ocurre DESPUÉS del commit. Si falla, la invitación queda creada pero marcada
   // como no enviada: nunca se la presenta como enviada, y "Reenviar" la reintenta.
-  const { organizationName, signature } = await loadWorkspaceEmailContext(workspace.id);
+  const { organizationName, signature, contactEmail } = await loadWorkspaceEmailContext(
+    workspace.id,
+  );
   const extras = invitationExtrasFor(workspace.id);
   const body = buildInvitationEmailBody({
     memberFirstName: member.firstName,
@@ -225,7 +228,13 @@ async function inviteOneMember(
     video: extras.video,
     memberNumber: member.memberNumber,
   });
-  const outcome = await sendTransactionalEmail({ to: email, ...body });
+  // "Responder" tiene que ir a la institución, no al remitente técnico: el socio que
+  // contesta este email está hablando con su sociedad, no con FotoOffice.
+  const outcome = await sendTransactionalEmail({
+    to: email,
+    ...body,
+    replyTo: institutionReplyTo({ organizationName, contactEmail }),
+  });
 
   await markMemberInvitationDelivery(
     workspace.id,

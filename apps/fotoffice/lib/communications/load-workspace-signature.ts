@@ -21,6 +21,11 @@ export type WorkspaceEmailContext = {
    */
   organizationName: string;
   signature: RenderedEmailSignature | null;
+  /**
+   * Casilla de la institución. Va aparte de la firma porque no se usa solo para mostrarla
+   * al pie: es también a dónde contesta el socio. Ver `institutionReplyTo`.
+   */
+  contactEmail: string | null;
 };
 
 /**
@@ -52,9 +57,17 @@ export async function loadWorkspaceEmailContext(
 
   const workspaceName = workspace?.name ?? "";
   if (!branding) {
-    return { organizationName: workspaceName.trim() || "FotoOffice", signature: null };
+    return {
+      organizationName: workspaceName.trim() || "FotoOffice",
+      signature: null,
+      contactEmail: null,
+    };
   }
 
   const data = toEmailSignatureData(branding, workspaceName);
-  return { organizationName: data.organizationName, signature: renderEmailSignature(data) };
+  return {
+    organizationName: data.organizationName,
+    signature: renderEmailSignature(data),
+    contactEmail: branding.contactEmail?.trim() || null,
+  };
 }

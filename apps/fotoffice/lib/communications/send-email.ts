@@ -20,6 +20,12 @@ export type OutboundEmail = {
   subject: string;
   html: string;
   text: string;
+  /**
+   * A dónde va "Responder". Opcional: sin esto la respuesta vuelve al remitente, que es una
+   * casilla que no lee nadie. Lo arma `institutionReplyTo`, que es quien sabe entrecomillar
+   * el nombre y descartar lo que rompería la cabecera; acá llega listo para usar.
+   */
+  replyTo?: string | null;
 };
 
 export type SendOutcome =
@@ -99,6 +105,8 @@ export async function sendTransactionalEmail(
         subject: message.subject,
         html: message.html,
         text: message.text,
+        // Ausente y no `null`: el proveedor trata un `reply_to` nulo como valor inválido.
+        ...(message.replyTo ? { reply_to: [message.replyTo] } : {}),
       }),
     });
   } catch (error) {
