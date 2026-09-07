@@ -15,6 +15,7 @@ const {
   loadContextMock,
   sendMock,
   requireManageMock,
+  duesCalloutMock,
 } = vi.hoisted(() => ({
   getMemberMock: vi.fn(),
   createInvitationMock: vi.fn(),
@@ -23,6 +24,7 @@ const {
   loadContextMock: vi.fn(),
   sendMock: vi.fn(),
   requireManageMock: vi.fn(),
+  duesCalloutMock: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -49,8 +51,11 @@ vi.mock("@/lib/communications/load-workspace-signature", () => ({
   loadWorkspaceEmailContext: loadContextMock,
 }));
 vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: sendMock }));
+vi.mock("@/lib/membership/dues-callout", () => ({ loadDuesCallout: duesCalloutMock }));
 
-const { inviteMemberAction, revokeMemberInvitationAction } = await import("./member-access");
+const { inviteMemberAction, inviteMembersBatchAction, revokeMemberInvitationAction } =
+  await import("./member-access");
+const { INVITE_BATCH_MAX } = await import("@/lib/members/invitations");
 
 const SIGNATURE = { html: "<table>marca-de-firma</table>", text: "marca-de-firma" };
 
@@ -62,6 +67,7 @@ function form(memberId = "mem-1") {
 
 beforeEach(() => {
   vi.stubEnv("APP_URL", "https://fotoffice.com");
+  duesCalloutMock.mockReset().mockResolvedValue(null);
   requireManageMock.mockReset().mockResolvedValue({
     workspace: { id: "ws-sfpr", name: "Club SFPR" },
     user: { id: 7, email: "admin@sfpr.test", name: "Admin" },
@@ -229,5 +235,97 @@ describe("sin red real", () => {
     await inviteMemberAction(undefined, form());
     expect(sendMock).toHaveBeenCalledTimes(1);
     // `sendTransactionalEmail` está mockeado; ningún fetch sale de este proceso.
+  });
+});
+
+describe("invitación por tanda", () => {
+  function batchForm(ids: string[]) {
+    const fd = new FormData();
+    for (const id of ids) fd.append("memberIds", id);
+    return fd;
+  }
+
+  it("invita a cada socio seleccionado y cuenta los envíos", async () => {
+    const r = await inviteMembersBatchAction(undefined, batchForm(["mem-1", "mem-2", "mem-3"]));
+    expect(r.error).toBeNull();
+    expect(r.sent).toBe(3);
+    expect(r.failed).toEqual([]);
+    expect(sendMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("un socio que falla NO corta la tanda, y se informa cuál fue", async () => {
+    // Abortar en el primer fallo dejaría a la Secretaría sin saber a quién ya se le mandó.
+    getMemberMock.mockImplementation(async (_ws: string, id: string) =>
+      id === "mem-2"
+        ? { id, firstName: "Sin", email: null, status: "ACTIVE", userId: null }
+        : { id, firstName: "Juan", email: `${id}@example.com`, status: "ACTIVE", userId: null },
+    );
+
+    const r = await inviteMembersBatchAction(undefined, batchForm(["mem-1", "mem-2", "mem-3"]));
+    expect(r.sent).toBe(2);
+    expect(r.failed).toHaveLength(1);
+    expect(r.failed?.[0]?.memberId).toBe("mem-2");
+    expect(r.failed?.[0]?.error).toContain("email");
+  });
+
+  it("no invita dos veces al mismo socio aunque venga repetido", async () => {
+    const r = await inviteMembersBatchAction(undefined, batchForm(["mem-1", "mem-1", "mem-1"]));
+    expect(r.sent).toBe(1);
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rechaza una selección vacía", async () => {
+    const r = await inviteMembersBatchAction(undefined, batchForm([]));
+    expect(r.error).toContain("ningún socio");
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("rechaza una tanda más grande que el tope, sin mandar nada", async () => {
+    const ids = Array.from({ length: INVITE_BATCH_MAX + 1 }, (_, i) => `mem-${i}`);
+    const r = await inviteMembersBatchAction(undefined, batchForm(ids));
+    expect(r.error).toContain(String(INVITE_BATCH_MAX));
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("revalida los permisos una sola vez para toda la tanda", async () => {
+    await inviteMembersBatchAction(undefined, batchForm(["mem-1", "mem-2"]));
+    expect(requireManageMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("envía de a uno, no en paralelo: el proveedor limita los envíos por segundo", async () => {
+    let enVuelo = 0;
+    let maxEnVuelo = 0;
+    sendMock.mockImplementation(async () => {
+      enVuelo += 1;
+      maxEnVuelo = Math.max(maxEnVuelo, enVuelo);
+      await new Promise((r) => setTimeout(r, 1));
+      enVuelo -= 1;
+      return { status: "SENT", providerId: "email_1" };
+    });
+
+    await inviteMembersBatchAction(undefined, batchForm(["mem-1", "mem-2", "mem-3"]));
+    expect(maxEnVuelo).toBe(1);
+  });
+});
+
+describe("mención de la cuota en el email", () => {
+  it("cuando el socio tiene una cuota abierta, el email la nombra", async () => {
+    duesCalloutMock.mockResolvedValue({
+      period: "2026-09",
+      amountLabel: "$8.000",
+      dueDateLabel: "10 de septiembre",
+    });
+
+    await inviteMemberAction(undefined, form());
+    const enviado = sendMock.mock.calls[0]?.[0];
+    expect(enviado.text).toContain("septiembre de 2026");
+    expect(enviado.text).toContain("$8.000");
+  });
+
+  it("un socio sin cuota abierta recibe el email sin promesas de pago", async () => {
+    duesCalloutMock.mockResolvedValue(null);
+    await inviteMemberAction(undefined, form());
+    const enviado = sendMock.mock.calls[0]?.[0];
+    expect(enviado.text).not.toContain("$");
   });
 });

@@ -1,8 +1,15 @@
 import Link from "next/link";
 import { countMembersByStatus, listMemberCategories, searchMembers } from "@repo/db/fotoffice-members";
+import { latestInvitationByMember } from "@repo/db/fotoffice-member-invitations";
+import {
+  isMemberAccessFilter,
+  MEMBER_ACCESS_FILTER_LABELS,
+} from "@repo/db/fotoffice-member-access-filter";
 import { requireMembersContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
 import { MEMBER_STATUS_LABELS, isMemberStatus } from "@/lib/members/status-labels";
+import { MEMBER_ACCESS_LABELS, memberAccessStatus } from "@/lib/members/invitations";
+import { InviteBatchForm } from "@/components/members/invite-batch-form";
 import { Users } from "lucide-react";
 
 function buildQuery(params: Record<string, string | undefined>, overrides: Record<string, string | undefined>) {
@@ -18,22 +25,36 @@ function buildQuery(params: Record<string, string | undefined>, overrides: Recor
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; categoryId?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    categoryId?: string;
+    access?: string;
+    page?: string;
+  }>;
 }) {
   const { workspace, canManage } = await requireMembersContext();
   const sp = await searchParams;
   const q = sp.q?.trim() || undefined;
   const status = sp.status && isMemberStatus(sp.status) ? sp.status : undefined;
   const categoryId = sp.categoryId || undefined;
+  const access = sp.access && isMemberAccessFilter(sp.access) ? sp.access : undefined;
   const page = Number(sp.page) > 0 ? Number(sp.page) : 1;
 
   const [result, counts, categories] = await Promise.all([
-    searchMembers(workspace.id, { search: q, status, categoryId, page }),
+    searchMembers(workspace.id, { search: q, status, categoryId, access, page }),
     countMembersByStatus(workspace.id),
     listMemberCategories(workspace.id),
   ]);
 
-  const hasFilters = Boolean(q || status || categoryId);
+  // Una consulta para toda la página: el estado de acceso se deriva de la última invitación
+  // de cada socio, y pedirla fila por fila serían 25 viajes más a la base.
+  const invitaciones = await latestInvitationByMember(
+    workspace.id,
+    result.items.map((m) => m.id),
+  );
+
+  const hasFilters = Boolean(q || status || categoryId || access);
   const noMembersAtAll = counts.total === 0;
 
   return (
@@ -55,7 +76,7 @@ export default async function MembersPage({
               </a>
               {hasFilters ? (
                 <a
-                  href={`/api/members/export${buildQuery({ q, status, categoryId }, {})}`}
+                  href={`/api/members/export${buildQuery({ q, status, categoryId, access }, {})}`}
                   className="fo-btn fo-btn-secondary text-sm"
                   download
                 >
@@ -158,6 +179,19 @@ export default async function MembersPage({
                 ))}
               </select>
             </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="access">
+                Acceso
+              </label>
+              <select id="access" name="access" defaultValue={access ?? ""} className="fo-input">
+                <option value="">Todos</option>
+                {Object.entries(MEMBER_ACCESS_FILTER_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex gap-2">
               <button type="submit" className="fo-btn fo-btn-primary text-sm min-h-10">
                 Buscar
@@ -181,10 +215,12 @@ export default async function MembersPage({
             </div>
           ) : (
             <>
+              <InviteBatchForm canManage={canManage}>
               <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
                 <table className="w-full text-sm text-left min-w-[860px]">
                   <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
                     <tr>
+                      {canManage ? <th className="px-4 py-3 font-semibold w-10" /> : null}
                       <th className="px-4 py-3 font-semibold">N°</th>
                       <th className="px-4 py-3 font-semibold">Apellido y nombre</th>
                       <th className="px-4 py-3 font-semibold">Categoría</th>
@@ -192,12 +228,34 @@ export default async function MembersPage({
                       <th className="px-4 py-3 font-semibold">Teléfono</th>
                       <th className="px-4 py-3 font-semibold">Ingreso</th>
                       <th className="px-4 py-3 font-semibold">Estado</th>
+                      <th className="px-4 py-3 font-semibold">Acceso</th>
                       <th className="px-4 py-3 font-semibold w-20" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
-                    {result.items.map((m) => (
+                    {result.items.map((m) => {
+                      const acceso = memberAccessStatus(m, invitaciones.get(m.id));
+                      /*
+                        Solo se puede invitar a un socio activo, con email y sin cuenta
+                        vinculada. Deshabilitar la casilla en vez de esconderla deja ver por
+                        qué ese socio no entra en la tanda.
+                      */
+                      const invitable =
+                        m.status === "ACTIVE" && Boolean(m.email?.trim()) && m.userId === null;
+                      return (
                       <tr key={m.id} className="hover:bg-[var(--fo-surface-hover)]/60">
+                        {canManage ? (
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              name="memberIds"
+                              value={m.id}
+                              disabled={!invitable}
+                              aria-label={`Invitar a ${m.lastName}, ${m.firstName}`}
+                              className="size-4 accent-[var(--fo-accent)] disabled:opacity-30"
+                            />
+                          </td>
+                        ) : null}
                         <td className="px-4 py-3 text-[var(--fo-muted)] font-mono text-xs">
                           {m.memberNumber}
                         </td>
@@ -213,6 +271,19 @@ export default async function MembersPage({
                         <td className="px-4 py-3 text-[var(--fo-muted)]">
                           {MEMBER_STATUS_LABELS[m.status]}
                         </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={
+                              acceso === "ACTIVE_ACCESS"
+                                ? "text-[var(--fo-success)]"
+                                : acceso === "PENDING"
+                                  ? "text-[var(--fo-text)]"
+                                  : "text-[var(--fo-muted)]"
+                            }
+                          >
+                            {m.email?.trim() ? MEMBER_ACCESS_LABELS[acceso] : "Sin email"}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <Link
                             href={`/members/${m.id}`}
@@ -222,10 +293,12 @@ export default async function MembersPage({
                           </Link>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+              </InviteBatchForm>
 
               {result.pageCount > 1 ? (
                 <div className="flex items-center justify-between text-sm text-[var(--fo-muted)]">
@@ -235,7 +308,7 @@ export default async function MembersPage({
                   <div className="flex gap-2">
                     {result.page > 1 ? (
                       <Link
-                        href={`/members${buildQuery({ q, status, categoryId }, { page: String(result.page - 1) })}`}
+                        href={`/members${buildQuery({ q, status, categoryId, access }, { page: String(result.page - 1) })}`}
                         className="fo-btn fo-btn-secondary text-sm min-h-9"
                       >
                         Anterior
@@ -243,7 +316,7 @@ export default async function MembersPage({
                     ) : null}
                     {result.page < result.pageCount ? (
                       <Link
-                        href={`/members${buildQuery({ q, status, categoryId }, { page: String(result.page + 1) })}`}
+                        href={`/members${buildQuery({ q, status, categoryId, access }, { page: String(result.page + 1) })}`}
                         className="fo-btn fo-btn-secondary text-sm min-h-9"
                       >
                         Siguiente

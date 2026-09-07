@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma, prisma } from "@repo/db";
 import { getActiveFeeValue, getDuesSettings } from "./settings";
 import { planMonthlyCharges, type MemberForDues } from "./monthly-plan";
+import { applyCreditForWorkspace } from "./apply-credit-store";
 
 /**
  * Genera las cuotas mensuales de un período.
@@ -111,6 +112,10 @@ export async function generateMonthlyCharges(input: {
       throw error;
     }
   }
+
+  // El socio que tenía saldo a favor no puede recibir un reclamo por una cuota que su
+  // crédito ya cubre. Se corre después de crear los cargos, sobre los cargos recién creados.
+  await applyCreditForWorkspace(input.workspaceId);
 
   return {
     period: input.period,

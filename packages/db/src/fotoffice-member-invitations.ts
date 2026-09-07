@@ -115,3 +115,50 @@ export async function acceptMemberInvitation(
     return inv;
   });
 }
+
+/**
+ * Última invitación de cada socio de una página del padrón.
+ *
+ * Una sola consulta para toda la página, no una por fila: con 100 socios en pantalla, la
+ * versión ingenua son 100 viajes a la base. Devuelve un mapa vacío para la lista vacía, sin
+ * consultar nada.
+ *
+ * El `workspaceId` es obligatorio como en el resto del módulo: aunque llegara el id de un
+ * socio de otra institución, no habría fila.
+ */
+export async function latestInvitationByMember(
+  workspaceId: string,
+  memberIds: string[],
+): Promise<Map<string, MemberInvitationSummary>> {
+  const map = new Map<string, MemberInvitationSummary>();
+  if (memberIds.length === 0) return map;
+
+  const rows = await prisma.memberInvitation.findMany({
+    where: { workspaceId, memberId: { in: memberIds } },
+    select: {
+      memberId: true,
+      acceptedAt: true,
+      revokedAt: true,
+      expiresAt: true,
+      sentAt: true,
+      sendFailedAt: true,
+    },
+    // Más reciente primero: la primera que se ve de cada socio es la que vale, y las
+    // siguientes se descartan.
+    orderBy: { createdAt: "desc" },
+  });
+
+  for (const row of rows) {
+    if (!map.has(row.memberId)) map.set(row.memberId, row);
+  }
+  return map;
+}
+
+export type MemberInvitationSummary = {
+  memberId: string;
+  acceptedAt: Date | null;
+  revokedAt: Date | null;
+  expiresAt: Date;
+  sentAt: Date | null;
+  sendFailedAt: Date | null;
+};

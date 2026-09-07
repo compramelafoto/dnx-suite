@@ -24,6 +24,10 @@ import {
   type MemberAuditActor,
   type MemberChangeSet,
 } from "./fotoffice-member-audit";
+import {
+  memberAccessWhere,
+  type MemberAccessFilter,
+} from "./fotoffice-member-access-filter";
 
 /**
  * Se lanza cuando el socio cambió entre que el administrador abrió la ficha y confirmó. La
@@ -69,6 +73,8 @@ export type MemberSearchFilters = {
   search?: string;
   categoryId?: string;
   status?: MemberStatus;
+  /** Estado de acceso al portal. Se resuelve en SQL para no romper la paginación. */
+  access?: MemberAccessFilter;
   page?: number;
   pageSize?: number;
 };
@@ -107,6 +113,7 @@ export async function searchMembers(
           ],
         }
       : {}),
+    ...memberAccessWhere(filters.access),
   };
 
   const [items, total] = await Promise.all([
@@ -154,6 +161,7 @@ export function listMembersForExport(
           ],
         }
       : {}),
+    ...memberAccessWhere(filters.access),
   };
 
   return prisma.member.findMany({

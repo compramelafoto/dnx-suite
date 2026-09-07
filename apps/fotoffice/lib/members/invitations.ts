@@ -4,8 +4,36 @@
  * cliente, así que todo acá tiene que ser puro.
  */
 
-/** 72 horas. Suficiente para verlo sin apuro, corto para que un enlace filtrado caduque. */
-export const INVITATION_TTL_HOURS = 72;
+/**
+ * 14 días.
+ *
+ * Eran 72 horas, pensadas para una invitación suelta. En una ola de alta de todo el padrón
+ * ese plazo dejaba vencido a cualquiera que abriera el email el fin de semana siguiente, y
+ * cada vencimiento obliga a la Secretaría a reemitir a mano, de a un socio por vez. Dos
+ * semanas cubren vacaciones y viajes sin volver el enlace eterno.
+ */
+export const INVITATION_TTL_HOURS = 14 * 24;
+
+/**
+ * Cómo se le dice el plazo al socio.
+ *
+ * Va aparte de la constante a propósito: derivarlo dividiendo horas produciría textos como
+ * «336 horas», que nadie escribe.
+ */
+export const INVITATION_TTL_LABEL = "14 días";
+
+/**
+ * Tope de socios por tanda de invitación.
+ *
+ * No es un límite de la base sino del proveedor de email y del tiempo de una petición: 25
+ * envíos entran cómodos, y dejan a la Secretaría revisando resultados de a poco en vez de
+ * disparar 100 emails a ciegas y descubrir después que salieron mal.
+ *
+ * Vive acá y no junto a la acción porque un archivo `"use server"` solo puede exportar
+ * funciones async, y el formulario del cliente necesita este número para no ofrecer una
+ * selección que el servidor va a rechazar.
+ */
+export const INVITE_BATCH_MAX = 25;
 
 export function invitationExpiryFrom(now = new Date()): Date {
   return new Date(now.getTime() + INVITATION_TTL_HOURS * 60 * 60 * 1000);

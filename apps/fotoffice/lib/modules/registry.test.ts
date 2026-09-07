@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import {
   MODULE_REGISTRY,
@@ -26,9 +27,15 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website y members", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, members y membership-dues", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
-      [COURSES_SALES_MODULE_KEY, EVALUACIONES_MODULE_KEY, WEBSITE_MODULE_KEY, MEMBERS_MODULE_KEY].sort(),
+      [
+        COURSES_SALES_MODULE_KEY,
+        EVALUACIONES_MODULE_KEY,
+        WEBSITE_MODULE_KEY,
+        MEMBERS_MODULE_KEY,
+        MEMBERSHIP_DUES_MODULE_KEY,
+      ].sort(),
     );
   });
 

@@ -6,7 +6,7 @@ import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { listUserProfiles } from "@/lib/portal/profiles";
 import Link from "next/link";
 import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
-import { loadMemberAccount } from "@/lib/membership/account";
+import { loadMemberBalance } from "@/lib/membership/balance";
 import { formatMinorArs } from "@/lib/membership/money";
 import { describeSeniority } from "@/lib/portal/identity";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
@@ -42,7 +42,7 @@ export default async function PortalPage() {
     select: { commercialName: true, logoUrl: true },
   });
   const institution = branding?.commercialName?.trim() || context.workspace.name;
-  const account = await loadMemberAccount(context.member.id);
+  const cuenta = await loadMemberBalance(context.member.id);
   const antiguedad = describeSeniority(context.member.joinedAt, new Date());
 
   // Un pendiente que el socio no ve es un pendiente que no existe: la subida de la foto vive
@@ -131,19 +131,19 @@ export default async function PortalPage() {
             </p>
           </Link>
 
-          {account.charges.length > 0 ? (
+          {cuenta.charges.length > 0 ? (
             <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
               <div className="flex items-baseline justify-between gap-3">
                 <p className="text-sm font-medium">Cuotas pendientes</p>
                 <p className="text-lg font-semibold tabular-nums">
-                  {formatMinorArs(account.totalDueMinor)}
+                  {formatMinorArs(cuenta.dueMinor)}
                 </p>
               </div>
-              {account.overdueCount > 0 ? (
+              {cuenta.overdueCount > 0 ? (
                 <p className="text-xs text-[var(--fo-danger)]">
-                  {account.overdueCount === 1
+                  {cuenta.overdueCount === 1
                     ? "Tenés 1 cuota vencida."
-                    : `Tenés ${account.overdueCount} cuotas vencidas.`}
+                    : `Tenés ${cuenta.overdueCount} cuotas vencidas.`}
                 </p>
               ) : null}
               <Link href="/portal/cuotas" className="fo-btn fo-btn-primary inline-flex text-sm">

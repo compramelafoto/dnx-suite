@@ -11,7 +11,17 @@ import { requestPrintedCardAction } from "@/app/actions/request-printed-card";
  * mismo: a quien acaba de pagar su inscripción no le queda ninguna cuota con la cual juntarlo,
  * y mandarlo a buscarlo después es perderlo.
  */
-export function RequestPrintedCard({ priceLabel }: { priceLabel: string }) {
+export function RequestPrintedCard({
+  priceLabel,
+  actionLabel,
+}: {
+  priceLabel: string;
+  /**
+   * Qué dice el botón. Lo decide `printedCardWarning`: "pedir renovación" y "pedir tarjeta
+   * impresa" no son el mismo trámite para quien lo lee, aunque acá abajo hagan lo mismo.
+   */
+  actionLabel: string;
+}) {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [pagar, setPagar] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +59,7 @@ export function RequestPrintedCard({ priceLabel }: { priceLabel: string }) {
         }
         className="fo-btn fo-btn-secondary w-full text-sm disabled:opacity-60"
       >
-        {pendiente ? "Registrando el pedido…" : `Pedir tarjeta impresa · ${priceLabel}`}
+        {pendiente ? "Registrando el pedido…" : `${actionLabel} · ${priceLabel}`}
       </button>
       {error ? (
         <p className="text-xs text-[var(--fo-danger)]" role="alert">

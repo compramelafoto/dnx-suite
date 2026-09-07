@@ -52,6 +52,23 @@ export default async function VerificarCarnetPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5 py-12">
+      {/*
+        El isotipo va acá arriba y no dentro de la franja de estado: la franja es verde o roja
+        según el resultado, y un isotipo que cambia de fondo según si el socio debe o no queda
+        a merced de cada logo. Sobre el fondo claro se ve siempre igual.
+
+        Sin `alt`: el nombre de la institución ya se lee dos veces en esta pantalla, y un lector
+        de pantalla que lo anuncie una tercera no agrega nada.
+      */}
+      {carnet.institutionLogoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- el logo es una URL de R2
+        <img
+          src={carnet.institutionLogoUrl}
+          alt=""
+          className="mx-auto mb-5 h-20 w-auto max-w-[11rem] object-contain"
+        />
+      ) : null}
+
       <div className="fo-card overflow-hidden p-0">
         <div
           className={`px-6 py-5 text-center ${
