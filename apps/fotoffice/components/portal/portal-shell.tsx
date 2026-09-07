@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { type ResolvedPortalItem } from "@/lib/portal/menu";
 import { PortalNav, PortalTabs } from "./portal-nav";
+import { PortalLogout } from "./portal-logout";
 
 /**
  * El marco del portal: identidad arriba, contenido en el medio, navegación abajo.
@@ -47,13 +48,16 @@ export function PortalShell({
             <img
               src={institution.logoUrl}
               alt={institution.name}
-              className="h-16 w-auto max-w-48 shrink-0 object-contain"
+              // Más angosto en el teléfono: el botón de salir ahora comparte la fila y un isotipo
+              // apaisado, si se queda con 192px, deja el nombre del socio en dos letras.
+              className="h-16 w-auto max-w-32 shrink-0 object-contain sm:max-w-48"
             />
           ) : (
             <span className="shrink-0 text-xs font-medium text-[var(--fo-muted)]">
               {institution.name}
             </span>
           )}
+          <PortalLogout />
         </div>
 
         {/* En pantalla grande la navegación vive acá arriba; en el teléfono, abajo. */}
