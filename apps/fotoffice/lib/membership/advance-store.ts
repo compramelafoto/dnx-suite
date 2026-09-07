@@ -12,6 +12,7 @@ import { minorToDecimalString } from "./money";
 import { periodOf } from "./monthly-plan";
 import type { FeeScale } from "./amounts";
 import { monthlyDuePeriod } from "./periods";
+import { applyCreditForMember } from "./apply-credit-store";
 
 /**
  * Adelantar cuotas.
@@ -143,6 +144,16 @@ export async function createAdvanceCharges(input: {
       select: { id: true },
     });
     chargeIds.push(creado.id);
+  }
+
+  // Fuera de la transacción (acá no hay ninguna: cada cargo se crea de a uno) y sin dejar
+  // que un fallo tumbe el pedido: si un socio con saldo a favor adelanta, ese crédito tiene
+  // que descontarse de los cargos recién creados, no quedar dormido hasta el próximo cierre
+  // mensual. Perder esta imputación es recuperable; perder el pedido, no.
+  try {
+    await applyCreditForMember(input.memberId);
+  } catch {
+    // Ignorado a propósito: ver el comentario de arriba.
   }
 
   return {
