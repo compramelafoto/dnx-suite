@@ -1,9 +1,17 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { MAX_ADVANCE_MONTHS, planAdvancePeriods, type AdvancePeriod } from "./advance";
+import {
+  MAX_ADVANCE_MONTHS,
+  advanceAmountMinorFor,
+  advanceCandidatePeriods,
+  planAdvancePeriods,
+  type AdvancePeriod,
+} from "./advance";
 import { getActiveFeeValue, getDuesSettings } from "./settings";
-import { decimalArsToMinor, minorToDecimalString } from "./money";
+import { minorToDecimalString } from "./money";
 import { periodOf } from "./monthly-plan";
+import type { FeeScale } from "./amounts";
+import { monthlyDuePeriod } from "./periods";
 
 /**
  * Adelantar cuotas.
@@ -37,30 +45,61 @@ async function primerMesLibre(memberId: string, ahora: Date): Promise<string> {
 export async function loadAdvanceOffer(
   memberId: string,
   opciones: { now?: Date } = {},
-): Promise<{ periods: AdvancePeriod[]; feeValueMinor: number }> {
+): Promise<{ periods: AdvancePeriod[] }> {
   const ahora = opciones.now ?? new Date();
   const socio = await prisma.member.findUnique({
     where: { id: memberId },
-    select: { workspaceId: true, categoryId: true },
+    select: {
+      workspaceId: true,
+      categoryId: true,
+      feeScale: true,
+      ownDuesAmount: true,
+      category: { select: { generatesDues: true } },
+    },
   });
-  if (!socio) return { periods: [], feeValueMinor: 0 };
+  if (!socio) return { periods: [] };
 
-  const [settings, valor, desde] = await Promise.all([
+  // Los honorarios (u otra categoría que no genera cuotas) no tienen nada para adelantar:
+  // ofrecerles un precio sería inventar una deuda que la institución nunca definió para
+  // ellos. Sin categoría se asume que sí genera cuotas, igual que en la generación mensual.
+  if (!(socio.category?.generatesDues ?? true)) {
+    return { periods: [] };
+  }
+
+  const [settings, desde] = await Promise.all([
     getDuesSettings(socio.workspaceId),
-    getActiveFeeValue(socio.workspaceId, socio.categoryId, ahora),
     primerMesLibre(memberId, ahora),
   ]);
 
-  const feeValueMinor = valor ? decimalArsToMinor(valor.amountArs) : 0;
+  // Se ofrece el tope completo; cuántos toma de verdad lo elige el socio en la pantalla.
+  const periodos = advanceCandidatePeriods(desde, MAX_ADVANCE_MONTHS);
+
+  // El valor de referencia se pide al vencimiento de CADA período, no a hoy: si ya hay un
+  // aumento resuelto para noviembre (un `MembershipFeeValue` con `validFrom` futuro que la
+  // asamblea ya votó), adelantar noviembre tiene que cobrarlo a ese valor, no al de hoy —
+  // mismo criterio que usa la generación mensual, y por la misma razón: el cargo se crea con
+  // `upsert`, así que si se lo carga mal acá, la generación mensual lo va a encontrar hecho
+  // y nunca lo va a corregir.
+  const feeValuesMinor = await Promise.all(
+    periodos.map(async (period) => {
+      const vencimiento = monthlyDuePeriod(period, settings.dueDay).dueDate;
+      const valor = await getActiveFeeValue(socio.workspaceId, socio.categoryId, vencimiento);
+      return advanceAmountMinorFor({
+        referenceAmount: valor?.amountArs ?? null,
+        scale: socio.feeScale as FeeScale,
+        ownAmount: socio.ownDuesAmount,
+        floorMultiple: settings.collaboratorFloorMultiple,
+      });
+    }),
+  );
+
   return {
     periods: planAdvancePeriods({
       fromPeriod: desde,
-      // Se ofrece el tope completo; cuántos toma de verdad lo elige el socio en la pantalla.
       months: MAX_ADVANCE_MONTHS,
-      feeValueMinor,
+      feeValuesMinor,
       dueDay: settings.dueDay,
     }),
-    feeValueMinor,
   };
 }
 
@@ -75,7 +114,7 @@ export async function createAdvanceCharges(input: {
   if (!socio) return { ok: false, error: "No encontramos tu ficha de socio." };
 
   const oferta = await loadAdvanceOffer(input.memberId);
-  if (oferta.feeValueMinor <= 0) {
+  if (oferta.periods.length === 0) {
     return { ok: false, error: "La institución todavía no fijó el valor de la cuota." };
   }
   const elegidos = oferta.periods.slice(0, Math.max(0, input.months));

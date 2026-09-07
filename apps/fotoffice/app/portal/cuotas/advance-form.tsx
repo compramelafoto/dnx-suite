@@ -26,8 +26,10 @@ export function AdvanceForm({
     <section className="fo-card space-y-3 p-5">
       <h2 className="text-sm font-semibold">Adelantar cuotas</h2>
       <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
-        Elegís los meses y se crean esas cuotas al valor de hoy: si la cuota sube después, la
-        tuya ya quedó congelada. Se pagan con el botón de pago de siempre, ahí abajo.
+        Elegís los meses y se crean esas cuotas al valor vigente de cada una: si la
+        institución ya resolvió un aumento para más adelante, esos meses ya lo tienen; el
+        resto queda al valor de hoy, congelado aunque suba después. Se pagan con el botón de
+        pago de siempre, ahí abajo.
       </p>
       <ul className="space-y-2">
         {options.map((o) => (
