@@ -5,6 +5,7 @@ import { decimalArsToMinor, minorToDecimalString } from "./money";
 import type { OpenCharge } from "./select-charges";
 import { outcomeForProviderStatus, shouldApply, type StoredPaymentStatus } from "./payment-outcome";
 import { releasePaidPrintOrders } from "@/lib/carnet/print-order";
+import { completeApplicationIfPaid } from "./complete-application";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { splitMinorByPlatformFee } from "@/lib/platform-fee/fee";
@@ -172,6 +173,10 @@ export async function creditMembershipPayment(input: {
       detalle: error instanceof Error ? error.message : String(error),
     });
   }
+
+  // Si este pago era el que faltaba, cierra el alta: marca la solicitud como completada, emite
+  // el carnet digital y le da la bienvenida. Nunca lanza.
+  await completeApplicationIfPaid(intento.memberId);
 
   return { ok: true, applied: true, motivo: "pago acreditado" };
 }

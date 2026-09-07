@@ -9,6 +9,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname),
+      // Ver test/server-only-stub.ts: Next resuelve este especificador, vitest no.
+      "server-only": path.resolve(__dirname, "test/server-only-stub.ts"),
     },
   },
 });

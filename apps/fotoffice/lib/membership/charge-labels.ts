@@ -22,6 +22,32 @@ export const APERTURA_PERIOD = "APERTURA";
 export const APERTURA_LABEL = "Deuda anterior al sistema";
 
 /**
+ * Período reservado para la credencial impresa que se pide al asociarse.
+ *
+ * No es un mes: es una etiqueta. La clave única del cargo es (socio, concepto, período), así
+ * que un nombre en vez de una fecha garantiza uno solo por socio y se lee sin adivinar.
+ */
+export const PRINTED_CARD_PERIOD = "TARJETA";
+
+export const PRINTED_CARD_LABEL = "Carnet impreso";
+
+/**
+ * Período del cargo de una reimpresión: `TARJETA-2026-09`.
+ *
+ * Lleva el mes porque un socio puede necesitar otra credencial —se mudó, la perdió, se le
+ * venció— y el período fijo `TARJETA` sólo admite una por socio para toda la vida.
+ */
+export function printedCardPeriod(now: Date): string {
+  const mes = String(now.getUTCMonth() + 1).padStart(2, "0");
+  return `${PRINTED_CARD_PERIOD}-${now.getUTCFullYear()}-${mes}`;
+}
+
+/** ¿Este cargo es la credencial impresa, sea del alta o de una reimpresión? */
+export function isPrintedCardCharge(period: string): boolean {
+  return period === PRINTED_CARD_PERIOD || period.startsWith(`${PRINTED_CARD_PERIOD}-`);
+}
+
+/**
  * `2026-09` → `septiembre de 2026`.
  *
  * Sin `Intl`: el resultado no puede depender de la configuración regional del servidor.
@@ -41,7 +67,11 @@ export function isOpeningBalance(period: string): boolean {
 
 /** Encabezado del cargo. Nunca devuelve `APERTURA`: eso no significa nada para el socio. */
 export function chargePeriodLabel(period: string): string {
-  return isOpeningBalance(period) ? APERTURA_LABEL : periodoLegible(period);
+  if (isOpeningBalance(period)) return APERTURA_LABEL;
+  // El carnet no cubre un mes: es un objeto que se pide una vez. Mostrar «septiembre de
+  // 2026» lo haría pasar por la cuota de ese mes, que es la confusión que se quiere evitar.
+  if (isPrintedCardCharge(period)) return PRINTED_CARD_LABEL;
+  return periodoLegible(period);
 }
 
 /**
@@ -53,6 +83,7 @@ export function chargePeriodLabel(period: string): string {
  */
 export function chargeConceptLabel(concept: string, period: string): string {
   if (isOpeningBalance(period)) return "Saldo traído del sistema anterior";
+  if (isPrintedCardCharge(period)) return "Impresión de carnet";
   switch (concept) {
     case "INGRESO":
       return "Cuota de ingreso";

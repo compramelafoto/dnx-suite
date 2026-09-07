@@ -51,7 +51,8 @@ export default async function AsociarsePage({ params }: Props) {
               Asociarse a {institutionName}
             </h1>
             <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-              Completá tus datos y la Secretaría va a revisar tu solicitud.
+              Completá tus datos y la Secretaría va a revisar tu solicitud. Te escribimos por
+              email en cuanto haya respuesta, sea cual sea.
             </p>
           </div>
           {/*

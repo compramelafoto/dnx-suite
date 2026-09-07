@@ -103,6 +103,11 @@ export function ApplicationCard({ item }: { item: InboxItem }) {
         </p>
       ) : null}
       {state.ok ? <p className="text-xs text-[var(--fo-success)]">{state.ok}</p> : null}
+      {state.warn ? (
+        <p className="text-xs text-[var(--fo-warning)]" role="alert">
+          {state.warn}
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2 border-t border-[var(--fo-border)] pt-3">
         <form action={approve}>

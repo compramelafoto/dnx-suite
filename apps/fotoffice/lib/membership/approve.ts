@@ -2,6 +2,7 @@ import { Prisma } from "@repo/db";
 import { initialChargeTotal, monthlyAmountFor, type FeeScale } from "./amounts";
 import { nextMemberNumber } from "./member-number";
 import { initialDuePeriods } from "./periods";
+import { PRINTED_CARD_PERIOD } from "./charge-labels";
 
 /** Días que tiene la persona para pagar antes de que la solicitud venza. */
 export const APPLICATION_PAYMENT_DAYS = 30;
@@ -116,12 +117,10 @@ export type ApprovalPlan = {
  * `[workspaceId, memberNumber]` es el árbitro real ante dos aprobaciones simultáneas.
  */
 /**
- * Período con el que se marca el cargo de la credencial impresa.
- *
- * No es un mes: es una etiqueta. La clave única del cargo es (socio, concepto, período), así
- * que usar un nombre en vez de una fecha garantiza uno solo por socio y se lee sin adivinar.
+ * Vive con las etiquetas de los cargos y no acá: el período es lo que le da su NOMBRE al
+ * cargo en la pantalla del socio, así que la constante y el rótulo tienen que moverse juntos.
  */
-export const PRINTED_CARD_PERIOD = "TARJETA";
+export { PRINTED_CARD_PERIOD } from "./charge-labels";
 
 export type ApprovalCharge = {
   workspaceId: string;

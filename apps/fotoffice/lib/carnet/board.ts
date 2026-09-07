@@ -9,12 +9,21 @@ import type { FulfillmentState } from "./fulfillment";
  * el mío todavía no está?" sin llamar por teléfono a nadie.
  */
 
+export type CardBoardEvent = {
+  fromState: FulfillmentState | null;
+  toState: FulfillmentState;
+  actorLabel: string | null;
+  note: string | null;
+  createdAt: Date;
+};
+
 export type CardBoardRow = {
   id: string;
   cardNumber: string;
   memberId: string;
   memberNumber: string;
   fullName: string;
+  avatarUrl: string | null;
   state: FulfillmentState;
   updatedAt: Date | null;
   issuedAt: Date;
@@ -22,6 +31,8 @@ export type CardBoardRow = {
   lastNote: string | null;
   /** Un aviso que no salió: la Secretaría tiene que verlo. */
   noticeError: string | null;
+  /** La historia del carnet, del último paso al primero. Es lo que responde «quién lo movió». */
+  events: CardBoardEvent[];
 };
 
 export type CardBoard = {
@@ -41,13 +52,13 @@ const VACIO: Record<FulfillmentState, number> = {
 
 export async function loadCardBoard(
   workspaceId: string,
-  filtro: { state?: FulfillmentState } = {},
+  filtro: { states?: readonly FulfillmentState[] } = {},
 ): Promise<CardBoard> {
   const cards = await prisma.memberCard.findMany({
     where: {
       workspaceId,
       format: "PRINTED",
-      ...(filtro.state ? { fulfillmentState: filtro.state } : {}),
+      ...(filtro.states?.length ? { fulfillmentState: { in: [...filtro.states] } } : {}),
     },
     select: {
       id: true,
@@ -55,11 +66,28 @@ export async function loadCardBoard(
       issuedAt: true,
       fulfillmentState: true,
       fulfillmentUpdatedAt: true,
-      member: { select: { id: true, memberNumber: true, firstName: true, lastName: true } },
+      member: {
+        select: {
+          id: true,
+          memberNumber: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+        },
+      },
       events: {
         orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { note: true, noticeError: true, actorLabel: true },
+        // La historia entera de un carnet son unos pocos pasos. Traerla acá evita una
+        // consulta por fila cuando alguien quiere saber quién lo movió y cuándo.
+        take: 10,
+        select: {
+          fromState: true,
+          toState: true,
+          note: true,
+          noticeError: true,
+          actorLabel: true,
+          createdAt: true,
+        },
       },
     },
     // Los más viejos primero: son los que llevan más tiempo esperando.
@@ -87,12 +115,20 @@ export async function loadCardBoard(
       memberId: c.member.id,
       memberNumber: c.member.memberNumber,
       fullName: `${c.member.firstName} ${c.member.lastName}`.trim(),
+      avatarUrl: c.member.avatarUrl,
       state: (c.fulfillmentState ?? "PENDIENTE_PAGO") as FulfillmentState,
       updatedAt: c.fulfillmentUpdatedAt,
       issuedAt: c.issuedAt,
       lastActorLabel: ultimo?.actorLabel ?? null,
       lastNote: ultimo?.note ?? null,
       noticeError: ultimo?.noticeError ?? null,
+      events: c.events.map((e) => ({
+        fromState: e.fromState as FulfillmentState | null,
+        toState: e.toState as FulfillmentState,
+        actorLabel: e.actorLabel,
+        note: e.note,
+        createdAt: e.createdAt,
+      })),
     };
   });
 

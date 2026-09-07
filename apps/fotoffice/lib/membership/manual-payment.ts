@@ -6,6 +6,7 @@ import type { OpenCharge } from "./select-charges";
 import { accrualForManualPayment } from "@/lib/platform-fee/debt";
 import { recordAccrual } from "@/lib/platform-fee/ledger";
 import { releasePaidPrintOrders } from "@/lib/carnet/print-order";
+import { completeApplicationIfPaid } from "./complete-application";
 
 /** Medios que la Secretaría puede registrar a mano. Mercado Pago entra solo, por webhook. */
 export const MANUAL_METHODS = ["EFECTIVO", "TRANSFERENCIA"] as const;
@@ -141,6 +142,10 @@ export async function registerManualPayment(input: {
       detalle: error instanceof Error ? error.message : String(error),
     });
   }
+
+  // Un cobro en efectivo o por transferencia cierra el alta igual que uno por Mercado Pago:
+  // la regla es del ingreso, no del medio de pago.
+  await completeApplicationIfPaid(input.memberId);
 
   return { ok: true, ...resultado };
 }

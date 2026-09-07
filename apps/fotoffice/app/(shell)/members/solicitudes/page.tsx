@@ -5,11 +5,12 @@ import { ApplicationCard } from "@/components/membership/application-card";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
-import { listPendingApplications } from "@/lib/membership/inbox";
+import { listAwaitingPayment, listPendingApplications } from "@/lib/membership/inbox";
 import { getActiveFeeValue } from "@/lib/membership/settings";
 import { prisma } from "@repo/db";
 import { appUrl } from "@/lib/app-url";
 import { ApplicationFormShare } from "@/components/membership/application-form-share";
+import { AwaitingPaymentList } from "@/components/membership/awaiting-payment-list";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,9 @@ export default async function SolicitudesPage() {
   const puedeResolver = await canManageWorkspaceCollection(user.id, workspace.id);
   if (!puedeResolver) redirect("/members");
 
-  const [items, cobros, valorCuota, branding] = await Promise.all([
+  const [items, esperandoPago, cobros, valorCuota, branding] = await Promise.all([
     listPendingApplications(workspace.id),
+    listAwaitingPayment(workspace.id),
     getWorkspaceCollectionStatus(workspace.id),
     getActiveFeeValue(workspace.id, null, new Date()),
     prisma.fotofficeWorkspaceBranding.findUnique({
@@ -49,7 +51,7 @@ export default async function SolicitudesPage() {
     <div className="space-y-8">
       <PageHeader
         title="Solicitudes de asociación"
-        description="Revisá y resolvé los pedidos de ingreso. Al aprobar se crea el socio y se generan sus cuotas de ingreso."
+        description="Revisá y resolvé los pedidos de ingreso. Al aprobar se crea el socio, se generan sus cuotas y se le envía por email el acceso para activarlas y pagarlas."
       />
 
       {publicUrl ? <ApplicationFormShare publicUrl={publicUrl} /> : null}
@@ -86,6 +88,8 @@ export default async function SolicitudesPage() {
           ))}
         </div>
       )}
+
+      <AwaitingPaymentList items={esperandoPago} />
     </div>
   );
 }

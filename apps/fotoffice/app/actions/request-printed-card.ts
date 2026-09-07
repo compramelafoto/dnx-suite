@@ -35,9 +35,20 @@ export async function requestPrintedCardAction(): Promise<RequestPrintedCardResu
 
   revalidatePath("/portal/carnet");
   revalidatePath("/portal/cuotas");
+
+  // Se enganchó a una tarjeta que ya había pagado —la abonó al asociarse, o la anterior se
+  // anuló después de pagarla—. Mandarlo a pagar de nuevo sería cobrarle dos veces.
+  if (r.alreadyPaid) {
+    return {
+      ok: true,
+      message: "Listo. Ya la tenías paga, así que entró directo en la cola de impresión.",
+      payPath: "/portal/carnet",
+    };
+  }
+
   return {
     ok: true,
-    message: `Listo. Se agregó un cargo de ${formatMinorArs(r.amountMinor)}. Cuando lo pagues, la tarjeta entra en la cola de impresión.`,
+    message: `Listo. Se agregó un cargo de ${formatMinorArs(r.amountMinor)} por la impresión de tu carnet. Cuando lo pagues, la tarjeta entra en la cola de impresión.`,
     payPath: "/portal/cuotas",
   };
 }

@@ -2,46 +2,59 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { loadCardBoard } from "@/lib/carnet/board";
+import { loadCardBoard, type CardBoardEvent } from "@/lib/carnet/board";
 import {
-  allowedTransitions,
-  capabilityFor,
-  FULFILLMENT_STATES,
-  stateLabel,
-  type FulfillmentState,
-} from "@/lib/carnet/fulfillment";
+  canDownloadPdf,
+  commonTransitions,
+  groupStates,
+  STATE_GROUPS,
+  tiempoRelativo,
+} from "@/lib/carnet/board-actions";
+import { stateLabel, type FulfillmentState } from "@/lib/carnet/fulfillment";
+import { isPdfDownloadEvent } from "@/lib/carnet/print-log";
 import { canViewCards, resolveCardCapabilities } from "@/lib/carnet/operators";
-import { AdvanceForm } from "./advance-form";
+import { CardsTable, type CardRowView, type TimelineEntry } from "./cards-table";
 import { IssueButton } from "./issue-button";
 
 export const dynamic = "force-dynamic";
 
-function fechaLegible(d: Date): string {
-  const dia = String(d.getUTCDate()).padStart(2, "0");
-  const mes = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return `${dia}/${mes}/${d.getUTCFullYear()}`;
-}
-
-const TONO: Record<FulfillmentState, string> = {
-  PENDIENTE_PAGO: "text-[var(--fo-muted)]",
-  EN_COLA: "text-[var(--fo-muted)]",
-  IMPRESO: "text-[var(--fo-text)]",
-  LISTO_PARA_RETIRAR: "text-[var(--fo-success)]",
-  ENVIADO: "text-[var(--fo-success)]",
-  ENTREGADO: "text-[var(--fo-success)]",
-  ANULADO: "text-[var(--fo-danger)]",
-};
-
 /**
  * Tablero de emisión de carnets físicos.
  *
- * Responde en qué punto está cada carnet y quién lo movió. El impresor entra acá, ve lo que
- * tiene para imprimir y marca; la Secretaría ve lo que hay para entregar.
+ * Responde en qué punto está cada carnet y quién lo movió. El impresor entra a «Para
+ * imprimir», ve la tanda entera y la marca junta; la Secretaría entra a «Para entregar».
+ *
+ * Todo lo que depende de la hora o de los permisos se resuelve **acá**, en el servidor, y baja
+ * ya masticado: la tabla es interactiva pero no tiene por qué recalcular quién puede hacer qué.
  */
+
+function fechaHora(d: Date): string {
+  const dia = String(d.getUTCDate()).padStart(2, "0");
+  const mes = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const hora = String(d.getUTCHours()).padStart(2, "0");
+  const min = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${dia}/${mes}/${d.getUTCFullYear()} ${hora}:${min}`;
+}
+
+function armarHistoria(events: CardBoardEvent[]): TimelineEntry[] {
+  return events.map((e) => {
+    const descarga = isPdfDownloadEvent(e);
+    return {
+      kind: descarga ? ("DESCARGA" as const) : ("PASO" as const),
+      // La descarga del PDF no mueve el carnet de estado: se cuenta como lo que es, el
+      // momento en que alguien se llevó el archivo para mandarlo a la imprenta.
+      label: descarga ? "PDF descargado" : stateLabel(e.toState),
+      actor: e.actorLabel,
+      note: descarga ? null : e.note,
+      when: fechaHora(e.createdAt),
+    };
+  });
+}
+
 export default async function CarnetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string }>;
+  searchParams: Promise<{ grupo?: string }>;
 }) {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
@@ -50,14 +63,35 @@ export default async function CarnetsPage({
   if (!canViewCards(capabilities)) redirect("/members");
 
   const params = await searchParams;
-  const filtro = FULFILLMENT_STATES.includes(params.estado as FulfillmentState)
-    ? (params.estado as FulfillmentState)
-    : undefined;
+  const grupo = params.grupo ? groupStates(params.grupo) : null;
 
-  const board = await loadCardBoard(workspace.id, filtro ? { state: filtro } : {});
+  const board = await loadCardBoard(workspace.id, grupo ? { states: grupo } : {});
+  const ahora = new Date();
+
+  const rows: CardRowView[] = board.rows.map((c) => ({
+    id: c.id,
+    cardNumber: c.cardNumber,
+    memberId: c.memberId,
+    memberNumber: c.memberNumber,
+    fullName: c.fullName,
+    avatarUrl: c.avatarUrl,
+    state: c.state,
+    waitingLabel: tiempoRelativo(c.updatedAt ?? c.issuedAt, ahora),
+    lastActorLabel: c.lastActorLabel,
+    lastNote: c.lastNote,
+    noticeError: c.noticeError,
+    canPdf: canDownloadPdf(c.state) && capabilities.includes("PRODUCIR"),
+    // Solo los pasos que esta persona puede dar: mostrarle al impresor un botón de
+    // «entregado» que después le rechazan es una promesa vacía.
+    actions: commonTransitions([c.state], capabilities),
+    timeline: armarHistoria(c.events),
+  }));
+
+  const totalPorGrupo = (states: readonly FulfillmentState[]) =>
+    states.reduce((t, e) => t + board.counts[e], 0);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title="Carnets"
         description="En qué punto está cada carnet impreso y quién lo movió."
@@ -75,95 +109,34 @@ export default async function CarnetsPage({
       <nav className="flex flex-wrap gap-1.5">
         <Link
           href="/members/carnets"
-          className={`fo-btn text-xs ${!filtro ? "fo-btn-primary" : ""}`}
+          className={`fo-btn text-xs ${!grupo ? "fo-btn-primary" : ""}`}
         >
           Todos
+          <span className="ml-1.5 tabular-nums opacity-70">
+            {totalPorGrupo(Object.keys(board.counts) as FulfillmentState[])}
+          </span>
         </Link>
-        {FULFILLMENT_STATES.map((estado) => (
+        {STATE_GROUPS.map((g) => (
           <Link
-            key={estado}
-            href={`/members/carnets?estado=${estado}`}
-            className={`fo-btn text-xs ${filtro === estado ? "fo-btn-primary" : ""}`}
+            key={g.id}
+            href={`/members/carnets?grupo=${g.id}`}
+            title={g.description}
+            className={`fo-btn text-xs ${params.grupo === g.id ? "fo-btn-primary" : ""}`}
           >
-            {stateLabel(estado)}
-            <span className="ml-1.5 tabular-nums opacity-70">{board.counts[estado]}</span>
+            {g.label}
+            <span className="ml-1.5 tabular-nums opacity-70">{totalPorGrupo(g.states)}</span>
           </Link>
         ))}
       </nav>
 
-      {board.rows.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="fo-card p-5 text-sm text-[var(--fo-muted)]">
-          {filtro
-            ? `No hay carnets en «${stateLabel(filtro).toLowerCase()}».`
+          {grupo
+            ? "No hay carnets en esta etapa."
             : "Todavía no se pidió ninguna tarjeta impresa."}
         </p>
       ) : (
-        <ul className="space-y-3">
-          {board.rows.map((carnet) => {
-            // Solo se ofrecen los pasos que esta persona puede dar: mostrarle al impresor un
-            // botón de «entregado» que después se lo rechazan es una promesa vacía.
-            const opciones = allowedTransitions(carnet.state).filter((destino) =>
-              capabilities.includes(capabilityFor(destino)),
-            );
-            return (
-              <li key={carnet.id} className="fo-card space-y-3 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <Link
-                      href={`/members/${carnet.memberId}`}
-                      className="text-sm font-medium hover:underline"
-                    >
-                      {carnet.fullName}
-                    </Link>
-                    <p className="text-xs text-[var(--fo-muted-soft)]">
-                      Socio N° {carnet.memberNumber} · Carnet {carnet.cardNumber}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-sm font-medium ${TONO[carnet.state]}`}>
-                      {stateLabel(carnet.state)}
-                    </p>
-                    <p className="text-xs text-[var(--fo-muted-soft)]">
-                      {carnet.updatedAt
-                        ? `${fechaLegible(carnet.updatedAt)}${carnet.lastActorLabel ? ` · ${carnet.lastActorLabel}` : ""}`
-                        : `Emitido el ${fechaLegible(carnet.issuedAt)}`}
-                    </p>
-                  </div>
-                </div>
-
-                {carnet.lastNote ? (
-                  <p className="text-xs text-[var(--fo-muted)]">{carnet.lastNote}</p>
-                ) : null}
-
-                {carnet.noticeError ? (
-                  <p className="text-xs text-[var(--fo-danger)]">
-                    {/* El paso se dio igual; lo que no salió fue el aviso. */}
-                    El aviso al socio no se pudo enviar. El cambio quedó registrado igual.
-                  </p>
-                ) : null}
-
-                <div className="flex flex-wrap items-start gap-3">
-                  <AdvanceForm cardId={carnet.id} options={[...opciones]} />
-                  {/*
-                    El PDF se genera al pedirlo, no al crear el carnet: entre que el socio lo
-                    pide y alguien lo imprime la plantilla puede cambiar, y tiene que salir
-                    con la vigente al momento de imprimir.
-                  */}
-                  {capabilities.includes("PRODUCIR") && carnet.state !== "PENDIENTE_PAGO" ? (
-                    <a
-                      href={`/api/members/carnets/${carnet.id}/pdf`}
-                      className="fo-btn text-xs"
-                      target="_blank"
-                      rel="noopener"
-                    >
-                      Descargar PDF
-                    </a>
-                  ) : null}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <CardsTable rows={rows} capabilities={[...capabilities]} />
       )}
     </div>
   );

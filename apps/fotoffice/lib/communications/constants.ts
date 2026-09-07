@@ -60,3 +60,20 @@ export const TEST_EMAIL_MESSAGES = {
   PROVIDER_REJECTED: "El proveedor de email rechazó el envío. Quedó registrado para revisarlo.",
   INTERNAL_ERROR: "No se pudo completar el envío. Quedó registrado para revisarlo.",
 } as const;
+
+/**
+ * Claves de las comunicaciones del circuito de asociación en `SentEmailLog`.
+ *
+ * Se registran todos —también los que fallan— para poder responder «¿le avisamos o no?» sin
+ * adivinar. La pregunta aparece siempre: alguien dice que nunca le llegó la aprobación, y sin
+ * este registro la única respuesta posible sería encogerse de hombros.
+ */
+export const MEMBERSHIP_EMAIL_KEYS = {
+  RECEIVED: "fotoffice.membership.application-received",
+  ALERT: "fotoffice.membership.application-alert",
+  APPROVED: "fotoffice.membership.application-approved",
+  REJECTED: "fotoffice.membership.application-rejected",
+  REMINDER: "fotoffice.membership.application-reminder",
+  EXPIRED: "fotoffice.membership.application-expired",
+  WELCOME: "fotoffice.membership.welcome",
+} as const;

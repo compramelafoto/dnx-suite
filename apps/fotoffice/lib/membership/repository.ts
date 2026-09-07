@@ -8,7 +8,14 @@ export type ApproveResult = {
   memberId: string;
   memberNumber: string;
   totalArs: string;
+  /** Cuántas CUOTAS de ingreso se generaron. La credencial impresa no cuenta como cuota. */
   chargeCount: number;
+  /** Hasta cuándo tiene para pagar. Se lo dice el email de aprobación. */
+  expiresAt: Date;
+  /** Si el total incluye además la credencial impresa que pidió al asociarse. */
+  includesPrintedCard: boolean;
+  /** Con qué nombre y a qué dirección escribirle. */
+  applicant: { firstName: string; email: string };
 };
 
 /**
@@ -120,7 +127,12 @@ export async function approveApplication(input: {
           memberId: member.id,
           memberNumber: member.memberNumber,
           totalArs: plan.totalArs.toFixed(2),
-          chargeCount: plan.charges.length,
+          // Solo las cuotas: sumar la tarjeta acá haría que el email dijera "tus primeras 4
+          // cuotas" cuando son tres cuotas y una credencial.
+          chargeCount: plan.charges.filter((c) => c.concept === "INGRESO").length,
+          expiresAt: plan.applicationUpdate.expiresAt,
+          includesPrintedCard: plan.charges.some((c) => c.concept === "OTRO"),
+          applicant: { firstName: application.firstName, email: application.email },
         };
       });
     } catch (error) {
@@ -136,17 +148,33 @@ export async function approveApplication(input: {
   throw ultimoError ?? new Error("No se pudo asignar un número de socio.");
 }
 
-/** Rechaza una solicitud. El motivo es obligatorio: se le comunica a la persona. */
+/**
+ * Rechaza una solicitud. El motivo es obligatorio: se le comunica a la persona.
+ *
+ * Devuelve a quién hay que escribirle. Sin eso, quien llama tendría que volver a buscar la
+ * solicitud para poder mandar el email, y esa segunda consulta podría traer una fila que otra
+ * persona ya modificó entre medio.
+ */
+export type RejectResult = { applicant: { firstName: string; email: string } };
+
 export async function rejectApplication(input: {
   applicationId: string;
   workspaceId: string;
   resolvedByUserId: number;
   reason: string;
   now?: Date;
-}): Promise<void> {
+}): Promise<RejectResult> {
   const reason = input.reason.trim();
   if (!reason) {
     throw new ApprovalError("ESTADO_INVALIDO", "El rechazo necesita un motivo.");
+  }
+
+  const solicitud = await prisma.membershipApplication.findFirst({
+    where: { id: input.applicationId, workspaceId: input.workspaceId },
+    select: { firstName: true, email: true },
+  });
+  if (!solicitud) {
+    throw new ApprovalError("ESTADO_INVALIDO", "No se encontró la solicitud.");
   }
 
   const actualizadas = await prisma.membershipApplication.updateMany({
@@ -162,4 +190,6 @@ export async function rejectApplication(input: {
   if (actualizadas.count === 0) {
     throw new ApprovalError("ESTADO_INVALIDO", "Esta solicitud ya fue resuelta.");
   }
+
+  return { applicant: { firstName: solicitud.firstName, email: solicitud.email } };
 }

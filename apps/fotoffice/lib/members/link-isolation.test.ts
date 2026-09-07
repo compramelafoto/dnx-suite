@@ -14,6 +14,13 @@ const repoRoot = join(appRoot, "..", "..");
  */
 describe("vínculo socio↔usuario — permisos, unicidad y atomicidad (código fuente)", () => {
   const actionsSrc = readFileSync(join(appRoot, "app/actions/member-access.ts"), "utf8");
+  /**
+   * El núcleo de la invitación vive fuera de `app/actions` desde que también lo usan la
+   * aprobación de una solicitud y el recordatorio automático: un archivo `"use server"` expone
+   * como endpoint todo lo que exporta, y esos dos caminos no deben ser invocables desde el
+   * navegador. Las garantías del token se verifican donde el token efectivamente se genera.
+   */
+  const inviteSrc = readFileSync(join(appRoot, "lib/members/invite-member.ts"), "utf8");
   const acceptSrc = readFileSync(join(appRoot, "app/actions/accept-invitation.ts"), "utf8");
   const repoSrc = readFileSync(join(repoRoot, "packages/db/src/fotoffice-members.ts"), "utf8");
   const lookupSrc = readFileSync(join(repoRoot, "packages/db/src/fotoffice-user-lookup.ts"), "utf8");
@@ -109,10 +116,21 @@ describe("vínculo socio↔usuario — permisos, unicidad y atomicidad (código 
   });
 
   it("nunca se persiste el token en claro: solo su hash", () => {
-    assert.match(actionsSrc, /hashInvitationToken\(rawToken\)/);
-    // El token crudo solo viaja al administrador en la respuesta, nunca al `create`.
-    const fn = actionsSrc.slice(actionsSrc.indexOf("export async function inviteMemberAction"));
-    assert.doesNotMatch(fn, /tokenHash: rawToken/);
+    assert.match(inviteSrc, /hashInvitationToken\(rawToken\)/);
+    // El token crudo solo viaja dentro del email, nunca al `create` ni a quien invoca.
+    assert.doesNotMatch(inviteSrc, /tokenHash: rawToken/);
+    assert.doesNotMatch(inviteSrc, /return \{[^}]*rawToken/);
+  });
+
+  /**
+   * El cuerpo del email es configurable —la aprobación manda su propio texto— pero el enlace
+   * lo sigue armando este módulo. Si un llamador pudiera pasar la URL, podría mandar al socio
+   * a cualquier lado con un token válido.
+   */
+  it("el enlace de la invitación lo arma el módulo, no quien lo llama", () => {
+    assert.match(inviteSrc, /const link = buildInvitationUrl\(rawToken\)/);
+    // Lo único que puede aportar quien llama es el texto. La URL la recibe ya armada.
+    assert.match(inviteSrc, /options: \{ buildBody\?: InvitationBodyBuilder \} = \{\}/);
   });
 
   it("aceptar exige sesión y revalida el email en el SERVIDOR", () => {

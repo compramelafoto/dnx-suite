@@ -14,7 +14,13 @@
  * `where: { workspaceId }` suelto por toda la aplicación.
  */
 import { prisma } from "./client";
-import type { Member, MemberCategory, MemberStatus, Prisma } from "@prisma/client";
+import type {
+  Member,
+  MemberAuditSource,
+  MemberCategory,
+  MemberStatus,
+  Prisma,
+} from "@prisma/client";
 import {
   AUDITED_MEMBER_FIELDS,
   buildMemberAuditData,
@@ -405,6 +411,12 @@ export async function createMemberInvitation(
     expiresAt: Date;
     invitedByUserId: number | null;
     actor: MemberAuditActor;
+    /**
+     * De dónde viene la invitación. `SYSTEM` cuando la emite un proceso automático —el
+     * recordatorio de una solicitud por vencer, sin nadie apretando un botón—: el historial
+     * tiene que poder distinguirla de la que mandó un administrador.
+     */
+    source?: MemberAuditSource;
   },
 ): Promise<{ invitation: MemberInvitationRecord; resend: boolean }> {
   return prisma.$transaction(async (tx) => {
@@ -443,7 +455,7 @@ export async function createMemberInvitation(
     await tx.memberAudit.create({
       data: buildMemberAuditData(workspaceId, memberId, {
         action: "INVITE_CREATED",
-        source: "MANUAL",
+        source: input.source ?? "MANUAL",
         actor: input.actor,
         reason: resend
           ? "Nueva invitación emitida; la anterior quedó sin efecto"
@@ -460,6 +472,7 @@ export async function revokeMemberInvitation(
   memberId: string,
   invitationId: string,
   actor?: MemberAuditActor,
+  options: { source?: MemberAuditSource; reason?: string } = {},
 ): Promise<{ count: number }> {
   return prisma.$transaction(async (tx) => {
     const result = await tx.memberInvitation.updateMany({
@@ -472,9 +485,9 @@ export async function revokeMemberInvitation(
       await tx.memberAudit.create({
         data: buildMemberAuditData(workspaceId, memberId, {
           action: "INVITE_REVOKED",
-          source: "MANUAL",
+          source: options.source ?? "MANUAL",
           actor,
-          reason: "Invitación revocada por el administrador",
+          reason: options.reason ?? "Invitación revocada por el administrador",
         }),
       });
     }
@@ -583,6 +596,12 @@ export type UpdateMemberOptions = {
   actor: MemberAuditActor;
   /** `STATUS_CHANGED` para transiciones de estado, `UPDATED` para el resto. */
   action?: "UPDATED" | "STATUS_CHANGED";
+  /**
+   * Quién originó el cambio. `SYSTEM` es para los procesos automáticos que el schema ya
+   * preveía —la baja de quien no pagó su ingreso dentro del plazo— y es lo que permite
+   * distinguir en el historial una decisión de la Secretaría de una consecuencia de una regla.
+   */
+  source?: MemberAuditSource;
   /** Obligatorio para suspensión y baja — lo exige la capa de acciones, no esta función. */
   reason?: string | null;
   /**
@@ -638,7 +657,7 @@ export async function updateMember(
     await tx.memberAudit.create({
       data: buildMemberAuditData(workspaceId, memberId, {
         action: options.action ?? "UPDATED",
-        source: "MANUAL",
+        source: options.source ?? "MANUAL",
         actor: options.actor,
         changes,
         reason: options.reason ?? null,

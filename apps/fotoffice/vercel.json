@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/generar-cuotas",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/solicitudes",
+      "schedule": "30 7 * * *"
     }
   ]
 }
