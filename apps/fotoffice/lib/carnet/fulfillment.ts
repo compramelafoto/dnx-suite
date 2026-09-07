@@ -33,7 +33,11 @@ export type FulfillmentState = (typeof FULFILLMENT_STATES)[number];
  * este registro viene a dar: saber en qué punto está cada carnet y quién lo movió.
  */
 const TRANSICIONES: Record<FulfillmentState, readonly FulfillmentState[]> = {
-  PENDIENTE_PAGO: ["EN_COLA", "ANULADO"],
+  // A la cola NO se entra a mano. `EN_COLA` significa "esto está pago y hay que imprimirlo",
+  // y quien lo empuja desde el panel manda al taller un carnet que nadie abonó. Ese paso lo
+  // da únicamente la acreditación del pago —Mercado Pago o el pago manual en la sede—, que
+  // es la que sabe si el dinero entró. Desde acá lo único que queda es dar de baja el pedido.
+  PENDIENTE_PAGO: ["ANULADO"],
   EN_COLA: ["IMPRESO", "ANULADO"],
   IMPRESO: ["LISTO_PARA_RETIRAR", "ENVIADO", "ANULADO"],
   // Se puede despachar por correo algo que estaba para retirar: el socio no vino y se le manda.
@@ -139,7 +143,19 @@ export function checkTransition(request: TransitionRequest): TransitionCheck {
   return { ok: true };
 }
 
-/** Estados en los que tiene sentido avisarle al socio. */
+/**
+ * Estados en los que tiene sentido avisarle al socio.
+ *
+ * `EN_COLA` se sumó después: no es un paso interno más. Es el momento en que se acredita el
+ * pago de la tarjeta, y quien acaba de pagar necesita saber que su plata llegó. Los que quedan
+ * afuera —`IMPRESO`, `PENDIENTE_PAGO`— sí son movimientos de taller que no le cambian nada, y
+ * avisarlos enseñaría a ignorar los que importan.
+ */
 export function shouldNotifyMember(to: FulfillmentState): boolean {
-  return to === "LISTO_PARA_RETIRAR" || to === "ENVIADO" || to === "ENTREGADO";
+  return (
+    to === "EN_COLA" ||
+    to === "LISTO_PARA_RETIRAR" ||
+    to === "ENVIADO" ||
+    to === "ENTREGADO"
+  );
 }

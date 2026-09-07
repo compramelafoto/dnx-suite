@@ -33,6 +33,10 @@ function mensajePara(input: {
 }): string | null {
   const detalle = input.note?.trim() ? ` ${input.note.trim()}` : "";
   switch (input.state) {
+    case "EN_COLA":
+      // Se dispara al acreditarse el pago: lo que confirma no es un movimiento de taller sino
+      // que el dinero llegó y el pedido está en marcha.
+      return `Registramos el pago de tu credencial impresa y ya entró en la cola de impresión. Te avisamos apenas puedas retirarla o cuando salga por correo.${detalle}`;
     case "LISTO_PARA_RETIRAR":
       return `Tu carnet de socio ya está impreso y podés pasar a retirarlo por ${input.institutionName}.${detalle}`;
     case "ENVIADO":
@@ -41,8 +45,8 @@ function mensajePara(input: {
     case "ENTREGADO":
       return `Registramos la entrega de tu carnet de socio. Si no lo recibiste, avisanos.${detalle}`;
     default:
-      // Los pasos internos no se avisan: que entre en la cola de impresión no le cambia nada
-      // al socio, y un aviso que no aporta enseña a ignorar los que sí.
+      // El resto son pasos de taller: que el impresor la haya marcado como impresa no le
+      // cambia nada al socio, y un aviso que no aporta enseña a ignorar los que sí.
       return null;
   }
 }

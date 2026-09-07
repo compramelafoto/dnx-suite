@@ -9,6 +9,8 @@ export const DEFAULT_DUES_SETTINGS = {
   countJoinMonthIfBeforeDueDay: true,
   reminderDay: 5,
   collaboratorFloorMultiple: 1,
+  recommendationEnabled: false,
+  recommendationBenefitPercent: 100,
 } as const;
 
 export type DuesSettings = {
@@ -20,6 +22,10 @@ export type DuesSettings = {
   initialDuesCount: number;
   countJoinMonthIfBeforeDueDay: boolean;
   collaboratorFloorMultiple: number;
+  /** Si los socios pueden recomendar colegas y ganar cuotas bonificadas. */
+  recommendationEnabled: boolean;
+  /** Porcentaje de la cuota que se bonifica por cada recomendado. */
+  recommendationBenefitPercent: number;
 };
 
 /**
@@ -39,6 +45,8 @@ export async function getDuesSettings(workspaceId: string): Promise<DuesSettings
       initialDuesCount: true,
       countJoinMonthIfBeforeDueDay: true,
       collaboratorFloorMultiple: true,
+      recommendationEnabled: true,
+      recommendationBenefitPercent: true,
     },
   });
 
@@ -51,6 +59,8 @@ export async function getDuesSettings(workspaceId: string): Promise<DuesSettings
       initialDuesCount: DEFAULT_DUES_SETTINGS.initialDuesCount,
       countJoinMonthIfBeforeDueDay: DEFAULT_DUES_SETTINGS.countJoinMonthIfBeforeDueDay,
       collaboratorFloorMultiple: DEFAULT_DUES_SETTINGS.collaboratorFloorMultiple,
+      recommendationEnabled: DEFAULT_DUES_SETTINGS.recommendationEnabled,
+      recommendationBenefitPercent: DEFAULT_DUES_SETTINGS.recommendationBenefitPercent,
     };
   }
 
@@ -62,6 +72,8 @@ export async function getDuesSettings(workspaceId: string): Promise<DuesSettings
     initialDuesCount: row.initialDuesCount,
     countJoinMonthIfBeforeDueDay: row.countJoinMonthIfBeforeDueDay,
     collaboratorFloorMultiple: Number(row.collaboratorFloorMultiple),
+    recommendationEnabled: row.recommendationEnabled,
+    recommendationBenefitPercent: Number(row.recommendationBenefitPercent),
   };
 }
 
@@ -102,4 +114,21 @@ export async function getActiveFeeValue(
     select: { id: true, amountArs: true },
     orderBy: { validFrom: "desc" },
   });
+}
+
+/**
+ * Valida el porcentaje que escribe la Secretaría.
+ *
+ * Tope duro en 100: bonificar más que la cuota dejaría saldo a favor, y el beneficio nunca
+ * es dinero. Se acepta la coma como separador decimal porque es lo que se escribe acá.
+ */
+export function parseRecommendationPercent(
+  raw: unknown,
+): { ok: true; value: number } | { ok: false; error: string } {
+  const texto = String(raw ?? "").trim().replace(",", ".");
+  if (!texto) return { ok: false, error: "Escribí el porcentaje de la cuota que se bonifica." };
+  const n = Number(texto);
+  if (!Number.isFinite(n)) return { ok: false, error: "El porcentaje tiene que ser un número." };
+  if (n < 0 || n > 100) return { ok: false, error: "El porcentaje va de 0 a 100." };
+  return { ok: true, value: Math.round(n * 100) / 100 };
 }

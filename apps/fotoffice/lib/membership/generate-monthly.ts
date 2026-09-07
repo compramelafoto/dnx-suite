@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma, prisma } from "@repo/db";
 import { getActiveFeeValue, getDuesSettings } from "./settings";
 import { planMonthlyCharges, type MemberForDues } from "./monthly-plan";
+import { applyPendingBenefits } from "./recommendation-store";
 import { applyCreditForWorkspace } from "./apply-credit-store";
 
 /**
@@ -110,6 +111,34 @@ export async function generateMonthlyCharges(input: {
         continue;
       }
       throw error;
+    }
+  }
+
+  /*
+    Sobre las cuotas recién creadas se aplican dos cosas, y en este orden.
+
+    Primero las bonificaciones por recomendar; después el saldo a favor. El orden no es
+    caprichoso: la bonificación SÓLO puede usarse contra una cuota, mientras que el saldo a
+    favor es plata del socio que queda disponible para lo que venga. Al revés, un crédito que
+    cancelara la cuota entera dejaría a la bonificación sin dónde aplicarse —esperando otro
+    mes— y le habría gastado al socio un dinero que podía conservar.
+
+    Las dos van afuera de la creación de cargos y toleran fallas: un descuento que no se
+    aplica este mes se aplica el que viene, pero una cuota que no se genera deja de cobrarse.
+  */
+  const conPendientes = await prisma.membershipRecommendationBenefit.findMany({
+    where: { workspaceId: input.workspaceId, status: "PENDIENTE" },
+    select: { memberId: true },
+    distinct: ["memberId"],
+  });
+  for (const { memberId } of conPendientes) {
+    try {
+      await applyPendingBenefits(memberId);
+    } catch (error) {
+      console.error("[fotoffice][recomendaciones] no se pudo aplicar la bonificación", {
+        memberId,
+        detalle: error instanceof Error ? error.message : "error desconocido",
+      });
     }
   }
 

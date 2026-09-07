@@ -2,31 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  createMemberInvitation,
   getMember,
   linkMemberToUser,
   MemberConcurrencyError,
   MemberLinkError,
-  markMemberInvitationDelivery,
   revokeMemberInvitation,
   unlinkMemberFromUser,
 } from "@repo/db/fotoffice-members";
 import { findLinkableUserByEmail } from "@repo/db/fotoffice-user-lookup";
 import { requireMembersManageContext } from "@/lib/members/access";
+import { inviteOneMember } from "@/lib/members/invite-member";
 import { auditActorFrom, normalizeReason } from "@/lib/members/audit";
-import { generateInvitationToken, hashInvitationToken } from "@/lib/members/invitation-tokens";
-import {
-  buildInvitationUrl,
-  canMemberUseInvitations,
-  emailsMatch,
-  invitationExpiryFrom,
-  INVITE_BATCH_MAX,
-} from "@/lib/members/invitations";
-import { buildInvitationEmailBody } from "@/lib/members/invitation-email";
-import { invitationExtrasFor } from "@/lib/members/invitation-extras";
-import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
-import { sendTransactionalEmail } from "@/lib/communications/send-email";
-import { loadDuesCallout } from "@/lib/membership/dues-callout";
+import { emailsMatch, INVITE_BATCH_MAX } from "@/lib/members/invitations";
 
 export type MemberAccessState = {
   error: string | null;
@@ -144,108 +131,6 @@ export async function linkMemberUserAction(
 
   revalidatePath(`/members/${memberId}`);
   return { error: null, ok: true };
-}
-
-/**
- * Emite la invitación de UN socio y la manda por email.
- *
- * Es el núcleo compartido entre invitar de a uno desde la ficha e invitar una tanda desde el
- * padrón: las dos pantallas tienen que producir exactamente la misma invitación, la misma
- * auditoría y el mismo email. Duplicar esta lógica para el envío masivo sería la forma
- * segura de que una de las dos se quede atrás.
- *
- * Sirve también para reenviar: crear una invitación nueva revoca la anterior, así que nunca
- * quedan dos enlaces válidos dando vueltas.
- *
- * El token en claro no sale de esta función: viaja dentro del email y en la base solo queda
- * su hash. Quien llama se entera de a qué dirección salió, nunca del enlace.
- *
- * El contexto (workspace y actor) llega ya resuelto y autorizado: una tanda de 25 socios no
- * puede revalidar permisos 25 veces.
- */
-async function inviteOneMember(
-  workspace: { id: string },
-  actorUser: Parameters<typeof auditActorFrom>[0],
-  memberId: string,
-): Promise<MemberAccessState> {
-  const member = await getMember(workspace.id, memberId);
-  if (!member) return { error: "Socio no encontrado." };
-  if (member.userId !== null) return { error: "Este socio ya tiene una cuenta vinculada." };
-
-  // El email del socio manda. Si no tiene, el administrador debe cargarle uno propio primero:
-  // FotoOffice nunca inventa una dirección ni le agrega sufijos.
-  const email = member.email?.trim().toLowerCase();
-  if (!email) {
-    return {
-      error:
-        "Este socio no tiene email. Cargale un email propio en su ficha, o vinculá una cuenta existente.",
-    };
-  }
-
-  if (!canMemberUseInvitations(member.status)) {
-    return { error: "Solo se puede invitar a un socio activo." };
-  }
-
-  // El enlace se resuelve ANTES de crear nada: si falta `APP_URL`, la invitación no llegaría
-  // a ninguna parte y no tiene sentido dejarla creada.
-  const rawToken = generateInvitationToken();
-  const link = buildInvitationUrl(rawToken);
-  if (!link.ok) {
-    return {
-      error:
-        "Falta configuración del sistema para enviar invitaciones. Avisale al equipo técnico.",
-    };
-  }
-
-  const actor = auditActorFrom(actorUser);
-  let created: Awaited<ReturnType<typeof createMemberInvitation>>;
-  try {
-    created = await createMemberInvitation(workspace.id, memberId, {
-      email,
-      tokenHash: hashInvitationToken(rawToken),
-      expiresAt: invitationExpiryFrom(),
-      invitedByUserId: actorUser.id,
-      actor,
-    });
-  } catch (e) {
-    return { error: friendlyLinkError(e) };
-  }
-
-  // El envío ocurre DESPUÉS del commit. Si falla, la invitación queda creada pero marcada
-  // como no enviada: nunca se la presenta como enviada, y "Reenviar" la reintenta.
-  const { organizationName, signature } = await loadWorkspaceEmailContext(workspace.id);
-  const extras = invitationExtrasFor(workspace.id);
-  const body = buildInvitationEmailBody({
-    memberFirstName: member.firstName,
-    institution: organizationName,
-    invitationUrl: link.url,
-    signature,
-    dues: await loadDuesCallout(memberId),
-    migrationNote: extras.migrationNote,
-    video: extras.video,
-    memberNumber: member.memberNumber,
-  });
-  const outcome = await sendTransactionalEmail({ to: email, ...body });
-
-  await markMemberInvitationDelivery(
-    workspace.id,
-    memberId,
-    created.invitation.id,
-    {
-      sent: outcome.status === "SENT",
-      resend: created.resend,
-      detail: outcome.status === "SENT" ? null : outcome.detail,
-    },
-    actor,
-  );
-
-  if (outcome.status !== "SENT") {
-    return {
-      error:
-        "La invitación quedó creada pero el email no salió. Probá con «Reenviar»; quedó registrado para revisarlo.",
-    };
-  }
-  return { error: null, ok: true, sentTo: email };
 }
 
 /** Invitación de a uno, desde la ficha del socio. */

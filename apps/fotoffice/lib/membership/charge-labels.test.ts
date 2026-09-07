@@ -5,7 +5,9 @@ import {
   chargePeriodLabel,
   fechaLegible,
   isOpeningBalance,
+  isPrintedCardCharge,
   periodoLegible,
+  printedCardPeriod,
 } from "./charge-labels";
 
 describe("periodoLegible", () => {
@@ -81,5 +83,30 @@ describe("fechaLegible", () => {
     // otro según dónde esté desplegado.
     expect(fechaLegible(new Date("2026-09-10T00:00:00Z"))).toBe("10 de septiembre");
     expect(fechaLegible(new Date("2026-09-10T23:59:59Z"))).toBe("10 de septiembre");
+  });
+});
+
+describe("cargos de la tarjeta impresa", () => {
+  it("arma un período distinto por mes para poder pedirla más de una vez", () => {
+    // La clave única del cargo es (socio, concepto, período): si la reimpresión repitiera
+    // `TARJETA`, el segundo pedido chocaría con el primero.
+    expect(printedCardPeriod(new Date("2026-09-07T12:00:00Z"))).toBe("TARJETA-2026-09");
+    expect(printedCardPeriod(new Date("2026-01-31T23:00:00Z"))).toBe("TARJETA-2026-01");
+  });
+
+  it("reconoce el cargo de la tarjeta venga del alta o de una reimpresión", () => {
+    expect(isPrintedCardCharge("TARJETA")).toBe(true);
+    expect(isPrintedCardCharge("TARJETA-2026-09")).toBe(true);
+    expect(isPrintedCardCharge("2026-09")).toBe(false);
+    expect(isPrintedCardCharge("APERTURA")).toBe(false);
+  });
+
+  it("lo nombra por lo que es, no como «Otro concepto»", () => {
+    // El socio veía «septiembre de 2026 · Otro concepto» y no tenía forma de saber que
+    // estaba pagando su credencial.
+    expect(chargeConceptLabel("OTRO", "TARJETA")).toBe("Impresión de carnet");
+    expect(chargeConceptLabel("OTRO", "TARJETA-2026-09")).toBe("Impresión de carnet");
+    expect(chargePeriodLabel("TARJETA")).toBe("Carnet impreso");
+    expect(chargePeriodLabel("TARJETA-2026-09")).toBe("Carnet impreso");
   });
 });

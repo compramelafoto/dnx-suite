@@ -129,6 +129,8 @@ export default async function ConfiguracionCuotasPage() {
             graceDays: settings.graceDays,
             reminderDay: settings.reminderDay,
             initialDuesCount: settings.initialDuesCount,
+            recommendationEnabled: settings.recommendationEnabled,
+            recommendationBenefitPercent: settings.recommendationBenefitPercent,
           }}
         />
       </section>

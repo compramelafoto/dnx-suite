@@ -201,12 +201,18 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/design-studio':
+        specifier: workspace:*
+        version: link:../../packages/design-studio
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
+      '@repo/media-composition':
+        specifier: workspace:*
+        version: link:../../packages/media-composition
       '@repo/ops-daily-report':
         specifier: workspace:*
         version: link:../../packages/ops-daily-report
@@ -216,6 +222,12 @@ importers:
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
+      '@repo/social-pieces':
+        specifier: workspace:*
+        version: link:../../packages/social-pieces
+      '@repo/social-publisher':
+        specifier: workspace:*
+        version: link:../../packages/social-publisher
       '@repo/template-editor-core':
         specifier: workspace:*
         version: link:../../packages/template-editor-core
@@ -1568,6 +1580,37 @@ importers:
       '@repo/geo':
         specifier: workspace:*
         version: link:../geo
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/social-pieces:
+    dependencies:
+      '@repo/design-studio':
+        specifier: workspace:*
+        version: link:../design-studio
+      '@repo/social-publisher':
+        specifier: workspace:*
+        version: link:../social-publisher
+      sharp:
+        specifier: ^0.34.2
+        version: 0.34.5
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*

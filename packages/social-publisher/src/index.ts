@@ -3,6 +3,7 @@ export type {
   PublishAsset,
   PublishAssetKind,
   PublishAttempt,
+  PublishFormat,
   PublishPriority,
   PublishRequest,
   PublishRequestStatus,
@@ -38,5 +39,35 @@ export {
   type EncryptedBlob,
 } from "./vault";
 
+export {
+  degradeMentionPlan,
+  planMentions,
+  DEFAULT_MAX_COLLABORATORS,
+  type MentionCandidate,
+  type MentionPlan,
+} from "./mentions";
+
 export type { ProviderPublishInput, SocialPublishProvider } from "./providers/types";
 export { createInstagramPublishProvider, createMetaGraphClient } from "./providers/instagram/index";
+
+export {
+  buildInstagramAuthorizeUrl,
+  exchangeInstagramCode,
+  INSTAGRAM_PUBLISH_SCOPES,
+  type InstagramConnectedAccount,
+  type InstagramOAuthConfig,
+} from "./providers/instagram/oauth";
+
+export {
+  decideTokenRefresh,
+  refreshInstagramToken,
+  TOKEN_MIN_AGE_HOURS,
+  TOKEN_REFRESH_THRESHOLD_DAYS,
+  type TokenRefreshDecision,
+} from "./providers/instagram/token-refresh";
+
+export {
+  fetchPublishingLimit,
+  hasQuotaFor,
+  type PublishingLimit,
+} from "./providers/instagram/publishing-limit";

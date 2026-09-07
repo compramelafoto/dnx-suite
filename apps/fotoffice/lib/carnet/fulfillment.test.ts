@@ -15,9 +15,10 @@ import {
 const TODO: FulfillmentCapability[] = ["PRODUCIR", "ENTREGAR", "ADMINISTRAR"];
 
 describe("recorrido normal", () => {
-  it("del pedido a las manos del socio, paso por paso", () => {
+  it("de la cola a las manos del socio, paso por paso", () => {
+    // Arranca en EN_COLA a propósito: el paso anterior —entrar a la cola— no lo da una
+    // persona desde el panel sino la acreditación del pago.
     const camino: FulfillmentState[] = [
-      "PENDIENTE_PAGO",
       "EN_COLA",
       "IMPRESO",
       "LISTO_PARA_RETIRAR",
@@ -45,8 +46,12 @@ describe("lo que no se puede saltear", () => {
   });
 
   it("no se imprime algo que no se pagó", () => {
-    expect(canTransition("PENDIENTE_PAGO", "EN_COLA")).toBe(true);
+    // A la cola de impresión se entra pagando, no porque alguien lo empuje desde el panel.
+    // Hasta que el pago se acredite, lo único que se puede hacer con el pedido es darlo de
+    // baja.
+    expect(canTransition("PENDIENTE_PAGO", "EN_COLA")).toBe(false);
     expect(canTransition("PENDIENTE_PAGO", "ENVIADO")).toBe(false);
+    expect(allowedTransitions("PENDIENTE_PAGO")).toEqual(["ANULADO"]);
   });
 
   it("un carnet entregado no vuelve para atrás", () => {
@@ -124,16 +129,18 @@ describe("lo que exige explicación", () => {
 });
 
 describe("avisos al socio", () => {
-  it("se le avisa cuando puede retirarlo, cuando se despachó y cuando lo recibió", () => {
+  it("se le avisa cuando se acredita el pago, cuando puede retirarlo, cuando se despachó y cuando lo recibió", () => {
+    // Entrar en la cola es la confirmación de que su pago llegó: eso sí le importa.
+    expect(shouldNotifyMember("EN_COLA")).toBe(true);
     expect(shouldNotifyMember("LISTO_PARA_RETIRAR")).toBe(true);
     expect(shouldNotifyMember("ENVIADO")).toBe(true);
     expect(shouldNotifyMember("ENTREGADO")).toBe(true);
   });
 
-  it("no se le avisa de los pasos internos", () => {
-    // Que entre en la cola de impresión no le cambia nada al socio.
-    expect(shouldNotifyMember("EN_COLA")).toBe(false);
+  it("no se le avisa de los pasos de taller", () => {
+    // Que el impresor la marque como impresa no le cambia nada al socio.
     expect(shouldNotifyMember("IMPRESO")).toBe(false);
+    expect(shouldNotifyMember("PENDIENTE_PAGO")).toBe(false);
   });
 });
 

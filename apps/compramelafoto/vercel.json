@@ -35,6 +35,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/social-publish",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/process-photo-exif-devices",
       "schedule": "*/10 * * * *"
     },

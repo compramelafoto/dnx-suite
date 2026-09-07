@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { renderPrintedCard } from "@/lib/carnet/render";
 import { resolveCardCapabilities } from "@/lib/carnet/operators";
+import { canDownloadPdf } from "@/lib/carnet/board-actions";
+import { buildPdfDownloadEvent } from "@/lib/carnet/print-log";
+import type { FulfillmentState } from "@/lib/carnet/fulfillment";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -27,6 +31,24 @@ export async function GET(
   }
 
   const { cardId } = await params;
+
+  const card = await prisma.memberCard.findFirst({
+    where: { id: cardId, workspaceId: workspace.id },
+    select: { fulfillmentState: true },
+  });
+  if (!card) {
+    return NextResponse.json({ error: "No encontramos ese carnet" }, { status: 404 });
+  }
+  const estado = (card.fulfillmentState ?? "PENDIENTE_PAGO") as FulfillmentState;
+  if (!canDownloadPdf(estado)) {
+    // Un pedido dado de baja no se imprime, y uno impago tampoco: bajar el archivo es el
+    // paso previo a mandarlo a la imprenta.
+    return NextResponse.json(
+      { error: "Este pedido no está en condiciones de imprimirse." },
+      { status: 409 },
+    );
+  }
+
   const base = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").trim();
   if (!base) {
     return NextResponse.json(
@@ -45,6 +67,23 @@ export async function GET(
   const pdf = salida.files.find((f) => f.contentType === "application/pdf");
   if (!pdf) {
     return NextResponse.json({ error: "No se generó el PDF" }, { status: 500 });
+  }
+
+  // Queda registrado quién se llevó el archivo. El PDF sale con la foto y los datos del
+  // socio, y es el acto que efectivamente manda a imprimir: no puede ser lo único del
+  // recorrido que no deje rastro. Va después de generarlo —una descarga que falló no es
+  // una descarga— y no tumba la respuesta si el registro falla.
+  try {
+    await prisma.memberCardEvent.create({
+      data: buildPdfDownloadEvent({
+        cardId,
+        state: estado,
+        actorUserId: user.id,
+        actorLabel: user.name?.trim() || user.email || null,
+      }),
+    });
+  } catch (error) {
+    console.error("[fotoffice][carnet] no se pudo registrar la descarga del PDF", error);
   }
 
   return new NextResponse(Buffer.from(pdf.bytes), {

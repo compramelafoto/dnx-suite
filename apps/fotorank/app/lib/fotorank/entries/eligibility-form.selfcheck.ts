@@ -16,7 +16,7 @@
  *
  * Lógica pura: no toca red, ni base, ni sube archivos.
  */
-import { parseEntryEligibilityFormData } from "./eligibility-form";
+import { parseEntryEligibilityFormData, parseEntryEligibilityJson } from "./eligibility-form";
 
 function ok(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -92,6 +92,60 @@ fdFile.set("instagramHandle", new File(["x"], "x.txt"));
 ok(
   parseEntryEligibilityFormData(fdFile).instagramHandle === null,
   "un File en un campo de texto se descarta (no se serializa como objeto)",
+);
+
+/* ---------- 5) El parser JSON declara exactamente lo mismo ---------- */
+/**
+ * La subida directa cierra con un pedido JSON (el archivo ya viajó al bucket),
+ * así que hay dos parsers para el mismo formulario. Si divergen, las
+ * declaraciones se pierden en un solo camino y el participante recibe
+ * DECLARATIONS_REQUIRED sin poder hacer nada — exactamente la regresión que
+ * este archivo existe para impedir.
+ */
+const jsonEquivalente = parseEntryEligibilityJson({
+  captureLocality: "Rosario",
+  captureDepartment: "Rosario",
+  territoryConfirmedSantaFe: true,
+  declaredDeviceKind: "DSLR",
+  declaredDeviceMake: "Canon",
+  declaredDeviceModel: "EOS R6",
+  captureWithinPeriodDeclared: true,
+  authorshipDeclared: true,
+  editingPolicyDeclared: true,
+  noGenerativeAiDeclared: true,
+  droneRegulationAcknowledged: true,
+  instagramHandle: "@qa_test",
+});
+ok(
+  JSON.stringify(jsonEquivalente) === JSON.stringify(parsed),
+  "JSON y FormData producen la misma elegibilidad ante el mismo formulario",
+);
+
+// Fail-closed también en JSON.
+const jsonEmpty = parseEntryEligibilityJson({});
+ok(jsonEmpty.authorshipDeclared === false, "JSON vacío → autoría NO declarada");
+ok(jsonEmpty.editingPolicyDeclared === false, "JSON vacío → edición NO declarada");
+ok(jsonEmpty.noGenerativeAiDeclared === false, "JSON vacío → no-IA NO declarada");
+ok(jsonEmpty.territoryConfirmedSantaFe === false, "JSON vacío → territorio NO confirmado");
+ok(jsonEmpty.instagramHandle === null, "JSON vacío → Instagram nulo");
+
+// Un cuerpo ausente o de otro tipo no puede afirmar nada.
+for (const raw of [null, undefined, "texto", 42, []]) {
+  const p = parseEntryEligibilityJson(raw);
+  ok(p.authorshipDeclared === false, `cuerpo ${JSON.stringify(raw) ?? "undefined"} → autoría NO declarada`);
+}
+
+// Los flags sólo aceptan true real (o el "1"/"true" heredado del FormData).
+for (const raw of [false, 0, 1, "0", "sí", "null", null, {}]) {
+  const p = parseEntryEligibilityJson({ authorshipDeclared: raw, territoryConfirmedSantaFe: raw });
+  ok(p.authorshipDeclared === false, `${JSON.stringify(raw)} NO cuenta como autoría declarada (JSON)`);
+  ok(p.territoryConfirmedSantaFe === false, `${JSON.stringify(raw)} NO cuenta como territorio (JSON)`);
+}
+
+// Un objeto anidado en un campo de texto se descarta, como el File en FormData.
+ok(
+  parseEntryEligibilityJson({ instagramHandle: { toString: "@x" } }).instagramHandle === null,
+  "un objeto en un campo de texto se descarta (JSON)",
 );
 
 console.log("FINAL: PASS");

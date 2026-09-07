@@ -22,10 +22,16 @@ describe("buildCardNotice", () => {
     expect(n?.text).toContain("CA123456789AR");
   });
 
-  it("no avisa de los pasos internos", () => {
-    expect(buildCardNotice({ ...base, state: "EN_COLA" })).toBeNull();
+  it("al entrar en la cola confirma el pago, que es lo que el socio está esperando saber", () => {
+    const n = buildCardNotice({ ...base, state: "EN_COLA" });
+    expect(n?.text).toContain("Registramos el pago");
+    expect(n?.text).toContain("cola de impresión");
+  });
+
+  it("no avisa de los pasos de taller", () => {
     expect(buildCardNotice({ ...base, state: "IMPRESO" })).toBeNull();
     expect(buildCardNotice({ ...base, state: "ANULADO" })).toBeNull();
+    expect(buildCardNotice({ ...base, state: "PENDIENTE_PAGO" })).toBeNull();
   });
 
   it("hay aviso exactamente para los estados que lo piden", () => {

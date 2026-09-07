@@ -1,4 +1,6 @@
 import { prisma } from "@repo/db";
+import { PRINTED_CARD_PERIOD } from "./approve";
+import { decimalArsToMinor } from "./money";
 
 export type ApplicationNotice =
   | { kind: "REQUIERE_CONFIRMACION"; institution: string | null }
@@ -27,6 +29,8 @@ export type InboxItem = {
   youtube: string | null;
   linkedin: string | null;
   directoryOptIn: boolean;
+  /** Socio que lo recomendó, si entró por su enlace. La Secretaría lo ve antes de aprobar. */
+  recommendedBy: { memberNumber: string; fullName: string } | null;
   createdAt: Date;
   notices: ApplicationNotice[];
 };
@@ -68,6 +72,22 @@ export async function listPendingApplications(workspaceId: string): Promise<Inbo
     },
     select: { id: true, memberNumber: true, email: true, documentNumber: true, leftAt: true },
   });
+
+  /*
+    Quién recomendó a cada aspirante. Se muestra antes de aprobar y no después: si el
+    vínculo está mal —un enlace compartido de más, una atribución que no corresponde—, este
+    es el único momento en que corregirlo no cuesta nada.
+  */
+  const recomendantesIds = [
+    ...new Set(solicitudes.map((s) => s.recommenderMemberId).filter(Boolean)),
+  ] as string[];
+  const recomendantes = recomendantesIds.length
+    ? await prisma.member.findMany({
+        where: { id: { in: recomendantesIds } },
+        select: { id: true, memberNumber: true, firstName: true, lastName: true },
+      })
+    : [];
+  const porRecomendante = new Map(recomendantes.map((r) => [r.id, r]));
 
   const deudas = new Map<string, string>();
   if (previos.length) {
@@ -115,6 +135,14 @@ export async function listPendingApplications(workspaceId: string): Promise<Inbo
       youtube: s.youtube,
       linkedin: s.linkedin,
       directoryOptIn: s.directoryOptIn,
+      recommendedBy: (() => {
+        const r = s.recommenderMemberId ? porRecomendante.get(s.recommenderMemberId) : null;
+        if (!r) return null;
+        return {
+          memberNumber: r.memberNumber,
+          fullName: `${r.firstName} ${r.lastName}`.trim(),
+        };
+      })(),
       declaredFeeScale: s.declaredFeeScale,
       categoryName: cat?.name ?? null,
       originInstitution: s.originInstitution,
@@ -125,6 +153,79 @@ export async function listPendingApplications(workspaceId: string): Promise<Inbo
       phone: s.phone,
       createdAt: s.createdAt,
       notices,
+    };
+  });
+}
+
+/**
+ * Las solicitudes aprobadas que todavía no se pagaron.
+ *
+ * Este estado existía en la base y no se veía en ninguna pantalla: la Secretaría aprobaba y la
+ * solicitud desaparecía de su vista, aunque el ingreso siguiera sin cobrarse. Con el plazo ya
+ * en funcionamiento —recordatorio a los siete días y vencimiento al mes— hacía falta poder
+ * mirar la lista antes de que las bajas empiecen a ocurrir solas.
+ */
+export type AwaitingPaymentItem = {
+  id: string;
+  fullName: string;
+  email: string;
+  memberId: string;
+  memberNumber: string;
+  /** Saldo del ingreso, en centavos. */
+  pendingMinor: number;
+  expiresAt: Date | null;
+  /** Si ya activó su cuenta del portal: sin eso no puede pagar. */
+  hasAccount: boolean;
+};
+
+export async function listAwaitingPayment(workspaceId: string): Promise<AwaitingPaymentItem[]> {
+  const solicitudes = await prisma.membershipApplication.findMany({
+    where: { workspaceId, status: "APROBADA_IMPAGA", memberId: { not: null } },
+    orderBy: { expiresAt: "asc" },
+    take: 200,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      memberId: true,
+      expiresAt: true,
+    },
+  });
+  if (solicitudes.length === 0) return [];
+
+  const memberIds = solicitudes.map((s) => s.memberId as string);
+  const [socios, cargos] = await Promise.all([
+    prisma.member.findMany({
+      where: { id: { in: memberIds } },
+      select: { id: true, memberNumber: true, userId: true },
+    }),
+    prisma.membershipCharge.findMany({
+      where: {
+        memberId: { in: memberIds },
+        OR: [{ concept: "INGRESO" }, { concept: "OTRO", period: PRINTED_CARD_PERIOD }],
+      },
+      select: { memberId: true, balanceArs: true },
+    }),
+  ]);
+
+  const porSocio = new Map(socios.map((s) => [s.id, s]));
+  const saldo = new Map<string, number>();
+  for (const c of cargos) {
+    saldo.set(c.memberId, (saldo.get(c.memberId) ?? 0) + decimalArsToMinor(c.balanceArs));
+  }
+
+  return solicitudes.map((s) => {
+    const socio = porSocio.get(s.memberId as string);
+    return {
+      id: s.id,
+      fullName: `${s.firstName} ${s.lastName}`.trim(),
+      email: s.email,
+      memberId: s.memberId as string,
+      memberNumber: socio?.memberNumber ?? "—",
+      pendingMinor: saldo.get(s.memberId as string) ?? 0,
+      expiresAt: s.expiresAt,
+      hasAccount: socio?.userId != null,
     };
   });
 }

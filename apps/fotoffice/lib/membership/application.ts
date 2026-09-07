@@ -95,6 +95,8 @@ const schema = z
       .nullable()
       .transform((v) => v === true || v === "on" || v === "true"),
     presenterMemberId: texto(64).optional().nullable(),
+    /** Código del enlace de recomendación por el que entró. Se valida contra el padrón después. */
+    recommendationCode: texto(32).optional().nullable(),
     /** Un checkbox llega como "on"; desde código puede llegar como booleano. */
     wantsPrintedCard: z
       .union([z.boolean(), z.string()])
@@ -125,6 +127,7 @@ export type ParsedApplication = {
   birthDate: Date | null;
   avatarUrl: string | null;
   presenterMemberId: string | null;
+  recommendationCode: string | null;
   wantsPrintedCard: boolean;
   businessName: string | null;
   bio: string | null;
@@ -210,6 +213,7 @@ export function parseApplication(raw: unknown): ParseResult {
       birthDate: d.birthDate ? new Date(`${d.birthDate}T00:00:00.000Z`) : null,
       avatarUrl: nulo(d.avatarUrl),
       presenterMemberId: nulo(d.presenterMemberId),
+      recommendationCode: nulo(d.recommendationCode),
       wantsPrintedCard: d.wantsPrintedCard,
       businessName: nulo(d.businessName),
       bio: nulo(d.bio),

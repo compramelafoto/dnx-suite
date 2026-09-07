@@ -35,11 +35,23 @@ export async function requestPrintedCardAction(): Promise<RequestPrintedCardResu
 
   revalidatePath("/portal/carnet");
   revalidatePath("/portal/cuotas");
+
+  // Se enganchó a una tarjeta que ya había pagado —la abonó al asociarse, o la anterior se
+  // anuló después de pagarla—. Mandarlo a pagar de nuevo sería cobrarle dos veces.
+  if (r.alreadyPaid) {
+    return {
+      ok: true,
+      message: "Listo. Ya la tenías paga, así que entró directo en la cola de impresión.",
+      payPath: "/portal/carnet",
+    };
+  }
+
   // Si el saldo a favor ya cubrió el cargo, decir "cuando lo pagues" sería mentirle: la
   // tarjeta ya está en la cola, no esperando un pago que no va a hacer falta.
   const message = r.settledByCredit
     ? `Listo. Tu saldo a favor cubrió el cargo de ${formatMinorArs(r.amountMinor)}. La tarjeta ya está en la cola de impresión.`
-    : `Listo. Se agregó un cargo de ${formatMinorArs(r.amountMinor)}. Cuando lo pagues, la tarjeta entra en la cola de impresión.`;
+    : `Listo. Se agregó un cargo de ${formatMinorArs(r.amountMinor)} por la impresión de tu carnet. Cuando lo pagues, la tarjeta entra en la cola de impresión.`;
+
   return {
     ok: true,
     message,

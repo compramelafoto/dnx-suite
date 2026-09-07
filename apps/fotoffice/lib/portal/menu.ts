@@ -41,6 +41,12 @@ export type PortalMenuItem = {
    * de que exista la pantalla.
    */
   requiresModule?: string;
+  /**
+   * Además del módulo, exige que la institución haya encendido las recomendaciones. Son dos
+   * interruptores distintos: el módulo de socios puede estar habilitado y la comisión
+   * directiva no haber resuelto todavía dar el beneficio.
+   */
+  requiresRecommendations?: boolean;
   /** Si la pantalla ya existe. Lo que falta construir se muestra como "Próximamente". */
   built: boolean;
   /** Aparece en la barra inferior del teléfono. Como mucho cuatro: es lo que entra sin apretar. */
@@ -143,12 +149,13 @@ export const PORTAL_MENU: PortalMenuItem[] = [
   },
   {
     order: 100,
-    label: "Mis referidos",
-    href: "/portal/referidos",
-    description: "A quién recomendaste y qué mes te bonificaron.",
+    label: "Mis recomendados",
+    href: "/portal/recomendados",
+    description: "A quién recomendaste y qué cuota te bonificaron.",
     icon: "share",
     requiresModule: MEMBERS_MODULE_KEY,
-    built: false,
+    requiresRecommendations: true,
+    built: true,
   },
 ];
 
@@ -166,13 +173,16 @@ export type ResolvedPortalItem = PortalMenuItem & { state: PortalMenuState };
  */
 export function resolvePortalMenu(
   enabledModuleKeys: ReadonlySet<string>,
+  flags: { recommendationsEnabled?: boolean } = {},
 ): ResolvedPortalItem[] {
   return [...PORTAL_MENU]
     .sort((a, b) => a.order - b.order)
     .map((item) => ({
       ...item,
       state:
-        item.built && (!item.requiresModule || enabledModuleKeys.has(item.requiresModule))
+        item.built &&
+        (!item.requiresModule || enabledModuleKeys.has(item.requiresModule)) &&
+        (!item.requiresRecommendations || flags.recommendationsEnabled === true)
           ? "DISPONIBLE"
           : "PROXIMAMENTE",
     }));

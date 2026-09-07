@@ -18,6 +18,7 @@ import { DuesHelpCard } from "@/components/portal/dues-help-card";
 import { PayButton } from "./pay-button";
 import { loadAdvanceOffer } from "@/lib/membership/advance-store";
 import { AdvanceForm } from "./advance-form";
+import { loadAppliedBenefits } from "@/lib/membership/recommendation-store";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function CuotasPage({
   const params = await searchParams;
   const aviso = avisoDePago(params.pago);
 
-  const [cuenta, cobros, contacto, pagos, oferta] = await Promise.all([
+  const [cuenta, cobros, contacto, pagos, oferta, bonificaciones] = await Promise.all([
     loadMemberBalance(context.member.id),
     getWorkspaceCollectionStatus(context.workspace.id),
     loadWorkspaceContactChannels(context.workspace.id),
@@ -64,6 +65,7 @@ export default async function CuotasPage({
     // convertir la pantalla en un extracto de años.
     loadMemberPaymentHistory(context.member.id, { limit: 12 }),
     loadAdvanceOffer(context.member.id),
+    loadAppliedBenefits(context.member.id),
   ]);
 
   const alDia = cuenta.charges.length === 0;
@@ -241,6 +243,33 @@ export default async function CuotasPage({
         {cobros.canCharge ? <AdvanceForm options={opcionesAdelanto} /> : null}
 
         <CreditCallout creditMinor={cuenta.creditMinor} tone="socio" />
+
+        {/*
+          Las bonificaciones tienen sección propia y no una línea dentro de la lista de deuda.
+
+          Una cuota bonificada al 100% queda en cero, y la lista de deuda sólo muestra lo que
+          tiene saldo: sin esto, el beneficio más grande sería justamente el único invisible.
+        */}
+        {bonificaciones.length > 0 ? (
+          <section className="fo-card space-y-3 p-5">
+            <h2 className="text-sm font-semibold">Cuotas bonificadas</h2>
+            <ul className="divide-y divide-[var(--fo-border)]">
+              {bonificaciones.map((b) => (
+                <li key={b.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="space-y-0.5">
+                    <p className="text-sm">{chargePeriodLabel(b.period)}</p>
+                    <p className="text-xs text-[var(--fo-muted-soft)]">
+                      Por tu recomendación a {b.originName}
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium tabular-nums text-[var(--fo-success)]">
+                    −{formatMinorArs(b.discountMinor)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {/*
           Fuera del condicional a propósito, igual que la ayuda de abajo: el socio que está

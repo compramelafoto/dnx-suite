@@ -3,10 +3,16 @@ import { prisma } from "@repo/db";
 import { MembershipApplicationForm } from "@/components/membership/application-form";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { getActiveFeeValue, getDuesSettings } from "@/lib/membership/settings";
+import { normalizeRecommendationCode } from "@/lib/membership/recommendation-code";
+import { resolveRecommender } from "@/lib/membership/recommendation-link";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ workspaceSlug: string }> };
+type Props = {
+  params: Promise<{ workspaceSlug: string }>;
+  /** `?rec=` es el enlace de recomendación de un socio. Ausente o inválido, el alta sigue igual. */
+  searchParams: Promise<{ rec?: string }>;
+};
 
 const ars = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2 });
 
@@ -18,8 +24,9 @@ const ars = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2 });
  * Secretaría aprobaría, y recién ahí se descubriría que nadie puede pagar. Cortar antes
  * cuesta una pantalla; cortar después cuesta la confianza de quien se quiso asociar.
  */
-export default async function AsociarsePage({ params }: Props) {
+export default async function AsociarsePage({ params, searchParams }: Props) {
   const { workspaceSlug } = await params;
+  const { rec } = await searchParams;
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
@@ -37,6 +44,24 @@ export default async function AsociarsePage({ params }: Props) {
     }),
   ]);
 
+  /*
+    Quién lo recomienda se resuelve en el servidor y contra el padrón. Si el código no
+    existe, es de otra institución o el socio está de baja, no se muestra nada y el
+    formulario funciona igual: un enlace viejo no puede dejar a nadie afuera.
+  */
+  const code = normalizeRecommendationCode(rec);
+  const candidato = code
+    ? await prisma.member.findUnique({
+        where: { recommendationCode: code },
+        select: { id: true, workspaceId: true, status: true, firstName: true, lastName: true },
+      })
+    : null;
+  const recomendante = resolveRecommender({
+    rawCode: rec,
+    workspaceId: branding.workspaceId,
+    candidate: candidato,
+  });
+
   const institutionName = branding.commercialName?.trim() || workspace?.name || "la institución";
 
   // Sin cobros conectados o sin valor de cuota, aprobar generaría cuotas impagables.
@@ -51,7 +76,8 @@ export default async function AsociarsePage({ params }: Props) {
               Asociarse a {institutionName}
             </h1>
             <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-              Completá tus datos y la Secretaría va a revisar tu solicitud.
+              Completá tus datos y la Secretaría va a revisar tu solicitud. Te escribimos por
+              email en cuanto haya respuesta, sea cual sea.
             </p>
           </div>
           {/*
@@ -75,6 +101,9 @@ export default async function AsociarsePage({ params }: Props) {
             institutionName={institutionName}
             monthlyAmountLabel={valorCuota ? `$${ars.format(Number(valorCuota.amountArs))}` : null}
             initialDuesCount={settings.initialDuesCount}
+            recommendation={
+              recomendante && code ? { code, displayName: recomendante.displayName } : null
+            }
           />
         ) : (
           <section className="fo-card space-y-2 p-6">

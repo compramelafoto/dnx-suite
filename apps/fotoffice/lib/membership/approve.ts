@@ -2,6 +2,7 @@ import { Prisma } from "@repo/db";
 import { initialChargeTotal, monthlyAmountFor, type FeeScale } from "./amounts";
 import { nextMemberNumber } from "./member-number";
 import { initialDuePeriods } from "./periods";
+import { PRINTED_CARD_PERIOD } from "./charge-labels";
 
 /** Días que tiene la persona para pagar antes de que la solicitud venza. */
 export const APPLICATION_PAYMENT_DAYS = 30;
@@ -26,6 +27,8 @@ export type ApprovalInput = {
     declaredFeeScale: FeeScale;
     ownDuesAmount: Prisma.Decimal | null;
     originInstitution: string | null;
+    /** Socio que lo recomendó, tomado del enlace por el que entró al formulario. */
+    recommenderMemberId?: string | null;
     avatarUrl: string | null;
     noticeAddress: string | null;
     documentType: string | null;
@@ -83,6 +86,7 @@ export type ApprovalPlan = {
     feeScale: FeeScale;
     ownDuesAmount: Prisma.Decimal | null;
     originInstitution: string | null;
+    recommendedByMemberId: string | null;
     joinedAt: Date;
     businessName: string | null;
     bio: string | null;
@@ -116,12 +120,10 @@ export type ApprovalPlan = {
  * `[workspaceId, memberNumber]` es el árbitro real ante dos aprobaciones simultáneas.
  */
 /**
- * Período con el que se marca el cargo de la credencial impresa.
- *
- * No es un mes: es una etiqueta. La clave única del cargo es (socio, concepto, período), así
- * que usar un nombre en vez de una fecha garantiza uno solo por socio y se lee sin adivinar.
+ * Vive con las etiquetas de los cargos y no acá: el período es lo que le da su NOMBRE al
+ * cargo en la pantalla del socio, así que la constante y el rótulo tienen que moverse juntos.
  */
-export const PRINTED_CARD_PERIOD = "TARJETA";
+export { PRINTED_CARD_PERIOD } from "./charge-labels";
 
 export type ApprovalCharge = {
   workspaceId: string;
@@ -218,6 +220,10 @@ export function buildApproval(input: ApprovalInput): ApprovalPlan {
       feeScale: input.application.declaredFeeScale,
       ownDuesAmount: input.application.ownDuesAmount,
       originInstitution: input.application.originInstitution,
+      // El vínculo se copia acá y no se consulta después contra la solicitud: una solicitud
+      // puede archivarse, y la pregunta «¿quién lo trajo?» tiene que poder responderse desde
+      // la ficha para siempre.
+      recommendedByMemberId: input.application.recommenderMemberId ?? null,
       joinedAt: input.now,
       // La presencia profesional declarada al asociarse pasa al socio. Si no se copiara acá,
       // el dato quedaría enterrado en la solicitud y el socio aparecería sin redes.

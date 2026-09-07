@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { loadMyCard } from "@/lib/carnet/my-card";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
+import { pendingEntryPayment } from "@/lib/membership/pending-entry";
 import { getActiveFeeValue } from "@/lib/membership/settings";
 import { prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
@@ -40,15 +41,27 @@ export default async function MiCarnetPage() {
   // falta. Hasta ahora marcaba la casilla y no volvía a saber nada del asunto.
   const impresa = await pendingPrintedCard(context.member.id);
 
+  // Si el carnet no está es, casi siempre, porque el ingreso todavía no se pagó. Decirlo con
+  // ese nombre —y con el importe— convierte una espera en algo que puede resolver ahora.
+  const ingreso = await pendingEntryPayment(context.member.id);
+
   if (!carnet) {
     return (
       <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5 py-12">
         <div className="fo-card space-y-3 p-6 text-center">
-          <p className="text-base font-semibold">Todavía no tenés carnet</p>
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            {context.workspace.name} todavía no emitió tu carnet digital. Cuando lo haga, lo vas
-            a ver acá.
+          <p className="text-base font-semibold">
+            {ingreso.pendiente ? "Tu carnet se emite con el pago" : "Todavía no tenés carnet"}
           </p>
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+            {ingreso.pendiente
+              ? `Falta el pago de tu ingreso: ${formatMinorArs(ingreso.totalMinor)}. Apenas se acredite, tu carnet digital queda emitido acá mismo.`
+              : `${context.workspace.name} todavía no emitió tu carnet digital. Cuando lo haga, lo vas a ver acá.`}
+          </p>
+          {ingreso.pendiente ? (
+            <Link href="/portal/cuotas" className="fo-btn fo-btn-primary text-sm">
+              Pagar mi ingreso
+            </Link>
+          ) : null}
           <Link href="/portal" className="text-xs text-[var(--fo-muted)] hover:underline">
             ← Volver
           </Link>
