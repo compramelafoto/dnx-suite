@@ -263,3 +263,42 @@ export async function voidRecommendationBenefit(input: {
     return { ok: true as const };
   });
 }
+
+export type AppliedBenefit = {
+  id: string;
+  chargeId: string;
+  /** `YYYY-MM` de la cuota bonificada. */
+  period: string;
+  discountMinor: number;
+  /** Nombre del colega que la originó. */
+  originName: string;
+};
+
+/**
+ * Las bonificaciones ya aplicadas de un socio, para mostrarlas junto a sus cuotas.
+ *
+ * Tienen sección propia y no una línea dentro de la lista de deuda por una razón concreta:
+ * una cuota bonificada al 100% queda en cero, y la lista de deuda sólo muestra lo que tiene
+ * saldo. Sin esto, el beneficio más grande sería justamente el único invisible.
+ */
+export async function loadAppliedBenefits(memberId: string): Promise<AppliedBenefit[]> {
+  const filas = await prisma.membershipRecommendationBenefit.findMany({
+    where: { memberId, status: "APLICADA", appliedChargeId: { not: null } },
+    select: {
+      id: true,
+      appliedChargeId: true,
+      appliedAmountArs: true,
+      appliedCharge: { select: { period: true } },
+      originMember: { select: { firstName: true, lastName: true } },
+    },
+    orderBy: { appliedAt: "desc" },
+  });
+
+  return filas.map((f) => ({
+    id: f.id,
+    chargeId: f.appliedChargeId!,
+    period: f.appliedCharge?.period ?? "",
+    discountMinor: f.appliedAmountArs ? decimalArsToMinor(f.appliedAmountArs) : 0,
+    originName: `${f.originMember.firstName} ${f.originMember.lastName}`.trim(),
+  }));
+}
