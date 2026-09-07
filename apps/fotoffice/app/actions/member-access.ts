@@ -23,6 +23,7 @@ import {
   INVITE_BATCH_MAX,
 } from "@/lib/members/invitations";
 import { buildInvitationEmailBody } from "@/lib/members/invitation-email";
+import { invitationExtrasFor } from "@/lib/members/invitation-extras";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
 import { loadDuesCallout } from "@/lib/membership/dues-callout";
@@ -213,12 +214,16 @@ async function inviteOneMember(
   // El envío ocurre DESPUÉS del commit. Si falla, la invitación queda creada pero marcada
   // como no enviada: nunca se la presenta como enviada, y "Reenviar" la reintenta.
   const { organizationName, signature } = await loadWorkspaceEmailContext(workspace.id);
+  const extras = invitationExtrasFor(workspace.id);
   const body = buildInvitationEmailBody({
     memberFirstName: member.firstName,
     institution: organizationName,
     invitationUrl: link.url,
     signature,
     dues: await loadDuesCallout(memberId),
+    migrationNote: extras.migrationNote,
+    video: extras.video,
+    memberNumber: member.memberNumber,
   });
   const outcome = await sendTransactionalEmail({ to: email, ...body });
 
