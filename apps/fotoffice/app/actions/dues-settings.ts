@@ -5,6 +5,7 @@ import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { parseFeeValue, validateDuesSettings } from "@/lib/membership/fee-value-rules";
+import { parseRecommendationPercent } from "@/lib/membership/settings";
 import { minorToDecimalString } from "@/lib/membership/money";
 
 export type SettingsResult = { ok: true } | { ok: false; error: string };
@@ -34,10 +35,21 @@ export async function saveDuesSettingsAction(formData: FormData): Promise<Settin
   const control = validateDuesSettings(entrada);
   if (!control.ok) return control;
 
+  // El porcentaje se valida aparte: no es un día del mes, y su tope —100— responde a otra
+  // razón, que bonificar más que la cuota dejaría saldo a favor.
+  const porcentaje = parseRecommendationPercent(formData.get("recommendationBenefitPercent"));
+  if (!porcentaje.ok) return porcentaje;
+
+  const datos = {
+    ...entrada,
+    recommendationEnabled: formData.get("recommendationEnabled") === "on",
+    recommendationBenefitPercent: porcentaje.value.toFixed(2),
+  };
+
   await prisma.membershipDuesSettings.upsert({
     where: { workspaceId: workspace.id },
-    create: { workspaceId: workspace.id, ...entrada },
-    update: entrada,
+    create: { workspaceId: workspace.id, ...datos },
+    update: datos,
   });
 
   revalidatePath("/members/cuotas/configuracion");
