@@ -10,6 +10,7 @@ import {
   FileText,
   Palette,
   Globe,
+  Plug,
   GraduationCap,
   Inbox,
   LayoutDashboard,
@@ -240,6 +241,12 @@ export function ShellNav({
           label: "Datos de la institución",
           icon: Settings,
           isActive: exact("/workspace/configuracion"),
+        },
+        {
+          href: "/workspace/configuracion/integraciones",
+          label: "Integraciones",
+          icon: Plug,
+          isActive: under("/workspace/configuracion/integraciones"),
         },
         {
           href: "/workspace/configuracion/cobros",
