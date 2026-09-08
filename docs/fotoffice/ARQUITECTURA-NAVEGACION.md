@@ -192,7 +192,7 @@ estas siete pantallas**, no como ítem nuevo:
 | Registro de pago manual ⬜ | Acción dentro de Cuotas y dentro de la ficha del socio |
 | Referido con mes bonificado ⬜ | Pestaña dentro de Solicitudes |
 | Cuenta corriente del socio ⬜ | Pestaña dentro de la ficha del socio |
-| Sincronización con Google Contacts ⬜ | Ajuste dentro de Datos de la institución |
+| Sincronización con Google Contacts ⬜ | La cuenta se conecta en Integraciones (§4.10); el interruptor de sincronizar va dentro de Padrón |
 
 ### 4.2 · CURSOS
 
@@ -270,8 +270,15 @@ Etapa 9. Cero código hoy. Es el módulo más grande de los que faltan.
 | 20 | Espacios | `/reservas/espacios` | `DoorOpen` | `bookings` | ADMIN+ | ⬜ |
 | 30 | Tarifas y reglas | `/reservas/configuracion` | `Settings` | `bookings` | ADMIN+ | ⬜ |
 
-La conexión con el Google Calendar de la institución es un ajuste dentro de "Tarifas y reglas",
-no un ítem propio.
+La conexión con el Google Calendar de la institución **no vive acá**: es una cuenta de la
+organización entera y vive en Integraciones (§4.10). La misma cuenta sirve a Calendar
+(Reservas), Classroom (Cursos) y Contacts (Socios), y repartir la conexión entre los módulos
+obligaría a conectarla tres veces y dejaría al dueño sin un lugar donde ver qué le dio a la
+plataforma. "Tarifas y reglas" muestra el estado de la conexión y enlaza a Integraciones:
+informa, no conecta.
+
+*(Decidido el 2026-09-07 al diseñar Reservas. Reemplaza la regla anterior, que ubicaba la
+conexión como un ajuste dentro de "Tarifas y reglas".)*
 
 ### 4.7 · TESORERÍA ⬜
 
@@ -322,6 +329,7 @@ Lo que es de la organización entera, no de un dominio. Requiere permiso de conf
 |---:|---|---|---|---|---|
 | 10 | Datos de la institución | `/workspace/configuracion` | `Settings` | ADMIN+ | ✅ |
 | 20 | Cobros | `/workspace/configuracion/cobros` | `Wallet2` | ADMIN+ | ✅ |
+| 25 | Integraciones | `/workspace/configuracion/integraciones` | `Plug` | ADMIN+ | ✅ |
 | 30 | Equipo y permisos | `/workspace/configuracion/equipo` | `UserCog` | OWNER | ⬜ |
 | 40 | Auditoría | `/workspace/configuracion/auditoria` | `History` | OWNER | ⬜ |
 

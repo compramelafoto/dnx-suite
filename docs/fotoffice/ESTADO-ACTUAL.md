@@ -234,6 +234,20 @@ Esos 10 archivos usan Checkout Pro con `marketplace_fee` y el consentimiento OAu
 3. **Verificar la base de datos de producción.** Los conteos del documento de contexto siguen sin confirmar.
 4. Recién después, retomar módulos pendientes (reservas, sorteos, tesorería, gobierno).
 
+### Pendientes del módulo de Integraciones — 2026-09-07
+
+1. **Aplicar la migración `20260908000000_workspace_integrations`.** Crea `WorkspaceIntegration`
+   y `WorkspaceIntegrationOAuthState`. Es puramente aditiva —dos tablas nuevas, ninguna columna
+   existente modificada—, así que no afecta a las otras aplicaciones de la suite, que quedan sin
+   ella hasta que la necesiten. **Sin aplicarla, la pantalla de Integraciones falla al abrir.**
+2. **Configurar `DNX_INTEGRATIONS_VAULT_MASTER_KEY`.** 32 bytes en base64
+   (`openssl rand -base64 32`), en el `.env.local` y en Vercel. Sin ella no se puede conectar
+   ninguna cuenta de Google: el módulo falla cerrado a propósito, nunca guarda en texto plano.
+3. **Registrar la URL de retorno en Google Cloud Console.**
+   `https://<dominio>/api/integrations/google/callback` y la equivalente en `localhost:3010`,
+   **sin quitar** la del login (`/api/auth/google/callback`). Habilitar además la Google
+   Calendar API en el proyecto.
+
 ## 8.bis Base de datos de producción — verificada el 2026-08-27
 
 Consulta de solo lectura sobre la base de Neon de producción. Solo agregados: no se leyeron datos personales.
