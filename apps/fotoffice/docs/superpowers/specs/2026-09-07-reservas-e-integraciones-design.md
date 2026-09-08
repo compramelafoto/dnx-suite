@@ -1,6 +1,6 @@
 # Reservas de espacios e Integraciones con Google
 
-**Fecha:** 2026-09-07 · **Aplicación:** FOTOFFICE · **Estado:** aprobado para implementar
+**Fecha:** 2026-09-07 · **Enmendada:** 2026-09-08 (extras) · **Aplicación:** FOTOFFICE · **Estado:** aprobado para implementar
 
 ## El problema
 
@@ -361,6 +361,96 @@ puramente aditivas: no tocan ninguna columna existente, así que no pueden rompe
 de las otras aplicaciones. Hay que aplicarlas a mano en la base de FOTOFFICE, y dejar registrado
 en `ESTADO-ACTUAL.md` que las otras bases quedan sin ellas hasta que las necesiten.
 
+### Extras: lo que se alquila junto con el espacio
+
+*(Agregado el 2026-09-08.)*
+
+Un flash adicional, un pack de dos flashes a precio promocional, iluminación extra, una
+máquina de humo, una modelo. **Los extras nunca se alquilan solos**: existen colgados de una
+reserva, y por eso la línea de extra apunta siempre a una reserva. No es una regla que haya
+que acordarse de cumplir — es cómo están armados los datos.
+
+#### Lo que se vende no es lo que existe
+
+Separar las dos cosas resuelve de una vez el control de cantidad y los packs promocionales:
+
+- **Recurso** — el inventario real. "Flash", cantidad 2. "Máquina de humo", cantidad 1.
+  "Modelo", cantidad 1.
+- **Extra** — lo que el socio elige y paga. "Flash adicional" consume 1 flash; "Pack de 2
+  flashes" consume 2 flashes y cuesta menos que dos sueltos.
+
+Sin esa separación, un flash suelto y un pack se venderían el mismo sábado: tres flashes de
+los dos que existen. Es la doble reserva del salón con otro disfraz.
+
+**Un extra sin recurso asociado no se controla.** El fondo de papel, del que hay de sobra, se
+carga sin recurso y se puede pedir siempre. Así "controlar solo algunos" no es una regla
+aparte: es no asignarle recurso.
+
+**El pack promocional no necesita código.** Es un extra más, con su nombre, su precio y las
+unidades que consume. Cargarlo es escribir una fila.
+
+#### Modelo de datos
+
+Cuatro tablas. `BookingResource` es el inventario; `BookingExtra` es lo vendible;
+`BookingExtraSpace` dice en qué espacios se ofrece cada uno; `BookingExtraLine` es lo que
+lleva una reserva concreta, con el precio congelado igual que el del espacio.
+
+Los campos que deciden el comportamiento:
+
+| Campo | Qué resuelve |
+|---|---|
+| `BookingExtra.priceMode` | `PER_BOOKING` (la máquina de humo, una vez) o `PER_HOUR` (una modelo) |
+| `BookingExtra.resourceId` | Sin recurso, la cantidad no se controla |
+| `BookingExtra.unitsConsumed` | El pack consume 2 flashes; el suelto, 1 |
+| `BookingExtra.requiresConfirmation` | Hay que coordinar con una persona antes de comprometerlo |
+| `BookingExtraLine.nameSnapshot` | Si mañana se renombra el extra, la reserva vieja sigue diciendo lo que se contrató |
+
+El detalle en Prisma está en el plan de implementación.
+
+#### Cómo se cobra
+
+Tres reglas que quedan fijadas:
+
+1. **Las horas bonificadas cubren el espacio, no los extras.** El socio con 2 horas libres en
+   el estudio paga $0 el espacio y sí paga la máquina de humo. Bonificar el espacio es el
+   beneficio que da la cuota; regalar el equipamiento no se decidió nunca.
+2. **La comisión del 5% se calcula sobre el total, extras incluidos.** Es plata que entra por
+   la plataforma.
+3. **Un extra a confirmar no cobra nada todavía.** Ver abajo.
+
+#### Extras que necesitan coordinarse
+
+Un extra con `requiresConfirmation` —una modelo— **no inventa ningún circuito nuevo**: fuerza
+la reserva a `PENDING_APPROVAL`, el mismo estado que ya existe para el salón de eventos.
+
+- La reserva ocupa el horario y **no se cobra**.
+- La Secretaría coordina con la persona y confirma el extra, o lo quita.
+- Recién ahí sale el enlace de pago, con el total definitivo.
+
+Nadie paga por una modelo que después no estaba, y no hace falta ninguna devolución.
+
+#### Disponibilidad de un extra
+
+Mismo criterio que los espacios. Para un rango pedido se suman las unidades ya comprometidas
+por las líneas activas de las reservas activas que se pisan con ese rango, y se compara con la
+cantidad del recurso.
+
+Si los 2 flashes ya están tomados el sábado de 15 a 17, el extra aparece **agotado en esa
+franja** — visible y con el motivo, no escondido: quien está reservando tiene que poder
+entender por qué no puede pedirlo, y eventualmente mover su horario.
+
+Las líneas en `REMOVED` no comprometen nada. Las que están en `PENDING_CONFIRMATION` **sí**:
+mientras la Secretaría decide, ese flash está apartado.
+
+Va en el mismo módulo puro que la disponibilidad de espacios, con sus propias pruebas.
+
+#### Las pantallas
+
+- **`/reservas/extras`** (ADMIN+): dos listas, recursos y extras.
+- **Agenda**: cada reserva muestra los extras que lleva y cuáles están a confirmar.
+- **Portal del socio**: al elegir el horario aparecen los extras disponibles para ese espacio y
+  esa franja, con su precio, y el total se recalcula.
+
 ### La regla de exclusividad
 
 **Por defecto un espacio bloquea a todos los demás.** El dueño marca explícitamente con cuáles
@@ -601,3 +691,6 @@ que exista, FOTOFFICE es la única fuente de verdad de la agenda.
 - Descuentos por cantidad de horas o por temporada.
 - Classroom, Drive y Contacts implementados (quedan declarados en el catálogo).
 - Facturación electrónica de la reserva.
+- Alquilar un extra sin reservar el espacio. Decisión expresa del 2026-09-08: los extras
+  existen solo colgados de una reserva.
+- Que un extra tenga horario propio distinto al del espacio.

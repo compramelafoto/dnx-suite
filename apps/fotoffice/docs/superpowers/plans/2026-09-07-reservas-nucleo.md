@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Que la institución dé de alta sus espacios con horarios, tarifas y reglas de convivencia, y que el equipo vea y gestione la ocupación desde una agenda — reemplazando la planilla, todavía sin cobro online.
+**Goal:** Que la institución dé de alta sus espacios —con horarios, tarifas, reglas de convivencia y los extras que se alquilan junto con ellos— y que el equipo vea y gestione la ocupación desde una agenda, reemplazando la planilla. Todavía sin cobro online.
 
 **Architecture:** El corazón es un motor de disponibilidad **puro** (sin base y sin red) que recibe horarios, cierres, ocupación e incompatibilidades y devuelve los huecos libres. Alrededor, un modelo de datos con una restricción en la propia base que hace imposible guardar dos reservas superpuestas, y pantallas que solo orquestan.
 
@@ -1018,7 +1018,7 @@ MSG
 
 ### Task 4: Modelo de datos
 
-Seis tablas nuevas, puramente aditivas, más una restricción escrita a mano que Prisma no sabe generar.
+Diez tablas nuevas, puramente aditivas, más una restricción escrita a mano que Prisma no sabe generar.
 
 **Files:**
 - Modify: `packages/db/prisma/schema.prisma`
@@ -1026,7 +1026,7 @@ Seis tablas nuevas, puramente aditivas, más una restricción escrita a mano que
 
 **Interfaces:**
 - Consumes: nada.
-- Produces: `prisma.bookingSpace`, `prisma.bookingSpaceHours`, `prisma.bookingClosure`, `prisma.bookingSpaceCompatibility`, `prisma.booking`, `prisma.bookingSettings`.
+- Produces: `prisma.bookingSpace`, `prisma.bookingSpaceHours`, `prisma.bookingClosure`, `prisma.bookingSpaceCompatibility`, `prisma.booking`, `prisma.bookingSettings`, `prisma.bookingResource`, `prisma.bookingExtra`, `prisma.bookingExtraSpace`, `prisma.bookingExtraLine`.
 
 - [ ] **Step 1: Agregar los modelos al schema**
 
@@ -1037,6 +1037,8 @@ En `packages/db/prisma/schema.prisma`, dentro del modelo `Workspace`, junto a `i
   bookings                    Booking[]
   bookingClosures             BookingClosure[]
   bookingSettings             BookingSettings?
+  bookingResources            BookingResource[]
+  bookingExtras               BookingExtra[]
 ```
 
 Y después de `WorkspaceIntegrationOAuthState`:
@@ -1086,6 +1088,7 @@ model BookingSpace {
   closures       BookingClosure[]
   compatibleAsA  BookingSpaceCompatibility[] @relation("CompatibilidadA")
   compatibleAsB  BookingSpaceCompatibility[] @relation("CompatibilidadB")
+  extras         BookingExtraSpace[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, active])
@@ -1192,14 +1195,107 @@ model Booking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  space     BookingSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-  member    Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  space      BookingSpace       @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  member     Member?            @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  extraLines BookingExtraLine[]
 
   @@index([workspaceId, startAt])
   @@index([spaceId, startAt])
   @@index([memberId, startAt])
   @@index([status, holdExpiresAt])
+}
+
+/// El inventario real. Solo para lo que hay que contar.
+///
+/// Existe separado de `BookingExtra` porque lo que se VENDE no es lo que EXISTE: "Flash
+/// adicional" y "Pack de 2 flashes" son dos cosas vendibles que salen del mismo par de
+/// flashes. Sin esta separación el sistema vendería un suelto y un pack el mismo sábado:
+/// tres flashes de los dos que hay. Es la doble reserva del salón con otro disfraz.
+model BookingResource {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  quantity    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  extras    BookingExtra[]
+
+  @@index([workspaceId])
+}
+
+/// Lo que el socio elige y paga junto con el espacio. Nunca se alquila solo.
+model BookingExtra {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  active      Boolean @default(true)
+  order       Int     @default(0)
+
+  /// PER_BOOKING (una vez) | PER_HOUR (por cada hora de la reserva)
+  priceMode         String  @default("PER_BOOKING")
+  memberPriceArs    Decimal @default(0) @db.Decimal(12, 2)
+  nonMemberPriceArs Decimal @default(0) @db.Decimal(12, 2)
+
+  /// Qué consume del inventario. SIN recurso, la cantidad no se controla: así es como
+  /// "controlar solo algunos" deja de ser una regla aparte.
+  resourceId    String?
+  unitsConsumed Int     @default(1)
+
+  /// Necesita coordinar con una persona antes de comprometerlo (una modelo). Fuerza la
+  /// reserva a PENDING_APPROVAL y no se cobra hasta que la institución decida.
+  requiresConfirmation Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  resource  BookingResource?    @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  spaces    BookingExtraSpace[]
+  lines     BookingExtraLine[]
+
+  @@index([workspaceId, active])
+}
+
+/// En qué espacios se ofrece cada extra. El humo sirve al estudio y al salón.
+model BookingExtraSpace {
+  id      String @id @default(cuid())
+  extraId String
+  spaceId String
+
+  extra BookingExtra @relation(fields: [extraId], references: [id], onDelete: Cascade)
+  space BookingSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([extraId, spaceId])
+  @@index([spaceId])
+}
+
+/// Los extras de una reserva concreta, con el precio congelado.
+model BookingExtraLine {
+  id        String @id @default(cuid())
+  bookingId String
+  extraId   String
+  /// Copia del nombre al reservar: si después se renombra el extra, la reserva vieja sigue
+  /// diciendo lo que la persona contrató.
+  nameSnapshot  String
+  priceMode     String
+  unitPriceArs  Decimal @db.Decimal(12, 2)
+  unitsConsumed Int
+  amountArs     Decimal @db.Decimal(12, 2)
+  /// PENDING_CONFIRMATION | CONFIRMED | REMOVED
+  status        String
+  createdAt     DateTime @default(now())
+
+  booking Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  /// Restrict y no Cascade: borrar un extra no puede borrar el registro de lo que alguien
+  /// contrató y pagó. Un extra se desactiva, no se borra.
+  extra   BookingExtra @relation(fields: [extraId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId])
+  @@index([extraId])
 }
 
 /// Reglas del módulo que son de la institución entera, no de un espacio.
@@ -1229,8 +1325,8 @@ En el modelo `Member`, agregar la relación inversa junto a las que ya tiene (`m
 Crear `packages/db/prisma/migrations/20260909000000_bookings/migration.sql`:
 
 ```sql
--- Reservas de espacios. Puramente aditiva: seis tablas nuevas, ninguna columna existente
--- modificada.
+-- Reservas de espacios y sus extras. Puramente aditiva: diez tablas nuevas, ninguna columna
+-- existente modificada.
 
 CREATE TABLE "BookingSpace" (
     "id" TEXT NOT NULL,
@@ -1352,6 +1448,77 @@ ALTER TABLE "Booking" ADD CONSTRAINT "Booking_spaceId_fkey"
 ALTER TABLE "Booking" ADD CONSTRAINT "Booking_memberId_fkey"
     FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
+CREATE TABLE "BookingResource" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "BookingResource_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "BookingResource_workspaceId_idx" ON "BookingResource"("workspaceId");
+ALTER TABLE "BookingResource" ADD CONSTRAINT "BookingResource_workspaceId_fkey"
+    FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+CREATE TABLE "BookingExtra" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "priceMode" TEXT NOT NULL DEFAULT 'PER_BOOKING',
+    "memberPriceArs" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "nonMemberPriceArs" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "resourceId" TEXT,
+    "unitsConsumed" INTEGER NOT NULL DEFAULT 1,
+    "requiresConfirmation" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "BookingExtra_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "BookingExtra_workspaceId_active_idx" ON "BookingExtra"("workspaceId", "active");
+ALTER TABLE "BookingExtra" ADD CONSTRAINT "BookingExtra_workspaceId_fkey"
+    FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "BookingExtra" ADD CONSTRAINT "BookingExtra_resourceId_fkey"
+    FOREIGN KEY ("resourceId") REFERENCES "BookingResource"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+CREATE TABLE "BookingExtraSpace" (
+    "id" TEXT NOT NULL,
+    "extraId" TEXT NOT NULL,
+    "spaceId" TEXT NOT NULL,
+    CONSTRAINT "BookingExtraSpace_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "BookingExtraSpace_extraId_spaceId_key" ON "BookingExtraSpace"("extraId", "spaceId");
+CREATE INDEX "BookingExtraSpace_spaceId_idx" ON "BookingExtraSpace"("spaceId");
+ALTER TABLE "BookingExtraSpace" ADD CONSTRAINT "BookingExtraSpace_extraId_fkey"
+    FOREIGN KEY ("extraId") REFERENCES "BookingExtra"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "BookingExtraSpace" ADD CONSTRAINT "BookingExtraSpace_spaceId_fkey"
+    FOREIGN KEY ("spaceId") REFERENCES "BookingSpace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+CREATE TABLE "BookingExtraLine" (
+    "id" TEXT NOT NULL,
+    "bookingId" TEXT NOT NULL,
+    "extraId" TEXT NOT NULL,
+    "nameSnapshot" TEXT NOT NULL,
+    "priceMode" TEXT NOT NULL,
+    "unitPriceArs" DECIMAL(12,2) NOT NULL,
+    "unitsConsumed" INTEGER NOT NULL,
+    "amountArs" DECIMAL(12,2) NOT NULL,
+    "status" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "BookingExtraLine_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "BookingExtraLine_bookingId_idx" ON "BookingExtraLine"("bookingId");
+CREATE INDEX "BookingExtraLine_extraId_idx" ON "BookingExtraLine"("extraId");
+ALTER TABLE "BookingExtraLine" ADD CONSTRAINT "BookingExtraLine_bookingId_fkey"
+    FOREIGN KEY ("bookingId") REFERENCES "Booking"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- RESTRICT y no CASCADE: borrar un extra no puede borrar el registro de lo que alguien
+-- contrató y pagó. Un extra se desactiva, no se borra.
+ALTER TABLE "BookingExtraLine" ADD CONSTRAINT "BookingExtraLine_extraId_fkey"
+    FOREIGN KEY ("extraId") REFERENCES "BookingExtra"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
 CREATE TABLE "BookingSettings" (
     "id" TEXT NOT NULL,
     "workspaceId" TEXT NOT NULL,
@@ -1405,11 +1572,13 @@ cd ../../packages/db && npx prisma migrate resolve --applied 20260909000000_book
 Verificación:
 
 ```sql
-SELECT to_regclass('"BookingSpace"'), to_regclass('"Booking"'), to_regclass('"BookingSettings"');
+SELECT to_regclass('"BookingSpace"'), to_regclass('"Booking"'), to_regclass('"BookingSettings"'),
+       to_regclass('"BookingResource"'), to_regclass('"BookingExtra"'),
+       to_regclass('"BookingExtraSpace"'), to_regclass('"BookingExtraLine"');
 SELECT conname FROM pg_constraint WHERE conname = 'Booking_sin_solapamiento';
 ```
 
-Esperado: las tres tablas existen y la restricción aparece. **Si `btree_gist` no se puede crear**, parar y avisar: sin esa extensión la restricción no existe y el módulo pierde su única garantía real contra la doble reserva. No seguir sin ella ni "dejarlo para después".
+Esperado: las siete tablas consultadas existen y la restricción aparece. **Si `btree_gist` no se puede crear**, parar y avisar: sin esa extensión la restricción no existe y el módulo pierde su única garantía real contra la doble reserva. No seguir sin ella ni "dejarlo para después".
 
 - [ ] **Step 5: Commitear**
 
@@ -2471,6 +2640,431 @@ Dos personas no pueden reservar el mismo horario
 
 La transacción cubre el choque entre espacios incompatibles; la restricción de
 la base cubre el hueco de milisegundos que ninguna verificación puede cerrar.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+MSG
+)"
+```
+
+
+---
+
+### Task 7.bis: Extras — disponibilidad y precio
+
+Módulo puro. Decide qué extras se pueden ofrecer en un rango y cuánto cuestan. Va antes de las pantallas porque la agenda y el formulario dependen de él.
+
+**Files:**
+- Create: `lib/bookings/extras.ts`
+- Test: `lib/bookings/extras.test.ts`
+
+**Interfaces:**
+- Consumes: `Interval`, `overlaps` (Task 1); `CustomerType` (Task 3).
+- Produces:
+  - `type ExtraPriceMode = "PER_BOOKING" | "PER_HOUR"`
+  - `type ExtraDefinition = { id: string; name: string; priceMode: ExtraPriceMode; memberPriceMinor: number; nonMemberPriceMinor: number; resourceId: string | null; unitsConsumed: number; requiresConfirmation: boolean }`
+  - `type ResourceStock = { resourceId: string; quantity: number }`
+  - `type Commitment = { resourceId: string; units: number; range: Interval }`
+  - `type ExtraOffer = { extra: ExtraDefinition; available: boolean; unitsFree: number | null; amountMinor: number }`
+  - `unitsCommitted(resourceId: string, range: Interval, commitments: readonly Commitment[]): number`
+  - `offerExtras(input: { extras: readonly ExtraDefinition[]; stock: readonly ResourceStock[]; commitments: readonly Commitment[]; range: Interval; customerType: CustomerType }): ExtraOffer[]`
+  - `extrasTotalMinor(offers: readonly ExtraOffer[], chosenIds: readonly string[]): number`
+  - `anyRequiresConfirmation(offers: readonly ExtraOffer[], chosenIds: readonly string[]): boolean`
+
+- [ ] **Step 1: Escribir el test que falla**
+
+Crear `lib/bookings/extras.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import {
+  anyRequiresConfirmation,
+  extrasTotalMinor,
+  offerExtras,
+  unitsCommitted,
+} from "./extras";
+
+const r = (a: string, b: string) => ({ startAt: new Date(a), endAt: new Date(b) });
+const sabado14a16 = r("2026-09-19T17:00:00Z", "2026-09-19T19:00:00Z");
+
+const flashSuelto = {
+  id: "flash-1",
+  name: "Flash adicional",
+  priceMode: "PER_BOOKING" as const,
+  memberPriceMinor: 100_000,
+  nonMemberPriceMinor: 150_000,
+  resourceId: "res-flash",
+  unitsConsumed: 1,
+  requiresConfirmation: false,
+};
+
+const packDeDos = {
+  ...flashSuelto,
+  id: "flash-pack",
+  name: "Pack de 2 flashes",
+  // Promocional: menos que dos sueltos.
+  memberPriceMinor: 160_000,
+  nonMemberPriceMinor: 250_000,
+  unitsConsumed: 2,
+};
+
+const humo = {
+  id: "humo",
+  name: "Máquina de humo",
+  priceMode: "PER_BOOKING" as const,
+  memberPriceMinor: 50_000,
+  nonMemberPriceMinor: 80_000,
+  resourceId: "res-humo",
+  unitsConsumed: 1,
+  requiresConfirmation: false,
+};
+
+const modelo = {
+  id: "modelo",
+  name: "Modelo",
+  priceMode: "PER_HOUR" as const,
+  memberPriceMinor: 200_000,
+  nonMemberPriceMinor: 300_000,
+  resourceId: "res-modelo",
+  unitsConsumed: 1,
+  requiresConfirmation: true,
+};
+
+const fondo = {
+  id: "fondo",
+  name: "Fondo de papel",
+  priceMode: "PER_BOOKING" as const,
+  memberPriceMinor: 20_000,
+  nonMemberPriceMinor: 30_000,
+  // Sin recurso: hay de sobra, no se controla.
+  resourceId: null,
+  unitsConsumed: 1,
+  requiresConfirmation: false,
+};
+
+const stock = [
+  { resourceId: "res-flash", quantity: 2 },
+  { resourceId: "res-humo", quantity: 1 },
+  { resourceId: "res-modelo", quantity: 1 },
+];
+
+const base = {
+  extras: [flashSuelto, packDeDos, humo, modelo, fondo],
+  stock,
+  commitments: [],
+  range: sabado14a16,
+  customerType: "MEMBER" as const,
+};
+
+describe("unidades ya comprometidas", () => {
+  it("suma solo lo que se pisa con el rango pedido", () => {
+    const comprometidas = unitsCommitted("res-flash", sabado14a16, [
+      { resourceId: "res-flash", units: 1, range: r("2026-09-19T18:00:00Z", "2026-09-19T20:00:00Z") },
+      { resourceId: "res-flash", units: 1, range: r("2026-09-19T22:00:00Z", "2026-09-19T23:00:00Z") },
+    ]);
+    expect(comprometidas).toBe(1);
+  });
+
+  it("no mezcla recursos distintos", () => {
+    expect(
+      unitsCommitted("res-flash", sabado14a16, [
+        { resourceId: "res-humo", units: 1, range: sabado14a16 },
+      ]),
+    ).toBe(0);
+  });
+
+  it("dos reservas pegadas no se comprometen entre sí", () => {
+    expect(
+      unitsCommitted("res-flash", sabado14a16, [
+        { resourceId: "res-flash", units: 2, range: r("2026-09-19T19:00:00Z", "2026-09-19T21:00:00Z") },
+      ]),
+    ).toBe(0);
+  });
+});
+
+describe("qué extras se pueden ofrecer", () => {
+  it("sin nada comprometido, todos están disponibles", () => {
+    const ofertas = offerExtras(base);
+    expect(ofertas.every((o) => o.available)).toBe(true);
+  });
+
+  it("un extra sin recurso siempre está disponible", () => {
+    const ofertas = offerExtras({
+      ...base,
+      commitments: [{ resourceId: "res-flash", units: 2, range: sabado14a16 }],
+    });
+    expect(ofertas.find((o) => o.extra.id === "fondo")?.available).toBe(true);
+    expect(ofertas.find((o) => o.extra.id === "fondo")?.unitsFree).toBeNull();
+  });
+
+  it("con un flash tomado, el suelto se puede y el pack no", () => {
+    // Este es EL caso que justifica separar recurso de extra: quedó 1 flash libre,
+    // así que el suelto entra y el pack de 2 no.
+    const ofertas = offerExtras({
+      ...base,
+      commitments: [{ resourceId: "res-flash", units: 1, range: sabado14a16 }],
+    });
+    expect(ofertas.find((o) => o.extra.id === "flash-1")?.available).toBe(true);
+    expect(ofertas.find((o) => o.extra.id === "flash-pack")?.available).toBe(false);
+  });
+
+  it("con los dos flashes tomados, ninguno de los dos se puede", () => {
+    const ofertas = offerExtras({
+      ...base,
+      commitments: [{ resourceId: "res-flash", units: 2, range: sabado14a16 }],
+    });
+    expect(ofertas.find((o) => o.extra.id === "flash-1")?.available).toBe(false);
+    expect(ofertas.find((o) => o.extra.id === "flash-pack")?.available).toBe(false);
+  });
+
+  it("el extra agotado se devuelve igual, marcado: se muestra, no se esconde", () => {
+    const ofertas = offerExtras({
+      ...base,
+      commitments: [{ resourceId: "res-humo", units: 1, range: sabado14a16 }],
+    });
+    const oferta = ofertas.find((o) => o.extra.id === "humo");
+    expect(oferta).toBeDefined();
+    expect(oferta!.available).toBe(false);
+    expect(oferta!.unitsFree).toBe(0);
+  });
+
+  it("un recurso sin stock declarado se trata como agotado, no como infinito", () => {
+    // Falla cerrado: un recurso mal cargado no puede volverse ilimitado.
+    const ofertas = offerExtras({ ...base, stock: [] });
+    expect(ofertas.find((o) => o.extra.id === "flash-1")?.available).toBe(false);
+    expect(ofertas.find((o) => o.extra.id === "fondo")?.available).toBe(true);
+  });
+});
+
+describe("cuánto cuestan", () => {
+  it("un extra por reserva cuesta lo mismo dure lo que dure", () => {
+    const dosHoras = offerExtras(base).find((o) => o.extra.id === "humo")!.amountMinor;
+    const cuatroHoras = offerExtras({
+      ...base,
+      range: r("2026-09-19T17:00:00Z", "2026-09-19T21:00:00Z"),
+    }).find((o) => o.extra.id === "humo")!.amountMinor;
+    expect(dosHoras).toBe(50_000);
+    expect(cuatroHoras).toBe(50_000);
+  });
+
+  it("un extra por hora se multiplica por la duración", () => {
+    expect(offerExtras(base).find((o) => o.extra.id === "modelo")!.amountMinor).toBe(400_000);
+  });
+
+  it("media hora de un extra por hora cuesta la mitad", () => {
+    const media = offerExtras({
+      ...base,
+      range: r("2026-09-19T17:00:00Z", "2026-09-19T17:30:00Z"),
+    }).find((o) => o.extra.id === "modelo")!.amountMinor;
+    expect(media).toBe(100_000);
+  });
+
+  it("el no socio paga la tarifa de no socio", () => {
+    const ofertas = offerExtras({ ...base, customerType: "NON_MEMBER" });
+    expect(ofertas.find((o) => o.extra.id === "humo")!.amountMinor).toBe(80_000);
+  });
+
+  it("el pack sale menos que dos flashes sueltos", () => {
+    const ofertas = offerExtras(base);
+    const suelto = ofertas.find((o) => o.extra.id === "flash-1")!.amountMinor;
+    const pack = ofertas.find((o) => o.extra.id === "flash-pack")!.amountMinor;
+    expect(pack).toBeLessThan(suelto * 2);
+  });
+
+  it("el total suma solo lo elegido", () => {
+    const ofertas = offerExtras(base);
+    expect(extrasTotalMinor(ofertas, ["humo", "fondo"])).toBe(70_000);
+    expect(extrasTotalMinor(ofertas, [])).toBe(0);
+  });
+
+  it("un extra agotado no suma al total aunque venga elegido", () => {
+    const ofertas = offerExtras({
+      ...base,
+      commitments: [{ resourceId: "res-humo", units: 1, range: sabado14a16 }],
+    });
+    expect(extrasTotalMinor(ofertas, ["humo"])).toBe(0);
+  });
+});
+
+describe("los que hay que coordinar", () => {
+  it("pedir la modelo obliga a que la institución apruebe", () => {
+    expect(anyRequiresConfirmation(offerExtras(base), ["modelo"])).toBe(true);
+  });
+
+  it("sin extras a confirmar, la reserva sigue su curso normal", () => {
+    expect(anyRequiresConfirmation(offerExtras(base), ["humo", "fondo"])).toBe(false);
+    expect(anyRequiresConfirmation(offerExtras(base), [])).toBe(false);
+  });
+
+  it("un extra a confirmar que está agotado no obliga a nada", () => {
+    const ofertas = offerExtras({
+      ...base,
+      commitments: [{ resourceId: "res-modelo", units: 1, range: sabado14a16 }],
+    });
+    expect(anyRequiresConfirmation(ofertas, ["modelo"])).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 2: Correr el test y verificar que falla**
+
+```bash
+pnpm test lib/bookings/extras.test.ts
+```
+
+Esperado: FALLA con `Failed to resolve import "./extras"`.
+
+- [ ] **Step 3: Escribir la implementación**
+
+Crear `lib/bookings/extras.ts`:
+
+```ts
+import { type Interval, overlaps } from "./time";
+import type { CustomerType } from "./pricing";
+
+/**
+ * Los extras que se alquilan JUNTO con el espacio. Módulo PURO: sin base y sin red.
+ *
+ * ── Lo que se vende no es lo que existe ──
+ *
+ * "Flash adicional" y "Pack de 2 flashes" son dos cosas vendibles que salen del mismo par
+ * de flashes. Si cada una llevara su propia cuenta, el sistema vendería un suelto y un pack
+ * el mismo sábado: tres flashes de los dos que hay.
+ *
+ * Por eso el stock vive en el RECURSO y cada extra declara cuántas unidades consume. El
+ * pack promocional deja de necesitar código: es una fila más.
+ *
+ * Un extra sin recurso no se controla — el fondo de papel, que hay de sobra. Así
+ * "controlar solo algunos" no es una regla aparte.
+ */
+
+export type ExtraPriceMode = "PER_BOOKING" | "PER_HOUR";
+
+export type ExtraDefinition = {
+  id: string;
+  name: string;
+  priceMode: ExtraPriceMode;
+  memberPriceMinor: number;
+  nonMemberPriceMinor: number;
+  /** null = no se controla la cantidad. */
+  resourceId: string | null;
+  unitsConsumed: number;
+  requiresConfirmation: boolean;
+};
+
+export type ResourceStock = { resourceId: string; quantity: number };
+
+/** Unidades ya apartadas por otra reserva en un rango. */
+export type Commitment = { resourceId: string; units: number; range: Interval };
+
+export type ExtraOffer = {
+  extra: ExtraDefinition;
+  available: boolean;
+  /** Unidades libres del recurso en ese rango. null cuando el extra no se controla. */
+  unitsFree: number | null;
+  amountMinor: number;
+};
+
+export function unitsCommitted(
+  resourceId: string,
+  range: Interval,
+  commitments: readonly Commitment[],
+): number {
+  return commitments
+    .filter((c) => c.resourceId === resourceId && overlaps(c.range, range))
+    .reduce((total, c) => total + c.units, 0);
+}
+
+function precioUnitario(extra: ExtraDefinition, customerType: CustomerType): number {
+  return customerType === "MEMBER" ? extra.memberPriceMinor : extra.nonMemberPriceMinor;
+}
+
+function importe(extra: ExtraDefinition, customerType: CustomerType, range: Interval): number {
+  const unitario = precioUnitario(extra, customerType);
+  if (extra.priceMode === "PER_BOOKING") return unitario;
+  const minutos = (range.endAt.getTime() - range.startAt.getTime()) / 60_000;
+  if (!Number.isFinite(minutos) || minutos <= 0) return 0;
+  // Se multiplica antes de dividir, igual que el precio del espacio: dividir primero
+  // arrastraría el redondeo a cada minuto.
+  return Math.round((unitario * minutos) / 60);
+}
+
+/**
+ * Qué extras se pueden ofrecer para un rango, y cuánto sale cada uno.
+ *
+ * **Devuelve también los agotados, marcados.** Esconderlos dejaría a quien reserva sin
+ * entender por qué falta algo que vio la semana pasada; verlos agotados le permite mover el
+ * horario, que es la decisión que en realidad tiene que tomar.
+ */
+export function offerExtras(input: {
+  extras: readonly ExtraDefinition[];
+  stock: readonly ResourceStock[];
+  commitments: readonly Commitment[];
+  range: Interval;
+  customerType: CustomerType;
+}): ExtraOffer[] {
+  const cantidadPorRecurso = new Map(input.stock.map((s) => [s.resourceId, s.quantity]));
+
+  return input.extras.map((extra) => {
+    const amountMinor = importe(extra, input.customerType, input.range);
+
+    if (extra.resourceId === null) {
+      return { extra, available: true, unitsFree: null, amountMinor };
+    }
+
+    // Un recurso sin stock declarado se trata como agotado, no como ilimitado: falla
+    // cerrado, igual que la regla de convivencia entre espacios.
+    const total = cantidadPorRecurso.get(extra.resourceId) ?? 0;
+    const usadas = unitsCommitted(extra.resourceId, input.range, input.commitments);
+    const unitsFree = Math.max(0, total - usadas);
+
+    return { extra, available: unitsFree >= extra.unitsConsumed, unitsFree, amountMinor };
+  });
+}
+
+/** Solo suma lo elegido Y disponible: un agotado no puede colarse en el total. */
+export function extrasTotalMinor(
+  offers: readonly ExtraOffer[],
+  chosenIds: readonly string[],
+): number {
+  const elegidos = new Set(chosenIds);
+  return offers
+    .filter((o) => elegidos.has(o.extra.id) && o.available)
+    .reduce((total, o) => total + o.amountMinor, 0);
+}
+
+/**
+ * ¿Alguno de los elegidos necesita que una persona lo coordine?
+ *
+ * Si la respuesta es sí, la reserva nace en `PENDING_APPROVAL` y NO se cobra: la Secretaría
+ * confirma o quita el extra, y recién ahí sale el enlace de pago con el total definitivo.
+ * Reutiliza el mismo estado que ya usa el salón de eventos — sin circuito nuevo.
+ */
+export function anyRequiresConfirmation(
+  offers: readonly ExtraOffer[],
+  chosenIds: readonly string[],
+): boolean {
+  const elegidos = new Set(chosenIds);
+  return offers.some((o) => elegidos.has(o.extra.id) && o.available && o.extra.requiresConfirmation);
+}
+```
+
+- [ ] **Step 4: Correr el test y verificar que pasa**
+
+```bash
+pnpm test lib/bookings/extras.test.ts
+```
+
+Esperado: PASA, 18 tests.
+
+- [ ] **Step 5: Commitear**
+
+```bash
+git add lib/bookings/extras.ts lib/bookings/extras.test.ts
+git commit -m "$(cat <<'MSG'
+El pack de dos flashes y el flash suelto salen del mismo par de flashes
+
+El stock vive en el recurso y cada extra declara cuántas unidades consume.
+Sin eso, el sistema vendería tres flashes de los dos que hay.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 MSG
@@ -4098,6 +4692,453 @@ MSG
 )"
 ```
 
+
+---
+
+### Task 11.bis: La pantalla de Extras
+
+Donde el dueño carga el inventario y lo que se vende. Dos listas en una pantalla, porque una sin la otra no se entiende.
+
+**Files:**
+- Create: `lib/bookings/extra-form.ts` (validación pura)
+- Test: `lib/bookings/extra-form.test.ts`
+- Create: `app/(shell)/reservas/extras/page.tsx`
+- Modify: `app/(shell)/reservas/actions.ts` (cuatro acciones nuevas)
+- Modify: `lib/bookings/repository.ts` (dos lecturas nuevas)
+
+**Interfaces:**
+- Consumes: `parseArsToMinor` (Task 8); `ExtraDefinition` (Task 7.bis).
+- Produces:
+  - `parseExtraForm(formData: FormData): { ok: true; values: ExtraFormValues } | { ok: false; error: string }`
+  - `listResources(workspaceId: string): Promise<{ id: string; name: string; quantity: number }[]>`
+  - `listExtras(workspaceId: string, options?: { spaceId?: string }): Promise<ExtraRecord[]>`
+  - Acciones `saveResourceAction`, `deleteResourceAction`, `saveExtraAction`, `toggleExtraActiveAction`
+
+- [ ] **Step 1: Escribir el test que falla**
+
+Crear `lib/bookings/extra-form.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { parseExtraForm } from "./extra-form";
+
+function form(campos: Record<string, string | string[]>): FormData {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(campos)) {
+    if (Array.isArray(v)) v.forEach((x) => fd.append(k, x));
+    else fd.set(k, v);
+  }
+  return fd;
+}
+
+const completo = {
+  name: "Pack de 2 flashes",
+  priceMode: "PER_BOOKING",
+  memberPriceArs: "1.600",
+  nonMemberPriceArs: "2.500",
+  resourceId: "res-flash",
+  unitsConsumed: "2",
+  spaceIds: ["estudio"],
+};
+
+describe("el formulario de un extra", () => {
+  it("un formulario completo se acepta", () => {
+    const r = parseExtraForm(form(completo));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.values.name).toBe("Pack de 2 flashes");
+    expect(r.values.memberPriceMinor).toBe(160_000);
+    expect(r.values.unitsConsumed).toBe(2);
+    expect(r.values.resourceId).toBe("res-flash");
+    expect(r.values.spaceIds).toEqual(["estudio"]);
+  });
+
+  it("sin recurso, el extra no controla cantidad y consume una unidad nominal", () => {
+    const r = parseExtraForm(form({ ...completo, resourceId: "", unitsConsumed: "5" }));
+    expect(r.ok && r.values.resourceId).toBeNull();
+    expect(r.ok && r.values.unitsConsumed).toBe(1);
+  });
+
+  it("con recurso, consumir cero unidades no tiene sentido y se rechaza", () => {
+    const r = parseExtraForm(form({ ...completo, unitsConsumed: "0" }));
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error).toContain("unidad");
+  });
+
+  it("un extra sin nombre se rechaza", () => {
+    expect(parseExtraForm(form({ ...completo, name: " " })).ok).toBe(false);
+  });
+
+  it("un extra que no se ofrece en ningún espacio se rechaza", () => {
+    const r = parseExtraForm(form({ ...completo, spaceIds: [] }));
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error).toContain("espacio");
+  });
+
+  it("un precio ilegible se rechaza y dice cuál", () => {
+    const r = parseExtraForm(form({ ...completo, nonMemberPriceArs: "dos mil" }));
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error).toContain("no socios");
+  });
+
+  it("un modo de cobro desconocido cae en por reserva, no rompe", () => {
+    const r = parseExtraForm(form({ ...completo, priceMode: "CUALQUIERA" }));
+    expect(r.ok && r.values.priceMode).toBe("PER_BOOKING");
+  });
+
+  it("por hora se acepta tal cual", () => {
+    const r = parseExtraForm(form({ ...completo, priceMode: "PER_HOUR" }));
+    expect(r.ok && r.values.priceMode).toBe("PER_HOUR");
+  });
+
+  it("requiere confirmación solo si se marcó", () => {
+    expect(parseExtraForm(form(completo)).ok && parseExtraForm(form(completo)).values?.requiresConfirmation).toBe(false);
+    const r = parseExtraForm(form({ ...completo, requiresConfirmation: "on" }));
+    expect(r.ok && r.values.requiresConfirmation).toBe(true);
+  });
+
+  it("un extra gratis es válido: puede ser un servicio incluido", () => {
+    const r = parseExtraForm(form({ ...completo, memberPriceArs: "0", nonMemberPriceArs: "0" }));
+    expect(r.ok && r.values.memberPriceMinor).toBe(0);
+  });
+});
+```
+
+- [ ] **Step 2: Correr el test y verificar que falla**
+
+```bash
+pnpm test lib/bookings/extra-form.test.ts
+```
+
+Esperado: FALLA con `Failed to resolve import "./extra-form"`.
+
+- [ ] **Step 3: Escribir la validación**
+
+Crear `lib/bookings/extra-form.ts`:
+
+```ts
+import { parseArsToMinor } from "./space-form";
+import type { ExtraPriceMode } from "./extras";
+
+/**
+ * Validación del formulario de un extra. Módulo PURO: sin base y sin red.
+ *
+ * La regla que más importa es la del recurso: sin recurso el extra no controla cantidad, y
+ * entonces `unitsConsumed` no significa nada. Se normaliza a 1 en lugar de guardar el
+ * número que haya escrito la persona — un dato que no se usa pero se ve invita a creer que
+ * hace algo.
+ */
+
+export type ExtraFormValues = {
+  name: string;
+  description: string | null;
+  priceMode: ExtraPriceMode;
+  memberPriceMinor: number;
+  nonMemberPriceMinor: number;
+  resourceId: string | null;
+  unitsConsumed: number;
+  requiresConfirmation: boolean;
+  spaceIds: string[];
+};
+
+export type ExtraFormResult =
+  | { ok: true; values: ExtraFormValues }
+  | { ok: false; error: string };
+
+export function parseExtraForm(formData: FormData): ExtraFormResult {
+  const name = String(formData.get("name") ?? "").trim();
+  if (name.length < 2) return { ok: false, error: "Poné un nombre para el extra." };
+
+  const memberPriceMinor = parseArsToMinor(String(formData.get("memberPriceArs") ?? ""));
+  if (memberPriceMinor === null) {
+    return { ok: false, error: "El precio para socios no se entiende." };
+  }
+  const nonMemberPriceMinor = parseArsToMinor(String(formData.get("nonMemberPriceArs") ?? ""));
+  if (nonMemberPriceMinor === null) {
+    return { ok: false, error: "El precio para no socios no se entiende." };
+  }
+
+  const spaceIds = formData.getAll("spaceIds").map((v) => String(v)).filter((v) => v !== "");
+  if (spaceIds.length === 0) {
+    return { ok: false, error: "Elegí al menos un espacio donde ofrecer este extra." };
+  }
+
+  const resourceId = String(formData.get("resourceId") ?? "").trim() || null;
+
+  // Sin recurso no hay cantidad que controlar: se normaliza a 1 para que el número
+  // guardado no sugiera un comportamiento que no existe.
+  let unitsConsumed = 1;
+  if (resourceId !== null) {
+    const crudo = Number(String(formData.get("unitsConsumed") ?? "1").trim());
+    if (!Number.isFinite(crudo) || crudo < 1) {
+      return { ok: false, error: "Un extra con recurso tiene que consumir al menos una unidad." };
+    }
+    unitsConsumed = Math.floor(crudo);
+  }
+
+  const modo = String(formData.get("priceMode") ?? "");
+  const priceMode: ExtraPriceMode = modo === "PER_HOUR" ? "PER_HOUR" : "PER_BOOKING";
+
+  return {
+    ok: true,
+    values: {
+      name,
+      description: String(formData.get("description") ?? "").trim() || null,
+      priceMode,
+      memberPriceMinor,
+      nonMemberPriceMinor,
+      resourceId,
+      unitsConsumed,
+      requiresConfirmation: formData.get("requiresConfirmation") === "on",
+      spaceIds,
+    },
+  };
+}
+```
+
+- [ ] **Step 4: Correr el test y verificar que pasa**
+
+```bash
+pnpm test lib/bookings/extra-form.test.ts
+```
+
+Esperado: PASA, 10 tests.
+
+- [ ] **Step 5: Las lecturas del repositorio**
+
+Agregar a `lib/bookings/repository.ts`:
+
+```ts
+export type ExtraRecord = ExtraDefinition & {
+  description: string | null;
+  active: boolean;
+  resourceName: string | null;
+  spaceIds: string[];
+};
+
+export async function listResources(
+  workspaceId: string,
+): Promise<{ id: string; name: string; quantity: number }[]> {
+  return prisma.bookingResource.findMany({
+    where: { workspaceId },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, quantity: true },
+  });
+}
+
+/** Los extras del workspace. Con `spaceId`, solo los que se ofrecen en ese espacio. */
+export async function listExtras(
+  workspaceId: string,
+  options?: { spaceId?: string; onlyActive?: boolean },
+): Promise<ExtraRecord[]> {
+  const filas = await prisma.bookingExtra.findMany({
+    where: {
+      workspaceId,
+      ...(options?.onlyActive ? { active: true } : {}),
+      ...(options?.spaceId ? { spaces: { some: { spaceId: options.spaceId } } } : {}),
+    },
+    orderBy: [{ order: "asc" }, { name: "asc" }],
+    include: { resource: { select: { name: true } }, spaces: { select: { spaceId: true } } },
+  });
+
+  return filas.map((f) => ({
+    id: f.id,
+    name: f.name,
+    description: f.description,
+    active: f.active,
+    priceMode: f.priceMode as "PER_BOOKING" | "PER_HOUR",
+    memberPriceMinor: decimalArsToMinor(f.memberPriceArs),
+    nonMemberPriceMinor: decimalArsToMinor(f.nonMemberPriceArs),
+    resourceId: f.resourceId,
+    resourceName: f.resource?.name ?? null,
+    unitsConsumed: f.unitsConsumed,
+    requiresConfirmation: f.requiresConfirmation,
+    spaceIds: f.spaces.map((s) => s.spaceId),
+  }));
+}
+
+/**
+ * Lo que ya está apartado del inventario en una ventana.
+ *
+ * Solo cuentan las líneas que comprometen: una en `REMOVED` no aparta nada, y una en
+ * `PENDING_CONFIRMATION` **sí** — mientras la Secretaría decide, ese flash está reservado.
+ */
+export async function listResourceCommitments(
+  workspaceId: string,
+  range: Interval,
+): Promise<Commitment[]> {
+  const lineas = await prisma.bookingExtraLine.findMany({
+    where: {
+      status: { in: ["PENDING_CONFIRMATION", "CONFIRMED"] },
+      booking: {
+        workspaceId,
+        status: { in: [...ACTIVE_BOOKING_STATUSES] },
+        startAt: { lt: range.endAt },
+        endAt: { gt: range.startAt },
+      },
+      extra: { resourceId: { not: null } },
+    },
+    select: {
+      unitsConsumed: true,
+      extra: { select: { resourceId: true } },
+      booking: { select: { startAt: true, endAt: true } },
+    },
+  });
+
+  return lineas
+    .filter((l) => l.extra.resourceId !== null)
+    .map((l) => ({
+      resourceId: l.extra.resourceId as string,
+      units: l.unitsConsumed,
+      range: { startAt: l.booking.startAt, endAt: l.booking.endAt },
+    }));
+}
+```
+
+Agregar los imports que faltan al principio del archivo:
+
+```ts
+import type { Commitment, ExtraDefinition } from "./extras";
+```
+
+- [ ] **Step 6: Las cuatro acciones**
+
+Agregar a `app/(shell)/reservas/actions.ts`:
+
+```ts
+const EXTRAS = "/reservas/extras";
+
+/** El inventario: qué hay y cuántos. */
+export async function saveResourceAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  const quantity = Math.max(0, Number(formData.get("quantity") ?? 0) || 0);
+  const resourceId = String(formData.get("resourceId") ?? "").trim() || null;
+
+  if (name.length < 2) redirect(`${EXTRAS}?error=${encodeURIComponent("Poné un nombre para el recurso.")}`);
+
+  if (resourceId) {
+    await prisma.bookingResource.updateMany({
+      where: { id: resourceId, workspaceId: workspace.id },
+      data: { name, quantity },
+    });
+  } else {
+    await prisma.bookingResource.create({ data: { workspaceId: workspace.id, name, quantity } });
+  }
+
+  revalidatePath(EXTRAS);
+  redirect(`${EXTRAS}?ok=recurso`);
+}
+
+/**
+ * Borrar un recurso deja sin control a los extras que lo usaban, no los rompe: el campo
+ * queda en null y esos extras pasan a ofrecerse siempre. Es una consecuencia real, así que
+ * la pantalla lo avisa antes.
+ */
+export async function deleteResourceAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  await prisma.bookingResource.deleteMany({
+    where: { id: String(formData.get("resourceId") ?? "").trim(), workspaceId: workspace.id },
+  });
+  revalidatePath(EXTRAS);
+  redirect(`${EXTRAS}?ok=recurso_borrado`);
+}
+
+export async function saveExtraAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  const extraId = String(formData.get("extraId") ?? "").trim() || null;
+
+  const parsed = parseExtraForm(formData);
+  if (!parsed.ok) redirect(`${EXTRAS}?error=${encodeURIComponent(parsed.error)}`);
+  const v = parsed.values;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const datos = {
+        name: v.name,
+        description: v.description,
+        priceMode: v.priceMode,
+        memberPriceArs: minorToDecimalString(v.memberPriceMinor),
+        nonMemberPriceArs: minorToDecimalString(v.nonMemberPriceMinor),
+        resourceId: v.resourceId,
+        unitsConsumed: v.unitsConsumed,
+        requiresConfirmation: v.requiresConfirmation,
+      };
+
+      const extra = extraId
+        ? await tx.bookingExtra.update({
+            where: { id: extraId, workspaceId: workspace.id },
+            data: datos,
+            select: { id: true },
+          })
+        : await tx.bookingExtra.create({
+            data: { ...datos, workspaceId: workspace.id },
+            select: { id: true },
+          });
+
+      // Los espacios se reemplazan enteros: lista chica, más fácil de razonar que un diff.
+      await tx.bookingExtraSpace.deleteMany({ where: { extraId: extra.id } });
+      await tx.bookingExtraSpace.createMany({
+        data: v.spaceIds.map((spaceId) => ({ extraId: extra.id, spaceId })),
+      });
+    });
+  } catch (error) {
+    console.error("[fotoffice][reservas] no se pudo guardar el extra", {
+      workspaceId: workspace.id,
+      detalle: sanitizeError(error),
+    });
+    redirect(`${EXTRAS}?error=${encodeURIComponent("No pudimos guardar el extra.")}`);
+  }
+
+  revalidatePath(EXTRAS);
+  redirect(`${EXTRAS}?ok=extra`);
+}
+
+/** Un extra se desactiva, no se borra: hay reservas que lo contrataron. */
+export async function toggleExtraActiveAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  await prisma.bookingExtra.updateMany({
+    where: { id: String(formData.get("extraId") ?? "").trim(), workspaceId: workspace.id },
+    data: { active: formData.get("active") === "on" },
+  });
+  revalidatePath(EXTRAS);
+  redirect(`${EXTRAS}?ok=extra`);
+}
+```
+
+Y agregar al import de validación que ya existe en ese archivo:
+
+```ts
+import { parseExtraForm } from "@/lib/bookings/extra-form";
+```
+
+- [ ] **Step 7: La pantalla**
+
+Crear `app/(shell)/reservas/extras/page.tsx`. Estructura, de arriba hacia abajo:
+
+1. `PageHeader` con título "Extras" y la descripción: *"Lo que se alquila junto con un espacio. Primero cargá el inventario; después, lo que se vende."*
+2. **Sección Inventario** (`fo-card`): la lista de recursos con nombre, cantidad, un formulario de alta (`saveResourceAction`) y el botón de quitar (`deleteResourceAction`) con el aviso *"Los extras que lo usaban dejan de controlar cantidad."*
+3. **Sección Extras** (`fo-card`): la lista, cada uno mostrando nombre, precio de socio y de no socio, si se cobra por reserva o por hora, qué consume (*"Consume 2 × Flash"* o *"Sin control de cantidad"*), en qué espacios se ofrece, y si requiere confirmación. Con Editar y Activar/Desactivar.
+4. **Formulario de alta/edición** (`saveExtraAction`): nombre, descripción, los dos precios, un `select` de `priceMode` con las dos opciones en castellano (*"Una vez por reserva"* / *"Por cada hora"*), un `select` de recurso (con la opción *"Sin control de cantidad"* en primer lugar y valor vacío), `unitsConsumed`, la casilla de requiere confirmación con la ayuda *"La reserva queda a aprobar y no se cobra hasta que la institución confirme"*, y las casillas de espacios.
+
+Usar exactamente las clases del design system que usa `space-form.tsx` (`fo-card`, `fo-field-stack`, `fo-label`, `fo-input`, `fo-helper`, `fo-form-actions`, `fo-btn fo-btn-primary`), y `formatMinorArs` para mostrar los importes.
+
+- [ ] **Step 8: Verificar y commitear**
+
+```bash
+npx tsc --noEmit && pnpm test
+```
+
+```bash
+git add lib/bookings/extra-form.ts lib/bookings/extra-form.test.ts lib/bookings/repository.ts "app/(shell)/reservas"
+git commit -m "$(cat <<'MSG'
+El dueño carga qué equipamiento hay y qué se alquila con él
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+MSG
+)"
+```
+
 ---
 
 ### Task 12: Encender el módulo
@@ -4137,9 +5178,10 @@ En `components/shell/shell-nav.tsx`, agregar una sección RESERVAS con los tres 
 
 - `Agenda` → `/reservas` → ícono `CalendarDays` → STAFF+
 - `Espacios` → `/reservas/espacios` → ícono `DoorOpen` → ADMIN+
+- `Extras` → `/reservas/extras` → ícono `PackagePlus` → ADMIN+
 - `Tarifas y reglas` → `/reservas/configuracion` → ícono `Settings` → ADMIN+
 
-Importar `CalendarDays` y `DoorOpen` de `lucide-react` junto a los demás íconos.
+Importar `CalendarDays`, `DoorOpen` y `PackagePlus` de `lucide-react` junto a los demás íconos.
 
 - [ ] **Step 3: Encender el módulo para la SFPR**
 
@@ -4147,7 +5189,7 @@ Se hace desde `/admin/workspaces/[id]` como Super Admin, no por código. Encende
 
 - [ ] **Step 4: Actualizar el documento de navegación**
 
-En `docs/fotoffice/ARQUITECTURA-NAVEGACION.md` §4.6, cambiar las tres filas de ⬜ a ✅ y sacar la línea *«Etapa 9. Cero código hoy. Es el módulo más grande de los que faltan.»*, reemplazándola por:
+En `docs/fotoffice/ARQUITECTURA-NAVEGACION.md` §4.6, cambiar las filas de ⬜ a ✅, agregar la fila de `Extras` (orden 25, `/reservas/extras`, `PackagePlus`, ADMIN+) y sacar la línea *«Etapa 9. Cero código hoy. Es el módulo más grande de los que faltan.»*, reemplazándola por:
 
 ```markdown
 Implementado. Falta el cobro online y la reserva desde el portal del socio, que van en un
@@ -4174,7 +5216,22 @@ Y en el navegador, con el módulo encendido:
 5. Intentar cargar una del estudio ese mismo sábado de 10 a 12 → **tiene que rechazarla**, porque el salón no convive con nadie.
 6. Cargar una del estudio de 12 a 13 → entra.
 7. Cargar un cierre para ese sábado y verificar que ya no deja cargar nada.
-8. Entrar como STAFF: ve la Agenda, no ve Espacios ni Tarifas, y escribir `/reservas/espacios` a mano lo devuelve a la agenda.
+8. Entrar como STAFF: ve la Agenda, no ve Espacios, Extras ni Tarifas, y escribir
+   `/reservas/espacios` a mano lo devuelve a la agenda.
+
+Y el circuito de los extras, que es donde está la lógica menos obvia:
+
+9. Cargar el recurso **Flash, cantidad 2** y el recurso **Modelo, cantidad 1**.
+10. Cargar el extra **Flash adicional** (consume 1 flash, por reserva) y **Pack de 2 flashes**
+    (consume 2 flashes, más barato que dos sueltos). Los dos, solo en el estudio.
+11. Cargar **Fondo de papel** sin recurso, y **Modelo** por hora con "requiere confirmación".
+12. Verificar en la pantalla que el fondo dice "Sin control de cantidad" y el pack "Consume
+    2 × Flash".
+13. Con una reserva del estudio que ya tomó 1 flash: el flash suelto sigue disponible y **el
+    pack aparece agotado**. Es la prueba de que el inventario es compartido.
+14. Con los 2 flashes tomados: los dos aparecen agotados, **visibles y con el motivo**, no
+    escondidos.
+15. El fondo de papel sigue disponible siempre.
 
 - [ ] **Step 6: Commitear**
 
@@ -4192,14 +5249,17 @@ MSG
 
 ## Qué queda funcionando al terminar
 
-La institución da de alta sus espacios con horarios, tarifas y reglas de convivencia. La Comisión ve la ocupación de la semana y carga las reservas que llegan por teléfono. El sistema impide dos reservas superpuestas —tanto del mismo espacio como de espacios que no pueden convivir— y lo impide **dos veces**: en la transacción y en la base.
+La institución da de alta sus espacios con horarios, tarifas y reglas de convivencia, y el equipamiento que se alquila junto con ellos. La Comisión ve la ocupación de la semana y carga las reservas que llegan por teléfono. El sistema impide dos reservas superpuestas —tanto del mismo espacio como de espacios que no pueden convivir— y lo impide **dos veces**: en la transacción y en la base. Y no promete un flash que ya está comprometido, ni cuando se pide suelto ni cuando se pide dentro de un pack.
 
 Ya reemplaza a la planilla.
 
 ## Lo que falta y va en el plan siguiente
 
-- El socio reserva desde el portal y paga por Mercado Pago o transferencia.
-- Las horas bonificadas del mes, calculadas contra las reservas del socio.
+- El socio reserva desde el portal —con sus extras— y paga por Mercado Pago o transferencia.
+- Las horas bonificadas del mes, calculadas contra las reservas del socio. **Cubren el
+  espacio, no los extras.**
+- La confirmación o el retiro de un extra a confirmar desde la agenda, y el enlace de pago
+  con el total definitivo.
 - La comisión del 5%, retenida por Mercado Pago o devengada como deuda.
 - El vencimiento automático de los bloqueos impagos.
 - El espejo con Google Calendar, en las dos direcciones.
