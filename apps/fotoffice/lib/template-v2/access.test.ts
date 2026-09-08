@@ -47,7 +47,9 @@ describe("los puntos de control del diseñador", () => {
    */
   const ARCHIVOS = [
     "app/(shell)/members/disenador/page.tsx",
-    "app/(shell)/members/disenador/[templateId]/[versionId]/page.tsx",
+    // El editor está en el grupo de ruta (editor), no en (shell): se mudó ahí en 35c52837
+    // para ocupar la ventana entera, sin menú ni cabecera. La URL es la misma.
+    "app/(editor)/members/disenador/[templateId]/[versionId]/page.tsx",
     "app/actions/carnet-template.ts",
     "lib/template-v2/server.ts",
   ];
