@@ -9,6 +9,7 @@ import { parseSpaceForm } from "@/lib/bookings/space-form";
 import { parseExtraForm } from "@/lib/bookings/extra-form";
 import { pairsForSpace } from "@/lib/bookings/conflicts";
 import { cancelBooking, createBooking } from "@/lib/bookings/create";
+import { approveBooking, confirmTransferPayment } from "@/lib/bookings/lifecycle";
 import { requireBookingsAdmin, requireBookingsStaff } from "@/lib/bookings/access";
 import { slugify } from "@/lib/slug";
 import { parseLocalDateTime } from "@/lib/bookings/local-datetime";
@@ -336,4 +337,58 @@ export async function toggleExtraActiveAction(formData: FormData): Promise<void>
   });
   revalidatePath(EXTRAS);
   redirect(`${EXTRAS}?ok=extra`);
+}
+
+/** La Secretaría confirma que la transferencia llegó. */
+export async function confirmTransferAction(formData: FormData): Promise<void> {
+  const { user, workspace } = await requireBookingsStaff();
+  const bookingId = String(formData.get("bookingId") ?? "").trim();
+
+  const r = await confirmTransferPayment({
+    workspaceId: workspace.id,
+    bookingId,
+    byUserId: user.id,
+  });
+
+  revalidatePath(AGENDA);
+  redirect(r.ok ? `${AGENDA}?ok=confirmada` : `${AGENDA}?error=${encodeURIComponent(r.error ?? "")}`);
+}
+
+/**
+ * La institución aprueba una reserva que estaba a la espera.
+ *
+ * Las casillas marcadas son los extras que NO se pudieron conseguir: se quitan y el total
+ * baja antes de que salga el enlace de pago.
+ */
+export async function approveBookingAction(formData: FormData): Promise<void> {
+  const { user, workspace } = await requireBookingsStaff();
+  const bookingId = String(formData.get("bookingId") ?? "").trim();
+  const removeExtraLineIds = formData.getAll("removeExtraLineIds").map((v) => String(v));
+
+  const r = await approveBooking({
+    workspaceId: workspace.id,
+    bookingId,
+    byUserId: user.id,
+    removeExtraLineIds,
+  });
+
+  revalidatePath(AGENDA);
+  redirect(r.ok ? `${AGENDA}?ok=aprobada` : `${AGENDA}?error=${encodeURIComponent(r.error ?? "")}`);
+}
+
+/** Rechazar es cancelar con un motivo. Reutiliza el mismo camino. */
+export async function rejectBookingAction(formData: FormData): Promise<void> {
+  const { user, workspace } = await requireBookingsStaff();
+  const bookingId = String(formData.get("bookingId") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim() || "Rechazada por la institución";
+
+  const r = await cancelBooking({
+    workspaceId: workspace.id,
+    bookingId,
+    byUserId: user.id,
+    reason,
+  });
+
+  revalidatePath(AGENDA);
+  redirect(r.ok ? `${AGENDA}?ok=rechazada` : `${AGENDA}?error=${encodeURIComponent(r.error ?? "")}`);
 }
