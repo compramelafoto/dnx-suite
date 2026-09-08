@@ -215,10 +215,16 @@ ALTER TABLE "BookingExtraLine" ADD CONSTRAINT "BookingExtraLine_extraId_fkey"
 -- transacción: expresarlos acá exigiría una tabla de ocupación derivada, y no vale la pena.
 --
 -- El rango es medio abierto '[)': de 14 a 16 y de 16 a 18 conviven, igual que en time.ts.
+--
+-- Se usa `tsrange` y NO `tstzrange`: Prisma mapea DateTime a TIMESTAMP(3) SIN zona horaria,
+-- así que `tstzrange` obligaría a convertir timestamp -> timestamptz, una conversión que
+-- depende de la zona de la sesión y por eso Postgres la considera STABLE, no IMMUTABLE.
+-- Un índice no admite expresiones no inmutables y la restricción falla al crearse.
+-- Todos los valores guardados son UTC, así que comparar sin zona es correcto.
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 ALTER TABLE "Booking" ADD CONSTRAINT "Booking_sin_solapamiento"
   EXCLUDE USING gist (
     "spaceId" WITH =,
-    tstzrange("startAt", "endAt", '[)') WITH &&
+    tsrange("startAt", "endAt", '[)') WITH &&
   ) WHERE (status IN ('HOLD', 'PENDING_APPROVAL', 'CONFIRMED'));
