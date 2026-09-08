@@ -6,6 +6,7 @@ import { prisma } from "@repo/db";
 import { minorToDecimalString } from "@/lib/membership/money";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { parseSpaceForm } from "@/lib/bookings/space-form";
+import { parseExtraForm } from "@/lib/bookings/extra-form";
 import { pairsForSpace } from "@/lib/bookings/conflicts";
 import { cancelBooking, createBooking } from "@/lib/bookings/create";
 import { requireBookingsAdmin, requireBookingsStaff } from "@/lib/bookings/access";
@@ -175,4 +176,164 @@ export async function cancelBookingAction(formData: FormData): Promise<void> {
 
   revalidatePath(AGENDA);
   redirect(r.ok ? `${AGENDA}?ok=cancelada` : `${AGENDA}?error=${encodeURIComponent(r.error ?? "")}`);
+}
+
+const CONFIGURACION = "/reservas/configuracion";
+const EXTRAS = "/reservas/extras";
+
+/** Plazos de la institución: cuánto vive un bloqueo y hasta cuándo se puede cancelar. */
+export async function saveBookingSettingsAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  const holdHours = Math.max(1, Number(formData.get("holdHours") ?? 24) || 24);
+  const cancelWindowHours = Math.max(0, Number(formData.get("cancelWindowHours") ?? 24) || 0);
+
+  await prisma.bookingSettings.upsert({
+    where: { workspaceId: workspace.id },
+    create: { workspaceId: workspace.id, holdHours, cancelWindowHours },
+    update: { holdHours, cancelWindowHours },
+  });
+
+  revalidatePath(CONFIGURACION);
+  redirect(`${CONFIGURACION}?ok=guardado`);
+}
+
+/** Feriados, vacaciones, mantenimiento. Sin espacio = toda la institución. */
+export async function addClosureAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  const startAt = parseLocalDateTime(String(formData.get("startAt") ?? ""), BOOKINGS_TIME_ZONE);
+  const endAt = parseLocalDateTime(String(formData.get("endAt") ?? ""), BOOKINGS_TIME_ZONE);
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (startAt === null || endAt === null || endAt <= startAt) {
+    redirect(`${CONFIGURACION}?error=${encodeURIComponent("Revisá las fechas del cierre.")}`);
+  }
+  if (reason.length < 2) {
+    redirect(`${CONFIGURACION}?error=${encodeURIComponent("Escribí el motivo del cierre.")}`);
+  }
+
+  await prisma.bookingClosure.create({
+    data: {
+      workspaceId: workspace.id,
+      spaceId: String(formData.get("spaceId") ?? "").trim() || null,
+      startAt,
+      endAt,
+      reason,
+    },
+  });
+
+  revalidatePath(CONFIGURACION);
+  revalidatePath(AGENDA);
+  redirect(`${CONFIGURACION}?ok=cierre`);
+}
+
+export async function deleteClosureAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  await prisma.bookingClosure.deleteMany({
+    where: { id: String(formData.get("closureId") ?? "").trim(), workspaceId: workspace.id },
+  });
+  revalidatePath(CONFIGURACION);
+  revalidatePath(AGENDA);
+  redirect(`${CONFIGURACION}?ok=cierre_borrado`);
+}
+
+/** El inventario: qué hay y cuántos. */
+export async function saveResourceAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  const quantity = Math.max(0, Number(formData.get("quantity") ?? 0) || 0);
+  const resourceId = String(formData.get("resourceId") ?? "").trim() || null;
+
+  if (name.length < 2) {
+    redirect(`${EXTRAS}?error=${encodeURIComponent("Poné un nombre para el recurso.")}`);
+  }
+
+  if (resourceId) {
+    await prisma.bookingResource.updateMany({
+      where: { id: resourceId, workspaceId: workspace.id },
+      data: { name, quantity },
+    });
+  } else {
+    await prisma.bookingResource.create({ data: { workspaceId: workspace.id, name, quantity } });
+  }
+
+  revalidatePath(EXTRAS);
+  redirect(`${EXTRAS}?ok=recurso`);
+}
+
+/**
+ * Borrar un recurso deja sin control a los extras que lo usaban, no los rompe: el campo
+ * queda en null y esos extras pasan a ofrecerse siempre. Es una consecuencia real, así que
+ * la pantalla lo avisa antes.
+ */
+export async function deleteResourceAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  await prisma.bookingResource.deleteMany({
+    where: { id: String(formData.get("resourceId") ?? "").trim(), workspaceId: workspace.id },
+  });
+  revalidatePath(EXTRAS);
+  redirect(`${EXTRAS}?ok=recurso_borrado`);
+}
+
+export async function saveExtraAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  const extraId = String(formData.get("extraId") ?? "").trim() || null;
+
+  const parsed = parseExtraForm(formData);
+  if (!parsed.ok) redirect(`${EXTRAS}?error=${encodeURIComponent(parsed.error)}`);
+  const v = parsed.values;
+
+  if (extraId) {
+    const propio = await prisma.bookingExtra.count({
+      where: { id: extraId, workspaceId: workspace.id },
+    });
+    if (propio === 0) redirect(`${EXTRAS}?error=${encodeURIComponent("Ese extra no existe.")}`);
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const datos = {
+        name: v.name,
+        description: v.description,
+        priceMode: v.priceMode,
+        memberPriceArs: minorToDecimalString(v.memberPriceMinor),
+        nonMemberPriceArs: minorToDecimalString(v.nonMemberPriceMinor),
+        resourceId: v.resourceId,
+        unitsConsumed: v.unitsConsumed,
+        requiresConfirmation: v.requiresConfirmation,
+      };
+
+      const extra = extraId
+        ? await tx.bookingExtra.update({ where: { id: extraId }, data: datos, select: { id: true } })
+        : await tx.bookingExtra.create({
+            data: { ...datos, workspaceId: workspace.id },
+            select: { id: true },
+          });
+
+      // Los espacios se reemplazan enteros: lista chica, más fácil de razonar que un diff.
+      await tx.bookingExtraSpace.deleteMany({ where: { extraId: extra.id } });
+      await tx.bookingExtraSpace.createMany({
+        data: v.spaceIds.map((spaceId) => ({ extraId: extra.id, spaceId })),
+      });
+    });
+  } catch (error) {
+    console.error("[fotoffice][reservas] no se pudo guardar el extra", {
+      workspaceId: workspace.id,
+      detalle: sanitizeError(error),
+    });
+    redirect(`${EXTRAS}?error=${encodeURIComponent("No pudimos guardar el extra.")}`);
+  }
+
+  revalidatePath(EXTRAS);
+  redirect(`${EXTRAS}?ok=extra`);
+}
+
+/** Un extra se desactiva, no se borra: hay reservas que lo contrataron. */
+export async function toggleExtraActiveAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  await prisma.bookingExtra.updateMany({
+    where: { id: String(formData.get("extraId") ?? "").trim(), workspaceId: workspace.id },
+    data: { active: formData.get("active") === "on" },
+  });
+  revalidatePath(EXTRAS);
+  redirect(`${EXTRAS}?ok=extra`);
 }
