@@ -6,6 +6,7 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { canManageMembers } from "@/lib/members/role-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
@@ -32,6 +33,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const coursesOn = enabledModuleKeys.has(COURSES_SALES_MODULE_KEY);
   const evaluacionesOn = enabledModuleKeys.has(EVALUACIONES_MODULE_KEY);
   const membersOn = enabledModuleKeys.has(MEMBERS_MODULE_KEY);
+  const bookingsOn = enabledModuleKeys.has(BOOKINGS_MODULE_KEY);
   const websiteOn = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
   // Un solo rol resuelto alimenta los dos flags del menú: si se resolvieran por caminos
   // distintos, volvería a poder pasar que uno ofrezca lo que el otro niega.
@@ -54,6 +56,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
           coursesEnabled={coursesOn}
           evaluacionesEnabled={evaluacionesOn}
           membersEnabled={membersOn}
+          bookingsEnabled={bookingsOn}
           websiteEnabled={websiteOn}
           canManageMembers={canManageMembersFlag}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}

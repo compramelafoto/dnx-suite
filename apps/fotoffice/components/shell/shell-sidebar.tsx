@@ -8,6 +8,7 @@ export function ShellSidebar({
   coursesEnabled,
   evaluacionesEnabled,
   membersEnabled,
+  bookingsEnabled,
   websiteEnabled,
   canManageMembers,
   canManageWorkspaceSettings,
@@ -22,6 +23,7 @@ export function ShellSidebar({
   coursesEnabled: boolean;
   evaluacionesEnabled: boolean;
   membersEnabled: boolean;
+  bookingsEnabled: boolean;
   websiteEnabled: boolean;
   canManageMembers: boolean;
   canManageWorkspaceSettings: boolean;
@@ -50,6 +52,7 @@ export function ShellSidebar({
         coursesEnabled={coursesEnabled}
         evaluacionesEnabled={evaluacionesEnabled}
         membersEnabled={membersEnabled}
+        bookingsEnabled={bookingsEnabled}
         websiteEnabled={websiteEnabled}
         canManageMembers={canManageMembers}
         canManageWorkspaceSettings={canManageWorkspaceSettings}

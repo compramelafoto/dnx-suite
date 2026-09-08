@@ -6916,6 +6916,12 @@ model Workspace {
   memberInvitations           MemberInvitation[]
   moduleFees                  WorkspaceModuleFee[]
   integrations                WorkspaceIntegration[]
+  bookingSpaces               BookingSpace[]
+  bookings                    Booking[]
+  bookingClosures             BookingClosure[]
+  bookingSettings             BookingSettings?
+  bookingResources            BookingResource[]
+  bookingExtras               BookingExtra[]
   feeLedger                   WorkspaceFeeLedgerEntry[]
   membershipApplications      MembershipApplication[]
   membershipDuesSettings      MembershipDuesSettings?
@@ -7239,6 +7245,7 @@ model Member {
   @@index([workspaceId, documentNumber])
   @@index([workspaceId, lastName, firstName])
   @@index([workspaceId, recommendedByMemberId])
+  bookings       Booking[]
 }
 
 /// Invitación para que un socio acceda con su propia cuenta.
@@ -7910,6 +7917,281 @@ model WorkspaceIntegrationOAuthState {
 
   @@index([expiresAt])
   @@index([workspaceId])
+}
+
+/// ─────────────────────────────────────────────────────────────────────────────
+/// RESERVAS DE ESPACIOS
+/// Ver docs/superpowers/specs/2026-09-07-reservas-e-integraciones-design.md
+/// ─────────────────────────────────────────────────────────────────────────────
+
+/// Un espacio alquilable: coworking, salón, estudio, laboratorio…
+/// No son categorías del sistema: son filas que el dueño da de alta.
+model BookingSpace {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  slug        String
+  description String?
+  imageUrl    String?
+  active      Boolean @default(true)
+  order       Int     @default(0)
+
+  /// Grilla de la agenda, en minutos. 60 = por hora.
+  slotMinutes       Int     @default(60)
+  minBookingMinutes Int     @default(60)
+  /// null = sin tope.
+  maxBookingMinutes Int?
+  /// Tiempo de limpieza que ocupa a los dos lados de cada reserva.
+  bufferMinutes     Int     @default(0)
+  minAdvanceHours   Int     @default(2)
+  maxAdvanceDays    Int     @default(90)
+  /// El salón de eventos: la Comisión mira antes de aceptar.
+  requiresApproval  Boolean @default(false)
+
+  /// Tarifas por hora. El precio de socio ES el precio promocional.
+  memberHourlyPriceArs    Decimal @default(0) @db.Decimal(12, 2)
+  nonMemberHourlyPriceArs Decimal @default(0) @db.Decimal(12, 2)
+  /// Horas bonificadas por mes para socios. 0 = este espacio no bonifica.
+  memberFreeHoursPerMonth Int     @default(0)
+  allowsNonMembers        Boolean @default(true)
+
+  /// Calendario de Google que espeja este espacio. Uno por espacio: es la única forma de
+  /// saber qué espacio ocupa un evento cargado a mano.
+  googleCalendarId  String?
+  calendarSyncToken String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace     Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hours         BookingSpaceHours[]
+  bookings      Booking[]
+  closures      BookingClosure[]
+  compatibleAsA BookingSpaceCompatibility[] @relation("CompatibilidadA")
+  compatibleAsB BookingSpaceCompatibility[] @relation("CompatibilidadB")
+  extras        BookingExtraSpace[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, active])
+}
+
+/// "Lunes de 9 a 13" es una fila. Varios tramos por día.
+model BookingSpaceHours {
+  id      String @id @default(cuid())
+  spaceId String
+  /// 0 domingo … 6 sábado, en la zona de la institución.
+  weekday Int
+  /// Minutos desde la medianoche local. 540 = 09:00. Siempre endMinute > startMinute.
+  startMinute Int
+  endMinute   Int
+
+  space BookingSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@index([spaceId, weekday])
+}
+
+/// Feriados, vacaciones, mantenimiento. spaceId null = toda la institución.
+model BookingClosure {
+  id          String   @id @default(cuid())
+  workspaceId String
+  spaceId     String?
+  startAt     DateTime
+  endAt       DateTime
+  reason      String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  space     BookingSpace? @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, startAt])
+}
+
+/// Par de espacios que SÍ pueden estar ocupados a la vez.
+///
+/// Todo par ausente de esta tabla es INCOMPATIBLE: el defecto es bloquear. Un espacio nuevo
+/// nace bloqueando a todos, y el error posible es "no me deja reservar" —que se nota y se
+/// corrige en dos minutos— en lugar de "vendí dos veces el mismo salón".
+///
+/// Se guarda una sola fila por par, siempre con spaceAId < spaceBId.
+model BookingSpaceCompatibility {
+  id       String @id @default(cuid())
+  spaceAId String
+  spaceBId String
+
+  spaceA BookingSpace @relation("CompatibilidadA", fields: [spaceAId], references: [id], onDelete: Cascade)
+  spaceB BookingSpace @relation("CompatibilidadB", fields: [spaceBId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceAId, spaceBId])
+  @@index([spaceBId])
+}
+
+model Booking {
+  id          String   @id @default(cuid())
+  workspaceId String
+  spaceId     String
+  startAt     DateTime
+  endAt       DateTime
+
+  /// HOLD | PENDING_APPROVAL | CONFIRMED | CANCELLED | EXPIRED
+  status        String
+  /// Vencimiento del bloqueo mientras no está pago ni aprobado. Null si ya está confirmada.
+  holdExpiresAt DateTime?
+
+  /// Quién reserva. `memberId` para socios; `userId` para cualquiera con cuenta.
+  memberId     String?
+  userId       Int?
+  contactName  String
+  contactEmail String
+  contactPhone String?
+  /// MEMBER | NON_MEMBER. Congelado al reservar: si después se asocia, esta reserva no cambia.
+  customerType String
+
+  /// Dinero, todo congelado en el momento de reservar.
+  billedMinutes   Int
+  freeMinutesUsed Int     @default(0)
+  hourlyPriceArs  Decimal @db.Decimal(12, 2)
+  totalArs        Decimal @db.Decimal(12, 2)
+  /// Puntos básicos: 500 = 5%. Entero, nunca porcentaje decimal.
+  feeBps          Int     @default(0)
+  feeArs          Decimal @default(0) @db.Decimal(12, 2)
+
+  /// MERCADO_PAGO | TRANSFERENCIA | SIN_CARGO | PRESENCIAL
+  paymentMethod  String
+  /// PENDING | PAID | NOT_REQUIRED
+  paymentStatus  String
+  mpPreferenceId String?
+  mpPaymentId    String?
+  paidAt         DateTime?
+  /// Quién confirmó una transferencia o aprobó el pedido. Para explicarlo meses después.
+  decidedByUserId Int?
+
+  googleEventId String?
+  notes         String?
+  /// Quién la cargó, cuando la carga el equipo y no la persona.
+  createdByUserId   Int?
+  cancelledAt       DateTime?
+  cancelledByUserId Int?
+  cancelReason      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  space      BookingSpace       @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  member     Member?            @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  extraLines       BookingExtraLine[]
+  feeLedgerEntries WorkspaceFeeLedgerEntry[]
+
+  @@index([workspaceId, startAt])
+  @@index([spaceId, startAt])
+  @@index([memberId, startAt])
+  @@index([status, holdExpiresAt])
+}
+
+/// Reglas del módulo que son de la institución entera, no de un espacio.
+model BookingSettings {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+  /// Cuánto vive un bloqueo esperando pago por transferencia o esperando aprobación.
+  holdHours   Int    @default(24)
+  /// Hasta cuántas horas antes puede cancelar solo quien reservó.
+  cancelWindowHours Int @default(24)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// El inventario real. Solo para lo que hay que contar.
+///
+/// Existe separado de `BookingExtra` porque lo que se VENDE no es lo que EXISTE: "Flash
+/// adicional" y "Pack de 2 flashes" son dos cosas vendibles que salen del mismo par de
+/// flashes. Sin esta separación el sistema vendería un suelto y un pack el mismo sábado:
+/// tres flashes de los dos que hay. Es la doble reserva del salón con otro disfraz.
+model BookingResource {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  quantity    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  extras    BookingExtra[]
+
+  @@index([workspaceId])
+}
+
+/// Lo que el socio elige y paga junto con el espacio. Nunca se alquila solo.
+model BookingExtra {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  active      Boolean @default(true)
+  order       Int     @default(0)
+
+  /// PER_BOOKING (una vez) | PER_HOUR (por cada hora de la reserva)
+  priceMode         String  @default("PER_BOOKING")
+  memberPriceArs    Decimal @default(0) @db.Decimal(12, 2)
+  nonMemberPriceArs Decimal @default(0) @db.Decimal(12, 2)
+
+  /// Qué consume del inventario. SIN recurso, la cantidad no se controla: así es como
+  /// "controlar solo algunos" deja de ser una regla aparte.
+  resourceId    String?
+  unitsConsumed Int     @default(1)
+
+  /// Necesita coordinar con una persona antes de comprometerlo (una modelo). Fuerza la
+  /// reserva a PENDING_APPROVAL y no se cobra hasta que la institución decida.
+  requiresConfirmation Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  resource  BookingResource?    @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  spaces    BookingExtraSpace[]
+  lines     BookingExtraLine[]
+
+  @@index([workspaceId, active])
+}
+
+/// En qué espacios se ofrece cada extra. El humo sirve al estudio y al salón.
+model BookingExtraSpace {
+  id      String @id @default(cuid())
+  extraId String
+  spaceId String
+
+  extra BookingExtra @relation(fields: [extraId], references: [id], onDelete: Cascade)
+  space BookingSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([extraId, spaceId])
+  @@index([spaceId])
+}
+
+/// Los extras de una reserva concreta, con el precio congelado.
+model BookingExtraLine {
+  id        String @id @default(cuid())
+  bookingId String
+  extraId   String
+  /// Copia del nombre al reservar: si después se renombra el extra, la reserva vieja sigue
+  /// diciendo lo que la persona contrató.
+  nameSnapshot  String
+  priceMode     String
+  unitPriceArs  Decimal @db.Decimal(12, 2)
+  unitsConsumed Int
+  amountArs     Decimal @db.Decimal(12, 2)
+  /// PENDING_CONFIRMATION | CONFIRMED | REMOVED
+  status        String
+  createdAt     DateTime @default(now())
+
+  booking Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  /// Restrict y no Cascade: borrar un extra no puede borrar el registro de lo que alguien
+  /// contrató y pagó. Un extra se desactiva, no se borra.
+  extra   BookingExtra @relation(fields: [extraId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId])
+  @@index([extraId])
 }
 
 model EvaluationContext {
@@ -16103,6 +16385,9 @@ model WorkspaceFeeLedgerEntry {
   amountArs           Decimal                @db.Decimal(12, 2)
   /// Pago que originó el asiento: el manual que lo devengó, o el de Mercado Pago que lo cobró.
   membershipPaymentId String?
+  /// Reserva que originó el asiento, cuando el cobro vino de Reservas y no de Cuotas.
+  /// Nullable y sin default: los asientos viejos no la tienen y no hace falta migrarlos.
+  bookingId           String?
   /// Por qué. Obligatorio de hecho para los saldos manuales, que no tienen pago que los explique.
   note                String?
   actorUserId         Int?
@@ -16110,10 +16395,12 @@ model WorkspaceFeeLedgerEntry {
 
   workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   payment            MembershipPayment? @relation(fields: [membershipPaymentId], references: [id], onDelete: SetNull)
+  booking            Booking?           @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   actorUser          User?              @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
   membershipCharge   MembershipCharge?  @relation(fields: [membershipChargeId], references: [id])
   membershipChargeId String?
 
   @@index([workspaceId, createdAt])
   @@index([membershipPaymentId])
+  @@index([bookingId])
 }

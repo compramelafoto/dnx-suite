@@ -1,6 +1,7 @@
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
@@ -72,6 +73,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     route: "/website",
     status: "AVAILABLE",
   },
+  {
+    key: BOOKINGS_MODULE_KEY,
+    label: "Reservas",
+    description:
+      "Reserva de salón, estudio, coworking u otros espacios: horarios, tarifas para socios y no socios, extras y agenda.",
+    category: "GENERAL",
+    order: 60,
+    route: "/reservas",
+    status: "AVAILABLE",
+  },
 
   // --- Reservados para etapas futuras. Claves fijadas, SIN implementar. ---
   {
@@ -96,14 +107,6 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     description: "Eventos con inscripción y asistencia.",
     category: "GENERAL",
     order: 50,
-    status: "PLANNED",
-  },
-  {
-    key: "bookings",
-    label: "Reservas",
-    description: "Reserva de salón, estudio u otros recursos del workspace.",
-    category: "GENERAL",
-    order: 60,
     status: "PLANNED",
   },
   {

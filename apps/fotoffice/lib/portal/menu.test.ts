@@ -27,8 +27,19 @@ describe("menú del socio", () => {
   });
 
   it("una sección sin construir no se habilita por tener el módulo prendido", () => {
+    // Sorteos, que sigue sin pantalla. Este test usaba Reservas hasta que se construyó:
+    // cuando Sorteos se construya, hay que repuntarlo a la que quede sin hacer.
     const items = resolvePortalMenu(TODOS);
-    expect(items.find((i) => i.href === "/portal/reservas")?.state).toBe("PROXIMAMENTE");
+    expect(items.find((i) => i.href === "/portal/sorteos")?.state).toBe("PROXIMAMENTE");
+  });
+
+  it("Reservas ya está construida y se habilita con su módulo", () => {
+    expect(
+      resolvePortalMenu(new Set(["bookings"])).find((i) => i.href === "/portal/reservas")?.state,
+    ).toBe("DISPONIBLE");
+    expect(
+      resolvePortalMenu(new Set()).find((i) => i.href === "/portal/reservas")?.state,
+    ).toBe("PROXIMAMENTE");
   });
 
   it("inicio, carnet y perfil no dependen de ningún módulo", () => {

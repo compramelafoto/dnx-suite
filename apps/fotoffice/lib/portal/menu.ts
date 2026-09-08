@@ -119,7 +119,7 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     description: "Reservar el salón, el estudio o el coworking.",
     icon: "calendar",
     requiresModule: "bookings",
-    built: false,
+    built: true,
   },
   {
     order: 70,

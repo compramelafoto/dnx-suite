@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/solicitudes",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/reservas-vencimientos",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

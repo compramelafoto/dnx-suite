@@ -11,6 +11,9 @@ import {
   Palette,
   Globe,
   Plug,
+  CalendarDays,
+  DoorOpen,
+  PackagePlus,
   GraduationCap,
   Inbox,
   LayoutDashboard,
@@ -31,6 +34,7 @@ import {
   type SubmoduleItem,
 } from "@/lib/modules/submodules";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 
 /**
@@ -72,6 +76,9 @@ function under(href: string) {
 /** Los íconos que puede nombrar un submódulo. Cerrado a propósito: un nombre suelto no dibuja nada. */
 const ICONOS: Record<string, ComponentType<{ className?: string }>> = {
   CalendarClock,
+  CalendarDays,
+  DoorOpen,
+  PackagePlus,
   CreditCard,
   GraduationCap,
   Inbox,
@@ -159,6 +166,7 @@ export function ShellNav({
   coursesEnabled,
   evaluacionesEnabled,
   membersEnabled,
+  bookingsEnabled,
   websiteEnabled,
   canManageMembers,
   canManageWorkspaceSettings,
@@ -167,6 +175,7 @@ export function ShellNav({
   coursesEnabled: boolean;
   evaluacionesEnabled: boolean;
   membersEnabled: boolean;
+  bookingsEnabled: boolean;
   websiteEnabled: boolean;
   canManageMembers: boolean;
   canManageWorkspaceSettings: boolean;
@@ -177,6 +186,10 @@ export function ShellNav({
 
   const socios: Item[] = membersEnabled
     ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers)
+    : [];
+
+  const reservas: Item[] = bookingsEnabled
+    ? itemsDeModulo(BOOKINGS_MODULE_KEY, canManageWorkspaceSettings)
     : [];
 
   const cursos: Item[] = coursesEnabled
@@ -278,6 +291,7 @@ export function ShellNav({
       />
       <Section title="Socios" items={socios} path={path} onNavigate={closeDrawer} />
       <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
+      <Section title="Reservas" items={reservas} path={path} onNavigate={closeDrawer} />
       <Section title="Captación" items={captacion} path={path} onNavigate={closeDrawer} />
       <Section title="Presencia pública" items={presencia} path={path} onNavigate={closeDrawer} />
       <Section title="Institución" items={institucion} path={path} onNavigate={closeDrawer} />
