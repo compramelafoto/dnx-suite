@@ -1,5 +1,6 @@
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 
 /**
  * Las pantallas de cada módulo, en un solo lugar.
@@ -127,9 +128,45 @@ const CURSOS: SubmoduleItem[] = [
   },
 ];
 
+const RESERVAS: SubmoduleItem[] = [
+  {
+    href: "/reservas",
+    label: "Agenda",
+    icon: "CalendarDays",
+    description: "Quién ocupa qué espacio esta semana, y carga de reservas por teléfono.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/reservas/espacios",
+    label: "Espacios",
+    icon: "DoorOpen",
+    description: "Qué se alquila, cuándo, a qué precio y con qué otros espacios puede convivir.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    href: "/reservas/extras",
+    label: "Extras",
+    icon: "PackagePlus",
+    description: "El equipamiento que se alquila junto con un espacio, y cuánto hay de cada cosa.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    href: "/reservas/configuracion",
+    label: "Tarifas y reglas",
+    icon: "CalendarClock",
+    description: "Plazos de pago, cancelación y cierres por feriado.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
+  [BOOKINGS_MODULE_KEY]: RESERVAS,
 };
 
 /**
