@@ -22,35 +22,47 @@ export async function pendingFeeDebtMinor(workspaceId: string, db: Db = prisma):
   return Math.max(0, minor);
 }
 
+/**
+ * De qué operación salió un asiento.
+ *
+ * Las dos referencias son opcionales y excluyentes en la práctica: un asiento viene de un
+ * pago de cuota o de una reserva. Se guardan las dos como columnas nullable porque un
+ * asiento sin referencia —un ajuste manual— también es legítimo, y porque obligar a elegir
+ * con un tipo cerrado complicaría a los tres llamadores sin evitar ningún error real.
+ */
+export type LedgerEntryInput = {
+  workspaceId: string;
+  amountMinor: number;
+  note: string;
+  membershipPaymentId?: string | null;
+  bookingId?: string | null;
+};
+
 /** La comisión que no se pudo retener porque el pago no pasó por Mercado Pago. */
-export async function recordAccrual(
-  db: Db,
-  input: { workspaceId: string; membershipPaymentId: string; amountMinor: number; note: string },
-): Promise<void> {
+export async function recordAccrual(db: Db, input: LedgerEntryInput): Promise<void> {
   if (input.amountMinor <= 0) return;
   await db.workspaceFeeLedgerEntry.create({
     data: {
       workspaceId: input.workspaceId,
       kind: "DEVENGADO",
       amountArs: minorToDecimalString(input.amountMinor),
-      membershipPaymentId: input.membershipPaymentId,
+      membershipPaymentId: input.membershipPaymentId ?? null,
+      bookingId: input.bookingId ?? null,
       note: input.note,
     },
   });
 }
 
 /** Deuda cobrada reteniéndola de un pago que sí pasó por Mercado Pago. */
-export async function recordDischarge(
-  db: Db,
-  input: { workspaceId: string; membershipPaymentId: string; amountMinor: number; note: string },
-): Promise<void> {
+export async function recordDischarge(db: Db, input: LedgerEntryInput): Promise<void> {
   if (input.amountMinor <= 0) return;
   await db.workspaceFeeLedgerEntry.create({
     data: {
       workspaceId: input.workspaceId,
       kind: "RETENIDO",
       amountArs: `-${minorToDecimalString(input.amountMinor)}`,
-      membershipPaymentId: input.membershipPaymentId,
+      membershipPaymentId: input.membershipPaymentId ?? null,
+      bookingId: input.bookingId ?? null,
       note: input.note,
     },
   });

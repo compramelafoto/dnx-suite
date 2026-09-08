@@ -8079,7 +8079,8 @@ model Booking {
   workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   space      BookingSpace       @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   member     Member?            @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  extraLines BookingExtraLine[]
+  extraLines       BookingExtraLine[]
+  feeLedgerEntries WorkspaceFeeLedgerEntry[]
 
   @@index([workspaceId, startAt])
   @@index([spaceId, startAt])
@@ -16384,6 +16385,9 @@ model WorkspaceFeeLedgerEntry {
   amountArs           Decimal                @db.Decimal(12, 2)
   /// Pago que originó el asiento: el manual que lo devengó, o el de Mercado Pago que lo cobró.
   membershipPaymentId String?
+  /// Reserva que originó el asiento, cuando el cobro vino de Reservas y no de Cuotas.
+  /// Nullable y sin default: los asientos viejos no la tienen y no hace falta migrarlos.
+  bookingId           String?
   /// Por qué. Obligatorio de hecho para los saldos manuales, que no tienen pago que los explique.
   note                String?
   actorUserId         Int?
@@ -16391,10 +16395,12 @@ model WorkspaceFeeLedgerEntry {
 
   workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   payment            MembershipPayment? @relation(fields: [membershipPaymentId], references: [id], onDelete: SetNull)
+  booking            Booking?           @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   actorUser          User?              @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
   membershipCharge   MembershipCharge?  @relation(fields: [membershipChargeId], references: [id])
   membershipChargeId String?
 
   @@index([workspaceId, createdAt])
   @@index([membershipPaymentId])
+  @@index([bookingId])
 }
