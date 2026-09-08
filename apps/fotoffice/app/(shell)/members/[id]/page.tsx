@@ -88,9 +88,6 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   // Quien registra un pago necesita ver, en la misma pantalla, qué se le registró antes:
   // es la única forma de no cargar dos veces el mismo comprobante.
   const pagos = puedeCobrar ? await loadMemberPaymentHistory(member.id, { limit: 50 }) : [];
-  // Quien registra un pago necesita ver, en la misma pantalla, qué se le registró antes:
-  // es la única forma de no cargar dos veces el mismo comprobante.
-  const pagos = puedeCobrar ? await loadMemberPaymentHistory(member.id, { limit: 50 }) : [];
   const cuenta = puedeCobrar ? await loadMemberBalance(member.id) : null;
 
   return (
