@@ -5,7 +5,12 @@ import { requireBookingsStaff } from "@/lib/bookings/access";
 import { listBookingsInRange, listSpaces } from "@/lib/bookings/repository";
 import { BOOKINGS_TIME_ZONE, localMoment, minuteOfDayToLabel } from "@/lib/bookings/time";
 import { shiftWeeks, weekDays, weekRange } from "@/lib/bookings/week";
-import { cancelBookingAction } from "./actions";
+import {
+  approveBookingAction,
+  cancelBookingAction,
+  confirmTransferAction,
+  rejectBookingAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -139,6 +144,70 @@ export default async function AgendaPage({
                               </form>
                             )}
                           </div>
+
+                          {reserva.extraLines.length > 0 ? (
+                            <p className="w-full text-xs text-[var(--fo-muted-soft)]">
+                              Con:{" "}
+                              {reserva.extraLines
+                                .map(
+                                  (l) =>
+                                    `${l.nameSnapshot}${l.status === "PENDING_CONFIRMATION" ? " (a confirmar)" : ""}`,
+                                )
+                                .join(", ")}
+                            </p>
+                          ) : null}
+
+                          {reserva.status === "HOLD" &&
+                          reserva.paymentMethod === "TRANSFERENCIA" ? (
+                            <form action={confirmTransferAction} className="w-full">
+                              <input type="hidden" name="bookingId" value={reserva.id} />
+                              <button type="submit" className="fo-btn fo-btn-secondary text-xs">
+                                Confirmar transferencia
+                              </button>
+                            </form>
+                          ) : null}
+
+                          {reserva.status === "PENDING_APPROVAL" ? (
+                            <div className="w-full space-y-2 rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-3">
+                              <form action={approveBookingAction} className="space-y-2">
+                                <input type="hidden" name="bookingId" value={reserva.id} />
+                                {reserva.extraLines
+                                  .filter((l) => l.status === "PENDING_CONFIRMATION")
+                                  .map((l) => (
+                                    <label key={l.id} className="flex items-center gap-2 text-xs">
+                                      <input
+                                        type="checkbox"
+                                        name="removeExtraLineIds"
+                                        value={l.id}
+                                      />
+                                      No se pudo conseguir: {l.nameSnapshot} (
+                                      {formatMinorArs(decimalArsToMinor(l.amountArs))})
+                                    </label>
+                                  ))}
+                                <button type="submit" className="fo-btn fo-btn-primary text-xs">
+                                  Aprobar
+                                </button>
+                                <p className="text-xs text-[var(--fo-muted-soft)]">
+                                  Al aprobar se le manda el enlace de pago con el total
+                                  definitivo. Lo que marques como no conseguido se descuenta.
+                                </p>
+                              </form>
+                              <form action={rejectBookingAction} className="flex flex-wrap items-center gap-2">
+                                <input type="hidden" name="bookingId" value={reserva.id} />
+                                <input
+                                  name="reason"
+                                  className="fo-input text-xs"
+                                  placeholder="Motivo del rechazo"
+                                />
+                                <button
+                                  type="submit"
+                                  className="text-xs text-[var(--fo-danger)] underline underline-offset-4"
+                                >
+                                  Rechazar
+                                </button>
+                              </form>
+                            </div>
+                          ) : null}
                         </li>
                       );
                     })}

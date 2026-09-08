@@ -195,6 +195,12 @@ export type BookingRow = {
   paymentStatus: string;
   totalArs: { toString(): string };
   holdExpiresAt: Date | null;
+  extraLines: {
+    id: string;
+    nameSnapshot: string;
+    amountArs: { toString(): string };
+    status: string;
+  }[];
 };
 
 /** Lo que muestra la agenda del equipo. Incluye canceladas para poder explicarlas. */
@@ -217,6 +223,10 @@ export async function listBookingsInRange(
       paymentStatus: true,
       totalArs: true,
       holdExpiresAt: true,
+      extraLines: {
+        where: { status: { not: "REMOVED" } },
+        select: { id: true, nameSnapshot: true, amountArs: true, status: true },
+      },
     },
   })) as unknown as BookingRow[];
 }
