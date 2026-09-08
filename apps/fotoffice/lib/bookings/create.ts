@@ -44,11 +44,31 @@ export type CreateBookingInput = {
   notes?: string | null;
   /** Quién la carga, cuando la carga el equipo. Null si la carga la propia persona. */
   createdByUserId: number | null;
+  /**
+   * Los extras contratados, con el precio ya congelado.
+   *
+   * Van acá y no en una llamada aparte porque tienen que guardarse en la MISMA transacción
+   * que la reserva: si la reserva se guardara y las líneas fallaran, quedaría un horario
+   * tomado sin los extras que la persona pidió y va a pagar.
+   */
+  extraLines?: BookingExtraLineInput[];
   now?: Date;
 };
 
+export type BookingExtraLineInput = {
+  extraId: string;
+  /** Copia del nombre al reservar: si mañana se renombra, la reserva vieja no cambia. */
+  nameSnapshot: string;
+  priceMode: string;
+  unitPriceMinor: number;
+  unitsConsumed: number;
+  amountMinor: number;
+  /** PENDING_CONFIRMATION cuando hay que coordinarlo; CONFIRMED cuando no. */
+  status: string;
+};
+
 export type CreateBookingResult =
-  | { ok: true; bookingId: string; quote: Quote; status: BookingStatus }
+  | { ok: true; bookingId: string; quote: Quote; status: BookingStatus; totalMinor: number }
   | { ok: false; error: string };
 
 const CHOQUE = "Ese horario se acaba de ocupar. Elegí otro.";
@@ -109,10 +129,20 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
     freeMinutesAvailable: input.freeMinutesAvailable,
   });
 
+  // El total es el espacio MÁS los extras: las horas bonificadas cubren el espacio y no el
+  // equipamiento. Ver `lib/bookings/portal.ts`.
+  const extraLines = input.extraLines ?? [];
+  const extrasMinor = extraLines.reduce((s, l) => s + Math.max(0, l.amountMinor), 0);
+  const totalMinor = quote.totalMinor + extrasMinor;
+
+  // Un extra que hay que coordinar deja la reserva a aprobar, igual que un espacio que lo
+  // requiere: es el mismo estado y el mismo circuito, sin inventar uno nuevo.
+  const hayQueCoordinar = extraLines.some((l) => l.status === "PENDING_CONFIRMATION");
+
   // Una reserva sin cargo no espera ningún pago; una que requiere aprobación no cobra
   // hasta que alguien decida. El resto nace bloqueada con su vencimiento.
-  const sinCargo = quote.totalMinor === 0;
-  const status: BookingStatus = espacio.requiresApproval
+  const sinCargo = totalMinor === 0;
+  const status: BookingStatus = espacio.requiresApproval || hayQueCoordinar
     ? "PENDING_APPROVAL"
     : sinCargo || input.paymentMethod === "PRESENCIAL"
       ? "CONFIRMED"
@@ -163,7 +193,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
       });
       if (!veredicto.ok) throw new BookingRejected(rejectionMessage(veredicto.reason));
 
-      return tx.booking.create({
+      const reserva = await tx.booking.create({
         data: {
           workspaceId: input.workspaceId,
           spaceId: input.spaceId,
@@ -180,7 +210,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
           billedMinutes: quote.billedMinutes,
           freeMinutesUsed: quote.freeMinutesUsed,
           hourlyPriceArs: minorToDecimalString(quote.hourlyPriceMinor),
-          totalArs: minorToDecimalString(quote.totalMinor),
+          totalArs: minorToDecimalString(totalMinor),
           paymentMethod: sinCargo ? "SIN_CARGO" : input.paymentMethod,
           paymentStatus: sinCargo ? "NOT_REQUIRED" : "PENDING",
           notes: input.notes ?? null,
@@ -188,9 +218,26 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
         },
         select: { id: true },
       });
+
+      if (extraLines.length > 0) {
+        await tx.bookingExtraLine.createMany({
+          data: extraLines.map((l) => ({
+            bookingId: reserva.id,
+            extraId: l.extraId,
+            nameSnapshot: l.nameSnapshot,
+            priceMode: l.priceMode,
+            unitPriceArs: minorToDecimalString(l.unitPriceMinor),
+            unitsConsumed: l.unitsConsumed,
+            amountArs: minorToDecimalString(l.amountMinor),
+            status: l.status,
+          })),
+        });
+      }
+
+      return reserva;
     });
 
-    return { ok: true, bookingId: creada.id, quote, status };
+    return { ok: true, bookingId: creada.id, quote, status, totalMinor };
   } catch (error) {
     if (error instanceof BookingRejected) return { ok: false, error: error.message };
     if (isOverlapConstraintError(error)) return { ok: false, error: CHOQUE };
