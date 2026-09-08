@@ -262,8 +262,8 @@ Beneficios**, aunque técnicamente se pueda.
 
 ### 4.6 · RESERVAS ✅
 
-Implementado el 2026-09-08. Falta el cobro online y la reserva desde el portal del socio,
-que van en una etapa aparte.
+Implementado el 2026-09-08, con su cobro y su portal. Falta el espejo con Google Calendar,
+que va en una etapa aparte.
 
 | Orden | Etiqueta | Ruta | Ícono | Módulo | Rol | Estado |
 |---:|---|---|---|---|---|---|
@@ -392,7 +392,7 @@ menú lateral copiado del panel.
 | 30 | Mis cuotas | `/portal/cuotas` | Estado de cuenta y pago por Mercado Pago | ✅ |
 | 40 | Mi perfil | `/portal/perfil` | Datos, foto de perfil y presencia profesional | ✅ |
 | 50 | Beneficios | `/portal/beneficios` | Descuentos y convenios vigentes | ⬜ |
-| 60 | Reservas | `/portal/reservas` | Reservar salón o estudio, y ver las propias | ⬜ |
+| 60 | Reservas | `/portal/reservas` | Reservar salón, estudio o coworking con sus extras, y ver las propias | ✅ |
 | 70 | Sorteos | `/portal/sorteos` | Sorteo del mes y resultados verificables | ⬜ |
 | 80 | Cursos | `/portal/cursos` | Cursos de la institución e inscripción | ⬜ |
 | 90 | Institucional | `/portal/institucional` | Novedades, actas y transparencia | ⬜ |

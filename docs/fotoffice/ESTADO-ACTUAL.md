@@ -107,7 +107,7 @@ Estados posibles: `CONSTRUIDO` / `PARCIAL` / `NO EXISTE` / `SIN VERIFICAR`.
 | 8 — Web pública y Website Builder | `PARCIAL` | Rutas `/website`, `/website/historial`, `/website/navegacion`, `/website/preview`, `/website/seo`. Modelos `FotofficeWorkspaceWebsite` y `FotofficeWorkspaceWebsiteVersion`. **Falta el blog.** |
 | 10 — Cursos | `CONSTRUIDO` | Rutas de cursos, docentes, leads e inscripción con desenlaces éxito/pendiente/fallo. 9 modelos de curso. |
 | 3 y 4 — Primera invitación real | `SIN VERIFICAR` | El flujo existe (`/invitacion/[token]`, `/recuperar/[token]`). Si se probó con un socio real no se puede saber desde el código. |
-| 9 — Reservas | `CONSTRUIDO (núcleo)` | Rutas `/reservas`, `/reservas/espacios`, `/reservas/extras`, `/reservas/configuracion`. 10 modelos. Motor de disponibilidad, regla de convivencia entre espacios, extras con inventario y carga manual por el equipo. **Falta** el cobro online y la reserva desde el portal del socio. |
+| 9 — Reservas | `CONSTRUIDO` | Rutas `/reservas`, `/reservas/espacios`, `/reservas/extras`, `/reservas/configuracion`, `/portal/reservas` y `/w/[slug]/reservas`. 10 modelos. Motor de disponibilidad, convivencia entre espacios, extras con inventario, horas bonificadas por mes, cobro por Mercado Pago y transferencia con la comisión del 5%. **Falta** el espejo con Google Calendar. |
 | 11 — Beneficios y sponsors | `NO EXISTE` en FotoOffice | Los modelos de sponsor del esquema pertenecen a otras aplicaciones. |
 | 12 — Tesorería y gobierno institucional | `NO EXISTE` | Sin proyectos, orden del día, votaciones ni actas. |
 | 13 — Comunicación institucional | `PARCIAL` | Solo la firma por workspace (`emailSignatureNote`, migración `20260822120000`). El módulo no existe. |
@@ -233,6 +233,18 @@ Esos 10 archivos usan Checkout Pro con `marketplace_fee` y el consentimiento OAu
 2. **Aplicar la migración `20260827000000_fotorank_contest_media_assets`.** Es aditiva y segura —solo crea un enum y una tabla, sin filas—, pero en este proyecto ningún build ejecuta `prisma migrate deploy`. Hasta que se aplique, el build de FotoRank registra que la tabla no existe.
 3. **Verificar la base de datos de producción.** Los conteos del documento de contexto siguen sin confirmar.
 4. Recién después, retomar módulos pendientes (reservas, sorteos, tesorería, gobierno).
+
+### Pendientes del portal de reservas — 2026-09-08
+
+1. **Migración `20260910000000_fee_ledger_booking`.** Una columna nullable `bookingId` en
+   `WorkspaceFeeLedgerEntry`, aplicada en la base de FotoOffice. A diferencia de una tabla
+   nueva, Prisma **sí** pide esta columna en cada consulta de esa tabla: sin aplicarla, las
+   pantallas que leen el libro de comisiones dejan de funcionar.
+2. **Proceso programado nuevo:** `/api/cron/reservas-vencimientos`, cada 15 minutos, ya
+   declarado en `vercel.json`. Libera los horarios bloqueados que nadie pagó. Es idempotente.
+3. **La reserva de un no socio necesita cuenta.** Después del login cae en
+   `/w/[slug]/reservas/[spaceId]`, que funciona para cualquier usuario con sesión, tenga o no
+   ficha de socio.
 
 ### Pendientes del módulo de Reservas — 2026-09-08
 
