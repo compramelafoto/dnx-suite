@@ -260,15 +260,22 @@ Etapa 11 y 14. Todo planificado. Depende de traer DNX Partners a FotoOffice.
 Sorteos depende de Sponsors: sin sponsors no hay premio. **No se habilita Sorteos antes que
 Beneficios**, aunque técnicamente se pueda.
 
-### 4.6 · RESERVAS ⬜
+### 4.6 · RESERVAS ✅
 
-Etapa 9. Cero código hoy. Es el módulo más grande de los que faltan.
+Implementado el 2026-09-08. Falta el cobro online y la reserva desde el portal del socio,
+que van en una etapa aparte.
 
-| Orden | Etiqueta | Ruta prevista | Ícono | Módulo | Rol | Estado |
+| Orden | Etiqueta | Ruta | Ícono | Módulo | Rol | Estado |
 |---:|---|---|---|---|---|---|
-| 10 | Agenda | `/reservas` | `CalendarDays` | `bookings` | STAFF+ | ⬜ |
-| 20 | Espacios | `/reservas/espacios` | `DoorOpen` | `bookings` | ADMIN+ | ⬜ |
-| 30 | Tarifas y reglas | `/reservas/configuracion` | `Settings` | `bookings` | ADMIN+ | ⬜ |
+| 10 | Agenda | `/reservas` | `CalendarDays` | `bookings` | STAFF+ | ✅ |
+| 20 | Espacios | `/reservas/espacios` | `DoorOpen` | `bookings` | ADMIN+ | ✅ |
+| 25 | Extras | `/reservas/extras` | `PackagePlus` | `bookings` | ADMIN+ | ✅ |
+| 30 | Tarifas y reglas | `/reservas/configuracion` | `CalendarClock` | `bookings` | ADMIN+ | ✅ |
+
+**Extras** es el equipamiento que se alquila junto con un espacio —un flash adicional, un pack
+de dos a precio promocional, una máquina de humo, una modelo—. Nunca se alquilan solos. El
+stock vive en un *recurso* y cada extra declara cuántas unidades consume, así el flash suelto y
+el pack de dos no pueden venderse los dos el mismo sábado.
 
 La conexión con el Google Calendar de la institución **no vive acá**: es una cuenta de la
 organización entera y vive en Integraciones (§4.10). La misma cuenta sirve a Calendar

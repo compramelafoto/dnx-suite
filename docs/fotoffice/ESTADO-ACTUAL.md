@@ -107,7 +107,7 @@ Estados posibles: `CONSTRUIDO` / `PARCIAL` / `NO EXISTE` / `SIN VERIFICAR`.
 | 8 — Web pública y Website Builder | `PARCIAL` | Rutas `/website`, `/website/historial`, `/website/navegacion`, `/website/preview`, `/website/seo`. Modelos `FotofficeWorkspaceWebsite` y `FotofficeWorkspaceWebsiteVersion`. **Falta el blog.** |
 | 10 — Cursos | `CONSTRUIDO` | Rutas de cursos, docentes, leads e inscripción con desenlaces éxito/pendiente/fallo. 9 modelos de curso. |
 | 3 y 4 — Primera invitación real | `SIN VERIFICAR` | El flujo existe (`/invitacion/[token]`, `/recuperar/[token]`). Si se probó con un socio real no se puede saber desde el código. |
-| 9 — Reservas | `NO EXISTE` | Cero archivos y cero modelos de reserva, espacio o salón. |
+| 9 — Reservas | `CONSTRUIDO (núcleo)` | Rutas `/reservas`, `/reservas/espacios`, `/reservas/extras`, `/reservas/configuracion`. 10 modelos. Motor de disponibilidad, regla de convivencia entre espacios, extras con inventario y carga manual por el equipo. **Falta** el cobro online y la reserva desde el portal del socio. |
 | 11 — Beneficios y sponsors | `NO EXISTE` en FotoOffice | Los modelos de sponsor del esquema pertenecen a otras aplicaciones. |
 | 12 — Tesorería y gobierno institucional | `NO EXISTE` | Sin proyectos, orden del día, votaciones ni actas. |
 | 13 — Comunicación institucional | `PARCIAL` | Solo la firma por workspace (`emailSignatureNote`, migración `20260822120000`). El módulo no existe. |
@@ -233,6 +233,20 @@ Esos 10 archivos usan Checkout Pro con `marketplace_fee` y el consentimiento OAu
 2. **Aplicar la migración `20260827000000_fotorank_contest_media_assets`.** Es aditiva y segura —solo crea un enum y una tabla, sin filas—, pero en este proyecto ningún build ejecuta `prisma migrate deploy`. Hasta que se aplique, el build de FotoRank registra que la tabla no existe.
 3. **Verificar la base de datos de producción.** Los conteos del documento de contexto siguen sin confirmar.
 4. Recién después, retomar módulos pendientes (reservas, sorteos, tesorería, gobierno).
+
+### Pendientes del módulo de Reservas — 2026-09-08
+
+1. **Migración `20260909000000_bookings`.** Aplicada a mano en la base de FotoOffice: 10 tablas
+   nuevas, la extensión `btree_gist` y la restricción `Booking_sin_solapamiento`. Es aditiva —no
+   toca ninguna columna existente— así que no afecta a las otras aplicaciones de la suite.
+   Verificada contra la base: una reserva superpuesta se rechaza, una pegada entra y una
+   cancelada no ocupa.
+2. **Encender el módulo `bookings` para la SFPR.** Se hace desde `/admin/workspaces/[id]` como
+   Super Admin. Hasta que se encienda, la sección no aparece y las rutas redirigen.
+3. **Detalle técnico que conviene no perder:** va `tsrange` y no `tstzrange` en la restricción,
+   porque Prisma guarda las fechas como `TIMESTAMP` sin zona y la conversión no es inmutable.
+   Y Prisma **no** expone el código `23P01` en `code` ni en `meta`: llega enterrado en el texto
+   del mensaje, así que la detección del choque lee el texto.
 
 ### Pendientes del módulo de Integraciones — 2026-09-07
 
