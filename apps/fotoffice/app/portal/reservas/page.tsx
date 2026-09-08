@@ -6,7 +6,9 @@ import { loadPortalContext } from "@/lib/portal/access";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
-import { BOOKINGS_TIME_ZONE, addMinutes, localMoment, minuteOfDayToLabel } from "@/lib/bookings/time";
+import { BOOKINGS_TIME_ZONE, localMoment, minuteOfDayToLabel } from "@/lib/bookings/time";
+import { shiftWeeks, weekDays, weekRange } from "@/lib/bookings/week";
+import { buildWeekGrid } from "@/lib/bookings/week-grid";
 import { listSpaces, getBookingSettings } from "@/lib/bookings/repository";
 import { loadPortalOffer } from "@/lib/bookings/portal";
 import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
@@ -26,7 +28,14 @@ const ETIQUETA_ESTADO: Record<string, string> = {
 export default async function PortalReservasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ espacio?: string; error?: string; ok?: string; enviada?: string; pago?: string }>;
+  searchParams: Promise<{
+    espacio?: string;
+    semana?: string;
+    error?: string;
+    ok?: string;
+    enviada?: string;
+    pago?: string;
+  }>;
 }) {
   const user = await requireAuth();
   const context = await loadPortalContext(user.id);
@@ -42,19 +51,40 @@ export default async function PortalReservasPage({
     : (espacios[0] ?? null);
 
   const ahora = new Date();
-  // Ventana de dos semanas: alcanza para elegir y no llena la pantalla de meses vacíos.
-  const ventana = { startAt: ahora, endAt: addMinutes(ahora, 14 * 24 * 60) };
+
+  // La semana que se mira. Sin parámetro, la de hoy.
+  const ancla = params.semana ? new Date(params.semana) : ahora;
+  const referencia = Number.isNaN(ancla.getTime()) ? ahora : ancla;
+  const semana = weekRange(referencia, BOOKINGS_TIME_ZONE);
+  const diasDeLaSemana = weekDays(semana, BOOKINGS_TIME_ZONE);
 
   const oferta = elegido
     ? await loadPortalOffer({
         workspaceId: context.workspace.id,
         memberId: context.member.id,
         spaceId: elegido.id,
-        range: ventana,
+        range: semana,
         customerType: "MEMBER",
         now: ahora,
       })
     : null;
+
+  const grid =
+    elegido && oferta
+      ? buildWeekGrid({
+          weekStart: semana.startAt,
+          weeklyHours: elegido.weeklyHours,
+          freeSlots: oferta.slots,
+          now: ahora,
+          timeZone: BOOKINGS_TIME_ZONE,
+          slotMinutes: elegido.rules.slotMinutes,
+          minAdvanceHours: elegido.rules.minAdvanceHours,
+        })
+      : null;
+
+  // No se ofrece navegar a una semana que ya pasó entera.
+  const semanaPasada = weekRange(shiftWeeks(referencia, -1), BOOKINGS_TIME_ZONE);
+  const hayAnterior = semanaPasada.endAt > ahora;
 
   const [settings, mias] = await Promise.all([
     getBookingSettings(context.workspace.id),
@@ -147,27 +177,23 @@ export default async function PortalReservasPage({
             ))}
           </nav>
 
-          {elegido && oferta ? (
+          {elegido && oferta && grid ? (
             <ReservarForm
               spaceId={elegido.id}
               spaceName={elegido.name}
               description={elegido.description}
               memberHourlyPriceMinor={elegido.memberHourlyPriceMinor}
               freeHours={oferta.freeHours}
-              slots={oferta.slots.map((s) => ({
-                startISO: s.startAt.toISOString(),
-                endISO: s.endAt.toISOString(),
-                ymd: localMoment(s.startAt, BOOKINGS_TIME_ZONE).ymd,
-                diaLabel: fmtFecha(s.startAt),
-                horaLabel: minuteOfDayToLabel(
-                  localMoment(s.startAt, BOOKINGS_TIME_ZONE).minuteOfDay,
-                ),
-              }))}
+              grid={grid}
+              tituloSemana={`Semana del ${diasDeLaSemana[0].label} al ${diasDeLaSemana[6].label}`}
+              semanaAnterior={
+                hayAnterior ? shiftWeeks(referencia, -1).toISOString() : null
+              }
+              semanaSiguiente={shiftWeeks(referencia, 1).toISOString()}
               extras={oferta.extras.map((o) => ({
                 id: o.extra.id,
                 name: o.extra.name,
                 available: o.available,
-                unitsFree: o.unitsFree,
                 requiresConfirmation: o.extra.requiresConfirmation,
                 precioLabel: `${formatMinorArs(o.amountMinor)}${o.extra.priceMode === "PER_HOUR" ? " (por hora)" : ""}`,
               }))}

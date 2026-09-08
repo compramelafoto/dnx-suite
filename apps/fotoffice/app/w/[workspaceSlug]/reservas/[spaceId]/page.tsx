@@ -5,7 +5,9 @@ import { requireAuth } from "@/lib/auth";
 import { formatMinorArs } from "@/lib/membership/money";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
-import { BOOKINGS_TIME_ZONE, addMinutes, localMoment, minuteOfDayToLabel } from "@/lib/bookings/time";
+import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
+import { shiftWeeks, weekDays, weekRange } from "@/lib/bookings/week";
+import { buildWeekGrid } from "@/lib/bookings/week-grid";
 import { loadPortalOffer } from "@/lib/bookings/portal";
 import { PublicBookingForm } from "./public-form";
 
@@ -13,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ workspaceSlug: string; spaceId: string }>;
-  searchParams: Promise<{ error?: string; ok?: string; enviada?: string; pago?: string }>;
+  searchParams: Promise<{ semana?: string; error?: string; ok?: string; enviada?: string; pago?: string }>;
 };
 
 export default async function PublicSpaceBookingPage({ params, searchParams }: Props) {
@@ -32,25 +34,34 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
   if (!(await isModuleEnabledForWorkspace(branding.workspaceId, BOOKINGS_MODULE_KEY))) notFound();
 
   const ahora = new Date();
-  const ventana = { startAt: ahora, endAt: addMinutes(ahora, 14 * 24 * 60) };
+  const ancla = query.semana ? new Date(query.semana) : ahora;
+  const referencia = Number.isNaN(ancla.getTime()) ? ahora : ancla;
+  const semana = weekRange(referencia, BOOKINGS_TIME_ZONE);
+  const diasDeLaSemana = weekDays(semana, BOOKINGS_TIME_ZONE);
 
   const oferta = await loadPortalOffer({
     workspaceId: branding.workspaceId,
     memberId: null,
     spaceId,
-    range: ventana,
+    range: semana,
     customerType: "NON_MEMBER",
     now: ahora,
   });
   if (!oferta || !oferta.space.allowsNonMembers) notFound();
 
-  const fmtFecha = (d: Date) =>
-    d.toLocaleDateString("es-AR", {
-      timeZone: BOOKINGS_TIME_ZONE,
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
+  const grid = buildWeekGrid({
+    weekStart: semana.startAt,
+    weeklyHours: oferta.space.weeklyHours,
+    freeSlots: oferta.slots,
+    now: ahora,
+    timeZone: BOOKINGS_TIME_ZONE,
+    slotMinutes: oferta.space.rules.slotMinutes,
+    minAdvanceHours: oferta.space.rules.minAdvanceHours,
+  });
+
+  const semanaPasada = weekRange(shiftWeeks(referencia, -1), BOOKINGS_TIME_ZONE);
+  const hayAnterior = semanaPasada.endAt > ahora;
+
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
@@ -96,13 +107,10 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
           spaceId={spaceId}
           hourlyPriceMinor={oferta.space.nonMemberHourlyPriceMinor}
           defaultEmail={user.email ?? ""}
-          slots={oferta.slots.map((s) => ({
-            startISO: s.startAt.toISOString(),
-            endISO: s.endAt.toISOString(),
-            ymd: localMoment(s.startAt, BOOKINGS_TIME_ZONE).ymd,
-            diaLabel: fmtFecha(s.startAt),
-            horaLabel: minuteOfDayToLabel(localMoment(s.startAt, BOOKINGS_TIME_ZONE).minuteOfDay),
-          }))}
+          grid={grid}
+          tituloSemana={`Semana del ${diasDeLaSemana[0].label} al ${diasDeLaSemana[6].label}`}
+          semanaAnterior={hayAnterior ? shiftWeeks(referencia, -1).toISOString() : null}
+          semanaSiguiente={shiftWeeks(referencia, 1).toISOString()}
           extras={oferta.extras.map((o) => ({
             id: o.extra.id,
             name: o.extra.name,
