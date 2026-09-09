@@ -12,6 +12,10 @@ export const adminRoutes = {
   promotions: "/admin/promociones",
   social: "/admin/social",
   sponsors: "/admin/sponsors",
+  /** Qué lugares del inventario publicitario están tomados. */
+  sponsorsInventory: "/admin/sponsors/inventario",
+  /** Quién puede vender inventario, y hasta dónde. */
+  sponsorsSellers: "/admin/sponsors/vendedores",
   templates: "/admin/plantillas",
   /** CMS del blog público (`@repo/content`, platform = clickaton). */
   contents: "/admin/contenidos",
@@ -88,6 +92,18 @@ export const adminNavigation: readonly AdminNavItem[] = [
   {
     label: "Sponsors y beneficios",
     href: adminRoutes.sponsors,
+    icon: "sponsors",
+    section: "main",
+  },
+  {
+    label: "Ocupación del inventario",
+    href: adminRoutes.sponsorsInventory,
+    icon: "sponsors",
+    section: "main",
+  },
+  {
+    label: "Vendedores habilitados",
+    href: adminRoutes.sponsorsSellers,
     icon: "sponsors",
     section: "main",
   },

@@ -129,3 +129,48 @@ describe("alcance de cada espacio", () => {
     assert.ok(fo.every((e) => e.contextType === "ORGANIZATION"));
   });
 });
+
+describe("vender inventario ajeno", () => {
+  it("sin habilitación, un organizador ve solo lo suyo", () => {
+    const espacios = listSellableSpaces({ owner: "ORGANIZER" });
+    assert.ok(espacios.every((e) => e.owner === "ORGANIZER"));
+  });
+
+  it("habilitado, suma los espacios globales de plataforma", () => {
+    const espacios = listSellableSpaces({ owner: "ORGANIZER", canSellPlatform: true });
+    const duenos = new Set(espacios.map((e) => e.owner));
+    assert.deepEqual([...duenos].sort(), ["ORGANIZER", "PLATFORM"]);
+  });
+
+  it("la habilitación no le abre el inventario de otros vendedores", () => {
+    const espacios = listSellableSpaces({ owner: "ORGANIZER", canSellPlatform: true });
+    assert.ok(espacios.every((e) => e.owner !== "WORKSPACE"));
+  });
+
+  it("un workspace habilitado también llega a la red", () => {
+    const espacios = listSellableSpaces({
+      owner: "WORKSPACE",
+      canSellPlatform: true,
+      includeUnmounted: true,
+    });
+    assert.ok(espacios.some((e) => e.owner === "PLATFORM"));
+    assert.ok(espacios.some((e) => e.owner === "WORKSPACE"));
+  });
+
+  it("a DNX la habilitación no le cambia nada: la red ya es suya", () => {
+    const sin = listSellableSpaces({ owner: "PLATFORM" }).map((e) => e.placementKey);
+    const con = listSellableSpaces({ owner: "PLATFORM", canSellPlatform: true }).map(
+      (e) => e.placementKey,
+    );
+    assert.deepEqual(con, sin);
+  });
+
+  it("filtrar por aplicación sigue mandando sobre la habilitación", () => {
+    const espacios = listSellableSpaces({
+      owner: "ORGANIZER",
+      canSellPlatform: true,
+      application: "INFO_SPOT",
+    });
+    assert.ok(espacios.every((e) => e.application === "INFO_SPOT"));
+  });
+});

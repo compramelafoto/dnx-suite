@@ -197,6 +197,15 @@ export type SellerScope = {
   access?: DnxInventoryAccess;
   /** Incluir lo declarado pero todavía no montado. Por defecto, no. */
   includeUnmounted?: boolean;
+  /**
+   * Si está habilitado para ofrecer los espacios globales de la red, además de
+   * los suyos.
+   *
+   * Es una habilitación explícita: no todo organizador debería poder vender la
+   * portada de InfoSpot. No abre el inventario de los demás vendedores — un
+   * organizador habilitado sigue sin ver el portal de una institución.
+   */
+  canSellPlatform?: boolean;
 };
 
 /**
@@ -206,8 +215,11 @@ export type SellerScope = {
  * prometerle a una marca un lugar donde su logo nunca aparecería.
  */
 export function listSellableSpaces(seller: SellerScope): readonly DnxInventorySpace[] {
+  const alcanza = (owner: DnxInventoryOwner) =>
+    owner === seller.owner || (seller.canSellPlatform === true && owner === "PLATFORM");
+
   return DNX_INVENTORY.filter((space) => {
-    if (space.owner !== seller.owner) return false;
+    if (!alcanza(space.owner)) return false;
     if (seller.application && space.application !== seller.application) return false;
     if (!seller.includeUnmounted && !space.mounted) return false;
     if (seller.access && seller.access !== "BOTH") {

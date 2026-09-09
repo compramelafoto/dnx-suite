@@ -5,6 +5,7 @@ import {
   type DnxPartnerBookingStatus,
 } from "@repo/partners";
 import { listInventoryBookings } from "@repo/db/partners-inventory-bookings";
+import { listSalesAgents } from "@repo/db/partners-sales-agents";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
@@ -63,6 +64,8 @@ export default async function AdminInventarioPage({ searchParams }: Props) {
   const ahora = new Date();
   const aviso = (await searchParams) ?? {};
   const periodo = periodoPorDefecto();
+
+  const vendedores = await withClickatonDb(() => listSalesAgents({ onlyActive: true }));
 
   const marcas = await withClickatonDb(async () => {
     const svc = getClickatonPartnersService();
@@ -151,9 +154,18 @@ export default async function AdminInventarioPage({ searchParams }: Props) {
           <Field
             id="inv-vendedor"
             label="Quién trajo la venta"
-            hint="Dejalo vacío si la vendió DNX. Si la originó un organizador o una institución, pegá su identificador: es lo que después permite atribuirle la comisión."
+            hint="Es lo que después permite atribuirle la comisión. Los vendedores se habilitan en su propia pantalla."
           >
-            <Input type="text" name="soldByOrganizationId" placeholder="DNX directo" />
+            <Select name="soldByOrganizationId" defaultValue="">
+              <option value="">DNX directo</option>
+              {vendedores.ok
+                ? vendedores.data.map((v) => (
+                    <option key={v.id} value={v.organizationId}>
+                      {v.displayName}
+                    </option>
+                  ))
+                : null}
+            </Select>
           </Field>
 
           <div className="grid grid-cols-2 gap-3">

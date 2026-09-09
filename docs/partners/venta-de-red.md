@@ -100,10 +100,15 @@ Revisado contra el código el 2026-09-09.
    al crear o editar una participación, y se muestra en las dos pantallas.
    Vacío significa DNX directo.
 
-   Queda como **campo de texto con el identificador**, no como desplegable:
-   `soldByOrganizationId` es una referencia opaca —puede ser un workspace de
-   FotoOffice o una organización de concurso— y no hay una tabla única de
-   vendedores que listar. El desplegable sale solo cuando exista el registro de
-   vendedores habilitados, que es el punto 3.
-3. **La habilitación para vender inventario ajeno.** No todo organizador debería
-   poder vender la portada de InfoSpot.
+   Es un desplegable que sale de los vendedores habilitados (punto 3), no un
+   campo de texto: `soldByOrganizationId` es una referencia opaca y escribirla a
+   mano invitaba a errores de tipeo en la atribución de comisiones.
+3. ~~La habilitación para vender inventario ajeno.~~ Hecho el 2026-09-09.
+
+   `DnxPartnerSalesAgent` registra quién está habilitado y hasta dónde. Sin una
+   fila ahí, una organización solo vende su propio inventario; con
+   `canSellPlatform` puede ofrecer además los espacios globales de la red, pero
+   nunca el inventario de otro vendedor.
+
+   Se administra en **Sponsors → Vendedores habilitados**, y de ahí sale el
+   desplegable de «quién trajo la venta»: el campo dejó de ser texto libre.

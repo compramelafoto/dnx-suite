@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { withClickatonDb } from "@/lib/admin/db";
+import { listSalesAgents } from "@repo/db/partners-sales-agents";
 import {
   archivePartnerFormAction,
   createBenefitFormAction,
@@ -56,6 +57,11 @@ export default async function AdminPartnerDetailPage({
   const actor = toPartnerActor(user);
   const { partnerId } = await params;
   const sp = (await searchParams) ?? {};
+
+  // Para el desplegable de quién trajo la venta. Si la tabla todavía no existe,
+  // el desplegable queda con "DNX directo" y la pantalla no se rompe.
+  const agentes = await withClickatonDb(() => listSalesAgents({ onlyActive: true }));
+  const vendedoresHabilitados = agentes.ok ? agentes.data : [];
 
   const loaded = await withClickatonDb(async () => {
     const svc = getClickatonPartnersService();
@@ -407,10 +413,17 @@ export default async function AdminPartnerDetailPage({
               </Field>
               <Field
                 id="soldByOrganizationId"
-                label="Quién trajo la venta (opcional)"
-                hint="Vacío = DNX directo. Si la originó un organizador o una institución, su identificador."
+                label="Quién trajo la venta"
+                hint="Los vendedores se habilitan en Sponsors → Vendedores."
               >
-                <Input name="soldByOrganizationId" placeholder="DNX directo" />
+                <Select name="soldByOrganizationId" defaultValue="">
+                  <option value="">DNX directo</option>
+                  {vendedoresHabilitados.map((v) => (
+                    <option key={v.id} value={v.organizationId}>
+                      {v.displayName}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field id="title" label="Título">
                 <Input name="title" />
