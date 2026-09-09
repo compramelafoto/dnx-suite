@@ -168,3 +168,13 @@ disponibilidad cada vez que se cambian las fechas, o sea un endpoint más.
 mismo esquema de autenticación que los demás crons: `Bearer CRON_SECRET` o el
 header de Vercel. Cancela las reservas vencidas para liberar el lugar ante la
 restricción de la base, que no sabe qué hora es.
+
+## Estado al 2026-09-09
+
+Lo construido y desplegado: el mapa con sus columnas comerciales, el cálculo de
+disponibilidad, la restricción de Postgres contra el doble booking, el cron que
+vence reservas, la pantalla de ocupación y el generador filtrando por cupo.
+
+**Lo que impide vender de punta a punta:** nadie llama a `reserveInventorySlot`.
+Se puede armar la propuesta y mandarla, pero cuando la marca acepta no hay cómo
+tomarle el lugar. Ver `docs/partners/propuestas/README.md`.

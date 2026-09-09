@@ -87,11 +87,12 @@ P-03, todavía abierta.
 
 ## Lo que falta
 
-1. **Aplicar la migración `20260827230000_partner_participation_sold_by`.** Está
-   escrita y **sin ejecutar**: es aditiva —columna nullable, sin default, sin
-   backfill— pero en este proyecto ningún build corre `prisma migrate deploy`, y
-   `packages/db/.env` apunta a la misma base que producción.
-2. **Guardar el vendedor al crear participaciones.** El campo existe y nadie lo
-   escribe todavía.
+Revisado contra el código el 2026-09-09.
+
+1. ~~Aplicar la migración `20260827230000_partner_participation_sold_by`.~~
+   Aplicada en producción el 2026-08-28.
+2. **Guardar el vendedor.** El campo existe y **nadie lo escribe**: solo se lee
+   en la pantalla de ocupación. Ni el alta de participaciones ni la reserva de
+   un lugar lo completan.
 3. **La habilitación para vender inventario ajeno.** No todo organizador debería
    poder vender la portada de InfoSpot.

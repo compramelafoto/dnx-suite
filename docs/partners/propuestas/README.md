@@ -114,10 +114,19 @@ el PDF; la ruta responde 409. Nadie manda un dossier vacío por accidente.
 
 ## Qué falta
 
-Etapas 3 a 5 del spec: guardar la propuesta con su código recuperable,
-vencimiento y limpieza; búsqueda de sponsors existentes con detección de
-duplicados; alta como `PROSPECT` con assets en `PENDING`; y el panel de
-propuestas generadas.
+Revisado el 2026-09-09. Las etapas 1 y 2 están completas y la pantalla es
+**pública en producción**: `maratonfotografica.com/propuesta`.
+
+**Lo que falta, por orden de lo que más destraba:**
+
+1. **El botón de reservar.** Hoy se manda el dossier y ahí se corta: no hay cómo
+   tomarle el lugar a la marca que aceptó. El circuito de reserva está
+   construido en `@repo/db/partners-inventory-bookings` y nadie lo llama.
+2. **Etapa 3 — guardar la propuesta** con su código recuperable, vencimiento y
+   limpieza. Hoy se genera y se pierde.
+3. **Etapa 4 — capa autenticada**: búsqueda de sponsors existentes con detección
+   de duplicados, y alta como `PROSPECT` con assets en `PENDING`.
+4. **Etapa 5 — panel de propuestas** generadas y su conversión.
 
 Ver `docs/superpowers/specs/2026-08-22-generador-propuestas-sponsors-design.md`.
 

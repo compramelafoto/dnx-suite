@@ -165,12 +165,33 @@ En `@repo/partners`, con `node:test`, sin base de datos:
 
 ## Lo que falta después
 
-1. Aplicar la migración.
-2. El repositorio Prisma y la revalidación al cerrar: nunca confiar en la
-   disponibilidad que se consultó al armar la propuesta.
-3. La tarea que vence las reservas.
-4. Conectar el generador: sin lugar, el ítem no entra en la propuesta.
-5. La habilitación explícita para vender inventario ajeno.
+Revisado contra el código el 2026-09-09.
+
+**Ya hecho:**
+
+1. ~~Aplicar la migración.~~ Aplicada en producción el 2026-08-28.
+2. ~~El repositorio Prisma y la revalidación al cerrar.~~
+   `packages/db/src/partners-inventory-bookings.ts`: `confirmInventorySale`
+   revalida y devuelve `slot_taken` si el lugar se fue.
+3. ~~La tarea que vence las reservas.~~ Cron horario en Clickatón:
+   `/api/cron/expire-inventory-reservations`.
+4. ~~Conectar el generador.~~ `getProposalSpacesAvailability` alimenta a
+   `buildProposalPlan`, que deja afuera lo que no tiene lugar y lo lista en
+   `plan.unavailable` con la fecha en que se libera.
+
+**Sigue pendiente:**
+
+5. **Nadie crea reservas.** `reserveInventorySlot` está construido y probado, y
+   **ninguna pantalla lo llama**. Cuando la marca dice que sí, no hay cómo
+   tomarle el lugar. Es el hueco más grande: el sistema puede medir
+   disponibilidad e impedir el doble booking, pero no registrar una venta.
+6. **Nadie escribe `soldByOrganizationId`.** El campo existe y solo se lee en la
+   pantalla de ocupación. Sin eso no hay atribución de comisiones ni cartera por
+   vendedor.
+7. **La habilitación explícita para vender inventario ajeno.** No todo
+   organizador debería poder vender la portada de InfoSpot.
+8. **Cancelar y extender desde la pantalla.** El repositorio lo soporta; la
+   pantalla es de solo lectura porque falta decidir qué capability lo gobierna.
 
 ## Verificación contra Postgres real
 
