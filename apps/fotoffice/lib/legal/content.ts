@@ -60,11 +60,12 @@ export const PRIVACY_SECTIONS: readonly LegalSection[] = [
   {
     title: "Datos de tu cuenta de Google",
     paragraphs: [
-      "Si la institución conecta su cuenta de Google, FotoOffice pide dos permisos y ningunos más:",
+      "Si la institución conecta su cuenta de Google, FotoOffice pide estos permisos y ningunos más:",
     ],
     bullets: [
       "Ver los calendarios de la cuenta (calendar.readonly), para leer lo que se cargó a mano en el calendario y que esos horarios queden bloqueados en FotoOffice.",
       "Crear y borrar eventos (calendar.events), para que cada reserva confirmada aparezca en el calendario de la institución y desaparezca si se cancela.",
+      "Saber tu dirección de email (openid y userinfo.email), únicamente para mostrar qué cuenta quedó conectada y que se pueda verificar de un vistazo que es la correcta. No leemos tu correo ni tenemos permiso para hacerlo.",
     ],
   },
   {
