@@ -4,6 +4,7 @@ import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import {
   MODULE_REGISTRY,
@@ -28,7 +29,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, members y membership-dues", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, members, membership-dues y sorteos", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -37,6 +38,7 @@ describe("MODULE_REGISTRY", () => {
         BOOKINGS_MODULE_KEY,
         MEMBERS_MODULE_KEY,
         MEMBERSHIP_DUES_MODULE_KEY,
+        RAFFLES_MODULE_KEY,
       ].sort(),
     );
   });
@@ -76,5 +78,19 @@ describe("MODULE_REGISTRY", () => {
     for (const m of institutional) {
       expect(m.category).toBe("INSTITUTIONAL");
     }
+  });
+});
+
+describe("sorteos", () => {
+  it("figura como módulo disponible, con su ruta y en el grupo institucional", () => {
+    const m = MODULE_REGISTRY.find((x) => x.key === "raffles");
+    expect(m).toBeDefined();
+    expect(m?.status).toBe("AVAILABLE");
+    expect(m?.route).toBe("/sorteos");
+    expect(m?.category).toBe("INSTITUTIONAL");
+  });
+
+  it("no duplica ninguna clave del catálogo", () => {
+    expect(findDuplicateModuleKeys()).toEqual([]);
   });
 });

@@ -3,6 +3,7 @@ import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
@@ -134,6 +135,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "INSTITUTIONAL",
     order: 110,
     route: "/members/cuotas",
+    status: "AVAILABLE",
+  },
+  {
+    key: RAFFLES_MODULE_KEY,
+    label: "Sorteos",
+    description:
+      "Sorteos entre socios al día, con premios donados por marcas aliadas y un resultado que cualquiera puede comprobar.",
+    category: "INSTITUTIONAL",
+    order: 115,
+    route: "/sorteos",
     status: "AVAILABLE",
   },
   {
