@@ -7970,6 +7970,7 @@ model BookingSpace {
   compatibleAsA BookingSpaceCompatibility[] @relation("CompatibilidadA")
   compatibleAsB BookingSpaceCompatibility[] @relation("CompatibilidadB")
   extras        BookingExtraSpace[]
+  calendarBlocks BookingCalendarBlock[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, active])
@@ -8086,6 +8087,27 @@ model Booking {
   @@index([spaceId, startAt])
   @@index([memberId, startAt])
   @@index([status, holdExpiresAt])
+}
+
+/// Evento traído de Google que ocupa un espacio. **No lo creó FotoOffice.**
+///
+/// Es la mitad "de vuelta" del espejo: lo que la Comisión carga a mano en el calendario
+/// tapa el horario para que nadie lo reserve. Los eventos que sí creó FotoOffice llevan la
+/// marca `fotofficeBookingId` y se ignoran al traerlos, para que la sincronización no se
+/// muerda la cola.
+model BookingCalendarBlock {
+  id            String   @id @default(cuid())
+  spaceId       String
+  googleEventId String
+  startAt       DateTime
+  endAt         DateTime
+  summary       String?
+  syncedAt      DateTime @default(now())
+
+  space BookingSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, googleEventId])
+  @@index([spaceId, startAt])
 }
 
 /// Reglas del módulo que son de la institución entera, no de un espacio.
