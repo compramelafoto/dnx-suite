@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { formatMinorArs } from "@/lib/membership/money";
+import { minuteOfDayToLabel } from "@/lib/bookings/time";
+import { selectRange, type WeekGrid } from "@/lib/bookings/week-grid";
 import { createPublicBookingAction } from "../actions";
 
-type Slot = { startISO: string; endISO: string; ymd: string; diaLabel: string; horaLabel: string };
 type ExtraVista = {
   id: string;
   name: string;
@@ -23,66 +24,203 @@ export function PublicBookingForm({
   spaceId,
   hourlyPriceMinor,
   defaultEmail,
-  slots,
+  grid,
   extras,
+  tituloSemana,
+  semanaAnterior,
+  semanaSiguiente,
 }: {
   workspaceSlug: string;
   spaceId: string;
   hourlyPriceMinor: number;
   defaultEmail: string;
-  slots: Slot[];
+  grid: WeekGrid;
   extras: ExtraVista[];
+  tituloSemana: string;
+  semanaAnterior: string | null;
+  semanaSiguiente: string;
 }) {
-  const [elegido, setElegido] = useState<Slot | null>(null);
+  const [primero, setPrimero] = useState<string | null>(null);
+  const [segundo, setSegundo] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [diaVisible, setDiaVisible] = useState(() => {
+    const conLibres = grid.days.findIndex((d) => d.cells.some((c) => c.state === "FREE"));
+    return conLibres >= 0 ? conLibres : 0;
+  });
 
-  const porDia = useMemo(() => {
-    const mapa = new Map<string, Slot[]>();
-    for (const s of slots) mapa.set(s.ymd, [...(mapa.get(s.ymd) ?? []), s]);
-    return [...mapa.entries()];
-  }, [slots]);
+  const seleccion = useMemo(() => {
+    if (!primero) return null;
+    const r = selectRange(grid, primero, segundo ?? primero);
+    return r.ok ? r : null;
+  }, [grid, primero, segundo]);
 
-  const minutos = elegido
-    ? (new Date(elegido.endISO).getTime() - new Date(elegido.startISO).getTime()) / 60_000
-    : 0;
+  const elegidas = useMemo(() => {
+    if (!seleccion) return new Set<string>();
+    const dentro = new Set<string>();
+    for (const dia of grid.days) {
+      for (const c of dia.cells) {
+        if (c.startISO >= seleccion.startISO && c.endISO <= seleccion.endISO) dentro.add(c.startISO);
+      }
+    }
+    return dentro;
+  }, [grid, seleccion]);
+
+  function tocar(startISO: string, state: string) {
+    setAviso(null);
+    if (state !== "FREE") return;
+    if (!primero || segundo) {
+      setPrimero(startISO);
+      setSegundo(null);
+      return;
+    }
+    const r = selectRange(grid, primero, startISO);
+    if (!r.ok) {
+      setAviso(r.motivo);
+      setPrimero(startISO);
+      setSegundo(null);
+      return;
+    }
+    setSegundo(startISO);
+  }
+
+  const minutos = seleccion?.minutes ?? 0;
   const espacioMinor = Math.round((hourlyPriceMinor * minutos) / 60);
+
+  const claseCelda = (state: string, elegida: boolean) => {
+    if (elegida) return "bg-[var(--fo-accent)] text-white border-[var(--fo-accent)]";
+    if (state === "FREE")
+      return "bg-[var(--fo-surface)] border-[var(--fo-border-strong)] hover:bg-[var(--fo-accent-soft)] cursor-pointer";
+    if (state === "TAKEN")
+      return "bg-[var(--fo-surface-muted)] border-[var(--fo-border)] text-[var(--fo-muted-soft)] cursor-not-allowed";
+    if (state === "PAST")
+      return "bg-[var(--fo-bg)] border-[var(--fo-border-muted)] text-[var(--fo-muted-soft)] cursor-not-allowed";
+    return "bg-transparent border-transparent cursor-default";
+  };
 
   return (
     <form action={createPublicBookingAction} className="fo-card space-y-5 p-5">
       <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
       <input type="hidden" name="spaceId" value={spaceId} />
-      {elegido ? (
+      {seleccion ? (
         <>
-          <input type="hidden" name="startAt" value={toLocalInput(elegido.startISO)} />
-          <input type="hidden" name="endAt" value={toLocalInput(elegido.endISO)} />
+          <input type="hidden" name="startAt" value={toLocalInput(seleccion.startISO)} />
+          <input type="hidden" name="endAt" value={toLocalInput(seleccion.endISO)} />
         </>
       ) : null}
 
-      <div className="space-y-3">
-        <span className="fo-label">Elegí un horario</span>
-        {porDia.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted-soft)]">
-            No hay horarios libres en las próximas dos semanas.
-          </p>
-        ) : (
-          porDia.map(([ymd, delDia]) => (
-            <div key={ymd} className="space-y-1">
-              <p className="text-xs capitalize text-[var(--fo-muted)]">{delDia[0].diaLabel}</p>
-              <div className="flex flex-wrap gap-2">
-                {delDia.map((s) => (
-                  <button
-                    key={s.startISO}
-                    type="button"
-                    onClick={() => setElegido(s)}
-                    className={`fo-btn text-xs ${elegido?.startISO === s.startISO ? "fo-btn-primary" : "fo-btn-secondary"}`}
-                  >
-                    {s.horaLabel}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-medium capitalize">{tituloSemana}</p>
+        <div className="flex gap-2">
+          {semanaAnterior ? (
+            <a
+              href={`/w/${workspaceSlug}/reservas/${spaceId}?semana=${semanaAnterior}`}
+              className="fo-btn fo-btn-secondary text-xs"
+            >
+              ← Semana anterior
+            </a>
+          ) : null}
+          <a
+            href={`/w/${workspaceSlug}/reservas/${spaceId}?semana=${semanaSiguiente}`}
+            className="fo-btn fo-btn-secondary text-xs"
+          >
+            Semana siguiente →
+          </a>
+        </div>
       </div>
+
+      <p className="text-xs text-[var(--fo-muted)]">
+        Tocá la hora de inicio y después la de fin. Podés reservar varias horas seguidas.
+      </p>
+
+      <div className="md:hidden">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setDiaVisible((d) => Math.max(0, d - 1))}
+            disabled={diaVisible === 0}
+            className="fo-btn fo-btn-secondary text-xs disabled:opacity-40"
+          >
+            ←
+          </button>
+          <span className="text-sm font-medium capitalize">{grid.days[diaVisible]?.label}</span>
+          <button
+            type="button"
+            onClick={() => setDiaVisible((d) => Math.min(6, d + 1))}
+            disabled={diaVisible === 6}
+            className="fo-btn fo-btn-secondary text-xs disabled:opacity-40"
+          >
+            →
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {(grid.days[diaVisible]?.cells ?? [])
+            .filter((c) => c.state !== "CLOSED")
+            .map((c) => (
+              <button
+                key={c.startISO}
+                type="button"
+                onClick={() => tocar(c.startISO, c.state)}
+                disabled={c.state !== "FREE"}
+                aria-pressed={elegidas.has(c.startISO)}
+                className={`min-h-11 rounded-[var(--fo-radius-sm)] border px-2 py-2 text-sm font-medium transition-colors ${claseCelda(c.state, elegidas.has(c.startISO))}`}
+              >
+                {minuteOfDayToLabel(c.minuteOfDay)}
+                {c.state === "TAKEN" ? (
+                  <span className="block text-[10px] font-normal">Ocupado</span>
+                ) : null}
+              </button>
+            ))}
+          {(grid.days[diaVisible]?.cells ?? []).every((c) => c.state === "CLOSED") ? (
+            <p className="col-span-3 py-6 text-center text-sm text-[var(--fo-muted-soft)]">
+              Este día el espacio no abre.
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full border-separate border-spacing-1 text-center">
+          <thead>
+            <tr>
+              <th className="w-14" />
+              {grid.days.map((d) => (
+                <th key={d.ymd} className="pb-1 text-xs font-medium capitalize text-[var(--fo-muted)]">
+                  {d.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {grid.rows.map((row, iFila) => (
+              <tr key={row}>
+                <th className="pr-2 text-right align-middle text-xs font-normal tabular-nums text-[var(--fo-muted)]">
+                  {minuteOfDayToLabel(row)}
+                </th>
+                {grid.days.map((d) => {
+                  const c = d.cells[iFila];
+                  const elegida = elegidas.has(c.startISO);
+                  return (
+                    <td key={`${d.ymd}-${row}`} className="p-0">
+                      <button
+                        type="button"
+                        onClick={() => tocar(c.startISO, c.state)}
+                        disabled={c.state !== "FREE"}
+                        aria-pressed={elegida}
+                        aria-label={`${d.label} ${minuteOfDayToLabel(row)} — ${c.state === "FREE" ? "libre" : c.state === "TAKEN" ? "ocupado" : c.state === "PAST" ? "ya pasó" : "cerrado"}`}
+                        className={`h-9 w-full rounded-[var(--fo-radius-sm)] border text-xs font-medium transition-colors ${claseCelda(c.state, elegida)}`}
+                      >
+                        {c.state === "TAKEN" ? "·" : ""}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {aviso ? <p className="fo-alert-warning p-3 text-sm">{aviso}</p> : null}
 
       {extras.length > 0 ? (
         <div className="space-y-2">
@@ -138,7 +276,7 @@ export function PublicBookingForm({
         </div>
       </div>
 
-      {elegido ? (
+      {seleccion ? (
         <p className="border-t border-[var(--fo-border)] pt-4 text-sm">
           {minutos / 60} h × {formatMinorArs(hourlyPriceMinor)} por hora —{" "}
           {formatMinorArs(espacioMinor)}, más los extras que elijas.
@@ -146,8 +284,8 @@ export function PublicBookingForm({
       ) : null}
 
       <div className="fo-form-actions">
-        <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={!elegido}>
-          {elegido ? "Reservar y pagar" : "Elegí un horario"}
+        <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={!seleccion}>
+          {seleccion ? "Reservar y pagar" : "Elegí un horario"}
         </button>
       </div>
     </form>
