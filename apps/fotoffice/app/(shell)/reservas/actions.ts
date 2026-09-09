@@ -7,6 +7,9 @@ import { minorToDecimalString } from "@/lib/membership/money";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { parseSpaceForm } from "@/lib/bookings/space-form";
 import { parseExtraForm } from "@/lib/bookings/extra-form";
+import { getGoogleAccessToken } from "@/lib/integrations/access-token";
+import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
+import { createCalendarClient } from "@/lib/bookings/calendar/client";
 import { pairsForSpace } from "@/lib/bookings/conflicts";
 import { cancelBooking, createBooking } from "@/lib/bookings/create";
 import { approveBooking, confirmTransferPayment } from "@/lib/bookings/lifecycle";
@@ -391,4 +394,58 @@ export async function rejectBookingAction(formData: FormData): Promise<void> {
 
   revalidatePath(AGENDA);
   redirect(r.ok ? `${AGENDA}?ok=rechazada` : `${AGENDA}?error=${encodeURIComponent(r.error ?? "")}`);
+}
+
+/**
+ * Elige qué calendario de Google espeja un espacio, o crea uno nuevo para él.
+ *
+ * Crear uno propio es la opción recomendada: meter las reservas del estudio en el
+ * calendario personal de alguien es un desorden que después nadie limpia.
+ *
+ * Al cambiar de calendario se borra el `syncToken` y los bloqueos del anterior: son de otro
+ * calendario y dejarían tapando horarios que ya no ocupa nadie.
+ */
+export async function setSpaceCalendarAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireBookingsAdmin();
+  const spaceId = String(formData.get("spaceId") ?? "").trim();
+  const elegido = String(formData.get("calendarId") ?? "").trim();
+
+  const espacio = await prisma.bookingSpace.findFirst({
+    where: { id: spaceId, workspaceId: workspace.id },
+    select: { id: true, name: true },
+  });
+  if (!espacio) redirect(`${ESPACIOS}?error=${encodeURIComponent("Ese espacio no existe.")}`);
+
+  const token = await getGoogleAccessToken(workspace.id, GOOGLE_CALENDAR_INTEGRATION_KEY);
+  if (!token.ok && elegido === "__nuevo__") {
+    redirect(
+      `${ESPACIOS}?error=${encodeURIComponent("Conectá la cuenta de Google antes de crear un calendario.")}`,
+    );
+  }
+
+  let calendarId: string | null = elegido === "" ? null : elegido;
+
+  if (elegido === "__nuevo__" && token.ok) {
+    try {
+      const client = createCalendarClient(token.accessToken);
+      calendarId = await client.createCalendar(`${espacio.name} — reservas`);
+    } catch (error) {
+      console.error("[fotoffice][calendar] no se pudo crear el calendario", {
+        spaceId,
+        detalle: sanitizeError(error),
+      });
+      redirect(`${ESPACIOS}?error=${encodeURIComponent("No pudimos crear el calendario.")}`);
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.bookingCalendarBlock.deleteMany({ where: { spaceId } }),
+    prisma.bookingSpace.update({
+      where: { id: spaceId },
+      data: { googleCalendarId: calendarId, calendarSyncToken: null },
+    }),
+  ]);
+
+  revalidatePath(ESPACIOS);
+  redirect(`${ESPACIOS}?ok=calendario`);
 }

@@ -6,7 +6,10 @@ import { requireBookingsAdmin } from "@/lib/bookings/access";
 import { listCompatibilities, listSpaces } from "@/lib/bookings/repository";
 import { compatibleSpaceIds } from "@/lib/bookings/conflicts";
 import { minuteOfDayToLabel } from "@/lib/bookings/time";
-import { toggleSpaceActiveAction } from "../actions";
+import { setSpaceCalendarAction, toggleSpaceActiveAction } from "../actions";
+import { getGoogleAccessToken } from "@/lib/integrations/access-token";
+import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
+import { createCalendarClient } from "@/lib/bookings/calendar/client";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +28,17 @@ export default async function EspaciosPage({
     listCompatibilities(workspace.id),
   ]);
   const nombrePorId = new Map(espacios.map((e) => [e.id, e.name]));
+
+  // Los calendarios de la cuenta conectada, para poder elegir. Si Google no responde o la
+  // cuenta no está conectada, la pantalla sigue funcionando sin el selector: configurar un
+  // espacio no puede depender de que Google esté disponible.
+  const token = await getGoogleAccessToken(workspace.id, GOOGLE_CALENDAR_INTEGRATION_KEY);
+  const calendarios = token.ok
+    ? await createCalendarClient(token.accessToken)
+        .listCalendars()
+        .catch(() => [])
+    : [];
+  const calendarioNoDisponible = token.ok ? null : token.reason;
 
   return (
     <div className="space-y-8">
@@ -101,6 +115,46 @@ export default async function EspaciosPage({
                         ? `Puede usarse a la vez que: ${convive.join(", ")}.`
                         : "No puede usarse a la vez que ningún otro espacio."}
                     </p>
+
+                    <form
+                      action={setSpaceCalendarAction}
+                      className="flex flex-wrap items-center gap-2 pt-2"
+                    >
+                      <input type="hidden" name="spaceId" value={espacio.id} />
+                      <label className="text-xs text-[var(--fo-muted)]" htmlFor={`cal-${espacio.id}`}>
+                        Calendario de Google
+                      </label>
+                      {calendarioNoDisponible ? (
+                        <span className="text-xs text-[var(--fo-muted-soft)]">
+                          {calendarioNoDisponible === "NOT_CONNECTED"
+                            ? "Conectá la cuenta de Google en Integraciones para espejar las reservas."
+                            : calendarioNoDisponible === "NEEDS_RECONSENT"
+                              ? "El permiso de Google se revocó. Volvé a conectar la cuenta en Integraciones."
+                              : "Google no está respondiendo ahora. Probá de nuevo en un rato."}
+                        </span>
+                      ) : (
+                        <>
+                          <select
+                            id={`cal-${espacio.id}`}
+                            name="calendarId"
+                            defaultValue={espacio.googleCalendarId ?? ""}
+                            className="fo-input text-xs"
+                          >
+                            <option value="">Sin espejar</option>
+                            <option value="__nuevo__">Crear uno nuevo para este espacio</option>
+                            {calendarios.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.summary}
+                                {c.primary ? " (principal)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <button type="submit" className="fo-btn fo-btn-secondary text-xs">
+                            Guardar
+                          </button>
+                        </>
+                      )}
+                    </form>
                   </div>
 
                   <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">

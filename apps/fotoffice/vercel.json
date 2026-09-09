@@ -19,6 +19,10 @@
     {
       "path": "/api/cron/reservas-vencimientos",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/reservas-calendar-sync",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
