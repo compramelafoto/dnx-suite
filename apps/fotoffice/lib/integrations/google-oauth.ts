@@ -16,6 +16,25 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
 export const INTEGRATIONS_GOOGLE_CALLBACK_PATH = "/api/integrations/google/callback";
 
+/**
+ * Los permisos de identidad, que van SIEMPRE además de los que pida la integración.
+ *
+ * Guardar una integración sin saber qué cuenta la otorgó es guardar algo que nadie puede
+ * revisar después: la pantalla mostraría "conectado" sin decir a qué. Por eso el callback
+ * le pregunta a Google por la cuenta, y esa consulta necesita su propio permiso: pidiendo
+ * solo los de Calendar, el endpoint de identidad devuelve 401 y la conexión falla entera.
+ *
+ * Van acá y no en el registro de integraciones a propósito. En el registro habría que
+ * repetirlos en cada integración nueva, y la que se los olvidara fallaría recién al
+ * conectar de verdad, contra Google, que es donde nadie mira hasta que un usuario se queja.
+ *
+ * Ninguno de los dos es sensible para Google, así que no complican la verificación.
+ */
+const GOOGLE_IDENTITY_SCOPES = [
+  "openid",
+  "https://www.googleapis.com/auth/userinfo.email",
+] as const;
+
 export type GoogleIntegrationErrorCode =
   | "CONFIG"
   | "EXCHANGE_FAILED"
@@ -58,7 +77,7 @@ export function buildIntegrationAuthorizationUrl(params: {
     client_id: params.clientId,
     redirect_uri: params.redirectUri,
     response_type: "code",
-    scope: params.scopes.join(" "),
+    scope: [...new Set([...GOOGLE_IDENTITY_SCOPES, ...params.scopes])].join(" "),
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "false",

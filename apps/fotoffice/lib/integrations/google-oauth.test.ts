@@ -37,6 +37,24 @@ describe("URL de autorización", () => {
     expect(url.searchParams.get("response_type")).toBe("code");
   });
 
+  it("pide identidad además de lo de la integración: sin eso no se sabe qué cuenta se conectó", () => {
+    // Producción falló exactamente acá: pidiendo solo los permisos de Calendar, la consulta
+    // de identidad que hace el callback devuelve 401 y la conexión se cae entera.
+    const scope = new URL(buildIntegrationAuthorizationUrl(base)).searchParams.get("scope") ?? "";
+    expect(scope.split(" ")).toEqual(
+      expect.arrayContaining(["openid", "https://www.googleapis.com/auth/userinfo.email"]),
+    );
+  });
+
+  it("no repite un permiso que la integración ya pedía", () => {
+    const scope =
+      new URL(
+        buildIntegrationAuthorizationUrl({ ...base, scopes: [...base.scopes, "openid"] }),
+      ).searchParams.get("scope") ?? "";
+    const partes = scope.split(" ");
+    expect(partes.filter((p) => p === "openid")).toHaveLength(1);
+  });
+
   it("sugiere la cuenta cuando se está reconectando una ya conocida", () => {
     const url = new URL(buildIntegrationAuthorizationUrl({ ...base, loginHint: "sfpr@gmail.com" }));
     expect(url.searchParams.get("login_hint")).toBe("sfpr@gmail.com");
