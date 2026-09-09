@@ -59,8 +59,17 @@ describe("la huella del padrón", () => {
   });
 
   it("cambia si cambia un socio", () => {
-    const otro = [...socios.slice(1), { memberId: "m-9", memberNumber: "0117", fullName: "Otro" }];
+    const otro = [...socios.slice(1), { memberId: "m-9", memberNumber: "0300", fullName: "Otro" }];
     expect(entrantsHash("r-1", orderEntrants(otro))).not.toBe(
+      entrantsHash("r-1", orderEntrants(socios)),
+    );
+  });
+
+  it("se puede recalcular con lo que se publica: número de socio y posición, sin datos internos", () => {
+    // Es la mitad de la prueba que hace un tercero. Si dependiera del id interno, que no se
+    // publica, nadie de afuera podría rehacerla.
+    const publicado = socios.map((s) => ({ ...s, memberId: "no-lo-sabe-nadie" }));
+    expect(entrantsHash("r-1", orderEntrants(publicado))).toBe(
       entrantsHash("r-1", orderEntrants(socios)),
     );
   });

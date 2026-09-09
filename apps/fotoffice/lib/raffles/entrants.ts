@@ -58,16 +58,25 @@ export function orderEntrants(input: readonly EntrantInput[]): Entrant[] {
 }
 
 /**
- * La huella del padrón: SHA-256 sobre las posiciones y los ids.
+ * La huella del padrón: SHA-256 sobre las posiciones y los números de socio.
  *
  * Se publica ANTES de que exista el número de drand. Es lo que impide acomodar la lista
  * sabiendo el resultado.
  *
- * No entran ni el nombre ni el número de socio: son datos personales, y además podrían
- * corregirse después —una tilde, un apellido mal cargado— y una corrección de tipeo no puede
+ * ── Por qué el número de socio y no el id interno ──
+ *
+ * La primera versión usaba `memberId` —un identificador interno— por prudencia con los datos
+ * personales. Estaba mal, y se vio al escribir la pantalla de verificación: los ids no se
+ * publican, así que un tercero no podía recalcular la huella con lo que tiene a la vista, y
+ * una prueba que sólo la institución puede rehacer no prueba nada. El número de socio, en
+ * cambio, ya está en la lista publicada, está en el carnet, y no cambia nunca: es la
+ * identidad del socio dentro de la institución, no un dato que se corrija.
+ *
+ * El NOMBRE sigue afuera a propósito: se publica para que la lista se pueda leer, pero puede
+ * corregirse —una tilde, un apellido mal cargado— y una corrección de tipeo no puede
  * invalidar la prueba de un sorteo.
  */
 export function entrantsHash(raffleId: string, entrants: readonly Entrant[]): string {
-  const cuerpo = entrants.map((e) => `${e.position}:${e.memberId}`).join("\n");
+  const cuerpo = entrants.map((e) => `${e.position}:${e.memberNumber}`).join("\n");
   return createHash("sha256").update(`${ETIQUETA}\n${raffleId}\n${cuerpo}`, "utf8").digest("hex");
 }
