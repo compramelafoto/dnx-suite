@@ -9,6 +9,7 @@ import {
 import { consumeOAuthState } from "@/lib/integrations/oauth-state";
 import { getIntegrationDefinition } from "@/lib/integrations/registry";
 import { saveIntegration } from "@/lib/integrations/store";
+import { readIntegrationsGoogleCredentials } from "@/lib/integrations/credentials";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,15 +42,14 @@ export async function GET(req: Request) {
     return volver("error=integracion_desconocida");
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) return volver("error=falta_configuracion");
+  const credenciales = readIntegrationsGoogleCredentials();
+  if (!credenciales) return volver("error=falta_configuracion");
 
   try {
     const token = await exchangeIntegrationCode({
       code,
-      clientId,
-      clientSecret,
+      clientId: credenciales.clientId,
+      clientSecret: credenciales.clientSecret,
       redirectUri: `${origin}${INTEGRATIONS_GOOGLE_CALLBACK_PATH}`,
     });
 

@@ -3,6 +3,7 @@ import { sanitizeError } from "@/lib/payments/connect/log";
 import { getIntegrationDefinition } from "./registry";
 import { GoogleIntegrationError, refreshIntegrationAccessToken } from "./google-oauth";
 import { markIntegrationNeedsReconsent, readRefreshToken, touchIntegrationUsed } from "./store";
+import { readIntegrationsGoogleCredentials } from "./credentials";
 
 /**
  * Lo único que un módulo consumidor necesita saber de las integraciones.
@@ -32,12 +33,15 @@ export async function getGoogleAccessToken(
   const refreshToken = await readRefreshToken(workspaceId, integrationKey).catch(() => null);
   if (!refreshToken) return { ok: false, reason: "NOT_CONNECTED" };
 
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) return { ok: false, reason: "CONFIG" };
+  const credenciales = readIntegrationsGoogleCredentials();
+  if (!credenciales) return { ok: false, reason: "CONFIG" };
 
   try {
-    const result = await refreshIntegrationAccessToken({ refreshToken, clientId, clientSecret });
+    const result = await refreshIntegrationAccessToken({
+      refreshToken,
+      clientId: credenciales.clientId,
+      clientSecret: credenciales.clientSecret,
+    });
     await touchIntegrationUsed(workspaceId, integrationKey).catch(() => undefined);
     return { ok: true, accessToken: result.accessToken };
   } catch (error) {

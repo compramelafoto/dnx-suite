@@ -8,6 +8,7 @@ import {
   buildIntegrationAuthorizationUrl,
 } from "@/lib/integrations/google-oauth";
 import { getIntegrationDefinition } from "@/lib/integrations/registry";
+import { readIntegrationsGoogleCredentials } from "@/lib/integrations/credentials";
 import { createOAuthState } from "@/lib/integrations/oauth-state";
 import { getIntegrationSummary } from "@/lib/integrations/store";
 
@@ -42,8 +43,8 @@ export async function GET(req: Request) {
     return volverConError(origin, "integracion_desconocida");
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  if (!clientId) return volverConError(origin, "falta_configuracion");
+  const credenciales = readIntegrationsGoogleCredentials();
+  if (!credenciales) return volverConError(origin, "falta_configuracion");
 
   const state = await createOAuthState({
     workspaceId: workspace.id,
@@ -57,7 +58,7 @@ export async function GET(req: Request) {
 
   return NextResponse.redirect(
     buildIntegrationAuthorizationUrl({
-      clientId,
+      clientId: credenciales.clientId,
       redirectUri: `${origin}${INTEGRATIONS_GOOGLE_CALLBACK_PATH}`,
       state,
       scopes: definition.scopes,
