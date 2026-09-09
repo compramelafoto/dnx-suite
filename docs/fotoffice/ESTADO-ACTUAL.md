@@ -111,7 +111,7 @@ Estados posibles: `CONSTRUIDO` / `PARCIAL` / `NO EXISTE` / `SIN VERIFICAR`.
 | 11 — Beneficios y sponsors | `NO EXISTE` en FotoOffice | Los modelos de sponsor del esquema pertenecen a otras aplicaciones. |
 | 12 — Tesorería y gobierno institucional | `NO EXISTE` | Sin proyectos, orden del día, votaciones ni actas. |
 | 13 — Comunicación institucional | `PARCIAL` | Solo la firma por workspace (`emailSignatureNote`, migración `20260822120000`). El módulo no existe. |
-| 14 — Sorteos | `NO EXISTE` | Cero. |
+| 14 — Sorteos | `CONSTRUIDO`, sin desplegar | Rutas `/sorteos`, `/sorteos/entregas`, `/portal/sorteos` y `/portal/sorteos/[id]/verificacion`. 5 modelos (`Raffle`, `RaffleEntry`, `RafflePrize`, `RafflePrizeAward`, `RaffleEvent`), migración `20260911000000_sorteos`. Azar verificable con drand: el padrón se sella y publica su huella antes de que exista el número, y la cuenta la puede rehacer cualquiera. **Falta**: aplicar la migración a las cinco bases de Neon, encender el módulo para SFPR y resolver el punto legal `L-09` antes de anunciar el primero. **Fuera de alcance**: sorteos con bono contribución, números extra por antigüedad, exclusión del ganador anterior, aviso por correo al ganador (se marca a mano) y el espacio `FOTOFFICE_RAFFLE_SPONSOR`. |
 | 15 — Expansiones | `NO EXISTE` | Sin tienda, portfolio, subsidios ni muestras. |
 | 16 — Presentación institucional | Fuera del código | — |
 

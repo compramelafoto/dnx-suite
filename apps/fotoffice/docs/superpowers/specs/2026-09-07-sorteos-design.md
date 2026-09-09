@@ -2,7 +2,28 @@
 
 **Fecha:** 2026-09-07
 **Aplicación:** FotoOffice (`apps/fotoffice`)
-**Estado:** diseño aprobado en conversación, pendiente de revisión escrita
+**Estado:** implementado el 2026-09-08 en la rama `feat/fotoffice-sorteos`. Plan de ejecución
+en `docs/superpowers/plans/2026-09-08-sorteos-verificables.md`.
+
+## Correcciones que surgieron al construirlo
+
+1. **Vercel sí admite tareas cada quince minutos.** La afirmación de §4.3 sobre cron horarios y
+   diarios era incorrecta: `vercel.json` ya corre `reservas-vencimientos` con `*/15 * * * *`. El
+   margen de 24 horas entre el cierre del padrón y el acto se mantiene igual, pero por robustez
+   y no por limitación de la plataforma.
+2. **La huella del padrón se calcula con el número de socio, no con el id interno.** El diseño
+   decía id, por prudencia con los datos personales. Estaba mal y se vio al escribir la pantalla
+   de verificación: los ids no se publican, así que un tercero no podía recalcular la huella con
+   lo que tiene a la vista, y una prueba que sólo la institución puede rehacer no prueba nada. El
+   nombre sigue afuera de la huella —se publica para poder leer la lista, pero una corrección de
+   tipeo no puede invalidar un sorteo—.
+3. **Los espejos de drand se consultan de a dos y tienen que coincidir.** No estaba en el diseño.
+   Elimina el último punto único de confianza y no cuesta nada. Comprobado contra el servicio el
+   2026-09-08: una tanda futura responde **HTTP 425** y no 404; el espejo de Cloudflare devuelve
+   los campos en otro orden que los de `drand.sh` (por eso se compara lo ya parseado); y uno de
+   los cuatro espejos no contestó, de ahí el tope de 8 segundos por pedido.
+4. **Sin aviso por correo al ganador en esta versión.** Se marca a mano. Los correos de FotoOffice
+   todavía no están desplegados y atar el sorteo a ellos lo dejaría bloqueado.
 
 ---
 
