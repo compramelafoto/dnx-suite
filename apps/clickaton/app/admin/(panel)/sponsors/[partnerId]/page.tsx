@@ -343,6 +343,9 @@ export default async function AdminPartnerDetailPage({
                     {p.contextType}
                     {p.contextId ? ` · ${p.contextId}` : ""}
                     {p.organizationId ? ` · org ${p.organizationId}` : ""}
+                    {p.soldByOrganizationId
+                      ? ` · vendió ${p.soldByOrganizationId}`
+                      : " · vendió DNX"}
                   </p>
                   <div className="mt-3 space-y-2 text-sm">
                     <p className="font-medium text-ck-text">Aportes</p>
@@ -401,6 +404,13 @@ export default async function AdminPartnerDetailPage({
               </Field>
               <Field id="organizationId" label="Organization ID (opaco, opcional)">
                 <Input name="organizationId" placeholder="sfpr / org cuid…" />
+              </Field>
+              <Field
+                id="soldByOrganizationId"
+                label="Quién trajo la venta (opcional)"
+                hint="Vacío = DNX directo. Si la originó un organizador o una institución, su identificador."
+              >
+                <Input name="soldByOrganizationId" placeholder="DNX directo" />
               </Field>
               <Field id="title" label="Título">
                 <Input name="title" />

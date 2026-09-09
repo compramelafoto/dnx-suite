@@ -146,6 +146,9 @@ export async function createParticipationFormAction(formData: FormData): Promise
         partnerId,
         application,
         organizationId: formData.get("organizationId")?.toString()?.trim() || null,
+        // Quién trajo la venta. Vacío = DNX directo.
+        soldByOrganizationId:
+          formData.get("soldByOrganizationId")?.toString()?.trim() || null,
         contextType: asEnum(
           formData.get("contextType")?.toString() ?? "GLOBAL",
           DNX_PARTNER_CONTEXT_TYPES,

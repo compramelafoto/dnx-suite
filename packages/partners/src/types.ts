@@ -286,6 +286,8 @@ export type ParticipationRecord = {
   id: string;
   partnerId: string;
   organizationId: string | null;
+  /** Quién originó la venta. Null = DNX directo. */
+  soldByOrganizationId: string | null;
   application: DnxPartnerApplication;
   contextType: DnxPartnerContextType;
   contextId: string | null;
@@ -489,6 +491,14 @@ export type UpdatePartnerInput = Partial<
 export type CreateParticipationInput = {
   partnerId: string;
   organizationId?: string | null;
+  /**
+   * Quién originó la venta. Null = DNX directo.
+   *
+   * No es lo mismo que `organizationId`: ese dice **dónde** participa la marca;
+   * este dice **quién la trajo**. Un organizador puede vender un espacio global
+   * de plataforma, y ahí el contexto es global pero la comisión es suya.
+   */
+  soldByOrganizationId?: string | null;
   application: DnxPartnerApplication;
   contextType?: DnxPartnerContextType;
   contextId?: string | null;

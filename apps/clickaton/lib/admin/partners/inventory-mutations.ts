@@ -47,6 +47,9 @@ export async function reservarLugarAction(formData: FormData): Promise<void> {
   const partnerId = String(formData.get("partnerId") ?? "").trim();
   const placementKey = String(formData.get("placementKey") ?? "").trim();
   const contextId = String(formData.get("contextId") ?? "").trim() || null;
+  // Quién trajo la venta. Vacío = DNX directo.
+  const soldByOrganizationId =
+    String(formData.get("soldByOrganizationId") ?? "").trim() || null;
   const desde = leerFecha(formData.get("startsAt"));
   const hasta = leerFecha(formData.get("endsAt"));
 
@@ -73,6 +76,7 @@ export async function reservarLugarAction(formData: FormData): Promise<void> {
     partnerId,
     range: { startsAt: desde, endsAt: hasta },
     now: new Date(),
+    soldByOrganizationId,
     createdByUserId: user.id,
   });
 

@@ -148,6 +148,14 @@ export default async function AdminInventarioPage({ searchParams }: Props) {
             <Input type="text" name="contextId" placeholder="Opcional" />
           </Field>
 
+          <Field
+            id="inv-vendedor"
+            label="Quién trajo la venta"
+            hint="Dejalo vacío si la vendió DNX. Si la originó un organizador o una institución, pegá su identificador: es lo que después permite atribuirle la comisión."
+          >
+            <Input type="text" name="soldByOrganizationId" placeholder="DNX directo" />
+          </Field>
+
           <div className="grid grid-cols-2 gap-3">
             <Field id="inv-desde" label="Desde">
               <Input type="date" name="startsAt" defaultValue={periodo.desde} required />
