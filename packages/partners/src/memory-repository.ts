@@ -220,6 +220,7 @@ export function createMemoryPartnersRepository(): PartnersRepository {
         id: randomUUID(),
         partnerId: input.partnerId,
         organizationId: input.organizationId ?? null,
+        soldByOrganizationId: input.soldByOrganizationId ?? null,
         application: input.application,
         contextType: input.contextType ?? "GLOBAL",
         contextId: input.contextId ?? null,

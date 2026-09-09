@@ -6889,10 +6889,10 @@ model FotorankGlobalCategoryAlias {
 
 /// Workspace compartido (FotoRank judges + Fotoffice / cursos / evaluaciones).
 model Workspace {
-  id                          String                        @id @default(cuid())
+  id                          String                            @id @default(cuid())
   name                        String
-  createdAt                   DateTime                      @default(now())
-  updatedAt                   DateTime                      @updatedAt
+  createdAt                   DateTime                          @default(now())
+  updatedAt                   DateTime                          @updatedAt
   courses                     Course[]
   courseEnrollments           CourseEnrollment[]
   courseSalesCourses          CourseSalesCourse[]
@@ -7125,24 +7125,24 @@ model MemberCategory {
 /// socio decide usar un portal propio. Sin cuotas, pagos ni carnet acá
 /// a propósito (ver justificación de la etapa de dominio base).
 model Member {
-  id             String       @id @default(cuid())
-  workspaceId    String
+  id              String       @id @default(cuid())
+  workspaceId     String
   /// Número de socio. Único DENTRO del workspace, no globalmente:
   /// "socio 124 de SFPR" y "socio 124 de otra institución" no colisionan.
-  memberNumber   String
-  categoryId     String?
-  firstName      String
-  lastName       String
+  memberNumber    String
+  categoryId      String?
+  firstName       String
+  lastName        String
   /// DNI/CUIT/pasaporte — el tipo lo define cada institución, no un enum cerrado.
-  documentType   String?
+  documentType    String?
   /// NO único globalmente: dos Workspaces pueden tener socios con el mismo documento.
-  documentNumber String?
-  email          String?
-  phone          String?
+  documentNumber  String?
+  email           String?
+  phone           String?
   /// Convención del monorepo para foto de persona (FotofficePhotographerProfile,
   /// FotorankProfile, FotorankJudgeProfile, BlogAuthor usan el mismo nombre).
   /// Solo la URL — el upload/storage se resuelve en la etapa de UI, no acá.
-  avatarUrl      String?
+  avatarUrl       String?
   /// Foto del portal, distinta de la del carnet a propósito.
   ///
   /// `avatarUrl` es una foto de documento: fondo plano, encuadre fijo, 300 dpi, y la aprueba la
@@ -7151,21 +7151,21 @@ model Member {
   ///
   /// Vacío significa "usar la del carnet": quien no quiera elegir otra no tiene que hacer nada.
   profilePhotoUrl String?
-  birthDate      DateTime?
-  address        String?
-  city           String?
-  province       String?
-  postalCode     String?
-  joinedAt       DateTime     @default(now())
+  birthDate       DateTime?
+  address         String?
+  city            String?
+  province        String?
+  postalCode      String?
+  joinedAt        DateTime     @default(now())
   /// Fecha de baja. Se completa junto con status = INACTIVE; no se borra el registro.
-  leftAt         DateTime?
-  status         MemberStatus @default(ACTIVE)
-  notes          String?
+  leftAt          DateTime?
+  status          MemberStatus @default(ACTIVE)
+  notes           String?
   /// Vínculo opcional a una cuenta DNX. Un mismo User puede ser Member de
   /// varios Workspaces distintos (persona socia de dos instituciones),
   /// pero no puede ser Member dos veces DEL MISMO Workspace — ver
   /// @@unique([workspaceId, userId]) abajo.
-  userId         Int?
+  userId          Int?
 
   /// --- Presencia profesional ---
   /// Se pide desde el alta: pedirla después implica volver a contactar a cada socio uno por uno.
@@ -7228,11 +7228,14 @@ model Member {
 
   /// Autorrelación. SetNull, no Cascade: dar de baja al recomendante no puede borrar la
   /// historia del recomendado.
-  recommendedBy   Member?  @relation("MemberRecommendation", fields: [recommendedByMemberId], references: [id], onDelete: SetNull)
-  recommendations Member[] @relation("MemberRecommendation")
+  recommendedBy                   Member?                           @relation("MemberRecommendation", fields: [recommendedByMemberId], references: [id], onDelete: SetNull)
+  recommendations                 Member[]                          @relation("MemberRecommendation")
   /// Bonificaciones ganadas por recomendar, y la que originó su propia alta.
   recommendationBenefits          MembershipRecommendationBenefit[] @relation("BenefitEarner")
   originatedRecommendationBenefit MembershipRecommendationBenefit?  @relation("BenefitOrigin")
+  bookings                        Booking[]
+  raffleEntries                   RaffleEntry[]
+  raffleAwards                    RafflePrizeAward[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -7246,9 +7249,6 @@ model Member {
   @@index([workspaceId, documentNumber])
   @@index([workspaceId, lastName, firstName])
   @@index([workspaceId, recommendedByMemberId])
-  bookings       Booking[]
-  raffleEntries  RaffleEntry[]
-  raffleAwards   RafflePrizeAward[]
 }
 
 /// Invitación para que un socio acceda con su propia cuenta.
@@ -7314,13 +7314,13 @@ model MembershipApplication {
   province       String?
   postalCode     String?
 
-  categoryId        String?
-  declaredFeeScale  MemberFeeScale @default(PLENA)
-  ownDuesAmount     Decimal?       @db.Decimal(12, 2)
-  originInstitution String?
-  avatarUrl         String?
+  categoryId          String?
+  declaredFeeScale    MemberFeeScale @default(PLENA)
+  ownDuesAmount       Decimal?       @db.Decimal(12, 2)
+  originInstitution   String?
+  avatarUrl           String?
   /// Socio que presenta al aspirante, si el estatuto lo exige.
-  presenterMemberId String?
+  presenterMemberId   String?
   /// Socio que lo recomendó, tomado del enlace por el que entró al formulario.
   ///
   /// NO se reutiliza `presenterMemberId`: ese es el socio que *presenta* al aspirante cuando
@@ -7330,7 +7330,7 @@ model MembershipApplication {
   /// Si al asociarse pidió también la credencial impresa. La foto no se pide en el formulario:
   /// se sube desde el portal cuando ya es socio, porque el formulario es público y abrir la
   /// subida de archivos a internet para eso no compensa.
-  wantsPrintedCard  Boolean        @default(false)
+  wantsPrintedCard    Boolean        @default(false)
 
   /// --- Presencia profesional ---
   /// Se pide desde el alta: pedirla después implica volver a contactar a cada socio uno por uno.
@@ -7461,11 +7461,11 @@ model MembershipCharge {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  member      Member                    @relation(fields: [memberId], references: [id], onDelete: Restrict)
-  feeValue    MembershipFeeValue?       @relation(fields: [feeValueId], references: [id], onDelete: SetNull)
-  allocations MembershipAllocation[]
-  feeLedger   WorkspaceFeeLedgerEntry[]
+  workspace             Workspace                        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member                Member                           @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  feeValue              MembershipFeeValue?              @relation(fields: [feeValueId], references: [id], onDelete: SetNull)
+  allocations           MembershipAllocation[]
+  feeLedger             WorkspaceFeeLedgerEntry[]
   /// Bonificación por recomendación aplicada sobre esta cuota. Una como máximo.
   recommendationBenefit MembershipRecommendationBenefit?
 
@@ -7767,8 +7767,8 @@ model MembershipRecommendationBenefit {
   status  MembershipRecommendationBenefitStatus @default(PENDIENTE)
 
   /// Cuota sobre la que se aplicó. Único: una cuota recibe una sola bonificación.
-  appliedChargeId  String?  @unique
-  appliedAmountArs Decimal? @db.Decimal(12, 2)
+  appliedChargeId  String?   @unique
+  appliedAmountArs Decimal?  @db.Decimal(12, 2)
   appliedAt        DateTime?
 
   /// Anulación por la Secretaría. El motivo es obligatorio al anular.
@@ -7966,13 +7966,14 @@ model BookingSpace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace     Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  hours         BookingSpaceHours[]
-  bookings      Booking[]
-  closures      BookingClosure[]
-  compatibleAsA BookingSpaceCompatibility[] @relation("CompatibilidadA")
-  compatibleAsB BookingSpaceCompatibility[] @relation("CompatibilidadB")
-  extras        BookingExtraSpace[]
+  workspace      Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hours          BookingSpaceHours[]
+  bookings       Booking[]
+  closures       BookingClosure[]
+  compatibleAsA  BookingSpaceCompatibility[] @relation("CompatibilidadA")
+  compatibleAsB  BookingSpaceCompatibility[] @relation("CompatibilidadB")
+  extras         BookingExtraSpace[]
+  calendarBlocks BookingCalendarBlock[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, active])
@@ -7980,10 +7981,10 @@ model BookingSpace {
 
 /// "Lunes de 9 a 13" es una fila. Varios tramos por día.
 model BookingSpaceHours {
-  id      String @id @default(cuid())
-  spaceId String
+  id          String @id @default(cuid())
+  spaceId     String
   /// 0 domingo … 6 sábado, en la zona de la institución.
-  weekday Int
+  weekday     Int
   /// Minutos desde la medianoche local. 540 = 09:00. Siempre endMinute > startMinute.
   startMinute Int
   endMinute   Int
@@ -8059,17 +8060,17 @@ model Booking {
   feeArs          Decimal @default(0) @db.Decimal(12, 2)
 
   /// MERCADO_PAGO | TRANSFERENCIA | SIN_CARGO | PRESENCIAL
-  paymentMethod  String
+  paymentMethod   String
   /// PENDING | PAID | NOT_REQUIRED
-  paymentStatus  String
-  mpPreferenceId String?
-  mpPaymentId    String?
-  paidAt         DateTime?
+  paymentStatus   String
+  mpPreferenceId  String?
+  mpPaymentId     String?
+  paidAt          DateTime?
   /// Quién confirmó una transferencia o aprobó el pedido. Para explicarlo meses después.
   decidedByUserId Int?
 
-  googleEventId String?
-  notes         String?
+  googleEventId     String?
+  notes             String?
   /// Quién la cargó, cuando la carga el equipo y no la persona.
   createdByUserId   Int?
   cancelledAt       DateTime?
@@ -8079,9 +8080,9 @@ model Booking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  space      BookingSpace       @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-  member     Member?            @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  workspace        Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  space            BookingSpace              @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  member           Member?                   @relation(fields: [memberId], references: [id], onDelete: SetNull)
   extraLines       BookingExtraLine[]
   feeLedgerEntries WorkspaceFeeLedgerEntry[]
 
@@ -8091,16 +8092,37 @@ model Booking {
   @@index([status, holdExpiresAt])
 }
 
+/// Evento traído de Google que ocupa un espacio. **No lo creó FotoOffice.**
+///
+/// Es la mitad "de vuelta" del espejo: lo que la Comisión carga a mano en el calendario
+/// tapa el horario para que nadie lo reserve. Los eventos que sí creó FotoOffice llevan la
+/// marca `fotofficeBookingId` y se ignoran al traerlos, para que la sincronización no se
+/// muerda la cola.
+model BookingCalendarBlock {
+  id            String   @id @default(cuid())
+  spaceId       String
+  googleEventId String
+  startAt       DateTime
+  endAt         DateTime
+  summary       String?
+  syncedAt      DateTime @default(now())
+
+  space BookingSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, googleEventId])
+  @@index([spaceId, startAt])
+}
+
 /// Reglas del módulo que son de la institución entera, no de un espacio.
 model BookingSettings {
-  id          String @id @default(cuid())
-  workspaceId String @unique
+  id                String   @id @default(cuid())
+  workspaceId       String   @unique
   /// Cuánto vive un bloqueo esperando pago por transferencia o esperando aprobación.
-  holdHours   Int    @default(24)
+  holdHours         Int      @default(24)
   /// Hasta cuántas horas antes puede cancelar solo quien reservó.
-  cancelWindowHours Int @default(24)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  cancelWindowHours Int      @default(24)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
@@ -8174,16 +8196,16 @@ model BookingExtraSpace {
 
 /// Los extras de una reserva concreta, con el precio congelado.
 model BookingExtraLine {
-  id        String @id @default(cuid())
-  bookingId String
-  extraId   String
+  id            String   @id @default(cuid())
+  bookingId     String
+  extraId       String
   /// Copia del nombre al reservar: si después se renombra el extra, la reserva vieja sigue
   /// diciendo lo que la persona contrató.
   nameSnapshot  String
   priceMode     String
-  unitPriceArs  Decimal @db.Decimal(12, 2)
+  unitPriceArs  Decimal  @db.Decimal(12, 2)
   unitsConsumed Int
-  amountArs     Decimal @db.Decimal(12, 2)
+  amountArs     Decimal  @db.Decimal(12, 2)
   /// PENDING_CONFIRMATION | CONFIRMED | REMOVED
   status        String
   createdAt     DateTime @default(now())
@@ -14869,6 +14891,39 @@ model DnxPartnerParticipation {
 
 /// Estado de ocupación de un lugar de inventario publicitario.
 /// DRAFT no ocupa: la propuesta se está armando.
+/// Estado de un vendedor habilitado.
+enum DnxPartnerSalesAgentStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/// Quién está habilitado para vender inventario publicitario, y hasta dónde.
+///
+/// Existe porque `organizationId` es una referencia opaca —un workspace de
+/// FotoOffice, una organización de concurso de FotoRank— y no hay una tabla
+/// única que consultar. Acá viven el nombre visible y la habilitación.
+///
+/// Sin una fila acá, una organización solo puede vender su propio inventario.
+model DnxPartnerSalesAgent {
+  id              String                     @id @default(cuid())
+  /// Ref opaca a la organización vendedora. Es la que se guarda en
+  /// `soldByOrganizationId`.
+  organizationId  String                     @unique
+  /// Cómo se lo nombra en las pantallas, para no depender del identificador.
+  displayName     String
+  /// Si puede ofrecer los espacios globales de la red, además de los suyos.
+  /// No todo organizador debería poder vender la portada de InfoSpot.
+  canSellPlatform Boolean                    @default(false)
+  status          DnxPartnerSalesAgentStatus @default(ACTIVE)
+  notes           String?
+  createdByUserId Int?
+  updatedByUserId Int?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  @@index([status])
+}
+
 enum DnxPartnerBookingStatus {
   DRAFT
   RESERVED

@@ -14,6 +14,10 @@ describe("mapa de inventario", () => {
     for (const espacio of DNX_INVENTORY) {
       assert.ok(["PLATFORM", "ORGANIZER", "WORKSPACE"].includes(espacio.owner));
       assert.ok(["SALE", "EXCHANGE", "BOTH"].includes(espacio.access));
+      assert.ok(
+        ["GLOBAL", "EVENT", "CONTEST", "ALBUM", "ORGANIZATION"].includes(espacio.contextType),
+        `${espacio.placementKey} no declara alcance`,
+      );
       assert.equal(typeof espacio.mounted, "boolean");
       assert.ok(espacio.audience.length > 0);
     }
@@ -107,5 +111,66 @@ describe("el montaje coincide con la fuente de verdad de las placas", () => {
       const espacio = DNX_INVENTORY.find((e) => e.placementKey === key);
       assert.equal(espacio?.mounted, false, `${key} está marcado montado y no lo está`);
     }
+  });
+});
+
+describe("alcance de cada espacio", () => {
+  it("lo de portada es global y lo de contexto no", () => {
+    const buscar = (k: string) => DNX_INVENTORY.find((e) => e.placementKey === k);
+    assert.equal(buscar("INFOSPOT_HOME_WELCOME")?.contextType, "GLOBAL");
+    assert.equal(buscar("FOTORANK_CONTEST_WELCOME")?.contextType, "CONTEST");
+    assert.equal(buscar("CLICKATON_EVENT_WELCOME")?.contextType, "EVENT");
+    assert.equal(buscar("CLF_ALBUM_WELCOME")?.contextType, "ALBUM");
+  });
+
+  it("los de FotoOffice son de la institución", () => {
+    const fo = DNX_INVENTORY.filter((e) => e.application === "FOTO_OFFICE");
+    assert.equal(fo.length, 6);
+    assert.ok(fo.every((e) => e.contextType === "ORGANIZATION"));
+  });
+});
+
+describe("vender inventario ajeno", () => {
+  it("sin habilitación, un organizador ve solo lo suyo", () => {
+    const espacios = listSellableSpaces({ owner: "ORGANIZER" });
+    assert.ok(espacios.every((e) => e.owner === "ORGANIZER"));
+  });
+
+  it("habilitado, suma los espacios globales de plataforma", () => {
+    const espacios = listSellableSpaces({ owner: "ORGANIZER", canSellPlatform: true });
+    const duenos = new Set(espacios.map((e) => e.owner));
+    assert.deepEqual([...duenos].sort(), ["ORGANIZER", "PLATFORM"]);
+  });
+
+  it("la habilitación no le abre el inventario de otros vendedores", () => {
+    const espacios = listSellableSpaces({ owner: "ORGANIZER", canSellPlatform: true });
+    assert.ok(espacios.every((e) => e.owner !== "WORKSPACE"));
+  });
+
+  it("un workspace habilitado también llega a la red", () => {
+    const espacios = listSellableSpaces({
+      owner: "WORKSPACE",
+      canSellPlatform: true,
+      includeUnmounted: true,
+    });
+    assert.ok(espacios.some((e) => e.owner === "PLATFORM"));
+    assert.ok(espacios.some((e) => e.owner === "WORKSPACE"));
+  });
+
+  it("a DNX la habilitación no le cambia nada: la red ya es suya", () => {
+    const sin = listSellableSpaces({ owner: "PLATFORM" }).map((e) => e.placementKey);
+    const con = listSellableSpaces({ owner: "PLATFORM", canSellPlatform: true }).map(
+      (e) => e.placementKey,
+    );
+    assert.deepEqual(con, sin);
+  });
+
+  it("filtrar por aplicación sigue mandando sobre la habilitación", () => {
+    const espacios = listSellableSpaces({
+      owner: "ORGANIZER",
+      canSellPlatform: true,
+      application: "INFO_SPOT",
+    });
+    assert.ok(espacios.every((e) => e.application === "INFO_SPOT"));
   });
 });

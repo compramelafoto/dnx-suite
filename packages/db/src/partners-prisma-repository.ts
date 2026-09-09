@@ -378,6 +378,7 @@ export function createPrismaPartnersRepository(): PartnersRepository {
         data: {
           partnerId: input.partnerId,
           organizationId: input.organizationId ?? null,
+          soldByOrganizationId: input.soldByOrganizationId ?? null,
           application: input.application,
           contextType: input.contextType ?? "GLOBAL",
           contextId: input.contextId ?? null,
@@ -418,6 +419,9 @@ export function createPrismaPartnersRepository(): PartnersRepository {
         data: {
           ...(input.organizationId !== undefined
             ? { organizationId: input.organizationId }
+            : {}),
+          ...(input.soldByOrganizationId !== undefined
+            ? { soldByOrganizationId: input.soldByOrganizationId }
             : {}),
           ...(input.application !== undefined ? { application: input.application } : {}),
           ...(input.contextType !== undefined ? { contextType: input.contextType } : {}),

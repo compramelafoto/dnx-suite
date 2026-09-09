@@ -150,7 +150,7 @@ export async function loadAvailabilityContext(
     compatibilidades,
   ).sort();
 
-  const [ocupacion, cierresFilas] = await Promise.all([
+  const [ocupacion, cierresFilas, bloqueosDeCalendario] = await Promise.all([
     prisma.booking.findMany({
       where: {
         workspaceId,
@@ -171,13 +171,29 @@ export async function loadAvailabilityContext(
       },
       select: { startAt: true, endAt: true },
     }),
+    // Lo que se cargó a mano en Google Calendar ocupa igual que una reserva, y ocupa
+    // también para los espacios que no conviven con éste: si la Comisión anota "Muestra
+    // anual" en el calendario del salón, el estudio tampoco se puede alquilar.
+    prisma.bookingCalendarBlock.findMany({
+      where: {
+        spaceId: { in: bloquean },
+        startAt: { lt: range.endAt },
+        endAt: { gt: range.startAt },
+      },
+      select: { startAt: true, endAt: true },
+    }),
   ]);
 
   return {
     space: espacio.rules,
     weeklyHours: espacio.weeklyHours,
     closures: cierresFilas.map((c) => ({ startAt: c.startAt, endAt: c.endAt })),
-    busy: ocupacion.map((b) => ({ startAt: b.startAt, endAt: b.endAt })),
+    // El motor recibe toda la ocupación junta y no distingue de dónde viene: una reserva,
+    // un espacio incompatible o un evento del calendario tapan igual.
+    busy: [...ocupacion, ...bloqueosDeCalendario].map((b) => ({
+      startAt: b.startAt,
+      endAt: b.endAt,
+    })),
     now,
     timeZone: BOOKINGS_TIME_ZONE,
   };

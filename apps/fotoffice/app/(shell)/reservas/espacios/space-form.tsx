@@ -1,17 +1,19 @@
+"use client";
+
+import { useState } from "react";
 import { formatMinorArs } from "@/lib/membership/money";
-import { minuteOfDayToLabel } from "@/lib/bookings/time";
 import type { SpaceRecord } from "@/lib/bookings/repository";
 import { saveSpaceAction } from "../actions";
-
-const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+import { WeeklyHoursField } from "./weekly-hours-field";
 
 /**
- * Los horarios se cargan como texto, un tramo por línea (`09:00-13:00`).
+ * Alta y edición de un espacio.
  *
- * Un selector visual sería más lindo y necesita estado en el navegador, validación
- * duplicada y su propio manejo de errores. El texto se valida en un solo lugar
- * (`lib/bookings/space-form.ts`), se prueba sin navegador, y quien carga esto lo hace una
- * vez por espacio y no todos los días.
+ * El formulario corre en el navegador por una sola razón: la grilla y la duración mínima
+ * mandan sobre qué horas se pueden elegir en "Días y horarios". Teniéndolas en estado, el
+ * editor de horarios ofrece únicamente valores que el servidor va a aceptar, en vez de
+ * enterarse del choque recién al guardar. La validación de verdad no se movió de
+ * `lib/bookings/space-form.ts`.
  */
 export function SpaceForm({
   space,
@@ -26,6 +28,11 @@ export function SpaceForm({
 }) {
   const pesos = (minor: number) =>
     minor === 0 ? "" : formatMinorArs(minor).replace("$", "").trim();
+
+  const [slotMinutes, setSlotMinutes] = useState(space?.rules.slotMinutes ?? 60);
+  const [minBookingMinutes, setMinBookingMinutes] = useState(
+    space?.rules.minBookingMinutes ?? 60,
+  );
 
   return (
     <form action={saveSpaceAction} className="space-y-6">
@@ -64,38 +71,11 @@ export function SpaceForm({
         </div>
       </section>
 
-      <section className="fo-card space-y-4 p-5">
-        <h2 className="text-base font-semibold">Días y horarios</h2>
-        <p className="fo-helper">
-          Un tramo por línea, con el formato <code>09:00-13:00</code>. Se pueden poner varios
-          tramos en el mismo día. Un día vacío es un día en que no se alquila.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {DIAS.map((nombre, weekday) => {
-            const tramos = (space?.weeklyHours ?? [])
-              .filter((h) => h.weekday === weekday)
-              .map(
-                (h) =>
-                  `${minuteOfDayToLabel(h.startMinute)}-${minuteOfDayToLabel(h.endMinute)}`,
-              );
-            return (
-              <div key={weekday} className="fo-field-stack">
-                <label className="fo-label" htmlFor={`hours-${weekday}`}>
-                  {nombre}
-                </label>
-                <textarea
-                  id={`hours-${weekday}`}
-                  name={`hours.${weekday}`}
-                  rows={2}
-                  className="fo-input"
-                  placeholder="09:00-13:00"
-                  defaultValue={tramos.join("\n")}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      <WeeklyHoursField
+        initialHours={space?.weeklyHours ?? []}
+        slotMinutes={slotMinutes}
+        minBookingMinutes={minBookingMinutes}
+      />
 
       <section className="fo-card space-y-4 p-5">
         <h2 className="text-base font-semibold">Reglas</h2>
@@ -111,9 +91,12 @@ export function SpaceForm({
               min={5}
               step={5}
               className="fo-input"
-              defaultValue={space?.rules.slotMinutes ?? 60}
+              value={slotMinutes}
+              onChange={(e) => setSlotMinutes(Number(e.target.value))}
             />
-            <p className="fo-helper">60 = se reserva por hora.</p>
+            <p className="fo-helper">
+              60 = se reserva por hora. Manda sobre las horas que se pueden elegir arriba.
+            </p>
           </div>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="minBookingMinutes">
@@ -126,7 +109,8 @@ export function SpaceForm({
               min={5}
               step={5}
               className="fo-input"
-              defaultValue={space?.rules.minBookingMinutes ?? 60}
+              value={minBookingMinutes}
+              onChange={(e) => setMinBookingMinutes(Number(e.target.value))}
             />
           </div>
           <div className="fo-field-stack">

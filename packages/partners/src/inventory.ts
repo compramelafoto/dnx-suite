@@ -27,8 +27,20 @@ export type DnxInventoryOwner = (typeof DNX_INVENTORY_OWNERS)[number];
 export const DNX_INVENTORY_ACCESS_MODES = ["SALE", "EXCHANGE", "BOTH"] as const;
 export type DnxInventoryAccess = (typeof DNX_INVENTORY_ACCESS_MODES)[number];
 
+/** Alcance de un espacio: global, o atado a un concurso, evento, álbum o institución. */
+export const DNX_INVENTORY_CONTEXT_TYPES = [
+  "GLOBAL",
+  "EVENT",
+  "CONTEST",
+  "ALBUM",
+  "ORGANIZATION",
+] as const;
+export type DnxInventoryContextType = (typeof DNX_INVENTORY_CONTEXT_TYPES)[number];
+
 type CommercialRow = {
   owner: DnxInventoryOwner;
+  /** Qué hace falta para ubicarlo: nada si es global, el concurso o el álbum si no. */
+  contextType: DnxInventoryContextType;
   audience: DnxPartnerAudienceType;
   /**
    * true solo si una app lo renderiza hoy.
@@ -43,6 +55,7 @@ type CommercialRow = {
 
 const PLATFORM_PUBLIC: CommercialRow = {
   owner: "PLATFORM",
+  contextType: "GLOBAL",
   audience: "ALL_USERS",
   mounted: true,
   access: "SALE",
@@ -63,17 +76,19 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
     ...PLATFORM_PUBLIC,
     audience: "EVENT_PARTICIPANTS",
     mounted: false,
+    contextType: "EVENT",
   },
 
   // Clickatón — el equipo organiza sus propias maratones.
   CLICKATON_HOME_WELCOME: { ...PLATFORM_PUBLIC, mounted: false },
-  CLICKATON_EVENT_WELCOME: { ...PLATFORM_PUBLIC, audience: "EVENT_PARTICIPANTS" },
+  CLICKATON_EVENT_WELCOME: { ...PLATFORM_PUBLIC, contextType: "EVENT", audience: "EVENT_PARTICIPANTS" },
   CLICKATON_HOME_MARQUEE: { ...PLATFORM_PUBLIC, mounted: false },
 
   // FotoRank — la portada es de la plataforma; el concurso, del organizador.
   FOTORANK_HOME_WELCOME: { ...PLATFORM_PUBLIC, mounted: false },
   FOTORANK_CONTEST_WELCOME: {
     owner: "ORGANIZER",
+    contextType: "CONTEST",
     audience: "EVENT_PARTICIPANTS",
     mounted: true,
     access: "SALE",
@@ -83,26 +98,30 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
   CLF_HOME_WELCOME: { ...PLATFORM_PUBLIC, mounted: false },
   CLF_HOME_PROMO: PLATFORM_PUBLIC,
   CLF_LOGO_MARQUEE: PLATFORM_PUBLIC,
-  CLF_ALBUM_WELCOME: { ...PLATFORM_PUBLIC, audience: "EVENT_PARTICIPANTS" },
+  CLF_ALBUM_WELCOME: { ...PLATFORM_PUBLIC, contextType: "ALBUM", audience: "EVENT_PARTICIPANTS" },
   CLF_GALLERY_TOP: {
     ...PLATFORM_PUBLIC,
     audience: "EVENT_PARTICIPANTS",
     mounted: false,
+    contextType: "ALBUM",
   },
   CLF_GALLERY_INLINE: {
     ...PLATFORM_PUBLIC,
     audience: "EVENT_PARTICIPANTS",
     mounted: false,
+    contextType: "ALBUM",
   },
   CLF_PHOTO_DETAIL_BELOW: {
     ...PLATFORM_PUBLIC,
     audience: "EVENT_PARTICIPANTS",
     mounted: false,
+    contextType: "ALBUM",
   },
   CLF_EVENT_PAGE: {
     ...PLATFORM_PUBLIC,
     audience: "EVENT_PARTICIPANTS",
     mounted: false,
+    contextType: "EVENT",
   },
   CLF_CHECKOUT_SUPPORTING: {
     ...PLATFORM_PUBLIC,
@@ -113,36 +132,42 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
   // FotoOffice — la institución consigue sus propios sponsors. Nada montado.
   FOTOFFICE_PORTAL_WELCOME: {
     owner: "WORKSPACE",
+    contextType: "ORGANIZATION",
     audience: "MEMBERSHIP_HOLDERS",
     mounted: false,
     access: "BOTH",
   },
   FOTOFFICE_PORTAL_SPONSORS: {
     owner: "WORKSPACE",
+    contextType: "ORGANIZATION",
     audience: "MEMBERSHIP_HOLDERS",
     mounted: false,
     access: "BOTH",
   },
   FOTOFFICE_PORTAL_MARQUEE: {
     owner: "WORKSPACE",
+    contextType: "ORGANIZATION",
     audience: "MEMBERSHIP_HOLDERS",
     mounted: false,
     access: "EXCHANGE",
   },
   FOTOFFICE_BENEFIT_CARD: {
     owner: "WORKSPACE",
+    contextType: "ORGANIZATION",
     audience: "MEMBERSHIP_HOLDERS",
     mounted: false,
     access: "EXCHANGE",
   },
   FOTOFFICE_RAFFLE_SPONSOR: {
     owner: "WORKSPACE",
+    contextType: "ORGANIZATION",
     audience: "MEMBERSHIP_HOLDERS",
     mounted: false,
     access: "BOTH",
   },
   FOTOFFICE_PUBLIC_MARQUEE: {
     owner: "WORKSPACE",
+    contextType: "ORGANIZATION",
     audience: "ALL_USERS",
     mounted: false,
     access: "SALE",
@@ -172,6 +197,15 @@ export type SellerScope = {
   access?: DnxInventoryAccess;
   /** Incluir lo declarado pero todavía no montado. Por defecto, no. */
   includeUnmounted?: boolean;
+  /**
+   * Si está habilitado para ofrecer los espacios globales de la red, además de
+   * los suyos.
+   *
+   * Es una habilitación explícita: no todo organizador debería poder vender la
+   * portada de InfoSpot. No abre el inventario de los demás vendedores — un
+   * organizador habilitado sigue sin ver el portal de una institución.
+   */
+  canSellPlatform?: boolean;
 };
 
 /**
@@ -181,8 +215,11 @@ export type SellerScope = {
  * prometerle a una marca un lugar donde su logo nunca aparecería.
  */
 export function listSellableSpaces(seller: SellerScope): readonly DnxInventorySpace[] {
+  const alcanza = (owner: DnxInventoryOwner) =>
+    owner === seller.owner || (seller.canSellPlatform === true && owner === "PLATFORM");
+
   return DNX_INVENTORY.filter((space) => {
-    if (space.owner !== seller.owner) return false;
+    if (!alcanza(space.owner)) return false;
     if (seller.application && space.application !== seller.application) return false;
     if (!seller.includeUnmounted && !space.mounted) return false;
     if (seller.access && seller.access !== "BOTH") {

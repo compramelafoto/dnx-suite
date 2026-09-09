@@ -18,6 +18,11 @@ Antes de esto, **nada en el esquema decía quién vendió una participación**: 
 había forma de distinguir «esto lo vendió DNX» de «esto lo originó un organizador
 y le corresponde comisión».
 
+**`organizationId` y `soldByOrganizationId` no son lo mismo**, y es fácil
+confundirlos: el primero dice **dónde** participa la marca, el segundo **quién la
+trajo**. Un organizador puede vender un espacio global de plataforma: el contexto
+es global, la comisión es suya.
+
 | Necesidad | Cómo la resuelve |
 |---|---|
 | Atribución de comisiones | Es el vendedor de cada participación |
@@ -87,11 +92,23 @@ P-03, todavía abierta.
 
 ## Lo que falta
 
-1. **Aplicar la migración `20260827230000_partner_participation_sold_by`.** Está
-   escrita y **sin ejecutar**: es aditiva —columna nullable, sin default, sin
-   backfill— pero en este proyecto ningún build corre `prisma migrate deploy`, y
-   `packages/db/.env` apunta a la misma base que producción.
-2. **Guardar el vendedor al crear participaciones.** El campo existe y nadie lo
-   escribe todavía.
-3. **La habilitación para vender inventario ajeno.** No todo organizador debería
-   poder vender la portada de InfoSpot.
+Revisado contra el código el 2026-09-09.
+
+1. ~~Aplicar la migración `20260827230000_partner_participation_sold_by`.~~
+   Aplicada en producción el 2026-08-28.
+2. ~~Guardar el vendedor.~~ Hecho el 2026-09-09. Se carga al reservar un lugar y
+   al crear o editar una participación, y se muestra en las dos pantallas.
+   Vacío significa DNX directo.
+
+   Es un desplegable que sale de los vendedores habilitados (punto 3), no un
+   campo de texto: `soldByOrganizationId` es una referencia opaca y escribirla a
+   mano invitaba a errores de tipeo en la atribución de comisiones.
+3. ~~La habilitación para vender inventario ajeno.~~ Hecho el 2026-09-09.
+
+   `DnxPartnerSalesAgent` registra quién está habilitado y hasta dónde. Sin una
+   fila ahí, una organización solo vende su propio inventario; con
+   `canSellPlatform` puede ofrecer además los espacios globales de la red, pero
+   nunca el inventario de otro vendedor.
+
+   Se administra en **Sponsors → Vendedores habilitados**, y de ahí sale el
+   desplegable de «quién trajo la venta»: el campo dejó de ser texto libre.

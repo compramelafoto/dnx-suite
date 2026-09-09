@@ -25,7 +25,8 @@
     "./daily-report-repository": "./src/daily-report-repository.ts",
     "./template-v2-repository": "./src/template-v2-repository.ts",
     "./clickaton-readonly-client": "./src/clickaton-readonly-client.ts",
-    "./partners-inventory-bookings": "./src/partners-inventory-bookings.ts"
+    "./partners-inventory-bookings": "./src/partners-inventory-bookings.ts",
+    "./partners-sales-agents": "./src/partners-sales-agents.ts"
   },
   "scripts": {
     "postinstall": "prisma generate",
