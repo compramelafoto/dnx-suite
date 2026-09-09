@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { requireRafflesAdmin } from "@/lib/raffles/access";
+import { requireRafflesAdmin, requireRafflesStaff } from "@/lib/raffles/access";
 import { parseRaffleForm } from "@/lib/raffles/raffle-form";
 import { parsePrizeForm } from "@/lib/raffles/prize-form";
 import { announceRaffle } from "@/lib/raffles/announce";
@@ -11,6 +11,8 @@ import { sealRaffle } from "@/lib/raffles/seal";
 import { resolveRaffle } from "@/lib/raffles/resolve";
 import { recordRaffleEvent } from "@/lib/raffles/events";
 import { canCancel, canEditPrizes } from "@/lib/raffles/lifecycle";
+import { advancePrizeAward } from "@/lib/raffles/delivery";
+import type { RafflePrizeStatus } from "@/lib/raffles/constants";
 import type { RaffleStatus } from "@/lib/raffles/constants";
 
 /**
@@ -224,4 +226,30 @@ export async function cancelRaffleAction(formData: FormData): Promise<void> {
 
   revalidatePath(LISTA);
   redirect(`${LISTA}?ok=cancelado`);
+}
+
+/**
+ * Avanzar un premio: avisado, entregado, no retirado o anulado.
+ *
+ * Es STAFF+ y no ADMIN: entregar un premio no define el resultado del sorteo, y quien atiende
+ * el mostrador tiene que poder anotarlo.
+ */
+export async function advanceAwardAction(formData: FormData): Promise<void> {
+  const { workspace, user } = await requireRafflesStaff();
+  const awardId = String(formData.get("awardId") ?? "");
+  const to = String(formData.get("to") ?? "") as RafflePrizeStatus;
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  const r = await advancePrizeAward({
+    workspaceId: workspace.id,
+    awardId,
+    to,
+    note,
+    actorUserId: user.id,
+    actorLabel: etiquetaActor(user),
+  });
+  if (!r.ok) conError("/sorteos/entregas", r.error);
+
+  revalidatePath("/sorteos/entregas");
+  redirect("/sorteos/entregas?ok=premio");
 }
