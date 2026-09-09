@@ -620,11 +620,13 @@ export {
   DNX_INVENTORY,
   DNX_INVENTORY_OWNERS,
   DNX_INVENTORY_ACCESS_MODES,
+  DNX_INVENTORY_CONTEXT_TYPES,
   listSellableSpaces,
 } from "./inventory";
 export type {
   DnxInventoryOwner,
   DnxInventoryAccess,
+  DnxInventoryContextType,
   DnxInventorySpace,
   SellerScope,
 } from "./inventory";

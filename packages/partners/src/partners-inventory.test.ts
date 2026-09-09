@@ -14,6 +14,10 @@ describe("mapa de inventario", () => {
     for (const espacio of DNX_INVENTORY) {
       assert.ok(["PLATFORM", "ORGANIZER", "WORKSPACE"].includes(espacio.owner));
       assert.ok(["SALE", "EXCHANGE", "BOTH"].includes(espacio.access));
+      assert.ok(
+        ["GLOBAL", "EVENT", "CONTEST", "ALBUM", "ORGANIZATION"].includes(espacio.contextType),
+        `${espacio.placementKey} no declara alcance`,
+      );
       assert.equal(typeof espacio.mounted, "boolean");
       assert.ok(espacio.audience.length > 0);
     }
@@ -107,5 +111,21 @@ describe("el montaje coincide con la fuente de verdad de las placas", () => {
       const espacio = DNX_INVENTORY.find((e) => e.placementKey === key);
       assert.equal(espacio?.mounted, false, `${key} está marcado montado y no lo está`);
     }
+  });
+});
+
+describe("alcance de cada espacio", () => {
+  it("lo de portada es global y lo de contexto no", () => {
+    const buscar = (k: string) => DNX_INVENTORY.find((e) => e.placementKey === k);
+    assert.equal(buscar("INFOSPOT_HOME_WELCOME")?.contextType, "GLOBAL");
+    assert.equal(buscar("FOTORANK_CONTEST_WELCOME")?.contextType, "CONTEST");
+    assert.equal(buscar("CLICKATON_EVENT_WELCOME")?.contextType, "EVENT");
+    assert.equal(buscar("CLF_ALBUM_WELCOME")?.contextType, "ALBUM");
+  });
+
+  it("los de FotoOffice son de la institución", () => {
+    const fo = DNX_INVENTORY.filter((e) => e.application === "FOTO_OFFICE");
+    assert.equal(fo.length, 6);
+    assert.ok(fo.every((e) => e.contextType === "ORGANIZATION"));
   });
 });

@@ -5,6 +5,17 @@ import {
   type DnxPartnerBookingStatus,
 } from "@repo/partners";
 import { listInventoryBookings } from "@repo/db/partners-inventory-bookings";
+import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { getClickatonPartnersService, toPartnerActor } from "@/lib/admin/partners/runtime";
+import {
+  confirmarVentaAction,
+  extenderReservaAction,
+  liberarLugarAction,
+  reservarLugarAction,
+} from "@/lib/admin/partners/inventory-mutations";
 import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -16,10 +27,13 @@ import { withClickatonDb } from "@/lib/admin/db";
 export const dynamic = "force-dynamic";
 
 /**
- * Qué lugares del inventario publicitario están ocupados y hasta cuándo.
+ * Qué lugares del inventario están ocupados, y dónde se toman.
  *
- * Solo lectura: cancelar o extender una reserva desde acá exige decidir quién
- * puede hacerlo, y esa capability todavía no existe.
+ * El permiso es el del panel: entrar acá ya implica el bundle completo de
+ * operaciones sobre partners, igual que crear una participación.
+ *
+ * Solo se ofrecen los espacios **montados**: reservar uno que ninguna pantalla
+ * dibuja sería venderle a una marca un lugar donde su logo nunca aparecería.
  */
 
 const NOMBRE_ESPACIO = new Map<string, string>(
@@ -30,9 +44,30 @@ function fecha(d: Date): string {
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-export default async function AdminInventarioPage() {
-  await requireClickatonAdmin();
+/** Un mes desde hoy, en `AAAA-MM-DD`, como valor por defecto del formulario. */
+function periodoPorDefecto(): { desde: string; hasta: string } {
+  const hoy = new Date();
+  const fin = new Date(hoy);
+  fin.setUTCMonth(fin.getUTCMonth() + 1);
+  const txt = (d: Date) => d.toISOString().slice(0, 10);
+  return { desde: txt(hoy), hasta: txt(fin) };
+}
+
+const ESPACIOS_VENDIBLES = DNX_INVENTORY.filter((e) => e.mounted);
+
+type Props = { searchParams?: Promise<{ ok?: string; error?: string }> };
+
+export default async function AdminInventarioPage({ searchParams }: Props) {
+  const user = await requireClickatonAdmin();
+  const actor = toPartnerActor(user);
   const ahora = new Date();
+  const aviso = (await searchParams) ?? {};
+  const periodo = periodoPorDefecto();
+
+  const marcas = await withClickatonDb(async () => {
+    const svc = getClickatonPartnersService();
+    return svc.listPartners(actor, {});
+  });
 
   const resultado = await withClickatonDb(() => listInventoryBookings());
 
@@ -59,6 +94,75 @@ export default async function AdminInventarioPage() {
         breadcrumbs={[{ label: "Sponsors y beneficios" }, { label: "Ocupación" }]}
       />
 
+      {aviso.ok ? (
+        <div className="rounded-lg border border-ck-border bg-ck-surface px-4 py-3 text-sm text-ck-text">
+          {aviso.ok}
+        </div>
+      ) : null}
+      {aviso.error ? (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {aviso.error}
+        </div>
+      ) : null}
+
+      <Card variant="outlined" className="p-5">
+        <h2 className="mb-1 text-base font-semibold text-ck-text">Tomar un lugar</h2>
+        <p className="mb-4 text-sm text-ck-text-muted">
+          Queda reservado diez días. Si el lugar ya está ocupado en ese período, se avisa y no se
+          toma nada.
+        </p>
+        <form action={reservarLugarAction} className="grid gap-4 md:grid-cols-2">
+          <Field id="inv-marca" label="Marca">
+            <Select name="partnerId" defaultValue="" required>
+              <option value="" disabled>
+                Elegí una marca…
+              </option>
+              {marcas.ok
+                ? marcas.data.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))
+                : null}
+            </Select>
+          </Field>
+
+          <Field id="inv-espacio" label="Espacio">
+            <Select name="placementKey" defaultValue="" required>
+              <option value="" disabled>
+                Elegí un espacio…
+              </option>
+              {ESPACIOS_VENDIBLES.map((e) => (
+                <option key={e.placementKey} value={e.placementKey}>
+                  {e.name} · {e.application.replaceAll("_", " ")}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field
+            id="inv-contexto"
+            label="Concurso, evento o álbum"
+            hint="Solo para espacios que no son globales. Se pega el identificador."
+          >
+            <Input type="text" name="contextId" placeholder="Opcional" />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field id="inv-desde" label="Desde">
+              <Input type="date" name="startsAt" defaultValue={periodo.desde} required />
+            </Field>
+            <Field id="inv-hasta" label="Hasta">
+              <Input type="date" name="endsAt" defaultValue={periodo.hasta} required />
+            </Field>
+          </div>
+
+          <div className="md:col-span-2">
+            <Button type="submit">Reservar por 10 días</Button>
+          </div>
+        </form>
+      </Card>
+
       {filas.length === 0 ? (
         <AdminEmptyState
           title="Todo libre"
@@ -75,6 +179,7 @@ export default async function AdminInventarioPage() {
                 <th className="px-4 py-3">Desde</th>
                 <th className="px-4 py-3">Hasta</th>
                 <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -134,6 +239,32 @@ export default async function AdminInventarioPage() {
                           Extendida {fila.reservationExtensionCount}×
                         </div>
                       ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {fila.status === "RESERVED" ? (
+                          <>
+                            <form action={confirmarVentaAction}>
+                              <input type="hidden" name="bookingId" value={fila.id} />
+                              <Button type="submit" size="sm">
+                                Confirmar venta
+                              </Button>
+                            </form>
+                            <form action={extenderReservaAction}>
+                              <input type="hidden" name="bookingId" value={fila.id} />
+                              <Button type="submit" size="sm" variant="secondary">
+                                Extender
+                              </Button>
+                            </form>
+                          </>
+                        ) : null}
+                        <form action={liberarLugarAction}>
+                          <input type="hidden" name="bookingId" value={fila.id} />
+                          <Button type="submit" size="sm" variant="secondary">
+                            Liberar
+                          </Button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                 );

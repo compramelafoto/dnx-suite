@@ -337,3 +337,38 @@ export async function listInventoryBookings(input?: {
 export type InventoryBookingRow = Awaited<
   ReturnType<typeof listInventoryBookings>
 >[number];
+
+export type CancelBookingResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" | "already_cancelled" };
+
+/**
+ * Libera un lugar tomado.
+ *
+ * Cancela en vez de borrar: la fila queda como historial de que ese lugar
+ * estuvo reservado o vendido, y quién lo hizo. `CANCELLED` sale del filtro de la
+ * restricción, así que el lugar vuelve a estar disponible de inmediato.
+ */
+export async function cancelInventoryBooking(input: {
+  bookingId: string;
+  updatedByUserId?: number | null;
+  notes?: string | null;
+}): Promise<CancelBookingResult> {
+  const actual = await prisma.dnxPartnerInventoryBooking.findUnique({
+    where: { id: input.bookingId },
+    select: { status: true, notes: true },
+  });
+  if (!actual) return { ok: false, reason: "not_found" };
+  if (actual.status === "CANCELLED") return { ok: false, reason: "already_cancelled" };
+
+  await prisma.dnxPartnerInventoryBooking.update({
+    where: { id: input.bookingId },
+    data: {
+      status: "CANCELLED",
+      reservationExpiresAt: null,
+      updatedByUserId: input.updatedByUserId ?? undefined,
+      notes: input.notes?.trim() ? input.notes.trim() : actual.notes,
+    },
+  });
+  return { ok: true };
+}
