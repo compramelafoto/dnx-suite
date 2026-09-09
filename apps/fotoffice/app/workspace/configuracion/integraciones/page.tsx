@@ -8,6 +8,7 @@ import { getModuleDefinition } from "@/lib/modules/registry";
 import { listIntegrations } from "@/lib/integrations/registry";
 import { listIntegrationSummaries } from "@/lib/integrations/store";
 import { integrationErrorMessage, integrationOkMessage } from "@/lib/integrations/messages";
+import { readIntegrationsGoogleCredentials } from "@/lib/integrations/credentials";
 import { DisconnectButton } from "./disconnect-button";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,10 @@ export default async function IntegracionesPage({
   const errorMessage = integrationErrorMessage(params.error ?? null);
   const okMessage = integrationOkMessage(params.ok ?? null);
 
+  // Con el cliente compartido, Google bloquea los permisos de calendario salvo para
+  // usuarios de prueba. Decirlo acá ahorra el rato de no entender por qué falla.
+  const credenciales = readIntegrationsGoogleCredentials();
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -57,6 +62,16 @@ export default async function IntegracionesPage({
       {errorMessage ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
           {errorMessage}
+        </p>
+      ) : null}
+
+      {credenciales && !credenciales.dedicated ? (
+        <p className="fo-card p-4 text-sm leading-relaxed text-[var(--fo-muted)]">
+          Estas integraciones están usando el mismo cliente de Google que el ingreso con
+          Google del resto de la suite. Google no habilita los permisos de calendario con un
+          cliente sin verificar, así que conectar puede fallar con{" "}
+          <span className="whitespace-nowrap">&ldquo;Acceso bloqueado&rdquo;</span>. Se
+          resuelve con un cliente propio para FotoOffice.
         </p>
       ) : null}
 
