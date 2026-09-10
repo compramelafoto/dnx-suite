@@ -187,23 +187,13 @@ export function PremioForm({
         </div>
       </fieldset>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="fo-field-stack">
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="estimatedValue">
             Valor estimado
           </label>
           <input id="estimatedValue" name="estimatedValue" className="fo-input" inputMode="decimal" />
           <p className="fo-helper">Informativo. No se cobra nada.</p>
-        </div>
-        <div className="fo-field-stack">
-          <label className="fo-label" htmlFor="pickupDeadline">
-            Retirar hasta
-          </label>
-          <input id="pickupDeadline" name="pickupDeadline" type="date" className="fo-input" />
-          <p className="fo-helper">
-            Dejalo vacío: se calcula solo al sortear, contando los días que diga el sorteo (15
-            por omisión). Sólo poné una fecha si este premio es una excepción.
-          </p>
         </div>
       </div>
 

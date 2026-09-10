@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { generateMonthlyRaffles } from "@/lib/raffles/monthly";
 import { sealDueRaffles } from "@/lib/raffles/seal";
 import { resolveDueRaffles } from "@/lib/raffles/resolve";
 import { expireUnclaimedPrizes } from "@/lib/raffles/delivery";
@@ -10,8 +11,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Sella los padrones vencidos, resuelve los sorteos cuyo acto ya pasó y vence los premios que
- * nadie retiró.
+ * Arma el sorteo del mes, sella los padrones vencidos, resuelve los sorteos cuyo acto ya pasó,
+ * avisa a quien corresponde y vence los premios que nadie retiró.
  *
  * Las tres cosas son idempotentes, así que correrla de más no cambia nada. Y no es la única
  * manera de que ocurran: la primera visita posterior también sella y resuelve. Un sorteo no
@@ -36,11 +37,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "no autorizado" }, { status: 401 });
   }
   try {
+    const mensual = await generateMonthlyRaffles();
     const sellado = await sealDueRaffles();
     const sorteado = await resolveDueRaffles();
     const avisos = await notifyPendingAwards();
     const vencidos = await expireUnclaimedPrizes();
-    return NextResponse.json({ ok: true, sellado, sorteado, avisos, vencidos });
+    return NextResponse.json({ ok: true, mensual, sellado, sorteado, avisos, vencidos });
   } catch (error) {
     console.error("[fotoffice][sorteos] falló la tarea programada", {
       detalle: sanitizeError(error),

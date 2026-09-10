@@ -77,16 +77,11 @@ describe("el formulario del premio", () => {
     }
   });
 
-  it("el plazo de retiro es opcional y se lee al final del día", () => {
-    const r = parsePrizeForm(form(completo));
+  it("no pregunta el plazo de retiro: son 15 días desde el sorteo y los pone el sistema", () => {
+    const r = parsePrizeForm(form({ ...completo, pickupDeadline: "2026-10-31" }));
     expect(r.ok).toBe(true);
-    // 31/10 a las 23:59:59.999 en Buenos Aires (UTC−3).
-    if (r.ok) expect(r.values.pickupDeadline?.toISOString()).toBe("2026-11-01T02:59:59.999Z");
-  });
-
-  it("sin plazo de retiro, queda en nulo", () => {
-    const r = parsePrizeForm(form({ ...completo, pickupDeadline: "" }));
-    expect(r.ok && r.values.pickupDeadline).toBe(null);
+    // Aunque llegue el campo, no se guarda: la fecha la fija el sorteo al resolverse.
+    if (r.ok) expect("pickupDeadline" in r.values).toBe(false);
   });
 });
 

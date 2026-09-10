@@ -122,7 +122,7 @@ export async function resolveRaffle(input: {
     // pisa nada, y como la cuenta es determinística lo que hay es idéntico a lo que iba.
     await tx.rafflePrizeAward.createMany({ data: filas, skipDuplicates: true });
     await tx.rafflePrize.updateMany({
-      where: { raffleId: sorteo.id, pickupDeadline: null },
+      where: { raffleId: sorteo.id },
       data: { pickupDeadline: venceElRetiro },
     });
     await tx.raffle.update({

@@ -135,16 +135,53 @@ export async function loadMemberForRaffle(
 /**
  * Buscador de aliados para el formulario de premios.
  *
- * `DnxPartner` vive en el dominio de Partners, que es otra aplicación. Se lee por nombre y se
- * guarda por id, sin clave foránea: el enganche es mínimo a propósito.
+ * ── Por qué no lee la base propia ──
+ *
+ * Las fichas de `DnxPartner` se cargan desde el panel de Partners, que vive en Clickatón y
+ * escribe en la base de Clickatón. Aunque las cinco aplicaciones comparten `schema.prisma`,
+ * cada una tiene SU base: en la de FotOffice la tabla existe pero está casi vacía, y buscar
+ * ahí no encuentra ninguna de las marcas que la institución tiene registradas.
+ *
+ * Se lee entonces con el cliente de sólo lectura hacia Clickatón, que es el mismo camino que
+ * ya usa FotoRank para los concursos publicados. Nunca escribe: el proxy bloquea toda
+ * operación que no sea de lectura.
+ *
+ * Si la conexión no está configurada, cae a la base propia en vez de romper el formulario:
+ * el aliado siempre se puede escribir a mano, y un buscador vacío es mejor que una pantalla
+ * que no carga.
  */
-export async function searchPartners(texto: string) {
+export async function searchPartners(texto: string): Promise<PartnerOption[]> {
   const q = texto.trim();
   if (q.length < 2) return [];
-  return prisma.dnxPartner.findMany({
-    where: { archivedAt: null, name: { contains: q, mode: "insensitive" } },
-    orderBy: { name: "asc" },
+
+  const consulta = {
+    where: { archivedAt: null, name: { contains: q, mode: "insensitive" as const } },
+    orderBy: { name: "asc" as const },
     take: 10,
     select: { id: true, name: true, logoUrl: true, email: true },
-  });
+  };
+
+  const { getClickatonReadonlyClient, isClickatonReadonlyAvailable } = await import(
+    "@repo/db/clickaton-readonly-client"
+  );
+
+  if (isClickatonReadonlyAvailable()) {
+    try {
+      return await getClickatonReadonlyClient().dnxPartner.findMany(consulta);
+    } catch (error) {
+      // Que el panel de aliados esté caído no puede impedir cargar un premio.
+      console.error("[fotoffice][sorteos] no se pudo leer los aliados de Partners", {
+        detalle: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return prisma.dnxPartner.findMany(consulta);
 }
+
+export type PartnerOption = {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  email: string | null;
+};

@@ -191,9 +191,9 @@ describe("resolver el sorteo", () => {
     expect(dias).toBe(15);
   });
 
-  it("no le pisa el plazo a un premio que ya tenía uno cargado a mano", async () => {
+  it("el plazo se le pone a todos los premios del sorteo, sin excepciones", async () => {
     await resolver();
-    expect(prizeUpdateManyMock.mock.calls[0][0].where.pickupDeadline).toBe(null);
+    expect(prizeUpdateManyMock.mock.calls[0][0].where).toEqual({ raffleId: "r-1" });
   });
 
   it("el plazo respeta lo que diga el sorteo, no un número fijo en el código", async () => {

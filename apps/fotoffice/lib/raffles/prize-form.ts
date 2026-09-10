@@ -1,6 +1,3 @@
-import { parseLocalDateTime } from "@/lib/bookings/local-datetime";
-import { RAFFLES_TIME_ZONE } from "./constants";
-
 /**
  * El formulario de un premio, parseado. Módulo PURO.
  *
@@ -17,9 +14,10 @@ import { RAFFLES_TIME_ZONE } from "./constants";
  * diciendo «andá a San Martín 1234»: si el aliado se muda después, la constancia tiene que
  * seguir coincidiendo con lo que la persona leyó.
  *
- * El plazo de retiro NO se carga acá: lo fija el sorteo al resolverse, contando los días que
- * diga `Raffle.pickupDays` desde el acto. `pickupDeadline` queda para la excepción: una fecha
- * puesta a mano que el sistema respeta.
+ * El plazo de retiro NO se carga acá ni se pregunta: son 15 días corridos desde el sorteo,
+ * siempre. Lo fija `resolveRaffle` contando los días que diga `Raffle.pickupDays`. Preguntarlo
+ * premio por premio era pedirle a alguien que copiara una cuenta que el sistema ya sabe hacer,
+ * con el riesgo de que un mes la copiara mal.
  */
 
 export type PrizeFormValues = {
@@ -28,7 +26,6 @@ export type PrizeFormValues = {
   description: string | null;
   conditions: string | null;
   pickupInstructions: string | null;
-  pickupDeadline: Date | null;
   estimatedValueMinor: number | null;
   partnerId: string | null;
   partnerNameSnapshot: string | null;
@@ -79,16 +76,6 @@ export function parsePrizeForm(formData: FormData): PrizeFormResult {
     return { ok: false, error: "El correo del aliado no parece un correo." };
   }
 
-  const crudoPlazo = texto(formData, "pickupDeadline");
-  let pickupDeadline: Date | null = null;
-  if (crudoPlazo !== "") {
-    // Al final de ese día: un plazo "hasta el 31" que vence a las 00:00 del 31 no es lo que
-    // entiende quien lo escribe.
-    const fin = parseLocalDateTime(`${crudoPlazo}T23:59`, RAFFLES_TIME_ZONE);
-    if (!fin) return { ok: false, error: "El plazo de retiro no se entiende." };
-    pickupDeadline = new Date(fin.getTime() + 59_999);
-  }
-
   return {
     ok: true,
     values: {
@@ -97,7 +84,6 @@ export function parsePrizeForm(formData: FormData): PrizeFormResult {
       description: nulo(texto(formData, "description")),
       conditions: nulo(texto(formData, "conditions")),
       pickupInstructions: nulo(texto(formData, "pickupInstructions")),
-      pickupDeadline,
       estimatedValueMinor,
       partnerId,
       partnerNameSnapshot: partnerName,
