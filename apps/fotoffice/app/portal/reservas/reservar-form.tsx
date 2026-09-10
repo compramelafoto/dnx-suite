@@ -1,29 +1,46 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { formatMinorArs } from "@/lib/membership/money";
-import { minuteOfDayToLabel } from "@/lib/bookings/time";
-import { selectRange, type WeekGrid } from "@/lib/bookings/week-grid";
+import { durationOptions, hoursLabel, type DayOffer } from "@/lib/bookings/day-slots";
+import { WEEKDAY_INITIALS, type MonthCell } from "@/lib/bookings/month";
 import type { FreeHoursBalance } from "@/lib/bookings/free-hours";
 import { createPortalBookingAction } from "./actions";
 
-type ExtraVista = {
+export type ExtraVista = {
   id: string;
   name: string;
   available: boolean;
   requiresConfirmation: boolean;
-  precioLabel: string;
+  /** Precio de una unidad: por hora o por reserva, según `priceMode`. */
+  unitPriceMinor: number;
+  priceMode: "PER_HOUR" | "PER_BOOKING";
 };
 
+const TZ = "America/Argentina/Buenos_Aires";
+const DIAS_VISIBLES = 5;
+
 /**
- * Elegir horario y extras.
+ * Paso 2: cuándo.
  *
- * Dos toques: uno en la hora de inicio y otro en la de fin. Todo lo del medio se pinta. Es
- * lo que hace cualquier calendario y funciona con el pulgar, sin arrastrar.
+ * ── Por qué el día y la hora se eligen por separado ──
  *
- * Lo que se muestra es una estimación: **el servidor recalcula todo al recibir**. Si entre
- * que la pantalla se pintó y la persona confirma alguien tomó el horario, el servidor lo
- * rechaza con su motivo.
+ * La grilla semanal pedía dos toques —la hora de inicio y la de fin— sobre casilleros de una
+ * hora. Funciona mientras todos los turnos duren lo mismo; con el salón, que tiene un mínimo
+ * de tres horas, el casillero suelto es una mentira: se puede tocar y no se puede reservar.
+ *
+ * Acá el calendario contesta "qué días hay lugar", la tira contesta "a qué hora puedo entrar"
+ * y el selector de abajo contesta "cuánto me quedo". Cada control tiene una sola pregunta.
+ *
+ * El día y la hora viajan en la dirección web, no en el estado del navegador. No es un
+ * capricho: el equipamiento disponible y su precio dependen del horario elegido, y esos los
+ * calcula el servidor. Teniéndolos en la URL, lo que se muestra siempre corresponde al
+ * horario que se está mirando, y el botón "atrás" del teléfono funciona.
+ *
+ * Todo esto es una estimación: **el servidor recalcula al recibir**. Si entre que se pintó la
+ * pantalla y se confirma alguien tomó el horario, lo rechaza con su motivo.
  */
 export function ReservarForm({
   spaceId,
@@ -31,268 +48,363 @@ export function ReservarForm({
   description,
   memberHourlyPriceMinor,
   freeHours,
-  grid,
+  slotMinutes,
+  minBookingMinutes,
+  monthTitle,
+  monthCells,
+  mesAnterior,
+  mesSiguiente,
+  dayOffers,
+  diaElegido,
+  horaElegida,
   extras,
-  semanaAnterior,
-  semanaSiguiente,
-  tituloSemana,
+  hrefBase,
 }: {
   spaceId: string;
   spaceName: string;
   description: string | null;
   memberHourlyPriceMinor: number;
   freeHours: FreeHoursBalance;
-  grid: WeekGrid;
+  slotMinutes: number;
+  minBookingMinutes: number;
+  monthTitle: string;
+  monthCells: MonthCell[];
+  /** "2026-08". Null cuando el mes anterior ya pasó entero. */
+  mesAnterior: string | null;
+  mesSiguiente: string;
+  dayOffers: DayOffer[];
+  diaElegido: string | null;
+  /** El comienzo elegido, en ISO. */
+  horaElegida: string | null;
   extras: ExtraVista[];
-  semanaAnterior: string | null;
-  semanaSiguiente: string;
-  tituloSemana: string;
+  /** "/portal/reservas?espacio=xxx" */
+  hrefBase: string;
 }) {
-  const [primero, setPrimero] = useState<string | null>(null);
-  const [segundo, setSegundo] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const minima = Math.max(minBookingMinutes, slotMinutes);
   const [extrasElegidos, setExtrasElegidos] = useState<string[]>([]);
-  // En el teléfono se ve un día por vez: siete columnas no entran en 375 píxeles.
-  const [diaVisible, setDiaVisible] = useState(() => {
-    const conLibres = grid.days.findIndex((d) => d.cells.some((c) => c.state === "FREE"));
-    return conLibres >= 0 ? conLibres : 0;
+
+  // La duración elegida recuerda PARA QUÉ horario se eligió. Cambiar de horario la devuelve
+  // sola al mínimo: arrastrar las cinco horas de un horario a otro donde sólo entran tres
+  // daría un precio que después no se puede reservar.
+  const [duracion, setDuracion] = useState<{ para: string | null; minutos: number }>({
+    para: horaElegida,
+    minutos: minima,
   });
+  const minutos = duracion.para === horaElegida ? duracion.minutos : minima;
+  const setMinutos = (m: number) => setDuracion({ para: horaElegida, minutos: m });
 
-  const seleccion = useMemo(() => {
-    if (!primero) return null;
-    const r = selectRange(grid, primero, segundo ?? primero);
-    return r.ok ? r : null;
-  }, [grid, primero, segundo]);
+  const porDia = useMemo(
+    () => new Map(dayOffers.map((d) => [d.ymd, d])),
+    [dayOffers],
+  );
+  const conLugar = useMemo(() => new Set(dayOffers.map((d) => d.ymd)), [dayOffers]);
 
-  const elegidas = useMemo(() => {
-    if (!seleccion) return new Set<string>();
-    const dentro = new Set<string>();
-    for (const dia of grid.days) {
-      for (const c of dia.cells) {
-        if (c.startISO >= seleccion.startISO && c.endISO <= seleccion.endISO) dentro.add(c.startISO);
-      }
-    }
-    return dentro;
-  }, [grid, seleccion]);
+  const start = useMemo(() => {
+    if (!horaElegida || !diaElegido) return null;
+    return porDia.get(diaElegido)?.starts.find((s) => s.startISO === horaElegida) ?? null;
+  }, [porDia, diaElegido, horaElegida]);
 
-  function tocar(startISO: string, state: string) {
-    setAviso(null);
-    if (state !== "FREE") return;
+  const duraciones = start ? durationOptions(start.maxMinutes, minBookingMinutes, slotMinutes) : [];
+  const iDuracion = duraciones.indexOf(minutos);
 
-    // Sin nada elegido, o ya con un rango cerrado: este toque empieza uno nuevo.
-    if (!primero || segundo) {
-      setPrimero(startISO);
-      setSegundo(null);
-      return;
-    }
-    // Segundo toque: cierra el rango, si se puede.
-    const r = selectRange(grid, primero, startISO);
-    if (!r.ok) {
-      setAviso(r.motivo);
-      setPrimero(startISO);
-      setSegundo(null);
-      return;
-    }
-    setSegundo(startISO);
-  }
+  // ── La tira de días ──
+  const delMes = useMemo(() => monthCells.filter((c) => c.inMonth), [monthCells]);
+  const iElegido = Math.max(0, delMes.findIndex((c) => c.ymd === diaElegido));
+  // Igual que la duración: correr la tira a mano vale hasta que se elige otro día, y ahí
+  // vuelve a encuadrarse sola en el día elegido.
+  const [corrida, setCorrida] = useState<{ para: string | null; desde: number } | null>(null);
+  const desde =
+    corrida && corrida.para === diaElegido
+      ? corrida.desde
+      : arranqueTira(iElegido, delMes.length);
+  const setDesde = (i: number) => setCorrida({ para: diaElegido, desde: i });
+  const tira = delMes.slice(desde, desde + DIAS_VISIBLES);
 
-  const minutos = seleccion?.minutes ?? 0;
+  // ── Dinero ──
   const bonificados = Math.min(minutos, freeHours.availableMinutes);
   const cobrados = minutos - bonificados;
   const espacioMinor = Math.round((memberHourlyPriceMinor * cobrados) / 60);
+  const extrasMinor = extras
+    .filter((e) => extrasElegidos.includes(e.id))
+    .reduce(
+      (total, e) =>
+        total +
+        (e.priceMode === "PER_HOUR"
+          ? Math.round((e.unitPriceMinor * minutos) / 60)
+          : e.unitPriceMinor),
+      0,
+    );
 
-  const horas = (m: number) => {
-    const h = m / 60;
-    return Number.isInteger(h) ? `${h} h` : `${h.toFixed(1).replace(".", ",")} h`;
-  };
-
-  const claseCelda = (state: string, elegida: boolean) => {
-    if (elegida) return "bg-[var(--fo-accent)] text-white border-[var(--fo-accent)]";
-    if (state === "FREE")
-      return "bg-[var(--fo-surface)] border-[var(--fo-border-strong)] hover:bg-[var(--fo-accent-soft)] cursor-pointer";
-    if (state === "TAKEN")
-      return "bg-[var(--fo-surface-muted)] border-[var(--fo-border)] text-[var(--fo-muted-soft)] cursor-not-allowed";
-    if (state === "PAST")
-      return "bg-[var(--fo-bg)] border-[var(--fo-border-muted)] text-[var(--fo-muted-soft)] cursor-not-allowed";
-    return "bg-transparent border-transparent cursor-default";
-  };
-
-  const etiqueta = (state: string) =>
-    state === "TAKEN" ? "Ocupado" : state === "PAST" ? "Pasó" : state === "CLOSED" ? "" : "";
+  const finISO = start ? new Date(new Date(start.startISO).getTime() + minutos * 60_000).toISOString() : null;
 
   return (
-    <form action={createPortalBookingAction} className="fo-card space-y-5 p-5">
+    <form action={createPortalBookingAction} className="space-y-5">
       <input type="hidden" name="spaceId" value={spaceId} />
       <input type="hidden" name="paymentMethod" value="MERCADO_PAGO" />
-      {seleccion ? (
+      {start && finISO ? (
         <>
-          <input type="hidden" name="startAt" value={toLocalInput(seleccion.startISO)} />
-          <input type="hidden" name="endAt" value={toLocalInput(seleccion.endISO)} />
+          <input type="hidden" name="startAt" value={toLocalInput(start.startISO)} />
+          <input type="hidden" name="endAt" value={toLocalInput(finISO)} />
         </>
       ) : null}
 
-      <div className="space-y-1">
-        <h2 className="text-base font-semibold">{spaceName}</h2>
+      <div className="fo-card space-y-1 p-5">
+        <Link
+          href="/portal/reservas"
+          className="text-sm text-[var(--fo-muted)] underline underline-offset-4"
+        >
+          ← Cambiar de espacio
+        </Link>
+        <h2 className="pt-1 text-lg font-semibold tracking-tight">{spaceName}</h2>
         {description ? (
           <p className="text-sm leading-relaxed text-[var(--fo-muted)]">{description}</p>
         ) : null}
         {freeHours.grantedMinutes > 0 ? (
           <p className="text-sm text-[var(--fo-success)]">
-            Te quedan {horas(freeHours.availableMinutes)} de {horas(freeHours.grantedMinutes)}{" "}
-            bonificadas este mes.
+            Te quedan {hoursLabel(freeHours.availableMinutes)} de{" "}
+            {hoursLabel(freeHours.grantedMinutes)} bonificadas este mes.
+          </p>
+        ) : null}
+        {minima > 60 ? (
+          <p className="text-sm text-[var(--fo-text-secondary)]">
+            Este espacio se alquila por un mínimo de {hoursLabel(minima)}.
           </p>
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--fo-border)] pt-4">
-        <p className="text-sm font-medium capitalize">{tituloSemana}</p>
-        <div className="flex gap-2">
-          {semanaAnterior ? (
-            <a
-              href={`/portal/reservas?espacio=${spaceId}&semana=${semanaAnterior}`}
-              className="fo-btn fo-btn-secondary text-xs"
-            >
-              ← Semana anterior
-            </a>
-          ) : (
-            <span className="fo-btn fo-btn-secondary pointer-events-none text-xs opacity-40">
-              ← Semana anterior
-            </span>
-          )}
-          <a
-            href={`/portal/reservas?espacio=${spaceId}&semana=${semanaSiguiente}`}
-            className="fo-btn fo-btn-secondary text-xs"
-          >
-            Semana siguiente →
-          </a>
+      <div className="fo-card space-y-5 p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-base font-semibold">Elegí el día y la hora de entrada</h3>
+          <span className="text-xs text-[var(--fo-muted)]">
+            Hora de Buenos Aires (GMT−03:00)
+          </span>
+        </div>
+
+        {dayOffers.length === 0 ? (
+          <p className="text-sm text-[var(--fo-muted-soft)]">
+            No queda lugar en {monthTitle}. Probá con el mes siguiente.
+          </p>
+        ) : null}
+
+        <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
+          {/* ── Calendario del mes: qué días hay lugar ── */}
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold capitalize">{monthTitle}</span>
+              <span className="flex gap-1">
+                {mesAnterior ? (
+                  <Link
+                    href={`${hrefBase}&mes=${mesAnterior}`}
+                    scroll={false}
+                    className="fo-icon-btn"
+                    aria-label="Mes anterior"
+                  >
+                    <ChevronLeft aria-hidden className="size-4" />
+                  </Link>
+                ) : (
+                  <span className="fo-icon-btn opacity-30" aria-hidden>
+                    <ChevronLeft className="size-4" />
+                  </span>
+                )}
+                <Link
+                  href={`${hrefBase}&mes=${mesSiguiente}`}
+                  scroll={false}
+                  className="fo-icon-btn"
+                  aria-label="Mes siguiente"
+                >
+                  <ChevronRight aria-hidden className="size-4" />
+                </Link>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-7 gap-0.5 text-center text-xs tabular-nums">
+              {WEEKDAY_INITIALS.map((inicial, i) => (
+                <span key={i} className="pb-1 font-semibold text-[var(--fo-muted-soft)]">
+                  {inicial}
+                </span>
+              ))}
+              {monthCells.map((celda) => {
+                const hayLugar = conLugar.has(celda.ymd);
+                const elegido = celda.ymd === diaElegido;
+                if (!hayLugar) {
+                  return (
+                    <span
+                      key={celda.ymd}
+                      className={`flex aspect-square items-center justify-center text-[var(--fo-muted-soft)] ${celda.inMonth ? "line-through" : "opacity-40"}`}
+                    >
+                      {celda.dayNumber}
+                    </span>
+                  );
+                }
+                return (
+                  <Link
+                    key={celda.ymd}
+                    href={`${hrefBase}&mes=${celda.ymd.slice(0, 7)}&dia=${celda.ymd}`}
+                    scroll={false}
+                    aria-current={elegido ? "date" : undefined}
+                    className={`flex aspect-square items-center justify-center rounded-full font-semibold transition-colors ${
+                      elegido
+                        ? "bg-[var(--fo-accent)] text-white"
+                        : "bg-[var(--fo-accent-soft)] text-[var(--fo-accent-hover)] hover:bg-[var(--fo-accent-muted)]"
+                    }`}
+                  >
+                    {celda.dayNumber}
+                  </Link>
+                );
+              })}
+            </div>
+            <p className="fo-helper mt-2">
+              En celeste, los días con lugar. Tachados, los que el espacio no abre o ya pasaron.
+            </p>
+          </div>
+
+          {/* ── La tira de días: a qué hora se puede entrar ── */}
+          <div className="min-w-0">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                className="fo-icon-btn"
+                aria-label="Días anteriores"
+                disabled={desde === 0}
+                onClick={() => setDesde(Math.max(0, desde - DIAS_VISIBLES))}
+              >
+                <ChevronLeft aria-hidden className="size-4" />
+              </button>
+              <span className="text-xs text-[var(--fo-muted)]">
+                Tocá la hora en la que querés entrar
+              </span>
+              <button
+                type="button"
+                className="fo-icon-btn"
+                aria-label="Días siguientes"
+                disabled={desde + DIAS_VISIBLES >= delMes.length}
+                onClick={() =>
+                  setDesde(Math.min(delMes.length - DIAS_VISIBLES, desde + DIAS_VISIBLES))
+                }
+              >
+                <ChevronRight aria-hidden className="size-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {tira.map((celda) => {
+                const oferta = porDia.get(celda.ymd);
+                return (
+                  <div key={celda.ymd} className="flex flex-col gap-2 text-center">
+                    <div className="text-xs uppercase tracking-wide text-[var(--fo-muted)]">
+                      {etiquetaDia(celda.ymd)}
+                      <b className="block text-xl font-semibold tracking-tight text-[var(--fo-text)]">
+                        {celda.dayNumber}
+                      </b>
+                    </div>
+                    {!oferta || oferta.starts.length === 0 ? (
+                      <span className="py-2 text-sm text-[var(--fo-muted-soft)]">—</span>
+                    ) : (
+                      oferta.starts.map((s) => {
+                        const elegida = s.startISO === horaElegida;
+                        return (
+                          <Link
+                            key={s.startISO}
+                            href={`${hrefBase}&mes=${celda.ymd.slice(0, 7)}&dia=${celda.ymd}&hora=${encodeURIComponent(s.startISO)}`}
+                            scroll={false}
+                            aria-current={elegida ? "true" : undefined}
+                            className={`min-h-10 rounded-full border px-1 py-2 text-sm font-medium tabular-nums transition-colors ${
+                              elegida
+                                ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
+                                : "border-[var(--fo-border-strong)] bg-[var(--fo-surface)] text-[var(--fo-accent-hover)] hover:bg-[var(--fo-accent-soft)]"
+                            }`}
+                          >
+                            {s.label}
+                          </Link>
+                        );
+                      })
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
-      <p className="text-xs text-[var(--fo-muted)]">
-        Tocá la hora de inicio y después la de fin. Podés reservar varias horas seguidas.
-      </p>
-
-      {grid.rows.length === 0 ? (
-        <p className="text-sm text-[var(--fo-muted-soft)]">
-          Este espacio todavía no tiene horarios cargados.
-        </p>
-      ) : (
-        <>
-          {/* Teléfono: un día por vez. Siete columnas no entran en 375 píxeles. */}
-          <div className="md:hidden">
-            <div className="mb-3 flex items-center justify-between gap-2">
+      {/* ── Cuánto se queda, y cuánto sale ── */}
+      {start ? (
+        <div className="fo-card grid gap-5 p-5 sm:grid-cols-2">
+          <div className="space-y-2">
+            <span className="fo-label">¿Hasta qué hora?</span>
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setDiaVisible((d) => Math.max(0, d - 1))}
-                disabled={diaVisible === 0}
-                className="fo-btn fo-btn-secondary text-xs disabled:opacity-40"
+                className="fo-icon-btn"
+                aria-label="Menos tiempo"
+                disabled={iDuracion <= 0}
+                onClick={() => setMinutos(duraciones[Math.max(0, iDuracion - 1)]!)}
               >
-                ←
+                <span aria-hidden className="text-lg leading-none">
+                  −
+                </span>
               </button>
-              <span className="text-sm font-medium capitalize">{grid.days[diaVisible].label}</span>
+              <span className="min-w-20 text-center text-base font-medium tabular-nums">
+                {hoursLabel(minutos)}
+              </span>
               <button
                 type="button"
-                onClick={() => setDiaVisible((d) => Math.min(6, d + 1))}
-                disabled={diaVisible === 6}
-                className="fo-btn fo-btn-secondary text-xs disabled:opacity-40"
+                className="fo-icon-btn"
+                aria-label="Más tiempo"
+                disabled={iDuracion < 0 || iDuracion >= duraciones.length - 1}
+                onClick={() =>
+                  setMinutos(duraciones[Math.min(duraciones.length - 1, iDuracion + 1)]!)
+                }
               >
-                →
+                <span aria-hidden className="text-lg leading-none">
+                  +
+                </span>
               </button>
+              <span className="text-sm text-[var(--fo-muted)] tabular-nums">
+                {start.label} → {finLegible(start.startISO, minutos)}
+              </span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {grid.days[diaVisible].cells
-                .filter((c) => c.state !== "CLOSED")
-                .map((c) => (
-                  <button
-                    key={c.startISO}
-                    type="button"
-                    onClick={() => tocar(c.startISO, c.state)}
-                    disabled={c.state !== "FREE"}
-                    aria-pressed={elegidas.has(c.startISO)}
-                    className={`min-h-11 rounded-[var(--fo-radius-sm)] border px-2 py-2 text-sm font-medium transition-colors ${claseCelda(c.state, elegidas.has(c.startISO))}`}
-                  >
-                    {minuteOfDayToLabel(c.minuteOfDay)}
-                    {c.state !== "FREE" ? (
-                      <span className="block text-[10px] font-normal">{etiqueta(c.state)}</span>
-                    ) : null}
-                  </button>
-                ))}
-              {grid.days[diaVisible].cells.every((c) => c.state === "CLOSED") ? (
-                <p className="col-span-3 py-6 text-center text-sm text-[var(--fo-muted-soft)]">
-                  Este día el espacio no abre.
-                </p>
-              ) : null}
-            </div>
+            <p className="fo-helper">
+              {duraciones.length === 1
+                ? "Es lo único que entra en ese horario."
+                : `Hasta ${hoursLabel(start.maxMinutes)} seguidas desde esa hora.`}
+            </p>
           </div>
 
-          {/* Pantalla grande: la semana entera. */}
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full border-separate border-spacing-1 text-center">
-              <thead>
-                <tr>
-                  <th className="w-14" />
-                  {grid.days.map((d) => (
-                    <th
-                      key={d.ymd}
-                      className="pb-1 text-xs font-medium capitalize text-[var(--fo-muted)]"
-                    >
-                      {d.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {grid.rows.map((row, iFila) => (
-                  <tr key={row}>
-                    <th className="pr-2 text-right align-middle text-xs font-normal tabular-nums text-[var(--fo-muted)]">
-                      {minuteOfDayToLabel(row)}
-                    </th>
-                    {grid.days.map((d) => {
-                      const c = d.cells[iFila];
-                      const elegida = elegidas.has(c.startISO);
-                      return (
-                        <td key={`${d.ymd}-${row}`} className="p-0">
-                          <button
-                            type="button"
-                            onClick={() => tocar(c.startISO, c.state)}
-                            disabled={c.state !== "FREE"}
-                            aria-pressed={elegida}
-                            aria-label={`${d.label} ${minuteOfDayToLabel(row)} — ${c.state === "FREE" ? "libre" : c.state === "TAKEN" ? "ocupado" : c.state === "PAST" ? "ya pasó" : "cerrado"}`}
-                            className={`h-9 w-full rounded-[var(--fo-radius-sm)] border text-xs font-medium transition-colors ${claseCelda(c.state, elegida)}`}
-                          >
-                            {c.state === "TAKEN" ? "·" : ""}
-                          </button>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-1 rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-muted)] p-4 text-sm">
+            <p className="font-medium capitalize">{diaLegible(start.startISO)}</p>
+            {bonificados > 0 ? (
+              <p className="flex justify-between gap-3 text-[var(--fo-success)]">
+                <span>{hoursLabel(bonificados)} bonificadas por ser socio</span>
+                <span className="tabular-nums">sin cargo</span>
+              </p>
+            ) : null}
+            {cobrados > 0 ? (
+              <p className="flex justify-between gap-3">
+                <span>
+                  {hoursLabel(cobrados)} × {formatMinorArs(memberHourlyPriceMinor)}
+                </span>
+                <span className="tabular-nums">{formatMinorArs(espacioMinor)}</span>
+              </p>
+            ) : null}
+            {extrasMinor > 0 ? (
+              <p className="flex justify-between gap-3">
+                <span>Equipamiento</span>
+                <span className="tabular-nums">{formatMinorArs(extrasMinor)}</span>
+              </p>
+            ) : null}
+            <p className="flex justify-between gap-3 border-t border-[var(--fo-border)] pt-1 font-semibold">
+              <span>Total</span>
+              <span className="tabular-nums">{formatMinorArs(espacioMinor + extrasMinor)}</span>
+            </p>
           </div>
+        </div>
+      ) : null}
 
-          <div className="flex flex-wrap gap-4 text-xs text-[var(--fo-muted)]">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block size-3 rounded-sm border border-[var(--fo-border-strong)] bg-[var(--fo-surface)]" />
-              Libre
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block size-3 rounded-sm border border-[var(--fo-border)] bg-[var(--fo-surface-muted)]" />
-              Ocupado
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block size-3 rounded-sm border border-[var(--fo-accent)] bg-[var(--fo-accent)]" />
-              Tu selección
-            </span>
-          </div>
-        </>
-      )}
-
-      {aviso ? <p className="fo-alert-warning p-3 text-sm">{aviso}</p> : null}
-
-      {extras.length > 0 ? (
-        <div className="space-y-2 border-t border-[var(--fo-border)] pt-4">
-          <span className="fo-label">Extras</span>
+      {/* ── Equipamiento ── */}
+      {start && extras.length > 0 ? (
+        <div className="fo-card space-y-2 p-5">
+          <span className="fo-label">Equipamiento</span>
           {extras.map((e) => (
             <label
               key={e.id}
@@ -311,7 +423,8 @@ export function ReservarForm({
                 }
               />
               <span>
-                {e.name} — {e.precioLabel}
+                {e.name} — {formatMinorArs(e.unitPriceMinor)}
+                {e.priceMode === "PER_HOUR" ? " por hora" : ""}
                 {!e.available ? (
                   <span className="block text-xs text-[var(--fo-danger)]">
                     Sin disponibilidad en ese horario. Probá con otro.
@@ -325,72 +438,53 @@ export function ReservarForm({
               </span>
             </label>
           ))}
-        </div>
-      ) : null}
-
-      {seleccion ? (
-        <div className="space-y-1 border-t border-[var(--fo-border)] pt-4">
-          <p className="text-sm font-medium">
-            {horas(minutos)} — {rangoLegible(seleccion.startISO, seleccion.endISO)}
+          <p className="fo-helper">
+            Las horas bonificadas cubren el espacio, no el equipamiento.
           </p>
-          {bonificados > 0 ? (
-            <p className="text-sm text-[var(--fo-success)]">
-              {horas(bonificados)} bonificadas por ser socio — sin cargo
-            </p>
-          ) : null}
-          {cobrados > 0 ? (
-            <p className="text-sm">
-              {horas(cobrados)} × {formatMinorArs(memberHourlyPriceMinor)} por hora —{" "}
-              {formatMinorArs(espacioMinor)}
-            </p>
-          ) : null}
-          {extrasElegidos.length > 0 ? (
-            <p className="text-sm text-[var(--fo-muted)]">
-              Más los extras elegidos. Las horas bonificadas cubren el espacio, no el
-              equipamiento.
-            </p>
-          ) : null}
         </div>
       ) : null}
 
       <div className="fo-form-actions">
-        <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={!seleccion}>
-          {seleccion ? `Reservar ${horas(minutos)}` : "Elegí un horario"}
+        <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={!start}>
+          {start ? `Reservar ${hoursLabel(minutos)}` : "Elegí un horario"}
         </button>
-        {seleccion ? (
-          <button
-            type="button"
-            onClick={() => {
-              setPrimero(null);
-              setSegundo(null);
-              setAviso(null);
-            }}
-            className="text-sm text-[var(--fo-muted)] underline underline-offset-4"
-          >
-            Empezar de nuevo
-          </button>
-        ) : null}
       </div>
     </form>
   );
 }
 
-const TZ = "America/Argentina/Buenos_Aires";
+/** La tira arranca en el día elegido, salvo al final del mes, donde muestra los últimos. */
+function arranqueTira(iElegido: number, total: number): number {
+  return Math.max(0, Math.min(iElegido, total - DIAS_VISIBLES));
+}
 
-function rangoLegible(startISO: string, endISO: string): string {
-  const dia = new Intl.DateTimeFormat("es-AR", {
+/** "2026-09-12" → el mediodía UTC de ese día, que en Argentina es la mañana del mismo día. */
+function alMediodia(ymd: string): Date {
+  return new Date(`${ymd}T12:00:00Z`);
+}
+
+function etiquetaDia(ymd: string): string {
+  return new Intl.DateTimeFormat("es-AR", { timeZone: TZ, weekday: "short" })
+    .format(alMediodia(ymd))
+    .replace(".", "");
+}
+
+function diaLegible(startISO: string): string {
+  return new Intl.DateTimeFormat("es-AR", {
     timeZone: TZ,
     weekday: "long",
     day: "numeric",
     month: "long",
   }).format(new Date(startISO));
-  const hora = new Intl.DateTimeFormat("es-AR", {
+}
+
+function finLegible(startISO: string, minutos: number): string {
+  return new Intl.DateTimeFormat("es-AR", {
     timeZone: TZ,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  });
-  return `${dia}, de ${hora.format(new Date(startISO))} a ${hora.format(new Date(endISO))}`;
+  }).format(new Date(new Date(startISO).getTime() + minutos * 60_000));
 }
 
 /**
