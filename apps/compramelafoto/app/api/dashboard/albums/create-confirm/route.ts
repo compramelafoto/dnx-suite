@@ -160,6 +160,7 @@ export async function POST(req: NextRequest) {
           ? parseInt(String(albumFields.hiddenSelfieRetentionDays), 10)
           : null,
         scanProtectionEnabled: pickDefaultScanProtectionEnabled(
+          await prisma.user.findUnique({ where: { id: user.id }, select: { tags: true } }),
           await prisma.album.findFirst({
             where: { userId: user.id },
             ...LAST_ALBUM_SCAN_PROTECTION_QUERY,
@@ -282,6 +283,7 @@ export async function POST(req: NextRequest) {
         ? parseInt(String(albumFields.hiddenSelfieRetentionDays), 10)
         : null,
       scanProtectionEnabled: pickDefaultScanProtectionEnabled(
+        await prisma.user.findUnique({ where: { id: user.id }, select: { tags: true } }),
         await prisma.album.findFirst({
           where: { userId: user.id },
           ...LAST_ALBUM_SCAN_PROTECTION_QUERY,

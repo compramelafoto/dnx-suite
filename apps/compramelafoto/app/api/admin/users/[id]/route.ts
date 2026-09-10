@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { SCAN_PROTECTION_OFF_TAG } from "@/lib/albums/default-scan-protection";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import { logAdminAction, getRequestMetadata } from "@/lib/admin/audit";
@@ -41,6 +42,7 @@ export async function GET(
         blockedAt: true,
         blockedReason: true,
         allowUnpaidOrderClientData: true,
+        tags: true,
         lastLoginAt: true,
         platformCommissionPercentOverride: true,
         address: true,
@@ -167,8 +169,14 @@ export async function PATCH(
     }
 
     const body = await req.json().catch(() => ({}));
-    const { isBlocked, blockedReason, platformCommissionPercentOverride, role, allowUnpaidOrderClientData } =
-      body;
+    const {
+      isBlocked,
+      blockedReason,
+      platformCommissionPercentOverride,
+      role,
+      allowUnpaidOrderClientData,
+      scanProtectionDefaultOff,
+    } = body;
 
     // Obtener usuario actual para auditoría
     const currentUser = await prisma.user.findUnique({
@@ -215,6 +223,19 @@ export async function PATCH(
     }
 
     const updateData: any = {};
+
+    // Marca de cuenta: los álbumes nuevos de este fotógrafo nacen sin la
+    // "protección al ampliar fotos". Se guarda como tag para no sumar una
+    // columna al schema que comparten las cinco bases de la suite.
+    if (scanProtectionDefaultOff !== undefined) {
+      const current = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { tags: true },
+      });
+      const tags = (current?.tags ?? []).filter((tag) => tag !== SCAN_PROTECTION_OFF_TAG);
+      updateData.tags = scanProtectionDefaultOff ? [...tags, SCAN_PROTECTION_OFF_TAG] : tags;
+    }
+
     if (isBlocked !== undefined) {
       updateData.isBlocked = isBlocked;
       if (isBlocked) {

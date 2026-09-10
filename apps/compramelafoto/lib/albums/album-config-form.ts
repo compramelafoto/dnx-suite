@@ -33,9 +33,16 @@ function normalize(snapshot: AlbumConfigFormSnapshot): AlbumConfigFormSnapshot {
 
 export function hasUnsavedAlbumConfigChanges(
   saved: AlbumConfigFormSnapshot | null,
-  current: AlbumConfigFormSnapshot
+  current: AlbumConfigFormSnapshot,
+  /**
+   * Sólo avisamos después de que el fotógrafo tocó algo. Al cargar, algunos
+   * campos se normalizan (la fecha del evento se rehidrata) y pueden no
+   * coincidir carácter por carácter con lo guardado: avisar ahí sería un aviso
+   * falso apenas se abre la pantalla.
+   */
+  touched: boolean = true
 ): boolean {
-  if (!saved) return false;
+  if (!saved || !touched) return false;
 
   const a = normalize(saved);
   const b = normalize(current);
