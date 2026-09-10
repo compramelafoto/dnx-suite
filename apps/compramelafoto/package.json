@@ -76,6 +76,7 @@
     "@tiptap/html": "^2.11.5",
     "@tiptap/react": "^2.11.5",
     "@tiptap/starter-kit": "^2.11.5",
+    "@vercel/analytics": "^1.5.0",
     "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
     "csv-parse": "^6.1.0",

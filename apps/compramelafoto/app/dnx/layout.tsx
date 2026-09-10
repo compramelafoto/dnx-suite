@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   openGraph: {
@@ -19,5 +20,11 @@ export const metadata: Metadata = {
 };
 
 export default function DnxLayout({ children }: { children: ReactNode }) {
-  return children;
+  return (
+    <>
+      {children}
+      {/* Alcance limitado a /dnx: mide sólo las landings, no el resto del sitio. */}
+      <Analytics />
+    </>
+  );
 }
