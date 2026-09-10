@@ -5,6 +5,8 @@ import { getGoogleAccessToken } from "@/lib/integrations/access-token";
 import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
 import { BOOKINGS_TIME_ZONE, addMinutes } from "../time";
 import { createCalendarClient, type CalendarClient } from "./client";
+import { cancelBookingForDeletedEvent } from "../lifecycle";
+import { buildEventDescription, buildEventSummary } from "./event-content";
 import { decideForEvent, isSyncTokenExpired } from "./sync-decisions";
 
 /**
@@ -24,6 +26,8 @@ export type SyncReport = {
   eventosBorrados: number;
   bloqueosCreados: number;
   bloqueosBorrados: number;
+  /** Reservas que se cancelaron porque su evento se borró en Google. */
+  reservasCanceladas: number;
   motivo?: string;
 };
 
@@ -68,7 +72,12 @@ export async function pushPendingEvents(
       startAt: true,
       endAt: true,
       contactName: true,
-      customerType: true,
+      contactEmail: true,
+      contactPhone: true,
+      member: { select: { memberNumber: true, phone: true } },
+      extraLines: {
+        select: { nameSnapshot: true, unitsConsumed: true, amountArs: true, status: true },
+      },
       space: { select: { name: true, googleCalendarId: true } },
     },
     take: 100,
@@ -77,11 +86,26 @@ export async function pushPendingEvents(
   let creados = 0;
   for (const r of pendientes) {
     try {
+      // Todo lo que la Secretaría necesita saber va en el evento. Ver `event-content.ts`.
+      const contenido = {
+        spaceName: r.space.name,
+        contactName: r.contactName,
+        contactEmail: r.contactEmail,
+        contactPhone: r.contactPhone,
+        memberPhone: r.member?.phone ?? null,
+        memberNumber: r.member?.memberNumber ?? null,
+        extras: r.extraLines.map((l) => ({
+          name: l.nameSnapshot,
+          units: l.unitsConsumed,
+          amountArs: l.amountArs.toString(),
+          status: l.status,
+        })),
+      };
       const eventId = await client.createEvent({
         calendarId: r.space.googleCalendarId as string,
         bookingId: r.id,
-        summary: `${r.space.name} — ${r.contactName}`,
-        description: `Reserva de FotoOffice.\n${r.customerType === "MEMBER" ? "Socio" : "No socio"}: ${r.contactName}\nNo edites este evento acá: se maneja desde FotoOffice.`,
+        summary: buildEventSummary(contenido),
+        description: buildEventDescription(contenido),
         startAt: r.startAt,
         endAt: r.endAt,
         timeZone: BOOKINGS_TIME_ZONE,
@@ -146,10 +170,11 @@ export async function pullBlocksForSpace(input: {
   syncToken: string | null;
   client: CalendarClient;
   now?: Date;
-}): Promise<{ creados: number; borrados: number }> {
+}): Promise<{ creados: number; borrados: number; canceladas: number }> {
   const now = input.now ?? new Date();
   let creados = 0;
   let borrados = 0;
+  let canceladas = 0;
 
   let syncToken = input.syncToken;
   let pageToken: string | null = null;
@@ -188,6 +213,23 @@ export async function pullBlocksForSpace(input: {
           where: { spaceId: input.spaceId, googleEventId: d.eventId },
         });
         borrados += r.count;
+
+        // El evento borrado puede ser el de una reserva, no un bloqueo cargado a mano.
+        // Google no dice de quién era —un evento cancelado llega casi sin datos—, así que
+        // se pregunta del lado propio, por `googleEventId`.
+        const c = await cancelBookingForDeletedEvent({
+          spaceId: input.spaceId,
+          googleEventId: d.eventId,
+        });
+        if (c.canceladas > 0) {
+          canceladas += c.canceladas;
+          console.warn("[fotoffice][calendar] reserva cancelada por un borrado en Google", {
+            spaceId: input.spaceId,
+            googleEventId: d.eventId,
+            canceladas: c.canceladas,
+            pagadas: c.pagadas,
+          });
+        }
         continue;
       }
 
@@ -219,7 +261,7 @@ export async function pullBlocksForSpace(input: {
     });
   }
 
-  return { creados, borrados };
+  return { creados, borrados, canceladas };
 }
 
 /** Una corrida completa para un workspace. Nunca lanza: devuelve el motivo. */
@@ -230,6 +272,7 @@ export async function syncWorkspaceCalendar(workspaceId: string): Promise<SyncRe
     eventosBorrados: 0,
     bloqueosCreados: 0,
     bloqueosBorrados: 0,
+    reservasCanceladas: 0,
   };
 
   const cliente = await clienteDe(workspaceId);
@@ -267,6 +310,7 @@ export async function syncWorkspaceCalendar(workspaceId: string): Promise<SyncRe
       });
       reporte.bloqueosCreados += vuelta.creados;
       reporte.bloqueosBorrados += vuelta.borrados;
+      reporte.reservasCanceladas += vuelta.canceladas;
     } catch (error) {
       // Un espacio que falla no frena a los demás.
       console.error("[fotoffice][calendar] falló el espejo de vuelta", {

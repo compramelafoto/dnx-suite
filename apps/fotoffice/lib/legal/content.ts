@@ -65,6 +65,7 @@ export const PRIVACY_SECTIONS: readonly LegalSection[] = [
     bullets: [
       "Ver los calendarios de la cuenta (calendar.readonly), para leer lo que se cargó a mano en el calendario y que esos horarios queden bloqueados en FotoOffice.",
       "Crear y borrar eventos (calendar.events), para que cada reserva confirmada aparezca en el calendario de la institución y desaparezca si se cancela.",
+      "Crear calendarios y administrar únicamente los que creamos (calendar.app.created), para poder darle su propio calendario a cada espacio. Este permiso no alcanza a los calendarios que la institución ya tenía.",
       "Saber tu dirección de email (openid y userinfo.email), únicamente para mostrar qué cuenta quedó conectada y que se pueda verificar de un vistazo que es la correcta. No leemos tu correo ni tenemos permiso para hacerlo.",
     ],
   },
