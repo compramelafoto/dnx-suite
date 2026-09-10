@@ -5,6 +5,7 @@ import { getGoogleAccessToken } from "@/lib/integrations/access-token";
 import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
 import { BOOKINGS_TIME_ZONE, addMinutes } from "../time";
 import { createCalendarClient, type CalendarClient } from "./client";
+import { buildEventDescription, buildEventSummary } from "./event-content";
 import { decideForEvent, isSyncTokenExpired } from "./sync-decisions";
 
 /**
@@ -68,7 +69,12 @@ export async function pushPendingEvents(
       startAt: true,
       endAt: true,
       contactName: true,
-      customerType: true,
+      contactEmail: true,
+      contactPhone: true,
+      member: { select: { memberNumber: true, phone: true } },
+      extraLines: {
+        select: { nameSnapshot: true, unitsConsumed: true, amountArs: true, status: true },
+      },
       space: { select: { name: true, googleCalendarId: true } },
     },
     take: 100,
@@ -77,11 +83,26 @@ export async function pushPendingEvents(
   let creados = 0;
   for (const r of pendientes) {
     try {
+      // Todo lo que la Secretaría necesita saber va en el evento. Ver `event-content.ts`.
+      const contenido = {
+        spaceName: r.space.name,
+        contactName: r.contactName,
+        contactEmail: r.contactEmail,
+        contactPhone: r.contactPhone,
+        memberPhone: r.member?.phone ?? null,
+        memberNumber: r.member?.memberNumber ?? null,
+        extras: r.extraLines.map((l) => ({
+          name: l.nameSnapshot,
+          units: l.unitsConsumed,
+          amountArs: l.amountArs.toString(),
+          status: l.status,
+        })),
+      };
       const eventId = await client.createEvent({
         calendarId: r.space.googleCalendarId as string,
         bookingId: r.id,
-        summary: `${r.space.name} — ${r.contactName}`,
-        description: `Reserva de FotoOffice.\n${r.customerType === "MEMBER" ? "Socio" : "No socio"}: ${r.contactName}\nNo edites este evento acá: se maneja desde FotoOffice.`,
+        summary: buildEventSummary(contenido),
+        description: buildEventDescription(contenido),
         startAt: r.startAt,
         endAt: r.endAt,
         timeZone: BOOKINGS_TIME_ZONE,
