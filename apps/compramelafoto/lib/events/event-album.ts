@@ -2,6 +2,10 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { encodeGeohash } from "@/lib/geo";
 import { eventPhotographerAlbumVisibilityForEventJoin } from "@/lib/events/event-photographer-album-visibility";
+import {
+  LAST_ALBUM_SCAN_PROTECTION_QUERY,
+  pickDefaultScanProtectionEnabled,
+} from "@/lib/albums/default-scan-protection";
 
 type EventAlbumParams = {
   event: {
@@ -76,6 +80,12 @@ export async function getOrCreateEventAlbumForUser({
       isPublic: albumVisibility.isPublic,
       isHidden: albumVisibility.isHidden,
       showComingSoonMessage: true,
+      scanProtectionEnabled: pickDefaultScanProtectionEnabled(
+        await prisma.album.findFirst({
+          where: { userId: user.id },
+          ...LAST_ALBUM_SCAN_PROTECTION_QUERY,
+        })
+      ),
     },
     select: { id: true, publicSlug: true },
   });

@@ -16,6 +16,10 @@ import {
 import { loadAlbumListPhotoAggregates } from "@/lib/albums/album-photo-stats";
 import { resolveCreateAlbumSaleChannels } from "@/lib/albums/resolve-create-album-sale-channels";
 import {
+  LAST_ALBUM_SCAN_PROTECTION_QUERY,
+  pickDefaultScanProtectionEnabled,
+} from "@/lib/albums/default-scan-protection";
+import {
   parseAlbumEventScheduleInput,
   validateAlbumEventSchedule,
 } from "@/lib/albums/album-event-datetime";
@@ -727,6 +731,12 @@ export async function POST(req: NextRequest) {
       isPublic: isPublic !== undefined ? Boolean(isPublic) : true,
       hiddenPhotosEnabled: parsedHiddenPhotosEnabled,
       hiddenSelfieRetentionDays: parsedHiddenSelfieRetentionDays,
+      scanProtectionEnabled: pickDefaultScanProtectionEnabled(
+        await prisma.album.findFirst({
+          where: { userId: user.id },
+          ...LAST_ALBUM_SCAN_PROTECTION_QUERY,
+        })
+      ),
       ...(termsAcceptedOk && { termsAcceptedAt: new Date(), termsVersion: TERMS_VERSION }),
       digitalDiscount5Plus: digitalDiscount5Plus !== undefined && digitalDiscount5Plus !== null ? parseFloat(String(digitalDiscount5Plus)) : null,
       digitalDiscount10Plus: digitalDiscount10Plus !== undefined && digitalDiscount10Plus !== null ? parseFloat(String(digitalDiscount10Plus)) : null,
