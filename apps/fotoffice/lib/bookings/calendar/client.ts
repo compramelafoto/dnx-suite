@@ -51,6 +51,18 @@ class CalendarHttpError extends Error {
   }
 }
 
+/**
+ * Distingue "Google no te deja" de "Google falló".
+ *
+ * Importa porque son dos consejos opuestos: ante un 403 hay que reconectar la cuenta para
+ * que otorgue el permiso que falta, y ante cualquier otra cosa hay que esperar y reintentar.
+ * Decirle "probá de nuevo en un rato" a quien tiene un permiso insuficiente lo deja
+ * reintentando para siempre.
+ */
+export function isCalendarPermissionError(error: unknown): boolean {
+  return error instanceof CalendarHttpError && error.code === 403;
+}
+
 export function createCalendarClient(accessToken: string): CalendarClient {
   async function pedir<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${API}${path}`, {
