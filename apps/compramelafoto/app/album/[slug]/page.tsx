@@ -30,6 +30,8 @@ import { isAlbumPackPaymentGloballyAllowedForAlbum } from "@/lib/album-packs/alb
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import ClientAlbumView from "@/components/photo/ClientAlbumView";
 import { resolveAlbumStandaloneCoverUrl } from "@/lib/album/album-list-cover";
+import { resolveSchoolShareImageUrl } from "@/lib/albums/album-share-image";
+import { getPublicSiteOrigin } from "@/lib/public-site-url";
 import PhotographerHeader from "@/components/photographer/PhotographerHeader";
 import PhotographerFooter from "@/components/photographer/PhotographerFooter";
 import { ClfAlbumPartnerWelcome } from "@/components/partners/ClfAlbumPartnerWelcome";
@@ -84,17 +86,44 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await Promise.resolve(params);
   if (!slug?.trim()) return {};
-  const album = await prisma.album.findFirst({
+  const album = await prisma.album.findUnique({
     where: { publicSlug: slug.trim() },
-    select: { title: true, user: { select: { name: true } } },
+    select: {
+      title: true,
+      user: { select: { name: true } },
+      school: { select: { name: true, logoUrl: true } },
+    },
   });
   if (!album) return {};
   const title = album.title || "Álbum";
   const name = album.user?.name || "Fotógrafo";
-  return {
+  const metadata: Metadata = {
     title: `${title} - ${name} | ComprameLaFoto`,
     description: `Ver y comprar fotos del álbum ${title}.`,
   };
+
+  // Álbum escolar: al compartirlo, el logo del colegio identifica la venta mejor
+  // que la marca genérica de la plataforma que se hereda del layout raíz.
+  const schoolImage = resolveSchoolShareImageUrl(
+    album.school?.logoUrl ?? null,
+    getPublicSiteOrigin()
+  );
+  if (schoolImage) {
+    const schoolName = album.school?.name?.trim() || title;
+    metadata.openGraph = {
+      title: metadata.title as string,
+      description: metadata.description as string,
+      images: [{ url: schoolImage, alt: schoolName }],
+    };
+    metadata.twitter = {
+      card: "summary_large_image",
+      title: metadata.title as string,
+      description: metadata.description as string,
+      images: [schoolImage],
+    };
+  }
+
+  return metadata;
 }
 
 const selectAlbumBase = {

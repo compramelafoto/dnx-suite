@@ -11,15 +11,20 @@ import PreventaBenefitForm, { type BenefitFormPayload } from "./PreventaBenefitF
 import { reorderIdsAfterDrop } from "./reorder-utils";
 import type { BenefitRow, PackRow, PhotographerProductOption, TemplateOption } from "./types";
 
+function benefitProductName(
+  b: BenefitRow,
+  products: PhotographerProductOption[]
+): string | null {
+  const product = products.find((p) => p.id === b.photographerProductId);
+  return product ? `${product.name}${product.size ? ` · ${product.size}` : ""}` : null;
+}
+
 function benefitListSummary(
   b: BenefitRow,
   products: PhotographerProductOption[],
   templates: TemplateOption[]
 ): string {
-  const product = products.find((p) => p.id === b.photographerProductId);
-  const photographerProductName = product
-    ? `${product.name}${product.size ? ` · ${product.size}` : ""}`
-    : null;
+  const photographerProductName = benefitProductName(b, products);
   const tpl = templates.find((t) => t.id === b.templateId);
   return buildBenefitDashboardSummary({
     kind: b.kind,
@@ -274,6 +279,7 @@ export default function PreventaPackBenefitsEditor({
                             includedQuantity: b.includedQuantity,
                             selectionMode: b.selectionMode,
                             requiredPhotoCount: b.requiredPhotoCount,
+                            photographerProductName: benefitProductName(b, photographerProducts),
                           })}
                         </span>
                         {b.extraUnitPriceOverrideArs != null && b.extraUnitPriceOverrideArs > 0 ? (
