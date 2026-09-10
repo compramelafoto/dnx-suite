@@ -89,3 +89,36 @@ describe("el formulario del premio", () => {
     expect(r.ok && r.values.pickupDeadline).toBe(null);
   });
 });
+
+describe("los datos del local donde se retira", () => {
+  const conLocal = () =>
+    form({
+      ...completo,
+      partnerEmail: "aliado@ejemplo.com",
+      partnerAddress: "San Martín 1234, Rosario",
+      partnerPhone: "341 555-0198",
+      partnerHours: "Lunes a viernes de 9 a 18",
+    });
+
+  it("se guardan junto al premio, como instantáneas", () => {
+    const r = parsePrizeForm(conLocal());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.values.partnerEmailSnapshot).toBe("aliado@ejemplo.com");
+    expect(r.values.partnerAddressSnapshot).toBe("San Martín 1234, Rosario");
+    expect(r.values.partnerPhoneSnapshot).toBe("341 555-0198");
+    expect(r.values.partnerHoursSnapshot).toBe("Lunes a viernes de 9 a 18");
+  });
+
+  it("todos son opcionales: hay premios que pone la propia institución", () => {
+    const r = parsePrizeForm(form(completo));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.values.partnerEmailSnapshot).toBe(null);
+  });
+
+  it("un correo mal escrito se rechaza: un aviso que nunca llega es peor que ninguno", () => {
+    const r = parsePrizeForm(form({ ...completo, partnerEmail: "aliado.ejemplo.com" }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/correo/i);
+  });
+});

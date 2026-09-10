@@ -8241,6 +8241,10 @@ model Raffle {
   entriesCloseAt DateTime
   /// El acto: se lee drand y se resuelven los premios.
   drawsAt        DateTime
+  /// Cuántos días tiene el ganador para retirar el premio en el local del aliado. El plazo
+  /// corre desde el sorteo, se le haya podido avisar o no: así el aliado sabe la fecha exacta
+  /// desde el día uno. Si el aviso falla, queda marcado y la Secretaría llama por teléfono.
+  pickupDays     Int      @default(15)
 
   /// BORRADOR | ANUNCIADO | PADRON_SELLADO | SORTEADO | CERRADO | CANCELADO
   status String @default("BORRADOR")
@@ -8327,6 +8331,14 @@ model RafflePrize {
   /// dominio Partners, que vive en su propia aplicación.
   partnerId           String?
   partnerNameSnapshot String?
+  /// Adónde se le pide el comprobante cuando el socio retira.
+  partnerEmailSnapshot   String?
+  /// Los tres datos que viajan en el correo al ganador: adónde ir, cuándo y a quién llamar.
+  /// Son instantáneas porque el correo ya salió: si el aliado se muda después, el que se
+  /// mandó decía otra cosa, y la constancia tiene que coincidir con lo que la persona leyó.
+  partnerAddressSnapshot String?
+  partnerPhoneSnapshot   String?
+  partnerHoursSnapshot   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8355,11 +8367,26 @@ model RafflePrizeAward {
   /// GANADO | NOTIFICADO | RETIRADO | NO_RETIRADO | ANULADO
   status String @default("GANADO")
 
+  /// --- Los dos avisos que salen al resolver el sorteo ---
+  /// Al ganador: qué ganó, dónde retirarlo y hasta cuándo.
   notifiedAt        DateTime?
+  noticeError       String?
+  /// Al aliado: a quién entregarle, hasta cuándo, y el pedido del comprobante.
+  sponsorNotifiedAt DateTime?
+  sponsorNoticeError String?
+
   deliveredAt       DateTime?
   deliveredByUserId Int?
   deliveryNote      String?
   voidReason        String?
+
+  /// --- El respaldo de cómo llegó el premio a la institución ---
+  /// El aliado lo manda por correo cuando el socio retira: una foto o un PDF del remito, o una
+  /// factura por $0 con la leyenda «Sin valor comercial — Destinado a sorteo entre asociados».
+  /// Sin esto, la institución no puede justificar de dónde salió el premio.
+  receiptReceivedAt DateTime?
+  receiptFileUrl    String?
+  receiptNote       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

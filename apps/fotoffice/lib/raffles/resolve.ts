@@ -41,6 +41,7 @@ export async function resolveRaffle(input: {
       status: true,
       drawsAt: true,
       drawnAt: true,
+      pickupDays: true,
       entrantsHash: true,
       entrantsCount: true,
       drandChainHash: true,
@@ -112,10 +113,18 @@ export async function resolveRaffle(input: {
     };
   });
 
+  // El plazo de retiro arranca ahora y es el mismo para todos los premios del sorteo: así el
+  // aliado sabe la fecha exacta desde el día uno, se le haya podido avisar al ganador o no.
+  const venceElRetiro = new Date(now.getTime() + sorteo.pickupDays * 86_400_000);
+
   await prisma.$transaction(async (tx) => {
     // `skipDuplicates` con el único sobre `prizeId`: si otro proceso ya escribió, este no
     // pisa nada, y como la cuenta es determinística lo que hay es idéntico a lo que iba.
     await tx.rafflePrizeAward.createMany({ data: filas, skipDuplicates: true });
+    await tx.rafflePrize.updateMany({
+      where: { raffleId: sorteo.id, pickupDeadline: null },
+      data: { pickupDeadline: venceElRetiro },
+    });
     await tx.raffle.update({
       where: { id: sorteo.id },
       data: {

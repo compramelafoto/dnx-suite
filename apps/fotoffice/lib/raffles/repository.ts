@@ -145,6 +145,6 @@ export async function searchPartners(texto: string) {
     where: { archivedAt: null, name: { contains: q, mode: "insensitive" } },
     orderBy: { name: "asc" },
     take: 10,
-    select: { id: true, name: true, logoUrl: true },
+    select: { id: true, name: true, logoUrl: true, email: true },
   });
 }

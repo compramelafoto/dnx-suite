@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sealDueRaffles } from "@/lib/raffles/seal";
 import { resolveDueRaffles } from "@/lib/raffles/resolve";
 import { expireUnclaimedPrizes } from "@/lib/raffles/delivery";
+import { notifyPendingAwards } from "@/lib/raffles/notify";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
 
@@ -16,8 +17,12 @@ export const maxDuration = 300;
  * manera de que ocurran: la primera visita posterior también sella y resuelve. Un sorteo no
  * puede quedar colgado porque una tarea programada no corrió.
  *
- * El orden importa: primero sellar, después resolver. Un sorteo que cierra su padrón y se
- * sortea dentro de la misma ventana de quince minutos queda resuelto en la misma pasada.
+ * El orden importa: primero sellar, después resolver, después avisar. Un sorteo que cierra su
+ * padrón y se sortea dentro de la misma ventana de quince minutos queda resuelto y avisado en
+ * la misma pasada.
+ *
+ * Los avisos se reintentan solos: `notifyPendingAwards` sólo marca como enviado lo que salió,
+ * así que un correo que rebotó vuelve a intentarse en la pasada siguiente.
  */
 function autorizado(request: Request): boolean {
   return isAuthorizedCronRequest({
@@ -33,8 +38,9 @@ export async function POST(request: Request) {
   try {
     const sellado = await sealDueRaffles();
     const sorteado = await resolveDueRaffles();
+    const avisos = await notifyPendingAwards();
     const vencidos = await expireUnclaimedPrizes();
-    return NextResponse.json({ ok: true, sellado, sorteado, vencidos });
+    return NextResponse.json({ ok: true, sellado, sorteado, avisos, vencidos });
   } catch (error) {
     console.error("[fotoffice][sorteos] falló la tarea programada", {
       detalle: sanitizeError(error),

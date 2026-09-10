@@ -11,6 +11,15 @@ import { RAFFLES_TIME_ZONE } from "./constants";
  * de la lista; un nombre suelto, para la marca que todavía no tiene ficha; o nada, porque la
  * institución también pone premios propios. Lo único que no se acepta es una ficha sin
  * nombre: quedaría un premio de nadie.
+ *
+ * Los datos del local —correo, dirección, teléfono y horarios— se guardan como instantáneas
+ * junto al premio y no se leen de la ficha al momento de enviar. El correo al ganador ya salió
+ * diciendo «andá a San Martín 1234»: si el aliado se muda después, la constancia tiene que
+ * seguir coincidiendo con lo que la persona leyó.
+ *
+ * El plazo de retiro NO se carga acá: lo fija el sorteo al resolverse, contando los días que
+ * diga `Raffle.pickupDays` desde el acto. `pickupDeadline` queda para la excepción: una fecha
+ * puesta a mano que el sistema respeta.
  */
 
 export type PrizeFormValues = {
@@ -23,6 +32,10 @@ export type PrizeFormValues = {
   estimatedValueMinor: number | null;
   partnerId: string | null;
   partnerNameSnapshot: string | null;
+  partnerEmailSnapshot: string | null;
+  partnerAddressSnapshot: string | null;
+  partnerPhoneSnapshot: string | null;
+  partnerHoursSnapshot: string | null;
 };
 
 export type PrizeFormResult =
@@ -58,6 +71,14 @@ export function parsePrizeForm(formData: FormData): PrizeFormResult {
     return { ok: false, error: "Elegí el aliado de la lista o escribí su nombre." };
   }
 
+  const partnerEmail = nulo(texto(formData, "partnerEmail"));
+  // Sin correo del aliado no hay a quién pedirle el remito, y el premio se queda sin respaldo.
+  // No se rechaza —hay premios de la propia institución— pero sí se exige que tenga forma de
+  // correo cuando se escribe algo: un correo mal tipeado es un aviso que nunca llega.
+  if (partnerEmail !== null && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(partnerEmail)) {
+    return { ok: false, error: "El correo del aliado no parece un correo." };
+  }
+
   const crudoPlazo = texto(formData, "pickupDeadline");
   let pickupDeadline: Date | null = null;
   if (crudoPlazo !== "") {
@@ -80,6 +101,10 @@ export function parsePrizeForm(formData: FormData): PrizeFormResult {
       estimatedValueMinor,
       partnerId,
       partnerNameSnapshot: partnerName,
+      partnerEmailSnapshot: partnerEmail,
+      partnerAddressSnapshot: nulo(texto(formData, "partnerAddress")),
+      partnerPhoneSnapshot: nulo(texto(formData, "partnerPhone")),
+      partnerHoursSnapshot: nulo(texto(formData, "partnerHours")),
     },
   };
 }
