@@ -7,6 +7,10 @@ import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
 import { encodeGeohash } from "@/lib/geo";
 import { eventPhotographerAlbumVisibilityForEventJoin } from "@/lib/events/event-photographer-album-visibility";
 import {
+  LAST_ALBUM_SCAN_PROTECTION_QUERY,
+  pickDefaultScanProtectionEnabled,
+} from "@/lib/albums/default-scan-protection";
+import {
   buildAlbumEventScheduleFromDb,
   parseAlbumEventScheduleInput,
   validateAlbumEventSchedule,
@@ -155,6 +159,12 @@ export async function POST(req: NextRequest) {
         hiddenSelfieRetentionDays: albumFields.hiddenSelfieRetentionDays != null && albumFields.hiddenSelfieRetentionDays !== ""
           ? parseInt(String(albumFields.hiddenSelfieRetentionDays), 10)
           : null,
+        scanProtectionEnabled: pickDefaultScanProtectionEnabled(
+          await prisma.album.findFirst({
+            where: { userId: user.id },
+            ...LAST_ALBUM_SCAN_PROTECTION_QUERY,
+          })
+        ),
       };
 
       const album = await prisma.album.create({
@@ -271,6 +281,12 @@ export async function POST(req: NextRequest) {
       hiddenSelfieRetentionDays: albumFields.hiddenSelfieRetentionDays != null && albumFields.hiddenSelfieRetentionDays !== ""
         ? parseInt(String(albumFields.hiddenSelfieRetentionDays), 10)
         : null,
+      scanProtectionEnabled: pickDefaultScanProtectionEnabled(
+        await prisma.album.findFirst({
+          where: { userId: user.id },
+          ...LAST_ALBUM_SCAN_PROTECTION_QUERY,
+        })
+      ),
     };
 
     const album = await prisma.album.create({
