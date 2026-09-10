@@ -1,0 +1,49 @@
+import { NextResponse } from "next/server";
+import { sealDueRaffles } from "@/lib/raffles/seal";
+import { resolveDueRaffles } from "@/lib/raffles/resolve";
+import { expireUnclaimedPrizes } from "@/lib/raffles/delivery";
+import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
+import { sanitizeError } from "@/lib/payments/connect/log";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
+/**
+ * Sella los padrones vencidos, resuelve los sorteos cuyo acto ya pasó y vence los premios que
+ * nadie retiró.
+ *
+ * Las tres cosas son idempotentes, así que correrla de más no cambia nada. Y no es la única
+ * manera de que ocurran: la primera visita posterior también sella y resuelve. Un sorteo no
+ * puede quedar colgado porque una tarea programada no corrió.
+ *
+ * El orden importa: primero sellar, después resolver. Un sorteo que cierra su padrón y se
+ * sortea dentro de la misma ventana de quince minutos queda resuelto en la misma pasada.
+ */
+function autorizado(request: Request): boolean {
+  return isAuthorizedCronRequest({
+    authorizationHeader: request.headers.get("authorization"),
+    allowedSecrets: [process.env.CRON_SECRET, process.env.FOTOFFICE_CRON_SECRET],
+  });
+}
+
+export async function POST(request: Request) {
+  if (!autorizado(request)) {
+    return NextResponse.json({ error: "no autorizado" }, { status: 401 });
+  }
+  try {
+    const sellado = await sealDueRaffles();
+    const sorteado = await resolveDueRaffles();
+    const vencidos = await expireUnclaimedPrizes();
+    return NextResponse.json({ ok: true, sellado, sorteado, vencidos });
+  } catch (error) {
+    console.error("[fotoffice][sorteos] falló la tarea programada", {
+      detalle: sanitizeError(error),
+    });
+    return NextResponse.json({ ok: false, error: "falló la tarea de sorteos" }, { status: 500 });
+  }
+}
+
+/** Vercel Cron usa GET. Mismo camino, misma autorización. */
+export async function GET(request: Request) {
+  return POST(request);
+}

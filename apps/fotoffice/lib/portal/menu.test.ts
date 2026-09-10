@@ -79,3 +79,22 @@ describe("menú del socio", () => {
     }
   });
 });
+
+describe("sorteos en el menú del socio", () => {
+  it("con el módulo apagado se muestra como Próximamente, no se oculta", () => {
+    const items = resolvePortalMenu(new Set<string>());
+    const sorteos = items.find((i) => i.href === "/portal/sorteos");
+    expect(sorteos?.state).toBe("PROXIMAMENTE");
+  });
+
+  it("con el módulo encendido está disponible", () => {
+    const items = resolvePortalMenu(new Set(["raffles"]));
+    const sorteos = items.find((i) => i.href === "/portal/sorteos");
+    expect(sorteos?.state).toBe("DISPONIBLE");
+  });
+
+  it("el módulo de otra institución no lo enciende", () => {
+    const items = resolvePortalMenu(new Set(["bookings"]));
+    expect(items.find((i) => i.href === "/portal/sorteos")?.state).toBe("PROXIMAMENTE");
+  });
+});

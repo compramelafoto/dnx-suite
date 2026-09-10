@@ -1,6 +1,7 @@
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 
 /**
  * El menú del socio, en un solo lugar.
@@ -127,7 +128,8 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     href: "/portal/sorteos",
     description: "El sorteo del mes y los resultados de los anteriores.",
     icon: "ticket",
-    built: false,
+    requiresModule: RAFFLES_MODULE_KEY,
+    built: true,
   },
   {
     order: 80,

@@ -6922,6 +6922,7 @@ model Workspace {
   bookingSettings             BookingSettings?
   bookingResources            BookingResource[]
   bookingExtras               BookingExtra[]
+  raffles                     Raffle[]
   feeLedger                   WorkspaceFeeLedgerEntry[]
   membershipApplications      MembershipApplication[]
   membershipDuesSettings      MembershipDuesSettings?
@@ -7233,6 +7234,8 @@ model Member {
   recommendationBenefits          MembershipRecommendationBenefit[] @relation("BenefitEarner")
   originatedRecommendationBenefit MembershipRecommendationBenefit?  @relation("BenefitOrigin")
   bookings                        Booking[]
+  raffleEntries                   RaffleEntry[]
+  raffleAwards                    RafflePrizeAward[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -8214,6 +8217,187 @@ model BookingExtraLine {
 
   @@index([bookingId])
   @@index([extraId])
+}
+
+
+/// Un sorteo entre socios, con premios donados por marcas aliadas.
+///
+/// El requisito que ordena el diseño no es sortear —eso es fácil— sino que el socio pueda
+/// comprobar que no hubo trampa sin tener que confiar en la institución. De ahí las dos
+/// fechas: el padrón se congela y su huella se publica ANTES de que exista el número de
+/// drand. Ninguna de las dos mitades puede mirar a la otra.
+///
+/// Los estados van como texto y no como enum de Prisma a propósito: las cinco aplicaciones
+/// de la suite comparten este archivo, y un enum nuevo que no exista en alguna de las cinco
+/// bases rompe las escrituras de esa aplicación. Mismo criterio que `Booking.status`.
+model Raffle {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  title       String
+  description String?
+
+  /// Cierre del padrón: se congela la lista y se publica su huella. 24 h antes del acto.
+  entriesCloseAt DateTime
+  /// El acto: se lee drand y se resuelven los premios.
+  drawsAt        DateTime
+
+  /// BORRADOR | ANUNCIADO | PADRON_SELLADO | SORTEADO | CERRADO | CANCELADO
+  status String @default("BORRADOR")
+
+  /// --- El azar. Se fija al anunciar; se completa al resolver. ---
+  /// Cadena de drand. Se guarda por sorteo: si algún día se cambia de cadena, los sorteos
+  /// viejos siguen verificando con la suya.
+  drandChainHash  String?
+  /// Primera tanda estrictamente posterior a `drawsAt`. Se fija ANTES de sellar el padrón.
+  drandRound      Int?
+  drandRandomness String?
+  drandSignature  String?
+
+  /// --- El padrón. Se completa al sellar. ---
+  entrantsHash  String?
+  entrantsCount Int?
+
+  sealedAt DateTime?
+  drawnAt  DateTime?
+
+  /// Cancelar exige motivo escrito: sin eso no se entiende meses después.
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdByUserId   Int?
+  announcedByUserId Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entries   RaffleEntry[]
+  prizes    RafflePrize[]
+  awards    RafflePrizeAward[]
+  events    RaffleEvent[]
+
+  @@index([workspaceId, drawsAt])
+  @@index([status, entriesCloseAt])
+  @@index([status, drawsAt])
+}
+
+/// Un participante, congelado al sellar el padrón.
+///
+/// Guarda instantáneas de número y nombre: la lista publicada tiene que seguir leyéndose
+/// igual dentro de dos años, aunque el socio cambie de apellido o se dé de baja.
+model RaffleEntry {
+  id       String @id @default(cuid())
+  raffleId String
+  memberId String
+
+  /// Posición en la bolsa, desde 0. Es lo que devuelve la extracción.
+  position Int
+
+  memberNumberSnapshot String
+  fullNameSnapshot     String
+
+  createdAt DateTime @default(now())
+
+  raffle Raffle @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@unique([raffleId, memberId])
+  @@unique([raffleId, position])
+  @@index([memberId])
+}
+
+/// Un premio del sorteo.
+model RafflePrize {
+  id       String @id @default(cuid())
+  raffleId String
+
+  /// Orden de extracción. Entra en el cálculo del ganador: cambiarlo cambiaría el resultado.
+  order Int
+
+  title              String
+  description        String?
+  conditions         String?
+  pickupInstructions String?
+  pickupDeadline     DateTime?
+  /// En centavos, sólo informativo. Nunca se cobra nada en este módulo.
+  estimatedValueMinor Int?
+
+  /// Referencia opaca a `DnxPartner`, sin clave foránea: mismo criterio que el resto del
+  /// dominio Partners, que vive en su propia aplicación.
+  partnerId           String?
+  partnerNameSnapshot String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  raffle Raffle            @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  award  RafflePrizeAward?
+
+  @@unique([raffleId, order])
+}
+
+/// El resultado: quién ganó qué.
+///
+/// `prizeId` es único —un premio, un ganador— y eso es lo que hace idempotente a la
+/// resolución: si dos procesos resuelven a la vez, el segundo choca contra la clave y el
+/// resultado no depende de quién llegó primero.
+model RafflePrizeAward {
+  id       String @id @default(cuid())
+  prizeId  String @unique
+  raffleId String
+  memberId String
+  entryId  String
+
+  /// La posición que salió. Con esto y los cuatro datos publicados se recalcula el ganador.
+  winnerPosition Int
+
+  /// GANADO | NOTIFICADO | RETIRADO | NO_RETIRADO | ANULADO
+  status String @default("GANADO")
+
+  notifiedAt        DateTime?
+  deliveredAt       DateTime?
+  deliveredByUserId Int?
+  deliveryNote      String?
+  voidReason        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prize  RafflePrize @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+  raffle Raffle      @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  member Member      @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@index([raffleId, status])
+  @@index([memberId])
+}
+
+/// La historia del sorteo: quién anunció, quién selló, quién entregó cada premio.
+///
+/// Mismo criterio que `MemberCardEvent`: las decisiones se guardan, las derivaciones se
+/// calculan. `actorLabel` es una instantánea para que la historia se siga entendiendo aunque
+/// esa persona cambie de nombre o su usuario se elimine.
+model RaffleEvent {
+  id       String @id @default(cuid())
+  raffleId String
+
+  /// CREADO | ANUNCIADO | PADRON_SELLADO | SORTEADO | PREMIO_NOTIFICADO | PREMIO_ENTREGADO |
+  /// PREMIO_NO_RETIRADO | PREMIO_ANULADO | CANCELADO
+  type String
+
+  /// Nulo cuando lo movió el sistema: la tarea programada que sella o resuelve.
+  actorUserId Int?
+  actorLabel  String?
+  /// Obligatoria al anular y al cancelar.
+  note        String?
+  /// El premio, cuando el evento es de un premio y no del sorteo entero.
+  prizeId     String?
+
+  createdAt DateTime @default(now())
+
+  raffle Raffle @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@index([raffleId, createdAt])
 }
 
 model EvaluationContext {

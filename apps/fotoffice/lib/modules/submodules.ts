@@ -1,6 +1,7 @@
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
+import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 
 /**
  * Las pantallas de cada módulo, en un solo lugar.
@@ -163,10 +164,30 @@ const RESERVAS: SubmoduleItem[] = [
   },
 ];
 
+const SORTEOS: SubmoduleItem[] = [
+  {
+    href: "/sorteos",
+    label: "Sorteos",
+    icon: "Ticket",
+    description: "Los sorteos entre socios al día, con premios de las marcas aliadas.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/sorteos/entregas",
+    label: "Entregas",
+    icon: "PackageCheck",
+    description: "Los premios ganados que todavía hay que avisar o entregar.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
   [BOOKINGS_MODULE_KEY]: RESERVAS,
+  [RAFFLES_MODULE_KEY]: SORTEOS,
 };
 
 /**

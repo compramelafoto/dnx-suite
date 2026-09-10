@@ -13,6 +13,7 @@ import {
   Plug,
   CalendarDays,
   DoorOpen,
+  PackageCheck,
   PackagePlus,
   GraduationCap,
   Inbox,
@@ -21,6 +22,7 @@ import {
   Settings,
   Shield,
   Tag,
+  Ticket,
   UserCog,
   Users,
   Wallet,
@@ -35,6 +37,7 @@ import {
 } from "@/lib/modules/submodules";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
+import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 
 /**
@@ -77,14 +80,16 @@ function under(href: string) {
 const ICONOS: Record<string, ComponentType<{ className?: string }>> = {
   CalendarClock,
   CalendarDays,
-  DoorOpen,
-  PackagePlus,
   CreditCard,
+  DoorOpen,
   GraduationCap,
   Inbox,
   LayoutGrid,
+  PackageCheck,
+  PackagePlus,
   Palette,
   Tag,
+  Ticket,
   Users,
   Wallet,
 };
@@ -167,6 +172,7 @@ export function ShellNav({
   evaluacionesEnabled,
   membersEnabled,
   bookingsEnabled,
+  rafflesEnabled,
   websiteEnabled,
   canManageMembers,
   canManageWorkspaceSettings,
@@ -176,6 +182,7 @@ export function ShellNav({
   evaluacionesEnabled: boolean;
   membersEnabled: boolean;
   bookingsEnabled: boolean;
+  rafflesEnabled: boolean;
   websiteEnabled: boolean;
   canManageMembers: boolean;
   canManageWorkspaceSettings: boolean;
@@ -190,6 +197,12 @@ export function ShellNav({
 
   const reservas: Item[] = bookingsEnabled
     ? itemsDeModulo(BOOKINGS_MODULE_KEY, canManageWorkspaceSettings)
+    : [];
+
+  // Sorteos vive en el grupo Socios: es una de las cosas que la institución le da al socio
+  // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
+  const sorteos: Item[] = rafflesEnabled
+    ? itemsDeModulo(RAFFLES_MODULE_KEY, canManageWorkspaceSettings)
     : [];
 
   const cursos: Item[] = coursesEnabled
@@ -290,6 +303,7 @@ export function ShellNav({
         ]}
       />
       <Section title="Socios" items={socios} path={path} onNavigate={closeDrawer} />
+      <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
       <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
       <Section title="Reservas" items={reservas} path={path} onNavigate={closeDrawer} />
       <Section title="Captación" items={captacion} path={path} onNavigate={closeDrawer} />
