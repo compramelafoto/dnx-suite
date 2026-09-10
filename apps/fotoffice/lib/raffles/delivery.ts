@@ -98,11 +98,18 @@ export async function listPendingAwards(workspaceId: string) {
       id: true,
       status: true,
       notifiedAt: true,
+      noticeError: true,
+      sponsorNotifiedAt: true,
+      sponsorNoticeError: true,
+      receiptReceivedAt: true,
+      receiptFileUrl: true,
       raffle: { select: { id: true, title: true } },
       prize: {
         select: {
           title: true,
           partnerNameSnapshot: true,
+          partnerEmailSnapshot: true,
+          partnerAddressSnapshot: true,
           pickupDeadline: true,
           pickupInstructions: true,
         },
@@ -147,4 +154,76 @@ export async function expireUnclaimedPrizes(
   }
 
   return { vencidos: vencidos.length };
+}
+
+/**
+ * Registra el remito que mandó el aliado cuando el socio retiró el premio.
+ *
+ * Es el respaldo de cómo llegó el premio a la institución: sin esto, la Sociedad no puede
+ * justificar de dónde salió, y el aliado no puede justificar la salida de su stock. Llega por
+ * correo y alguien lo carga acá.
+ *
+ * No cambia el estado del premio: son dos cosas distintas. Un premio puede estar retirado y
+ * todavía sin comprobante, y esa es justamente la situación que hay que poder ver.
+ */
+export async function registerPrizeReceipt(input: {
+  workspaceId: string;
+  awardId: string;
+  fileUrl: string | null;
+  note: string | null;
+  actorUserId: number;
+  actorLabel: string;
+  now?: Date;
+}): Promise<AdvanceResult> {
+  const now = input.now ?? new Date();
+
+  const premio = await prisma.rafflePrizeAward.findFirst({
+    where: { id: input.awardId, raffle: { workspaceId: input.workspaceId } },
+    select: { id: true, raffleId: true, prizeId: true },
+  });
+  if (!premio) return { ok: false, error: "Ese premio no existe." };
+
+  if (!input.fileUrl && !(input.note ?? "").trim()) {
+    return {
+      ok: false,
+      error: "Cargá el archivo del remito o al menos una nota que diga cómo llegó.",
+    };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.rafflePrizeAward.update({
+      where: { id: premio.id },
+      data: { receiptReceivedAt: now, receiptFileUrl: input.fileUrl, receiptNote: input.note },
+    });
+    await recordRaffleEvent(tx, {
+      raffleId: premio.raffleId,
+      type: "PREMIO_ENTREGADO",
+      actorUserId: input.actorUserId,
+      actorLabel: input.actorLabel,
+      prizeId: premio.prizeId,
+      note: `Comprobante registrado.${input.note ? " " + input.note : ""}`,
+    });
+  });
+
+  return { ok: true };
+}
+
+/** Los premios entregados a los que todavía les falta el comprobante del aliado. */
+export async function listAwardsMissingReceipt(workspaceId: string) {
+  return prisma.rafflePrizeAward.findMany({
+    where: {
+      raffle: { workspaceId },
+      status: "RETIRADO",
+      receiptReceivedAt: null,
+      prize: { partnerId: { not: null } },
+    },
+    orderBy: { deliveredAt: "asc" },
+    select: {
+      id: true,
+      deliveredAt: true,
+      raffle: { select: { title: true } },
+      prize: { select: { title: true, partnerNameSnapshot: true, partnerEmailSnapshot: true } },
+      member: { select: { memberNumber: true, firstName: true, lastName: true } },
+    },
+  });
 }

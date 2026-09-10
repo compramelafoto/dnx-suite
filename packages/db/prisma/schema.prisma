@@ -6923,6 +6923,8 @@ model Workspace {
   bookingResources            BookingResource[]
   bookingExtras               BookingExtra[]
   raffles                     Raffle[]
+  rafflePrizeCommitments      RafflePrizeCommitment[]
+  raffleSettings              RaffleSettings?
   feeLedger                   WorkspaceFeeLedgerEntry[]
   membershipApplications      MembershipApplication[]
   membershipDuesSettings      MembershipDuesSettings?
@@ -8241,6 +8243,13 @@ model Raffle {
   entriesCloseAt DateTime
   /// El acto: se lee drand y se resuelven los premios.
   drawsAt        DateTime
+  /// Cuántos días tiene el ganador para retirar el premio en el local del aliado. El plazo
+  /// corre desde el sorteo, se le haya podido avisar o no: así el aliado sabe la fecha exacta
+  /// desde el día uno. Si el aviso falla, queda marcado y la Secretaría llama por teléfono.
+  pickupDays     Int      @default(15)
+  /// `YYYY-MM` que cubre este sorteo, cuando lo generó la tarea mensual. Único por institución:
+  /// es lo que impide que se creen dos sorteos para el mismo mes.
+  period         String?
 
   /// BORRADOR | ANUNCIADO | PADRON_SELLADO | SORTEADO | CERRADO | CANCELADO
   status String @default("BORRADOR")
@@ -8277,6 +8286,7 @@ model Raffle {
   awards    RafflePrizeAward[]
   events    RaffleEvent[]
 
+  @@unique([workspaceId, period])
   @@index([workspaceId, drawsAt])
   @@index([status, entriesCloseAt])
   @@index([status, drawsAt])
@@ -8327,14 +8337,32 @@ model RafflePrize {
   /// dominio Partners, que vive en su propia aplicación.
   partnerId           String?
   partnerNameSnapshot String?
+  /// Adónde se le pide el comprobante cuando el socio retira.
+  partnerEmailSnapshot   String?
+  /// El logo con el que se muestra el premio al socio. Instantánea como todo lo demás: la
+  /// tarjeta del sorteo de septiembre tiene que seguir viéndose igual dentro de dos años,
+  /// aunque el aliado cambie de marca.
+  partnerLogoSnapshot    String?
+  /// Los tres datos que viajan en el correo al ganador: adónde ir, cuándo y a quién llamar.
+  /// Son instantáneas porque el correo ya salió: si el aliado se muda después, el que se
+  /// mandó decía otra cosa, y la constancia tiene que coincidir con lo que la persona leyó.
+  partnerAddressSnapshot String?
+  partnerPhoneSnapshot   String?
+  partnerHoursSnapshot   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  raffle Raffle            @relation(fields: [raffleId], references: [id], onDelete: Cascade)
-  award  RafflePrizeAward?
+  /// De qué compromiso salió, cuando salió de uno. Sirve para ver la serie completa y para no
+  /// duplicarlo si la tarea corre dos veces.
+  commitmentId String?
+
+  raffle     Raffle                 @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  commitment RafflePrizeCommitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  award      RafflePrizeAward?
 
   @@unique([raffleId, order])
+  @@unique([raffleId, commitmentId])
 }
 
 /// El resultado: quién ganó qué.
@@ -8355,11 +8383,26 @@ model RafflePrizeAward {
   /// GANADO | NOTIFICADO | RETIRADO | NO_RETIRADO | ANULADO
   status String @default("GANADO")
 
+  /// --- Los dos avisos que salen al resolver el sorteo ---
+  /// Al ganador: qué ganó, dónde retirarlo y hasta cuándo.
   notifiedAt        DateTime?
+  noticeError       String?
+  /// Al aliado: a quién entregarle, hasta cuándo, y el pedido del comprobante.
+  sponsorNotifiedAt DateTime?
+  sponsorNoticeError String?
+
   deliveredAt       DateTime?
   deliveredByUserId Int?
   deliveryNote      String?
   voidReason        String?
+
+  /// --- El respaldo de cómo llegó el premio a la institución ---
+  /// El aliado lo manda por correo cuando el socio retira: una foto o un PDF del remito, o una
+  /// factura por $0 con la leyenda «Sin valor comercial — Destinado a sorteo entre asociados».
+  /// Sin esto, la institución no puede justificar de dónde salió el premio.
+  receiptReceivedAt DateTime?
+  receiptFileUrl    String?
+  receiptNote       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8370,6 +8413,85 @@ model RafflePrizeAward {
 
   @@index([raffleId, status])
   @@index([memberId])
+}
+
+/// Lo que un aliado se comprometió a dar todos los meses.
+///
+/// No es un premio: es la razón por la que cada mes aparece uno. «Arte en Foco da 50% OFF en
+/// cursos seleccionados todos los meses hasta diciembre de 2026» es un compromiso; los cuatro
+/// premios que genera son copias independientes, con los datos del aliado congelados en cada
+/// una. Si el aliado se muda en noviembre, el premio de septiembre sigue diciendo dónde había
+/// que ir en septiembre.
+///
+/// `endPeriod` es INCLUSIVE: «hasta diciembre» incluye el sorteo de diciembre. Es como lo dice
+/// la gente y como se firma un acuerdo.
+model RafflePrizeCommitment {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  title       String
+  description String?
+  conditions  String?
+  /// En centavos, sólo informativo.
+  estimatedValueMinor Int?
+
+  /// Orden sugerido dentro de cada sorteo. Si dos compromisos piden el mismo, se acomodan al
+  /// materializarse: el orden tiene que ser único dentro del sorteo porque entra en la cuenta.
+  order Int @default(1)
+
+  /// El aliado, con sus datos congelados igual que en el premio.
+  partnerId              String?
+  partnerNameSnapshot    String?
+  partnerEmailSnapshot   String?
+  partnerLogoSnapshot    String?
+  partnerAddressSnapshot String?
+  partnerPhoneSnapshot   String?
+  partnerHoursSnapshot   String?
+
+  /// `YYYY-MM` del primer sorteo que lo incluye y del último, inclusive. Sin fin = sigue.
+  startPeriod String
+  endPeriod   String?
+
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  prizes    RafflePrize[]
+
+  @@index([workspaceId, startPeriod])
+  @@index([workspaceId, cancelledAt])
+}
+
+/// Las reglas del sorteo mensual de una institución.
+///
+/// Existe para que el ciclo se sostenga solo: con esto, una tarea programada crea el sorteo de
+/// cada mes en borrador, con los premios comprometidos ya cargados. La Secretaría sólo revisa
+/// y anuncia.
+model RaffleSettings {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  /// Si se generan solos los sorteos de cada mes.
+  monthlyEnabled Boolean @default(false)
+  /// Día del mes del acto. Si el mes no llega a ese día, se usa el último.
+  drawDay        Int     @default(30)
+  /// Hora del acto, en hora argentina.
+  drawHour       Int     @default(20)
+  /// Cuántas horas antes cierra el padrón.
+  entriesCloseHoursBefore Int @default(24)
+  /// Días que tiene el ganador para retirar. Se copia a cada sorteo generado.
+  pickupDays     Int     @default(15)
+  /// Con cuántos días de anticipación se crea el sorteo del mes.
+  createDaysAhead Int    @default(10)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 /// La historia del sorteo: quién anunció, quién selló, quién entregó cada premio.

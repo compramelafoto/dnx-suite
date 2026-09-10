@@ -11,7 +11,8 @@ import { sealRaffle } from "@/lib/raffles/seal";
 import { resolveRaffle } from "@/lib/raffles/resolve";
 import { recordRaffleEvent } from "@/lib/raffles/events";
 import { canCancel, canEditPrizes } from "@/lib/raffles/lifecycle";
-import { advancePrizeAward } from "@/lib/raffles/delivery";
+import { advancePrizeAward, registerPrizeReceipt } from "@/lib/raffles/delivery";
+import { notifyPendingAwards } from "@/lib/raffles/notify";
 import type { RafflePrizeStatus } from "@/lib/raffles/constants";
 import type { RaffleStatus } from "@/lib/raffles/constants";
 
@@ -252,4 +253,40 @@ export async function advanceAwardAction(formData: FormData): Promise<void> {
 
   revalidatePath("/sorteos/entregas");
   redirect("/sorteos/entregas?ok=premio");
+}
+
+/**
+ * Carga el remito que mandó el aliado. Es el respaldo de cómo llegó el premio a la institución.
+ */
+export async function registerReceiptAction(formData: FormData): Promise<void> {
+  const { workspace, user } = await requireRafflesStaff();
+  const awardId = String(formData.get("awardId") ?? "");
+  const fileUrl = String(formData.get("fileUrl") ?? "").trim() || null;
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  const r = await registerPrizeReceipt({
+    workspaceId: workspace.id,
+    awardId,
+    fileUrl,
+    note,
+    actorUserId: user.id,
+    actorLabel: etiquetaActor(user),
+  });
+  if (!r.ok) conError("/sorteos/entregas", r.error);
+
+  revalidatePath("/sorteos/entregas");
+  redirect("/sorteos/entregas?ok=remito");
+}
+
+/**
+ * Reintenta los avisos que no salieron.
+ *
+ * La tarea programada ya lo hace sola cada quince minutos; este botón existe para cuando
+ * alguien acaba de cargar el correo que faltaba y no quiere esperar.
+ */
+export async function retryNoticesAction(): Promise<void> {
+  await requireRafflesStaff();
+  await notifyPendingAwards();
+  revalidatePath("/sorteos/entregas");
+  redirect("/sorteos/entregas?ok=avisos");
 }

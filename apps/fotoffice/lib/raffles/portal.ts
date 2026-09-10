@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { isEligible } from "./eligibility";
 import { loadMemberForRaffle } from "./repository";
+import { resolveLogoUrl } from "./logo-url";
 
 /**
  * Lo que el socio ve de los sorteos.
@@ -24,6 +25,8 @@ export type PortalPrize = {
   title: string;
   description: string | null;
   partnerName: string | null;
+  /** Ya resuelta a una dirección que el navegador del socio puede pedir. */
+  partnerLogoUrl: string | null;
   winnerLabel: string | null;
 };
 
@@ -75,6 +78,7 @@ type FilaSorteo = {
     pickupInstructions: string | null;
     pickupDeadline: Date | null;
     partnerNameSnapshot: string | null;
+    partnerLogoSnapshot: string | null;
     award: { memberId: string; status: string; winnerPosition: number } | null;
   }[];
   entries: { memberId: string; position: number }[];
@@ -114,6 +118,7 @@ export async function loadPortalRaffles(input: {
             pickupInstructions: true,
             pickupDeadline: true,
             partnerNameSnapshot: true,
+            partnerLogoSnapshot: true,
             award: { select: { memberId: true, status: true, winnerPosition: true } },
           },
         },
@@ -160,12 +165,14 @@ function armarVista(
           return { participating: e.eligible, reason: e.reason, frozen: false };
         })();
 
+  const partnersBaseUrl = process.env.PARTNERS_PUBLIC_URL ?? null;
   const prizes: PortalPrize[] = f.prizes.map((p) => ({
     id: p.id,
     order: p.order,
     title: p.title,
     description: p.description,
     partnerName: p.partnerNameSnapshot,
+    partnerLogoUrl: resolveLogoUrl(p.partnerLogoSnapshot, partnersBaseUrl),
     winnerLabel: p.award ? `Socio en la posición ${p.award.winnerPosition}` : null,
   }));
 

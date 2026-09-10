@@ -8,6 +8,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { resolveRaffle } from "@/lib/raffles/resolve";
 import { fechaHora } from "@/lib/raffles/labels";
 import { Bolillero, type BolilleroPremio } from "@/components/raffles/bolillero";
+import { resolveLogoUrl } from "@/lib/raffles/logo-url";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,7 @@ export default async function ResultadoPage({ params }: { params: Promise<{ id: 
         select: {
           title: true,
           partnerNameSnapshot: true,
+          partnerLogoSnapshot: true,
           award: { select: { winnerPosition: true } },
         },
       },
@@ -73,6 +75,7 @@ export default async function ResultadoPage({ params }: { params: Promise<{ id: 
       return {
         prizeTitle: p.title,
         partnerName: p.partnerNameSnapshot,
+        partnerLogoUrl: resolveLogoUrl(p.partnerLogoSnapshot, process.env.PARTNERS_PUBLIC_URL ?? null),
         winnerPosition: p.award.winnerPosition,
         winnerLabel: g ? `${g.memberNumberSnapshot} · ${g.fullNameSnapshot}` : "—",
       };

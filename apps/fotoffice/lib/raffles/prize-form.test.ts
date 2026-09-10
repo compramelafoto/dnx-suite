@@ -77,15 +77,43 @@ describe("el formulario del premio", () => {
     }
   });
 
-  it("el plazo de retiro es opcional y se lee al final del día", () => {
-    const r = parsePrizeForm(form(completo));
+  it("no pregunta el plazo de retiro: son 15 días desde el sorteo y los pone el sistema", () => {
+    const r = parsePrizeForm(form({ ...completo, pickupDeadline: "2026-10-31" }));
     expect(r.ok).toBe(true);
-    // 31/10 a las 23:59:59.999 en Buenos Aires (UTC−3).
-    if (r.ok) expect(r.values.pickupDeadline?.toISOString()).toBe("2026-11-01T02:59:59.999Z");
+    // Aunque llegue el campo, no se guarda: la fecha la fija el sorteo al resolverse.
+    if (r.ok) expect("pickupDeadline" in r.values).toBe(false);
+  });
+});
+
+describe("los datos del local donde se retira", () => {
+  const conLocal = () =>
+    form({
+      ...completo,
+      partnerEmail: "aliado@ejemplo.com",
+      partnerAddress: "San Martín 1234, Rosario",
+      partnerPhone: "341 555-0198",
+      partnerHours: "Lunes a viernes de 9 a 18",
+    });
+
+  it("se guardan junto al premio, como instantáneas", () => {
+    const r = parsePrizeForm(conLocal());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.values.partnerEmailSnapshot).toBe("aliado@ejemplo.com");
+    expect(r.values.partnerAddressSnapshot).toBe("San Martín 1234, Rosario");
+    expect(r.values.partnerPhoneSnapshot).toBe("341 555-0198");
+    expect(r.values.partnerHoursSnapshot).toBe("Lunes a viernes de 9 a 18");
   });
 
-  it("sin plazo de retiro, queda en nulo", () => {
-    const r = parsePrizeForm(form({ ...completo, pickupDeadline: "" }));
-    expect(r.ok && r.values.pickupDeadline).toBe(null);
+  it("todos son opcionales: hay premios que pone la propia institución", () => {
+    const r = parsePrizeForm(form(completo));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.values.partnerEmailSnapshot).toBe(null);
+  });
+
+  it("un correo mal escrito se rechaza: un aviso que nunca llega es peor que ninguno", () => {
+    const r = parsePrizeForm(form({ ...completo, partnerEmail: "aliado.ejemplo.com" }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/correo/i);
   });
 });
