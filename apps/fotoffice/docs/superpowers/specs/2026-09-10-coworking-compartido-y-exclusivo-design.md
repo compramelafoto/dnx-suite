@@ -1,6 +1,6 @@
 # Coworking compartido y uso exclusivo
 
-**Fecha:** 2026-09-10 · **Aplicación:** FOTOFFICE · **Estado:** en revisión
+**Fecha:** 2026-09-10 · **Enmendada:** 2026-09-10 (espacios solo para socios) · **Aplicación:** FOTOFFICE · **Estado:** en revisión
 
 ## El problema
 
@@ -73,10 +73,18 @@ En **Reservas → Espacios**, dentro de cada espacio:
 |---|---|---|
 | Capacidad | entero ≥ 1, default 1 | Siempre |
 | Precio exclusivo socio / hora | pesos | Solo si capacidad > 1 |
-| Precio exclusivo no socio / hora | pesos | Solo si capacidad > 1 |
+| Precio exclusivo no socio / hora | pesos | Solo si capacidad > 1 **y** el espacio admite no socios |
 
-Los dos precios exclusivos son **obligatorios cuando la capacidad es mayor que 1**: un espacio
+El precio exclusivo de socio es **obligatorio cuando la capacidad es mayor que 1**: un espacio
 compartible sin precio exclusivo ofrecería la opción a $0 y la regalaría.
+
+El de no socio depende de `allowsNonMembers`, que ya existe y no se rehace. **No todos los
+espacios se alquilan afuera**: el coworking es solo para socios, y pedirle a la institución un
+precio de no socio para un espacio que los no socios no pueden ver sería pedirle un dato que no
+significa nada. Cuando el interruptor está apagado el campo no aparece y no se valida.
+
+Y al revés: si mañana la institución abre el coworking a no socios, ahí sí el precio exclusivo
+de no socio pasa a ser obligatorio, porque sin él la opción se ofrecería gratis.
 
 **Bajar la capacidad no toca las reservas ya hechas.** Si el coworking pasa de 4 a 2 y había
 tres personas anotadas para el jueves, las tres siguen en pie; lo que cambia es que no entra
@@ -244,6 +252,9 @@ de cuatro:
 | Socio | `memberHourlyPriceArs` | `exclusiveMemberHourlyPriceArs` |
 | No socio | `nonMemberHourlyPriceArs` | `exclusiveNonMemberHourlyPriceArs` |
 
+La fila de no socio solo se alcanza en espacios con `allowsNonMembers`. En los demás, un no
+socio no llega ni a la grilla: la pantalla pública devuelve 404 antes, como ya hace hoy.
+
 **Las 2 horas libres del socio no cambian de cantidad, sí de valor.** Son 2 horas por mes, no
 2 horas de coworking compartido: si las usa en exclusivo, se le descuentan las mismas 2 horas y
 lo que se ahorra es más. Es lo coherente con el beneficio tal como está escrito, y no obliga al
@@ -298,6 +309,8 @@ una exclusiva sobre una compartida (rechazada), y borrar las filas de prueba.
 4. **Bajar la capacidad no cancela reservas.**
 5. **Las horas libres son horas, no horas-compartidas.**
 6. **La garantía sigue en la base.** La capacidad no se enforza solo desde el código.
+7. **El precio exclusivo de no socio solo se pide si el espacio admite no socios.** El
+   coworking es solo para socios y el campo no aparece.
 
 ## Lo que queda afuera
 
