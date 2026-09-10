@@ -8339,6 +8339,10 @@ model RafflePrize {
   partnerNameSnapshot String?
   /// Adónde se le pide el comprobante cuando el socio retira.
   partnerEmailSnapshot   String?
+  /// El logo con el que se muestra el premio al socio. Instantánea como todo lo demás: la
+  /// tarjeta del sorteo de septiembre tiene que seguir viéndose igual dentro de dos años,
+  /// aunque el aliado cambie de marca.
+  partnerLogoSnapshot    String?
   /// Los tres datos que viajan en el correo al ganador: adónde ir, cuándo y a quién llamar.
   /// Son instantáneas porque el correo ya salió: si el aliado se muda después, el que se
   /// mandó decía otra cosa, y la constancia tiene que coincidir con lo que la persona leyó.
@@ -8439,6 +8443,7 @@ model RafflePrizeCommitment {
   partnerId              String?
   partnerNameSnapshot    String?
   partnerEmailSnapshot   String?
+  partnerLogoSnapshot    String?
   partnerAddressSnapshot String?
   partnerPhoneSnapshot   String?
   partnerHoursSnapshot   String?

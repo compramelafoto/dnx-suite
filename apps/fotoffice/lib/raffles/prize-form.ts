@@ -30,6 +30,7 @@ export type PrizeFormValues = {
   partnerId: string | null;
   partnerNameSnapshot: string | null;
   partnerEmailSnapshot: string | null;
+  partnerLogoSnapshot: string | null;
   partnerAddressSnapshot: string | null;
   partnerPhoneSnapshot: string | null;
   partnerHoursSnapshot: string | null;
@@ -88,6 +89,7 @@ export function parsePrizeForm(formData: FormData): PrizeFormResult {
       partnerId,
       partnerNameSnapshot: partnerName,
       partnerEmailSnapshot: partnerEmail,
+      partnerLogoSnapshot: nulo(texto(formData, "partnerLogo")),
       partnerAddressSnapshot: nulo(texto(formData, "partnerAddress")),
       partnerPhoneSnapshot: nulo(texto(formData, "partnerPhone")),
       partnerHoursSnapshot: nulo(texto(formData, "partnerHours")),

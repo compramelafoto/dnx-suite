@@ -150,16 +150,26 @@ function SorteoActual({ sorteo }: { sorteo: PortalRaffleView }) {
           <h3 className="text-sm font-medium uppercase tracking-wide text-[var(--fo-muted)]">
             {sorteo.prizes.length === 1 ? "El premio" : "Los premios"}
           </h3>
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {sorteo.prizes.map((p) => (
-              <li key={p.id} className="text-sm">
-                <span className="font-medium">{p.title}</span>
-                {p.partnerName ? (
-                  <span className="text-[var(--fo-muted)]"> — lo dona {p.partnerName}</span>
+              <li key={p.id} className="flex items-start gap-3 text-sm">
+                {p.partnerLogoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.partnerLogoUrl}
+                    alt={p.partnerName ?? ""}
+                    className="size-12 shrink-0 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-white object-contain p-1"
+                  />
                 ) : null}
-                {p.description ? (
-                  <p className="text-[var(--fo-muted)]">{p.description}</p>
-                ) : null}
+                <div>
+                  <span className="font-medium">{p.title}</span>
+                  {p.partnerName ? (
+                    <span className="text-[var(--fo-muted)]"> — lo dona {p.partnerName}</span>
+                  ) : null}
+                  {p.description ? (
+                    <p className="text-[var(--fo-muted)]">{p.description}</p>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

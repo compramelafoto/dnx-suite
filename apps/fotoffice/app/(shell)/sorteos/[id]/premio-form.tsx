@@ -96,6 +96,7 @@ export function PremioForm({
           placeholder="Escribí para buscar entre los aliados"
         />
         <input type="hidden" name="partnerId" value={elegido?.id ?? ""} />
+        <input type="hidden" name="partnerLogo" value={elegido?.logoUrl ?? ""} />
         <p className="fo-helper">
           Si la marca ya tiene ficha, elegila de la lista. Si no, escribí el nombre igual.
           También podés dejarlo vacío: hay premios que pone la institución.
@@ -109,13 +110,20 @@ export function PremioForm({
               <li key={a.id}>
                 <button
                   type="button"
-                  className="w-full px-3 py-2 text-left hover:bg-[var(--fo-surface-hover)]"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[var(--fo-surface-hover)]"
                   onClick={() => {
                     setElegido(a);
                     setResultados([]);
                   }}
                 >
-                  {a.name}
+                  {a.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={a.logoUrl} alt="" className="size-6 rounded object-contain" />
+                  ) : null}
+                  <span>{a.name}</span>
+                  {!a.logoUrl ? (
+                    <span className="ml-auto text-xs text-[var(--fo-muted)]">sin logo</span>
+                  ) : null}
                 </button>
               </li>
             ))}
@@ -124,7 +132,8 @@ export function PremioForm({
 
         {elegido ? (
           <p className="fo-helper">
-            Ficha elegida: {elegido.name}.{" "}
+            Ficha elegida: {elegido.name}
+            {elegido.logoUrl ? " (con logo)" : " — sin logo cargado en DNX Partners"}.{" "}
             <button
               type="button"
               className="underline"

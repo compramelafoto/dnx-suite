@@ -92,6 +92,7 @@ export async function generateMonthlyRaffles(now: Date = new Date()): Promise<Mo
       partnerId: c.partnerId,
       partnerNameSnapshot: c.partnerNameSnapshot,
       partnerEmailSnapshot: c.partnerEmailSnapshot,
+      partnerLogoSnapshot: c.partnerLogoSnapshot,
       partnerAddressSnapshot: c.partnerAddressSnapshot,
       partnerPhoneSnapshot: c.partnerPhoneSnapshot,
       partnerHoursSnapshot: c.partnerHoursSnapshot,
