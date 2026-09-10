@@ -9,7 +9,7 @@ import { parseSpaceForm } from "@/lib/bookings/space-form";
 import { parseExtraForm } from "@/lib/bookings/extra-form";
 import { getGoogleAccessToken } from "@/lib/integrations/access-token";
 import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
-import { createCalendarClient } from "@/lib/bookings/calendar/client";
+import { createCalendarClient, isCalendarPermissionError } from "@/lib/bookings/calendar/client";
 import { pairsForSpace } from "@/lib/bookings/conflicts";
 import { cancelBooking, createBooking } from "@/lib/bookings/create";
 import { approveBooking, confirmTransferPayment } from "@/lib/bookings/lifecycle";
@@ -434,7 +434,12 @@ export async function setSpaceCalendarAction(formData: FormData): Promise<void> 
         spaceId,
         detalle: sanitizeError(error),
       });
-      redirect(`${ESPACIOS}?error=${encodeURIComponent("No pudimos crear el calendario.")}`);
+      // Un 403 no se arregla esperando: es un permiso que la cuenta no otorgó. Pasa con
+      // las cuentas conectadas antes de que se pidiera `calendar.app.created`.
+      const mensaje = isCalendarPermissionError(error)
+        ? "La cuenta de Google conectada no tiene permiso para crear calendarios. Volvé a conectarla en Integraciones, o creá el calendario en Google y elegilo de la lista."
+        : "No pudimos crear el calendario. Probá de nuevo en un rato.";
+      redirect(`${ESPACIOS}?error=${encodeURIComponent(mensaje)}`);
     }
   }
 

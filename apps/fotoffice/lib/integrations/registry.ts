@@ -36,9 +36,19 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     label: "Google Calendar",
     description:
       "Espeja las reservas de espacios en el calendario de la institución, y toma de ahí lo que se cargue a mano.",
+    // Los tres hacen falta y ninguno alcanza solo. `calendar.readonly` es para poder
+    // ofrecer la lista de calendarios de la cuenta; `calendar.events` para escribir las
+    // reservas en el que la institución elija; y `calendar.app.created` para poder CREAR
+    // el calendario de un espacio — crear un calendario es una operación sobre la cuenta,
+    // no sobre eventos, y sin este permiso Google contesta 403.
+    //
+    // Se usa `calendar.app.created` y no `calendar` a secas justamente para no pedir
+    // acceso a los calendarios que la institución ya tenía: este permiso alcanza para los
+    // que la app crea y para nada más.
     scopes: [
       "https://www.googleapis.com/auth/calendar.events",
       "https://www.googleapis.com/auth/calendar.readonly",
+      "https://www.googleapis.com/auth/calendar.app.created",
     ],
     requiredByModules: ["bookings"],
     status: "AVAILABLE",
