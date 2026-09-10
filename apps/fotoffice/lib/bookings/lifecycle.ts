@@ -188,3 +188,58 @@ export async function expireStaleHolds(now: Date = new Date()): Promise<{ expira
   });
   return { expiradas: r.count };
 }
+
+/**
+ * Cancela la reserva cuyo evento se borró en el calendario de Google.
+ *
+ * Es el espejo hacia atrás: si la Secretaría borra el evento, la reserva deja de existir
+ * también en FotoOffice. Antes quedaba "Confirmada" en el portal del socio mientras el
+ * espacio figuraba libre en el calendario, que es la peor de las dos verdades posibles.
+ *
+ * **Solo actúa sobre un borrado explícito.** Google avisa de un evento borrado con
+ * `status: "cancelled"`; nunca se deduce una cancelación de la ausencia de un evento en el
+ * listado, porque un token vencido recarga la ventana entera y "ausente" pasaría a
+ * significar "borrado" para todas las reservas de golpe.
+ *
+ * Se limita al espacio del calendario que se está sincronizando: un identificador de evento
+ * no puede alcanzar una reserva de otro espacio. Y solo toca reservas activas, así que
+ * volver a ver el mismo borrado no cambia nada — importa, porque FotoOffice borra sus
+ * propios eventos al cancelar y después los lee de vuelta.
+ */
+export async function cancelBookingForDeletedEvent(input: {
+  spaceId: string;
+  googleEventId: string;
+}): Promise<{ canceladas: number; pagadas: number }> {
+  const afectadas = await prisma.booking.findMany({
+    where: {
+      spaceId: input.spaceId,
+      googleEventId: input.googleEventId,
+      status: { in: [...ACTIVE_BOOKING_STATUSES] },
+    },
+    select: { id: true, paymentStatus: true },
+  });
+  if (afectadas.length === 0) return { canceladas: 0, pagadas: 0 };
+
+  const r = await prisma.booking.updateMany({
+    where: { id: { in: afectadas.map((b) => b.id) } },
+    data: {
+      status: "CANCELLED",
+      cancelledAt: new Date(),
+      cancelReason: "El evento se borró en el calendario de Google.",
+      holdExpiresAt: null,
+    },
+  });
+
+  // Una reserva paga que se cancela borrando un evento deja plata que alguien tiene que
+  // devolver. No se decide acá, pero no puede pasar en silencio.
+  const pagadas = afectadas.filter((b) => b.paymentStatus === "PAID").length;
+  if (pagadas > 0) {
+    console.warn("[fotoffice][calendar] se cancelaron reservas PAGAS por un borrado en Google", {
+      spaceId: input.spaceId,
+      googleEventId: input.googleEventId,
+      pagadas,
+    });
+  }
+
+  return { canceladas: r.count, pagadas };
+}

@@ -5,6 +5,7 @@ import { getGoogleAccessToken } from "@/lib/integrations/access-token";
 import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
 import { BOOKINGS_TIME_ZONE, addMinutes } from "../time";
 import { createCalendarClient, type CalendarClient } from "./client";
+import { cancelBookingForDeletedEvent } from "../lifecycle";
 import { buildEventDescription, buildEventSummary } from "./event-content";
 import { decideForEvent, isSyncTokenExpired } from "./sync-decisions";
 
@@ -25,6 +26,8 @@ export type SyncReport = {
   eventosBorrados: number;
   bloqueosCreados: number;
   bloqueosBorrados: number;
+  /** Reservas que se cancelaron porque su evento se borró en Google. */
+  reservasCanceladas: number;
   motivo?: string;
 };
 
@@ -167,10 +170,11 @@ export async function pullBlocksForSpace(input: {
   syncToken: string | null;
   client: CalendarClient;
   now?: Date;
-}): Promise<{ creados: number; borrados: number }> {
+}): Promise<{ creados: number; borrados: number; canceladas: number }> {
   const now = input.now ?? new Date();
   let creados = 0;
   let borrados = 0;
+  let canceladas = 0;
 
   let syncToken = input.syncToken;
   let pageToken: string | null = null;
@@ -209,6 +213,23 @@ export async function pullBlocksForSpace(input: {
           where: { spaceId: input.spaceId, googleEventId: d.eventId },
         });
         borrados += r.count;
+
+        // El evento borrado puede ser el de una reserva, no un bloqueo cargado a mano.
+        // Google no dice de quién era —un evento cancelado llega casi sin datos—, así que
+        // se pregunta del lado propio, por `googleEventId`.
+        const c = await cancelBookingForDeletedEvent({
+          spaceId: input.spaceId,
+          googleEventId: d.eventId,
+        });
+        if (c.canceladas > 0) {
+          canceladas += c.canceladas;
+          console.warn("[fotoffice][calendar] reserva cancelada por un borrado en Google", {
+            spaceId: input.spaceId,
+            googleEventId: d.eventId,
+            canceladas: c.canceladas,
+            pagadas: c.pagadas,
+          });
+        }
         continue;
       }
 
@@ -240,7 +261,7 @@ export async function pullBlocksForSpace(input: {
     });
   }
 
-  return { creados, borrados };
+  return { creados, borrados, canceladas };
 }
 
 /** Una corrida completa para un workspace. Nunca lanza: devuelve el motivo. */
@@ -251,6 +272,7 @@ export async function syncWorkspaceCalendar(workspaceId: string): Promise<SyncRe
     eventosBorrados: 0,
     bloqueosCreados: 0,
     bloqueosBorrados: 0,
+    reservasCanceladas: 0,
   };
 
   const cliente = await clienteDe(workspaceId);
@@ -288,6 +310,7 @@ export async function syncWorkspaceCalendar(workspaceId: string): Promise<SyncRe
       });
       reporte.bloqueosCreados += vuelta.creados;
       reporte.bloqueosBorrados += vuelta.borrados;
+      reporte.reservasCanceladas += vuelta.canceladas;
     } catch (error) {
       // Un espacio que falla no frena a los demás.
       console.error("[fotoffice][calendar] falló el espejo de vuelta", {
