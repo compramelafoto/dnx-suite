@@ -29,7 +29,8 @@
     "test:template-v2": "pnpm --filter @repo/template-editor-core test",
     "test:template-v2:render": "pnpm --filter @repo/template-editor-core test:render",
     "test:album-cover": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/album/album-list-cover.test.ts",
-    "test:school-design": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-render/ensure-school-design-for-preventa-order-item.test.ts"
+    "test:school-design": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-render/ensure-school-design-for-preventa-order-item.test.ts",
+    "test:preventa-copy": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/preventa-canjeable/benefit-copy.test.ts lib/albums/album-share-image.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.985.0",
