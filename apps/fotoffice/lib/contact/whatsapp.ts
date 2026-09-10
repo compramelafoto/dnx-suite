@@ -32,7 +32,28 @@ export function normalizeWhatsappNumber(raw: string | null | undefined): string 
 
   const digits = candidate.replace(/\D/g, "");
   if (digits.length < MIN_DIGITS || digits.length > MAX_DIGITS) return null;
-  return digits;
+  return fixArgentineMobile(digits);
+}
+
+/**
+ * El 9 que WhatsApp exige en los móviles argentinos.
+ *
+ * Un `543413748324` es un número argentino perfectamente escrito para llamar, y aun así
+ * WhatsApp no abre el chat: para móviles espera un 9 entre el código de país y el de área
+ * (`5493413748324`). Los teléfonos del padrón están cargados para llamar, no para WhatsApp,
+ * así que sin esto casi ningún enlace de socio funcionaría.
+ *
+ * Esto NO contradice la decisión de no adivinar el código de país, que sigue en pie: acá el
+ * país ya está declarado y lo único que se agrega es un dígito que Argentina exige siempre.
+ * Y no puede empeorar nada: si el número resultara ser un fijo, el enlace no servía tampoco
+ * antes — un fijo no tiene WhatsApp. Con el 9 funcionan los móviles; sin él, ninguno.
+ */
+function fixArgentineMobile(digits: string): string {
+  if (!digits.startsWith("54") || digits[2] === "9") return digits;
+  const conNueve = `549${digits.slice(2)}`;
+  // Un móvil argentino son 13 dígitos con el 9. Si agregarlo se pasa del E.164, lo que
+  // había no era un número argentino y no se lo toca.
+  return conNueve.length > MAX_DIGITS ? digits : conNueve;
 }
 
 /**
