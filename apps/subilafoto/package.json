@@ -16,7 +16,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "@repo/db": "workspace:*",
-    "@aws-sdk/client-rekognition": "^3.985.0"
+    "@aws-sdk/client-rekognition": "^3.985.0",
+    "@repo/auth": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
