@@ -985,6 +985,9 @@ importers:
       '@aws-sdk/client-rekognition':
         specifier: ^3.985.0
         version: 3.1079.0
+      '@repo/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
