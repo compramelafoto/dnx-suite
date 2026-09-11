@@ -1,4 +1,4 @@
-# Generador de propuestas — etapas 1 y 2
+# Generador de propuestas — etapas 1, 2 y 3
 
 Pantalla en `/propuesta` (Clickatón, puerto 3005) donde un vendedor sube el logo
 de un cliente potencial y obtiene, al instante, las piezas publicitarias
@@ -9,8 +9,9 @@ para mandarle a la marca.
 pregunta a `listSellableSpaces` qué espacios puede ofrecer quien está vendiendo y
 arma la propuesta solo con esos. Ver [inventario.md](../inventario.md).
 
-**No guarda la propuesta.** Se sube, se compone y se devuelve; consulta la base
-solo para saber qué espacios tienen lugar en el período.
+**Guarda la propuesta con un código.** Al descargar el PDF queda una fila con
+sus líneas y su logo, recuperable en `/propuesta/<código>` durante treinta días.
+El código va impreso en la portada y en la contratapa del dossier.
 
 **La pantalla es pública**: cualquiera con el enlace arma una propuesta sin
 cuenta. Por eso las dos rutas tienen tope de uso por cliente —90 piezas cada 5
@@ -31,7 +32,8 @@ pnpm --filter clickaton dev
 1. Subir el logo del cliente (PNG, JPG o WEBP, hasta 5 MB).
 2. Escribir el nombre de la marca y el rubro.
 3. Recorrer las piezas disponibles y alternar entre escritorio y celular.
-4. Descargar el PDF.
+4. Descargar el PDF. La pantalla muestra el código con el que se recupera.
+5. Para volver a abrirla: `/propuesta/PR-XXXXXX`.
 
 ## Cómo está armado
 
@@ -43,7 +45,12 @@ pnpm --filter clickaton dev
 | Composición | `apps/clickaton/lib/propuesta/compose.ts` | Superpone logo y fondo con `sharp` |
 | Dossier | `apps/clickaton/lib/propuesta/pdf.ts` | Arma el documento con `pdf-lib` |
 | Pantalla | `apps/clickaton/app/(public)/propuesta/` | Formulario, vista previa y descarga |
-| Rutas | `apps/clickaton/app/api/propuesta/` | `pieza` (PNG) y `pdf` (dossier) |
+| Rutas | `apps/clickaton/app/api/propuesta/` | `pieza` (PNG), `pdf` (dossier) y `[codigo]/pdf` (re-descarga) |
+| Código y vencimiento | `packages/partners/src/proposal-record.ts` | Genera y valida el código; decide si venció |
+| Repositorio | `packages/db/src/partners-proposals.ts` | Guardar, recuperar, vencer y borrar |
+| Guardado desde la app | `apps/clickaton/lib/propuesta/persistencia.ts` | Sube el logo y escribe la fila |
+| Recuperación | `apps/clickaton/app/(public)/propuesta/[codigo]/` | Qué tiene la propuesta y botón de descarga |
+| Limpieza diaria | `apps/clickaton/app/api/cron/purge-proposals/` | Vence, borra y suelta logos |
 
 ## Cada formato se compone distinto
 
@@ -112,21 +119,65 @@ herramienta la usen organizadores o workspaces, eso sale de la sesión.
 Si el vendedor no tiene ningún espacio montado, la pantalla lo dice y no ofrece
 el PDF; la ruta responde 409. Nadie manda un dossier vacío por accidente.
 
+## Cómo se guarda y se recupera
+
+El código es `PR-` más seis caracteres de un alfabeto de treinta y dos **sin
+`O`/`0` ni `I`/`1`**: se dicta por teléfono y se copia a mano de un PDF, y esas
+cuatro son las que se transcriben mal. Son unos mil millones de combinaciones.
+
+La unicidad la garantiza el índice único de la base, no el generador: si dos
+propuestas compartieran código, un vendedor abriría la de otro. Ante el rechazo
+de la base se reintenta con un código nuevo.
+
+**Guardar no puede romper el generador.** Si la tabla no está migrada o R2 no
+está configurado, el PDF sale igual pero sin código, y la pantalla no muestra
+nada de recuperación. La herramienta existe para vender; que después no se pueda
+recuperar es peor que nada, pero no vender es peor todavía.
+
+**El logo va al mismo namespace que los logos de sponsors**
+(`clickaton/partners/logos/`). No es descuido: cuando la propuesta se convierta
+en alta, el archivo ya está donde tiene que estar.
+
+**Al recuperar se rearma, no se sirve un archivo cacheado.** Entre que se guardó
+y que se la abre pueden haberse vendido espacios, y mandar un dossier que ofrece
+un lugar ya tomado es peor que tardar veinte segundos en rehacerlo. Se rearma con
+las piezas que tenía la propuesta —lo que el vendedor sacó sigue afuera— pero con
+el cupo de hoy.
+
+Un código inexistente, uno mal escrito y una propuesta vencida devuelven todos lo
+mismo: quien prueba códigos al azar no debería poder distinguir «no existe» de
+«venció».
+
+### El ciclo de vida
+
+| Cuándo | Qué pasa |
+|---|---|
+| Se descarga el PDF | Fila `READY`, código impreso, vence a los 30 días |
+| Pasan 30 días | El dominio deja de abrirla; el cron la marca `EXPIRED` |
+| Pasan 37 | El cron la borra con sus líneas y su logo |
+| Se convierte en sponsor | Queda `CONVERTED` como historial; a los 30 días suelta el logo |
+
+La semana de gracia entre vencer y borrar existe porque una propuesta recién
+vencida todavía se puede querer consultar, y recuperar una fila borrada no es una
+opción.
+
+El barrido corre a las 4:45 en `/api/cron/purge-proposals`.
+
 ## Qué falta
 
-Revisado el 2026-09-09. Las etapas 1 y 2 están completas y la pantalla es
+Revisado el 2026-09-10. Las etapas 1, 2 y 3 están completas y la pantalla es
 **pública en producción**: `maratonfotografica.com/propuesta`.
 
 **Lo que falta, por orden de lo que más destraba:**
 
 1. **El botón de reservar.** Hoy se manda el dossier y ahí se corta: no hay cómo
    tomarle el lugar a la marca que aceptó. El circuito de reserva está
-   construido en `@repo/db/partners-inventory-bookings` y nadie lo llama.
-2. **Etapa 3 — guardar la propuesta** con su código recuperable, vencimiento y
-   limpieza. Hoy se genera y se pierde.
-3. **Etapa 4 — capa autenticada**: búsqueda de sponsors existentes con detección
+   construido en `@repo/db/partners-inventory-bookings` y nadie lo llama. Con la
+   propuesta ya guardada, reservar desde ella es el paso corto que queda.
+2. **Etapa 4 — capa autenticada**: búsqueda de sponsors existentes con detección
    de duplicados, y alta como `PROSPECT` con assets en `PENDING`.
-4. **Etapa 5 — panel de propuestas** generadas y su conversión.
+3. **Etapa 5 — panel de propuestas** generadas y su conversión. El repositorio ya
+   expone `listProposals`; falta la pantalla.
 
 Ver `docs/superpowers/specs/2026-08-22-generador-propuestas-sponsors-design.md`.
 

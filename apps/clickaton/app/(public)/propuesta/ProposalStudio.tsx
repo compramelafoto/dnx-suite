@@ -41,6 +41,8 @@ export function ProposalStudio({ pieces, defaultPeriod }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [armandoPdf, setArmandoPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  // Código con el que se recupera la propuesta. Llega por cabecera del PDF.
+  const [guardada, setGuardada] = useState<{ code: string; vence: string | null } | null>(null);
   const urlsRef = useRef<string[]>([]);
   const fieldId = useId();
 
@@ -113,6 +115,9 @@ export function ProposalStudio({ pieces, defaultPeriod }: Props) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? "No se pudo armar el PDF.");
       }
+
+      const codigo = res.headers.get("x-propuesta-codigo");
+      setGuardada(codigo ? { code: codigo, vence: res.headers.get("x-propuesta-vence") } : null);
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -269,6 +274,26 @@ export function ProposalStudio({ pieces, defaultPeriod }: Props) {
           </span>
           {pdfError ? <span className="ck-body-sm text-ck-text-muted">{pdfError}</span> : null}
         </div>
+
+        {guardada ? (
+          <div className="rounded-lg border border-ck-border bg-ck-surface px-4 py-3">
+            <p className="ck-body-sm text-ck-text">
+              Se guardó como{" "}
+              <strong className="font-mono tracking-wider">{guardada.code}</strong>. Con
+              ese código se vuelve a abrir sin cargar nada de nuevo
+              {guardada.vence
+                ? `, hasta el ${new Date(guardada.vence).toLocaleDateString("es-AR")}`
+                : ""}
+              .
+            </p>
+            <a
+              href={`/propuesta/${guardada.code}`}
+              className="ck-body-sm mt-1 inline-block underline"
+            >
+              /propuesta/{guardada.code}
+            </a>
+          </div>
+        ) : null}
       </div>
     </div>
   );

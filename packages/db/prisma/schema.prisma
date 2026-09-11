@@ -8219,7 +8219,6 @@ model BookingExtraLine {
   @@index([extraId])
 }
 
-
 /// Un sorteo entre socios, con premios donados por marcas aliadas.
 ///
 /// El requisito que ordena el diseño no es sortear —eso es fácil— sino que el socio pueda
@@ -8315,11 +8314,11 @@ model RafflePrize {
   /// Orden de extracción. Entra en el cálculo del ganador: cambiarlo cambiaría el resultado.
   order Int
 
-  title              String
-  description        String?
-  conditions         String?
-  pickupInstructions String?
-  pickupDeadline     DateTime?
+  title               String
+  description         String?
+  conditions          String?
+  pickupInstructions  String?
+  pickupDeadline      DateTime?
   /// En centavos, sólo informativo. Nunca se cobra nada en este módulo.
   estimatedValueMinor Int?
 
@@ -14973,6 +14972,101 @@ model DnxPartnerInventoryBooking {
   @@index([partnerId, status])
   @@index([soldByOrganizationId, status])
   @@index([status, endsAt])
+}
+
+enum DnxPartnerProposalStatus {
+  DRAFT
+  READY
+  CONVERTED
+  EXPIRED
+}
+
+enum DnxPartnerProposalItemKind {
+  DIGITAL_PLACEMENT
+  PHYSICAL
+  MERCHANDISING
+  MENTION
+}
+
+enum DnxPartnerProposalItemSelection {
+  INCLUDED
+  OPTIONAL
+  EXCLUDED
+}
+
+/// Una propuesta comercial armada en `/propuesta`, guardada para poder
+/// recuperarla con un código corto.
+///
+/// Es deliberadamente efímera: vence a los treinta días y una tarea diaria la
+/// borra junto con su logo. La alternativa —crear el sponsor al armar la
+/// propuesta— llenaría la cartera real de marcas que nunca contestaron.
+///
+/// El logo se guarda en el mismo namespace que los logos de sponsors, así al
+/// convertir la propuesta no hay que volver a subirlo.
+model DnxPartnerProposal {
+  id                 String                   @id @default(cuid())
+  /// `PR-` más seis caracteres de un alfabeto sin ambiguos. Se dicta por
+  /// teléfono, así que no lleva `O`/`0` ni `I`/`1`.
+  code               String                   @unique
+  status             DnxPartnerProposalStatus @default(READY)
+  brandName          String
+  industry           String?
+  /// Sitio o Instagram del prospecto, si el vendedor lo cargó.
+  contactUrl         String?
+  /// Período que cubre la propuesta. El mismo que se usó para mirar el cupo.
+  periodStart        DateTime
+  periodEnd          DateTime
+  /// Clave en R2. Nulo cuando el logo ya se borró por vencimiento.
+  logoStorageKey     String?
+  /// Ancho, alto, mime y tratamiento de placa medido.
+  logoMeta           Json?
+  /// Último PDF generado, si algún día se cachea. Hoy se rearma al recuperarla.
+  pdfStorageKey      String?
+  /// Nulo cuando se generó sin sesión, que es el caso normal.
+  createdByUserId    Int?
+  /// Hash efímero del cliente que la generó. Sin dato personal: sirve para
+  /// investigar un abuso, no para identificar a nadie.
+  clientKeyHash      String?
+  expiresAt          DateTime
+  /// Se llenan al dar de alta el sponsor desde la propuesta (etapa 4).
+  convertedPartnerId String?
+  convertedByUserId  Int?
+  convertedAt        DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  items DnxPartnerProposalItem[]
+
+  @@index([status, expiresAt])
+  @@index([brandName])
+}
+
+/// Las líneas de una propuesta.
+///
+/// Las columnas comerciales (`unitPriceMinor`, `currency`) nacen nulas a
+/// propósito: es lo que permite que el presupuestador futuro las complete sin
+/// migrar datos.
+model DnxPartnerProposalItem {
+  id             String                          @id @default(cuid())
+  proposalId     String
+  kind           DnxPartnerProposalItemKind      @default(DIGITAL_PLACEMENT)
+  /// Identificador de la pieza del catálogo (`PROPOSAL_PIECES`).
+  pieceId        String?
+  /// Clave del catálogo técnico (`AD_PLACEMENT_CATALOG`).
+  placementKey   String?
+  label          String
+  /// En qué pantalla aparece, tal como se lee en el PDF.
+  location       String?
+  quantity       Int                             @default(1)
+  unitPriceMinor Int?
+  currency       String?
+  selection      DnxPartnerProposalItemSelection @default(INCLUDED)
+  sortOrder      Int                             @default(0)
+  createdAt      DateTime                        @default(now())
+
+  proposal DnxPartnerProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId, sortOrder])
 }
 
 enum DnxPartnerPublicVisibility {
