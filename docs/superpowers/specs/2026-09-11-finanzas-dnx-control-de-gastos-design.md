@@ -169,7 +169,8 @@ enum nuevo obliga a tocar las cinco bases. El catálogo de claves válidas vive 
 | `fxRate` | Decimal(12,4)? | dólar usado; nulo si la factura ya es en ARS |
 | `taxPercent` | Decimal(5,2) | impuestos sobre consumo en dólares |
 | `amountArs` | Decimal(14,2) | **calculado y guardado** — congela el histórico |
-| `status` | String | `ESTIMADO`, `CONFIRMADO`, `PAGADO` |
+| `status` | String | `ESTIMADO`, `FACTURADO`, `PAGADO`, `RECHAZADO`, `IMPAGO`, `REEMBOLSADO` |
+| `amountRefunded` | Decimal(12,2)? | reembolso parcial o total |
 | `source` | String | `MANUAL`, `IMPORTADO`, `API` |
 | `invoiceUrl` | String? | comprobante en R2 (etapa posterior) |
 | `notes` | String? | |
@@ -208,6 +209,23 @@ netArs = grossArs − processorFeeArs − payoutToThirdPartiesArs
 La distinción entre `grossArs` y `netArs` es la que hace que la comparación sirva. En
 CompraMeLaFoto la venta bruta no es ingreso propio: el ingreso es la comisión de
 plataforma. Comparar gastos contra venta bruta daría un margen inventado.
+
+### Facturado no es pagado
+
+El relevamiento real de septiembre 2026 mostró que esta distinción no es teórica: hay
+facturas emitidas que **nunca se cobraron** porque la tarjeta las rechazó, y cobros que se
+hicieron y después se **reembolsaron** casi por completo. Contar lo facturado como gasto
+daría un número inflado; contar solo lo pagado escondería una deuda que puede dar de baja
+un servicio.
+
+Por eso el Resumen muestra **tres cifras separadas**:
+
+- **Facturado** del mes: lo que emitieron los proveedores.
+- **Pagado** del mes: lo que efectivamente salió de la cuenta, neto de reembolsos.
+- **Deuda acumulada**: facturas en `RECHAZADO` o `IMPAGO` que siguen abiertas.
+
+La deuda acumulada va con aviso visible, porque un servicio impago no es un ahorro: es un
+apagón esperando.
 
 ## 7. Moneda, tipo de cambio e impuestos
 
