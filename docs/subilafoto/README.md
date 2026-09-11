@@ -21,6 +21,7 @@ nada, la IA las modera y las aprobadas aparecen en la pantalla del salón y en e
 | [06-migraciones-pruebas-y-despliegue.md](./06-migraciones-pruebas-y-despliegue.md) | Las 5 bases, el plan de pruebas y el rollback |
 | [07-riesgos-y-decisiones-abiertas.md](./07-riesgos-y-decisiones-abiertas.md) | Riesgos vivos y las decisiones que faltan resolver |
 | [08-identidad-visual.md](./08-identidad-visual.md) | Tokens de marca, contraste y reglas del manual que afectan al código |
+| [09-infraestructura.md](./09-infraestructura.md) | Dominio, DNS, Vercel, bucket R2 y lo que falta de AWS |
 
 ## Decisiones tomadas el 2026-09-11
 

@@ -35,9 +35,12 @@ se apila encima.
 - [x] Resolver base de datos y estrategia de tiempo real
 - [x] Modelo de datos, mapa de pantallas, roles
 - [x] Backlog y cronograma
-- [ ] **Resolver las decisiones abiertas bloqueantes** (ver doc 07)
-- [ ] Crear el proyecto en Vercel y apuntar `subilafoto.com`
-- [ ] Verificar que la cuenta AWS de Rekognition admite `DetectModerationLabels` en la región en uso
+- [x] Resolver las decisiones bloqueantes (3 de 4; ver doc 07)
+- [x] Crear el proyecto en Vercel y apuntar `subilafoto.com` (ver doc 09)
+- [x] Verificar `DetectModerationLabels`: responde en `us-east-1`, modelo 7.0
+- [x] Bucket R2 `subilafoto-media` con borrado a 30 días
+- [ ] Usuario IAM propio para Rekognition — lo hace el titular (doc 09)
+- [ ] Mergear el PR #41 para que `main` tenga la app
 
 **Salida:** plan aprobado. Sin esto no arranca la Etapa 1.
 
