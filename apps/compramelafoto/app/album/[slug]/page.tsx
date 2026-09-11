@@ -158,6 +158,7 @@ const selectAlbumBase = {
   printPricingSource: true,
   showComingSoonMessage: true,
   hiddenPhotosEnabled: true,
+  scanProtectionEnabled: true,
   enableFaceBulkPurchase: true,
   faceBulkPriceCents: true,
   albumPackPayEnabled: true,
@@ -687,6 +688,8 @@ export default async function AlbumPublicPage({
               expirationExtensionDays: (album as any).expirationExtensionDays ?? 0,
               showComingSoonMessage: album.showComingSoonMessage,
               hiddenPhotosEnabled,
+              scanProtectionEnabled:
+                (album as { scanProtectionEnabled?: boolean }).scanProtectionEnabled !== false,
               enableFaceBulkPurchase: Boolean((album as any).enableFaceBulkPurchase),
               faceBulkPriceCents:
                 typeof (album as any).faceBulkPriceCents === "number"
