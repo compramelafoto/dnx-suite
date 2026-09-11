@@ -17,7 +17,15 @@ export async function GET() {
     const eventos = await prisma.subilafotoEvent.count();
     resultado.base = { ok: true, perfiles, eventos };
   } catch (e) {
-    resultado.base = { ok: false, error: e instanceof Error ? e.name : "desconocido" };
+    const err = e as { name?: string; code?: string; meta?: unknown };
+    resultado.base = {
+      ok: false,
+      error: err.name ?? "desconocido",
+      // El código de Prisma dice qué pasó: P2021 = la tabla no existe,
+      // P1001 = no llega a la base, P1017 = la conexión se cerró.
+      code: err.code ?? null,
+      meta: err.meta ?? null,
+    };
   }
 
   try {
@@ -47,7 +55,18 @@ export async function GET() {
     resultado.moderacion = { ok: false, error: e instanceof Error ? e.name : "desconocido" };
   }
 
+  // Sólo el host de la base, nunca usuario ni contraseña: alcanza para saber
+  // si la app está hablando con la base que creemos.
+  let hostBase: string | null = null;
+  try {
+    const url = process.env.DATABASE_URL;
+    hostBase = url ? new URL(url).hostname : null;
+  } catch {
+    hostBase = "url ilegible";
+  }
+
   resultado.configuracion = {
+    hostBase,
     tieneGoogle: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
     tieneAuthSecret: Boolean(process.env.AUTH_SECRET),
     authUrl: process.env.AUTH_URL ?? null,
