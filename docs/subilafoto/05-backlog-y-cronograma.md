@@ -23,6 +23,7 @@ se apila encima.
 | Requisito del capítulo 26.1 | Recomendación |
 |---|---|
 | "Biblioteca inicial de plantillas de buena calidad" | **6 plantillas**, no una biblioteca. Seis excelentes valen más que veinte mediocres |
+| "Versiones para pantalla, mesa, cartel, historia" | Las cinco piezas del documento 04. Se generan con `@repo/design-studio`, que ya existe |
 | "Métricas operativas básicas" | Sólo contadores en el panel del evento. Sin panel de analítica |
 | "Detección básica de duplicados" | El `@unique` por checksum. Nada de similitud perceptual |
 | "Panel del cliente" | Ver el álbum, comprar la descarga, bajar el paquete. Nada más |
@@ -72,6 +73,7 @@ se apila encima.
 | 2.10 | Pantalla 16:9 con precarga | 30 minutos proyectando sin fugas de memoria ni parpadeos |
 | 2.11 | Control remoto | Ocultar una foto la saca de la pantalla en menos de 2 segundos |
 | 2.12 | Cierre automático a las 12 horas | Un cron cierra el evento y la pantalla pasa a la placa de cierre |
+| 2.13 | Materiales impresos con QR y logo del vendedor | El PDF del centro de mesa sale con sangrado y su propio QR se decodifica y valida antes de permitir la descarga |
 
 **Salida:** el recorrido completo QR → carga → moderación → pantalla, probado en un celular
 y un televisor reales.

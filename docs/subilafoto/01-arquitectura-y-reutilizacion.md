@@ -24,6 +24,7 @@ empresas de DNX Partners y el motor de notificaciones. Lo único verdaderamente 
 | Paquete ZIP y entrega | **Reutilizar** | `ZipGenerationJob`, `OrderDownloadToken`, `app/api/downloads/[token]`, `app/api/orders/[id]/zip-status` en CLF | Bajo |
 | Emails y secuencias | **Reutilizar** | `packages/notifications` (`engine`, `scheduling`, `deduplication`, `preferences`) + `packages/communications` + Resend | Bajo: `deduplication` resuelve el "sin mensajes duplicados" del capítulo 6.6 |
 | QR | **Reutilizar** | `qrcode ^1.5.4` en Fotoffice, CLF, FotoRank y Clickatón | Bajo |
+| PDF para imprenta | **Reutilizar** | `@repo/design-studio` (`emitDesign`) genera PDF con sangrado; lo usa el carnet de socio en `apps/fotoffice/lib/carnet/render.ts` | Bajo |
 | Empresas y proveedores | **Reutilizar** | `packages/partners` — `DnxPartner`, `DnxPartnerContact`, onboarding por token (`onboarding-token.ts`), `slug.ts`, `validate.ts` | Bajo. **Sin activar campañas ni sponsors** (capítulo 33) |
 | Plantillas visuales | **Extender** | `packages/template-engine`, `template-engine-renderer`, `design-studio`, `TemplateV2*` en el schema | Medio: son plantillas de impresión, no de pantalla. Ver abajo |
 | Auditoría | **Reutilizar** | Patrón `MemberAudit` (Fotoffice) y `OrderAuditLog` / `AdminLog` (CLF) | Bajo |

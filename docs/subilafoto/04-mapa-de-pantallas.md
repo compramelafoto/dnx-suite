@@ -116,6 +116,46 @@ La carrera peligrosa está al final: alguien paga a las 23:58 del día 30 y el b
 a las 00:00. La defensa es un candado — el borrado no toca un evento con un pago iniciado
 en las últimas horas — más la ventana de gracia que el propio documento pide definir.
 
+## Materiales impresos del evento
+
+La pantalla 23 no es "un botón que baja un PNG del QR". Es lo que el fotógrafo lleva
+impreso al salón, y es la primera cosa que ve un invitado del producto.
+
+**Cada pieza lleva el logo de quien vende el evento** — fotógrafo, DJ, salón, productora o
+quien sea. El capítulo 18 no lo decía; es un requisito agregado el 2026-09-11. La marca que
+el invitado ve en la mesa es la de quien contrató, no la de Subí la Foto.
+
+Piezas del lanzamiento:
+
+| Pieza | Formato | Para qué |
+|---|---|---|
+| Centro de mesa | PDF A5 y cuadrado 15×15, con sangrado | Se imprime y se para en cada mesa |
+| Cartel de entrada | PDF A4 y A3 | Recibe a la gente |
+| Placa de pantalla | PNG 1920×1080 | Se proyecta entre fotos |
+| Historia para redes | PNG 1080×1920 | El anfitrión lo manda por WhatsApp antes |
+| QR suelto | PNG y SVG | Para que el fotógrafo arme su propia pieza |
+
+Cada pieza combina: el QR del evento, el logo del vendedor, el nombre del evento, la
+instrucción en una línea y el código escrito como alternativa para quien no logra escanear.
+
+**Se genera con `@repo/design-studio`**, que ya produce PDF con sangrado listo para imprenta
+y resuelve las imágenes por bytes — es el mismo motor que emite el carnet de socio de
+Fotoffice (`apps/fotoffice/lib/carnet/render.ts`). No hay que escribir un generador de PDF.
+
+Tres reglas que evitan el papelón en el salón:
+
+1. **Prueba de lectura antes de descargar.** El sistema decodifica su propio QR y verifica
+   que apunte a la URL correcta. Un QR ilegible impreso en cuarenta centros de mesa no tiene
+   arreglo el día del evento.
+2. **Contraste obligatorio.** El QR va oscuro sobre claro, nunca amarillo sobre violeta por
+   más lindo que quede: los lectores necesitan contraste real.
+3. **El código escrito siempre.** Debajo del QR va el código en texto, para el invitado cuya
+   cámara no lo toma.
+
+El logo del vendedor sale de su perfil de venta (`SubilafotoSellerProfile.logoUrl`). Si no
+cargó ninguno, la pieza sale sin logo y limpia — nunca con un espacio vacío ni con un
+"tu logo acá".
+
 ## Criterios visuales
 
 - **Móvil primero de verdad.** La pantalla 6 (subir) se diseña para un pulgar en un salón
