@@ -320,6 +320,8 @@ model User {
   memberInvitationsSent               MemberInvitation[]                 @relation("MemberInvitationInviter")
   memberInvitationsAccepted           MemberInvitation[]                 @relation("MemberInvitationAcceptor")
   voidedRecommendationBenefits        MembershipRecommendationBenefit[]  @relation("RecommendationBenefitVoider")
+  subilafotoSellerProfiles            SubilafotoSellerProfile[]
+  subilafotoCollaborations            SubilafotoCollaborator[]
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -8821,6 +8823,7 @@ enum SuiteApp {
   FOTOFFICE
   COMPRAMELAFOTO
   FOTORANK
+  SUBILAFOTO
 }
 
 enum SuiteAppRole {
@@ -16642,4 +16645,518 @@ model WorkspaceFeeLedgerEntry {
   @@index([workspaceId, createdAt])
   @@index([membershipPaymentId])
   @@index([bookingId])
+}
+
+// ============================================================================
+// SUBÍ LA FOTO
+// Eventos con fotos de invitados: QR → carga → moderación → pantalla → álbum.
+// Modelo de datos: docs/subilafoto/02-modelo-de-datos.md
+//
+// Todo el dinero va en centavos enteros. Nada de Float.
+// ============================================================================
+
+enum SubilafotoEventStatus {
+  CONFIGURING
+  SCHEDULED
+  ACTIVE
+  CLOSED
+  ARCHIVED
+  CANCELLED
+}
+
+enum SubilafotoOrderKind {
+  EVENT
+  DOWNLOAD_ADDON
+}
+
+enum SubilafotoOrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  DISPUTED
+}
+
+enum SubilafotoDownloadStatus {
+  NOT_OFFERED
+  OFFERED
+  PURCHASED
+  DELIVERED
+  EXPIRED
+}
+
+enum SubilafotoDownloadMode {
+  INCLUDED
+  PERCENT
+  FIXED
+}
+
+enum SubilafotoEventType {
+  BODA
+  QUINCE
+  CUMPLEANOS
+  ANIVERSARIO
+  BAUTISMO_COMUNION
+  EGRESO_ACTO_ESCOLAR
+  FIESTA_EMPRESARIAL
+  CONGRESO
+  CONVENCION
+  CONFERENCIA
+  JORNADA_SEMINARIO
+  EXPOSICION_FERIA
+  LANZAMIENTO
+  INSTITUCIONAL
+  DEPORTIVO
+  RECITAL
+  GASTRONOMICO
+  ASOCIACION
+  VIAJE_GRUPAL
+  OTRO
+}
+
+enum SubilafotoVisibility {
+  LINK_ONLY
+  CODE_REQUIRED
+  UNLISTED
+}
+
+enum SubilafotoModerationProfile {
+  FAMILIAR
+  SOCIAL
+  EMPRESARIAL
+}
+
+/// El orden importa: sólo APPROVED con publishedAt llega a la pantalla.
+/// Un error del proveedor de IA cae en REVIEW_REQUIRED, nunca en APPROVED.
+enum SubilafotoMediaStatus {
+  UPLOADING
+  PROCESSING
+  APPROVED
+  REVIEW_REQUIRED
+  BLOCKED
+  HIDDEN
+  DELETED
+}
+
+enum SubilafotoMediaKind {
+  PHOTO
+  VIDEO
+  MESSAGE
+}
+
+enum SubilafotoMediaOrigin {
+  GUEST
+  PHOTOGRAPHER
+  ORGANIZER
+  IMPORTED
+}
+
+enum SubilafotoScreenMode {
+  FULL_PHOTO
+  MOSAIC
+  CAROUSEL
+  COLLAGE
+  RAIN
+  MESSAGES
+  FEATURED
+  QR_CARD
+  COVER_PAUSE
+  CLOSING
+}
+
+enum SubilafotoLinkKind {
+  GUEST
+  SCREEN
+  DEMO_GUEST
+  DEMO_SCREEN
+  VENDOR
+  CLIENT
+}
+
+enum SubilafotoCollaboratorRole {
+  MODERATOR
+  SCREEN_OPERATOR
+  EVENT_ADMIN
+}
+
+enum SubilafotoPackageStatus {
+  QUEUED
+  BUILDING
+  READY
+  FAILED
+  EXPIRED
+  PURGED
+}
+
+enum SubilafotoConsentKind {
+  TERMS
+  PROMOTIONAL_USE
+  MINOR_AUTHORIZATION
+}
+
+/// Perfil de venta del profesional. Su enlace permanente: subilafoto.com/v/[slug]
+model SubilafotoSellerProfile {
+  id                 String                 @id @default(cuid())
+  userId             Int
+  workspaceId        String?
+  slug               String                 @unique
+  displayName        String
+  headline           String?
+  description        String?
+  logoUrl            String?
+  coverUrl           String?
+  brandColor         String?
+  basePriceCents     Int                    @default(0)
+  currency           String                 @default("ARS")
+  downloadMode       SubilafotoDownloadMode @default(PERCENT)
+  downloadPercentBps Int?                   @default(1500)
+  downloadPriceCents Int?
+  termsText          String?
+  isPublished        Boolean                @default(false)
+  mpConnected        Boolean                @default(false)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  user   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events SubilafotoEvent[]
+  orders SubilafotoOrder[]
+
+  @@index([userId])
+  @@index([isPublished])
+}
+
+/// Venta. El evento se crea recién cuando esta orden queda PAID.
+/// platformFeeBps se congela acá: cambiar la comisión global no reescribe la historia.
+model SubilafotoOrder {
+  id               String                @id @default(cuid())
+  sellerProfileId  String
+  eventId          String?               @unique
+  kind             SubilafotoOrderKind
+  status           SubilafotoOrderStatus @default(PENDING)
+  buyerEmail       String
+  buyerName        String
+  buyerPhone       String?
+  amountCents      Int
+  currency         String                @default("ARS")
+  platformFeeBps   Int
+  platformFeeCents Int
+  sellerNetCents   Int
+  mpPreferenceId   String?
+  mpPaymentId      String?               @unique
+  mpCollectorId    String?
+  paidAt           DateTime?
+  refundedAt       DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  sellerProfile SubilafotoSellerProfile @relation(fields: [sellerProfileId], references: [id])
+  event         SubilafotoEvent?        @relation(fields: [eventId], references: [id])
+
+  @@index([sellerProfileId])
+  @@index([status, kind])
+  @@index([buyerEmail])
+}
+
+model SubilafotoEvent {
+  id                 String                      @id @default(cuid())
+  sellerProfileId    String
+  code               String                      @unique
+  screenCode         String                      @unique
+  slug               String?                     @unique
+  name               String
+  eventType          SubilafotoEventType         @default(OTRO)
+  description        String?
+  hostsLabel         String?
+  venueName          String?
+  venueAddress       String?
+  venueMapUrl        String?
+  timezone           String                      @default("America/Argentina/Buenos_Aires")
+  activationAt       DateTime?
+  windowHours        Int                         @default(12)
+  deactivationAt     DateTime?
+  status             SubilafotoEventStatus       @default(CONFIGURING)
+  closedAt           DateTime?
+  demoTestedAt       DateTime?
+  demoPurgedAt       DateTime?
+  templateId         String?
+  themeTokens        Json?
+  coverUrl           String?
+  closingCardText    String?
+  allowPhotos        Boolean                     @default(true)
+  allowVideos        Boolean                     @default(false)
+  allowMessages      Boolean                     @default(true)
+  askGuestName       Boolean                     @default(true)
+  allowAnonymous     Boolean                     @default(true)
+  maxUploadsPerGuest Int?                        @default(30)
+  visibility         SubilafotoVisibility        @default(LINK_ONLY)
+  accessCode         String?
+  guestsCanSeeAlbum  Boolean                     @default(true)
+  guestsCanDownload  Boolean                     @default(false)
+  moderationProfile  SubilafotoModerationProfile @default(SOCIAL)
+  downloadStatus     SubilafotoDownloadStatus    @default(NOT_OFFERED)
+  retentionUntil     DateTime?
+  purgedAt           DateTime?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  sellerProfile SubilafotoSellerProfile  @relation(fields: [sellerProfileId], references: [id])
+  template      SubilafotoTemplate?      @relation(fields: [templateId], references: [id])
+  order         SubilafotoOrder?
+  media         SubilafotoMedia[]
+  guests        SubilafotoGuestSession[]
+  screens       SubilafotoScreen[]
+  collaborators SubilafotoCollaborator[]
+  links         SubilafotoAccessLink[]
+  vendors       SubilafotoEventVendor[]
+  packages      SubilafotoPackage[]
+  consents      SubilafotoConsent[]
+  audits        SubilafotoAudit[]
+
+  @@index([sellerProfileId])
+  @@index([status, activationAt])
+  @@index([retentionUntil])
+}
+
+/// Plantilla visual de pantalla. Son datos (tokens de CSS), no un motor.
+model SubilafotoTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  previewUrl  String?
+  tokens      Json
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  events SubilafotoEvent[]
+
+  @@index([isActive, sortOrder])
+}
+
+model SubilafotoMedia {
+  id             String                @id @default(cuid())
+  eventId        String
+  guestSessionId String?
+  kind           SubilafotoMediaKind   @default(PHOTO)
+  origin         SubilafotoMediaOrigin @default(GUEST)
+  status         SubilafotoMediaStatus @default(UPLOADING)
+  isDemo         Boolean               @default(false)
+  originalKey    String
+  originalBytes  Int?
+  width          Int?
+  height         Int?
+  contentType    String?
+  checksum       String?
+  guestName      String?
+  caption        String?
+  isFeatured     Boolean               @default(false)
+  hiddenAt       DateTime?
+  hiddenByUserId Int?
+  publishedAt    DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  event      SubilafotoEvent               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guest      SubilafotoGuestSession?       @relation(fields: [guestSessionId], references: [id])
+  variants   SubilafotoMediaVariant[]
+  moderation SubilafotoModerationDecision[]
+
+  @@unique([eventId, checksum])
+  @@index([eventId, status, publishedAt])
+  @@index([status, createdAt])
+  @@index([guestSessionId])
+}
+
+model SubilafotoMediaVariant {
+  id          String   @id @default(cuid())
+  mediaId     String
+  label       String
+  storageKey  String
+  width       Int?
+  height      Int?
+  bytes       Int?
+  contentType String?
+  createdAt   DateTime @default(now())
+
+  media SubilafotoMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, label])
+}
+
+/// Una fila por intento de análisis. Nunca se pisa: es la auditoría de la IA.
+model SubilafotoModerationDecision {
+  id             String                      @id @default(cuid())
+  mediaId        String
+  provider       String
+  providerModel  String?
+  policyVersion  String
+  profile        SubilafotoModerationProfile
+  decision       SubilafotoMediaStatus
+  labels         Json?
+  topLabel       String?
+  topConfidence  Float?
+  latencyMs      Int?
+  errorCode      String?
+  attempt        Int                         @default(1)
+  decidedAt      DateTime                    @default(now())
+  overriddenBy   Int?
+  overrideReason String?
+  overriddenAt   DateTime?
+
+  media SubilafotoMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([mediaId, decidedAt])
+  @@index([decision, decidedAt])
+}
+
+/// El invitado no tiene cuenta: esto es una cookie firmada, no un usuario.
+model SubilafotoGuestSession {
+  id           String   @id @default(cuid())
+  eventId      String
+  token        String   @unique
+  displayName  String?
+  contactEmail String?
+  contactPhone String?
+  isDemo       Boolean  @default(false)
+  uploadCount  Int      @default(0)
+  ipHash       String?
+  userAgent    String?
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @updatedAt
+
+  event SubilafotoEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  media SubilafotoMedia[]
+
+  @@index([eventId, lastSeenAt])
+}
+
+model SubilafotoScreen {
+  id          String               @id @default(cuid())
+  eventId     String
+  label       String?
+  pairingCode String               @unique
+  mode        SubilafotoScreenMode @default(FULL_PHOTO)
+  isPaused    Boolean              @default(false)
+  showQr      Boolean              @default(true)
+  speedMs     Int                  @default(6000)
+  lastSeenAt  DateTime?
+  connectedAt DateTime?
+  createdAt   DateTime             @default(now())
+
+  event SubilafotoEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+/// QR y enlaces. El del invitado y el de la pantalla son distintos a propósito.
+model SubilafotoAccessLink {
+  id         String             @id @default(cuid())
+  eventId    String
+  kind       SubilafotoLinkKind
+  token      String             @unique
+  label      String?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  usageCount Int                @default(0)
+  createdAt  DateTime           @default(now())
+
+  event SubilafotoEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, kind])
+}
+
+model SubilafotoCollaborator {
+  id         String                     @id @default(cuid())
+  eventId    String
+  userId     Int?
+  email      String?
+  role       SubilafotoCollaboratorRole
+  invitedAt  DateTime                   @default(now())
+  acceptedAt DateTime?
+  revokedAt  DateTime?
+
+  event SubilafotoEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId, role])
+}
+
+/// El vínculo con el evento. Los datos de la empresa viven en DnxPartner.
+model SubilafotoEventVendor {
+  id              String    @id @default(cuid())
+  eventId         String
+  partnerId       String
+  category        String
+  roleNote        String?
+  invitedAt       DateTime?
+  completedAt     DateTime?
+  invitationToken String?   @unique
+  createdAt       DateTime  @default(now())
+
+  event SubilafotoEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, partnerId])
+  @@index([partnerId])
+}
+
+model SubilafotoPackage {
+  id             String                  @id @default(cuid())
+  eventId        String
+  status         SubilafotoPackageStatus @default(QUEUED)
+  partIndex      Int                     @default(1)
+  partCount      Int                     @default(1)
+  storageKey     String?
+  bytes          BigInt?
+  itemCount      Int?
+  manifest       Json?
+  checksum       String?
+  downloadToken  String?                 @unique
+  tokenExpiresAt DateTime?
+  regenerations  Int                     @default(0)
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime                @default(now())
+
+  event SubilafotoEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, status])
+}
+
+/// Qué aceptó cada quién y cuándo. Es prueba, no configuración.
+model SubilafotoConsent {
+  id              String                @id @default(cuid())
+  eventId         String
+  guestSessionId  String?
+  subjectEmail    String?
+  kind            SubilafotoConsentKind
+  documentVersion String
+  accepted        Boolean
+  ipHash          String?
+  acceptedAt      DateTime              @default(now())
+
+  event SubilafotoEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, kind])
+}
+
+model SubilafotoAudit {
+  id          String   @id @default(cuid())
+  eventId     String?
+  actorUserId Int?
+  actorKind   String
+  action      String
+  targetType  String?
+  targetId    String?
+  metadata    Json?
+  ipHash      String?
+  createdAt   DateTime @default(now())
+
+  event SubilafotoEvent? @relation(fields: [eventId], references: [id])
+
+  @@index([eventId, createdAt])
+  @@index([action, createdAt])
 }
