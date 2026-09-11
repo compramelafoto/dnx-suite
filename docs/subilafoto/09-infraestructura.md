@@ -94,15 +94,38 @@ No hay casilla en `subilafoto.com`. Por eso la página no publica ninguna direcc
 contacto: un correo que rebota es peor que no tener ninguno. Cuando exista `hola@` o
 similar, se agrega a la página y a los emails del sistema como remitente.
 
-## Variables de entorno pendientes en Vercel
+## Variables de entorno en Vercel
+
+Verificado en producción el 2026-09-11 con `/api/diagnostico`:
 
 | Variable | Para qué | Estado |
 |---|---|---|
-| `DATABASE_URL` / `DIRECT_URL` | Base de CompraMeLaFoto, rama `production` | Falta |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | Moderación | Falta la cuenta propia |
+| `DATABASE_URL` / `DIRECT_URL` | Base de CompraMeLaFoto, rama `production` | ✅ |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | Moderación, usuario propio `subilafoto-moderacion` | ✅ |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `AUTH_SECRET` / `AUTH_URL` | Login unificado con la suite | ✅ cargadas |
 | `R2_*` | Bucket `subilafoto-media` | Falta |
 | `MP_*` | OAuth de Mercado Pago | Etapa 3 |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Login con Google, **proyecto OAuth propio** | Etapa 1 |
+
+**La moderación desde Vercel tarda ~100 ms**, no los 2,7 a 11 segundos medidos desde
+Argentina. El costo era la distancia hasta Virginia, no el servicio. Sigue valiendo que la
+cola sea asíncrona, pero el margen es mucho más cómodo de lo que parecía.
+
+### La trampa de las dos filas
+
+Al configurar esto se perdió media hora con un `P2021 — la tabla no existe` que en realidad
+decía "estás en otra base". Los proyectos de Vercel tienen **dos entradas** de
+`DATABASE_URL`: la de `production` apunta a la base real y la de `preview` a
+`dnx-suite-staging` (`ep-round-fog`). En la pantalla se llaman igual.
+
+Peor: la de producción es de tipo **sensitive**, que Vercel no deja revelar nunca, y la de
+preview es **encrypted**, que sí. O sea que la única copiable es la equivocada.
+
+**El valor correcto se saca de Neon**, no de Vercel: consola → proyecto `compramelafoto` →
+rama `production` → Connect. Con "Connection pooling" encendido para `DATABASE_URL` y
+apagado para `DIRECT_URL`.
+
+Ante un `P2021` en una app nueva, lo primero es mirar el **host** de la base, no la
+migración.
 
 ## Autenticación: unificada con el resto de DNX Suite
 
