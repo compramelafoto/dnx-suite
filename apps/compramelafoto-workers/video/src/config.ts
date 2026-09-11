@@ -18,6 +18,10 @@ const envSchema = z.object({
   VIDEO_WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(10_000),
   VIDEO_WORKER_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
   VIDEO_WORKER_STALE_JOB_MINUTES: z.coerce.number().int().positive().default(30),
+  /// Tope de videos por corrida en modo "drain" (Cloud Run Job / GitHub Actions).
+  VIDEO_WORKER_DRAIN_MAX: z.coerce.number().int().positive().default(10),
+  /// Fotogramas por video para reconocimiento facial. 0 apaga la extracción.
+  VIDEO_WORKER_FRAME_COUNT: z.coerce.number().int().min(0).default(20),
 });
 
 export type WorkerConfig = z.infer<typeof envSchema> & { r2BucketName: string };

@@ -2354,6 +2354,7 @@ model Album {
   cameraUploadLogs                CameraUploadLog[]
   cameraIngestJobs                CameraIngestJob[]
   albumFolders                    AlbumFolder[]
+  videoFrames                     VideoFrame[]
 
   @@index([userId])
   @@index([creatorId])
@@ -3424,6 +3425,8 @@ model VideoAsset {
   eventFolder          EventFolder?          @relation(fields: [eventFolderId], references: [id], onDelete: SetNull)
   uploadedBy           User?                 @relation("VideoUploader", fields: [userId], references: [id], onDelete: SetNull)
   processingJob        VideoProcessingJob?
+  frames               VideoFrame[]
+  frameMatches         VideoFrameMatch[]
 
   @@index([albumId])
   @@index([userId])
@@ -3449,6 +3452,79 @@ model VideoProcessingJob {
   @@index([status])
   @@index([runAfter])
   @@index([lockedAt])
+}
+
+/// Fotograma extraído de un video para reconocimiento facial.
+///
+/// Se extrae del archivo ORIGINAL, no de la preview: la marca de agua quemada y
+/// la compresión de la preview arruinan la detección de caras. El segundo exacto
+/// es lo que permite llevar al cliente al momento del video donde aparece.
+model VideoFrame {
+  id             Int                 @id @default(autoincrement())
+  videoId        Int
+  albumId        Int
+  /// Key del JPG en R2: albums/{albumId}/videos/frames/{videoId}/{ms}.jpg
+  key            String              @unique
+  /// Segundo del video donde se tomó el fotograma.
+  timeSeconds    Float
+  width          Int?
+  height         Int?
+  /// Nitidez 0-100 que reporta el detector. En video mucha cara sale movida, así
+  /// que se extraen más fotogramas de los necesarios y se priorizan los nítidos.
+  sharpness      Float?
+  facesCount     Int                 @default(0)
+  analysisStatus PhotoAnalysisStatus @default(PENDING)
+  analysisError  String?
+  analyzedAt     DateTime?
+  createdAt      DateTime            @default(now())
+  album          Album               @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  video          VideoAsset          @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  faces          VideoFrameFace[]
+  matches        VideoFrameMatch[]   @relation("VideoFrameMatchFrame")
+
+  @@unique([videoId, timeSeconds])
+  @@index([videoId])
+  @@index([albumId])
+  @@index([analysisStatus])
+}
+
+/// Cara detectada en un fotograma e indexada en la colección de Rekognition.
+/// Equivale a FaceDetection, que está atada a una Photo.
+model VideoFrameFace {
+  id                Int        @id @default(autoincrement())
+  videoFrameId      Int
+  rekognitionFaceId String     @unique
+  confidence        Float?
+  bbox              Json
+  createdAt         DateTime   @default(now())
+  videoFrame        VideoFrame @relation(fields: [videoFrameId], references: [id], onDelete: Cascade)
+
+  @@index([videoFrameId])
+}
+
+/// "Esta persona aparece en este video, en este segundo."
+///
+/// Una fila por persona y video: se guarda la mejor coincidencia, no todas. Al
+/// cliente le sirve el momento donde se lo ve mejor, no una lista de 20 cuadros.
+model VideoFrameMatch {
+  id           Int         @id @default(autoincrement())
+  subjectId    Int
+  videoId      Int
+  videoFrameId Int?
+  /// Segundo del video para el reproductor.
+  timeSeconds  Float
+  confidence   Float?
+  isManual     Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  subject      Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  video        VideoAsset  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  videoFrame   VideoFrame? @relation("VideoFrameMatchFrame", fields: [videoFrameId], references: [id], onDelete: SetNull)
+
+  @@unique([subjectId, videoId])
+  @@index([subjectId])
+  @@index([videoId])
+  @@index([videoFrameId])
 }
 
 enum CameraConnectionAssignmentMode {
@@ -3838,24 +3914,25 @@ model PreCompraOrderItem {
 
 /// * Niño/sujeto por familia (nombre ej. "Gime"); vinculado a orden y álbum
 model Subject {
-  id               Int                  @id @default(autoincrement())
-  albumId          Int
+  id                Int                  @id @default(autoincrement())
+  albumId           Int
   /// ej. "Gime" o "Nombre Apellido" (backward compat)
-  label            String
-  createdByOrderId Int?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  firstName        String?
-  lastName         String?
-  schoolCourseId   Int?
-  faceMatches      FaceMatch[]
-  photoClaims      PhotoClaim[]
-  orderItems       PreCompraOrderItem[]
-  selectionPhotos  SelectionPhoto[]
-  album            Album                @relation(fields: [albumId], references: [id], onDelete: Cascade)
-  createdByOrder   PreCompraOrder?      @relation(fields: [createdByOrderId], references: [id])
-  schoolCourse     SchoolCourse?        @relation(fields: [schoolCourseId], references: [id])
-  selfies          SubjectSelfie[]
+  label             String
+  createdByOrderId  Int?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  firstName         String?
+  lastName          String?
+  schoolCourseId    Int?
+  faceMatches       FaceMatch[]
+  videoFrameMatches VideoFrameMatch[]
+  photoClaims       PhotoClaim[]
+  orderItems        PreCompraOrderItem[]
+  selectionPhotos   SelectionPhoto[]
+  album             Album                @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  createdByOrder    PreCompraOrder?      @relation(fields: [createdByOrderId], references: [id])
+  schoolCourse      SchoolCourse?        @relation(fields: [schoolCourseId], references: [id])
+  selfies           SubjectSelfie[]
 
   @@index([albumId])
   @@index([createdByOrderId])

@@ -29,6 +29,31 @@ async function runLoop() {
   }
 }
 
+/**
+ * Procesa la cola hasta vaciarla (o hasta el tope) y termina.
+ *
+ * Es el modo para ejecución efímera: Cloud Run Job o GitHub Actions levantan el
+ * contenedor, drena lo que haya y se apaga. No hay máquina encendida esperando.
+ */
+async function runDrain() {
+  const config = getConfig();
+  const max = config.VIDEO_WORKER_DRAIN_MAX;
+
+  console.info("[video-worker] drain start", { max });
+
+  let processed = 0;
+  while (processed < max) {
+    const ran = await runProcessOnce(config);
+    if (!ran) break;
+    processed += 1;
+  }
+
+  const drained = processed < max;
+  console.info("[video-worker] drain done", { processed, max, queueEmpty: drained });
+  await disconnectPrisma();
+  process.exit(0);
+}
+
 async function main() {
   if (mode === "process-once") {
     const config = getConfig();
@@ -38,12 +63,17 @@ async function main() {
     return;
   }
 
+  if (mode === "drain") {
+    await runDrain();
+    return;
+  }
+
   if (mode === "start") {
     await runLoop();
     return;
   }
 
-  console.error(`Modo desconocido: ${mode}. Usá "start" o "process-once".`);
+  console.error(`Modo desconocido: ${mode}. Usá "start", "drain" o "process-once".`);
   process.exit(1);
 }
 

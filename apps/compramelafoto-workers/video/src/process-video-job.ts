@@ -9,6 +9,7 @@ import {
   generateThumbnail,
   probeVideo,
 } from "./ffmpeg.js";
+import { extractFrame, frameKey, planFrameTimes } from "./frames.js";
 import { getPrisma } from "./prisma.js";
 import {
   downloadFromR2,
@@ -123,6 +124,38 @@ async function markJobFailed(
   ]);
 }
 
+/**
+ * Cierra un job que no corresponde procesar (video borrado o vencido).
+ *
+ * No es un fallo del worker, así que no se reintenta: descargar de nuevo un
+ * original de cientos de megas para volver a descubrir que está vencido cuesta
+ * tiempo de máquina y no sirve para nada.
+ */
+async function markJobObsolete(
+  prisma: PrismaClient,
+  job: ClaimedJob,
+  reason: string
+) {
+  await prisma.$transaction([
+    prisma.videoProcessingJob.update({
+      where: { id: job.id },
+      data: {
+        status: "COMPLETED",
+        lastError: reason,
+        lockedAt: null,
+        runAfter: null,
+      },
+    }),
+    // EXPIRED es el estado terminal de "no se procesa más": el job ya lo tomó
+    // y lo dejó en PROCESSING, así que hay que sacarlo de ahí igual que si
+    // hubiera vencido, o el video queda colgado en "procesando" para siempre.
+    prisma.videoAsset.update({
+      where: { id: job.videoId },
+      data: { processingStatus: "EXPIRED", processingError: reason },
+    }),
+  ]);
+}
+
 async function markJobCompleted(
   prisma: PrismaClient,
   job: ClaimedJob,
@@ -161,6 +194,67 @@ async function markJobCompleted(
   ]);
 }
 
+/**
+ * Extrae fotogramas del original y los registra para el análisis facial.
+ *
+ * Corre DESPUÉS de que la preview quedó lista y fuera de la transacción del
+ * job: si la extracción falla, el video igual queda publicable. Reconocer caras
+ * es un extra, no una condición para vender.
+ */
+async function extractAndRegisterFrames(
+  prisma: PrismaClient,
+  config: WorkerConfig,
+  video: { id: number; albumId: number },
+  originalLocal: string,
+  workDir: string,
+  durationSeconds: number
+): Promise<number> {
+  const count = config.VIDEO_WORKER_FRAME_COUNT;
+  const tiempos = planFrameTimes({ durationSeconds, count });
+  if (tiempos.length === 0) return 0;
+
+  let registrados = 0;
+
+  for (const timeSeconds of tiempos) {
+    const frame = await extractFrame(originalLocal, workDir, timeSeconds);
+    if (!frame) continue;
+
+    const key = frameKey(video.albumId, video.id, timeSeconds);
+
+    try {
+      await uploadFileToR2(config, frame.localPath, key, "image/jpeg");
+      // El unique de (videoId, timeSeconds) hace que reprocesar no duplique.
+      await prisma.videoFrame.upsert({
+        where: { videoId_timeSeconds: { videoId: video.id, timeSeconds } },
+        create: {
+          videoId: video.id,
+          albumId: video.albumId,
+          key,
+          timeSeconds,
+          width: frame.width,
+          height: frame.height,
+        },
+        update: { key, width: frame.width, height: frame.height },
+      });
+      registrados += 1;
+    } catch (err: unknown) {
+      console.warn("[video-worker] no se pudo registrar el fotograma", {
+        videoId: video.id,
+        timeSeconds,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  console.info("[video-worker] fotogramas listos", {
+    videoId: video.id,
+    pedidos: tiempos.length,
+    registrados,
+  });
+
+  return registrados;
+}
+
 export async function processClaimedJob(
   config: WorkerConfig,
   job: ClaimedJob
@@ -175,12 +269,29 @@ export async function processClaimedJob(
       albumId: true,
       originalKey: true,
       isRemoved: true,
+      expiresAt: true,
     },
   });
 
-  if (!video || video.isRemoved) {
-    const msg = "Video no encontrado o eliminado";
+  if (!video) {
+    const msg = "Video no encontrado";
     await markJobFailed(prisma, job, msg, maxAttempts);
+    return { ok: false, error: msg };
+  }
+
+  // El fotógrafo lo borró mientras esperaba en la cola.
+  if (video.isRemoved) {
+    const msg = "Video eliminado por el fotógrafo";
+    console.info("[video-worker] job obsoleto", { videoId: video.id, reason: msg });
+    await markJobObsolete(prisma, job, msg);
+    return { ok: false, error: msg };
+  }
+
+  // Ya pasó su ventana de publicación: la galería pública no lo mostraría.
+  if (video.expiresAt.getTime() <= Date.now()) {
+    const msg = `Video vencido el ${video.expiresAt.toISOString().slice(0, 10)}`;
+    console.info("[video-worker] job obsoleto", { videoId: video.id, reason: msg });
+    await markJobObsolete(prisma, job, msg);
     return { ok: false, error: msg };
   }
 
@@ -224,11 +335,31 @@ export async function processClaimedJob(
       probe,
     });
 
+    // El video ya está publicable. Los fotogramas son un extra: si fallan, se
+    // loguea y el job queda completado igual.
+    let frames = 0;
+    try {
+      frames = await extractAndRegisterFrames(
+        prisma,
+        config,
+        video,
+        originalLocal,
+        workDir,
+        probe.durationSeconds
+      );
+    } catch (frameErr: unknown) {
+      console.warn("[video-worker] extracción de fotogramas falló", {
+        videoId: video.id,
+        error: frameErr instanceof Error ? frameErr.message : String(frameErr),
+      });
+    }
+
     console.info("[video-worker] completed", {
       jobId: job.id,
       videoId: video.id,
       albumId: video.albumId,
       durationSeconds: probe.durationSeconds,
+      frames,
     });
 
     return { ok: true };
