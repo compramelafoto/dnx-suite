@@ -315,6 +315,7 @@ export default function DashboardAlbumDetailPage() {
   const [scanProtectionEnabled, setScanProtectionEnabled] = useState(true);
   const [savedConfigSnapshot, setSavedConfigSnapshot] =
     useState<AlbumConfigFormSnapshot | null>(null);
+  const [configTouched, setConfigTouched] = useState(false);
   const [configSavedNotice, setConfigSavedNotice] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -345,8 +346,17 @@ export default function DashboardAlbumDetailPage() {
   );
   const configHasUnsavedChanges = hasUnsavedAlbumConfigChanges(
     savedConfigSnapshot,
-    currentConfigSnapshot
+    currentConfigSnapshot,
+    configTouched
   );
+
+  /** Marca que el fotógrafo tocó el formulario, para no avisar de más al cargar. */
+  function onConfigField<T>(set: (value: T) => void) {
+    return (value: T) => {
+      setConfigTouched(true);
+      set(value);
+    };
+  }
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const [minDigitalPhotoPrice, setMinDigitalPhotoPrice] = useState<number | null>(null);
@@ -1105,6 +1115,7 @@ export default function DashboardAlbumDetailPage() {
         scanProtectionEnabled: data.scanProtectionEnabled !== false,
       });
       setConfigSavedNotice(false);
+      setConfigTouched(false);
       // Establecer shareUrl si no está ya establecido
       if (!shareUrl && data.publicSlug) {
         setShareUrl(`${typeof window !== "undefined" ? window.location.origin : ""}/a/${data.publicSlug}`);
@@ -1930,6 +1941,7 @@ export default function DashboardAlbumDetailPage() {
         setError(null);
         setConfigSavedNotice(true);
       }
+      setConfigTouched(false);
     } catch (err: unknown) {
       console.error("Error guardando configuración:", err);
       setError(err instanceof Error ? err.message : "Error guardando configuración");
@@ -2235,20 +2247,20 @@ export default function DashboardAlbumDetailPage() {
                 photoCoverPreviewUrl={album.customCoverUrl ? null : coverPreviewUrl}
                 onCoverChanged={handleCoverChanged}
                 scanProtectionEnabled={scanProtectionEnabled}
-                onScanProtectionChange={setScanProtectionEnabled}
+                onScanProtectionChange={onConfigField(setScanProtectionEnabled)}
                 albumMode={albumMode}
                 albumModeSaving={albumModeSaving}
                 saving={configSaving}
                 hasUnsavedChanges={configHasUnsavedChanges}
                 savedNotice={configSavedNotice && !configHasUnsavedChanges}
                 photographerHandler={album.photographerHandler}
-                onTitleChange={setTitle}
-                onLocationChange={setLocation}
-                onEventScheduleChange={setEventSchedule}
-                onIsPublicChange={setIsPublic}
-                onHiddenPhotosChange={setHiddenPhotosEnabled}
-                onHiddenSelfieRetentionChange={setHiddenSelfieRetentionDays}
-                onShowComingSoonChange={setShowComingSoonMessage}
+                onTitleChange={onConfigField(setTitle)}
+                onLocationChange={onConfigField(setLocation)}
+                onEventScheduleChange={onConfigField(setEventSchedule)}
+                onIsPublicChange={onConfigField(setIsPublic)}
+                onHiddenPhotosChange={onConfigField(setHiddenPhotosEnabled)}
+                onHiddenSelfieRetentionChange={onConfigField(setHiddenSelfieRetentionDays)}
+                onShowComingSoonChange={onConfigField(setShowComingSoonMessage)}
                 onAlbumModeChange={setAlbumMode}
                 onSave={() => void handleSaveConfiguration()}
                 onSaveAlbumMode={() => void saveAlbumMode()}

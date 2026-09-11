@@ -70,4 +70,23 @@ describe("hasUnsavedAlbumConfigChanges", () => {
       true
     );
   });
+  it("no avisa mientras el fotógrafo no tocó nada, aunque el formulario difiera", () => {
+    // Al cargar, algunos campos se normalizan (la fecha del evento) y pueden no
+    // coincidir exactamente con lo guardado. Avisar ahí sería un aviso falso.
+    assert.equal(
+      hasUnsavedAlbumConfigChanges(base, { ...base, scanProtectionEnabled: false }, false),
+      false
+    );
+  });
+
+  it("avisa cuando el fotógrafo tocó algo y quedó distinto de lo guardado", () => {
+    assert.equal(
+      hasUnsavedAlbumConfigChanges(base, { ...base, scanProtectionEnabled: false }, true),
+      true
+    );
+  });
+
+  it("no avisa si tocó algo y volvió al valor guardado", () => {
+    assert.equal(hasUnsavedAlbumConfigChanges(base, { ...base }, true), false);
+  });
 });
