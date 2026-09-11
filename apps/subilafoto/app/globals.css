@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/**
+ * Subí la Foto — tokens de marca.
+ * Manual de identidad visual v1.0, septiembre 2026.
+ * Ver docs/subilafoto/08-identidad-visual.md antes de agregar un color.
+ */
+:root {
+  color-scheme: light;
+
+  --slf-violeta: #7c2bff;
+  --slf-purpura: #200638;
+  --slf-amarillo: #ffd51f;
+  --slf-lila: #d9b9ff;
+  --slf-blanco: #f8f6fc;
+
+  /* Derivados de trabajo, no de marca. */
+  --slf-violeta-hover: #6a17f0;
+  --slf-tinta: #1a0530;
+  --slf-tinta-suave: #4a3a5e;
+  --slf-borde: #e6dff2;
+}
+
+/*
+ * El amarillo tiene 1,3:1 contra el blanco cálido: es ilegible sobre fondo claro.
+ * Vive sobre el púrpura profundo, donde llega a 10,9:1.
+ */
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--slf-blanco);
+  color: var(--slf-tinta);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--slf-amarillo);
+  color: var(--slf-purpura);
+}
+
+:focus-visible {
+  outline: 3px solid var(--slf-amarillo);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Sobre fondo claro el amarillo no se ve: el foco cambia de color. */
+.sobre-claro :focus-visible {
+  outline-color: var(--slf-violeta);
+}
+
+/*
+ * El único movimiento de la página: el lema entra una vez, al cargar.
+ * No hay animación de scroll ni transiciones de hover en tarjetas.
+ */
+@keyframes slf-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(0.4em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.slf-lema > span {
+  display: inline-block;
+  opacity: 0;
+  animation: slf-entrada 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.slf-lema > span:nth-child(1) {
+  animation-delay: 0.15s;
+}
+.slf-lema > span:nth-child(2) {
+  animation-delay: 0.45s;
+}
+.slf-lema > span:nth-child(3) {
+  animation-delay: 0.75s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slf-lema > span {
+    animation: none;
+    opacity: 1;
+  }
+}

@@ -1,8 +1,11 @@
 # Identidad visual
 
 El manual de marca (versión 1.0, septiembre 2026) y el kit de logos están en
-`manual de marca y logos/Kit-de-Marca-Subi-la-Foto/`. Este documento lo traduce a valores
-usables en el código.
+[`marca/`](./marca/). Este documento lo traduce a valores usables en el código.
+
+En `marca/` hay **dos PDF con el mismo nombre y contenido distinto**: `kit/Manual-de-Marca-Subi-la-Foto.pdf`
+y `Manual-de-Marca-Subi-la-Foto-raiz.pdf`, que venía suelto junto al kit. Los checksums no
+coinciden, así que se conservan los dos hasta saber cuál es el bueno.
 
 ## Marca
 
@@ -88,4 +91,5 @@ vectorial maestra.** Antes de imprenta —y para que el logo se vea nítido en l
 un televisor 4K— hace falta un SVG. No bloquea el desarrollo, pero conviene resolverlo
 antes de producir los materiales impresos con el QR del evento.
 
-Cuando se cree `apps/subilafoto`, los logos van a `apps/subilafoto/public/brand/`.
+Los logos ya están copiados en `apps/subilafoto/public/brand/`, que es de donde los toma la
+aplicación. `docs/subilafoto/marca/` es el archivo maestro; no se sirve al público.
