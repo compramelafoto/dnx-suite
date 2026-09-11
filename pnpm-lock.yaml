@@ -982,6 +982,12 @@ importers:
 
   apps/subilafoto:
     dependencies:
+      '@aws-sdk/client-rekognition':
+        specifier: ^3.985.0
+        version: 3.1079.0
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       next:
         specifier: 16.2.1
         version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1016,6 +1022,9 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
 
   packages/auth:
     dependencies:

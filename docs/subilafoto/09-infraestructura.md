@@ -104,6 +104,26 @@ similar, se agrega a la página y a los emails del sistema como remitente.
 | `MP_*` | OAuth de Mercado Pago | Etapa 3 |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Login con Google, **proyecto OAuth propio** | Etapa 1 |
 
-El proyecto OAuth de Google es propio y no compartido: la pantalla de consentimiento muestra
-el nombre del proyecto, y con el compartido el fotógrafo vería "ComprameLaFoto" al entrar a
-Subí la Foto. Es el mismo criterio que se aplicó en Fotoffice.
+## Autenticación: unificada con el resto de DNX Suite
+
+**Decisión del titular, 2026-09-11:** el inicio de sesión de Subí la Foto usa **el mismo
+cliente OAuth de Google que el resto de la suite**. No se crea un proyecto nuevo en Google
+Cloud.
+
+Esto revierte lo que estaba escrito antes acá, que proponía un proyecto propio para que la
+pantalla de permisos mostrara "Subí la Foto" y no "ComprameLaFoto". Se acepta ese costo
+—el usuario ve el nombre del proyecto compartido al entrar— a cambio de que la identidad
+sea una sola en toda la suite. Es coherente con la decisión de compartir la base: un
+fotógrafo es la misma persona en CompraMeLaFoto y en Subí la Foto, y debería entrar igual.
+
+Lo que hay que hacer, y no genera credenciales nuevas:
+
+1. En Google Cloud, en el cliente OAuth que ya usa la suite, **agregar las URIs de
+   redirección** de Subí la Foto: `https://subilafoto.com/api/auth/google/callback` y
+   `https://www.subilafoto.com/api/auth/google/callback` (confirmar la ruta exacta contra
+   `packages/auth/src/google-oauth.ts` al implementar el login).
+2. En el proyecto `subilafoto-dnxsuite` de Vercel, cargar `GOOGLE_CLIENT_ID` y
+   `GOOGLE_CLIENT_SECRET` **con los mismos valores** que tiene `fotoffice-dnxsuite`.
+
+Si más adelante molesta que el consentimiento diga otro nombre, se puede cambiar el nombre
+público del proyecto OAuth a algo neutro como "DNX Suite", que sirve para todas.

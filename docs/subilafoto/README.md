@@ -22,6 +22,7 @@ nada, la IA las modera y las aprobadas aparecen en la pantalla del salón y en e
 | [07-riesgos-y-decisiones-abiertas.md](./07-riesgos-y-decisiones-abiertas.md) | Riesgos vivos y las decisiones que faltan resolver |
 | [08-identidad-visual.md](./08-identidad-visual.md) | Tokens de marca, contraste y reglas del manual que afectan al código |
 | [09-infraestructura.md](./09-infraestructura.md) | Dominio, DNS, Vercel, bucket R2 y lo que falta de AWS |
+| [10-correo.md](./10-correo.md) | Resend: por qué no hay casilla, los registros DNS y el reenvío |
 
 ## Decisiones tomadas el 2026-09-11
 

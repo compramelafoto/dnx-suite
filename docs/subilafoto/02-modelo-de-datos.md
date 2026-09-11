@@ -4,7 +4,13 @@ Responde a los capítulos 25 y 6.4 del documento maestro. Va sobre el schema com
 (`packages/db/prisma/schema.prisma`), con prefijo `Subilafoto` siguiendo la convención de
 `Fotoffice*`, `Clickaton*`, `Fotorank*` e `InfoSpot*`.
 
-Son **19 modelos nuevos y 9 enums nuevos**, más un valor agregado a un enum existente.
+Son **15 modelos nuevos y 16 enums nuevos**, más un valor agregado a un enum existente.
+
+**Estado al 2026-09-11:** escrito en `schema.prisma`, con la migración generada en
+`packages/db/prisma/migrations/20260911090000_subilafoto/` (534 líneas, checksum
+`3064ecdb…`). Probada con éxito en la rama Neon `prueba-subilafoto-migracion-20260911`,
+clonada de producción: crea las 15 tablas, agrega `SUBILAFOTO` al enum y deja intactos los
+797 usuarios y 881 álbumes de CompraMeLaFoto. **Falta aplicarla en producción.**
 
 ## Una corrección al documento maestro
 
