@@ -20,24 +20,31 @@ Dominio `subilafoto.com` creado en Resend el 2026-09-11, región `sa-east-1` (S�
 misma que usan Fotoffice, Clickatón y CompraMeLaFoto. Envío y recepción habilitados.
 Estado: `not_started` hasta que los registros DNS estén cargados y verificados.
 
-## Registros DNS a cargar en DonWeb
+## Registros DNS (cargados el 2026-09-11)
+
+**DonWeb pide el nombre completo, no el relativo.** Resend muestra `resend._domainkey`,
+pero el formulario rechaza eso con "El campo Nombre debe contener el nombre de su dominio":
+hay que escribir `resend._domainkey.subilafoto.com`. Vale para todos los registros.
 
 | Tipo | Nombre | Valor | Prioridad |
 |---|---|---|---|
-| TXT | `resend._domainkey` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDEEK9qHTsuSVP8QvH/wFRfisIOR4HaQaGtzhgx7QYeKxEk9+aUj2DsGQ46pLJnQ0F5KsNW/b2f/Z0Gm+4U/N5mXRUEYIgP2jQ9cwNniwJ6qp7E0C5bK5+9Y1o/WL+02yZRCSZM62qjy3zPvQ+fCVOAwtdLj+a468vGI7xYM1lH2QIDAQAB` | — |
-| MX | `send` | `feedback-smtp.sa-east-1.amazonses.com` | 10 |
-| TXT | `send` | `v=spf1 include:amazonses.com ~all` | — |
-| CNAME | `rsend` | `send.forge.rmta.net` | — |
-| MX | *(raíz)* | `inbound-smtp.sa-east-1.amazonaws.com` | 10 |
+| TXT | `resend._domainkey.subilafoto.com` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDEEK9qHTsuSVP8QvH/wFRfisIOR4HaQaGtzhgx7QYeKxEk9+aUj2DsGQ46pLJnQ0F5KsNW/b2f/Z0Gm+4U/N5mXRUEYIgP2jQ9cwNniwJ6qp7E0C5bK5+9Y1o/WL+02yZRCSZM62qjy3zPvQ+fCVOAwtdLj+a468vGI7xYM1lH2QIDAQAB` | — |
+| MX | `send.subilafoto.com` | `feedback-smtp.sa-east-1.amazonses.com` | 10 |
+| TXT | `send.subilafoto.com` | `v=spf1 include:amazonses.com ~all` | — |
+| CNAME | `rsend.subilafoto.com` | `send.forge.rmta.net` | — |
+| MX | `subilafoto.com` *(raíz)* | `inbound-smtp.sa-east-1.amazonaws.com` | 10 |
 
 El último es el que permite **recibir**. Tiene que ser el MX de prioridad más baja del
 dominio, o el correo entrante se va a otro lado. Hoy la zona de `subilafoto.com` no tiene
 ningún otro MX, así que no hay conflicto — pero si alguna vez se contrata un correo con
 otro proveedor, esto se rompe en silencio.
 
+Los cinco quedaron publicados y verificados contra `ns1.donweb.com`. La web no se vio
+afectada: los registros `A` siguen respondiendo.
+
 ## Después de cargarlos
 
-1. Disparar la verificación en Resend.
+1. ~~Disparar la verificación en Resend.~~ Hecho el 11/9; queda en `pending` unos minutos.
 2. Cuando el dominio quede `verified`, agregar `hola@subilafoto.com` a la página pública,
    que hoy no publica ninguna dirección justamente porque todavía rebotaría.
 3. Crear el webhook de recepción y decidir el reenvío.
