@@ -176,6 +176,7 @@ export async function PATCH(
       role,
       allowUnpaidOrderClientData,
       scanProtectionDefaultOff,
+      applyScanProtectionToExistingAlbums,
     } = body;
 
     // Obtener usuario actual para auditoría
@@ -223,6 +224,7 @@ export async function PATCH(
     }
 
     const updateData: any = {};
+    let albumsActualizados: number | null = null;
 
     // Marca de cuenta: los álbumes nuevos de este fotógrafo nacen sin la
     // "protección al ampliar fotos". Se guarda como tag para no sumar una
@@ -234,6 +236,16 @@ export async function PATCH(
       });
       const tags = (current?.tags ?? []).filter((tag) => tag !== SCAN_PROTECTION_OFF_TAG);
       updateData.tags = scanProtectionDefaultOff ? [...tags, SCAN_PROTECTION_OFF_TAG] : tags;
+
+      // La marca sólo rige para los álbumes nuevos. Con esta opción se aplica
+      // también a los que el fotógrafo ya tiene creados.
+      if (applyScanProtectionToExistingAlbums) {
+        const { count } = await prisma.album.updateMany({
+          where: { userId },
+          data: { scanProtectionEnabled: !scanProtectionDefaultOff },
+        });
+        albumsActualizados = count;
+      }
     }
 
     if (isBlocked !== undefined) {
@@ -341,7 +353,7 @@ export async function PATCH(
       userAgent,
     });
 
-    return NextResponse.json({ success: true, user: updatedUser });
+    return NextResponse.json({ success: true, user: updatedUser, albumsActualizados });
   } catch (err: any) {
     console.error("PATCH /api/admin/users/[id] ERROR >>>", err);
 
