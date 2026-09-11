@@ -4,9 +4,24 @@ Responde a los capítulos 31 y 36.
 
 ## Decisiones bloqueantes
 
-Estas cuatro frenan la Etapa 1. Hay que resolverlas entre el 11 y el 13 de septiembre.
+Cuatro frenaban la Etapa 1. **Tres quedaron resueltas el 2026-09-11**; falta la cuarta.
 
-### 1. ¿En qué base vive Subí la Foto?
+### 1. ¿En qué base vive Subí la Foto? — RESUELTA
+
+**Rama `production` de CompraMeLaFoto (`divine-hall-10689679` / `br-autumn-rain-ad18wq7y`).**
+Los 272 fotógrafos con Mercado Pago ya conectado pueden vender desde el día uno.
+
+Lo que esto obliga a cuidar:
+
+- Cada migración se aplica sobre la base de producción de CompraMeLaFoto. **Rama de
+  respaldo en Neon antes de tocar nada, siempre.**
+- Los eventos con cientos de fotos comparten Postgres con la venta de fotos. Los índices
+  del documento 02 no son un lujo: una consulta sin índice acá afecta a CLF.
+- El borrado a los 30 días corre sobre esa base. El filtro por `SubilafotoEvent` tiene que
+  ser imposible de saltear. <!-- Ver la limpieza de álbumes CLF a 45 días. -->
+
+<details>
+<summary>La evaluación original de las tres opciones</summary>
 
 La evidencia (ver documento 06): la base de CompraMeLaFoto tiene **797 fotógrafos, de los
 cuales 272 ya tienen Mercado Pago conectado**. La base de Fotoffice y FotoRank tiene 202
@@ -18,25 +33,24 @@ usuarios y 2 empresas cargadas en DNX Partners.
 | **Rama `development` (Fotoffice/FotoRank)** | Es la base "DNX Suite" donde el modelo multi-app ya se usa. Aislada de lo crítico | Los 272 fotógrafos tienen que registrarse y conectar MP de nuevo. Es fricción justo en el canal de venta |
 | Proyecto Neon nuevo | Aislamiento total | Rompe la decisión de reutilizar el login. No lo recomiendo |
 
-**Recomendación: la rama `production` de CompraMeLaFoto.** El producto se vende a través de
-fotógrafos y ahí están los fotógrafos, con la cuenta de cobro ya conectada. Pedirles que se
-registren otra vez es la clase de fricción que hace que un lanzamiento arranque en cero.
+El producto se vende a través de fotógrafos y ahí están los fotógrafos, con la cuenta de
+cobro ya conectada.
 
-### 2. ¿Se acepta cobrar con `marketplace_fee` en lugar del split 1:N?
+</details>
 
-DNX Payments está en sandbox y sus propios documentos prohíben escrituras en producción. No
-llega homologado al 10 de octubre. La alternativa ya cobra en producción hoy.
+### 2. ¿Cobrar con `marketplace_fee` en lugar del split 1:N? — RESUELTA
 
-**Recomendación: sí.** Y dejar el split para cuando esté homologado, detrás de la misma
-interfaz.
+**Sí.** DNX Payments está en sandbox y sus propios documentos prohíben escrituras en
+producción; no llega homologado al 10 de octubre. Se usa el modelo que ya cobra hoy en
+CompraMeLaFoto, detrás de una interfaz que permita cambiar al split cuando esté listo.
 
-### 3. ¿Cuánto puede descargar el profesional sin pagar el adicional?
+### 3. ¿Cuánto puede descargar el profesional? — RESUELTA
 
-Ver la regla anti-bypass del documento 03. La propuesta es 20 originales por evento, con
-registro. Si el número no te cierra, hay que definirlo ahora: cambia el diseño del panel y
-las condiciones que el fotógrafo acepta.
+**Nada.** El fotógrafo ve y modera todo, pero no descarga ninguna foto aportada por
+invitados. La única descarga del evento es la del cliente, detrás del pago del adicional.
+El detalle y sus consecuencias, en el documento 03.
 
-### 4. ¿Qué cuenta de AWS usa Rekognition?
+### 4. ¿Qué cuenta de AWS usa Rekognition? — PENDIENTE
 
 CompraMeLaFoto ya lo usa para reconocimiento facial. Hay que confirmar que la misma cuenta
 y región admiten `DetectModerationLabels` y decidir si Subí la Foto comparte esas

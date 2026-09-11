@@ -20,12 +20,18 @@ nada, la IA las modera y las aprobadas aparecen en la pantalla del salón y en e
 | [05-backlog-y-cronograma.md](./05-backlog-y-cronograma.md) | Backlog por etapas con criterios de aceptación y cronograma al 10/10 |
 | [06-migraciones-pruebas-y-despliegue.md](./06-migraciones-pruebas-y-despliegue.md) | Las 5 bases, el plan de pruebas y el rollback |
 | [07-riesgos-y-decisiones-abiertas.md](./07-riesgos-y-decisiones-abiertas.md) | Riesgos vivos y las decisiones que faltan resolver |
+| [08-identidad-visual.md](./08-identidad-visual.md) | Tokens de marca, contraste y reglas del manual que afectan al código |
 
 ## Decisiones tomadas el 2026-09-11
 
 1. **Schema Prisma compartido.** Subí la Foto usa `packages/db` como el resto de la suite.
    Login, DNX Partners, DNX Payments y los módulos compartidos se reutilizan sin duplicar.
-2. **Tiempo real propio con SSE.** Sin proveedor externo ni factura nueva.
+2. **Vive en la base de CompraMeLaFoto** (`divine-hall-10689679`, rama `production`), donde
+   ya hay 797 fotógrafos y 272 con Mercado Pago conectado.
+3. **Tiempo real propio con SSE.** Sin proveedor externo ni factura nueva.
+4. **Cobro con `marketplace_fee`**, no con el split 1:N, que sigue en sandbox.
+5. **El fotógrafo no descarga ninguna foto** aportada por invitados. La única descarga es
+   la del cliente, detrás del pago del adicional.
 
 ## La regla que ordena todo el trabajo
 

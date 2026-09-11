@@ -33,7 +33,7 @@ otra contraseña para ver las fotos de su casamiento es fricción sin ninguna ga
 | Borrar lo que subió uno mismo | ✓ | ✓ | | | | ✓ | |
 | Controlar la pantalla | ✓ | ✓ | | ✓ | ✓ | | |
 | Ver la galería | ✓ | ✓ | ✓ | ✓ | | según config | |
-| Descargar una foto suelta | ✓ | ✓ | ✓ ² | | | según config | |
+| Descargar una foto suelta | ✓ | **✗** ³ | ✓ ² | | | según config | |
 | **Exportar todo el evento** | ✓ | **✗** ³ | ✓ ² | | | | |
 | Invitar proveedores | ✓ | ✓ | | | | | |
 | Completar ficha de proveedor | ✓ | ✓ | | | | | ✓ |
@@ -43,31 +43,33 @@ otra contraseña para ver las fotos de su casamiento es fricción sin ninguna ga
 ¹ Sólo antes de que el evento se active. Después queda auditado y requiere permiso de
 administración (capítulo 7.4).
 ² Si compró el adicional de descarga.
-³ **Esta celda es el punto delicado.** Ver abajo.
+³ Decidido el 2026-09-11: **ninguna descarga**. Ver abajo.
 
 ## La regla anti-bypass
 
-El capítulo 12.4 plantea un problema real: si el paquete completo es un adicional cuyo
-ingreso es 100% de la plataforma, y el fotógrafo puede bajarse todos los originales de un
-clic, entonces puede pasárselos a su cliente y el adicional no se vende nunca.
+El capítulo 12.4 plantea el problema: si el paquete completo es un adicional cuyo ingreso es
+100% de la plataforma, y el fotógrafo puede bajarse los originales, puede pasárselos a su
+cliente y el adicional no se vende nunca.
 
-La solución no puede ser desconfiar del fotógrafo ni impedirle trabajar. La propuesta:
+**Decisión del titular: el profesional no descarga ninguna foto del evento.**
 
-**El profesional tiene acceso operativo, no acceso de entrega.**
+- Ve **todo** el contenido en el panel, en calidad de pantalla, incluido lo retenido y lo
+  bloqueado.
+- Modera, oculta, destaca, recupera falsos positivos y controla la proyección.
+- **No** tiene descarga: ni masiva, ni de originales, ni de fotos sueltas.
+- La única descarga del evento es la del cliente, detrás del pago del adicional.
 
-- Puede ver todo el contenido en el panel, en calidad de pantalla.
-- Puede descargar **fotos sueltas** (para corregir una, para publicar una en su Instagram).
-- Puede descargar hasta **20 originales por evento**, con registro de cuáles y cuándo.
-- **No** tiene un botón de "descargar todo". Ese botón produce el paquete del cliente y
-  vive detrás del pago del adicional.
-- Si necesita el paquete completo por una razón legítima, lo pide y queda auditado.
+Consecuencias que hay que tener presentes al construirlo:
 
-Este límite tiene que estar **escrito en las condiciones que el profesional acepta al
-publicar su perfil de venta**, no descubrirse el día del evento. Un límite razonable y
-avisado se respeta; uno sorpresa se percibe como una trampa y arruina la relación con los
-fotógrafos, que son el canal de venta del producto.
-
-El número 20 es una propuesta, no un dogma. Está en la lista de decisiones abiertas.
+- No existe ningún botón de descarga en el panel del profesional. No es un permiso que se
+  evalúa: la funcionalidad no está.
+- Las imágenes del panel se sirven como derivados con marca de agua discreta, y las URL
+  prefirmadas de los originales nunca se emiten hacia el rol profesional.
+- Esto debe estar **escrito en las condiciones que el profesional acepta al publicar su
+  perfil de venta**. Un fotógrafo que descubre el día después del casamiento que no puede
+  bajar ni una foto se enoja con razón; uno que lo aceptó por escrito, no.
+- El contenido oficial que el propio fotógrafo suba al evento (`origin = PHOTOGRAPHER`) es
+  suyo y sí puede recuperarlo. La restricción es sobre lo que aportaron los invitados.
 
 ## Cómo se aplica en el código
 
