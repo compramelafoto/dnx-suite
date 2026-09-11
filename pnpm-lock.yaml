@@ -982,6 +982,9 @@ importers:
 
   apps/subilafoto:
     dependencies:
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       next:
         specifier: 16.2.1
         version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
