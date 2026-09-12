@@ -15,6 +15,32 @@ Son **24 pantallas**. Todo lo que no está acá se pospone.
 | 3 | `/v/[slug]/comprar` | Datos del comprador y pago | **Crítica** |
 | 4 | `/compra/[id]/gracias` | Confirmación de compra | **Crítica** |
 
+#### Qué lleva la landing (`/`)
+
+Estaba en el inventario pero sin detallar, y hasta el 2026-09-12 le faltaba lo
+más básico: **no había ningún acceso al ingreso**. La ruta `/login` existía y no
+la enlazaba nada.
+
+Ahora tiene, de arriba abajo:
+
+1. Cabecera con un único botón, **«Ingresar»**, que va a `/login`.
+2. Hero con el logo y la promesa en tres líneas.
+3. **Franja de diez fotos que se desplaza sola** (ver documento 12).
+4. Las dos secciones —«Si vas a un evento» y «Si organizás eventos»—, con un
+   segundo enlace de ingreso en la del profesional.
+5. La fecha de apertura y el pie.
+
+Dos decisiones que conviene no revertir sin querer:
+
+- **El botón dice «Ingresar» también para quien ya tiene la sesión abierta.**
+  Leer la cookie en la portada obligaría a calcularla en cada visita; hoy se
+  sirve estática (`○ Static` en el build). Quien ya entró no queda en un
+  callejón sin salida: `/login` lo desvía derecho al panel, respetando el
+  parámetro `next` si viene.
+- **Hay un solo botón, no dos.** El invitado de un evento nunca pasa por la
+  portada: llega por el QR directo a `/e/[codigo]`. Ofrecerle «Ingresar» sería
+  invitarlo a crear una cuenta que el producto promete que no necesita.
+
 ### Invitado (móvil, sin cuenta)
 
 | # | Ruta | Pantalla | Prioridad |

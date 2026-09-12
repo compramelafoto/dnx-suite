@@ -1,8 +1,13 @@
 import Image from "next/image";
+import Link from "next/link";
+import { Cabecera } from "./components/cabecera";
+import { FranjaFotos } from "./components/franja-fotos";
 
 export default function Home() {
   return (
     <main>
+      <Cabecera />
+
       {/*
         El hero repite la puesta del manual: fondo púrpura profundo, logo vertical
         sin alterar y la promesa partida en tres líneas, la tercera en amarillo.
@@ -10,7 +15,7 @@ export default function Home() {
       */}
       <section
         style={{ background: "var(--slf-purpura)" }}
-        className="flex min-h-[100svh] flex-col items-center justify-center px-6 py-20 text-center"
+        className="flex min-h-[100svh] flex-col items-center justify-center px-6 pb-16 pt-32 text-center sm:pt-36"
       >
         <Image
           src="/brand/subilafoto-logo-vertical-negativo.png"
@@ -36,6 +41,12 @@ export default function Home() {
           ninguna aplicación y sin crearse una cuenta.
         </p>
       </section>
+
+      {/*
+        La franja va justo debajo de la promesa y antes de cualquier explicación:
+        muestra en dos segundos lo que el texto tarda un párrafo en contar.
+      */}
+      <FranjaFotos />
 
       <section className="sobre-claro px-6 py-24 sm:py-32">
         <div className="mx-auto grid max-w-5xl gap-16 sm:grid-cols-[1fr_1fr] sm:gap-20">
@@ -71,6 +82,13 @@ export default function Home() {
               enlace propio. Preparamos la plataforma para fotógrafos,
               productoras, salones y organizadores.
             </p>
+            <Link
+              href="/login"
+              className="mt-6 inline-block font-extrabold underline underline-offset-4"
+              style={{ color: "var(--slf-violeta)" }}
+            >
+              Entrá con tu cuenta de DNX Suite
+            </Link>
           </div>
         </div>
 

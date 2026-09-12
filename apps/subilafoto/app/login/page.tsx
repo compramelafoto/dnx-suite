@@ -1,11 +1,25 @@
 import Image from "next/image";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
+import { rutaInternaSegura } from "@/lib/ruta-segura";
 
 /** Ingreso del profesional. La misma cuenta que en el resto de DNX Suite. */
+
+export const dynamic = "force-dynamic";
 
 type Props = { searchParams: Promise<{ error?: string; next?: string }> };
 
 export default async function Login({ searchParams }: Props) {
   const { error, next } = await searchParams;
+
+  // Quien ya tiene la sesión abierta no tiene nada que hacer acá. La portada
+  // muestra «Ingresar» a todo el mundo para poder servirse estática, así que
+  // este desvío es lo que hace que ese botón no sea un callejón sin salida.
+  const token = (await cookies()).get(DNX_SESSION_COOKIE)?.value;
+  if (token && (await getSessionUserByRawToken(token))) {
+    redirect(rutaInternaSegura(next) ?? "/panel");
+  }
 
   const destino = next
     ? `/api/auth/google?next=${encodeURIComponent(next)}`
