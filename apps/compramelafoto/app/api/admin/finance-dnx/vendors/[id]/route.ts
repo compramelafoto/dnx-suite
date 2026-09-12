@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth";
+import { Role } from "@prisma/client";
 import { parseVendorForm } from "@/lib/finance-dnx/vendor-form";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Verificar autenticación y rol ADMIN
+  const { error, user } = await requireAuth([Role.ADMIN]);
+  if (error || !user) {
+    return NextResponse.json(
+      { error: error || "No autorizado. Se requiere rol ADMIN." },
+      { status: 401 }
+    );
+  }
+
   const { id } = await params;
   const vendorId = Number(id);
   if (!Number.isInteger(vendorId)) {
