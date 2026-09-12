@@ -57,5 +57,5 @@ test("el resultado se redondea a centavos enteros", () => {
     taxPercent: 21,
   });
 
-  assert.equal(Number.isInteger(resultado), true);
+  assert.equal(resultado, 403_154);
 });
