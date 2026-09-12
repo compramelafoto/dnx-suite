@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
         taxPercent: value.taxPercent,
         amountArs: value.amountArsMinor / 100,
         status: value.status,
+        dueDate: value.dueDate,
         source: "MANUAL",
         notes: value.notes,
         allocations: {
