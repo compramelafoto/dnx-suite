@@ -17160,3 +17160,94 @@ model SubilafotoAudit {
   @@index([eventId, createdAt])
   @@index([action, createdAt])
 }
+
+/// Finanzas DNX — control de gastos de la suite.
+/// Tablas nuevas, no columnas: su ausencia en las otras bases Neon es inocua
+/// porque ninguna otra app las consulta.
+model ExpenseVendor {
+  id              Int      @id @default(autoincrement())
+  key             String   @unique
+  name            String
+  /// INFRA, IA, EMAIL, DOMINIO, PUBLICIDAD, LEGAL_CONTABLE, COBROS, OTRO
+  category        String
+  /// USD o ARS
+  billingCurrency String
+  /// MENSUAL, ANUAL, USO, UNICO
+  billingCycle    String
+  paymentMethod   String?
+  active          Boolean  @default(true)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  allocations VendorAllocation[]
+  entries     ExpenseEntry[]
+
+  @@index([active])
+}
+
+model VendorAllocation {
+  id           Int     @id @default(autoincrement())
+  vendorId     Int
+  platformKey  String
+  sharePercent Decimal @db.Decimal(5, 2)
+
+  vendor ExpenseVendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, platformKey])
+}
+
+model ExpenseEntry {
+  id                 Int      @id @default(autoincrement())
+  vendorId           Int
+  periodYear         Int
+  periodMonth        Int
+  amountOriginal     Decimal  @db.Decimal(12, 2)
+  /// USD o ARS
+  currency           String
+  fxRate             Decimal? @db.Decimal(12, 4)
+  taxPercent         Decimal  @default(0) @db.Decimal(5, 2)
+  /// Calculado y congelado: el dólar de enero no es el de septiembre.
+  amountArs          Decimal  @db.Decimal(14, 2)
+  amountRefunded     Decimal? @db.Decimal(12, 2)
+  /// ESTIMADO, FACTURADO, PAGADO, RECHAZADO, IMPAGO, REEMBOLSADO
+  status             String   @default("FACTURADO")
+  /// MANUAL, IMPORTADO, API
+  source             String   @default("MANUAL")
+  invoiceUrl         String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  vendor      ExpenseVendor            @relation(fields: [vendorId], references: [id])
+  allocations ExpenseEntryAllocation[]
+
+  @@unique([vendorId, periodYear, periodMonth])
+  @@index([periodYear, periodMonth])
+  @@index([status])
+}
+
+model ExpenseEntryAllocation {
+  id           Int     @id @default(autoincrement())
+  entryId      Int
+  platformKey  String
+  sharePercent Decimal @db.Decimal(5, 2)
+  amountArs    Decimal @db.Decimal(14, 2)
+
+  entry ExpenseEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, platformKey])
+  @@index([platformKey])
+}
+
+model FxRate {
+  id          Int      @id @default(autoincrement())
+  periodYear  Int
+  periodMonth Int
+  usdToArs    Decimal  @db.Decimal(12, 4)
+  source      String
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@unique([periodYear, periodMonth])
+}
