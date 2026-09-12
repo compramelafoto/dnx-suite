@@ -103,3 +103,68 @@ Estas no se automatizan y son las que evitan el papelón el día del evento:
 El caso de Rekognition caído merece un ensayo real durante la Etapa 4: es el único que
 obliga a operar distinto en vivo, y hay que saber que el camino manual funciona **antes**
 de necesitarlo un sábado a las once de la noche.
+
+## La moderación automática (Etapa 2.3 a 2.6)
+
+Escrita el 2026-09-12. Cómo está armada y por dónde entra.
+
+### Las piezas
+
+| Archivo | Qué hace |
+|---|---|
+| `lib/moderacion/reglas.ts` | La política: umbrales por perfil, categorías de riesgo alto y la falla cerrada. **Función pura**, sin base ni nube |
+| `lib/moderacion/proveedor.ts` | El contrato con el servicio de moderación, sea cual sea |
+| `lib/moderacion/rekognition.ts` | La única pieza que sabe que existe Amazon |
+| `lib/moderacion/procesar.ts` | El paso de foto subida a foto decidida. Recibe base y proveedor por parámetro |
+| `lib/moderacion/conectar.ts` | Traducción a Prisma y R2 |
+| `app/api/moderacion/procesar/route.ts` | La red de seguridad, protegida con `CRON_SECRET` |
+
+Esa separación no es adorno: **42 tests cubren la política y la idempotencia sin
+base de datos y sin gastar una sola llamada a Amazon.**
+
+### Por dónde entra
+
+El camino normal es `after()`: la ruta de confirmación le contesta al invitado y
+*después* modera. El invitado ve "listo" enseguida y la foto aparece cuando se
+aprueba. Moderar antes de responder lo dejaría mirando una rueda girar en medio
+de la fiesta.
+
+La red de seguridad es el cron cada 5 minutos, para las fotos que se perdieron
+porque la función se cortó o Amazon estaba caído. Sin ella, una foto que falló
+una vez se queda en `PROCESSING` para siempre y nadie se entera hasta que el
+cliente pregunta por qué no salió en la pantalla.
+
+### La idempotencia vive en la base, no en el código
+
+El cambio de estado es un `updateMany ... where status = 'PROCESSING'` dentro de
+una transacción con la escritura de la decisión. Si dos procesos llegan juntos,
+el segundo cambia **cero filas**, no escribe decisión y se va. Por eso reprocesar
+no publica dos veces.
+
+El costo de esa elección: si dos procesos coinciden, los dos llaman a Amazon y
+uno de los dos análisis se tira. Son 0,001 dólares y pasa muy poco. La
+alternativa era un estado intermedio en el enum, que obliga a migrar las cinco
+bases.
+
+### Qué pasa cuando algo falla
+
+Todo error —credenciales rotas, límite de frecuencia, imagen ilegible, archivo
+que no está en el bucket— termina en `REVIEW_REQUIRED`. **Retenida, no
+bloqueada**, y la diferencia importa: bloqueada es una acusación, retenida es
+"todavía no la miramos". Si Amazon se cae una noche, el fotógrafo aprueba a
+mano; lo que no puede pasar es que se proyecte algo que nadie evaluó.
+
+Hay un detalle que conviene no perder: **una categoría que la política no
+contempla, con 80% de confianza o más, también va a revisión**. Amazon agrega
+categorías cuando publica un modelo nuevo, y sin esa regla la primera foto de
+una categoría que todavía no evaluamos se publicaría sola.
+
+### Configuración que hace falta en Vercel
+
+- `CRON_SECRET` — sin ella la ruta devuelve 503 y el cron falla ruidosamente,
+  que es preferible a dejarla abierta.
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` — ya cargadas.
+
+El `vercel.json` de la app declara **sólo** el cron. El comando de build y el de
+instalación los sigue poniendo el panel de Vercel; agregarlos acá pisaría la
+configuración que ya funciona.
