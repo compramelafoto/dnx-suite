@@ -162,7 +162,16 @@ plataforma se vende— sí tiene que verse como Subí la Foto y no como otra cos
 **Cuándo se paga:** después del lanzamiento, y junto con el buscador ⌘K del menú DNX, que
 toca los mismos cinco formatos de menú. Hacer las dos cosas por separado es pagar dos veces.
 
-### D2. `/api/diagnostico` está abierto en producción
+### D2. Faltan `/privacidad` y `/terminos`
+
+La ficha de marca de Subí la Foto en `@repo/auth-ui` declara esas dos rutas
+porque el contrato del paquete las exige. **Hoy ninguna de las dos existe.**
+
+No se rompe nada todavía porque la pantalla de ingreso no dibuja los enlaces
+legales, pero son obligatorias antes del lanzamiento: la puerta del invitado
+pide aceptar condiciones y esas condiciones tienen que estar en algún lado.
+
+### D3. `/api/diagnostico` está abierto en producción
 
 Ruta temporal que informa si la base, R2 y Rekognition responden. No expone credenciales
 —sólo el hostname de la base y tiempos de respuesta— pero **hay que borrarla antes del

@@ -75,3 +75,23 @@
   --auth-primary-text: #ffffff;
   --auth-focus: #0ea5e9;
 }
+
+/*
+ * Subí la Foto. Púrpura profundo del manual, amarillo como único acento.
+ * Contrastes verificados: texto 15,8:1 y secundario 9,9:1 sobre la superficie;
+ * el borde del botón de Google es #8358c7 y no un violeta más oscuro porque
+ * necesita 3:1 contra la superficie para que se lea como control.
+ */
+.dnx-auth-root[data-brand="subilafoto"] {
+  --auth-background: #200638;
+  --auth-surface: #2b0a49;
+  --auth-text-primary: #f8f6fc;
+  --auth-text-secondary: #d9b9ff;
+  --auth-border: #3d1a63;
+  --auth-secondary-border: #8358c7;
+  --auth-primary: #ffd51f;
+  --auth-primary-text: #200638;
+  --auth-focus: #ffd51f;
+  --auth-error: #ff9a9a;
+  --auth-error-bg: rgba(255, 154, 154, 0.12);
+}

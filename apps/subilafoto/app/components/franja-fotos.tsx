@@ -48,7 +48,7 @@ export function FranjaFotos() {
         {pista.map((foto, i) => (
           <li
             key={`${foto.src}-${i}`}
-            className="h-[7rem] shrink-0 pr-2 sm:h-[9.5rem] sm:pr-3 lg:h-[11.5rem]"
+            className="h-[6.5rem] shrink-0 pr-2 sm:h-[8rem] sm:pr-3 lg:h-[9rem]"
             /* La segunda vuelta es la misma lista: si se anuncia, el lector de
                pantalla lee diez fotos dos veces. */
             aria-hidden={foto.duplicada || undefined}
