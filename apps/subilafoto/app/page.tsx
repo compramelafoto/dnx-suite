@@ -20,7 +20,7 @@ export default function Home() {
       */}
       <section
         style={{ background: "var(--slf-purpura)" }}
-        className="flex min-h-[100svh] flex-col items-center justify-center pb-16 pt-24 text-center sm:pt-28"
+        className="flex min-h-[100svh] flex-col items-center justify-center pb-16 pt-20 text-center sm:pt-24"
       >
         <Image
           src="/brand/subilafoto-logo-vertical-negativo.png"
@@ -28,10 +28,15 @@ export default function Home() {
           width={320}
           height={400}
           priority
-          /* Más chico que antes: con la franja en el medio, un logo de 17rem
-             empujaba la promesa abajo del pliegue en una notebook. Se ven los
-             tres: marca, escena y frase. */
-          className="h-auto w-[min(11rem,48vw)]"
+          /*
+            El límite real no es el ancho sino el **alto** de la pantalla: en el
+            hero tienen que entrar el logo, la franja y la promesa. Por eso el
+            tope principal está en `svh` — en una notebook de 720 el logo se
+            achica solo y la frase no se cae abajo del pliegue, y en un monitor
+            grande crece. Con un ancho fijo, a 720 el título quedaba 74 px
+            afuera. Medido, no estimado.
+          */
+          className="h-auto w-auto max-h-[30svh] max-w-[min(15rem,60vw)]"
         />
 
         {/*
@@ -39,11 +44,11 @@ export default function Home() {
           leer nada. Los degradados de los extremos usan el mismo púrpura del
           fondo, así que acá adentro las fotos entran y salen sin borde visible.
         */}
-        <div className="mt-8 w-full">
+        <div className="mt-6 w-full">
           <FranjaFotos />
         </div>
 
-        <h1 className="slf-lema mt-8 max-w-[18ch] text-balance px-6 text-[clamp(2rem,6.5vw,3.5rem)] font-extrabold leading-[1.08] tracking-[-0.02em] text-white">
+        <h1 className="slf-lema mt-6 max-w-[18ch] text-balance px-6 text-[clamp(2rem,6.5vw,3.5rem)] font-extrabold leading-[1.08] tracking-[-0.02em] text-white">
           <span>Todas las miradas </span>
           <span>de tu evento, </span>
           <span style={{ color: "var(--slf-amarillo)" }}>en un solo lugar.</span>
