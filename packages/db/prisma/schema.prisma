@@ -17212,6 +17212,8 @@ model ExpenseEntry {
   amountRefunded     Decimal? @db.Decimal(12, 2)
   /// ESTIMADO, FACTURADO, PAGADO, RECHAZADO, IMPAGO, REEMBOLSADO
   status             String   @default("FACTURADO")
+  /// Cuándo vence la factura. Permite avisar antes de que un rechazo se vuelva un corte.
+  dueDate            DateTime?
   /// MANUAL, IMPORTADO, API
   source             String   @default("MANUAL")
   invoiceUrl         String?
