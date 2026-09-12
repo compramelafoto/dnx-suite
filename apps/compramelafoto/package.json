@@ -13,7 +13,7 @@
     "test:theme-scale": "../../packages/payments/node_modules/.bin/tsx --test styles/design-system/theme-scale.test.ts",
     "test:scan-protection": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/photo/scan-protection.test.ts components/photo/scan-protected-photo.test.tsx",
     "test:album-config-form": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/albums/album-config-form.test.ts lib/albums/default-scan-protection.test.ts",
-    "test:finance-dnx": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/finance-dnx/vendor-form.test.ts",
+    "test:finance-dnx": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/finance-dnx/vendor-form.test.ts lib/finance-dnx/vendor-json.test.ts",
     "test:content-reports": "pnpm --filter @repo/payments exec tsx --test ../../apps/compramelafoto/lib/legal/content-reports/content-reports.test.ts ../../apps/compramelafoto/lib/legal/content-reports/footer-links.test.ts",
     "e2e:ensure-template-v2-photographers": "pnpm --filter @repo/payments exec tsx ../../apps/compramelafoto/scripts/e2e-ensure-template-v2-photographers.ts",
     "e2e:ensure-template-v2-tables": "pnpm --filter @repo/payments exec tsx ../../apps/compramelafoto/scripts/e2e-ensure-template-v2-tables.ts",
