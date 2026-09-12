@@ -38,6 +38,27 @@ El reparto se define **una vez por proveedor** y se hereda solo todos los meses;
 corregir mes por mes cuando cambia la realidad. Los repartos de un gasto deben sumar
 exactamente 100%.
 
+### Cuando el reparto se puede medir, se mide
+
+Para la mayoría de los proveedores el reparto es una estimación del dueño. Para **Neon no
+hace falta estimar**: la API expone el consumo acumulado por proyecto (`cpu_used_sec`), y
+comparando dos lecturas separadas en el tiempo se obtiene el consumo real de cada
+plataforma. La medición del 2026-09-11 dio esto:
+
+| Proyecto | CU continuas | % del gasto de cómputo |
+|---|---:|---:|
+| clickaton-production | 1,517 | 44,5% |
+| compramelafoto | 1,089 | 31,9% |
+| infospot-production | 0,586 | 17,2% |
+| dnx-suite-staging | 0,218 | 6,4% |
+
+Un reparto medido vale mucho más que uno inventado, porque responde la pregunta del dueño
+sin discusión: Clickatón costaba más que CompraMeLaFoto y nadie lo hubiera adivinado.
+
+Por eso el modelo admite dos orígenes de reparto —`MANUAL` y `MEDIDO`— y la pantalla
+distingue cuáles son estimaciones y cuáles no. Medir Neon queda en la etapa 4; el resto
+sigue siendo manual.
+
 Existe además una plataforma especial `suite` para el gasto que de verdad no es atribuible
 a ningún producto (contador, dominio corporativo, herramientas internas). No se reparte a
 la fuerza: se muestra aparte como **costo de estructura**.
@@ -284,6 +305,12 @@ Dos caminos, uno por lado del balance:
 - **Gastos:** carga asistida en pantalla. Se cargan los proveedores una vez, se carga
   enero a mano, y de febrero en adelante se usa "copiar del mes anterior" corrigiendo lo
   que cambió. Nueve meses se cargan en una sesión corta.
+
+**Buena parte del histórico ya está relevada** (2026-09-11), leyendo los paneles y el
+correo: Vercel completo de febrero a septiembre, Neon de julio a septiembre, Resend de
+julio a agosto, Cloudflare del período en curso y Cursor de enero a septiembre. Ese
+relevamiento también dejó a la vista **USD 517,92 en facturas rechazadas por la tarjeta**,
+que es justamente lo que la sección anterior obliga a mostrar aparte.
 
 ## 10. Pantallas — `/admin/finanzas-dnx`
 
