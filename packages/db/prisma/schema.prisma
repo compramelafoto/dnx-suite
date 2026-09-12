@@ -17212,6 +17212,8 @@ model ExpenseEntry {
   amountRefunded     Decimal? @db.Decimal(12, 2)
   /// ESTIMADO, FACTURADO, PAGADO, RECHAZADO, IMPAGO, REEMBOLSADO
   status             String   @default("FACTURADO")
+  /// Cuándo vence la factura. Permite avisar antes de que un rechazo se vuelva un corte.
+  dueDate            DateTime?
   /// MANUAL, IMPORTADO, API
   source             String   @default("MANUAL")
   invoiceUrl         String?
@@ -17250,4 +17252,27 @@ model FxRate {
   createdAt   DateTime @default(now())
 
   @@unique([periodYear, periodMonth])
+}
+
+/// Finanzas DNX — ingresos por plataforma y mes, calculados y congelados.
+/// El job los recalcula; las pantallas leen sólo esta tabla.
+model PlatformRevenueSnapshot {
+  id              Int      @id @default(autoincrement())
+  platformKey     String
+  periodYear      Int
+  periodMonth     Int
+  /// Lo que pagó el cliente final.
+  grossArs        Decimal  @default(0) @db.Decimal(14, 2)
+  /// Comisión del procesador de pagos.
+  processorFeeArs Decimal  @default(0) @db.Decimal(14, 2)
+  /// Lo que se va a fotógrafos, laboratorios y referidores: no es ingreso propio.
+  payoutToThirdPartiesArs Decimal @default(0) @db.Decimal(14, 2)
+  /// Lo que efectivamente queda para DNX. Es el número que se compara contra el gasto.
+  netArs          Decimal  @db.Decimal(14, 2)
+  operationsCount Int      @default(0)
+  computedAt      DateTime @default(now())
+  sourceNote      String?
+
+  @@unique([platformKey, periodYear, periodMonth])
+  @@index([periodYear, periodMonth])
 }

@@ -54,3 +54,15 @@ test("rechaza un proveedor sin nombre", () => {
   assert.equal(resultado.ok, false);
   assert.match(resultado.ok === false ? resultado.error : "", /nombre/i);
 });
+
+test("acepta un proveedor dado de baja", () => {
+  const resultado = parseVendorForm({ ...valido, active: false });
+  assert.equal(resultado.ok, true);
+  if (resultado.ok) assert.equal(resultado.value.active, false);
+});
+
+test("si no viene el estado, el proveedor queda activo", () => {
+  const resultado = parseVendorForm(valido);
+  assert.equal(resultado.ok, true);
+  if (resultado.ok) assert.equal(resultado.value.active, true);
+});

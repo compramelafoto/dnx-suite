@@ -11,6 +11,8 @@ export type ExpenseForm = {
   amountArsMinor: number;
   status: ExpenseStatus;
   notes: string | null;
+  /** Cuándo vence la factura. `null` si no se cargó ninguna. */
+  dueDate: Date | null;
 };
 
 export type ExpenseFormResult =
@@ -101,6 +103,18 @@ export function parseExpenseForm(raw: unknown): ExpenseFormResult {
     return { ok: false, error: error instanceof Error ? error.message : "Importe inválido." };
   }
 
+  // dueDate es opcional: si no viene, o viene explícitamente null, el gasto
+  // queda sin fecha de vencimiento. Si viene pero no se puede interpretar
+  // como fecha, se rechaza con un mensaje claro en vez de guardar basura.
+  let dueDate: Date | null = null;
+  if (datos.dueDate !== undefined && datos.dueDate !== null && datos.dueDate !== "") {
+    const fecha = new Date(datos.dueDate as string | number);
+    if (Number.isNaN(fecha.getTime())) {
+      return { ok: false, error: "La fecha de vencimiento no es una fecha válida." };
+    }
+    dueDate = fecha;
+  }
+
   return {
     ok: true,
     value: {
@@ -114,6 +128,7 @@ export function parseExpenseForm(raw: unknown): ExpenseFormResult {
       amountArsMinor,
       status,
       notes: datos.notes ? String(datos.notes) : null,
+      dueDate,
     },
   };
 }

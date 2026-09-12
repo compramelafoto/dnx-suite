@@ -129,3 +129,33 @@ test("acepta taxPercent en 0", () => {
 
   assert.equal(resultado.ok, true);
 });
+
+test("acepta un gasto sin fecha de vencimiento", () => {
+  const resultado = parseExpenseForm(valido);
+
+  assert.equal(resultado.ok, true);
+  if (resultado.ok) assert.equal(resultado.value.dueDate, null);
+});
+
+test("acepta un gasto con fecha de vencimiento válida", () => {
+  const resultado = parseExpenseForm({ ...valido, dueDate: "2026-10-10" });
+
+  assert.equal(resultado.ok, true);
+  if (resultado.ok) {
+    assert.equal(resultado.value.dueDate instanceof Date, true);
+  }
+});
+
+test("acepta dueDate null explícito", () => {
+  const resultado = parseExpenseForm({ ...valido, dueDate: null });
+
+  assert.equal(resultado.ok, true);
+  if (resultado.ok) assert.equal(resultado.value.dueDate, null);
+});
+
+test("rechaza una fecha de vencimiento que no se puede interpretar", () => {
+  const resultado = parseExpenseForm({ ...valido, dueDate: "no-es-una-fecha" });
+
+  assert.equal(resultado.ok, false);
+  assert.match(resultado.ok === false ? resultado.error : "", /vencimiento/i);
+});
