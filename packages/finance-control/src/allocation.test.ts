@@ -80,3 +80,26 @@ test("un reparto que suma 100 no da error", () => {
     ]),
   );
 });
+
+test("un share fuera de rango se rechaza aunque la suma dé 100", () => {
+  // -10% y 110% suman 100%, pero un porcentaje negativo o mayor a 100 no
+  // tiene sentido: clasificaría un monto espurio como gasto "directo" y
+  // dejaría el prorrateo de otra plataforma en negativo.
+  assert.throws(
+    () =>
+      assertSharesSumTo100([
+        { platformKey: "clf", sharePercent: -10 },
+        { platformKey: "fotoffice", sharePercent: 110 },
+      ]),
+    /clf/,
+  );
+});
+
+test("los shares en los bordes (0% y 100%) son válidos", () => {
+  assert.doesNotThrow(() =>
+    assertSharesSumTo100([
+      { platformKey: "clf", sharePercent: 0 },
+      { platformKey: "fotoffice", sharePercent: 100 },
+    ]),
+  );
+});

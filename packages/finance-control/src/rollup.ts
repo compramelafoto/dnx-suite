@@ -18,6 +18,13 @@ export type ExpenseStatus =
 export type SummaryEntry = {
   vendorKey: string;
   amountArsMinor: number;
+  /**
+   * Monto reembolsado (total o parcial). "Pagado" tiene que ser neto de
+   * reembolsos: lo que efectivamente quedó afuera de la cuenta. Es opcional
+   * porque la mayoría de las entradas no tiene reembolso. `amountArsMinor`
+   * (lo facturado) no se toca: un reembolso no desfactura la compra.
+   */
+  amountRefundedMinor?: number;
   status: ExpenseStatus;
   allocations: AllocatedAmount[];
 };
@@ -49,7 +56,9 @@ export function buildMonthlySummary(entries: SummaryEntry[]): MonthlySummary {
 
   for (const entry of entries) {
     billedArsMinor += entry.amountArsMinor;
-    if (entry.status === "PAGADO") paidArsMinor += entry.amountArsMinor;
+    if (entry.status === "PAGADO") {
+      paidArsMinor += entry.amountArsMinor - (entry.amountRefundedMinor ?? 0);
+    }
     if (ESTADOS_DE_DEUDA.has(entry.status)) debtArsMinor += entry.amountArsMinor;
 
     for (const parte of entry.allocations) {

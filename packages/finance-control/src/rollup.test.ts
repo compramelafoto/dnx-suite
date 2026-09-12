@@ -53,3 +53,45 @@ test("un mes sin gastos devuelve todo en cero y sin plataformas", () => {
   assert.equal(resumen.debtArsMinor, 0);
   assert.deepEqual(resumen.byPlatform, []);
 });
+
+test("un reembolso parcial se descuenta de lo pagado, pero no de lo facturado", () => {
+  // Caso real del relevamiento: se cobraron 100 y se reembolsaron 66.81, o
+  // sea que neto de la cuenta salieron 33.19.
+  const resumen = buildMonthlySummary([
+    {
+      vendorKey: "vendor-con-reembolso",
+      amountArsMinor: 100_00,
+      amountRefundedMinor: 66_81,
+      status: "PAGADO" as const,
+      allocations: [],
+    },
+  ]);
+
+  assert.equal(resumen.paidArsMinor, 33_19);
+  assert.equal(resumen.billedArsMinor, 100_00);
+});
+
+test("una entrada sin amountRefundedMinor se comporta exactamente igual que antes", () => {
+  const resumen = buildMonthlySummary([gastoDirecto]);
+
+  assert.equal(resumen.paidArsMinor, 20_00);
+  assert.equal(resumen.billedArsMinor, 20_00);
+});
+
+test("un gasto impago se cuenta como deuda, igual que uno rechazado", () => {
+  // RECHAZADO e IMPAGO comparten el mismo camino de código a través de
+  // ESTADOS_DE_DEUDA. Si alguien borrara "IMPAGO" del Set, esta prueba
+  // tiene que detectarlo (esta prueba sola, sin la de RECHAZADO, ya lo hace).
+  const resumen = buildMonthlySummary([{ ...gastoDirecto, status: "IMPAGO" as const }]);
+
+  assert.equal(resumen.debtArsMinor, 20_00);
+  assert.equal(resumen.paidArsMinor, 0);
+});
+
+test("un gasto reembolsado (REEMBOLSADO) cuenta como facturado pero ni como pagado ni como deuda", () => {
+  const resumen = buildMonthlySummary([{ ...gastoDirecto, status: "REEMBOLSADO" as const }]);
+
+  assert.equal(resumen.billedArsMinor, 20_00);
+  assert.equal(resumen.paidArsMinor, 0);
+  assert.equal(resumen.debtArsMinor, 0);
+});
