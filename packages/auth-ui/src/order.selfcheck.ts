@@ -21,7 +21,7 @@ function main() {
   assert.equal(DNX_AUTH_CTA.showPassword, "Mostrar contraseña");
 
   const brands = listAuthBrandConfigs();
-  assert.equal(brands.length, 5);
+  assert.equal(brands.length, 6);
   for (const b of brands) {
     assert.ok(b.privacyUrl);
     assert.ok(b.termsUrl);
@@ -31,6 +31,15 @@ function main() {
   assert.equal(getAuthBrandConfig("infospot").invitationOnly, true);
   assert.equal(getAuthBrandConfig("fotoffice").googleVisualEmphasis, "emphasized");
   assert.equal(getAuthBrandConfig("clickaton").allowGoogle, true);
+
+  // Subí la Foto entra sólo con Google: no hay contraseña ni registro propio.
+  // Si alguna de estas tres se pone en verdadero, el panel dibuja campos que
+  // esa plataforma no tiene detrás.
+  const subilafoto = getAuthBrandConfig("subilafoto");
+  assert.equal(subilafoto.allowGoogle, true);
+  assert.equal(subilafoto.allowEmailLogin, false);
+  assert.equal(subilafoto.allowEmailRegistration, false);
+  assert.equal(subilafoto.allowPasswordReset, false);
 
   // Orden login simulado canónico
   const loginObserved = [

@@ -20,7 +20,8 @@
     "@repo/auth": "workspace:*",
     "qrcode": "^1.5.4",
     "@aws-sdk/client-s3": "^3.972.0",
-    "@aws-sdk/s3-request-presigner": "^3.972.0"
+    "@aws-sdk/s3-request-presigner": "^3.972.0",
+    "@repo/auth-ui": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -41,6 +41,35 @@ Dos decisiones que conviene no revertir sin querer:
   portada: llega por el QR directo a `/e/[codigo]`. Ofrecerle «Ingresar» sería
   invitarlo a crear una cuenta que el producto promete que no necesita.
 
+#### El ingreso (`/login`) usa el paquete compartido
+
+Desde el 2026-09-12 la pantalla de ingreso está armada con **`@repo/auth-ui`**,
+el mismo paquete que FOTOFFICE, Clickatón, FotoRank e InfoSpot. No es una copia
+del diseño: son los mismos componentes (`DnxAuthShell`, `DnxAuthHeader`,
+`DnxGoogleButton`), así que el botón de Google —con su logo— y el tamaño de los
+controles son idénticos en toda la suite.
+
+Lo único propio es la paleta, declarada en `packages/auth-ui/src/tokens.css`
+bajo `data-brand="subilafoto"`, y la ficha
+`packages/auth-ui/src/brand/subilafoto.ts`.
+
+El botón de Google va en estilo `secondary`, el canónico de la suite, y no en
+`emphasized` (que usa FOTOFFICE). El color de marca lo pone el fondo púrpura y
+el amarillo del foco, no el botón: un botón amarillo con el logo de Google se
+aleja de las recomendaciones de marca de Google y además rompería el parecido
+con las otras plataformas, que es lo que se buscaba.
+
+Contrastes verificados sobre la superficie `#2b0a49`: texto 15,8:1, texto
+secundario 9,9:1 y el borde del control 3,4:1 —este último obligó a subir el
+violeta del borde a `#8358c7`, porque el mínimo para que algo se lea como
+control es 3:1.
+
+**Subí la Foto es la única plataforma de la suite que entra sólo con Google.**
+No hay ingreso con contraseña, ni registro, ni recuperación: el profesional ya
+tiene su Cuenta DNX y el invitado nunca inicia sesión. El selfcheck del paquete
+verifica esas tres banderas en falso, para que nadie las encienda sin querer y
+la pantalla dibuje campos que no tienen nada detrás.
+
 ### Invitado (móvil, sin cuenta)
 
 | # | Ruta | Pantalla | Prioridad |

@@ -1,10 +1,28 @@
-import Image from "next/image";
+import "@repo/auth-ui/tokens.css";
+
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
+import {
+  DnxAuthError,
+  DnxAuthHeader,
+  DnxAuthShell,
+  DnxGoogleButton,
+  subilafotoAuthBrand,
+} from "@repo/auth-ui";
 import { rutaInternaSegura } from "@/lib/ruta-segura";
 
-/** Ingreso del profesional. La misma cuenta que en el resto de DNX Suite. */
+/**
+ * Ingreso del profesional. La misma cuenta que en el resto de DNX Suite.
+ *
+ * Usa `@repo/auth-ui`, el mismo paquete que las demás plataformas: así el
+ * botón de Google, el orden de los elementos y el tamaño de los controles son
+ * idénticos en toda la suite. Lo único propio es la paleta, que vive en
+ * `tokens.css` bajo `data-brand="subilafoto"`.
+ *
+ * No hay ingreso con contraseña ni registro: quien vende eventos ya tiene su
+ * Cuenta DNX, y el invitado nunca inicia sesión — llega por el QR.
+ */
 
 export const dynamic = "force-dynamic";
 
@@ -25,44 +43,25 @@ export default async function Login({ searchParams }: Props) {
     ? `/api/auth/google?next=${encodeURIComponent(next)}`
     : "/api/auth/google";
 
+  const { logo, contextualCopy } = subilafotoAuthBrand;
+
   return (
-    <main
-      className="flex min-h-[100svh] flex-col items-center justify-center px-6 py-16"
-      style={{ background: "var(--slf-purpura)" }}
-    >
-      <Image
-        src="/brand/subilafoto-logo-vertical-negativo.png"
-        alt="Subí la Foto"
-        width={260}
-        height={330}
-        priority
-        className="h-auto w-[min(13rem,55vw)]"
+    <DnxAuthShell brand={subilafotoAuthBrand}>
+      <DnxAuthHeader
+        logo={logo}
+        title={contextualCopy?.loginTitle ?? "Entrá a tu cuenta"}
+        description={contextualCopy?.loginDescription}
       />
 
-      <h1 className="mt-12 text-center text-2xl font-extrabold text-white">
-        Entrá a tu cuenta
-      </h1>
-      <p className="mt-3 max-w-[36ch] text-center" style={{ color: "var(--slf-lila)" }}>
-        Es la misma cuenta que usás en las demás aplicaciones de DNX Suite.
-      </p>
+      <DnxAuthError message={error} />
 
-      {error ? (
-        <p
-          role="alert"
-          className="mt-8 max-w-[42ch] rounded-xl px-5 py-4 text-center text-sm"
-          style={{ background: "#ffffff14", color: "var(--slf-amarillo)" }}
-        >
-          {error}
-        </p>
-      ) : null}
-
-      <a
-        href={destino}
-        className="mt-10 inline-flex items-center gap-3 rounded-xl bg-white px-7 py-4 font-extrabold"
-        style={{ color: "var(--slf-purpura)" }}
-      >
-        Continuar con Google
-      </a>
-    </main>
+      {/*
+        `secondary` y no `emphasized`: es el estilo canónico de la suite y el
+        que hace que este botón se vea igual que en las otras plataformas, que
+        es justamente lo pedido. El color de marca lo pone el fondo púrpura y
+        el amarillo del foco, no el botón.
+      */}
+      <DnxGoogleButton href={destino} emphasis="secondary" />
+    </DnxAuthShell>
   );
 }

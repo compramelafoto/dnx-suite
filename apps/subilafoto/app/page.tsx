@@ -13,9 +13,13 @@ export default function Home() {
         sin alterar y la promesa partida en tres líneas, la tercera en amarillo.
         Es la única aplicación de la marca en la página; el resto es texto.
       */}
+      {/*
+        La sección no lleva padding horizontal: la franja tiene que ocupar el
+        ancho completo. El margen se lo pone cada bloque de texto por su cuenta.
+      */}
       <section
         style={{ background: "var(--slf-purpura)" }}
-        className="flex min-h-[100svh] flex-col items-center justify-center px-6 pb-16 pt-32 text-center sm:pt-36"
+        className="flex min-h-[100svh] flex-col items-center justify-center pb-16 pt-24 text-center sm:pt-28"
       >
         <Image
           src="/brand/subilafoto-logo-vertical-negativo.png"
@@ -23,17 +27,29 @@ export default function Home() {
           width={320}
           height={400}
           priority
-          className="h-auto w-[min(17rem,70vw)]"
+          /* Más chico que antes: con la franja en el medio, un logo de 17rem
+             empujaba la promesa abajo del pliegue en una notebook. Se ven los
+             tres: marca, escena y frase. */
+          className="h-auto w-[min(11rem,48vw)]"
         />
 
-        <h1 className="slf-lema mt-14 max-w-[18ch] text-balance text-[clamp(2rem,7vw,3.75rem)] font-extrabold leading-[1.08] tracking-[-0.02em] text-white">
+        {/*
+          La franja va entre el logo y la promesa: se ve la escena real antes de
+          leer nada. Los degradados de los extremos usan el mismo púrpura del
+          fondo, así que acá adentro las fotos entran y salen sin borde visible.
+        */}
+        <div className="mt-8 w-full">
+          <FranjaFotos />
+        </div>
+
+        <h1 className="slf-lema mt-8 max-w-[18ch] text-balance px-6 text-[clamp(2rem,6.5vw,3.5rem)] font-extrabold leading-[1.08] tracking-[-0.02em] text-white">
           <span>Todas las miradas </span>
           <span>de tu evento, </span>
           <span style={{ color: "var(--slf-amarillo)" }}>en un solo lugar.</span>
         </h1>
 
         <p
-          className="mt-10 max-w-[46ch] text-[clamp(1rem,2.4vw,1.15rem)] leading-relaxed"
+          className="mt-8 max-w-[46ch] px-6 text-[clamp(1rem,2.4vw,1.15rem)] leading-relaxed"
           style={{ color: "var(--slf-lila)" }}
         >
           Los invitados escanean un código con el celular, suben sus fotos y
@@ -41,12 +57,6 @@ export default function Home() {
           ninguna aplicación y sin crearse una cuenta.
         </p>
       </section>
-
-      {/*
-        La franja va justo debajo de la promesa y antes de cualquier explicación:
-        muestra en dos segundos lo que el texto tarda un párrafo en contar.
-      */}
-      <FranjaFotos />
 
       <section className="sobre-claro px-6 py-24 sm:py-32">
         <div className="mx-auto grid max-w-5xl gap-16 sm:grid-cols-[1fr_1fr] sm:gap-20">

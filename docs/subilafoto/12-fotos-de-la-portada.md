@@ -96,11 +96,32 @@ Un camino intermedio y rápido: fotos propias donde no haya caras reconocibles
 —manos, nucas, el código sobre la mesa, la pantalla— y generadas sólo donde la
 cara sea el punto de la escena.
 
+## A color, no en blanco y negro — DECIDIDO
+
+FotoRank pone su franja en escala de grises y acá **no**. No es un descuido.
+
+Son dos productos que muestran cosas distintas. FotoRank es un concurso de
+fotografía: el gris saca de en medio el color para que se mire la composición,
+que es lo que se juzga. Subí la Foto vende otra cosa —el clima de una fiesta— y
+eso vive justamente en las luces de colores, el vestido, la torta. En gris, diez
+fotos de fiesta parecen un archivo histórico.
+
+Hay además una razón práctica: la franja va sobre el púrpura de la marca, entre
+el logo y el título. En gris quedaría una banda apagada partiendo al medio la
+parte más saturada de la página.
+
+Si alguna vez se quiere probar, es una línea: agregar `grayscale` a la clase de
+la imagen en `franja-fotos.tsx`.
+
 ## Detalles técnicos de la franja
 
 - Está en `app/components/franja-fotos.tsx`. Es componente de servidor y **no
   lleva nada de JavaScript**: el movimiento es una animación de CSS
   (`slf-desfile`, en `globals.css`).
+- Va **entre el logo y el título**, dentro del hero. Por eso la sección del hero
+  no tiene padding horizontal —lo pone cada bloque de texto— y por eso los
+  degradados de los extremos usan el mismo púrpura del fondo: así las fotos
+  entran y salen sin que se vea un borde.
 - La lista se pinta dos veces y la pista se desplaza el 50% de su ancho. Para
   que el salto sea invisible, el espacio entre fotos va como `padding` de cada
   una y no como `gap`: con `gap`, veinte fotos dejan diecinueve espacios y la
