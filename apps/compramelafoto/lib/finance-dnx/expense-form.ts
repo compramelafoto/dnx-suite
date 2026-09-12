@@ -68,7 +68,14 @@ export function parseExpenseForm(raw: unknown): ExpenseFormResult {
   }
 
   const fxRate = datos.fxRate == null ? null : Number(datos.fxRate);
+  if (fxRate !== null && !Number.isFinite(fxRate)) {
+    return { ok: false, error: "El tipo de cambio tiene que ser un número." };
+  }
+
   const taxPercent = Number(datos.taxPercent ?? 0);
+  if (!Number.isFinite(taxPercent)) {
+    return { ok: false, error: "El porcentaje de impuesto tiene que ser un número." };
+  }
 
   let amountArsMinor: number;
   try {

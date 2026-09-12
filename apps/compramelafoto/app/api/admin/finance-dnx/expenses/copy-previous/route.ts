@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import { previousPeriod } from "@/lib/finance-dnx/expense-form";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -77,6 +78,12 @@ export async function POST(req: NextRequest) {
       omitidos: origen.length - aCopiar.length,
     });
   } catch (err: any) {
+    if (err?.code === "P2002") {
+      return NextResponse.json(
+        { error: "La copia no se completó porque otros gastos fueron creados mientras se copiaba. Intentá de nuevo." },
+        { status: 409 }
+      );
+    }
     console.error("POST /api/admin/finance-dnx/expenses/copy-previous ERROR >>>", err);
     return NextResponse.json(
       { error: "Error copiando los gastos del mes anterior", detail: String(err?.message ?? err) },

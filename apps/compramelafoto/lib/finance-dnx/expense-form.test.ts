@@ -51,3 +51,27 @@ test("el mes anterior a enero es diciembre del año pasado", () => {
 test("el mes anterior a septiembre es agosto del mismo año", () => {
   assert.deepEqual(previousPeriod(2026, 9), { year: 2026, month: 8 });
 });
+
+test("rechaza un taxPercent no numérico", () => {
+  const resultado = parseExpenseForm({ ...valido, taxPercent: "abc" });
+
+  assert.equal(resultado.ok, false);
+  assert.match(resultado.ok === false ? resultado.error : "", /impuesto|tax/i);
+});
+
+test("rechaza un fxRate presente pero no numérico", () => {
+  const resultado = parseExpenseForm({ ...valido, fxRate: "abc" });
+
+  assert.equal(resultado.ok, false);
+  assert.match(resultado.ok === false ? resultado.error : "", /cambio|fxRate|rate/i);
+});
+
+test("acepta fxRate null en una factura ARS", () => {
+  const resultado = parseExpenseForm({
+    ...valido,
+    currency: "ARS",
+    fxRate: null,
+  });
+
+  assert.equal(resultado.ok, true);
+});
