@@ -50,43 +50,36 @@ Aun en el mejor caso, esto confirma tres decisiones del plan:
    una en serie, la última aparecería cinco minutos tarde.
 3. La pantalla necesita el SSE justamente porque la foto llega después, no en el momento.
 
-## Falta: la cuenta de AWS propia
+## La cuenta de AWS propia — hecha
 
-Hoy Subí la Foto usaría las credenciales de CompraMeLaFoto. **No conviene**: si hay que
-rotar esa clave por un incidente, se cae también el buscador de caras de CLF, que está en
-producción.
-
-Lo que hace falta es un usuario IAM dedicado con permiso para una sola operación:
+El 2026-09-11 el titular creó el usuario IAM `subilafoto-moderacion` con una sola operación
+permitida:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
-    {
-      "Sid": "SoloModeracionDeImagenes",
-      "Effect": "Allow",
-      "Action": "rekognition:DetectModerationLabels",
-      "Resource": "*"
-    }
+    { "Sid": "SoloModeracionDeImagenes", "Effect": "Allow",
+      "Action": "rekognition:DetectModerationLabels", "Resource": "*" }
   ]
 }
 ```
 
-Un solo permiso, nada más. Si esa clave se filtra, lo peor que puede hacer quien la tenga es
-gastar dinero analizando imágenes — no puede leer caras, ni borrar colecciones, ni tocar S3.
+Un solo permiso. Si esa clave se filtra, lo peor que puede hacer quien la tenga es gastar
+dinero analizando imágenes: no puede leer caras, ni borrar colecciones, ni tocar S3. Y si
+hay que rotarla, no se cae el buscador de caras de CompraMeLaFoto.
 
-**Pasos, en la consola de AWS (IAM → Usuarios → Crear usuario):**
+Las claves las creó y cargó el titular en Vercel. Ese paso queda para él a propósito: crear
+identidades y generar claves es configuración de seguridad, y una clave secreta no debe
+pasar por una conversación ni quedar en un archivo del repositorio.
 
-1. Nombre: `subilafoto-moderacion`. Sin acceso a la consola.
-2. Adjuntar una política en línea con el JSON de arriba.
-3. Crear una clave de acceso, tipo "Aplicación fuera de AWS".
-4. Cargar en Vercel, proyecto `subilafoto-dnxsuite`, entorno Production:
-   `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION=us-east-1`.
+### Por qué Amazon y no Google Cloud Vision
 
-Este paso queda para el titular a propósito: crear identidades y generar claves de acceso es
-configuración de seguridad, y la clave secreta no debe pasar por una conversación ni quedar
-en un archivo del repositorio. Mientras tanto, el desarrollo puede seguir con las
-credenciales existentes, que ya se verificaron.
+Porque **la cuenta de facturación de Google Cloud está cerrada** (`open: false`, verificado
+el 2026-09-12) y Cloud Vision exige facturación activa aun para su tramo gratuito. Además
+Amazon sale más barato: USD 1,00 por cada 1.000 imágenes contra USD 1,50 de Google. El
+detalle completo, con la tabla de precios y lo que queda abierto, en la decisión 5 del
+documento 07.
 
 ## Falta: el correo del dominio
 
@@ -103,7 +96,7 @@ Verificado en producción el 2026-09-11 con `/api/diagnostico`:
 | `DATABASE_URL` / `DIRECT_URL` | Base de CompraMeLaFoto, rama `production` | ✅ |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | Moderación, usuario propio `subilafoto-moderacion` | ✅ |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `AUTH_SECRET` / `AUTH_URL` | Login unificado con la suite | ✅ cargadas |
-| `R2_*` | Bucket `subilafoto-media` | Falta |
+| `R2_*` | Bucket `subilafoto-media` | ✅ verificado de punta a punta el 11/9 |
 | `MP_*` | OAuth de Mercado Pago | Etapa 3 |
 
 **La moderación desde Vercel tarda ~100 ms**, no los 2,7 a 11 segundos medidos desde

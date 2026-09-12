@@ -50,12 +50,52 @@ CompraMeLaFoto, detrás de una interfaz que permita cambiar al split cuando est�
 invitados. La única descarga del evento es la del cliente, detrás del pago del adicional.
 El detalle y sus consecuencias, en el documento 03.
 
-### 4. ¿Qué cuenta de AWS usa Rekognition? — PENDIENTE
+### 4. ¿Qué cuenta de AWS usa Rekognition? — RESUELTA
 
-CompraMeLaFoto ya lo usa para reconocimiento facial. Hay que confirmar que la misma cuenta
-y región admiten `DetectModerationLabels` y decidir si Subí la Foto comparte esas
-credenciales o tiene las suyas. Recomiendo credenciales propias: si hay que rotar una clave
-por un incidente, no se cae también el buscador de caras de CompraMeLaFoto.
+Credenciales propias. El 2026-09-11 el titular creó el usuario IAM `subilafoto-moderacion`
+con un solo permiso, `rekognition:DetectModerationLabels`, y cargó sus claves en Vercel.
+Si hay que rotar esa clave por un incidente no se cae el buscador de caras de
+CompraMeLaFoto, que está en producción. Verificado desde Vercel: responde en ~100 ms.
+
+### 5. ¿Por qué Amazon y no Google Cloud Vision? — RESUELTA
+
+Pregunta del titular el 2026-09-12: si Google Cloud ya se usa para el login, por qué la
+moderación se hace con Amazon, "que era la alternativa más cara".
+
+**No es la más cara: es la más barata de las dos.** Precios verificados el 2026-09-12 en las
+páginas oficiales:
+
+| | Amazon Rekognition `DetectModerationLabels` | Google Cloud Vision SafeSearch |
+|---|---:|---:|
+| Precio por 1.000 imágenes | **USD 1,00** (primer millón) | USD 1,50 |
+| Tramo siguiente | USD 0,80 | USD 0,60 (a partir de 5 M) |
+| Gratis | 1.000/mes, sólo los primeros 12 meses de la cuenta | 1.000/mes, permanente |
+
+Con el supuesto del documento maestro —100 fotos por evento— Amazon cuesta **USD 0,10 por
+evento**. Google costaría 0,15. La diferencia real, a 50 eventos por mes, es **un dólar**:
+5 contra 6. A este volumen el precio no decide nada.
+
+Lo que sí decide son dos hechos:
+
+1. **La cuenta de facturación de Google Cloud está cerrada.** Verificado por API el
+   2026-09-12: la única cuenta visible, `01E0EB-C76321-DB0EB0`, devuelve `open: false`.
+   Cloud Vision exige facturación activa **incluso para consumir su tramo gratuito**. O sea
+   que hoy la opción de Google no está disponible, ni gratis ni paga.
+2. **Rekognition ya está en producción en la suite.** El SDK
+   `@aws-sdk/client-rekognition ^3.985.0` está instalado y con credenciales vivas en
+   CompraMeLaFoto. Cambia la operación, no la integración.
+
+Google Cloud **sí se usa** en Subí la Foto: es el cliente OAuth del inicio de sesión,
+compartido con el resto de la suite. Son dos servicios distintos del mismo proveedor y sólo
+uno estaba disponible.
+
+El documento maestro ya recomendaba Rekognition (capítulos 10 y 22) y pedía verificar
+precios antes de integrarlo. Esto es esa verificación.
+
+**Queda abierto:** si en algún momento se reabre la facturación de Google, conviene medir a
+los dos con fotos reales de eventos. La precisión importa más que el centavo de diferencia,
+y eso no se sabe hasta probarlo. La integración está desacoplada por interfaz de proveedor
+justamente para permitir el cambio.
 
 ## Decisiones que pueden esperar hasta la Etapa 2
 
@@ -101,6 +141,33 @@ Estas no las puede tomar el código y ninguna puede faltar el 10 de octubre:
 en un salón con cien personas el wifi no dé abasto. La defensa es subir directo a R2 con
 URL prefirmada (sin pasar por el servidor), reducir la foto en el teléfono antes de subir y
 reintentar solo. <!-- FotoRank ya tuvo que hacer esto por el tope de 4,5 MB de Vercel. -->
+
+## Deudas asumidas a propósito
+
+Cosas que sabemos que están mal y decidimos no arreglar todavía, con el motivo.
+
+### D1. El panel no se parece al del resto de la suite
+
+**Asumida por el titular el 2026-09-11:** «el panel no es igual o parecido al resto de las
+plataformas… pero bueno, dejalo como una deuda».
+
+El panel de Subí la Foto se construyó con los tokens de su propio manual de marca
+(`--slf-*`, Montserrat y Cormorant), mientras CompraMeLaFoto, FOTOFFICE y FotoRank comparten
+otra estética de panel. Un fotógrafo que use dos plataformas ve dos productos distintos.
+
+**Por qué se deja:** unificar el panel es rehacer la navegación, no cambiar colores, y no
+entra antes del 10/10. Además la parte que ve el invitado —que es la que decide si la
+plataforma se vende— sí tiene que verse como Subí la Foto y no como otra cosa.
+
+**Cuándo se paga:** después del lanzamiento, y junto con el buscador ⌘K del menú DNX, que
+toca los mismos cinco formatos de menú. Hacer las dos cosas por separado es pagar dos veces.
+
+### D2. `/api/diagnostico` está abierto en producción
+
+Ruta temporal que informa si la base, R2 y Rekognition responden. No expone credenciales
+—sólo el hostname de la base y tiempos de respuesta— pero **hay que borrarla antes del
+lanzamiento**. Existe porque sin ella el `P2021` de las dos filas de `DATABASE_URL` habría
+costado mucho más que media hora.
 
 ## Lo que dejo dicho por escrito
 
