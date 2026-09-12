@@ -125,3 +125,17 @@ packages/db/.data/
 .env*
 !.env.example
 !**/.env.example
+
+# Artefactos de build que el propio build reescribe en cada corrida.
+# Versionados ensucian `git status` y generan conflictos al mergear entre ramas.
+#
+# *.tsbuildinfo: caché incremental de TypeScript ("incremental": true en los
+# tsconfig de compramelafoto, fotoffice y subilafoto). Nunca debe versionarse.
+*.tsbuildinfo
+#
+# next-env.d.ts: lo regenera `next dev` / `next build` / `next typegen`. La doc
+# de Next 16 lo pide explícitamente en .gitignore
+# (node_modules/next/dist/docs/01-app/03-api-reference/05-config/02-typescript.md:91
+# y .../01-getting-started/02-project-structure.md:47). fotoffice, clickaton e
+# infospot ya lo ignoraban en su .gitignore propio; esto unifica el criterio.
+next-env.d.ts
