@@ -34,7 +34,11 @@ export function assertSharesSumTo100(shares: AllocationShare[]): void {
   const suma = shares.reduce((total, parte) => total + parte.sharePercent, 0);
   const sumaRedondeada = Math.round(suma * 100) / 100;
   if (Math.abs(sumaRedondeada - 100) >= 1e-9) {
-    throw new Error(`El reparto suma ${suma}% y tiene que sumar exactamente 100%.`);
+    // Se muestra `sumaRedondeada`, no `suma`: sumar porcentajes de dos
+    // decimales puede arrastrar ruido de punto flotante (ej. 79.99999999999999)
+    // que un usuario no puede interpretar. El redondeo es sólo para mostrar el
+    // mensaje: la comparación de arriba ya usa `sumaRedondeada`.
+    throw new Error(`El reparto suma ${sumaRedondeada}% y tiene que sumar exactamente 100%.`);
   }
 }
 

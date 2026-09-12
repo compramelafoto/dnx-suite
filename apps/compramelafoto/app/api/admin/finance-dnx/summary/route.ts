@@ -46,6 +46,18 @@ export async function GET(req: NextRequest) {
 
     const summary = buildMonthlySummary(summaryEntries);
 
+    // Deuda acumulada de verdad: todas las facturas RECHAZADO o IMPAGO que
+    // siguen abiertas, sin importar el mes. `summary.debtArsMinor` sólo mira
+    // el período pedido, así que no alcanza para saber cuánto se debe en
+    // total (la spec define "deuda acumulada" como algo que cruza meses).
+    const deudaAcumulada = await prisma.expenseEntry.aggregate({
+      _sum: { amountArs: true },
+      where: { status: { in: ["RECHAZADO", "IMPAGO"] } },
+    });
+    const accumulatedDebtArsMinor = Math.round(
+      (deudaAcumulada._sum.amountArs?.toNumber() ?? 0) * 100
+    );
+
     // Aviso "te olvidaste de cargar esto": proveedores activos con gasto el
     // mes pasado que todavía no tienen ninguno cargado en el mes pedido.
     const anterior = previousPeriod(year, month);
@@ -66,7 +78,7 @@ export async function GET(req: NextRequest) {
       ).values(),
     ];
 
-    return NextResponse.json({ summary, faltantes });
+    return NextResponse.json({ summary, faltantes, accumulatedDebtArsMinor });
   } catch (err: any) {
     console.error("GET /api/admin/finance-dnx/summary ERROR >>>", err);
     return NextResponse.json(

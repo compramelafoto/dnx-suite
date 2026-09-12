@@ -33,6 +33,7 @@ export default function FinanzasDnxResumenPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
+  const [accumulatedDebtArsMinor, setAccumulatedDebtArsMinor] = useState(0);
   const [faltantes, setFaltantes] = useState<VendorFaltante[]>([]);
 
   const loadData = useCallback(async () => {
@@ -47,10 +48,12 @@ export default function FinanzasDnxResumenPage() {
       if (!res.ok) {
         setError(data.error || "No se pudo cargar el resumen.");
         setSummary(null);
+        setAccumulatedDebtArsMinor(0);
         setFaltantes([]);
         return;
       }
       setSummary(data.summary);
+      setAccumulatedDebtArsMinor(data.accumulatedDebtArsMinor || 0);
       setFaltantes(data.faltantes || []);
     } catch {
       setError("Error de conexión al cargar el resumen.");
@@ -106,7 +109,7 @@ export default function FinanzasDnxResumenPage() {
         </div>
       ) : summary ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <Card className="p-6">
               <p className="text-sm text-gray-600">Facturado del mes</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
@@ -125,13 +128,25 @@ export default function FinanzasDnxResumenPage() {
 
             <Card className={summary.debtArsMinor > 0 ? "p-6 border-red-300 bg-red-50" : "p-6"}>
               <p className={summary.debtArsMinor > 0 ? "text-sm text-red-700 font-medium" : "text-sm text-gray-600"}>
-                Deuda acumulada
+                Deuda del mes
               </p>
               <p className={summary.debtArsMinor > 0 ? "text-2xl font-bold text-red-700 mt-1" : "text-2xl font-bold text-gray-900 mt-1"}>
                 {formatARS(summary.debtArsMinor / 100)}
               </p>
               <p className={summary.debtArsMinor > 0 ? "text-xs text-red-600 mt-1" : "text-xs text-gray-500 mt-1"}>
-                Facturas rechazadas o impagas que siguen abiertas. Un servicio impago no es un ahorro: se corta.
+                Facturas rechazadas o impagas de {MESES[month - 1]} {year} únicamente.
+              </p>
+            </Card>
+
+            <Card className={accumulatedDebtArsMinor > 0 ? "p-6 border-red-300 bg-red-50" : "p-6"}>
+              <p className={accumulatedDebtArsMinor > 0 ? "text-sm text-red-700 font-medium" : "text-sm text-gray-600"}>
+                Deuda acumulada (todos los meses)
+              </p>
+              <p className={accumulatedDebtArsMinor > 0 ? "text-2xl font-bold text-red-700 mt-1" : "text-2xl font-bold text-gray-900 mt-1"}>
+                {formatARS(accumulatedDebtArsMinor / 100)}
+              </p>
+              <p className={accumulatedDebtArsMinor > 0 ? "text-xs text-red-600 mt-1" : "text-xs text-gray-500 mt-1"}>
+                Todas las facturas rechazadas o impagas que siguen abiertas, sin importar el mes. Un servicio impago no es un ahorro: se corta.
               </p>
             </Card>
           </div>

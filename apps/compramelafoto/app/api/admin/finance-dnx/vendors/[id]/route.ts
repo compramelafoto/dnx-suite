@@ -43,9 +43,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ vendor: toVendorJson(updated) });
   } catch (err: any) {
     if (err?.code === "P2002") {
+      // Dos restricciones únicas distintas pueden disparar P2002 acá: la
+      // clave del proveedor (ExpenseVendor.key) y el reparto por plataforma
+      // (VendorAllocation en vendorId+platformKey). Hay que mirar qué
+      // constraint fue para no culpar a la causa equivocada.
+      const target = Array.isArray(err.meta?.target)
+        ? err.meta.target.join(",")
+        : String(err.meta?.target ?? "");
+      if (target.includes("platformKey")) {
+        return NextResponse.json(
+          {
+            error:
+              "El reparto tiene la misma plataforma repetida más de una vez: cada plataforma sólo puede aparecer una vez.",
+          },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: `Ya existe un proveedor con la clave "${vendorKey ?? ""}".` },
         { status: 409 }
+      );
+    }
+    if (err?.code === "P2025") {
+      return NextResponse.json(
+        { error: "El proveedor que se intenta editar no existe." },
+        { status: 404 }
       );
     }
     console.error("PUT /api/admin/finance-dnx/vendors/[id] ERROR >>>", err);

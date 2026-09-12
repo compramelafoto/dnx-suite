@@ -66,15 +66,27 @@ export function parseExpenseForm(raw: unknown): ExpenseFormResult {
   if (!Number.isFinite(amountOriginalMinor)) {
     return { ok: false, error: "El importe no es un número." };
   }
+  if (amountOriginalMinor <= 0) {
+    return { ok: false, error: "El importe tiene que ser mayor a 0." };
+  }
 
   const fxRate = datos.fxRate == null ? null : Number(datos.fxRate);
   if (fxRate !== null && !Number.isFinite(fxRate)) {
     return { ok: false, error: "El tipo de cambio tiene que ser un número." };
   }
+  if (fxRate !== null && fxRate <= 0) {
+    return { ok: false, error: "El tipo de cambio tiene que ser mayor a 0." };
+  }
 
   const taxPercent = Number(datos.taxPercent ?? 0);
   if (!Number.isFinite(taxPercent)) {
     return { ok: false, error: "El porcentaje de impuesto tiene que ser un número." };
+  }
+  // La columna es Decimal(5,2): admite hasta 999.99. Un valor fuera de este
+  // rango llegaría a Postgres y volvería como un 500 genérico en vez de un
+  // 400 con un mensaje claro.
+  if (taxPercent < 0 || taxPercent > 999.99) {
+    return { ok: false, error: "El porcentaje de impuesto tiene que estar entre 0 y 999.99." };
   }
 
   let amountArsMinor: number;

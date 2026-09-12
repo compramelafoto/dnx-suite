@@ -61,6 +61,21 @@ test("un monto grande repartido entre las 5 plataformas reales suma exacto aunqu
   assert.equal(suma, 10_000_003);
 });
 
+test("el mensaje de error redondea la suma para no mostrar ruido de punto flotante", () => {
+  // 10 + 33.38 + 39.95 da en punto flotante 83.33000000000001, no 83.33.
+  // El mensaje tiene que mostrar la cifra redondeada a dos decimales, no el
+  // valor crudo con ruido.
+  const sharesConRuido = [
+    { platformKey: "clf", sharePercent: 10 },
+    { platformKey: "fotoffice", sharePercent: 33.38 },
+    { platformKey: "fotorank", sharePercent: 39.95 },
+  ];
+  const suma = sharesConRuido.reduce((total, parte) => total + parte.sharePercent, 0);
+  assert.equal(String(suma), "83.33000000000001");
+
+  assert.throws(() => assertSharesSumTo100(sharesConRuido), /suma 83\.33% /);
+});
+
 test("un reparto que no suma 100 es un error explícito", () => {
   assert.throws(
     () =>

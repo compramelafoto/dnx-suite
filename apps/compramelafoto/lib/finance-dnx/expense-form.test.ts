@@ -75,3 +75,57 @@ test("acepta fxRate null en una factura ARS", () => {
 
   assert.equal(resultado.ok, true);
 });
+
+test("rechaza un amountOriginal en cero", () => {
+  const resultado = parseExpenseForm({ ...valido, amountOriginal: 0 });
+
+  assert.equal(resultado.ok, false);
+  assert.match(resultado.ok === false ? resultado.error : "", /importe/i);
+});
+
+test("rechaza un amountOriginal negativo", () => {
+  const resultado = parseExpenseForm({ ...valido, amountOriginal: -50 });
+
+  assert.equal(resultado.ok, false);
+  assert.match(resultado.ok === false ? resultado.error : "", /importe/i);
+});
+
+test("rechaza un fxRate en cero", () => {
+  const resultado = parseExpenseForm({ ...valido, fxRate: 0 });
+
+  assert.equal(resultado.ok, false);
+  assert.match(resultado.ok === false ? resultado.error : "", /cambio/i);
+});
+
+test("rechaza un fxRate negativo", () => {
+  const resultado = parseExpenseForm({ ...valido, fxRate: -1450 });
+
+  assert.equal(resultado.ok, false);
+  assert.match(resultado.ok === false ? resultado.error : "", /cambio/i);
+});
+
+test("rechaza un taxPercent fuera de rango (excede la capacidad de la columna)", () => {
+  const resultado = parseExpenseForm({ ...valido, taxPercent: 1500 });
+
+  assert.equal(resultado.ok, false);
+  assert.match(resultado.ok === false ? resultado.error : "", /impuesto/i);
+});
+
+test("rechaza un taxPercent negativo", () => {
+  const resultado = parseExpenseForm({ ...valido, taxPercent: -1 });
+
+  assert.equal(resultado.ok, false);
+  assert.match(resultado.ok === false ? resultado.error : "", /impuesto/i);
+});
+
+test("acepta el borde superior de taxPercent (999.99)", () => {
+  const resultado = parseExpenseForm({ ...valido, taxPercent: 999.99 });
+
+  assert.equal(resultado.ok, true);
+});
+
+test("acepta taxPercent en 0", () => {
+  const resultado = parseExpenseForm({ ...valido, taxPercent: 0 });
+
+  assert.equal(resultado.ok, true);
+});
