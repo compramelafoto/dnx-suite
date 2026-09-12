@@ -55,6 +55,40 @@ export async function GET() {
     resultado.moderacion = { ok: false, error: e instanceof Error ? e.name : "desconocido" };
   }
 
+  // R2: se sube un archivo diminuto, se lee y se borra. Es la única forma de saber que
+  // la credencial sirve de verdad y no sólo que las variables están presentes.
+  try {
+    const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = await import(
+      "@aws-sdk/client-s3"
+    );
+    const { almacenamiento, bucket } = await import("@/lib/almacenamiento");
+    const cliente = almacenamiento();
+    const clave = `diagnostico/prueba-${Date.now()}.txt`;
+    const contenido = "prueba de escritura";
+    const inicio = Date.now();
+
+    await cliente.send(
+      new PutObjectCommand({ Bucket: bucket(), Key: clave, Body: contenido }),
+    );
+    const leido = await cliente.send(
+      new GetObjectCommand({ Bucket: bucket(), Key: clave }),
+    );
+    const texto = await leido.Body?.transformToString();
+    await cliente.send(new DeleteObjectCommand({ Bucket: bucket(), Key: clave }));
+
+    resultado.almacenamiento = {
+      ok: texto === contenido,
+      escribeYLee: texto === contenido,
+      ms: Date.now() - inicio,
+    };
+  } catch (e) {
+    resultado.almacenamiento = {
+      ok: false,
+      error: e instanceof Error ? e.name : "desconocido",
+      detalle: e instanceof Error ? e.message.slice(0, 120) : null,
+    };
+  }
+
   // Sólo el host de la base, nunca usuario ni contraseña: alcanza para saber
   // si la app está hablando con la base que creemos.
   let hostBase: string | null = null;
@@ -71,6 +105,7 @@ export async function GET() {
     tieneAuthSecret: Boolean(process.env.AUTH_SECRET),
     authUrl: process.env.AUTH_URL ?? null,
     region: process.env.AWS_REGION ?? null,
+    bucket: process.env.R2_BUCKET ?? null,
   };
 
   return Response.json(resultado);
