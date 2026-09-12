@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Cabecera } from "./components/cabecera";
 import { FranjaFotos } from "./components/franja-fotos";
+import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 export default function Home() {
   return (
@@ -94,8 +95,14 @@ export default function Home() {
             </p>
             <Link
               href="/login"
-              className="mt-6 inline-block font-extrabold underline underline-offset-4"
-              style={{ color: "var(--slf-violeta)" }}
+              className="mt-6"
+              style={{
+                ...estiloBotonDnx("secundario"),
+                // Esta sección va sobre fondo claro: el borde y la tinta del
+                // tema oscuro no se leerían.
+                color: "var(--slf-violeta)",
+                border: "1px solid var(--slf-violeta)",
+              }}
             >
               Entrá con tu cuenta de DNX Suite
             </Link>

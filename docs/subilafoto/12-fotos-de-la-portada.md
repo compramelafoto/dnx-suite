@@ -48,36 +48,66 @@ franja no se vea repetitiva al moverse.
 
 Van en inglés porque los generadores responden mejor así. Las partes fijas —la
 luz, el estilo, la proporción— son iguales en las diez a propósito: si cada foto
-tiene una estética distinta, la franja se ve como un collage de bancos de imagen.
+tiene una estética distinta, la franja se ve como un collage de banco de imágenes.
 
-**Base común, pegar al final de cada prompt:**
+### Lo más importante: que no parezcan hechas con IA
 
-> candid documentary event photography, warm ambient party lighting at night,
-> string lights and bokeh in the background, natural skin tones, shallow depth
-> of field, 35mm lens look, photorealistic, no text, no logos, no watermarks,
-> 3:2 aspect ratio, horizontal
+Una foto generada se delata por ser **demasiado perfecta**: todo el mundo mirando
+a cámara, peinados impecables, ropa sin una arruga, luz de estudio, composición
+centrada, nadie parpadeando. En una fiesta real nada de eso pasa.
 
-1. `A young woman at a wedding reception holding up her phone to scan a small printed code standing on the table, seen slightly from the side, other guests blurred behind her`
-2. `A group of four friends at a party looking up and laughing at a large screen on the wall, seen from behind and slightly below, the screen glow lighting their faces`
-3. `Close-up of a hand holding a phone over an elegant printed table centerpiece card, the phone screen showing the camera view, festive table setting around`
-4. `A bride and groom sitting close together looking at a phone screen and laughing, warm evening light, reception in the background`
-5. `A large screen at an event venue showing a grid of many small photographs, a few guests visible in the foreground from behind, dark room`
-6. `Two teenage girls in party dresses taking a selfie together at a quinceañera celebration, colorful lights behind them`
-7. `An older woman smiling while a young man helps her use her phone at a family celebration, both seated at a decorated table`
-8. `Close-up of a small elegant printed sign with a square code on a party table, sharp focus on the sign, the celebration completely out of focus behind`
-9. `A group of guests cheering and pointing at something off-camera at a party, arms raised, joyful expressions, dance floor lighting`
-10. `Two high school students in formal clothes showing each other photos on a phone at a graduation party, warm indoor lighting`
+Por eso cada prompt lleva instrucciones de imperfección. **No las saques.** Son
+lo que separa una foto que parece de una fiesta de una que parece de un folleto.
 
-### Lo que hay que revisar antes de darlas por buenas
+**Bloque base, pegar al final de cada prompt:**
+
+> shot on a phone camera by a guest, not a professional photographer. slightly
+> off-center framing, imperfect composition, mild motion blur on someone moving,
+> a bit of digital noise in the shadows, mixed and uneven lighting from party
+> lights, some faces partly cut off at the edges of the frame, ordinary
+> everyday people with imperfect hair and slightly wrinkled clothes, natural
+> unretouched skin with visible pores and shine, nobody posing for the camera,
+> candid unposed moment, real Argentinian party, 3:2 aspect ratio, horizontal,
+> no text, no logos, no watermarks, photorealistic, NOT a stock photo, NOT
+> studio lighting, NOT everyone smiling at the camera
+
+### Los diez
+
+1. `A young woman at a wedding reception holding up her phone to scan a small printed code on the table, seen from the side, other guests blurred and talking behind her, she is mid-movement and slightly out of focus`
+2. `A group of four friends at a party looking up at a screen on the wall and laughing, seen from behind and below, only the back of their heads and shoulders visible, the screen light spilling unevenly on them`
+3. `Close-up of a hand holding a phone over a printed card on a party table, the hand is slightly blurry, dirty plates and half-empty glasses around it, harsh direct flash`
+4. `A bride and groom sitting close together looking down at a phone and laughing, her makeup a little worn after hours of party, his tie loosened, warm dim light`
+5. `A screen at an event venue showing a grid of small photographs, seen at an angle from the side of the room, a few silhouettes of guests in the dark foreground, the screen slightly overexposed`
+6. `Two teenage girls in party dresses taking a selfie, one has her eyes half closed, colorful uneven lights behind them, phone flash washing out their faces a little`
+7. `An older woman squinting at her phone while a young man leans in to help her, both seated at a messy table after dinner, warm yellowish indoor light`
+8. `A small printed sign with a square code standing on a party table, seen up close and slightly tilted, crumbs and a wine stain on the tablecloth, the celebration completely out of focus behind`
+9. `A group of guests laughing and pointing at something off-camera, arms raised, one person half out of frame, dance floor lights, slight motion blur`
+10. `Two high school students in graduation clothes hunched over a phone showing each other photos, one is mid-sentence with his mouth open, cluttered background of other students`
+
+### Cómo pedírselas a ChatGPT
+
+Una por vez, no las diez juntas: si le pedís varias en un mismo mensaje, baja la
+calidad de cada una. El mensaje que le mandás es:
+
+> Generá una fotografía con esta descripción: **[el prompt del número que toque]**
+> — **[el bloque base completo]**
+
+Si la primera sale demasiado prolija, pedile literalmente: *"hacela menos
+perfecta, como una foto sacada con un celular en una fiesta, no como una foto
+profesional"*.
+
+### Qué revisar antes de darlas por buenas
 
 - **El código nunca va a salir bien.** Ningún generador dibuja un QR que
-  funcione: sale un cuadrado con manchas. A 184 px de alto no se nota, pero
-  conviene que el código quede **chico y algo desenfocado** en la escena. Si en
-  alguna foto se ve grande y nítido, esa foto no sirve.
+  funcione: sale un cuadrado con manchas. A 144 px de alto no se nota, pero
+  conviene que el código quede **chico y algo desenfocado**. Si en alguna foto
+  se ve grande y nítido, esa foto no sirve.
 - **Manos y dedos.** Es lo que peor sale. Las escenas 1, 3, 4, 7 y 10 tienen
   manos sosteniendo un celular; miralas al 100%.
 - **Que no aparezca ninguna marca.** Ni de celular, ni de bebida, ni de salón.
 - **Caras.** Que no se parezcan a alguien reconocible.
+- **La prueba final:** miralas las diez juntas. Si parecen de la misma sesión de
+  fotos, están mal. Tienen que parecer sacadas por diez personas distintas.
 
 ## La alternativa que recomiendo
 

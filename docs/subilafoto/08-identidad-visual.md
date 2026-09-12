@@ -93,3 +93,55 @@ antes de producir los materiales impresos con el QR del evento.
 
 Los logos ya están copiados en `apps/subilafoto/public/brand/`, que es de donde los toma la
 aplicación. `docs/subilafoto/marca/` es el archivo maestro; no se sirve al público.
+
+## El design system: Subí la Foto ya tiene el suyo
+
+**Agregado el 2026-09-12.** Hasta ese día Subí la Foto no estaba registrada en
+`@repo/design-system`, el paquete que comparten las otras plataformas. Los
+botones se dibujaban a mano con clases de Tailwind, y por eso el de la portada
+era una píldora amarilla: se veía bien, pero era de otra familia que el resto de
+la suite.
+
+Ahora hay un tema propio, igual que los de CompraMeLaFoto, FotoRank y FOTOFFICE:
+
+```
+packages/design-system/src/design-system/themes/subilafoto.ts
+```
+
+Es el **único tema de la suite con un fondo de color** en lugar de negro o
+blanco: el púrpura `#200638` del manual. El amarillo es el acento y se usa poco
+a propósito — en el manual es el color de una sola cosa por pantalla. El violeta
+queda como acento secundario.
+
+Contrastes verificados contra el fondo: texto 17,1:1, secundario 10,8:1,
+`muted` 6,9:1, acento 12,9:1, borde fuerte 3,4:1 sobre la superficie.
+
+### Los botones
+
+La geometría es la del design system y no se inventa nada: radio de 8 px
+(`radius.button`), relleno de 12 × 24, peso 600 y letra de 0,9375 rem. Lo único
+propio es el color.
+
+Vive en `apps/subilafoto/lib/boton-dnx.ts` y hay un test que lo amarra a los
+tokens del paquete: si alguien cambia el radio del botón de DNX, el test avisa.
+
+**Por qué es una función de estilo y no el componente `Button`:** el `Button` de
+`@repo/design-system` es un componente de cliente y necesita su proveedor de
+tema. La portada de Subí la Foto se sirve estática y no carga nada de
+JavaScript; meter un proveedor para un solo botón sería pagar caro. En el panel,
+que ya es dinámico, corresponde usar el `Button` de verdad.
+
+**Un detalle encontrado al medir:** el tamaño mediano del `Button` compartido da
+**42,75 px de alto** y el mínimo cómodo para tocar con el dedo es 44. No se tocó
+el paquete —lo usan cinco aplicaciones— pero el botón de Subí la Foto fija el
+piso en 44, porque se toca en un salón, de noche y con el celular en una mano.
+Conviene revisarlo en el paquete alguna vez.
+
+### La tinta sobre el amarillo es `#050505`, no el púrpura
+
+El `Button` del design system elige el color del texto según la luminancia del
+fondo: claro → tinta casi negra. El amarillo es claro, así que da `#050505`.
+
+Se respeta esa regla en lugar del púrpura de la marca para que un botón de la
+portada y uno del panel no queden con dos tintas distintas. La diferencia entre
+`#050505` y `#200638` a ese tamaño no se percibe; la inconsistencia sí.

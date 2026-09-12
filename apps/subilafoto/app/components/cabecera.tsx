@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 /**
  * Cabecera de la portada: la marca y la puerta de entrada del profesional.
@@ -21,13 +22,13 @@ export function Cabecera() {
     <header
       className="absolute inset-x-0 top-0 z-20 flex items-center justify-end px-5 py-4 sm:px-8 sm:py-6"
     >
-      <Link
-        href="/login"
-        /* py-3 y no py-2.5: con 2.5 el botón queda en 40 px de alto y el mínimo
-           cómodo para el dedo es 44. Se toca en un salón, con poca luz. */
-        className="shrink-0 rounded-full px-5 py-3 text-sm font-extrabold transition-transform hover:scale-[1.03] sm:px-6 sm:text-base"
-        style={{ background: "var(--slf-amarillo)", color: "var(--slf-purpura)" }}
-      >
+      {/*
+        El estilo sale de `estiloBotonDnx`, que arma el botón con los mismos
+        tokens que el `Button` de `@repo/design-system`. Antes era una píldora
+        amarilla propia: se veía bien pero era de otra familia que el resto de
+        la suite.
+      */}
+      <Link href="/login" className="shrink-0" style={estiloBotonDnx("primario")}>
         Ingresar
       </Link>
     </header>
