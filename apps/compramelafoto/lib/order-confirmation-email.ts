@@ -14,6 +14,11 @@ import {
 } from "@/lib/digital-download/download-center-rollout";
 import { getAlbumOrderFulfillmentFromItems } from "@/lib/order-fulfillment";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
+import { buildPreventaPackAccessEmailContent } from "@/lib/preventa-canjeable/pack-access-email-content";
+import {
+  parsePreventaPackSnapshotV1,
+  type PreventaPackSnapshotV1,
+} from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 
 const APP_URL =
   process.env.APP_URL ||
@@ -183,12 +188,17 @@ ${accountSectionHtml}
 }
 
 /**
- * Encola el email con link seguro para canje de packs (sin login).
+ * Encola el comprobante de compra de un pack de preventa (sin login).
  * Se usa cuando el pedido PREVENTA_PACK queda pagado.
+ *
+ * El email sale SIEMPRE, aunque no se haya podido generar el link de acceso:
+ * en ese caso explica cómo recuperarlo, para que el comprador nunca se quede
+ * sin ninguna notificación de una compra que ya pagó.
  */
 export async function queuePreventaPackAccessEmail(
   orderId: number,
-  packAccessUrl: string
+  packAccessUrl: string | null,
+  opts?: { idempotencyKey?: string }
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -198,6 +208,11 @@ export async function queuePreventaPackAccessEmail(
       buyerName: true,
       status: true,
       origin: true,
+      createdAt: true,
+      totalCents: true,
+      mpPaymentId: true,
+      preCompraPaymentRef: true,
+      preventaPackSnapshotJson: true,
       album: { select: { title: true } },
     },
   });
@@ -206,33 +221,51 @@ export async function queuePreventaPackAccessEmail(
     return;
   }
 
-  const customerName =
-    order.buyerName?.trim() ||
-    (order.buyerEmail.includes("@") ? order.buyerEmail.split("@")[0] : order.buyerEmail);
-  const albumTitle = order.album?.title ? ` del álbum "${order.album.title}"` : "";
+  let snapshot: PreventaPackSnapshotV1 | null = null;
+  try {
+    snapshot = order.preventaPackSnapshotJson
+      ? parsePreventaPackSnapshotV1(order.preventaPackSnapshotJson)
+      : null;
+  } catch (err) {
+    // Un snapshot inválido no puede dejar al comprador sin comprobante.
+    console.error("preventa-pack-access-email: snapshot inválido", { orderId, err });
+    snapshot = null;
+  }
 
-  const bodyText = `Hola ${customerName},
+  // Cuántas unidades del mismo pack entraron en el pedido (para no describir 1 cuando son 3).
+  let packQuantity = 1;
+  const preCompraOrderId = Number(order.preCompraPaymentRef);
+  if (Number.isFinite(preCompraOrderId) && preCompraOrderId > 0) {
+    try {
+      const units = await prisma.preCompraOrderItem.count({
+        where: { orderId: preCompraOrderId },
+      });
+      if (units > 0) packQuantity = units;
+    } catch (err) {
+      console.error("preventa-pack-access-email: no se pudo contar unidades", { orderId, err });
+    }
+  }
 
-Tu compra de pack${albumTitle} fue confirmada.
-
-Guardá este link: es tu acceso directo para elegir y canjear tus fotos cuando corresponda (no necesitás crear cuenta).
-${packAccessUrl}
-
-Saludos,
-ComprameLaFoto`;
-
-  const bodyHtml = `<p>Hola ${customerName},</p>
-<p>Tu compra de pack${albumTitle} fue confirmada.</p>
-<p>Guardá este link: es tu acceso directo para elegir y canjear tus fotos cuando corresponda (no necesitás crear cuenta).</p>
-<p><a href="${packAccessUrl}" style="display: inline-block; background: #c27b3d; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none;">Acceder a tu pack</a></p>
-<p>Saludos,<br>ComprameLaFoto</p>`;
+  const { subject, text, html } = buildPreventaPackAccessEmailContent({
+    orderId: order.id,
+    buyerName: order.buyerName,
+    buyerEmail: order.buyerEmail,
+    albumTitle: order.album?.title ?? null,
+    purchasedAt: order.createdAt,
+    totalArs: order.totalCents,
+    mpPaymentId: order.mpPaymentId,
+    packAccessUrl,
+    recoverUrl: `${APP_URL}/cliente/recuperar-pack`,
+    snapshot,
+    packQuantity,
+  });
 
   await queueEmail({
     to: order.buyerEmail,
-    subject: `Acceso a tu pack de preventa #${order.id}`,
-    body: bodyText,
-    htmlBody: bodyHtml,
-    idempotencyKey: `preventa_pack_access_${order.id}`,
+    subject,
+    body: text,
+    htmlBody: html,
+    idempotencyKey: opts?.idempotencyKey ?? `preventa_pack_access_${order.id}`,
   });
 }
 
