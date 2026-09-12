@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@repo/db";
 import { almacenamiento, bucket } from "@/lib/almacenamiento";
 import { COOKIE_INVITADO } from "@/lib/invitado-cookie";
+import { moderarFoto } from "@/lib/moderacion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,10 @@ export const dynamic = "force-dynamic";
  * archivo roto.
  *
  * Pasa a PROCESSING, no a APPROVED: nada se publica sin que la IA lo mire (capítulo 10.2).
+ *
+ * La moderación se dispara con `after()`, que corre **después** de contestarle al invitado.
+ * Él ve "listo" enseguida y la foto aparece en la pantalla cuando se aprueba; hacerlo antes
+ * de responder lo dejaría mirando una rueda girar en medio de la fiesta.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ codigo: string }> }) {
   const { codigo } = await ctx.params;
@@ -84,6 +89,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ codigo: string
       data: { uploadCount: { increment: 1 } },
     }),
   ]);
+
+  // Después de responder, no antes. Si esta invocación se muere sin llegar a
+  // moderar, la foto queda en PROCESSING y la recoge /api/moderacion/procesar.
+  after(async () => {
+    try {
+      await moderarFoto(media.id);
+    } catch (error) {
+      // Nunca revienta acá: la respuesta al invitado ya salió y la red de
+      // seguridad va a reintentarlo.
+      console.error("[subilafoto] falló la moderación de", media.id, error);
+    }
+  });
 
   return NextResponse.json({ ok: true, estado: "PROCESSING" });
 }
