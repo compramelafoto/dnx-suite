@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Montserrat } from "next/font/google";
+import { Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
 
 // El manual fija Montserrat. Sólo tres pesos: cada peso extra son kilobytes que
@@ -8,6 +8,15 @@ const montserrat = Montserrat({
   variable: "--slf-font",
   subsets: ["latin"],
   weight: ["400", "500", "800"],
+  display: "swap",
+});
+
+// Sólo para las plantillas donde el papel importa: la invitación de casamiento y el
+// diploma. Dos familias en total, no una por plantilla.
+const cormorant = Cormorant_Garamond({
+  variable: "--slf-font-serif",
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
   display: "swap",
 });
 
@@ -42,7 +51,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className={montserrat.variable}>
+    <html lang="es" className={`${montserrat.variable} ${cormorant.variable}`}>
       <body style={{ fontFamily: "var(--slf-font), system-ui, sans-serif" }}>
         {children}
       </body>
