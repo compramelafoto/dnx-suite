@@ -66,6 +66,17 @@ export async function POST(req: NextRequest) {
     if (!vendor) {
       return NextResponse.json({ error: "El proveedor no existe." }, { status: 400 });
     }
+    // Sin reparto cargado, `splitAmountByAllocation` tira porque la suma de
+    // porcentajes da 0% en vez de 100% — un error de invariante interna, no
+    // un error de servidor. Nada se llegó a escribir en ninguno de los dos
+    // casos; acá se lo distingue antes para devolver un 400 con un mensaje
+    // que se entienda, en vez de caer en el catch genérico como un 500.
+    if (vendor.allocations.length === 0) {
+      return NextResponse.json(
+        { error: "El proveedor no tiene un reparto por plataforma cargado. Cargá el reparto antes de imputarle gastos." },
+        { status: 400 },
+      );
+    }
 
     const reparto = splitAmountByAllocation(
       value.amountArsMinor,

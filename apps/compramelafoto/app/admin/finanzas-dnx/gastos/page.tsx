@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
-import { formatARS, formatDateOnly } from "@/lib/admin/helpers";
+import { formatARS } from "@/lib/admin/helpers";
 import { isOverdueUnpaid } from "@/lib/finance-dnx/due-date";
 import type { VendorJson } from "@/lib/finance-dnx/vendor-json";
 import type { ExpenseEntryJson } from "@/lib/finance-dnx/expense-json";
@@ -64,6 +64,25 @@ const FORM_VACIO: FormState = {
   dueDate: "",
 };
 
+/**
+ * La fecha de vencimiento se guarda como medianoche UTC del día calendario
+ * elegido en el input (ver `fechaParaInput` más abajo): no es un instante,
+ * es "ese día". Formatearla con `toLocaleDateString(..., { timeZone:
+ * "America/Argentina/Buenos_Aires" })` (como hace `formatDateOnly`) la
+ * corre un día para atrás, porque medianoche UTC todavía es el día
+ * anterior en Argentina. Acá se muestra en UTC para que el día que aparece
+ * sea el día que se guardó.
+ */
+function formatDueDate(dueDate: string | Date): string {
+  const fecha = dueDate instanceof Date ? dueDate : new Date(dueDate);
+  return fecha.toLocaleDateString("es-AR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 /** yyyy-mm-dd para el input type="date"; acepta lo que llegue de la API (una fecha ISO como string, o null). */
 function fechaParaInput(dueDate: string | Date | null | undefined): string {
   if (!dueDate) return "";
@@ -97,6 +116,13 @@ export default function FinanzasDnxGastosPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  // El período del gasto que se está editando, tomado del gasto mismo — NO
+  // del selector de arriba. El selector puede cambiar mientras se edita
+  // (ver "cancelarEdicionPorCambioDePeriodo" más abajo) y el PUT tiene que
+  // mandar siempre el período dueño del gasto, nunca el que esté elegido
+  // en pantalla en ese momento (hallazgo I-2: si no, editar una factura
+  // vieja mientras se navega a otro mes la mueve de mes sin querer).
+  const [editingPeriod, setEditingPeriod] = useState<{ year: number; month: number } | null>(null);
   const [form, setForm] = useState<FormState>(FORM_VACIO);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -206,6 +232,7 @@ export default function FinanzasDnxGastosPage() {
 
   function iniciarNuevo() {
     setEditingId(null);
+    setEditingPeriod(null);
     setForm(FORM_VACIO);
     setFormError(null);
     // Sin esto, el formulario de carga queda con el dólar en blanco: se
@@ -215,7 +242,21 @@ export default function FinanzasDnxGastosPage() {
 
   function iniciarEdicion(entry: ExpenseEntryJson) {
     setEditingId(entry.id);
+    setEditingPeriod({ year: entry.periodYear, month: entry.periodMonth });
     setForm(formDesdeEntry(entry));
+    setFormError(null);
+  }
+
+  // Si el selector de mes/año cambia mientras se está editando un gasto, se
+  // cancela la edición en vez de dejarla a medias: si no, la pantalla queda
+  // mostrando el mes X arriba y el formulario con los datos de un gasto del
+  // mes Y, que es justo la confusión que describe el hallazgo I-2. No hace
+  // falta volver a pedir el dólar acá: el efecto que ya escucha
+  // [year, month] llama a loadFx() con el período nuevo.
+  function cancelarEdicionPorCambioDePeriodo() {
+    setEditingId(null);
+    setEditingPeriod(null);
+    setForm(FORM_VACIO);
     setFormError(null);
   }
 
@@ -267,6 +308,13 @@ export default function FinanzasDnxGastosPage() {
       return;
     }
 
+    // El período que se manda es siempre el del gasto que se está editando
+    // (editingPeriod), nunca el del selector de arriba (year/month): son
+    // cosas distintas y confundirlas es el hallazgo I-2. Al dar de alta un
+    // gasto nuevo sí corresponde el período del selector, porque es donde
+    // se lo está cargando.
+    const periodoAEnviar = editingId && editingPeriod ? editingPeriod : { year, month };
+
     setSaving(true);
     try {
       const url = editingId
@@ -278,8 +326,8 @@ export default function FinanzasDnxGastosPage() {
         credentials: "include",
         body: JSON.stringify({
           vendorId: Number(form.vendorId),
-          periodYear: year,
-          periodMonth: month,
+          periodYear: periodoAEnviar.year,
+          periodMonth: periodoAEnviar.month,
           currency: form.currency,
           amountOriginal,
           fxRate,
@@ -347,12 +395,26 @@ export default function FinanzasDnxGastosPage() {
           <p className="text-gray-600 mt-1">Gastos cargados para {MESES[month - 1]} {year}.</p>
         </div>
         <div className="flex gap-2">
-          <Select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-auto">
+          <Select
+            value={month}
+            onChange={(e) => {
+              if (editingId !== null) cancelarEdicionPorCambioDePeriodo();
+              setMonth(Number(e.target.value));
+            }}
+            className="w-auto"
+          >
             {MESES.map((nombre, i) => (
               <option key={nombre} value={i + 1}>{nombre}</option>
             ))}
           </Select>
-          <Select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-auto">
+          <Select
+            value={year}
+            onChange={(e) => {
+              if (editingId !== null) cancelarEdicionPorCambioDePeriodo();
+              setYear(Number(e.target.value));
+            }}
+            className="w-auto"
+          >
             {ANIOS.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
@@ -464,7 +526,7 @@ export default function FinanzasDnxGastosPage() {
                         </span>
                       </td>
                       <td className={`px-4 py-3 text-sm ${vencida ? "text-red-700 font-semibold" : "text-gray-500"}`}>
-                        {entry.dueDate ? formatDateOnly(entry.dueDate as unknown as string) : "—"}
+                        {entry.dueDate ? formatDueDate(entry.dueDate as unknown as string) : "—"}
                         {vencida ? " · vencida" : ""}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
