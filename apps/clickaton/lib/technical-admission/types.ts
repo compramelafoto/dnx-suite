@@ -83,6 +83,13 @@ export type AdmissionRuleInput = {
   declarationAcceptedAt: Date | null;
   requireDeclaration: boolean;
   promptStatus: string;
+  /**
+   * ¿El portón de la edición ya abrió según el horario planificado?
+   *
+   * Se calcula con `resolvePromptGate`. Existe para que la validez de la foto
+   * no dependa de que el cron de registro haya corrido.
+   */
+  promptGateOpen: boolean;
   uploadWithinWindow: boolean | null;
   captureWithinWindow: boolean | null;
   captureFailOutsideWindow: boolean;

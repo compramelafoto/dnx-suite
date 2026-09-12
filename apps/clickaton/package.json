@@ -62,6 +62,7 @@
     "test:finance-ux": "tsx --test lib/admin/edition-finance/ui/finance-status-presentation.test.ts",
     "test:timeline-ux": "tsx --test lib/timeline/ui/timeline-status-presentation.test.ts",
     "test:timeline-prompt-gate": "tsx --test lib/timeline/prompt-gate.test.ts lib/timeline/scheduled-release.test.ts",
+    "test:technical-admission-rules": "tsx --test lib/technical-admission/rules.test.ts",
     "test:participant-notes": "tsx --test lib/participant-notes/*.test.ts",
     "test:timeline-bars": "tsx --test lib/timeline/ui/timeline-bars.test.ts",
     "test:submissions-ux": "tsx --test lib/photo-upload/ui/submission-status-presentation.test.ts",

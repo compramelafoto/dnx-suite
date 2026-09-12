@@ -9,10 +9,10 @@ import { sha256Buffer } from "../lib/photo-upload/hash";
 import {
   evaluateCaptureDate,
   evaluateGps,
-  isPromptReleasedForUpload,
   isWithinUploadWindow,
   resolveEffectiveWindows,
 } from "../lib/photo-upload/windows";
+import { isPromptOpenForSubmission, resolvePromptGate } from "../lib/timeline/prompt-gate";
 import { assertSocialCaptionSafeForTimeline } from "../lib/timeline/social-guard";
 
 let checks = 0;
@@ -25,10 +25,27 @@ function ok(cond: boolean, msg: string) {
 ok(true, "1 participante no pagado bloqueado en service");
 ok(true, "2 participante pagado puede request si uploadsEnabled");
 
-// 3–5 consignas
-ok(!isPromptReleasedForUpload("LOCKED"), "3 LOCKED");
-ok(isPromptReleasedForUpload("RELEASED"), "4 RELEASED");
-ok(isPromptReleasedForUpload("CLOSED"), "5 CLOSED permite lectura estado");
+// 3–5 consignas: el portón manda por horario, no el cartelito del cron.
+const portonCerrado = resolvePromptGate({
+  prompts: [{ status: "LOCKED", releasedAt: null, captureStartsAt: null }],
+});
+const portonAbierto = resolvePromptGate({
+  prompts: [
+    { status: "LOCKED", releasedAt: null, captureStartsAt: new Date("2020-01-01T00:00:00.000Z") },
+  ],
+});
+ok(
+  !isPromptOpenForSubmission({ status: "LOCKED", gate: portonCerrado }),
+  "3 LOCKED sin horario cumplido",
+);
+ok(
+  isPromptOpenForSubmission({ status: "LOCKED", gate: portonAbierto }),
+  "4 LOCKED con el horario ya cumplido",
+);
+ok(
+  isPromptOpenForSubmission({ status: "CLOSED", gate: portonAbierto }),
+  "5 CLOSED permite lectura estado",
+);
 
 const prompt = {
   status: "RELEASED",

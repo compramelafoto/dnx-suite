@@ -1,7 +1,10 @@
 /**
  * Liberación programada de consignas.
  *
- * Corre sin que nadie esté frente a la pantalla en el minuto exacto.
+ * REGISTRA, no habilita. Lo que decide si una consigna está abierta —para verla,
+ * para subir y para admitir la foto— es `resolvePromptGate`, que abre por
+ * horario. Esto sólo deja el hecho escrito en la base para una eventual
+ * impugnación. Si no corre, nada se rompe: por eso alcanza con cada 15 minutos.
  *
  * Apertura CONJUNTA: en cuanto vence la primera consigna de una edición se
  * abren TODAS las de esa edición con el mismo `releasedAt`. Nunca hay apertura

@@ -32,9 +32,9 @@ export function resolveEffectiveWindows(prompt: PromptWindowSource) {
   };
 }
 
-export function isPromptReleasedForUpload(status: string): boolean {
-  return status === "RELEASED" || status === "CLOSED";
-}
+// La regla de "consigna abierta" vive en `lib/timeline/prompt-gate`
+// (`isPromptOpenForSubmission`): abre por horario, no por lo que haya escrito
+// el cron. Acá no se duplica.
 
 export type UploadWindowState = "NOT_OPEN" | "OPEN" | "CLOSED" | "NOT_CONFIGURED";
 
