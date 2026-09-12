@@ -77,20 +77,31 @@ Entonces, cuando se construya el alta del vendedor (Etapa 1) hay que:
 2. Crear la `ReferralAttribution` al confirmarse el alta.
 3. **No** generar `ReferralEarning` todavía: el devengamiento queda apagado.
 
-### La ventana de 12 meses: cuándo empieza a correr
+### La ventana de 12 meses arranca con el programa — DECIDIDO
 
-Acá hay una decisión con plata real en juego. Si la atribución se registra en octubre con
-`endsAt` a 12 meses y el split llega en marzo, el referidor perdió cinco meses de su
-beneficio sin haber hecho nada mal.
+**Decisión aprobada por el titular el 2026-09-11.**
 
-**Recomendación: la ventana arranca cuando el programa se enciende, no cuando se registra la
-atribución.** En la práctica: guardar la atribución con `startsAt` nulo o en estado
-`PENDING`, y fijar `startsAt` / `endsAt` el día que se active el split. Así nadie pierde
-meses por una demora que no es suya, y el mensaje al fotógrafo es simple: "doce meses desde
-que el programa arranca".
+Los 12 meses **empiezan a correr el día que el programa se enciende**, no el día que se
+registra la atribución.
 
-La alternativa —contar desde el alta— es más simple de programar y peor de explicar el día
-que alguien reclame.
+El motivo: si la atribución se guarda en octubre con vencimiento a 12 meses y el split llega
+en marzo, el referidor pierde cinco meses de beneficio por una demora que no es suya. Contar
+desde el alta era más fácil de programar y mucho peor de explicar el día que alguien reclame.
+
+Cómo se implementa:
+
+1. Al registrar la atribución, `startsAt` y `endsAt` quedan **sin fijar** y el estado es
+   pendiente. Se guarda quién refirió a quién y cuándo se dio de alta, nada más.
+2. El día que se active el split, un proceso único recorre las atribuciones pendientes y les
+   fija `startsAt` = fecha de activación y `endsAt` = doce meses después.
+3. Recién a partir de ahí las ventas del referido generan `ReferralEarning`.
+
+Para el fotógrafo el mensaje queda en una frase: **doce meses desde que el programa arranca**.
+
+Cuidado al implementarlo: `ReferralAttribution` en el schema tiene `startsAt` y `endsAt`
+como obligatorios, porque CompraMeLaFoto los fija en el alta. Para Subí la Foto hay que
+hacerlos opcionales o guardar la atribución en una tabla propia hasta activarla. Es una
+decisión de modelo a tomar cuando se implemente, no ahora.
 
 ## Lo que falta definir antes de encenderlo
 
