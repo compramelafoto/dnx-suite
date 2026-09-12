@@ -89,3 +89,41 @@ body {
     opacity: 1;
   }
 }
+
+/*
+ * La franja de fotos de la portada.
+ *
+ * Es CSS puro y no JavaScript: la pista lleva la lista dos veces y se desplaza
+ * exactamente la mitad de su ancho, así que al volver a cero el salto cae justo
+ * donde empieza la copia y no se ve. Sin librería de animación, sin hidratar
+ * nada y sin costo para el invitado que la abre con datos móviles.
+ */
+@keyframes slf-desfile {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.slf-franja-pista {
+  animation: slf-desfile 80s linear infinite;
+  will-change: transform;
+}
+
+/* Quien quiera mirar una foto puede detenerla apoyando el dedo o el puntero. */
+.slf-franja:hover .slf-franja-pista,
+.slf-franja:focus-within .slf-franja-pista {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slf-franja-pista {
+    animation: none;
+  }
+  /* Sin movimiento, la franja se recorre a mano. */
+  .slf-franja {
+    overflow-x: auto;
+  }
+}
