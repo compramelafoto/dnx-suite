@@ -156,7 +156,14 @@ la imagen en `franja-fotos.tsx`.
 - Está en `app/components/franja-fotos.tsx`. Es componente de servidor y **no
   lleva nada de JavaScript**: el movimiento es una animación de CSS
   (`slf-desfile`, en `globals.css`).
-- Va **entre el logo y el título**, dentro del hero. Por eso la sección del hero
+- Va **entre el logo y el título**, dentro del hero. El logo de arriba se
+  dimensiona con `max-h-[30svh]`, es decir contra el **alto** de la pantalla y
+  no contra el ancho: en el hero tienen que entrar el logo, la franja y la
+  promesa, y el que se queda sin lugar es siempre el último. Con un ancho fijo,
+  en una notebook de 720 px de alto el título quedaba 74 px abajo del pliegue.
+  Medido en tres tamaños: en 1440×900 el logo va a 210×270 y entra hasta el
+  párrafo; en 1280×720 va a 168×216 y el título entra con 35 px de sobra; en un
+  celular de 375×812 va a 189×244. Por eso la sección del hero
   no tiene padding horizontal —lo pone cada bloque de texto— y por eso los
   degradados de los extremos usan el mismo púrpura del fondo: así las fotos
   entran y salen sin que se vea un borde.
