@@ -1,12 +1,12 @@
 /**
  * Las fotos de la franja que se mueve en la portada.
  *
- * Son diez escenas elegidas para mostrar lo único que hay que entender de la
- * plataforma en dos segundos: alguien apunta el celular a un código y su foto
- * termina en la pantalla del salón. Nada de fotos de producto ni de pantallas
- * de la aplicación.
+ * Muestran lo único que hay que entender de la plataforma en dos segundos:
+ * alguien apunta el celular a un código y su foto termina en la pantalla del
+ * salón. El orden alterna primeros planos y planos generales para que la franja
+ * no se vea repetitiva al desplazarse.
  *
- * Los archivos viven en `public/inicio/`. Se sirven desde el propio dominio a
+ * Los archivos viven en `public/inicio/` y se sirven desde el propio dominio a
  * propósito: enlazar a un CDN ajeno deja la portada de un producto que se vende
  * a merced de que ese servicio siga respondiendo.
  */
@@ -14,74 +14,74 @@
 export type FotoInicio = {
   /** Ruta pública del archivo, siempre bajo `/inicio/`. */
   src: string;
-  /** Qué se ve. Lo lee el lector de pantalla y es el pie de la imagen. */
+  /** Qué se ve. Lo lee el lector de pantalla. */
   alt: string;
-  /** Verdadero sólo en la segunda vuelta del bucle, que no se anuncia. */
+  /** Verdadero en las copias del bucle, que no se anuncian. */
   duplicada: boolean;
 };
 
+/**
+ * Cuántas veces se repite la lista en la pista.
+ *
+ * La animación desplaza **una copia** y vuelve a cero. Lo que queda detrás
+ * tiene que alcanzar para tapar la pantalla más ancha, o al reiniciar se ve el
+ * vacío del final. Con siete fotos, dos copias no alcanzan en un monitor
+ * grande; con cuatro sobra hasta en un ultrapanorámico.
+ *
+ * **Si cambia este número hay que cambiar también el `translateX` de
+ * `slf-desfile` en `globals.css`.** Hay un test que verifica que coincidan.
+ */
+export const COPIAS_DEL_BUCLE = 4;
+
 export const FOTOS_INICIO: readonly FotoInicio[] = [
   {
-    src: "/inicio/01-escanear-qr-en-la-mesa.jpg",
-    alt: "Una invitada apunta la cámara del celular al código de la mesa durante una fiesta",
+    src: "/inicio/01-escanear-el-codigo.jpg",
+    alt: "Una invitada escanea con el celular el código que está sobre la mesa del casamiento",
     duplicada: false,
   },
   {
-    src: "/inicio/02-mirar-la-pantalla-del-salon.jpg",
-    alt: "Un grupo de amigos se reconoce en la pantalla grande del salón",
+    src: "/inicio/02-la-pantalla-del-salon.jpg",
+    alt: "Los invitados miran la pantalla del salón, que muestra un mosaico con las fotos del evento",
     duplicada: false,
   },
   {
-    src: "/inicio/03-celular-sobre-el-centro-de-mesa.jpg",
-    alt: "Un celular escanea el centro de mesa impreso con el código del evento",
+    src: "/inicio/03-selfie-en-la-fiesta.jpg",
+    alt: "Dos amigas se sacan una selfie en la fiesta",
     duplicada: false,
   },
   {
-    src: "/inicio/04-los-novios-miran-las-fotos.jpg",
-    alt: "Los novios se ríen mirando juntos las fotos que subieron los invitados",
+    src: "/inicio/04-el-codigo-en-la-mesa.jpg",
+    alt: "El cartel con el código del evento, parado sobre la mesa, con la fiesta desenfocada detrás",
     duplicada: false,
   },
   {
-    src: "/inicio/05-mosaico-en-la-pantalla.jpg",
-    alt: "La pantalla del salón muestra un mosaico con las fotos del evento",
+    src: "/inicio/05-los-novios-miran-las-fotos.jpg",
+    alt: "Los novios se ríen mirando juntos en el celular las fotos que subieron los invitados",
     duplicada: false,
   },
   {
-    src: "/inicio/06-selfie-en-el-cumpleanos-de-quince.jpg",
-    alt: "Dos amigas se sacan una selfie en una fiesta de quince años",
+    src: "/inicio/06-festejo-en-la-pista.jpg",
+    alt: "Un grupo de invitados festeja y señala la pantalla desde la pista de baile",
     duplicada: false,
   },
   {
-    src: "/inicio/07-abuela-subiendo-su-foto.jpg",
-    alt: "Una señora sube su foto con el celular, ayudada por un joven de la familia",
-    duplicada: false,
-  },
-  {
-    src: "/inicio/08-el-codigo-en-la-mesa.jpg",
-    alt: "El cartel con el código sobre la mesa, con la fiesta desenfocada detrás",
-    duplicada: false,
-  },
-  {
-    src: "/inicio/09-festejo-frente-a-la-pantalla.jpg",
-    alt: "Invitados festejan frente a la pantalla cuando aparece su foto",
-    duplicada: false,
-  },
-  {
-    src: "/inicio/10-egreso-escolar-compartiendo.jpg",
-    alt: "Dos compañeros de egreso escolar se muestran las fotos en el celular",
+    src: "/inicio/07-egreso-escolar.jpg",
+    alt: "Dos compañeras de egreso escolar miran juntas las fotos en el celular",
     duplicada: false,
   },
 ];
 
 /**
- * Devuelve la lista dos veces seguidas.
+ * Devuelve la lista repetida `COPIAS_DEL_BUCLE` veces.
  *
- * La franja se desplaza exactamente el ancho de una copia y vuelve a cero. Con
- * la segunda copia detrás, ese salto no se ve. La copia va marcada para poder
- * ocultarla del lector de pantalla: si no, anuncia diez fotos dos veces.
+ * La primera copia es la real; las demás van marcadas para poder ocultarlas del
+ * lector de pantalla, que si no anuncia la misma lista una vez por copia.
  */
 export function duplicarParaBucle(
   fotos: readonly FotoInicio[],
+  copias: number = COPIAS_DEL_BUCLE,
 ): readonly FotoInicio[] {
-  return [...fotos, ...fotos.map((foto) => ({ ...foto, duplicada: true }))];
+  return Array.from({ length: copias }, (_, i) =>
+    i === 0 ? fotos : fotos.map((foto) => ({ ...foto, duplicada: true })),
+  ).flat();
 }

@@ -93,17 +93,19 @@ body {
 /*
  * La franja de fotos de la portada.
  *
- * Es CSS puro y no JavaScript: la pista lleva la lista dos veces y se desplaza
- * exactamente la mitad de su ancho, así que al volver a cero el salto cae justo
- * donde empieza la copia y no se ve. Sin librería de animación, sin hidratar
- * nada y sin costo para el invitado que la abre con datos móviles.
+ * Es CSS puro y no JavaScript: la pista lleva la lista cuatro veces y se
+ * desplaza exactamente una copia, así que al volver a cero el salto cae justo
+ * donde empieza la siguiente y no se ve. Sin librería de animación, sin
+ * hidratar nada y sin costo para el invitado que la abre con datos móviles.
  */
 @keyframes slf-desfile {
   from {
     transform: translateX(0);
   }
   to {
-    transform: translateX(-50%);
+    /* Una copia exacta de las cuatro que arma `duplicarParaBucle`.
+       Si cambia `COPIAS_DEL_BUCLE`, cambia este número — hay un test. */
+    transform: translateX(-25.0000%);
   }
 }
 
