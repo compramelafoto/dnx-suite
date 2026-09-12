@@ -16,7 +16,9 @@ import {
   buildProposalPlan,
   resolvePlateTreatment,
   type InventoryRange,
+  type PlateTreatment,
   type ProposalLine,
+  type ProposalPlan,
   type ProposalSpaceAvailability,
 } from "@repo/partners";
 import { composePiece, measureLogo } from "./compose";
@@ -57,7 +59,46 @@ export type BuildProposalPdfInput = {
   period?: InventoryRange;
   /** Qué espacios tienen lugar en ese período. */
   availability?: Readonly<Record<string, ProposalSpaceAvailability>>;
+  /** Código con el que se recupera la propuesta. Va impreso en el dossier. */
+  code?: string | null;
+  /** Hasta cuándo se puede recuperar con ese código. */
+  expiresAt?: Date | null;
+  /**
+   * Plan ya armado. Se pasa cuando quien llama necesitó las líneas antes —para
+   * guardarlas— y no tiene sentido volver a calcularlas.
+   */
+  plan?: ProposalPlan;
+  /** Placa ya medida. Va junto con `plan`: medir el logo es lo caro. */
+  plate?: PlateTreatment;
 };
+
+/**
+ * Arma el plan sin llegar a dibujar nada.
+ *
+ * Existe porque guardar la propuesta necesita sus líneas **antes** de que el PDF
+ * exista: el código impreso en la portada sale de la fila ya guardada.
+ */
+export async function resolveProposalPlan(input: {
+  brandName: string;
+  industry?: string | null;
+  logo: Buffer;
+  excludePieceIds?: readonly string[];
+  period?: InventoryRange;
+  availability?: Readonly<Record<string, ProposalSpaceAvailability>>;
+}): Promise<{ plan: ProposalPlan; plate: PlateTreatment }> {
+  const plate = resolvePlateTreatment(await measureLogo(input.logo));
+  const plan = buildProposalPlan({
+    brandName: input.brandName,
+    industry: input.industry ?? null,
+    plate,
+    seller: PROPOSAL_SELLER,
+    period: input.period,
+    availability: input.availability,
+    excludePieceIds: input.excludePieceIds,
+  });
+  if (plan.lines.length === 0) throw new ProposalWithoutSpacesError();
+  return { plan, plate };
+}
 
 /** Parte el texto en renglones que entran en el ancho dado. */
 function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -121,11 +162,34 @@ function formatearFecha(fecha: Date): string {
   }).format(fecha);
 }
 
+/**
+ * Fechas de vigencia: se leen del formulario como `AAAA-MM-DD` y se guardan a
+ * medianoche UTC. Mostrarlas en hora argentina las corre un día para atrás —el
+ * vendedor elige el 1 de octubre y el dossier dice 30 de septiembre— así que
+ * estas se formatean en UTC, que es como fueron escritas.
+ */
+function formatearFechaDeVigencia(fecha: Date): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(fecha);
+}
+
 /** Portada: fondo negro, el logo del cliente sobre una placa clara. */
 async function drawCover(
   doc: PDFDocument,
   fonts: Fonts,
-  input: { brandName: string; industry: string | null; logo: Buffer; fecha: string; logoOscuro: boolean },
+  input: {
+    brandName: string;
+    industry: string | null;
+    logo: Buffer;
+    fecha: string;
+    logoOscuro: boolean;
+    /** Con qué código se vuelve a abrir. Nulo si no se guardó. */
+    code: string | null;
+  },
 ) {
   const page = doc.addPage([PAGE.width, PAGE.height]);
   page.drawRectangle({ x: 0, y: 0, width: PAGE.width, height: PAGE.height, color: INK });
@@ -201,6 +265,20 @@ async function drawCover(
     font: fonts.regular,
     color: rgb(0.6, 0.6, 0.6),
   });
+
+  // El código va en la portada porque es lo primero que se busca cuando el
+  // cliente contesta a los diez días con el PDF adjunto.
+  if (input.code) {
+    const etiqueta = `Propuesta ${input.code}`;
+    const ancho = fonts.bold.widthOfTextAtSize(etiqueta, 10);
+    page.drawText(etiqueta, {
+      x: PAGE.width - MARGIN - ancho,
+      y: MARGIN + 8,
+      size: 10,
+      font: fonts.bold,
+      color: BRAND,
+    });
+  }
 }
 
 /** Encabezado común de las páginas de contenido. */
@@ -274,20 +352,10 @@ function drawIntro(doc: PDFDocument, fonts: Fonts, brandName: string, cantidadPi
  * Devuelve los bytes del PDF, listos para descargar.
  */
 export async function buildProposalPdf(input: BuildProposalPdfInput): Promise<Uint8Array> {
-  const plate = resolvePlateTreatment(await measureLogo(input.logo));
-  const plan = buildProposalPlan({
-    brandName: input.brandName,
-    industry: input.industry ?? null,
-    plate,
-    seller: PROPOSAL_SELLER,
-    period: input.period,
-    availability: input.availability,
-    excludePieceIds: input.excludePieceIds,
-  });
-
-  if (plan.lines.length === 0) {
-    throw new ProposalWithoutSpacesError();
-  }
+  const { plan, plate } =
+    input.plan && input.plate
+      ? { plan: input.plan, plate: input.plate }
+      : await resolveProposalPlan(input);
 
   const doc = await PDFDocument.create();
   doc.setTitle(`Propuesta comercial · ${plan.brandName}`);
@@ -305,6 +373,7 @@ export async function buildProposalPdf(input: BuildProposalPdfInput): Promise<Ui
     industry: plan.industry,
     logo: input.logo,
     fecha: formatearFecha(input.issuedAt),
+    code: input.code ?? null,
     logoOscuro: plate.plate !== "DARK",
   });
 
@@ -320,7 +389,10 @@ export async function buildProposalPdf(input: BuildProposalPdfInput): Promise<Ui
   }
 
   drawSummary(doc, fonts, incluidas);
-  drawBackCover(doc, fonts, plan.brandName, formatearFecha(input.issuedAt), plan.period);
+  drawBackCover(doc, fonts, plan.brandName, formatearFecha(input.issuedAt), plan.period, {
+    code: input.code ?? null,
+    expiresAt: input.expiresAt ?? null,
+  });
 
   return doc.save();
 }
@@ -462,6 +534,7 @@ function drawBackCover(
   brandName: string,
   fecha: string,
   period: InventoryRange | null,
+  recuperacion: { code: string | null; expiresAt: Date | null },
 ) {
   const page = doc.addPage([PAGE.width, PAGE.height]);
   page.drawRectangle({ x: 0, y: 0, width: PAGE.width, height: PAGE.height, color: INK });
@@ -477,7 +550,7 @@ function drawBackCover(
   });
 
   const vigencia = period
-    ? ` La vigencia va del ${formatearFecha(period.startsAt)} al ${formatearFecha(period.endsAt)}.`
+    ? ` La vigencia va del ${formatearFechaDeVigencia(period.startsAt)} al ${formatearFechaDeVigencia(period.endsAt)}.`
     : "";
 
   drawParagraph(
@@ -502,4 +575,22 @@ function drawBackCover(
     font: fonts.regular,
     color: rgb(0.55, 0.55, 0.55),
   });
+
+  if (recuperacion.code) {
+    const hasta = recuperacion.expiresAt
+      ? ` Se puede volver a abrir hasta el ${formatearFecha(recuperacion.expiresAt)}.`
+      : "";
+    drawParagraph(
+      page,
+      `Guardá el código ${recuperacion.code}: con él recuperamos esta propuesta tal como está.${hasta}`,
+      {
+        x: MARGIN,
+        y: MARGIN + 108,
+        font: fonts.regular,
+        size: 10.5,
+        maxWidth: CONTENT_WIDTH - 60,
+        color: rgb(0.62, 0.62, 0.62),
+      },
+    );
+  }
 }
