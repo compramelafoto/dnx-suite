@@ -10,3 +10,10 @@ export {
   type AllocatedAmount,
   type AllocationShare,
 } from "./allocation";
+export {
+  buildMonthlySummary,
+  type ExpenseStatus,
+  type MonthlySummary,
+  type PlatformTotal,
+  type SummaryEntry,
+} from "./rollup";
