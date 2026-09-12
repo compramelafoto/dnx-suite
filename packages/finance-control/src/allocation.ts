@@ -15,12 +15,17 @@ export type AllocatedAmount = AllocationShare & {
   amountArsMinor: number;
 };
 
-/** Tolerancia para comparar porcentajes cargados a mano con dos decimales. */
-const TOLERANCIA = 0.005;
-
+/**
+ * El reparto tiene que sumar EXACTAMENTE 100% (así lo pide la spec). El
+ * redondeo a dos decimales sólo absorbe el ruido de punto flotante de sumar
+ * porcentajes que ya tienen a lo sumo dos decimales (ej. 33.33 + 33.33 +
+ * 33.34) — no perdona repartos que en realidad no cierran en 100, como
+ * 50.0025 + 50.0025 = 100.005.
+ */
 export function assertSharesSumTo100(shares: AllocationShare[]): void {
   const suma = shares.reduce((total, parte) => total + parte.sharePercent, 0);
-  if (Math.abs(suma - 100) > TOLERANCIA) {
+  const sumaRedondeada = Math.round(suma * 100) / 100;
+  if (Math.abs(sumaRedondeada - 100) >= 1e-9) {
     throw new Error(`El reparto suma ${suma}% y tiene que sumar exactamente 100%.`);
   }
 }
@@ -36,15 +41,32 @@ export function splitAmountByAllocation(
   const asignado = pisos.reduce((total, piso) => total + piso, 0);
   let sobrantes = Math.round(amountArsMinor - asignado);
 
-  const porRestoDescendente = exactos
+  // Orden de índices por resto descendente: a quienes más perdieron al
+  // redondear para abajo se les da (o se les quita, si sobrantes es
+  // negativo) primero.
+  const ordenPorResto = exactos
     .map((exacto, indice) => ({ indice, resto: exacto - Math.floor(exacto) }))
-    .sort((a, b) => b.resto - a.resto);
+    .sort((a, b) => b.resto - a.resto)
+    .map(({ indice }) => indice);
 
   const montos = [...pisos];
-  for (const { indice } of porRestoDescendente) {
-    if (sobrantes <= 0) break;
-    montos[indice] += 1;
+
+  // Se cicla por el orden de restos tantas veces como haga falta. Esto
+  // sostiene la garantía "las partes siempre suman el total" aunque
+  // sobrantes supere la cantidad de plataformas, o sea negativo (validación
+  // que en teoría no debería fallar, pero esta función no depende de eso).
+  let vuelta = 0;
+  while (sobrantes > 0) {
+    montos[ordenPorResto[vuelta % ordenPorResto.length]] += 1;
     sobrantes -= 1;
+    vuelta += 1;
+  }
+  vuelta = 0;
+  while (sobrantes < 0) {
+    const indiceDesdeElFinal = ordenPorResto.length - 1 - (vuelta % ordenPorResto.length);
+    montos[ordenPorResto[indiceDesdeElFinal]] -= 1;
+    sobrantes += 1;
+    vuelta += 1;
   }
 
   return shares.map((parte, indice) => ({
