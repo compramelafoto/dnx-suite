@@ -121,6 +121,7 @@ const menuGroups: MenuGroup[] = [
     title: "Finanzas",
     items: [
       { id: "finanzas", label: "Resumen financiero", path: "/admin/finanzas" },
+      { id: "finanzas-dnx", label: "Finanzas DNX", path: "/admin/finanzas-dnx" },
       { id: "referral-payouts", label: "Cobros referidos", path: "/admin/referral-payouts" },
       { id: "referral-stats", label: "Estadísticas referidos", path: "/admin/referral-stats" },
       {
