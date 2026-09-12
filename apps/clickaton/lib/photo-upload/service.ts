@@ -1,6 +1,8 @@
 import sharp from "sharp";
 import { prisma } from "@/lib/admin/db";
 import { systemClock, type EditionClock } from "@/lib/timeline/clock";
+import { isPromptOpenForSubmission } from "@/lib/timeline/prompt-gate";
+import { getEditionPromptGate } from "@/lib/timeline/prisma-timeline";
 import { PhotoUploadError } from "./errors";
 import { extractPhotoExif } from "./exif";
 import {
@@ -14,7 +16,6 @@ import {
   evaluateCaptureDate,
   evaluateGps,
   getUploadWindowState,
-  isPromptReleasedForUpload,
   resolveEffectiveWindows,
 } from "./windows";
 
@@ -116,7 +117,11 @@ async function loadEligibleContext(input: {
     where: { id: input.promptId, editionId: registration.editionId },
   });
   if (!prompt) throw new PhotoUploadError("PROMPT_NOT_FOUND", "Consigna no encontrada.", 404);
-  if (!isPromptReleasedForUpload(prompt.status)) {
+
+  // El portón de la edición abre por horario: si ya es la hora, se puede subir
+  // aunque el cron de registro todavía no haya marcado la consigna.
+  const promptGate = await getEditionPromptGate(registration.editionId, { clock });
+  if (!isPromptOpenForSubmission({ status: prompt.status, gate: promptGate })) {
     throw new PhotoUploadError("PROMPT_LOCKED", "La consigna aún no está liberada.", 403);
   }
   if (prompt.status === "CLOSED" && !prompt.allowReplacement) {

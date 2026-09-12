@@ -39,6 +39,20 @@ export function isReleasablePrompt(prompt: { status: string }): boolean {
   return prompt.status !== "DRAFT" && prompt.status !== "CANCELLED";
 }
 
+/**
+ * ¿Esta consigna acepta fotos (subida y admisión técnica)?
+ *
+ * Regla única, la misma que usa la pantalla: manda el portón de la edición,
+ * que abre por horario. Que el cron de registro haya corrido o no NO cambia
+ * si la foto de un competidor vale.
+ */
+export function isPromptOpenForSubmission(input: {
+  status: string;
+  gate: PromptGate;
+}): boolean {
+  return isReleasablePrompt(input) && input.gate.isOpen;
+}
+
 function earliest(dates: Array<Date | null | undefined>): Date | null {
   const valid = dates.filter((d): d is Date => d instanceof Date);
   if (valid.length === 0) return null;

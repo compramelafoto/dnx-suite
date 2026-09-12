@@ -1,3 +1,4 @@
+import { isReleasablePrompt } from "../timeline/prompt-gate";
 import type {
   AdmissionRuleInput,
   AdmissionStatus,
@@ -50,7 +51,13 @@ export function evaluateTechnicalAdmission(
   if (input.requireDeclaration && !input.declarationAcceptedAt) {
     blocking.push("DECLARATION_MISSING");
   }
-  if (input.promptStatus !== "RELEASED" && input.promptStatus !== "CLOSED") {
+  // La consigna vale si ya la marcó el cron (RELEASED/CLOSED) o si el portón de
+  // la edición abrió por horario. Borradores y canceladas nunca valen.
+  const promptOpen =
+    input.promptStatus === "RELEASED" ||
+    input.promptStatus === "CLOSED" ||
+    (isReleasablePrompt({ status: input.promptStatus }) && input.promptGateOpen);
+  if (!promptOpen) {
     blocking.push("PROMPT_NOT_RELEASED");
   }
   if (input.uploadWithinWindow === false && !input.uploadExceptionApproved) {

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/admin/db";
 import { hasEditionCapability } from "@/lib/timeline/permissions";
-import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
+import { getEditionPromptGate, getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
 import { isWithinUploadWindow, resolveEffectiveWindows } from "@/lib/photo-upload/windows";
 import { systemClock } from "@/lib/timeline/clock";
 import { buildAnonymousJuryCode } from "./anonymity";
@@ -168,6 +168,12 @@ export async function evaluateSubmission(input: {
     mimeValid?: boolean;
   };
 
+  // El portón abre por horario: la validez de la foto no depende de que el cron
+  // de registro haya corrido.
+  const promptGate = await getEditionPromptGate(submission.editionId, {
+    clock: systemClock(),
+  });
+
   const decision = evaluateTechnicalAdmission({
     submissionId: submission.id,
     submissionStatus: submission.status,
@@ -190,6 +196,7 @@ export async function evaluateSubmission(input: {
     declarationAcceptedAt: submission.participantDeclarationAcceptedAt,
     requireDeclaration: config.requireDeclaration,
     promptStatus: submission.prompt.status,
+    promptGateOpen: promptGate.isOpen,
     uploadWithinWindow: uploadOk,
     captureWithinWindow: null,
     captureFailOutsideWindow: false,
