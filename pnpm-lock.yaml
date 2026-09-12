@@ -207,6 +207,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/finance-control':
+        specifier: workspace:*
+        version: link:../../packages/finance-control
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
