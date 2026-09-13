@@ -9,6 +9,7 @@ import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/prof
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { formatMinorArs } from "@/lib/membership/money";
+import { recommendationBenefitPhrase } from "@/lib/membership/recommendation-labels";
 import { describeSeniority } from "@/lib/portal/identity";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
@@ -72,6 +73,10 @@ export default async function PortalPage() {
   const secciones = resolvePortalMenu(
     await getEnabledModuleKeysForWorkspace(context.workspace.id),
     { recommendationsEnabled: duesSettings.recommendationEnabled },
+  );
+  // El mismo item del menú, para no repetir en la portada la regla de cuándo se puede recomendar.
+  const recomendar = secciones.some(
+    (s) => s.href === "/portal/recomendados" && s.state === "DISPONIBLE",
   );
 
   return (
@@ -169,6 +174,32 @@ export default async function PortalPage() {
             </div>
           )}
 
+          {/*
+            Va pegado a las cuotas y no en el menú de abajo a propósito: el premio por recomendar
+            ES una cuota, así que se entiende leyéndolo justo después de lo que el socio debe. En
+            la lista de secciones era el último renglón de diez y nadie llegaba hasta ahí.
+
+            Solo se muestra cuando la sección está realmente disponible: los dos interruptores
+            —módulo de socios y beneficio resuelto por la comisión— ya los resolvió el menú, así
+            que se pregunta por él y no se vuelve a decidir acá.
+          */}
+          {recomendar ? (
+            <div className="space-y-2 rounded-lg border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-4">
+              <p className="text-sm font-medium">Recomendá a un fotógrafo amigo</p>
+              <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+                Por cada colega que se asocie a {institution} con tu enlace y pague su ingreso,
+                ganás {recommendationBenefitPhrase(duesSettings.recommendationBenefitPercent)}.
+                Sin tope: una por cada amigo que se suma.
+              </p>
+              <Link
+                href="/portal/recomendados"
+                className="fo-btn fo-btn-primary inline-flex text-sm"
+              >
+                Recomendar a un amigo
+              </Link>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap gap-2">
             <Link href="/portal/perfil" className="fo-btn fo-btn-secondary text-sm">
               Mi perfil profesional
@@ -209,20 +240,27 @@ export default async function PortalPage() {
         {/*
           El socio que todavía no tiene negocio se entera acá de que puede usar FotoOffice para
           administrarlo. La creación es siempre explícita: nunca ocurre por visitar una ruta.
+
+          Va al pie y en tono menor a propósito: es una posibilidad, no una tarea pendiente. Como
+          tarjeta competía en peso visual con las cuotas y el carnet, que sí son lo que el socio
+          viene a hacer.
         */}
         {!profiles.some((p) => p.kind === "TEAM") ? (
-          <section className="fo-card mt-6 space-y-3 p-5">
-            <h2 className="text-sm font-semibold">¿Tenés tu propio estudio?</h2>
-            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-              Además de tu acceso como socio, podés usar FotoOffice para administrar tu negocio
-              fotográfico. Se crea aparte de tu ficha de socio y lo manejás vos.
-            </p>
-            <form action={createOwnBusinessAction}>
-              <button type="submit" className="fo-btn fo-btn-secondary text-sm">
-                Crear mi negocio en FotoOffice
+          <footer className="mt-10 border-t border-[var(--fo-border)] pt-4">
+            <form
+              action={createOwnBusinessAction}
+              className="text-xs leading-relaxed text-[var(--fo-muted)]"
+            >
+              ¿Tenés tu propio estudio? Podés usar FotoOffice para administrar tu negocio
+              fotográfico, aparte de tu ficha de socio.{" "}
+              <button
+                type="submit"
+                className="underline underline-offset-2 hover:text-[var(--fo-text)]"
+              >
+                Crear mi negocio
               </button>
             </form>
-          </section>
+          </footer>
         ) : null}
       </main>
     </>

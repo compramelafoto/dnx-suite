@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PublicVideoDto } from "@/lib/videos/public-video-dto";
 import type { PublicEventVideoDto } from "@/lib/videos/public-event-videos";
 import PublicVideoPreviewModal from "./PublicVideoPreviewModal";
+import { addToVideoCart, readVideoCart } from "@/lib/videos/video-cart-storage";
 import {
   aspectClassForOrientation,
   devLogPublicVideoCard,
@@ -28,6 +29,8 @@ type Props = {
   videos: PublicVideoDto[];
   accentColor?: string;
   showEventAlbumContext?: boolean;
+  /** Sin álbum la grilla es sólo un visor, sin compra (por ejemplo en eventos). */
+  albumId?: number;
 };
 
 function VideoThumbnailPlaceholder() {
@@ -213,9 +216,30 @@ function PublicVideoCard({
 export default function PublicAlbumVideosGrid({
   videos,
   showEventAlbumContext = false,
+  albumId,
 }: Props) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [modalVideo, setModalVideo] = useState<PublicVideoDto | null>(null);
+  const [cart, setCart] = useState<number[]>([]);
+
+  // El carrito vive en sessionStorage, al lado del de fotos: lo que el cliente
+  // elige sobrevive hasta el resumen y se paga todo junto.
+  useEffect(() => {
+    if (albumId) setCart(readVideoCart(albumId));
+  }, [albumId]);
+
+  const handleAddToCart = useCallback(
+    (videoId: number) => {
+      if (!albumId) return;
+      setCart(addToVideoCart(albumId, videoId));
+    },
+    [albumId]
+  );
+
+  const handleGoToCheckout = useCallback(() => {
+    if (!albumId) return;
+    window.location.href = `/a/${albumId}/comprar/resumen`;
+  }, [albumId]);
 
   const handleHoverStart = useCallback((id: number) => {
     setHoveredId(id);
@@ -248,7 +272,30 @@ export default function PublicAlbumVideosGrid({
           />
         ))}
       </div>
-      <PublicVideoPreviewModal video={modalVideo} onClose={() => setModalVideo(null)} />
+      {albumId && cart.length > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#e5e7eb] bg-white px-4 py-3">
+          <p className="text-sm text-[#374151]">
+            {cart.length === 1
+              ? "1 video en tu carrito"
+              : `${cart.length} videos en tu carrito`}
+          </p>
+          <button
+            type="button"
+            onClick={handleGoToCheckout}
+            className="rounded-lg bg-[#111827] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#374151]"
+          >
+            Ir a pagar
+          </button>
+        </div>
+      ) : null}
+      <PublicVideoPreviewModal
+        video={modalVideo}
+        onClose={() => setModalVideo(null)}
+        albumId={albumId}
+        inCart={modalVideo ? cart.includes(modalVideo.id) : false}
+        onAddToCart={handleAddToCart}
+        onGoToCheckout={handleGoToCheckout}
+      />
     </>
   );
 }

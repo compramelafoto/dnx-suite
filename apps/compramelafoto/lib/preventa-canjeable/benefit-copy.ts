@@ -74,6 +74,9 @@ export function buildBenefitPublicShortLine(b: {
   if (b.selectionMode === "SINGLE_PHOTO") {
     return `${iq} ${iq === 1 ? "impresión" : "impresiones"} a elección`;
   }
+  if (product && b.selectionMode === "MULTI_PHOTO_FIXED") {
+    return `${iq}× ${product} (${rpc} fotos)`;
+  }
   if (b.selectionMode === "MULTI_PHOTO_FIXED") {
     return `${iq} ${iq === 1 ? "impresión" : "impresiones"} (${rpc} fotos c/u)`;
   }
@@ -86,9 +89,11 @@ export function buildBenefitListHeadline(b: {
   includedQuantity: number;
   selectionMode: BenefitSelectionMode;
   requiredPhotoCount: number;
+  photographerProductName?: string | null;
 }): string {
   const iq = b.includedQuantity;
   const rpc = b.requiredPhotoCount;
+  const product = b.photographerProductName?.trim();
   if (b.kind === "DIGITAL") {
     if (b.selectionMode === "SINGLE_PHOTO") {
       return `${iq} ${iq === 1 ? "foto digital" : "fotos digitales"}`;
@@ -98,8 +103,14 @@ export function buildBenefitListHeadline(b: {
     }
     return `${iq} ${iq === 1 ? "descarga digital" : "descargas digitales"} · elección flexible`;
   }
+  if (product && b.selectionMode === "SINGLE_PHOTO") {
+    return `${iq}× ${product}`;
+  }
   if (b.selectionMode === "SINGLE_PHOTO") {
     return `${iq} ${iq === 1 ? "impreso" : "impresos"}`;
+  }
+  if (product && b.selectionMode === "MULTI_PHOTO_FIXED") {
+    return `${iq}× ${product} · ${rpc} fotos c/u`;
   }
   if (b.selectionMode === "MULTI_PHOTO_FIXED") {
     return `${iq} ${iq === 1 ? "impresión" : "impresiones"} · ${rpc} fotos c/u`;

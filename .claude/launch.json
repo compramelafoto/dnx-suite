@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "subilafoto",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "subilafoto", "dev"],
+      "port": 3012
+    }
+  ]
+}

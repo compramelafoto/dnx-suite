@@ -277,6 +277,14 @@ export async function POST(req: Request) {
       }
 
       if (paymentInfo.status === "approved") {
+        // Videos del pedido. Un pedido puede tener fotos, videos o las dos
+        // cosas: el cliente paga una vez y descarga todo del mismo centro.
+        const videoItems = await prisma.videoOrderItem.findMany({
+          where: { orderId },
+          select: { videoId: true },
+        });
+        const purchasedVideoIds = videoItems.map((i) => i.videoId);
+
         const digitalItems = await prisma.orderItem.findMany({
           where: { orderId, productType: "DIGITAL" },
           select: { photoId: true },
@@ -320,7 +328,16 @@ export async function POST(req: Request) {
             digitalDelivery.downloadCenterUrl = links.downloadCenterUrl;
           }
 
-          if (photoIds.length === 1) {
+          // Un pedido de sólo videos no tiene zip que preparar: el centro de
+          // descargas ya quedó armado más arriba y cada video se baja solo.
+          if (photoIds.length === 0 && purchasedVideoIds.length > 0) {
+            digitalDelivery.isPreparing = false;
+            digitalDelivery.emailWhenReady = false;
+            console.info("[mp-confirm] pedido de videos listo para descargar", {
+              orderId,
+              videos: purchasedVideoIds.length,
+            });
+          } else if (photoIds.length === 1) {
             const singlePhotoId = photoIds[0];
             const existingTokens = await getOrderDownloadTokens(orderId);
             const existingPhotoToken = existingTokens.find(

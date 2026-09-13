@@ -1,0 +1,12 @@
+SUBÍ LA FOTO - KIT DE MARCA INICIAL
+
+Incluye versiones horizontal, vertical, isotipo, fondos claro/oscuro, monocromáticas, avatar y tamaños digitales.
+
+Marca visible: Subí la Foto
+Dominio: subilafoto.com
+Color principal: #7C2BFF
+Color de acción: #FFD51F
+Color profundo: #200638
+Tipografía recomendada: Montserrat
+
+Nota: los PNG se generaron a partir del isotipo aprobado. Antes de imprenta conviene vectorizar y ajustar ópticamente una versión maestra SVG/PDF.

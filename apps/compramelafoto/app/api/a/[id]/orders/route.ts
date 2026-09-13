@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
+import { loadCartVideos } from "@/lib/videos/create-video-order";
+import { quoteVideoCart } from "@/lib/videos/video-cart";
+import { addVideosToOrderTotals } from "@/lib/videos/mixed-order-totals";
 import { prisma } from "@/lib/prisma";
 import { CheckoutPaymentSource, OrderOrigin, Prisma } from "@prisma/client";
 import { computeCheckoutTotals } from "@/lib/pricing/pricing-engine";
@@ -333,6 +337,41 @@ export async function POST(
       orderV1Fields.checkoutPaymentSource = CheckoutPaymentSource.MERCADO_PAGO;
     }
 
+    // ── Videos en el mismo pedido ──────────────────────────────────────────
+    // El cliente elige fotos y videos juntos, paga una vez y lo descarga del
+    // mismo lugar. Por dentro viven en tablas separadas; desde afuera no se nota.
+    //
+    // Sin videoIds, todo lo que sigue devuelve los mismos números que antes:
+    // addVideosToOrderTotals tiene un test que lo garantiza.
+    const requestedVideoIds = Array.isArray(body?.videoIds)
+      ? body.videoIds
+          .map((n: unknown) => parseInt(String(n), 10))
+          .filter((n: number) => Number.isFinite(n) && n > 0)
+      : [];
+
+    let videoQuote: Awaited<ReturnType<typeof quoteVideoCart>> | null = null;
+    let videoFeePercent = 0;
+    if (requestedVideoIds.length > 0 && isVideoMvpEnabled()) {
+      videoFeePercent = await resolveClientMarketplaceFeePercent({
+        photographerId: album.userId,
+        labId: album.selectedLabId ?? null,
+      });
+      const cartVideos = await loadCartVideos(prisma, albumId, requestedVideoIds);
+      videoQuote = quoteVideoCart(cartVideos, videoFeePercent);
+      if (videoQuote.rejected.length > 0) {
+        console.warn("[order] videos rechazados en el carrito", {
+          albumId,
+          rejected: videoQuote.rejected,
+        });
+      }
+    }
+
+    const mixedTotals = addVideosToOrderTotals({
+      photoTotalArs: Math.round(totals.displayTotalCents),
+      photoMarketplaceFeeArs: Math.round(Number(totals.marketplaceFeeCents || 0)),
+      videoQuote,
+    });
+
     // Crear el pedido
     const baseData: any = {
       albumId,
@@ -340,7 +379,7 @@ export async function POST(
       buyerUserId: authUser?.id ?? null,
       buyerName: trimmedBuyerName,
       buyerPhone: rawBuyerPhone || null,
-      totalCents: Math.round(totals.displayTotalCents),
+      totalCents: mixedTotals.totalArs,
       status: "PENDING",
       items: {
         create: orderItemsData,
@@ -503,6 +542,35 @@ export async function POST(
       }
     }
 
+    // Las líneas de video del pedido. Si esto falla, el pedido de fotos ya está
+    // creado y sigue siendo válido: se avisa y no se cobran los videos.
+    if (videoQuote && videoQuote.items.length > 0) {
+      try {
+        await prisma.videoOrderItem.createMany({
+          data: videoQuote.items.map((item) => ({
+            orderId: order.id,
+            videoId: item.videoId,
+            priceArs: item.priceArs,
+            feeArs: item.feeArs,
+            subtotalArs: item.subtotalArs,
+            feePercent: item.feePercent,
+            videoTitle: item.videoTitle,
+          })),
+          skipDuplicates: true,
+        });
+        console.info("[order] videos agregados al pedido", {
+          orderId: order.id,
+          videos: videoQuote.items.length,
+          videoTotalArs: videoQuote.clientTotalArs,
+        });
+      } catch (videoErr: unknown) {
+        console.error("[order] no se pudieron agregar los videos al pedido", {
+          orderId: order.id,
+          error: videoErr instanceof Error ? videoErr.message : String(videoErr),
+        });
+      }
+    }
+
     // Si hay ítems impresos, crear un PrintOrder espejo para el flujo de impresión
     try {
       const printItems = totals.items
@@ -625,7 +693,17 @@ export async function POST(
         marketplaceFeePlatformOnlyPesos: marketplaceFeePlatformOnly,
         paymentCollectorType: mpCreds.collectorType,
       });
-      const marketplaceFee = checkoutSplit.marketplaceFeePesos;
+      // El fee de los videos se suma al del split de fotos: es el mismo 15% y
+      // viaja al mismo destino, pero el split de fotos no lo conoce.
+      //
+      // Sin videos queda EXACTAMENTE el valor que calculó el split de siempre:
+      // el tope sólo se aplica cuando efectivamente se sumó algo, para no
+      // cambiarle el comportamiento a un pedido de fotos en ningún caso borde.
+      const videoFeeArs = videoQuote ? Math.round(videoQuote.feeTotalArs) : 0;
+      const marketplaceFee =
+        videoFeeArs > 0
+          ? Math.min(checkoutSplit.marketplaceFeePesos + videoFeeArs, Math.round(order.totalCents))
+          : checkoutSplit.marketplaceFeePesos;
       const component = hasPrint ? "PRINT" : "DIGITAL";
 
       const { initPoint, preferenceId } = await createPreference(
