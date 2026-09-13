@@ -8,6 +8,7 @@ import { validarArchivo, claveDeArchivo } from "@/lib/archivo-subido";
 import { puedeSubirOtra } from "@/lib/sesion-invitado";
 import { almacenamiento, bucket } from "@/lib/almacenamiento";
 import { COOKIE_INVITADO, obtenerOCrearSesion } from "@/lib/invitado-cookie";
+import { yaAcepto } from "@/lib/consentimiento-db";
 import { OPCIONES_COOKIE } from "@/lib/sesion";
 
 export const runtime = "nodejs";
@@ -67,9 +68,27 @@ export async function POST(req: Request, ctx: { params: Promise<{ codigo: string
   }
 
   const almacenCookies = await cookies();
+  const tokenInvitado = almacenCookies.get(COOKIE_INVITADO)?.value ?? null;
+
+  /*
+    El consentimiento se verifica acá y no sólo en la puerta.
+    La puerta es una pantalla: cualquiera puede escribir /e/CODIGO/subir a mano o
+    llamar a esta ruta directamente. Si la aceptación no se controla del lado del
+    servidor, el registro que guardamos no prueba nada.
+  */
+  if (!(await yaAcepto({ eventoId: evento.id, token: tokenInvitado }))) {
+    return NextResponse.json(
+      {
+        error: "Antes de subir hay que aceptar las condiciones del evento.",
+        aceptarEn: `/e/${evento.code}`,
+      },
+      { status: 403 },
+    );
+  }
+
   const sesion = await obtenerOCrearSesion({
     eventoId: evento.id,
-    token: almacenCookies.get(COOKIE_INVITADO)?.value ?? null,
+    token: tokenInvitado,
   });
 
   const tope = puedeSubirOtra({

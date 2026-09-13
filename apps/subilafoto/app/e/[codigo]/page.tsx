@@ -1,8 +1,13 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
+import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
 import { resolverTema } from "@/lib/tema";
+import { COOKIE_INVITADO } from "@/lib/invitado-cookie";
+import { yaAcepto } from "@/lib/consentimiento-db";
+import { aceptarYEntrar } from "@/app/actions/consentimiento";
 
 /**
  * La puerta del invitado: lo que se ve al escanear el QR.
@@ -31,6 +36,7 @@ export default async function PuertaDelInvitado({ params }: Props) {
     // celular escriben en minúscula al tipearlo a mano.
     where: { code: codigo.toUpperCase() },
     select: {
+      id: true,
       name: true,
       hostsLabel: true,
       venueName: true,
@@ -48,6 +54,13 @@ export default async function PuertaDelInvitado({ params }: Props) {
   if (!evento) notFound();
 
   const acceso = estadoDeAcceso(evento, new Date());
+
+  // Si ya aceptó los términos en este evento, no se le vuelve a pedir.
+  const almacen = await cookies();
+  const acepto = await yaAcepto({
+    eventoId: evento.id,
+    token: almacen.get(COOKIE_INVITADO)?.value ?? null,
+  });
   // El tema sale del snapshot del evento. Si está vacío o corrupto, cae en la marca.
   const tema = resolverTema(evento.themeTokens);
   const hora = FORMATO_HORA(evento.timezone);
@@ -106,13 +119,57 @@ export default async function PuertaDelInvitado({ params }: Props) {
               : " Van a aparecer en la pantalla del evento."}
           </p>
 
-          <a
-            href={`/e/${codigo.toUpperCase()}/subir`}
-            className="mt-10 w-full max-w-sm rounded-2xl px-8 py-5 text-lg font-extrabold"
-            style={{ background: tema.acento, color: tema.textoSobreAcento }}
-          >
-            Subir mis fotos
-          </a>
+          {acepto ? (
+            <a
+              href={`/e/${codigo.toUpperCase()}/subir`}
+              className="mt-10 w-full max-w-sm rounded-2xl px-8 py-5 text-lg font-extrabold"
+              style={{ background: tema.acento, color: tema.textoSobreAcento }}
+            >
+              Subir mis fotos
+            </a>
+          ) : (
+            /*
+              El consentimiento no es un chequeo de casilla escondido: se le dice
+              en una frase qué está aceptando, y las dos cosas que de verdad
+              importan en un evento —que las fotos se revisan y que hace falta
+              permiso de quien aparece— van en el mismo párrafo, no en el enlace.
+            */
+            <form action={aceptarYEntrar} className="mt-10 w-full max-w-sm">
+              <input type="hidden" name="codigo" value={codigo.toUpperCase()} />
+
+              <p
+                className="text-left text-sm leading-relaxed"
+                style={{ color: tema.texto, opacity: 0.78 }}
+              >
+                Antes de empezar: cada foto se revisa automáticamente antes de
+                aparecer, y todo se borra a los 30 días. Si subís una foto donde
+                sale otra persona, tiene que estar de acuerdo.
+              </p>
+
+              <button
+                type="submit"
+                className="mt-6 w-full rounded-2xl px-8 py-5 text-lg font-extrabold"
+                style={{ background: tema.acento, color: tema.textoSobreAcento }}
+              >
+                Acepto y subo mis fotos
+              </button>
+
+              <p
+                className="mt-4 text-center text-xs leading-relaxed"
+                style={{ color: tema.texto, opacity: 0.62 }}
+              >
+                Al continuar aceptás los{" "}
+                <Link href="/terminos" className="underline underline-offset-2">
+                  términos
+                </Link>{" "}
+                y la{" "}
+                <Link href="/privacidad" className="underline underline-offset-2">
+                  política de privacidad
+                </Link>
+                .
+              </p>
+            </form>
+          )}
 
           {evento.deactivationAt ? (
             <p className="mt-6 text-sm" style={{ color: tema.texto, opacity: 0.78 }}>
