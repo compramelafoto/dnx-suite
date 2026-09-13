@@ -3,6 +3,7 @@ import {
   canCloseShift,
   canOpenShift,
   expectedAmountMinor,
+  parseOpeningAmountMinor,
   shiftDifferenceMinor,
 } from "./shift";
 
@@ -112,6 +113,36 @@ describe("canOpenShift", () => {
     expect(canOpenShift({ accountKind: "EFECTIVO", isVault: true, openShiftExists: false })).toEqual({
       ok: false,
       error: "La caja fuerte no se abre por jornada. Se cuenta con un arqueo cuando quieras.",
+    });
+  });
+});
+
+describe("parseOpeningAmountMinor", () => {
+  it("un importe bien escrito se interpreta normalmente", () => {
+    expect(parseOpeningAmountMinor("20.000,50")).toEqual({ ok: true, value: 2_000_050 });
+  });
+
+  it("vacío es un cero declarado a propósito, no un error", () => {
+    expect(parseOpeningAmountMinor("")).toEqual({ ok: true, value: 0 });
+  });
+
+  it("sólo espacios también cuenta como vacío", () => {
+    expect(parseOpeningAmountMinor("   ")).toEqual({ ok: true, value: 0 });
+  });
+
+  it("un texto que no es un importe se rechaza en vez de abrir en cero", () => {
+    // Antes de este arreglo, esto abría el turno en $0 en silencio y el cierre marcaba un
+    // faltante por todo el fondo inicial sin que nadie entendiera por qué.
+    expect(parseOpeningAmountMinor("abc")).toEqual({
+      ok: false,
+      error: "El importe de apertura no se entiende.",
+    });
+  });
+
+  it("un importe negativo también se rechaza", () => {
+    expect(parseOpeningAmountMinor("-500")).toEqual({
+      ok: false,
+      error: "El importe de apertura no se entiende.",
     });
   });
 });

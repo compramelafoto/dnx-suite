@@ -22,6 +22,10 @@ function fecha(d: Date) {
  * Un movimiento de otro módulo (`sourceModule !== "manual"`) nunca lleva botón de editar
  * —no existe esa acción en todo el módulo—, y acá tampoco se le esconde el de anular: el
  * dato de verdad vive en el módulo que lo originó, pero la anulación es pareja para todos.
+ *
+ * Una pata de un pase (`transferId` no nulo) SÍ se esconde: `buildReversal` la rechaza en el
+ * servidor igual, pero mostrar acá un botón que siempre va a fallar sólo confunde. La única
+ * forma correcta de deshacer un pase es el pase inverso, desde `/caja/pases`.
  */
 export function MovementsTable({
   movements,
@@ -95,7 +99,7 @@ export function MovementsTable({
               </td>
               {showReverseAction ? (
                 <td className="px-4 py-3">
-                  {m.isReversed ? null : (
+                  {m.isReversed || m.transferId ? null : (
                     <form action={reverseMovementAction} className="flex flex-wrap items-center gap-1">
                       <input type="hidden" name="movementId" value={m.id} />
                       <input

@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
 import { decimalArsToMinor, minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
 import { requireCashAdmin, requireCashStaff } from "@/lib/cash/access";
-import { canCloseShift, canOpenShift, expectedAmountMinor, shiftDifferenceMinor } from "@/lib/cash/shift";
+import {
+  canCloseShift,
+  canOpenShift,
+  expectedAmountMinor,
+  parseOpeningAmountMinor,
+  shiftDifferenceMinor,
+} from "@/lib/cash/shift";
 import { parseMovementForm } from "@/lib/cash/movement-form";
 import { buildReversal } from "@/lib/cash/reverse";
 import { accountBalanceMinor } from "@/lib/cash/balance";
@@ -31,7 +37,10 @@ const CONFIGURACION = "/caja/configuracion";
 export async function openShiftAction(formData: FormData): Promise<void> {
   const { workspace, user } = await requireCashStaff();
   const accountId = String(formData.get("accountId") ?? "").trim();
-  const openingMinor = parseArsToMinor(String(formData.get("openingAmountArs") ?? "")) ?? 0;
+
+  const apertura = parseOpeningAmountMinor(String(formData.get("openingAmountArs") ?? ""));
+  if (!apertura.ok) redirect(`/caja?error=${encodeURIComponent(apertura.error)}`);
+  const openingMinor = apertura.value;
 
   const cuenta = await prisma.cashAccount.findFirst({
     where: { id: accountId, workspaceId: workspace.id },
@@ -225,6 +234,7 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
       clientId: true,
       description: true,
       reversedBy: { select: { id: true } },
+      transferId: true,
     },
   });
   if (!original) redirect(`${MOVIMIENTOS}?error=${encodeURIComponent("Ese movimiento no existe.")}`);
@@ -240,6 +250,7 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
       clientId: original.clientId,
       description: original.description,
       alreadyReversed: original.reversedBy !== null,
+      transferId: original.transferId,
     },
     reason,
   );
@@ -269,6 +280,7 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
         sourceRef: v.sourceRef,
         reversesMovementId: v.reversesMovementId,
         reverseReason: v.reverseReason,
+        transferId: v.transferId,
         createdByUserId: user.id,
       },
     });

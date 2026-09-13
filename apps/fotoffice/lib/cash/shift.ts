@@ -1,3 +1,5 @@
+import { parseArsToMinor } from "@/lib/membership/money";
+
 /**
  * Las reglas del turno de caja. Módulo PURO: todo en centavos enteros.
  *
@@ -6,6 +8,26 @@
  */
 
 export type ShiftMovement = { kind: "INGRESO" | "EGRESO"; amountMinor: number };
+
+export type OpeningAmountResult = { ok: true; value: number } | { ok: false; error: string };
+
+/**
+ * El importe de apertura del turno.
+ *
+ * No es lo mismo "no escribió nada" que "escribió algo que no se entiende". Un campo vacío es
+ * un cero declarado a propósito —hay quien abre el turno sin poner nada en la caja todavía—,
+ * así que vale $0. Pero un texto que `parseArsToMinor` no puede interpretar no puede
+ * convertirse en cero en silencio: el arqueo del cierre arrancaría mal por el fondo inicial
+ * entero y nadie se enteraría hasta encontrar una diferencia que no cierra. Mismo criterio
+ * que ya aplica `closeShiftAction` con el importe contado, con el mismo parser.
+ */
+export function parseOpeningAmountMinor(raw: string): OpeningAmountResult {
+  const limpio = raw.trim();
+  if (limpio === "") return { ok: true, value: 0 };
+  const value = parseArsToMinor(limpio);
+  if (value === null) return { ok: false, error: "El importe de apertura no se entiende." };
+  return { ok: true, value };
+}
 
 /** Apertura + ingresos − egresos. */
 export function expectedAmountMinor(input: {
