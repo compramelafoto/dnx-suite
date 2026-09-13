@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireClientsStaff } from "@/lib/clients/access";
-import { getClient } from "@/lib/clients/repository";
+import { getClient, listMembersAvailableToLink } from "@/lib/clients/repository";
 import { clientDisplayName } from "@/lib/clients/display";
 import { ClientForm } from "../client-form";
+import { linkClientToMemberAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ export default async function ClientePage({
   const cliente = await getClient(workspace.id, clientId);
   if (!cliente) notFound();
 
+  const socios = await listMembersAvailableToLink(workspace.id, cliente.member?.id ?? null);
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -33,6 +36,39 @@ export default async function ClientePage({
       ) : null}
 
       <ClientForm client={cliente} error={query.error} />
+
+      <section className="fo-card space-y-4 p-5">
+        <h2 className="text-base font-semibold">¿Es socio?</h2>
+        <p className="text-sm text-[var(--fo-muted)]">
+          {cliente.member
+            ? `Esta ficha está enlazada con el socio N° ${cliente.member.memberNumber}.`
+            : "Si esta persona también es socio de la institución, elegilo acá para enlazar las dos fichas."}
+        </p>
+        <form action={linkClientToMemberAction} className="flex flex-wrap items-end gap-3">
+          <input type="hidden" name="clientId" value={cliente.id} />
+          <div className="fo-field-stack sm:max-w-xs">
+            <label className="fo-label" htmlFor="memberId">
+              Socio
+            </label>
+            <select
+              id="memberId"
+              name="memberId"
+              className="fo-input"
+              defaultValue={cliente.member?.id ?? ""}
+            >
+              <option value="">No es socio</option>
+              {socios.map((s) => (
+                <option key={s.id} value={s.id}>
+                  N° {s.memberNumber} — {s.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="fo-btn fo-btn-secondary text-sm">
+            Guardar enlace
+          </button>
+        </form>
+      </section>
 
       <section className="fo-card space-y-2 p-5">
         <h2 className="text-base font-semibold">Consumo</h2>

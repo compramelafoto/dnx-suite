@@ -61,3 +61,41 @@ export async function saveClientAction(formData: FormData): Promise<void> {
   revalidatePath(LISTA);
   redirect(`${LISTA}/${creadoId}?ok=1`);
 }
+
+/**
+ * Declarar que este cliente es además un socio de la institución.
+ *
+ * No lo decide el sistema: la pantalla lo *ofrece* cuando el contacto coincide con un socio,
+ * y una persona confirma. Emparejar automáticamente a dos homónimos y fusionarles el
+ * historial es un error que después no se puede deshacer.
+ */
+export async function linkClientToMemberAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireClientsStaff();
+  const clientId = String(formData.get("clientId") ?? "").trim();
+  const memberId = String(formData.get("memberId") ?? "").trim() || null;
+
+  const propio = await prisma.client.count({ where: { id: clientId, workspaceId: workspace.id } });
+  if (propio === 0) redirect(`${LISTA}?error=${encodeURIComponent("Ese cliente no existe.")}`);
+
+  if (memberId) {
+    const socioPropio = await prisma.member.count({
+      where: { id: memberId, workspaceId: workspace.id },
+    });
+    if (socioPropio === 0) {
+      redirect(`${LISTA}/${clientId}?error=${encodeURIComponent("Ese socio no existe.")}`);
+    }
+  }
+
+  try {
+    await prisma.client.update({ where: { id: clientId }, data: { memberId } });
+  } catch (e) {
+    // memberId es único: ese socio ya está enlazado a otra ficha de cliente.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      redirect(`${LISTA}/${clientId}?error=${encodeURIComponent("Ese socio ya está enlazado a otro cliente.")}`);
+    }
+    throw e;
+  }
+
+  revalidatePath(`${LISTA}/${clientId}`);
+  redirect(`${LISTA}/${clientId}?ok=1`);
+}

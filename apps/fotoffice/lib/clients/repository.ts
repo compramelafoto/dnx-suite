@@ -81,6 +81,38 @@ export async function getClient(workspaceId: string, clientId: string) {
   });
 }
 
+export type MemberOption = {
+  id: string;
+  memberNumber: string;
+  fullName: string;
+};
+
+/**
+ * Los socios elegibles para enlazar con un cliente: los que todavía no tienen ficha propia,
+ * más el que ya está enlazado a ESTE cliente (para que el selector lo muestre marcado).
+ * Un socio no puede quedar enlazado a dos clientes a la vez porque `memberId` es único.
+ */
+export async function listMembersAvailableToLink(
+  workspaceId: string,
+  currentMemberId: string | null,
+): Promise<MemberOption[]> {
+  const rows = await prisma.member.findMany({
+    where: {
+      workspaceId,
+      OR: [{ clientLink: null }, ...(currentMemberId ? [{ id: currentMemberId }] : [])],
+    },
+    select: { id: true, memberNumber: true, firstName: true, lastName: true },
+    orderBy: { memberNumber: "asc" },
+    take: 500,
+  });
+
+  return rows.map((m) => ({
+    id: m.id,
+    memberNumber: m.memberNumber,
+    fullName: `${m.lastName}, ${m.firstName}`.trim(),
+  }));
+}
+
 /** El último número usado en este workspace, para calcular el siguiente. */
 export async function lastClientNumber(workspaceId: string): Promise<number | null> {
   const row = await prisma.client.findFirst({
