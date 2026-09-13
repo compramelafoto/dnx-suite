@@ -177,7 +177,14 @@ export default function PublicMediaTabs({
             Fotos
           </button>
         ) : null}
-        <button type="button" className={tabBtnClass(tab === "videos")} onClick={() => setTab("videos")}>
+        {/* data-media-tab lo usa la búsqueda por selfie para traer al cliente
+            hasta acá cuando encuentra un video suyo. */}
+        <button
+          type="button"
+          data-media-tab="videos"
+          className={tabBtnClass(tab === "videos")}
+          onClick={() => setTab("videos")}
+        >
           Videos
           <span className="ml-1.5 text-xs font-normal opacity-80">({videos.length})</span>
         </button>
