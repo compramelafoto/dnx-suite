@@ -66,6 +66,20 @@ export default async function QrDelEvento({ params }: Props) {
         Los centros de mesa y los carteles para imprimir, con tu logo, se generan en el
         próximo paso.
       </p>
-    </main>
+    
+      <a
+        href={`/panel/eventos/${id}/impresos/centro-de-mesa`}
+        className="mt-10 inline-block rounded-xl px-6 py-4 font-extrabold"
+        style={{ background: "var(--slf-violeta)", color: "white" }}
+      >
+        Bajar el centro de mesa para imprimir
+      </a>
+
+      <p className="mt-4 max-w-[52ch] text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
+        Cuatro tarjetas por hoja A4, con tu logo, sangrado de 3 mm y marcas de corte.
+        Antes de armar el archivo el código se lee de vuelta: si no se pudiera escanear,
+        no se genera nada.
+      </p>
+</main>
   );
 }
