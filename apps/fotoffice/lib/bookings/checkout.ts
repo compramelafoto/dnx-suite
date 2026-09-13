@@ -12,6 +12,7 @@ import { pendingFeeDebtMinor, recordDischarge } from "@/lib/platform-fee/ledger"
 import { BOOKINGS_MODULE_KEY } from "./constants";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { BOOKINGS_TIME_ZONE } from "./time";
+import { depositBookingPayment } from "./cash-deposit";
 
 /**
  * Cobro de una reserva. Es el MISMO circuito que las cuotas: Checkout Pro con el token de
@@ -151,6 +152,11 @@ export async function creditBookingPayment(input: {
         totalArs: true,
         feeArs: true,
         feeBps: true,
+        memberId: true,
+        contactName: true,
+        contactEmail: true,
+        contactPhone: true,
+        space: { select: { name: true } },
       },
     });
     if (!reserva) return { applied: false, motivo: "la reserva no existe" };
@@ -160,13 +166,15 @@ export async function creditBookingPayment(input: {
       return { applied: false, motivo: "la reserva ya no está activa" };
     }
 
+    const pagadaAt = new Date();
+
     await tx.booking.update({
       where: { id: reserva.id },
       data: {
         status: "CONFIRMED",
         paymentStatus: "PAID",
         mpPaymentId: input.providerPaymentId,
-        paidAt: new Date(),
+        paidAt: pagadaAt,
         holdExpiresAt: null,
       },
     });
@@ -191,6 +199,21 @@ export async function creditBookingPayment(input: {
         note: `Deuda cobrada en la reserva ${reserva.id}`,
       });
     }
+
+    // Depositar el TOTAL cobrado, no la comisión: el dinero de Mercado Pago entra entero a la
+    // cuenta digital, la comisión ya se restó en el libro de comisiones, no en Caja.
+    await depositBookingPayment(tx, {
+      workspaceId: reserva.workspaceId,
+      bookingId: reserva.id,
+      memberId: reserva.memberId,
+      contactName: reserva.contactName,
+      contactEmail: reserva.contactEmail,
+      contactPhone: reserva.contactPhone,
+      spaceName: reserva.space.name,
+      amountMinor: decimalArsToMinor(reserva.totalArs),
+      occurredAt: pagadaAt,
+      paymentMethod: "MERCADO_PAGO",
+    });
 
     return { applied: true };
   });
