@@ -8,6 +8,8 @@ export type VendorForm = {
   billingCycle: string;
   paymentMethod: string | null;
   notes: string | null;
+  /** Si el proveedor sigue vigente. Por defecto `true` cuando no se informa. */
+  active: boolean;
   allocations: Array<{ platformKey: string; sharePercent: number }>;
 };
 
@@ -67,6 +69,10 @@ export function parseVendorForm(raw: unknown): VendorFormResult {
     return { ok: false, error: error instanceof Error ? error.message : "Reparto inválido." };
   }
 
+  // Si no viene el estado, el proveedor queda activo (comportamiento previo
+  // a que este campo se pudiera editar).
+  const active = datos.active === undefined ? true : Boolean(datos.active);
+
   return {
     ok: true,
     value: {
@@ -77,6 +83,7 @@ export function parseVendorForm(raw: unknown): VendorFormResult {
       billingCycle,
       paymentMethod: datos.paymentMethod ? String(datos.paymentMethod) : null,
       notes: datos.notes ? String(datos.notes) : null,
+      active,
       allocations: allocations.map((parte) => ({
         platformKey: String(parte.platformKey),
         sharePercent: Number(parte.sharePercent),

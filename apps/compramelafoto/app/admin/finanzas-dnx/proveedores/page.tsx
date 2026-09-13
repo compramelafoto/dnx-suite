@@ -51,6 +51,7 @@ type VendorFormState = {
   billingCycle: string;
   paymentMethod: string;
   notes: string;
+  active: boolean;
   shares: SharesState;
 };
 
@@ -63,6 +64,7 @@ function formVacio(): VendorFormState {
     billingCycle: "MENSUAL",
     paymentMethod: "",
     notes: "",
+    active: true,
     shares: sharesVacias(),
   };
 }
@@ -82,6 +84,7 @@ function formDesdeVendor(vendor: VendorJson): VendorFormState {
     billingCycle: vendor.billingCycle,
     paymentMethod: vendor.paymentMethod ?? "",
     notes: vendor.notes ?? "",
+    active: vendor.active,
     shares,
   };
 }
@@ -163,6 +166,7 @@ export default function FinanzasDnxProveedoresPage() {
       billingCycle: form.billingCycle,
       paymentMethod: form.paymentMethod.trim() || null,
       notes: form.notes.trim() || null,
+      active: form.active,
       allocations,
     };
 
@@ -340,6 +344,16 @@ export default function FinanzasDnxProveedoresPage() {
                 onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
                 placeholder="Ej: tarjeta terminada en 1234"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+              <Select
+                value={form.active ? "true" : "false"}
+                onChange={(e) => setForm({ ...form, active: e.target.value === "true" })}
+              >
+                <option value="true">Activo</option>
+                <option value="false">Inactivo</option>
+              </Select>
             </div>
           </div>
 
